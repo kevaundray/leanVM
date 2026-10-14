@@ -1047,6 +1047,7 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.AirLink.balance_part
 #print axioms LeanVMCircuits.Rec.AirLink.balance_of_inst
 #print axioms LeanVMCircuits.Rec.Bind.table_part
+#print axioms LeanVMCircuits.Rec.Bind.balance_named
 #print axioms LeanVMCircuits.Rec.Edges.tableParts_ok
 #print axioms LeanVMCircuits.Rec.Edges.checksGiveTable_of_parts
 #print axioms LeanVMCircuits.Rec.Edges.lateEvent_frac

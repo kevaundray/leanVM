@@ -13,7 +13,7 @@ The bus's balance and the table sumcheck as checks of `RecParts`.
 
 `bus::verify_balance` takes the bus GKR's leaf claims `v_s` at the point `ζ` and derives the totals `tot_s = fw_s + v_s`, `fw_s` the side's framework part; `TableArgument::verify` draws `ξ` and runs the table sumcheck of the claim `tot_0 + ξ tot_1`. Two checks of `RecParts` sit between the GKR's last layer and the opening.
 
-The balance (`AirLink.balance_part`): its inputs are the leaf claims, its output the table sumcheck's input claim, `tot_0 + ξ tot_1` being the batch's honest sum `tableSum` at the forms' honest sums. Where the framework parts are `framework` and the forms `sideForm` over the bus's blocks, and the GKR's leaf layer is those blocks (`totals_eq_formSums`), a true output makes the leaf claims true off the balance's event `balDraws`: the bus parts (the forms' sums less the totals) are nonzero, yet the batch claim holds. As a polynomial in `ξ` with a nonzero constant or linear coefficient the batch claim has at most `66 + 1` roots (`xi_roots_low`), so the event is at most `(66 + 1) / |E|` of the draws (`balDraws_card`) and of the outcomes when the draw is uniform after the totals (`balBad_frac`, the batch's lens).
+The balance (`AirLink.balance_part`): its inputs are the leaf claims, its output the table sumcheck's input claim, `tot_0 + ξ tot_1` being the batch's honest sum `tableSum` at the forms' honest sums. Where the framework parts are `framework` and the forms `sideForm` over the bus's blocks, and the GKR's leaf layer is those blocks (`totals_eq_formSums`), a true output makes the leaf claims true off the balance's event `balDraws`: the bus parts (the forms' sums less the totals) are nonzero, yet the batch claim holds. `Bind.balance_named` states it on the named certificates (`TableCert`, `GkrCert`): the GKR's two last next claims are the true leaf claims. As a polynomial in `ξ` with a nonzero constant or linear coefficient the batch claim has at most `66 + 1` roots (`xi_roots_low`), so the event is at most `(66 + 1) / |E|` of the draws (`balDraws_card`), of the outcomes when the draw is uniform after the totals (`balBad_frac`, the batch's lens) and of a run's oracles (`balRun_frac`).
 
 The table sumcheck (`Bind.table_part`): its input claim is its honest instance `tableInst`'s sum, its outputs the hints and the column claims, openings of the committed witness at `chi r`. Where its residual is certified term by term (`ResidCert.final_eq`) and its last side tested against zero, true outputs make the input true off its event `sumcheckFalse`, which `sumcheck_run_sound_at` bounds.
 
@@ -218,7 +218,8 @@ theorem table_part {c : Cert} {s : State} {cs : Array Call} {rl : Array Bool} {o
     (w : Witness) (ζ : Fin sc.rounds.length → E) (forms : Fin 2 → Table → Quad)
     (hζ : ∀ m : Fin sc.rounds.length, Model.ev (val ρ) (rc.zeta.getD m 0) = ζ m)
     (hτ : ∀ T ∈ owned, (rc.termOf T).tau = tauOf w T) (hforms : ∀ T ∈ owned, ∀ i, rc.formsV (val ρ) i T = forms i T)
-    (hchal : ∀ j : Fin sc.rounds.length, Model.ev (val ρ) (sc.rounds.getD j default).chal = readR (chalWords c.outs sc.chals) ρ j)
+    (hchal : ∀ j : Fin sc.rounds.length,
+      Model.ev (val ρ) (sc.rounds.getD j default).chal = readR (chalWords c.outs sc.chals) ρ j)
     (htest : ∀ a b, s.unions[sc.test]? = some (a, b) → val ρ a = val ρ b)
     (hzero : Model.ev (val ρ) sc.final = 0) (hhint : ∀ w ∈ sc.hints, Model.ev (val ρ) w = T' w)
     (hcol : ∀ T ∈ owned, ∀ c < nCols T, rc.colV (val ρ) T c =
@@ -230,6 +231,30 @@ theorem table_part {c : Cert} {s : State} {cs : Array Call} {rl : Array Bool} {o
   congr 1
   funext j
   exact hchal j
+
+/-- The balance on the named certificates: where the calls hold and the table sumcheck `tc` and its bus GKR `g` pass,
+the table sumcheck's input claim being its honest instance's sum makes the GKR's two last next claims the true leaf
+claims `V`, off the balance's draw event at the bus parts the forms' sums less the named totals, where the named
+framework shares plus `V` are the forms' sums (`totals_eq_formSums` with the framework shares `AirLink.framework`). -/
+theorem balance_named {tc : TableCert} {g : GkrCert} {scs : Array SumcheckCert} {tops : Array TopCert}
+    {odds : Array OddCert} {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+    (hF : Facts cs rl os st val) (htc : tc.okIn scs tops odds cs rl os = true)
+    (hg : g.okIn tc scs tops odds cs rl os = true) {sc : SumcheckCert} (hsc : scs[tc.sc]? = some sc) {n : ℕ}
+    {w : Witness} {ζ : Fin n → E} {forms : Fin 2 → Table → Quad} {a : (Fin n → E) → Fin 2 → E} {V : Fin 2 → E}
+    (htau : ∀ T ∈ owned, tauOf w T ≤ n)
+    (ha : a ζ = fun i => formSums w ζ forms i - Model.ev val (if i = 0 then tc.tot0 else tc.tot1))
+    (hdec : ∀ i, Model.ev val (if i = 0 then g.fw.1 else g.fw.2) + V i = formSums w ζ forms i)
+    (hin : Model.ev val sc.claim0 = (tableInst n w ζ forms (Model.ev val tc.xi)).sum)
+    (hx : (ζ, Model.ev val tc.xi) ∉ balDraws w a) :
+    ∃ v0 v1, LayerCert.chain scs cs rl os g.layers (g.start tops odds os).2.1 (g.start tops odds os).2.2 =
+      some [v0, v1] ∧ Model.ev val v0 = V 0 ∧ Model.ev val v1 = V 1 := by
+  obtain ⟨-, v0, v1, hch, e0, e1⟩ := GkrCert.sem hF hg
+  have hsum := (TableCert.claim_iff hF htc hsc _).mp hin
+  have hv := balance_of_inst (tot := fun i => Model.ev val (if i = 0 then tc.tot0 else tc.tot1))
+    (fw := fun i => Model.ev val (if i = 0 then g.fw.1 else g.fw.2))
+    (v := fun i => Model.ev val (if i = 0 then v0 else v1)) htau ha
+    (fun i => by fin_cases i <;> simp [e0, e1]) hdec (by simpa using hsum) hx
+  exact ⟨v0, v1, hch, by simpa using hv 0, by simpa using hv 1⟩
 
 end LeanVMCircuits.Rec.Bind
 
