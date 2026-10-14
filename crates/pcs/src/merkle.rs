@@ -78,7 +78,7 @@ impl MerkleHashing for Native {
 }
 
 impl MerkleHashing for Portable {
-    /// The digests [`LeafHasher`] gives, the image's whole zero blocks again one chaining value.
+    /// The digests `LeafHasher` gives, the image's whole zero blocks again one chaining value.
     fn hash_leaves(rows: &[u8], row_bytes: usize, leaf_bytes: usize) -> Vec<Hash> {
         if !leaf_bytes.is_multiple_of(BLOCK_LEN) {
             let mut image = vec![0u8; leaf_bytes];
