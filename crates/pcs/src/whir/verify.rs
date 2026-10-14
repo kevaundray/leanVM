@@ -591,17 +591,15 @@ impl<V: OpeningVerifier> WhirReplay<V> {
 
         // Batch the OOD claims, then the query batch, each at the next power of the level's challenge.
         let ris_start = self.ris.len();
-        let mut scalar = v.one();
-        for ood in oods {
-            scalar = v.mul(scalar, lambda);
-            self.quad = self.quad.fold(v, ood.intro, scalar);
-            self.t_r = v.mul_add(scalar, ood.y, self.t_r);
-            self.oods.push(OodCtx {
-                z: ood.z,
-                ris_start,
-                beta: scalar,
-            });
-        }
+        let mut scalar = batch_oods(
+            v,
+            oods,
+            lambda,
+            ris_start,
+            &mut self.quad,
+            &mut self.t_r,
+            &mut self.oods,
+        );
         scalar = v.mul(scalar, lambda);
         self.quad = self.quad.fold(v, intro, scalar);
         self.t_r = v.mul_add(scalar, sum, self.t_r);
@@ -738,6 +736,33 @@ impl<K: Copy> BaseRows<K> {
         }
         acc
     }
+}
+
+/// Batch the OOD claims in order, each at the next power of `lambda`: fold its intro round into `quad` and its value into `t_r`, and record its context.
+///
+/// Returns the last power taken, one when there is no claim.
+/// It needs only arithmetic, so it is generic over `Arith`, and the loop runs under no borrow of the replay.
+fn batch_oods<E: Copy, A: Arith<E = E>>(
+    a: &mut A,
+    oods: Vec<Ood<E>>,
+    lambda: E,
+    ris_start: usize,
+    quad: &mut RoundQuad<E>,
+    t_r: &mut E,
+    ctxs: &mut Vec<OodCtx<E>>,
+) -> E {
+    let mut scalar = a.one();
+    for ood in oods {
+        scalar = a.mul(scalar, lambda);
+        *quad = quad.fold(a, ood.intro, scalar);
+        *t_r = a.mul_add(scalar, ood.y, *t_r);
+        ctxs.push(OodCtx {
+            z: ood.z,
+            ris_start,
+            beta: scalar,
+        });
+    }
+    scalar
 }
 
 /// `start + sum_j eq_j k_j` over the common length, one `mul_k_add` per term in order.
