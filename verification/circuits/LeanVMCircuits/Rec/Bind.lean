@@ -776,7 +776,7 @@ def QuadCert.inner : QuadCert → ℕ × ℕ
     | .recv cl .. => (s, cl)
     | _ => q.inner
 
-/-- `Quad::eval` making `w`: `mul_add(mul_add(a, x, b), x, c)`, its calls, `x` and the coefficients. -/
+/-- `RoundQuad::eval` making `w`: `mul_add(mul_add(a, x, b), x, c)`, its calls, `x` and the coefficients. -/
 def quadEvalOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) :
     Option (ℕ × ℕ × ℕ × ℕ × ℕ × ℕ) := do
   let (tAt, u, x, c) ← makerBy rp idx w fun j call => match call with
@@ -807,7 +807,7 @@ def pexprOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (bound : 
         | .mulConstAdd a c0 c1 c2 d => do return .mulConstAdd j c0 c1 c2 (← go a) (← go d)
         | _ => none
 
-/-- The WHIR sumcheck a test closes: one side a `Quad::eval`, back through fold rounds and the batch rounds before
+/-- The WHIR sumcheck a test closes: one side a `RoundQuad::eval`, back through fold rounds and the batch rounds before
 folded quadratics to the first quadratic's claim, in the transcript drawing the last round's challenge. A batch
 round's expression treats as atoms the wires the transcript's random-oracle view binds by `λ`'s time with the words
 squeezed with `λ` but its own (its query positions) as seeds: the transcript's seeds up to `λ`'s last squeeze but

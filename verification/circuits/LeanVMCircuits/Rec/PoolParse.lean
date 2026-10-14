@@ -5,7 +5,7 @@ public import LeanVMCircuits.Rec.Ext
 @[expose] public section
 
 /-!
-Parse uniqueness of a union's pool (`rec::tree::union::pool_rows`), on the values its rows give an assignment.
+Parse uniqueness of a union's pool (`rec::tree::union::PoolShape::rows`), on the values its rows give an assignment.
 
 A pool is `n` items, each one compression: its row's input ports are the counter and finalization words, the
 chaining value's four words and the block's eight, its output ports the next chaining value. Some items start a run

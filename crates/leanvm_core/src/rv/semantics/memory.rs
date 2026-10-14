@@ -405,7 +405,9 @@ mod tests {
         EDGES, Ports, circuit_matches_reference, edge_word, grid, run, word_witness_is_the_walk,
     };
     use fiat_shamir::{ProverState, SessionId, VerifierState};
-    use flock::reduction::{self, Instance};
+    use flock::BatchRows;
+    use flock::reduction;
+    use flock::test_util::Witness;
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -564,15 +566,16 @@ mod tests {
             let block = circuit.block();
             let n_log = 6;
             let accepts = |tamper: Option<usize>| {
-                let mut witness = circuit.witness_by_instance(rows, &rows[0], n_log, |row, z, az, bz| {
-                    native(row, z, az, bz);
-                });
+                let mut witness =
+                    Witness::by_instance(circuit, BatchRows::new(rows, &rows[0], n_log), |row, z, az, bz| {
+                        native(row, z, az, bz);
+                    });
                 if let Some(bit) = tamper {
                     witness.z[bit / 64] ^= 1 << (bit % 64);
                 }
                 let label = b"clean-memory-native-witness";
                 let mut ps = ProverState::new(&SessionId::new(label), &0u64);
-                let claims = reduction::prove(&[Instance::of(block, n_log, &witness)], &mut ps);
+                let claims = reduction::prove(&[witness.instance(block, n_log)], &mut ps);
                 let proof = ps.into_proof();
                 let mut vs = VerifierState::new(&SessionId::new(label), &0u64, &proof);
                 reduction::verify(&[(block.shape(), n_log)], &mut vs)

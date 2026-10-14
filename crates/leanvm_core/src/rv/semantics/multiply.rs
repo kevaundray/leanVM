@@ -260,7 +260,9 @@ mod tests {
     use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word};
     use crate::tables::spec::InstanceWitness;
     use fiat_shamir::{ProverState, SessionId, VerifierState};
-    use flock::reduction::{self, Instance};
+    use flock::BatchRows;
+    use flock::reduction;
+    use flock::test_util::Witness;
     use primitives::test_util::Rng;
     use proptest::prelude::*;
     use proptest::sample::select;
@@ -328,13 +330,15 @@ mod tests {
     fn proves(circuit: &Circuit, rows: &[[u64; 3]], witness: NativeWitness, tamper: Option<usize>) -> bool {
         let block = circuit.block();
         let n_log = rows.len().trailing_zeros() as usize;
-        let mut w = circuit.witness_by_instance(rows, &rows[0], n_log, |row, z, az, bz| witness(row, z, az, bz));
+        let mut w = Witness::by_instance(circuit, BatchRows::new(rows, &rows[0], n_log), |row, z, az, bz| {
+            witness(row, z, az, bz);
+        });
         if let Some(bit) = tamper {
             w.z[bit / 64] ^= 1 << (bit % 64);
         }
         let label = b"clean-multiplication-native-witness";
         let mut ps = ProverState::new(&SessionId::new(label), &0u64);
-        let claims = reduction::prove(&[Instance::of(block, n_log, &w)], &mut ps);
+        let claims = reduction::prove(&[w.instance(block, n_log)], &mut ps);
         let proof = ps.into_proof();
         let mut vs = VerifierState::new(&SessionId::new(label), &0u64, &proof);
         reduction::verify(&[(block.shape(), n_log)], &mut vs)
@@ -400,8 +404,9 @@ mod tests {
                 let padding = [u64::MAX, 1 << 63, flag];
 
                 // Exact equality checks the committed bits and both factors.
-                let walk = circuit.witness_by_walk(&rows, &padding, 8, |row, words| words.copy_from_slice(row));
-                let native = circuit.witness_by_instance(&rows, &padding, 8, |row, z, az, bz| witness(row, z, az, bz));
+                let rows = BatchRows::new(&rows, &padding, 8);
+                let walk = Witness::by_walk(&circuit, rows, |row, words| words.copy_from_slice(row));
+                let native = Witness::by_instance(&circuit, rows, |row, z, az, bz| witness(row, z, az, bz));
                 assert_eq!(native.z, walk.z, "committed bits, flags {flag}");
                 assert_eq!(native.az, walk.az, "left factors, flags {flag}");
                 assert_eq!(native.bz, walk.bz, "right factors, flags {flag}");
@@ -421,8 +426,9 @@ mod tests {
         rows.extend((0..151).map(|i| [rng.next_u64(), rng.next_u64(), i & 1]));
         let padding = [u64::MAX, 1 << 63, 1];
         let circuit = Mul::circuit();
-        let generic = circuit.witness_by_walk(&rows, &padding, 8, |row, words| words.copy_from_slice(row));
-        let batched = circuit.witness_by_batch8(&rows, &padding, 8, |rows, z, az, bz| {
+        let rows = BatchRows::new(&rows, &padding, 8);
+        let generic = Witness::by_walk(&circuit, rows, |row, words| words.copy_from_slice(row));
+        let batched = Witness::by_batch8(&circuit, rows, |rows, z, az, bz| {
             // Padding occupies incomplete groups as well as complete trailing groups.
             let inputs = rows.map(|row| row.as_slice());
             Mul::witness_batch(&inputs, z, az, bz);

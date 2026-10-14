@@ -26,8 +26,9 @@
 //! The naive fold-then-sum routes cross-check every kernel in the tests.
 
 use std::mem::MaybeUninit;
+use std::ops::{Add, Mul};
 
-use parallel::Chunks;
+use parallel::ChunkView;
 use primitives::bit_fold::{BLOCK, BitFold};
 use primitives::field::{F192, F192Unreduced};
 use primitives::multilinear::{SplitEq, eq_table};
@@ -35,6 +36,7 @@ use primitives::stream::Stream;
 
 use super::Padding;
 use super::round1::EQ_HIGH_VARS;
+use crate::round::RoundEvals;
 
 /// Most eq variables in the per-task half of a bit pass's split eq table.
 ///
@@ -57,7 +59,7 @@ const MIN_EQ_LO_VARS: usize = (BLOCK / 4).trailing_zeros() as usize;
 fn mul_quad(a: (F192, F192, F192, F192), b: (F192, F192, F192, F192)) -> (F192, F192, F192, F192) {
     #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     {
-        let r = primitives::field::mul4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
+        let r = F192::mul4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
         (r[0], r[1], r[2], r[3])
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
@@ -72,7 +74,7 @@ fn mul_quad_unreduced(
 ) -> (F192Unreduced, F192Unreduced, F192Unreduced, F192Unreduced) {
     #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     {
-        let r = primitives::field::mul_unreduced4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
+        let r = F192::mul_unreduced4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
         (r[0], r[1], r[2], r[3])
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
@@ -90,9 +92,9 @@ fn mul_quad_unreduced(
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PackedWitness<'a> {
     /// The `A z` bits.
-    pub a: &'a [u8],
+    pub(crate) a: &'a [u8],
     /// The `B z` bits.
-    pub b: &'a [u8],
+    pub(crate) b: &'a [u8],
 }
 
 impl<'a> PackedWitness<'a> {
@@ -217,8 +219,8 @@ impl LiveGroups {
 /// Its polynomial is quadratic in that `rho`, so one pass stores its three coefficients per evaluation point.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct RoundPair {
-    /// Round `t`'s `(G(1), G(inf))`.
-    pub first: (F192, F192),
+    /// Round `t`.
+    pub(crate) first: RoundEvals,
     /// Round `t + 1` at `Y = 1` and `Y = inf`, each as `[S_0, S_1, S_2]`.
     ///
     /// ```text
@@ -228,23 +230,57 @@ pub(crate) struct RoundPair {
 }
 
 impl RoundPair {
-    /// Round `t + 1`'s `(G(1), G(inf))`, once round `t`'s challenge `rho` is known.
-    pub(crate) fn second(&self, rho: F192) -> (F192, F192) {
-        let [one, inf] = self
+    /// Round `t + 1`, once round `t`'s challenge `rho` is known.
+    pub(crate) fn second(&self, rho: F192) -> RoundEvals {
+        let [at_one, at_inf] = self
             .second
             .map(|[s0, s1, s2]| s0 + rho * (s0 + s1) + rho * (F192::ONE + rho) * s2);
-        (one, inf)
+        RoundEvals { at_one, at_inf }
     }
 
     /// Both rounds from the eq-weighted sums of the quad terms, `r_v` the eq challenge of the second round's variable.
-    fn from_sums(sums: [F192; 8], r_v: F192) -> Self {
+    fn from_sums(PairSums(sums): PairSums, r_v: F192) -> Self {
         // Slots 0, 1 hold round t's G(1) at v = 0, 1, and slots 2, 3 its G(inf).
         // Round t + 1 reads slots 4, 1, 3 at Y = 1 and 5, 6, 7 at Y = inf.
         let split_v = |v0: F192, v1: F192| v0 + r_v * (v0 + v1);
         Self {
-            first: (split_v(sums[0], sums[1]), split_v(sums[2], sums[3])),
+            first: RoundEvals {
+                at_one: split_v(sums[0], sums[1]),
+                at_inf: split_v(sums[2], sums[3]),
+            },
             second: [[sums[4], sums[1], sums[3]], [sums[5], sums[6], sums[7]]],
         }
+    }
+}
+
+/// The eight eq-weighted sums of quad terms a two-round pass reads both its rounds from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct PairSums([F192; 8]);
+
+impl PairSums {
+    /// The sums of a pass with no quad.
+    const ZERO: Self = Self([F192::ZERO; 8]);
+
+    /// One task's sums: its unreduced accumulators reduced, at the task's high eq weight.
+    #[inline]
+    fn of_task(acc: [F192Unreduced; 8], eq_hi: F192) -> Self {
+        Self(acc.map(|s| eq_hi * s.reduce()))
+    }
+}
+
+impl Add for PairSums {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self(std::array::from_fn(|i| self.0[i] + rhs.0[i]))
+    }
+}
+
+impl Mul<F192> for PairSums {
+    type Output = Self;
+
+    fn mul(self, weight: F192) -> Self {
+        Self(self.0.map(|s| weight * s))
     }
 }
 
@@ -307,16 +343,7 @@ fn add_quad(acc: &mut [F192Unreduced; 8], eq: F192, [lo, hi]: [(F192, F192, F192
 ///
 /// The linear `c` term reaches `G(1)` only.
 pub(crate) fn bit_pass(bits: PackedWitness<'_>, fold: &BitFold, r_eq: &[F192], padding: &Padding) -> RoundPair {
-    // A position at level `t` is `8 * 2^t` bytes: one kernel per row width, its loops fully unrolled.
-    let sums = match fold.n_chunks() {
-        8 => bit_pass_kernel::<8>(bits, fold, r_eq, padding, None),
-        16 => bit_pass_kernel::<16>(bits, fold, r_eq, padding, None),
-        32 => bit_pass_kernel::<32>(bits, fold, r_eq, padding, None),
-        64 => bit_pass_kernel::<64>(bits, fold, r_eq, padding, None),
-        128 => bit_pass_kernel::<128>(bits, fold, r_eq, padding, None),
-        n => panic!("no bit pass for {n}-byte rows"),
-    };
-    RoundPair::from_sums(sums, r_eq[0])
+    RoundPair::from_sums(bit_pass_sums(bits, fold, r_eq, padding, None), r_eq[0])
 }
 
 /// The same two rounds, also storing the level-`t` folded `(a, b, c)` tables for the passes that follow.
@@ -329,18 +356,30 @@ pub(crate) fn bit_pass_storing(
     // Every slot is written by the kernel, padding and tail included, so the tables start uninitialized.
     let n_pos = bits.a.len() / fold.n_chunks();
     let mut out: [Box<[MaybeUninit<F192>]>; 3] = std::array::from_fn(|_| Box::new_uninit_slice(n_pos));
-    let outs = Some(out.each_mut().map(|o| &mut o[..]));
-    let sums = match fold.n_chunks() {
-        8 => bit_pass_kernel::<8>(bits, fold, r_eq, padding, outs),
-        16 => bit_pass_kernel::<16>(bits, fold, r_eq, padding, outs),
-        32 => bit_pass_kernel::<32>(bits, fold, r_eq, padding, outs),
-        64 => bit_pass_kernel::<64>(bits, fold, r_eq, padding, outs),
-        128 => bit_pass_kernel::<128>(bits, fold, r_eq, padding, outs),
-        n => panic!("no bit pass for {n}-byte rows"),
-    };
+    let sums = bit_pass_sums(bits, fold, r_eq, padding, Some(out.each_mut().map(|o| &mut o[..])));
     // SAFETY: the kernel writes every slot, padding and tail included.
     let tables = out.map(|o| unsafe { o.assume_init() }.into_vec());
     (RoundPair::from_sums(sums, r_eq[0]), tables)
+}
+
+/// The bit pass's eight sums, by the kernel for the fold's row width.
+///
+/// A position at level `t` is `8 * 2^t` bytes: one kernel per row width, its loops fully unrolled.
+fn bit_pass_sums(
+    bits: PackedWitness<'_>,
+    fold: &BitFold,
+    r_eq: &[F192],
+    padding: &Padding,
+    out: Option<[&mut [MaybeUninit<F192>]; 3]>,
+) -> PairSums {
+    match fold.n_chunks() {
+        8 => bit_pass_kernel::<8>(bits, fold, r_eq, padding, out),
+        16 => bit_pass_kernel::<16>(bits, fold, r_eq, padding, out),
+        32 => bit_pass_kernel::<32>(bits, fold, r_eq, padding, out),
+        64 => bit_pass_kernel::<64>(bits, fold, r_eq, padding, out),
+        128 => bit_pass_kernel::<128>(bits, fold, r_eq, padding, out),
+        n => panic!("no bit pass for {n}-byte rows"),
+    }
 }
 
 /// The two-round pass over rows of `CHUNKS` bytes: the eight sums the pair is read from.
@@ -354,7 +393,7 @@ fn bit_pass_kernel<const CHUNKS: usize>(
     r_eq: &[F192],
     padding: &Padding,
     mut out: Option<[&mut [MaybeUninit<F192>]; 3]>,
-) -> [F192; 8] {
+) -> PairSums {
     let rows = bits.rows::<CHUNKS>();
     let n_quads = rows[0].len() / 4;
     assert!(n_quads >= 1, "two rounds need four positions");
@@ -395,11 +434,13 @@ fn bit_pass_kernel<const CHUNKS: usize>(
     let eq_planes = (out.is_none() && lo_size >= BLOCK / 4).then(|| planar::planes(&eq_lo));
 
     // One task per high eq index: `lo_size` quads, `4 * lo_size` outputs of each table.
-    let chunks = out.as_mut().map(|o| o.each_mut().map(|o| Chunks::new(o, 4 * lo_size)));
+    let chunks = out
+        .as_mut()
+        .map(|o| o.each_mut().map(|o| ChunkView::new(o, 4 * lo_size)));
 
     let mut sums = parallel::map_reduce(
         head_quads.div_ceil(lo_size),
-        || [F192::ZERO; 8],
+        || PairSums::ZERO,
         |hi| {
             #[cfg(all(
                 target_arch = "x86_64",
@@ -412,7 +453,7 @@ fn bit_pass_kernel<const CHUNKS: usize>(
             if let Some(eq_planes) = &eq_planes {
                 // SAFETY: the target features are enabled at compile time.
                 let acc = unsafe { planar::quad_sums(fold, rows, hi * lo_size, eq_planes, is_live) };
-                return acc.map(|s| eq_hi[hi] * s.reduce());
+                return PairSums::of_task(acc, eq_hi[hi]);
             }
             // SAFETY: task `hi` takes chunk `hi` of each output once, and the buffers outlive the dispatch.
             let mut outs = chunks.as_ref().map(|c| c.each_ref().map(|c| unsafe { c.get(hi) }));
@@ -453,9 +494,9 @@ fn bit_pass_kernel<const CHUNKS: usize>(
                     }
                 }
             }
-            acc.map(|s| eq_hi[hi] * s.reduce())
+            PairSums::of_task(acc, eq_hi[hi])
         },
-        |x, y| std::array::from_fn(|i| x[i] + y[i]),
+        |x, y| x + y,
     );
 
     if let Some(tail) = tail {
@@ -469,9 +510,7 @@ fn bit_pass_kernel<const CHUNKS: usize>(
             out.as_mut()
                 .map(|o| o.each_mut().map(|o| &mut o[4 * n_quads - group_len..])),
         );
-        for (s, g) in sums.iter_mut().zip(group_sums) {
-            *s += tail.weight * g;
-        }
+        sums = sums + group_sums * tail.weight;
         if let Some(out) = out {
             copy_group(out, 4 * head_quads, group_len);
         }
@@ -479,7 +518,7 @@ fn bit_pass_kernel<const CHUNKS: usize>(
     sums
 }
 
-/// One round straight from the folded tables, `(G(1), G(inf))`, for the small tables at the end.
+/// One round straight from the folded tables, for the small tables at the end.
 ///
 /// Positions `2x` and `2x + 1` pair up as the round's `X = 0` and `X = 1`, and `r_eq` weights the pairs:
 ///
@@ -487,7 +526,7 @@ fn bit_pass_kernel<const CHUNKS: usize>(
 ///     G(1)   = sum_x eq(r_eq, x) * (a_1 b_1 + c_1)
 ///     G(inf) = sum_x eq(r_eq, x) * (a_0 + a_1)(b_0 + b_1)        the leading coefficient, in characteristic 2
 /// ```
-pub(crate) fn single_round([a, b, c]: [&[F192]; 3], r_eq: &[F192]) -> (F192, F192) {
+pub(crate) fn single_round([a, b, c]: [&[F192]; 3], r_eq: &[F192]) -> RoundEvals {
     let n = a.len();
     assert!(n.is_power_of_two() && n >= 2);
     assert!(b.len() == n && c.len() == n, "a, b, c have one length");
@@ -500,22 +539,10 @@ pub(crate) fn single_round([a, b, c]: [&[F192]; 3], r_eq: &[F192]) -> (F192, F19
         g1 += e * (a1 * b1 + c1);
         g_inf += e * (a0 + a1) * (b0 + b1);
     }
-    (g1, g_inf)
-}
-
-/// Bind a table's low variable at `chi`, in place: `v[x] = v[2x] + chi (v[2x] + v[2x + 1])`, halving it.
-pub(crate) fn bind_low(v: &mut Vec<F192>, chi: F192) {
-    let half = v.len() / 2;
-    assert!(
-        v.len() == 2 * half && half.is_power_of_two(),
-        "a table of at least two, a power of two"
-    );
-    // Slot `x` is written after slots `2x` and `2x + 1` are read, so the bind runs in place.
-    for x in 0..half {
-        let (v0, v1) = (v[2 * x], v[2 * x + 1]);
-        v[x] = v0 + chi * (v0 + v1);
+    RoundEvals {
+        at_one: g1,
+        at_inf: g_inf,
     }
-    v.truncate(half);
 }
 
 /// Rounds `t` and `t + 1` from the stored tables, folding the challenges still pending on them first.
@@ -558,7 +585,7 @@ fn table_pass_kernel<const K: usize>(
     r_eq: &[F192],
     padding: &Padding,
     out_log: usize,
-) -> [F192; 8] {
+) -> PairSums {
     let n_out = ins[0].len() >> K;
     assert!(ins.iter().all(|t| t.len() == n_out << K), "a, b, c have one length");
     assert!(
@@ -586,7 +613,7 @@ fn table_pass_kernel<const K: usize>(
 
     // One task per high eq index: `lo_size` quads, `4 * lo_size` outputs of each table.
     let (chunk_in, chunk_out) = ((4 * lo_size) << K, 4 * lo_size);
-    let chunks = outs.each_mut().map(|o| Chunks::new(o, chunk_out));
+    let chunks = outs.each_mut().map(|o| ChunkView::new(o, chunk_out));
 
     // The weights of the composed fold, `rho_0`, `rho_1` and `rho_0 rho_1`, one per lane.
     let splat = |w: F192| (w, w, w, w);
@@ -615,7 +642,7 @@ fn table_pass_kernel<const K: usize>(
 
     let mut sums = parallel::map_reduce(
         head_quads.div_ceil(lo_size),
-        || [F192::ZERO; 8],
+        || PairSums::ZERO,
         |hi| {
             // SAFETY: task `hi` takes chunk `hi` of each output once, and the buffers outlive the dispatch.
             let mut outs = chunks.each_ref().map(|c| unsafe { c.get(hi) });
@@ -645,9 +672,9 @@ fn table_pass_kernel<const K: usize>(
                     }
                 }
             }
-            acc.map(|s| eq_hi[hi] * s.reduce())
+            PairSums::of_task(acc, eq_hi[hi])
         },
-        |x, y| std::array::from_fn(|i| x[i] + y[i]),
+        |x, y| x + y,
     );
 
     if let Some(tail) = tail {
@@ -662,9 +689,7 @@ fn table_pass_kernel<const K: usize>(
             &padding.without_tail(),
             out_log,
         );
-        for (s, g) in sums.iter_mut().zip(group_sums) {
-            *s += tail.weight * g;
-        }
+        sums = sums + group_sums * tail.weight;
         copy_group(outs, head_quads * 4, group_len);
     }
     sums
@@ -707,8 +732,8 @@ mod planar {
     use core::arch::x86_64::__m512i;
 
     use primitives::bit_fold::{BLOCK, BitFold};
-    use primitives::field::gf2_64x3::x86_64::{F192x8, F192x8Sum};
     use primitives::field::{F192, F192Unreduced};
+    use primitives::field::{F192x8, F192x8Sum};
 
     /// The eq table, eight consecutive weights a packing, one register per coefficient.
     pub(super) fn planes(values: &[F192]) -> Vec<F192x8> {
@@ -796,29 +821,15 @@ mod planar {
 
 #[cfg(test)]
 mod tests {
-    use primitives::multilinear::skip_lagrange_weights;
+    use super::*;
+    use crate::zerocheck::padding::tests::dense;
+    use crate::zerocheck::round1::tests::pack_bits;
+    use crate::zerocheck::tests::{fold_at_z, honest};
+    use crate::zerocheck::{K_SKIP, SkipDomain};
+    use primitives::multilinear::fold_low_inplace;
     use primitives::test_util::Rng;
 
-    use super::*;
-    use crate::zerocheck::round1::tests::pack_bits;
-
-    const K_SKIP: usize = crate::zerocheck::K_SKIP;
-
-    /// The bits of a cube folded at `z` over the skip: one value per position past it.
-    fn fold_at_z(bits: &[bool], lagrange: &[F192]) -> Vec<F192> {
-        (bits.chunks(1 << K_SKIP))
-            .map(|row| (row.iter().zip(lagrange)).fold(F192::ZERO, |acc, (&bit, &w)| if bit { acc + w } else { acc }))
-            .collect()
-    }
-
-    /// A random honest witness over `2^m` bits, `c = a AND b`: the bits, then `a` and `b` packed.
-    fn random_witness(rng: &mut Rng, m: usize) -> ([Vec<bool>; 3], [Vec<u8>; 2]) {
-        let (a, b) = (rng.bits(1 << m), rng.bits(1 << m));
-        let c = a.iter().zip(&b).map(|(x, y)| x & y).collect();
-        let packed = [pack_bits(&a), pack_bits(&b)];
-        ([a, b, c], packed)
-    }
-
+    /// The two packed witnesses as the passes read them.
     fn packed(p: &[Vec<u8>; 2]) -> PackedWitness<'_> {
         PackedWitness { a: &p[0], b: &p[1] }
     }
@@ -826,12 +837,12 @@ mod tests {
     /// Bind every table's low variable at `chi`.
     fn bind_all(tables: &mut [Vec<F192>; 3], chi: F192) {
         for t in tables {
-            bind_low(t, chi);
+            fold_low_inplace(t, chi);
         }
     }
 
     /// One round of the stored tables.
-    fn round_of(t: &[Vec<F192>; 3], r_eq: &[F192]) -> (F192, F192) {
+    fn round_of(t: &[Vec<F192>; 3], r_eq: &[F192]) -> RoundEvals {
         single_round([&t[0], &t[1], &t[2]], r_eq)
     }
 
@@ -851,11 +862,11 @@ mod tests {
                 acc + e * (a * b + c)
             })
         };
-        let (g1, g_inf) = round_of(&t, &r_eq);
+        let round = round_of(&t, &r_eq);
         let g0 = at(F192::ZERO);
-        assert_eq!(g1, at(F192::ONE));
+        assert_eq!(round.at_one, at(F192::ONE));
         let x = rng.ext();
-        assert_eq!(at(x), g0 * (F192::ONE + x) + g1 * x + g_inf * x * (F192::ONE + x));
+        assert_eq!(at(x), primitives::multilinear::poly_eval(&round.coefficients(g0), x));
     }
 
     #[test]
@@ -865,11 +876,11 @@ mod tests {
         // Naive route: fold the bits at z over the skip, bind rho_1..rho_t one at a time, then sum each round.
         for m in [13, 14, 15] {
             let mut rng = Rng::new(0xB17_0000 + m as u64);
-            let (bits, packed_bits) = random_witness(&mut rng, m);
+            let (bits, packed_bits) = honest(&mut rng, m);
             let r_rest = rng.ext_vec(m - K_SKIP);
             let rho = rng.ext_vec(m - K_SKIP);
-            let lagrange = skip_lagrange_weights(K_SKIP, rng.ext());
-            let dense = Padding::dense(m);
+            let lagrange = SkipDomain::FLOCK.lagrange_weights(rng.ext());
+            let full = dense(m);
 
             // Level 0 of the naive route.
             let mut tables = bits.each_ref().map(|b| fold_at_z(b, &lagrange));
@@ -878,8 +889,8 @@ mod tests {
                 let r_eq = &r_rest[t + 1..];
                 let expected = round_of(&tables, r_eq);
 
-                let pair = bit_pass(packed(&packed_bits), &fold, r_eq, &dense);
-                let (stored_pair, stored) = bit_pass_storing(packed(&packed_bits), &fold, r_eq, &dense);
+                let pair = bit_pass(packed(&packed_bits), &fold, r_eq, &full);
+                let (stored_pair, stored) = bit_pass_storing(packed(&packed_bits), &fold, r_eq, &full);
                 assert_eq!(stored, tables, "stored tables, m={m}, t={t}");
 
                 bind_all(&mut tables, rho[t]);
@@ -908,7 +919,7 @@ mod tests {
                 useful_bits: useful,
                 live_blocks: usize::MAX,
             };
-            let lagrange = skip_lagrange_weights(K_SKIP, rng.ext());
+            let lagrange = SkipDomain::FLOCK.lagrange_weights(rng.ext());
             let r_rest = rng.ext_vec(m - K_SKIP);
             let rho = rng.ext_vec(4);
             for t in 0..=4 {
@@ -920,7 +931,7 @@ mod tests {
                         bit_pass_storing(packed(&packed_bits), &fold, r_eq, p),
                     )
                 };
-                assert_eq!(run(&Padding::dense(m)), run(&padding), "m={m}, useful={useful}, t={t}");
+                assert_eq!(run(&dense(m)), run(&padding), "m={m}, useful={useful}, t={t}");
             }
         }
     }
@@ -957,7 +968,7 @@ mod tests {
                     outs.each_mut().map(|o| &mut o[..]),
                     &pending,
                     &r_eq,
-                    &Padding::dense(log_out),
+                    &dense(log_out),
                     0,
                 );
                 // SAFETY: the pass writes every slot of its outputs.

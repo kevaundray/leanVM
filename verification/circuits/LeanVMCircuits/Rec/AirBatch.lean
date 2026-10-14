@@ -511,7 +511,7 @@ circuit is satisfied, every check's inputs are true, no compression collides and
 `st` and has its hash rows' packed witnesses; the table sumcheck's input claim, the bus totals `tot` at the batch's
 draw as `σ_0 + ξ σ_1`, is the committed witness's honest sum (`tableSum`, with the bus forms' weighted sums `forms`);
 and the bus GKR's root claims `roots` are the committed witness's honest roots at its draw (`pullRoot`, `pushRoot`),
-which the verifier holds equal (`leaf::verify_balance`). -/
+which the verifier holds equal (`bus::verify_balance`). -/
 def ChecksGiveInst [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (P : RecParts ι Ω) (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E)

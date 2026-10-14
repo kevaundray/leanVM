@@ -4,12 +4,10 @@
 //! The public table commits nothing: its blocks are the framework's.
 
 use super::circuit::{Assignment, WireKind};
-use super::clean;
-use crate::class_flock::{self, FlockId};
-use crate::leaf::{BusForm, Coord};
-use crate::tables::{PerTable, TableId, TableKey};
+use super::{clean, hash};
+use crate::bus::{BusForm, Coord};
+use crate::tables::{self, PerTable, TableKey};
 use WireKind::{D, E, K};
-use flock::circuit::Circuit;
 use primitives::field::{F64, F192};
 
 /// The recursion machine's tables, in protocol order.
@@ -42,11 +40,6 @@ struct LimbOf {
     slot: usize,
     limb: usize,
 }
-
-/// The packed BLAKE2s witness behind the hash table, which flock proves.
-///
-/// The table's first columns are ports of it: the inputs `t`, `f`, `h0..h3`, `m0..m7`, then the outputs `o0..o3`.
-pub(crate) struct HashFlock;
 
 /// A hash row's slots, in order:
 ///
@@ -117,7 +110,7 @@ impl Table {
         match self {
             Self::Emul => 9,
             Self::Exk => 7,
-            Self::Hash => HashFlock::N_PORTS + 1,
+            Self::Hash => hash::N_PORTS + 1,
             Self::Split => 65,
             Self::Cast => 4,
             Self::Pub => 0,
@@ -126,17 +119,13 @@ impl Table {
 
     /// How many of its columns are ports of its packed witness: its first.
     pub(crate) const fn n_ports(self) -> usize {
-        if matches!(self, Self::Hash) {
-            HashFlock::N_PORTS
-        } else {
-            0
-        }
+        if matches!(self, Self::Hash) { hash::N_PORTS } else { 0 }
     }
 
     /// `log2` of its height for `rows` rows: a power of two, at flock's floor for the hash table.
     pub(crate) fn height_log(self, rows: usize) -> usize {
         match self {
-            Self::Hash => HashFlock::height_log(rows),
+            Self::Hash => tables::batch_log(hash::CIRCUIT.k_log(), rows),
             _ => crate::log2_ceil_usize(rows.max(1)),
         }
     }
@@ -224,33 +213,9 @@ impl TableKey<{ Self::COUNT }> for Table {
     }
 }
 
-impl HashFlock {
-    /// How many ports the hash table reads, at the witness's words `0..18`.
-    pub(crate) const N_PORTS: usize = 18;
-
-    /// The packed witness of the BLAKE2s class circuit, which proves every hash row.
-    pub(crate) const FLOCK: FlockId = FlockId::class(TableId::HASH).expect("the HASH class has a circuit");
-
-    /// The BLAKE2s compression circuit.
-    pub(crate) fn circuit() -> &'static Circuit {
-        Self::FLOCK.circuit()
-    }
-
-    /// `log2` of a hash row's packed words: the stride between consecutive rows' same-port words.
-    pub(crate) const fn stride_log() -> usize {
-        Self::FLOCK.stride_log()
-    }
-
-    /// `log2` of the hash table's height for `rows` rows, at least flock's floor.
-    const fn height_log(rows: usize) -> usize {
-        class_flock::batch_log(Self::FLOCK.k_log(), rows)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tables::{ClassSpec, Word};
     use proptest::prelude::*;
 
     fn eval(c: &Coord, cols: &[F64]) -> F64 {
@@ -292,23 +257,6 @@ mod tests {
             }
             assert_eq!(t.committed_sources().len(), t.n_cols() - t.n_ports());
         }
-    }
-
-    #[test]
-    fn the_hash_ports_are_the_precompile_ports() {
-        // The generated slot forms name the ports by column: `h` is slot 0, `(t, f)` slot 1, the message words slots
-        // 8 to 15, the output slot 6, and the mux bit slot 3, the one committed column after the ports.
-        let ports: Vec<Word> = ClassSpec::HASH.ports().collect();
-        assert_eq!(ports.len(), HashFlock::N_PORTS);
-        let col = |s: usize, limb: usize| match Table::Hash.slot(s).0[limb] {
-            Coord::Col(c) => c,
-            ref other => panic!("slot {s} limb {limb} is {other:?}"),
-        };
-        assert_eq!((ports[col(1, 0)], ports[col(1, 1)]), (Word::V2, Word::Flags));
-        assert!((0..4).all(|i| ports[col(0, i)] == Word::Cell(i as u8)));
-        assert!((0..8).all(|i| ports[col(8 + i, 0)] == Word::Cell(8 + i as u8)));
-        assert!((0..4).all(|i| ports[col(6, i)] == Word::CellNew(4 + i as u8)));
-        assert_eq!(col(3, 0), HashFlock::N_PORTS);
     }
 
     #[test]

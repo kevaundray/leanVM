@@ -7,8 +7,8 @@ public import LeanVMCircuits.Rec.Rounds
 /-!
 WHIR's sumcheck, read off the builder's calls.
 
-WHIR's verifier (`pcs::whir::verify`) reads each round as a quadratic (`Quad`): `Quad::recv` reads it with
-`RoundPolynomial::read`, the linear coefficient fixed by the running claim, and `Quad::eval` evaluates it by Horner
+WHIR's verifier (`pcs::whir::verify`) reads each round as a quadratic (`RoundQuad`): `RoundQuad::read` reads it with
+the verifier's `read_round`, the linear coefficient fixed by the running claim, and `RoundQuad::eval` evaluates it by Horner
 from its top coefficient. After a level's fold rounds it batches the level's out-of-domain claims and its query batch's
 claim at the powers of a challenge `λ`: each claim's quadratic is folded into the running one at its power, and the
 running claim takes the claim at that power. Its test is the last claim against the terminal value it computes.
@@ -210,7 +210,7 @@ def calls : QuadCert → List (ℕ × Call)
 
 end QuadCert
 
-/-- A WHIR round: a fold round (its quadratic, its challenge, and `Quad::eval`'s two `mul_add` calls) or a batch
+/-- A WHIR round: a fold round (its quadratic, its challenge, and `RoundQuad::eval`'s two `mul_add` calls) or a batch
 round (its challenge `λ`, the claim after batching as an expression in `λ`, the output words of its squeezes that
 `λ` reads (`own`), and the firings binding the expression's atoms with the words squeezed with `λ`, its query
 positions, as seeds). -/

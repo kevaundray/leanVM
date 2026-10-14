@@ -214,7 +214,9 @@ mod tests {
     use super::*;
     use crate::rv::semantics::tests::edge_word;
     use fiat_shamir::{ProverState, SessionId, VerifierState};
-    use flock::reduction::{self, Instance};
+    use flock::BatchRows;
+    use flock::reduction;
+    use flock::test_util::Witness;
     use primitives::test_util::Rng;
     use proptest::prelude::*;
 
@@ -240,14 +242,15 @@ mod tests {
             })
             .collect();
         let accepts = |tamper: Option<usize>| {
-            let mut witness = circuit.witness_by_instance(&rows, &rows[0], n_log, |row, z, az, bz| {
-                Ext::clock_witness(&slots, row, z, az, bz);
-            });
+            let mut witness =
+                Witness::by_instance(&circuit, BatchRows::new(&rows, &rows[0], n_log), |row, z, az, bz| {
+                    Ext::clock_witness(&slots, row, z, az, bz);
+                });
             if let Some(bit) = tamper {
                 witness.z[bit / 64] ^= 1 << (bit % 64);
             }
             let mut ps = ProverState::new(&SessionId::new(LABEL), &0u64);
-            let instance = Instance::of(block, n_log, &witness);
+            let instance = witness.instance(block, n_log);
             let claims = reduction::prove(&[instance], &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::new(&SessionId::new(LABEL), &0u64, &proof);
@@ -324,9 +327,7 @@ mod tests {
             let mut inputs = vec![0; 1 + slots.len()];
             inputs.extend(pointers);
             inputs.push(flags);
-            let words = 1 << (circuit.k_log() - 6);
-            let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
-            circuit.witness_instance(&inputs, &mut z, &mut az, &mut bz);
+            let z = Witness::of_instance(&circuit, &inputs).z;
             let outputs = &z[inputs.len() + 1..inputs.len() + 3 + Ext::OFFSET_LIMBS.len()];
             let addresses = Ext::OFFSET_LIMBS.map(|k| Ext::bus_address(pointers, flags, k));
             prop_assert_eq!(&outputs[..2], &[flags & 1, flags >> 1]);

@@ -18,7 +18,7 @@ def outIndex (os : Array (List ℕ)) : Std.HashMap ℕ (Array (ℕ × ℕ)) := I
       k := k + 1
   return idx
 
-/-- The calls computing a child's scale wire `s` from its kind word `kw`, as `Design::kind_rows` makes them. -/
+/-- The calls computing a child's scale wire `s` from its kind word `kw`, as `Design::kind_bits` makes them. -/
 def scaleOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (kw s : ℕ) :
     Option ScaleCert := do
   if s = kw then return .kind

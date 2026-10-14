@@ -9,7 +9,7 @@ public import LeanVMCircuits.Rec.UnionSound
 The bus's balance from its product check.
 
 `BusBlocks::new` gives every slot a pull block at its own key and a push block at its `next` key, both carrying its
-limbs (`SlotKey::column`, `FixedColumn::Next`). `leaf::verify_balance` draws four challenges `A` and `β`, weighs each
+limbs (`SlotKey::column`, `FixedColumn::Next`). `bus::verify_balance` draws four challenges `A` and `β`, weighs each
 tuple's coordinates by `eq(A, k)` (`fingerprint_weights`, the union's `UnionSound.eqAt`), and its GKR proves the
 products of `β + fp_A(t)` over the pulls and over the pushes equal (one root for both trees).
 

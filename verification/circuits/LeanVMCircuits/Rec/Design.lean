@@ -279,7 +279,7 @@ def Shape.position (sh : Shape) (c : ℕ) : Option ℕ :=
     if sh.start t ≤ p ∧ p < sh.stop t then some p else none
   else none
 
-/-- The bits `kind_rows` holds a kind's word to past its index's: its tier's, `(tier << shift) >> kind_bits`. -/
+/-- The bits `Design::kind_bits` holds a kind's word to past its index's: its tier's, `(tier << shift) >> kind_bits`. -/
 def Shape.above (sh : Shape) (t : ℕ) : ℕ := (t <<< sh.shift) >>> sh.kindBits t
 
 theorem nTiers_eq (sh : Shape) : sh.nTiers = 1 ∨ sh.nTiers = 2 := by
@@ -360,7 +360,7 @@ theorem code_injective (sh : Shape) (h : sh.Accepted) (p q : ℕ) (hp : p < sh.s
   rw [he, position_code sh h q hq] at this
   exact (Option.some.inj this).symm
 
-/-- A kind's bits past its tier's kind bits are its tier's (`kind_rows`'s `eq_k_const`s). -/
+/-- A kind's bits past its tier's kind bits are its tier's (`Design::kind_bits`'s `eq_k_const`s). -/
 theorem code_div (sh : Shape) (h : sh.Accepted) (p : ℕ) (hp : p < sh.size) :
     sh.code p / 2 ^ sh.kindBits (sh.placeAt p).tier = sh.above (sh.placeAt p).tier := by
   have hi := index_lt sh h p hp

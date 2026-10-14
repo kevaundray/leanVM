@@ -675,7 +675,7 @@ theorem firstProd_bits (x : Fin 4 → K) (m : ℕ) : ∀ b, (∀ j < b, (toWord 
       have h1 : emb 1 + 1 = 0 := by rw [show emb 1 = 1 from map_one _, one_add_one_eq_two]; exact two_E
       rw [h1, mul_zero]
 
-/-- The scale of a child of the small tier (`kind_rows` with more than two kinds, `Mode.bits` of its kind bits): zero exactly at the first level, else one. -/
+/-- The scale of a child of the small tier (`Design::kind_bits` with more than two kinds, `Mode.bits` of its kind bits): zero exactly at the first level, else one. -/
 theorem nodeScale_small (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (q : ℕ) (hq : q < sh.size)
     (ht : (sh.placeAt q).tier = 0) (x : Fin 4 → K) (hx : x 0 = ofWord (sh.code q)) :
     Edges.nodeScale (.bits (sh.kindBits 0)) x = if q = 0 then 0 else 1 := by
@@ -690,7 +690,7 @@ theorem nodeScale_small (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (
     rw [one_add_one_eq_two]; exact two_E
   · simp [hq0]
 
-/-- The scale of a child of a tree of two kinds (`kind_rows` holding the kind to a bit, `Mode.kind`): zero exactly at the first level, else one. -/
+/-- The scale of a child of a tree of two kinds (`Design::kind_bits` holding the kind to a bit, `Mode.kind`): zero exactly at the first level, else one. -/
 theorem nodeScale_two (sh : Shape) (h : sh.Accepted) (h2 : sh.size = 2) (q : ℕ) (hq : q < sh.size)
     (x : Fin 4 → K) (hx : x 0 = ofWord (sh.code q)) (hx1 : x 1 = 0) (hx2 : x 2 = 0) :
     Edges.nodeScale .kind x = if q = 0 then 0 else 1 := by
@@ -716,7 +716,7 @@ theorem nodeScale_two (sh : Shape) (h : sh.Accepted) (h2 : sh.size = 2) (q : ℕ
     subst this; simp [ofWord_one]
     exact map_one _
 
-/-- The scale mode `Design::kind_rows` gives a child of tier `ct`: the kind word itself with two kinds, one for the large tier, else the small tier's kind bits. -/
+/-- The scale mode `Design::kind_bits` gives a child of tier `ct`: the kind word itself with two kinds, one for the large tier, else the small tier's kind bits. -/
 def tierMode (sh : Shape) (ct : ℕ) : Edges.Mode :=
   if sh.size = 2 then .kind else if ct = 0 then .bits (sh.kindBits 0) else .one
 

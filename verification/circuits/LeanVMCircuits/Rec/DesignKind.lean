@@ -7,9 +7,9 @@ public import LeanVMCircuits.Rec.ExtField
 @[expose] public section
 
 /-!
-A child's kind in rows, for every shape (`Design::kind_rows`).
+A child's kind in rows, for every shape (`Design::kind_bits`).
 
-A node reads a child's kind, its statement's first word, and must read the child's claims on its tier's fixed polynomial at the child's circuit's block. `kindRows sh t kind` is `Design::kind_rows` as a builder program: with two circuits the kind is held to a bit (`square`, `eq_e`); else the product of `kind + code` over the tier's kinds is held to zero, the kind's first limb is split, its bits past the tier's kind bits are held to the tier's (`Shape.above`), its low bits are the `top` bits that select the block, and in the small tier `is_node` is one plus the product of `top_j + 1`.
+A node reads a child's kind, its statement's first word, and must read the child's claims on its tier's fixed polynomial at the child's circuit's block. `kindRows sh t kind` is `Design::kind_bits` as a builder program: with two circuits the kind is held to a bit (`square`, `eq_e`); else the product of `kind + code` over the tier's kinds is held to zero, the kind's first limb is split, its bits past the tier's kind bits are held to the tier's (`Shape.above`), its low bits are the `top` bits that select the block, and in the small tier `is_node` is one plus the product of `top_j + 1`.
 
 `kindRows_good`: in every assignment satisfying a circuit containing its rows, the kind is the kind of a circuit `p` of tier `t` (`Shape.code p`, so `Design::position` names it, `position_code`), the `top` bits are the bits of `p`'s index within its tier, and `is_node`, the child's scale, is zero when `p` is the first level and one at every node. This is the binding of a child's kind to its circuit's block of its tier's fixed polynomial, and its scale's value, for every shape `Tree::new` accepts.
 -/
@@ -19,7 +19,7 @@ namespace LeanVMCircuits.Rec.Model
 open LeanVMCircuits.Rec
 open LeanVMCircuits.Rec.Design
 
-/-- The product of `kind + code` over the positions `ps`, from `acc`: `kind_rows`'s fold. -/
+/-- The product of `kind + code` over the positions `ps`, from `acc`: `Design::kind_bits`'s fold. -/
 def vanish (sh : Shape) (kind : ℕ) : List ℕ → ℕ → M ℕ
   | [], acc => pure acc
   | p :: ps, acc => do
@@ -28,14 +28,14 @@ def vanish (sh : Shape) (kind : ℕ) : List ℕ → ℕ → M ℕ
     let a ← mul acc f
     vanish sh kind ps a
 
-/-- Hold bit `j` of each wire, from `j`, to bit `j` of `v`: `kind_rows`'s `eq_k_const`s. -/
+/-- Hold bit `j` of each wire, from `j`, to bit `j` of `v`: `Design::kind_bits`'s `eq_k_const`s. -/
 def holdBits (v : ℕ) : List ℕ → ℕ → M Unit
   | [], _ => pure ()
   | b :: bs, j => do
     eqConstK b (v >>> j % 2)
     holdBits v bs (j + 1)
 
-/-- Each bit as an `E` element: `kind_rows`'s `k_to_e1`s. -/
+/-- Each bit as an `E` element: `Design::kind_bits`'s `k_to_e1`s. -/
 def tops : List ℕ → M (List ℕ)
   | [] => pure []
   | b :: bs => do
@@ -43,7 +43,7 @@ def tops : List ℕ → M (List ℕ)
     let ys ← tops bs
     pure (y :: ys)
 
-/-- The product of `t + one` over the `top` bits, from `acc`: `kind_rows`'s `is_first`. -/
+/-- The product of `t + one` over the `top` bits, from `acc`: `Design::kind_bits`'s `is_first`. -/
 def firstFold (o : ℕ) : List ℕ → ℕ → M ℕ
   | [], acc => pure acc
   | t :: ts, acc => do
@@ -51,7 +51,7 @@ def firstFold (o : ℕ) : List ℕ → ℕ → M ℕ
     let a ← mul acc n
     firstFold o ts a
 
-/-- `Design::kind_rows` for a child of tier `t` whose kind is the wire `kind`: the `top` bits and `is_node`. -/
+/-- `Design::kind_bits` for a child of tier `t` whose kind is the wire `kind`: the `top` bits and `is_node`. -/
 def kindRows (sh : Shape) (t kind : ℕ) : M (List ℕ × ℕ) := do
   if sh.size = 2 then
     let sq ← square kind
@@ -281,7 +281,7 @@ theorem prod_zero_or_one : ∀ l : List E, (∀ x ∈ l, x = 0 ∨ x = 1) → l.
     · rw [one_mul]
       exact prod_zero_or_one l fun y hy => h y (List.mem_cons_of_mem _ hy)
 
-/-- `Design::kind_rows`'s contract. In every assignment satisfying a circuit containing its rows, the child's kind is the kind of a circuit `p` of tier `t`, its `top` bits are the bits of `p`'s index within the tier, and `is_node` (the child's scale) is zero when `p` is the first level and one at every node. -/
+/-- `Design::kind_bits`'s contract. In every assignment satisfying a circuit containing its rows, the child's kind is the kind of a circuit `p` of tier `t`, its `top` bits are the bits of `p`'s index within the tier, and `is_node` (the child's scale) is zero when `p` is the first level and one at every node. -/
 theorem kindRows_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (t : ℕ) (ht : t < sh.nTiers)
     (kind : ℕ) :
     Good (Wires [kind]) (kindRows sh t kind) fun _ r s' => r.2 < s'.next ∧ Wires r.1 s' ∧

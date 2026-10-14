@@ -3,9 +3,9 @@
 use super::bus::{FlushBuilder, Separator};
 use super::columns::Columns;
 use super::{Part, PerTable, TableId, Word};
+use crate::bus::BusForm;
+use crate::bus::Coord::{self, Col, Const};
 use crate::constraints::{BitColumns, BitField};
-use crate::leaf::BusForm;
-use crate::leaf::Coord::{self, Col, Const};
 use crate::rv::{Reg, RegisterFile};
 use std::sync::OnceLock;
 
@@ -209,7 +209,7 @@ impl ClassTable {
     /// The generated plans together with the native slot lists and clock-port projection, for `checkflushes`.
     #[cfg(feature = "circuit-trace")]
     pub(crate) fn flush_dump() -> String {
-        use crate::leaf::Coord::Scaled;
+        use crate::bus::Coord::Scaled;
 
         fn render(coordinate: &Coord) -> String {
             match coordinate {
@@ -253,7 +253,6 @@ impl ClassTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::colval::ColVal;
     use crate::rv::Ext;
     use primitives::field::{F64, F192};
 
@@ -278,7 +277,7 @@ mod tests {
             row[cols.limbs..cols.limbs + 9].copy_from_slice(&limbs.map(F64));
             row[cols.new..cols.new + 3].copy_from_slice(&Ext { flags, pointers: [0; 3], limbs }.eval().map(F64));
             (row[bits], row[bits + 1]) = (F64(flags & 1), F64(flags >> 1));
-            let values = |row: &[F64]| table.identities().iter().map(|form| <F64 as ColVal>::reduce(form.eval_unreduced(row, false))).collect::<Vec<_>>();
+            let values = |row: &[F64]| table.identities().iter().map(|form| form.eval_unreduced(row, false).reduce()).collect::<Vec<_>>();
             proptest::prop_assert_eq!(values(&row), vec![F192::ZERO; 3]);
             row[cols.new + wrong].0 ^= 1 << bit;
             let values = values(&row);

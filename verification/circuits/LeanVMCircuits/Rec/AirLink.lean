@@ -12,7 +12,7 @@ A committed witness (`Witness`) has each table's height and each row's columns. 
 
 The AIR's claims (`Claims`): the layout's and rows' (`RowClaims`: every table holds its rows below `2^32` rows, every row of the circuit satisfies its table (`SPLIT`'s identities, `HASH`'s packed BLAKE2s witness and mux bit, which is `HashRow`; the other tables have no identities, `Table::identities`), and the public columns carry each public row's constant or statement word), and the bus balances (`Balanced`). The assignment the witness carries (`assign`) gives each wire the limbs of the first slot of its class. `sat_of_claims`: the claims give `Model.Sat` at that assignment, by the copy argument (`copy_argument`) and the tables' rows. `claims_of_sat`: conversely, every satisfied circuit within the layout's bounds has a witness meeting the claims, so the claims are satisfiable exactly when the circuit is.
 
-The bus's balance is derived from its product check. `ProductClaim` at a draw `(β, A)`: the products of `β + fp_A(t)` over the pulls and over the pushes agree, the bus GKR's root claims, which `leaf::verify_balance` holds equal. Off the draw event `busDraws` (the draws at which an unbalanced bus's products agree) it gives the bus balanced (`bus_of_product`), and `busDraws_card` bounds that event by `4n/|E|` of the draws (`bus_event`, `bus_balance_sound`). Over outcomes, `busBad` is where the outcome's draw is in its committed witness's draw event, at most `4N/|E|` of the outcomes when the draw is uniform and made after the commitment (`busBad_frac`, a lens as `Bind.card_lens` takes). The honest witness meets the product claim at every draw (`product_honest`).
+The bus's balance is derived from its product check. `ProductClaim` at a draw `(β, A)`: the products of `β + fp_A(t)` over the pulls and over the pushes agree, the bus GKR's root claims, which `bus::verify_balance` holds equal. Off the draw event `busDraws` (the draws at which an unbalanced bus's products agree) it gives the bus balanced (`bus_of_product`), and `busDraws_card` bounds that event by `4n/|E|` of the draws (`bus_event`, `bus_balance_sound`). Over outcomes, `busBad` is where the outcome's draw is in its committed witness's draw event, at most `4N/|E|` of the outcomes when the draw is uniform and made after the commitment (`busBad_frac`, a lens as `Bind.card_lens` takes). The honest witness meets the product claim at every draw (`product_honest`).
 
 `hair_of_air` derives `RecParts.hrec`'s premise `hair` from `ChecksGiveRows` and each child's assignment being its committed witness's, for the parts with each child's collision event grown by its AIR event `airBad`: the constraint batch's event `batchBad`, left abstract, and the bus's `busBad`. `ChecksGiveRows` is what remains: where the parent's circuit is satisfied, every check's inputs are true, no compression collides, the parent's verifier reads statement `st` and off `batchBad`, the child's committed witness meets `RowClaims` at `st` and its product claim at the outcome's draw. `RecParts.inOk` is abstract, so nothing more of that implication follows from the check certificates. `tree_sound_air` is `tree_sound_parts` with it, its bound adding each child's `batchBad` and `busBad` fractions.
 
@@ -467,14 +467,14 @@ theorem key_lt {w : Witness} (hfit : ∀ T, w.height T ≤ 2 ^ 32) {e : Slot} (h
   rw [show (2 : ℕ) ^ 64 = 18446744073709551616 by norm_num]
   omega
 
-/-- The bus's product claim at a draw `f = (β, A)`: the products of `β + fp_A(t)` over the pulls and over the pushes agree. These are the bus GKR's two root claims, which `leaf::verify_balance` holds equal. -/
+/-- The bus's product claim at a draw `f = (β, A)`: the products of `β + fp_A(t)` over the pulls and over the pushes agree. These are the bus GKR's two root claims, which `bus::verify_balance` holds equal. -/
 def ProductClaim (s : State) (w : Witness) (f : Fin 5 → E) : Prop :=
   UnionSound.prodAt (pulls busTuple (fun i : Fin (slots w).length => key (slots w)[i])
       (fun i => carried w (slots w)[i])) (f 0) (Fin.tail f) =
     UnionSound.prodAt (pushes busTuple (fun i : Fin (slots w).length => key (slots w)[i])
       (classNext fun i => slotClass s (slots w)[i]) (fun i => carried w (slots w)[i])) (f 0) (Fin.tail f)
 
-/-- The bus's product check (`leaf::verify_balance`): where the bus does not balance, the draws `(β, A)` of `S^5` at which its product claim holds are at most a `4n/|S|` fraction, `n` the bus's slots (`bus_balance_sound`). -/
+/-- The bus's product check (`bus::verify_balance`): where the bus does not balance, the draws `(β, A)` of `S^5` at which its product claim holds are at most a `4n/|S|` fraction, `n` the bus's slots (`bus_balance_sound`). -/
 theorem bus_event (s : State) (w : Witness) (hfit : ∀ T, w.height T ≤ 2 ^ 32) (hne : ¬ BusBalances s w)
     (S : Finset E) :
     (#{f ∈ Fintype.piFinset fun _ : Fin 5 => S | ProductClaim s w f} : ℚ≥0) / (#S ^ 5 : ℚ≥0) ≤

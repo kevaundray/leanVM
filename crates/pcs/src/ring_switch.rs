@@ -46,104 +46,10 @@ use std::cmp::Reverse;
 /// The Frobenius shifts `d_p = 2^(5 - p)` of the six two-term maps, in the order they compose.
 ///
 /// Descending order keeps every challenge's exponent at most `2^31`, so the check's degree stays below `2^32`.
-pub const COMPOSITION_SHIFTS: [usize; 6] = [32, 16, 8, 4, 2, 1];
+pub(crate) const COMPOSITION_SHIFTS: [usize; 6] = [32, 16, 8, 4, 2, 1];
 
 /// The degree of `E` over `F_2`: the number of coordinate bits the map weighs.
 const DEGREE_E: usize = 192;
-
-/// The image under `Phi` of each `F_2`-basis element of `E`: entry `w` is `Phi(e_w)`.
-///
-/// The basis element `e_w = x^(w % 64) * y^(w / 64)` is bit `w % 64` of coefficient `w / 64`.
-/// `Phi` composes six two-term maps on its input `a_0 = a`:
-///
-/// ```text
-///     a_{p+1} = a_p + f_p * a_p^(2^d_p)        d_p = 32, 16, 8, 4, 2, 1
-///     Phi(a)  = a_6
-/// ```
-///
-/// # Why these weights batch the slices
-///
-/// Write `s_{i,w}` for bit `w` of slice `s_i`, and `t_w = sum_i s_{i,w} * x^i` in `K` for column `w`.
-/// `Phi` is `F_2`-linear, so the target is the columns against the weights:
-///
-/// ```text
-///     sum_{i<64} x^i * Phi(s_i)  =  sum_{w<192} Phi(e_w) * t_w
-/// ```
-///
-/// Expanding the composition gives the Frobenius form, with one distinct monomial at each exponent:
-///
-/// ```text
-///     Phi(a) = sum_{k<64} C_k * a^(2^k)
-///     C_k    = prod_{p : k_p = 1} f_p^(2^(k mod 2^(5-p)))        k = sum_p k_p * 2^(5-p)
-/// ```
-///
-/// Applying the composition directly costs 63 squarings and six products.
-///
-/// # Soundness
-///
-/// Let `delta` be the prover's error on the columns `t_w`, nonzero and fixed before the six challenges are drawn.
-/// The check misses it exactly when this sum vanishes:
-///
-/// ```text
-///     sum_w Phi(e_w) * delta_w  =  sum_{k<64} C_k * V_k        V_k = sum_w e_w^(2^k) * delta_w
-/// ```
-///
-/// Step 1: some `V_k` is nonzero.
-/// Write `w = 64j + i`, so that `e_w^(2^k) = x^(i * 2^k) * (y^(2^k))^j`:
-///
-/// ```text
-///     V_k     = sum_{j<3} (y^(2^k))^j * R_{j,k}
-///     R_{j,k} = sum_{i<64} delta_{64j+i} * x^(i * 2^k)        in K
-/// ```
-///
-/// - `y^(2^k)` is not in `K`: squaring is a bijection of `K`, so it would put `y` in `K`.
-/// - `[E : K] = 3` is prime, so `1, y^(2^k), y^(2 * 2^k)` is a `K`-basis of `E`.
-/// - Hence `V_k = 0` forces `R_{0,k} = R_{1,k} = R_{2,k} = 0`.
-/// - At fixed `j`, `R_{j,k} = D_j(x^(2^k))` for the polynomial `D_j(U) = sum_{i<64} delta_{64j+i} * U^i`.
-/// - The 64 points `x, x^2, x^4, ..., x^(2^63)` are distinct, since `x` has degree 64 over `F_2`.
-/// - `D_j` has degree at most 63, so 64 roots force `D_j = 0`: all `V_k = 0` would mean `delta = 0`.
-///
-/// Step 2: the 64 `C_k` are distinct monomials in the challenges, so `sum_k C_k * V_k` is a nonzero polynomial.
-/// Its total degree is that of `C_63`, below `2^32`, so by Schwartz-Zippel the check misses with probability below:
-///
-/// ```text
-///     deg C_63 / |E|  =  (2^31 + 2^15 + 2^7 + 2^3 + 2 + 1) / 2^192  <  2^32 / 2^192  =  2^-160
-/// ```
-///
-/// # Why 64 terms
-///
-/// A map with Frobenius exponents in a set `S` gives `|S|` equations over `E`, that is `3 |S|` over `K`.
-/// There are 192 unknowns in `K`, so with `3 |S| < 192` some nonzero error passes for every choice of coefficients.
-pub(crate) fn build_coordinate_weights(challenges: &[F192; COMPOSITION_SHIFTS.len()]) -> Vec<F192> {
-    // `e_w` has only bit `w` set: `x^(w % 64)` in the coefficient of `1`, `y` or `y^2`.
-    let basis = |w: usize| match w / F64::DEGREE {
-        0 => F192::new(1u64 << (w % F64::DEGREE), 0, 0),
-        1 => F192::new(0, 1u64 << (w % F64::DEGREE), 0),
-        _ => F192::new(0, 0, 1u64 << (w % F64::DEGREE)),
-    };
-    (0..DEGREE_E)
-        .map(|w| apply_composed_map(basis(w), challenges))
-        .collect()
-}
-
-/// `Phi` of one value, by its six two-term maps.
-fn apply_composed_map(mut value: F192, challenges: &[F192; COMPOSITION_SHIFTS.len()]) -> F192 {
-    for (&challenge, &shift) in challenges.iter().zip(COMPOSITION_SHIFTS.iter()) {
-        let mut frobenius = value;
-        for _ in 0..shift {
-            frobenius = frobenius.square();
-        }
-        value += challenge * frobenius;
-    }
-    value
-}
-
-/// Draws the six challenges `f_0..f_5` of `Phi`.
-///
-/// Call it only once every slice the map batches is bound to the transcript.
-pub(crate) fn sample_map_challenges(ch: &mut impl Challenger) -> [F192; COMPOSITION_SHIFTS.len()] {
-    std::array::from_fn(|_| ch.verifier_message())
-}
 
 /// One claim's weight `Phi(scale * eq(point, .))`, kept factored rather than stored.
 ///
@@ -307,7 +213,7 @@ fn split_n_lo(n: usize) -> usize {
 ///
 /// `Phi(v) = sum_{k<64} C_k * v^(2^k)`, and `a^(2^-k) = a^(2^(192-k))` undoes `k` squarings.
 /// `E` is the element type: field values natively, or the wires the recursive verifier holds.
-pub struct RingMap<E> {
+pub(crate) struct RingMap<E> {
     /// `C_k^(2^-k)` at index `k`.
     coefficients: Vec<E>,
 }
@@ -321,7 +227,7 @@ impl<E: Copy> RingMap<E> {
     ///
     /// `k - k mod d_p` keeps the bits of `k` from `d_p` up, so the products grow one shift at a time.
     /// Stage `p` extends every index `k` built so far by `d_p`, or leaves it.
-    pub fn new<A: Arith<E = E>>(a: &mut A, challenges: &[E; COMPOSITION_SHIFTS.len()]) -> Self {
+    pub(crate) fn new<A: Arith<E = E>>(a: &mut A, challenges: &[E; COMPOSITION_SHIFTS.len()]) -> Self {
         // Invariant: `prefixes` holds `(k, C_k^(2^-k))` for every `k` made of the shifts seen so far.
         let mut prefixes = vec![(0usize, a.one())];
         for (&f, &shift) in challenges.iter().zip(&COMPOSITION_SHIFTS) {
@@ -351,7 +257,7 @@ impl<E: Copy> RingMap<E> {
     /// # Panics
     ///
     /// If there are not exactly 64 slices.
-    pub fn target<A: Arith<E = E>>(&self, a: &mut A, slices: &[E]) -> E {
+    pub(crate) fn target<A: Arith<E = E>>(&self, a: &mut A, slices: &[E]) -> E {
         assert_eq!(slices.len(), F64::DEGREE, "a family has 64 slices");
         let terms: Vec<E> = (0..F64::DEGREE)
             .map(|k| {
@@ -363,7 +269,7 @@ impl<E: Copy> RingMap<E> {
                 a.mul(self.coefficients[k], s)
             })
             .collect();
-        Self::close(a, &terms)
+        close(a, &terms)
     }
 
     /// A claim's 64 terms `C_k^(2^-k) * P_k` at several prefix lengths of one point `z`, for a query `q`.
@@ -388,7 +294,7 @@ impl<E: Copy> RingMap<E> {
     /// # Panics
     ///
     /// If a length exceeds `z` or the ladders.
-    pub fn prefix_terms<A: Arith<E = E>>(
+    pub(crate) fn prefix_terms<A: Arith<E = E>>(
         &self,
         a: &mut A,
         z: &[E],
@@ -420,18 +326,18 @@ impl<E: Copy> RingMap<E> {
         }
         out
     }
+}
 
-    /// `sum_k terms[k]^(2^k)`, by the linearized Horner rule `acc <- acc^2 + terms[k]` from the last term down.
-    ///
-    /// The Frobenius is additive, so several claims' terms can be added first and closed once.
-    ///
-    /// # Panics
-    ///
-    /// If `terms` is empty.
-    pub fn close<A: Arith<E = E>>(a: &mut A, terms: &[E]) -> E {
-        let (&last, rest) = terms.split_last().expect("the map has 64 terms");
-        rest.iter().rev().fold(last, |acc, &term| a.mul_add(acc, acc, term))
-    }
+/// `sum_k terms[k]^(2^k)`, by the linearized Horner rule `acc <- acc^2 + terms[k]` from the last term down.
+///
+/// The Frobenius is additive, so several claims' terms can be added first and closed once.
+///
+/// # Panics
+///
+/// If `terms` is empty.
+fn close<A: Arith>(a: &mut A, terms: &[A::E]) -> A::E {
+    let (&last, rest) = terms.split_last().expect("the map has 64 terms");
+    rest.iter().rev().fold(last, |acc, &term| a.mul_add(acc, acc, term))
 }
 
 /// The 64 entries `v^(2^-j)` for `j` from `lowest` up, and `v` itself below `lowest`.
@@ -495,7 +401,7 @@ pub struct RingSwitch<E = F192> {
 /// - Then the six challenges of `Phi`, one map for the whole family.
 /// - `E` is the element type: field values natively, or the wires the recursive verifier holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RingFamily<E = F192> {
+pub(crate) struct RingFamily<E = F192> {
     /// The scale challenge: claim `j` is scaled by `gamma_rs^j`.
     gamma_rs: E,
     /// The six challenges `f_0..f_5` of `Phi`, in drawing order.
@@ -504,28 +410,113 @@ pub struct RingFamily<E = F192> {
 
 impl RingFamily {
     /// Draws the family's challenges on the prover's side: `gamma_rs`, then the six of `Phi`.
-    pub fn sample(ch: &mut impl Challenger) -> Self {
+    pub(crate) fn sample(ch: &mut impl Challenger) -> Self {
         let gamma_rs = ch.verifier_message();
         Self {
             gamma_rs,
-            map_challenges: sample_map_challenges(ch),
+            map_challenges: std::array::from_fn(|_| ch.verifier_message()),
         }
     }
 
     /// The challenge `gamma_rs` whose powers scale the claims.
-    pub const fn gamma_rs(&self) -> F192 {
+    pub(crate) const fn gamma_rs(&self) -> F192 {
         self.gamma_rs
     }
 
     /// `Phi` as an `F_2`-linear map on the 192 coordinate bits of `E`, the form the prover applies to blocks.
     pub(crate) fn map(&self) -> F192Map {
-        F192Map::new(&build_coordinate_weights(&self.map_challenges))
+        F192Map::new(&self.coordinate_weights())
+    }
+
+    /// The image under `Phi` of each `F_2`-basis element of `E`: entry `w` is `Phi(e_w)`.
+    ///
+    /// The basis element `e_w = x^(w % 64) * y^(w / 64)` is bit `w % 64` of coefficient `w / 64`.
+    /// `Phi` composes six two-term maps on its input `a_0 = a`:
+    ///
+    /// ```text
+    ///     a_{p+1} = a_p + f_p * a_p^(2^d_p)        d_p = 32, 16, 8, 4, 2, 1
+    ///     Phi(a)  = a_6
+    /// ```
+    ///
+    /// # Why these weights batch the slices
+    ///
+    /// Write `s_{i,w}` for bit `w` of slice `s_i`, and `t_w = sum_i s_{i,w} * x^i` in `K` for column `w`.
+    /// `Phi` is `F_2`-linear, so the target is the columns against the weights:
+    ///
+    /// ```text
+    ///     sum_{i<64} x^i * Phi(s_i)  =  sum_{w<192} Phi(e_w) * t_w
+    /// ```
+    ///
+    /// Expanding the composition gives the Frobenius form, with one distinct monomial at each exponent:
+    ///
+    /// ```text
+    ///     Phi(a) = sum_{k<64} C_k * a^(2^k)
+    ///     C_k    = prod_{p : k_p = 1} f_p^(2^(k mod 2^(5-p)))        k = sum_p k_p * 2^(5-p)
+    /// ```
+    ///
+    /// Applying the composition directly costs 63 squarings and six products.
+    ///
+    /// # Soundness
+    ///
+    /// Let `delta` be the prover's error on the columns `t_w`, nonzero and fixed before the six challenges are drawn.
+    /// The check misses it exactly when this sum vanishes:
+    ///
+    /// ```text
+    ///     sum_w Phi(e_w) * delta_w  =  sum_{k<64} C_k * V_k        V_k = sum_w e_w^(2^k) * delta_w
+    /// ```
+    ///
+    /// Step 1: some `V_k` is nonzero.
+    /// Write `w = 64j + i`, so that `e_w^(2^k) = x^(i * 2^k) * (y^(2^k))^j`:
+    ///
+    /// ```text
+    ///     V_k     = sum_{j<3} (y^(2^k))^j * R_{j,k}
+    ///     R_{j,k} = sum_{i<64} delta_{64j+i} * x^(i * 2^k)        in K
+    /// ```
+    ///
+    /// - `y^(2^k)` is not in `K`: squaring is a bijection of `K`, so it would put `y` in `K`.
+    /// - `[E : K] = 3` is prime, so `1, y^(2^k), y^(2 * 2^k)` is a `K`-basis of `E`.
+    /// - Hence `V_k = 0` forces `R_{0,k} = R_{1,k} = R_{2,k} = 0`.
+    /// - At fixed `j`, `R_{j,k} = D_j(x^(2^k))` for the polynomial `D_j(U) = sum_{i<64} delta_{64j+i} * U^i`.
+    /// - The 64 points `x, x^2, x^4, ..., x^(2^63)` are distinct, since `x` has degree 64 over `F_2`.
+    /// - `D_j` has degree at most 63, so 64 roots force `D_j = 0`: all `V_k = 0` would mean `delta = 0`.
+    ///
+    /// Step 2: the 64 `C_k` are distinct monomials in the challenges, so `sum_k C_k * V_k` is a nonzero polynomial.
+    /// Its total degree is that of `C_63`, below `2^32`, so by Schwartz-Zippel the check misses with probability below:
+    ///
+    /// ```text
+    ///     deg C_63 / |E|  =  (2^31 + 2^15 + 2^7 + 2^3 + 2 + 1) / 2^192  <  2^32 / 2^192  =  2^-160
+    /// ```
+    ///
+    /// # Why 64 terms
+    ///
+    /// A map with Frobenius exponents in a set `S` gives `|S|` equations over `E`, that is `3 |S|` over `K`.
+    /// There are 192 unknowns in `K`, so with `3 |S| < 192` some nonzero error passes for every choice of coefficients.
+    fn coordinate_weights(&self) -> Vec<F192> {
+        // `e_w` has only bit `w` set: `x^(w % 64)` in the coefficient of `1`, `y` or `y^2`.
+        let basis = |w: usize| match w / F64::DEGREE {
+            0 => F192::new(1u64 << (w % F64::DEGREE), 0, 0),
+            1 => F192::new(0, 1u64 << (w % F64::DEGREE), 0),
+            _ => F192::new(0, 0, 1u64 << (w % F64::DEGREE)),
+        };
+        (0..DEGREE_E).map(|w| self.apply(basis(w))).collect()
+    }
+
+    /// `Phi` of one value, by its six two-term maps.
+    fn apply(&self, mut value: F192) -> F192 {
+        for (&challenge, &shift) in self.map_challenges.iter().zip(COMPOSITION_SHIFTS.iter()) {
+            let mut frobenius = value;
+            for _ in 0..shift {
+                frobenius = frobenius.square();
+            }
+            value += challenge * frobenius;
+        }
+        value
     }
 }
 
 impl<E: Copy> RingFamily<E> {
     /// Draws the family's challenges on the verifier's side, in the prover's order.
-    pub fn draw<V: Verifier<E = E>>(v: &mut V) -> Self {
+    pub(crate) fn draw<V: Verifier<E = E>>(v: &mut V) -> Self {
         let gamma_rs = v.verifier_message();
         let map = v.verifier_messages(COMPOSITION_SHIFTS.len());
         Self {
@@ -537,7 +528,7 @@ impl<E: Copy> RingFamily<E> {
     /// The family of the regions' claims under `Phi`, in region order then claim order.
     ///
     /// Claim `j` in that order takes the scale `gamma_rs^j`.
-    pub fn share<'a, A: Arith<E = E>>(&self, a: &mut A, rings: &'a [RingSwitch<E>]) -> RingShare<'a, E> {
+    pub(crate) fn share<'a, A: Arith<E = E>>(&self, a: &mut A, rings: &'a [RingSwitch<E>]) -> RingShare<'a, E> {
         let n_claims = rings.iter().map(|ring| ring.claims.len()).sum();
         let scales = a.powers(self.gamma_rs, n_claims);
         let map = RingMap::new(a, &self.map_challenges);
@@ -546,7 +537,7 @@ impl<E: Copy> RingFamily<E> {
 }
 
 /// An opening's ring-switched claims as one family under one map: its target, and its weight at a point.
-pub struct RingShare<'a, E> {
+pub(crate) struct RingShare<'a, E> {
     /// The regions and their claims, in order.
     rings: &'a [RingSwitch<E>],
     /// `gamma_rs^j` for claim `j` across the regions.
@@ -561,7 +552,7 @@ impl<E: Copy + PartialEq> RingShare<'_, E> {
     /// # Panics
     ///
     /// If a claim does not carry 64 slices.
-    pub fn target<A: Arith<E = E>>(&self, a: &mut A) -> E {
+    pub(crate) fn target<A: Arith<E = E>>(&self, a: &mut A) -> E {
         let claims = self.rings.iter().flat_map(|ring| &ring.claims);
         let zero = a.zero();
         let mut family = vec![zero; F64::DEGREE];
@@ -593,7 +584,7 @@ impl<E: Copy + PartialEq> RingShare<'_, E> {
     /// # Panics
     ///
     /// If a region has more variables than `x` has coordinates, or a claim's point is longer than every region.
-    pub fn weight_at<A: Arith<E = E>>(&self, a: &mut A, x: &[E]) -> E {
+    pub(crate) fn weight_at<A: Arith<E = E>>(&self, a: &mut A, x: &[E]) -> E {
         let max_vars = self.rings.iter().map(|ring| ring.qflock_vars).max().unwrap_or(0);
         let ladders: Vec<Vec<E>> = x[..max_vars]
             .iter()
@@ -614,7 +605,7 @@ impl<E: Copy + PartialEq> RingShare<'_, E> {
         // Phase 2: close each region's sum and select the region's place in the stack.
         let mut weight = zero;
         for (ring, sum) in self.rings.iter().zip(&sums) {
-            let part = RingMap::close(a, sum);
+            let part = close(a, sum);
             let sel_eq = a.eq_bits(ring.offset >> ring.qflock_vars, &x[ring.qflock_vars..]);
             weight = a.mul_add(sel_eq, part, weight);
         }
@@ -626,31 +617,31 @@ impl<E: Copy + PartialEq> RingShare<'_, E> {
 ///
 /// Points compare element by element: for the recursive verifier, two points match when they hold the same wires.
 #[derive(Clone, Debug)]
-pub struct PrefixGroup<'a, E = F192> {
+pub(crate) struct PrefixGroup<'a, E = F192> {
     /// The longest point.
-    pub lead: &'a [E],
+    pub(crate) lead: &'a [E],
     /// The distinct prefix lengths its claims sit at.
-    pub lengths: Vec<usize>,
+    pub(crate) lengths: Vec<usize>,
     /// Its claims, each naming the index of its length in `lengths`.
-    pub members: Vec<PrefixMember>,
+    pub(crate) members: Vec<PrefixMember>,
 }
 
 /// One claim of a prefix group.
 #[derive(Clone, Copy, Debug)]
-pub struct PrefixMember {
+pub(crate) struct PrefixMember {
     /// Its index across every region's claims, which picks its scale.
-    pub claim: usize,
+    pub(crate) claim: usize,
     /// The index of its region.
-    pub ring: usize,
+    pub(crate) ring: usize,
     /// The index of its point's length in the group's lengths.
-    pub length: usize,
+    pub(crate) length: usize,
 }
 
 impl<'a, E: PartialEq> PrefixGroup<'a, E> {
     /// Groups every claim of the regions, longest points first.
     ///
     /// A claim joins the first group whose lead its point is a prefix of, and otherwise opens a new group.
-    pub fn of(rings: &'a [RingSwitch<E>]) -> Vec<Self> {
+    pub(crate) fn of(rings: &'a [RingSwitch<E>]) -> Vec<Self> {
         let mut claims: Vec<(usize, usize, &'a [E])> = rings
             .iter()
             .enumerate()
@@ -688,7 +679,7 @@ impl<'a, E: PartialEq> PrefixGroup<'a, E> {
 pub(crate) mod tests {
     use super::*;
     use fiat_shamir::arith::Native;
-    use primitives::multilinear::eq_eval;
+    use primitives::multilinear::{eq_eval, inner_product, inner_product_base};
     use primitives::test_util::Rng;
     use std::collections::HashSet;
 
@@ -698,10 +689,19 @@ pub(crate) mod tests {
     pub(crate) const RING_SWITCH_SOUNDNESS_DEGREE: usize =
         (1usize << 31) + (1usize << 15) + (1usize << 7) + (1usize << 3) + (1usize << 1) + 1;
 
+    /// The family of these map challenges, its scale challenge unused.
+    fn family(map_challenges: [F192; COMPOSITION_SHIFTS.len()]) -> RingFamily {
+        RingFamily {
+            gamma_rs: F192::ZERO,
+            map_challenges,
+        }
+    }
+
     /// The family's target from its definition: `sum_i x^i Phi(s_i)`, each `Phi` applied in its composed form.
     fn row_target(slices: &[F192], challenges: &[F192; COMPOSITION_SHIFTS.len()]) -> F192 {
         let x = F192::new(2, 0, 0);
-        (slices.iter().rev()).fold(F192::ZERO, |acc, &s| acc * x + apply_composed_map(s, challenges))
+        let family = family(*challenges);
+        (slices.iter().rev()).fold(F192::ZERO, |acc, &s| acc * x + family.apply(s))
     }
 
     /// The query's inverse Frobenius ladders, one per coordinate.
@@ -751,9 +751,10 @@ pub(crate) mod tests {
         let mut rng = Rng::new(3);
         for _ in 0..4 {
             let challenges = std::array::from_fn(|_| rng.ext());
-            let map = F192Map::new(&build_coordinate_weights(&challenges));
+            let family = family(challenges);
             let values = rng.ext_vec(BLOCK);
-            let want: Vec<F192> = values.iter().map(|&v| apply_composed_map(v, &challenges)).collect();
+            let want: Vec<F192> = values.iter().map(|&v| family.apply(v)).collect();
+            let map = family.map();
             assert_eq!(fold_dense(&values, &map), want);
         }
     }
@@ -765,7 +766,7 @@ pub(crate) mod tests {
         let n = 9;
         let packed = pack_witness(&rng.bits(1 << (n + F64::DEGREE.ilog2() as usize)));
         let challenges = std::array::from_fn(|_| rng.ext());
-        let map = F192Map::new(&build_coordinate_weights(&challenges));
+        let map = family(challenges).map();
         let gamma_rs = rng.ext();
 
         // Three claims, claim `j` scaled by `gamma_rs^j`: their slices add, and so do their weights.
@@ -789,7 +790,7 @@ pub(crate) mod tests {
         assert_eq!(combined, dense);
 
         // Invariant: `sum_y packed[y] * w[y] = sum_i x^i Phi(s_i)`, in its row form and in its Frobenius form.
-        let target = (packed.iter().zip(&combined)).fold(F192::ZERO, |acc, (&k, &w)| acc + w.mul_base(k));
+        let target = inner_product_base(&packed, &combined);
         assert_eq!(target, row_target(&slices, &challenges));
         assert_eq!(
             target,
@@ -848,7 +849,7 @@ pub(crate) mod tests {
             expanded += coefficient * frobenius;
             frobenius = frobenius.square();
         }
-        assert_eq!(apply_composed_map(value, &challenges), expanded);
+        assert_eq!(family(challenges).apply(value), expanded);
     }
 
     #[test]
@@ -870,7 +871,7 @@ pub(crate) mod tests {
                 direct += w;
             }
         }
-        let split = (prefix_weights.iter().zip(&s_ref)).fold(F192::ZERO, |acc, (&p, &s)| acc + p * s);
+        let split = inner_product(&prefix_weights, &s_ref);
         assert_eq!(split, direct, "prefix x suffix split must factor the MLE");
     }
 
@@ -882,7 +883,7 @@ pub(crate) mod tests {
         let mut rng = Rng::new(4);
         for _ in 0..3 {
             let challenges = std::array::from_fn(|_| rng.ext());
-            let map = F192Map::new(&build_coordinate_weights(&challenges));
+            let map = family(challenges).map();
             let ring_map = RingMap::new(&mut Native, &challenges);
             let query = rng.ext_vec(max_len);
             let lead = rng.ext_vec(max_len);
@@ -893,9 +894,9 @@ pub(crate) mod tests {
                 let scaled: Vec<F192> = eq_table(&lead[..len]).iter().map(|&e| scale * e).collect();
                 let rs_eq_ind = fold_dense(&scaled, &map);
                 let eq_query = eq_table(&query[..len]);
-                let dense = (rs_eq_ind.iter().zip(&eq_query)).fold(F192::ZERO, |acc, (&w, &e)| acc + w * e);
+                let dense = inner_product(&rs_eq_ind, &eq_query);
                 let scaled_terms: Vec<F192> = terms.iter().map(|&t| t * scale).collect();
-                assert_eq!(RingMap::close(&mut Native, &scaled_terms), dense, "prefix length {len}");
+                assert_eq!(close(&mut Native, &scaled_terms), dense, "prefix length {len}");
             }
         }
     }
@@ -906,7 +907,7 @@ pub(crate) mod tests {
         //
         // Fixture state: a 24-variable claim, whose 16-variable low table builds in parallel, beside a 7-variable one.
         let mut rng = Rng::new(0xB47C);
-        let map = F192Map::new(&build_coordinate_weights(&std::array::from_fn(|_| rng.ext())));
+        let map = family(std::array::from_fn(|_| rng.ext())).map();
         let points = [rng.ext_vec(24), rng.ext_vec(7)];
         let scales = [rng.ext(), rng.ext()];
         let claims = (points.iter().zip(scales)).map(|(point, scale)| (point.as_slice(), scale, map.clone()));

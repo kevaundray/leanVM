@@ -705,7 +705,7 @@ def LayerCert.chain (scs : Array SumcheckCert) (cs : Array Call) (rl : Array Boo
 /-- A table sumcheck's bus GKR (`TableCert`): its first layer (top layer `first`, or with `odd` odd layer `first`)
 reading the table's root as both trees' value, its layers past it (`LayerCert.chain` from the first layer's next claims
 and point, `[low, high]` or `[r]` past an odd layer), and the table's totals each the `add` at `totAt` of a framework
-share `fw` and the last layer's next claim (`leaf::verify_balance`: `totals[s] = framework + values[s]`). -/
+share `fw` and the last layer's next claim (`bus::verify_balance`: `totals[s] = framework + values[s]`). -/
 structure GkrCert where
   odd : Bool
   first : ℕ

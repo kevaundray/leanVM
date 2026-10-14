@@ -1,17 +1,17 @@
 //! The designs of a grid of tree shapes, as `checkdesign` compares them with the Lean model of `Design`.
 
-use super::claims::NodeClaims;
 use super::design::{Design, Level};
-use super::reduce::{DenseReduced, MatrixReduced, Reduced};
+use super::reduce::{DenseReduced, MatrixReduced, NodeClaims, Reduced};
 use super::statement::{Kind, Section, TreeStatement};
 use super::*;
-use crate::class_flock::N_FLOCKS;
+use crate::cpu::ProofKind;
 use crate::rec::circuit::{Builder, Ew, Kw};
 use crate::rec::fixed::FixedColumn;
 use crate::rec::table::Table;
 use crate::rec::verifier::FixedHint;
 use crate::rv::Region;
 use crate::rv::asm::*;
+use crate::tables::{CircuitId, N_CIRCUITS};
 use std::fmt::Write;
 
 /// The committed summaries, which `checkdesign` reads.
@@ -134,7 +134,7 @@ fn exposed(d: &Design<'_>, rounds: usize, present: [bool; 4]) -> String {
     let n_matrix = d.statement.range(Section::Rows).len();
     let rows = (0..n_matrix).map(|_| free(&mut b)).collect();
     let cols = (0..n_matrix).map(|_| free(&mut b)).collect();
-    let matrices = (0..N_FLOCKS).map(|_| [free(&mut b), free(&mut b)]).collect();
+    let matrices = (0..N_CIRCUITS).map(|_| [free(&mut b), free(&mut b)]).collect();
     let reduced = Reduced {
         dense: DenseReduced { point, values },
         matrices: MatrixReduced {
@@ -144,7 +144,7 @@ fn exposed(d: &Design<'_>, rounds: usize, present: [bool; 4]) -> String {
         },
     };
     let digest = b.free_d([1, 2, 3, 4]);
-    let statement = reduced.statement(&mut b, d.statement, 7, digest);
+    let statement = TreeStatement::from_reduced(&mut b, d.statement, 7, digest, &reduced);
     let words: Vec<String> = (statement.words().iter())
         .map(|&w| {
             let x = b.e(w);
@@ -253,12 +253,8 @@ fn summaries() -> String {
     let rate = Rate::MIN;
     let measured = LeafShape::measured(&program.measure(&[1]).expect("the run halts"), rate);
     // A leaf shape no proof has, so that `Tree::new` stops at the leaf's shape once the arities pass.
-    let refused = LeafShape::new(measured.taus.map(|_| 99), rate);
-    let mut out = format!(
-        "consts {} {}\n",
-        crate::class_flock::FlockId::MAX_K_LOG,
-        crate::class_flock::N_FLOCKS
-    );
+    let refused = LeafShape::new(measured.taus().map(|_| 99), rate, ProofKind::Plain);
+    let mut out = format!("consts {} {}\n", CircuitId::MAX_K_LOG, N_CIRCUITS);
     out.push_str(&bound());
     for (arity_0, arity, claims) in grid() {
         let claim_words = claims.map_or_else(
@@ -284,13 +280,15 @@ fn summaries() -> String {
             Err(TreeError::SmallTier { .. }) => out.push_str("reject small\n"),
             Err(TreeError::LeafShape(_)) => {
                 out.push_str("accept\n");
-                let leaf = ProofShape::new(&program, measured.taus, rate).expect("the measured shape");
+                let shape = TreeShape {
+                    leaf: measured,
+                    ..shape
+                };
                 let tiers = claims.map_or(1, |c| c.tiers());
                 let taus = vec![PerRecTable::default(); tiers];
-                let d = Design::new(leaf, arity_0, arity, rate, claims, &taus).expect("a design at zero heights");
+                let d = Design::new(&program, &shape, &taus).expect("a design at zero heights");
                 out.push_str(&summary(&d));
-                let leaf = ProofShape::new(&program, measured.taus, rate).expect("the measured shape");
-                let d = Design::new(leaf, arity_0, arity, rate, claims, &heights(tiers)).expect("a design at heights");
+                let d = Design::new(&program, &shape, &heights(tiers)).expect("a design at heights");
                 let kappas: Vec<String> = d.tiers.iter().map(|t| t.fixed.kappa().to_string()).collect();
                 let _ = writeln!(out, "hkappas {}", kappas.join(" "));
                 out.push_str(&fixed(&d, "hfixed"));

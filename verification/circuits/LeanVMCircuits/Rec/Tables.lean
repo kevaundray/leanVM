@@ -11,7 +11,7 @@ public import Clean.Utils.Tactics
 The recursion machine's tables over `K`: each slot's four limbs as degree-two forms of a row's columns, and each
 table's identities.
 
-A form is data in the shape the Rust prover reads (`leaf::Coord`), its constants `K` elements written as their
+A form is data in the shape the Rust prover reads (`bus::Coord`), its constants `K` elements written as their
 coefficient words. `Form.expr` reads it as a Clean expression; the identities are a Clean assertion per table. The
 theorems state what the limbs are: `E = K[y] / (y^3 + y + 1)` arithmetic for `EMUL` and `EXK`, the Merkle mux for
 `HASH`, a word's bits for `SPLIT`, and views of four words for `CAST`.
@@ -23,7 +23,7 @@ open Polynomial
 
 /-! Forms over a row's columns. -/
 
-/-- A degree-two form of a row's columns, as the prover's `leaf::Coord` writes one. -/
+/-- A degree-two form of a row's columns, as the prover's `bus::Coord` writes one. -/
 inductive Form where
   /-- The constant whose coefficient word is `w`. -/
   | const (w : ℕ)

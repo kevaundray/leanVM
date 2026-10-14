@@ -79,7 +79,7 @@ def parse (line : String) : Except String Call := do
 /-- A line of a dump: a call, or a mark around the calls of one union pool or product (`Builder::mark`). -/
 inductive Line where
   | call (c : Call)
-  /-- `union::pool_rows` of `chunks` chunks reading `digests` follows, up to `stop`. -/
+  /-- `union::PoolShape::rows` of `chunks` chunks reading `digests` follows, up to `stop`. -/
   | pool (chunks : ℕ) (selecting : Bool) (digests : List ℕ)
   /-- `union::product` over the pool whose first item's first word is `first`, at `x1` and `weights`, up to `stop`. -/
   | product (first x1 : ℕ) (weights : List ℕ)

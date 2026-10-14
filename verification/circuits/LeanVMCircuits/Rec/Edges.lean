@@ -209,7 +209,7 @@ theorem stmtClaims_congr {L : Layout} (hL : L.ok = true) {x y : ℕ → β} (σ 
 
 /-! A child's scale: one, or whether it is a node, from its kind word. -/
 
-/-- How a tier computes a child's scale from its kind word (`Design::kind_rows`). -/
+/-- How a tier computes a child's scale from its kind word (`Design::kind_bits`). -/
 inductive Mode where
   /-- Two kinds: the kind word is the bit. -/
   | kind

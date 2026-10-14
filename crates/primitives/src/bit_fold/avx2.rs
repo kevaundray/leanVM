@@ -110,7 +110,7 @@ impl Product for Shuffle {
                 sum[v] = sum[v ^ low] + w[low.trailing_zeros() as usize];
             }
             for (row, s) in rows.iter_mut().zip(sum) {
-                row[..OUT_BYTES].copy_from_slice([s.c0, s.c1, s.c2].map(u64::to_le_bytes).as_flattened());
+                row[..OUT_BYTES].copy_from_slice(&s.to_le_bytes());
             }
         }
         // SAFETY: the impl exists only when the crate is built with AVX2.
@@ -252,7 +252,7 @@ fn leading_columns(rows: &[[u8; 32]; 32]) -> [[u8; 32]; OUT_BYTES] {
 ///
 /// # Safety
 ///
-/// Requires AVX2, which the target enables wherever this is compiled.
+/// The CPU must support the target features the function enables.
 #[inline]
 #[target_feature(enable = "avx2")]
 pub fn store_f192(acc: &[__m256i; OUT_BYTES], out: &mut [F192; HALF]) {
@@ -351,7 +351,7 @@ impl<P: Product> Fold<P> {
     pub fn slice(xs: &[F192; BLOCK]) -> Sliced {
         let rows: [[u8; 32]; BLOCK] = std::array::from_fn(|i| {
             let mut row = [0u8; 32];
-            row[..OUT_BYTES].copy_from_slice([xs[i].c0, xs[i].c1, xs[i].c2].map(u64::to_le_bytes).as_flattened());
+            row[..OUT_BYTES].copy_from_slice(&xs[i].to_le_bytes());
             row
         });
         // SAFETY: the module is compiled only with AVX2 enabled.
