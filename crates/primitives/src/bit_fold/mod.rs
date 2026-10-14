@@ -9,7 +9,7 @@
 //! The fold is `F_2`-linear in the row's bits, so it splits into one 8-bit piece per byte.
 //!
 //! - Portable: a 256-entry subset-sum table per byte, one lookup per byte.
-//! - ARM with SHA3: the same byte tables, stored as three 64-bit limbs, with pairs of lookups summed by NEON EOR3.
+//! - ARM with SHA3: the same byte tables, with pairs of lookups summed by NEON EOR3.
 //! - AVX-512 with GFNI: an 8x8 bit matrix per (input byte, output byte), applied to 64 rows by one instruction.
 //! - AVX2: the same byte-sliced shape 32 rows wide, each map one affine instruction with GFNI, else two nibble lookups.
 
@@ -25,14 +25,8 @@ use crate::multilinear::eq_table;
 ))]
 use core::arch::x86_64::__m512i;
 
-#[cfg(all(target_arch = "aarch64", target_feature = "sha3"))]
-use arm::{self as imp, Imp};
-
-#[cfg(not(any(
-    all(target_arch = "x86_64", target_feature = "avx2"),
-    all(target_arch = "aarch64", target_feature = "sha3")
-)))]
-use portable::{self as imp, Imp};
+#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+use tables::{self as imp, Imp};
 
 #[cfg(all(
     target_arch = "x86_64",
@@ -225,14 +219,8 @@ impl Sliced {
     }
 }
 
-#[cfg(all(target_arch = "aarch64", target_feature = "sha3"))]
-mod arm;
-
-#[cfg(not(any(
-    all(target_arch = "x86_64", target_feature = "avx2"),
-    all(target_arch = "aarch64", target_feature = "sha3")
-)))]
-mod portable;
+#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+mod tables;
 
 #[cfg(all(
     target_arch = "x86_64",
@@ -274,7 +262,8 @@ mod tests {
                         .iter()
                         .enumerate()
                         .filter(|(bit, _)| row[bit / 8] >> (bit % 8) & 1 == 1)
-                        .fold(F192::ZERO, |acc, (_, &weight)| acc + weight);
+                        .map(|(_, &weight)| weight)
+                        .sum::<F192>();
                     assert_eq!(out[p], expected, "CHUNKS={CHUNKS}, len={len}, row {p}");
                 }
             }
@@ -301,7 +290,8 @@ mod tests {
                 let words = [xs[p].c0, xs[p].c1, xs[p].c2];
                 let image = (0..192)
                     .filter(|&b| words[b / 64] >> (b % 64) & 1 == 1)
-                    .fold(F192::ZERO, |acc, b| acc + weights[b]);
+                    .map(|b| weights[b])
+                    .sum::<F192>();
                 assert_eq!(out[p], before[p] + image, "len={len}, value {p}");
             }
         }
@@ -340,7 +330,8 @@ mod tests {
                         .iter()
                         .enumerate()
                         .filter(|(bit, _)| row[bit / 8] >> (bit % 8) & 1 == 1)
-                        .fold(F192::ZERO, |acc, (_, &weight)| acc + weight);
+                        .map(|(_, &weight)| weight)
+                        .sum::<F192>();
                     assert_eq!(out[p], expected, "CHUNKS={CHUNKS}, len={len}, row {p}");
                 }
             }
@@ -355,7 +346,8 @@ mod tests {
                 let words = [xs[p].c0, xs[p].c1, xs[p].c2];
                 let image = (0..192)
                     .filter(|&b| words[b / 64] >> (b % 64) & 1 == 1)
-                    .fold(F192::ZERO, |acc, b| acc + weights[b]);
+                    .map(|b| weights[b])
+                    .sum::<F192>();
                 assert_eq!(o, image, "value {p}");
             }
         }

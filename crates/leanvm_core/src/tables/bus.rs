@@ -1,6 +1,6 @@
 //! State, bytecode, and memory tuples for the offline bus.
 
-use crate::leaf::Coord;
+use crate::bus::Coord;
 use primitives::field::F64;
 
 /// Domain of a bus tuple, encoded in its first coordinate.

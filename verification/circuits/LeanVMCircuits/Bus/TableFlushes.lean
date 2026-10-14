@@ -5,7 +5,7 @@ module
 /-!
 # The instruction tables' flushes
 
-The source of the eleven instruction tables' local layouts and ordered bus flushes, exported to `crates/leanvm_core/src/tables/clean.rs`. Native `ClassSpec` still selects the circuits and clock slots; `checkflushes` checks its slot lists and native word-to-column clock-port projection against this source. Each tuple is a list of symbolic coordinates over the row's local columns (`Coord`, Rust's `leaf::Coord`).
+The source of the eleven instruction tables' local layouts and ordered bus flushes, exported to `crates/leanvm_core/src/tables/clean.rs`. Native `ClassSpec` still selects the circuits and clock slots; `checkflushes` checks its slot lists and native word-to-column clock-port projection against this source. Each tuple is a list of symbolic coordinates over the row's local columns (`Coord`, Rust's `bus::Coord`).
 
 A row pulls its state `⟨ST, pc, ts, 0⟩` and pushes `⟨ST, npc, ts + step, exit⟩`, pulls its decoded bytecode entry
 `⟨BC, pc, …⟩`, then makes its accesses in clock-slot order: access `i` in slot `k` pulls `⟨sep, addr, prev_i, old⟩`

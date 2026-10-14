@@ -16,9 +16,9 @@
 //! The next pass folds four rows into one and sums the next two rounds' polynomial on the way.
 //! Memory is therefore read once every two rounds.
 
-use super::lanes::{Lane, Lanes, Polynomial, Xor};
 use crate::PAR_THRESHOLD;
 use parallel::SendPtr;
+use primitives::field::lanes::{Lane, Lanes, Polynomial, Xor};
 use primitives::field::{F192, F192Unreduced};
 use primitives::multilinear::SplitEq;
 use primitives::stream::{Stream, prefetch};
@@ -231,7 +231,7 @@ impl<L: Lanes> BlockSums<L> {
             let low = L::load(&eq.low[q & (eq.low.len() - 1)..]);
             self.add_group(
                 blocks[start..start + L::WIDTH].as_flattened(),
-                low * L::splat(eq.high[q >> eq.low_log()]),
+                low * L::splat(eq.high[q >> eq.low_log]),
             );
         }
         let q = first + L::WIDTH * groups;

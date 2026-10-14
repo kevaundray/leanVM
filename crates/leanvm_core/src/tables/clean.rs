@@ -6,7 +6,7 @@ use super::columns::{
     BlockColumns, Columns, ControlColumns, DestinationColumns, LimbColumns, MemoryColumns, PointerColumns,
     SourceColumns,
 };
-use crate::leaf::{BusForm, Coord};
+use crate::bus::{BusForm, Coord};
 use primitives::field::{F64, F192};
 
 /// The eleven local layouts, including shared load/store value columns.

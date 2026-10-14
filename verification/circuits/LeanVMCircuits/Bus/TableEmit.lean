@@ -77,7 +77,7 @@ def emit : Except String String := do
   return "// Generated from LeanVMCircuits.Bus.ClassTable.all and ExtensionProduct.rows by GenerateTables.lean. Do not edit.\n" ++
     "// These exact plans and identities are the source of the Clean row and bus theorems.\n\n" ++
     "use super::columns::{BlockColumns, Columns, ControlColumns, DestinationColumns, LimbColumns, MemoryColumns, PointerColumns, SourceColumns};\n" ++
-    "use super::bus::FlushBuilder;\nuse crate::leaf::{BusForm, Coord};\nuse primitives::field::{F64, F192};\n\n" ++
+    "use super::bus::FlushBuilder;\nuse crate::bus::{BusForm, Coord};\nuse primitives::field::{F64, F192};\n\n" ++
     "/// The eleven local layouts, including shared load/store value columns.\n" ++
     "pub(super) fn table_columns(index: usize) -> Columns {\nmatch index {\n" ++ String.join layouts ++
     "_ => panic!(\"unsupported instruction table index {index}\"),\n}\n}\n\n" ++

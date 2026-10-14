@@ -1,8 +1,9 @@
 // CREDIT: https://github.com/succinctlabs/flock (flock-prover), MIT OR Apache-2.0.
 //! The packed witness tables, and the parallel drivers every witness generator fills them through.
-//! A generator writes one instance's rows through `InstanceRows`.
+//!
+//! A generator writes one instance's rows into that instance's three tables.
 
-use parallel::Chunks;
+use parallel::ChunkView;
 use primitives::stream::Stream;
 
 /// The bytes of packed words, on a little-endian target.
@@ -16,24 +17,11 @@ pub(crate) const fn packed_bytes(words: &[u64]) -> &[u8] {
     unsafe { core::slice::from_raw_parts(words.as_ptr().cast::<u8>(), words.len() * 8) }
 }
 
-/// One circuit's witness over a batch of instances, as the prover holds it.
-///
-/// Each table packs 64 bits a word, `2^k_log / 64` words per instance, instance-major.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Witness {
-    /// The witness bits.
-    pub z: Vec<u64>,
-
-    /// The left factor of every constraint, `A z`.
-    pub az: Vec<u64>,
-
-    /// The right factor of every constraint, `B z`.
-    pub bz: Vec<u64>,
-}
-
-/// A witness whose bits live in the caller's buffer: the two factor tables.
+/// The factor tables of a witness whose bits live in the caller's buffer.
 ///
 /// A committed batch's bits are its column of the commitment, written there in place.
+///
+/// Each table packs 64 bits a word, `2^k_log / 64` words per instance, instance-major.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Tables {
     /// The left factor of every constraint, `A z`.
@@ -48,23 +36,75 @@ pub struct Tables {
 /// Each table holds the group's instances one after another, `2^k_log / 64` words each.
 pub(crate) struct GroupTables<'a> {
     /// The witness bits.
-    pub z: &'a mut [u64],
+    pub(crate) z: &'a mut [u64],
 
     /// `A z`.
-    pub a: &'a mut [u64],
+    pub(crate) a: &'a mut [u64],
 
     /// `B z`.
-    pub b: &'a mut [u64],
+    pub(crate) b: &'a mut [u64],
+}
+
+/// The rows a batch's instances are built from: the caller's rows, then copies of one padding row.
+///
+/// A batch has `2^n_blocks_log` instances, so the padding fills it up to that power of two.
+///
+/// The padding is a real instance, so the constant wire is one in every instance.
+#[derive(Debug)]
+pub struct BatchRows<'a, S> {
+    /// The caller's rows, instance `i` taking row `i`.
+    rows: &'a [S],
+
+    /// The row every instance past the caller's rows takes.
+    padding: &'a S,
+
+    /// The base-two logarithm of the instance count.
+    n_blocks_log: usize,
+}
+
+impl<S> Clone for BatchRows<'_, S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S> Copy for BatchRows<'_, S> {}
+
+impl<'a, S> BatchRows<'a, S> {
+    /// The `2^n_blocks_log` instances of `rows`, padded by `padding`.
+    ///
+    /// # Panics
+    ///
+    /// When there are more rows than instances.
+    pub fn new(rows: &'a [S], padding: &'a S, n_blocks_log: usize) -> Self {
+        assert!(rows.len() <= 1 << n_blocks_log, "more rows than instances");
+        Self {
+            rows,
+            padding,
+            n_blocks_log,
+        }
+    }
+
+    /// The base-two logarithm of the instance count.
+    pub const fn n_blocks_log(&self) -> usize {
+        self.n_blocks_log
+    }
+
+    /// Instance `i`'s row: the caller's, or the padding past them.
+    #[inline]
+    pub fn get(&self, i: usize) -> &'a S {
+        self.rows.get(i).unwrap_or(self.padding)
+    }
 }
 
 /// The shape of a batch: `2^n_blocks_log` instances of `2^k_log` bits each.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Batch {
     /// The base-two logarithm of the instance count.
-    pub n_blocks_log: usize,
+    pub(crate) n_blocks_log: usize,
 
     /// The base-two logarithm of the bits per instance.
-    pub k_log: usize,
+    pub(crate) k_log: usize,
 }
 
 impl Batch {
@@ -74,28 +114,15 @@ impl Batch {
     }
 
     /// Packed words per table.
-    const fn total_words(self) -> usize {
+    pub(crate) const fn total_words(self) -> usize {
         self.words() << self.n_blocks_log
-    }
-
-    /// A whole witness: the bits are allocated here, then the driver fills them and builds the factor tables.
-    pub(crate) fn witness(self, drive: impl FnOnce(&mut [u64]) -> Tables) -> Witness {
-        let mut z = Box::<[u64]>::new_uninit_slice(self.total_words());
-        // SAFETY: every driver writes all of the bits and reads none of them first.
-        let Tables { az, bz } = drive(unsafe { primitives::write_only(&mut z) });
-        Witness {
-            // SAFETY: the driver wrote every word.
-            z: unsafe { z.assume_init() }.into_vec(),
-            az,
-            bz,
-        }
     }
 
     /// Fill the tables `group` instances at a time, the bits into `z`.
     ///
     /// - `fill(state, first, tables)` writes every word of the group whose first instance is `first`.
     /// - Each worker builds its `state` once, by `init`, and reuses it across its groups.
-    /// - `check(i, z)` sees instance `i`'s bits while its group is still in cache.
+    /// - `inspect(i, z)` sees instance `i`'s bits while its group is still in cache.
     ///
     /// A group builds in its worker's scratch, which stays in cache, then streams out.
     /// Building in place instead would fetch every output line before writing it.
@@ -109,7 +136,7 @@ impl Batch {
         group: usize,
         init: I,
         fill: F,
-        check: impl Fn(usize, &[u64]) + Sync,
+        inspect: impl Fn(usize, &[u64]) + Sync,
     ) -> Tables
     where
         St: Send,
@@ -128,12 +155,12 @@ impl Batch {
 
         // Each group owns one chunk of every table.
         let group_words = group * words;
-        let z_chunks = Chunks::new(z, group_words);
-        let a_chunks = Chunks::new(&mut a, group_words);
-        let b_chunks = Chunks::new(&mut b, group_words);
+        let z_chunks = ChunkView::new(z, group_words);
+        let a_chunks = ChunkView::new(&mut a, group_words);
+        let b_chunks = ChunkView::new(&mut b, group_words);
 
         parallel::map_reduce_with_state(
-            z_chunks.count(),
+            z_chunks.len(),
             || (vec![0u64; 3 * group_words], init()),
             || (),
             |(scratch, state), (), g| {
@@ -152,7 +179,7 @@ impl Batch {
 
                 // Phase 2: show each instance's bits while they are hot.
                 for (i, z) in z_grp.chunks_exact(words).enumerate() {
-                    check(g * group + i, z);
+                    inspect(g * group + i, z);
                 }
 
                 // Phase 3: publish the group without reading the destination first.
@@ -179,21 +206,14 @@ impl Batch {
 
     /// Fill the tables one instance at a time, eight per group.
     ///
-    /// - `instance(row, z, a, b)` sets one instance's bits in three zeroed buffers of `2^k_log / 64` words.
-    /// - The instances past `rows` take `padding`: a real instance, so the constant wire is one in every instance.
-    ///
-    /// # Panics
-    ///
-    /// When there are more rows than instances.
+    /// `instance(row, z, a, b)` sets one instance's bits in three zeroed buffers of `2^k_log / 64` words.
     pub(crate) fn fill_instances<S: Sync>(
         self,
         z: &mut [u64],
-        rows: &[S],
-        padding: &S,
+        rows: BatchRows<'_, S>,
         instance: impl Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
-        check: impl Fn(usize, &[u64]) + Sync,
+        inspect: impl Fn(usize, &[u64]) + Sync,
     ) -> Tables {
-        assert!(rows.len() <= 1 << self.n_blocks_log, "more rows than instances");
         let words = self.words();
         self.fill_groups(
             z,
@@ -209,29 +229,23 @@ impl Batch {
                     .zip(t.a.chunks_exact_mut(words))
                     .zip(t.b.chunks_exact_mut(words));
                 for (l, ((z, a), b)) in tables.enumerate() {
-                    instance(rows.get(first + l).unwrap_or(padding), z, a, b);
+                    instance(rows.get(first + l), z, a, b);
                 }
             },
-            check,
+            inspect,
         )
     }
 
     /// Fill the tables eight instances at a time.
     ///
     /// `batch(rows, z, a, b)` sets the eight instances' bits in three zeroed group buffers, instance-major.
-    ///
-    /// # Panics
-    ///
-    /// When there are more rows than instances.
     pub(crate) fn fill_batches8<S: Sync>(
         self,
         z: &mut [u64],
-        rows: &[S],
-        padding: &S,
+        rows: BatchRows<'_, S>,
         batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
-        check: impl Fn(usize, &[u64]) + Sync,
+        inspect: impl Fn(usize, &[u64]) + Sync,
     ) -> Tables {
-        assert!(rows.len() <= 1 << self.n_blocks_log, "more rows than instances");
         self.fill_groups(
             z,
             8,
@@ -241,10 +255,10 @@ impl Batch {
                 for table in [&mut *t.z, &mut *t.a, &mut *t.b] {
                     table.fill(0);
                 }
-                let inputs = std::array::from_fn(|l| rows.get(first + l).unwrap_or(padding));
+                let inputs = std::array::from_fn(|l| rows.get(first + l));
                 batch(inputs, t.z, t.a, t.b);
             },
-            check,
+            inspect,
         )
     }
 }

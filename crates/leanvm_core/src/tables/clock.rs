@@ -250,8 +250,10 @@ mod tests {
     use crate::rv::Ext;
     use crate::tables::{TableId, Word};
     use fiat_shamir::{ProverState, SessionId, VerifierState};
+    use flock::BatchRows;
     use flock::lincheck::LincheckCircuit;
-    use flock::reduction::{self, Instance};
+    use flock::reduction;
+    use flock::test_util::Witness;
     use primitives::field::F192;
     use primitives::test_util::Rng;
 
@@ -282,15 +284,19 @@ mod tests {
                 })
                 .collect();
             let accepts = |tamper: Option<usize>| {
-                let mut witness = circuit.witness_by_instance(&rows, &rows[0], n_log, |row: &Vec<u64>, z, az, bz| {
-                    Clock::witness(&slots, row[0], &row[1..], z, az, bz);
-                });
+                let mut witness = Witness::by_instance(
+                    &circuit,
+                    BatchRows::new(&rows, &rows[0], n_log),
+                    |row: &Vec<u64>, z, az, bz| {
+                        Clock::witness(&slots, row[0], &row[1..], z, az, bz);
+                    },
+                );
                 if let Some(bit) = tamper {
                     witness.z[bit / 64] ^= 1 << (bit % 64);
                 }
                 let label = b"clean-clock-native-witness";
                 let mut ps = ProverState::new(&SessionId::new(label), &0u64);
-                let claims = reduction::prove(&[Instance::of(block, n_log, &witness)], &mut ps);
+                let claims = reduction::prove(&[witness.instance(block, n_log)], &mut ps);
                 let proof = ps.into_proof();
                 let mut vs = VerifierState::new(&SessionId::new(label), &0u64, &proof);
                 reduction::verify(&[(block.shape(), n_log)], &mut vs)
@@ -344,11 +350,9 @@ mod tests {
                     }
                 }
             }
-            let words = (1usize << circuit.k_log()) / 64;
             for (ts, prev) in cases {
-                let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
                 let inputs = [vec![ts], prev.clone()].concat();
-                circuit.witness_instance(&inputs, &mut z, &mut az, &mut bz);
+                let z = Witness::of_instance(&circuit, &inputs).z;
                 assert_eq!(
                     z[n + 1],
                     Clock { timestamp: ts }.step(&prev, &slots),
@@ -425,10 +429,9 @@ mod tests {
                     [vec![ts], prev, operands].concat()
                 })
                 .collect();
-            let walk = circuit.witness_by_walk(&rows, &rows[0], n_log, |row: &Vec<u64>, words| {
-                words.copy_from_slice(row);
-            });
-            let words = circuit.witness_by_instance(&rows, &rows[0], n_log, |row: &Vec<u64>, z, az, bz| {
+            let rows = BatchRows::new(&rows, &rows[0], n_log);
+            let walk = Witness::by_walk(&circuit, rows, |row: &Vec<u64>, words| words.copy_from_slice(row));
+            let words = Witness::by_instance(&circuit, rows, |row: &Vec<u64>, z, az, bz| {
                 spec.clock_witness(&slots, row, z, az, bz);
             });
             let name = spec.name;
@@ -451,9 +454,7 @@ mod tests {
         assert_eq!(Clock { timestamp: ts }.step(&prev, &slots) >> Clock::FAIL_BIT, 0);
 
         // The instance as the gate walk fills it, then the clock's bit 0 as the forger commits it.
-        let words = (1usize << circuit.k_log()) / 64;
-        let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
-        circuit.witness_instance(&[ts, prev[0], prev[1], prev[2]], &mut z, &mut az, &mut bz);
+        let mut z = Witness::of_instance(&circuit, &[ts, prev[0], prev[1], prev[2]]).z;
         z[0] |= 1;
         let w: Vec<F192> = (0..circuit.n_cols())
             .map(|s| [F192::ZERO, F192::ONE][(z[s / 64] >> (s % 64) & 1) as usize])

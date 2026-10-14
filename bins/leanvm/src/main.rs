@@ -4,11 +4,12 @@ use aggregate::LeafProgram;
 use bench::Plan;
 use clap::builder::RangedU64ValueParser;
 use clap::{Parser, Subcommand};
-use leanvm::{Prover, Rate};
+use leanvm::{Prover, Randomness, Rate};
 use std::error::Error;
 use std::fmt::Arguments;
 use std::num::{NonZeroUsize, ParseIntError};
 use std::path::PathBuf;
+use std::time::Duration;
 use workload::Workload;
 
 /// jemalloc, or under `system-alloc` the system allocator for a heap profiler that hooks `malloc` (AGENTS.md, Profiling); counted either way.
@@ -36,6 +37,10 @@ struct Cli {
     /// Enable hierarchical timing traces. Use RUST_LOG to adjust verbosity.
     #[arg(long, global = true)]
     tracing: bool,
+
+    /// Make zero-knowledge proofs, each from fresh randomness of the operating system: a single run's, or an aggregation tree's leaves.
+    #[arg(long, global = true)]
+    zk: bool,
 
     /// Measured proving passes after warmup.
     #[arg(
@@ -190,7 +195,7 @@ fn main() {
     };
     if fixed_threads {
         parallel::init_with_threads(NonZeroUsize::new(16).unwrap())
-            .unwrap_or_else(|actual| refuse(format_args!("cannot configure 16 benchmark threads: {actual:?}")));
+            .unwrap_or_else(|error| refuse(format_args!("cannot configure 16 benchmark threads: {error}")));
     }
     if !matches!(cli.command, Command::Bench { .. } | Command::Circuits { .. }) || fixed_threads {
         let topology = parallel::topology();
@@ -201,9 +206,25 @@ fn main() {
             topology.efficiency
         );
     }
+    if cli.zk && matches!(cli.command, Command::Bench { .. }) {
+        refuse(format_args!(
+            "--zk is not for the tracked benchmarks, which are plain proofs"
+        ));
+    }
     let prover = Prover::new(cli.rate);
+    let prover = if cli.zk {
+        prover.zero_knowledge(Randomness::Os)
+    } else {
+        prover
+    };
     let leaf_prover = Prover::new(cli.leaf_rate);
-    let plan = Plan::new(cli.repeat, cli.cooldown);
+    // An aggregation tree's leaves are zero knowledge with --zk; its own proofs need not be, as they hold only those leaves.
+    let leaf_prover = if cli.zk {
+        leaf_prover.zero_knowledge(Randomness::Os)
+    } else {
+        leaf_prover
+    };
+    let plan = Plan::new(cli.repeat, Duration::from_secs(cli.cooldown));
     if cli.tracing {
         bench::init_tracing();
     }

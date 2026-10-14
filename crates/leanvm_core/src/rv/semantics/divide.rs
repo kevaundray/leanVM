@@ -122,7 +122,9 @@ mod tests {
     use crate::rv::Class;
     use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word, run};
     use fiat_shamir::{ProverState, SessionId, VerifierState};
-    use flock::reduction::{self, Instance};
+    use flock::BatchRows;
+    use flock::reduction;
+    use flock::test_util::Witness;
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -244,13 +246,15 @@ mod tests {
     fn proves(rows: &[Vec<u64>], tamper: &[usize]) -> bool {
         let block = DIV.block();
         let n_log = rows.len().trailing_zeros() as usize;
-        let mut w = DIV.witness_by_walk(rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
+        let mut w = Witness::by_walk(&DIV, BatchRows::new(rows, &rows[0], n_log), |row, words| {
+            words.copy_from_slice(row);
+        });
         for &bit in tamper {
             w.z[bit / 64] ^= 1 << (bit % 64);
         }
         let label = b"clean-division-walked-witness";
         let mut ps = ProverState::new(&SessionId::new(label), &0u64);
-        let claims = reduction::prove(&[Instance::of(block, n_log, &w)], &mut ps);
+        let claims = reduction::prove(&[w.instance(block, n_log)], &mut ps);
         let proof = ps.into_proof();
         let mut vs = VerifierState::new(&SessionId::new(label), &0u64, &proof);
         reduction::verify(&[(block.shape(), n_log)], &mut vs)
