@@ -58,19 +58,14 @@ impl Encoding for F192 {
     type Bytes = [u8; 24];
 
     fn encode(&self) -> [u8; 24] {
-        let mut bytes = [0u8; 24];
-        for (slot, limb) in bytes.as_chunks_mut::<8>().0.iter_mut().zip([self.c0, self.c1, self.c2]) {
-            *slot = limb.to_le_bytes();
-        }
-        bytes
+        self.to_le_bytes()
     }
 }
 
 impl FromNarg for F192 {
     fn from_narg(narg: &mut &[u8]) -> Option<Self> {
         // Every 24-byte string is an element, so only a short proof is refused.
-        let [c0, c1, c2] = limbs(take::<24>(narg)?);
-        Some(Self::new(c0, c1, c2))
+        take::<24>(narg).map(|bytes| Self::from_le_bytes(*bytes))
     }
 }
 
@@ -81,9 +76,7 @@ impl FromUniform for F192 {
     type Repr = [u8; 24];
 
     fn from_uniform(repr: [u8; 24]) -> Self {
-        // The layout of a message: three little-endian limbs, lowest first.
-        let [c0, c1, c2] = limbs(&repr);
-        Self::new(c0, c1, c2)
+        Self::from_le_bytes(repr)
     }
 }
 
@@ -136,7 +129,11 @@ impl<T: Encoding, const N: usize> Encoding for [T; N] {
     type Bytes = Vec<u8>;
 
     fn encode(&self) -> Vec<u8> {
-        self.iter().flat_map(|x| x.encode().as_ref().to_vec()).collect()
+        let mut bytes = Vec::new();
+        for x in self {
+            bytes.extend_from_slice(x.encode().as_ref());
+        }
+        bytes
     }
 }
 
@@ -165,12 +162,6 @@ fn take<'a, const N: usize>(narg: &mut &'a [u8]) -> Option<&'a [u8; N]> {
     let (head, rest) = narg.split_first_chunk::<N>()?;
     *narg = rest;
     Some(head)
-}
-
-/// Three little-endian 64-bit limbs, lowest first.
-fn limbs(bytes: &[u8; 24]) -> [u64; 3] {
-    let (chunks, _) = bytes.as_chunks::<8>();
-    std::array::from_fn(|i| u64::from_le_bytes(chunks[i]))
 }
 
 #[cfg(test)]

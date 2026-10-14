@@ -10,19 +10,44 @@ use std::fmt::{self, Debug, Formatter};
 /// The program checks it against the output.
 ///
 /// It travels as bytes.
+///
+/// A zero-knowledge proof says the same, and reveals nothing else of the run than its public shape.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Proof(#[doc(hidden)] pub ProofTranscript);
+pub struct Proof(#[doc(hidden)] pub ProofTranscript, pub(crate) ProofKind);
 
-impl Proof {
-    /// The header of a proof's bytes: the magic `LVMP`, then the protocol version.
+/// Whether a proof is zero knowledge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ProofKind {
+    /// A plain proof.
+    Plain,
+    /// A zero-knowledge proof.
+    ZeroKnowledge,
+}
+
+impl ProofKind {
+    /// The header of a proof's bytes: the magic, then the protocol version.
     ///
     /// The version is bumped by every change to what a proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMP", 17);
+    /// The magic tells the two kinds apart, so a proof of one kind is refused as the other.
+    const fn envelope(self) -> Envelope {
+        match self {
+            Self::Plain => Envelope::new(*b"LVMP", 17),
+            Self::ZeroKnowledge => Envelope::new(*b"LVMZ", 1),
+        }
+    }
+}
+
+impl Proof {
+    /// Whether the proof is zero knowledge.
+    #[must_use]
+    pub fn is_zero_knowledge(&self) -> bool {
+        self.1 == ProofKind::ZeroKnowledge
+    }
 
     /// The proof's bytes.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
-        Self::ENVELOPE.seal(&self.0.to_bytes())
+        self.1.envelope().seal(&self.0.to_bytes())
     }
 
     /// The proof these bytes encode.
@@ -32,10 +57,15 @@ impl Proof {
     /// - Bytes that are no proof.
     /// - A proof of another protocol version.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
-        // The header first: a foreign version is refused before its body is read.
-        let body = Self::ENVELOPE.open(bytes)?;
+        // The magic picks the kind, then the header is checked whole: a foreign version is refused before its body is read.
+        let kind = if bytes.starts_with(&ProofKind::ZeroKnowledge.envelope().magic()) {
+            ProofKind::ZeroKnowledge
+        } else {
+            ProofKind::Plain
+        };
+        let body = kind.envelope().open(bytes)?;
         ProofTranscript::from_bytes(body)
-            .map(Self)
+            .map(|t| Self(t, kind))
             .ok_or(DecodeError::Malformed)
     }
 }
@@ -50,8 +80,8 @@ impl Debug for Proof {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commitment::Rate;
     use crate::cpu::{Program, Prover};
-    use crate::pcs::Rate;
     use crate::rv::Region;
     use crate::rv::asm::{Addi, Asm, Reg};
 

@@ -9,9 +9,9 @@ use fiat_shamir::arith::Verifier;
 use pcs::ring_switch::SliceClaim;
 use primitives::field::F192;
 
-use crate::error::FlockError;
-use crate::lincheck::{self, LincheckCircuit, LincheckInput, MatrixClaim, MatrixForm, QuirkyPoint};
-use crate::witness::{Tables, Witness, packed_bytes};
+use crate::FlockError;
+use crate::lincheck::{self, LincheckCircuit, LincheckInput, MatrixClaim, MatrixForm, SkipPoint};
+use crate::witness::{Tables, packed_bytes};
 use crate::zerocheck::multilinear::PackedWitness;
 use crate::zerocheck::{self, K_SKIP, Padding, SkipDomain, ZerocheckInput};
 
@@ -41,7 +41,7 @@ pub const fn min_n_blocks_log(n_blocks: usize) -> usize {
 /// # Panics
 ///
 /// When an instance is not whole words.
-pub fn live_instances(z: &[u64], k_log: usize) -> usize {
+pub(crate) fn live_instances(z: &[u64], k_log: usize) -> usize {
     assert!(k_log >= 6, "an instance is whole words");
     let words = 1usize << (k_log - 6);
     let Some(last) = z.rchunks_exact(words).next() else {
@@ -151,20 +151,6 @@ impl<'a> Instance<'a> {
         }
     }
 
-    /// A batch whose whole witness is `witness`.
-    ///
-    /// Its identical tail is read off its bits.
-    pub fn of(block: Block<'a>, n_blocks_log: usize, witness: &'a Witness) -> Self {
-        Self {
-            block,
-            n_blocks_log,
-            live: live_instances(&witness.z, block.k_log),
-            z: &witness.z,
-            az: &witness.az,
-            bz: &witness.bz,
-        }
-    }
-
     /// The base-two logarithm of the batch's bits.
     const fn m(&self) -> usize {
         self.block.k_log + self.n_blocks_log
@@ -192,7 +178,7 @@ impl<'a> Instance<'a> {
     }
 
     /// The batch as the lincheck reads it, at the point its zerocheck claims are at.
-    fn lincheck_input<'p>(&self, point: &'p QuirkyPoint) -> LincheckInput<'p>
+    fn lincheck_input<'p>(&self, point: &'p SkipPoint) -> LincheckInput<'p>
     where
         'a: 'p,
     {
@@ -217,7 +203,7 @@ impl<'a> Instance<'a> {
 /// No statement is bound here: the embedding protocol binds the circuits, the instance counts and the commitment first.
 pub fn prove(instances: &[Instance<'_>], ps: &mut ProverState) -> Vec<SliceClaim> {
     // Phase 1: the zerocheck, each circuit's claims at its share of one point.
-    let points: Vec<QuirkyPoint> = {
+    let points: Vec<SkipPoint> = {
         let _span = tracing::info_span!("Zerocheck").entered();
         let inputs: Vec<ZerocheckInput<'_>> = instances.iter().map(Instance::zerocheck_input).collect();
         let claims = zerocheck::prove(&inputs, ps);
@@ -292,10 +278,11 @@ mod tests {
     use primitives::field::F192;
     use primitives::test_util::Rng;
 
-    use crate::Witness;
+    use crate::BatchRows;
     use crate::circuit::{Builder, Circuit, Wire};
     use crate::gadgets::Multiplier;
     use crate::reduction::{self, Block, Instance};
+    use crate::test_util::Witness;
     use crate::zerocheck::K_SKIP;
 
     /// The first slot of the result, after the two input words.
@@ -367,14 +354,16 @@ mod tests {
 
     /// The walk's witness of `pairs`, padded with `(0, 0)` to `2^n_log` instances.
     fn witness(circuit: &Circuit, pairs: &[[u64; 2]], n_log: usize) -> Witness {
-        circuit.witness_by_walk(pairs, &[0; 2], n_log, |row, words| words.copy_from_slice(row))
+        Witness::by_walk(circuit, BatchRows::new(pairs, &[0; 2], n_log), |row, words| {
+            words.copy_from_slice(row);
+        })
     }
 
     /// Prove one circuit's batch, then replay it: the verifier's claim, its matrices settled, the proof read to its end.
     fn accepts(block: Block<'_>, n_log: usize, witness: &Witness, tamper: impl FnOnce(&mut ProofTranscript)) -> bool {
         const LABEL: &[u8] = b"flock-u64-reduction-test";
         let mut ps = ProverState::new(&SessionId::new(LABEL), &0u64);
-        let claims = reduction::prove(&[Instance::of(block, n_log, witness)], &mut ps);
+        let claims = reduction::prove(&[witness.instance(block, n_log)], &mut ps);
         let mut proof = ps.into_proof();
         tamper(&mut proof);
         let mut vs = VerifierState::new(&SessionId::new(LABEL), &0u64, &proof);
@@ -455,7 +444,7 @@ mod tests {
         let whole: Vec<Witness> = (0..shapes.len()).map(tables).collect();
         let prove = |tables: &[Witness]| {
             let instances: Vec<Instance<'_>> = (tables.iter().zip(&blocks))
-                .map(|(witness, &(block, n_blocks_log))| Instance::of(block, n_blocks_log, witness))
+                .map(|(witness, &(block, n_blocks_log))| witness.instance(block, n_blocks_log))
                 .collect();
             let mut ps = ProverState::new(&SessionId::new(LABEL), &0u64);
             let claims = reduction::prove(&instances, &mut ps);

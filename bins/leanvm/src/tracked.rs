@@ -20,13 +20,13 @@
 
 use crate::refuse;
 use crate::workload::{Items, Workload};
-use bench::{Heap, Metric, Plan, Timing, bencher_json};
+use bench::pretty_integer;
+use bench::{Heap, Metric, Plan, Stage, Timing, bencher_json};
 use leanvm::aggregate::{
     Aggregate, Capacity, CircuitStats, ClaimLeaf, ClaimShape, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof,
     TreeShape,
 };
 use leanvm::{ProvenRun, Prover, Rate, Stats};
-use primitives::pretty_integer;
 use serde_json::{Map, Value};
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
@@ -450,7 +450,7 @@ fn proved(case: &Case, prover: &Prover, plan: Plan) -> Vec<(String, Metric)> {
     let mut passes = Vec::new();
     let mut heaps = Vec::new();
     let workload = &case.workload;
-    let (ProvenRun { proof, output, .. }, time) = plan.warm_then_measure(|_| {
+    let (ProvenRun { proof, output, .. }, time) = plan.warm_then_measure(|| {
         let (proved, heap) = bench::measure_heap(|| workload.prove(prover));
         passes.push(bench::take_stages());
         heaps.push(heap);
@@ -458,7 +458,7 @@ fn proved(case: &Case, prover: &Prover, plan: Plan) -> Vec<(String, Metric)> {
     });
     let peak_memory = bench::peak_rss_bytes();
     let (verified, verify_time) =
-        Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| workload.program.verify(output, &proof));
+        Plan::new(VERIFY_PASSES, Duration::ZERO).measure_quiet(|| workload.program.verify(output, &proof));
     verified.expect("an honest proof verifies");
     measures(
         &time,
@@ -477,7 +477,7 @@ fn measures(
     time: &Timing,
     proof_size: usize,
     verify_time: &Timing,
-    passes: &[Vec<(&'static str, Duration)>],
+    passes: &[Vec<Stage>],
     peak_memory: u64,
     heaps: &[Heap],
 ) -> Vec<(String, Metric)> {
@@ -575,14 +575,14 @@ fn proved_node<P: NodeProof>(
 ) -> (P, Vec<(String, Metric)>) {
     let mut passes = Vec::new();
     let mut heaps = Vec::new();
-    let (proof, time) = plan.warm_then_measure(|_| {
+    let (proof, time) = plan.warm_then_measure(|| {
         let (proof, heap) = bench::measure_heap(|| tracing::info_span!("Prove").in_scope(&prove));
         passes.push(bench::take_stages());
         heaps.push(heap);
         proof.expect("honest children")
     });
     let peak_memory = bench::peak_rss_bytes();
-    let (verified, verify_time) = Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| verify(&proof));
+    let (verified, verify_time) = Plan::new(VERIFY_PASSES, Duration::ZERO).measure_quiet(|| verify(&proof));
     verified.expect("an honest tree proof verifies");
     let report = measures(
         &time,
@@ -597,11 +597,11 @@ fn proved_node<P: NodeProof>(
 
 /// One `stage.<name>` measure per stage, in the order the stages ran, over the measured
 /// passes: a stage's name lowercased, every character but a letter or a digit made a `-`.
-fn stages(passes: &[Vec<(&'static str, Duration)>]) -> Vec<(String, Metric)> {
+fn stages(passes: &[Vec<Stage>]) -> Vec<(String, Metric)> {
     let mut names: Vec<&'static str> = Vec::new();
-    for &(name, _) in passes.iter().flatten() {
-        if !names.contains(&name) {
-            names.push(name);
+    for stage in passes.iter().flatten() {
+        if !names.contains(&stage.name) {
+            names.push(stage.name);
         }
     }
     names
@@ -611,8 +611,8 @@ fn stages(passes: &[Vec<(&'static str, Duration)>]) -> Vec<(String, Metric)> {
             for pass in passes {
                 timing.push(
                     pass.iter()
-                        .filter(|(n, _)| *n == name)
-                        .map(|(_, d)| d.as_secs_f64())
+                        .filter(|stage| stage.name == name)
+                        .map(|stage| stage.elapsed.as_secs_f64())
                         .sum(),
                 );
             }

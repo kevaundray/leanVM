@@ -3,6 +3,7 @@
 use crate::refuse;
 use crate::workload::Workload;
 use bench::{Plan, Timing};
+use bench::{pretty_f64, pretty_integer};
 use clap::ValueEnum;
 use core::ops::Range;
 use leanvm::aggregate::{
@@ -10,7 +11,6 @@ use leanvm::aggregate::{
     TreeShape,
 };
 use leanvm::{ProvenRun, Prover};
-use primitives::{pretty_f64, pretty_integer};
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -160,7 +160,11 @@ pub fn run(
     // The leaf's run, measured, gives the shape its proofs announce: the tree is checked before anything is proven.
     let stats = leaf.measure();
     let shape = TreeShape {
-        leaf: LeafShape::measured(&stats, leaf_prover.rate()),
+        leaf: if leaf_prover.is_zero_knowledge() {
+            LeafShape::measured(&stats, leaf_prover.rate()).zero_knowledge()
+        } else {
+            LeafShape::measured(&stats, leaf_prover.rate())
+        },
         arity_0,
         arity,
         rate,
@@ -168,14 +172,11 @@ pub fn run(
     };
     shape.root_kind(leaves).unwrap_or_else(|e| refuse(format_args!("{e}")));
 
-    let (proved, leaf_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        leaf.prove(leaf_prover)
-    });
+    let (proved, leaf_time) = plan.warm_then_measure(|| leaf.prove(leaf_prover));
     let (proof, output) = (&proved.proof, proved.output);
-    let quiet = Plan::new(plan.repeat, 0);
+    let quiet = plan.without_cooldown();
 
-    let (tree, setup) = Plan::new(1, 0).measure_quiet(|_| {
+    let (tree, setup) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Tree setup").entered();
         Tree::new(&leaf.program, shape).unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
@@ -191,12 +192,9 @@ pub fn run(
     println!("tree setup (both circuits, the fixed polynomials): {}", secs(&setup));
 
     let firsts = vec![Leaf::new(proof, output); arity_0];
-    let (first, first_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        tree.prove_first(&firsts).expect("honest leaves")
-    });
+    let (first, first_time) = plan.warm_then_measure(|| tree.prove_first(&firsts).expect("honest leaves"));
     let outputs = vec![output; arity_0];
-    let (_, first_verify) = quiet.measure_quiet(|_| tree.verify(&first, &outputs).expect("a first-level root"));
+    let (_, first_verify) = quiet.measure_quiet(|| tree.verify(&first, &outputs).expect("a first-level root"));
     report(
         &format!("first-level node, {arity_0} leaves"),
         &tree,
@@ -208,12 +206,9 @@ pub fn run(
 
     if leaves > arity_0 {
         let children = vec![first; arity];
-        let (node, node_time) = plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            tree.prove_node(&children).expect("honest children")
-        });
+        let (node, node_time) = plan.warm_then_measure(|| tree.prove_node(&children).expect("honest children"));
         let outputs = vec![output; arity_0 * arity];
-        let (_, node_verify) = quiet.measure_quiet(|_| tree.verify(&node, &outputs).expect("a root"));
+        let (_, node_verify) = quiet.measure_quiet(|| tree.verify(&node, &outputs).expect("a root"));
         report(
             &format!("node, {arity} children"),
             &tree,
@@ -224,13 +219,13 @@ pub fn run(
         );
     }
 
-    let (root, whole) = Plan::new(1, 0).measure_quiet(|_| {
+    let (root, whole) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Prove tree", leaves).entered();
         tree.prove(&leaves_proofs)
             .unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
     let outputs = vec![output; leaves];
-    let (_, root_verify) = quiet.measure_quiet(|_| tree.verify(&root, &outputs).expect("the root verifies"));
+    let (_, root_verify) = quiet.measure_quiet(|| tree.verify(&root, &outputs).expect("the root verifies"));
     println!("whole tree");
     println!(
         "  proving every node          : {}, after the leaf proofs",
@@ -313,7 +308,7 @@ fn prove_signer_tree(
 }
 
 /// Prove `leaves` distinct runs of `program`, each `n` signatures, at `leaf_prover`'s rate, untimed; then the
-/// signer-set tree over them bottom-up at `prover`'s rate, `plan.repeat` times, and verify its root by its set alone;
+/// signer-set tree over them bottom-up at `prover`'s rate, `plan.repeat()` times, and verify its root by its set alone;
 /// and print the report.
 ///
 /// The first level verifies `arity_0` leaves, each node up to `arity` proofs, the last of a level fewer.
@@ -358,14 +353,19 @@ pub fn run_signers(
     };
 
     // The first leaf's run, measured, gives the shape every leaf's proof announces: the tree's key needs no proof.
+    let measured = LeafShape::measured(&runs[0].measure(), leaf_prover.rate());
     let shape = TreeShape {
-        leaf: LeafShape::measured(&runs[0].measure(), leaf_prover.rate()),
+        leaf: if leaf_prover.is_zero_knowledge() {
+            measured.zero_knowledge()
+        } else {
+            measured
+        },
         arity_0,
         arity,
         rate: prover.rate(),
         claims: Some(ClaimShape::new(capacity)),
     };
-    let (tree, setup) = Plan::new(1, 0).measure_quiet(|_| {
+    let (tree, setup) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Tree setup").entered();
         Tree::new(&runs[0].program, shape).unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
@@ -388,8 +388,7 @@ pub fn run_signers(
 
     let mut proofs = BTreeMap::new();
     let mut heap_peak = 0;
-    let (root, whole) = plan.measure_quiet(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
+    let (root, whole) = plan.measure_quiet(|| {
         let _span = tracing::info_span!("Prove signer-set tree", leaves).entered();
         let (root, heap) = bench::measure_heap(|| {
             prove_signer_tree(&tree, &leaf_proofs, arity_0, arity, declared.as_ref(), &mut proofs)
@@ -402,8 +401,8 @@ pub fn run_signers(
         declared.as_ref().unwrap_or(&union),
         "the root declares what it is asked to"
     );
-    let (_, root_verify) = Plan::new(plan.repeat, 0)
-        .measure_quiet(|_| (tree.verify_claims(&root.proof, &root.claims)).expect("the root verifies by its set"));
+    let (_, root_verify) = (plan.without_cooldown())
+        .measure_quiet(|| (tree.verify_claims(&root.proof, &root.claims)).expect("the root verifies by its set"));
 
     let sum: usize = sets.iter().map(|set| set.n_claims()).sum();
     println!(

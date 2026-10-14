@@ -26,7 +26,7 @@ use primitives::field::F192;
 
 use crate::lincheck::LincheckCircuit;
 use crate::reduction::Block;
-use crate::witness::{Batch, GroupTables, Tables, Witness};
+use crate::witness::{Batch, BatchRows, GroupTables, Tables};
 
 /// Instances one word-wide walk of the gate list computes: one per bit of a word.
 const LANES: usize = 64;
@@ -61,18 +61,18 @@ impl Wire {
 
 /// The position of a gate in the list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct GateId(u32);
+pub(crate) struct GateId(u32);
 
 impl GateId {
     /// The position as an index into a per-gate table.
-    const fn index(self) -> usize {
+    pub(crate) const fn index(self) -> usize {
         self.0 as usize
     }
 }
 
 /// The position of a committed bit in an instance's witness.
 #[derive(Clone, Copy, Debug)]
-struct Slot(u32);
+pub(crate) struct Slot(u32);
 
 impl Slot {
     /// A slot from its position in the witness.
@@ -85,14 +85,14 @@ impl Slot {
     }
 
     /// The position as an index into the witness.
-    const fn index(self) -> usize {
+    pub(crate) const fn index(self) -> usize {
         self.0 as usize
     }
 }
 
 /// One gate of the list.
 #[derive(Clone, Copy, Debug)]
-enum Gate {
+pub(crate) enum Gate {
     /// A committed free bit: an input bit, or the constant.
     ///
     /// Its row is `z[slot] * 1 = z[slot]`.
@@ -294,8 +294,8 @@ impl Builder {
 /// A finished gate list: an R1CS over GF(2) whose matrices are never built.
 #[derive(Debug)]
 pub struct Circuit {
-    /// The gates, in order; a gate's index is its wire.
-    gates: Vec<Gate>,
+    /// The gates, in order, a gate's index being its wire.
+    pub(crate) gates: Vec<Gate>,
     /// The constant wire's slot.
     const_pos: usize,
     /// The base-two logarithm of the bits per instance.
@@ -333,53 +333,6 @@ impl Circuit {
             k_log: self.k_log,
             useful_bits: self.useful_bits,
             circuit: self,
-        }
-    }
-
-    /// One instance's `z`, `A z` and `B z`, by one walk of the gate list on bits.
-    ///
-    /// It is the reference every generator is pinned to.
-    ///
-    /// `inputs` are the input ports' words, and the three buffers come zeroed.
-    pub fn witness_instance(&self, inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
-        assert_eq!(inputs.len(), self.n_input_words);
-        let set = |buf: &mut [u64], slot: Slot, v: bool| {
-            let i = slot.index();
-            buf[i / 64] |= u64::from(v) << (i % 64);
-        };
-        // Wire `i` is gate `i`'s value.
-        let mut wires: Vec<bool> = Vec::with_capacity(self.gates.len());
-        for &gate in &self.gates {
-            let v = match gate {
-                // An input bit or the constant: `z * 1 = z`.
-                Gate::Free(s) => {
-                    let i = s.index();
-                    let v = i == self.const_pos || (inputs[i / 64] >> (i % 64)) & 1 == 1;
-                    set(z, s, v);
-                    set(az, s, v);
-                    set(bz, s, true);
-                    v
-                }
-                // Free: no row.
-                Gate::Xor(x, y) => wires[x.index()] ^ wires[y.index()],
-                // A product: `x * y = z`.
-                Gate::And(x, y, s) => {
-                    let (x, y) = (wires[x.index()], wires[y.index()]);
-                    set(z, s, x & y);
-                    set(az, s, x);
-                    set(bz, s, y);
-                    x & y
-                }
-                // A committed copy: `x * 1 = z`.
-                Gate::Copy(x, s) => {
-                    let v = wires[x.index()];
-                    set(z, s, v);
-                    set(az, s, v);
-                    set(bz, s, true);
-                    v
-                }
-            };
-            wires.push(v);
         }
     }
 
@@ -427,41 +380,25 @@ impl Circuit {
         }
     }
 
-    /// The witness of the caller's rows, by walking the gate list 64 instances at a time.
+    /// The witness of `rows`, by walking the gate list 64 instances at a time, its bits written into `z`.
     ///
     /// - `input_words(row, words)` writes a row's input port words.
-    /// - `padding` fills the instances past the rows.
+    /// - `inspect(i, row, z)` sees instance `i`'s bits while they are in cache.
     ///
     /// The tables are bit for bit those of the one-instance walk.
-    pub fn witness_by_walk<S: Sync>(
-        &self,
-        rows: &[S],
-        padding: &S,
-        n_blocks_log: usize,
-        input_words: impl Fn(&S, &mut [u64]) + Sync,
-    ) -> Witness {
-        self.batch(n_blocks_log)
-            .witness(|z| self.witness_by_walk_into(z, rows, padding, n_blocks_log, input_words, |_, _| {}))
-    }
-
-    /// The same, with `z` written into the caller's buffer.
-    ///
-    /// `check(row, z)` sees each instance's bits while they are in cache.
     ///
     /// ```text
     ///     rows  --transpose-->  input bits by slot  --walk-->  z, A z, B z by slot  --transpose-->  instance-major
     /// ```
-    pub fn witness_by_walk_into<S: Sync>(
+    pub fn witness_by_walk<S: Sync>(
         &self,
         z: &mut [u64],
-        rows: &[S],
-        padding: &S,
-        n_blocks_log: usize,
+        rows: BatchRows<'_, S>,
         input_words: impl Fn(&S, &mut [u64]) + Sync,
-        check: impl Fn(&S, &[u64]) + Sync,
+        inspect: impl Fn(usize, &S, &[u64]) + Sync,
     ) -> Tables {
-        assert!(rows.len() <= 1 << n_blocks_log, "more rows than instances");
         // A batch below 64 instances is walked in full and stored in part.
+        let n_blocks_log = rows.n_blocks_log();
         let lanes = LANES.min(1 << n_blocks_log);
         let n_in = self.n_input_words;
         let words = (1usize << self.k_log) / 64;
@@ -474,7 +411,7 @@ impl Circuit {
             |s: &mut Lanes, first: usize, t: GroupTables<'_>| {
                 // Phase 1: each lane's input words, the padding row past the batch's rows.
                 for (l, row_words) in s.rows.chunks_exact_mut(n_in).enumerate() {
-                    input_words(rows.get(first + l).unwrap_or(padding), row_words);
+                    input_words(rows.get(first + l), row_words);
                 }
 
                 // Phase 2: input word `w` of 64 lanes, transposed, is its 64 bits by slot.
@@ -506,77 +443,44 @@ impl Circuit {
                     }
                 }
             },
-            |i, z| check(rows.get(i).unwrap_or(padding), z),
+            |i, z| inspect(i, rows.get(i), z),
         )
     }
 
-    /// The witness of the caller's rows, one instance at a time.
+    /// The witness of `rows`, one instance at a time, its bits written into `z`.
     ///
     /// It suits a circuit whose witness is cheaper as word arithmetic.
     ///
-    /// `instance(row, z, a, b)` sets one instance's bits in three zeroed buffers.
+    /// - `instance(row, z, a, b)` sets one instance's bits in three zeroed buffers.
+    /// - `inspect(i, row, z)` sees instance `i`'s bits while they are in cache.
     pub fn witness_by_instance<S: Sync>(
         &self,
-        rows: &[S],
-        padding: &S,
-        n_blocks_log: usize,
-        instance: impl Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
-    ) -> Witness {
-        self.batch(n_blocks_log)
-            .witness(|z| self.witness_by_instance_into(z, rows, padding, n_blocks_log, instance, |_, _| {}))
-    }
-
-    /// The same, with `z` written into the caller's buffer.
-    ///
-    /// `check(row, z)` sees each instance's bits while they are in cache.
-    pub fn witness_by_instance_into<S: Sync>(
-        &self,
         z: &mut [u64],
-        rows: &[S],
-        padding: &S,
-        n_blocks_log: usize,
+        rows: BatchRows<'_, S>,
         instance: impl Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
-        check: impl Fn(&S, &[u64]) + Sync,
+        inspect: impl Fn(usize, &S, &[u64]) + Sync,
     ) -> Tables {
-        self.batch(n_blocks_log)
-            .fill_instances(z, rows, padding, instance, |i, z| {
-                check(rows.get(i).unwrap_or(padding), z);
-            })
+        self.batch(rows.n_blocks_log())
+            .fill_instances(z, rows, instance, |i, z| inspect(i, rows.get(i), z))
     }
 
-    /// The witness of the caller's rows, eight instances at a time.
+    /// The witness of `rows`, eight instances at a time, its bits written into `z`.
     ///
-    /// `batch(rows, z, a, b)` sets eight instances' bits in three zeroed instance-major buffers.
+    /// - `batch(rows, z, a, b)` sets eight instances' bits in three zeroed instance-major buffers.
+    /// - `inspect(i, row, z)` sees instance `i`'s bits while they are in cache.
     pub fn witness_by_batch8<S: Sync>(
         &self,
-        rows: &[S],
-        padding: &S,
-        n_blocks_log: usize,
-        batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
-    ) -> Witness {
-        self.batch(n_blocks_log)
-            .witness(|z| self.witness_by_batch8_into(z, rows, padding, n_blocks_log, batch, |_, _| {}))
-    }
-
-    /// The same, with `z` written into the caller's buffer.
-    ///
-    /// `check(row, z)` sees each instance's bits while they are in cache.
-    pub fn witness_by_batch8_into<S: Sync>(
-        &self,
         z: &mut [u64],
-        rows: &[S],
-        padding: &S,
-        n_blocks_log: usize,
+        rows: BatchRows<'_, S>,
         batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
-        check: impl Fn(&S, &[u64]) + Sync,
+        inspect: impl Fn(usize, &S, &[u64]) + Sync,
     ) -> Tables {
-        self.batch(n_blocks_log).fill_batches8(z, rows, padding, batch, |i, z| {
-            check(rows.get(i).unwrap_or(padding), z);
-        })
+        self.batch(rows.n_blocks_log())
+            .fill_batches8(z, rows, batch, |i, z| inspect(i, rows.get(i), z))
     }
 
     /// A batch of `2^n_blocks_log` of this circuit's instances.
-    const fn batch(&self, n_blocks_log: usize) -> Batch {
+    pub(crate) const fn batch(&self, n_blocks_log: usize) -> Batch {
         Batch {
             n_blocks_log,
             k_log: self.k_log,
@@ -703,9 +607,10 @@ impl LincheckCircuit for Circuit {
         m
     }
 
-    fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> Option<F192> {
+    /// The form by one forward walk, in time linear in the circuit.
+    fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> F192 {
         let (ra, rb) = self.row_values(w);
-        Some((u.iter().zip(ra.iter().zip(&rb))).fold(F192::ZERO, |acc, (&u, (&a, &b))| acc + u * (a + alpha * b)))
+        (u.iter().zip(ra.iter().zip(&rb))).fold(F192::ZERO, |acc, (&u, (&a, &b))| acc + u * (a + alpha * b))
     }
 }
 
@@ -714,6 +619,7 @@ mod tests {
     use primitives::test_util::Rng;
 
     use super::*;
+    use crate::test_util::Witness;
 
     /// A random circuit over the builder's whole vocabulary.
     ///
@@ -779,10 +685,9 @@ mod tests {
             let padding = row();
 
             // The same batch through both generators, every table compared.
-            let walk = circuit.witness_by_instance(&rows, &padding, n_log, |row, z, az, bz| {
-                circuit.witness_instance(row, z, az, bz);
-            });
-            let sliced = circuit.witness_by_walk(&rows, &padding, n_log, |row, words| words.copy_from_slice(row));
+            let rows = BatchRows::new(&rows, &padding, n_log);
+            let walk = Witness::by_reference(&circuit, rows);
+            let sliced = Witness::by_walk(&circuit, rows, |row, words| words.copy_from_slice(row));
             assert!(walk.z == sliced.z, "z, round {round}");
             assert!(walk.az == sliced.az, "A z, round {round}");
             assert!(walk.bz == sliced.bz, "B z, round {round}");

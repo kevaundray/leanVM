@@ -120,7 +120,7 @@ static QUAD_STAGES: LazyLock<[Stage; 3]> = LazyLock::new(|| {
 ///
 /// # Safety
 ///
-/// The CPU must have the enabled target features.
+/// The CPU must support the target features the function enables.
 #[inline]
 #[target_feature(enable = "avx512f", enable = "avx512vbmi")]
 pub fn store_f192(acc: &[__m512i; OUT_BYTES], out: &mut [F192; BLOCK]) {
@@ -251,7 +251,7 @@ const GATHER: [([u8; 64], [u8; 64], u64); 3] = [gather_index(0), gather_index(1)
 ///
 /// # Safety
 ///
-/// The CPU must have the enabled target features.
+/// The CPU must support the target features the function enables.
 #[inline]
 #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
 pub fn weight_matrices(w: &[F192; 8]) -> [u64; OUT_BYTES] {
