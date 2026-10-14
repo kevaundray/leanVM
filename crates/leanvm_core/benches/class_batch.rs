@@ -22,17 +22,18 @@
 use std::num::NonZeroUsize;
 use std::time::Instant;
 
+use bench::pretty_integer;
 use bench::{Metric, Plan, Timing, bencher_json};
 use fiat_shamir::{ProofTranscript, ProverState, SessionId, VerifierState};
-use flock::Witness;
+use flock::BatchRows;
 use flock::circuit::Circuit;
-use flock::reduction::{self, Instance};
+use flock::reduction;
+use flock::test_util::Witness;
 use leanvm::{Fill, MIN_MU, TableId, Word};
 use pcs::ring_switch::RingSwitch;
 use pcs::stack::{CommittedStack, StackCommitment, Statement};
-use pcs::whir::{Config, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, config_for_rate};
+use pcs::whir::{Config, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use primitives::field::F64;
-use primitives::pretty_integer;
 use primitives::test_util::Rng;
 
 #[global_allocator]
@@ -50,7 +51,7 @@ const STAGES: [&str; 4] = ["witness", "commit", "reduction", "opening"];
 fn main() {
     parallel::init_with_threads(NonZeroUsize::new(16).unwrap()).expect("initialize exact 16-thread benchmark pool");
     bench::init_tracing_from_env();
-    let json = std::env::args().any(|arg| arg == "--json");
+    let json = bench::json_requested();
     let filters: Vec<String> = std::env::args()
         .skip(1)
         .filter(|a| !a.starts_with('-'))
@@ -126,31 +127,30 @@ impl ClassBatch {
             rows,
             n_log,
             mu,
-            config: config_for_rate(mu, LOG_INV_RATE_0).expect("WHIR configuration"),
+            config: Config::for_rate(mu, LOG_INV_RATE_0).expect("WHIR configuration"),
         })
     }
 
     /// The packed witness, by the class's own generator.
     fn witness(&self) -> Witness {
-        let (rows, n, n_log) = (&self.rows, self.circuit.n_input_words(), self.n_log);
+        let (circuit, n) = (&self.circuit, self.circuit.n_input_words());
+        let rows = BatchRows::new(&self.rows, &self.rows[0], self.n_log);
         match self.fill {
-            Fill::Walk => self.circuit.witness_by_walk(rows, &rows[0], n_log, |row, words| {
-                words.copy_from_slice(&row[..n]);
+            Fill::Walk => Witness::by_walk(circuit, rows, |row, words| words.copy_from_slice(&row[..n])),
+            Fill::Instance(instance) => Witness::by_instance(circuit, rows, |row, z, az, bz| {
+                instance(&row[..n], z, az, bz);
             }),
-            Fill::Instance(instance) => self
-                .circuit
-                .witness_by_instance(rows, &rows[0], n_log, |row, z, az, bz| {
-                    instance(&row[..n], z, az, bz);
-                }),
-            Fill::Batch8(batch) => self
-                .circuit
-                .witness_by_batch8(rows, &rows[0], n_log, |rows, z, az, bz| {
-                    batch(&rows.map(|row| &row[..n]), z, az, bz);
-                }),
+            Fill::Batch8(batch) => Witness::by_batch8(circuit, rows, |rows, z, az, bz| {
+                batch(&rows.map(|row| &row[..n]), z, az, bz);
+            }),
         }
     }
 
     /// One prove pass, and each stage's seconds.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the one claim is flock's: reduction::prove sends its slices as prover messages after the root, its point being the reduction's challenges"
+    )]
     fn prove(&self) -> (ProofTranscript, [f64; 4]) {
         let _span = tracing::info_span!("Flock prove", n_log = self.n_log).entered();
         let t = Instant::now();
@@ -163,7 +163,7 @@ impl ClassBatch {
         let commit_s = t.elapsed().as_secs_f64();
 
         let t = Instant::now();
-        let instance = Instance::of(self.circuit.block(), self.n_log, &witness);
+        let instance = witness.instance(self.circuit.block(), self.n_log);
         let claim = reduction::prove(&[instance], &mut ps).pop().expect("one circuit");
         let reduction_s = t.elapsed().as_secs_f64();
 
@@ -189,6 +189,10 @@ impl ClassBatch {
     }
 
     /// Replay `proof`, panicking on any refusal.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the one claim is flock's: reduction::verify reads its slices as prover messages after the root, its point being the reduction's challenges"
+    )]
     fn verify(&self, proof: &ProofTranscript) {
         let block = self.circuit.block();
         let mut vs = VerifierState::new(&SessionId::new(b"flock-class-batch"), &0u64, proof);
@@ -222,8 +226,7 @@ impl ClassBatch {
     fn bench(&self, quiet: bool) -> (Timing, usize) {
         let plan = Plan::from_env();
         let mut passes = Vec::new();
-        let (proof, _) = plan.warm_then_measure(|final_pass| {
-            let _quiet = (!final_pass).then(bench::suppress_tracing);
+        let (proof, _) = plan.warm_then_measure(|| {
             let (proof, secs) = self.prove();
             passes.push(secs);
             proof
@@ -236,7 +239,7 @@ impl ClassBatch {
         });
         let mut prove = Timing::default();
         passes[1..].iter().for_each(|secs| prove.push(secs[1..].iter().sum()));
-        let (_, verify) = Plan::new(plan.repeat, 0).measure_quiet(|_| self.verify(&proof));
+        let (_, verify) = plan.without_cooldown().measure_quiet(|| self.verify(&proof));
 
         let n = self.rows.len();
         if !quiet {

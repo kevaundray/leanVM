@@ -6,6 +6,8 @@
 //! ```
 
 use bench::Plan;
+use flock::BatchRows;
+use flock::test_util::Witness;
 use leanvm::{Fill, TableId};
 use primitives::test_util::Rng;
 use std::num::NonZeroUsize;
@@ -38,14 +40,10 @@ fn main() {
             .map(|_| (0..circuit.n_input_words()).map(|_| rng.next_u64()).collect())
             .collect();
 
-        let (_, walk) = plan.warm_then_measure(|_| {
-            circuit.witness_by_instance(&rows, &rows[0], n_log, |row, z, az, bz| {
-                circuit.witness_instance(row, z, az, bz);
-            });
-        });
-        let (_, sliced) = plan.warm_then_measure(|_| {
-            circuit.witness_by_walk(&rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
-        });
+        let rows = BatchRows::new(&rows, &rows[0], n_log);
+        let (_, walk) = plan.warm_then_measure(|| Witness::by_reference(&circuit, rows));
+        let (_, sliced) =
+            plan.warm_then_measure(|| Witness::by_walk(&circuit, rows, |row, words| words.copy_from_slice(row)));
 
         // Wall time per instance, all threads.
         let per_instance = |secs: f64| secs * 1e9 / (1 << n_log) as f64;

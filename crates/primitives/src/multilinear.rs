@@ -1,25 +1,17 @@
-// CREDIT: https://github.com/succinctlabs/flock (`build_eq` and the skip domain's Lagrange weights), MIT OR Apache-2.0.
-//! Multilinear-extension utilities: the equality polynomial, single-variable
-//! folding, and MLE evaluation. Truth tables are indexed little-endian (variable
-//! `k` is bit `k`). Sumchecks here consume variables from either end, so folding
-//! and `eq`-marginalization come in low and high variants. Committed data is
-//! `K`-valued (`F64`) while randomness is `E`-valued (`F192`), so the first
-//! fold of a committed table also lifts it into `E`.
+// CREDIT: https://github.com/succinctlabs/flock (`build_eq`), MIT OR Apache-2.0.
+//! Multilinear extensions: the equality polynomial, one-variable folds, and evaluations.
+//!
+//! A truth table is little-endian: variable `k` is bit `k` of the index.
+//!
+//! Sumchecks consume variables from either end, so folds come in low and high variants.
+//!
+//! Committed tables are `K`-valued and randomness is `E`-valued.
+//!
+//! So the first fold of a committed table also lifts it into `E`.
 
+use crate::field::{F64, F192, Weights8, dot_base};
 use std::mem::MaybeUninit;
-use std::ops::Range;
-
-use crate::field::gf2_64::{reduce, software::clmul};
-use crate::field::{
-    F64, F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE, Weights8, dot_base, mul_base8, mul_unreduced4, mul4,
-};
-#[cfg(any(
-    all(target_arch = "aarch64", target_feature = "aes"),
-    all(target_arch = "x86_64", target_feature = "pclmulqdq")
-))]
-use crate::field::{F192x1, F192x1Unreduced};
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
-use crate::field::{F192x4, F192x4Unreduced};
+use std::ops::Add;
 
 /// Multilinear interpolation in one variable over `E`: `lo + t·(lo+hi)`, the
 /// char-2 form of `(1−t)·lo + t·hi`.
@@ -31,7 +23,7 @@ pub fn interp(lo: F192, hi: F192, t: F192) -> F192 {
 /// Mixed interpolation: two `K` endpoints against an `E` parameter, one
 /// `mul_base` (`lo + t·(lo+hi)` with `lo, hi ∈ K`).
 #[inline]
-pub fn interp_k(lo: F64, hi: F64, t: F192) -> F192 {
+fn interp_k(lo: F64, hi: F64, t: F192) -> F192 {
     F192::from(lo) + t.mul_base(lo + hi)
 }
 
@@ -79,14 +71,14 @@ pub fn fill_eq_table_uninit(r: &[F192], seed: F192, out: &mut [MaybeUninit<F192>
     if out.len() < EQ_PAR_LEN {
         return fill_eq_doubling(r, seed, out);
     }
-    let (r_low, r_high) = r.split_at(EQ_LOW_VARS);
+    let (r_low, r_high) = r.split_at(L1_EQ_VARS);
     let low = eq_table(r_low);
     let high = eq_table_seeded(r_high, seed);
     let rows = parallel::recommended_chunk_size(high.len());
     parallel::chunks_mut(out, rows * low.len(), |c, chunk| {
         for (row, &w) in chunk.chunks_exact_mut(low.len()).zip(&high[c * rows..]) {
             for (dst, src) in row.as_chunks_mut::<4>().0.iter_mut().zip(low.as_chunks::<4>().0) {
-                let p = mul4([w; 4], *src);
+                let p = F192::mul4([w; 4], *src);
                 dst.iter_mut().zip(p).for_each(|(d, p)| _ = d.write(p));
             }
         }
@@ -96,8 +88,8 @@ pub fn fill_eq_table_uninit(r: &[F192], seed: F192, out: &mut [MaybeUninit<F192>
 /// Tables below this size are built on the calling thread, so a pool task may build them.
 pub const EQ_PAR_LEN: usize = 1 << 16;
 
-/// The variables of the L1-resident factor of a large `eq` table.
-const EQ_LOW_VARS: usize = 10;
+/// The variables of an `eq` factor small enough to stay in L1.
+const L1_EQ_VARS: usize = 10;
 
 /// The level-by-level `eq` build: each level writes the high half from the low half, then rewrites the low half.
 ///
@@ -112,7 +104,7 @@ fn fill_eq_doubling(r: &[F192], seed: F192, out: &mut [MaybeUninit<F192>]) {
         let (lo4, lo_tail) = lo.as_chunks_mut::<4>();
         let (hi4, hi_tail) = hi.as_chunks_mut::<4>();
         for (l, h) in lo4.iter_mut().zip(hi4) {
-            let p = mul4([rk; 4], *l);
+            let p = F192::mul4([rk; 4], *l);
             for k in 0..4 {
                 h[k].write(p[k]);
                 l[k] += p[k];
@@ -141,7 +133,7 @@ fn fold_low_k(table: &[F64], chi: F192) -> Vec<F192> {
 
 /// Bind the highest variable of a `K`-table and lift the result into `E`.
 ///
-/// Eight entries share one batched mixed product ([`mul_base8`]).
+/// Eight entries share one batched mixed product.
 pub fn fold_high_k(table: &[F64], chi: F192) -> Vec<F192> {
     debug_assert_eq!(table.len() % 2, 0);
     let (lo, hi) = table.split_at(table.len() / 2);
@@ -149,7 +141,7 @@ pub fn fold_high_k(table: &[F64], chi: F192) -> Vec<F192> {
     let (out8, out_tail) = out.spare_capacity_mut()[..lo.len()].as_chunks_mut::<8>();
     let ((lo8, lo_tail), (hi8, hi_tail)) = (lo.as_chunks::<8>(), hi.as_chunks::<8>());
     for ((o, l), h) in out8.iter_mut().zip(lo8).zip(hi8) {
-        let p = mul_base8(chi, std::array::from_fn(|i| l[i] + h[i]));
+        let p = F192::mul_base8(chi, std::array::from_fn(|i| l[i] + h[i]));
         for i in 0..8 {
             o[i].write(F192::from(l[i]) + p[i]);
         }
@@ -178,11 +170,26 @@ pub fn fold_high_inplace(table: &mut Vec<F192>, chi: F192) {
     table.truncate(half);
 }
 
+/// Bind the lowest free variable of `table` to `chi` in place: `table[i] = interp(table[2i], table[2i + 1], chi)`.
+pub fn fold_low_inplace(table: &mut Vec<F192>, chi: F192) {
+    debug_assert_eq!(table.len() % 2, 0);
+    let half = table.len() / 2;
+    {
+        // Sliced, as in `fold_high_inplace`.
+        // Slot `i` is written after slots `2i` and `2i + 1` are read, so the walk is in place.
+        let t: &mut [F192] = table;
+        for i in 0..half {
+            t[i] = interp(t[2 * i], t[2 * i + 1], chi);
+        }
+    }
+    table.truncate(half);
+}
+
 /// `lo[i] = interp(lo[i], hi[i], chi)`, four products per batch.
 fn interp_into(lo: &mut [F192], hi: &[F192], chi: F192) {
     let ((lo4, lo_tail), (hi4, hi_tail)) = (lo.as_chunks_mut::<4>(), hi.as_chunks::<4>());
     for (l, h) in lo4.iter_mut().zip(hi4) {
-        let p = mul4([chi; 4], std::array::from_fn(|i| l[i] + h[i]));
+        let p = F192::mul4([chi; 4], std::array::from_fn(|i| l[i] + h[i]));
         for i in 0..4 {
             l[i] += p[i];
         }
@@ -192,26 +199,9 @@ fn interp_into(lo: &mut [F192], hi: &[F192], chi: F192) {
     }
 }
 
-/// Marginalize the lowest variable out of an `eq` table (in place). `eq(r_0, 0) +
-/// eq(r_0, 1) = 1`, so summing adjacent entries drops `r_0` with no multiplies,
-/// versus `2^{n-1}` to rebuild the table.
-pub fn shrink_eq_low(table: &mut Vec<F192>) {
-    let half = table.len() / 2;
-    {
-        // Sliced, as in `fold_high_inplace`: reading the pair and writing the
-        // sum through one slice drops the per-iteration reload and its bounds
-        // check. The write index trails the read, so the in-place walk is sound.
-        let t: &mut [F192] = table;
-        for i in 0..half {
-            let (a, b) = (t[2 * i], t[2 * i + 1]);
-            t[i] = a + b;
-        }
-    }
-    table.truncate(half);
-}
-
-/// Marginalize the highest variable out of an `eq` table (in place), the
-/// [`shrink_eq_low`] counterpart for a top-down sumcheck.
+/// Marginalize the highest variable out of an `eq` table, in place.
+///
+/// `eq(r_top, 0) + eq(r_top, 1) = 1`, so summing the two halves drops `r_top` with no products.
 pub fn shrink_eq_high(table: &mut Vec<F192>) {
     let half = table.len() / 2;
     {
@@ -222,56 +212,6 @@ pub fn shrink_eq_high(table: &mut Vec<F192>) {
         }
     }
     table.truncate(half);
-}
-
-/// The barycentric weight every node of an aligned `size`-node window of the φ₈ table shares,
-/// `1 / ∏_{k≠0} φ₈(k)`. φ₈ is F2-linear on its index, so `nodes[a] + nodes[b] = φ₈(a ^ b)` (the window's
-/// offset cancels) and `b ↦ a ^ b` only permutes the window, leaving every node the same product.
-/// Computed once for every window size.
-pub fn window_denominator(size: usize) -> F192 {
-    debug_assert!(size.is_power_of_two() && size <= PHI_8_TABLE.len());
-    DENOMINATORS[size.trailing_zeros() as usize]
-}
-
-/// [`window_denominator`] for every window size, at compile time. The nodes lie in `F64`, so the
-/// product and its inverse (Fermat, `a^(2^64 - 2)`) stay there.
-const DENOMINATORS: [F192; 9] = {
-    const fn mul(a: u64, b: u64) -> u64 {
-        reduce(clmul(a, b))
-    }
-    let mut out = [F192::ZERO; 9];
-    let mut log = 0;
-    while log < out.len() {
-        let mut product = 1;
-        let mut k = 1;
-        while k < 1 << log {
-            product = mul(product, PHI_8_TABLE[k].c0);
-            k += 1;
-        }
-        let (mut inverse, mut bit) = (1, 1);
-        while bit < 64 {
-            product = mul(product, product);
-            inverse = mul(inverse, product);
-            bit += 1;
-        }
-        out[log] = F192::new(inverse, 0, 0);
-        log += 1;
-    }
-    out
-};
-
-/// `scale · Σ_i values[i] · ∏_{k≠i} (p + nodes[k])`, in one pass of three products a node and no
-/// inverse; `sum` and `prefix` hold the sum and the product of the differences over the nodes seen so
-/// far. For an aligned window of the φ₈ table and `scale = window_denominator(nodes.len())` it is the
-/// Lagrange interpolant of `values` at `p`, exact at a node too.
-pub fn barycentric_sum(nodes: &[F192], values: &[F192], p: F192, scale: F192) -> F192 {
-    debug_assert_eq!(nodes.len(), values.len());
-    let (mut sum, mut prefix) = (values[0] * scale, scale);
-    for i in 1..nodes.len() {
-        prefix *= p + nodes[i - 1];
-        sum = sum * (p + nodes[i]) + values[i] * prefix;
-    }
-    sum
 }
 
 /// A polynomial at `point`, by Horner over its coefficients, constant first.
@@ -298,7 +238,7 @@ pub fn mle_eval(table: &[F64], point: &[F192]) -> F192 {
             Some((&p0, rest)) => fold_ladder(fold_low_k(table, p0), rest),
         };
     }
-    let low_vars = point.len().min(MLE_LOW_VARS);
+    let low_vars = point.len().min(L1_EQ_VARS);
     let low = packed_eq(&point[..low_vars]);
     let rows = table
         .chunks_exact(1 << low_vars)
@@ -314,15 +254,12 @@ pub fn mle_eval_par(table: &[F64], point: &[F192]) -> F192 {
     if table.len() < PAR_THRESHOLD {
         return mle_eval(table, point);
     }
-    let low_vars = point.len().min(MLE_LOW_VARS);
+    let low_vars = point.len().min(L1_EQ_VARS);
     let low = packed_eq(&point[..low_vars]);
     let high = eq_table(&point[low_vars..]);
     let eval = |row: usize| high[row] * dot_base(&low, &table[row << low_vars..(row + 1) << low_vars]).reduce();
-    parallel::map_reduce(high.len(), || F192::ZERO, eval, |a, b| a + b)
+    parallel::map_reduce(high.len(), || F192::ZERO, eval, Add::add)
 }
-
-/// The variables of the L1-resident low `eq` table of an MLE evaluation.
-const MLE_LOW_VARS: usize = 10;
 
 /// `eq(r, .)` packed eight weights at a time for [`dot_base`]. Needs `r.len() >= 3`.
 fn packed_eq(r: &[F192]) -> Vec<Weights8> {
@@ -341,39 +278,18 @@ fn fold_ladder(mut cur: Vec<F192>, point: &[F192]) -> F192 {
     cur[0]
 }
 
-/// The Lagrange weights of the skip domain, the first `2^k_skip` nodes of the φ₈ table, at `z`:
-/// `weights[i] = ∏_{k≠i} (z + φ₈(k)) · window_denominator`, by prefix and suffix products of the
-/// differences. Linear in the node count, no inverse, and exact at a node.
-pub fn skip_lagrange_weights(k_skip: usize, z: F192) -> Vec<F192> {
-    let n = 1usize << k_skip;
-    let nodes = &PHI_8_TABLE[..n];
-    let mut weights = vec![window_denominator(n); n];
-    for i in 1..n {
-        weights[i] = weights[i - 1] * (z + nodes[i - 1]);
-    }
-    let mut suffix = z + nodes[n - 1];
-    for i in (1..n - 1).rev() {
-        weights[i] *= suffix;
-        suffix *= z + nodes[i];
-    }
-    if n > 1 {
-        weights[0] *= suffix;
-    }
-    weights
-}
-
 /// The inner product `sum_i a_i * b_i` over `E`.
 #[inline]
 pub fn inner_product(a: &[F192], b: &[F192]) -> F192 {
     assert_eq!(a.len(), b.len());
-    a.iter().zip(b).fold(F192::ZERO, |acc, (&x, &y)| acc + x * y)
+    a.iter().zip(b).map(|(&x, &y)| x * y).sum()
 }
 
 /// The mixed inner product `sum_i e_i * k_i`, with `k` in `K` and `e` in `E`.
 #[inline]
 pub fn inner_product_base(k: &[F64], e: &[F192]) -> F192 {
     assert_eq!(k.len(), e.len());
-    k.iter().zip(e).fold(F192::ZERO, |acc, (&k, &e)| acc + e.mul_base(k))
+    k.iter().zip(e).map(|(&k, &e)| e.mul_base(k)).sum()
 }
 
 /// The table `eq(r, .)` as two smaller tables, `eq(r, x) = low[x mod 2^L] * high[x >> L]`.
@@ -387,8 +303,8 @@ pub struct SplitEq {
     pub low: Vec<F192>,
     /// The table over the remaining variables.
     pub high: Vec<F192>,
-    /// `L`.
-    low_log: usize,
+    /// `L`, the number of low variables.
+    pub low_log: usize,
 }
 
 impl SplitEq {
@@ -410,144 +326,17 @@ impl SplitEq {
         }
     }
 
-    /// The number of low variables `L`.
-    pub const fn low_log(&self) -> usize {
-        self.low_log
-    }
-
-    /// The number of high variables.
-    pub const fn high_log(&self) -> usize {
-        self.high.len().trailing_zeros() as usize
-    }
-
     /// `eq(r, x)`.
     #[inline]
     pub fn at(&self, x: usize) -> F192 {
         self.low[x & (self.low.len() - 1)] * self.high[x >> self.low_log]
-    }
-
-    /// `sum_x eq(r, x) * terms(x)` over a range of `x`, four coefficients at once.
-    ///
-    /// - The closure returns the unreduced products at `x`, already scaled by the low weight it is given.
-    /// - Each run of `x` sharing a high weight is reduced once and scaled by it once.
-    #[inline]
-    pub fn weighted_sum(
-        &self,
-        range: Range<usize>,
-        mut terms: impl FnMut(usize, F192) -> [F192Unreduced; 4],
-    ) -> [F192Unreduced; 4] {
-        let mask = self.low.len() - 1;
-        let mut total = [F192Unreduced::ZERO; 4];
-        let mut x = range.start;
-        while x < range.end {
-            // The run of `x` in this high block.
-            let high = x >> self.low_log;
-            let run_end = ((high + 1) << self.low_log).min(range.end);
-            let mut run = [F192Unreduced::ZERO; 4];
-            for y in x..run_end {
-                let t = terms(y, self.low[y & mask]);
-                for (acc, t) in run.iter_mut().zip(t) {
-                    *acc ^= t;
-                }
-            }
-            let scaled = mul_unreduced4([self.high[high]; 4], run.map(F192Unreduced::reduce));
-            for (acc, t) in total.iter_mut().zip(scaled) {
-                *acc ^= t;
-            }
-            x = run_end;
-        }
-        total
-    }
-
-    /// [`Self::weighted_sum`], four `x` at a time in lanes.
-    ///
-    /// - `terms(state, x, w)` returns the unreduced products at `x`, already scaled by the low weight `w`.
-    /// - `terms4(state, x, w)` does the same for `x..x + 4` at once, lane `j` for `x + j`, and serves every four of a run below `wide_end`.
-    /// - Both are handed `state`; each run of `x` sharing a high weight is reduced once and scaled by it once.
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
-    #[inline]
-    pub fn weighted_sum_lanes<S: ?Sized>(
-        &self,
-        range: Range<usize>,
-        wide_end: usize,
-        state: &mut S,
-        mut terms: impl FnMut(&mut S, usize, F192) -> [F192Unreduced; 4],
-        mut terms4: impl FnMut(&mut S, usize, F192x4) -> [F192x4Unreduced; 4],
-    ) -> [F192Unreduced; 4] {
-        let mask = self.low.len() - 1;
-        let mut total = [F192Unreduced::ZERO; 4];
-        let mut x = range.start;
-        while x < range.end {
-            // The run of `x` in this high block.
-            let high = x >> self.low_log;
-            let run_end = ((high + 1) << self.low_log).min(range.end);
-            let mut wide = [F192x4Unreduced::zero(); 4];
-            let mut y = x;
-            while y + 4 <= run_end.min(wide_end) {
-                let weights = F192x4::new(std::array::from_fn(|j| self.low[(y + j) & mask]));
-                for (acc, t) in wide.iter_mut().zip(terms4(state, y, weights)) {
-                    *acc ^= t;
-                }
-                y += 4;
-            }
-            let mut run = wide.map(F192x4Unreduced::sum);
-            for y in y..run_end {
-                let t = terms(state, y, self.low[y & mask]);
-                for (acc, t) in run.iter_mut().zip(t) {
-                    *acc ^= t;
-                }
-            }
-            let scaled = mul_unreduced4([self.high[high]; 4], run.map(F192Unreduced::reduce));
-            for (acc, t) in total.iter_mut().zip(scaled) {
-                *acc ^= t;
-            }
-            x = run_end;
-        }
-        total
-    }
-
-    /// [`Self::weighted_sum`] with its values in vector registers: the terms, the weights and the
-    /// sums are [`F192x1`] values, which an [`F192`]'s integer words would move out of at every sum.
-    #[cfg(any(
-        all(target_arch = "aarch64", target_feature = "aes"),
-        all(target_arch = "x86_64", target_feature = "pclmulqdq")
-    ))]
-    #[inline]
-    pub fn weighted_sum_x1(
-        &self,
-        range: Range<usize>,
-        mut terms: impl FnMut(usize, F192x1) -> (F192x1Unreduced, F192x1Unreduced, F192x1Unreduced, F192x1Unreduced),
-    ) -> [F192Unreduced; 4] {
-        let mask = self.low.len() - 1;
-        let zero = F192x1Unreduced::zero();
-        let mut total = (zero, zero, zero, zero);
-        let mut x = range.start;
-        while x < range.end {
-            // The run of `x` in this high block.
-            let high = x >> self.low_log;
-            let run_end = ((high + 1) << self.low_log).min(range.end);
-            let mut run = (zero, zero, zero, zero);
-            for y in x..run_end {
-                let t = terms(y, F192x1::load(&self.low[y & mask]));
-                run = (run.0 ^ t.0, run.1 ^ t.1, run.2 ^ t.2, run.3 ^ t.3);
-            }
-            let scale = F192x1::load(&self.high[high]);
-            let scaled = |sum: F192x1Unreduced| scale.mul_unreduced(sum.reduce());
-            total = (
-                total.0 ^ scaled(run.0),
-                total.1 ^ scaled(run.1),
-                total.2 ^ scaled(run.2),
-                total.3 ^ scaled(run.3),
-            );
-            x = run_end;
-        }
-        [total.0.into(), total.1.into(), total.2.into(), total.3.into()]
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::Rng;
 
     #[test]
     fn parallel_mle_matches_folding() {
@@ -583,64 +372,39 @@ mod tests {
 
     #[test]
     fn split_eq_is_the_eq_table() {
-        // Invariant: the two tables weigh every row as the full eq table, and a weighted sum
-        // over a range equals the dense one, whether it crosses a high block or not.
+        // Invariant: the two tables weigh every row as the full eq table.
         //
         // Fixture state: 14 variables, split 12 low and 2 high, then 7 low and 7 high.
         let r: Vec<F192> = (0..14u64).map(|i| F192::new(3 * i + 1, i + 7, 5 * i + 2)).collect();
         let dense = eq_table(&r);
         for split in [SplitEq::with_low_vars(&r, 12), SplitEq::with_high_vars(&r, 7)] {
-            assert_eq!(split.low_log() + split.high_log(), r.len());
             for x in [0, 1, 127, 128, 4095, 4096, 4097, 12_345, (1 << 14) - 1] {
                 assert_eq!(split.at(x), dense[x], "x={x}");
-            }
-
-            // Terms of one coefficient: x itself, as a field element, scaled by the weight.
-            let value = |x: usize| F192::new(x as u64, 1, 0);
-            let terms = |x: usize, w: F192| {
-                let mut t = [F192Unreduced::ZERO; 4];
-                t[0] = w.mul_unreduced(value(x));
-                t
-            };
-            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
-            let terms4 = |_: &mut (), x: usize, w: F192x4| {
-                let mut t = [F192x4Unreduced::zero(); 4];
-                t[0] = w.mul_unreduced(F192x4::new(std::array::from_fn(|j| value(x + j))));
-                t
-            };
-            for range in [0..10, 4090..4100, 100..9000, 0..1 << 14] {
-                let want = range.clone().fold(F192::ZERO, |sum, x| sum + dense[x] * value(x));
-                assert_eq!(split.weighted_sum(range.clone(), terms)[0].reduce(), want, "{range:?}");
-                // Scalar terms only, lanes where they fit, and lanes stopped partway.
-                #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
-                for wide_end in [0, range.end, range.start + 7] {
-                    let got = split.weighted_sum_lanes(range.clone(), wide_end, &mut (), |_, x, w| terms(x, w), terms4);
-                    assert_eq!(got[0].reduce(), want, "{range:?} {wide_end}");
-                }
-                #[cfg(any(
-                    all(target_arch = "aarch64", target_feature = "aes"),
-                    all(target_arch = "x86_64", target_feature = "pclmulqdq")
-                ))]
-                {
-                    let zero = F192x1Unreduced::zero();
-                    let got = split.weighted_sum_x1(range.clone(), |x, w| {
-                        let shifted = F192x1::new(value(x) + F192::Y);
-                        (
-                            w.mul_unreduced(F192x1::new(value(x))),
-                            zero,
-                            zero,
-                            w.mul_unreduced(shifted),
-                        )
-                    });
-                    let shifted = range.clone().fold(want, |sum, x| sum + dense[x] * F192::Y);
-                    assert_eq!([got[0].reduce(), got[3].reduce()], [want, shifted], "{range:?}");
-                    assert!(got[1..3].iter().all(|u| u.reduce() == F192::ZERO));
-                }
             }
         }
 
         // A split with fewer variables than its cap puts them all on the capped side.
         let short = SplitEq::with_high_vars(&r[..3], 7);
-        assert_eq!((short.low_log(), short.high_log()), (0, 3));
+        assert_eq!((short.low_log, short.high.len()), (0, 8));
+    }
+
+    #[test]
+    fn eq_table_is_the_product_formula() {
+        // Invariant: entry `x` of the table is `prod_i (1 + r_i + x_i)`, bit for bit.
+        //
+        // Fixture state: random points of several sizes, then every Boolean point up to 8 variables.
+        let mut rng = Rng::new(0xE0_1D_5E_ED);
+        let random = [0, 1, 2, 3, 6, 7, 11, 12, 13].map(|n| rng.ext_vec(n));
+        let boolean = (1..=8).flat_map(|n| {
+            (0..1usize << n).map(move |mask| (0..n).map(|i| F192::from(F64((mask >> i) as u64 & 1))).collect())
+        });
+        for r in random.into_iter().chain(boolean) {
+            let table = eq_table(&r);
+            assert_eq!(table.len(), 1 << r.len());
+            for (x, &entry) in table.iter().enumerate() {
+                let bits: Vec<F192> = (0..r.len()).map(|i| F192::from(F64((x >> i) as u64 & 1))).collect();
+                assert_eq!(entry, eq_eval(&r, &bits), "n={}, x={x}", r.len());
+            }
+        }
     }
 }

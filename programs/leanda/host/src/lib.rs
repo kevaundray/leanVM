@@ -8,7 +8,7 @@
 use fiat_shamir::{ProverState, SessionId};
 use leanda::{CELLS, Dual, Hash, LOG_K, M};
 use leanvm_guest::{PublicValues, Run};
-use pcs::ntt::AdditiveNttF64;
+use pcs::ntt::AdditiveNtt;
 use primitives::field::{F64, F192};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
@@ -51,8 +51,8 @@ fn payload(n: usize) -> Vec<u64> {
 ///
 /// The inverse NTT interpolates the blob, and the NTT evaluates it on the whole domain.
 fn encode(payload: &[u64]) -> Vec<u64> {
-    let interpolation = AdditiveNttF64::standard(LOG_K);
-    let ntt = AdditiveNttF64::standard(LOG_K + 1);
+    let interpolation = AdditiveNtt::standard(LOG_K);
+    let ntt = AdditiveNtt::standard(LOG_K + 1);
     let mut codewords = vec![0; 2 * payload.len()];
     // One blob at a time: each transform dispatches to the thread pool itself.
     for (codeword, blob) in codewords
@@ -94,7 +94,7 @@ fn dual_codeword(root: &Hash) -> Vec<Dual> {
     }
     // The NTT is K-linear, so an F192 codeword is three K-codewords, one per limb.
     let mut limbs: Vec<u64> = tensor.iter().flat_map(|t| [t.c0, t.c1, t.c2]).collect();
-    AdditiveNttF64::standard(LOG_K + 1).encode_interleaved_in_place(as_field(&mut limbs), 3, 1);
+    AdditiveNtt::standard(LOG_K + 1).encode_interleaved_in_place(as_field(&mut limbs), 3, 1);
     limbs.as_chunks::<3>().0.to_vec()
 }
 

@@ -2,6 +2,7 @@
 
 use super::{ClassSpec, ClassTable};
 use crate::rv::Class;
+use primitives::field::F64;
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};
 use std::slice::Iter;
@@ -71,6 +72,15 @@ impl TableId {
     pub const fn index(self) -> usize {
         // Why: the classes with a table are declared in table order.
         self.0 as usize
+    }
+
+    /// The table's tag in the bytecode: `g^index`, with `g = x` the generator of `K`.
+    ///
+    /// The tags are distinct: `g` has order `2^64 - 1`, far above the table count.
+    ///
+    /// An illegal entry's tag is zero, which is no table's.
+    pub fn tag(self) -> F64 {
+        F64::G.pow(self.index() as u64)
     }
 
     /// The table's specification.

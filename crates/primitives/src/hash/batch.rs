@@ -12,7 +12,7 @@
 
 use std::mem::MaybeUninit;
 
-use super::{BLOCK_LEN, IV, OUT_LEN, hash_from_state};
+use super::{BLOCK_LEN, ChainingValue, IV, OUT_LEN};
 
 /// One state word across all lanes of a group: a vector of `WIDTH` 32-bit lanes.
 ///
@@ -480,7 +480,11 @@ unsafe fn hash_tail<S: Lanes32>(
     if rest < MIN_TAIL_GROUP {
         // A few inputs: one at a time.
         for i in first..n {
-            let d = hash_from_state(&data[i * len..(i + 1) * len], state, t_offset);
+            let start = ChainingValue {
+                h: *state,
+                absorbed: t_offset,
+            };
+            let d = start.hash(&data[i * len..(i + 1) * len]);
             out[i * OUT_LEN..(i + 1) * OUT_LEN].copy_from_slice(&d);
         }
     } else if n >= S::WIDTH {

@@ -5,9 +5,10 @@
 //! - One claim on each dense polynomial, at prefixes of one point.
 //! - Each flock circuit's two matrices at prefixes of one row point and one column point.
 
-use super::claims::DensePoly;
-use crate::class_flock::{FlockId, N_FLOCKS};
+use super::reduce::{DensePoly, Reduced};
 use crate::rec::circuit::{Builder, Dw, Ew, Kw, Limbs, chain};
+use crate::tables::{CircuitId, N_CIRCUITS};
+use fiat_shamir::arith::Arith;
 use primitives::field::F192;
 use std::ops::Range;
 
@@ -25,6 +26,8 @@ pub enum Kind {
 pub(crate) struct StatementLayout {
     /// The dense point's coordinates: the most any dense polynomial has.
     n_dense: usize,
+    /// The dense polynomials the tree has: the first in statement order.
+    n_polys: usize,
     /// The matrix points' coordinates: the most any flock circuit's matrices have.
     n_matrix: usize,
 }
@@ -56,18 +59,8 @@ pub(crate) struct TreeStatement<E = F192> {
 }
 
 impl Kind {
-    /// Both kinds, by their statement word.
+    /// Both kinds.
     pub const ALL: [Self; 2] = [Self::First, Self::Node];
-
-    /// Its statement word: the bit that selects its circuit's half of the nodes' fixed polynomial.
-    pub(crate) const fn bit(self) -> u64 {
-        self as u64
-    }
-
-    /// The kind a statement word names.
-    pub(crate) fn of_word(word: F192) -> Option<Self> {
-        Self::ALL.into_iter().find(|k| F192::new(k.bit(), 0, 0) == word)
-    }
 
     /// The first word of its digest's message.
     const fn tag(self) -> u64 {
@@ -114,12 +107,18 @@ impl Section {
 }
 
 impl StatementLayout {
-    /// The layout of a tree whose dense polynomials have at most this many variables.
-    pub(crate) const fn new(n_dense: usize) -> Self {
+    /// The layout of a tree whose first `n_polys` dense polynomials have at most `n_dense` variables.
+    pub(crate) const fn new(n_dense: usize, n_polys: usize) -> Self {
         Self {
             n_dense,
-            n_matrix: FlockId::MAX_K_LOG,
+            n_polys,
+            n_matrix: CircuitId::MAX_K_LOG,
         }
+    }
+
+    /// The dense polynomials the tree has.
+    pub(crate) fn polys(self) -> &'static [DensePoly] {
+        &DensePoly::ALL[..self.n_polys]
     }
 
     /// How many words a section has.
@@ -128,9 +127,9 @@ impl StatementLayout {
             Section::Kind => 1,
             Section::Digest => 2,
             Section::DensePoint => self.n_dense,
-            Section::DenseValues => DensePoly::COUNT,
+            Section::DenseValues => self.n_polys,
             Section::Rows | Section::Cols => self.n_matrix,
-            Section::Matrices => 2 * N_FLOCKS,
+            Section::Matrices => 2 * N_CIRCUITS,
         }
     }
 
@@ -216,7 +215,7 @@ impl<E: Copy> TreeStatement<E> {
     }
 
     /// Flock circuit `f`'s two matrices at their prefixes of the points.
-    pub(crate) fn matrices(&self, f: FlockId) -> [E; 2] {
+    pub(crate) fn matrices(&self, f: CircuitId) -> [E; 2] {
         let m = self.section(Section::Matrices);
         [m[2 * f.index()], m[2 * f.index() + 1]]
     }
@@ -231,16 +230,44 @@ impl TreeStatement {
 }
 
 impl TreeStatement<Ew> {
+    /// The statement of a circuit of kind `kind` stating `digest`, whose reduction left `reduced`.
+    ///
+    /// A polynomial left unreduced has a zero value, and the point is zero past the reduction's rounds.
+    pub(crate) fn from_reduced(
+        b: &mut Builder,
+        layout: StatementLayout,
+        kind: usize,
+        digest: Dw,
+        reduced: &Reduced<Ew>,
+    ) -> Self {
+        let zero = b.zero();
+        let mut s = Self::filled(layout, zero);
+        s.section_mut(Section::Kind)[0] = b.e_const(F192::new(kind as u64, 0, 0));
+        s.section_mut(Section::Digest)
+            .copy_from_slice(&Self::digest_halves(b, digest));
+        let point = &reduced.dense.point;
+        s.section_mut(Section::DensePoint)[..point.len()].copy_from_slice(point);
+        let values = reduced.dense.values.map(|v| v.unwrap_or(zero));
+        let section = s.section_mut(Section::DenseValues);
+        let n = section.len();
+        section.copy_from_slice(&values[..n]);
+        s.section_mut(Section::Rows).copy_from_slice(&reduced.matrices.rows);
+        s.section_mut(Section::Cols).copy_from_slice(&reduced.matrices.cols);
+        s.section_mut(Section::Matrices)
+            .copy_from_slice(reduced.matrices.values.as_flattened());
+        s
+    }
+
+    /// A digest's wire as the statement's two halves: its four words, cast two by two into elements.
+    pub(super) fn digest_halves(b: &mut Builder, d: Dw) -> [Ew; 2] {
+        let [w0, w1, w2, w3] = b.d_to_k(d);
+        let zero = b.k_const(0);
+        [b.k_to_e([w0, w1, zero]), b.k_to_e([w2, w3, zero])]
+    }
+
     /// The digest as one wire, its halves' top limbs held to zero.
     pub(crate) fn digest_wire(&self, b: &mut Builder) -> Dw {
         let [lo, hi] = self.digest();
         b.halves_to_d(lo, hi)
     }
-}
-
-/// A digest's wire as two halves, in rows.
-pub(crate) fn digest_halves_rows(b: &mut Builder, d: Dw) -> [Ew; 2] {
-    let [w0, w1, w2, w3] = b.d_to_k(d);
-    let zero = b.k_const(0);
-    [b.k_to_e([w0, w1, zero]), b.k_to_e([w2, w3, zero])]
 }

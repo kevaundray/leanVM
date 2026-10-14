@@ -2,11 +2,11 @@
 
 use crate::{chain, refuse};
 use bench::Plan;
+use bench::{pretty_f64, pretty_integer};
 use leanvm::asm::{Add, Addi, Asm, Bne, Reg};
 use leanvm::{Output, Program, ProvenRun, Prover, Region, Stats};
 use leanvm_guest::{PublicValues, Run};
 use primitives::hash::{digest_words, hash};
-use primitives::{pretty_f64, pretty_integer};
 use std::path::Path;
 
 /// One run of a program: what it is given and what it must output.
@@ -105,13 +105,19 @@ impl Workload {
     /// Verify `n` leanXMSS signatures, one key each.
     pub fn leanxmss(n: usize) -> Self {
         let title = format!("leanXMSS verification, {n} signatures");
-        Self::hosted(title, leanxmss_host::ELF, leanxmss_host::batch(n), n, "signature")
+        Self::hosted(title, leanxmss_host::ELF, leanxmss_host::batch(n).run, n, "signature")
     }
 
     /// Verify `n` leanSPHINCS signatures, one key each.
     pub fn leansphincs(n: usize) -> Self {
         let title = format!("leanSPHINCS verification, {n} signatures");
-        Self::hosted(title, leansphincs_host::ELF, leansphincs_host::batch(n), n, "signature")
+        Self::hosted(
+            title,
+            leansphincs_host::ELF,
+            leansphincs_host::batch(n).run,
+            n,
+            "signature",
+        )
     }
 
     /// Verify `n` Falcon-512 signatures, one key each.
@@ -178,19 +184,15 @@ impl Workload {
 
     /// Prove and verify the run, and print the report.
     ///
-    /// Proving runs one discarded warmup pass, then `plan.repeat` measured passes, the last one traced.
+    /// Proving runs one discarded warmup pass, then the plan's measured passes, the last one traced.
     pub fn run(&self, prover: &Prover, plan: Plan) {
         let (
             ProvenRun {
                 proof, output, stats, ..
             },
             prove_time,
-        ) = plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            self.prove(prover)
-        });
-        let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
+        ) = plan.warm_then_measure(|| self.prove(prover));
+        let (_, verify_time) = plan.without_cooldown().measure_quiet(|| {
             self.program.verify(output, &proof).expect("the proof verifies");
         });
 

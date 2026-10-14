@@ -236,6 +236,7 @@ fn increment(c: &mut Builder, x: &[Wire; 64], bit: usize) -> [Wire; 64] {
 mod tests {
     use super::*;
     use crate::rv::semantics::tests::edge_word;
+    use flock::test_util::Witness;
     use proptest::prelude::*;
 
     /// The product by its definition: schoolbook in y, each K product shift and add.
@@ -292,9 +293,7 @@ mod tests {
             let mut inputs = vec![0; 1 + slots.len()];
             inputs.extend(pointers);
             inputs.push(flags);
-            let words = 1 << (circuit.k_log() - 6);
-            let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
-            circuit.witness_instance(&inputs, &mut z, &mut az, &mut bz);
+            let z = Witness::of_instance(&circuit, &inputs).z;
             let outputs = &z[inputs.len() + 1..inputs.len() + 3 + Ext::OFFSET_LIMBS.len()];
             let addresses = Ext::OFFSET_LIMBS.map(|k| Ext::bus_address(pointers, flags, k));
             prop_assert_eq!(&outputs[..2], &[flags & 1, flags >> 1]);

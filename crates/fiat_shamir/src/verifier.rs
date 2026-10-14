@@ -1,70 +1,96 @@
-//! The verifier's side of a transcript.
+//! The verifier's side of a transcript, and why it refuses one.
 
-use crate::Challenger;
 use crate::codec::{Encoding, FromNarg, FromUniform};
-use crate::duplex::{Blake2sDuplex, DuplexSponge};
-use crate::error::TranscriptError;
+use crate::duplex::Blake2sDuplex;
 use crate::pow::ProofOfWork;
-use crate::proof::ProofTranscript;
-use crate::session::SessionId;
+use crate::proof::{Hints, ProofTranscript};
+use crate::{Challenger, SessionId};
+use thiserror::Error;
+
+/// Why a proof's transcript cannot be read.
+///
+/// Each variant is a malformed proof, never a verifier bug.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum TranscriptError {
+    /// The proof ends before a message the verifier reads, or the message's bytes encode no value.
+    #[error("message {index} is missing or not canonical")]
+    Malformed {
+        /// How many messages were read before it.
+        index: usize,
+    },
+    /// A hint is missing, or its length runs past the proof.
+    #[error("hint {index} is missing or cut short")]
+    MissingHint {
+        /// How many hints were read before it.
+        index: usize,
+    },
+    /// A hint does not decode, or does not authenticate.
+    #[error("hint {index} is invalid")]
+    InvalidHint {
+        /// How many hints were read before it.
+        index: usize,
+    },
+    /// A nonce is short of its proof of work.
+    #[error("a nonce misses its {bits}-bit proof of work")]
+    PowFailed {
+        /// The difficulty it missed.
+        bits: u32,
+    },
+    /// Bytes are left once the verifier is done.
+    #[error("the proof has {narg} unread message bytes and {hints} unread hint bytes")]
+    TrailingBytes {
+        /// Message bytes left.
+        narg: usize,
+        /// Hint bytes left.
+        hints: usize,
+    },
+}
 
 /// The verifier's transcript: a sponge, and cursors into the proof it reads.
 ///
 /// It mirrors the prover call for call.
 ///
 /// A failed read poisons it: every later read returns the same error.
-pub struct VerifierState<'a, H: DuplexSponge = Blake2sDuplex> {
+pub struct VerifierState<'a> {
     /// The duplex sponge.
-    sponge: H,
+    sponge: Blake2sDuplex,
     /// The messages not yet read.
     narg: &'a [u8],
     /// The hints not yet read.
-    hints: &'a [u8],
+    hints: Hints<'a>,
     /// Messages read so far.
     messages_read: usize,
     /// Hints read so far.
     hints_read: usize,
     /// The first error, once one occurred.
     poison: Option<TranscriptError>,
+    /// Whether the messages read next were sent under one-time-pad keys.
+    hidden: bool,
 }
 
 impl<'a> VerifierState<'a> {
-    /// A transcript for one session over the BLAKE2s duplex, its first message the instance, reading `proof`.
-    ///
-    /// # Panics
-    ///
-    /// Panics on an instance of no bytes, which would bind no statement.
-    pub fn new(session: &SessionId, instance: &impl Encoding, proof: &'a ProofTranscript) -> Self {
-        Self::with_sponge(session, instance, proof)
-    }
-
     /// Copy the exact logical duplex state without changing the transcript.
     #[must_use]
     pub fn context(&self) -> crate::TranscriptContext<primitives::field::F64, [u8; 32]> {
         self.sponge.context()
     }
-}
 
-impl<'a, H: DuplexSponge> VerifierState<'a, H> {
-    /// A transcript for one session over the sponge `H`, its first message the instance, reading `proof`.
+    /// A transcript for one session, its first message the instance, reading `proof`.
     ///
     /// Session and instance must be the prover's, or every challenge differs.
     ///
     /// # Panics
     ///
     /// Panics on an instance of no bytes, which would bind no statement.
-    pub fn with_sponge(session: &SessionId, instance: &impl Encoding, proof: &'a ProofTranscript) -> Self {
-        let mut sponge = H::init(session.0);
-        let encoded = instance.encode();
-        assert!(!encoded.as_ref().is_empty(), "an instance has bytes");
-        sponge.absorb(encoded.as_ref());
+    pub fn new(session: &SessionId, instance: &impl Encoding, proof: &'a ProofTranscript) -> Self {
         Self {
-            sponge,
+            sponge: Blake2sDuplex::transcript(session, instance),
             narg: &proof.narg,
-            hints: &proof.hints,
+            hints: proof.iter_hints(),
             messages_read: 0,
             hints_read: 0,
             poison: None,
+            hidden: false,
         }
     }
 
@@ -126,18 +152,9 @@ impl<'a, H: DuplexSponge> VerifierState<'a, H> {
             return Err(e);
         }
 
-        // A four-byte little-endian length, then that many bytes; the length is untrusted.
         let missing = TranscriptError::MissingHint { index: self.hints_read };
-        let hints = self.hints;
-        let len = if hints.len() < 4 {
-            Err(missing)
-        } else {
-            let len = u32::from_le_bytes([hints[0], hints[1], hints[2], hints[3]]) as usize;
-            if hints.len() - 4 < len { Err(missing) } else { Ok(len) }
-        };
-        let len = self.guard(len)?;
-        let hint = &hints[4..4 + len];
-        self.hints = &hints[4 + len..];
+        let hint = self.hints.next().ok_or(missing);
+        let hint = self.guard(hint)?;
         self.hints_read += 1;
         Ok(hint)
     }
@@ -158,9 +175,7 @@ impl<'a, H: DuplexSponge> VerifierState<'a, H> {
 
     /// Draw a verifier message from the sponge.
     pub fn verifier_message<T: FromUniform>(&mut self) -> T {
-        let mut repr = T::Repr::default();
-        self.sponge.squeeze(repr.as_mut());
-        T::from_uniform(repr)
+        self.sponge.draw()
     }
 
     /// Draw `n` verifier messages, in order.
@@ -190,6 +205,19 @@ impl<'a, H: DuplexSponge> VerifierState<'a, H> {
         self.guard(worked.then_some(()).ok_or(TranscriptError::PowFailed { bits }))
     }
 
+    /// Mark the messages read next as sent under one-time-pad keys, or not.
+    ///
+    /// A verifier of values reads a padded message as it is: this only tracks the transcript's section.
+    pub const fn set_hidden(&mut self, hidden: bool) {
+        self.hidden = hidden;
+    }
+
+    /// Whether the messages read next were sent under one-time-pad keys.
+    #[must_use]
+    pub const fn is_hidden(&self) -> bool {
+        self.hidden
+    }
+
     /// Check that the whole proof was read.
     ///
     /// # Errors
@@ -199,18 +227,19 @@ impl<'a, H: DuplexSponge> VerifierState<'a, H> {
         if let Some(e) = self.poison {
             return Err(e);
         }
-        if self.narg.is_empty() && self.hints.is_empty() {
+        let hints = self.hints.as_slice();
+        if self.narg.is_empty() && hints.is_empty() {
             Ok(())
         } else {
             Err(TranscriptError::TrailingBytes {
                 narg: self.narg.len(),
-                hints: self.hints.len(),
+                hints: hints.len(),
             })
         }
     }
 }
 
-impl<H: DuplexSponge> Challenger for VerifierState<'_, H> {
+impl Challenger for VerifierState<'_> {
     fn verifier_message<T: FromUniform>(&mut self) -> T {
         Self::verifier_message(self)
     }

@@ -12,26 +12,16 @@ use primitives::field::F192;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Padding {
     /// The base-two logarithm of the bits in one block.
-    pub k_log: usize,
+    pub(crate) k_log: usize,
 
     /// The bits at the start of each block that carry data; the rest are zero.
-    pub useful_bits: usize,
+    pub(crate) useful_bits: usize,
 
     /// The blocks before the identical tail; at least the block count when there is none.
-    pub live_blocks: usize,
+    pub(crate) live_blocks: usize,
 }
 
 impl Padding {
-    /// Every bit of a cube of `2^m` bits useful, and no tail.
-    #[cfg(test)]
-    pub(crate) const fn dense(m: usize) -> Self {
-        Self {
-            k_log: m,
-            useful_bits: 1 << m,
-            live_blocks: 1,
-        }
-    }
-
     /// The same blocks, with no tail known.
     pub(crate) const fn without_tail(self) -> Self {
         Self {
@@ -76,16 +66,16 @@ impl Padding {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Tail {
     /// Bits in the head.
-    pub head: usize,
+    pub(crate) head: usize,
 
     /// The base-two logarithm of the bits in a group.
-    pub group_log: usize,
+    pub(crate) group_log: usize,
 
     /// The eq challenges inside a group: the kernel's first `r_inner`.
-    pub r_inner: usize,
+    pub(crate) r_inner: usize,
 
     /// The eq mass of the groups past the head.
-    pub weight: F192,
+    pub(crate) weight: F192,
 }
 
 impl Tail {
@@ -115,10 +105,19 @@ fn eq_mass_from(r: &[F192], from: usize) -> F192 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use primitives::multilinear::eq_table;
     use primitives::test_util::Rng;
+
+    /// Every bit of a cube of `2^m` bits useful, and no tail.
+    pub(crate) const fn dense(m: usize) -> Padding {
+        Padding {
+            k_log: m,
+            useful_bits: 1 << m,
+            live_blocks: 1,
+        }
+    }
 
     #[test]
     fn eq_mass_from_is_the_tables_suffix_sum() {

@@ -455,7 +455,6 @@ name = "bench"
 version = "0.1.0"
 dependencies = [
  "libc",
- "primitives",
  "tikv-jemallocator",
  "tracing",
  "tracing-forest",
@@ -1455,6 +1454,7 @@ dependencies = [
  "leanvm_guest",
  "parallel",
  "primitives",
+ "thiserror",
 ]
 
 [[package]]
@@ -1469,8 +1469,10 @@ dependencies = [
  "pcs",
  "primitives",
  "proptest",
+ "rand_core 0.9.5",
  "thiserror",
  "tracing",
+ "zk",
 ]
 
 [[package]]
@@ -1517,6 +1519,7 @@ dependencies = [
  "leanxmss",
  "parallel",
  "primitives",
+ "thiserror",
 ]
 
 [[package]]
@@ -1627,6 +1630,7 @@ name = "parallel"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "thiserror",
 ]
 
 [[package]]
@@ -1671,6 +1675,8 @@ dependencies = [
  "fiat_shamir",
  "parallel",
  "primitives",
+ "rand_chacha 0.9.0",
+ "rand_core 0.9.5",
  "thiserror",
  "tracing",
 ]
@@ -2853,6 +2859,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "zk"
+version = "0.1.0"
+dependencies = [
+ "fiat_shamir",
+ "pcs",
+ "primitives",
+ "rand_chacha 0.9.0",
+ "rand_core 0.9.5",
+ "thiserror",
 ]
 
 [[package]]

@@ -30,15 +30,15 @@
 //! cargo bench -p pcs --bench throughput -- --json
 //! ```
 
+use bench::pretty_integer;
 use bench::{Metric, Plan, Timing, bencher_json, env_usize};
 use fiat_shamir::{ProverState, SessionId};
-use pcs::ntt::AdditiveNttF64;
+use pcs::ntt::AdditiveNtt;
 use pcs::ring_switch::{RingSwitch, SliceClaim};
 use pcs::stack::{CommittedStack, StackClaim, Statement};
-use pcs::whir::{LOG_INV_RATE_0, config_for_rate, inner_product_base_ext};
+use pcs::whir::{Config, LOG_INV_RATE_0};
 use primitives::field::{F64, F192};
-use primitives::multilinear::eq_table;
-use primitives::pretty_integer;
+use primitives::multilinear::{eq_table, inner_product_base};
 use primitives::test_util::Rng;
 use std::hint::black_box;
 use std::num::NonZeroUsize;
@@ -54,7 +54,7 @@ fn main() {
     let log_n = env_usize("PCS_LOG_N", 22);
     let log_inv_rate = env_usize("PCS_LOG_INV_RATE", LOG_INV_RATE_0);
     let pc =
-        config_for_rate(log_n, log_inv_rate).unwrap_or_else(|e| panic!("no WHIR config for PCS_LOG_N={log_n}: {e}"));
+        Config::for_rate(log_n, log_inv_rate).unwrap_or_else(|e| panic!("no WHIR config for PCS_LOG_N={log_n}: {e}"));
     let plan = Plan::from_env();
     let trace_span = tracing::info_span!("PCS throughput", log_n, log_inv_rate).entered();
 
@@ -63,7 +63,7 @@ fn main() {
     let n = 1usize << log_n;
     let witness: Vec<F64> = (0..n).map(|_| F64(rng.next_u64())).collect();
     let point = rng.ext_vec(log_n);
-    let value = inner_product_base_ext(&witness, &eq_table(&point));
+    let value = inner_product_base(&witness, &eq_table(&point));
     let point_claims = [StackClaim::Point {
         offset: 0,
         low_point: point,
@@ -80,40 +80,23 @@ fn main() {
     }];
 
     let (mut commit_t, mut open_t) = (Timing::default(), Timing::default());
-    plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-
-        let mut ch = ProverState::new(&SessionId::new(b"pcs-throughput"), &(log_n as u64));
+    plan.warm_then_measure(|| {
+        let mut ch = ProverState::new(&SessionId::new(b"pcs-throughput"), &0u64);
         let t = Instant::now();
         let committed =
             tracing::info_span!("Commit").in_scope(|| CommittedStack::new(&mut ch, &witness, log_n, pc.clone()));
         commit_t.push(t.elapsed().as_secs_f64());
 
-        // Bind the caller's point/value and ring-switch claims before opening challenges.
-        for claim in &point_claims {
-            if let StackClaim::Point { low_point, value, .. } = claim {
-                for coordinate in low_point {
-                    ch.public_message(coordinate);
-                }
-                ch.public_message(value);
-            }
-        }
-        for ring in &rings {
-            for claim in &ring.claims {
-                for coordinate in &claim.suffix_point {
-                    ch.public_message(coordinate);
-                }
-                for value in &claim.s_hat_v {
-                    ch.public_message(value);
-                }
-            }
-        }
+        // The anchored record, then the claims' values, are prover messages before the opening draws its challenges.
+        ch.prover_message(&value);
+        ch.prover_messages(&rings[0].claims[0].s_hat_v);
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
             let statement = Statement {
                 points: &point_claims,
                 rings: &rings,
             };
+            #[expect(clippy::disallowed_methods, reason = "the claims' values are bound just above")]
             committed.open(&mut ch, &witness, statement);
         });
         open_t.push(t.elapsed().as_secs_f64());
@@ -143,16 +126,16 @@ fn main() {
     // Its buffer holds `2^initial_k` interleaved lanes, the message in the first replica.
     const ENCODES: usize = 4;
     let log_lanes = pc.initial_k();
-    let ntt = AdditiveNttF64::standard(log_n - log_lanes + log_inv_rate);
+    let ntt = AdditiveNtt::standard(log_n - log_lanes + log_inv_rate);
     let mut codeword = vec![F64::ZERO; n << log_inv_rate];
     codeword[..n].copy_from_slice(&witness);
-    let (_, ntt_t) = plan.warm_then_measure(|_| {
+    let (_, ntt_t) = plan.warm_then_measure(|| {
         for _ in 0..ENCODES {
             ntt.encode_interleaved_in_place(black_box(&mut codeword), 1 << log_lanes, log_inv_rate);
         }
     });
 
-    if std::env::args().any(|arg| arg == "--json") {
+    if bench::json_requested() {
         let report = [
             (
                 format!("pcs-commit-{log_n}-16thread"),
@@ -183,7 +166,7 @@ fn main() {
     println!(
         "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, {} threads, mean of {}",
         parallel::num_threads(),
-        pretty_integer(&plan.repeat)
+        pretty_integer(&plan.repeat())
     );
     println!(
         "  committed data                  : {:>8.1} MiB  ({:>13} F64)",

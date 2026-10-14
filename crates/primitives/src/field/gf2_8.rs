@@ -10,11 +10,17 @@
 // (https://github.com/binius-zk/binius64,
 // `crates/field/src/arch/aarch64/simd_arithmetic.rs`).
 
-//! `GF(2)[x]/(x^8 + x^4 + x^3 + x + 1)`.
+//! `GF(2^8) = GF(2)[x] / (x^8 + x^4 + x^3 + x + 1)`, and its embedding `phi_8` into `E`.
 //!
-//! Reduction: x^8 ≡ x^4 + x^3 + x + 1, so the upper byte h folds back as
-//!   h ^ (h<<1) ^ (h<<3) ^ (h<<4).
+//! A product's upper byte `h` folds back by `x^8 = x^4 + x^3 + x + 1`:
+//!
+//! ```text
+//!     h ^ (h << 1) ^ (h << 3) ^ (h << 4)
+//! ```
+//!
+//! The embedding's image lies in `K`, so every image's `c1` and `c2` are zero.
 
+use super::F192;
 #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
 use core::arch::aarch64::*;
 use core::ops::{Add, AddAssign, Mul, MulAssign};
@@ -42,9 +48,7 @@ impl F8 {
     }
 }
 
-// In GF(2⁸), addition is bitwise XOR by definition. The `^` is correct, not a
-// typo for `+` (which is what these Clippy lints guard against).
-#[allow(clippy::suspicious_arithmetic_impl)]
+#[expect(clippy::suspicious_arithmetic_impl, reason = "addition in characteristic 2 is XOR")]
 impl Add for F8 {
     type Output = Self;
     #[inline]
@@ -53,7 +57,7 @@ impl Add for F8 {
     }
 }
 
-#[allow(clippy::suspicious_op_assign_impl)]
+#[expect(clippy::suspicious_op_assign_impl, reason = "addition in characteristic 2 is XOR")]
 impl AddAssign for F8 {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
@@ -136,13 +140,53 @@ pub const fn gf8_reduce(p: u16) -> u8 {
     ((t & 0xff) ^ h2 ^ (h2 << 1) ^ (h2 << 3) ^ (h2 << 4)) as u8
 }
 
-// aarch64 NEON helpers: 16-lane GF(2^8) mul and reduce.
-//
-// These are the building blocks for the round-1 URM shift_reduce inner kernel.
-//
-// `vmull_p8` is a baseline NEON instruction (no aes feature needed), so the
-// only cfg gate is `target_arch = "aarch64"`.
+/// `phi_8(2^k)` for `k < 8`: the images of the polynomial basis of `GF(2^8)`, as `K` words.
+const PHI8_BASIS: [u64; 8] = [
+    0x0000000000000001,
+    0x033ce8beddc8a656,
+    0x512620375ed2a108,
+    0x0c9e636090aafc01,
+    0xba4f3cd82801769c,
+    0xba26e7904adb4a47,
+    0x467698598926dc01,
+    0x4418ae808b28bdd0,
+];
 
+/// The table of `phi_8`, built by linearity from the images of the basis.
+const fn build_phi8_table() -> [F192; 256] {
+    let mut table = [F192::ZERO; 256];
+    let mut value = 1;
+    while value < table.len() {
+        let mut c0 = 0u64;
+        let mut bit = 0;
+        while bit < PHI8_BASIS.len() {
+            if value & (1 << bit) != 0 {
+                c0 ^= PHI8_BASIS[bit];
+            }
+            bit += 1;
+        }
+        table[value] = F192::new(c0, 0, 0);
+        value += 1;
+    }
+    table
+}
+
+/// `phi_8(a)` for every `a`, indexed by `a`'s byte.
+///
+/// Its image is the unique subfield of `E` with 256 elements.
+pub static PHI8_TABLE: [F192; 256] = build_phi8_table();
+
+/// The embedding `phi_8`, the unique field homomorphism from `GF(2^8)` into `E`.
+impl From<F8> for F192 {
+    #[inline]
+    fn from(a: F8) -> Self {
+        PHI8_TABLE[a.0 as usize]
+    }
+}
+
+/// Sixteen `GF(2^8)` products at once in NEON registers, for the zerocheck's first round.
+///
+/// The polynomial product is baseline NEON, so the module needs no feature beyond the architecture.
 #[cfg(target_arch = "aarch64")]
 pub mod neon {
     use core::arch::aarch64::*;
@@ -252,6 +296,8 @@ mod tests {
     use super::*;
     #[cfg(target_arch = "aarch64")]
     use crate::test_util::Rng;
+    #[cfg(all(target_arch = "aarch64", not(target_feature = "aes")))]
+    use core::arch::aarch64::*;
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     use core::arch::x86_64::*;
     #[cfg(target_arch = "aarch64")]
@@ -336,6 +382,27 @@ mod tests {
                     _mm256_storeu_si256(got.as_mut_ptr().cast(), r);
                 }
                 assert_eq!(got, expected, "b={b:02x}");
+            }
+        }
+    }
+
+    #[test]
+    fn homomorphism_full() {
+        // Exhaustive: φ(a·b)=φ(a)·φ(b) and φ(a+b)=φ(a)+φ(b) over all 65536 pairs.
+        for a in 0u16..256 {
+            for b in 0u16..256 {
+                let fa = F8(a as u8);
+                let fb = F8(b as u8);
+                assert_eq!(
+                    F192::from(fa * fb),
+                    F192::from(fa) * F192::from(fb),
+                    "mul at a={a}, b={b}"
+                );
+                assert_eq!(
+                    F192::from(fa + fb),
+                    F192::from(fa) + F192::from(fb),
+                    "add at a={a}, b={b}"
+                );
             }
         }
     }
