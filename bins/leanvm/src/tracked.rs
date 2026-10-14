@@ -422,7 +422,7 @@ fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> Vec<(NodeCircuit
     }
 }
 
-/// Write every tracked tree's circuits (a signer-set tree's node circuit of every arity), the output tree's over zero-knowledge leaves, and every claim-set tier position, plus native instruction table bindings.
+/// Write every tracked output-tree and signer-set tree circuit, one over zero-knowledge leaves, and every claim-set tier position, plus native instruction table bindings.
 ///
 /// CI's `rec-builder-model` workflow replays the recorded builders and checks the table slot and clock-port bindings against their Lean sources.
 #[cfg(feature = "circuits")]
@@ -441,13 +441,21 @@ pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
         let measured = LeafShape::measured(&tree.leaf.measure(), leaf_rate);
         let shape = if zk { measured.zero_knowledge() } else { measured };
         let built = tree.tree(shape, rate);
-        for position in 0..built.circuit_count() {
-            // A signer-set tree's node circuits are of every arity from 2, at positions 1 onward.
-            let circuit = match (position, tree.signers) {
-                (0, _) => NodeCircuit::First,
-                (_, None) => NodeCircuit::Node(tree.arity),
-                (_, Some(_)) => NodeCircuit::Node(position + 1),
-            };
+        // A tree's circuits in their positions' order: the first level's, then the node circuit of the largest arity, or a signer-set tree's of every arity from two up.
+        let nodes = match tree.signers {
+            None => tree.arity..=tree.arity,
+            Some(_) => 2..=tree.arity,
+        };
+        let circuits: Vec<NodeCircuit> = std::iter::once(NodeCircuit::First)
+            .chain(nodes.map(NodeCircuit::Node))
+            .collect();
+        assert_eq!(
+            circuits.len(),
+            built.circuit_count(),
+            "{}: a circuit per position",
+            tree.name
+        );
+        for (position, circuit) in circuits.into_iter().enumerate() {
             let path = out.join(format!("{}.txt", tree.node(circuit).0));
             std::fs::write(&path, built.circuit_dump(position))
                 .unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
