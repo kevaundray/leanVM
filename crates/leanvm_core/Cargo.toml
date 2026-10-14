@@ -20,8 +20,11 @@ pcs.workspace = true
 flock.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+zk.workspace = true
+rand_core.workspace = true
 
 [dev-dependencies]
+flock = { workspace = true, features = ["test-util"] }
 proptest.workspace = true
 leanvm_guest.workspace = true
 bench.workspace = true

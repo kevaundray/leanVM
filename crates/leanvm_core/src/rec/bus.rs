@@ -17,13 +17,12 @@
 use super::fixed::{FixedColumn, FixedColumns};
 use super::layout::RecLayout;
 use super::table::Table;
-use crate::colval::ColVal;
+use crate::bus::{Block, BusError, BusForm, BusProof, BusVerify, Coord, PackedForm, PublicColumn, PublicColumns};
 use crate::constraints::{Residual, Summand};
-use crate::leaf::{Block, BusError, BusForm, BusProof, BusVerify, Coord, PackedForm, PublicColumn, PublicColumns};
-use crate::{constraints, leaf};
+use crate::{bus, constraints};
 use fiat_shamir::ProverState;
 use fiat_shamir::arith::{Arith, Verifier};
-use primitives::field::{F64, F192};
+use primitives::field::{F64, F192, Subfield};
 
 /// A slot's key on the bus: its index among all tables' slots in the high 32 bits, its row in the low 32.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,10 +72,10 @@ impl SlotKey {
         F64(self.0)
     }
 
-    /// A slot's keys down its rows, as a column: the key at row `z` is row zero's XOR `z`.
-    const fn column(table: Table, slot: usize) -> Coord {
+    /// The keys of this key's slot down its rows, as a column: the key at row `z` is row zero's XOR `z`.
+    const fn column(self) -> Coord {
         Coord::IntIndex {
-            base: Self::new(table, slot, 0).to_f64(),
+            base: F64(self.0 & !(u32::MAX as u64)),
             shift: 0,
         }
     }
@@ -97,7 +96,7 @@ impl BusBlocks {
         let public = Table::Pub;
         let framework = |tau, coords| Block::framework(tau, coords);
         blocks.add_pair(
-            SlotKey::column(public, 0),
+            SlotKey::new(public, 0, 0).column(),
             next(public, 0),
             values,
             framework,
@@ -108,7 +107,7 @@ impl BusBlocks {
             let owned = |tau, coords| Block::table(index, tau, coords);
             for s in 0..table.n_slots() {
                 let limbs = table.slot(s).offset(base).into();
-                blocks.add_pair(SlotKey::column(table, s), next(table, s), limbs, owned, tau);
+                blocks.add_pair(SlotKey::new(table, s, 0).column(), next(table, s), limbs, owned, tau);
             }
             if let Some(tuples) = table.dynamic() {
                 let active = fixed.public(FixedColumn::Active(table));
@@ -143,7 +142,7 @@ impl BusBlocks {
 
     /// Prove the bus balances over the global columns.
     pub(crate) fn prove(&self, cols: &[&[F64]], ps: &mut ProverState) -> BusProof {
-        leaf::prove_balance(&self.push, &self.pull, &[], 0, cols, &self.tables, ps)
+        bus::prove_balance(&self.push, &self.pull, &[], 0, cols, &self.tables, ps)
     }
 
     /// Verify the bus balances.
@@ -152,7 +151,7 @@ impl BusBlocks {
     ///
     /// Returns the first check of the balance that refuses.
     pub(crate) fn verify<V: Verifier + PublicColumns>(&self, v: &mut V) -> Result<BusVerify<V::E>, BusError> {
-        let bus = leaf::verify_balance(v, &self.push, &self.pull, &[], 0, &self.tables)?;
+        let bus = bus::verify_balance(v, &self.push, &self.pull, &[], 0, &self.tables)?;
         debug_assert!(
             bus.sparse.iter().all(Vec::is_empty) && bus.producers.is_empty(),
             "the machine's target has no share for sparse columns or producers"
@@ -219,7 +218,7 @@ impl<A: Arith> Residual<A> for TableResidual<'_, A::E> {
 
 impl Summand for TableSummand {
     #[inline(always)]
-    fn eval<V: ColVal>(&self, cols: &[V], quadratic: bool) -> F192 {
-        V::reduce(self.0.eval_unreduced(cols, quadratic))
+    fn eval<V: Subfield>(&self, cols: &[V], quadratic: bool) -> F192 {
+        self.0.eval_unreduced(cols, quadratic).reduce()
     }
 }

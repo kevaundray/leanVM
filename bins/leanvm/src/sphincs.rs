@@ -3,9 +3,9 @@
 
 use crate::refuse;
 use bench::Plan;
+use bench::{pretty_f64, pretty_integer};
 use leansphincs_host::{LayerSignature, MESSAGE};
 use leanvm::{Rate, SphincsBatch, SphincsClaim, SphincsFtsOpening, SphincsLayer, SphincsProof, SphincsSignature};
-use primitives::{pretty_f64, pretty_integer};
 
 /// A guest layer as the circuit's.
 fn layer<const HEIGHT: usize>(l: &LayerSignature<HEIGHT>) -> SphincsLayer<HEIGHT> {
@@ -54,20 +54,16 @@ pub fn run(n: usize, rate: Rate, tamper: bool, plan: Plan) {
         return;
     }
 
-    let (proof, prove_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        batch.prove(&claims, &signatures).expect("honest signatures")
-    });
+    let (proof, prove_time) = plan.warm_then_measure(|| batch.prove(&claims, &signatures).expect("honest signatures"));
     let bytes = proof.to_bytes();
-    let (key, setup_time) = Plan::new(1, 0).measure_quiet(|_| SphincsBatch::new(n, rate).expect("the prover's key"));
-    let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
+    let (key, setup_time) = Plan::default().measure_quiet(|| SphincsBatch::new(n, rate).expect("the prover's key"));
+    let (_, verify_time) = plan.without_cooldown().measure_quiet(|| {
         let proof = SphincsProof::from_bytes(&bytes).expect("the proof's bytes");
         key.verify(&claims, &proof).expect("the proof verifies");
     });
 
     let stats = batch.stats();
-    let rows: Vec<String> = stats.tables.iter().map(ToString::to_string).collect();
+    let rows: Vec<String> = stats.tables.iter().map(crate::aggregate::table_row).collect();
     let seconds = prove_time.mean();
     println!(
         "leanSPHINCS verification on the recursion machine, {n} signatures, log-inv-rate {}",

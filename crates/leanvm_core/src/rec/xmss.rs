@@ -8,12 +8,13 @@
 //! words `[m0, m1, 0]` and `[m2, m3, 0]`, the epoch `[e, 0, 0]`, then the Merkle root `[r0, r1, 0]` the signature
 //! reaches. The signature is the prover's.
 
-use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Replay, Unsatisfied, chain};
-use super::fixed::FixedColumns;
+use super::circuit::{Builder, Dw, Ew, Finished, Kw, Limbs, Replay, Unsatisfied, chain};
+use super::proof::CircuitKey;
 use super::tree::{CircuitStats, ClaimLayout, ClaimSet, ClaimWord, Leaf, LeafCircuit, LeafStatement, Leaves};
+use crate::commitment::Rate;
 use crate::cpu::{DecodeError, VerifyError};
 use crate::envelope::Envelope;
-use crate::pcs::Rate;
+use fiat_shamir::arith::Arith;
 use fiat_shamir::{ProofTranscript, SessionId};
 use primitives::field::F192;
 use thiserror::Error;
@@ -104,10 +105,8 @@ pub struct XmssBatch {
     n: usize,
     /// Every proof's rate.
     rate: Rate,
-    /// The circuit.
-    circuit: Circuit,
-    /// Its fixed columns.
-    columns: FixedColumns,
+    /// The circuit and its fixed columns.
+    key: CircuitKey,
     /// What a prover replays of the circuit's build, one part per signature, for its values.
     replay: Replay,
     /// The transcript's session, which names the circuit and its size.
@@ -214,9 +213,7 @@ impl XmssBatch {
             return Err(XmssError::TooLarge { n });
         }
         let (finished, replay) = build(&vec![XmssClaim::default(); n], &vec![XmssSignature::ZERO; n]);
-        let circuit = finished.circuit;
-        circuit.committed_words().map_err(|_| XmssError::TooLarge { n })?;
-        let columns = FixedColumns::of(&circuit, &circuit.heights());
+        let key = CircuitKey::new(finished.circuit).map_err(|_| XmssError::TooLarge { n })?;
         let mut tag = DOMAIN.to_vec();
         tag.extend_from_slice(&(n as u64).to_le_bytes());
         tag.push(rate.log_inv_rate());
@@ -224,8 +221,7 @@ impl XmssBatch {
         Ok(Self {
             n,
             rate,
-            circuit,
-            columns,
+            key,
             replay,
             session,
         })
@@ -240,7 +236,7 @@ impl XmssBatch {
     /// What the circuit costs: its rows and heights per table, and the words a proof commits.
     #[must_use]
     pub fn stats(&self) -> CircuitStats {
-        CircuitStats::of(&self.circuit)
+        CircuitStats::of(self.key.circuit())
     }
 
     /// The leaf family of an aggregation tree over proofs of this batch, which takes no other leaves.
@@ -287,7 +283,7 @@ impl XmssBatch {
     }
 
     const fn leaf_circuit(&self) -> LeafCircuit<'_> {
-        LeafCircuit::new(&self.circuit, &self.columns, self.session, self.rate, &CLAIMS)
+        LeafCircuit::new(&self.key, self.session, self.rate, &CLAIMS)
     }
 
     /// Prove that each signature verifies under its claim, in order.
@@ -309,12 +305,10 @@ impl XmssBatch {
             return Err(XmssError::Root { index: i });
         }
         debug_assert!(
-            build(claims, signatures).0.circuit == self.circuit,
+            build(claims, signatures).0.circuit == *self.key.circuit(),
             "the rows never depend on the values"
         );
-        let proof = (self.circuit)
-            .prove_with(&assignment, &self.session, self.rate, Some(&self.columns))
-            .map_err(|_| XmssError::TooLarge { n: self.n })?;
+        let proof = self.key.prove(&assignment, &self.session, self.rate);
         Ok(XmssProof { proof, rate: self.rate })
     }
 
@@ -332,14 +326,8 @@ impl XmssBatch {
                 got: proof.rate,
             });
         }
-        (self.circuit)
-            .verify_with(
-                &statement(claims),
-                &self.session,
-                self.rate,
-                &proof.proof,
-                &self.columns,
-            )
+        (self.key)
+            .verify(&statement(claims), &self.session, self.rate, &proof.proof)
             .map_err(VerifyError::from)?;
         Ok(())
     }
@@ -356,8 +344,9 @@ impl XmssBatch {
         let n = self.n;
         let ((finished, _), calls) =
             super::circuit::traced(|| build(&vec![XmssClaim::default(); n], &vec![XmssSignature::ZERO; n]));
-        assert_eq!(finished.circuit, self.circuit, "a circuit is built the same every time");
-        calls + "circuit\n" + &self.circuit.dump() + &self.columns.dump_next(&self.circuit)
+        let circuit = self.key.circuit();
+        assert_eq!(&finished.circuit, circuit, "a circuit is built the same every time");
+        calls + "circuit\n" + &circuit.dump() + &self.key.fixed().dump_next(circuit)
     }
 
     const fn count(&self, got: usize, what: &'static str) -> Result<(), XmssError> {
@@ -411,7 +400,7 @@ const fn tweak0(ty: u64, pos: usize) -> u64 {
 /// A statement word exposed, its words; `zeros` of its words past the first `3 - zeros` are held to zero.
 pub(super) fn statement_words(b: &mut Builder, value: F192, zeros: usize) -> Vec<Kw> {
     let w = b.free_e(value);
-    b.expose_e(w);
+    b.expose(w);
     let ks = b.e_to_k(w);
     for &k in &ks[3 - zeros..] {
         b.eq_k_const(k, 0);
@@ -558,7 +547,7 @@ fn signature(b: &mut Builder, j: usize, claim: &XmssClaim, sig: &XmssSignature) 
     }
     let rs = b.d_to_k(node);
     let root = b.k_to_e([rs[0], rs[1], z]);
-    b.expose_e(root);
+    b.expose(root);
 }
 
 #[cfg(test)]

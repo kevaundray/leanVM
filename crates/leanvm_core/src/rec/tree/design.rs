@@ -13,22 +13,21 @@
 //! large tier and states its set: so a small proof never pays the large tier's heights, and a large one is combined
 //! once wrapped. A claim-set node's places past its children are absent, their sets read as the empty set.
 
-use super::claims::{Bits, DenseClaim, DensePoly, DenseTerm, MatrixClaim, NodeClaims};
-use super::fixed::FixedLayout;
 use super::multiset::Capacity;
-use super::reduce::{DenseTables, DenseVars, Reduced};
-use super::statement::{Items, Section, StatementLayout, TreeStatement, digest_halves_rows};
-use super::union::{UnionFill, UnionShape, union_rows};
-use super::{ClaimShape, LeafCircuit, TreeError, reduce};
-use crate::class_flock::FlockId;
+use super::reduce::{Bits, DenseClaim, DensePoly, DenseTables, DenseTerm, DenseVars, MatrixClaim, NodeClaims};
+use super::statement::{Items, StatementLayout, TreeStatement};
+use super::union::{UnionFill, UnionShape};
+use super::{ClaimShape, LeafCircuit, TreeError, TreeShape, reduce};
+use crate::bus::N_TUPLE_BITS;
+use crate::commitment::Rate;
 use crate::cpu::{Claim, Lookup, ProgramPoint};
-use crate::leaf::N_TUPLE_BITS;
-use crate::pcs::Rate;
 use crate::rec::circuit::{Builder, Dw, Ew, Finished, Kw, Limbs};
-use crate::rec::fixed::FixedColumns;
-use crate::rec::table::{HashFlock, Heights};
+use crate::rec::fixed::{FixedColumns, FixedLayout};
+use crate::rec::hash;
+use crate::rec::table::Heights;
 use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rec::verifier::{FixedHint, ProofShape, RecShape, Rows, infallible};
+use crate::tables::CircuitId;
 use fiat_shamir::arith::Arith;
 use fiat_shamir::{ProofTranscript, SessionId};
 use pcs::merkle::Openings;
@@ -125,8 +124,14 @@ pub(crate) struct Design<'p> {
     pub(crate) present: [bool; DensePoly::COUNT],
     /// Where each part of a statement sits.
     pub(crate) statement: StatementLayout,
-    /// The transcript's session for every recursion proof of the tree.
-    pub(crate) session: SessionId,
+}
+
+/// A child's kind, as its node's rows read it.
+struct KindBits {
+    /// The bits that select its circuit's block of its tier's fixed polynomial, lowest first.
+    top: Vec<Ew>,
+    /// One if it is a node above the first level, zero if it is a first-level node.
+    is_node: Ew,
 }
 
 /// A leaf as a first-level node's prover holds it: its proof, which the native verifier accepted, and its output.
@@ -199,7 +204,7 @@ impl<'p> CircuitFamily<'p> {
     ///
     /// A circuit whose heights admit no recursion proof.
     pub(crate) fn new(leaf: LeafCircuit<'p>) -> Result<Self, TreeError> {
-        let taus = leaf.circuit.heights();
+        let taus = leaf.circuit().heights();
         Ok(Self {
             shape: RecShape::new(taus, leaf.rate).map_err(|_| TreeError::TooLarge)?,
             fixed: FixedLayout::new(&taus),
@@ -265,28 +270,19 @@ impl Place {
     }
 }
 
-impl NodeClaims<Ew> {
-    /// Bind a verified proof's final transcript digest, as two scalars: its first three words, then its fourth.
-    fn bind_state(&mut self, b: &mut Builder, state: Dw) {
-        let [w0, w1, w2, w3] = b.d_to_k(state);
-        self.bound.extend([b.k_to_e([w0, w1, w2]), b.k_to_e1(w3)]);
-    }
-}
-
 impl<'p> Design<'p> {
-    /// The design at the given heights of each tier's circuits.
+    /// The design of a tree over proofs of a program, at the given heights of each tier's circuits.
     ///
     /// # Errors
     ///
     /// Returns an error if the heights admit no recursion proof.
-    pub(crate) fn new(
-        family: Family<'p>,
-        arity_0: usize,
-        arity: usize,
-        rate: Rate,
-        claims: Option<ClaimShape>,
-        taus: &[Heights],
-    ) -> Result<Self, TreeError> {
+    pub(crate) fn new(family: Family<'p>, shape: &TreeShape, taus: &[Heights]) -> Result<Self, TreeError> {
+        let TreeShape {
+            arity_0,
+            arity,
+            rate,
+            claims,
+        } = *shape;
         let places = Place::all(arity, claims);
         let tiers = (0..taus.len())
             .map(|tier| {
@@ -331,7 +327,7 @@ impl<'p> Design<'p> {
             .filter_map(|(&n, p)| p.then_some(n))
             .max()
             .unwrap_or(0);
-        let mut design = Self {
+        Ok(Self {
             family,
             arity_0,
             arity,
@@ -343,10 +339,7 @@ impl<'p> Design<'p> {
             vars,
             present,
             statement: StatementLayout::new(n_dense, present),
-            session: SessionId([0; 32]),
-        };
-        design.session = design.session();
-        Ok(design)
+        })
     }
 
     /// The transcript's session: everything that fixes the circuits, as one tag.
@@ -355,29 +348,31 @@ impl<'p> Design<'p> {
     /// The kind is the statement's first word, and the statement is the transcript's instance.
     /// A tree of outputs and a claim-set tree differ in it, so a proof of one is never one of the other.
     ///
-    /// It names the leaf family: the program's digest, or the leaf circuit's session, statement length and heights, with the leaves' heights and rate. So a tree proof verifies only under a tree of its own leaf family.
-    fn session(&self) -> SessionId {
-        self.session_with(DOMAIN)
+    /// It names the leaf family: the program's digest, the leaves' heights, rate and kind, or the leaf circuit's session, statement length, heights and rate. So a tree proof verifies only under a tree of its own leaf family.
+    pub(crate) fn session(&self) -> SessionId {
+        self.session_under(DOMAIN)
     }
 
     /// The session under a protocol version's tag.
-    pub(crate) fn session_with(&self, domain: &[u8]) -> SessionId {
+    pub(super) fn session_under(&self, domain: &[u8]) -> SessionId {
         let mut tag = domain.to_vec();
         let word = |tag: &mut Vec<u8>, x: usize| tag.extend_from_slice(&(x as u64).to_le_bytes());
         // An absent table's height is a word no height is.
         let height = |tag: &mut Vec<u8>, tau: Option<usize>| word(tag, tau.unwrap_or(usize::MAX));
         match &self.family {
-            Family::Runs(shape) => {
+            Family::Runs(proofs) => {
+                let leaf = proofs.shape();
                 tag.extend_from_slice(b"runs....");
-                tag.extend_from_slice(shape.program().digest());
-                shape.taus().values().for_each(|&t| word(&mut tag, t));
-                tag.push(shape.rate().log_inv_rate());
+                tag.extend_from_slice(proofs.program().digest());
+                leaf.taus().values().for_each(|&t| word(&mut tag, t));
+                tag.push(leaf.rate().log_inv_rate());
+                tag.push(u8::from(leaf.is_zero_knowledge()));
             }
             Family::Circuit(c) => {
                 tag.extend_from_slice(b"circuit.");
                 tag.extend_from_slice(&c.leaf.session.0);
-                word(&mut tag, c.leaf.circuit.statement_len);
-                for t in c.leaf.circuit.heights().into_values() {
+                word(&mut tag, c.leaf.circuit().statement_len);
+                for t in c.leaf.circuit().heights().into_values() {
                     height(&mut tag, t);
                 }
                 tag.push(c.leaf.rate.log_inv_rate());
@@ -452,29 +447,28 @@ impl<'p> Design<'p> {
 
     /// The dense polynomials, of the circuits' fixed columns by position: a polynomial the tree lacks is the zero table
     /// of no variables.
-    pub(crate) fn tables(&self, columns: &[FixedColumns]) -> DenseTables {
+    pub(crate) fn tables(&self, columns: &[&FixedColumns]) -> DenseTables {
         let none = || vec![F64::ZERO];
         let [bytecode, image, leaf] = match &self.family {
-            Family::Runs(shape) => {
-                let rv = shape.program().rv();
+            Family::Runs(proofs) => {
+                let rv = proofs.program().rv();
                 let mut image: Vec<F64> = rv.image().iter().map(|&w| F64(w)).collect();
                 image.resize(1 << self.vars.0[DensePoly::Image as usize], F64::ZERO);
                 [Lookup::Bytecode.table(rv), image, none()]
             }
-            Family::Circuit(c) => [none(), none(), c.leaf_polynomial(c.leaf.columns)],
+            Family::Circuit(c) => [none(), none(), c.leaf_polynomial(c.leaf.columns())],
         };
         // Each tier's fixed polynomial stacks its circuits' columns; a tree of one tier has no wide one.
         let fixed = |tier: usize| {
-            self.tiers.get(tier).map_or_else(none, |t| {
-                t.fixed
-                    .polynomial(&columns[t.places.clone()].iter().collect::<Vec<_>>())
-            })
+            self.tiers
+                .get(tier)
+                .map_or_else(none, |t| t.fixed.polynomial(&columns[t.places.clone()]))
         };
         DenseTables([bytecode, image, leaf, fixed(SMALL), fixed(LARGE)])
     }
 
     /// The first level's rows over RISC-V proofs, verifying its leaves.
-    pub(crate) fn first_runs(&self, leaf: &ProofShape<'_>, inputs: &NodeInputs<'_, LeafWitness<'_>>) -> NodeRows {
+    pub(crate) fn first_runs_rows(&self, leaf: &ProofShape<'_>, inputs: &NodeInputs<'_, LeafWitness<'_>>) -> NodeRows {
         let mut b = Builder::new();
         let mut claims = NodeClaims::default();
         let mut outputs = Vec::with_capacity(self.arity_0);
@@ -497,12 +491,12 @@ impl<'p> Design<'p> {
             b.scope(format!("leaf {i} program"), |b| {
                 self.program_claims(b, &core.claims.program, inputs, &mut claims);
             });
-            let fresh = FlockId::ALL.into_iter().zip(&core.claims.circuits);
+            let fresh = CircuitId::ALL.into_iter().zip(&core.claims.circuits);
             claims.matrices.extend(fresh.map(|(f, c)| MatrixClaim::fresh(f, c)));
             outputs.push(output);
         }
         let digest = match self.union_shape(0) {
-            Some(shape) => union_rows(&mut b, &shape, &self.session, &sets, inputs.union()),
+            Some(shape) => shape.rows(&mut b, &self.session(), &sets, inputs.union()),
             None => Items::Runs.digest_rows(&mut b, &outputs),
         };
         NodeRows {
@@ -516,21 +510,21 @@ impl<'p> Design<'p> {
     /// The first level's rows over proofs of a recursion circuit, verifying its leaves at the circuit's own heights, rate and session.
     ///
     /// Each leaf's statement is free wires, which its verifier's rows absorb as its transcript's instance. In a tree of outputs the digest is over each transcript's digest of its instance (`instance_digest`); in a claim-set tree each leaf's set is read from its statement's wires (`leaf_set`), and the union reads the sets at their digests.
-    pub(crate) fn first_circuit(
+    pub(crate) fn first_circuit_rows(
         &self,
         family: &CircuitFamily<'_>,
         inputs: &NodeInputs<'_, CircuitWitness<'_>>,
     ) -> NodeRows {
         let leaf = &family.leaf;
         let mut b = Builder::new();
-        let zeros = matches!(inputs, NodeInputs::Shape).then(|| FixedColumns::zeros(&leaf.circuit.heights()));
+        let zeros = matches!(inputs, NodeInputs::Shape).then(|| FixedColumns::zeros(&leaf.circuit().heights()));
         let zero = b.k_const(0);
         let mut claims = NodeClaims::default();
         let mut instances = Vec::with_capacity(self.arity_0);
         let mut sets = Vec::with_capacity(self.arity_0);
         for i in 0..self.arity_0 {
             let item = inputs.item(i);
-            let limbs: Vec<[Kw; 4]> = (0..leaf.circuit.statement_len)
+            let limbs: Vec<[Kw; 4]> = (0..leaf.circuit().statement_len)
                 .map(|z| {
                     let [l0, l1, l2, _] = item.map_or([0; 4], |l| l.statement[z]);
                     [b.free_k(l0), b.free_k(l1), b.free_k(l2), zero]
@@ -548,14 +542,14 @@ impl<'p> Design<'p> {
             claims
                 .dense
                 .push(fixed_claim(DensePoly::Leaf, &family.fixed, &rows.hints, &[]));
-            claims.matrices.push(MatrixClaim::fresh(HashFlock::FLOCK, &rows.matrix));
+            claims.matrices.push(MatrixClaim::fresh(hash::CIRCUIT, &rows.matrix));
             match instance {
                 Some(instance) => instances.push(b.d_to_k(instance)),
                 None => sets.push(b.scope(format!("leaf {i} claims"), |b| leaf.claims.digest_rows(b, &limbs))),
             }
         }
         let digest = match self.union_shape(0) {
-            Some(shape) => union_rows(&mut b, &shape, &self.session, &sets, inputs.union()),
+            Some(shape) => shape.rows(&mut b, &self.session(), &sets, inputs.union()),
             None => Items::Circuit(leaf.seed()).digest_rows(&mut b, &instances),
         };
         NodeRows {
@@ -567,13 +561,14 @@ impl<'p> Design<'p> {
     }
 
     /// The rows of the node circuit or wrap at `position`, verifying its children of any of their tier's kinds.
-    pub(crate) fn node(&self, inputs: &NodeInputs<'_, ChildWitness<'_>>, position: usize) -> NodeRows {
+    pub(crate) fn node_rows(&self, inputs: &NodeInputs<'_, ChildWitness<'_>>, position: usize) -> NodeRows {
         let (arity, child_tier) = match self.places[position].level {
             Level::Node(arity) => (arity, SMALL),
             Level::Wrap => (1, LARGE),
             Level::First => panic!("circuit {position} is a first-level node"),
         };
         let tier = &self.tiers[child_tier];
+        let session = self.session();
         let mut b = Builder::new();
         let zeros = matches!(inputs, NodeInputs::Shape).then(|| FixedColumns::zeros(&tier.taus));
         let mut claims = NodeClaims::default();
@@ -585,8 +580,8 @@ impl<'p> Design<'p> {
                 Some(c) => c.statement.map(|&w| b.free_e(w)),
                 None => TreeStatement::filled(self.statement, F192::ZERO).map(|&w| b.free_e(w)),
             };
-            let (top, is_node) = b.scope(format!("child {i} kind"), |b| {
-                self.kind_rows(b, statement.kind(), child_tier)
+            let kind = b.scope(format!("child {i} kind"), |b| {
+                self.kind_bits(b, statement.kind(), child_tier)
             });
             let zero = b.k_const(0);
             let limbs: Vec<[Kw; 4]> = (statement.words().iter())
@@ -598,7 +593,7 @@ impl<'p> Design<'p> {
             let columns = child.map_or_else(|| zeros.as_ref().expect("zero columns from a shape"), |c| c.columns);
             let source = child.map_or(ProofSource::Shape, |c| ProofSource::Proof(c.proof, &c.openings));
             let rows = b.scope(format!("child {i}"), |b| {
-                tier.child.verify(b, &self.session, &limbs, columns, source)
+                tier.child.verify(b, &session, &limbs, columns, source)
             });
 
             claims.bind_state(&mut b, rows.state);
@@ -608,9 +603,11 @@ impl<'p> Design<'p> {
             } else {
                 DensePoly::Wide
             };
-            claims.dense.push(fixed_claim(poly, &tier.fixed, &rows.hints, &top));
-            claims.matrices.push(MatrixClaim::fresh(HashFlock::FLOCK, &rows.matrix));
-            self.carried(&statement, is_node, &mut claims);
+            claims
+                .dense
+                .push(fixed_claim(poly, &tier.fixed, &rows.hints, &kind.top));
+            claims.matrices.push(MatrixClaim::fresh(hash::CIRCUIT, &rows.matrix));
+            self.carried(&statement, kind.is_node, &mut claims);
             let digest = statement.digest_wire(&mut b);
             if self.claims.is_some() {
                 digests.push(digest);
@@ -621,7 +618,7 @@ impl<'p> Design<'p> {
         let digest = match (self.places[position].level, self.union_shape(position)) {
             // A wrap states its child's set.
             (Level::Wrap, _) => digests[0],
-            (_, Some(shape)) => union_rows(&mut b, &shape, &self.session, &digests, inputs.union()),
+            (_, Some(shape)) => shape.rows(&mut b, &session, &digests, inputs.union()),
             (_, None) => Items::Node.digest_rows(&mut b, &words),
         };
         NodeRows {
@@ -636,11 +633,14 @@ impl<'p> Design<'p> {
     /// node.
     ///
     /// With two kinds the kind is that bit; with more it is held to a kind of the tier's circuits, then split.
-    fn kind_rows(&self, b: &mut Builder, kind: Ew, tier: usize) -> (Vec<Ew>, Ew) {
+    fn kind_bits(&self, b: &mut Builder, kind: Ew, tier: usize) -> KindBits {
         if self.places.len() == 2 {
             let square = b.square(kind);
-            b.eq_e(square, kind);
-            return (vec![kind], kind);
+            b.eq(square, kind);
+            return KindBits {
+                top: vec![kind],
+                is_node: kind,
+            };
         }
         let t = &self.tiers[tier];
         let (zero, one) = (b.zero(), b.one());
@@ -649,7 +649,7 @@ impl<'p> Design<'p> {
             let factor = b.add(kind, code);
             b.mul(acc, factor)
         });
-        b.eq_e(vanishing, zero);
+        b.eq(vanishing, zero);
         // A kind is its first limb: its index's bits, then the tier's.
         let [word, ..] = b.e_to_k(kind);
         let bits = b.split(word);
@@ -660,21 +660,22 @@ impl<'p> Design<'p> {
         let top: Vec<Ew> = bits[..t.kind_bits].iter().map(|&bit| b.k_to_e1(bit)).collect();
         // Only the small tier has a first level, at its index zero.
         if tier != SMALL {
-            return (top, one);
+            return KindBits { top, is_node: one };
         }
         let is_first = top.iter().fold(one, |acc, &t| {
             let not = b.add(t, one);
             b.mul(acc, not)
         });
-        (top, b.add(is_first, one))
+        let is_node = b.add(is_first, one);
+        KindBits { top, is_node }
     }
 
     /// A circuit built from the shapes alone.
     pub(crate) fn shape(&self, position: usize) -> Finished {
         let rows = match (self.places[position].level, &self.family) {
-            (Level::First, Family::Runs(leaf)) => self.first_runs(leaf, &NodeInputs::Shape),
-            (Level::First, Family::Circuit(family)) => self.first_circuit(family, &NodeInputs::Shape),
-            (Level::Node(_) | Level::Wrap, _) => self.node(&NodeInputs::Shape, position),
+            (Level::First, Family::Runs(leaf)) => self.first_runs_rows(leaf, &NodeInputs::Shape),
+            (Level::First, Family::Circuit(family)) => self.first_circuit_rows(family, &NodeInputs::Shape),
+            (Level::Node(_) | Level::Wrap, _) => self.node_rows(&NodeInputs::Shape, position),
         };
         rows.reduce(self, ProofSource::Shape)
     }
@@ -708,7 +709,7 @@ impl<'p> Design<'p> {
         let image = inputs.hint(b, DensePoly::Image, &low);
         let above = (p.image_point[m..].iter()).fold(p.image_weight, |acc, &x| b.times_one_plus(acc, x));
         total = b.mul_add(above, image, total);
-        b.eq_e(total, program.value);
+        b.eq(total, program.value);
         claims.bound.push(image);
         claims.dense.push(DenseClaim::at(DensePoly::Image, low, None, image));
     }
@@ -728,7 +729,7 @@ impl<'p> Design<'p> {
                 statement.dense_value(poly),
             ));
         }
-        for f in FlockId::ALL {
+        for f in CircuitId::ALL {
             claims.matrices.extend(MatrixClaim::carried(
                 f,
                 f.k_log(),
@@ -773,32 +774,12 @@ fn fixed_claim(poly: DensePoly, layout: &FixedLayout, hints: &[FixedHint], top: 
         .collect();
     DenseClaim { poly, low, terms }
 }
-
-impl Reduced<Ew> {
-    /// The statement of a circuit of this kind and digest whose reduction left these claims.
-    ///
-    /// A polynomial left unreduced has a zero value, and the point is zero past the reduction's rounds.
-    fn statement(&self, b: &mut Builder, layout: StatementLayout, kind: usize, digest: Dw) -> TreeStatement<Ew> {
-        let zero = b.zero();
-        let mut s = TreeStatement::filled(layout, zero);
-        s.section_mut(Section::Kind)[0] = b.e_const(F192::new(kind as u64, 0, 0));
-        s.section_mut(Section::Digest)
-            .copy_from_slice(&digest_halves_rows(b, digest));
-        s.section_mut(Section::DensePoint)[..self.dense.point.len()].copy_from_slice(&self.dense.point);
-        for (poly, value) in DensePoly::ALL.into_iter().zip(self.dense.values) {
-            if let Some(value) = value {
-                *s.dense_value_mut(poly) = value;
-            }
-        }
-        s.section_mut(Section::Rows).copy_from_slice(&self.matrices.rows);
-        s.section_mut(Section::Cols).copy_from_slice(&self.matrices.cols);
-        s.section_mut(Section::Matrices)
-            .copy_from_slice(self.matrices.values.as_flattened());
-        s
-    }
-}
-
 impl NodeRows {
+    /// The position of its circuit in the tree.
+    pub(crate) const fn position(&self) -> usize {
+        self.position
+    }
+
     /// The claims' values, which the prover's reduction takes.
     pub(crate) fn claim_values(&self) -> NodeClaims<F192> {
         self.claims.map(|w| self.b.e(w))
@@ -815,7 +796,8 @@ impl NodeRows {
         for &x in &claims.bound {
             instance.extend(b.e_to_k(x));
         }
-        let mut t = Transcript::new(b, &reduce::session(&design.session), &instance, source);
+        let session = SessionId::tagged(reduce::SESSION_TAG, &design.session().0);
+        let mut t = Transcript::new(b, &session, &instance, source);
         let reduced = b.scope("reduction", |b| {
             infallible(claims.verify(&mut Rows::new(b, &mut t), &design.vars))
         });
@@ -825,9 +807,9 @@ impl NodeRows {
             });
         }
         let kind = design.code(self.position);
-        let statement = reduced.statement(b, design.statement, kind, self.digest);
+        let statement = TreeStatement::from_reduced(b, design.statement, kind, self.digest, &reduced);
         for &w in statement.words() {
-            b.expose_e(w);
+            b.expose(w);
         }
         self.b.finish()
     }

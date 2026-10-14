@@ -3,16 +3,16 @@
 use crate::refuse;
 use crate::workload::Workload;
 use bench::{Plan, Timing};
+use bench::{pretty_f64, pretty_integer};
 use clap::ValueEnum;
 use leanvm::aggregate::{
     Aggregate, Capacity, CircuitStats, ClaimGroup, ClaimLeaf, ClaimSet, ClaimShape, Kind, Leaf, LeafShape,
-    LeafStatement, Leaves, Subtree, Tree, TreeProof, TreeShape,
+    LeafStatement, Leaves, Subtree, TableStats, Tree, TreeProof, TreeShape,
 };
 use leanvm::{
-    ProvenRun, Prover, Rate, SphincsBatch, SphincsClaim, SphincsProof, SphincsSignature, Stats, XmssBatch, XmssClaim,
+    ProvenRun, Prover, SphincsBatch, SphincsClaim, SphincsProof, SphincsSignature, Stats, XmssBatch, XmssClaim,
     XmssProof, XmssSignature,
 };
-use primitives::{pretty_f64, pretty_integer};
 
 /// The leaf program.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -59,14 +59,25 @@ enum Proven {
 }
 
 impl Family {
-    /// The family of `program` at size `n`, its leaves proven at `rate`.
-    fn new(program: LeafProgram, n: usize, rate: Rate) -> Self {
+    /// The family of `program` at size `n`, its leaves proven by `prover`: zero knowledge only for a RISC-V program's runs.
+    fn new(program: LeafProgram, n: usize, prover: &Prover) -> Self {
+        let rate = prover.rate();
         let runs = |workload: Workload| {
             // The run, measured, gives the shape its proofs announce: the tree is built before anything is proven.
             let stats = workload.measure();
             let shape = LeafShape::measured(&stats, rate);
+            let shape = if prover.is_zero_knowledge() {
+                shape.zero_knowledge()
+            } else {
+                shape
+            };
             Self::Runs { workload, stats, shape }
         };
+        if prover.is_zero_knowledge() && matches!(program, LeafProgram::LeanxmssRec | LeafProgram::LeansphincsRec) {
+            refuse(format_args!(
+                "--zk is not for {program:?} leaves: a recursion proof is never zero knowledge"
+            ));
+        }
         match program {
             LeafProgram::Fibonacci => runs(Workload::fibonacci(n)),
             LeafProgram::Leanxmss => runs(Workload::leanxmss(n)),
@@ -207,7 +218,7 @@ fn secs(t: &Timing) -> String {
 /// A circuit's rows per table and padded heights, and the words a proof commits.
 fn print_cost(stats: Option<&CircuitStats>, committed: usize) {
     if let Some(stats) = stats {
-        let rows: Vec<String> = stats.tables.iter().map(ToString::to_string).collect();
+        let rows: Vec<String> = stats.tables.iter().map(table_row).collect();
         println!("  rows                        : {}", rows.join("  "));
     }
     println!(
@@ -250,16 +261,13 @@ pub fn run(
         claims: claims.map(ClaimShape::new),
     };
     shape.depth(leaves).unwrap_or_else(|e| refuse(format_args!("{e}")));
-    let family = Family::new(program, n, leaf_prover.rate());
+    let family = Family::new(program, n, leaf_prover);
     let set = claims.map(|_| family.claim_set(program, n));
     let title = family.title();
 
-    let (proven, leaf_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        family.prove(leaf_prover)
-    });
+    let (proven, leaf_time) = plan.warm_then_measure(|| family.prove(leaf_prover));
 
-    let (tree, setup) = Plan::new(1, 0).measure_quiet(|_| {
+    let (tree, setup) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Tree setup").entered();
         Tree::new(family.leaves(), shape).unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
@@ -308,14 +316,11 @@ fn outputs(
     (leaves, arity_0, arity): (usize, usize, usize),
     plan: Plan,
 ) {
-    let quiet = Plan::new(plan.repeat, 0);
+    let quiet = plan.without_cooldown();
     let firsts = vec![leaf.clone(); arity_0];
-    let (first, first_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        tree.prove_first(&firsts).expect("honest leaves")
-    });
+    let (first, first_time) = plan.warm_then_measure(|| tree.prove_first(&firsts).expect("honest leaves"));
     let first_level = Subtree::First(vec![statement.clone(); arity_0]);
-    let (_, first_verify) = quiet.measure_quiet(|_| tree.verify(&first, &first_level).expect("a first-level root"));
+    let (_, first_verify) = quiet.measure_quiet(|| tree.verify(&first, &first_level).expect("a first-level root"));
     report(
         &format!("first-level node, {arity_0} leaves"),
         tree,
@@ -327,12 +332,9 @@ fn outputs(
 
     if leaves > arity_0 {
         let children = vec![first; arity];
-        let (node, node_time) = plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            tree.prove_node(&children).expect("honest children")
-        });
+        let (node, node_time) = plan.warm_then_measure(|| tree.prove_node(&children).expect("honest children"));
         let expected = Subtree::Node(vec![first_level; arity]);
-        let (_, node_verify) = quiet.measure_quiet(|_| tree.verify(&node, &expected).expect("a root"));
+        let (_, node_verify) = quiet.measure_quiet(|| tree.verify(&node, &expected).expect("a root"));
         report(
             &format!("node, {arity} first-level children"),
             tree,
@@ -345,25 +347,22 @@ fn outputs(
 
     let all = vec![leaf; leaves];
     let expected = Subtree::balanced(vec![statement; leaves], shape).unwrap_or_else(|e| refuse(format_args!("{e}")));
-    let (root, whole) = Plan::new(1, 0).measure_quiet(|_| {
+    let (root, whole) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Prove tree", leaves).entered();
         tree.prove(&all).unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
-    let (_, root_verify) = quiet.measure_quiet(|_| tree.verify(&root, &expected).expect("the root verifies"));
+    let (_, root_verify) = quiet.measure_quiet(|| tree.verify(&root, &expected).expect("the root verifies"));
     print_whole(&whole, &root_verify);
 }
 
 /// A claim-set tree over copies of `leaf`: its first-level node, its node of `arity` children, and the balanced tree,
 /// every node declaring the union of its children's sets.
 fn claim_sets(tree: &Tree<'_>, leaf: &ClaimLeaf<'_>, (leaves, arity_0, arity): (usize, usize, usize), plan: Plan) {
-    let quiet = Plan::new(plan.repeat, 0);
+    let quiet = plan.without_cooldown();
     let firsts = vec![leaf.clone(); arity_0];
-    let (first, first_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        tree.aggregate_leaves(&firsts, None).expect("honest leaves")
-    });
+    let (first, first_time) = plan.warm_then_measure(|| tree.aggregate_leaves(&firsts, None).expect("honest leaves"));
     let (_, first_verify) =
-        quiet.measure_quiet(|_| (tree.verify_claims(&first.proof, &first.claims)).expect("a first-level root"));
+        quiet.measure_quiet(|| (tree.verify_claims(&first.proof, &first.claims)).expect("a first-level root"));
     report(
         &format!("first-level node, {arity_0} leaves"),
         tree,
@@ -375,12 +374,8 @@ fn claim_sets(tree: &Tree<'_>, leaf: &ClaimLeaf<'_>, (leaves, arity_0, arity): (
 
     if leaves > arity_0 {
         let children = vec![&first; arity];
-        let (node, node_time) = plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            tree.aggregate(&children, None).expect("honest children")
-        });
-        let (_, node_verify) =
-            quiet.measure_quiet(|_| (tree.verify_claims(&node.proof, &node.claims)).expect("a root"));
+        let (node, node_time) = plan.warm_then_measure(|| tree.aggregate(&children, None).expect("honest children"));
+        let (_, node_verify) = quiet.measure_quiet(|| (tree.verify_claims(&node.proof, &node.claims)).expect("a root"));
         report(
             &format!("node, {arity} first-level children"),
             tree,
@@ -391,7 +386,7 @@ fn claim_sets(tree: &Tree<'_>, leaf: &ClaimLeaf<'_>, (leaves, arity_0, arity): (
         );
     }
 
-    let (root, whole) = Plan::new(1, 0).measure_quiet(|_| {
+    let (root, whole) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Prove tree", leaves).entered();
         let refused = |e| refuse(format_args!("{e}"));
         let mut level: Vec<Aggregate> = (0..leaves / arity_0)
@@ -408,7 +403,7 @@ fn claim_sets(tree: &Tree<'_>, leaf: &ClaimLeaf<'_>, (leaves, arity_0, arity): (
         level.pop().expect("one root")
     });
     let (_, root_verify) =
-        quiet.measure_quiet(|_| (tree.verify_claims(&root.proof, &root.claims)).expect("the root verifies"));
+        quiet.measure_quiet(|| (tree.verify_claims(&root.proof, &root.claims)).expect("the root verifies"));
     print_whole(&whole, &root_verify);
     println!("  root's set                  : {} claims", root.claims.n_claims());
 }
@@ -418,4 +413,12 @@ fn print_whole(whole: &Timing, root_verify: &Timing) {
     println!("whole tree");
     println!("  proving every node          : {}, after the leaf proofs", secs(whole));
     println!("  verifying the root          : {}", ms(root_verify));
+}
+
+/// A table's name, its rows and its height: `HASH 1,234 (2^11)`, or `STEP 0 (absent)` for a table the proof leaves out.
+pub fn table_row(t: &TableStats) -> String {
+    let height = t
+        .height_log
+        .map_or_else(|| "absent".to_owned(), |tau| format!("2^{tau}"));
+    format!("{} {} ({height})", t.name, pretty_integer(&t.rows))
 }

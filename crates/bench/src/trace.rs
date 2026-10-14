@@ -1,36 +1,40 @@
-//! The hierarchical trace tree the benchmark binaries print with `--tracing`.
+//! What the benchmark binaries trace.
+//!
+//! - The hierarchical trace tree `--tracing` prints, with each span's heap.
+//! - The prover's stage times: how long each direct child of a root span ran.
 
-use crate::heap::{self, HeapWindow};
-use crate::stages::Stages;
-use primitives::{pretty_f64, pretty_integer};
+use crate::heap::{self, ClosedWindow, Heap, HeapWindow};
+use crate::{pretty_bytes, pretty_f64, pretty_integer};
 use std::cell::RefCell;
 use std::fmt::Error;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
-use tracing::Subscriber;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tracing::span::{Attributes, Id};
+use tracing::{Level, Subscriber};
 use tracing_forest::printer::Pretty;
 use tracing_forest::tree::Tree;
 use tracing_forest::util::LevelFilter;
 use tracing_forest::{ForestLayer, Formatter, PrettyPrinter};
-use tracing_subscriber::filter::dynamic_filter_fn;
+use tracing_subscriber::filter::{dynamic_filter_fn, filter_fn};
 use tracing_subscriber::layer::{Context, Filter, SubscriberExt};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer, Registry};
 
-/// A closed span's heap: the forest's tree again, spans only, built by [`HeapSpans`].
+/// A closed span's heap, with its closed children: the forest's tree again, spans only.
 struct HeapNode {
-    /// The live bytes when the span opened, and the most while it was open.
-    opened: isize,
-    peak: isize,
-    allocations: u64,
+    /// The span's window.
+    window: ClosedWindow,
+    /// The heaps of the spans opened inside it, in the order they closed.
     children: Vec<Self>,
 }
 
 /// An open span's window, and its children that closed.
 struct OpenSpan {
+    /// The window opened with the span.
     window: HeapWindow,
+    /// The heaps of the spans that closed inside it.
     children: Vec<HeapNode>,
 }
 
@@ -39,8 +43,10 @@ thread_local! {
     static CLOSED_ROOT: RefCell<Option<HeapNode>> = const { RefCell::new(None) };
 }
 
-/// Keeps each span's heap window, from when it is created to when it closes. Installed before the forest, so a root's heap is
-/// in [`CLOSED_ROOT`] when the forest prints it, and with the forest's filter, so it sees the spans the forest sees.
+/// Keeps each span's heap window, from when it is created to when it closes.
+///
+/// - Installed before the forest, so a root's heap is ready when the forest prints the root.
+/// - Filtered as the forest is, so it sees the spans the forest sees.
 struct HeapSpans;
 
 impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for HeapSpans {
@@ -57,12 +63,8 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for HeapSpans {
         let Some(open) = span.extensions_mut().remove::<OpenSpan>() else {
             return;
         };
-        let opened = open.window.opened_at();
-        let (heap, peak) = open.window.close_at();
         let node = HeapNode {
-            opened,
-            peak,
-            allocations: heap.allocations,
+            window: open.window.close(),
             children: open.children,
         };
         match span.parent() {
@@ -76,28 +78,32 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for HeapSpans {
     }
 }
 
-/// What a span's line shows after its time: its share of its parent's, and, when [`heap::Counting`] is the global allocator,
-/// the most bytes live in it above those live when the root opened and the allocations made in it.
+/// What a span's line shows after its time.
 #[derive(Clone, Copy, Debug)]
 struct Line {
+    /// The span's share of its parent's time, in percent.
     percentage: f64,
-    heap: Option<(u64, u64)>,
+    /// Its heap above the bytes live when the root opened, when the counting allocator is the global one.
+    heap: Option<Heap>,
 }
 
+/// Renders a root span's tree, with parent-relative percentages and each span's heap.
 fn format_trace_tree(tree: &Tree) -> Result<String, Error> {
     let rendered = Pretty.fmt(tree)?;
+    // The root's heap, kept only where the counting allocator saw the allocations.
     let heap = CLOSED_ROOT.take().filter(|_| heap::counting());
     let mut lines = Vec::new();
     collect_lines(
         tree,
         heap.as_ref(),
-        heap.as_ref().map_or(0, |root| root.opened),
+        heap.as_ref().map_or(0, |root| root.window.opened),
         None,
         &mut lines,
     );
     Ok(rewrite_trace_lines(&rendered, &lines))
 }
 
+/// Pushes one line per span of `tree`, depth first, as the forest prints them.
 fn collect_lines(
     tree: &Tree,
     heap: Option<&HeapNode>,
@@ -116,7 +122,7 @@ fn collect_lines(
     };
     lines.push(Line {
         percentage,
-        heap: heap.map(|node| ((node.peak - root_opened).max(0) as u64, node.allocations)),
+        heap: heap.map(|node| node.window.heap_above(root_opened)),
     });
 
     let mut children = heap.map(|node| node.children.iter());
@@ -129,17 +135,9 @@ fn collect_lines(
     }
 }
 
-/// `bytes` in the largest binary unit that leaves at least one of it.
-fn pretty_bytes(bytes: u64) -> String {
-    let (unit, scale) = [("GiB", 1 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10)]
-        .into_iter()
-        .find(|&(_, scale)| bytes >= scale)
-        .unwrap_or(("B", 1));
-    format!("{} {unit}", pretty_f64(bytes as f64 / scale as f64))
-}
-
-/// Replace tracing-forest's root-relative percentages (and its optional self
-/// percentage) with one percentage relative to the span's direct parent, followed by the span's heap.
+/// Replaces the forest's root-relative percentages with parent-relative ones, followed by each span's heap.
+///
+/// The forest's optional self percentage goes too.
 fn rewrite_trace_lines(rendered: &str, lines: &[Line]) -> String {
     let mut output = String::with_capacity(rendered.len());
     let mut lines = lines.iter();
@@ -167,11 +165,11 @@ fn rewrite_trace_lines(rendered: &str, lines: &[Line]) -> String {
             output.push_str(&line[..value_start]);
             output.push_str(&pretty_f64(shown.percentage));
             output.push('%');
-            if let Some((peak, allocations)) = shown.heap {
+            if let Some(heap) = shown.heap {
                 output.push_str(&format!(
                     " | heap {} | {} allocs",
-                    pretty_bytes(peak),
-                    pretty_integer(&allocations)
+                    pretty_bytes(heap.peak),
+                    pretty_integer(&heap.allocations)
                 ));
             }
             output.push_str(&line[percent_end + 1..]);
@@ -188,50 +186,42 @@ fn rewrite_trace_lines(rendered: &str, lines: &[Line]) -> String {
     output
 }
 
-/// Set while [`suppress_tracing`]'s guard is alive; read by the trace tree's
-/// filter on every span and event.
-static TRACE_SUPPRESSED: AtomicBool = AtomicBool::new(false);
+/// How many suppression guards are alive; the trace tree records only while none is.
+static SUPPRESSED: AtomicUsize = AtomicUsize::new(0);
 
-/// Suppress trace-tree output until the returned guard is dropped.
+/// Suppresses trace-tree output until the returned guard is dropped.
 ///
-/// A benchmark pass is run several times ([`crate::Plan`]: one warmup plus
-/// `repeat` measured passes), so with `--tracing` the tree would carry one
-/// subtree per pass and say nothing extra. Wrapping every pass but the final
-/// measured one in this guard leaves exactly one tree, for the proof the report's
-/// timings are about. A span created while suppressed is never recorded, so it
-/// cannot reappear inside the surviving tree either.
+/// A benchmark runs its pass several times, and only the final measured one should print a tree.
 ///
-/// Only that pass then pays the tree's recording cost, which is immaterial against
-/// a multi-second proof and is anyway why `--tracing` is a diagnostic mode rather
-/// than the one to quote timings from.
+/// - Guards nest: output resumes when the last one is dropped.
+/// - A span created while suppressed is never recorded, so it cannot reappear inside a later tree.
 #[must_use = "tracing resumes as soon as the guard is dropped"]
 pub fn suppress_tracing() -> TraceSuppressed {
-    TRACE_SUPPRESSED.store(true, Ordering::Relaxed);
-    TraceSuppressed
+    SUPPRESSED.fetch_add(1, Ordering::Relaxed);
+    TraceSuppressed(())
 }
 
-/// Guard returned by [`suppress_tracing`].
-pub struct TraceSuppressed;
+/// A live suppression of the trace tree, lifted when dropped.
+pub struct TraceSuppressed(());
 
 impl Drop for TraceSuppressed {
     fn drop(&mut self) {
-        TRACE_SUPPRESSED.store(false, Ordering::Relaxed);
+        SUPPRESSED.fetch_sub(1, Ordering::Relaxed);
     }
 }
 
-/// The trace tree's filter: everything but what a [`suppress_tracing`] guard covers.
+/// The trace tree's filter: everything but what a suppression guard covers.
+///
+/// It is dynamic, never cached per callsite, so one callsite is recorded on one pass and skipped on the next.
 fn recorded<S: Subscriber>() -> impl Filter<S> {
-    dynamic_filter_fn(|_, _| !TRACE_SUPPRESSED.load(Ordering::Relaxed))
+    dynamic_filter_fn(|_, _| SUPPRESSED.load(Ordering::Relaxed) == 0)
 }
 
-/// Install the hierarchical tracing subscriber used by benchmark binaries.
+/// Installs the hierarchical tracing subscriber of the benchmark binaries.
 ///
-/// The default level is `INFO`; `RUST_LOG` can override it. Repeated calls are
-/// harmless: if another global subscriber is already installed, this leaves it
-/// unchanged. Output pauses while a [`suppress_tracing`] guard is alive; the
-/// filter is dynamic (never cached per callsite) so the same callsite can be
-/// recorded on one pass and skipped on the next. It also times the stages
-/// [`crate::time_stages`] names, on every pass.
+/// - The default level is `INFO`, which `RUST_LOG` overrides.
+/// - A subscriber already installed stays, so repeated calls do nothing.
+/// - It also times the prover's stages, on every pass.
 pub fn init_tracing() {
     let env_filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
@@ -247,17 +237,77 @@ pub fn init_tracing() {
         .try_init();
 }
 
-/// [`init_tracing`] when `BENCH_TRACING` is set: the `benches/` targets'
-/// counterpart of the CLI's `--tracing`.
+/// Installs the trace tree when `BENCH_TRACING` is set: the `benches/` targets' counterpart of `--tracing`.
 pub fn init_tracing_from_env() {
     if std::env::var_os("BENCH_TRACING").is_some() {
         init_tracing();
     }
 }
 
+/// One stage of a proof: a direct child of the root span, and how long it ran.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stage {
+    /// The span's name.
+    pub name: &'static str,
+    /// From when the span was created to when it closed.
+    pub elapsed: Duration,
+}
+
+/// The root span's name, whose children are the stages.
+static ROOT: OnceLock<&'static str> = OnceLock::new();
+
+/// The stages that closed since they were last taken.
+static STAGES: Mutex<Vec<Stage>> = Mutex::new(Vec::new());
+
+/// When a stage opened, kept in its span's extensions.
+struct Opened(Instant);
+
+/// Times every span whose parent is the root span.
+struct Stages;
+
+impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for Stages {
+    fn on_new_span(&self, _: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+        // No root is named until a benchmark asks for its stages.
+        let Some(&root) = ROOT.get() else { return };
+        let span = ctx.span(id).expect("a new span is registered");
+        if span.parent().is_some_and(|parent| parent.name() == root) {
+            span.extensions_mut().insert(Opened(Instant::now()));
+        }
+    }
+
+    fn on_close(&self, id: Id, ctx: Context<'_, S>) {
+        let span = ctx.span(&id).expect("a closing span is registered");
+        if let Some(Opened(opened)) = span.extensions().get::<Opened>() {
+            STAGES.lock().unwrap().push(Stage {
+                name: span.name(),
+                elapsed: opened.elapsed(),
+            });
+        }
+    }
+}
+
+/// Times the stages of every span named `root`: its direct children, by name.
+///
+/// Installs a subscriber enabling `INFO` spans and no events, unless the trace tree's is installed already.
+/// That one times the stages too.
+///
+/// # Panics
+///
+/// Panics when called twice: a process has one root span.
+pub fn time_stages(root: &'static str) {
+    ROOT.set(root).expect("one root span per process");
+    let spans = filter_fn(|metadata| metadata.is_span() && *metadata.level() <= Level::INFO);
+    let _ = Registry::default().with(Stages.with_filter(spans)).try_init();
+}
+
+/// The stages that closed since the last call, in the order they closed.
+pub fn take_stages() -> Vec<Stage> {
+    std::mem::take(&mut STAGES.lock().unwrap())
+}
+
 #[cfg(test)]
-mod tracing_tests {
-    use super::{Line, rewrite_trace_lines};
+mod tests {
+    use super::{Heap, Line, rewrite_trace_lines};
 
     #[test]
     fn trace_output_uses_parent_relative_percentage() {
@@ -287,11 +337,17 @@ mod tracing_tests {
         let lines = [
             Line {
                 percentage: 100.0,
-                heap: Some((3 << 29, 12_345)),
+                heap: Some(Heap {
+                    peak: 3 << 29,
+                    allocations: 12_345,
+                }),
             },
             Line {
                 percentage: 33.727_810,
-                heap: Some((1536, 7)),
+                heap: Some(Heap {
+                    peak: 1536,
+                    allocations: 7,
+                }),
             },
         ];
 

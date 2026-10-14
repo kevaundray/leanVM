@@ -2,9 +2,9 @@
 
 use crate::refuse;
 use bench::Plan;
+use bench::{pretty_f64, pretty_integer};
 use leanvm::{Rate, XmssBatch, XmssClaim, XmssProof, XmssSignature};
 use leanxmss_host::{LEAF_INDEX, MESSAGE};
-use primitives::{pretty_f64, pretty_integer};
 
 /// `n` honest signers' claims and signatures, those of `cargo leanvm leanxmss`.
 pub fn signed(n: usize) -> (Vec<XmssClaim>, Vec<XmssSignature>) {
@@ -40,20 +40,16 @@ pub fn run(n: usize, rate: Rate, tamper: bool, plan: Plan) {
         return;
     }
 
-    let (proof, prove_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        batch.prove(&claims, &signatures).expect("honest signatures")
-    });
+    let (proof, prove_time) = plan.warm_then_measure(|| batch.prove(&claims, &signatures).expect("honest signatures"));
     let bytes = proof.to_bytes();
-    let (key, setup_time) = Plan::new(1, 0).measure_quiet(|_| XmssBatch::new(n, rate).expect("the prover's key"));
-    let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
+    let (key, setup_time) = Plan::default().measure_quiet(|| XmssBatch::new(n, rate).expect("the prover's key"));
+    let (_, verify_time) = plan.without_cooldown().measure_quiet(|| {
         let proof = XmssProof::from_bytes(&bytes).expect("the proof's bytes");
         key.verify(&claims, &proof).expect("the proof verifies");
     });
 
     let stats = batch.stats();
-    let rows: Vec<String> = stats.tables.iter().map(ToString::to_string).collect();
+    let rows: Vec<String> = stats.tables.iter().map(crate::aggregate::table_row).collect();
     let seconds = prove_time.mean();
     println!(
         "leanXMSS verification on the recursion machine, {n} signatures, log-inv-rate {}",

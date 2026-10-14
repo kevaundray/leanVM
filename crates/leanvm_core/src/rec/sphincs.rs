@@ -10,13 +10,14 @@
 //! its public parameter `[p0, p1, 0]`, and the message's words `[m0, m1, 0]` and `[m2, m3, 0]`. The signature is the
 //! prover's, and the top layer's root it reaches is held to the statement's.
 
-use super::circuit::{Builder, Circuit, Dw, Finished, Kw, Limbs, PARAM_IV, Replay, Unsatisfied};
-use super::fixed::FixedColumns;
+use super::circuit::{Builder, Dw, Finished, Kw, Limbs, PARAM_IV, Replay, Unsatisfied};
+use super::proof::CircuitKey;
 use super::tree::{CircuitStats, ClaimLayout, ClaimSet, ClaimWord, Leaf, LeafCircuit, LeafStatement, Leaves};
 use super::xmss::{STEPS, V, chains, digit_product, statement_words};
+use crate::commitment::Rate;
 use crate::cpu::{DecodeError, VerifyError};
 use crate::envelope::Envelope;
-use crate::pcs::Rate;
+use fiat_shamir::arith::Arith;
 use fiat_shamir::{ProofTranscript, SessionId};
 use primitives::field::F192;
 use thiserror::Error;
@@ -169,10 +170,8 @@ pub struct SphincsBatch {
     n: usize,
     /// Every proof's rate.
     rate: Rate,
-    /// The circuit.
-    circuit: Circuit,
-    /// Its fixed columns.
-    columns: FixedColumns,
+    /// The circuit and its fixed columns.
+    key: CircuitKey,
     /// What a prover replays of the circuit's build, one part per signature, for its values.
     replay: Replay,
     /// The transcript's session, which names the circuit and its size.
@@ -273,9 +272,7 @@ impl SphincsBatch {
             return Err(SphincsError::TooLarge { n });
         }
         let (finished, replay) = build(&vec![SphincsClaim::default(); n], &vec![SphincsSignature::ZERO; n]);
-        let circuit = finished.circuit;
-        circuit.committed_words().map_err(|_| SphincsError::TooLarge { n })?;
-        let columns = FixedColumns::of(&circuit, &circuit.heights());
+        let key = CircuitKey::new(finished.circuit).map_err(|_| SphincsError::TooLarge { n })?;
         let mut tag = DOMAIN.to_vec();
         tag.extend_from_slice(&(n as u64).to_le_bytes());
         tag.push(rate.log_inv_rate());
@@ -283,8 +280,7 @@ impl SphincsBatch {
         Ok(Self {
             n,
             rate,
-            circuit,
-            columns,
+            key,
             replay,
             session,
         })
@@ -299,7 +295,7 @@ impl SphincsBatch {
     /// What the circuit costs: its rows and heights per table, and the words a proof commits.
     #[must_use]
     pub fn stats(&self) -> CircuitStats {
-        CircuitStats::of(&self.circuit)
+        CircuitStats::of(self.key.circuit())
     }
 
     /// The leaf family of an aggregation tree over proofs of this batch, which takes no other leaves.
@@ -346,7 +342,7 @@ impl SphincsBatch {
     }
 
     const fn leaf_circuit(&self) -> LeafCircuit<'_> {
-        LeafCircuit::new(&self.circuit, &self.columns, self.session, self.rate, &CLAIMS)
+        LeafCircuit::new(&self.key, self.session, self.rate, &CLAIMS)
     }
 
     /// Prove that each signature verifies under its claim, in order.
@@ -368,16 +364,14 @@ impl SphincsBatch {
             return Err(SphincsError::Unsatisfied(first));
         }
         debug_assert!(
-            build(claims, signatures).0.circuit == self.circuit,
+            build(claims, signatures).0.circuit == *self.key.circuit(),
             "the rows never depend on the values"
         );
         debug_assert!(
             assignment.statement() == statement(claims),
             "the statement is the claims'"
         );
-        let proof = (self.circuit)
-            .prove_with(&assignment, &self.session, self.rate, Some(&self.columns))
-            .map_err(|_| SphincsError::TooLarge { n: self.n })?;
+        let proof = self.key.prove(&assignment, &self.session, self.rate);
         Ok(SphincsProof { proof, rate: self.rate })
     }
 
@@ -395,14 +389,8 @@ impl SphincsBatch {
                 got: proof.rate,
             });
         }
-        (self.circuit)
-            .verify_with(
-                &statement(claims),
-                &self.session,
-                self.rate,
-                &proof.proof,
-                &self.columns,
-            )
+        (self.key)
+            .verify(&statement(claims), &self.session, self.rate, &proof.proof)
             .map_err(VerifyError::from)?;
         Ok(())
     }
@@ -419,8 +407,9 @@ impl SphincsBatch {
         let n = self.n;
         let ((finished, _), calls) =
             super::circuit::traced(|| build(&vec![SphincsClaim::default(); n], &vec![SphincsSignature::ZERO; n]));
-        assert_eq!(finished.circuit, self.circuit, "a circuit is built the same every time");
-        calls + "circuit\n" + &self.circuit.dump() + &self.columns.dump_next(&self.circuit)
+        let circuit = self.key.circuit();
+        assert_eq!(&finished.circuit, circuit, "a circuit is built the same every time");
+        calls + "circuit\n" + &circuit.dump() + &self.key.fixed().dump_next(circuit)
     }
 
     const fn count(&self, got: usize, what: &'static str) -> Result<(), SphincsError> {
@@ -641,8 +630,8 @@ fn signature(b: &mut Builder, j: usize, claim: &SphincsClaim, sig: &SphincsSigna
     }
     let rs = b.d_to_k(msg);
     b.scope("root", |b| {
-        b.eq_k(rs[0], root[0]);
-        b.eq_k(rs[1], root[1]);
+        b.eq(rs[0], root[0]);
+        b.eq(rs[1], root[1]);
     });
 }
 

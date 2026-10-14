@@ -7,8 +7,8 @@
 //! The hash rows' matrices are left as a claim, as a RISC-V proof's circuits' are.
 
 use super::{Rows, infallible};
+use crate::commitment::Rate;
 use crate::cpu::Claim;
-use crate::pcs::Rate;
 use crate::rec::RecError;
 use crate::rec::bus::BusBlocks;
 use crate::rec::circuit::{Builder, Dw, Ew, Kw};
@@ -199,5 +199,103 @@ impl StatementWeights {
             eq,
             high,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rec::verifier::tests::LABEL;
+
+    use crate::commitment::Rate;
+    use crate::rec::circuit::chains::plan;
+    use crate::rec::circuit::{Builder, Circuit, Finished, Kw, Limbs};
+    use crate::rec::fixed::FixedColumns;
+    use crate::rec::hash;
+    use crate::rec::proof::CircuitKey;
+    use crate::rec::transcript::ProofSource;
+
+    use fiat_shamir::SessionId;
+
+    use primitives::field::F192;
+
+    // A recursion proof of a small circuit, as rows of another.
+    fn recursion_rows(
+        circuit: &Circuit,
+        statement: &[Limbs],
+        columns: &FixedColumns,
+        source: ProofSource<'_>,
+    ) -> (Builder, RecRows) {
+        let shape = RecShape::new(circuit.heights(), Rate::MIN).expect("a layout");
+        let mut b = Builder::new();
+        let limbs: Vec<[Kw; 4]> = statement.iter().map(|w| w.map(|l| b.free_k(l))).collect();
+        let rows = shape.verify(&mut b, &SessionId::new(LABEL), &limbs, columns, source);
+        (b, rows)
+    }
+
+    // The rows hold on an honest proof, leave a hash matrix claim that settles and true fixed hints, and are the shape's rows.
+    // The proven circuit has chains, so its proof has dynamic tuples and activity columns.
+    #[test]
+    fn a_recursion_proof_in_rows_is_its_verifier() {
+        let mut b = Builder::new();
+        let x = b.free_e(F192::new(3, 5, 7));
+        let y = b.e_const(F192::new(11, 13, 17));
+        let mut acc = b.d_const([1, 2, 3, 4]);
+        let observe = b.k_const(1);
+        let mut e = x;
+        for _ in 0..40 {
+            e = b.mul_add(e, y, x);
+            acc = b.compress(acc, e, observe).0;
+        }
+        let w = b.free_k(0xfeed);
+        b.split(w);
+        b.expose(acc);
+        b.expose(e);
+        b.emit_chains(&plan(&[4, 7]));
+        let Finished {
+            circuit,
+            assignment: a,
+            failures,
+        } = b.finish();
+        assert!(failures.is_empty(), "{failures:?}");
+        let session = SessionId::new(LABEL);
+        let key = CircuitKey::new(circuit.clone()).expect("the circuit fits");
+        let proof = key.prove(&a, &session, Rate::MIN);
+        let openings = key
+            .verify(a.statement(), &session, Rate::MIN, &proof)
+            .expect("an honest proof");
+        let columns = key.fixed();
+
+        let (b, rows) = recursion_rows(&circuit, a.statement(), columns, ProofSource::Proof(&proof, &openings));
+        let form = rows.matrix.point.map(|w| b.e(w));
+        assert_eq!(
+            form.evaluate(hash::CIRCUIT.circuit()),
+            b.e(rows.matrix.value),
+            "the hash rows' matrix claim settles"
+        );
+        for hint in &rows.hints {
+            let point: Vec<F192> = hint.point.iter().map(|&w| b.e(w)).collect();
+            let column = columns.get(hint.column);
+            assert_eq!(b.e(hint.value), primitives::multilinear::mle_eval(column, &point));
+        }
+        let Finished {
+            circuit: proven,
+            failures,
+            ..
+        } = b.finish();
+        assert!(failures.is_empty(), "{failures:?}");
+        let zeros = FixedColumns::zeros(&circuit.heights());
+        let (shaped, _) = recursion_rows(&circuit, a.statement(), &zeros, ProofSource::Shape);
+        assert!(proven == shaped.finish().circuit, "the shape builds another circuit");
+
+        // A tampered scalar, and a statement word the proof is not of.
+        let mut forged = proof.clone();
+        forged.narg[24 * 7 + 8] ^= 1;
+        let (b, _) = recursion_rows(&circuit, a.statement(), columns, ProofSource::Proof(&forged, &openings));
+        assert!(!b.finish().failures.is_empty(), "a forged scalar passes");
+        let mut statement = a.statement().to_vec();
+        statement[1][2] ^= 1;
+        let (b, _) = recursion_rows(&circuit, &statement, columns, ProofSource::Proof(&proof, &openings));
+        assert!(!b.finish().failures.is_empty(), "another statement passes");
     }
 }

@@ -1,3 +1,5 @@
+//! The aarch64 kernels of `E`: carry-less products by PMULL, sums by NEON.
+
 use super::{F192, F192Unreduced};
 use crate::field::gf2_64::{F64, R64};
 use crate::field::neon::xor3_u64;
@@ -25,13 +27,6 @@ fn hi(a: uint64x2_t, b: uint64x2_t) -> uint64x2_t {
 fn xor(a: uint64x2_t, b: uint64x2_t) -> uint64x2_t {
     // SAFETY: NEON is part of the aarch64 baseline.
     unsafe { veorq_u64(a, b) }
-}
-
-/// Three-way XOR.
-#[inline(always)]
-fn xor3(a: uint64x2_t, b: uint64x2_t, c: uint64x2_t) -> uint64x2_t {
-    // SAFETY: the helper issues `EOR3` only where the cfg enables it.
-    unsafe { xor3_u64(a, b, c) }
 }
 
 /// An element as its two registers.
@@ -70,7 +65,7 @@ fn join(c0: uint64x2_t, c1: uint64x2_t, c2: uint64x2_t) -> F192 {
 #[inline(always)]
 fn reduce_lane(d: uint64x2_t, r: uint64x2_t) -> uint64x2_t {
     let t = hi(d, r);
-    xor3(d, t, hi(t, r))
+    xor3_u64(d, t, hi(t, r))
 }
 
 /// Reduce the three coefficients of an unreduced element.
@@ -115,8 +110,8 @@ fn products(a01: uint64x2_t, a22: uint64x2_t, b01: uint64x2_t, b22: uint64x2_t) 
     let y3 = xor(m12, m21);
     [
         xor(m00, y3),
-        xor3(m01, m10, xor(y3, m22)),
-        xor3(m02, m11, xor(m20, m22)),
+        xor3_u64(m01, m10, xor(y3, m22)),
+        xor3_u64(m02, m11, xor(m20, m22)),
     ]
 }
 
@@ -196,13 +191,15 @@ pub struct F192x1 {
 #[derive(Clone, Copy)]
 pub struct F192x1Unreduced([uint64x2_t; 3]);
 
-impl F192x1 {
+impl From<F192> for F192x1 {
     #[inline(always)]
-    pub fn new(e: F192) -> Self {
+    fn from(e: F192) -> Self {
         let (c01, c22) = split(e);
         Self { c01, c22 }
     }
+}
 
+impl F192x1 {
     /// The element at `e`, loaded into its registers.
     #[inline(always)]
     pub fn load(e: &F192) -> Self {

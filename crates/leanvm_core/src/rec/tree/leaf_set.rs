@@ -102,7 +102,7 @@ impl ClaimLayout {
             for s in &signatures[1..] {
                 for (w, &l) in self.label.iter().zip(&label) {
                     if let ClaimWord::At { at, word } = *w {
-                        b.eq_k(s[at][word], l);
+                        b.eq(s[at][word], l);
                     }
                 }
             }

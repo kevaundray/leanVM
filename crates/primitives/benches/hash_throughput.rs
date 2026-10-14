@@ -25,7 +25,7 @@ fn main() {
 
     let data: Vec<u8> = (0..TASKS * K * 64).map(|i| (i & 0xff) as u8).collect();
     let mut out = vec![0u8; TASKS * K * 32];
-    let (_, time) = Plan::from_env().warm_then_measure(|_| {
+    let (_, time) = Plan::from_env().warm_then_measure(|| {
         parallel::chunks_mut(&mut out, K * 32, |i, sub| {
             let d = &data[i * K * 64..i * K * 64 + sub.len() * 2];
             for _ in 0..ITERS {
@@ -34,7 +34,7 @@ fn main() {
             }
         });
     });
-    if std::env::args().any(|arg| arg == "--json") {
+    if bench::json_requested() {
         let report = [(
             "blake2s-batch-16thread".to_string(),
             vec![

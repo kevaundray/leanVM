@@ -3,12 +3,13 @@
 
 use super::RecError;
 use super::circuit::Circuit;
-use super::table::{HashFlock, Heights, Table};
+use super::hash;
+use super::table::{Heights, Table};
+use crate::bus::ColumnClaim;
+use crate::commitment::StackClaim;
 use crate::constraints::{Air, BitColumns, Claims};
-use crate::leaf::ColumnClaim;
-use crate::pcs::StackClaim;
-use crate::witness;
-use crate::witness::{Placement, Source, StackShape, Window};
+use crate::stacking;
+use crate::stacking::{Placement, Source, StackShape, Window};
 use std::ops::Range;
 
 /// Each table's height, the owned tables the proof has, and every column's place in the stack.
@@ -77,8 +78,8 @@ impl RecLayout {
         if let Some((table, tau)) = too_many {
             return Err(RecError::TooManyRows { table, tau });
         }
-        let (placements, shape) = witness::placements_of(&Self::sources(&taus));
-        if shape.mu > crate::pcs::MAX_MU {
+        let (placements, shape) = stacking::placements_of(&Self::sources(&taus));
+        if shape.mu > crate::commitment::MAX_MU {
             return Err(RecError::TooLong { mu: shape.mu });
         }
         Ok(Self {
@@ -92,7 +93,7 @@ impl RecLayout {
     /// Every global column's source: the packed witness, then each owned table's ports and committed columns, none of an
     /// absent table's in the stack.
     fn sources(taus: &Heights) -> Vec<Source> {
-        let stride_log = HashFlock::stride_log();
+        let stride_log = hash::CIRCUIT.stride_log();
         let mut sources = vec![Source::Committed(Self::tau_of(taus, Table::Hash) + stride_log)];
         for table in Table::OWNED {
             debug_assert_eq!(sources.len(), Self::columns(table).start);

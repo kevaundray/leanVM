@@ -24,7 +24,7 @@ pub struct Execution {
 }
 
 // Why: every row commits at least one word, so a run one commitment holds is far below the cycles the clock counts.
-const _: () = assert!(1u64 << crate::pcs::MAX_MU < Clock::MAX_CYCLES);
+const _: () = assert!(1u64 << crate::commitment::MAX_MU < Clock::MAX_CYCLES);
 
 /// Each cell's last timestamp in one read-write array (§sec:memchan).
 struct LastAccess(Vec<u64>);
