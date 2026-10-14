@@ -11,7 +11,7 @@ The recursion leaf's table sumcheck over tables of different heights as a `Sumch
 
 `constraints::verify` runs `n` rounds, `n` the tallest table's `τ`, binding the variables from the highest down: round `j` binds variable `m = n - 1 - j` (`chi[m]`), a table of `2^τ` rows is active in the rounds with `τ > m`, where its weight takes `eq(ζ_m, r) = 1 + ζ_m + r`, and sits out the others, where its weight takes `r`. So table `T` is the polynomial `cornerEq ζ τ_T · S_T(mle_T)` in the cube's variables: `eq(ζ_j, x_j)` on its own variables `j < τ_T`, `x_j` on those it sits out, and its summand `S_T` (`summandPoly`, `TableSummand::batch`: its push form, `ξ` times its pull form, and its identities, identity `j` of `allIds` at `ξ^(2 + j)`) on its columns' multilinear extensions (`mle`). The table sits at the corner where the variables it sits out are one. `tableInst` is `mvInst` of the sum of the owned tables' polynomials with the variables reversed, so its challenge `r_j` is Rust's `chi[n - 1 - j]` (`chi`).
 
-`tableInst_sum`: where every table's `τ` is at most `n`, the instance's sum is `AirLink.tableSum`, the batch's honest sum, with bus parts the forms' sums over the rows weighted by `eq(ζ[..τ_T], z)` (`formSums`); `corner_sum` is the step that makes the heights differ: summing over the cube a table's polynomial gives its own rows' sum, the variables it sits out summing to their corner. `tableInst_ok`: it has degree `d` for `d ≥ 3`. `tableInst_final`: its final value is `Σ_T weight_T · S_T` at the columns' extensions at `chi`, `weight_T` the verifier's fold (`foldWeight`, `foldWeight_eq`). `tableInst_weight`: no round factors out an eq weight, as `v.read_round(4, claim, None)` reads them.
+`tableInst_sum`: where every owned table's `τ` is at most `n`, the instance's sum is `AirLink.tableSum`, the batch's honest sum, with bus parts the forms' sums over the rows weighted by `eq(ζ[..τ_T], z)` (`formSums`); `corner_sum` is the step that makes the heights differ: summing over the cube a table's polynomial gives its own rows' sum, the variables it sits out summing to their corner. `tableInst_ok`: it has degree `d` for `d ≥ 3`. `tableInst_final`: its final value is `Σ_T weight_T · S_T` at the columns' extensions at `chi`, `weight_T` the verifier's fold (`foldWeight`, `foldWeight_eq`). `tableInst_weight`: no round factors out an eq weight, as `v.read_round(4, claim, None)` reads them.
 -/
 
 namespace LeanVMCircuits.Rec.Sumcheck
@@ -426,14 +426,15 @@ noncomputable def formSums {n : ℕ} (w : Witness) (ζ : Fin n → E) (forms : F
   fun i => ∑ T ∈ owned, ∑ z ∈ range (2 ^ tauOf w T), rowEq ζ (tauOf w T) z * (forms i T).eval fun c => emb (w.cols T z c)
 
 /-- The instance's sum is the batch's honest sum `tableSum` at the forms' honest sums: the table sumcheck over tables
-of different heights sums each table's own rows. -/
+of different heights sums each table's own rows. Only the owned tables' `τ` need be at most `n`: the public table is
+in no summand. -/
 theorem tableInst_sum {n : ℕ} (w : Witness) (ζ : Fin n → E) (forms : Fin 2 → Table → Quad) (ξ : E)
-    (htau : ∀ T, tauOf w T ≤ n) : (tableInst n w ζ forms ξ).sum = tableSum w ζ (formSums w ζ forms) ξ := by
+    (htau : ∀ T ∈ owned, tauOf w T ≤ n) : (tableInst n w ζ forms ξ).sum = tableSum w ζ (formSums w ζ forms) ξ := by
   rw [tableInst, mvInst_sum]
   simp only [eval_rename]
   rw [sum_cube_rev n (fun x => MvPolynomial.eval x (tablePoly n w ζ forms ξ))]
   simp only [tablePoly, map_sum]
-  rw [sum_comm, sum_congr rfl fun T _ => table_cube_sum w ζ forms ξ (htau T)]
+  rw [sum_comm, sum_congr rfl fun T hT => table_cube_sum w ζ forms ξ (htau T hT)]
   simp only [summandAt, mul_add, sum_add_distrib, mul_sum, tableSum, formSums]
   congr 1
   · congr 1
@@ -563,16 +564,16 @@ def ChecksGiveTable [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert
     roots v ω 1 = pushRoot (t v) (witAt T cert t slot stRoot val taus cols v ω) (draw v ω) ∧
     roots v ω 0 = roots v ω 1
 
-/-- `ChecksGiveInst` from `ChecksGiveTable` at layouts holding the children's rows with every `τ` at most the
-sumcheck's rounds: the heights fit (`committedAt_fits`), the public columns are the verifier's (`committedAt_pub`), and
-the instance's sum is the batch's honest sum at the forms' honest sums (`tableInst_sum`). -/
+/-- `ChecksGiveInst` from `ChecksGiveTable` at layouts holding the children's rows with every owned table's `τ` at
+most the sumcheck's rounds: the heights fit (`committedAt_fits`), the public columns are the verifier's
+(`committedAt_pub`), and the instance's sum is the batch's honest sum at the forms' honest sums (`tableInst_sum`). -/
 theorem checksGiveInst_of_table [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (P : RecParts ι Ω) (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E)
     (qforms : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → Table → Quad)
     (tot : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → E) (roots : ι → Ω → Fin 2 → E) (draw : ι → Ω → Fin 5 → E)
     (taus : ι → Table → ℕ) (cols : ι → Ω → Table → ℕ → ℕ → K)
-    (hfit : ∀ v ∈ T.nodes, LayoutFits (t v) (taus v)) (hn : ∀ v ∈ T.nodes, ∀ T', taus v T' ≤ n v)
+    (hfit : ∀ v ∈ T.nodes, LayoutFits (t v) (taus v)) (hn : ∀ v ∈ T.nodes, ∀ T' ∈ owned, taus v T' ≤ n v)
     (h : ChecksGiveTable T cert t os L slot stRoot val P n bdraw qforms tot roots draw taus cols) :
     ChecksGiveInst T cert t os L slot stRoot val P n bdraw
       (fun v ω ζ => formSums (witAt T cert t slot stRoot val taus cols v ω) ζ (qforms v ω ζ)) tot roots draw
@@ -581,9 +582,9 @@ theorem checksGiveInst_of_table [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι 
   obtain ⟨hfl, hsum, h0, h1, heq⟩ := h v hv hne ω hps hin hcr hver
   refine ⟨committedAt_fits (hfit v hv), fun z hz i => committedAt_pub _ _ _ _ hz i, hfl, ?_, h0, h1, heq⟩
   rw [hsum, tableInst_sum]
-  intro T'
+  intro T' hT'
   rw [witAt, tauOf_committedAt]
-  exact hn v hv T'
+  exact hn v hv T' hT'
 
 /-- `ChecksGiveRows` from `ChecksGiveTable`, the constraint batch's event the batch's draw event at the forms' honest
 sums less the totals: `checksGiveInst_of_table`, `checksGiveBatch_of_inst`, `checksGiveRows_of_batch`. -/
@@ -593,7 +594,7 @@ theorem checksGiveRows_of_table [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι 
     (qforms : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → Table → Quad)
     (tot : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → E) (roots : ι → Ω → Fin 2 → E) (draw : ι → Ω → Fin 5 → E)
     (taus : ι → Table → ℕ) (cols : ι → Ω → Table → ℕ → ℕ → K)
-    (hfit : ∀ v ∈ T.nodes, LayoutFits (t v) (taus v)) (hn : ∀ v ∈ T.nodes, ∀ T', taus v T' ≤ n v)
+    (hfit : ∀ v ∈ T.nodes, LayoutFits (t v) (taus v)) (hn : ∀ v ∈ T.nodes, ∀ T' ∈ owned, taus v T' ≤ n v)
     (h : ChecksGiveTable T cert t os L slot stRoot val P n bdraw qforms tot roots draw taus cols) :
     ChecksGiveRows T cert t os L slot stRoot val P
       (fun v => batchBad (witAt T cert t slot stRoot val taus cols v)

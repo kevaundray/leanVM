@@ -56,6 +56,7 @@ public import LeanVMCircuits.Rec.TableSum
 public import LeanVMCircuits.Rec.GkrInst
 public import LeanVMCircuits.Rec.Design
 public import LeanVMCircuits.Rec.DesignKind
+public import LeanVMCircuits.Rec.Heights
 public import LeanVMCircuits.Rec.Edges
 public import LeanVMCircuits.Rec.EdgeMarks
 public import LeanVMCircuits.Rec.DesignClaims
