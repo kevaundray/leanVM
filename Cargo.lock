@@ -1470,6 +1470,7 @@ dependencies = [
  "sphincs",
  "tracing",
  "xmss",
+ "xmss_circuits",
 ]
 
 [[package]]
@@ -2731,6 +2732,18 @@ dependencies = [
  "primitives",
  "rand 0.9.4",
  "serde",
+]
+
+[[package]]
+name = "xmss_circuits"
+version = "0.1.0"
+dependencies = [
+ "lean_compiler",
+ "leanvm_core",
+ "primitives",
+ "rec_aggregation",
+ "verifier",
+ "xmss",
 ]
 
 [[package]]

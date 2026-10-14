@@ -6,6 +6,7 @@ static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
 use clap::{Parser, Subcommand};
 
 mod benchmark;
+mod circuit;
 mod fibonacci;
 mod report;
 
@@ -79,6 +80,15 @@ enum Command {
         )]
         blobs_per_leaf: usize,
     },
+    /// Prove XMSS signatures with the dedicated program of `xmss_circuits` (no recursion guest), then verify.
+    XmssCircuit {
+        /// XMSS signatures in one leaf.
+        #[arg(long, default_value = "900")]
+        n: usize,
+        /// Merge this many leaves of `n` signatures each and measure the merge node; 0 measures one leaf.
+        #[arg(long, default_value = "0")]
+        merge: usize,
+    },
     /// Prove and verify Fibonacci in the exponent (demo).
     Fibonacci {
         /// Number of recurrence steps.
@@ -113,6 +123,9 @@ fn main() {
                 cli.tracing,
                 plan,
             );
+        }
+        Command::XmssCircuit { n, merge } => {
+            circuit::run_xmss_circuit(n, merge, cli.log_inv_rate, plan);
         }
         Command::Fibonacci { n } => {
             fibonacci::run_fibonacci(n, cli.log_inv_rate, plan);

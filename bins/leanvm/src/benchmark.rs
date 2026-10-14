@@ -45,7 +45,7 @@ fn sphincs_signers(
 }
 
 /// Report the shape and cost of one aggregation node.
-fn report(label: &str, stats: &leanvm_core::cpu::Stats, sig: &EthereumProof, prove_time: &Timing) {
+pub fn report(label: &str, stats: &leanvm_core::cpu::Stats, proof: &leanvm_core::cpu::Proof, prove_time: &Timing) {
     let base_cycles: usize = stats.base_counts.iter().sum();
     println!("{label}");
     // The program's own work, then what gets proven: the fill blocks bring each table
@@ -57,7 +57,12 @@ fn report(label: &str, stats: &leanvm_core::cpu::Stats, sig: &EthereumProof, pro
         crate::report::pow(base_cycles)
     );
     println!("    details                   : {}", stats.details());
-    crate::report::print_proof_size(sig.proof());
+    println!(
+        "  committed words             : {} = {}",
+        pretty_integer(stats.committed),
+        crate::report::pow(stats.committed)
+    );
+    crate::report::print_proof_size(proof);
     // The whole `aggregate` call, not just `cpu::prove`: for a node that also
     // covers replaying each child and batching the deferred claims, which are
     // real per-node costs. `--tracing` breaks it down.
@@ -119,7 +124,7 @@ pub fn run_aggregation(n_xmss: usize, n_sphincs: usize, n_blobs: usize, log_inv_
     report(
         &format!("\naggregation, {}", inputs.join(", ")),
         &stats,
-        &sig,
+        sig.proof(),
         &prove_time,
     );
     if n_xmss > 0 || n_sphincs > 0 {
@@ -223,7 +228,7 @@ pub fn run_recursion(
     report(
         &format!("\nrecursion {n}\u{2192}1, over leaves of {}", inputs.join(", ")),
         &stats,
-        &sig,
+        sig.proof(),
         &prove_time,
     );
     if blobs_per_leaf > 0 {

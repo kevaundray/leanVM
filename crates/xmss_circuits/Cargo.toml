@@ -1,0 +1,16 @@
+[package]
+name = "xmss_circuits"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+primitives.workspace = true
+leanvm_core.workspace = true
+lean_compiler.workspace = true
+rec_aggregation.workspace = true
+verifier.workspace = true
+xmss.workspace = true

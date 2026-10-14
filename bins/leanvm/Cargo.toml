@@ -19,6 +19,7 @@ leanvm_core.workspace = true
 lean_compiler.workspace = true
 lean_da.workspace = true
 xmss.workspace = true
+xmss_circuits.workspace = true
 sphincs.workspace = true
 primitives.workspace = true
 bench.workspace = true

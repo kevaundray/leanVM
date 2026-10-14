@@ -30,14 +30,15 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 | `flock`           | batched R1CS over GF(2) for BLAKE2s: the zerocheck + lincheck prover    |
 | `leanvm_core`     | arithmetization: tables, bus, constraints, `cpu::prove`; `cpu::verify` is a wrapper over `verifier` |
 | `lean_compiler`   | zkDSL (Python subset) → ISA                                            |
-| `xmss`            | XMSS over BLAKE2s; an independent leaf, consumed only by `rec_aggregation` |
+| `xmss`            | XMSS over BLAKE2s; an independent leaf, consumed only by `rec_aggregation` and `xmss_circuits` |
 | `sphincs`         | the stateless SPHINCS+ instance of `doc/sphincs`; an independent leaf, consumed only by `rec_aggregation` |
 | `lean_da` | additive Reed-Solomon blob encoding, commitments, and membership vectors |
 | `verifier`        | the one native verifier, self-contained: no dependencies, no `unsafe`, no explicit SIMD, one thread; what `EthereumProof::verify` and `cpu::verify` run, and what `aggregate` reads its children with |
 | `rec_aggregation` | recursive signature and DA aggregation: the guest and public entry points |
+| `xmss_circuits`   | XMSS-only aggregation as its own zkDSL program (`guests/xmss_node.py`): raw signatures and signer-set merges with `rec_aggregation`'s set semantics, children verified natively, not in the VM |
 | `leanvm`          | the public API: re-exports of `rec_aggregation`, `xmss`, `sphincs`, `lean_da`, and the prover/verifier setup |
 
-`crates/leanvm/src/lib.rs` is the public API and the only thing a user imports: every other crate is `publish = false`, so a new user-facing item is a re-export there. `crates/leanvm/tests/api.rs` is the end-to-end use of the API; guests are zkDSL under `crates/rec_aggregation/guests/`. The benchmark CLI is its own package, `bins/leanvm` (`leanvm-cli`, binary `leanvm`), run with `cargo leanvm <subcommand>` (a `.cargo/config.toml` alias for `run --release -p leanvm-cli --`): `aggregate`, `recursion` and `fibonacci`, whose drivers live there, over `rec_aggregation::aggregate_with_stats`.
+`crates/leanvm/src/lib.rs` is the public API and the only thing a user imports: every other crate is `publish = false`, so a new user-facing item is a re-export there. `crates/leanvm/tests/api.rs` is the end-to-end use of the API; guests are zkDSL under `crates/rec_aggregation/guests/`. The benchmark CLI is its own package, `bins/leanvm` (`leanvm-cli`, binary `leanvm`), run with `cargo leanvm <subcommand>` (a `.cargo/config.toml` alias for `run --release -p leanvm-cli --`): `aggregate`, `recursion` and `fibonacci`, whose drivers live there, over `rec_aggregation::aggregate_with_stats`, and `xmss-circuit`, over `xmss_circuits::aggregate_with_stats`.
 
 ## Building / Testing / Formatting
 
