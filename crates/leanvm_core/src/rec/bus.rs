@@ -125,6 +125,47 @@ impl BusBlocks {
         );
         Ok(bus)
     }
+
+    /// The blocks as `Builder::mark` lines, for `checkbind`'s side certificate (`Bind.SideCert`): per side (push, then
+    /// pull) a line `bus side s mu n`, then a line `bus block kappa offset owner coords...` per block, at the offsets
+    /// `bus::verify_balance` lays it at (`bus::layout`) and `owner` `-` or `table:base`, its columns' base.
+    pub(crate) fn mark_lines(&self) -> String {
+        let lays = [bus::layout(&self.push, &[]), bus::layout(&self.pull, &[])];
+        let mu = lays[0].mu.max(lays[1].mu);
+        let mut lines = Vec::new();
+        for (s, (blocks, lay)) in [&self.push, &self.pull].into_iter().zip(&lays).enumerate() {
+            lines.push(format!("bus side {s} {mu} {}", blocks.len()));
+            for (block, offset) in blocks.iter().zip(&lay.offsets) {
+                let owner = block
+                    .owner
+                    .map_or_else(|| "-".into(), |t| format!("{t}:{}", RecLayout::TABLE_COLUMNS[t].0));
+                let coords: Vec<String> = block.coords.iter().map(coord_word).collect();
+                lines.push(format!("bus block {} {offset} {owner} {}", block.kappa, coords.join(" ")));
+            }
+        }
+        lines.join("\n")
+    }
+}
+
+/// A coordinate as one word of a `bus block` mark: `k` a constant, `c` a column, `x` a product, `s` a scaled column,
+/// `i` an index column (`base.shift`), `pn`/`pc` a fixed `Next`/`Constant` public column (`p` another), `y` a sparse
+/// one, a sum its terms joined by `+` (`e` if it has none).
+fn coord_word(c: &Coord) -> String {
+    match c {
+        Coord::Const(v) => format!("k{}", v.0),
+        Coord::Col(i) => format!("c{i}"),
+        Coord::Prod(i, j) => format!("x{i}.{j}"),
+        Coord::Scaled(v, i) => format!("s{}.{i}", v.0),
+        Coord::IntIndex { base, shift } => format!("i{}.{shift}", base.0),
+        Coord::Public(p) => match p.fixed {
+            Some(FixedColumn::Next(s)) => format!("pn{s}"),
+            Some(FixedColumn::Constant(j)) => format!("pc{j}"),
+            None => "p".into(),
+        },
+        Coord::Sparse(_) => "y".into(),
+        Coord::Sum(cs) if cs.is_empty() => "e".into(),
+        Coord::Sum(cs) => cs.iter().map(coord_word).collect::<Vec<_>>().join("+"),
+    }
 }
 
 impl TableSummand {

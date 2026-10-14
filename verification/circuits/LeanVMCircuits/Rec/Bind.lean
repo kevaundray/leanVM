@@ -411,6 +411,13 @@ structure Report where
   check. -/
   resids : ℕ := 0
   residsOk : Bool := true
+  /-- Each table sumcheck with its bus GKR and residual named, and the certificate's parts their checks read. -/
+  named : List (TableCert × GkrCert × ResidCert) := []
+  outs : Array (List ℕ) := #[]
+  relax : Array Bool := #[]
+  scs : Array SumcheckCert := #[]
+  topCerts : Array TopCert := #[]
+  oddCerts : Array OddCert := #[]
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
@@ -1317,6 +1324,8 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     exposed, exposedUnbound, probes, sumchecks := sumchecks.size, tables := tables.length, tablesOk,
     gkrs := gkrs.length, gkrLayers, gkrsOk,
     resids := resids.length, residsOk,
+    named := gkrs.filterMap (fun (tc, g) => (resids.find? (·.sc == tc.sc)).map (tc, g, ·)), outs := os,
+    relax := cert.relax, scs := sumchecks, topCerts := tops, oddCerts := odds,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
     residuals := (sumchecks.filter (!·.resid.isEmpty)).size,
     hints := sumchecks.toList.flatMap (·.hints),

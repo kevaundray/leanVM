@@ -1,5 +1,6 @@
 import LeanVMCircuits.Rec.Dump
 import LeanVMCircuits.Rec.Bind
+import LeanVMCircuits.Rec.SideCert
 
 /-!
 `lake exe checkbind <dump>...`: replay each dump's builder calls through the model and check transcript binding
@@ -91,6 +92,24 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   if r.resids != r.tables || !r.residsOk then
     IO.eprintln s!"{path}: {r.resids} of {r.tables} table sumchecks with their residual named, checks passing: \
       {r.residsOk}"
+    return none
+  -- Each table sumcheck's bus sides are `Side::decompose` over the marked blocks (`Bind.SideCert`, `Bind.sidesOk`).
+  let groups := Bind.busGroups (← IO.FS.readFile path)
+  let mut sides := 0
+  for (tc, g, rc) in r.named do
+    let some (_, mu, push, pull) := (groups.filter (·.1 < tc.target)).getLast? | break
+    let zeta := g.point r.scs r.topCerts r.oddCerts r.outs
+    let some outs := Bind.LayerCert.chain r.scs rp.calls r.relax r.outs g.layers
+      (g.start r.topCerts r.oddCerts r.outs).2.1 (g.start r.topCerts r.oddCerts r.outs).2.2 | break
+    let pos := outs.foldl (fun p v => max p (rp.maker.getD v 0 + 1)) 0
+    let some (w, beta) := Bind.weightsOf rp.calls r.outs rp.maker pos mu zeta (push.headD default) | break
+    let some (s0, pos1) := Bind.sideOf rp.calls r.outs pos mu zeta w beta push none | break
+    let some (s1, _) := Bind.sideOf rp.calls r.outs pos1 mu zeta w beta pull (some s0.formZero) | break
+    unless Bind.sidesOk r.outs rp.calls r.relax r.scs r.topCerts r.oddCerts g rc s0 s1 do break
+    sides := sides + 1
+  IO.println s!"  {sides} of {r.named.length} table sumchecks with both bus sides certified call by call"
+  if sides != r.named.length then
+    IO.eprintln s!"{path}: {sides} of {r.named.length} table sumchecks with their bus sides certified"
     return none
   -- Each hint a certified input claim reads is a claim the node's reduction takes: an `edge term`'s value.
   let terms : Std.HashSet ℕ := (Dump.edgeLines (← IO.FS.readFile path)).foldl (fun acc ws => match ws with

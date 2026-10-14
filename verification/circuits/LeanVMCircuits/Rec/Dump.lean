@@ -98,11 +98,15 @@ def parseLine (line : String) : Except String Line := do
 /-- Whether a line is one of the edge marks `CheckEdges` reads (`edge ...`): neither a call nor a block mark. -/
 def isEdge (line : String) : Bool := line.startsWith "edge "
 
-/-- A dump's calls, its circuit and its bus links, split at the `circuit` and `next` lines. The edge marks are left out of the calls (`edgeLines` reads them). -/
+/-- Whether a line is one of the bus block marks `CheckBind` reads (`bus side ...`, `bus block ...`,
+`BusBlocks::mark_lines`, `Bind.busGroups`). -/
+def isBus (line : String) : Bool := line.startsWith "bus "
+
+/-- A dump's calls, its circuit and its bus links, split at the `circuit` and `next` lines. The edge and bus marks are left out of the calls (`edgeLines` and `Bind.busGroups` read them). -/
 def sections (text : String) : Except String (List String × String × String) := do
   let [head, rest] := text.splitOn "circuit\n" | .error "not one circuit"
   let [dumped, dumpedNext] := rest.splitOn "next\n" | .error "not one list of bus links"
-  pure (head.splitOn "\n" |>.filter (fun l => l ≠ "" && !isEdge l), dumped, dumpedNext)
+  pure (head.splitOn "\n" |>.filter (fun l => l ≠ "" && !isEdge l && !isBus l), dumped, dumpedNext)
 
 /-- A dump's edge marks, each without its `edge ` prefix, as words. -/
 def edgeLines (text : String) : List (List String) :=
