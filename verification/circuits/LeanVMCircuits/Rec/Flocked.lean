@@ -21,7 +21,7 @@ The tables on the packed region (`Flocked.ofBlocks`: in each block of `2^(6 + h)
 
 `ringDraws` only counts wrong slices, so true slices meet no event. `Edges.flockDeg` adds the run fractions' numerators with the balance's (`allIds.length + 1`) and the two sumchecks' (degree two per round), at most `2^32` (`flockDeg_le`); `Edges.tree_bound_flock` is `tree_bound_deployed` with each child's degrees its other checks' (at most `2^39`) plus `flockDeg`.
 
-`Edges.tableParts_certs`: `tableParts_ok` on the dumps' certificates (`ChildCerts`, passing `checkbind`'s checks, `ChildCerts.Ok`) at a run's outcomes (`RunHeld`: the parent's calls hold, each certified sumcheck's test holds and reads its challenges from the oracle, each GKR top and odd layer's test holds, and each transcript's squeezes answer the oracle). The bus GKR's layers' tests are `ChildCerts.layer_ok`'s off `ChildCerts.layerBad`: stage `j`'s named values (`ChildCerts.vals`) are the trees' levels at stage `j`'s point read from the oracle (`ChildCerts.tvals`, the trees' leaves the sides' stacked layers, `SideCert.stack`) where stage `j + 1`'s are, by `top_step` or `odd_step` for the first layer and `layer_step` past it (`LeanVMCircuits.Rec.GkrChain`), and at the leaves the stages are the chain's leaf claims and the sides' (`ChildCerts.leaves`). The balance's test is `balance_sides`' off `ChildCerts.balBad`, the table sumcheck's `table_part`'s off `tabBad` with its openings `tabOpened`, flock's `flock_rows` with `flocked_of_rows` and `hashGates` off `flBad` with its openings `flOpened` (the region's words on the cube, `RingOpening`, `MatrixHolds` on `Hash::circuit`'s matrices). What stays a premise there: the openings off `pcsBad`, the layout facts (the residual's terms at the committed heights, whence each side's owned blocks, `ChildCerts.kappa_tau`; each block's first 18 words the hash table's columns; the hash rows within the region) and the sides' public coordinates (`SideCert.PubTrue`).
+`Edges.tableParts_certs`: `tableParts_ok` on the dumps' certificates (`ChildCerts`, passing `checkbind`'s checks, `ChildCerts.Ok`) at a run's outcomes (`RunHeld`: the parent's calls hold, each certified sumcheck's test holds and reads its challenges from the oracle, each GKR top and odd layer's test holds, and each transcript's squeezes answer the oracle). The bus GKR's layers' tests are `ChildCerts.layer_ok`'s off `ChildCerts.layerBad`: stage `j`'s named values (`ChildCerts.vals`) are the trees' levels at stage `j`'s point read from the oracle (`ChildCerts.tvals`, the trees' leaves the sides' stacked layers, `SideCert.stack`) where stage `j + 1`'s are, by `top_step` or `odd_step` for the first layer and `layer_step` past it (`LeanVMCircuits.Rec.GkrChain`), and at the leaves the stages are the chain's leaf claims and the sides' (`ChildCerts.leaves`). The balance's test is `balance_sides`' off `ChildCerts.balBad`, the table sumcheck's `table_part`'s off `tabBad` with its openings `tabOpened`, flock's `flock_rows` with `flocked_of_rows` and `hashGates` off `flBad` with its openings `flOpened` (the region's words on the cube, `RingOpening`, `MatrixHolds` on `Hash::circuit`'s matrices). The witness is the stack's (`Edges.ported`, `ChildCerts.wit`, `RecLayout::sources`): the hash table's first 18 columns are ports of the `HASH` region, word `c` of block `b` at row `b`, so they are the region's words by the layout; the hash rows lie within the region where the committed height holds them, `checkbind` asking the zerocheck to run over the residual's hash term's height (`FlockCert.heightOk`, with mutation tests). What stays a premise there: the openings off `pcsBad`, the residual's terms at the committed heights (whence each side's owned blocks, `ChildCerts.kappa_tau`), the hash table's committed height holding its rows (the layout's, `AirLink.LayoutFits`) and the sides' public coordinates (`SideCert.PubTrue`).
 -/
 
 namespace LeanVMCircuits.Rec.Bind
@@ -99,6 +99,38 @@ example : ({ (default : FlockCert) with lin := { (default : LinCert) with sc := 
     #[{ (default : SumcheckCert) with rounds := List.replicate 9 default }] = false := by decide
 example : ({ (default : FlockCert) with lin := { (default : LinCert) with sc := 1 } } : FlockCert).roundsOk
     #[{ (default : SumcheckCert) with rounds := List.replicate 8 default }] = false := by decide
+
+/-- The zerocheck runs over the hash table's height as the residual names it: `hashRounds` rounds over a block's words
+and one per row bit (`Instance::n_blocks_log`, the layout's `τ`). -/
+def FlockCert.heightOk (fc : FlockCert) (scs : Array SumcheckCert) (rc : ResidCert) : Bool :=
+  match scs[fc.zero.sc]? with
+  | some zsc => zsc.rounds.length == (rc.termOf .hash).tau + hashRounds
+  | none => false
+
+theorem FlockCert.heightOk_sem {fc : FlockCert} {scs : Array SumcheckCert} {rc : ResidCert} {zsc : SumcheckCert}
+    (h : fc.heightOk scs rc = true) (hz : scs[fc.zero.sc]? = some zsc) :
+    zsc.rounds.length = (rc.termOf .hash).tau + hashRounds := by
+  simpa [FlockCert.heightOk, hz] using h
+
+/-- Mutation tests of `FlockCert.heightOk`: a zerocheck of eleven rounds passes over a hash term of height three, of ten
+or twelve fails, a hash term of height four fails, and a zerocheck outside the certified sumchecks fails. -/
+example : ({ (default : FlockCert) with zero := { (default : ZeroCert) with sc := 0 } } : FlockCert).heightOk
+    #[{ (default : SumcheckCert) with rounds := List.replicate 11 default }]
+    { sc := 0, xi := 0, terms := List.replicate 5 { (default : TermCert) with tau := 3 } } = true := by decide
+example : ({ (default : FlockCert) with zero := { (default : ZeroCert) with sc := 0 } } : FlockCert).heightOk
+    #[{ (default : SumcheckCert) with rounds := List.replicate 10 default }]
+    { sc := 0, xi := 0, terms := List.replicate 5 { (default : TermCert) with tau := 3 } } = false := by decide
+example : ({ (default : FlockCert) with zero := { (default : ZeroCert) with sc := 0 } } : FlockCert).heightOk
+    #[{ (default : SumcheckCert) with rounds := List.replicate 12 default }]
+    { sc := 0, xi := 0, terms := List.replicate 5 { (default : TermCert) with tau := 3 } } = false := by decide
+example : ({ (default : FlockCert) with zero := { (default : ZeroCert) with sc := 0 } } : FlockCert).heightOk
+    #[{ (default : SumcheckCert) with rounds := List.replicate 11 default }]
+    { sc := 0, xi := 0, terms := List.replicate 2 { (default : TermCert) with tau := 3 } ++
+      [{ (default : TermCert) with tau := 4 }] ++ List.replicate 2 { (default : TermCert) with tau := 3 } } = false := by
+  decide
+example : ({ (default : FlockCert) with zero := { (default : ZeroCert) with sc := 1 } } : FlockCert).heightOk
+    #[{ (default : SumcheckCert) with rounds := List.replicate 11 default }]
+    { sc := 0, xi := 0, terms := List.replicate 5 { (default : TermCert) with tau := 3 } } = false := by decide
 
 /-! Naming the reduction on a replay. -/
 
@@ -787,7 +819,7 @@ structure ChildCerts where
   lsc : SumcheckCert
   finalZero : ℕ
 
-/-- The certificates pass `checkbind`'s checks and are linked: `TableCert.okIn`, `GkrCert.okIn`, `ResidCert.okIn` on the table sumcheck with its `ξ`, `sidesOk`, `FlockCert.ok`, the named sumchecks are the certificate's, the table sumcheck's last side is a `zero` call's output (`sumcheckOf` tests a residual against `zero`), the bus GKR's layers draw their challenges as top layers' (`GkrCert.layersOk`), each owned table's residual term reads at most the table sumcheck's rounds (`ResidCert.tausOk`), and the lincheck runs `hashRounds` rounds (`FlockCert.roundsOk`). -/
+/-- The certificates pass `checkbind`'s checks and are linked: `TableCert.okIn`, `GkrCert.okIn`, `ResidCert.okIn` on the table sumcheck with its `ξ`, `sidesOk`, `FlockCert.ok`, the named sumchecks are the certificate's, the table sumcheck's last side is a `zero` call's output (`sumcheckOf` tests a residual against `zero`), the bus GKR's layers draw their challenges as top layers' (`GkrCert.layersOk`), each owned table's residual term reads at most the table sumcheck's rounds (`ResidCert.tausOk`), the lincheck runs `hashRounds` rounds (`FlockCert.roundsOk`) and the zerocheck runs over the hash term's height (`FlockCert.heightOk`). -/
 def ChildCerts.Ok (cc : ChildCerts) (c : Cert) (s : State) (os : Array (List ℕ)) : Prop :=
   cc.tc.okIn c.sumchecks c.tops c.odds c.calls c.relax os = true ∧
     cc.g.okIn cc.tc c.sumchecks c.tops c.odds c.calls c.relax os = true ∧
@@ -797,7 +829,7 @@ def ChildCerts.Ok (cc : ChildCerts) (c : Cert) (s : State) (os : Array (List ℕ
     c.sumchecks[cc.fc.zero.sc]? = some cc.zsc ∧ c.sumchecks[cc.fc.lin.sc]? = some cc.lsc ∧
     cc.tsc.rounds.length ≤ cc.rc.zeta.length ∧ callsOk c.calls c.relax [(cc.finalZero, .zero)] = true ∧
     o os cc.finalZero = cc.tsc.final ∧ cc.g.layersOk c s os = true ∧ cc.rc.tausOk cc.tsc.rounds.length = true ∧
-    cc.fc.roundsOk c.sumchecks = true
+    cc.fc.roundsOk c.sumchecks = true ∧ cc.fc.heightOk c.sumchecks cc.rc = true
 
 /-- The table sumcheck's point `ζ`, its named `rc.zeta` wires' values. -/
 noncomputable def ChildCerts.zetaV (cc : ChildCerts) (val : Val) : Fin cc.tsc.rounds.length → E :=
@@ -1085,7 +1117,7 @@ noncomputable def ChildCerts.layerBad [Fintype Ω] (cc : ChildCerts) (c : Cert) 
   {ω | cc.layerEv c s val (ρ ω) (pubF0 ω) (pubF1 ω) (w ω) j}
 
 /-- The checks from the bus GKR's root to the opening meet `RecParts.Ok` on the dumps' certificates at a run's outcomes: the GKR's layers' tests are `ChildCerts.layer_ok`'s off `layerBad`, each stage's named values (`vals`) the trees' levels at its point (`tvals`), the last stage the leaf claims (`ChildCerts.leaves`); the balance's test is `balance_sides`', the table sumcheck's `table_part`'s and flock's `flock_rows` with `flocked_of_rows` on `Hash::circuit`'s rows (`hashGates`, the lincheck's `hashRounds` rounds from `FlockCert.roundsOk`), each off its event (`balBad`, `tabBad`, `flBad`), with the openings `tabOpened` and `flOpened`. What stays: the openings off `pcsBad` (`hopen`), and per outcome the layout facts (`hτ`, the residual's terms at the committed heights, whence the sides' owned blocks, `ChildCerts.kappa_tau`, and each owned table's `τ` within the table sumcheck's rounds, `ResidCert.tausOk`; the region's blocks the hash table's columns), the sides' public coordinates' values (`SideCert.PubTrue`) and the hash rows within the region. -/
-theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (hacc : ∀ v, (c v).accepts (s v) = true)
+theorem tableParts_named [Fintype Ω] (c : ι → Cert) (s : ι → State) (hacc : ∀ v, (c v).accepts (s v) = true)
     (st : ι → Ω → ℕ → Fin 4 → K) (val : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K) (cc : ι → ChildCerts)
     (hcc : ∀ v, (cc v).Ok (c v) (s v) (c v).outs) (t : ι → State) (w : ι → Ω → Witness)
     (hr : (v : ι) → Ω → HashRegion (cc v)) (T' : ι → Ω → ℕ → E) (pubF0 pubF1 : ι → Ω → Bool → ℕ → ℕ → E)
@@ -1157,7 +1189,7 @@ theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (hacc
     intro v ω hh _ hb ho
     obtain ⟨-, -, -, -, -, -, hfc, -, hzsc, hlsc, -, -, -, -, -, hro⟩ := hcc v
     have hk : 14 ≤ 6 + (cc v).lsc.rounds.length := by
-      rw [FlockCert.roundsOk_sem hro hlsc, hashRounds]
+      rw [FlockCert.roundsOk_sem hro.1 hlsc, hashRounds]
     obtain ⟨hq, hop, hmat⟩ := hopF v ω ho
     obtain ⟨htestZ, hchalZ⟩ := hh.sc hzsc
     obtain ⟨htestL, hchalL⟩ := hh.sc hlsc
@@ -1167,5 +1199,49 @@ theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (hacc
       HashRows.hashA0 HashRows.hashB0 (hr v ω).wd (hr v ω).q hq hchalZ htestZ hchalL htestL (hhintL v ω ho) hop hmat
       hnZ hnL hα hpE hrE hsk hfx
     exact flocked_of_rows (hr v ω).hno (hashGates hk) (hrows v ω) (hcolH v ω) hv hp
+
+/-- The witness the stack holds (`RecLayout::sources`): the hash table's first 18 columns are ports of the `HASH` region (`Source::Port`), column `c` at row `b` word `c` of block `b`, blocks of `2^h` words (`stride_log`); every other column is the committed one. -/
+def ported (w : Witness) (h : ℕ) (wd : ℕ → K) : Witness where
+  height := w.height
+  cols T b c := if T = .hash ∧ c < 18 then wd (c + 2 ^ h * b) else w.cols T b c
+
+/-- A child's witness at an outcome: its committed columns `w`, the hash table's ports the region's words, blocks of `2^h` words for the lincheck's `h` rounds. -/
+def ChildCerts.wit (cc : ChildCerts) (w : Witness) (R : HashRegion cc) : Witness := ported w cc.lsc.rounds.length R.wd
+
+/-- `tableParts_named` at the stack's witness (`ChildCerts.wit`): the hash table's columns are the region's words by the layout, and its rows lie within the region where its committed height holds them, the zerocheck running over the hash term's height (`FlockCert.heightOk`) and the residual's hash term at the committed height (`hτ`). What stays: the openings off `pcsBad` (`hopen`), the residual's terms at the committed heights (`hτ`), the hash table's height holding its rows (`hfit`, the layout's, `AirLink.LayoutFits`) and the sides' public coordinates' values (`SideCert.PubTrue`). -/
+theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (hacc : ∀ v, (c v).accepts (s v) = true)
+    (st : ι → Ω → ℕ → Fin 4 → K) (val : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K) (cc : ι → ChildCerts)
+    (hcc : ∀ v, (cc v).Ok (c v) (s v) (c v).outs) (t : ι → State) (w : ι → Ω → Witness)
+    (hr : (v : ι) → Ω → HashRegion (cc v)) (T' : ι → Ω → ℕ → E) (pubF0 pubF1 : ι → Ω → Bool → ℕ → ℕ → E)
+    (pcsBad crBad : ι → Finset Ω) (opened : ι → Ω → Prop)
+    (hpub : ∀ v ω, RunHeld (c v) (s v) (c v).outs (st v ω) (val v) (ρ v ω) →
+      (cc v).s0.PubTrue (val v (ρ v ω)) (pubF0 v ω) ∧ (cc v).s1.PubTrue (val v (ρ v ω)) (pubF1 v ω))
+    (hτ : ∀ v ω, ∀ T ∈ owned, ((cc v).rc.termOf T).tau = tauOf (w v ω) T)
+    (hfit : ∀ v ω, (AirLink.rowsOf (t v) .hash).size ≤ (w v ω).height .hash)
+    (hopT : ∀ v ω, opened v ω → (cc v).tabOpened (val v (ρ v ω)) ((cc v).wit (w v ω) (hr v ω)) (T' v ω))
+    (hopF : ∀ v ω, opened v ω → (cc v).flOpened (c v).outs (val v (ρ v ω)) (hr v ω))
+    (hhintL : ∀ v ω, opened v ω → ∀ x ∈ (cc v).lsc.hints, Model.ev (val v (ρ v ω)) x = T' v ω x)
+    (hopen : ∀ v ω, ω ∉ pcsBad v → opened v ω) :
+    (tableParts (fun v => (cc v).G) (fun v k ω => (cc v).vals (c v) (val v (ρ v ω)) k)
+      (fun v k ω => (cc v).tvals (c v) (ρ v ω) (val v (ρ v ω)) (pubF0 v ω) (pubF1 v ω) ((cc v).wit (w v ω) (hr v ω)) k)
+      (fun v ω => (cc v).tin (val v (ρ v ω)) ((cc v).wit (w v ω) (hr v ω)))
+      (fun v ω => Flocked (t v) ((cc v).wit (w v ω) (hr v ω))) opened
+      (fun v => (cc v).layerBad (c v) (s v) (val v) (ρ v) (pubF0 v) (pubF1 v) fun ω => (cc v).wit (w v ω) (hr v ω))
+      (fun v => (cc v).balBad (fun ω => val v (ρ v ω)) fun ω => (cc v).wit (w v ω) (hr v ω))
+      (fun v => (cc v).tabBad (c v) (s v) (val v) (ρ v) (fun ω => (cc v).wit (w v ω) (hr v ω)) (T' v))
+      (fun v => (cc v).flBad (c v) (s v) (c v).outs (val v) (ρ v) (hr v) (T' v)) pcsBad crBad).Ok
+      (fun v ω => RunHeld (c v) (s v) (c v).outs (st v ω) (val v) (ρ v ω)) := by
+  refine tableParts_named c s hacc st val ρ cc hcc t (fun v ω => (cc v).wit (w v ω) (hr v ω)) hr T' pubF0 pubF1 pcsBad
+    crBad opened hpub hτ (fun v ω => ?_) (fun v ω b _ j hj => ?_) hopT hopF hhintL hopen
+  · obtain ⟨-, -, -, -, -, -, -, -, hzsc, hlsc, -, -, -, -, -, hro, hho⟩ := hcc v
+    have e1 := FlockCert.heightOk_sem hho hzsc
+    have e2 := FlockCert.roundsOk_sem hro hlsc
+    have e3 := (hr v ω).hno
+    have e4 := hτ v ω .hash (by simp [owned])
+    have hno : (hr v ω).no = tauOf (w v ω) .hash := by omega
+    calc (AirLink.rowsOf (t v) .hash).size ≤ (w v ω).height .hash := hfit v ω
+      _ ≤ 2 ^ tauOf (w v ω) .hash := Nat.le_pow_clog (by norm_num) _
+      _ = 2 ^ (hr v ω).no := by rw [hno]
+  · simp [ChildCerts.wit, ported, hj]
 
 end LeanVMCircuits.Rec.Edges

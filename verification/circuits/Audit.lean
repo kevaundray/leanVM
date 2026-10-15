@@ -1508,3 +1508,5 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.FlockCert.roundsOk_sem
 #print axioms LeanVMCircuits.Rec.Bind.columnWord_bit
 #print axioms LeanVMCircuits.Rec.Bind.hashGates
+#print axioms LeanVMCircuits.Rec.Bind.FlockCert.heightOk_sem
+#print axioms LeanVMCircuits.Rec.Edges.tableParts_named
