@@ -312,14 +312,13 @@ open LeanVMCircuits.Rec Model
 
 /-! The bus GKR as the certificate names it. -/
 
-/-- A passing link: the layer's sumcheck has no residual, its values are the previous next claims, its claim and
-expected are the sumcheck's input claim and final side, and its rounds' eq weights are the previous point. -/
+/-- A passing link: the layer's sumcheck has no residual, its values are the previous next claims, its claim and expected are the sumcheck's input claim and final side, its rounds' eq weights are the previous point, and its input claim reads no hints. -/
 theorem LayerCert.link_sem {lc : LayerCert} {sc : SumcheckCert} {os : Array (List ℕ)} {outs pt : List ℕ}
     (h : lc.linkOk sc os outs pt = true) :
     sc.resid = [] ∧ lc.layer.values = outs ∧ lc.layer.claim os = sc.claim0 ∧ lc.layer.expected os = sc.final ∧
-      sc.rounds.map (·.weight) = pt.map some := by
+      sc.rounds.map (·.weight) = pt.map some ∧ sc.hints = [] := by
   simp only [LayerCert.linkOk, Bool.and_eq_true, beq_iff_eq, List.isEmpty_iff] at h
-  exact ⟨h.1.1.1.1, h.1.1.1.2, h.1.1.2, h.1.2, h.2⟩
+  exact ⟨h.1.1.1.1.1, h.1.1.1.1.2, h.1.1.1.2, h.1.1.2, h.1.2, h.2⟩
 
 /-- A chain's first layer is linked to the next claims and point it starts from, and the rest chains from its own. -/
 theorem LayerCert.chain_cons {scs : Array SumcheckCert} {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)}
@@ -379,7 +378,7 @@ theorem LayerCert.layer_sem {lc : LayerCert} {sc : SumcheckCert} {cs : Array Cal
         lineE (lineE (Model.ev val (lc.layer.kid k 0)) (Model.ev val (lc.layer.kid k 1)) (Model.ev val lc.layer.low.chal))
           (lineE (Model.ev val (lc.layer.kid k 2)) (Model.ev val (lc.layer.kid k 3)) (Model.ev val lc.layer.low.chal))
           (Model.ev val lc.layer.high.chal) := by
-  obtain ⟨hres, hv, hc, he, hw⟩ := LayerCert.link_sem hlink
+  obtain ⟨hres, hv, hc, he, hw, -⟩ := LayerCert.link_sem hlink
   obtain ⟨tc, te, tl⟩ := top_sem hF hok
   exact ⟨hres, hw, hc ▸ hv ▸ tc, he ▸ te, tl⟩
 
@@ -400,8 +399,7 @@ example : ({ odd := false, first := 0, layers := [], totAt := (1, 2), fw := (3, 
     #[{ (default : TopCert) with values := [7, 6] }] #[] #[.zero, .add 3 5, .add 4 5] #[] #[[5], [8], [9]] = false := by
   decide +kernel
 
-/-- Mutation tests of `LayerCert.linkOk`: a layer linked to the previous next claims and point passes; one whose round
-reads another eq weight, or whose values are not the previous next claims, fails. -/
+/-- Mutation tests of `LayerCert.linkOk`: a layer linked to the previous next claims and point passes; one whose round reads another eq weight, whose values are not the previous next claims, or whose input claim reads a hint, fails. -/
 example : ({ sc := 0, layer := { (default : TopCert) with values := [5, 5] } } : LayerCert).linkOk
     { (default : SumcheckCert) with rounds := [{ (default : RoundCert) with weight := some 3 }] } #[] [5, 5] [3] =
       true := by
@@ -415,6 +413,11 @@ example : ({ sc := 0, layer := { (default : TopCert) with values := [5, 5] } } :
 example : ({ sc := 0, layer := { (default : TopCert) with values := [5, 6] } } : LayerCert).linkOk
     { (default : SumcheckCert) with rounds := [{ (default : RoundCert) with weight := some 3 }] } #[] [5, 5] [3] =
       false := by
+  decide +kernel
+
+example : ({ sc := 0, layer := { (default : TopCert) with values := [5, 5] } } : LayerCert).linkOk
+    { (default : SumcheckCert) with rounds := [{ (default : RoundCert) with weight := some 3 }], hints := [5] } #[]
+      [5, 5] [3] = false := by
   decide +kernel
 
 end LeanVMCircuits.Rec.Bind

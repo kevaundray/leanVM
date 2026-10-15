@@ -68,6 +68,7 @@ public import LeanVMCircuits.Rec.TableChain
 public import LeanVMCircuits.Rec.FlockLin
 public import LeanVMCircuits.Rec.FlockInst
 public import LeanVMCircuits.Rec.FlockZero
+public import LeanVMCircuits.Rec.GkrChain
 public import LeanVMCircuits.Rec.Flocked
 public import LeanVMCircuits.Rec.Tries
 public import LeanVMCircuits.Rec.Edges

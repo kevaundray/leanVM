@@ -684,12 +684,10 @@ structure LayerCert where
   fs : Array ℕ := #[]
   deriving Inhabited, Repr
 
-/-- A layer's link to the one before: its sumcheck closed by no residual, its values the previous layer's next claims
-`outs`, its claim and expected the sumcheck's input claim and final side, and its rounds' eq weights the point `pt`
-the previous layer leaves. -/
+/-- A layer's link to the one before: its sumcheck closed by no residual, its values the previous layer's next claims `outs`, its claim and expected the sumcheck's input claim and final side, its rounds' eq weights the point `pt` the previous layer leaves, and its input claim reading no hints (the values are bound by `λ`'s time). -/
 def LayerCert.linkOk (lc : LayerCert) (sc : SumcheckCert) (os : Array (List ℕ)) (outs pt : List ℕ) : Bool :=
   sc.resid.isEmpty && lc.layer.values == outs && lc.layer.claim os == sc.claim0 && lc.layer.expected os == sc.final &&
-    sc.rounds.map (·.weight) == pt.map some
+    sc.rounds.map (·.weight) == pt.map some && sc.hints.isEmpty
 
 /-- The layers from the next claims `outs` and the point `pt` of the layer before, each linked to the one before, its
 calls in the replay and over two trees; the last layer's next claims. -/
