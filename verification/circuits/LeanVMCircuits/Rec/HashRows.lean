@@ -110,16 +110,10 @@ def rowsOf (δ : ℕ → α) : List (ℕ × α × α) := (run δ).rows ++ outRow
 def unit (s : ℕ) : ℕ → ZMod 2 := fun col => if col = s then 1 else 0
 
 /-- `HASH`'s base matrix `A_0`: row `s` the `A` form of slot `s`'s row, zero for an empty row. -/
-def hashA0 (s col : ℕ) : ZMod 2 :=
-  match (rowsOf unit).find? (·.1 = s) with
-  | some (_, a, _) => a col
-  | none => 0
+def hashA0 (s col : ℕ) : ZMod 2 := ((rowsOf unit).find? (·.1 = s)).elim 0 fun r => r.2.1 col
 
 /-- `HASH`'s base matrix `B_0`. -/
-def hashB0 (s col : ℕ) : ZMod 2 :=
-  match (rowsOf unit).find? (·.1 = s) with
-  | some (_, _, b) => b col
-  | none => 0
+def hashB0 (s col : ℕ) : ZMod 2 := ((rowsOf unit).find? (·.1 = s)).elim 0 fun r => r.2.2 col
 
 /-! Soundness: rows holding under a valuation give the artifact's steps. -/
 
@@ -411,15 +405,15 @@ theorem rows_sound (k : ℕ) (hk : 14 ≤ k) (z : ℕ → ZMod 2)
   have hc : constSlot < 2 ^ k := lt_of_lt_of_le (by simp [constSlot]) hk'
   have h1 : D (unit constSlot) = 1 := by rw [hunit _ hc]; exact hpin
   obtain ⟨hnd, hlt, hout⟩ := rowsOf_slots (unit : ℕ → ℕ → ZMod 2)
-  have h2 : (2 : ZMod 2) = 0 := rfl
   have hok : ∀ r ∈ rowsOf unit, D (unit r.1) = D r.2.1 * D r.2.2 := by
-    rintro ⟨s, a, b⟩ hr
-    have hs : s < 2 ^ k := lt_of_lt_of_le (hlt _ hr) hk'
+    intro r hr
+    have hs : r.1 < 2 ^ k := lt_of_lt_of_le (hlt _ hr) hk'
     have hf := find?_of_nodup _ hnd _ hr
-    have h := hrow s hs
-    simp only [hashA0, hashB0, hf] at h
-    simp only [hunit s hs]
-    linear_combination h - (D a * D b) * h2
+    have h := hrow r.1 hs
+    simp only [hashA0, hashB0, hf, Option.elim_some] at h
+    rw [hunit r.1 hs]
+    have h' := neg_eq_of_add_eq_zero_right h
+    rwa [ZMod.neg_eq_self_mod_two, eq_comm] at h'
   have hwf : Gates.wellFormed Compress.inputBits Compress.artifact.steps = true :=
     (Gates.lowerAt_correct _ _ _ _ Compress.lowered ⟨fun _ => 0, fun _ _ => #[]⟩).2.2.2.2
   have hrun : Compress.artifact.steps.foldl (step unit) (init unit) = run unit := rfl
@@ -441,7 +435,7 @@ theorem rows_sound (k : ℕ) (hk : 14 ≤ k) (z : ℕ → ZMod 2)
       have hn : outSlot j ∉ (rowsOf unit).map Prod.fst := fun h => by simpa [he] using (hout j hj).mp h
       have hf := find?_of_not_mem _ _ hn
       have h := hrow _ hos
-      simp only [hashA0, hashB0, hf, zero_mul, sum_const_zero, mul_zero, zero_add] at h
+      simp only [hashA0, hashB0, hf, Option.elim_none, zero_mul, sum_const_zero, mul_zero, zero_add] at h
       simp only [val, h]
     | some f =>
       have hm : (outSlot j, f, unit constSlot) ∈ rowsOf unit :=
