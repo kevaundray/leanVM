@@ -140,7 +140,11 @@ impl BusBlocks {
                     .owner
                     .map_or_else(|| "-".into(), |t| format!("{t}:{}", RecLayout::TABLE_COLUMNS[t].0));
                 let coords: Vec<String> = block.coords.iter().map(coord_word).collect();
-                lines.push(format!("bus block {} {offset} {owner} {}", block.kappa, coords.join(" ")));
+                lines.push(format!(
+                    "bus block {} {offset} {owner} {}",
+                    block.kappa,
+                    coords.join(" ")
+                ));
             }
         }
         lines.join("\n")
