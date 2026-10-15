@@ -1496,6 +1496,16 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Edges.ChildCerts.layer_ok
 #print axioms LeanVMCircuits.Rec.Edges.ChildCerts.leaves
 #print axioms LeanVMCircuits.Rec.Edges.tableParts_certs
+#print axioms LeanVMCircuits.Rec.Bind.recCoords_eq
+#print axioms LeanVMCircuits.Rec.Bind.forms_slot_length
+#print axioms LeanVMCircuits.Rec.Bind.pubLeaf
+#print axioms LeanVMCircuits.Rec.Bind.stackLeaf_congr
+#print axioms LeanVMCircuits.Rec.Bind.level_stack_of_eq
+#print axioms LeanVMCircuits.Rec.Bind.SideCert.stack_root
+#print axioms LeanVMCircuits.Rec.Edges.ChildCerts.roots
+#print axioms LeanVMCircuits.Rec.Edges.ported_committedAt
+#print axioms LeanVMCircuits.Rec.Edges.slotOf_firstSlot
+#print axioms LeanVMCircuits.Rec.Edges.checksGiveTable_certs
 #print axioms LeanVMCircuits.Rec.HashRows.val_emit
 #print axioms LeanVMCircuits.Rec.HashRows.run_holds
 #print axioms LeanVMCircuits.Rec.HashRows.foldl_slots

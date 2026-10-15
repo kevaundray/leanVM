@@ -8,6 +8,7 @@ public import LeanVMCircuits.Rec.Rows
 public import LeanVMCircuits.Rec.HashPorts
 public import LeanVMCircuits.Rec.HashRows
 public import LeanVMCircuits.Rec.HashRowsMap
+public import LeanVMCircuits.Rec.BusRoot
 public import LeanVMCircuits.Rec.Merkle
 public import LeanVMCircuits.Rec.Statement
 public import LeanVMCircuits.Rec.Duplex
