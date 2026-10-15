@@ -19,7 +19,7 @@ The tables on the packed region (`Flocked.ofBlocks`: in each block of `2^(6 + h)
 
 `ringDraws` only counts wrong slices, so true slices meet no event. `Edges.flockDeg` adds the run fractions' numerators with the balance's (`allIds.length + 1`) and the two sumchecks' (degree two per round), at most `2^32` (`flockDeg_le`); `Edges.tree_bound_flock` is `tree_bound_deployed` with each child's degrees its other checks' (at most `2^39`) plus `flockDeg`.
 
-`Edges.tableParts_certs`: `tableParts_ok` on the dumps' certificates (`ChildCerts`, passing `checkbind`'s checks, `ChildCerts.Ok`) at a run's outcomes (`RunHeld`: the parent's calls hold, each certified sumcheck's test holds and reads its challenges from the oracle). The balance's test is `balance_sides`' off `ChildCerts.balBad`, the table sumcheck's `table_part`'s off `tabBad` with its openings `tabOpened`, flock's `flock_rows` with `flocked_of_rows` off `flBad` with its openings `flOpened` (the region's words on the cube, `RingOpening`, `MatrixHolds`). What stays a premise there: the GKR layers' tests (`hlayer`), the openings off `pcsBad`, the layout facts (each side's owned blocks and the residual's terms at the committed heights, each block's first 18 words the hash table's columns, the hash rows within the region), the sides' public coordinates (`SideCert.PubTrue`), the table sumcheck's last side zero, and `HashGates`.
+`Edges.tableParts_certs`: `tableParts_ok` on the dumps' certificates (`ChildCerts`, passing `checkbind`'s checks, `ChildCerts.Ok`) at a run's outcomes (`RunHeld`: the parent's calls hold, each certified sumcheck's test holds and reads its challenges from the oracle). The balance's test is `balance_sides`' off `ChildCerts.balBad`, the table sumcheck's `table_part`'s off `tabBad` with its openings `tabOpened`, flock's `flock_rows` with `flocked_of_rows` off `flBad` with its openings `flOpened` (the region's words on the cube, `RingOpening`, `MatrixHolds`). What stays a premise there: the GKR layers' tests (`hlayer`), the openings off `pcsBad`, the layout facts (each side's owned blocks and the residual's terms at the committed heights, each block's first 18 words the hash table's columns, the hash rows within the region), the sides' public coordinates (`SideCert.PubTrue`) and `HashGates`.
 -/
 
 namespace LeanVMCircuits.Rec.Bind
@@ -678,8 +678,9 @@ structure ChildCerts where
   tsc : SumcheckCert
   zsc : SumcheckCert
   lsc : SumcheckCert
+  finalZero : ℕ
 
-/-- The certificates pass `checkbind`'s checks and are linked: `TableCert.okIn`, `GkrCert.okIn`, `ResidCert.okIn` on the table sumcheck with its `ξ`, `sidesOk`, `FlockCert.ok`, and the named sumchecks are the certificate's. -/
+/-- The certificates pass `checkbind`'s checks and are linked: `TableCert.okIn`, `GkrCert.okIn`, `ResidCert.okIn` on the table sumcheck with its `ξ`, `sidesOk`, `FlockCert.ok`, the named sumchecks are the certificate's, and the table sumcheck's last side is a `zero` call's output (`sumcheckOf` tests a residual against `zero`). -/
 def ChildCerts.Ok (cc : ChildCerts) (c : Cert) (os : Array (List ℕ)) : Prop :=
   cc.tc.okIn c.sumchecks c.tops c.odds c.calls c.relax os = true ∧
     cc.g.okIn cc.tc c.sumchecks c.tops c.odds c.calls c.relax os = true ∧
@@ -687,7 +688,8 @@ def ChildCerts.Ok (cc : ChildCerts) (c : Cert) (os : Array (List ℕ)) : Prop :=
     sidesOk os c.calls c.relax c.sumchecks c.tops c.odds cc.g cc.rc cc.s0 cc.s1 = true ∧
     cc.fc.ok os c.sumchecks c.calls c.relax = true ∧ c.sumchecks[cc.tc.sc]? = some cc.tsc ∧
     c.sumchecks[cc.fc.zero.sc]? = some cc.zsc ∧ c.sumchecks[cc.fc.lin.sc]? = some cc.lsc ∧
-    cc.tsc.rounds.length ≤ cc.rc.zeta.length
+    cc.tsc.rounds.length ≤ cc.rc.zeta.length ∧ callsOk c.calls c.relax [(cc.finalZero, .zero)] = true ∧
+    o os cc.finalZero = cc.tsc.final
 
 /-- The table sumcheck's point `ζ`, its named `rc.zeta` wires' values. -/
 noncomputable def ChildCerts.zetaV (cc : ChildCerts) (val : Val) : Fin cc.tsc.rounds.length → E :=
@@ -767,7 +769,7 @@ def ChildCerts.tabOpened (cc : ChildCerts) (v : Val) (w : Witness) (T' : ℕ →
   (∀ x ∈ cc.tsc.hints, Model.ev v x = T' x) ∧ ∀ T ∈ owned, ∀ c < nCols T, cc.rc.colV v T c =
     MvPolynomial.eval (chi fun j => Model.ev v (cc.tsc.rounds.getD j default).chal) (mle cc.tsc.rounds.length w T c)
 
-/-- The checks from the bus GKR's root to the opening meet `RecParts.Ok` on the dumps' certificates at a run's outcomes: the balance's test is `balance_sides`', the table sumcheck's `table_part`'s and flock's `flock_rows` with `flocked_of_rows`, each off its event (`balBad`, `tabBad`, `flBad`), with the openings `tabOpened` and `flOpened`. What stays: the GKR layers' tests (`hlayer`, `layer_part` per layer with the stacked layer's levels), the openings off `pcsBad` (`hopen`), and per outcome the layout facts (`hτ`, the sides' owned blocks at the committed heights, the region's blocks the hash table's columns), the sides' public coordinates' values (`SideCert.PubTrue`), the table sumcheck's last side zero, the `HASH` matrices the artifact's (`HashGates`) and the hash rows within the region. -/
+/-- The checks from the bus GKR's root to the opening meet `RecParts.Ok` on the dumps' certificates at a run's outcomes: the balance's test is `balance_sides`', the table sumcheck's `table_part`'s and flock's `flock_rows` with `flocked_of_rows`, each off its event (`balBad`, `tabBad`, `flBad`), with the openings `tabOpened` and `flOpened`. What stays: the GKR layers' tests (`hlayer`, `layer_part` per layer with the stacked layer's levels), the openings off `pcsBad` (`hopen`), and per outcome the layout facts (`hτ`, the sides' owned blocks at the committed heights, the region's blocks the hash table's columns), the sides' public coordinates' values (`SideCert.PubTrue`), the `HASH` matrices the artifact's (`HashGates`) and the hash rows within the region. -/
 theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (os : ι → Array (List ℕ))
     (st : ι → Ω → ℕ → Fin 4 → K) (val : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K) (cc : ι → ChildCerts)
     (hcc : ∀ v, (cc v).Ok (c v) (os v)) (t : ι → State) (w : ι → Ω → Witness) (hr : (v : ι) → Ω → HashRegion (cc v))
@@ -784,8 +786,6 @@ theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (os :
       (cc v).s1.blocks[b].kappa = tauOf (w v ω) T)
     (hτ : ∀ v ω, ∀ T ∈ owned, ((cc v).rc.termOf T).tau = tauOf (w v ω) T)
     (htau : ∀ v ω, ∀ T ∈ owned, tauOf (w v ω) T ≤ (cc v).tsc.rounds.length)
-    (hzero : ∀ v ω, RunHeld (c v) (s v) (os v) (st v ω) (val v) (ρ v ω) →
-      Model.ev (val v (ρ v ω)) (cc v).tsc.final = 0)
     (hgates : ∀ v ω, HashGates (6 + (cc v).lsc.rounds.length) (hr v ω).A0 (hr v ω).B0)
     (hrows : ∀ v ω, (AirLink.rowsOf (t v) .hash).size ≤ 2 ^ (hr v ω).no)
     (hcolH : ∀ v ω, ∀ b < (AirLink.rowsOf (t v) .hash).size, ∀ j < 18,
@@ -805,7 +805,7 @@ theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (os :
   refine tableParts_ok G vals tvals _ _ opened layerBad _ _ _ pcsBad crBad _ hlayer ?_ ?_ ?_ hopen
   · -- The balance.
     intro v ω hh _ hb hin
-    obtain ⟨htc, hg, -, -, -, hs, -, htsc, -, -, hNl⟩ := hcc v
+    obtain ⟨htc, hg, -, -, -, hs, -, htsc, -, -, hNl, -⟩ := hcc v
     obtain ⟨hp0, hp1⟩ := hpub v ω hh
     let aF : (Fin (cc v).tsc.rounds.length → E) → Fin 2 → E := fun ζ i =>
       formSums (w v ω) ζ ((cc v).rc.formsV (val v (ρ v ω))) i -
@@ -822,7 +822,10 @@ theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (os :
     · simp [ChildCerts.leafV, ChildCerts.leafT, hch, e1]
   · -- The table sumcheck.
     intro v ω hh _ hb ho
-    obtain ⟨-, -, hrc, hrsc, hxi, -, -, htsc, -, -, -⟩ := hcc v
+    obtain ⟨-, -, hrc, hrsc, hxi, -, -, htsc, -, -, -, hz0, hzo⟩ := hcc v
+    have hzero : Model.ev (val v (ρ v ω)) (cc v).tsc.final = 0 := by
+      rw [← hzo]
+      exact holds_of_mem hh.1 hz0 (List.mem_singleton_self _)
     obtain ⟨hhint, hcol⟩ := hopT v ω ho
     have hsc : (c v).sumchecks[(cc v).rc.sc]? = some (cc v).tsc := by rw [hrsc]; exact htsc
     obtain ⟨htest, hchal⟩ := hh.sc htsc
@@ -831,7 +834,7 @@ theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (os :
         (T' v ω) (val v) (ρ v ω) := fun hm =>
       hb (by simp only [ChildCerts.tabBad, mem_filter, mem_univ, true_and]; exact hm)
     have := table_part (c := c v) (s := s v) (val := val v) (ρ v ω) hh.1 hrc hsc (w v ω) ((cc v).zetaV (val v (ρ v ω)))
-      ((cc v).rc.formsV (val v (ρ v ω))) (fun m => rfl) (hτ v ω) (fun _ _ _ => rfl) hchal htest (hzero v ω hh) hhint
+      ((cc v).rc.formsV (val v (ρ v ω))) (fun m => rfl) (hτ v ω) (fun _ _ _ => rfl) hchal htest hzero hhint
       hcol hnot
     rw [ChildCerts.tin, ← hxi]
     exact this

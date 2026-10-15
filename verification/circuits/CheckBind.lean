@@ -121,6 +121,18 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   if flocked != r.named.length then
     IO.eprintln s!"{path}: {flocked} of {r.named.length} table sumchecks with their child's flock reduction certified"
     return none
+  -- Each named table sumcheck's residual is its own (`sc`, `ξ`) over its point, and its last side a `zero` call's
+  -- output (`Edges.ChildCerts.Ok`).
+  let idx := Bind.outIndex rp
+  let linked := r.named.countP fun (tc, _, rc) => rc.sc == tc.sc && rc.xi == tc.xi &&
+    match r.scs[tc.sc]? with
+    | some sc => decide (sc.rounds.length ≤ rc.zeta.length) && (Bind.zeroAt rp idx sc.final).any fun j =>
+        Bind.callsOk rp.calls r.relax [(j, .zero)] && Bind.o r.outs j == sc.final
+    | none => false
+  IO.println s!"  {linked} of {r.named.length} table sumchecks with their residual linked and tested against zero"
+  if linked != r.named.length then
+    IO.eprintln s!"{path}: {linked} of {r.named.length} table sumchecks with their residual linked and tested against zero"
+    return none
   -- Each hint a certified input claim reads is a claim the node's reduction takes: an `edge term`'s value.
   let terms : Std.HashSet ℕ := (Dump.edgeLines (← IO.FS.readFile path)).foldl (fun acc ws => match ws with
     | "term" :: _ :: _ :: _ :: _ :: v :: _ => match v.toNat? with
