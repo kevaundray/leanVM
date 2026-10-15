@@ -6,14 +6,32 @@
 //! instance's public words. Lincheck's terminal leaves `e_row^T (A0 + alpha B0 + alpha^2 C0) w_col` to the block,
 //! which the verifier evaluates from the sparse matrices or checks against a SPARK proof ([`spark`]).
 //!
-//! Transcript order: commitment root, zerocheck, lincheck, the public-pin point, the stacked opening, then SPARK.
+//! A linked block ([`Links`]) adds `S_N ⊗ A_link` to `A`: link row `first_row + j` of instance `i` also reads column
+//! `out_base + j` of instance `i - 1`, and instance 0's reads the statement's `in` bit `j` instead ([`Boundary`]).
+//! The zerocheck's A claim at `x = (x_in, x_out)` then splits as
+//!
+//! ```text
+//! v_a = (I ⊗ A0) part + eq(x_out, 0) sum_j rho_j in_j + T,   T = sum_i next(i, x_out) Q(i),   Q(i) = sum_j rho_j z_i[out_j]
+//! ```
+//!
+//! with `rho_j` the quirky row weight of link row `j` and `next(i, y)` one iff `y = i + 1` (no wrap, [`next_eval`]).
+//! The prover sends `T`, lincheck reduces the rest of `v_a` unchanged, an `n_log`-round sumcheck on
+//! `next(i, x_out) Q(i)` takes `T` to `next(r, x_out) Q(r)`, and an `out_log - 6`-round sumcheck over the `out`
+//! block's word bits takes `Q(r)` to its 64 slices, which the verifier closes with `sum_j rho_j eq(r_sub, j / 64)
+//! s[j % 64]`. The slices are a second ring-switched claim, at `(r_sub, out block, r)`, discharged in the same stacked
+//! opening as lincheck's (one shared map, ring claims first), where strided claims at the last instance also pin its
+//! `out` words to the statement.
+//!
+//! Transcript order: commitment root, zerocheck, for a linked block `T`, the `n_log` rounds, the `out_log - 6` rounds
+//! and the 64 link slices, lincheck, the public-pin point, the stacked opening (lincheck's ring claim, the link's, the
+//! public pins, the `out` pins), then SPARK.
 
-use crate::field::{E, ZERO};
-use crate::flock::{FlockClaims, lagrange_weights, ring_switch, verify_flock_zerocheck, verify_lincheck};
+use crate::field::{E, K, ONE, ZERO};
+use crate::flock::{FlockClaims, RingMap, ZerocheckResult, lagrange_weights, verify_flock_zerocheck, verify_lincheck};
 use crate::hash::{Digest, blake2s_hash};
 use crate::layout::{FLOCK_K_SKIP, K_BITS, MAX_STACKED_LOG, MIN_STACKED_LOG};
 use crate::multilinear::{Placement, dot, eq_eval, eq_kernel};
-use crate::transcript::{Proof, Transcript};
+use crate::transcript::{Proof, Transcript, sumcheck};
 use crate::{StackClaim, VerifierError, require, verify_stacked_opening};
 
 pub mod spark;
@@ -47,6 +65,8 @@ pub struct Block<'a> {
     pub a: Csr<'a>,
     pub b: Csr<'a>,
     pub c: Csr<'a>,
+    /// A linked block's links; their `in` side is in `a` already.
+    pub links: Option<Links>,
     /// The block's own digest, bound into the transcript seed.
     pub digest: [u8; 32],
 }
@@ -55,6 +75,55 @@ impl Block<'_> {
     /// Packed 64-bit words per instance in the public region.
     pub fn public_words(&self) -> usize {
         (self.n_public + 1).div_ceil(64)
+    }
+}
+
+/// Where a linked block's `count` links sit: link `j` is row `first_row + j` (`A0 = {in_j}`, `B0 = {constant}`,
+/// `C0 = {}`), and its `out` signal is column `out_base + j`, inside the aligned `2^out_log` block at `out_base`, whose
+/// first `ceil(count / 64)` words hold nothing else.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Links {
+    pub count: usize,
+    pub first_row: usize,
+    pub out_base: usize,
+    pub out_log: usize,
+}
+
+impl Links {
+    fn words(&self) -> usize {
+        self.count.div_ceil(64)
+    }
+
+    fn well_formed(&self, block: &Block) -> bool {
+        let k = 1usize << block.k_log;
+        self.count > 0
+            && (FLOCK_K_SKIP..=block.k_log).contains(&self.out_log)
+            && self.count <= 1 << self.out_log
+            && self.out_base.is_multiple_of(1 << self.out_log)
+            && self.out_base >= 64 * block.public_words()
+            && self.out_base + (1 << self.out_log) <= k
+            && self.first_row + self.count <= k
+    }
+}
+
+/// A linked batch's boundary statement: instance 0's `in` link values and instance `N - 1`'s `out` link values, link
+/// `j` at bit `j` of `ceil(count / 64)` words each, spare bits clear.
+#[derive(Clone, Copy, Debug)]
+pub struct Boundary<'a> {
+    pub input: &'a [u64],
+    pub output: &'a [u64],
+}
+
+impl Boundary<'_> {
+    fn well_formed(&self, links: &Links) -> bool {
+        let spare = if links.count.is_multiple_of(64) {
+            0
+        } else {
+            !0u64 << (links.count % 64)
+        };
+        [self.input, self.output]
+            .iter()
+            .all(|words| words.len() == links.words() && words[words.len() - 1] & spare == 0)
     }
 }
 
@@ -71,16 +140,23 @@ pub fn batch_log(k_log: usize, n_instances: usize) -> Result<usize, VerifierErro
     Ok(n_log)
 }
 
-/// The transcript's two seed digests: the label's, then the statement's (the block digest, the batch shape and every
-/// real instance's public words, little-endian).
-fn seed(block: &Block, n_instances: usize, n_log: usize, publics: &[u64]) -> (Digest, Digest) {
+/// The transcript's two seed digests: the label's, then the statement's (the block digest, the batch shape, every
+/// real instance's public words, then a linked batch's boundary `in` and `out` words, little-endian).
+fn seed(
+    block: &Block,
+    n_instances: usize,
+    n_log: usize,
+    publics: &[u64],
+    boundary: Option<&Boundary>,
+) -> (Digest, Digest) {
     let mut statement = Vec::with_capacity(LABEL.len() + 56 + 8 * publics.len());
     statement.extend_from_slice(LABEL);
     statement.extend_from_slice(&block.digest);
     for value in [n_instances, block.k_log, n_log] {
         statement.extend_from_slice(&(value as u64).to_le_bytes());
     }
-    for word in publics {
+    let boundary = boundary.map(|b| b.input.iter().chain(b.output)).into_iter().flatten();
+    for word in publics.iter().chain(boundary) {
         statement.extend_from_slice(&word.to_le_bytes());
     }
     (blake2s_hash(LABEL), blake2s_hash(&statement))
@@ -164,9 +240,13 @@ fn block_form(block: &Block, claims: &FlockClaims) -> Result<E, VerifierError> {
 /// Verify that `proof` shows every instance of a batch satisfies `block`, the instances' public words being `publics`
 /// (`block.public_words()` per instance: the constant bit, the public bits, zero padding). With `spark`, the
 /// block's matrix evaluation is checked against the SPARK proof the key was preprocessed for rather than evaluated.
+///
+/// A linked block takes its `boundary` (and only a linked block takes one), and its batch is exactly `2^n_log`
+/// instances.
 pub fn verify(
     block: &Block,
     publics: &[u64],
+    boundary: Option<&Boundary>,
     log_inv_rate: usize,
     spark: Option<&spark::Key>,
     proof: &Proof,
@@ -176,15 +256,34 @@ pub fn verify(
     let n_instances = publics.len() / public_words;
     let k_log = block.k_log;
     let n_log = batch_log(k_log, n_instances)?;
+    let linked = match (block.links, boundary) {
+        (None, None) => None,
+        (Some(links), Some(boundary)) => {
+            require(
+                links.well_formed(block) && boundary.well_formed(&links) && n_instances == 1 << n_log,
+                VerifierError::Links,
+            )?;
+            Some((links, boundary))
+        }
+        _ => return Err(VerifierError::Links),
+    };
     let m = k_log + n_log;
     let qflock_vars = m - FLOCK_K_SKIP;
     let stack_log = qflock_vars.max(MIN_STACKED_LOG);
-    let (iv, statement) = seed(block, n_instances, n_log, publics);
+    let (iv, statement) = seed(block, n_instances, n_log, publics, boundary);
     let mut transcript = Transcript::new(proof, iv, statement, true);
 
     let halves = transcript.next_scalars(2)?;
     let root = Digest::from_halves(halves[0], halves[1])?;
-    let zc = verify_flock_zerocheck(m, &mut transcript)?;
+    let mut zc = verify_flock_zerocheck(m, &mut transcript)?;
+    let linked = match linked {
+        Some((links, boundary)) => Some((
+            links,
+            boundary,
+            verify_links(&links, boundary, k_log, &mut zc, &mut transcript)?,
+        )),
+        None => None,
+    };
     let (claims, running) = verify_lincheck(zc, k_log - FLOCK_K_SKIP, &mut transcript)?;
     // The constant pin sits at column 0, so its weight is `s[0] eq(chi_in_prime, 0)`; moved across, it leaves the
     // matrix form alone.
@@ -197,31 +296,47 @@ pub fn verify(
         )?;
     }
 
-    // The ring-switched slice claim, then one strided claim per public word: the MLE over the instances of that word,
-    // padding instances repeating the last real one, on the slot's column of the packed witness.
+    // The ring-switched slice claims (lincheck's, then the links'), then one strided claim per public word: the MLE
+    // over the instances of that word, padding instances repeating the last real one, on the slot's column of the
+    // packed witness. Last, a linked batch's `out` words of its last instance.
     let point = transcript.samples(n_log);
-    let mut stack_claims: Vec<StackClaim> = Vec::with_capacity(1 + public_words);
-    let (ring_target, ring_weight) = ring_switch(claims.point(), &claims.s, &mut transcript);
+    let mut stack_claims: Vec<StackClaim> = Vec::with_capacity(3 + public_words);
+    let map = RingMap::sample(&mut transcript);
     let qflock = Placement {
         variables: qflock_vars,
         index: 0,
         low: 0,
     };
-    stack_claims.push((
-        Box::new(move |x| qflock.eq_above(x) * ring_weight(&x[..qflock_vars])),
-        ring_target,
-    ));
-    for (slot, value) in public_evaluations(publics, public_words, &point)
-        .into_iter()
-        .enumerate()
-    {
-        let pin = Placement {
+    let ring_claims = std::iter::once((claims.point(), claims.s.as_slice()))
+        .chain(linked.as_ref().map(|(_, _, (point, s))| (point.clone(), s.as_slice())));
+    for (ring_point, s) in ring_claims {
+        let (target, weight) = map.claim(ring_point, s);
+        stack_claims.push((
+            Box::new(move |x| qflock.eq_above(x) * weight(&x[..qflock_vars])),
+            target,
+        ));
+    }
+    let pin = |slot: usize, point: &[E]| {
+        Placement {
             variables: n_log,
             index: slot as u64,
             low: k_log - FLOCK_K_SKIP,
         }
-        .stack_point(&point, stack_log);
+        .stack_point(point, stack_log)
+    };
+    for (slot, value) in public_evaluations(publics, public_words, &point)
+        .into_iter()
+        .enumerate()
+    {
+        let pin = pin(slot, &point);
         stack_claims.push((Box::new(move |x| eq_eval(&pin, x)), value));
+    }
+    if let Some((links, boundary, _)) = &linked {
+        let last = vec![ONE; n_log];
+        for (w, &word) in boundary.output.iter().enumerate() {
+            let pin = pin(links.out_base / 64 + w, &last);
+            stack_claims.push((Box::new(move |x| eq_eval(&pin, x)), K(word).into()));
+        }
     }
     verify_stacked_opening(
         &mut transcript,
@@ -237,6 +352,78 @@ pub fn verify(
     }
     transcript.finish()?;
     Ok(())
+}
+
+/// The link term, between the zerocheck and lincheck: takes `T` and the `in` boundary's part out of the A claim,
+/// then reduces `T` to the 64 slices of the `out` block it returns with their point.
+fn verify_links(
+    links: &Links,
+    boundary: &Boundary,
+    k_log: usize,
+    zc: &mut ZerocheckResult,
+    transcript: &mut Transcript,
+) -> Result<(Vec<E>, Vec<E>), VerifierError> {
+    let (x_in, x_out) = zc.chi().split_at(k_log - FLOCK_K_SKIP);
+    let x_out = x_out.to_vec();
+    // The quirky row weight of link row `j`: the skip weight of its low bits times `eq(x_in, row / 64)`, one eq for
+    // every 64 rows.
+    let skip = lagrange_weights(K_BITS, zc.z_skip());
+    let mut high = (usize::MAX, ZERO);
+    let rho: Vec<E> = (links.first_row..links.first_row + links.count)
+        .map(|row| {
+            if high.0 != row >> FLOCK_K_SKIP {
+                high = (
+                    row >> FLOCK_K_SKIP,
+                    eq_eval(x_in, &bits(row >> FLOCK_K_SKIP, x_in.len())),
+                );
+            }
+            skip[row % K_BITS] * high.1
+        })
+        .collect();
+    let input = E::sum(
+        (0..links.count)
+            .filter(|&j| boundary.input[j / 64] >> (j % 64) & 1 == 1)
+            .map(|j| rho[j]),
+    );
+    let shifted = transcript.next_scalar()?;
+    zc.add_to_a(shifted + eq_eval(&x_out, &vec![ZERO; x_out.len()]) * input);
+
+    let (rounds, running) = sumcheck(transcript, shifted, 3, &vec![None; x_out.len()])?;
+    let r_out: Vec<E> = rounds.into_iter().rev().collect();
+    let (rounds, running) = sumcheck(transcript, running, 3, &vec![None; links.out_log - FLOCK_K_SKIP])?;
+    let r_sub: Vec<E> = rounds.into_iter().rev().collect();
+    let s = transcript.next_scalars(K_BITS)?;
+    let eq_sub = eq_kernel(&r_sub);
+    let form = E::sum(
+        rho.iter()
+            .enumerate()
+            .map(|(j, &r)| r * eq_sub[j / K_BITS] * s[j % K_BITS]),
+    );
+    require(next_eval(&r_out, &x_out) * form == running, VerifierError::LinkTerminal)?;
+    let block = bits(links.out_base >> links.out_log, k_log - links.out_log);
+    Ok(([r_sub, block, r_out].concat(), s))
+}
+
+/// `value`'s low `length` bits as a boolean point, LSB first.
+fn bits(value: usize, length: usize) -> Vec<E> {
+    (0..length).map(|bit| E::new((value >> bit & 1) as u64, 0, 0)).collect()
+}
+
+/// The multilinear extension of `next(x, y)`, one iff `y = x + 1` as integers on little-endian bits, with no wrap:
+/// `x` starts with `k` ones then a zero, `y` with `k` zeros then a one, and the bits above agree. `O(len)`.
+pub fn next_eval(x: &[E], y: &[E]) -> E {
+    assert_eq!(x.len(), y.len());
+    let mut above = vec![ONE; x.len() + 1];
+    for t in (0..x.len()).rev() {
+        above[t] = above[t + 1] * (ONE + x[t] + y[t]);
+    }
+    let mut carry = ONE;
+    let mut total = ZERO;
+    for t in 0..x.len() {
+        total += carry * (ONE + x[t]) * y[t] * above[t + 1];
+        carry *= x[t] * (ONE + y[t]);
+    }
+    total
 }
 
 /// The lincheck terminal's row weights `e_row = eq(chi_in) ⊗ skip weights`, as an MLE over `k_log` coordinates.
@@ -255,19 +442,41 @@ fn column_weights_mle(claims: &FlockClaims, point: &[E]) -> E {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::field::K;
     use crate::multilinear::multilinear_eval;
 
-    /// The subset-sum evaluation of the public pins against one `multilinear_eval` per slot, with a padded batch.
-    #[test]
-    fn public_evaluations_match_multilinear_eval() {
-        let mut state = 0x9E37_79B9_7F4A_7C15u64;
-        let mut next = move || {
+    fn xorshift(mut state: u64) -> impl FnMut() -> u64 {
+        move || {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
             state
-        };
+        }
+    }
+
+    /// `next_eval` against its definition, `sum_{a < 2^n - 1} eq(x, a) eq(y, a + 1)`, and on boolean points.
+    #[test]
+    fn next_eval_matches_definition() {
+        let mut next = xorshift(0x2545_F491_4F6C_DD1D);
+        for n in 1..=5 {
+            let mut random = || E::new(next(), next(), next());
+            let x: Vec<E> = (0..n).map(|_| random()).collect();
+            let y: Vec<E> = (0..n).map(|_| random()).collect();
+            let expected =
+                E::sum((0..(1usize << n) - 1).map(|a| eq_eval(&x, &bits(a, n)) * eq_eval(&y, &bits(a + 1, n))));
+            assert_eq!(next_eval(&x, &y), expected, "n = {n}");
+            for a in 0..1usize << n {
+                for b in 0..1usize << n {
+                    let one = if b == a + 1 { ONE } else { ZERO };
+                    assert_eq!(next_eval(&bits(a, n), &bits(b, n)), one, "n = {n}, {a} -> {b}");
+                }
+            }
+        }
+    }
+
+    /// The subset-sum evaluation of the public pins against one `multilinear_eval` per slot, with a padded batch.
+    #[test]
+    fn public_evaluations_match_multilinear_eval() {
+        let mut next = xorshift(0x9E37_79B9_7F4A_7C15);
         let (words, n_instances, n_log) = (3, 21, 5);
         let publics: Vec<u64> = (0..words * n_instances).map(|_| next()).collect();
         let point: Vec<E> = (0..n_log).map(|_| E::new(next(), next(), next())).collect();

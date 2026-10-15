@@ -10,5 +10,6 @@
 
 pub mod block;
 pub mod format;
+pub mod link;
 pub mod proof;
 pub mod spark;

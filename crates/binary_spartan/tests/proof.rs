@@ -45,6 +45,7 @@ fn random_case(seed: u64, n_public: usize, n_free: usize, n_constraints: usize, 
         n_signals,
         n_public,
         constraints,
+        links: vec![],
     };
     let width = n_signals.div_ceil(8);
     let mut data = vec![0u8; width * n_instances];
@@ -76,11 +77,11 @@ fn random_case(seed: u64, n_public: usize, n_free: usize, n_constraints: usize, 
 fn roundtrip(case: &Case) {
     let publics = proof::publics(&case.block, &case.batch);
     let p = proof::prove(&case.block, &case.batch, Mode::Direct).expect("satisfied");
-    proof::verify(&case.block, &publics, &p, Mode::Direct).expect("direct proof verifies");
+    proof::verify(&case.block, &publics, None, &p, Mode::Direct).expect("direct proof verifies");
 
     let pk = spark::preprocess(&case.block.matrices, proof::LOG_INV_RATE);
     let p = proof::prove(&case.block, &case.batch, Mode::Spark(&pk)).expect("satisfied");
-    proof::verify(&case.block, &publics, &p, Mode::Spark(&pk.verifier_key())).expect("SPARK proof verifies");
+    proof::verify(&case.block, &publics, None, &p, Mode::Spark(&pk.verifier_key())).expect("SPARK proof verifies");
 }
 
 #[test]
@@ -110,7 +111,7 @@ fn rejects_changed_publics() {
         let mut bad = publics.clone();
         bad[instance * pw + signal / 64] ^= 1 << (signal % 64);
         assert!(
-            proof::verify(&case.block, &bad, &p, Mode::Direct).is_err(),
+            proof::verify(&case.block, &bad, None, &p, Mode::Direct).is_err(),
             "{instance}/{signal}"
         );
     }
@@ -119,14 +120,14 @@ fn rejects_changed_publics() {
         let mut bad = publics.clone();
         bad[signal / 64] ^= 1 << (signal % 64);
         assert_eq!(
-            proof::verify(&case.block, &bad, &p, Mode::Direct),
+            proof::verify(&case.block, &bad, None, &p, Mode::Direct),
             Err(VerifierError::PublicWords)
         );
     }
     // A different instance count.
     let mut fewer = publics.clone();
     fewer.truncate(publics.len() - pw);
-    assert!(proof::verify(&case.block, &fewer, &p, Mode::Direct).is_err());
+    assert!(proof::verify(&case.block, &fewer, None, &p, Mode::Direct).is_err());
 }
 
 #[test]
@@ -147,7 +148,7 @@ fn rejects_mutated_proofs() {
             let mut bad = p.clone();
             bad.stream[at].c1 ^= 1;
             assert!(
-                proof::verify(&case.block, &publics, &bad, verify_mode).is_err(),
+                proof::verify(&case.block, &publics, None, &bad, verify_mode).is_err(),
                 "scalar {at}"
             );
         }
@@ -155,8 +156,9 @@ fn rejects_mutated_proofs() {
         for at in [bytes.len() / 3, 2 * bytes.len() / 3, bytes.len() - 1] {
             let mut bad = bytes.clone();
             bad[at] ^= 0x10;
-            let rejected = bincode::deserialize::<Proof>(&bad)
-                .map_or(true, |q| proof::verify(&case.block, &publics, &q, verify_mode).is_err());
+            let rejected = bincode::deserialize::<Proof>(&bad).map_or(true, |q| {
+                proof::verify(&case.block, &publics, None, &q, verify_mode).is_err()
+            });
             assert!(rejected, "byte {at}");
         }
         // A proof made in the other mode.
@@ -166,14 +168,14 @@ fn rejects_mutated_proofs() {
             proof::prove(&case.block, &case.batch, Mode::Spark(&pk))
         }
         .expect("satisfied");
-        assert!(proof::verify(&case.block, &publics, &other, verify_mode).is_err());
+        assert!(proof::verify(&case.block, &publics, None, &other, verify_mode).is_err());
     }
     // A SPARK key preprocessed for another block of the same shape.
     let other = random_case(8, 40, 20, 150, 3);
     let other_vk = spark::preprocess(&other.block.matrices, proof::LOG_INV_RATE).verifier_key();
     assert_eq!(other_vk.nnz_log, vk.nnz_log);
     let p = proof::prove(&case.block, &case.batch, Mode::Spark(&pk)).expect("satisfied");
-    assert!(proof::verify(&case.block, &publics, &p, Mode::Spark(&other_vk)).is_err());
+    assert!(proof::verify(&case.block, &publics, None, &p, Mode::Spark(&other_vk)).is_err());
 }
 
 #[test]

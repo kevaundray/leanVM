@@ -76,6 +76,21 @@ pub(crate) struct ZerocheckResult {
     v_c: E,
 }
 
+impl ZerocheckResult {
+    pub(crate) fn z_skip(&self) -> E {
+        self.z_skip
+    }
+
+    pub(crate) fn chi(&self) -> &[E] {
+        &self.chi
+    }
+
+    /// Move a part of the A claim the caller accounts for itself out of it: lincheck reduces `v_a + delta`.
+    pub(crate) fn add_to_a(&mut self, delta: E) {
+        self.v_a += delta;
+    }
+}
+
 /// The zerocheck: one univariate skip round, then nflock quadratic ones.
 /// C rides those rounds with AB, so all three claims come out at one point.
 pub(crate) fn verify_flock_zerocheck(
@@ -417,17 +432,38 @@ fn ring_weight(r: &[E], r_prime: &[E], coefficients: &[E]) -> E {
 /// Draw Phi once they are fixed, then take the target `T = sum_i x^i Phi(s_i)` against the
 /// MLE-friendly weight `W(u) = Phi(eq(point, u))`. Returns the target and W as a closure.
 pub fn ring_switch(point: Vec<E>, s: &[E], transcript: &mut Transcript) -> (E, impl Fn(&[E]) -> E + use<>) {
-    let challenges = transcript.samples(RING_MAP_SHIFTS.len());
-    // The same map as a Frobenius sum, `Phi(a) = sum_k c_k a^(2^k)` for k < 64.
-    let coefficient = |k: usize| {
-        let stages = challenges
-            .iter()
-            .zip(RING_MAP_SHIFTS)
-            .filter(|&(_, shift)| k & shift != 0);
-        stages.fold(ONE, |acc, (f, shift)| acc * f.pow(1 << (k % shift)))
-    };
-    let coefficients: Vec<E> = (0..K_BITS).map(coefficient).collect();
-    let images: Vec<E> = s.iter().map(|&value| ring_map(value, &challenges)).collect();
-    let target = poly_eval(&images, GEN);
-    (target, move |r_prime: &[E]| ring_weight(&point, r_prime, &coefficients))
+    RingMap::sample(transcript).claim(point, s)
+}
+
+/// The drawn map Phi, shared by every ring-switched claim of one opening.
+pub(crate) struct RingMap {
+    challenges: Vec<E>,
+    /// The same map as a Frobenius sum, `Phi(a) = sum_k c_k a^(2^k)` for k < 64.
+    coefficients: Vec<E>,
+}
+
+impl RingMap {
+    pub(crate) fn sample(transcript: &mut Transcript) -> Self {
+        let challenges = transcript.samples(RING_MAP_SHIFTS.len());
+        let coefficient = |k: usize| {
+            let stages = challenges
+                .iter()
+                .zip(RING_MAP_SHIFTS)
+                .filter(|&(_, shift)| k & shift != 0);
+            stages.fold(ONE, |acc, (f, shift)| acc * f.pow(1 << (k % shift)))
+        };
+        let coefficients = (0..K_BITS).map(coefficient).collect();
+        Self {
+            challenges,
+            coefficients,
+        }
+    }
+
+    /// One claim's target and weight, as [`ring_switch`] returns them.
+    pub(crate) fn claim(&self, point: Vec<E>, s: &[E]) -> (E, impl Fn(&[E]) -> E + use<>) {
+        let images: Vec<E> = s.iter().map(|&value| ring_map(value, &self.challenges)).collect();
+        let target = poly_eval(&images, GEN);
+        let coefficients = self.coefficients.clone();
+        (target, move |r_prime: &[E]| ring_weight(&point, r_prime, &coefficients))
+    }
 }

@@ -191,3 +191,16 @@ bash run.sh 8192    # instances (compressions) per proof
 ```
 
 `run.sh` exports the block R1CS and a batch witness from Lean (`lake exe clean_export r1cs|witness`), then proves and verifies in both modes (`binary-spartan prove --self-check`), confirming rejection of a flipped public bit, mutated proof bytes and, with SPARK, a mutated SPARK scalar. The new gadgets have no Lean soundness proofs; they are checked against the reference vectors and every constraint is checked on the generated witness. No zero-knowledge claim.
+
+### XMSS aggregation
+
+A block may also declare link pairs `(in_j, out_j)`: the proof then enforces `z_i[in_j] = z_{i-1}[out_j]` between consecutive instances (no wrap), the first instance's `in` reading the public statement and the last instance's `out` being pinned. This is SuperSpartan's next multilinear extension (`A = I ⊗ A_0 + S ⊗ A_link`, the boolean carry-chain `next(x, y)` being valid in characteristic 2): the verifier evaluates the shifted side directly in `O(n_link + n_log)` after an `n_log`-round sumcheck, and its 64 slices join the same stacked opening as lincheck's.
+
+`clean/Gf2/Xmss` uses it to verify leanVM's XMSS (`crates/xmss`, byte-identical BLAKE2s) as a sequence of linked instances, each one BLAKE2s compression with variable byte counter and final flag plus a register file and a role the prover chooses (encoding, chain step, WOTS public-key absorb, Merkle level, signer-set digest steps, idle padding), every transition constrained in-circuit. The prover lays out exactly the 144 compressions a signature needs, as main's guest does, rather than a fixed shape hashing every chain position. The statement is the signer-set digest in the format of the riscv-exploration signer-set design (groups by `(leaf_index, message)`, sorted keys), checked natively against the claimed set, which must be canonical. The block is 29,170 constraints and 22,396 signals with 2,933 links (2^15).
+
+```bash
+cd examples/clean-binary
+bash run-xmss.sh 8,8    # group sizes: 16 signatures in two (leaf_index, message) groups
+```
+
+`run-xmss.sh` signs with `crates/xmss` (`binary-spartan gen-xmss`), exports the block and the scheduled witness from Lean, proves and verifies in both modes with self-checks, and checks that a witness with one tampered chain tip is refused. Merging the signer sets of several such proofs, recursively through the SPARK path, is not built yet.

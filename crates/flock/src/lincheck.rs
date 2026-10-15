@@ -1094,66 +1094,69 @@ pub fn prove_padded_capture_s_hat_v(
     comb_vec[circuit.const_pin_col()] += beta;
 
     // 5. Partial fold of z at the shared outer half (length-k F192 vector).
-    let mut z_vec = tracing::info_span!("Partial fold").in_scope(|| {
+    let z_vec = tracing::info_span!("Partial fold").in_scope(|| {
         let eq_x_outer = build_eq(&x_ab.x_outer);
         partial_fold_packed_z_best(z_packed, m, k_log, useful_bits, &eq_x_outer)
     });
 
-    let span = tracing::info_span!("Sumcheck").entered();
-
-    // 6. Standard multilinear product-sumcheck over the high `inner_rest_len`
-    //    bits of `i`. Each round binds the TOP remaining bit. After `inner_rest_len` rounds, both
-    //    tables collapse to length `2^k_skip`. Large rounds use the worker pool.
-    let mut r_rounds = Vec::with_capacity(inner_rest_len);
-    if inner_rest_len > 0 {
-        // Round 0's message is the only standalone evaluation pass; every later
-        // round's message falls out of binding the previous round (fold +
-        // next-eval fused into one pass, see `sumcheck_bind_both_and_eval_next`).
-        let (mut e1, mut einf) = sumcheck_round_eval_par(&comb_vec, &z_vec);
-        // The running claim, mirrored from the verifier: `q(0) + q(1) = claim`
-        // is what lets the wire drop `q(0)`, so the prover has to know it too.
-        // Round 0's claim is the whole inner product, one O(k) pass over the
-        // column vectors and negligible beside the sumcheck itself.
-        let mut running = inner_product_ext(&comb_vec, &z_vec);
-        for t in 0..inner_rest_len {
-            let e0 = running + e1;
-            ps.add_round_poly(&[e0, e0 + e1 + einf, einf], false);
-            let r = ps.sample();
-            running = (einf * r + (e0 + e1 + einf)) * r + e0;
-            r_rounds.push(r);
-            if t + 1 < inner_rest_len {
-                // Fused: bind both tables at r AND compute round (t+1)'s message.
-                let (ne1, neinf) = sumcheck_bind_both_and_eval_next(&mut comb_vec, &mut z_vec, r);
-                e1 = ne1;
-                einf = neinf;
-            } else {
-                // Final round: only z_vec is read afterwards (as z_partial), so
-                // comb_vec's last fold would be dead work.
-                sumcheck_bind_top_in_place_par(&mut z_vec, r);
-            }
-        }
-    }
-    drop(span);
+    // 6. The product sumcheck over the high `inner_rest_len` bits, leaving `2^k_skip` entries.
+    let (r_inner_rest, z_partial) =
+        tracing::info_span!("Sumcheck").in_scope(|| product_sumcheck(comb_vec, z_vec, inner_rest_len, ps));
 
     // 7. Send `z_partial` (the post-sumcheck collapsed z_vec). Length 2^k_skip.
-    let z_partial = z_vec;
     for &x in z_partial.iter() {
         ps.add_scalar(x);
     }
-
-    // 8. Convert sumcheck challenges to LSB-first `x_inner_rest` order. The
-    //     loop binds the TOP bit each round, so r_rounds[0] bound bit
-    //     (inner_rest_len − 1) of the i_rest part (= bit (k_log − 1) of i).
-    //     LSB-first: x_inner_rest[j] binds bit (k_skip + j) of i, i.e.,
-    //     r_inner_rest[j] = r_rounds[inner_rest_len − 1 − j].
-    let mut r_inner_rest = r_rounds;
-    r_inner_rest.reverse();
 
     LincheckClaim {
         alpha,
         r_inner_rest,
         s_hat_v: z_partial,
     }
+}
+
+/// The product sumcheck of `Σ_i comb[i]·z[i]` over the top `rounds` bits of `i`: each round binds the TOP remaining
+/// bit and sends its message, dropping `q(1)` as the verifier knows the running claim. Returns the challenges in
+/// LSB-first coordinate order (`r[j]` binds bit `log2(len) − rounds + j` of `i`) and `z` with those bits bound, of
+/// length `len >> rounds`. Large rounds use the worker pool.
+pub fn product_sumcheck(
+    mut comb: Vec<F192>,
+    mut z: Vec<F192>,
+    rounds: usize,
+    ps: &mut ProverState,
+) -> (Vec<F192>, Vec<F192>) {
+    assert_eq!(comb.len(), z.len());
+    assert!(comb.len().is_power_of_two() && comb.len() >> rounds >= 1);
+    let mut r_rounds = Vec::with_capacity(rounds);
+    if rounds > 0 {
+        // Round 0's message is the only standalone evaluation pass; every later
+        // round's message falls out of binding the previous round (fold +
+        // next-eval fused into one pass, see `sumcheck_bind_both_and_eval_next`).
+        let (mut e1, mut einf) = sumcheck_round_eval_par(&comb, &z);
+        // The running claim, mirrored from the verifier: `q(0) + q(1) = claim`
+        // is what lets the wire drop `q(0)`, so the prover has to know it too.
+        // Round 0's claim is the whole inner product, one pass over the vectors
+        // and negligible beside the sumcheck itself.
+        let mut running = inner_product_ext(&comb, &z);
+        for t in 0..rounds {
+            let e0 = running + e1;
+            ps.add_round_poly(&[e0, e0 + e1 + einf, einf], false);
+            let r = ps.sample();
+            running = (einf * r + (e0 + e1 + einf)) * r + e0;
+            r_rounds.push(r);
+            if t + 1 < rounds {
+                // Fused: bind both tables at r AND compute round (t+1)'s message.
+                (e1, einf) = sumcheck_bind_both_and_eval_next(&mut comb, &mut z, r);
+            } else {
+                // Final round: only z is read afterwards, so comb's last fold
+                // would be dead work.
+                sumcheck_bind_top_in_place_par(&mut z, r);
+            }
+        }
+    }
+    // r_rounds[0] bound the top bit, so LSB-first order is the reverse.
+    r_rounds.reverse();
+    (r_rounds, z)
 }
 
 // ---------------------------------------------------------------------------

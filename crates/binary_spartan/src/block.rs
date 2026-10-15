@@ -3,8 +3,13 @@
 //! Rows and columns are padded to `2^k_log` (`k_log >= MIN_K_LOG`). The first `64 * public_words()` columns are the
 //! public region: column 0 is the constant one, columns `1..=n_public` the public bits, the rest zero. Private
 //! signals are renumbered to start right after it, so the public region is whole packed words of every instance.
+//!
+//! A linked block (`CLB2`) also places link `j`'s `out` signal at column `out_base + j`, inside the aligned
+//! `2^out_log` block at `out_base` and alone in its packed words, and appends one linear row per link after the
+//! constraints: `A_0 = {in_j}`, `B_0 = {constant}`, `C_0 = {}`. The batch adds `z_{i-1}[out_j]` to that row of
+//! instance `i` (the shift `S_N ⊗ A_link`), and the statement's `in` boundary to instance 0's.
 
-use crate::format::{FormatError, MAX_LOG, R1csFile};
+use crate::format::{FormatError, MAX_LOG, R1csFile, check_links};
 use flock::lincheck::LincheckCircuit;
 use primitives::field::F192;
 
@@ -44,6 +49,24 @@ pub struct BlockMatrices {
     pub c: Csr,
 }
 
+/// Where a linked block's links sit in padded coordinates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Links {
+    pub count: usize,
+    /// Link `j`'s row is `first_row + j`.
+    pub first_row: usize,
+    /// Link `j`'s `out` column is `out_base + j`; `out_base` is a multiple of `2^out_log`, and `count <= 2^out_log`.
+    pub out_base: usize,
+    pub out_log: usize,
+}
+
+impl Links {
+    /// Packed words per instance holding the `out` columns, which hold nothing else.
+    pub fn words(&self) -> usize {
+        self.count.div_ceil(64)
+    }
+}
+
 /// Why a block R1CS was rejected.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BlockError {
@@ -61,21 +84,35 @@ impl std::fmt::Display for BlockError {
 
 impl std::error::Error for BlockError {}
 
+/// A run of consecutive signals laid out at consecutive columns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Run {
+    signal: u32,
+    column: u32,
+    len: u32,
+}
+
 /// A validated block R1CS: its padded matrices, its signal counts and the digest of its canonical file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockR1cs {
     pub matrices: BlockMatrices,
     pub n_signals: usize,
     pub n_public: usize,
+    /// The file's constraints; a linked block's link rows follow them.
     pub n_constraints: usize,
-    /// BLAKE2s of the canonical `CLB1` encoding.
+    pub links: Option<Links>,
+    /// Link `j`'s `in` and `out` signals.
+    pub link_signals: Vec<(u32, u32)>,
+    /// BLAKE2s of the canonical `CLB1` or `CLB2` encoding.
     pub digest: [u8; 32],
+    used_columns: usize,
+    runs: Vec<Run>,
 }
 
 impl BlockR1cs {
     pub fn new(file: &R1csFile) -> Result<Self, BlockError> {
         let (n_signals, n_public) = (file.n_signals, file.n_public);
-        if n_signals == 0 || n_public >= n_signals || n_signals > 1 << MAX_LOG {
+        if n_signals == 0 || n_public >= n_signals || n_signals > 1 << MAX_LOG || file.links.len() > 1 << MAX_LOG {
             return Err(BlockError::Format(FormatError::BadHeader));
         }
         for (index, constraint) in file.constraints.iter().enumerate() {
@@ -91,20 +128,36 @@ impl BlockR1cs {
                 }
             }
         }
+        check_links(n_signals, n_public, &file.links).map_err(BlockError::Format)?;
 
         let public_words = (n_public + 1).div_ceil(64);
-        let shift = 64 * public_words - (n_public + 1);
-        let used_cols = n_signals + shift;
         let n_constraints = file.constraints.len();
-        let k_log = (used_cols.max(n_constraints).next_power_of_two().trailing_zeros() as usize).max(MIN_K_LOG);
+        let (column, used_columns, links) = Self::columns(file, public_words);
+        let n_rows = n_constraints + file.links.len();
+        let k_log = (used_columns.max(n_rows).next_power_of_two().trailing_zeros() as usize).max(MIN_K_LOG);
         if k_log > MAX_LOG {
             return Err(BlockError::TooLarge);
         }
         let k = 1usize << k_log;
-        let column = |s: u32| if s as usize <= n_public { s } else { s + shift as u32 };
 
-        let build = |side: fn(&crate::format::Constraint) -> &Vec<u32>| -> Result<Csr, BlockError> {
-            let nnz: usize = file.constraints.iter().map(|c| side(c).len()).sum();
+        let constant = [0u32];
+        let link_rows = |side: usize, j: usize| -> &[u32] {
+            match side {
+                0 => std::slice::from_ref(&column[file.links[j].0 as usize]),
+                1 => &constant,
+                _ => &[],
+            }
+        };
+        let build = |side: usize| -> Result<Csr, BlockError> {
+            let pick = |c: &crate::format::Constraint| -> Vec<u32> {
+                [&c.a, &c.b, &c.c][side].iter().map(|&s| column[s as usize]).collect()
+            };
+            let nnz: usize = file
+                .constraints
+                .iter()
+                .map(|c| [&c.a, &c.b, &c.c][side].len())
+                .sum::<usize>()
+                + (0..file.links.len()).map(|j| link_rows(side, j).len()).sum::<usize>();
             if nnz > u32::MAX as usize {
                 return Err(BlockError::TooLarge);
             }
@@ -112,7 +165,14 @@ impl BlockR1cs {
             let mut cols = Vec::with_capacity(nnz);
             row_ptr.push(0);
             for constraint in &file.constraints {
-                cols.extend(side(constraint).iter().map(|&s| column(s)));
+                let mut row = pick(constraint);
+                // A link `out` column can sit below a column it followed in signal order.
+                row.sort_unstable();
+                cols.extend(row);
+                row_ptr.push(cols.len() as u32);
+            }
+            for j in 0..file.links.len() {
+                cols.extend_from_slice(link_rows(side, j));
                 row_ptr.push(cols.len() as u32);
             }
             row_ptr.resize(k + 1, cols.len() as u32);
@@ -120,17 +180,78 @@ impl BlockR1cs {
         };
         let matrices = BlockMatrices {
             k_log,
-            a: build(|c| &c.a)?,
-            b: build(|c| &c.b)?,
-            c: build(|c| &c.c)?,
+            a: build(0)?,
+            b: build(1)?,
+            c: build(2)?,
         };
+
+        let mut runs: Vec<Run> = Vec::new();
+        for (signal, &col) in column.iter().enumerate() {
+            match runs.last_mut() {
+                Some(run) if run.signal + run.len == signal as u32 && run.column + run.len == col => run.len += 1,
+                _ => runs.push(Run {
+                    signal: signal as u32,
+                    column: col,
+                    len: 1,
+                }),
+            }
+        }
         Ok(Self {
             matrices,
             n_signals,
             n_public,
             n_constraints,
+            links: links.map(|(out_base, out_log)| Links {
+                count: file.links.len(),
+                first_row: n_constraints,
+                out_base,
+                out_log,
+            }),
+            link_signals: file.links.clone(),
             digest: primitives::hash::hash(&file.encode()),
+            used_columns,
+            runs,
         })
+    }
+
+    /// Each signal's column, the columns that can be nonzero, and a linked block's `(out_base, out_log)`.
+    ///
+    /// The public region comes first. Without links the private signals follow it in order. With links, the `out`
+    /// signals take the first `2^out_log`-aligned block past the public region, in link order, and the other private
+    /// signals fill the columns before it and continue after the `out` words.
+    #[allow(clippy::type_complexity)]
+    fn columns(file: &R1csFile, public_words: usize) -> (Vec<u32>, usize, Option<(usize, usize)>) {
+        let head = file.n_public + 1;
+        let mut column: Vec<u32> = (0..file.n_signals as u32).collect();
+        let mut next = 64 * public_words;
+        if file.links.is_empty() {
+            for c in &mut column[head..] {
+                *c = next as u32;
+                next += 1;
+            }
+            return (column, next, None);
+        }
+        let n_link = file.links.len();
+        let out_log = (n_link.next_power_of_two().trailing_zeros() as usize).max(6);
+        let out_base = next.next_multiple_of(1 << out_log);
+        let out_end = out_base + 64 * n_link.div_ceil(64);
+        let mut is_out = vec![false; file.n_signals];
+        for (j, &(_, out)) in file.links.iter().enumerate() {
+            is_out[out as usize] = true;
+            column[out as usize] = (out_base + j) as u32;
+        }
+        let mut used = out_base + n_link;
+        for (signal, c) in column.iter_mut().enumerate().skip(head) {
+            if !is_out[signal] {
+                if next == out_base {
+                    next = out_end;
+                }
+                *c = next as u32;
+                next += 1;
+                used = used.max(next);
+            }
+        }
+        (column, used, Some((out_base, out_log)))
     }
 
     pub fn k_log(&self) -> usize {
@@ -142,24 +263,24 @@ impl BlockR1cs {
         (self.n_public + 1).div_ceil(64)
     }
 
-    /// Columns that can be nonzero: the public region, then the private signals.
+    /// Columns that can be nonzero.
     pub fn used_columns(&self) -> usize {
-        64 * self.public_words() + self.n_signals - (self.n_public + 1)
+        self.used_columns
     }
 
-    /// Rows that can be nonzero.
+    /// Rows that can be nonzero: the constraints, then the link rows.
     pub fn used_rows(&self) -> usize {
-        self.n_constraints
+        self.n_constraints + self.link_signals.len()
     }
 
     /// Lay one instance's signal bytes (`ceil(n_signals / 8)` bytes, signal `j` at bit `j`) out as its block of
-    /// `2^k_log / 64` packed words: the public region first, then the private signals. `out` must be zero.
+    /// `2^k_log / 64` packed words. `out` must be zero.
     pub fn layout_instance(&self, signals: &[u8], out: &mut [u64]) {
         debug_assert_eq!(signals.len(), self.n_signals.div_ceil(8));
         debug_assert_eq!(out.len(), (1usize << self.k_log()) / 64);
-        self.layout_public(signals, &mut out[..self.public_words()]);
-        let n_head = self.n_public + 1;
-        copy_bits(signals, n_head, self.n_signals - n_head, out, self.public_words());
+        for run in &self.runs {
+            copy_bits(signals, run.signal as usize, run.len as usize, out, run.column as usize);
+        }
     }
 
     /// The public region of one instance: the constant, the public bits and zero padding, `public_words()` words.
@@ -168,7 +289,19 @@ impl BlockR1cs {
         copy_bits(signals, 0, self.n_public + 1, out, 0);
     }
 
-    /// The first violated row of one laid-out instance, if any.
+    /// One instance's link `in` (`output = false`) or `out` signals, link `j` at bit `j` of `ceil(n_link / 64)`
+    /// words.
+    pub fn link_values(&self, signals: &[u8], output: bool) -> Vec<u64> {
+        let mut words = vec![0u64; self.link_signals.len().div_ceil(64)];
+        for (j, &(input, out)) in self.link_signals.iter().enumerate() {
+            let s = if output { out } else { input } as usize;
+            words[j / 64] |= u64::from(signals[s / 8] >> (s % 8) & 1) << (j % 64);
+        }
+        words
+    }
+
+    /// The first violated constraint of one laid-out instance, if any. Link rows are not checked: they span two
+    /// instances.
     pub fn first_violation(&self, z: &[u64]) -> Option<usize> {
         let m = &self.matrices;
         let parity = |row: &[u32]| row.iter().fold(0u64, |acc, &c| acc ^ (z[c as usize >> 6] >> (c & 63)));
@@ -176,17 +309,20 @@ impl BlockR1cs {
     }
 }
 
-/// `len` bits of `src` from bit `src_bit` onwards, OR-ed into `dst` from the start of word `dst_word`.
-fn copy_bits(src: &[u8], src_bit: usize, len: usize, dst: &mut [u64], dst_word: usize) {
-    for (w, slot) in dst[dst_word..dst_word + len.div_ceil(64)].iter_mut().enumerate() {
-        let bit = src_bit + 64 * w;
-        let take = (len - 64 * w).min(64);
+/// `len` bits of `src` from bit `src_bit` onwards, OR-ed into `dst` from bit `dst_bit` onwards.
+fn copy_bits(src: &[u8], src_bit: usize, len: usize, dst: &mut [u64], dst_bit: usize) {
+    let mut done = 0;
+    while done < len {
+        let (word, offset) = ((dst_bit + done) / 64, (dst_bit + done) % 64);
+        let take = (len - done).min(64 - offset);
+        let bit = src_bit + done;
         let first = bit / 8;
         let mut window = [0u8; 16];
         let end = (first + 9).min(src.len());
         window[..end - first].copy_from_slice(&src[first..end]);
         let bits = (u128::from_le_bytes(window) >> (bit % 8)) as u64;
-        *slot |= if take == 64 { bits } else { bits & ((1u64 << take) - 1) };
+        dst[word] |= if take == 64 { bits } else { bits & ((1u64 << take) - 1) } << offset;
+        done += take;
     }
 }
 

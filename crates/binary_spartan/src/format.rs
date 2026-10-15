@@ -1,12 +1,20 @@
 //! Strict parsers (and the matching encoders) for the two files a Clean export writes, both little-endian.
 //!
-//! Block R1CS (`circuit.r1cs`):
+//! Block R1CS (`circuit.r1cs`), `CLB1` for a block without links and `CLB2` for one with:
 //!
 //! ```text
 //! magic "CLB1", u32 version = 1
 //! u32 n_signals (signal 0 = constant one), u32 n_public (signals 1..=n_public), u32 n_constraints
 //! per constraint, for A, B, C: u32 n_terms, then n_terms x u32 signal (strictly increasing)
+//!
+//! magic "CLB2", u32 version = 1
+//! u32 n_signals, u32 n_public, u32 n_constraints, u32 n_link (at least 1)
+//! n_link x (u32 in_signal, u32 out_signal)
+//! the constraints as in CLB1
 //! ```
+//!
+//! Link `j` asks `z_{i+1}[in_j] = z_i[out_j]` of consecutive instances. Both signals are private and distinct, and a
+//! signal is the `in` of at most one link and the `out` of at most one.
 //!
 //! Batch witness (`witness.bin`):
 //!
@@ -21,6 +29,7 @@
 use std::fmt;
 
 const R1CS_MAGIC: &[u8; 4] = b"CLB1";
+const LINKED_R1CS_MAGIC: &[u8; 4] = b"CLB2";
 const WITNESS_MAGIC: &[u8; 4] = b"CLW2";
 const VERSION: u32 = 1;
 /// Upper bound on signals and constraints: a block is padded to at most `2^MAX_LOG` rows and columns.
@@ -43,6 +52,11 @@ pub enum FormatError {
     /// A term list is not strictly increasing.
     NotIncreasing {
         constraint: usize,
+    },
+    /// A link names a public or out-of-range signal, the same signal twice, or a signal another link already uses on
+    /// the same side.
+    BadLink {
+        link: usize,
     },
     /// Zero instances, or a batch too large to address.
     BadInstanceCount,
@@ -78,6 +92,8 @@ pub struct R1csFile {
     pub n_signals: usize,
     pub n_public: usize,
     pub constraints: Vec<Constraint>,
+    /// `(in, out)` signal pairs; empty for a `CLB1` block.
+    pub links: Vec<(u32, u32)>,
 }
 
 /// A parsed batch witness: `n_instances` rows of `bytes_per_instance()` bytes.
@@ -106,12 +122,15 @@ impl<'a> Reader<'a> {
         Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("4 bytes")))
     }
 
-    fn header(&mut self, magic: &[u8; 4]) -> Result<(), FormatError> {
-        if self.take(4)? != magic {
-            return Err(FormatError::BadMagic);
-        }
+    /// The magic, which must be one of `magics`, then the version. Returns the magic's index.
+    fn header(&mut self, magics: &[&[u8; 4]]) -> Result<usize, FormatError> {
+        let magic = self.take(4)?;
+        let index = magics
+            .iter()
+            .position(|m| m.as_slice() == magic)
+            .ok_or(FormatError::BadMagic)?;
         match self.u32()? {
-            VERSION => Ok(()),
+            VERSION => Ok(index),
             v => Err(FormatError::BadVersion(v)),
         }
     }
@@ -133,16 +152,40 @@ fn check_count(n: u32) -> Result<usize, FormatError> {
     Ok(n)
 }
 
+/// The first link that is not well formed: both signals private and distinct, no signal twice on one side.
+pub fn check_links(n_signals: usize, n_public: usize, links: &[(u32, u32)]) -> Result<(), FormatError> {
+    let mut used = vec![0u8; n_signals];
+    for (link, &(input, output)) in links.iter().enumerate() {
+        let private = |s: u32| (s as usize) > n_public && (s as usize) < n_signals;
+        if !private(input) || !private(output) || input == output || used[input as usize] & 1 != 0 {
+            return Err(FormatError::BadLink { link });
+        }
+        used[input as usize] |= 1;
+        if used[output as usize] & 2 != 0 {
+            return Err(FormatError::BadLink { link });
+        }
+        used[output as usize] |= 2;
+    }
+    Ok(())
+}
+
 impl R1csFile {
     pub fn parse(bytes: &[u8]) -> Result<Self, FormatError> {
         let mut r = Reader { bytes };
-        r.header(R1CS_MAGIC)?;
+        let linked = r.header(&[R1CS_MAGIC, LINKED_R1CS_MAGIC])? == 1;
         let n_signals = check_count(r.u32()?)?;
         let n_public = r.u32()? as usize;
         let n_constraints = check_count(r.u32()?)?;
-        if n_signals == 0 || n_public >= n_signals {
+        let n_link = if linked { check_count(r.u32()?)? } else { 0 };
+        if n_signals == 0 || n_public >= n_signals || (linked && n_link == 0) {
             return Err(FormatError::BadHeader);
         }
+        // Every link takes 8 bytes, which bounds the allocation by the input.
+        let mut links = Vec::with_capacity(n_link.min(r.bytes.len() / 8));
+        for _ in 0..n_link {
+            links.push((r.u32()?, r.u32()?));
+        }
+        check_links(n_signals, n_public, &links)?;
         // Every constraint takes at least 12 bytes, which bounds the allocation by the input.
         let mut constraints = Vec::with_capacity(n_constraints.min(r.bytes.len() / 12));
         for index in 0..n_constraints {
@@ -171,15 +214,25 @@ impl R1csFile {
             n_signals,
             n_public,
             constraints,
+            links,
         })
     }
 
-    /// The canonical encoding, which [`Self::parse`] inverts.
+    /// The canonical encoding, which [`Self::parse`] inverts: `CLB1` without links, `CLB2` with.
     pub fn encode(&self) -> Vec<u8> {
         let mut out = Vec::new();
-        out.extend_from_slice(R1CS_MAGIC);
-        for x in [VERSION as usize, self.n_signals, self.n_public, self.constraints.len()] {
+        let linked = !self.links.is_empty();
+        out.extend_from_slice(if linked { LINKED_R1CS_MAGIC } else { R1CS_MAGIC });
+        let mut header = vec![VERSION as usize, self.n_signals, self.n_public, self.constraints.len()];
+        if linked {
+            header.push(self.links.len());
+        }
+        for x in header {
             out.extend_from_slice(&u32::try_from(x).expect("count fits u32").to_le_bytes());
+        }
+        for &(input, output) in &self.links {
+            out.extend_from_slice(&input.to_le_bytes());
+            out.extend_from_slice(&output.to_le_bytes());
         }
         for constraint in &self.constraints {
             for side in [&constraint.a, &constraint.b, &constraint.c] {
@@ -206,7 +259,7 @@ impl WitnessFile {
 
     pub fn parse(bytes: &[u8]) -> Result<Self, FormatError> {
         let mut r = Reader { bytes };
-        r.header(WITNESS_MAGIC)?;
+        r.header(&[WITNESS_MAGIC])?;
         let n_signals = check_count(r.u32()?)?;
         if n_signals == 0 {
             return Err(FormatError::BadHeader);

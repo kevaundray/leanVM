@@ -3,7 +3,8 @@ module
 public import Gf2.Basic
 
 /-!
-Native exporter for the GF(2) block R1CS `CLB1` and the batch witness `CLW2` (little-endian).
+Native exporter for the GF(2) block R1CS `CLB1`, its linked form `CLB2` (`CLB1` plus link pairs
+`(in_j, out_j)` after the counts) and the batch witness `CLW2` (little-endian).
 
 Every Clean assertion becomes exactly one row `(L1) · (L2) = L3` over GF(2): the expression is
 normalized to `L1 * L2 + L3` or to `L3` (exported with empty `L1`, `L2`), coefficients reduced
@@ -80,8 +81,10 @@ structure Export where
   body : ByteArray
   stats : Stats
 
-/-- The `CLB1` bytes of `ops` (built at offset 0, no inputs) with `nPublic` public signals. -/
-def toCLB1 (nPublic : ℕ) (ops : List (Operation F)) : Except String Export := do
+/-- The rows of `ops` (built at offset 0, no inputs) under the header `magic`, version, signal,
+public signal and constraint counts, then the words `extra`. -/
+def exportRows (magic : String) (nPublic : ℕ) (extra : List ℕ) (ops : List (Operation F)) :
+    Except String Export := do
   let signals := 1 + Operations.localLength ops
   unless signals < 2 ^ 32 do throw s!"{signals} signals do not fit in u32"
   unless nPublic < signals do throw s!"{nPublic} public signals but {signals} signals"
@@ -100,8 +103,25 @@ def toCLB1 (nPublic : ℕ) (ops : List (Operation F)) : Except String Export := 
                           nnzB := s.nnzB + r.b.size, nnzC := s.nnzC + r.c.size } }
     | .lookup _ => throw "lookups cannot be exported to R1CS"
     | .interact _ => throw "interactions cannot be exported to R1CS") init ops
-  let header := [1, st.stats.signals, nPublic, st.stats.constraints].foldl pushU32 "CLB1".toUTF8
+  let header := ([1, st.stats.signals, nPublic, st.stats.constraints] ++ extra).foldl pushU32 magic.toUTF8
   return { st with body := header ++ st.body }
+
+/-- The `CLB1` bytes of `ops` (built at offset 0, no inputs) with `nPublic` public signals. -/
+def toCLB1 (nPublic : ℕ) (ops : List (Operation F)) : Except String Export :=
+  exportRows "CLB1" nPublic [] ops
+
+/--
+The `CLB2` bytes of `ops` with `nPublic` public signals and the link pairs `(in, out)`: private,
+`in ≠ out`, each signal at most once as `in` and at most once as `out`.
+-/
+def toCLB2 (nPublic : ℕ) (links : Array (ℕ × ℕ)) (ops : List (Operation F)) : Except String Export := do
+  let signals := 1 + Operations.localLength ops
+  for (i, o) in links do
+    unless nPublic < i && i < signals && nPublic < o && o < signals && i != o do
+      throw s!"link pair ({i}, {o}) is not a pair of distinct private signals"
+  unless (links.map (·.1)).toList.Nodup && (links.map (·.2)).toList.Nodup do
+    throw "a signal is in two link pairs on the same side"
+  exportRows "CLB2" nPublic (links.size :: links.toList.flatMap fun (i, o) => [i, o]) ops
 
 /-- One instance's witness `w` (variables in order) packed LSB first after the constant one. -/
 def packWitness (w : Array F) : ByteArray := Id.run do

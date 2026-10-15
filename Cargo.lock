@@ -441,6 +441,10 @@ dependencies = [
  "binary_spartan",
  "bincode",
  "leanvm_core",
+ "primitives",
+ "serde",
+ "serde_json",
+ "xmss",
 ]
 
 [[package]]

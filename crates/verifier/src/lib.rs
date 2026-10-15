@@ -74,6 +74,10 @@ pub enum VerifierError {
     PublicWords,
     SparkSumcheck,
     SparkMemoryCheck,
+    /// Binary Spartan's links or boundary are malformed, given to an unlinked block, missing for a linked one, or
+    /// the linked batch is not a power of two.
+    Links,
+    LinkTerminal,
 }
 
 impl std::fmt::Display for VerifierError {
@@ -107,6 +111,8 @@ impl std::fmt::Display for VerifierError {
             Self::PublicWords => "malformed public words",
             Self::SparkSumcheck => "SPARK sumcheck terminal mismatch",
             Self::SparkMemoryCheck => "SPARK memory-checking leaf mismatch",
+            Self::Links => "malformed links or boundary",
+            Self::LinkTerminal => "link sumcheck terminal mismatch",
         };
         f.write_str(message)
     }

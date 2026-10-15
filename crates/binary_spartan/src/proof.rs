@@ -1,10 +1,12 @@
 //! Prove a batch of block instances: commit the packed witness, run flock's zerocheck and lincheck (with the block's
 //! general `C_0`), then open the commitment in one stacked WHIR that discharges lincheck's ring-switched slice claim
 //! and pins every instance's public words. The lincheck terminal's matrix evaluation is computed by the verifier from
-//! the sparse block ([`Mode::Direct`]) or proven with [`crate::spark`] ([`Mode::Spark`]).
+//! the sparse block ([`Mode::Direct`]) or proven with [`crate::spark`] ([`Mode::Spark`]). A linked block also proves
+//! its link term ([`crate::link`]) between the zerocheck and lincheck, opens a second ring-switched claim, and pins
+//! the last instance's `out` words to its [`Boundary`].
 //!
-//! Transcript order: commitment root, zerocheck, lincheck, the public-pin point, the stacked opening, then SPARK.
-//! [`verify`] hands the proof to `verifier::binary_spartan`, which walks it in the same order.
+//! Transcript order: commitment root, zerocheck, the link term if linked, lincheck, the public-pin point, the stacked
+//! opening, then SPARK. [`verify`] hands the proof to `verifier::binary_spartan`, which walks it in the same order.
 
 use crate::block::{BlockR1cs, Csr};
 use crate::format::WitnessFile;
@@ -36,10 +38,15 @@ pub struct Shape {
 impl Shape {
     pub fn new(block: &BlockR1cs, n_instances: usize) -> Result<Self, VerifierError> {
         let k_log = block.k_log();
+        let n_log = verifier::binary_spartan::batch_log(k_log, n_instances)?;
+        // A linked batch is never padded here: its padding instances are the circuit's.
+        if block.links.is_some() && n_instances != 1 << n_log {
+            return Err(VerifierError::Links);
+        }
         Ok(Self {
             n_instances,
             k_log,
-            n_log: verifier::binary_spartan::batch_log(k_log, n_instances)?,
+            n_log,
         })
     }
 
@@ -71,6 +78,25 @@ pub fn publics(block: &BlockR1cs, batch: &WitnessFile) -> Vec<u64> {
         block.layout_public(batch.instance(i), out)
     });
     words
+}
+
+/// A linked batch's boundary statement: instance 0's link `in` values and instance `N - 1`'s link `out` values, link
+/// `j` at bit `j` of `ceil(n_link / 64)` words each.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Boundary {
+    pub input: Vec<u64>,
+    pub output: Vec<u64>,
+}
+
+impl Boundary {
+    /// A linked batch's own boundary; `None` for an unlinked block.
+    pub fn of(block: &BlockR1cs, batch: &WitnessFile) -> Option<Self> {
+        block.links?;
+        Some(Self {
+            input: block.link_values(batch.instance(0), false),
+            output: block.link_values(batch.instance(batch.n_instances - 1), true),
+        })
+    }
 }
 
 /// How the lincheck terminal's matrix evaluation is discharged.
@@ -108,15 +134,18 @@ impl std::fmt::Display for ProveError {
 
 impl std::error::Error for ProveError {}
 
-/// Seed the transcript with the statement, as `verifier::binary_spartan` does: the label, the block digest, the shape
-/// and every real instance's public words, little-endian.
-fn seed(block: &BlockR1cs, shape: &Shape, publics: &[u64]) -> ([F64; 4], [F64; 4]) {
+/// Seed the transcript with the statement, as `verifier::binary_spartan` does: the label, the block digest, the shape,
+/// every real instance's public words, then a linked batch's boundary `in` and `out` words, little-endian.
+fn seed(block: &BlockR1cs, shape: &Shape, publics: &[u64], boundary: Option<&Boundary>) -> ([F64; 4], [F64; 4]) {
     let mut h = primitives::hash::Hasher::new();
     h.update(LABEL).update(&block.digest);
     for x in [shape.n_instances, shape.k_log, shape.n_log] {
         h.update(&(x as u64).to_le_bytes());
     }
     h.update(bytes(publics));
+    if let Some(boundary) = boundary {
+        h.update(bytes(&boundary.input)).update(bytes(&boundary.output));
+    }
     (
         fiat_shamir::digest_words(&primitives::hash::hash(LABEL)),
         fiat_shamir::digest_words(&h.finalize()),
@@ -135,8 +164,14 @@ struct Packed {
 }
 
 /// Lay the batch out (extra instances repeat the last real one) and compute `A·z`, `B·z`, `C·z` up to 64 instances
-/// at a time on column words, checking `a·b = c` on the way.
-fn pack(block: &BlockR1cs, batch: &WitnessFile, shape: &Shape) -> Result<Packed, ProveError> {
+/// at a time on column words, finding the first violated `(instance, row)` of `a·b = c` on the way. A linked block's
+/// link rows also take the previous instance's `out` column, instance 0's taking the boundary's `input` bit instead.
+fn pack(
+    block: &BlockR1cs,
+    batch: &WitnessFile,
+    shape: &Shape,
+    input: Option<&[u64]>,
+) -> (Packed, Option<(usize, usize)>) {
     let k = 1usize << shape.k_log;
     let wpb = k / 64;
     let n_total = 1usize << shape.n_log;
@@ -189,9 +224,22 @@ fn pack(block: &BlockR1cs, batch: &WitnessFile, shape: &Shape) -> Result<Packed,
         let (sa, rest) = sides.split_at_mut(k);
         let (sb, sc) = rest.split_at_mut(k);
         let mut violation = None;
-        for r in 0..block.n_constraints {
+        let lane_mask = if lanes == 64 { !0 } else { (1u64 << lanes) - 1 };
+        for r in 0..block.used_rows() {
             let sum = |row: &[u32]| row.iter().fold(0u64, |acc, &col| acc ^ cols[col as usize]);
             (sa[r], sb[r], sc[r]) = (sum(m.a.row(r)), sum(m.b.row(r)), sum(m.c.row(r)));
+            if let (Some(links), Some(input)) = (&block.links, input)
+                && r >= links.first_row
+            {
+                let j = r - links.first_row;
+                let col = links.out_base + j;
+                let carry = if g == 0 {
+                    input[j / 64] >> (j % 64)
+                } else {
+                    z[(g * lanes - 1) * wpb + col / 64] >> (col % 64)
+                };
+                sa[r] ^= (cols[col] << 1 | carry & 1) & lane_mask;
+            }
             let bad = (sa[r] & sb[r]) ^ sc[r];
             if bad != 0 && violation.is_none() {
                 violation = Some(((lanes * g + bad.trailing_zeros() as usize).min(last), r));
@@ -207,10 +255,8 @@ fn pack(block: &BlockR1cs, batch: &WitnessFile, shape: &Shape) -> Result<Packed,
         }
         violation
     });
-    if let Some(&(instance, row)) = violations.iter().flatten().min() {
-        return Err(ProveError::Unsatisfied { instance, row });
-    }
-    Ok(Packed { z, a, b, c, z_lincheck })
+    let violation = violations.into_iter().flatten().min();
+    (Packed { z, a, b, c, z_lincheck }, violation)
 }
 
 /// Transpose a 64x64 bit matrix in place: bit `c` of word `r` trades places with bit `r` of word `c`.
@@ -271,25 +317,44 @@ fn public_pins(shape: &Shape, slots: usize, z: &[u64], point: &[F192]) -> Vec<Sl
         .collect()
 }
 
-/// Prove that every instance of `batch` satisfies `block`. Refuses an unsatisfied witness.
+/// Prove that every instance of `batch` satisfies `block`, and for a linked block its links, its boundary being the
+/// batch's own ([`Boundary::of`]). Refuses an unsatisfied witness.
 pub fn prove(block: &BlockR1cs, batch: &WitnessFile, mode: ProveMode<'_>) -> Result<Proof, ProveError> {
-    prove_statement(block, batch, &publics(block, batch), mode)
+    let boundary = Boundary::of(block, batch);
+    prove_statement(block, batch, &publics(block, batch), boundary.as_ref(), mode)
 }
 
-/// [`prove`] with the transcript seeded by `publics` rather than by the batch's own public region.
+/// [`prove`] with the transcript seeded by `publics` and `boundary` rather than by the batch's own.
 fn prove_statement(
     block: &BlockR1cs,
     batch: &WitnessFile,
     publics: &[u64],
+    boundary: Option<&Boundary>,
     mode: ProveMode<'_>,
 ) -> Result<Proof, ProveError> {
-    if batch.n_signals != block.n_signals {
+    if batch.n_signals != block.n_signals || block.links.is_some() != boundary.is_some() {
         return Err(ProveError::Shape);
     }
     let shape = Shape::new(block, batch.n_instances).map_err(|_| ProveError::Shape)?;
     let _span = tracing::info_span!("Binary Spartan prove", n_log = shape.n_log).entered();
-    let packed = tracing::info_span!("Pack").in_scope(|| pack(block, batch, &shape))?;
-    let (iv, statement) = tracing::info_span!("Seed").in_scope(|| seed(block, &shape, publics));
+    let input = boundary.map(|b| b.input.as_slice());
+    let (packed, violation) = tracing::info_span!("Pack").in_scope(|| pack(block, batch, &shape, input));
+    if let Some((instance, row)) = violation {
+        return Err(ProveError::Unsatisfied { instance, row });
+    }
+    Ok(prove_packed(block, &shape, &packed, publics, boundary, mode))
+}
+
+/// The proof of a packed batch, whatever its tables: [`prove_statement`] after the satisfaction check.
+fn prove_packed(
+    block: &BlockR1cs,
+    shape: &Shape,
+    packed: &Packed,
+    publics: &[u64],
+    boundary: Option<&Boundary>,
+    mode: ProveMode<'_>,
+) -> Proof {
+    let (iv, statement) = tracing::info_span!("Seed").in_scope(|| seed(block, shape, publics, boundary));
     let mut ps = ProverState::new(iv, statement);
 
     let stack_shape = shape.stack();
@@ -312,6 +377,18 @@ fn prove_statement(
     );
     drop(zerocheck);
     let x_ab = x_ab_of(&zc, shape.k_log);
+    let link_claim = block.links.as_ref().map(|links| {
+        let _span = tracing::info_span!("Links").entered();
+        crate::link::prove(
+            links,
+            shape.k_log,
+            shape.n_log,
+            &packed.z,
+            &packed.z_lincheck,
+            &x_ab,
+            &mut ps,
+        )
+    });
     let lincheck = tracing::info_span!("Lincheck").entered();
     let lc = flock::lincheck::prove_padded_capture_s_hat_v(
         &packed.z_lincheck,
@@ -327,16 +404,28 @@ fn prove_statement(
 
     let opening = tracing::info_span!("Opening").entered();
     let point = ps.sample_vec(shape.n_log);
-    let pins = public_pins(&shape, block.public_words(), &packed.z, &point);
+    let mut pins = public_pins(shape, block.public_words(), &packed.z, &point);
+    if let Some(links) = &block.links {
+        // The last instance's `out` words, at the boolean point of its index.
+        let last = (shape.n_instances - 1) * (1usize << shape.k_log) / 64;
+        pins.extend((0..links.words()).map(|w| SlotClaim::Strided {
+            offset: 0,
+            slot: links.out_base / 64 + w,
+            stride_log: shape.k_log - LOG_PACKING,
+            point: vec![F192::ONE; shape.n_log],
+            value: F64(packed.z[last + links.out_base / 64 + w]).into(),
+        }));
+    }
     let mut suffix_point = lc.r_inner_rest.clone();
     suffix_point.extend_from_slice(&x_ab.x_outer);
+    let main_claim = RingSwitchClaim {
+        suffix_point,
+        s_hat_v: Some(lc.s_hat_v.clone()),
+    };
     let ring = RingSwitchOpen {
         offset: 0,
         qflock_vars: shape.qflock_vars(),
-        claims: vec![RingSwitchClaim {
-            suffix_point,
-            s_hat_v: Some(lc.s_hat_v.clone()),
-        }],
+        claims: std::iter::once(main_claim).chain(link_claim).collect(),
     };
     leanvm_core::pcs::open(&mut ps, &committed, stack, &pins, &ring);
     drop(opening);
@@ -351,11 +440,18 @@ fn prove_statement(
             .collect();
         spark::prove(pk, lc.alpha, &rows, &cols, &mut ps);
     }
-    Ok(ps.into_proof())
+    ps.into_proof()
 }
 
-/// Verify `proof` for `block` and the real instances' `publics` with `verifier::binary_spartan`.
-pub fn verify(block: &BlockR1cs, publics: &[u64], proof: &Proof, mode: VerifyMode<'_>) -> Result<(), VerifierError> {
+/// Verify `proof` for `block`, the real instances' `publics` and a linked block's `boundary` with
+/// `verifier::binary_spartan`.
+pub fn verify(
+    block: &BlockR1cs,
+    publics: &[u64],
+    boundary: Option<&Boundary>,
+    proof: &Proof,
+    mode: VerifyMode<'_>,
+) -> Result<(), VerifierError> {
     fn csr(m: &Csr) -> verifier::binary_spartan::Csr<'_> {
         verifier::binary_spartan::Csr {
             row_ptr: &m.row_ptr,
@@ -369,20 +465,31 @@ pub fn verify(block: &BlockR1cs, publics: &[u64], proof: &Proof, mode: VerifyMod
         a: csr(&m.a),
         b: csr(&m.b),
         c: csr(&m.c),
+        links: block.links.map(|l| verifier::binary_spartan::Links {
+            count: l.count,
+            first_row: l.first_row,
+            out_base: l.out_base,
+            out_log: l.out_log,
+        }),
         digest: block.digest,
     };
+    let boundary = boundary.map(|b| verifier::binary_spartan::Boundary {
+        input: &b.input,
+        output: &b.output,
+    });
     let spark = match mode {
         Mode::Direct => None,
         Mode::Spark(key) => Some(key),
     };
     let proof = leanvm_core::cpu::scalar_proof(proof);
-    verifier::binary_spartan::verify(&statement, publics, LOG_INV_RATE, spark, &proof)
+    verifier::binary_spartan::verify(&statement, publics, boundary.as_ref(), LOG_INV_RATE, spark, &proof)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::{Constraint, R1csFile};
+    use crate::format::{Constraint, FormatError, R1csFile};
+    use primitives::test_rng::Rng;
 
     #[test]
     fn transpose_64x64_matches_naive() {
@@ -419,6 +526,7 @@ mod tests {
                     c: vec![p],
                 },
             ],
+            links: vec![],
         };
         let block = BlockR1cs::new(&file).expect("valid block");
         let width = file.n_signals.div_ceil(8);
@@ -436,17 +544,245 @@ mod tests {
         };
         let publics = publics(&block, &honest);
         let proof = prove(&block, &honest, Mode::Direct).expect("satisfied");
-        assert_eq!(verify(&block, &publics, &proof, Mode::Direct), Ok(()));
+        assert_eq!(verify(&block, &publics, None, &proof, Mode::Direct), Ok(()));
 
         // Public bit 5 of the first instance, then public bit 70 (second word) of the last.
         for (instance, signal) in [(0, 5), (2, 70)] {
             let mut tampered = honest.clone();
             tampered.data[instance * width + signal / 8] ^= 1 << (signal % 8);
-            let forged = prove_statement(&block, &tampered, &publics, Mode::Direct).expect("still satisfied");
+            let forged = prove_statement(&block, &tampered, &publics, None, Mode::Direct).expect("still satisfied");
             assert_eq!(
-                verify(&block, &publics, &forged, Mode::Direct),
+                verify(&block, &publics, None, &forged, Mode::Direct),
                 Err(VerifierError::WhirTerminal)
             );
         }
+    }
+
+    const N_PUBLIC: usize = 3;
+    const N_LINK: usize = 70;
+    const N_FREE: usize = 20;
+    const N_RANDOM: usize = 150;
+
+    /// A random linked block and a batch of it.
+    struct Linked {
+        file: R1csFile,
+        block: BlockR1cs,
+        batch: WitnessFile,
+        /// Link `j` passes the `t`-th input through to the `t`-th output, `t = order[j]`.
+        order: Vec<usize>,
+    }
+
+    fn subset(rng: &mut Rng, below: u32, max_len: u32) -> Vec<u32> {
+        let len = rng.next_u32() % (max_len + 1);
+        let mut s: Vec<u32> = (0..len).map(|_| rng.next_u32() % below).collect();
+        s.sort_unstable();
+        s.dedup();
+        s
+    }
+
+    /// Signals: the constant, the public bits, the link inputs, an idle flag, free signals, one output per random
+    /// constraint, then the link outputs. Random constraint `r` reads random earlier signals and defines its own
+    /// output; output `t` is `idle (in_t + v_t) + v_t` for a random output `v_t`, so an idle instance passes every link
+    /// through. Links are listed in a random order. Instances from `n_real` on are idle, instance 0's inputs are
+    /// random, and every later instance takes its inputs from its predecessor's outputs, except that `glitch =
+    /// (i, t)` flips input `t` of instance `i`.
+    fn linked_case(seed: u64, n_instances: usize, n_real: usize, glitch: Option<(usize, usize)>) -> Linked {
+        let mut rng = Rng::new(seed);
+        let ins = 1 + N_PUBLIC;
+        let idle = ins + N_LINK;
+        let first_random = idle + 1 + N_FREE;
+        let outs = first_random + N_RANDOM;
+        let n_signals = outs + N_LINK;
+        let mut constraints: Vec<Constraint> = (0..N_RANDOM)
+            .map(|r| {
+                let out = (first_random + r) as u32;
+                let mut c = subset(&mut rng, out, 2);
+                c.push(out);
+                Constraint {
+                    a: subset(&mut rng, out, 3),
+                    b: subset(&mut rng, out, 3),
+                    c,
+                }
+            })
+            .collect();
+        for t in 0..N_LINK {
+            let v = (first_random + N_RANDOM - 1 - t) as u32;
+            constraints.push(Constraint {
+                a: vec![idle as u32],
+                b: vec![(ins + t) as u32, v],
+                c: vec![v, (outs + t) as u32],
+            });
+        }
+        let mut order: Vec<usize> = (0..N_LINK).collect();
+        for i in (1..N_LINK).rev() {
+            order.swap(i, rng.next_u32() as usize % (i + 1));
+        }
+        let file = R1csFile {
+            n_signals,
+            n_public: N_PUBLIC,
+            links: order.iter().map(|&t| ((ins + t) as u32, (outs + t) as u32)).collect(),
+            constraints,
+        };
+
+        let width = n_signals.div_ceil(8);
+        let mut data = vec![0u8; width * n_instances];
+        let mut carry: Vec<bool> = (0..N_LINK).map(|_| rng.bit()).collect();
+        for (i, row) in data.chunks_exact_mut(width).enumerate() {
+            let mut z = vec![false; n_signals];
+            z[0] = true;
+            for v in &mut z[1..first_random] {
+                *v = rng.bit();
+            }
+            z[ins..idle].copy_from_slice(&carry);
+            if let Some((_, t)) = glitch.filter(|&(at, _)| at == i) {
+                z[ins + t] ^= true;
+            }
+            z[idle] = i >= n_real;
+            let parity = |z: &[bool], s: &[u32]| s.iter().fold(false, |acc, &j| acc ^ z[j as usize]);
+            for constraint in &file.constraints {
+                let (&out, rest) = constraint.c.split_last().expect("an output");
+                z[out as usize] = (parity(&z, &constraint.a) & parity(&z, &constraint.b)) ^ parity(&z, rest);
+            }
+            carry = z[outs..].to_vec();
+            for (j, &v) in z.iter().enumerate() {
+                row[j / 8] |= u8::from(v) << (j % 8);
+            }
+        }
+        let batch = WitnessFile {
+            n_signals,
+            n_instances,
+            data,
+        };
+        let block = BlockR1cs::new(&file).expect("valid block");
+        Linked {
+            file,
+            block,
+            batch,
+            order,
+        }
+    }
+
+    /// Honest linked batches verify in both modes, idle instances included, across a 64-instance group boundary and
+    /// within one partial group. Instance 0's inputs are a nonzero statement, and instance `N - 1`'s outputs differ
+    /// from them: the wrap is not enforced.
+    #[test]
+    fn linked_batches_verify() {
+        for (n_instances, n_real) in [(128, 100), (16, 16)] {
+            let case = linked_case(21, n_instances, n_real, None);
+            let block = &case.block;
+            assert_eq!(block.k_log(), 9);
+            let publics = publics(block, &case.batch);
+            let boundary = Boundary::of(block, &case.batch).expect("a linked block");
+            assert!(boundary.input.iter().any(|&w| w != 0));
+            assert_ne!(boundary.input, boundary.output);
+            let pk = spark::preprocess(&block.matrices, LOG_INV_RATE);
+            let vk = pk.verifier_key();
+            for (prove_mode, verify_mode) in [(Mode::Direct, Mode::Direct), (Mode::Spark(&pk), Mode::Spark(&vk))] {
+                let p = prove(block, &case.batch, prove_mode).expect("satisfied");
+                assert_eq!(verify(block, &publics, Some(&boundary), &p, verify_mode), Ok(()));
+            }
+        }
+    }
+
+    /// A changed boundary, a missing one, a mutated proof and a batch that is not a power of two are rejected.
+    #[test]
+    fn linked_proofs_reject_changes() {
+        let case = linked_case(22, 64, 50, None);
+        let block = &case.block;
+        let publics = publics(block, &case.batch);
+        let boundary = Boundary::of(block, &case.batch).expect("a linked block");
+        let p = prove(block, &case.batch, Mode::Direct).expect("satisfied");
+        assert_eq!(verify(block, &publics, Some(&boundary), &p, Mode::Direct), Ok(()));
+        for (output, j) in [(false, 0), (false, 69), (true, 3), (true, 65)] {
+            let mut bad = boundary.clone();
+            let side = if output { &mut bad.output } else { &mut bad.input };
+            side[j / 64] ^= 1 << (j % 64);
+            assert!(
+                verify(block, &publics, Some(&bad), &p, Mode::Direct).is_err(),
+                "{output}/{j}"
+            );
+        }
+        let mut spare = boundary.clone();
+        spare.output[1] |= 1 << 63;
+        assert_eq!(
+            verify(block, &publics, Some(&spare), &p, Mode::Direct),
+            Err(VerifierError::Links)
+        );
+        assert_eq!(
+            verify(block, &publics, None, &p, Mode::Direct),
+            Err(VerifierError::Links)
+        );
+        for at in 0..p.stream.len() {
+            let mut bad = p.clone();
+            bad.stream[at].c2 ^= 1 << 7;
+            assert!(
+                verify(block, &publics, Some(&boundary), &bad, Mode::Direct).is_err(),
+                "scalar {at}"
+            );
+        }
+        let short = linked_case(22, 60, 60, None);
+        assert_eq!(prove(&short.block, &short.batch, Mode::Direct), Err(ProveError::Shape));
+    }
+
+    /// An otherwise satisfied batch with one broken link between two middle instances: the prover refuses it, and a
+    /// prover whose zerocheck tables claim the link rows hold is rejected.
+    #[test]
+    fn broken_link_is_rejected() {
+        let n = 64;
+        let case = linked_case(23, n, n, Some((n / 2, 5)));
+        let block = &case.block;
+        let links = block.links.expect("a linked block");
+        let row = links.first_row + case.order.iter().position(|&t| t == 5).expect("a link");
+        assert_eq!(
+            prove(block, &case.batch, Mode::Direct),
+            Err(ProveError::Unsatisfied { instance: n / 2, row })
+        );
+
+        let publics = publics(block, &case.batch);
+        let boundary = Boundary::of(block, &case.batch).expect("a linked block");
+        let shape = Shape::new(block, n).expect("a valid shape");
+        let (mut packed, violation) = pack(block, &case.batch, &shape, Some(&boundary.input));
+        assert_eq!(violation, Some((n / 2, row)));
+        let wpb = (1usize << shape.k_log) / 64;
+        for i in 0..n {
+            for r in links.first_row..links.first_row + links.count {
+                packed.a[i * wpb + r / 64] &= !(1 << (r % 64));
+            }
+        }
+        let forged = prove_packed(block, &shape, &packed, &publics, Some(&boundary), Mode::Direct);
+        assert_eq!(
+            verify(block, &publics, Some(&boundary), &forged, Mode::Direct),
+            Err(VerifierError::FlockLincheckTerminal)
+        );
+    }
+
+    #[test]
+    fn clb2_roundtrips_and_rejects_bad_links() {
+        let case = linked_case(24, 16, 16, None);
+        let bytes = case.file.encode();
+        assert_eq!(&bytes[..4], b"CLB2");
+        assert_eq!(R1csFile::parse(&bytes).as_ref(), Ok(&case.file));
+        let (first_in, first_out) = case.file.links[3];
+        let n_signals = case.file.n_signals as u32;
+        for (link, change) in [
+            (3, (2, first_out)),
+            (3, (first_in, first_in)),
+            (3, (first_in, n_signals)),
+            (4, (first_in, case.file.links[4].1)),
+            (4, (case.file.links[4].0, first_out)),
+        ] {
+            let mut bad = case.file.clone();
+            bad.links[link] = change;
+            assert_eq!(
+                R1csFile::parse(&bad.encode()),
+                Err(FormatError::BadLink { link }),
+                "{change:?}"
+            );
+        }
+        let mut empty = b"CLB2".to_vec();
+        for x in [1u32, 4, 0, 0, 0] {
+            empty.extend_from_slice(&x.to_le_bytes());
+        }
+        assert_eq!(R1csFile::parse(&empty), Err(FormatError::BadHeader));
     }
 }

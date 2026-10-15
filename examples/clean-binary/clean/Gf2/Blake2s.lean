@@ -3,7 +3,11 @@ module
 public import Gf2.Basic
 
 /-!
-One BLAKE2s compression over GF(2), as `flock::hash::blake2s_compress(h, m, 64, 0xFFFFFFFF, 0)`.
+One BLAKE2s compression over GF(2), `flock::hash::blake2s_compress(h, m, t, f0, 0)`. The schedule
+takes the low counter word `t` and the final flag word `f0` as words: they enter the initial state
+by XOR, so as signals they cost no rows. This demo pins `t = 64` and `f0 = 0xFFFFFFFF`; the XMSS
+block (`Gf2.Xmss.Block`) takes `t` and `f0` as signals (inputs there are shorter than `2^32` bytes,
+so the high counter word is zero).
 
 Variables: `h` (256 bits) and `m` (512 bits), then the output (256 bits), all public, then the
 private bits. XOR and rotation are free: every bit is a linear form (a set of signals). Only the
@@ -17,7 +21,7 @@ row per bit), which keeps the linear forms of later rows small. The output bits 
 
 The schedule is written once and run twice: symbolically for the rows and natively for the
 private witness, so both see the same signal order. No formal soundness or completeness proofs:
-`Gf2.Check` tests the circuit against reference vectors.
+`Gf2.Check` and `Gf2.Xmss.Check` test the circuit against reference vectors.
 -/
 
 @[expose] public section
@@ -101,10 +105,11 @@ def g {m : Type → Type} [Monad m] {W : Type} [Inhabited W] (ar : Arith m W) (v
   let b2 ← if copyB then ar.copy b2 else pure b2
   return (((v.set! a a2).set! b b2).set! c c2).set! d d2
 
-/-- The pinned compression's output words `h ^ v[i] ^ v[i + 8]`. -/
+/-- The output words `h ^ v[i] ^ v[i + 8]` for counter word `tw` and final flag word `f0w`. -/
 def schedule {m : Type → Type} [Monad m] {W : Type} [Inhabited W] (ar : Arith m W)
-    (h msg : Array W) : m (Array W) := do
-  let mut v := h ++ (stateRow T F0 F1).map ar.const
+    (h msg : Array W) (tw f0w : W) : m (Array W) := do
+  let mut v := h ++ #[ar.const IV[0]!, ar.const IV[1]!, ar.const IV[2]!, ar.const IV[3]!,
+    ar.xor (ar.const IV[4]!) tw, ar.const IV[5]!, ar.xor (ar.const IV[6]!) f0w, ar.const IV[7]!]
   for r in [0:SIGMA.size] do
     let s := SIGMA[r]!
     for i in [0:8] do
@@ -160,15 +165,20 @@ def symbolic : Arith (StateM Sym) Word where
 
 def nPublic : ℕ := 1024
 
+/-- Runs the schedule symbolically and pins output bit `i` to signal `outSig + i`. -/
+def symCompress (h msg : Array Word) (tw f0w : Word) (outSig : ℕ) : StateM Sym Unit := do
+  let out ← schedule symbolic h msg tw f0w
+  for i in [0:256] do
+    emit { a := #[], b := #[], c := (out[i / 32]!)[i % 32]!.add #[outSig + i] }
+
 /-- Rows of the circuit at `offset` and its last signal plus one. -/
 def rowsAt (offset : ℕ) : Array Row × ℕ :=
   let sig := offset + 1
   let h := Array.ofFn (n := 8) fun w => Word.signals (sig + 32 * w.val)
   let msg := Array.ofFn (n := 16) fun w => Word.signals (sig + 256 + 32 * w.val)
-  let (out, st) := (schedule symbolic h msg).run { next := sig + nPublic, rows := #[] }
-  let pins := Array.ofFn (n := 256) fun i =>
-    { a := #[], b := #[], c := (out[i.val / 32]!)[i.val % 32]!.add #[sig + 768 + i.val] : Row }
-  (st.rows ++ pins, st.next)
+  let st := (symCompress h msg (Word.const T.toUInt32) (Word.const F0) (sig + 768)).run
+    { next := sig + nPublic, rows := #[] } |>.2
+  (st.rows, st.next)
 
 /-- Number of private variables. -/
 def nPrivate : ℕ := (rowsAt 0).2 - 1 - nPublic
@@ -190,9 +200,11 @@ def inputWords (env : ProverEnvironment F) (offset : ℕ) : Array UInt32 × Arra
    Array.ofFn (n := 16) fun w => readWord env.get (offset + 256) w.val)
 
 /-- The output bits then the private bits, from one native run of the schedule. -/
-def witnessBits (h m : Array UInt32) : Array F :=
-  let (out, priv) := (schedule native h m).run #[]
+def compressBits (h m : Array UInt32) (t f0 : UInt32) : Array F :=
+  let (out, priv) := (schedule native h m t f0).run #[]
   out.foldl pushWord (Array.emptyWithCapacity (256 + priv.size)) ++ priv
+
+def witnessBits (h m : Array UInt32) : Array F := compressBits h m T.toUInt32 F0
 
 def circuit : Circuit F Unit := fun offset => (do
   let _ ← witnessVectorNative 768 fun env =>
