@@ -1491,6 +1491,8 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.layer_step
 #print axioms LeanVMCircuits.Rec.Bind.SideCert.leafClaim_mleL
 #print axioms LeanVMCircuits.Rec.Edges.ChildCerts.lengths
+#print axioms LeanVMCircuits.Rec.Bind.ResidCert.tausOk_sem
+#print axioms LeanVMCircuits.Rec.Edges.ChildCerts.kappa_tau
 #print axioms LeanVMCircuits.Rec.Edges.ChildCerts.layer_ok
 #print axioms LeanVMCircuits.Rec.Edges.ChildCerts.leaves
 #print axioms LeanVMCircuits.Rec.Edges.tableParts_certs
