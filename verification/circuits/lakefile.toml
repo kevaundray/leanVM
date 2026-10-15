@@ -29,3 +29,7 @@ root = "CheckDesign"
 [[lean_exe]]
 name = "checkedges"
 root = "CheckEdges"
+
+[[lean_exe]]
+name = "checkhashrows"
+root = "CheckHashRows"

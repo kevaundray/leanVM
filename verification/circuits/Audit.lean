@@ -1503,6 +1503,7 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.HashRows.artifact_products
 #print axioms LeanVMCircuits.Rec.HashRows.freeSlots_nodup
 #print axioms LeanVMCircuits.Rec.HashRows.rowsOf_slots
+#print axioms LeanVMCircuits.Rec.HashRows.rowsOf_map
 #print axioms LeanVMCircuits.Rec.HashRows.outAff_eq
 #print axioms LeanVMCircuits.Rec.HashRows.rows_sound
 #print axioms LeanVMCircuits.Rec.Bind.FlockCert.roundsOk_sem

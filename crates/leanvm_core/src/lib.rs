@@ -115,6 +115,13 @@ pub fn table_flushes() -> String {
     tables::ClassTable::flush_dump()
 }
 
+/// `Hash::circuit`'s rows at pseudorandom column weights, for the Lean checker of its model.
+#[cfg(feature = "circuit-trace")]
+#[doc(hidden)]
+pub fn hash_rows() -> String {
+    rv::Hash::rows_dump()
+}
+
 /// Prepare the process for proving: spawn the worker pool up front.
 ///
 /// - No kernel then pays the spawn cost inside a timed region.

@@ -113,6 +113,61 @@ impl ClassCircuit for Hash {
 /// The input ports in bits: `t`, `f0`, then the four words of `h` and the eight of `m`.
 const INPUT_BITS: [usize; 14] = [64, 32, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64];
 
+/// SplitMix64's output at counter `i + 1`: the bits of the column weights `Hash::rows_dump` evaluates the rows at.
+#[cfg(feature = "circuit-trace")]
+const fn mix(i: u64) -> u64 {
+    let mut x = (i + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^ (x >> 31)
+}
+
+#[cfg(feature = "circuit-trace")]
+impl Hash {
+    /// `Hash::circuit`'s rows at pseudorandom column weights, for the Lean checker `checkhashrows`.
+    ///
+    /// Column `j`'s weight is `F192::new(mix(3j), mix(3j + 1), mix(3j + 2))`, and line `s` holds row `s` of
+    /// `row_values`, `A_0 w` then `B_0 w`, each as 48 hex digits, `c2` first. A row's value is the sum of its form's
+    /// weights, so each of its 192 bits is the form at one bit of the weights.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `fold_alpha_batched`, the prover's backward walk, is not the adjoint of the forward walk at a
+    /// pseudorandom point.
+    pub(crate) fn rows_dump() -> String {
+        use flock::lincheck::LincheckCircuit;
+        use primitives::field::F192;
+        use std::fmt::Write;
+
+        let weight = |j: usize| {
+            let j = 3 * j as u64;
+            F192::new(mix(j), mix(j + 1), mix(j + 2))
+        };
+        let circuit = Self::circuit();
+        let n = circuit.n_cols();
+        let w: Vec<F192> = (0..n).map(weight).collect();
+        let u: Vec<F192> = (n..2 * n).map(weight).collect();
+        let alpha = weight(2 * n);
+        let backward = primitives::multilinear::inner_product(&circuit.fold_alpha_batched(alpha, &u), &w);
+        assert_eq!(
+            backward,
+            circuit.bilinear_form(alpha, &u, &w),
+            "the backward walk is the forward walk's adjoint"
+        );
+        let (ra, rb) = circuit.row_values(&w);
+        let mut out = String::with_capacity(98 * n);
+        for (a, b) in ra.iter().zip(&rb) {
+            writeln!(
+                out,
+                "{:016x}{:016x}{:016x} {:016x}{:016x}{:016x}",
+                a.c2, a.c1, a.c0, b.c2, b.c1, b.c0
+            )
+            .expect("a String takes any write");
+        }
+        out
+    }
+}
+
 /// One instance of the circuit's witness, by word arithmetic instead of the gate walk.
 ///
 /// It writes the same `z`, `A*z` and `B*z` the walk writes, into zeroed buffers.

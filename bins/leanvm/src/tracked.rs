@@ -422,9 +422,9 @@ fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> Vec<(NodeCircuit
     }
 }
 
-/// Write every tracked output-tree and signer-set tree circuit, one over zero-knowledge leaves, and every claim-set tier position, plus native instruction table bindings.
+/// Write every tracked output-tree and signer-set tree circuit, one over zero-knowledge leaves, and every claim-set tier position, plus native instruction table bindings and `Hash::circuit`'s rows at pseudorandom column weights.
 ///
-/// CI's `rec-builder-model` workflow replays the recorded builders and checks the table slot and clock-port bindings against their Lean sources.
+/// CI's `rec-builder-model` workflow replays the recorded builders, checks the table slot and clock-port bindings against their Lean sources, and checks the hash rows against their Lean model.
 #[cfg(feature = "circuits")]
 pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
     let proven = [
@@ -434,6 +434,8 @@ pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
     std::fs::create_dir_all(out).unwrap_or_else(|e| refuse(format_args!("{}: {e}", out.display())));
     let path = out.join("table-flushes.dump");
     std::fs::write(&path, leanvm::table_flushes()).unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
+    let path = out.join("hash-rows.dump");
+    std::fs::write(&path, leanvm::hash_rows()).unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
     // The same 2 to 1 tree over zero-knowledge leaves, whose first level verifies the zero-knowledge proofs.
     let zero_knowledge = Aggregation::new("aggregate-leanxmss-100-2to1-zk", Workload::leanxmss(100), 2, 2);
     let trees = (counted_trees().into_iter().chain(proven)).map(|tree| (tree, false));

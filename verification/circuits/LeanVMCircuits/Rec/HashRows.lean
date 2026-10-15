@@ -23,7 +23,9 @@ sum of its operands' forms (`wxor`, `Builder::xor`). The rows (`rowsOf`), each `
 Every other slot's row is empty, forcing its bit to zero. `hashA0` and `hashB0` are the base matrices, each row the form
 of its slot's row. `run_holds`: where every row holds under a valuation of the forms, the wires' values satisfy every
 step of the artifact. `rowsOf_slots`: the slots are distinct and below `2^14`, and an output bit has a row exactly when
-its wire is not the structural zero.
+its wire is not the structural zero. `rowsOf_map` (`Rec.HashRowsMap`): an additive map of the slots' values maps each
+row's forms, so the rows at column weights are `hashA0`'s and `hashB0`'s rows at the weights; `checkhashrows` compares
+them with Rust's `Circuit::row_values` at pseudorandom weights, which checks this transcription against `Hash::circuit`.
 -/
 
 namespace LeanVMCircuits.Rec.HashRows
