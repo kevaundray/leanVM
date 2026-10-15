@@ -1118,7 +1118,7 @@ def ringOuts (n : ℕ) : Array (List ℕ) := Array.mk ((List.range n).map fun j 
 def mutRing : RingCert := { drawAt := List.range 7, mapAt := 9, s := (List.range 64).map (1000 + ·) }
 
 /-- A run of calls from its first index, `free_e` before it. -/
-def runAt (l : List (ℕ × Call)) : Array Call :=
+def callRun (l : List (ℕ × Call)) : Array Call :=
   Array.mk (List.replicate (l.headD (0, .freeE)).1 Call.freeE ++ l.map (·.2))
 
 def mutDraws : Array Call := Array.mk (List.replicate 7 (Call.kToE 0 0 0))
@@ -1141,52 +1141,52 @@ example : ({ mutRing with s := List.range 63 } : RingCert).okIn (ringOuts 10) mu
   decide +kernel
 
 /-- `powers(γ_rs, 1)`: a `one`, then `mul(1, γ_rs)` (`γ_rs` the first draw, wire 100); scaling by `f_0` fails. -/
-example : callsOk (runAt [(7, .one), (8, .mul 107 100)]) #[] (mutRing.powCalls (ringOuts 9)) = true := by
+example : callsOk (callRun [(7, .one), (8, .mul 107 100)]) #[] (mutRing.powCalls (ringOuts 9)) = true := by
   decide +kernel
 
-example : callsOk (runAt [(7, .one), (8, .mul 107 101)]) #[] (mutRing.powCalls (ringOuts 9)) = false := by
+example : callsOk (callRun [(7, .one), (8, .mul 107 101)]) #[] (mutRing.powCalls (ringOuts 9)) = false := by
   decide +kernel
 
 /-- Stage 0's `frobenius2(f_0)` (`f_0` wire 101, its coordinates `e_to_k` outputs 201, 202): `mul_k_add(y + y^2, c2,
 f)` then `mul_k_add(y^2, c1, u)`; swapping the coordinates fails, and so does `f_1`. -/
 def mutFrobOuts : Array (List ℕ) := (ringOuts 16).set! 10 [110, 201, 202]
 
-example : callsOk (runAt [(10, .eToK 101), (11, .eConst 0 1 1), (12, .eConst 0 0 1), (13, .mulKAdd 111 202 101),
+example : callsOk (callRun [(10, .eToK 101), (11, .eConst 0 1 1), (12, .eConst 0 0 1), (13, .mulKAdd 111 202 101),
     (14, .mulKAdd 112 201 113)]) #[] (mutRing.frobCalls mutFrobOuts 0) = true := by decide +kernel
 
-example : callsOk (runAt [(10, .eToK 101), (11, .eConst 0 1 1), (12, .eConst 0 0 1), (13, .mulKAdd 111 201 101),
+example : callsOk (callRun [(10, .eToK 101), (11, .eConst 0 1 1), (12, .eConst 0 0 1), (13, .mulKAdd 111 201 101),
     (14, .mulKAdd 112 202 113)]) #[] (mutRing.frobCalls mutFrobOuts 0) = false := by decide +kernel
 
-example : callsOk (runAt [(10, .eToK 102), (11, .eConst 0 1 1), (12, .eConst 0 0 1), (13, .mulKAdd 111 202 102),
+example : callsOk (callRun [(10, .eToK 102), (11, .eConst 0 1 1), (12, .eConst 0 0 1), (13, .mulKAdd 111 202 102),
     (14, .mulKAdd 112 201 113)]) #[] (mutRing.frobCalls mutFrobOuts 0) = false := by decide +kernel
 
 /-- Stage 0's 32 squarings, each of the previous output; squaring one output twice fails. -/
-example : callsOk (runAt ((List.range 32).map fun t => (15 + t, .mul (114 + t) (114 + t)))) #[]
+example : callsOk (callRun ((List.range 32).map fun t => (15 + t, .mul (114 + t) (114 + t)))) #[]
     (mutRing.sqCalls (ringOuts 47) 0) = true := by decide +kernel
 
-example : callsOk (runAt ((List.range 32).map fun t => (15 + t, .mul (114 + t - if t = 9 then 1 else 0)
+example : callsOk (callRun ((List.range 32).map fun t => (15 + t, .mul (114 + t - if t = 9 then 1 else 0)
     (114 + t - if t = 9 then 1 else 0)))) #[] (mutRing.sqCalls (ringOuts 47) 0) = false := by decide +kernel
 
 /-- Stage 0's product `mul(1, f_0^(2^-32))` reads the last squaring (call 46); its 31st (slot 33) fails. -/
-example : callsOk (runAt [(47, .mul 109 146)]) #[] (mutRing.prodCalls (ringOuts 48) 0) = true := by decide +kernel
+example : callsOk (callRun [(47, .mul 109 146)]) #[] (mutRing.prodCalls (ringOuts 48) 0) = true := by decide +kernel
 
-example : callsOk (runAt [(47, .mul 109 145)]) #[] (mutRing.prodCalls (ringOuts 48) 0) = false := by
+example : callsOk (callRun [(47, .mul 109 145)]) #[] (mutRing.prodCalls (ringOuts 48) 0) = false := by
   decide +kernel
 
 /-- Stage 1's products (calls 101, 102): the prefix `[0, 32]`'s coefficients `1` and stage 0's product (wire 147)
 against `f_1^(2^-16)` (wire 200) and `f_1^(2^-48)` (wire 168); swapping the coefficients fails. -/
-example : callsOk (runAt [(101, .mul 109 200), (102, .mul 147 168)]) #[] (mutRing.prodCalls (ringOuts 103) 1) =
+example : callsOk (callRun [(101, .mul 109 200), (102, .mul 147 168)]) #[] (mutRing.prodCalls (ringOuts 103) 1) =
     true := by decide +kernel
 
-example : callsOk (runAt [(101, .mul 147 200), (102, .mul 109 168)]) #[] (mutRing.prodCalls (ringOuts 103) 1) =
+example : callsOk (callRun [(101, .mul 147 200), (102, .mul 109 168)]) #[] (mutRing.prodCalls (ringOuts 103) 1) =
     false := by decide +kernel
 
 /-- The family's slices `mul_add(1, s_i, 0)` (the scale's `one` wire 107, the target's `zero` wire 525); scaling by
 `γ_rs` (wire 100) fails. -/
-example : callsOk (runAt ((List.range 64).map fun i => (426 + i, .mulAdd 107 (1000 + i) 525))) #[]
+example : callsOk (callRun ((List.range 64).map fun i => (426 + i, .mulAdd 107 (1000 + i) 525))) #[]
     (mutRing.famCalls (ringOuts 490)) = true := by decide +kernel
 
-example : callsOk (runAt ((List.range 64).map fun i => (426 + i, .mulAdd 100 (1000 + i) 525))) #[]
+example : callsOk (callRun ((List.range 64).map fun i => (426 + i, .mulAdd 100 (1000 + i) 525))) #[]
     (mutRing.famCalls (ringOuts 490)) = false := by decide +kernel
 
 /-- The coefficient of term 1 is stage 5's first product (call 392, position `rev6 1 = 32` of the prefix list), and
@@ -1196,7 +1196,7 @@ example : mutRing.coefW (ringOuts 400) 1 = 492 ∧ mutRing.coefW (ringOuts 400) 
 /-- Term 1's Horner chain at `x^(2^63)` from the last slice down: the node `x^2`, or the slices from the first up,
 fail. -/
 def mutHorn (w : ℕ) (down : Bool) : Array Call :=
-  runAt ((List.range 63).map (fun t => (554 + t, .mulConstAdd (if t = 0 then 589 else 653 + t) w 0 0
+  callRun ((List.range 63).map (fun t => (554 + t, .mulConstAdd (if t = 0 then 589 else 653 + t) w 0 0
     (if down then 588 - t else 527 + t))) ++ [(617, .mul 492 716)])
 
 example : callsOk (mutHorn (LeanVMCircuits.Rec.chain.getD 1 0) true) #[] (mutRing.hornCalls (ringOuts 618) 1) =
@@ -1206,7 +1206,7 @@ example : callsOk (mutHorn (LeanVMCircuits.Rec.chain.getD 63 0) false) #[] (mutR
     false := by decide +kernel
 
 /-- The closing chain `mul_add(acc, acc, term_k)` from term 63 down: from term 0 up fails. -/
-example : callsOk (runAt ((List.range 63).map fun t => (4586 + t, .mulAdd (4685 + t) (4685 + t) (653 + 64 * t))))
+example : callsOk (callRun ((List.range 63).map fun t => (4586 + t, .mulAdd (4685 + t) (4685 + t) (653 + 64 * t))))
     #[] (mutRing.closeCalls (ringOuts 4649)) = false := by decide +kernel
 
 end LeanVMCircuits.Rec.Bind
