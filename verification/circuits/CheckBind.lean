@@ -1,13 +1,14 @@
 import LeanVMCircuits.Rec.Dump
 import LeanVMCircuits.Rec.Bind
 import LeanVMCircuits.Rec.SideCert
+import LeanVMCircuits.Rec.Flocked
 
 /-!
 `lake exe checkbind <dump>...`: replay each dump's builder calls through the model and check transcript binding
 (`LeanVMCircuits.Rec.Bind`): every test reading a challenge reads only wires some transcript binds. The verdict is
 `Bind.Cert.accepts` of the certificate the analysis records, which `Bind.checkbind_sound` proves sound. An accepted dump
 also fails unless every WHIR sumcheck is certified from its opening's first claim and every hint a certified input
-claim reads is the value of an `edge term` mark, a claim the node's reduction takes.
+claim reads is the value of an `edge term` mark, a claim the node's reduction takes. It also fails unless every named table sumcheck has both bus sides certified call by call (`Bind.sidesOk`) and its child's flock reduction certified on its transcript (`Bind.FlockCert.ok`: the zerocheck, lincheck, ring switch and Lagrange weights, linked).
 
 `--expect-unbound <dump>` checks a dump fails, the regression fixture of a circuit that did not bind.
 -/
@@ -110,6 +111,15 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   IO.println s!"  {sides} of {r.named.length} table sumchecks with both bus sides certified call by call"
   if sides != r.named.length then
     IO.eprintln s!"{path}: {sides} of {r.named.length} table sumchecks with their bus sides certified"
+    return none
+  -- Each table sumcheck's child has flock's reduction over its hash rows named on its transcript (`Bind.FlockCert`).
+  let flocks := Bind.flocksOf rp r.scs r.outs r.relax
+  let flocked := r.named.countP fun (tc, _, _) =>
+    flocks.any fun fc => (r.scs[fc.zero.sc]?.map (·.transcript)) == (r.scs[tc.sc]?.map (·.transcript))
+  IO.println s!"  {flocks.size} flock reductions certified (zerocheck, lincheck, ring switch, Lagrange weights), \
+    {flocked} of {r.named.length} table sumchecks with their child's"
+  if flocked != r.named.length then
+    IO.eprintln s!"{path}: {flocked} of {r.named.length} table sumchecks with their child's flock reduction certified"
     return none
   -- Each hint a certified input claim reads is a claim the node's reduction takes: an `edge term`'s value.
   let terms : Std.HashSet ℕ := (Dump.edgeLines (← IO.FS.readFile path)).foldl (fun acc ws => match ws with
