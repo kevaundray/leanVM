@@ -112,14 +112,17 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   if sides != r.named.length then
     IO.eprintln s!"{path}: {sides} of {r.named.length} table sumchecks with their bus sides certified"
     return none
-  -- Each table sumcheck's child has flock's reduction over its hash rows named on its transcript (`Bind.FlockCert`).
+  -- Each table sumcheck's child has flock's reduction over its hash rows named on its transcript (`Bind.FlockCert`), its
+  -- lincheck of `Bind.hashRounds` rounds (`Bind.FlockCert.roundsOk`).
   let flocks := Bind.flocksOf rp r.scs r.outs r.relax
   let flocked := r.named.countP fun (tc, _, _) =>
-    flocks.any fun fc => (r.scs[fc.zero.sc]?.map (·.transcript)) == (r.scs[tc.sc]?.map (·.transcript))
+    flocks.any fun fc => (r.scs[fc.zero.sc]?.map (·.transcript)) == (r.scs[tc.sc]?.map (·.transcript)) &&
+      fc.roundsOk r.scs
   IO.println s!"  {flocks.size} flock reductions certified (zerocheck, lincheck, ring switch, Lagrange weights), \
-    {flocked} of {r.named.length} table sumchecks with their child's"
+    {flocked} of {r.named.length} table sumchecks with their child's, its lincheck of {Bind.hashRounds} rounds"
   if flocked != r.named.length then
-    IO.eprintln s!"{path}: {flocked} of {r.named.length} table sumchecks with their child's flock reduction certified"
+    IO.eprintln s!"{path}: {flocked} of {r.named.length} table sumchecks with their child's flock reduction certified, \
+      its lincheck of {Bind.hashRounds} rounds"
     return none
   -- Each named table sumcheck's residual is its own (`sc`, `ξ`) over its point, each owned table's term within its
   -- rounds (`Bind.ResidCert.tausOk`), and its last side a `zero` call's output (`Edges.ChildCerts.Ok`).
