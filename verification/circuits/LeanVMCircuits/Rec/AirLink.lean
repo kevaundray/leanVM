@@ -2,6 +2,7 @@ module
 
 public import LeanVMCircuits.Rec.RecParts
 public import LeanVMCircuits.Rec.BusBalance
+public import LeanVMCircuits.Rec.StmtFirst
 
 @[expose] public section
 
@@ -16,7 +17,7 @@ The bus's balance is derived from its product check. `ProductClaim` at a draw `(
 
 `hair_of_air` derives `RecParts.hrec`'s premise `hair` from `ChecksGiveRows` and each child's assignment being its committed witness's, for the parts with each child's collision event grown by its AIR event `airBad`: the constraint batch's event `batchBad`, left abstract, and the bus's `busBad`. `ChecksGiveRows` is what remains: where the parent's circuit is satisfied, every check's inputs are true, no compression collides, the parent's verifier reads statement `st` and off `batchBad`, the child's committed witness meets `RowClaims` at `st` and its product claim at the outcome's draw. `RecParts.inOk` is abstract, so nothing more of that implication follows from the check certificates. `tree_sound_air` is `tree_sound_parts` with it, its bound adding each child's `batchBad` and `busBad` fractions.
 
-The Rust circuit orders the public rows statement first (`Builder::statement_first`), so that the statement's words sit on the public table's first rows (`FixedColumns::public_values`), and the model keeps building order; this does not matter, as `Claims` at the Rust order are `Claims` for the circuit with its public rows permuted, which has the same `Model.Sat` (`Sat.pub` reads the public rows as a set), and it requires only that each statement word be exposed once, at its index, which `expose`'s counter gives, so that the Rust public column's row `z` is `srcVal` of its row.
+The Rust circuit orders the public rows statement first (`Builder::statement_first`), so that the statement's words sit on the public table's first rows (`FixedColumns::public_values`), and the model keeps building order. The Rust verifier's public columns, keys and bus roots are the reordered circuit's, `Model.stmtFirst`, which has the same `Model.Sat` (`Sat.pub` reads the public rows as a set, `Model.sat_stmtFirst`), so `tree_sound_air` states each child's side at `stmtFirst` and gives the replayed circuit satisfied; it requires only that each statement word be exposed once, at its index, which `expose`'s counter gives, so that the Rust public column's row `z` is `srcVal` of its row.
 -/
 
 namespace LeanVMCircuits.Rec.AirLink
@@ -51,6 +52,10 @@ def rowsOf (s : State) : Table → Array (List ℕ)
   | .split => s.split
   | .cast => s.cast
   | .pub => s.pub.map fun p => [p.1]
+
+/-- Reordering the public rows keeps every table's number of rows. -/
+theorem size_rowsOf_stmtFirst (s : State) (T : Table) : (rowsOf (stmtFirst s) T).size = (rowsOf s T).size := by
+  cases T <;> first | rfl | simp only [rowsOf, Array.size_map, size_stmtFirst_pub]
 
 /-- `Table::first_slot`: a table's first slot among all tables' slots. -/
 def firstSlot : Table → ℕ
@@ -642,7 +647,7 @@ theorem hair_of_air [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert
   rw [hval v hv hne ω]
   exact this
 
-/-- `tree_sound_parts` with the AIR link: the outcomes at which some node's statement or input claims are false are at most the sum over the nodes of their reduction's `bad`, their checks' `testBad`, `pcsBad`, `crBad`, the constraint batch's `batchBad` and the bus's draw event `busBad` fractions (each child's bounded by `busBad_frac`). In place of `hair` it takes each child's assignment being its committed witness's (`hval`) and `ChecksGiveRows`. -/
+/-- `tree_sound_parts` with the AIR link: the outcomes at which some node's statement or input claims are false are at most the sum over the nodes of their reduction's `bad`, their checks' `testBad`, `pcsBad`, `crBad`, the constraint batch's `batchBad` and the bus's draw event `busBad` fractions (each child's bounded by `busBad_frac`). In place of `hair` it takes each child's assignment being its committed witness's (`hval`) and `ChecksGiveRows`. The child side is the child's circuit with its public rows in the Rust order (`stmtFirst`), which the verifier's committed witness, keys and bus roots are over; it has the same satisfaction (`sat_stmtFirst`). -/
 theorem tree_sound_air [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (hr : ∀ v ∈ T.nodes, replayR (cert v).calls #[] 0 {} #[] = some (t v, os v))
     (hacc : ∀ v ∈ T.nodes, (cert v).accepts (os v) = true) (hver : ∀ v ∈ T.nodes, (cert v).verifies (os v) = true)
@@ -653,8 +658,8 @@ theorem tree_sound_air [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeC
     (hP : P.Ok fun v ω => Sat (treeStmt T cert slot stRoot val (T.parent v) ω) (t (T.parent v))
       (val (T.parent v) ω))
     (batchBad : ι → Finset Ω) (draw : ι → Ω → Fin 5 → E) (wit : ι → Ω → Witness)
-    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (t v) (wit v ω))
-    (hlink : ChecksGiveRows T cert t os L slot stRoot val P batchBad draw wit)
+    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (stmtFirst (t v)) (wit v ω))
+    (hlink : ChecksGiveRows T cert (fun v => stmtFirst (t v)) os L slot stRoot val P batchBad draw wit)
     (tD : Dense E → Prop) (tM : Matrix E → Prop) (bad : ι → Finset Ω)
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
@@ -662,14 +667,16 @@ theorem tree_sound_air [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeC
     (Finset.card {ω | ∃ v ∈ T.nodes, ¬ (stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω ∧
         ins cert val tD tM v ω)} : ℚ≥0) / Fintype.card Ω ≤
       ∑ v ∈ T.nodes, ((bad v).card + ∑ j ∈ range (P.J v), (P.testBad v j).card + (P.pcsBad v).card +
-        (P.crBad v).card + (batchBad v).card + (busBad (t v) (wit v) (draw v)).card : ℚ≥0) /
+        (P.crBad v).card + (batchBad v).card + (busBad (stmtFirst (t v)) (wit v) (draw v)).card : ℚ≥0) /
         Fintype.card Ω := by
-  have hP' : (withAir P (airBad t wit draw batchBad)).Ok fun v ω =>
+  have hP' : (withAir P (airBad (fun v => stmtFirst (t v)) wit draw batchBad)).Ok fun v ω =>
       Sat (treeStmt T cert slot stRoot val (T.parent v) ω) (t (T.parent v)) (val (T.parent v) ω) :=
     ⟨fun v j ω hj hh hc => hP.test v j ω hj hh fun h => hc (Finset.mem_union_left _ h), hP.flow⟩
-  have hair := hair_of_air T cert t os L slot stRoot val P batchBad draw wit hval hlink
+  have hair0 := hair_of_air T cert (fun v => stmtFirst (t v)) os L slot stRoot val P batchBad draw wit hval hlink
+  have hair := fun v hv hne ω hps hin hcr hver =>
+    sat_stmtFirst.mp (hair0 v hv hne ω (sat_stmtFirst.mpr hps) hin hcr hver)
   have hparts := tree_sound_parts T cert t os hr hacc hver L hL slot hslot stRoot val hsroot
-    (withAir P (airBad t wit draw batchBad)) hP' hair tD tM bad hstep hroot
+    (withAir P (airBad (fun v => stmtFirst (t v)) wit draw batchBad)) hP' hair tD tM bad hstep hroot
   refine hparts.trans ?_
   refine sum_le_sum fun v _ => div_le_div_of_nonneg_right ?_ (by positivity)
   have key : ∀ (a b c : ℚ≥0) (d e f g : ℕ), d ≤ e + (f + g) →

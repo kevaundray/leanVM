@@ -105,8 +105,8 @@ theorem tree_sound_run (U : Finset ℕ) (T : TreeSound.Tree ι) (cert : ι → E
       (val (T.parent v) ω))
     (n : ι → ℕ) (own : ι → Fin 5 → Fin 3 → ℕ) (bown : (v : ι) → Fin (n v + 1) → Fin 3 → ℕ)
     (wit : ι → (ℕ → K) → Witness) (aOf : (v : ι) → (ℕ → K) → (Fin (n v) → E) → Fin 2 → E)
-    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (t v) (wit v (extU U ω)))
-    (hlink : ChecksGiveBatch T cert t os L slot stRoot val P n (fun v ω => batchOf (readR (bown v) (extU U ω)))
+    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (stmtFirst (t v)) (wit v (extU U ω)))
+    (hlink : ChecksGiveBatch T cert (fun v => stmtFirst (t v)) os L slot stRoot val P n (fun v ω => batchOf (readR (bown v) (extU U ω)))
       (fun v ω => aOf v (extU U ω)) (fun v ω => readR (own v) (extU U ω)) (fun v ω => wit v (extU U ω)))
     (tD : Dense E → Prop) (tM : Matrix E → Prop) (bad : ι → Finset (U → K))
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
@@ -127,10 +127,10 @@ theorem tree_sound_run (U : Finset ℕ) (T : TreeSound.Tree ι) (cert : ι → E
     (fun v => batchBad (fun ω => wit v (extU U ω)) (fun ω => aOf v (extU U ω))
       (fun ω => batchOf (readR (bown v) (extU U ω))))
     (fun v ω => readR (own v) (extU U ω)) (fun v ω => wit v (extU U ω)) hval
-    (checksGiveRows_of_batch T cert t os L slot stRoot val P n _ _ _ _ hlink) tD tM bad hstep hroot
+    (checksGiveRows_of_batch T cert (fun v => stmtFirst (t v)) os L slot stRoot val P n _ _ _ _ hlink) tD tM bad hstep hroot
     epsPCS epsCR _ _ hpcs hcr (fun v hv => ?_) (fun v hv => ?_)
   · obtain ⟨c, s, Tr, C, st, val', time, k, hR, hown, hinj, hk, hwit, hU⟩ := hbusRun v hv
-    exact busRun_frac hR hown hinj hk (t v) (wit v) hwit (hfit v) (N v) (hN v) U hU
+    exact busRun_frac hR hown hinj hk (stmtFirst (t v)) (wit v) hwit (hfit v) (N v) (hN v) U hU
   · obtain ⟨c, s, Tr, C, st, val', time, k, hR, hown, hinj, hk, hwa, hU⟩ := hbatchRun v hv
     exact batchRun_frac hR hown hinj hk (wit v) (aOf v) (hwa.comp Prod.fst) (hwa.comp Prod.snd) (htau v) U hU
 

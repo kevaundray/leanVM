@@ -509,8 +509,8 @@ theorem tree_sound_exec (U : Finset ℕ) (T : TreeSound.Tree ι) (cert : ι → 
     (batchBad : ι → Finset ((U → K) × ((Fin 14 → K) → Fin 4 → K)))
     (draw : ι → (U → K) × ((Fin 14 → K) → Fin 4 → K) → Fin 5 → E)
     (wit : ι → (U → K) × ((Fin 14 → K) → Fin 4 → K) → Witness)
-    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (t v) (wit v ω))
-    (hlink : ChecksGiveRows T cert t os L slot stRoot val P batchBad draw wit)
+    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (stmtFirst (t v)) (wit v ω))
+    (hlink : ChecksGiveRows T cert (fun v => stmtFirst (t v)) os L slot stRoot val P batchBad draw wit)
     (tD : Dense E → Prop) (tM : Matrix E → Prop) (bad : ι → Finset ((U → K) × ((Fin 14 → K) → Fin 4 → K)))
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
@@ -522,7 +522,7 @@ theorem tree_sound_exec (U : Finset ℕ) (T : TreeSound.Tree ι) (cert : ι → 
     (htest : ∀ v ∈ T.nodes, ∀ j < P.J v, ∀ H, (#{ρ : U → K | (ρ, H) ∈ P.testBad v j} : ℚ≥0) /
       Fintype.card (U → K) ≤ epsTest v j)
     (epsPCS epsBus epsBatch : ι → ℚ≥0) (hpcs : PcsBound P epsPCS)
-    (hbus : ∀ v ∈ T.nodes, ∀ H, (#{ρ : U → K | (ρ, H) ∈ busBad (t v) (wit v) (draw v)} : ℚ≥0) /
+    (hbus : ∀ v ∈ T.nodes, ∀ H, (#{ρ : U → K | (ρ, H) ∈ busBad (stmtFirst (t v)) (wit v) (draw v)} : ℚ≥0) /
       Fintype.card (U → K) ≤ epsBus v)
     (hbatch : ∀ v ∈ T.nodes, ∀ H, (#{ρ : U → K | (ρ, H) ∈ batchBad v} : ℚ≥0) / Fintype.card (U → K) ≤
       epsBatch v) :
@@ -548,7 +548,7 @@ theorem tree_sound_exec (U : Finset ℕ) (T : TreeSound.Tree ι) (cert : ι → 
       _ = ((crEvent chainOf restOf (σ v) (Q v)).card : ℚ≥0) / M + ((lateEvent (tg v) (σ v) (Q v)).card : ℚ≥0) / M :=
           add_div _ _ _
       _ ≤ _ := add_le_add h1 h2
-  have hbus' : ∀ v ∈ T.nodes, ((busBad (t v) (wit v) (draw v)).card : ℚ≥0) /
+  have hbus' : ∀ v ∈ T.nodes, ((busBad (stmtFirst (t v)) (wit v) (draw v)).card : ℚ≥0) /
       Fintype.card ((U → K) × ((Fin 14 → K) → Fin 4 → K)) ≤ epsBus v := fun v hv => by
     convert frac_prod_le _ _ (hbus v hv)
   have hbatch' : ∀ v ∈ T.nodes, ((batchBad v).card : ℚ≥0) /
@@ -590,8 +590,8 @@ theorem tree_sound_end {Node Digest Coins : Type} [Fintype Node] [DecidableEq No
     (batchBad : ι → Finset ((U → K) × ((Fin 14 → K) → Fin 4 → K)))
     (draw : ι → (U → K) × ((Fin 14 → K) → Fin 4 → K) → Fin 5 → E)
     (wit : ι → (U → K) × ((Fin 14 → K) → Fin 4 → K) → Witness)
-    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (t v) (wit v ω))
-    (hlink : ChecksGiveRows T cert t os L slot stRoot val P batchBad draw wit)
+    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (stmtFirst (t v)) (wit v ω))
+    (hlink : ChecksGiveRows T cert (fun v => stmtFirst (t v)) os L slot stRoot val P batchBad draw wit)
     (tD : Dense E → Prop) (tM : Matrix E → Prop) (bad : ι → Finset ((U → K) × ((Fin 14 → K) → Fin 4 → K)))
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
@@ -603,7 +603,7 @@ theorem tree_sound_end {Node Digest Coins : Type} [Fintype Node] [DecidableEq No
     (htest : ∀ v ∈ T.nodes, ∀ j < P.J v, ∀ H, (#{ρ : U → K | (ρ, H) ∈ P.testBad v j} : ℚ≥0) /
       Fintype.card (U → K) ≤ epsTest v j)
     (m : ∀ v, Pcs551 (Node := Node) (Digest := Digest) (Coins := Coins) P v) (epsBus epsBatch : ι → ℚ≥0)
-    (hbus : ∀ v ∈ T.nodes, ∀ H, (#{ρ : U → K | (ρ, H) ∈ busBad (t v) (wit v) (draw v)} : ℚ≥0) /
+    (hbus : ∀ v ∈ T.nodes, ∀ H, (#{ρ : U → K | (ρ, H) ∈ busBad (stmtFirst (t v)) (wit v) (draw v)} : ℚ≥0) /
       Fintype.card (U → K) ≤ epsBus v)
     (hbatch : ∀ v ∈ T.nodes, ∀ H, (#{ρ : U → K | (ρ, H) ∈ batchBad v} : ℚ≥0) / Fintype.card (U → K) ≤
       epsBatch v) (D : ι → ℕ)

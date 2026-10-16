@@ -582,8 +582,8 @@ theorem tree_sound_batch [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → Edg
       (val (T.parent v) ω))
     (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E) (aOf : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → E)
     (draw : ι → Ω → Fin 5 → E) (wit : ι → Ω → Witness)
-    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (t v) (wit v ω))
-    (hlink : ChecksGiveBatch T cert t os L slot stRoot val P n bdraw aOf draw wit)
+    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (stmtFirst (t v)) (wit v ω))
+    (hlink : ChecksGiveBatch T cert (fun v => stmtFirst (t v)) os L slot stRoot val P n bdraw aOf draw wit)
     (tD : Dense E → Prop) (tM : Matrix E → Prop) (bad : ι → Finset Ω)
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
@@ -594,14 +594,14 @@ theorem tree_sound_batch [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → Edg
     (htau : ∀ v ω T', tauOf (wit v ω) T' ≤ n v)
     (epsPCS epsCR epsBus : ι → ℚ≥0) (hpcs : PcsBound P epsPCS)
     (hcr : ∀ v ∈ T.nodes, ((P.crBad v).card : ℚ≥0) / Fintype.card Ω ≤ epsCR v)
-    (hbus : ∀ v ∈ T.nodes, ((busBad (t v) (wit v) (draw v)).card : ℚ≥0) / Fintype.card Ω ≤ epsBus v) :
+    (hbus : ∀ v ∈ T.nodes, ((busBad (stmtFirst (t v)) (wit v) (draw v)).card : ℚ≥0) / Fintype.card Ω ≤ epsBus v) :
     (Finset.card {ω | ∃ v ∈ T.nodes, ¬ (stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω ∧
         ins cert val tD tM v ω)} : ℚ≥0) / Fintype.card Ω ≤
       ∑ v ∈ T.nodes, (((bad v).card + ∑ j ∈ range (P.J v), (P.testBad v j).card : ℚ≥0) / Fintype.card Ω +
         epsPCS v + epsCR v + epsBus v + ((n v + allIds.length + 1 : ℕ) : ℚ≥0) / Fintype.card E) :=
   tree_sound_bound T cert t os hr hacc hver L hL slot hslot stRoot val hsroot P hP
     (fun v => batchBad (wit v) (aOf v) (bdraw v)) draw wit hval
-    (checksGiveRows_of_batch T cert t os L slot stRoot val P n bdraw aOf draw wit hlink) tD tM bad hstep hroot
+    (checksGiveRows_of_batch T cert (fun v => stmtFirst (t v)) os L slot stRoot val P n bdraw aOf draw wit hlink) tD tM bad hstep hroot
     epsPCS epsCR epsBus (fun v => ((n v + allIds.length + 1 : ℕ) : ℚ≥0) / Fintype.card E) hpcs hcr hbus
     (fun v _ => batchBad_frac (wit v) (aOf v) (bdraw v) (bput v) (hgp v) (hpg v) (hpp v) (hwit v) (haOf v)
       (htau v))
@@ -627,8 +627,8 @@ theorem tree_sound_ideal_batch [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty
     (n : ι → ℕ) (bdraw : (v : ι) → Ω₀ × (X → Fin 4 → V) → (Fin (n v) → E) × E)
     (aOf : (v : ι) → Ω₀ × (X → Fin 4 → V) → (Fin (n v) → E) → Fin 2 → E)
     (draw : ι → Ω₀ × (X → Fin 4 → V) → Fin 5 → E) (wit : ι → Ω₀ × (X → Fin 4 → V) → Witness)
-    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (t v) (wit v ω))
-    (hlink : ChecksGiveBatch T cert t os L slot stRoot val P n bdraw aOf draw wit)
+    (hval : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, val v ω = assign (stmtFirst (t v)) (wit v ω))
+    (hlink : ChecksGiveBatch T cert (fun v => stmtFirst (t v)) os L slot stRoot val P n bdraw aOf draw wit)
     (tD : Dense E → Prop) (tM : Matrix E → Prop) (bad : ι → Finset (Ω₀ × (X → Fin 4 → V)))
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
@@ -651,7 +651,7 @@ theorem tree_sound_ideal_batch [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty
         ((4 * N v : ℕ) : ℚ≥0) / Fintype.card E + ((n v + allIds.length + 1 : ℕ) : ℚ≥0) / Fintype.card E) :=
   tree_sound_ideal T cert t os hr hacc hver L hL slot hslot stRoot val hsroot P hP
     (fun v => batchBad (wit v) (aOf v) (bdraw v)) draw wit hval
-    (checksGiveRows_of_batch T cert t os L slot stRoot val P n bdraw aOf draw wit hlink) tD tM bad hstep hroot
+    (checksGiveRows_of_batch T cert (fun v => stmtFirst (t v)) os L slot stRoot val P n bdraw aOf draw wit hlink) tD tM bad hstep hroot
     ch re hinj σ Q hcrEq put hgp hpg hpp hwit hfit N hN epsPCS
     (fun v => ((n v + allIds.length + 1 : ℕ) : ℚ≥0) / Fintype.card E) hpcs
     (fun v _ => batchBad_frac (wit v) (aOf v) (bdraw v) (bput v) (bgp v) (bpg v) (bpp v) (bwit v) (baOf v)

@@ -261,8 +261,7 @@ theorem slotOf_firstSlot : ∀ T : Table, ∀ i < T.nSlots, slotOf (firstSlot T 
   intro T
   cases T <;> decide +kernel
 
-/-- The public columns a side reads at their honest values: each slot's `Next` column its class-next key
-(`pushKey`), each value column the witness's. -/
+/-- The public columns a side reads at their honest values: each slot's `Next` column its class-next key (`pushKey`), each value column the witness's. Taken at the circuit with its public rows in the Rust order (`stmtFirst`), these are the columns the Rust verifier evaluates. -/
 noncomputable def honestPub (s : State) (w : Witness) : Bool → ℕ → ℕ → E := fun nx j z =>
   if nx then emb (ofWord (pushKey s w ((slotOf j).1, z, (slotOf j).2))) else emb (w.cols .pub z j)
 
@@ -295,10 +294,10 @@ noncomputable def certParts [Fintype Ω] (T : TreeSound.Tree ι) (t : ι → Sta
     RecParts ι Ω :=
   tableParts (fun v => (cc v).G) (fun v k ω => (cc v).vals (bc (T.parent v)) (certVal valR ρ (T.parent v) ω) k)
     (fun v k ω => (cc v).tvals (bc (T.parent v)) (ρ (T.parent v) ω) (certVal valR ρ (T.parent v) ω)
-      (honestPub (t v) (W v ω)) (honestPub (t v) (W v ω)) (W v ω) k)
-    (fun v ω => (cc v).tin (certVal valR ρ (T.parent v) ω) (W v ω)) (fun v ω => Flocked (t v) (W v ω)) opened
+      (honestPub (stmtFirst (t v)) (W v ω)) (honestPub (stmtFirst (t v)) (W v ω)) (W v ω) k)
+    (fun v ω => (cc v).tin (certVal valR ρ (T.parent v) ω) (W v ω)) (fun v ω => Flocked (stmtFirst (t v)) (W v ω)) opened
     (fun v => (cc v).layerBad (bc (T.parent v)) (t (T.parent v)) (valR (T.parent v)) (ρ (T.parent v))
-      (fun ω => honestPub (t v) (W v ω)) (fun ω => honestPub (t v) (W v ω)) (W v))
+      (fun ω => honestPub (stmtFirst (t v)) (W v ω)) (fun ω => honestPub (stmtFirst (t v)) (W v ω)) (W v))
     (fun v => (cc v).balBad (fun ω => certVal valR ρ (T.parent v) ω) (W v))
     (fun v => (cc v).tabBad (bc (T.parent v)) (t (T.parent v)) (valR (T.parent v)) (ρ (T.parent v)) (W v) (T' v))
     (fun v => (cc v).flBad (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs (valR (T.parent v))
@@ -312,7 +311,7 @@ residual heights are `hτ`'s, its hash rows within the layout's height. What sta
 (`hlay`, which `layoutFits_converge` gives); the parent reading each child at its layout (`hτ`: each owned table's
 residual term at `τ_T`; `hτp`: the framework block at `τ_pub`), the building fact `checksGiveRows_of_converge` states
 of the tree; the draw's transcript's squeezes answering the oracle (`hans`, a run's `Run.ans`), whence the draw's `β` and fingerprint weights are the named ones (`DrawCert.sem`); the
-honest public columns' values (`hpub`, `SideCert.PubTrue`); and the openings off `pcsBad`. The bus draw is the oracle's challenges at the draw certificate's words (`certDraw`). -/
+honest public columns' values (`hpub`, `SideCert.PubTrue`); and the openings off `pcsBad`. The bus draw is the oracle's challenges at the draw certificate's words (`certDraw`). The child's side is its circuit with its public rows in the Rust order (`stmtFirst (t v)`), the order of the public columns, keys and bus roots the verifier evaluates; as first stated at `t v`, in the model's building order, `hpub` could not hold on an honest run. The certificates are checked on the parents' replayed circuits `t`. -/
 theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (bc : ι → Cert)
     (valR : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K) (cc : ι → ChildCerts)
@@ -328,16 +327,16 @@ theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
     (hpub : ∀ v ω, RunHeld (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs (st v ω) (valR (T.parent v))
         (ρ (T.parent v) ω) →
       (cc v).s0.PubTrue (certVal valR ρ (T.parent v) ω)
-          (honestPub (t v) (witAt T cert t slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) v ω)) ∧
+          (honestPub (stmtFirst (t v)) (witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) v ω)) ∧
         (cc v).s1.PubTrue (certVal valR ρ (T.parent v) ω)
-          (honestPub (t v) (witAt T cert t slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) v ω)))
+          (honestPub (stmtFirst (t v)) (witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) v ω)))
     (hopT : ∀ v ω, opened v ω → (cc v).tabOpened (certVal valR ρ (T.parent v) ω)
-      (witAt T cert t slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) v ω) (T' v ω))
+      (witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) v ω) (T' v ω))
     (hopF : ∀ v ω, opened v ω → (cc v).flOpened (bc (T.parent v)).outs (certVal valR ρ (T.parent v) ω) (hr v ω))
     (hhintL : ∀ v ω, opened v ω → ∀ x ∈ (cc v).lsc.hints, Model.ev (certVal valR ρ (T.parent v) ω) x = T' v ω x)
     (hopen : ∀ v ω, ω ∉ pcsBad v → opened v ω) :
-    ChecksGiveTable T cert t os L slot stRoot (certVal valR ρ)
-        (certParts T t bc valR ρ cc (witAt T cert t slot stRoot (certVal valR ρ) taus (certCols cc colsC hr)) hr T'
+    ChecksGiveTable T cert (fun v => stmtFirst (t v)) os L slot stRoot (certVal valR ρ)
+        (certParts T t bc valR ρ cc (witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus (certCols cc colsC hr)) hr T'
           opened pcsBad crBad)
         (fun v => (cc v).tsc.rounds.length)
         (fun v ω => ((cc v).zetaV (certVal valR ρ (T.parent v) ω),
@@ -346,19 +345,20 @@ theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
         (fun v ω _ i => Model.ev (certVal valR ρ (T.parent v) ω) (if i = 0 then (cc v).tc.tot0 else (cc v).tc.tot1))
         (fun v ω _ => Model.ev (certVal valR ρ (T.parent v) ω) (cc v).tc.root) (certDraw T bc cc ρ) taus
         (certCols cc colsC hr) ∧
-      (certParts T t bc valR ρ cc (witAt T cert t slot stRoot (certVal valR ρ) taus (certCols cc colsC hr)) hr T'
+      (certParts T t bc valR ρ cc (witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus (certCols cc colsC hr)) hr T'
           opened pcsBad crBad).Ok
         (fun v ω => RunHeld (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs (st v ω) (valR (T.parent v))
           (ρ (T.parent v) ω)) := by
-  set W := witAt T cert t slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) with hW
+  set W := witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus (certCols cc colsC hr) with hW
   have hwit : ∀ v ω, (cc v).wit (W v ω) (hr v ω) = W v ω := fun v ω => by
     simp only [hW, witAt, certCols, ChildCerts.wit]
     exact ported_committedAt _ _ _ _ _ _
   have hh : ∀ v ω T', (W v ω).height T' = 2 ^ taus v T' := fun _ _ _ => rfl
   have htau : ∀ v ω, ∀ T' ∈ owned, ((cc v).rc.termOf T').tau = tauOf (W v ω) T' := fun v ω T' hT' => by
     rw [hτ v T' hT', hW, witAt, tauOf_committedAt]
-  refine ⟨checksGiveTable_of_parts T cert t os L slot stRoot (certVal valR ρ) (fun v => (cc v).G) _ _ _ _ opened _ _ _
-    _ pcsBad crBad _ _ _ (certDraw T bc cc ρ) taus (certCols cc colsC hr) bc (fun v => (cc v).tc)
+  refine ⟨checksGiveTable_of_parts T cert (fun v => stmtFirst (t v)) os L slot stRoot (certVal valR ρ) (fun v => (cc v).G)
+    _ _ _ _ opened _ _ _ _ pcsBad crBad _ _ _ (certDraw T bc cc ρ) taus (certCols cc colsC hr) bc (fun v => (cc v).tc) t
+    (fun _ _ _ h => sat_stmtFirst.mp h)
     (fun v _ _ => ⟨hacc v, (hcc v).1⟩) (fun _ _ => rfl) (fun v ω sc hsc hin => ?_) (fun v ω hf hv => ?_)
     (fun v ω hfl => hfl), ?_⟩
   · have h8 := (hcc v).2.2.2.2.2.2.2.1
@@ -366,15 +366,16 @@ theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
     cases Option.some.inj hsc
     exact hin
   · have hd := DrawCert.sem hf (ChildCerts.drawOk (hcc v)) (hans v ω)
-    refine ChildCerts.roots (hcc v) (ρ (T.parent v) ω) _ _ _ (W v ω) (t v) (taus v) (hh v ω) (fun T' => (hlay v T').2)
+    refine ChildCerts.roots (hcc v) (ρ (T.parent v) ω) _ _ _ (W v ω) (stmtFirst (t v)) (taus v) (hh v ω)
+      (fun T' => (hlay v T').2)
       (hτ v) (hτp v) (certDraw T bc cc ρ v ω) hd.1 hd.2 (fun j _ z => ?_) (fun j _ z => ?_) (fun T' i z hi => ?_)
       hv
     · simp [honestPub]
     · simp [honestPub]
     · simp [honestPub, slotOf_firstSlot T' i hi]
   · have := tableParts_certs (fun v => bc (T.parent v)) (fun v => t (T.parent v)) hacc st (fun v => valR (T.parent v))
-      (fun v => ρ (T.parent v)) cc hcc t W hr T' (fun v ω => honestPub (t v) (W v ω))
-      (fun v ω => honestPub (t v) (W v ω)) pcsBad crBad opened hpub htau
+      (fun v => ρ (T.parent v)) cc hcc (fun v => stmtFirst (t v)) W hr T' (fun v ω => honestPub (stmtFirst (t v)) (W v ω))
+      (fun v ω => honestPub (stmtFirst (t v)) (W v ω)) pcsBad crBad opened hpub htau
       (fun v ω => (hlay v .hash).1) (fun v ω ho => by rw [hwit]; exact hopT v ω ho) hopF hhintL hopen
     simp only [hwit] at this
     exact this

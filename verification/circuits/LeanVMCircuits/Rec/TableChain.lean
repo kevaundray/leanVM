@@ -330,7 +330,7 @@ theorem tableParts_ok (g : ι → ℕ) (vals tvals : ι → ℕ → Ω → Fin 2
 /-- `ChecksGiveTable` from the checks from the GKR's root to the opening: child `v`'s parent accepts its certificate
 and names the table sumcheck `tc v`; the GKR's root check's inputs (the root values true) are the named root being both
 trees' honest roots, the table sumcheck's input is its input claim being its honest instance's sum on the committed
-witness, flock's input is `Flocked`; the root's premise may use the parent's calls holding (`Bind.Facts`). -/
+witness, flock's input is `Flocked`; the root's premise may use the parent's calls holding (`Bind.Facts`). The certificates are checked on the parent's states `tb`, whose satisfaction `t`'s gives (`hsat`). -/
 theorem checksGiveTable_of_parts [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (g : ι → ℕ) (vals tvals : ι → ℕ → Ω → Fin 2 → E) (tin fl opened : ι → Ω → Prop)
@@ -338,7 +338,8 @@ theorem checksGiveTable_of_parts [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι
     (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E)
     (qforms : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → Table → AirLink.Quad) (draw : ι → Ω → Fin 5 → E)
     (taus : ι → Table → ℕ) (cols : ι → Ω → Table → ℕ → ℕ → K) (bc : ι → Bind.Cert) (tc : ι → Bind.TableCert)
-    (hnamed : ∀ v ∈ T.nodes, v ≠ T.root → (bc (T.parent v)).accepts (t (T.parent v)) = true ∧
+    (tb : ι → State) (hsat : ∀ v st val', Sat st (t v) val' → Sat st (tb v) val')
+    (hnamed : ∀ v ∈ T.nodes, v ≠ T.root → (bc (T.parent v)).accepts (tb (T.parent v)) = true ∧
       (tc v).ok (bc (T.parent v)) (bc (T.parent v)).outs = true)
     (hxi : ∀ v ω, (bdraw v ω).2 = Model.ev (val (T.parent v) ω) (tc v).xi)
     (hT : ∀ v ω sc, (bc (T.parent v)).sumchecks[(tc v).sc]? = some sc → tin v ω →
@@ -357,7 +358,7 @@ theorem checksGiveTable_of_parts [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι
       (fun v ω _ i => Model.ev (val (T.parent v) ω) (if i = 0 then (tc v).tot0 else (tc v).tot1))
       (fun v ω _ => Model.ev (val (T.parent v) ω) (tc v).root) draw taus cols :=
   AirLink.checksGiveTable_of_named T cert t os L slot stRoot val _ n bdraw qforms draw taus cols bc tc
-    (fun v => g v + 1) (fun _ => 0) (fun v => g v + 2)
+    (fun v => g v + 1) (fun _ => 0) (fun v => g v + 2) tb hsat
     (fun v hv hne => ⟨(hnamed v hv hne).1, (hnamed v hv hne).2, by simp [tableParts], by simp [tableParts],
       by simp [tableParts]⟩)
     hxi

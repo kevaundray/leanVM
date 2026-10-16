@@ -1,4 +1,5 @@
 import LeanVMCircuits.Rec.Dump
+import LeanVMCircuits.Rec.StmtFirst
 
 /-!
 `lake exe checkrec <dump>...`: replay each dump's builder calls (`cargo leanvm circuits`) through the Lean model of
@@ -16,15 +17,9 @@ partial def find (parent : Array ℕ) (x : ℕ) : ℕ :=
 
 /-- `Builder::finish`'s circuit as `Circuit::dump` prints it, and every slot's wire class, per table. -/
 def finish (s : State) : String × List (List ℕ) := Id.run do
-  -- `statement_first`: the statement's public rows first, in statement order, then the constants'.
-  let rows := s.pub.toList
-  let stmt := (rows.filterMap fun r => match r.2 with
-    | .statement j => some (j, r)
-    | .const _ => none).mergeSort (fun a b => a.1 ≤ b.1)
-  let consts := rows.filter fun r => match r.2 with
-    | .const _ => true
-    | .statement _ => false
-  let ordered := stmt.map (·.2) ++ consts
+  -- `statement_first`: the statement's public rows first, in statement order, then the constants' (`pubFirst`, the
+  -- order `stmtFirst` gives the child's circuit in the AIR link).
+  let ordered := pubFirst s.pub.toList
   let pubRows := ordered.map (·.1)
   let pubs := ordered.map (·.2)
   -- Wire classes, numbered by their first slot.

@@ -20,14 +20,14 @@ variable {ι Ω : Type}
 /-- `ChecksGiveTable` from the named checks' inputs: child `v`'s parent accepts its certificate `bc` and names the
 table sumcheck `tc v`; check `jT v`'s input is that sumcheck's input claim being its honest instance's sum on the
 committed witness at the named `ξ`, check `jG v`'s the named root being both trees' honest roots, and check `jF v`'s
-the hash rows' packed witnesses. The totals and roots are the named wires' values. The root's premise may use the parent's calls holding (`Bind.Facts`, which its satisfied circuit gives). -/
+the hash rows' packed witnesses. The totals and roots are the named wires' values. The root's premise may use the parent's calls holding (`Bind.Facts`, which its satisfied circuit gives). The certificates are checked on the parent's states `tb`, whose satisfaction `t`'s gives (`hsat`: `t` the circuits with their public rows reordered, `stmtFirst`). -/
 theorem checksGiveTable_of_named [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (P : RecParts ι Ω) (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E)
     (qforms : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → Table → Quad) (draw : ι → Ω → Fin 5 → E)
     (taus : ι → Table → ℕ) (cols : ι → Ω → Table → ℕ → ℕ → K) (bc : ι → Bind.Cert) (tc : ι → Bind.TableCert)
-    (jT jG jF : ι → ℕ)
-    (hnamed : ∀ v ∈ T.nodes, v ≠ T.root → (bc (T.parent v)).accepts (t (T.parent v)) = true ∧
+    (jT jG jF : ι → ℕ) (tb : ι → State) (hsat : ∀ v st val', Sat st (t v) val' → Sat st (tb v) val')
+    (hnamed : ∀ v ∈ T.nodes, v ≠ T.root → (bc (T.parent v)).accepts (tb (T.parent v)) = true ∧
       (tc v).ok (bc (T.parent v)) (bc (T.parent v)).outs = true ∧ jT v < P.J v ∧ jG v < P.J v ∧ jF v < P.J v)
     (hxi : ∀ v ω, (bdraw v ω).2 = Model.ev (val (T.parent v) ω) (tc v).xi)
     (hT : ∀ v ω sc, (bc (T.parent v)).sumchecks[(tc v).sc]? = some sc → P.inOk v (jT v) ω →
@@ -44,7 +44,8 @@ theorem checksGiveTable_of_named [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι
       (fun v ω _ => Model.ev (val (T.parent v) ω) (tc v).root) draw taus cols := by
   intro v hv hne ω hps hin _ _
   obtain ⟨hacc, hok, hjT, hjG, hjF⟩ := hnamed v hv hne
-  have hFacts := (Bind.facts_of_holds (Bind.Cert.accepts_parts hacc).2.2.1 (Bind.Sat.holds hps (bc (T.parent v)).test)).1
+  have hFacts := (Bind.facts_of_holds (Bind.Cert.accepts_parts hacc).2.2.1
+    (Bind.Sat.holds (hsat _ _ _ hps) (bc (T.parent v)).test)).1
   obtain ⟨sc, hsc, -⟩ := Bind.TableCert.sem hFacts hok
   obtain ⟨h0, h1⟩ := hG v ω hFacts (hin _ hjG)
   refine ⟨hF v ω (hin _ hjF), ?_, h0, h1, rfl⟩
