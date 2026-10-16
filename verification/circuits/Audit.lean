@@ -1506,6 +1506,11 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Edges.ported_committedAt
 #print axioms LeanVMCircuits.Rec.Edges.slotOf_firstSlot
 #print axioms LeanVMCircuits.Rec.Edges.checksGiveTable_certs
+#print axioms LeanVMCircuits.Rec.Bind.DrawCert.round_sem
+#print axioms LeanVMCircuits.Rec.Bind.DrawCert.tbl_sem
+#print axioms LeanVMCircuits.Rec.Bind.DrawCert.owns
+#print axioms LeanVMCircuits.Rec.Bind.DrawCert.sem
+#print axioms LeanVMCircuits.Rec.Edges.ChildCerts.drawOk
 #print axioms LeanVMCircuits.Rec.HashRows.val_emit
 #print axioms LeanVMCircuits.Rec.HashRows.run_holds
 #print axioms LeanVMCircuits.Rec.HashRows.foldl_slots

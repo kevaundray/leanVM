@@ -330,7 +330,7 @@ theorem tableParts_ok (g : ι → ℕ) (vals tvals : ι → ℕ → Ω → Fin 2
 /-- `ChecksGiveTable` from the checks from the GKR's root to the opening: child `v`'s parent accepts its certificate
 and names the table sumcheck `tc v`; the GKR's root check's inputs (the root values true) are the named root being both
 trees' honest roots, the table sumcheck's input is its input claim being its honest instance's sum on the committed
-witness, flock's input is `Flocked`. -/
+witness, flock's input is `Flocked`; the root's premise may use the parent's calls holding (`Bind.Facts`). -/
 theorem checksGiveTable_of_parts [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (g : ι → ℕ) (vals tvals : ι → ℕ → Ω → Fin 2 → E) (tin fl opened : ι → Ω → Prop)
@@ -345,7 +345,8 @@ theorem checksGiveTable_of_parts [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι
       Model.ev (val (T.parent v) ω) sc.claim0 =
         (AirLink.tableInst (n v) (AirLink.witAt T cert t slot stRoot val taus cols v ω) (bdraw v ω).1
           (qforms v ω (bdraw v ω).1) (bdraw v ω).2).sum)
-    (hG : ∀ v ω, vals v 0 ω = tvals v 0 ω →
+    (hG : ∀ v ω, Bind.Facts (bc (T.parent v)).calls (bc (T.parent v)).relax (bc (T.parent v)).outs
+        (treeStmt T cert slot stRoot val (T.parent v) ω) (val (T.parent v) ω) → vals v 0 ω = tvals v 0 ω →
       Model.ev (val (T.parent v) ω) (tc v).root =
         AirLink.pullRoot (t v) (AirLink.witAt T cert t slot stRoot val taus cols v ω) (draw v ω) ∧
       Model.ev (val (T.parent v) ω) (tc v).root =
@@ -361,7 +362,7 @@ theorem checksGiveTable_of_parts [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι
       by simp [tableParts]⟩)
     hxi
     (fun v ω sc hsc h => hT v ω sc hsc (by simpa [tableParts] using h))
-    (fun v ω h => hG v ω (by simpa [tableParts] using h))
+    (fun v ω hf h => hG v ω hf (by simpa [tableParts] using h))
     (fun v ω h => hF v ω (by simpa [tableParts] using h))
 
 end LeanVMCircuits.Rec.Edges

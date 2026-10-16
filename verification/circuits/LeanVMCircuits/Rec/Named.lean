@@ -20,7 +20,7 @@ variable {ι Ω : Type}
 /-- `ChecksGiveTable` from the named checks' inputs: child `v`'s parent accepts its certificate `bc` and names the
 table sumcheck `tc v`; check `jT v`'s input is that sumcheck's input claim being its honest instance's sum on the
 committed witness at the named `ξ`, check `jG v`'s the named root being both trees' honest roots, and check `jF v`'s
-the hash rows' packed witnesses. The totals and roots are the named wires' values. -/
+the hash rows' packed witnesses. The totals and roots are the named wires' values. The root's premise may use the parent's calls holding (`Bind.Facts`, which its satisfied circuit gives). -/
 theorem checksGiveTable_of_named [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (P : RecParts ι Ω) (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E)
@@ -34,7 +34,8 @@ theorem checksGiveTable_of_named [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι
       Model.ev (val (T.parent v) ω) sc.claim0 =
         (tableInst (n v) (witAt T cert t slot stRoot val taus cols v ω) (bdraw v ω).1 (qforms v ω (bdraw v ω).1)
           (bdraw v ω).2).sum)
-    (hG : ∀ v ω, P.inOk v (jG v) ω →
+    (hG : ∀ v ω, Bind.Facts (bc (T.parent v)).calls (bc (T.parent v)).relax (bc (T.parent v)).outs
+        (treeStmt T cert slot stRoot val (T.parent v) ω) (val (T.parent v) ω) → P.inOk v (jG v) ω →
       Model.ev (val (T.parent v) ω) (tc v).root = pullRoot (t v) (witAt T cert t slot stRoot val taus cols v ω) (draw v ω) ∧
       Model.ev (val (T.parent v) ω) (tc v).root = pushRoot (t v) (witAt T cert t slot stRoot val taus cols v ω) (draw v ω))
     (hF : ∀ v ω, P.inOk v (jF v) ω → Flocked (t v) (witAt T cert t slot stRoot val taus cols v ω)) :
@@ -45,7 +46,7 @@ theorem checksGiveTable_of_named [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι
   obtain ⟨hacc, hok, hjT, hjG, hjF⟩ := hnamed v hv hne
   have hFacts := (Bind.facts_of_holds (Bind.Cert.accepts_parts hacc).2.2.1 (Bind.Sat.holds hps (bc (T.parent v)).test)).1
   obtain ⟨sc, hsc, -⟩ := Bind.TableCert.sem hFacts hok
-  obtain ⟨h0, h1⟩ := hG v ω (hin _ hjG)
+  obtain ⟨h0, h1⟩ := hG v ω hFacts (hin _ hjG)
   refine ⟨hF v ω (hin _ hjF), ?_, h0, h1, rfl⟩
   have h := (Bind.TableCert.claim_iff hFacts hok hsc _).mp (hT v ω sc hsc (hin _ hjT))
   rw [← hxi] at h

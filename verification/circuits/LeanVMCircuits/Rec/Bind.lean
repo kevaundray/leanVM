@@ -418,6 +418,8 @@ structure Report where
   scs : Array SumcheckCert := #[]
   topCerts : Array TopCert := #[]
   oddCerts : Array OddCert := #[]
+  /-- The certificate's transcripts. -/
+  ts : List Transcript := []
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
@@ -437,7 +439,6 @@ structure Report where
   chalsOk : Bool := true
   /-- The calls of the `eq_e` tests that close nothing certified and no union. -/
   others : Array ℕ := #[]
-  deriving Repr
 
 /-- The hinted wires behind an unbound node: back through the function rules concluding it, the unbound limbs of
 wires that `isHint` marks (made by `free_*`), else the first unbound limbs visited. -/
@@ -1325,7 +1326,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     gkrs := gkrs.length, gkrLayers, gkrsOk,
     resids := resids.length, residsOk,
     named := gkrs.filterMap (fun (tc, g) => (resids.find? (·.sc == tc.sc)).map (tc, g, ·)), outs := os,
-    relax := cert.relax, scs := sumchecks, topCerts := tops, oddCerts := odds,
+    relax := cert.relax, scs := sumchecks, topCerts := tops, oddCerts := odds, ts := cert.transcripts,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
     residuals := (sumchecks.filter (!·.resid.isEmpty)).size,
     hints := sumchecks.toList.flatMap (·.hints),

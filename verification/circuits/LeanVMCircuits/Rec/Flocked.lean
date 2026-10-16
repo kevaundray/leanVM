@@ -1,5 +1,6 @@
 module
 
+public import LeanVMCircuits.Rec.BusDraw
 public import LeanVMCircuits.Rec.FlockZero
 public import LeanVMCircuits.Rec.FlockLin
 public import LeanVMCircuits.Rec.RingSwitch
@@ -806,7 +807,7 @@ theorem RunHeld.sc {c : Cert} {s : State} {os : Array (List ℕ)} {st : ℕ → 
       ∀ j : Fin sc.rounds.length, Model.ev (val ρ) (sc.rounds.getD j default).chal = readR (chalWords c.outs sc.chals) ρ j :=
   h.2.1 sc (Array.mem_of_getElem? hi)
 
-/-- A child's named checks between its bus GKR's leaves and the opening, on its parent's certificates: the table sumcheck `tc` (its sumcheck `tsc`), its bus GKR `g`, residual `rc` and sides `s0`, `s1`, and flock's reduction `fc` (its zerocheck `zsc` and lincheck `lsc`). -/
+/-- A child's named checks between its bus GKR's leaves and the opening, on its parent's certificates: the table sumcheck `tc` (its sumcheck `tsc`), its bus GKR `g`, residual `rc` and sides `s0`, `s1`, flock's reduction `fc` (its zerocheck `zsc` and lincheck `lsc`), and the bus's draw `dr`. -/
 structure ChildCerts where
   tc : TableCert
   g : GkrCert
@@ -818,8 +819,9 @@ structure ChildCerts where
   zsc : SumcheckCert
   lsc : SumcheckCert
   finalZero : ℕ
+  dr : DrawCert
 
-/-- The certificates pass `checkbind`'s checks and are linked: `TableCert.okIn`, `GkrCert.okIn`, `ResidCert.okIn` on the table sumcheck with its `ξ`, `sidesOk`, `FlockCert.ok`, the named sumchecks are the certificate's, the table sumcheck's last side is a `zero` call's output (`sumcheckOf` tests a residual against `zero`), the bus GKR's layers draw their challenges as top layers' (`GkrCert.layersOk`), each owned table's residual term reads at most the table sumcheck's rounds (`ResidCert.tausOk`), the lincheck runs `hashRounds` rounds (`FlockCert.roundsOk`) and the zerocheck runs over the hash term's height (`FlockCert.heightOk`). -/
+/-- The certificates pass `checkbind`'s checks and are linked: `TableCert.okIn`, `GkrCert.okIn`, `ResidCert.okIn` on the table sumcheck with its `ξ`, `sidesOk`, `FlockCert.ok`, the named sumchecks are the certificate's, the table sumcheck's last side is a `zero` call's output (`sumcheckOf` tests a residual against `zero`), the bus GKR's layers draw their challenges as top layers' (`GkrCert.layersOk`), each owned table's residual term reads at most the table sumcheck's rounds (`ResidCert.tausOk`), the lincheck runs `hashRounds` rounds (`FlockCert.roundsOk`), the zerocheck runs over the hash term's height (`FlockCert.heightOk`), and the sides' fingerprint weights and `β` are the bus draw's (`DrawCert.ok`). -/
 def ChildCerts.Ok (cc : ChildCerts) (c : Cert) (s : State) (os : Array (List ℕ)) : Prop :=
   cc.tc.okIn c.sumchecks c.tops c.odds c.calls c.relax os = true ∧
     cc.g.okIn cc.tc c.sumchecks c.tops c.odds c.calls c.relax os = true ∧
@@ -829,7 +831,8 @@ def ChildCerts.Ok (cc : ChildCerts) (c : Cert) (s : State) (os : Array (List ℕ
     c.sumchecks[cc.fc.zero.sc]? = some cc.zsc ∧ c.sumchecks[cc.fc.lin.sc]? = some cc.lsc ∧
     cc.tsc.rounds.length ≤ cc.rc.zeta.length ∧ callsOk c.calls c.relax [(cc.finalZero, .zero)] = true ∧
     o os cc.finalZero = cc.tsc.final ∧ cc.g.layersOk c s os = true ∧ cc.rc.tausOk cc.tsc.rounds.length = true ∧
-    cc.fc.roundsOk c.sumchecks = true ∧ cc.fc.heightOk c.sumchecks cc.rc = true
+    cc.fc.roundsOk c.sumchecks = true ∧ cc.fc.heightOk c.sumchecks cc.rc = true ∧
+    cc.dr.ok os s c.calls c.relax c.transcripts cc.s0 = true
 
 /-- The table sumcheck's point `ζ`, its named `rc.zeta` wires' values. -/
 noncomputable def ChildCerts.zetaV (cc : ChildCerts) (val : Val) : Fin cc.tsc.rounds.length → E :=
@@ -1233,7 +1236,7 @@ theorem tableParts_certs [Fintype Ω] (c : ι → Cert) (s : ι → State) (hacc
       (fun v ω => RunHeld (c v) (s v) (c v).outs (st v ω) (val v) (ρ v ω)) := by
   refine tableParts_named c s hacc st val ρ cc hcc t (fun v ω => (cc v).wit (w v ω) (hr v ω)) hr T' pubF0 pubF1 pcsBad
     crBad opened hpub hτ (fun v ω => ?_) (fun v ω b _ j hj => ?_) hopT hopF hhintL hopen
-  · obtain ⟨-, -, -, -, -, -, -, -, hzsc, hlsc, -, -, -, -, -, hro, hho⟩ := hcc v
+  · obtain ⟨-, -, -, -, -, -, -, -, hzsc, hlsc, -, -, -, -, -, hro, hho, -⟩ := hcc v
     have e1 := FlockCert.heightOk_sem hho hzsc
     have e2 := FlockCert.roundsOk_sem hro hlsc
     have e3 := (hr v ω).hno

@@ -21,15 +21,11 @@ and `level_stack` makes the trees' roots the honest roots.
 `ChildCerts.roots`: where `checkbind`'s checks pass (`ChildCerts.Ok`) and the root stage's named values are its true
 values (`tvals`), the root claim is the honest pull and push roots at a witness of heights `2^τ_T`, `τ_T ≤ 32`. What
 stays: each owned table's residual term at `τ_T` and the framework block at `τ_pub` (the heights the parent reads,
-the layout's); the draw's coordinates the named `β` and fingerprint weights (`eq_table` of the draw, not certified);
+the layout's); the draw's coordinates the named `β` and fingerprint weights (which `DrawCert.sem` gives at the bus draw);
 the public value columns the witness's and each push side `Next` column its slot's class-next key (`pushKey`), the
 public columns `SideCert.PubTrue` reads.
 
-`checksGiveTable_certs` puts `tableParts_certs` and `checksGiveTable_of_parts` together: at the committed witness at
-each child's layout with the stack's columns (`certCols`) and the honest public columns (`honestPub`), the dumps'
-certificates give `ChecksGiveTable` and `RecParts.Ok`, the root premise from `ChildCerts.roots`. Its premises left: the
-layout fitting the rows, the parent reading each child at its layout, the draw's `β` and fingerprint weights the named
-ones, `SideCert.PubTrue` at the honest public columns, and the openings.
+`checksGiveTable_certs` puts `tableParts_certs` and `checksGiveTable_of_parts` together: at the committed witness at each child's layout with the stack's columns (`certCols`), the honest public columns (`honestPub`) and the bus draw the oracle's challenges at the draw certificate's words (`certDraw`), the dumps' certificates give `ChecksGiveTable` and `RecParts.Ok`, the root premise from `ChildCerts.roots` with the named `β` and weights the draw's (`DrawCert.sem`, the parent's calls holding where its circuit is satisfied). Its premises left: the layout fitting the rows, the parent reading each child at its layout, the draw's transcript's squeezes answering the oracle, `SideCert.PubTrue` at the honest public columns, and the openings.
 -/
 
 namespace LeanVMCircuits.Rec.Bind
@@ -273,13 +269,6 @@ noncomputable def honestPub (s : State) (w : Witness) : Bool → ℕ → ℕ →
 /-- Non-vacuity of `slotOf`: slot 97 is the public table's, slot 8 the hash table's first. -/
 example : slotOf 97 = (.pub, 0) ∧ slotOf 8 = (.hash, 0) := by decide +kernel
 
-/-- Non-vacuity of `checksGiveTable_certs`' draw premise: the draw `(β, A)` meets it wherever the named weights are
-`eq_table` of `A`. -/
-example (A : Fin 4 → E) (β : E) (wv : ℕ → E) (hwv : ∀ j (hj : j < 5), wv j = UnionSound.eqAt A ⟨j, by omega⟩) :
-    (Fin.cons β A : Fin 5 → E) 0 = β ∧
-      ∀ j (hj : j < 5), wv j = UnionSound.eqAt (Fin.tail (Fin.cons β A : Fin 5 → E)) ⟨j, by omega⟩ :=
-  ⟨rfl, fun j hj => by rw [hwv j hj, Fin.tail_cons]⟩
-
 variable {ι Ω : Type}
 
 /-- Each node's valuation at its oracle answers. -/
@@ -288,6 +277,15 @@ def certVal (valR : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K) :
 /-- Each child's columns at an outcome, the stack's. -/
 def certCols (cc : ι → ChildCerts) (colsC : ι → Ω → Table → ℕ → ℕ → K) (hr : (v : ι) → Ω → HashRegion (cc v)) :
     ι → Ω → Table → ℕ → ℕ → K := fun v ω => portCols (colsC v ω) (cc v).lsc.rounds.length (hr v ω).wd
+
+/-- Each child's bus draw `(β, A)` at an outcome: the oracle's challenges at its draw certificate's words in its parent's (`DrawCert.own`). -/
+noncomputable def certDraw (T : TreeSound.Tree ι) (bc : ι → Cert) (cc : ι → ChildCerts) (ρ : ι → Ω → ℕ → K) :
+    ι → Ω → Fin 5 → E := fun v ω => readR ((cc v).dr.own (bc (T.parent v)).outs) (ρ (T.parent v) ω)
+
+theorem ChildCerts.drawOk {cc : ChildCerts} {c : Cert} {s : State} {os : Array (List ℕ)} (h : cc.Ok c s os) :
+    cc.dr.ok os s c.calls c.relax c.transcripts cc.s0 = true := by
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, h⟩ := h
+  exact h
 
 /-- The checks from the bus GKR's root to the opening on the dumps' certificates, child `v`'s in its parent's, at the
 committed witness `W` with the honest public columns. -/
@@ -313,21 +311,20 @@ the table's input claim from `tin`, flock's from `Flocked`, the root from `Child
 residual heights are `hτ`'s, its hash rows within the layout's height. What stays: the layout fitting the rows
 (`hlay`, which `layoutFits_converge` gives); the parent reading each child at its layout (`hτ`: each owned table's
 residual term at `τ_T`; `hτp`: the framework block at `τ_pub`), the building fact `checksGiveRows_of_converge` states
-of the tree; the draw's first coordinate the named `β` and its fingerprint weights the named ones (`hdraw`); the
-honest public columns' values (`hpub`, `SideCert.PubTrue`); and the openings off `pcsBad`. -/
+of the tree; the draw's transcript's squeezes answering the oracle (`hans`, a run's `Run.ans`), whence the draw's `β` and fingerprint weights are the named ones (`DrawCert.sem`); the
+honest public columns' values (`hpub`, `SideCert.PubTrue`); and the openings off `pcsBad`. The bus draw is the oracle's challenges at the draw certificate's words (`certDraw`). -/
 theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
     (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (bc : ι → Cert)
     (valR : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K) (cc : ι → ChildCerts)
     (hacc : ∀ v, (bc (T.parent v)).accepts (t (T.parent v)) = true)
     (hcc : ∀ v, (cc v).Ok (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs)
     (st : ι → Ω → ℕ → Fin 4 → K) (taus : ι → Table → ℕ) (colsC : ι → Ω → Table → ℕ → ℕ → K)
-    (hr : (v : ι) → Ω → HashRegion (cc v)) (T' : ι → Ω → ℕ → E) (draw : ι → Ω → Fin 5 → E)
+    (hr : (v : ι) → Ω → HashRegion (cc v)) (T' : ι → Ω → ℕ → E)
     (pcsBad crBad : ι → Finset Ω) (opened : ι → Ω → Prop)
     (hlay : ∀ v, LayoutFits (t v) (taus v)) (hτ : ∀ v, ∀ T' ∈ owned, ((cc v).rc.termOf T').tau = taus v T')
     (hτp : ∀ v, ((cc v).s0.blocks.headD default).kappa = taus v .pub)
-    (hdraw : ∀ v ω, draw v ω 0 = Model.ev (certVal valR ρ (T.parent v) ω) (cc v).s0.beta ∧
-      ∀ j (hj : j < 5), (cc v).s0.wV (certVal valR ρ (T.parent v) ω) j =
-        UnionSound.eqAt (Fin.tail (draw v ω)) ⟨j, by omega⟩)
+    (hans : ∀ v ω, ∀ p ∈ chalSeeds (t (T.parent v)) ((bc (T.parent v)).transcripts.getD (cc v).dr.tr default),
+      nu (certVal valR ρ (T.parent v) ω) p.2 = ρ (T.parent v) ω p.2)
     (hpub : ∀ v ω, RunHeld (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs (st v ω) (valR (T.parent v))
         (ρ (T.parent v) ω) →
       (cc v).s0.PubTrue (certVal valR ρ (T.parent v) ω)
@@ -347,7 +344,8 @@ theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
           Model.ev (certVal valR ρ (T.parent v) ω) (cc v).tc.xi))
         (fun v ω _ => (cc v).rc.formsV (certVal valR ρ (T.parent v) ω))
         (fun v ω _ i => Model.ev (certVal valR ρ (T.parent v) ω) (if i = 0 then (cc v).tc.tot0 else (cc v).tc.tot1))
-        (fun v ω _ => Model.ev (certVal valR ρ (T.parent v) ω) (cc v).tc.root) draw taus (certCols cc colsC hr) ∧
+        (fun v ω _ => Model.ev (certVal valR ρ (T.parent v) ω) (cc v).tc.root) (certDraw T bc cc ρ) taus
+        (certCols cc colsC hr) ∧
       (certParts T t bc valR ρ cc (witAt T cert t slot stRoot (certVal valR ρ) taus (certCols cc colsC hr)) hr T'
           opened pcsBad crBad).Ok
         (fun v ω => RunHeld (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs (st v ω) (valR (T.parent v))
@@ -360,15 +358,16 @@ theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
   have htau : ∀ v ω, ∀ T' ∈ owned, ((cc v).rc.termOf T').tau = tauOf (W v ω) T' := fun v ω T' hT' => by
     rw [hτ v T' hT', hW, witAt, tauOf_committedAt]
   refine ⟨checksGiveTable_of_parts T cert t os L slot stRoot (certVal valR ρ) (fun v => (cc v).G) _ _ _ _ opened _ _ _
-    _ pcsBad crBad _ _ _ draw taus (certCols cc colsC hr) bc (fun v => (cc v).tc)
-    (fun v _ _ => ⟨hacc v, (hcc v).1⟩) (fun _ _ => rfl) (fun v ω sc hsc hin => ?_) (fun v ω hv => ?_)
+    _ pcsBad crBad _ _ _ (certDraw T bc cc ρ) taus (certCols cc colsC hr) bc (fun v => (cc v).tc)
+    (fun v _ _ => ⟨hacc v, (hcc v).1⟩) (fun _ _ => rfl) (fun v ω sc hsc hin => ?_) (fun v ω hf hv => ?_)
     (fun v ω hfl => hfl), ?_⟩
   · have h8 := (hcc v).2.2.2.2.2.2.2.1
     rw [h8] at hsc
     cases Option.some.inj hsc
     exact hin
-  · refine ChildCerts.roots (hcc v) (ρ (T.parent v) ω) _ _ _ (W v ω) (t v) (taus v) (hh v ω) (fun T' => (hlay v T').2)
-      (hτ v) (hτp v) (draw v ω) (hdraw v ω).1 (hdraw v ω).2 (fun j _ z => ?_) (fun j _ z => ?_) (fun T' i z hi => ?_)
+  · have hd := DrawCert.sem hf (ChildCerts.drawOk (hcc v)) (hans v ω)
+    refine ChildCerts.roots (hcc v) (ρ (T.parent v) ω) _ _ _ (W v ω) (t v) (taus v) (hh v ω) (fun T' => (hlay v T').2)
+      (hτ v) (hτp v) (certDraw T bc cc ρ v ω) hd.1 hd.2 (fun j _ z => ?_) (fun j _ z => ?_) (fun T' i z hi => ?_)
       hv
     · simp [honestPub]
     · simp [honestPub]

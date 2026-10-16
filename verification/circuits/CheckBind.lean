@@ -8,7 +8,7 @@ import LeanVMCircuits.Rec.Flocked
 (`LeanVMCircuits.Rec.Bind`): every test reading a challenge reads only wires some transcript binds. The verdict is
 `Bind.Cert.accepts` of the certificate the analysis records, which `Bind.checkbind_sound` proves sound. An accepted dump
 also fails unless every WHIR sumcheck is certified from its opening's first claim and every hint a certified input
-claim reads is the value of an `edge term` mark, a claim the node's reduction takes. It also fails unless every named table sumcheck has both bus sides certified call by call (`Bind.sidesOk`) and its child's flock reduction certified on its transcript (`Bind.FlockCert.ok`: the zerocheck, lincheck, ring switch and Lagrange weights, linked).
+claim reads is the value of an `edge term` mark, a claim the node's reduction takes. It also fails unless every named table sumcheck has both bus sides certified call by call (`Bind.sidesOk`), their fingerprint weights and `β` the bus draw's `eq_table` and challenges (`Bind.DrawCert.ok`), and its child's flock reduction certified on its transcript (`Bind.FlockCert.ok`: the zerocheck, lincheck, ring switch and Lagrange weights, linked).
 
 `--expect-unbound <dump>` checks a dump fails, the regression fixture of a circuit that did not bind.
 -/
@@ -94,7 +94,8 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     IO.eprintln s!"{path}: {r.resids} of {r.tables} table sumchecks with their residual named, checks passing: \
       {r.residsOk}"
     return none
-  -- Each table sumcheck's bus sides are `Side::decompose` over the marked blocks (`Bind.SideCert`, `Bind.sidesOk`).
+  -- Each table sumcheck's bus sides are `Side::decompose` over the marked blocks (`Bind.SideCert`, `Bind.sidesOk`), their
+  -- fingerprint weights and `β` the bus draw's `eq_table` and challenges (`Bind.DrawCert`).
   let groups := Bind.busGroups (← IO.FS.readFile path)
   let mut sides := 0
   for (tc, g, rc) in r.named do
@@ -107,10 +108,14 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     let some (s0, pos1) := Bind.sideOf rp.calls r.outs pos mu zeta w beta push none | break
     let some (s1, _) := Bind.sideOf rp.calls r.outs pos1 mu zeta w beta pull (some s0.formZero) | break
     unless Bind.sidesOk r.outs rp.calls r.relax r.scs r.topCerts r.oddCerts g rc s0 s1 do break
+    let tr := (r.scs[tc.sc]?.map (·.transcript)).getD 0
+    let some dc := Bind.drawOf rp r.ts tr s0.w s0.beta | break
+    unless dc.ok r.outs rp.state rp.calls r.relax r.ts s0 do break
     sides := sides + 1
-  IO.println s!"  {sides} of {r.named.length} table sumchecks with both bus sides certified call by call"
+  IO.println s!"  {sides} of {r.named.length} table sumchecks with both bus sides certified call by call, their weights \
+    and β the bus draw's"
   if sides != r.named.length then
-    IO.eprintln s!"{path}: {sides} of {r.named.length} table sumchecks with their bus sides certified"
+    IO.eprintln s!"{path}: {sides} of {r.named.length} table sumchecks with their bus sides and draw certified"
     return none
   -- Each table sumcheck's child has flock's reduction over its hash rows named on its transcript (`Bind.FlockCert`), its
   -- lincheck of `Bind.hashRounds` rounds (`Bind.FlockCert.roundsOk`) and its zerocheck over the hash term's height
