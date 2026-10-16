@@ -1515,6 +1515,7 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Model.length_pubFirst
 #print axioms LeanVMCircuits.Rec.Model.sat_stmtFirst
 #print axioms LeanVMCircuits.Rec.AirLink.size_rowsOf_stmtFirst
+#print axioms LeanVMCircuits.Rec.Edges.checksGiveTable_opened
 #print axioms LeanVMCircuits.Rec.HashRows.val_emit
 #print axioms LeanVMCircuits.Rec.HashRows.run_holds
 #print axioms LeanVMCircuits.Rec.HashRows.foldl_slots

@@ -380,4 +380,54 @@ theorem checksGiveTable_certs [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
     simp only [hwit] at this
     exact this
 
+/-- The openings child `v`'s checks take at outcome `ω`: the table sumcheck's column claims and hints the opened values `T'` at the committed witness (`tabOpened`), flock's ring switch target and matrix (`flOpened`), and the lincheck's hints the opened values. -/
+def certOpened (T : TreeSound.Tree ι) (bc : ι → Cert) (valR : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K)
+    (cc : ι → ChildCerts) (W : ι → Ω → Witness) (hr : (v : ι) → Ω → HashRegion (cc v)) (T' : ι → Ω → ℕ → E) :
+    ι → Ω → Prop := fun v ω =>
+  (cc v).tabOpened (certVal valR ρ (T.parent v) ω) (W v ω) (T' v ω) ∧
+    (cc v).flOpened (bc (T.parent v)).outs (certVal valR ρ (T.parent v) ω) (hr v ω) ∧
+    ∀ x ∈ (cc v).lsc.hints, Model.ev (certVal valR ρ (T.parent v) ω) x = T' v ω x
+
+open Classical in
+/-- The outcomes at which an opening child `v`'s checks take fails: the event #551 bounds (`PcsBound` of the parts, through `Pcs551.sub`). -/
+noncomputable def openBad [Fintype Ω] (opened : ι → Ω → Prop) : ι → Finset Ω := fun v => {ω | ¬ opened v ω}
+
+/-- `checksGiveTable_certs` with the openings as #551's interface: `opened` the openings the checks take (`certOpened`) and `pcsBad` the outcomes at which one fails (`openBad`), so the opening premises hold by definition and what they asked is the parts' `PcsBound` (#551's theorem bounding `openBad`, `Pcs551`). -/
+theorem checksGiveTable_opened [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
+    (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (bc : ι → Cert)
+    (valR : ι → (ℕ → K) → Val) (ρ : ι → Ω → ℕ → K) (cc : ι → ChildCerts)
+    (hacc : ∀ v, (bc (T.parent v)).accepts (t (T.parent v)) = true)
+    (hcc : ∀ v, (cc v).Ok (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs)
+    (st : ι → Ω → ℕ → Fin 4 → K) (taus : ι → Table → ℕ) (colsC : ι → Ω → Table → ℕ → ℕ → K)
+    (hr : (v : ι) → Ω → HashRegion (cc v)) (T' : ι → Ω → ℕ → E) (crBad : ι → Finset Ω)
+    (hlay : ∀ v, LayoutFits (t v) (taus v)) (hτ : ∀ v, ∀ T' ∈ owned, ((cc v).rc.termOf T').tau = taus v T')
+    (hτp : ∀ v, ((cc v).s0.blocks.headD default).kappa = taus v .pub)
+    (hans : ∀ v ω, ∀ p ∈ chalSeeds (t (T.parent v)) ((bc (T.parent v)).transcripts.getD (cc v).dr.tr default),
+      nu (certVal valR ρ (T.parent v) ω) p.2 = ρ (T.parent v) ω p.2)
+    (hpub : ∀ v ω, RunHeld (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs (st v ω) (valR (T.parent v))
+        (ρ (T.parent v) ω) →
+      (cc v).s0.PubTrue (certVal valR ρ (T.parent v) ω)
+          (honestPub (stmtFirst (t v)) (witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus
+            (certCols cc colsC hr) v ω)) ∧
+        (cc v).s1.PubTrue (certVal valR ρ (T.parent v) ω)
+          (honestPub (stmtFirst (t v)) (witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus
+            (certCols cc colsC hr) v ω))) :
+    let W := witAt T cert (fun v => stmtFirst (t v)) slot stRoot (certVal valR ρ) taus (certCols cc colsC hr)
+    let opened := certOpened T bc valR ρ cc W hr T'
+    ChecksGiveTable T cert (fun v => stmtFirst (t v)) os L slot stRoot (certVal valR ρ)
+        (certParts T t bc valR ρ cc W hr T' opened (openBad opened) crBad)
+        (fun v => (cc v).tsc.rounds.length)
+        (fun v ω => ((cc v).zetaV (certVal valR ρ (T.parent v) ω),
+          Model.ev (certVal valR ρ (T.parent v) ω) (cc v).tc.xi))
+        (fun v ω _ => (cc v).rc.formsV (certVal valR ρ (T.parent v) ω))
+        (fun v ω _ i => Model.ev (certVal valR ρ (T.parent v) ω) (if i = 0 then (cc v).tc.tot0 else (cc v).tc.tot1))
+        (fun v ω _ => Model.ev (certVal valR ρ (T.parent v) ω) (cc v).tc.root) (certDraw T bc cc ρ) taus
+        (certCols cc colsC hr) ∧
+      (certParts T t bc valR ρ cc W hr T' opened (openBad opened) crBad).Ok
+        (fun v ω => RunHeld (bc (T.parent v)) (t (T.parent v)) (bc (T.parent v)).outs (st v ω) (valR (T.parent v))
+          (ρ (T.parent v) ω)) :=
+  checksGiveTable_certs T cert t os L slot stRoot bc valR ρ cc hacc hcc st taus colsC hr T' _ crBad _ hlay hτ hτp
+    hans hpub (fun _ _ h => h.1) (fun _ _ h => h.2.1) (fun _ _ h => h.2.2)
+    (fun v ω h => by simpa [openBad] using h)
+
 end LeanVMCircuits.Rec.Edges
