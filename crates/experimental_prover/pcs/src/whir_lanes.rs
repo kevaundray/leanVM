@@ -27,7 +27,7 @@ use primitives::field::{F64, F128};
 use primitives::multilinear::interp;
 use primitives::stream::Stream;
 
-use crate::stack_open::{SWEEP, Terms};
+use crate::stack_open::{SWEEP, Terms, Words};
 use crate::whir::{FoldChallenges, FoldTable, InitialBasis};
 use crate::xmul::{mul_x_block, multiples, x_at};
 
@@ -38,8 +38,17 @@ const HEAD: usize = 8;
 /// Coefficients per task where the last lane is written out.
 const COLS: usize = 1 << 13;
 
-/// A later round's projection slots per pair: the limbs of `X F`, of its first lane and of its second.
-const SLOTS: usize = 6;
+/// Whether a later round projects its `E` lanes whole, by Karatsuba dots, rather than as two `K` limbs each: AVX2 has
+/// no cheaper mixed product to set against Karatsuba's three base products a term.
+const WHOLE: bool = cfg!(all(
+    target_arch = "x86_64",
+    target_feature = "pclmulqdq",
+    target_feature = "avx2",
+    not(target_feature = "avx512f")
+));
+
+/// A later round's projection slots per pair: `X F`, its first lane and its second, each whole or as two limbs.
+const SLOTS: usize = if WHOLE { 3 } else { 6 };
 
 /// `sum_t a[t] * p[t]`.
 fn dot(a: &[F128], p: &[F128]) -> F128 {
@@ -53,6 +62,12 @@ fn dot(a: &[F128], p: &[F128]) -> F128 {
 /// A lane's coefficient `c`, zero past it.
 fn outside<T: Copy + Default>(lane: &[T]) -> impl Fn(usize) -> T + '_ {
     |c| lane.get(c).copied().unwrap_or_default()
+}
+
+/// Block `k` of a buffer that holds a whole sweep of blocks of `block` coefficients if `sweep`, else one block.
+fn window((sweep, buf): &mut (bool, Vec<F128>), k: usize, block: usize) -> &mut [F128] {
+    let at = if *sweep { k * block } else { 0 };
+    &mut buf[at..at + block]
 }
 
 /// A round's pairs `(F, G)`.
@@ -304,7 +319,12 @@ impl LaneRounds {
                     for start in blocks.clone().step_by(SWEEP) {
                         let sweep = start..(start + SWEEP).min(blocks.end);
                         let words = sweep.start << low..sweep.end << low;
-                        feed(0, start, &lane[words.clone()], terms.lane_repeats(l, sweep.clone()));
+                        feed(
+                            0,
+                            start,
+                            Words::Base(&lane[words.clone()]),
+                            terms.lane_repeats(l, sweep.clone()),
+                        );
                         let Some((x, x_tags)) = scratch.as_mut() else {
                             continue;
                         };
@@ -314,7 +334,7 @@ impl LaneRounds {
                             x_tags[k] = last == Some(out[0]) && tags.get(b - blocks.start) == Some(&true);
                             last = Some(out[0]);
                         }
-                        feed(1, start, &x[..words.len()], &x_tags[..sweep.len()]);
+                        feed(1, start, Words::Base(&x[..words.len()]), &x_tags[..sweep.len()]);
                     }
                 },
             )
@@ -341,20 +361,24 @@ impl LaneRounds {
             )
         };
         let (fp, gp) = (parallel::SendPtr(f.as_mut_ptr()), parallel::SendPtr(g.as_mut_ptr()));
-        let live = |m: usize, slot: usize| match slot {
-            0 | 1 => &needs[m * nt..][..nt],
-            _ => &fresh[(2 * m + (slot - 2) / 2) * nt..][..nt],
+        // A slot projects `X F`, the pair's first lane or its second, whole or a limb of it.
+        let live = |m: usize, slot: usize| match (WHOLE, slot) {
+            (true, 0) | (false, 0 | 1) => &needs[m * nt..][..nt],
+            (true, l) => &fresh[(2 * m + l - 1) * nt..][..nt],
+            (false, _) => &fresh[(2 * m + (slot - 2) / 2) * nt..][..nt],
         };
         let rows = tracing::info_span!("Project", lanes = n_pairs).in_scope(|| {
             terms.project_rows(n_pairs, SLOTS, live, |m, blocks, feed| {
                 let stream = Stream::new();
-                let [mut pa, mut pb, mut xf] = [0; 3].map(|_| vec![F128::ZERO; block]);
-                // The limbs of `X F` and of the pair's lanes, each where it projects some term.
-                let mut limbs = [0, 2, 4].map(|slot| {
-                    live(m, slot)
-                        .contains(&true)
-                        .then(|| [0; 2].map(|_| vec![F64::ZERO; SWEEP << low]))
+                // `X F` and the pair's lanes, a sweep of each where it projects some term whole, else a block, and
+                // where it projects some term as limbs, a sweep of its limbs.
+                let lives = [0, 1, 2].map(|l| live(m, if WHOLE { l } else { 2 * l }).contains(&true));
+                let [mut pa, mut pb, mut xf] = [1, 2, 0].map(|l| {
+                    let sweep = WHOLE && lives[l];
+                    (sweep, vec![F128::ZERO; if sweep { SWEEP << low } else { block }])
                 });
+                let mut limbs =
+                    lives.map(|live| (!WHOLE && live).then(|| [0; 2].map(|_| vec![F64::ZERO; SWEEP << low])));
                 let mut tags = [false; SWEEP];
                 let stacked = 2 * m * group..((2 * m + 1) * group).min(self.n_stack);
                 let repeats = |b: usize| {
@@ -369,26 +393,28 @@ impl LaneRounds {
                     let sweep = start..(start + SWEEP).min(blocks.end);
                     for (k, b) in sweep.clone().enumerate() {
                         let first = b << low;
-                        folded.block(2 * m, first, &mut pa);
+                        let (pa, pb) = (window(&mut pa, k, block), window(&mut pb, k, block));
+                        folded.block(2 * m, first, pa);
                         if 2 * m + 1 < count {
-                            folded.block(2 * m + 1, first, &mut pb);
+                            folded.block(2 * m + 1, first, pb);
                         } else {
                             pb.fill(F128::ZERO);
                         }
                         // SAFETY: each task owns its blocks of its pair.
                         unsafe {
-                            stream.copy(fp.slice(m * len + first, block), &pa);
-                            stream.copy(gp.slice(m * len + first, block), &pb);
+                            stream.copy(fp.slice(m * len + first, block), pa);
+                            stream.copy(gp.slice(m * len + first, block), pb);
                         }
                         let outside = |c: usize| match last {
                             Some((before, _)) if c + 1 == first => before,
                             _ => folded.at(2 * m, c),
                         };
-                        mul_x_block(&pa, first, outside, &mut xf);
+                        let xf = window(&mut xf, k, block);
+                        mul_x_block(pa, first, outside, xf);
                         let words: [F128; HEAD] = xf[..HEAD].try_into().expect("a block holds its head");
                         tags[k] = last.is_some_and(|(_, w)| w == words) && repeats(b);
                         last = Some((pa[block - 1], words));
-                        for (limbs, values) in limbs.iter_mut().zip([&xf, &pa, &pb]) {
+                        for (limbs, values) in limbs.iter_mut().zip([&*xf, &*pa, &*pb]) {
                             if let Some([lo, hi]) = limbs {
                                 for ((lo, hi), v) in lo[k << low..].iter_mut().zip(&mut hi[k << low..]).zip(values) {
                                     let [l, h] = v.to_limbs();
@@ -398,12 +424,14 @@ impl LaneRounds {
                         }
                     }
                     let words = sweep.len() << low;
-                    for (slot, limbs) in (0..).step_by(2).zip(&limbs) {
-                        if let Some([lo, hi]) = limbs {
-                            // Only `X F` has repeat tags.
-                            let tags = if slot == 0 { &tags[..sweep.len()] } else { &[] };
-                            feed(slot, start, &lo[..words], tags);
-                            feed(slot + 1, start, &hi[..words], tags);
+                    for (l, ((whole, values), limbs)) in [&xf, &pa, &pb].into_iter().zip(&limbs).enumerate() {
+                        // Only `X F` has repeat tags.
+                        let tags = if l == 0 { &tags[..sweep.len()] } else { &[] };
+                        if *whole {
+                            feed(l, start, Words::Ext(&values[..words]), tags);
+                        } else if let Some([lo, hi]) = limbs {
+                            feed(2 * l, start, Words::Base(&lo[..words]), tags);
+                            feed(2 * l + 1, start, Words::Base(&hi[..words]), tags);
                         }
                     }
                 }
@@ -415,16 +443,20 @@ impl LaneRounds {
                 g[m * len + c] = folded.at(2 * m + 1, c);
             }
         }
-        // A projection from its limbs' in slots `slot` and `slot + 1` of pair `m`.
-        let join = |m: usize, slot: usize, t: usize| {
-            rows[(m * SLOTS + slot) * nt + t] + F128::Y * rows[(m * SLOTS + slot + 1) * nt + t]
+        // Lane `l`'s projection in pair `m`'s row, from its limbs' where it was projected as limbs.
+        let row = |m: usize, l: usize, t: usize| {
+            if WHOLE {
+                rows[(m * SLOTS + l) * nt + t]
+            } else {
+                rows[(m * SLOTS + 2 * l) * nt + t] + F128::Y * rows[(m * SLOTS + 2 * l + 1) * nt + t]
+            }
         };
-        let pxf = (0..n_pairs * nt).map(|i| join(i / nt, 0, i % nt)).collect();
+        let pxf = (0..n_pairs * nt).map(|i| row(i / nt, 0, i % nt)).collect();
         let own = (0..fresh.len())
             .filter(|&i| fresh[i])
             .map(|i| {
                 let (l, t) = (i / nt, i % nt);
-                (i, join(l / 2, 2 + 2 * (l % 2), t))
+                (i, row(l / 2, 1 + l % 2, t))
             })
             .collect();
         (Pairs::Stored { f, g, len }, pxf, own)

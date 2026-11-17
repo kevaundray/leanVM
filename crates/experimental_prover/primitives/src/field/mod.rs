@@ -31,7 +31,7 @@ pub use f128x8::{
 };
 pub use gf2_64::F64;
 use gf2_64::R64;
-pub use gf2_64x2::{F128, F128Unreduced, Weights8, dot_base, mul_unreduced4, mul2, mul4};
+pub use gf2_64x2::{F128, F128Unreduced, Weights8, dot_base, dot_ext, mul_unreduced4, mul2, mul4};
 
 // ---------------------------------------------------------------------------
 // leanVM g-power helpers: domain separators / opcodes as x^k, and the g-power

@@ -58,7 +58,7 @@ use verifier::BATCH_GRINDING_BITS;
 
 mod basis;
 
-pub(crate) use basis::{SWEEP, Terms};
+pub(crate) use basis::{SWEEP, Terms, Words};
 
 // ---------------------------------------------------------------------------
 // Claim types

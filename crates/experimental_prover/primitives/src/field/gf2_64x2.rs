@@ -387,6 +387,42 @@ pub fn dot_base(w: &[Weights8], k: &[F64]) -> F128Unreduced {
         })
 }
 
+/// The inner product `sum_i w_i * e_i` of packed weights and `E` elements, unreduced.
+///
+/// `e.len()` must be `8 * w.len()`.
+///
+/// Three base products a term by Karatsuba, where splitting `e` into its coefficients and taking two [`dot_base`]s takes
+/// four: the trade AVX2 wants, while AVX-512 and NEON project an `E` lane as its limbs.
+#[inline]
+pub fn dot_ext(w: &[Weights8], e: &[F128]) -> F128Unreduced {
+    assert_eq!(e.len(), 8 * w.len());
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    // SAFETY: both features are enabled at compile time; the lengths match.
+    return unsafe { x86_64::dot_ext_ymm(w, e) };
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(all(
+            target_feature = "vpclmulqdq",
+            target_feature = "avx2",
+            not(target_feature = "avx512f")
+        ))
+    ))]
+    // SAFETY: the feature is enabled at compile time; the lengths match.
+    return unsafe { x86_64::dot_ext_xmm(w, e) };
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "pclmulqdq")))]
+    w.iter()
+        .zip(e.as_chunks::<8>().0)
+        .fold(F128Unreduced::ZERO, |acc, (w, e)| {
+            (0..8).fold(acc, |acc, i| acc ^ w.get(i).mul_unreduced(e[i]))
+        })
+}
+
 /// An F128 value whose coefficients are not yet reduced modulo the base polynomial.
 ///
 /// Coefficient `k` is the 128-bit carry-less polynomial multiplying `y^k`, for `k < 2`.
@@ -1081,6 +1117,82 @@ pub mod x86_64 {
         });
         F128Unreduced { coeffs: lanes }
     }
+
+    /// The Karatsuba partials `[p0, p1, p01]`, summed over the lanes, y-folded into an unreduced element.
+    #[inline]
+    #[target_feature(enable = "pclmulqdq")]
+    fn fold_partials([p0, p1, p01]: [__m128i; 3]) -> F128Unreduced {
+        F128Unreduced {
+            coeffs: fold(p0, p1, p01, |x, y| _mm_xor_si128(x, y), |p| times_x(p)).map(bits::<__m128i, [u64; 2]>),
+        }
+    }
+
+    /// [`super::dot_ext`] one element a register, for a machine without VPCLMULQDQ.
+    ///
+    /// # Safety
+    ///
+    /// Callable only where pclmulqdq is enabled.
+    #[inline]
+    #[target_feature(enable = "pclmulqdq")]
+    pub fn dot_ext_xmm(w: &[super::Weights8], e: &[F128]) -> F128Unreduced {
+        let xor = |x, y| _mm_xor_si128(x, y);
+        let mid = |v| xor(v, _mm_shuffle_epi32::<0x4E>(v));
+        let mut acc = [_mm_setzero_si128(); 3];
+        for (w, e) in w.iter().zip(e.as_chunks::<8>().0) {
+            for (i, e) in e.iter().enumerate() {
+                let words = if i % 2 == 0 { &w.lo } else { &w.hi };
+                let (x, y) = (
+                    pair(e.c0, e.c1),
+                    bits::<[u64; 2], __m128i>(words.as_chunks::<2>().0[i / 2]),
+                );
+                acc = [
+                    xor(acc[0], _mm_clmulepi64_si128::<0x00>(x, y)),
+                    xor(acc[1], _mm_clmulepi64_si128::<0x11>(x, y)),
+                    xor(acc[2], _mm_clmulepi64_si128::<0x00>(mid(x), mid(y))),
+                ];
+            }
+        }
+        fold_partials(acc)
+    }
+
+    /// [`super::dot_ext`] in two YMM halves.
+    ///
+    /// # Safety
+    ///
+    /// Callable only where vpclmulqdq and avx2 are enabled.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx2")]
+    pub fn dot_ext_ymm(w: &[super::Weights8], e: &[F128]) -> F128Unreduced {
+        let xor = |x, y| _mm256_xor_si256(x, y);
+        let mid = |v| xor(v, _mm256_shuffle_epi32::<0x4E>(v));
+        let mut acc = [_mm256_setzero_si256(); 3];
+        for (w, e) in w.iter().zip(e.as_chunks::<8>().0) {
+            let half = |c: &[u64; 8], h: usize| bits::<[u64; 4], __m256i>(c.as_chunks::<4>().0[h]);
+            let pairs = e.as_chunks::<2>().0;
+            for h in 0..2 {
+                let (x01, x23) = (bits::<_, __m256i>(pairs[2 * h]), bits::<_, __m256i>(pairs[2 * h + 1]));
+                // Elements `4h, 4h + 2` and `4h + 1, 4h + 3`, the lanes of `lo` and `hi` that hold their weights.
+                let (xe, xo) = (
+                    _mm256_permute2x128_si256::<0x20>(x01, x23),
+                    _mm256_permute2x128_si256::<0x31>(x01, x23),
+                );
+                let (lo, hi) = (half(&w.lo, h), half(&w.hi, h));
+                let clmul00 = |x, y| _mm256_clmulepi64_epi128::<0x00>(x, y);
+                let clmul11 = |x, y| _mm256_clmulepi64_epi128::<0x11>(x, y);
+                acc = [
+                    xor(acc[0], xor(clmul00(xe, lo), clmul00(xo, hi))),
+                    xor(acc[1], xor(clmul11(xe, lo), clmul11(xo, hi))),
+                    xor(acc[2], xor(clmul00(mid(xe), mid(lo)), clmul00(mid(xo), mid(hi)))),
+                ];
+            }
+        }
+        fold_partials(acc.map(|a| _mm_xor_si128(_mm256_castsi256_si128(a), _mm256_extracti128_si256::<1>(a))))
+    }
 }
 
 /// Portable fallback, and the reference every accelerated path is tested against.
@@ -1243,6 +1355,18 @@ mod tests {
             let k: [F64; 16] = std::array::from_fn(|_| F64(rng.ext().c0));
             let want = (0..16).map(|i| w[i].mul_base(k[i])).sum();
             assert_eq!(dot_base(&packed, &k).reduce(), want);
+            let e: [F128; 16] = std::array::from_fn(|i| {
+                if i == 5 {
+                    F128::new(u64::MAX, u64::MAX)
+                } else {
+                    rng.ext()
+                }
+            });
+            let want = (0..16).map(|i| w[i] * e[i]).sum();
+            assert_eq!(dot_ext(&packed, &e).reduce(), want);
+            #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+            // SAFETY: the feature is enabled at compile time; the lengths match.
+            assert_eq!(unsafe { x86_64::dot_ext_xmm(&packed, &e) }.reduce(), want);
         }
     }
 
