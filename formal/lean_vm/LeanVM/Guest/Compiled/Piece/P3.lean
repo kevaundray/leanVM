@@ -19,7 +19,7 @@ open LeanVM.Compiler
 
 @[expose] public section
 
-/-- The pieces of functions 267 to 270 (`keccak_layer__L0` to `keccak_plain_rounds__L4_L1`, 1984 instructions). -/
+/-- The pieces of functions 267 to 270 (`keccak_layer__L0` to `keccak_plain_rounds__L4_L1`, 1981 instructions). -/
 theorem pieces_267_271 :
     piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 267 271 = true := by
   decide +kernel

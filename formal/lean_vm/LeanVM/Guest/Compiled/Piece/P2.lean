@@ -59,7 +59,7 @@ theorem pieces_251_266 :
     piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 251 266 = true := by
   decide +kernel
 
-/-- The pieces of functions 266 to 266 (`keccak_layer__L1`, 1449 instructions). -/
+/-- The pieces of functions 266 to 266 (`keccak_layer__L1`, 1446 instructions). -/
 theorem pieces_266_267 :
     piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 266 267 = true := by
   decide +kernel

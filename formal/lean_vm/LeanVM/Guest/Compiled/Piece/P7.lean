@@ -19,29 +19,29 @@ open LeanVM.Compiler
 
 @[expose] public section
 
-/-- The pieces of functions 742 to 790 (`level_residual__L109_L20_L6_L3` to `level_residual__L25_L13_L4_L2`, 1993 instructions). -/
-theorem pieces_742_791 :
-    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 742 791 = true := by
+/-- The pieces of functions 744 to 792 (`level_residual__L55_L20_L6_L3` to `level_residual__L21_L9_L4_L2`, 1992 instructions). -/
+theorem pieces_744_793 :
+    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 744 793 = true := by
   decide +kernel
 
-/-- The pieces of functions 791 to 839 (`level_residual__L23_L13_L4_L2` to `level_residual__L18_L10_L4_L2`, 1977 instructions). -/
-theorem pieces_791_840 :
-    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 791 840 = true := by
+/-- The pieces of functions 793 to 841 (`level_residual__L19_L9_L4_L2` to `level_residual__L16_L6_L4_L2`, 1957 instructions). -/
+theorem pieces_793_842 :
+    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 793 842 = true := by
   decide +kernel
 
-/-- The pieces of functions 840 to 889 (`level_residual__L17_L6_L4_L2` to `level_positions__L44_L25_L7`, 1980 instructions). -/
-theorem pieces_840_890 :
-    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 840 890 = true := by
+/-- The pieces of functions 842 to 891 (`level_residual__L15_L6_L4_L2` to `level_positions__L19_L27_L3`, 1995 instructions). -/
+theorem pieces_842_892 :
+    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 842 892 = true := by
   decide +kernel
 
-/-- The pieces of functions 890 to 938 (`level_positions__L28_L26_L2` to `__loop43`, 1968 instructions). -/
-theorem pieces_890_939 :
-    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 890 939 = true := by
+/-- The pieces of functions 892 to 940 (`level_positions__L14_L28_L4` to `__loop45`, 1954 instructions). -/
+theorem pieces_892_941 :
+    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 892 941 = true := by
   decide +kernel
 
-/-- The pieces of functions 939 to 951 (`__loop44` to `verify_merkle_cap__L4`, 1925 instructions). -/
-theorem pieces_939_952 :
-    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 939 952 = true := by
+/-- The pieces of functions 941 to 951 (`decode_query_windows__L15_L3` to `verify_merkle_cap__L4`, 1855 instructions). -/
+theorem pieces_941_952 :
+    piecesIn loopsG sigsG layG guestTraced outsG Data.functions.tail 941 952 = true := by
   decide +kernel
 
 /-- The pieces of functions 952 to 955 (`opening_queries__L1_L1_L6_L32_L16_L4_L0_L0_L0_L0_L0` to `verify_merkle_cap__L6`, 1684 instructions). -/

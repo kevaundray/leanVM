@@ -21,40 +21,40 @@ open LeanVM.Guest LeanVM.Guest.Core LeanVM.Guest.Memory LeanVM.Compiler LeanVM.G
 
 @[expose] public section
 
-/-- The test of entries 570 to 592 (`level_queries__L24_L0_L4_L16_L14_L2_L4_L20_L5_L1` to `level_queries__L218_L1_L6_L32_L18_L6_L0_L0_L0_L0`, 994 instructions). -/
-theorem cplOk_570_593 : (List.range' 570 23).all cplOkAt = true := by
+/-- The test of entries 571 to 593 (`level_queries__L22_L0_L4_L16_L15_L3_L4_L20_L5_L1` to `level_queries__L109_L1_L6_L32_L19_L7_L0_L0_L0_L0`, 999 instructions). -/
+theorem cplOk_571_594 : (List.range' 571 23).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 593 to 613 (`level_queries__L109_L1_L6_L32_L19_L7_L0_L0_L0_L0` to `level_queries__L23_L0_L4_L16_L15_L3_L5_L36_L6_L1`, 983 instructions). -/
-theorem cplOk_593_614 : (List.range' 593 21).all cplOkAt = true := by
+/-- The test of entries 594 to 614 (`level_queries__L73_L1_L6_L32_L20_L2_L0_L0_L0_L0` to `level_queries__L21_L0_L4_L16_L16_L4_L5_L36_L6_L1`, 979 instructions). -/
+theorem cplOk_594_615 : (List.range' 594 21).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 614 to 634 (`level_queries__L21_L0_L4_L16_L16_L4_L5_L36_L6_L1` to `level_positions__L11_L22_L4`, 989 instructions). -/
-theorem cplOk_614_635 : (List.range' 614 21).all cplOkAt = true := by
+/-- The test of entries 615 to 635 (`level_queries__L19_L0_L4_L16_L17_L5_L5_L36_L6_L1` to `level_queries__L218_L1_L6_L32_L19_L7_L0_L0_L0_L0`, 994 instructions). -/
+theorem cplOk_615_636 : (List.range' 615 21).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 635 to 659 (`level_queries__L218_L1_L6_L32_L19_L7_L0_L0_L0_L0` to `level_residual__L109_L18_L6_L3`, 967 instructions). -/
-theorem cplOk_635_660 : (List.range' 635 25).all cplOkAt = true := by
+/-- The test of entries 636 to 660 (`level_queries__L109_L1_L6_L32_L20_L2_L0_L0_L0_L0` to `level_residual__L73_L18_L6_L3`, 971 instructions). -/
+theorem cplOk_636_661 : (List.range' 636 25).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 660 to 681 (`level_residual__L73_L18_L6_L3` to `level_positions__L8_L20_L2`, 960 instructions). -/
-theorem cplOk_660_682 : (List.range' 660 22).all cplOkAt = true := by
+/-- The test of entries 661 to 683 (`level_residual__L55_L18_L6_L3` to `level_positions__L7_L22_L4`, 999 instructions). -/
+theorem cplOk_661_684 : (List.range' 661 23).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 682 to 706 (`level_positions__L7_L21_L3` to `level_residual__L37_L15_L4_L2`, 994 instructions). -/
-theorem cplOk_682_707 : (List.range' 682 25).all cplOkAt = true := by
+/-- The test of entries 684 to 708 (`level_queries__L55_L0_L4_L16_L19_L7_L0_L0_L0_L0` to `level_residual__L28_L11_L4_L2`, 979 instructions). -/
+theorem cplOk_684_709 : (List.range' 684 25).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 707 to 730 (`level_residual__L32_L15_L4_L2` to `level_positions__L5_L22_L4`, 973 instructions). -/
-theorem cplOk_707_731 : (List.range' 707 24).all cplOkAt = true := by
+/-- The test of entries 709 to 732 (`level_residual__L25_L11_L4_L2` to `level_queries__L25_L0_L4_L16_L21_L3_L0_L0_L0_L0`, 976 instructions). -/
+theorem cplOk_709_733 : (List.range' 709 24).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 731 to 754 (`level_queries__L28_L0_L4_L16_L20_L2_L0_L0_L0_L0` to `level_residual__L18_L8_L4_L2`, 968 instructions). -/
-theorem cplOk_731_755 : (List.range' 731 24).all cplOkAt = true := by
+/-- The test of entries 733 to 756 (`level_queries__L23_L0_L4_L16_L22_L4_L0_L0_L0_L0` to `level_positions__L22_L23_L5`, 980 instructions). -/
+theorem cplOk_733_757 : (List.range' 733 24).all cplOkAt = true := by
   decide +kernel
 
-/-- The test of entries 755 to 779 (`level_positions__L44_L22_L4` to `level_queries__L16_L0_L4_L16_L20_L2_L5_L36_L6_L1`, 968 instructions). -/
-theorem cplOk_755_780 : (List.range' 755 25).all cplOkAt = true := by
+/-- The test of entries 757 to 781 (`level_positions__L15_L24_L6` to `level_residual__L218_L21_L6_L3`, 965 instructions). -/
+theorem cplOk_757_782 : (List.range' 757 25).all cplOkAt = true := by
   decide +kernel
 
 end

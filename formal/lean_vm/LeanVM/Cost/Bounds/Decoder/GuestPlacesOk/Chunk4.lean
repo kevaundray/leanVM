@@ -6,7 +6,7 @@ module
 
 public import LeanVM.Cost.Decoder.GuestPlaces
 
-/-! Bound: the guest's place codes of functions `424` to `1028` (`39598` codes), each cell below
+/-! Bound: the guest's place codes of functions `424` to `1028` (`39522` codes), each cell below
 `2^13` and each code below `9·2^20`, a kernel evaluation in a module of its own
 (`GuestTablesFirewall.lean` checks that it imports the tables alone). -/
 
