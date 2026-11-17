@@ -79,53 +79,5 @@ kernel_rfl rst36_36 :
 kernel_rfl once36_37 :
     onceRun sn36_37 (allocsOf sc36_37.rest) = some sn36_38
 
-/-- The counts over instructions 0 to 29999 of entry 36. -/
-kernel_rfl cnt36_0 :
-    ((blockOpsFrom pf36.fn.body 0 0).take 30000).foldl (cntStep big36.TA) {} = cn36_1
-
-/-- The frame pointers' cells over instructions 0 to 29999 of entry 36. -/
-kernel_rfl fps36_0 :
-    ((blockOpsFrom pf36.fn.body 0 0).take 30000).foldl fpStep {} = fp36_1
-
-/-- Instructions 0 to 29999 of entry 36 name the temporaries' cells only by their own `DEREF`s. -/
-theorem tops36_0 : ((blockOpsFrom pf36.fn.body 0 0).take 30000).all (tmpOpOk big36.TA fp36_4) = true := by
-  decide +kernel
-
-/-- The counts over instructions 30000 to 59999 of entry 36. -/
-kernel_rfl cnt36_1 :
-    ((blockOpsFrom pf36.fn.body 0 30000).take 30000).foldl (cntStep big36.TA) cn36_1 = cn36_2
-
-/-- The frame pointers' cells over instructions 30000 to 59999 of entry 36. -/
-kernel_rfl fps36_1 :
-    ((blockOpsFrom pf36.fn.body 0 30000).take 30000).foldl fpStep fp36_1 = fp36_2
-
-/-- Instructions 30000 to 59999 of entry 36 name the temporaries' cells only by their own `DEREF`s. -/
-theorem tops36_1 : ((blockOpsFrom pf36.fn.body 0 30000).take 30000).all (tmpOpOk big36.TA fp36_4) = true := by
-  decide +kernel
-
-/-- The counts over instructions 60000 to 89999 of entry 36. -/
-kernel_rfl cnt36_2 :
-    ((blockOpsFrom pf36.fn.body 0 60000).take 30000).foldl (cntStep big36.TA) cn36_2 = cn36_3
-
-/-- The frame pointers' cells over instructions 60000 to 89999 of entry 36. -/
-kernel_rfl fps36_2 :
-    ((blockOpsFrom pf36.fn.body 0 60000).take 30000).foldl fpStep fp36_2 = fp36_3
-
-/-- Instructions 60000 to 89999 of entry 36 name the temporaries' cells only by their own `DEREF`s. -/
-theorem tops36_2 : ((blockOpsFrom pf36.fn.body 0 60000).take 30000).all (tmpOpOk big36.TA fp36_4) = true := by
-  decide +kernel
-
-/-- The counts over instructions 90000 to 114218 of entry 36. -/
-kernel_rfl cnt36_3 :
-    ((blockOpsFrom pf36.fn.body 0 90000).take 24219).foldl (cntStep big36.TA) cn36_3 = cn36_4
-
-/-- The frame pointers' cells over instructions 90000 to 114218 of entry 36. -/
-kernel_rfl fps36_3 :
-    ((blockOpsFrom pf36.fn.body 0 90000).take 24219).foldl fpStep fp36_3 = fp36_4
-
-/-- Instructions 90000 to 114218 of entry 36 name the temporaries' cells only by their own `DEREF`s. -/
-theorem tops36_3 : ((blockOpsFrom pf36.fn.body 0 90000).take 24219).all (tmpOpOk big36.TA fp36_4) = true := by
-  decide +kernel
-
 end
 end LeanVM.Guest.Compiled.CplEval

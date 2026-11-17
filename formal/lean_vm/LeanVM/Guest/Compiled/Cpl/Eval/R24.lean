@@ -10,6 +10,7 @@ module
 public import LeanVM.Guest.Compiled.Cpl.Eval.Split
 public import LeanVM.Compiler.StateLit
 public import LeanVM.Guest.KernelLit
+public meta import LeanVM.Compiler.DataLit
 
 set_option Elab.async false
 set_option maxRecDepth 100000

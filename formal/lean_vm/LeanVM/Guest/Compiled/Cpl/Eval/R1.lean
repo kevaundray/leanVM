@@ -10,6 +10,7 @@ module
 public import LeanVM.Guest.Compiled.Cpl.Eval.Split
 public import LeanVM.Compiler.StateLit
 public import LeanVM.Guest.KernelLit
+public meta import LeanVM.Compiler.DataLit
 public import LeanVM.Guest.Compiled.Compiled
 
 set_option Elab.async false

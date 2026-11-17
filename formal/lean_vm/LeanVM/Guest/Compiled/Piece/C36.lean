@@ -18,6 +18,8 @@ public import LeanVM.Guest.Compiled.Piece.C36D7
 public import LeanVM.Guest.Compiled.Piece.C36D8
 public import LeanVM.Guest.Compiled.Piece.C36D9
 public import LeanVM.Guest.Compiled.Piece.C36D10
+public import LeanVM.Guest.Compiled.Piece.Outs
+public import LeanVM.Guest.Compiled.Piece.Tables
 public meta import LeanVM.Compiler.StateLit
 
 set_option Elab.async false
@@ -3784,7 +3786,7 @@ state_lit cut36_150 : St :=
     constOf := (cut36_149).constOf.insertAll cut36_150_consts }
 
 /-- The walk's state at a cut. -/
-state_lit cut36_end : St :=
+state_lit full cut36_end : St :=
   { next := 1551,
     locs := (cut36_150).locs.insertAll cut36_end_locs,
     scope :=

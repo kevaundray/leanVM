@@ -8,6 +8,7 @@
 module
 
 public import LeanVM.Guest.Compiled.Piece.C36
+public import LeanVM.Guest.Compiled.Piece.Layout
 public import Statement.Data.Bytecode
 
 set_option Elab.async false

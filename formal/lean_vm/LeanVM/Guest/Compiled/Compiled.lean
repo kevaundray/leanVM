@@ -662,7 +662,7 @@ theorem guest_pieces :
 noncomputable def guestFns : List Lowered := fnsOf (lowerProgram guestTraced)
 
 /-- The guest's jump table slots. -/
-def guestSlots : Array KVal := slotsG
+noncomputable def guestSlots : Array KVal := slotsG
 
 theorem guest_jt :
     Data.f0 = ⟨"__jump_tables", 0, (slotsOfOuts guestTraced outsG).size,

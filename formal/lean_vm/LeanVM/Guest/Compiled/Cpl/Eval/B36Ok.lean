@@ -8,6 +8,7 @@
 module
 
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36Ns
+public import LeanVM.Guest.Compiled.Compiled
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36P0
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36P1
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36P2
@@ -24,6 +25,16 @@ public import LeanVM.Guest.Compiled.Cpl.Eval.B36P12
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36P13
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36P14
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36P15
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36C0
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36C1
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36C2
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36C3
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36Q0
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36Q1
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36Q2
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36Q3
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36Q4
+public import LeanVM.Guest.Compiled.Cpl.Eval.B36Q5
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36Pl0
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36Pl1
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36Pl2
@@ -98,28 +109,6 @@ theorem scope36_35 : scopeBlock (guestTraced.getD 36 default).rets (((guestTrace
   scope_match ism36_35 scpre36_35 scx36_35
     (armsRun_part scar36_35_0 (armsRun_part scar36_35_1 (armsRun_end (k := 256) (by decide +kernel))))
     scpo36_35
-
-/-- The checks of entry 36 on its temporaries, parameters and frame. -/
-theorem small36 : smallOk 36 pf36 TL36 cn36_4 = true := by
-  decide +kernel
-
-/-- The scope walk of entry 36 ends with its trace. -/
-theorem fin36 : (match flushAt (guestTraced.getD 36 default).rets sc36_37 with
-    | .ok s => s.rest.isEmpty
-    | .error _ => false) = true := by
-  decide +kernel
-
-theorem rest36_4 : partsOk [4] 36 pf36 = true := by
-  decide +kernel
-
-theorem rest36_5 : partsOk [5] 36 pf36 = true := by
-  decide +kernel
-
-theorem rest36_6 : partsOk [6] 36 pf36 = true := by
-  decide +kernel
-
-theorem rest36_7 : partsOk [7] 36 pf36 = true := by
-  decide +kernel
 
 /-- Entry 36's places, by parts. -/
 theorem rest36_8 : partsOk [8] 36 pf36 = true :=

@@ -39,17 +39,5 @@ kernel_rfl rst19_4 :
 kernel_rfl once19_5 :
     onceRun sn19_5 (allocsOf sc19_5.rest) = some sn19_6
 
-/-- The counts over instructions 0 to 23712 of entry 19. -/
-kernel_rfl cnt19_0 :
-    ((blockOpsFrom pf19.fn.body 0 0).take 23713).foldl (cntStep big19.TA) {} = cn19_1
-
-/-- The frame pointers' cells over instructions 0 to 23712 of entry 19. -/
-kernel_rfl fps19_0 :
-    ((blockOpsFrom pf19.fn.body 0 0).take 23713).foldl fpStep {} = fp19_1
-
-/-- Instructions 0 to 23712 of entry 19 name the temporaries' cells only by their own `DEREF`s. -/
-theorem tops19_0 : ((blockOpsFrom pf19.fn.body 0 0).take 23713).all (tmpOpOk big19.TA fp19_1) = true := by
-  decide +kernel
-
 end
 end LeanVM.Guest.Compiled.CplEval

@@ -8,9 +8,17 @@
 module
 
 public import LeanVM.Guest.Compiled.Cpl.Eval.B19Ns
+public import LeanVM.Guest.Compiled.Compiled
 public import LeanVM.Guest.Compiled.Cpl.Eval.B19P0
 public import LeanVM.Guest.Compiled.Cpl.Eval.B19P1
 public import LeanVM.Guest.Compiled.Cpl.Eval.B19P2
+public import LeanVM.Guest.Compiled.Cpl.Eval.B19C0
+public import LeanVM.Guest.Compiled.Cpl.Eval.B19Q0
+public import LeanVM.Guest.Compiled.Cpl.Eval.B19Q1
+public import LeanVM.Guest.Compiled.Cpl.Eval.B19Q2
+public import LeanVM.Guest.Compiled.Cpl.Eval.B19Q3
+public import LeanVM.Guest.Compiled.Cpl.Eval.B19Q4
+public import LeanVM.Guest.Compiled.Cpl.Eval.B19Q5
 public import LeanVM.Guest.Compiled.Cpl.Eval.B19Pl0
 public import LeanVM.Guest.Compiled.Cpl.Eval.B19Pl1
 public import LeanVM.Guest.Compiled.Cpl.Eval.B19Pl2
@@ -24,28 +32,6 @@ open LeanVM.Guest LeanVM.Guest.Core LeanVM.Guest.Memory LeanVM.Compiler LeanVM.G
   GuestPiece Complete
 
 @[expose] public section
-
-/-- The checks of entry 19 on its temporaries, parameters and frame. -/
-theorem small19 : smallOk 19 pf19 TL19 cn19_1 = true := by
-  decide +kernel
-
-/-- The scope walk of entry 19 ends with its trace. -/
-theorem fin19 : (match flushAt (guestTraced.getD 19 default).rets sc19_5 with
-    | .ok s => s.rest.isEmpty
-    | .error _ => false) = true := by
-  decide +kernel
-
-theorem rest19_4 : partsOk [4] 19 pf19 = true := by
-  decide +kernel
-
-theorem rest19_5 : partsOk [5] 19 pf19 = true := by
-  decide +kernel
-
-theorem rest19_6 : partsOk [6] 19 pf19 = true := by
-  decide +kernel
-
-theorem rest19_7 : partsOk [7] 19 pf19 = true := by
-  decide +kernel
 
 /-- Entry 19's places, by parts. -/
 theorem rest19_8 : partsOk [8] 19 pf19 = true :=
