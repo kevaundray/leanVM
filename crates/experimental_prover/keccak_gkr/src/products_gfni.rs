@@ -198,33 +198,20 @@ const CRT: [u64; 8 * POINTS] = {
 };
 
 /// `SLOT[q][8 i + t]` is the entry of [`Scratch::out`] holding bit `t` of pack `q`'s values at
-/// point `i`. Value registers ([`evaluate`]) hold pack `16 s + 8 l + u` at byte `16 l + 8 s + u`,
-/// and [`ProductSums::stage_lane_byte`] puts byte `16 l + 2 j + d` at qword `2 l + d` of register
-/// `8 i + j`, whose byte `n` is entry `32 r + n`.
+/// point `i`: register `8 i + 4 s + j` of a lane byte ([`evaluate`]) holds pack
+/// `16 s + 8 l + 2 j + d` at qword `2 l + d`, and its byte `n` becomes entry `32 r + n`.
 const SLOT: [[u16; 8 * POINTS]; PACKS] = {
     let mut slot = [[0u16; 8 * POINTS]; PACKS];
-    let mut i = 0;
-    while i < POINTS {
-        let mut j = 0;
-        while j < 8 {
-            let mut l = 0;
-            while l < 2 {
-                let mut d = 0;
-                while d < 2 {
-                    let byte = 2 * j + d;
-                    let q = 16 * (byte / 8) + 8 * l + byte % 8;
-                    let mut t = 0;
-                    while t < 8 {
-                        slot[q][8 * i + t] = (32 * (8 * i + j) + 8 * (2 * l + d) + t) as u16;
-                        t += 1;
-                    }
-                    d += 1;
-                }
-                l += 1;
-            }
-            j += 1;
+    let mut r = 0;
+    while r < STAGED {
+        let (i, s, j) = (r / 8, r % 8 / 4, r % 4);
+        let mut n = 0;
+        while n < 32 {
+            let (l, d, t) = (n / 16, n / 8 % 2, n % 8);
+            slot[16 * s + 8 * l + 2 * j + d][8 * i + t] = (32 * r + n) as u16;
+            n += 1;
         }
-        i += 1;
+        r += 1;
     }
     slot
 };
@@ -241,23 +228,70 @@ const SPLIT: [u8; 32] = {
     t
 };
 
-/// The values of a block position's 32 packs' embeddings at each point: register `i` holds point
-/// `i`, pack `16 s + 8 l + u` at byte `16 l + 8 s + u`.
+/// 8x32 byte transpose: qword `d` of lane `l` of `out[j]` holds byte `16 l + 2 j + d` of each
+/// input, in order.
+///
+/// # Safety
+/// AVX2.
 #[inline(always)]
-fn evaluate(words: &[u64; BLOCK_WORDS]) -> [V; POINTS] {
+unsafe fn transpose_bytes8x32(p: [V; 8]) -> [V; 8] {
+    unsafe {
+        let y: [[V; 2]; 4] = std::array::from_fn(|m| {
+            [
+                _mm256_unpacklo_epi8(p[2 * m], p[2 * m + 1]),
+                _mm256_unpackhi_epi8(p[2 * m], p[2 * m + 1]),
+            ]
+        });
+        let z: [[V; 4]; 2] = std::array::from_fn(|s| {
+            std::array::from_fn(|h| {
+                let (u, v) = (y[2 * s][h / 2], y[2 * s + 1][h / 2]);
+                if h % 2 == 0 {
+                    _mm256_unpacklo_epi16(u, v)
+                } else {
+                    _mm256_unpackhi_epi16(u, v)
+                }
+            })
+        });
+        std::array::from_fn(|j| {
+            let (h, d) = (j / 2, j % 2);
+            if d == 0 {
+                _mm256_unpacklo_epi32(z[0][h], z[1][h])
+            } else {
+                _mm256_unpackhi_epi32(z[0][h], z[1][h])
+            }
+        })
+    }
+}
+
+/// The values at each point of the embeddings of a lane byte's eight positions, from the first
+/// one's: `out[4 s + j][i]` holds point `i`, pack `16 s + 8 l + 2 j + d` at qword `2 l + d`, its
+/// byte `k` for position `k`. The packs' bytes are transposed first, low and high bytes apart, so
+/// the values come out already as the column bytes' sources.
+#[inline(always)]
+fn evaluate(block: &[u64], first: usize, out: &mut [[V; POINTS]; 8]) {
+    let words: [&[u64; BLOCK_WORDS]; 8] = std::array::from_fn(|k| words(block, first + k));
     // SAFETY: AVX2 and GFNI are enabled at compile time (module cfg); the loads are of the eight
-    // words and of `SPLIT`.
+    // positions' words and of `SPLIT`.
     unsafe {
         let split = _mm256_loadu_si256(SPLIT.as_ptr().cast());
-        let w0 = _mm256_shuffle_epi8(_mm256_loadu_si256(words.as_ptr().cast()), split);
-        let w1 = _mm256_shuffle_epi8(_mm256_loadu_si256(words.as_ptr().add(4).cast()), split);
-        let (low, high) = (_mm256_unpacklo_epi64(w0, w1), _mm256_unpackhi_epi64(w0, w1));
-        std::array::from_fn(|i| {
-            _mm256_xor_si256(
-                _mm256_gf2p8affine_epi64_epi8(low, _mm256_set1_epi64x(EVAL[0][i] as i64), 0),
-                _mm256_gf2p8affine_epi64_epi8(high, _mm256_set1_epi64x(EVAL[1][i] as i64), 0),
-            )
-        })
+        for s in 0..2 {
+            // `t[j]`, `j < 4`: the low bytes of packs `16 s + 8 l + 2 j + d`; `t[j + 4]` their high ones.
+            let t = transpose_bytes8x32(std::array::from_fn(|k| {
+                _mm256_shuffle_epi8(_mm256_loadu_si256(words[k].as_ptr().add(4 * s).cast()), split)
+            }));
+            for i in 0..POINTS {
+                let (m0, m1) = (
+                    _mm256_set1_epi64x(EVAL[0][i] as i64),
+                    _mm256_set1_epi64x(EVAL[1][i] as i64),
+                );
+                for j in 0..4 {
+                    out[4 * s + j][i] = _mm256_xor_si256(
+                        _mm256_gf2p8affine_epi64_epi8(t[j], m0, 0),
+                        _mm256_gf2p8affine_epi64_epi8(t[j + 4], m1, 0),
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -382,9 +416,7 @@ impl ProductSums {
         for &(y, zb, mask) in &self.row_bytes {
             let (y, zb) = (y as usize, zb as usize);
             for (x, lane) in values.iter_mut().enumerate() {
-                for (k, v) in lane.iter_mut().enumerate() {
-                    *v = evaluate(words(block, 64 * (x + 5 * y) + 8 * zb + k));
-                }
+                evaluate(block, 64 * (x + 5 * y) + 8 * zb, lane);
             }
             for x in (0..5).filter(|x| mask >> x & 1 == 1) {
                 assert!(a < n_active, "one staged column per active lane byte");
@@ -407,9 +439,8 @@ impl ProductSums {
     }
 
     /// The column bytes of one lane byte's products, from the values of its three factors'
-    /// embeddings (`e[f][k][i]`: factor `f`, position `k`, point `i`): register `8 i + j` holds, in
-    /// qword `2 l + d`, the column byte of each bit of the products' values at point `i` for the
-    /// pack at byte `16 l + 2 j + d` of a value register ([`SLOT`]).
+    /// embeddings (`e[f][r][i]`, as [`evaluate`] lays them out): register `8 i + r` holds, in each
+    /// qword, the column byte of each bit of a pack's product's values at point `i` ([`SLOT`]).
     ///
     /// # Safety
     /// AVX2 and GFNI; `staged + staged_index(r, a, n_active)` writable for `r < STAGED`.
@@ -419,41 +450,15 @@ impl ProductSums {
             let bit_transpose = _mm256_set1_epi64x(BIT_TRANSPOSE);
             for i in 0..POINTS {
                 let ones = _mm256_set1_epi8(ONES[i] as i8);
-                // `ones * (a + c) + b * c` at point `i`, per position.
-                let p: [V; 8] = std::array::from_fn(|k| {
-                    let (a, b, c) = (e[0][k][i], e[1][k][i], e[2][k][i]);
-                    _mm256_xor_si256(
-                        _mm256_gf2p8mul_epi8(_mm256_xor_si256(a, c), ones),
-                        _mm256_gf2p8mul_epi8(b, c),
-                    )
-                });
-                // 8x32 byte transpose: qword `d` of lane `l` of `w[j]` holds byte `16 l + 2 j + d`
-                // of each position, in order.
-                let y: [[V; 2]; 4] = std::array::from_fn(|m| {
-                    [
-                        _mm256_unpacklo_epi8(p[2 * m], p[2 * m + 1]),
-                        _mm256_unpackhi_epi8(p[2 * m], p[2 * m + 1]),
-                    ]
-                });
-                let z: [[V; 4]; 2] = std::array::from_fn(|s| {
-                    std::array::from_fn(|h| {
-                        let (u, v) = (y[2 * s][h / 2], y[2 * s + 1][h / 2]);
-                        if h % 2 == 0 {
-                            _mm256_unpacklo_epi16(u, v)
-                        } else {
-                            _mm256_unpackhi_epi16(u, v)
-                        }
-                    })
-                });
-                for h in 0..4 {
-                    let w = [
-                        _mm256_unpacklo_epi32(z[0][h], z[1][h]),
-                        _mm256_unpackhi_epi32(z[0][h], z[1][h]),
-                    ];
-                    for (d, w) in w.into_iter().enumerate() {
-                        let r = 8 * i + 2 * h + d;
-                        *staged.add(staged_index(r, a, n_active)) = _mm256_gf2p8affine_epi64_epi8(bit_transpose, w, 0);
-                    }
+                for r in 0..8 {
+                    // `ones * (u + w) + v * w` at point `i`.
+                    let (u, v, w) = (e[0][r][i], e[1][r][i], e[2][r][i]);
+                    let p = _mm256_xor_si256(
+                        _mm256_gf2p8mul_epi8(_mm256_xor_si256(u, w), ones),
+                        _mm256_gf2p8mul_epi8(v, w),
+                    );
+                    *staged.add(staged_index(8 * i + r, a, n_active)) =
+                        _mm256_gf2p8affine_epi64_epi8(bit_transpose, p, 0);
                 }
             }
         }
