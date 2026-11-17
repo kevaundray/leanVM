@@ -237,9 +237,12 @@ impl LeafBlock {
     fn fill_lanes(&self, z0: usize, out: &mut [F128], cols: &[&[F64]]) -> usize {
         use lanes::{E, K, Mixed, N};
         let load = |source: &[F64], z: usize| K::load(source[z..z + N].try_into().unwrap());
-        // `g^z` for the `N` rows, stepped by `g^N`.
-        let mut index = K::new(std::array::from_fn(|i| g_pow(z0 + i)));
+        // `g^z` for the `N` rows, stepped by `g^N`: one power, then shifts.
+        let first = g_pow(z0);
+        let mut index = K::new(std::array::from_fn(|i| (0..i).fold(first, |p, _| mul_by_g(p))));
         let step = K::splat(g_pow(N));
+        // A block without an index term skips its products.
+        let indexed = self.terms.iter().any(|&(source, _)| source == Source::Index);
         let coeffs: Vec<E> = self.terms.iter().map(|&(_, c)| E::splat(c)).collect();
         let constant = E::splat(self.const_part);
         let (chunks, _) = out.as_chunks_mut::<N>();
@@ -253,7 +256,9 @@ impl LeafBlock {
                     Source::Index => acc.add(c, index),
                 }
             }
-            index = index * step;
+            if indexed {
+                index = index * step;
+            }
             let leaves = acc.reduce() + constant;
             if self.onto { leaves + E::load(slot) } else { leaves }.store(slot);
         }
