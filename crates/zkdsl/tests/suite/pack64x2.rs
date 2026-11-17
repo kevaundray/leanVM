@@ -1,7 +1,7 @@
 use crate::common::compile;
 use lean_vm_core::cpu::{prove, verify};
 use primitives::field::F128;
-use zkdsl_compiler::parse;
+use zkdsl::parse;
 
 use crate::common::mix;
 
