@@ -680,14 +680,13 @@ mod vertical {
     #[inline(always)]
     fn fold_pairs(a: &Group, b: &Group, r: F128x8) -> Group {
         let fold = |g: &Group, c: usize| g[c] + r * (g[c] + g[4 + c]);
-        let mut out = [F128x8::splat(F128::ZERO); 8];
-        for c in 0..4 {
-            (out[c], out[4 + c]) = cfg_select! {
+        let split: [(F128x8, F128x8); 4] = std::array::from_fn(|c| {
+            cfg_select! {
                 target_feature = "avx512f" => F128x8::deinterleave(fold(a, c), fold(b, c)),
                 _ => F128x8::even_odd(fold(a, c), fold(b, c)),
-            };
-        }
-        out
+            }
+        });
+        std::array::from_fn(|j| if j < 4 { split[j].0 } else { split[j - 4].1 })
     }
 
     pub(super) enum Data<'a> {
@@ -709,17 +708,22 @@ mod vertical {
             }
         }
 
-        /// Group `g`, the identity past the end or where `ones` says so.
+        /// Group `g`, the identity past the end or where `ones` says so; `scratch` holds
+        /// it unless it is stored.
         #[inline(always)]
-        fn get(&self, g: usize) -> Group {
-            let ones = [F128x8::splat(F128::ONE); 8];
+        fn get<'a>(&'a self, g: usize, scratch: &'a mut Group) -> &'a Group {
             if covered(self.ones, 16 * g..16 * g + 16) {
-                return ones;
+                *scratch = [F128x8::splat(F128::ONE); 8];
+                return scratch;
             }
             match self.data {
-                Data::Rows(values) => load(values, g),
-                Data::Groups(groups) => groups.get(g).copied().unwrap_or(ones),
+                Data::Rows(values) => *scratch = load(values, g),
+                Data::Groups(groups) => match groups.get(g) {
+                    Some(group) => return group,
+                    None => *scratch = [F128x8::splat(F128::ONE); 8],
+                },
             }
+            scratch
         }
     }
 
@@ -755,6 +759,7 @@ mod vertical {
         let task = |i: usize| {
             let (t, first) = tasks[i];
             let stream = Stream::new();
+            let mut scratch = [[F128x8::splat(F128::ONE); 8]; 2];
             let mut message = Message::new(eq, first);
             for g in first..(first + TASK).min(n_out[t]) {
                 // Identity rows fold to identity rows, which add nothing, and their
@@ -762,7 +767,8 @@ mod vertical {
                 if covered(&ones[t], 16 * g..16 * g + 16) {
                     continue;
                 }
-                let pairs = fold_pairs(&inputs[t].get(2 * g), &inputs[t].get(2 * g + 1), r);
+                let [a, b] = &mut scratch;
+                let pairs = fold_pairs(inputs[t].get(2 * g, a), inputs[t].get(2 * g + 1, b), r);
                 message.add(g, &pairs);
                 // The next round reads it, long after this round's pass evicted it.
                 // SAFETY: tasks own disjoint groups of the outputs.
