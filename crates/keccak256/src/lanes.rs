@@ -225,7 +225,7 @@ fn word(inputs: &[u8], len: usize, at: usize, n: usize) -> Backend {
 }
 
 cfg_select! {
-    all(target_arch = "x86_64", target_feature = "avx512f") => {
+    all(target_arch = "x86_64", target_feature = "avx2") => {
         use x86::{absorb, digests};
     }
     target_arch = "aarch64" => {
@@ -316,7 +316,6 @@ pub fn first_nonce<const AT: usize>(
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 mod x86 {
     use super::Lane;
-    #[cfg(target_feature = "avx512f")]
     use crate::{OUT_LEN, RATE_LANES, STATE_LANES};
     use core::arch::x86_64::*;
 
@@ -367,6 +366,60 @@ mod x86 {
         fn chi(a: Self, b: Self, c: Self) -> Self {
             // SAFETY: the module's cfg enables avx2.
             Self(unsafe { _mm256_xor_si256(a.0, _mm256_andnot_si256(b.0, c.0)) })
+        }
+    }
+
+    /// The generic `absorb` on four inputs: each input's words in rows of four, transposed into one register per word.
+    #[cfg(not(target_feature = "avx512f"))]
+    #[inline(always)]
+    pub(super) fn absorb(st: &mut [Avx2; STATE_LANES], inputs: &[u8], len: usize, at: usize, words: usize) {
+        assert!(words <= RATE_LANES && at + 8 * words <= len);
+        for g in 0..words.div_ceil(4) {
+            let n = (words - 4 * g).min(4);
+            let rows: [__m256i; 4] = core::array::from_fn(|l| {
+                let row = &inputs[l * len + at + 32 * g..][..8 * n];
+                // SAFETY: the module's cfg enables avx2, and a whole row is 32 readable bytes, while the mask of a
+                // shorter one reads its `n` words and no others.
+                unsafe {
+                    if n == 4 {
+                        _mm256_loadu_si256(row.as_ptr().cast())
+                    } else {
+                        let mask = _mm256_cmpgt_epi64(_mm256_set1_epi64x(n as i64), _mm256_setr_epi64x(0, 1, 2, 3));
+                        _mm256_maskload_epi64(row.as_ptr().cast(), mask)
+                    }
+                }
+            });
+            for (lane, col) in st[4 * g..4 * g + n].iter_mut().zip(transpose4(rows)) {
+                *lane = lane.xor(Avx2(col));
+            }
+        }
+    }
+
+    /// The generic `digests` on four inputs: the four digest lanes transposed into one row per input.
+    #[cfg(not(target_feature = "avx512f"))]
+    #[inline(always)]
+    pub(super) fn digests(st: &[Avx2; STATE_LANES], out: &mut [u8; 4 * OUT_LEN]) {
+        let rows = transpose4([st[0].0, st[1].0, st[2].0, st[3].0]);
+        for (row, bytes) in rows.iter().zip(out.as_chunks_mut::<OUT_LEN>().0) {
+            // SAFETY: the module's cfg enables avx2, and `bytes` is 32 writable bytes.
+            unsafe { _mm256_storeu_si256(bytes.as_mut_ptr().cast(), *row) }
+        }
+    }
+
+    /// The 4x4 transpose of 64-bit words: word `j` of row `i` becomes word `i` of row `j`.
+    #[cfg(not(target_feature = "avx512f"))]
+    #[inline(always)]
+    fn transpose4(r: [__m256i; 4]) -> [__m256i; 4] {
+        // SAFETY: the module's cfg enables avx2.
+        unsafe {
+            let (a0, a1) = (_mm256_unpacklo_epi64(r[0], r[1]), _mm256_unpackhi_epi64(r[0], r[1]));
+            let (a2, a3) = (_mm256_unpacklo_epi64(r[2], r[3]), _mm256_unpackhi_epi64(r[2], r[3]));
+            [
+                _mm256_permute2x128_si256::<0x20>(a0, a2),
+                _mm256_permute2x128_si256::<0x20>(a1, a3),
+                _mm256_permute2x128_si256::<0x31>(a0, a2),
+                _mm256_permute2x128_si256::<0x31>(a1, a3),
+            ]
         }
     }
 
