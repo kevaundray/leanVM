@@ -91,7 +91,9 @@ pub const END_BIT: u64 = (PAD_LAST as u64) << 56;
 mod lanes;
 pub mod positions;
 
-pub use lanes::{LANES, digest_halves_from, first_nonce, hash_many, hash_many_from_state, keccak_f_many};
+pub use lanes::{
+    LANES, digest_halves_from, first_nonce, hash_many, hash_many_after_zeros, hash_many_from_state, keccak_f_many,
+};
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 mod single_avx512;
@@ -304,30 +306,37 @@ mod tests {
         }
     }
 
-    /// The batched hash, whole groups and the remainder, from the zero state and from a zero prefix, against hashing
-    /// each whole image.
+    /// The batched hash, whole groups and the remainder, from the zero state and from a zero prefix, with and without
+    /// leading zero words, against hashing each whole image.
     #[test]
     fn batched_hash_matches_one_shot() {
         for zero_blocks in [0usize, 1, 3] {
             let state = zero_prefix_state(zero_blocks);
-            for len in [0usize, 8, 64, 135, 136, 137, 200, 408, 512] {
-                for n in [1, LANES, 2 * LANES + 1] {
-                    let data: Vec<u8> = (0..n * len).map(|i| (i * 31 + zero_blocks) as u8).collect();
-                    let mut got = vec![0u8; n * OUT_LEN];
-                    hash_many_from_state(&data, len, &state, &mut got);
-                    for i in 0..n {
-                        let mut whole = vec![0u8; zero_blocks * RATE];
-                        whole.extend_from_slice(&data[i * len..(i + 1) * len]);
-                        assert_eq!(
-                            &got[i * OUT_LEN..][..OUT_LEN],
-                            &hash(&whole)[..],
-                            "{zero_blocks} {len} {n}"
-                        );
-                    }
-                    if zero_blocks == 0 {
-                        let mut plain = vec![0u8; n * OUT_LEN];
-                        hash_many(&data, len, &mut plain);
-                        assert_eq!(plain, got);
+            for zeros in [0, 8, 128] {
+                for len in [0usize, 8, 64, 128, 135, 136, 137, 200, 384, 408, 512] {
+                    for n in [1, LANES, 2 * LANES + 1] {
+                        let data: Vec<u8> = (0..n * len).map(|i| (i * 31 + zero_blocks) as u8).collect();
+                        let mut got = vec![0u8; n * OUT_LEN];
+                        hash_many_after_zeros(&data, len, zeros, &state, &mut got);
+                        for i in 0..n {
+                            let mut whole = vec![0u8; zero_blocks * RATE + zeros];
+                            whole.extend_from_slice(&data[i * len..(i + 1) * len]);
+                            assert_eq!(
+                                &got[i * OUT_LEN..][..OUT_LEN],
+                                &hash(&whole)[..],
+                                "{zero_blocks} {zeros} {len} {n}"
+                            );
+                        }
+                        if zeros == 0 {
+                            let mut from_state = vec![0u8; n * OUT_LEN];
+                            hash_many_from_state(&data, len, &state, &mut from_state);
+                            assert_eq!(from_state, got);
+                        }
+                        if zero_blocks == 0 && zeros == 0 {
+                            let mut plain = vec![0u8; n * OUT_LEN];
+                            hash_many(&data, len, &mut plain);
+                            assert_eq!(plain, got);
+                        }
                     }
                 }
             }

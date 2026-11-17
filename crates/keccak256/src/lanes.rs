@@ -183,32 +183,56 @@ pub fn hash_many(data: &[u8], len: usize, out: &mut [u8]) {
 /// [`hash_many`] continued from one sponge state shared by every input, which has absorbed whole blocks (see
 /// [`zero_prefix_state`](crate::zero_prefix_state)). Byte-identical to hashing each full image.
 pub fn hash_many_from_state(data: &[u8], len: usize, state: &[u64; STATE_LANES], out: &mut [u8]) {
+    hash_many_after_zeros(data, len, 0, state, out);
+}
+
+/// [`hash_many_from_state`] of inputs that each follow `zeros` more zero bytes, whole words and less than a block.
+/// The zeros are never laid out or read. Byte-identical to hashing each full image.
+pub fn hash_many_after_zeros(data: &[u8], len: usize, zeros: usize, state: &[u64; STATE_LANES], out: &mut [u8]) {
     let n = out.len() / OUT_LEN;
     assert_eq!((data.len(), out.len()), (n * len, n * OUT_LEN));
+    assert!(
+        zeros < RATE && zeros.is_multiple_of(8),
+        "zeros are whole words within the first block"
+    );
     for (g, digests) in out.as_chunks_mut::<{ LANES * OUT_LEN }>().0.iter_mut().enumerate() {
-        hash_group(&data[g * LANES * len..][..LANES * len], len, state, digests);
+        hash_group(&data[g * LANES * len..][..LANES * len], len, zeros, state, digests);
     }
     for i in n / LANES * LANES..n {
-        out[i * OUT_LEN..][..OUT_LEN].copy_from_slice(&hash_from_state(&data[i * len..][..len], state));
+        let input = &data[i * len..][..len];
+        let digest = if zeros == 0 {
+            hash_from_state(input, state)
+        } else {
+            let mut image = vec![0; zeros + len];
+            image[zeros..].copy_from_slice(input);
+            hash_from_state(&image, state)
+        };
+        out[i * OUT_LEN..][..OUT_LEN].copy_from_slice(&digest);
     }
 }
 
-/// The digests of [`LANES`] inputs of `len` bytes, input `l` at `inputs[l * len..]`.
+/// The digests of [`LANES`] inputs of `len` bytes, each after `zeros` zero bytes, input `l` at `inputs[l * len..]`.
 #[inline(always)]
-fn hash_group(inputs: &[u8], len: usize, state: &[u64; STATE_LANES], out: &mut [u8; LANES * OUT_LEN]) {
+fn hash_group(inputs: &[u8], len: usize, zeros: usize, state: &[u64; STATE_LANES], out: &mut [u8; LANES * OUT_LEN]) {
     let mut st: [Backend; STATE_LANES] = core::array::from_fn(|i| Backend::splat(state[i]));
-    let (blocks, tail) = (len / RATE, len % RATE);
+    let (blocks, tail) = ((zeros + len) / RATE, (zeros + len) % RATE);
+    // Image byte `zeros + i` is input byte `i`: block `b > 0` starts at input byte `b * RATE - zeros`, and the first
+    // block's input starts at lane `zeros / 8`.
+    let from = |b: usize| if b == 0 { (zeros / 8, 0) } else { (0, b * RATE - zeros) };
     for b in 0..blocks {
-        absorb(&mut st, inputs, len, b * RATE, RATE_LANES);
+        let (lane, at) = from(b);
+        absorb(&mut st[lane..], inputs, len, at, RATE_LANES - lane);
         permute(&mut st);
     }
     // The final block: the tail's whole words, its last partial word, then the padding, the same in every input.
-    let (words, part) = (tail / 8, tail % 8);
-    absorb(&mut st, inputs, len, blocks * RATE, words);
+    let (lane, at) = from(blocks);
+    let (words, part) = (tail / 8 - lane, tail % 8);
+    absorb(&mut st[lane..], inputs, len, at, words);
+    let last = lane + words;
     if part > 0 {
-        st[words] = st[words].xor(word(inputs, len, blocks * RATE + 8 * words, part));
+        st[last] = st[last].xor(word(inputs, len, at + 8 * words, part));
     }
-    st[words] = st[words].xor(Backend::splat(u64::from(PAD_FIRST) << (8 * part)));
+    st[last] = st[last].xor(Backend::splat(u64::from(PAD_FIRST) << (8 * part)));
     st[RATE_LANES - 1] = st[RATE_LANES - 1].xor(Backend::splat(END_BIT));
     permute(&mut st);
     digests(&st, out);
@@ -234,7 +258,7 @@ cfg_select! {
     _ => {
         /// XOR the `words` little-endian words of every input from byte `at` on into `st[..words]`.
         #[inline(always)]
-        fn absorb(st: &mut [Backend; STATE_LANES], inputs: &[u8], len: usize, at: usize, words: usize) {
+        fn absorb(st: &mut [Backend], inputs: &[u8], len: usize, at: usize, words: usize) {
             for (w, lane) in st[..words].iter_mut().enumerate() {
                 *lane = lane.xor(Backend::load(&core::array::from_fn::<u64, LANES, _>(|l| {
                     u64::from_le_bytes(*inputs[l * len + at + 8 * w..].first_chunk().unwrap())
@@ -372,7 +396,7 @@ mod x86 {
     /// The generic `absorb` on four inputs: each input's words in rows of four, transposed into one register per word.
     #[cfg(not(target_feature = "avx512f"))]
     #[inline(always)]
-    pub(super) fn absorb(st: &mut [Avx2; STATE_LANES], inputs: &[u8], len: usize, at: usize, words: usize) {
+    pub(super) fn absorb(st: &mut [Avx2], inputs: &[u8], len: usize, at: usize, words: usize) {
         assert!(words <= RATE_LANES && at + 8 * words <= len);
         for g in 0..words.div_ceil(4) {
             let n = (words - 4 * g).min(4);
@@ -479,7 +503,7 @@ mod x86 {
     /// word.
     #[cfg(target_feature = "avx512f")]
     #[inline(always)]
-    pub(super) fn absorb(st: &mut [Avx512; STATE_LANES], inputs: &[u8], len: usize, at: usize, words: usize) {
+    pub(super) fn absorb(st: &mut [Avx512], inputs: &[u8], len: usize, at: usize, words: usize) {
         assert!(words <= RATE_LANES && at + 8 * words <= len);
         for g in 0..words.div_ceil(8) {
             let n = (words - 8 * g).min(8);
@@ -615,7 +639,7 @@ mod arm {
     /// The generic `absorb` on two inputs: two words of each per load, `ZIP1` and `ZIP2` turning the two rows into
     /// two lanes.
     #[inline(always)]
-    pub(super) fn absorb(st: &mut [Neon; STATE_LANES], inputs: &[u8], len: usize, at: usize, words: usize) {
+    pub(super) fn absorb(st: &mut [Neon], inputs: &[u8], len: usize, at: usize, words: usize) {
         assert!(words <= RATE_LANES && at + 8 * words <= len);
         let (a, b) = (&inputs[at..][..8 * words], &inputs[len + at..][..8 * words]);
         for (p, (x, y)) in a.as_chunks::<16>().0.iter().zip(b.as_chunks::<16>().0).enumerate() {
