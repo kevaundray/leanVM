@@ -22,6 +22,7 @@ use super::{RingSwitchOpen, StackClaim};
 use crate::ring_switch::{RingWeight, coordinate_basis};
 use crate::tensor_algebra::{DEGREE_E, transpose_s_hat};
 use crate::whir::InitialBasis;
+use crate::xmul::coeff;
 
 /// Bits of a block's low part.
 pub(super) const LOW_VARS: usize = 10;
@@ -94,27 +95,52 @@ struct Pattern {
     active: Vec<bool>,
 }
 
-/// The table of `pi`: in vectors of eight for the lift, packed for the dot against a block.
+/// The table of `pi`: in vectors of eight for the lift, packed for the dot against a block, and `X^T pi` packed.
 struct Low {
     table: Vec<F128x8>,
     packed: Vec<Weights8>,
+    /// `pi` through the transpose of the block's part of `X`, which leaves out the block's first word of `X h`.
+    packed_x: Vec<Weights8>,
+    /// `pi(0)`, the weight of that word.
+    head: F128,
 }
 
 impl Low {
     fn new(factors: &[Factor]) -> Self {
         let table = table(factors);
-        let packed = table.as_chunks::<8>().0.iter().map(Weights8::new).collect();
+        let pack = |t: &[F128]| t.as_chunks::<8>().0.iter().map(Weights8::new).collect();
+        let (packed, packed_x) = (pack(&table), pack(&x_transpose(&table)));
+        let head = table[0];
         let table = table.as_chunks::<8>().0.iter().map(F128x8::from_array).collect();
-        Low { table, packed }
-    }
-
-    /// `sum_x block[x] * pi(x)`.
-    fn dot(&self, block: Words) -> F128 {
-        match block {
-            Words::Base(k) => dot_base(&self.packed, k).reduce(),
-            Words::Ext(e) => dot_ext(&self.packed, e).reduce(),
+        Low {
+            table,
+            packed,
+            packed_x,
+            head,
         }
     }
+
+    /// `sum_x block[x] * pi(x)`, or `sum_x block[x] * (X^T pi)(x)` if `under_x`.
+    fn dot(&self, block: Words, under_x: bool) -> F128 {
+        let w = if under_x { &self.packed_x } else { &self.packed };
+        match block {
+            Words::Base(k) => dot_base(w, k).reduce(),
+            Words::Ext(e) => dot_ext(w, e).reduce(),
+        }
+    }
+}
+
+/// `pi` through the transpose of the part of `X` inside a block: `(X h)[first + j]` for `0 < j < pi.len()` reads `h`
+/// at `first + j - 1` and `first + j + 2^t - 1`, `t` the trailing zeros of `j`, both inside the block, when `first` is
+/// a multiple of the block's length.
+fn x_transpose(pi: &[F128]) -> Vec<F128> {
+    let mut out = vec![F128::ZERO; pi.len()];
+    for (j, &p) in pi.iter().enumerate().skip(1) {
+        let v = p.mul_base(coeff(j));
+        out[j - 1] += v;
+        out[j + (1 << j.trailing_zeros()) - 1] += v;
+    }
+    out
 }
 
 /// The words of a lane a projection is fed: a `K` lane's, or an `E` lane's.
@@ -245,9 +271,10 @@ impl Terms {
         self.n_claims() + DEGREE_E * self.rings.len()
     }
 
-    /// The patterns and rings some term `live` marks needs.
-    fn live<'a>(&'a self, live: &[bool]) -> Live<'a> {
+    /// The patterns and rings some term `live` marks needs, the patterns against `X^T pi` if `under_x`.
+    fn live<'a>(&'a self, live: &[bool], under_x: bool) -> Live<'a> {
         Live {
+            under_x,
             patterns: self
                 .patterns
                 .iter()
@@ -266,13 +293,16 @@ impl Terms {
     /// range, the words and their repeat tags, in order of blocks per slot, [`SWEEP`] blocks or more at a time. A slot
     /// that projects no term ignores its words, and a slot is fed words of one kind.
     ///
+    /// A slot that `live` also flags dots its words `h` against `X^T pi` for the claims: their projections of `X h` but
+    /// for each block's first word, which [`Self::add_heads`] adds.
+    ///
     /// A repeat tag says a block equals the block fed before it to its slot, and means nothing on the slot's first
     /// block. Tags may be empty.
     pub(crate) fn project_rows<'m>(
         &self,
         n_lanes: usize,
         slots: usize,
-        live: impl Fn(usize, usize) -> &'m [bool] + Sync,
+        live: impl Fn(usize, usize) -> (&'m [bool], bool) + Sync,
         task: impl Fn(usize, std::ops::Range<usize>, &mut dyn FnMut(usize, usize, Words, &[bool])) + Sync,
     ) -> Vec<F128> {
         let n_terms = self.n_terms();
@@ -284,7 +314,12 @@ impl Terms {
         let parts = parallel::map_collect(n_lanes * n_ranges, |t| {
             let (lane, k) = (t / n_ranges, t % n_ranges);
             let blocks = k * per..((k + 1) * per).min(n_blocks);
-            let lives: Vec<Live> = (0..slots).map(|slot| self.live(live(lane, slot))).collect();
+            let lives: Vec<Live> = (0..slots)
+                .map(|slot| {
+                    let (live, under_x) = live(lane, slot);
+                    self.live(live, under_x)
+                })
+                .collect();
             let mut projections: Vec<Option<Projection>> = (0..slots).map(|_| None).collect();
             task(lane, blocks.clone(), &mut |slot, start, words, repeats| {
                 let live = &lives[slot];
@@ -316,6 +351,26 @@ impl Terms {
             }
         }
         rows
+    }
+
+    /// Adds `pi_c(0) sum_h gamma_c(h) heads[h]` to `row[c]` for every claim `c` that `live` marks: the part of `X h`'s
+    /// projection a slot of [`Self::project_rows`] that dots `X^T pi` leaves out, `heads[h]` the first word of block
+    /// `h` of `X h`.
+    pub(crate) fn add_heads(&self, live: &[bool], heads: &[F128], row: &mut [F128]) {
+        for pattern in &self.patterns {
+            for &c in pattern.claims.iter().filter(|&&c| live[c]) {
+                let range = self.ranges[c].clone();
+                let ((g8, g_r), (h8, h_r)) = (
+                    self.gamma(c)[range.clone()].as_chunks::<8>(),
+                    heads[range].as_chunks::<8>(),
+                );
+                let sum = g8.iter().zip(h8).fold(Acc8::ZERO, |mut acc, (g, h)| {
+                    acc ^= msg_lone8_ext(g, h);
+                    acc
+                });
+                row[c] += pattern.low.head * g_r.iter().zip(h_r).fold(sum.reduce(), |sum, (&g, &h)| sum + g * h);
+            }
+        }
     }
 
     /// The repeat tags of the blocks `blocks` of lane `l`.
@@ -400,8 +455,9 @@ impl Terms {
 /// stay in L1 across the sweep while its words stay in L2.
 pub(crate) const SWEEP: usize = 32;
 
-/// The patterns and rings a projection computes.
+/// The patterns and rings a projection computes, and whether against `X^T pi`.
 struct Live<'a> {
+    under_x: bool,
     patterns: Vec<&'a Pattern>,
     rings: Vec<&'a Ring>,
 }
@@ -464,7 +520,7 @@ impl Projection {
                     }
                     if pattern.active[start + h] {
                         self.q[p * range + start + h - self.blocks.start] =
-                            *dot.get_or_insert_with(|| pattern.low.dot(block(h)));
+                            *dot.get_or_insert_with(|| pattern.low.dot(block(h), live.under_x));
                     }
                 }
             }
@@ -634,4 +690,29 @@ pub(super) fn initial_basis(
         }
     }
     InitialBasis { a, n_terms, terms }
+}
+
+#[cfg(test)]
+mod tests {
+    use primitives::test_rng::Rng;
+
+    use super::*;
+    use crate::xmul::x_at;
+
+    fn dot(a: &[F128], b: &[F128]) -> F128 {
+        a.iter().zip(b).map(|(&a, &b)| a * b).sum()
+    }
+
+    /// A block of `X h` against `pi` is the block of `h` against `X^T pi`, and the first word of `X h`'s block.
+    #[test]
+    fn x_transpose_takes_x_onto_the_weights() {
+        let mut rng = Rng::new(0x5);
+        let pi: Vec<F128> = (0..64).map(|_| rng.ext()).collect();
+        let pi_x = x_transpose(&pi);
+        let h: Vec<F128> = (0..256).map(|_| rng.ext()).collect();
+        for first in (0..256).step_by(64) {
+            let xh: Vec<F128> = (first..first + 64).map(|c| x_at(&h, c)).collect();
+            assert_eq!(dot(&xh, &pi), dot(&h[first..first + 64], &pi_x) + pi[0] * xh[0]);
+        }
+    }
 }
