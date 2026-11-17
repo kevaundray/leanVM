@@ -6,7 +6,7 @@
 //! below 192 is fixed by its residues modulo 24 distinct irreducibles of degree 8, whose product has
 //! degree 192. Its residue modulo one is its value at a root in GF(2^8), the field of GF2P8MULB: a
 //! byte, where a sum is a XOR and a product a byte product. Of the 30 irreducibles of degree 8,
-//! [`POWERS`] takes a root of 24, three registers of eight with AVX-512, six of four with AVX2.
+//! [`POWERS`] takes a root of 24, a quadword of a register each.
 //!
 //! So nothing is a carry-less product: affine byte maps send the witness's bytes and the weights' to
 //! residues ([`EVAL`], [`WEIGHT`]), and a slot's products are byte products. Once a block, a slot's
@@ -22,78 +22,105 @@ use crate::kernels::{GROUP, SLOTS, slot};
 use crate::rmfe::RMFE;
 use crate::witness::BLOCK_WORDS;
 
-cfg_select! {
-    target_feature = "avx512f" => { type V = __m512i; }
-    _ => { type V = __m256i; }
-}
-/// Quadwords of a [`V`].
-const LANES: usize = size_of::<V>() / 8;
-
 /// Points a polynomial is held at.
 const POINTS: usize = 24;
 const _: () = assert!(
     127 + 2 * (EMBED_BITS - 1) < 8 * POINTS,
     "a slot's sum has more coefficients than the points fix"
 );
+cfg_select! {
+    all(target_feature = "avx512f", target_feature = "avx512bw") => {
+        type Reg = __m512i;
+        /// Quadwords of a register.
+        const LANES: usize = 8;
+
+        // SAFETY (every wrapper here): AVX-512F, AVX-512BW and GFNI are enabled at compile time
+        // (the cfgs), and a load or store is of the words named.
+
+        /// `x` in every quadword.
+        #[inline(always)]
+        fn splat(x: u64) -> Reg {
+            unsafe { _mm512_set1_epi64(x as i64) }
+        }
+
+        #[inline(always)]
+        fn load(words: &[u64; LANES]) -> Reg {
+            unsafe { _mm512_loadu_si512(words.as_ptr().cast()) }
+        }
+
+        #[inline(always)]
+        fn store(v: Reg) -> [u64; LANES] {
+            let mut words = [0; LANES];
+            unsafe { _mm512_storeu_si512(words.as_mut_ptr().cast(), v) };
+            words
+        }
+
+        #[inline(always)]
+        fn xor(a: Reg, b: Reg) -> Reg {
+            unsafe { _mm512_xor_si512(a, b) }
+        }
+
+        /// Each byte of `bytes` through the affine byte map of its quadword of `matrices`.
+        #[inline(always)]
+        fn map(bytes: Reg, matrices: Reg) -> Reg {
+            unsafe { _mm512_gf2p8affine_epi64_epi8(bytes, matrices, 0) }
+        }
+
+        /// The byte products.
+        #[inline(always)]
+        fn mul(a: Reg, b: Reg) -> Reg {
+            unsafe { _mm512_gf2p8mul_epi8(a, b) }
+        }
+    }
+    _ => {
+        type Reg = __m256i;
+        /// Quadwords of a register.
+        const LANES: usize = 4;
+
+        // SAFETY (every wrapper here): AVX2 and GFNI are enabled at compile time (the module's
+        // cfg), and a load or store is of the words named.
+
+        /// `x` in every quadword.
+        #[inline(always)]
+        fn splat(x: u64) -> Reg {
+            unsafe { _mm256_set1_epi64x(x as i64) }
+        }
+
+        #[inline(always)]
+        fn load(words: &[u64; LANES]) -> Reg {
+            unsafe { _mm256_loadu_si256(words.as_ptr().cast()) }
+        }
+
+        #[inline(always)]
+        fn store(v: Reg) -> [u64; LANES] {
+            let mut words = [0; LANES];
+            unsafe { _mm256_storeu_si256(words.as_mut_ptr().cast(), v) };
+            words
+        }
+
+        #[inline(always)]
+        fn xor(a: Reg, b: Reg) -> Reg {
+            unsafe { _mm256_xor_si256(a, b) }
+        }
+
+        /// Each byte of `bytes` through the affine byte map of its quadword of `matrices`.
+        #[inline(always)]
+        fn map(bytes: Reg, matrices: Reg) -> Reg {
+            unsafe { _mm256_gf2p8affine_epi64_epi8(bytes, matrices, 0) }
+        }
+
+        /// The byte products.
+        #[inline(always)]
+        fn mul(a: Reg, b: Reg) -> Reg {
+            unsafe { _mm256_gf2p8mul_epi8(a, b) }
+        }
+    }
+}
+
 /// Registers of a value: a point to a quadword, a slice to a byte.
 const RESIDUES: usize = POINTS / LANES;
 /// Words of a block's sum at a slot, a polynomial of fewer than `8 * POINTS` coefficients.
 const WORDS: usize = POINTS / 8;
-
-/// `$zmm` with AVX-512, else `$ymm`.
-macro_rules! width {
-    ($zmm:expr, $ymm:expr $(,)?) => {
-        // SAFETY: the module's cfg enables AVX2 and GFNI, and the AVX-512 arm's AVX-512F.
-        unsafe {
-            cfg_select! {
-                target_feature = "avx512f" => { $zmm }
-                _ => { $ymm }
-            }
-        }
-    };
-}
-
-/// `x` in every quadword.
-#[inline(always)]
-fn splat(x: u64) -> V {
-    width!(_mm512_set1_epi64(x as i64), _mm256_set1_epi64x(x as i64))
-}
-
-#[inline(always)]
-fn load(words: &[u64; LANES]) -> V {
-    let p = words.as_ptr().cast();
-    // SAFETY (with `width!`'s): `p` is to one `V`, which an unaligned load reads.
-    width!(_mm512_loadu_si512(p), _mm256_loadu_si256(p))
-}
-
-#[inline(always)]
-fn store(v: V) -> [u64; LANES] {
-    let mut words = [0; LANES];
-    let p = words.as_mut_ptr().cast();
-    // SAFETY (with `width!`'s): `p` is to one `V`, which an unaligned store writes.
-    width!(_mm512_storeu_si512(p, v), _mm256_storeu_si256(p, v));
-    words
-}
-
-#[inline(always)]
-fn xor(a: V, b: V) -> V {
-    width!(_mm512_xor_si512(a, b), _mm256_xor_si256(a, b))
-}
-
-/// Each byte of `bytes` through the affine byte map of its quadword of `matrices`.
-#[inline(always)]
-fn map(bytes: V, matrices: V) -> V {
-    width!(
-        _mm512_gf2p8affine_epi64_epi8(bytes, matrices, 0),
-        _mm256_gf2p8affine_epi64_epi8(bytes, matrices, 0),
-    )
-}
-
-/// The byte products.
-#[inline(always)]
-fn mul(a: V, b: V) -> V {
-    width!(_mm512_gf2p8mul_epi8(a, b), _mm256_gf2p8mul_epi8(a, b))
-}
 
 /// The byte product: binary polynomials modulo `x^8 + x^4 + x^3 + x + 1`.
 const fn gf_mul(a: u8, b: u8) -> u8 {
@@ -306,66 +333,73 @@ fn transpose_bytes(rows: [[u64; 4]; 8]) -> [u64; 32] {
 
 /// `acc += maps(b)` for each byte `b` of `bytes`, kept in `b`'s byte of every quadword.
 #[inline(always)]
-fn add_mapped(acc: &mut [V; RESIDUES], bytes: u64, maps: &Maps) {
+fn add_mapped(acc: &mut [Reg; RESIDUES], bytes: u64, maps: &Maps) {
     let bytes = splat(bytes);
     for (acc, matrices) in acc.iter_mut().zip(maps) {
         *acc = xor(*acc, map(bytes, load(matrices)));
     }
 }
 
-/// The factors of a slot's three products, `e[2], e[4], e[0]`, each followed by its cofactor.
+/// The factors of a slot's three products, which [`SkipBlock`] extends together: `e[0], e[2], e[4]`
+/// and their cofactors.
 const FACTORS: usize = 6;
 
-/// [`extend_group`](crate::kernels::extend_group) on registers, for `F` groups at once:
-/// `output(i, values)` takes output `i` of every group. The nine vectors of four are made one at a
-/// time and passed straight to `output`, so nothing is stored.
-#[inline(always)]
-fn extend8<const F: usize>(v: &[[V; GROUP]; F], mut output: impl FnMut(usize, [V; F])) {
-    for k in 0..9 {
-        // Vector `k` of each group: one of its four, or a sum of them.
-        let w: [[V; 4]; F] = std::array::from_fn(|f| {
-            std::array::from_fn(|l| {
-                let q = |k: usize| v[f][4 * k + l];
-                match k {
-                    0..4 => q(k),
-                    4 => xor(q(0), q(1)),
-                    5 => xor(q(2), q(3)),
-                    6 => xor(q(0), q(2)),
-                    7 => xor(q(1), q(3)),
-                    _ => xor(xor(q(0), q(1)), xor(q(2), q(3))),
+/// The points of `{0, 1, infinity}^2` of two variables, in the order
+/// [`extend_group`](crate::kernels::extend_group) builds a vector's values: the four binary
+/// points, the four mixed ones `0 + 1, 2 + 3, 0 + 2, 1 + 3`, then the sum of all four.
+const POINTS2: usize = 9;
+
+/// A register of residues of a group's sums per point of the low and the high two variables, both
+/// of [`POINTS2`], the eight slices apart.
+type Acc = [[Reg; POINTS2]; POINTS2];
+
+/// Per [`slot`], its group and its points of the low and the high two variables, both of
+/// [`POINTS2`]: [`extend_group`](crate::kernels::extend_group)'s outputs are the points where
+/// they are not both binary. A padding slot is at two binary points, where nothing is summed.
+const PLACE: [(usize, usize, usize); SLOTS] = {
+    let mut place = [(0, 0, 0); SLOTS];
+    let mut half = 0;
+    while half < 2 {
+        let mut low = 0;
+        while low < POINTS2 {
+            let mut high = 0;
+            while high < POINTS2 {
+                let i = match (low, high) {
+                    (0..4, 0..4) => None,
+                    (0..4, _) => Some(4 * (high - 4) + low),
+                    (4..8, _) => Some(20 + 4 * high + (low - 4)),
+                    _ => Some(56 + high),
+                };
+                if let Some(i) = i {
+                    place[slot(half, i)] = (half, low, high);
                 }
-            })
-        });
-        if k >= 4 {
-            for l in 0..4 {
-                output(4 * (k - 4) + l, w.map(|w| w[l]));
+                high += 1;
             }
+            low += 1;
         }
-        let low = w.map(|w| [xor(w[0], w[1]), xor(w[2], w[3]), xor(w[0], w[2]), xor(w[1], w[3])]);
-        for l in 0..4 {
-            output(20 + 4 * k + l, low.map(|low| low[l]));
-        }
-        output(56 + k, low.map(|low| xor(low[0], low[1])));
+        half += 1;
     }
-}
+    place
+};
 
 /// [`skip_row`](crate::kernels::skip_row) over every row and slice of a block, eight slices at a
-/// time, on residues: a register holds a value of eight slices at `LANES` points, so the extension
-/// is a sum of registers and a product of two values is [`RESIDUES`] byte products of registers.
+/// time, on residues: a register holds a value of eight slices at [`LANES`] points, so the
+/// extension is a sum of registers and a product of two values is [`RESIDUES`] byte products of
+/// registers.
 ///
 /// A row's sum `sum over x of w[x] e[x + 1] e[x + 2]` is taken as
 /// `e[2] (w[0] e[1] + w[1] e[3]) + e[4] (w[2] e[3] + w[3] e[0]) + e[0] (w[4] e[1])`: the three
 /// cofactors are linear in the values, so they are multiplied out on the group's packs and extended
 /// like them, and a slot takes three products.
 pub struct SkipBlock {
-    /// Per register of residues and slot, the slot's sum, the eight slices apart.
-    acc: [[V; SLOTS]; RESIDUES],
+    /// Per register of residues and group, the sums.
+    acc: [[Acc; 2]; RESIDUES],
     /// Per slot, the block's sum.
     sums: [[u64; WORDS]; SLOTS],
-    /// The [`FACTORS`]' residues on the group's packs, a register each.
-    values: [[V; GROUP]; FACTORS],
+    /// The [`FACTORS`] of a row.
+    values: Values,
     /// The weights' residues, eight consecutive positions to an entry.
-    weights: Vec<[V; RESIDUES]>,
+    weights: Vec<[Reg; RESIDUES]>,
 }
 
 impl SkipBlock {
@@ -379,16 +413,16 @@ impl SkipBlock {
             }
         }
         Box::new(Self {
-            acc: [[splat(0); SLOTS]; RESIDUES],
+            acc: [[[[splat(0); POINTS2]; POINTS2]; 2]; RESIDUES],
             sums: [[0; WORDS]; SLOTS],
-            values: [[splat(0); GROUP]; FACTORS],
+            values: no_values(),
             weights: residues,
         })
     }
 
     /// Sum a block.
     pub fn run(&mut self, block: &[u64]) {
-        self.acc = [[splat(0); SLOTS]; RESIDUES];
+        self.acc = [[[[splat(0); POINTS2]; POINTS2]; 2]; RESIDUES];
         // A group over the whole block, then the other: one group's sums stay in cache.
         for half in 0..2 {
             for r in 0..5 {
@@ -400,7 +434,8 @@ impl SkipBlock {
                         transpose_bytes(std::array::from_fn(|i| groups[2 * i + half]))
                     });
                     for m in 0..RESIDUES {
-                        self.run_group(half, m, &bytes, js.map(|j| self.weights[j / 8][m]));
+                        let w = js.map(|j| self.weights[j / 8][m]);
+                        row(&mut self.acc[m][half], &mut self.values, m, &bytes, w);
                     }
                 }
             }
@@ -408,55 +443,20 @@ impl SkipBlock {
         self.reconstruct();
     }
 
-    /// Adds to register `m` of the residues group `half` of a row's positions, `bytes` as
-    /// [`Self::run`] transposed them, at the row's weights `w`.
-    #[inline(always)]
-    fn run_group(&mut self, half: usize, m: usize, bytes: &[[u64; 32]; 5], w: [V; 5]) {
-        let Self { acc, values, .. } = self;
-        let maps = [0, 1].map(|h| load(&EVAL[h][m]));
-        for q in 0..GROUP {
-            let e: [V; 5] = std::array::from_fn(|x| {
-                let [low, high] = [0, 1].map(|h| map(splat(bytes[x][2 * q + h]), maps[h]));
-                xor(low, high)
-            });
-            values[0][q] = e[2];
-            values[1][q] = xor(mul(e[1], w[0]), mul(e[3], w[1]));
-            values[2][q] = e[4];
-            values[3][q] = xor(mul(e[3], w[2]), mul(e[0], w[3]));
-            values[4][q] = e[0];
-            values[5][q] = mul(e[1], w[4]);
-        }
-        if cfg!(target_feature = "avx512f") {
-            extend8(values, |i, [e2, a, e4, b, e0, c]| {
-                let acc = &mut acc[m][slot(half, i)];
-                *acc = xor(xor(*acc, mul(e2, a)), xor(mul(e4, b), mul(e0, c)));
-            });
-        } else {
-            // A product at a time: six groups' extensions at once spill AVX2's sixteen registers.
-            for pair in values.as_chunks::<2>().0 {
-                extend8(pair, |i, [e, c]| {
-                    let acc = &mut acc[m][slot(half, i)];
-                    *acc = xor(*acc, mul(e, c));
-                });
-            }
-        }
-    }
-
     /// The block's sums as polynomials, eight slots at a time: a slot's residues are summed over its
     /// slices into a byte per point, and the eight slots' bytes share a quadword for [`CRT`].
     #[inline(always)]
     fn reconstruct(&mut self) {
         for g in 0..SLOTS / 8 {
-            let mut points = [[0u64; LANES]; RESIDUES];
-            for (points, acc) in points.iter_mut().zip(&self.acc) {
-                let mut residues = splat(0);
-                for (i, &x) in acc[8 * g..][..8].iter().enumerate() {
-                    // Byte `i`: per quadword, the XOR of its eight bytes, the slices.
-                    let at = splat(0xff << (8 * i));
-                    residues = xor(residues, map(at, map(splat(COLUMNS), x)));
+            let mut residues = [splat(0); RESIDUES];
+            for (i, &(half, low, high)) in PLACE[8 * g..][..8].iter().enumerate() {
+                // Byte `i`: per quadword, the XOR of its eight bytes, the slices.
+                let at = splat(0xff << (8 * i));
+                for (residues, acc) in residues.iter_mut().zip(&self.acc) {
+                    *residues = xor(*residues, map(at, map(splat(COLUMNS), acc[half][low][high])));
                 }
-                *points = store(residues);
             }
+            let points = residues.map(store);
             let mut bytes = [splat(0); RESIDUES];
             for (&point, maps) in points.as_flattened().iter().zip(&CRT) {
                 add_mapped(&mut bytes, point, maps);
@@ -475,5 +475,144 @@ impl SkipBlock {
     /// The sum at slot `i`.
     pub fn get(&self, i: usize) -> [u64; 3] {
         self.sums[i]
+    }
+}
+
+/// The residues of pack `q`'s embedding in each position of a row, `bytes` as [`SkipBlock::run`]
+/// transposed them, `maps` the [`EVAL`] maps of a register of residues.
+#[inline(always)]
+fn embeddings(maps: &[Reg; 2], bytes: &[[u64; 32]; 5], q: usize) -> [Reg; 5] {
+    std::array::from_fn(|x| {
+        let [low, high] = [0, 1].map(|h| map(splat(bytes[x][2 * q + h]), maps[h]));
+        xor(low, high)
+    })
+}
+
+/// `put(f, value)` for each of the [`FACTORS`] of a pack, from its embeddings `e` in a row and the
+/// row's weights `w`.
+#[inline(always)]
+fn factors(e: [Reg; 5], w: [Reg; 5], mut put: impl FnMut(usize, Reg)) {
+    put(0, e[0]);
+    put(1, e[2]);
+    put(2, e[4]);
+    put(3, xor(mul(e[1], w[0]), mul(e[3], w[1])));
+    put(4, xor(mul(e[3], w[2]), mul(e[0], w[3])));
+    put(5, mul(e[1], w[4]));
+}
+
+cfg_select! {
+    all(target_feature = "avx512f", target_feature = "avx512bw") => {
+        /// The [`FACTORS`] of a row's group of packs, a register each.
+        type Values = [[Reg; GROUP]; FACTORS];
+
+        fn no_values() -> Values {
+            [[splat(0); GROUP]; FACTORS]
+        }
+
+        /// [`extend_group`](crate::kernels::extend_group) on registers, for [`FACTORS`] groups at
+        /// once: `output(low, high, values)` takes every group's value at point `low` of the low
+        /// two variables and `high` of the high two, both of [`POINTS2`]. The nine vectors of four
+        /// are made one at a time and passed straight to `output`, so nothing is stored.
+        #[inline(always)]
+        fn extend8(v: &Values, mut output: impl FnMut(usize, usize, [Reg; FACTORS])) {
+            for k in 0..9 {
+                // Vector `k` of each group: one of its four, or a sum of them.
+                let w: [[Reg; 4]; FACTORS] = std::array::from_fn(|f| {
+                    std::array::from_fn(|l| {
+                        let q = |k: usize| v[f][4 * k + l];
+                        match k {
+                            0..4 => q(k),
+                            4 => xor(q(0), q(1)),
+                            5 => xor(q(2), q(3)),
+                            6 => xor(q(0), q(2)),
+                            7 => xor(q(1), q(3)),
+                            _ => xor(xor(q(0), q(1)), xor(q(2), q(3))),
+                        }
+                    })
+                });
+                if k >= 4 {
+                    for l in 0..4 {
+                        output(l, k, w.map(|w| w[l]));
+                    }
+                }
+                let low = w.map(|w| [xor(w[0], w[1]), xor(w[2], w[3]), xor(w[0], w[2]), xor(w[1], w[3])]);
+                for l in 0..4 {
+                    output(4 + l, k, low.map(|low| low[l]));
+                }
+                output(8, k, low.map(|low| xor(low[0], low[1])));
+            }
+        }
+
+        /// Adds to `acc` the products of register `m` of the residues of a row's group of packs,
+        /// `bytes` as [`SkipBlock::run`] transposed them, at the row's weights `w`.
+        #[inline(always)]
+        fn row(acc: &mut Acc, values: &mut Values, m: usize, bytes: &[[u64; 32]; 5], w: [Reg; 5]) {
+            let maps = [0, 1].map(|h| load(&EVAL[h][m]));
+            for q in 0..GROUP {
+                factors(embeddings(&maps, bytes, q), w, |f, value| values[f][q] = value);
+            }
+            extend8(values, |low, high, [e0, e2, e4, a, b, c]| {
+                let acc = &mut acc[low][high];
+                *acc = xor(xor(*acc, mul(e2, a)), xor(mul(e4, b), mul(e0, c)));
+            });
+        }
+    }
+    _ => {
+        /// The [`FACTORS`] of each product.
+        const PAIRS: [(usize, usize); 3] = [(1, 3), (2, 4), (0, 5)];
+
+        /// The [`FACTORS`] of a row's group of packs, a register each, per vector of four packs at
+        /// each low point.
+        type Values = [[[Reg; POINTS2]; 4]; FACTORS];
+
+        fn no_values() -> Values {
+            [[[splat(0); POINTS2]; 4]; FACTORS]
+        }
+
+        /// The value at each of [`POINTS2`] of four values on the binary points.
+        #[inline(always)]
+        fn extend4(v: [Reg; 4]) -> [Reg; POINTS2] {
+            let (a, b) = (xor(v[0], v[1]), xor(v[2], v[3]));
+            [v[0], v[1], v[2], v[3], a, b, xor(v[0], v[2]), xor(v[1], v[3]), xor(a, b)]
+        }
+
+        /// Adds to `acc` the products of register `m` of the residues of a row's group of packs,
+        /// `bytes` as [`SkipBlock::run`] transposed them, at the row's weights `w`. With sixteen
+        /// registers the [`FACTORS`] go through memory: each pack's are stored as they are made,
+        /// then extended to the low points a vector at a time, taking the products at the binary
+        /// points of the high two variables, then to the high points a low point at a time.
+        #[inline(always)]
+        fn row(acc: &mut Acc, values: &mut Values, m: usize, bytes: &[[u64; 32]; 5], w: [Reg; 5]) {
+            let maps = [0, 1].map(|h| load(&EVAL[h][m]));
+            for q in 0..GROUP {
+                factors(embeddings(&maps, bytes, q), w, |f, value| values[f][q / 4][q % 4] = value);
+            }
+            for k in 0..4 {
+                let mut sums = [splat(0); 5];
+                for (f, g) in PAIRS {
+                    let [a, b] = [f, g].map(|f| {
+                        let v = &mut values[f][k];
+                        *v = extend4(v[..4].try_into().unwrap());
+                        *v
+                    });
+                    for (j, sum) in sums.iter_mut().enumerate() {
+                        *sum = xor(*sum, mul(a[4 + j], b[4 + j]));
+                    }
+                }
+                for (acc, sum) in acc[4..].iter_mut().zip(sums) {
+                    acc[k] = xor(acc[k], sum);
+                }
+            }
+            for (low, acc) in acc.iter_mut().enumerate() {
+                let mut sums: [Reg; 5] = acc[4..].try_into().unwrap();
+                for (f, g) in PAIRS {
+                    let [a, b] = [f, g].map(|f| extend4(std::array::from_fn(|k| values[f][k][low])));
+                    for (j, sum) in sums.iter_mut().enumerate() {
+                        *sum = xor(*sum, mul(a[4 + j], b[4 + j]));
+                    }
+                }
+                acc[4..].copy_from_slice(&sums);
+            }
+        }
     }
 }
