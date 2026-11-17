@@ -26,7 +26,7 @@ use crate::merkle;
 use crate::ntt::{AdditiveNttF64, Codeword, Keep};
 use crate::stack_open::Terms;
 use fiat_shamir::merkle::{Hash, MerklePath};
-use primitives::field::{Acc8, F64, F128, F128Unreduced, F128x8, fold_pairs8_ext, msg_terms8_ext, powers};
+use primitives::field::{Acc8, F64, F128, F128Unreduced, F128x8, msg_terms8_ext, powers};
 use primitives::multilinear::{eq_table, interp};
 use primitives::transcript::ProverState;
 
@@ -293,14 +293,31 @@ impl RoundQuad {
 /// `out[j] = interp(x[2j], x[2j + 1], r)`.
 #[inline]
 fn fold_adjacent(out: &mut [F128], x: &[F128], r: F128) {
-    let (o8, o_r) = out.as_chunks_mut::<8>();
-    let (x16, x_r) = x.as_chunks::<16>();
-    for (d, c) in o8.iter_mut().zip(x16) {
-        let (even, odd) = deinterleave(c);
-        *d = fold_pairs8_ext(&even, &odd, r);
-    }
-    for (d, p) in o_r.iter_mut().zip(x_r.as_chunks::<2>().0.iter()) {
-        *d = interp(p[0], p[1], r);
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "pclmulqdq",
+        not(target_feature = "avx512f")
+    ))]
+    dense_lanes::fold_adjacent(out, x, r);
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "pclmulqdq",
+        not(target_feature = "avx512f")
+    )))]
+    {
+        use primitives::field::fold_pairs8_ext;
+
+        let (o8, o_r) = out.as_chunks_mut::<8>();
+        let (x16, x_r) = x.as_chunks::<16>();
+        for (d, c) in o8.iter_mut().zip(x16) {
+            let (even, odd) = deinterleave(c);
+            *d = fold_pairs8_ext(&even, &odd, r);
+        }
+        for (d, p) in o_r.iter_mut().zip(x_r.as_chunks::<2>().0.iter()) {
+            *d = interp(p[0], p[1], r);
+        }
     }
 }
 
@@ -479,6 +496,31 @@ fn accumulate_msg_chunks(
 /// `acc[j] += s * v[j]`, eight at a time where the multiplier is wide.
 #[inline]
 fn add_scaled(acc: &mut [F128], v: &[F128], s: F128) {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "pclmulqdq",
+        not(target_feature = "avx512f")
+    ))]
+    return dense_lanes::add_scaled(acc, v, s);
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "pclmulqdq",
+        not(target_feature = "avx512f")
+    )))]
+    add_scaled8(acc, v, s);
+}
+
+/// [`add_scaled`] on the eight-lane form.
+#[cfg(not(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "pclmulqdq",
+    not(target_feature = "avx512f")
+)))]
+#[inline]
+fn add_scaled8(acc: &mut [F128], v: &[F128], s: F128) {
     let (a8, a_r) = acc.as_chunks_mut::<8>();
     let (v8, v_r) = v.as_chunks::<8>();
     let s8 = F128x8::splat(s);
@@ -580,6 +622,15 @@ impl Dense {
             || [F128Unreduced::ZERO; 4],
             |t| {
                 let cols = t * per..((t + 1) * per).min(low);
+                #[cfg(all(
+                    target_arch = "x86_64",
+                    target_feature = "avx2",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "avx512f")
+                ))]
+                if s >= 4 {
+                    return dense_lanes::table(f, w, s, cols).map(F128Unreduced::from);
+                }
                 // SAFETY: `mul_x` writes every element.
                 let mut xf = unsafe { primitives::uninit_vec(cols.len() * pairs) };
                 crate::xmul::mul_x(f, s, 2, cols.start, &mut xf);
@@ -617,6 +668,15 @@ impl Dense {
             primitives::filled_vec((n_cols + 1) * pairs, |out| {
                 parallel::chunks_mut(out, per * pairs, |t, out| {
                     let first = t * per;
+                    #[cfg(all(
+                        target_arch = "x86_64",
+                        target_feature = "avx2",
+                        target_feature = "pclmulqdq",
+                        not(target_feature = "avx512f")
+                    ))]
+                    if s >= 4 {
+                        return dense_lanes::fold(f, s, first, alpha, &crate::xmul::multiples(beta), out);
+                    }
                     crate::xmul::mul_x(f, s, 2, first, out);
                     for (i, out) in out.chunks_exact_mut(pairs).enumerate() {
                         let c = first + i;
@@ -643,6 +703,120 @@ impl Dense {
             })
         };
         (self.f, self.w, self.stride) = (next, next_w, pairs);
+    }
+}
+
+/// The dense rounds two lanes a register, in the order they lie in memory, where AVX2 has no AVX-512 beside it: a
+/// column's lanes are pairs `(F, G)`, two to a register.
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "pclmulqdq",
+    not(target_feature = "avx512f")
+))]
+mod dense_lanes {
+    use primitives::field::F128;
+    use primitives::field::x4::{F64x2, F128x2, Prod2};
+
+    use crate::xmul::coeff;
+
+    /// Lanes `l, l + 1` of column `c` of `f`, `s` lanes a column, zero past its columns.
+    #[inline(always)]
+    fn pair(f: &[F128], s: usize, c: usize, l: usize) -> F128x2 {
+        f.get(c * s + l..c * s + l + 2)
+            .map_or(F128x2::ZERO, |p| F128x2::load(p.try_into().expect("two lanes")))
+    }
+
+    /// The sums `(X F)[c]` scales by `A_t` for the first lanes `F` of the pairs at lanes `l` and `l + 2`, `c >= 1`.
+    #[inline(always)]
+    fn x_sums(f: &[F128], s: usize, c: usize, l: usize) -> F128x2 {
+        let far = c + (1 << c.trailing_zeros()) - 1;
+        let sum = |l| pair(f, s, c - 1, l) + pair(f, s, far, l);
+        F128x2::select::<0x20>(sum(l), sum(l + 2))
+    }
+
+    /// [`super::Dense::table`]'s sums over the columns `cols`.
+    #[inline(always)]
+    pub(super) fn table(f: &[F128], w: &[F128], s: usize, cols: std::ops::Range<usize>) -> [F128; 4] {
+        // Lane by lane, `<W_0, G>` and `<W_0 + W_1, F>`, then `<W_0, X F>` and `<W_1, X F>`.
+        let (mut fg, mut wx) = (Prod2::ZERO, Prod2::ZERO);
+        for c in cols {
+            let a = (c > 0).then(|| F64x2::splat(coeff(c)));
+            for l in (0..s).step_by(4) {
+                let x = match a {
+                    None => F128x2::ZERO,
+                    Some(_) if c % 2 == 1 => x_sums(f, s, c, l),
+                    Some(a) => x_sums(f, s, c, l).mul_base_unreduced(a).reduce(),
+                };
+                let xs = [F128x2::select::<0x00>(x, x), F128x2::select::<0x11>(x, x)];
+                for (l, x) in [l, l + 2].into_iter().zip(xs) {
+                    let (lanes, wv) = (
+                        pair(f, s, c, l),
+                        F128x2::load(w[c * s + l..][..2].try_into().expect("two lanes")),
+                    );
+                    // `(W_0 | W_0 + W_1)` against `(G | F)`.
+                    let w01 = wv + F128x2::select::<0x08>(wv, wv);
+                    fg ^= w01.mul_unreduced(F128x2::select::<0x01>(lanes, lanes).factor());
+                    wx ^= wv.mul_unreduced(x.factor());
+                }
+            }
+        }
+        let mut out = [F128::ZERO; 4];
+        let (lo, hi) = out.split_at_mut(2);
+        fg.reduce().store(lo.try_into().expect("two sums"));
+        wx.reduce().store(hi.try_into().expect("two sums"));
+        out
+    }
+
+    /// [`super::Dense::fold`]'s lanes over the columns `out` covers from `first`, `cx` the multiples of `beta` by
+    /// [`crate::xmul::multiples`].
+    #[inline(always)]
+    pub(super) fn fold(f: &[F128], s: usize, first: usize, alpha: F128, cx: &[F128; 64], out: &mut [F128]) {
+        let alpha = F128x2::splat(alpha).factor();
+        for (i, out) in out.chunks_exact_mut(s / 2).enumerate() {
+            let c = first + i;
+            let beta = F128x2::splat(cx[c.trailing_zeros().min(63) as usize]).factor();
+            for (l, o) in (0..s).step_by(4).zip(out.as_chunks_mut::<2>().0) {
+                let (p0, p1) = (pair(f, s, c, l), pair(f, s, c, l + 2));
+                let (fv, gv) = (F128x2::select::<0x20>(p0, p1), F128x2::select::<0x31>(p0, p1));
+                let mut p = fv.mul_unreduced(alpha);
+                if c > 0 {
+                    p ^= x_sums(f, s, c, l).mul_unreduced(beta);
+                }
+                (gv + p.reduce()).store(o);
+            }
+        }
+    }
+
+    /// [`super::add_scaled`].
+    #[inline(always)]
+    pub(super) fn add_scaled(acc: &mut [F128], v: &[F128], s: F128) {
+        let sv = F128x2::splat(s).factor();
+        let (a2, a_r) = acc.as_chunks_mut::<2>();
+        let (v2, v_r) = v.as_chunks::<2>();
+        for (a, v) in a2.iter_mut().zip(v2) {
+            (F128x2::load(a) + F128x2::load(v).mul_unreduced(sv).reduce()).store(a);
+        }
+        for (a, &v) in a_r.iter_mut().zip(v_r) {
+            *a += s * v;
+        }
+    }
+
+    /// [`super::fold_adjacent`].
+    #[inline(always)]
+    pub(super) fn fold_adjacent(out: &mut [F128], x: &[F128], r: F128) {
+        let rv = F128x2::splat(r).factor();
+        let (o2, o_r) = out.as_chunks_mut::<2>();
+        let (x4, x_r) = x.as_chunks::<4>();
+        for (o, x) in o2.iter_mut().zip(x4) {
+            let [p0, p1] = x.as_chunks::<2>().0 else { unreachable!() };
+            let (p0, p1) = (F128x2::load(p0), F128x2::load(p1));
+            let (lo, hi) = (F128x2::select::<0x20>(p0, p1), F128x2::select::<0x31>(p0, p1));
+            (lo + (lo + hi).mul_unreduced(rv).reduce()).store(o);
+        }
+        for (d, p) in o_r.iter_mut().zip(x_r.as_chunks::<2>().0) {
+            *d = primitives::multilinear::interp(p[0], p[1], r);
+        }
     }
 }
 

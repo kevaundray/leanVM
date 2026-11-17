@@ -459,6 +459,12 @@ impl F64x4 {
 }
 
 impl Prod2 {
+    pub const ZERO: Self = Self {
+        p0: F128x2::ZERO.0,
+        p1: F128x2::ZERO.0,
+        p01: F128x2::ZERO.0,
+    };
+
     /// Both lanes reduced.
     #[inline(always)]
     pub fn reduce(self) -> F128x2 {
