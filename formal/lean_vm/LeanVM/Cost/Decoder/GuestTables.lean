@@ -11,7 +11,7 @@ module
 
 For each of the guest's 1550 compiled functions `j`: its entry pc, its number of arguments and of
 return words. Literals of the decoder program (`Rule.literalNats`); `GuestTablesCheck.lean` proves
-them equal to `(fnOf j).entryPc` and `(coreOf j).params.length`, `Backend/Guest/DecoderTables.lean`
+them equal to `(fnOf j).entryPc` and `(coreOf j).params.length`, `Guest/Compiled/DecoderTables.lean`
 the return counts to the back end's input's.
 -/
 
