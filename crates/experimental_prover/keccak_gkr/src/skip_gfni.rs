@@ -562,11 +562,11 @@ cfg_select! {
         const PAIRS: [(usize, usize); 3] = [(1, 3), (2, 4), (0, 5)];
 
         /// The [`FACTORS`] of a row's group of packs, a register each, per vector of four packs at
-        /// each low point.
-        type Values = [[[Reg; POINTS2]; 4]; FACTORS];
+        /// each low point but the last two, sums of others.
+        type Values = [[[Reg; POINTS2 - 2]; 4]; FACTORS];
 
         fn no_values() -> Values {
-            [[[splat(0); POINTS2]; 4]; FACTORS]
+            [[[splat(0); POINTS2 - 2]; 4]; FACTORS]
         }
 
         /// The value at each of [`POINTS2`] of four values on the binary points.
@@ -574,6 +574,20 @@ cfg_select! {
         fn extend4(v: [Reg; 4]) -> [Reg; POINTS2] {
             let (a, b) = (xor(v[0], v[1]), xor(v[2], v[3]));
             [v[0], v[1], v[2], v[3], a, b, xor(v[0], v[2]), xor(v[1], v[3]), xor(a, b)]
+        }
+
+        /// Adds to `acc` the products at the points of the high two variables that are not binary,
+        /// of the [`FACTORS`] at a low point: `at(f, k)` is factor `f` on vector `k` there.
+        #[inline(always)]
+        fn mixed_high(acc: &mut [Reg; POINTS2], at: impl Fn(usize, usize) -> Reg) {
+            let mut sums: [Reg; 5] = acc[4..].try_into().unwrap();
+            for (f, g) in PAIRS {
+                let [a, b] = [f, g].map(|f| extend4(std::array::from_fn(|k| at(f, k))));
+                for (j, sum) in sums.iter_mut().enumerate() {
+                    *sum = xor(*sum, mul(a[4 + j], b[4 + j]));
+                }
+            }
+            acc[4..].copy_from_slice(&sums);
         }
 
         /// Adds to `acc` the products of register `m` of the residues of a row's group of packs,
@@ -592,8 +606,9 @@ cfg_select! {
                 for (f, g) in PAIRS {
                     let [a, b] = [f, g].map(|f| {
                         let v = &mut values[f][k];
-                        *v = extend4(v[..4].try_into().unwrap());
-                        *v
+                        let extended = extend4(v[..4].try_into().unwrap());
+                        v[4..].copy_from_slice(&extended[4..POINTS2 - 2]);
+                        extended
                     });
                     for (j, sum) in sums.iter_mut().enumerate() {
                         *sum = xor(*sum, mul(a[4 + j], b[4 + j]));
@@ -603,16 +618,11 @@ cfg_select! {
                     acc[k] = xor(acc[k], sum);
                 }
             }
-            for (low, acc) in acc.iter_mut().enumerate() {
-                let mut sums: [Reg; 5] = acc[4..].try_into().unwrap();
-                for (f, g) in PAIRS {
-                    let [a, b] = [f, g].map(|f| extend4(std::array::from_fn(|k| values[f][k][low])));
-                    for (j, sum) in sums.iter_mut().enumerate() {
-                        *sum = xor(*sum, mul(a[4 + j], b[4 + j]));
-                    }
-                }
-                acc[4..].copy_from_slice(&sums);
+            for (low, acc) in acc[..7].iter_mut().enumerate() {
+                mixed_high(acc, |f, k| values[f][k][low]);
             }
+            mixed_high(&mut acc[7], |f, k| xor(values[f][k][1], values[f][k][3]));
+            mixed_high(&mut acc[8], |f, k| xor(values[f][k][4], values[f][k][5]));
         }
     }
 }
