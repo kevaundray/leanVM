@@ -40,8 +40,10 @@ jobs:
           path: |
             formal/Statement/.lake
             !formal/Statement/.lake/packages/mathlib/.lake
-          key: lake-statement-${{ runner.os }}-${{ hashFiles('formal/Statement/lean-toolchain', 'formal/Statement/lake-manifest.json', 'formal/*/lakefile.*') }}-${{ hashFiles('formal/Statement/**/*.lean') }}
-          restore-keys: lake-statement-${{ runner.os }}-${{ hashFiles('formal/Statement/lean-toolchain', 'formal/Statement/lake-manifest.json', 'formal/*/lakefile.*') }}-
+          key: lake-statement-${{ runner.os }}-${{ hashFiles('formal/Statement/lean-toolchain', 'formal/Statement/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-${{ hashFiles('formal/Statement/**/*.lean') }}
+          restore-keys: |
+            lake-statement-${{ runner.os }}-${{ hashFiles('formal/Statement/lean-toolchain', 'formal/Statement/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-
+            lake-statement-${{ runner.os }}-${{ hashFiles('formal/Statement/lean-toolchain', 'formal/Statement/lake-manifest.json') }}-
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: formal/Statement
@@ -152,8 +154,10 @@ jobs:
             !formal/lean_sphincs/.lake/packages/mathlib/.lake
             formal/common/.lake/build
             formal/Statement/.lake/build
-          key: lake-lean-sphincs-${{ runner.os }}-${{ hashFiles('formal/lean_sphincs/lean-toolchain', 'formal/lean_sphincs/lake-manifest.json', 'formal/*/lakefile.*') }}-${{ hashFiles('formal/lean_sphincs/**/*.lean', 'formal/common/**/*.lean', 'formal/Statement/**/*.lean') }}
-          restore-keys: lake-lean-sphincs-${{ runner.os }}-${{ hashFiles('formal/lean_sphincs/lean-toolchain', 'formal/lean_sphincs/lake-manifest.json', 'formal/*/lakefile.*') }}-
+          key: lake-lean-sphincs-${{ runner.os }}-${{ hashFiles('formal/lean_sphincs/lean-toolchain', 'formal/lean_sphincs/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-${{ hashFiles('formal/lean_sphincs/**/*.lean', 'formal/common/**/*.lean', 'formal/Statement/**/*.lean') }}
+          restore-keys: |
+            lake-lean-sphincs-${{ runner.os }}-${{ hashFiles('formal/lean_sphincs/lean-toolchain', 'formal/lean_sphincs/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-
+            lake-lean-sphincs-${{ runner.os }}-${{ hashFiles('formal/lean_sphincs/lean-toolchain', 'formal/lean_sphincs/lake-manifest.json') }}-
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: formal/lean_sphincs
@@ -211,8 +215,10 @@ jobs:
             !formal/lean_da/.lake/packages/mathlib/.lake
             formal/common/.lake/build
             formal/Statement/.lake/build
-          key: lake-lean-da-${{ runner.os }}-${{ hashFiles('formal/lean_da/lean-toolchain', 'formal/lean_da/lake-manifest.json', 'formal/*/lakefile.*') }}-${{ hashFiles('formal/lean_da/**/*.lean', 'formal/common/**/*.lean', 'formal/Statement/**/*.lean') }}
-          restore-keys: lake-lean-da-${{ runner.os }}-${{ hashFiles('formal/lean_da/lean-toolchain', 'formal/lean_da/lake-manifest.json', 'formal/*/lakefile.*') }}-
+          key: lake-lean-da-${{ runner.os }}-${{ hashFiles('formal/lean_da/lean-toolchain', 'formal/lean_da/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-${{ hashFiles('formal/lean_da/**/*.lean', 'formal/common/**/*.lean', 'formal/Statement/**/*.lean') }}
+          restore-keys: |
+            lake-lean-da-${{ runner.os }}-${{ hashFiles('formal/lean_da/lean-toolchain', 'formal/lean_da/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-
+            lake-lean-da-${{ runner.os }}-${{ hashFiles('formal/lean_da/lean-toolchain', 'formal/lean_da/lake-manifest.json') }}-
       # Builds the default target, whose root module checks the front-page theorems' axioms with
       # `#guard_msgs`.
       - uses: leanprover/lean-action@v1
@@ -304,8 +310,10 @@ jobs:
             formal/lean_xmss/.lake/build
             formal/lean_sphincs/.lake/build
             formal/lean_da/.lake/build
-          key: lake-lean-vm-${{ runner.os }}-${{ hashFiles('formal/lean_vm/lean-toolchain', 'formal/lean_vm/lake-manifest.json', 'formal/*/lakefile.*') }}-${{ hashFiles('formal/lean_vm/**/*.lean', 'formal/common/**/*.lean', 'formal/Statement/**/*.lean', 'formal/lean_xmss/**/*.lean', 'formal/lean_sphincs/**/*.lean', 'formal/lean_da/**/*.lean') }}
-          restore-keys: lake-lean-vm-${{ runner.os }}-${{ hashFiles('formal/lean_vm/lean-toolchain', 'formal/lean_vm/lake-manifest.json', 'formal/*/lakefile.*') }}-
+          key: lake-lean-vm-${{ runner.os }}-${{ hashFiles('formal/lean_vm/lean-toolchain', 'formal/lean_vm/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-${{ hashFiles('formal/lean_vm/**/*.lean', 'formal/common/**/*.lean', 'formal/Statement/**/*.lean', 'formal/lean_xmss/**/*.lean', 'formal/lean_sphincs/**/*.lean', 'formal/lean_da/**/*.lean') }}
+          restore-keys: |
+            lake-lean-vm-${{ runner.os }}-${{ hashFiles('formal/lean_vm/lean-toolchain', 'formal/lean_vm/lake-manifest.json') }}-${{ hashFiles('formal/*/lakefile.*') }}-
+            lake-lean-vm-${{ runner.os }}-${{ hashFiles('formal/lean_vm/lean-toolchain', 'formal/lean_vm/lake-manifest.json') }}-
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: formal/lean_vm
