@@ -13,7 +13,7 @@ use crate::gkr;
 use crate::transcript::ProverState;
 use primitives::cast_slice;
 use primitives::field::{F64, F128, F128Unreduced, g_pow, mul_by_g};
-use primitives::multilinear::{eq_eval, interp, mle_eval_par};
+use primitives::multilinear::{eq_eval, interp, mle_eval_par, mle_eval_sparse_par};
 use std::ops::Range;
 use verifier::N_BUS_TREES;
 use verifier::layout::BUS_BITS;
@@ -650,7 +650,8 @@ fn prove_bytecode_share(push: &[Block], zeta: &[F128], w: &[F128], public: &[&[F
     let zeta_lo = &zeta[..block.kappa];
     let mut slots: Vec<F128> = (0..1 << BUS_BITS)
         .map(|x| match block.coords.get(x) {
-            Some(Coord::Public(s)) => mle_eval_par(public[*s], zeta_lo),
+            // Most of the bytecode's words are zero in most slots.
+            Some(Coord::Public(s)) => mle_eval_sparse_par(public[*s], zeta_lo),
             _ => F128::ZERO,
         })
         .collect();

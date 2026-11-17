@@ -6,7 +6,7 @@
 //! `K`-valued (`F64`) while randomness is `E`-valued (`F128`), so the first
 //! fold of a committed table also lifts it into `E`.
 
-use crate::field::{F64, F128, Weights8, dot_base, mul4};
+use crate::field::{F64, F128, F128Unreduced, Weights8, dot_base, mul4};
 
 /// Multilinear interpolation in one variable over `E`: `lo + t·(lo+hi)`, the
 /// char-2 form of `(1−t)·lo + t·hi`.
@@ -168,6 +168,117 @@ pub fn mle_eval(table: &[F64], point: &[F128]) -> F128 {
 /// whole number of rows.
 /// A caller already inside a dispatch must use [`mle_eval`] to avoid nesting.
 pub fn mle_eval_par(table: &[F64], point: &[F128]) -> F128 {
+    mle_eval_rows(table, point, dot_base)
+}
+
+/// [`mle_eval_par`] for a table mostly of zeros, such as a column of the stacked bytecode. A row less than a third
+/// nonzero sums only those entries, found 64 at a time by a bit mask; a denser one stops counting as soon as it is
+/// seen to be. A lone entry costs about two of [`dot_base`]'s, besides the masks. On AVX-512, whose eight-lane
+/// product leaves less to save, it is [`mle_eval_par`].
+pub fn mle_eval_sparse_par(table: &[F64], point: &[F128]) -> F128 {
+    if cfg!(all(
+        target_arch = "x86_64",
+        target_feature = "vpclmulqdq",
+        target_feature = "avx512f"
+    )) {
+        return mle_eval_par(table, point);
+    }
+    let low_eq = eq_table(&point[..point.len().min(MLE_LOW_VARS)]);
+    mle_eval_rows(table, point, |low, row| {
+        let mut masks = [0u64; (1 << MLE_LOW_VARS) / 64];
+        let mut count = 0;
+        for (mask, run) in masks.iter_mut().zip(row.chunks(64)) {
+            *mask = nonzero_mask(run);
+            count += mask.count_ones() as usize;
+            if 3 * count > row.len() {
+                return dot_base(low, row);
+            }
+        }
+        let terms = masks.iter().zip(row.chunks(64)).zip(low_eq.chunks(64));
+        cfg_select! {
+            all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2") => {
+                // SAFETY: both features are enabled at compile time.
+                unsafe { sparse_dot_ymm(terms) }
+            }
+            _ => {
+                let mut acc = F128Unreduced::ZERO;
+                for ((&mask, k), w) in terms {
+                    let mut mask = mask;
+                    while mask != 0 {
+                        let i = mask.trailing_zeros() as usize;
+                        acc ^= w[i].mul_base_unreduced(k[i]);
+                        mask &= mask - 1;
+                    }
+                }
+                acc
+            }
+        }
+    })
+}
+
+/// `Σ w[i] k[i]` over the set bits `i` of each run's mask, two terms to a YMM product.
+///
+/// # Safety
+///
+/// Callable only where vpclmulqdq and avx2 are enabled.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[inline]
+#[target_feature(enable = "vpclmulqdq", enable = "avx2")]
+unsafe fn sparse_dot_ymm<'a>(runs: impl Iterator<Item = ((&'a u64, &'a [F64]), &'a [F128])>) -> F128Unreduced {
+    use core::arch::x86_64::*;
+    let mut acc = [_mm256_setzero_si256(); 2];
+    for ((&mask, k), w) in runs {
+        let mut mask = mask;
+        while mask != 0 {
+            let i = mask.trailing_zeros() as usize;
+            mask &= mask - 1;
+            // The pair's second term, or the first again with a zero entry when none is left.
+            let (j, kj) = if mask == 0 {
+                (i, 0)
+            } else {
+                let j = mask.trailing_zeros() as usize;
+                (j, k[j].0)
+            };
+            mask &= mask.wrapping_sub(1);
+            // SAFETY: an `F128` is `repr(C)`, 16 readable bytes `[c0, c1]`.
+            let wv = unsafe { _mm256_loadu2_m128i((&raw const w[j]).cast(), (&raw const w[i]).cast()) };
+            let kv = _mm256_set_epi64x(0, kj as i64, 0, k[i].0 as i64);
+            // The high qword of each weight times the low of the entry is its `y` coefficient.
+            acc = [
+                _mm256_xor_si256(acc[0], _mm256_clmulepi64_epi128::<0x00>(wv, kv)),
+                _mm256_xor_si256(acc[1], _mm256_clmulepi64_epi128::<0x01>(wv, kv)),
+            ];
+        }
+    }
+    F128Unreduced::from_coeffs(acc.map(|a| {
+        let q = _mm_xor_si128(_mm256_castsi256_si128(a), _mm256_extracti128_si256::<1>(a));
+        // SAFETY: a register and two words hold the same bits.
+        unsafe { core::mem::transmute::<__m128i, [u64; 2]>(q) }
+    }))
+}
+
+/// Bit `i` set where `run[i]` is nonzero, for a run of at most 64.
+#[inline(always)]
+fn nonzero_mask(run: &[F64]) -> u64 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    if let Ok(run) = <&[F64; 64]>::try_from(run) {
+        use core::arch::x86_64::*;
+        let mut zero = 0u64;
+        for (q, quad) in run.as_chunks::<4>().0.iter().enumerate() {
+            // SAFETY: avx2 is enabled at compile time; the quad is 32 readable bytes.
+            let bits = unsafe {
+                let v = _mm256_loadu_si256(quad.as_ptr().cast());
+                _mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(v, _mm256_setzero_si256())))
+            };
+            zero |= u64::from(bits as u8) << (4 * q);
+        }
+        return !zero;
+    }
+    run.iter().enumerate().fold(0, |m, (i, k)| m | u64::from(k.0 != 0) << i)
+}
+
+/// [`mle_eval_par`] with each row's inner sum `dot(low, row)`.
+fn mle_eval_rows(table: &[F64], point: &[F128], dot: impl Fn(&[Weights8], &[F64]) -> F128Unreduced + Sync) -> F128 {
     assert!(table.len() <= 1 << point.len());
     if table.len() == 1 << point.len() && table.len() < PAR_THRESHOLD {
         return mle_eval(table, point);
@@ -176,7 +287,7 @@ pub fn mle_eval_par(table: &[F64], point: &[F128]) -> F128 {
     assert!(low_vars >= 3 && table.len().is_multiple_of(1 << low_vars));
     let low = packed_eq(&point[..low_vars]);
     let high = eq_table(&point[low_vars..]);
-    let eval = |row: usize| high[row] * dot_base(&low, &table[row << low_vars..(row + 1) << low_vars]).reduce();
+    let eval = |row: usize| high[row] * dot(&low, &table[row << low_vars..(row + 1) << low_vars]).reduce();
     parallel::map_reduce(table.len() >> low_vars, || F128::ZERO, eval, |a, b| a + b)
 }
 
@@ -204,6 +315,16 @@ fn fold_ladder(mut cur: Vec<F128>, point: &[F128]) -> F128 {
 mod tests {
     use super::*;
 
+    /// A table whose entries are nonzero with a chance of `percent` in a hundred.
+    fn sparse_table(n: u32, percent: u64) -> Vec<F64> {
+        (0..1u64 << n)
+            .map(|i| {
+                let h = (i + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+                F64(if (h >> 32) % 100 < percent { h } else { 0 })
+            })
+            .collect()
+    }
+
     #[test]
     fn parallel_mle_matches_folding() {
         for n in [0, 1, 2, 3, 4, 5, 9, 11, 12, 13, 16] {
@@ -221,6 +342,22 @@ mod tests {
             let point: Vec<_> = (0..n).map(|i| F128::from(F64(i % 2))).collect();
             assert_eq!(mle_eval(&table, &point), fold(&point));
             assert_eq!(mle_eval_par(&table, &point), fold(&point));
+            assert_eq!(mle_eval_sparse_par(&table, &point), fold(&point));
+        }
+    }
+
+    #[test]
+    fn sparse_mle_matches_dense() {
+        for n in [3, 5, 10, 11, 13] {
+            let point: Vec<_> = (0..n as u64).map(|i| F128::new(17 + i, 231 + 3 * i)).collect();
+            for percent in [0, 1, 5, 7, 15, 32, 35, 100] {
+                let table = sparse_table(n, percent);
+                assert_eq!(
+                    mle_eval_sparse_par(&table, &point),
+                    mle_eval_par(&table, &point),
+                    "n={n} {percent}%"
+                );
+            }
         }
     }
 }
