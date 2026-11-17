@@ -38,6 +38,11 @@ public import LeanVM.Guest.Compiled.Piece.Jt3
 public import LeanVM.Guest.Compiled.Piece.Jt4
 public import LeanVM.Guest.Compiled.Piece.Jt5
 public import LeanVM.Guest.Compiled.Piece.Jt6
+public import LeanVM.Guest.Compiled.Piece.Consts0
+public import LeanVM.Guest.Compiled.Piece.Consts1
+public import LeanVM.Guest.Compiled.Piece.Consts2
+public import LeanVM.Guest.Compiled.Piece.Consts3
+public import LeanVM.Guest.Compiled.Piece.Consts4
 public import LeanVM.Guest.Compiled.Piece.C11P0
 public import LeanVM.Guest.Compiled.Piece.C11P1
 public import LeanVM.Guest.Compiled.Piece.C11P2
@@ -167,7 +172,7 @@ public import LeanVM.Compiler.Sound.Cut
 # The guest compiled
 
 `guest_compiles`: `GuestCompiles guestFns guestSlots`, by `compiles_of_pieces` from the pieces of
-`Piece/` and the checks of `Piece/Checks.lean`; every function's piece is checked here, so `guest_compiles` has no hypothesis.
+`Piece/`, the checks of `Piece/Checks.lean` and the constant parameters' check of `Piece/Consts*.lean` (`guest_consts`); every function's piece is checked here, so `guest_compiles` has no hypothesis.
 `guest_program_sound_compiled` is `guest_program_sound` without `GuestCompiles`, and
 `guestWorld_locs` says function `j`'s places in the guest's world are `placedLocs j`, which the
 kernel evaluates; for a function checked in parts, `placedLocs_j` gives them as its walk's last state's.
@@ -688,11 +693,22 @@ theorem guest_jt :
     exacts [jt_6_0, jt_6_1, jt_6_2, jt_6_3, absurd hq (by rw [show jtParts = 4 from rfl]; omega)]
   · exact absurd hc (by omega)
 
+/-- **The guest's constant parameters are right of its core program.** -/
+theorem guest_consts : ConstsOk (constsOf loopsG) (guestTraced.map (·.core)) = true := by
+  rw [guestTraced_core]
+  refine constsOk_of_in (by decide +kernel) ?_
+  rw [coreProgram_length]
+  exact (constsIn_glue (constsIn_glue (constsIn_glue (constsIn_glue consts_0_36
+      consts_36_84 (by decide) (by decide))
+      consts_84_1076 (by decide) (by decide))
+      consts_1076_1488 (by decide) (by decide))
+      consts_1488_1549 (by decide) (by decide))
+
 /-- **The back end compiles the guest to the statement's bytecode.** -/
 theorem guest_compiles : GuestCompiles guestFns guestSlots := by
   obtain ⟨fns, hlow, hfun, hsize⟩ := compiles_of_pieces (cfJt := Data.f0) (k := 19) loopsG_eq sigsG_eq
-    layG_eq checks_ok outs_length cfs_length (guest_pieces) slots_ok slots_ne guest_jt size_ok
-    (by norm_num)
+    layG_eq checks_ok guest_consts outs_length cfs_length (guest_pieces) slots_ok slots_ne guest_jt
+    size_ok (by norm_num)
   have hf : guestFns = fns := by rw [guestFns, hlow]; rfl
   rw [slotsOfOuts_eq] at hlow hfun hsize
   rw [hf, show guestSlots = slotsG from rfl]

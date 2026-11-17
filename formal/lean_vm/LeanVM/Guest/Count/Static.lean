@@ -220,8 +220,8 @@ theorem kcL2_loop (op : Opcode) :
 /-- `__loop2`'s instructions per iteration. -/
 def kcL3 : Opcode → ℕ
   | .xor => 183
-  | .mulNative => 199
-  | .setConstant => 109
+  | .mulNative => 148
+  | .setConstant => 160
   | .deref => 109
   | .jump => 42
   | .keccak => 398
@@ -233,9 +233,9 @@ theorem kcL3_loop (op : Opcode) :
   cases op
   · exact cnt_weight_le_of_loop (by rw [cntCert_idx (op := .xor) (j := 36) (by decide +kernel)]; rfl : cntCert .xor "__loop2" = .loop none [] ⟨183, []⟩ []) hn hv hb ha he hae heo
       (fun _ h => (List.not_mem_nil h).elim)
-  · exact cnt_weight_le_of_loop (by rw [cntCert_idx (op := .mulNative) (j := 36) (by decide +kernel)]; rfl : cntCert .mulNative "__loop2" = .loop none [] ⟨199, []⟩ []) hn hv hb ha he hae heo
+  · exact cnt_weight_le_of_loop (by rw [cntCert_idx (op := .mulNative) (j := 36) (by decide +kernel)]; rfl : cntCert .mulNative "__loop2" = .loop none [] ⟨148, []⟩ []) hn hv hb ha he hae heo
       (fun _ h => (List.not_mem_nil h).elim)
-  · exact cnt_weight_le_of_loop (by rw [cntCert_idx (op := .setConstant) (j := 36) (by decide +kernel)]; rfl : cntCert .setConstant "__loop2" = .loop none [] ⟨109, []⟩ []) hn hv hb ha he hae heo
+  · exact cnt_weight_le_of_loop (by rw [cntCert_idx (op := .setConstant) (j := 36) (by decide +kernel)]; rfl : cntCert .setConstant "__loop2" = .loop none [] ⟨160, []⟩ []) hn hv hb ha he hae heo
       (fun _ h => (List.not_mem_nil h).elim)
   · exact cnt_weight_le_of_loop (by rw [cntCert_idx (op := .deref) (j := 36) (by decide +kernel)]; rfl : cntCert .deref "__loop2" = .loop none [] ⟨109, []⟩ []) hn hv hb ha he hae heo
       (fun _ h => (List.not_mem_nil h).elim)
