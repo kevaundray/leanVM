@@ -43,6 +43,8 @@ public import LeanVM.Guest.Compiled.Piece.Consts1
 public import LeanVM.Guest.Compiled.Piece.Consts2
 public import LeanVM.Guest.Compiled.Piece.Consts3
 public import LeanVM.Guest.Compiled.Piece.Consts4
+public import LeanVM.Guest.Compiled.Piece.Consts5
+public import LeanVM.Guest.Compiled.Piece.Consts6
 public import LeanVM.Guest.Compiled.Piece.C11P0
 public import LeanVM.Guest.Compiled.Piece.C11P1
 public import LeanVM.Guest.Compiled.Piece.C11P2
@@ -698,11 +700,13 @@ theorem guest_consts : ConstsOk (constsOf loopsG) (guestTraced.map (·.core)) = 
   rw [guestTraced_core]
   refine constsOk_of_in (by decide +kernel) ?_
   rw [coreProgram_length]
-  exact (constsIn_glue (constsIn_glue (constsIn_glue (constsIn_glue consts_0_36
-      consts_36_84 (by decide) (by decide))
-      consts_84_1076 (by decide) (by decide))
-      consts_1076_1488 (by decide) (by decide))
-      consts_1488_1549 (by decide) (by decide))
+  exact (constsIn_glue (constsIn_glue (constsIn_glue (constsIn_glue (constsIn_glue (constsIn_glue consts_0_36
+      consts_36_37 (by decide) (by decide))
+      consts_37_365 (by decide) (by decide))
+      consts_365_1042 (by decide) (by decide))
+      consts_1042_1280 (by decide) (by decide))
+      consts_1280_1467 (by decide) (by decide))
+      consts_1467_1549 (by decide) (by decide))
 
 /-- **The back end compiles the guest to the statement's bytecode.** -/
 theorem guest_compiles : GuestCompiles guestFns guestSlots := by
