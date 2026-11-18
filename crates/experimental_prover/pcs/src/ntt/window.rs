@@ -53,7 +53,12 @@ impl<'a> Window<'a> {
 
     /// Whether write-backs stream whole aligned cache lines: this buffer streams and its rows are whole aligned lines.
     pub(super) fn streams_lines(&self) -> bool {
-        self.stream && self.num_ntts.is_multiple_of(8) && self.words.as_ptr().align_offset(64) == 0
+        self.stream && self.num_ntts.is_multiple_of(8) && self.line_aligned()
+    }
+
+    /// Whether the buffer starts on a cache line.
+    pub(super) fn line_aligned(&self) -> bool {
+        self.words.as_ptr().align_offset(64) == 0
     }
 
     pub(super) fn len(&self) -> usize {

@@ -249,7 +249,8 @@ fn lane_major_msg_encode_matches_per_lane_reference() {
 /// The lane-major encode reads the message in its first gathered pass, so it must equal the
 /// transpose into block 0 followed by the in-place encode: rows handed over and rows opened.
 /// The shapes cover a fused first pass (with and without padding lanes, at both rates, in rows of whole octets
-/// and in rows ending in a quad), a deep-only plan, and a domain too small for any gathered pass.
+/// and in rows ending in a quad, whose last group takes the padding), a deep-only plan, and a domain too small for
+/// any gathered pass.
 #[test]
 fn lane_major_encode_matches_transpose_then_in_place() {
     let mut rng = Rng::new(0x7A5E);
@@ -259,6 +260,7 @@ fn lane_major_encode_matches_transpose_then_in_place() {
         (13, 1, 17, 24),
         (13, 1, 17, 20),
         (15, 1, 17, 20),
+        (17, 1, 33, 36),
         (12, 2, 64, 64),
         (5, 2, 7, 8),
     ] {

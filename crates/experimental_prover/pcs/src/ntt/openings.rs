@@ -6,7 +6,7 @@ use super::encode::Codeword;
 use super::plan::Plan;
 use super::scratch::with_scratch;
 use super::source::Lanes;
-use super::stage::{BATCH, Stage, lane_groups};
+use super::stage::{BATCH, Stage, carry_len, lane_groups, line_steps};
 use super::twiddles::AdditiveNttF64;
 
 /// The rows at the sorted `positions` of a codeword kept whole, `row_words` words each, back to back.
@@ -181,23 +181,24 @@ impl<'a> Rebuild<'a> {
             let stage_len = rows * BATCH * 8;
             // `built` is far larger than a node's L3 share and is read only after every task: its lines stream.
             let stream = primitives::stream::Stream::new();
-            with_scratch(2 * stage_len, |all| {
-                let (stage, scratch) = all.split_at_mut(stage_len);
+            with_scratch(2 * stage_len + carry_len(num_ntts, rows), |all| {
+                let (stage, rest) = all.split_at_mut(stage_len);
+                let (scratch, carry) = rest.split_at_mut(stage_len);
                 for t in lo..hi {
-                    for (lane0, lanes) in lane_groups(num_ntts) {
+                    for (first, lanes) in lane_groups(num_ntts) {
                         let width = BATCH * lanes;
                         let (stage, scratch) = (&mut stage[..rows * width], &mut scratch[..rows * width]);
-                        self.stage.fill(stage, t * BATCH, lane0, lanes);
+                        self.stage.fill(stage, carry, t * BATCH, first, lanes);
+                        let (stride, odd) = line_steps(num_ntts, lanes);
                         for (coset, run, live) in &self.cosets {
                             let live_rows = Some(&live[..]);
                             ntt.run_layers(scratch, Some(stage), deep_start, width, start, start, *coset, live_rows);
                             for (pos, &i) in run.clone().zip(live) {
-                                for (s, lanes_of_s) in scratch[i * width..][..width].chunks_exact(lanes).enumerate() {
-                                    // SAFETY: this task alone owns row `t * BATCH + s` of every sub-block,
-                                    // and `built` outlives the tasks.
-                                    let dst =
-                                        unsafe { out.slice(pos * sub_len + (t * BATCH + s) * num_ntts + lane0, lanes) };
-                                    stream.copy(dst, lanes_of_s);
+                                for (k, line) in scratch[i * width..][..width].as_chunks::<8>().0.iter().enumerate() {
+                                    let at = pos * sub_len + t * BATCH * num_ntts + first + k * stride + (k & 1) * odd;
+                                    // SAFETY: this task alone owns rows `t * BATCH..(t + 1) * BATCH` of every
+                                    // sub-block, and `built` outlives the tasks.
+                                    stream.copy(unsafe { out.slice(at, 8) }, line);
                                 }
                             }
                         }

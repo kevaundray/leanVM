@@ -6,7 +6,7 @@ use primitives::stream::Stream;
 use super::plan::Plan;
 use super::scratch::{Line, with_scratch};
 use super::source::Source;
-use super::stage::{BATCH, Stage, lane_groups};
+use super::stage::{BATCH, Stage, carry_len, lane_groups, line_steps};
 use super::twiddles::AdditiveNttF64;
 use super::window::Window;
 
@@ -50,7 +50,8 @@ use super::window::Window;
 /// - It goes one group of lanes at a time, whole octets and then a quad where the row ends in one ([`lane_groups`]).
 /// - With the residues, a group of `lanes` lanes is `BATCH * lanes` lanes of one transform.
 /// - It transposes those lanes into a stage of `2^g` rows of `BATCH * lanes` words, `lanes` words per residue.
-/// - Each block transforms a copy of the stage and scatters it residue by residue.
+/// - Each block transforms a copy of the stage and scatters it a cache line at a time: the groups are line-aligned
+///   in the batch's rows, so the lines stream even when a row is not whole lines.
 pub(super) struct GatheredPass<'a> {
     src: Source<'a>,
     /// The transpose of a lane-major message, if the source is one.
@@ -70,10 +71,9 @@ pub(super) struct GatheredPass<'a> {
     /// Residues one task step takes, and the words of its stage.
     batch: usize,
     stage_len: usize,
-    /// How a finished group drains: in pieces of `piece` words, `piece_stride` apart. A lane-major group's pieces
-    /// are its lanes of each residue.
+    /// How a finished group drains: in pieces of `piece` words, the next `piece` words of the row each, or for a
+    /// lane-major group a line each, placed by [`line_steps`].
     piece: usize,
-    piece_stride: usize,
     stream: bool,
 }
 
@@ -91,18 +91,26 @@ impl<'a> GatheredPass<'a> {
         let staged = matches!(src, Source::Lanes(_));
         let batch = if staged { BATCH } else { 1 };
         let width = if staged { BATCH * 8 } else { num_ntts };
-        // A message that is not lane-major gathers into a stage of one group; replicas gather per block.
-        let gathers = matches!(src, Source::Rows(_) | Source::InPlace);
         let group_len = rows * width;
-        let stage_len = if staged || gathers { group_len } else { 0 };
+        // A message that is not lane-major gathers into a stage of one group; replicas gather per block. A lane-major
+        // stage keeps its carry behind the group.
+        let stage_len = match src {
+            Source::Lanes(_) => group_len + carry_len(num_ntts, rows),
+            Source::Rows(_) | Source::InPlace => group_len,
+            Source::Replicas => 0,
+        };
         let staging = match src {
             Source::Lanes(lanes) => Some(Stage::new(lanes, log_step, block_rows, num_ntts)),
             _ => None,
         };
-        // Whole aligned cache lines in every row stream out a line at a time; other rows are stored whole.
-        let stream = win.streams_lines();
+        // Whole aligned cache lines stream out a line at a time; other rows are stored whole. A lane-major group's
+        // lines are aligned whenever the buffer is.
+        let stream = if staged {
+            win.stream() && win.line_aligned()
+        } else {
+            win.streams_lines()
+        };
         let piece = if staged || stream { 8 } else { num_ntts };
-        let piece_stride = if staged { num_ntts } else { piece };
         Self {
             src,
             staging,
@@ -118,7 +126,6 @@ impl<'a> GatheredPass<'a> {
             batch,
             stage_len,
             piece,
-            piece_stride,
             stream,
         }
     }
@@ -137,14 +144,21 @@ impl<'a> GatheredPass<'a> {
                     match &self.staging {
                         Some(staging) => {
                             let r = t * self.batch;
-                            for (lane0, lanes) in lane_groups(self.num_ntts) {
+                            let (stage, carry) = stage.split_at_mut(self.group_len);
+                            for (first, lanes) in lane_groups(self.num_ntts) {
                                 let width = BATCH * lanes;
                                 let stage = &mut stage[..width << self.g];
-                                staging.fill(stage, r, lane0, lanes);
+                                staging.fill(stage, carry, r, first, lanes);
+                                let (stride, odd) = line_steps(self.num_ntts, lanes);
                                 for block in self.blocks.clone().rev() {
-                                    let dst = win.row(self.block_rows, block, r) + lane0;
-                                    let (from, piece) = (Some(&*stage), lanes);
-                                    self.group(ntt, scratch, stream, win, base, block, r, from, dst, width, piece);
+                                    let dst = win.row(self.block_rows, block, r) + first;
+                                    let from = Some(&*stage);
+                                    let at = (dst, stride, odd);
+                                    if odd == 0 {
+                                        self.group::<false>(ntt, scratch, stream, win, base, block, r, from, width, at);
+                                    } else {
+                                        self.group::<true>(ntt, scratch, stream, win, base, block, r, from, width, at);
+                                    }
                                 }
                             }
                         }
@@ -156,9 +170,8 @@ impl<'a> GatheredPass<'a> {
                             for block in self.blocks.clone().rev() {
                                 let dst = win.row(self.block_rows, block, t);
                                 let from = msg.map(|_| &*stage);
-                                self.group(
-                                    ntt, scratch, stream, win, base, block, t, from, dst, self.width, self.piece,
-                                );
+                                let (width, at) = (self.width, (dst, self.piece, 0));
+                                self.group::<false>(ntt, scratch, stream, win, base, block, t, from, width, at);
                             }
                         }
                     }
@@ -190,12 +203,13 @@ impl<'a> GatheredPass<'a> {
         }
     }
 
-    /// Transform residue `r`'s group as layer-`layer` block `block`, and send it back to word `dst` on.
+    /// Transform residue `r`'s group as layer-`layer` block `block`, and send it back.
     ///
     /// The rows, `width` words each, are `from` the stage, or gathered from the block's own rows of the buffer.
-    /// They drain in pieces of `piece` words.
+    /// With `at = (dst, stride, odd)`, piece `k` of a row drains to word `dst + k * stride` of its place, `odd`
+    /// more for an odd `k` when `SHIFTED`.
     #[inline(always)]
-    fn group(
+    fn group<const SHIFTED: bool>(
         &self,
         ntt: &AdditiveNttF64,
         scratch: &mut [F64],
@@ -205,9 +219,8 @@ impl<'a> GatheredPass<'a> {
         block: usize,
         r: usize,
         from: Option<&[F64]>,
-        dst: usize,
         width: usize,
-        piece: usize,
+        (dst, stride, odd): (usize, usize, usize),
     ) {
         let (layer, g, num_ntts, step) = (self.layer, self.g, self.num_ntts, self.step);
         let scratch = &mut scratch[..width << g];
@@ -219,18 +232,19 @@ impl<'a> GatheredPass<'a> {
             );
         }
         ntt.run_layers(scratch, from, layer + g, width, layer, layer, block, None);
-        // Write the group back: scratch row `i` lands `i * step` rows after word `dst`, in pieces of `piece` words
-        // `piece_stride` apart. A streaming write moves whole aligned cache lines: `piece` is then 8.
+        // Write the group back: scratch row `i` lands `i * step` rows after word `dst`, in pieces of `piece` words.
+        // A streaming write moves whole aligned cache lines: `piece` is then 8.
         for (i, row) in scratch.chunks_exact(width).enumerate() {
-            for (k, piece) in row.chunks_exact(piece).enumerate() {
+            for (k, piece) in row.chunks_exact(self.piece).enumerate() {
                 // SAFETY:
                 // - The group lies inside the buffer, so every piece is in bounds, and line-aligned when streamed.
                 // - Only this group's task writes these rows of the buffer.
                 unsafe {
-                    let at = base.add(dst + i * step * num_ntts + k * self.piece_stride);
+                    let shift = if SHIFTED { (k & 1) * odd } else { 0 };
+                    let to = base.add(dst + i * step * num_ntts + k * stride + shift);
                     match stream {
-                        Some(s) => s.copy_lines(at.cast::<Line>(), &primitives::cast_slice::<F64, Line>(piece)[0]),
-                        None => at.copy_from_nonoverlapping(piece.as_ptr(), piece.len()),
+                        Some(s) => s.copy_lines(to.cast::<Line>(), &primitives::cast_slice::<F64, Line>(piece)[0]),
+                        None => to.copy_from_nonoverlapping(piece.as_ptr(), piece.len()),
                     }
                 }
             }
