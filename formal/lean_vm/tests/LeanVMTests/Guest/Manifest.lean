@@ -17,9 +17,9 @@ def codeLen : Nat := 456056
 def functionCount : Nat := 1550
 
 /-- The instructions of each opcode (`XOR`, `MUL`, `SET`, `DEREF`, `JUMP`, `KECCAK`), the padding included. -/
-def opcodeCounts : List Nat := [97831, 123829, 127501, 75814, 20302, 79011]
+def opcodeCounts : List Nat := [97831, 123353, 127977, 75814, 20302, 79011]
 
 /-- `fs_seed`: the guest's Fiat-Shamir IV, two cells as `(c0, c1)` limbs. -/
-def fsSeed : List (Nat × Nat) := [(10084079155436828854, 3622454050702430614), (4496129978991899251, 5511721496819535918)]
+def fsSeed : List (Nat × Nat) := [(7445898603943730611, 15340880684391612997), (870167293143229247, 16040915525513518226)]
 
 end LeanVMTests.Guest.Manifest

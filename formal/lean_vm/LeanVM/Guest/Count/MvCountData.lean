@@ -52,8 +52,8 @@ def mvOmJ : List ℕ := [27, 404, 29, 23]
 /-- The instructions of `dvStNames`. -/
 def kcDvStT : Opcode → List ℕ
   | .xor => [1, 1531, 254]
-  | .mulNative => [4, 2358, 257]
-  | .setConstant => [3, 817, 3]
+  | .mulNative => [4, 2231, 257]
+  | .setConstant => [3, 944, 3]
   | .deref => [2, 3230, 143]
   | .jump => [1, 270, 1]
   | .keccak => [0, 0, 0]
@@ -61,8 +61,8 @@ def kcDvStT : Opcode → List ℕ
 /-- The instructions of `dvLpNames` per iteration. -/
 def kcDvLpT : Opcode → List ℕ
   | .xor => [1, 135, 1, 258]
-  | .mulNative => [22, 1727, 13, 145]
-  | .setConstant => [5, 1354, 6, 11]
+  | .mulNative => [22, 1600, 13, 145]
+  | .setConstant => [5, 1481, 6, 11]
   | .deref => [2, 815, 2, 139]
   | .jump => [2, 265, 2, 4]
   | .keccak => [0, 127, 0, 16]
@@ -70,8 +70,8 @@ def kcDvLpT : Opcode → List ℕ
 /-- The instructions of the tree over the blob roots. -/
 def kcDl : Opcode → ℕ
   | .xor => 36
-  | .mulNative => 418
-  | .setConstant => 336
+  | .mulNative => 387
+  | .setConstant => 367
   | .deref => 218
   | .jump => 68
   | .keccak => 31
@@ -106,8 +106,8 @@ def mvOmT : Opcode → List ℕ
 /-- `da_verify`'s instructions on `r` rows padded to `DA_MAX_ROWS` within `kcDvA + kcDvR · r + kcDvP · DA_MAX_ROWS`: the constant. -/
 def kcDvA : Opcode → ℕ
   | .xor => 34302
-  | .mulNative => 37577
-  | .setConstant => 2371
+  | .mulNative => 37450
+  | .setConstant => 2498
   | .deref => 24912
   | .jump => 1175
   | .keccak => 1
@@ -115,8 +115,8 @@ def kcDvA : Opcode → ℕ
 /-- `da_verify`'s instructions: per row. -/
 def kcDvR : Opcode → ℕ
   | .xor => 33159
-  | .mulNative => 20296
-  | .setConstant => 2761
+  | .mulNative => 20169
+  | .setConstant => 2888
   | .deref => 18607
   | .jump => 777
   | .keccak => 2175
@@ -124,8 +124,8 @@ def kcDvR : Opcode → ℕ
 /-- `da_verify`'s instructions: per padded row. -/
 def kcDvP : Opcode → ℕ
   | .xor => 3
-  | .mulNative => 27
-  | .setConstant => 17
+  | .mulNative => 26
+  | .setConstant => 18
   | .deref => 9
   | .jump => 5
   | .keccak => 1

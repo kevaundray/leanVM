@@ -26,11 +26,14 @@ open LeanVM.Guest LeanVM.Guest.Core LeanVM.Compiler
 /-- `match_arms.py`, traced. -/
 def prog : List TracedFn := [⟨⟨"main", [], [(.atom (.const ⟨[], 0, 0⟩ (word 8 0))), (.match_ ⟨[], 0, 0⟩ [[(.atom (.const ⟨[], 0, 1⟩ (word 0 0))), (.call "shift" [⟨[], 0, 1⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 3⟩ (word 1 0))), (.call "shift" [⟨[], 0, 3⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 4⟩ (word 2 0))), (.call "shift" [⟨[], 0, 4⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 5⟩ (word 3 0))), (.call "shift" [⟨[], 0, 5⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 6⟩ (word 4 0))), (.call "shift" [⟨[], 0, 6⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 7⟩ (word 5 0))), (.call "shift" [⟨[], 0, 7⟩] [⟨[], 0, 2⟩])]]), (.atom (.const ⟨[], 0, 8⟩ (word 6 0))), (.atom (.assertEq ⟨[], 0, 2⟩ ⟨[], 0, 8⟩)), (.atom (.const ⟨[], 0, 9⟩ (word 8 0))), (.match_ ⟨[], 0, 9⟩ [[(.atom (.const ⟨[], 0, 10⟩ (word 1 0))), (.call "two" [⟨[], 0, 10⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 13⟩ (word 1 0))), (.call "two" [⟨[], 0, 13⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 14⟩ (word 2 0))), (.call "two" [⟨[], 0, 14⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 15⟩ (word 3 0))), (.call "two" [⟨[], 0, 15⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 16⟩ (word 4 0))), (.call "two" [⟨[], 0, 16⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 17⟩ (word 5 0))), (.call "two" [⟨[], 0, 17⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])]]), (.atom (.const ⟨[], 0, 18⟩ (word 1 0))), (.atom (.load ⟨[], 0, 2⟩ ⟨[], 0, 18⟩ 0)), (.atom (.add ⟨[], 0, 19⟩ ⟨[], 0, 11⟩ ⟨[], 0, 12⟩)), (.atom (.const ⟨[], 0, 20⟩ (word 1 0))), (.atom (.const ⟨[], 0, 21⟩ (word 2 0))), (.atom (.mul ⟨[], 0, 22⟩ ⟨[], 0, 20⟩ ⟨[], 0, 21⟩)), (.atom (.load ⟨[], 0, 19⟩ ⟨[], 0, 22⟩ 0)), (.ret [])]⟩,
     ((.alloc [⟨[], 0, 0⟩] .pooled) :: .emit :: (.alloc [⟨[], 0, 2⟩] .cell) :: .enter :: (.alloc [⟨[], 0, 1⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 3⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 4⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 5⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 6⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 7⟩] .pooled) :: .emit :: .emit :: .leave :: .emit :: (.alloc [⟨[], 0, 8⟩] .pooled) :: .emit :: .emit :: (.alloc [⟨[], 0, 9⟩] .pooled) :: .emit :: (.alloc [⟨[], 0, 11⟩, ⟨[], 0, 12⟩] .cell) :: .enter :: (.alloc [⟨[], 0, 10⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 13⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 14⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 15⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 16⟩] .pooled) :: .emit :: .emit :: .leave :: .enter :: (.alloc [⟨[], 0, 17⟩] .pooled) :: .emit :: .emit :: .leave :: .emit :: (.alloc [⟨[], 0, 18⟩] .pooled) :: .emit :: .emit :: (.alloc [⟨[], 0, 19⟩] .pooled) :: .emit :: (.alloc [⟨[], 0, 20⟩] .pooled) :: .emit :: (.alloc [⟨[], 0, 21⟩] .pooled) :: .emit :: (.alloc [⟨[], 0, 22⟩] .pooled) :: .emit :: .emit :: .emit :: []).toArray,
-    0, (true, none)⟩, ⟨⟨"shift", [⟨[], 0, 0⟩], [(.atom (.const ⟨[], 0, 1⟩ (word 2 0))), (.atom (.mul ⟨[], 0, 2⟩ ⟨[], 0, 0⟩ ⟨[], 0, 1⟩)), (.ret [⟨[], 0, 2⟩])]⟩,
+    0, (true, none),
+    []⟩, ⟨⟨"shift", [⟨[], 0, 0⟩], [(.atom (.const ⟨[], 0, 1⟩ (word 2 0))), (.atom (.mul ⟨[], 0, 2⟩ ⟨[], 0, 0⟩ ⟨[], 0, 1⟩)), (.ret [⟨[], 0, 2⟩])]⟩,
     [(.alloc [⟨[], 0, 2⟩] .ret), (.alloc [⟨[], 0, 1⟩] .pooled), .emit, .emit, .emit].toArray,
-    1, (true, none)⟩, ⟨⟨"two", [⟨[], 0, 0⟩], [(.atom (.copy ⟨[], 0, 1⟩ ⟨[], 0, 0⟩)), (.atom (.const ⟨[], 0, 2⟩ (word 2 0))), (.atom (.mul ⟨[], 0, 3⟩ ⟨[], 0, 0⟩ ⟨[], 0, 2⟩)), (.ret [⟨[], 0, 1⟩, ⟨[], 0, 3⟩])]⟩,
+    1, (true, none),
+    []⟩, ⟨⟨"two", [⟨[], 0, 0⟩], [(.atom (.copy ⟨[], 0, 1⟩ ⟨[], 0, 0⟩)), (.atom (.const ⟨[], 0, 2⟩ (word 2 0))), (.atom (.mul ⟨[], 0, 3⟩ ⟨[], 0, 0⟩ ⟨[], 0, 2⟩)), (.ret [⟨[], 0, 1⟩, ⟨[], 0, 3⟩])]⟩,
     [(.alloc [⟨[], 0, 1⟩, ⟨[], 0, 3⟩] .ret), .emit, (.alloc [⟨[], 0, 2⟩] .pooled), .emit, .emit, .emit].toArray,
-    2, (true, none)⟩]
+    2, (true, none),
+    []⟩]
 
 /-- What placement and emission give of its functions. -/
 def outs : List FnOut := [⟨12, [], [(0, 5), (1, 13), (2, 20), (3, 28), (4, 36), (5, 44), (6, 56), (7, 64), (8, 72), (9, 81), (10, 90), (11, 99)], 22, 114⟩, ⟨12, [], [], 6, 4⟩, ⟨12, [], [], 7, 5⟩]
@@ -61,6 +64,7 @@ theorem matcharms_compiles : ∃ fns, lowerProgram prog = .ok (fns, slotsOfOuts 
     (assemble fns (slotsOfOuts prog outs)).toFunctions = cfs ∧
     (assemble fns (slotsOfOuts prog outs)).size = 2 ^ 8 := by
   have h := compiles_of_pieces (k := 8) loops_eq sigs_eq lay_eq (by decide +kernel) (by decide +kernel)
+    (by decide +kernel)
     (by decide +kernel) (fun j hj => piecesIn_spec pieces j (Nat.zero_le _) hj) (by decide +kernel)
     (by decide +kernel) jt (by decide +kernel) (by norm_num)
   have hc : cfs = cfs.headD noFunction :: cfs.tail := rfl
