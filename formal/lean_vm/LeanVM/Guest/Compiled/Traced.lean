@@ -45,6 +45,8 @@ set_option linter.all false
 
 namespace LeanVM.Guest.Compiled.GuestData
 
+open LeanVM.Core
+
 open LeanVM.Compiler LeanVM.Parameters
 
 @[expose] public section

@@ -7,14 +7,14 @@
 
 module
 
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Renumber
 
 set_option maxRecDepth 20000
 set_option linter.all false
 
 namespace LeanVM.Guest.Fn.«block_selector__L2»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -59,7 +59,7 @@ end LeanVM.Guest.Fn.«block_selector__L2»
 
 namespace LeanVM.Guest.Fn.«block_selector__L24»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -347,7 +347,7 @@ end LeanVM.Guest.Fn.«block_selector__L24»
 
 namespace LeanVM.Guest.Fn.«block_selector_tab__L15»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -407,7 +407,7 @@ end LeanVM.Guest.Fn.«block_selector_tab__L15»
 
 namespace LeanVM.Guest.Fn.«bus_grind_check__L1»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -432,7 +432,7 @@ end LeanVM.Guest.Fn.«bus_grind_check__L1»
 
 namespace LeanVM.Guest.Fn.«decode_query_windows__L19_L7»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -693,7 +693,7 @@ end LeanVM.Guest.Fn.«decode_query_windows__L19_L7»
 
 namespace LeanVM.Guest.Fn.«eq_prefix_run__L20»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -819,7 +819,7 @@ end LeanVM.Guest.Fn.«eq_prefix_run__L20»
 
 namespace LeanVM.Guest.Fn.«level_positions__L6_L24_L6»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -868,7 +868,7 @@ end LeanVM.Guest.Fn.«level_positions__L6_L24_L6»
 
 namespace LeanVM.Guest.Fn.«level_queries__L218_L1_L6_L32_L20_L8_L0_L0_L0_L0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -915,7 +915,7 @@ end LeanVM.Guest.Fn.«level_queries__L218_L1_L6_L32_L20_L8_L0_L0_L0_L0»
 
 namespace LeanVM.Guest.Fn.«level_queries__L21_L0_L4_L16_L17_L5_L0_L0_L0_L0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -957,7 +957,7 @@ end LeanVM.Guest.Fn.«level_queries__L21_L0_L4_L16_L17_L5_L0_L0_L0_L0»
 
 namespace LeanVM.Guest.Fn.«level_queries__L23_L0_L4_L16_L18_L6_L0_L0_L0_L0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1000,7 +1000,7 @@ end LeanVM.Guest.Fn.«level_queries__L23_L0_L4_L16_L18_L6_L0_L0_L0_L0»
 
 namespace LeanVM.Guest.Fn.«level_queries__L28_L0_L4_L16_L21_L3_L0_L0_L0_L0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1042,7 +1042,7 @@ end LeanVM.Guest.Fn.«level_queries__L28_L0_L4_L16_L21_L3_L0_L0_L0_L0»
 
 namespace LeanVM.Guest.Fn.«level_queries__L28_L0_L4_L16_L23_L5_L0_L0_L0_L0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1084,7 +1084,7 @@ end LeanVM.Guest.Fn.«level_queries__L28_L0_L4_L16_L23_L5_L0_L0_L0_L0»
 
 namespace LeanVM.Guest.Fn.«level_residual__L109_L18_L6_L3_loop1»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1252,7 +1252,7 @@ end LeanVM.Guest.Fn.«level_residual__L109_L18_L6_L3_loop1»
 
 namespace LeanVM.Guest.Fn.«level_residual__L17_L7_L4_L2_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1756,7 +1756,7 @@ end LeanVM.Guest.Fn.«level_residual__L17_L7_L4_L2_loop0»
 
 namespace LeanVM.Guest.Fn.«level_residual__L19_L6_L4_L2»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1809,7 +1809,7 @@ end LeanVM.Guest.Fn.«level_residual__L19_L6_L4_L2»
 
 namespace LeanVM.Guest.Fn.«level_residual__L37_L13_L4_L2_loop1»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1940,7 +1940,7 @@ end LeanVM.Guest.Fn.«level_residual__L37_L13_L4_L2_loop1»
 
 namespace LeanVM.Guest.Fn.«level_residual__L55_L20_L4_L2»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1993,7 +1993,7 @@ end LeanVM.Guest.Fn.«level_residual__L55_L20_L4_L2»
 
 namespace LeanVM.Guest.Fn.«level_residual__L73_L23_L6_L3»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -2046,7 +2046,7 @@ end LeanVM.Guest.Fn.«level_residual__L73_L23_L6_L3»
 
 namespace LeanVM.Guest.Fn.«main_loop1»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -2080,7 +2080,7 @@ end LeanVM.Guest.Fn.«main_loop1»
 
 namespace LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L16_L4_L2_L3_L8_L3_L1_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -2210,7 +2210,7 @@ end LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L16_L4_L2_L3_L8_L3_L1_loop0�
 
 namespace LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L18_L6_L2_L3_L8_L3_L1_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -2340,7 +2340,7 @@ end LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L18_L6_L2_L3_L8_L3_L1_loop0�
 
 namespace LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L23_L5_L0_L0_L0_L0_L0_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -2445,7 +2445,7 @@ end LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L23_L5_L0_L0_L0_L0_L0_loop0�
 
 namespace LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L26_L2_L0_L0_L0_L0_L0_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -2550,7 +2550,7 @@ end LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L26_L2_L0_L0_L0_L0_L0_loop0�
 
 namespace LeanVM.Guest.Fn.«opening_queries__L0_L1_L6_L32_L18_L6_L0_L0_L0_L0_L0_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -3232,7 +3232,7 @@ end LeanVM.Guest.Fn.«opening_queries__L0_L1_L6_L32_L18_L6_L0_L0_L0_L0_L0_loop0�
 
 namespace LeanVM.Guest.Fn.«plus_one_run__L31»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 

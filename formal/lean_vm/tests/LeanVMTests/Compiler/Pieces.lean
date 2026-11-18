@@ -6,7 +6,7 @@
 -/
 
 import LeanVM.Compiler.Sound.Compiles
-import LeanVM.Guest.KernelLit
+import LeanVM.Compiler.KernelLit
 
 /-!
 # A program compiled from its pieces
@@ -21,7 +21,7 @@ set_option maxRecDepth 100000
 
 namespace LeanVMTests.Compiler.Pieces
 
-open LeanVM.Guest LeanVM.Guest.Core LeanVM.Compiler
+open LeanVM.Guest LeanVM.Core LeanVM.Compiler
 
 /-- `match_arms.py`, traced. -/
 def prog : List TracedFn := [⟨⟨"main", [], [(.atom (.const ⟨[], 0, 0⟩ (word 8 0))), (.match_ ⟨[], 0, 0⟩ [[(.atom (.const ⟨[], 0, 1⟩ (word 0 0))), (.call "shift" [⟨[], 0, 1⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 3⟩ (word 1 0))), (.call "shift" [⟨[], 0, 3⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 4⟩ (word 2 0))), (.call "shift" [⟨[], 0, 4⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 5⟩ (word 3 0))), (.call "shift" [⟨[], 0, 5⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 6⟩ (word 4 0))), (.call "shift" [⟨[], 0, 6⟩] [⟨[], 0, 2⟩])], [(.atom (.const ⟨[], 0, 7⟩ (word 5 0))), (.call "shift" [⟨[], 0, 7⟩] [⟨[], 0, 2⟩])]]), (.atom (.const ⟨[], 0, 8⟩ (word 6 0))), (.atom (.assertEq ⟨[], 0, 2⟩ ⟨[], 0, 8⟩)), (.atom (.const ⟨[], 0, 9⟩ (word 8 0))), (.match_ ⟨[], 0, 9⟩ [[(.atom (.const ⟨[], 0, 10⟩ (word 1 0))), (.call "two" [⟨[], 0, 10⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 13⟩ (word 1 0))), (.call "two" [⟨[], 0, 13⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 14⟩ (word 2 0))), (.call "two" [⟨[], 0, 14⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 15⟩ (word 3 0))), (.call "two" [⟨[], 0, 15⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 16⟩ (word 4 0))), (.call "two" [⟨[], 0, 16⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])], [(.atom (.const ⟨[], 0, 17⟩ (word 5 0))), (.call "two" [⟨[], 0, 17⟩] [⟨[], 0, 11⟩, ⟨[], 0, 12⟩])]]), (.atom (.const ⟨[], 0, 18⟩ (word 1 0))), (.atom (.load ⟨[], 0, 2⟩ ⟨[], 0, 18⟩ 0)), (.atom (.add ⟨[], 0, 19⟩ ⟨[], 0, 11⟩ ⟨[], 0, 12⟩)), (.atom (.const ⟨[], 0, 20⟩ (word 1 0))), (.atom (.const ⟨[], 0, 21⟩ (word 2 0))), (.atom (.mul ⟨[], 0, 22⟩ ⟨[], 0, 20⟩ ⟨[], 0, 21⟩)), (.atom (.load ⟨[], 0, 19⟩ ⟨[], 0, 22⟩ 0)), (.ret [])]⟩,

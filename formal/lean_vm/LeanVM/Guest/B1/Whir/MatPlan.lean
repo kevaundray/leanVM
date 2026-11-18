@@ -12,7 +12,7 @@ module
 `osMatPlan m`: the triples `(base, exp, src)` of size `m`: the compiler materializes the
 pointer `base·g^exp` (the value `base` one of the buffers the body allocates) from its
 materialization `base·g^src`
-(`materialize`, `Guest/Expand.lean`: from the nearest earlier one whose distance is a constant
+(`materialize`, `Core/Expand.lean`: from the nearest earlier one whose distance is a constant
 already set). The template (`osMatP`) follows it; `Whir/Data*.lean` check the result.
 -/
 

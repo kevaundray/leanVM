@@ -18,7 +18,7 @@ public import LeanVM.Guest.B1.Whir.DataSpec
 
 namespace LeanVM.Guest.B1.Whir
 
-open LeanVM.Guest.Core LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 

@@ -13,7 +13,7 @@ public import LeanVM.Guest.Count.Words
 
 namespace LeanVM.Guest.Count
 
-open LeanVM.Guest.Core LeanVM.Guest.Memory LeanVM.Guest LeanVM.Guest.Data
+open LeanVM.Core LeanVM.Guest.Memory LeanVM.Core.Memory LeanVM.Guest.Data
 
 @[expose] public section
 

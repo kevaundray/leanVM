@@ -8,11 +8,11 @@
 
 module
 
-public import LeanVM.Guest.Memory.Static
+public import LeanVM.Core.Memory.Static
 
 namespace LeanVM.Guest.Data
 
-open LeanVM.Guest.Memory
+open LeanVM.Core.Memory
 
 @[expose] public section
 

@@ -8,7 +8,7 @@
 module
 
 public import LeanVM.Compiler.Trace
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Renumber
 public meta import LeanVM.Compiler.DataLit
 
 set_option maxRecDepth 20000
@@ -16,7 +16,7 @@ set_option linter.all false
 
 namespace LeanVM.Guest.Compiled.GuestData
 
-open LeanVM.Compiler LeanVM.Guest.Core
+open LeanVM.Compiler LeanVM.Core
 
 @[expose] public section
 

@@ -7,12 +7,12 @@
 
 module
 
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Renumber
 public import LeanVM.Guest.Pack.main_loop2.Core23
 
 namespace LeanVM.Guest.Fn.«main_loop2»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 set_option maxRecDepth 20000
 set_option linter.all false

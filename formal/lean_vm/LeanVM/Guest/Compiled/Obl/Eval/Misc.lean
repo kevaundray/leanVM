@@ -13,7 +13,7 @@ public import LeanVM.Compiler.Sound.Obl.CheckSound
 
 namespace LeanVM.Guest.Compiled.Obl
 
-open LeanVM.Compiler LeanVM.Compiler.Obl LeanVM.Parameters LeanVM.Guest LeanVM.Guest.Core
+open LeanVM.Compiler LeanVM.Compiler.Obl LeanVM.Parameters LeanVM.Guest LeanVM.Core
 
 @[expose] public section
 

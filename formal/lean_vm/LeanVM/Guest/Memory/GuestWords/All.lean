@@ -35,7 +35,7 @@ public import LeanVM.Guest.Memory.GuestWords.Fn36
 
 namespace LeanVM.Guest.Memory
 
-open LeanVM.Guest
+open LeanVM.Core
 
 public section
 

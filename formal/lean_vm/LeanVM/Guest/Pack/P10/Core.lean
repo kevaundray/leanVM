@@ -7,14 +7,14 @@
 
 module
 
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Renumber
 
 set_option maxRecDepth 20000
 set_option linter.all false
 
 namespace LeanVM.Guest.Fn.«block_selector__L20»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -258,7 +258,7 @@ end LeanVM.Guest.Fn.«block_selector__L20»
 
 namespace LeanVM.Guest.Fn.«block_selector__L6»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -348,7 +348,7 @@ end LeanVM.Guest.Fn.«block_selector__L6»
 
 namespace LeanVM.Guest.Fn.«block_selector_tab__L11»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -398,7 +398,7 @@ end LeanVM.Guest.Fn.«block_selector_tab__L11»
 
 namespace LeanVM.Guest.Fn.«bus_grind_check__L10»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -423,7 +423,7 @@ end LeanVM.Guest.Fn.«bus_grind_check__L10»
 
 namespace LeanVM.Guest.Fn.«bus_grind_check__L5»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -448,7 +448,7 @@ end LeanVM.Guest.Fn.«bus_grind_check__L5»
 
 namespace LeanVM.Guest.Fn.«child_claim_list_mono_last__L13»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -708,7 +708,7 @@ end LeanVM.Guest.Fn.«child_claim_list_mono_last__L13»
 
 namespace LeanVM.Guest.Fn.«eq_prefix_run__L24»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -854,7 +854,7 @@ end LeanVM.Guest.Fn.«eq_prefix_run__L24»
 
 namespace LeanVM.Guest.Fn.«grind_check__L15»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -920,7 +920,7 @@ end LeanVM.Guest.Fn.«grind_check__L15»
 
 namespace LeanVM.Guest.Fn.«index_mle__L8»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -992,7 +992,7 @@ end LeanVM.Guest.Fn.«index_mle__L8»
 
 namespace LeanVM.Guest.Fn.«level_positions__L8_L17_L5_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1050,7 +1050,7 @@ end LeanVM.Guest.Fn.«level_positions__L8_L17_L5_loop0»
 
 namespace LeanVM.Guest.Fn.«level_positions__L8_L21_L3»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1099,7 +1099,7 @@ end LeanVM.Guest.Fn.«level_positions__L8_L21_L3»
 
 namespace LeanVM.Guest.Fn.«level_positions__L8_L23_L5»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1148,7 +1148,7 @@ end LeanVM.Guest.Fn.«level_positions__L8_L23_L5»
 
 namespace LeanVM.Guest.Fn.«level_queries__L25_L0_L4_L16_L15_L3_L0_L0_L0_L0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1190,7 +1190,7 @@ end LeanVM.Guest.Fn.«level_queries__L25_L0_L4_L16_L15_L3_L0_L0_L0_L0»
 
 namespace LeanVM.Guest.Fn.«level_residual__L218_L17_L6_L3»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -1243,7 +1243,7 @@ end LeanVM.Guest.Fn.«level_residual__L218_L17_L6_L3»
 
 namespace LeanVM.Guest.Fn.«level_residual__L55_L19_L6_L3_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -2386,7 +2386,7 @@ end LeanVM.Guest.Fn.«level_residual__L55_L19_L6_L3_loop0»
 
 namespace LeanVM.Guest.Fn.«level_residual__L73_L24_L6_L3_loop0»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -3773,7 +3773,7 @@ end LeanVM.Guest.Fn.«level_residual__L73_L24_L6_L3_loop0»
 
 namespace LeanVM.Guest.Fn.«opening_message__L12_L1»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -3872,7 +3872,7 @@ end LeanVM.Guest.Fn.«opening_message__L12_L1»
 
 namespace LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L20_L2_L4_L10_L20_L5_L1»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -3905,7 +3905,7 @@ end LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L20_L2_L4_L10_L20_L5_L1»
 
 namespace LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L21_L3_L2_L3_L8_L3_L1»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 
@@ -3938,7 +3938,7 @@ end LeanVM.Guest.Fn.«opening_queries__L0_L0_L4_L16_L21_L3_L2_L3_L8_L3_L1»
 
 namespace LeanVM.Guest.Fn.«walk_path__L6_L7»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 

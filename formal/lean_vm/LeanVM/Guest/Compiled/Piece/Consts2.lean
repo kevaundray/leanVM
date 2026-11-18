@@ -14,7 +14,7 @@ set_option maxRecDepth 100000
 
 namespace LeanVM.Guest.Compiled.GuestPiece
 
-open LeanVM.Compiler LeanVM.Guest
+open LeanVM.Compiler LeanVM.Guest LeanVM.Core
 
 @[expose] public section
 

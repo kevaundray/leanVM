@@ -12,7 +12,7 @@ public import LeanVM.Guest.Memory.GuestWords.Cut19_1
 
 namespace LeanVM.Guest.Memory
 
-open LeanVM.Guest
+open LeanVM.Core LeanVM.Core.Memory
 
 public section
 

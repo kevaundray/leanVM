@@ -11,7 +11,7 @@ public import LeanVM.Guest.Count.MvCountData
 
 namespace LeanVM.Guest.Count
 
-open LeanVM.Parameters LeanVM.Semantics LeanVM.Guest.Core LeanVM.Guest.Memory LeanVM.Guest
+open LeanVM.Parameters LeanVM.Semantics LeanVM.Core LeanVM.Guest.Memory LeanVM.Core.Memory
 
 set_option maxRecDepth 100000
 

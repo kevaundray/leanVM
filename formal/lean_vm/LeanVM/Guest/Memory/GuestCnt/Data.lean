@@ -8,12 +8,12 @@
 
 module
 
-public import LeanVM.Guest.Memory.StaticVec
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Memory.StaticVec
+public import LeanVM.Core.Renumber
 
 namespace LeanVM.Guest.Data
 
-open LeanVM.Guest.Memory
+open LeanVM.Core.Memory
 
 @[expose] public section
 

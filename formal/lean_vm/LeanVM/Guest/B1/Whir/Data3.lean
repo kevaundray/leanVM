@@ -11,7 +11,7 @@ public import LeanVM.Guest.Pack.P60.Core
 
 namespace LeanVM.Guest.B1.Whir
 
-open LeanVM.Guest.Core LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 

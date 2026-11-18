@@ -12,7 +12,7 @@ public import LeanVM.Guest.Memory.StaticCut
 
 namespace LeanVM.Guest.Memory
 
-open LeanVM.Guest
+open LeanVM.Core LeanVM.Core.Memory
 
 public section
 

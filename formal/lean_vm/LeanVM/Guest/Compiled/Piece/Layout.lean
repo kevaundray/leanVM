@@ -9,7 +9,7 @@ module
 
 public import LeanVM.Guest.Compiled.Piece.Outs
 public import LeanVM.Guest.Compiled.Piece.Tables
-public meta import LeanVM.Guest.KernelLit
+public meta import LeanVM.Compiler.KernelLit
 public meta import LeanVM.Compiler.DataLit
 
 set_option maxRecDepth 100000

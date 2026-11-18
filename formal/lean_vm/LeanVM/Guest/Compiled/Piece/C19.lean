@@ -19,7 +19,7 @@ set_option linter.all false
 
 namespace LeanVM.Guest.Compiled.GuestPiece
 
-open LeanVM.Guest.Core LeanVM.Compiler
+open LeanVM.Core LeanVM.Compiler
 
 @[expose] public section
 

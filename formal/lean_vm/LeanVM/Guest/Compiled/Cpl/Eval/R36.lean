@@ -9,7 +9,7 @@ module
 
 public import LeanVM.Guest.Compiled.Cpl.Eval.Split
 public import LeanVM.Compiler.StateLit
-public import LeanVM.Guest.KernelLit
+public import LeanVM.Compiler.KernelLit
 public meta import LeanVM.Compiler.DataLit
 
 set_option Elab.async false
@@ -17,7 +17,7 @@ set_option maxRecDepth 100000
 
 namespace LeanVM.Guest.Compiled.CplEval
 
-open LeanVM.Guest LeanVM.Guest.Core LeanVM.Guest.Memory LeanVM.Compiler LeanVM.Guest.Compiled.Cpl
+open LeanVM.Core LeanVM.Guest.Memory LeanVM.Compiler LeanVM.Guest.Compiled.Cpl
   GuestPiece Complete
 
 @[expose] public section

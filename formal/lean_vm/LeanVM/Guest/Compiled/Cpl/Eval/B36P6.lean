@@ -8,14 +8,14 @@
 module
 
 public import LeanVM.Guest.Compiled.Cpl.Eval.B36
-public import LeanVM.Guest.KernelLit
+public import LeanVM.Compiler.KernelLit
 
 set_option Elab.async false
 set_option maxRecDepth 100000
 
 namespace LeanVM.Guest.Compiled.CplEval
 
-open LeanVM.Guest LeanVM.Guest.Core LeanVM.Guest.Memory LeanVM.Compiler LeanVM.Guest.Compiled.Cpl
+open LeanVM.Core LeanVM.Guest.Memory LeanVM.Compiler LeanVM.Guest.Compiled.Cpl
   GuestPiece Complete
 
 @[expose] public section

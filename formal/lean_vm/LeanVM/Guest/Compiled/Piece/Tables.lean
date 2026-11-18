@@ -9,13 +9,15 @@ module
 
 public import LeanVM.Guest.Compiled.Program
 public import LeanVM.Compiler.Piece
-public meta import LeanVM.Guest.KernelLit
+public meta import LeanVM.Compiler.KernelLit
 public meta import LeanVM.Compiler.DataLit
 
 set_option maxRecDepth 100000
 set_option linter.all false
 
 namespace LeanVM.Guest.Compiled.GuestPiece
+
+open LeanVM.Core
 
 open LeanVM.Compiler
 

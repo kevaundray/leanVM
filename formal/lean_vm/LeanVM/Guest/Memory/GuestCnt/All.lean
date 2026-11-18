@@ -34,7 +34,7 @@ public import LeanVM.Guest.Memory.GuestCnt.Fn36
 
 namespace LeanVM.Guest.Memory
 
-open LeanVM.Guest
+open LeanVM.Core
 
 public section
 

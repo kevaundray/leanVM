@@ -14,7 +14,7 @@ public import LeanVM.Guest.Memory.GuestMem.Big36_3
 
 namespace LeanVM.Guest
 
-open Core Memory
+open Core Memory Core.Memory
 
 @[expose] public section
 

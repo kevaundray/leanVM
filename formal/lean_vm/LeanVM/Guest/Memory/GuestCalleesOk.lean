@@ -11,7 +11,7 @@ public import LeanVM.Guest.Memory.Family
 
 namespace LeanVM.Guest.Data
 
-open LeanVM.Guest.Memory
+open LeanVM.Guest.Memory LeanVM.Core.Memory
 
 public section
 

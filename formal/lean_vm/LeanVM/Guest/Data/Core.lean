@@ -81,7 +81,7 @@ public import LeanVM.Guest.Pack.walk_path__L24_L4.Core
 
 namespace LeanVM.Guest.Data
 
-open LeanVM.Guest
+open LeanVM.Core
 
 set_option maxRecDepth 20000
 set_option linter.all false

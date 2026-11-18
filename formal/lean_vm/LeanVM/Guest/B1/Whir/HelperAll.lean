@@ -19,7 +19,7 @@ public import LeanVM.Guest.B1.Whir.HelperFind7
 
 namespace LeanVM.Guest.B1.Whir
 
-open LeanVM.Guest.Core LeanVM.Guest
+open LeanVM.Core
 
 @[expose] public section
 

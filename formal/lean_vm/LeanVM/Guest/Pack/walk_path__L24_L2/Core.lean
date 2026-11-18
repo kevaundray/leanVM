@@ -7,11 +7,11 @@
 
 module
 
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Renumber
 
 namespace LeanVM.Guest.Fn.«walk_path__L24_L2»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 set_option maxRecDepth 20000
 set_option linter.all false

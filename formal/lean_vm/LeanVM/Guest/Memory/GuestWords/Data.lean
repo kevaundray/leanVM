@@ -7,12 +7,12 @@
 
 module
 
-public import LeanVM.Guest.Memory.Static
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Memory.Static
+public import LeanVM.Core.Renumber
 
 namespace LeanVM.Guest.Data
 
-open LeanVM.Guest.Memory
+open LeanVM.Core.Memory
 
 @[expose] public section
 

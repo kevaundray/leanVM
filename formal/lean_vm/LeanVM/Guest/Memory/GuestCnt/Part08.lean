@@ -12,7 +12,7 @@ public import LeanVM.Guest.Memory.Family
 
 namespace LeanVM.Guest.Memory
 
-open LeanVM.Guest
+open LeanVM.Core
 
 public section
 

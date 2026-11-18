@@ -7,11 +7,11 @@
 
 module
 
-public import LeanVM.Guest.Renumber
+public import LeanVM.Core.Renumber
 
 namespace LeanVM.Guest.Fn.«verify_tables»
 
-open LeanVM.Guest
+open LeanVM.Core
 
 set_option maxRecDepth 20000
 set_option linter.all false

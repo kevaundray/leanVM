@@ -7,7 +7,7 @@
 
 module
 
-public import LeanVM.Guest.Source
+public import LeanVM.Core.Source
 
 /-!
 # The aggregation guest's source
@@ -20,7 +20,7 @@ literals the compiler substitutes for them.
 
 namespace LeanVM.Guest.Data
 
-open LeanVM.Guest.Source
+open LeanVM.Core.Source
 
 @[expose] public section
 
