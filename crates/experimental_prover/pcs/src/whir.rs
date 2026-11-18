@@ -23,7 +23,7 @@
 //! `E`; the committed alphabet remains `K = GF(2^64)`.
 
 use crate::merkle;
-use crate::ntt::{AdditiveNttF64, Codeword, Keep};
+use crate::ntt::{AdditiveNttF64, Codeword, Keep, ROW_LANES};
 use crate::stack_open::Terms;
 use fiat_shamir::merkle::{Hash, MerklePath};
 use primitives::field::{Acc8, F64, F128, F128Unreduced, F128x8, fold_pairs8_ext, msg_terms8_ext, powers};
@@ -88,7 +88,7 @@ pub struct Commitment {
 pub struct ProverData {
     ntt: AdditiveNttF64,
     codeword: Codeword,
-    /// Words per codeword row: the committed lanes, with zero lanes in front up to the vector width.
+    /// Words per codeword row: the committed lanes, with zero lanes in front up to a multiple of `ROW_LANES`.
     row_words: usize,
     pub(crate) merkle_tree: merkle::CutTree,
 }
@@ -116,9 +116,8 @@ const KEEP_CODEWORD_MAX_BYTES: usize = 1 << 30;
 /// state every leaf shares. At most the image's tail, the committed lanes,
 /// rides the proof, the opening saying its width and the image's.
 ///
-/// The encoded row is padded to a whole AVX-512 vector of lanes with zero lanes
-/// in front, so the NTT has no masked tail. The padding is the image's zeros and
-/// never rides the proof.
+/// The encoded row is padded to a whole number of the NTT's vectors (`ROW_LANES`) with zero lanes in front, so the
+/// NTT has no vector of padding lanes. The padding is the image's zeros and never rides the proof.
 pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate: usize) -> (Commitment, ProverData) {
     assert!(log_inv_rate >= 1, "log_inv_rate must be >= 1 for a non-trivial RS code");
     assert!(log_n > log_batch_size, "witness must be wider than the interleaving");
@@ -131,23 +130,29 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     );
     let k_code = log_rows + log_inv_rate;
     let n_positions = 1usize << k_code;
-    let row_words = n_lanes.next_multiple_of(8).min(1usize << log_batch_size);
+    let row_words = n_lanes.next_multiple_of(ROW_LANES).min(1usize << log_batch_size);
 
-    // Leaves are hashed as the encode finishes each block of rows.
-    let tree = merkle::MerkleBuilder::new(n_positions, row_words, 1usize << log_batch_size);
+    // Leaves are hashed as the encode finishes each block of rows, from their data lanes on.
+    let tree = merkle::MerkleBuilder::new(n_positions, row_words, n_lanes, 1usize << log_batch_size);
     let ntt = AdditiveNttF64::standard(k_code);
-    let codeword =
-        tracing::info_span!("NTT", kind = "base encode", log_domain = k_code, lanes = row_words).in_scope(|| {
-            let on_rows = |row, rows: &[F64]| tree.absorb(row, rows);
-            let keep = if !primitives::REBUILD_OVER_STORE {
-                Keep::Whole
-            } else if n_positions * row_words * size_of::<F64>() > KEEP_CODEWORD_MAX_BYTES {
-                Keep::Nothing
-            } else {
-                Keep::BeforeDeep
-            };
-            ntt.encode_lane_major(message, n_lanes, row_words, log_inv_rate, keep, &on_rows)
-        });
+    let span = tracing::info_span!(
+        "NTT",
+        kind = "base encode",
+        log_domain = k_code,
+        lanes = row_words,
+        data = n_lanes
+    );
+    let codeword = span.in_scope(|| {
+        let on_rows = |row, rows: &[F64]| tree.absorb(row, rows);
+        let keep = if !primitives::REBUILD_OVER_STORE {
+            Keep::Whole
+        } else if n_positions * row_words * size_of::<F64>() > KEEP_CODEWORD_MAX_BYTES {
+            Keep::Nothing
+        } else {
+            Keep::BeforeDeep
+        };
+        ntt.encode_lane_major(message, n_lanes, row_words, log_inv_rate, keep, &on_rows)
+    });
     let merkle_tree = tracing::info_span!("Merkle").in_scope(|| tree.finish());
     let root = merkle_tree.root();
 
@@ -192,7 +197,9 @@ impl LigeroWitness {
                 .iter()
                 .flat_map(|&q| row(q).as_chunks::<2>().0.iter().map(|w| F128::new(w[0].0, w[1].0))),
         );
-        let paths = self.tree.open(queries, row_words, row_words, &group_rows, row);
+        let paths = self
+            .tree
+            .open(queries, row_words, row_words, row_words, &group_rows, row);
         (rows, paths)
     }
 
@@ -221,7 +228,7 @@ pub(crate) fn ligero_commit_ext(
 
     // One leaf per row, its F128s as K words: hashed as the encode finishes each block.
     let row_words = 2 * num_interleaved;
-    let builder = merkle::MerkleBuilder::new(block_len, row_words, row_words);
+    let builder = merkle::MerkleBuilder::new(block_len, row_words, row_words, row_words);
     let codeword = tracing::info_span!(
         "NTT",
         kind = "extension encode",
@@ -887,7 +894,8 @@ pub(crate) fn recursive_prover_with_prepared_basis(
                     let zeros = std::iter::repeat_n(F128::ZERO, num_interleaved_0 - n_lanes);
                     rows.extend(image(q).iter().rev().map(|&k| F128::from(k)).chain(zeros));
                 }
-                ps.hint_merkle(l0_tree.open(&queries, row_words, num_interleaved_0, &group_rows, image));
+                let paths = l0_tree.open(&queries, row_words, n_lanes, num_interleaved_0, &group_rows, image);
+                ps.hint_merkle(paths);
                 // Nothing reads the L0 codeword, its stack or its tree again.
                 drop((prover_data, std::mem::take(&mut stack)));
                 rows

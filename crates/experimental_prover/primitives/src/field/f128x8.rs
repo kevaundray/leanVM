@@ -19,14 +19,22 @@ use super::gf2_64x2::{F128, F128Unreduced};
 
 #[cfg(all(
     target_arch = "x86_64",
-    target_feature = "vpclmulqdq",
     target_feature = "avx2",
+    target_feature = "pclmulqdq",
     not(target_feature = "avx512f")
 ))]
 pub use avx2::{F64x8, F128x8, Prod8};
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 pub use avx512::{Acc8, F64x8, F128x8};
-#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
+#[cfg(not(any(
+    all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "pclmulqdq",
+        not(target_feature = "avx512f")
+    ),
+    all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")
+)))]
 pub use portable::{F64x8, F128x8, Prod8};
 #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
 pub use sum::Acc8;
@@ -36,8 +44,16 @@ pub use sum::Acc8;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 pub type Prod8 = Acc8;
 
-/// The eight-lane types on a target without the wide multiplier.
-#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
+/// The eight-lane types on a target without the `x4` or `x8` multipliers.
+#[cfg(not(any(
+    all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "pclmulqdq",
+        not(target_feature = "avx512f")
+    ),
+    all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")
+)))]
 mod portable {
     use super::sum::halves;
     use super::{F64, F128, F128Unreduced};
@@ -318,12 +334,12 @@ pub fn xor_into8(out: &mut [F128; 8], add: &[F128; 8]) {
     }
 }
 
-/// The eight-lane types with VPCLMULQDQ but no AVX-512: two halves of four lanes, each the `x4` form, a
-/// YMM plane per coefficient, so a product is lane-wise, two lanes to an instruction.
+/// The eight-lane types with AVX2 but no AVX-512: two halves of four lanes, each the `x4` form, a YMM plane per
+/// coefficient, so a product is lane-wise, two lanes to an instruction with VPCLMULQDQ and one without.
 #[cfg(all(
     target_arch = "x86_64",
-    target_feature = "vpclmulqdq",
     target_feature = "avx2",
+    target_feature = "pclmulqdq",
     not(target_feature = "avx512f")
 ))]
 mod avx2 {
@@ -408,6 +424,47 @@ mod avx2 {
             };
             let ((ae, ao), (be, bo)) = (split(a), split(b));
             (Self([ae, be]), Self([ao, bo]))
+        }
+
+        /// Eight runs of eight consecutive elements, transposed: `out[j]` lane `p` is `src[8p + j]`.
+        #[inline(always)]
+        pub fn load_runs(src: &[F128; 64]) -> [Self; 8] {
+            let at = |p: usize, j: usize| src[8 * p + j..].as_ptr().cast::<__m128i>();
+            std::array::from_fn(|j| {
+                Self(std::array::from_fn(|h| {
+                    // Runs `4h + i` and `4h + i + 2` in one register; the unpacks then put lane `i` in qword `i`.
+                    // SAFETY: the module's cfg enables avx2; each address is one element, 16 readable bytes.
+                    let pair = |i: usize| unsafe { _mm256_loadu2_m128i(at(4 * h + i + 2, j), at(4 * h + i, j)) };
+                    let (a, b) = (pair(0), pair(1));
+                    // SAFETY: the module's cfg enables avx2.
+                    F128x4(unsafe { [_mm256_unpacklo_epi64(a, b), _mm256_unpackhi_epi64(a, b)] })
+                }))
+            })
+        }
+
+        /// Stores the lanes `a0 b0 a1 b1 … a7 b7`.
+        #[inline(always)]
+        pub fn store_interleaved(a: Self, b: Self, dst: &mut [F128; 16]) {
+            let q = dst.as_mut_ptr().cast::<__m256i>();
+            for h in 0..2 {
+                let ([a0, a1], [b0, b1]) = (a.0[h].0, b.0[h].0);
+                // SAFETY: the module's cfg enables avx2; `dst` is eight writable 32-byte pairs of elements.
+                unsafe {
+                    // Elements `[x0, x2]` and `[x1, x3]` of each.
+                    let (al, ah) = (_mm256_unpacklo_epi64(a0, a1), _mm256_unpackhi_epi64(a0, a1));
+                    let (bl, bh) = (_mm256_unpacklo_epi64(b0, b1), _mm256_unpackhi_epi64(b0, b1));
+                    _mm256_storeu_si256(q.add(4 * h), _mm256_permute2x128_si256::<0x20>(al, bl));
+                    _mm256_storeu_si256(q.add(4 * h + 1), _mm256_permute2x128_si256::<0x20>(ah, bh));
+                    _mm256_storeu_si256(q.add(4 * h + 2), _mm256_permute2x128_si256::<0x31>(al, bl));
+                    _mm256_storeu_si256(q.add(4 * h + 3), _mm256_permute2x128_si256::<0x31>(ah, bh));
+                }
+            }
+        }
+
+        /// Lanes `0..4` and `4..8`.
+        #[inline(always)]
+        pub fn halves(self) -> [F128x4; 2] {
+            self.0
         }
     }
 

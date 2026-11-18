@@ -16,7 +16,7 @@ use primitives::transcript::ProverState;
 use verifier::keccak::{BITS, LOCAL_BITS, along, linear_transpose};
 
 use crate::basis::{PolyEval, add_mul};
-use crate::kernels::{GROUP, MIXED, PACKS, SKIP, SkipBlock, TERNARY, embed, mixed_points, products, slot};
+use crate::kernels::{GROUP, MIXED, PACKS, SKIP, SkipBlock, TERNARY, mixed_points, slot};
 use crate::power::{Element, PowerField, get, set};
 use crate::protocol::{Claim, chi_weights, mu_at};
 use crate::witness::{Shape, Witness, transpose64, words};
@@ -33,12 +33,10 @@ const DIGITS: usize = 128 / DIGIT_BITS;
 /// The bits of a block position's products, 48 to each pack.
 pub(crate) const PAYLOAD_BITS: usize = 48 * PACKS;
 /// The packs of a part of a block position, and the words of their products: with AVX-512 the
-/// whole position, three registers; with AVX2 half, three registers; elsewhere a quarter, a
-/// block's worth of which stays in cache.
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+/// whole position, three registers; with AVX2 the whole position, six registers; elsewhere a
+/// quarter, a block's worth of which stays in cache.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 const PART: usize = PACKS;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "avx512f")))]
-const PART: usize = PACKS / 2;
 #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
 const PART: usize = 8;
 const PART_WORDS: usize = 48 * PART / 64;
@@ -64,12 +62,11 @@ impl Part {
     const ZERO: Self = Self([0; PART_WORDS]);
 
     /// Product `q` at bits `48 * q ..`: four products to three words.
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "pclmulqdq")))]
     #[inline(always)]
     fn pack(products: &[u64; PART]) -> Self {
         let mut out = [0u64; PART_WORDS];
-        for (out, p) in out.as_chunks_mut::<3>().0.iter_mut().zip(products.as_chunks::<4>().0) {
-            *out = [p[0] | p[1] << 48, p[1] >> 16 | p[2] << 32, p[2] >> 32 | p[3] << 16];
-        }
+        crate::kernels::pack_products(products, &mut out);
         Self(out)
     }
 
@@ -92,7 +89,7 @@ impl Part {
             }
         }
         #[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "avx512f")))]
-        // SAFETY: both parts are three registers, and AVX2 is enabled at compile time.
+        // SAFETY: both parts are six registers, and AVX2 is enabled at compile time.
         unsafe {
             use core::arch::x86_64::*;
             let (dst, src) = (self.0.as_mut_ptr(), other.0.as_ptr());
@@ -155,7 +152,9 @@ impl Groups {
 
     /// `sum over positions of weight[j] (x) payloads[j]` into `rows`: row `DIGIT_BITS * d + i`
     /// sums the payloads whose weight has that bit set. Each group is summed in registers, so
-    /// the payloads are only read.
+    /// the payloads are only read, then added into the sums of its value's low nibble and of its
+    /// high one (`sums[..16]`, `sums[16..32]`), the latter kept in registers; those make the
+    /// rows of the digit's low bits and of its high bits.
     fn add_rows(&self, payloads: &[Part; BITS], rows: &mut [Part; 128], sums: &mut [Part; 1 << DIGIT_BITS]) {
         for (rows, (order, starts)) in rows
             .as_chunks_mut::<DIGIT_BITS>()
@@ -163,23 +162,33 @@ impl Groups {
             .iter_mut()
             .zip(self.order.iter().zip(&self.starts))
         {
-            for (v, sum) in sums.iter_mut().enumerate() {
-                let mut acc = Part::ZERO;
-                for &p in &order[starts[v] as usize..starts[v + 1] as usize] {
-                    // SAFETY: `order` holds positions.
-                    acc.add(unsafe { payloads.get_unchecked(p as usize) });
+            let (low, high) = sums[..32].split_at_mut(16);
+            low.fill(Part::ZERO);
+            for (h, high) in high.iter_mut().enumerate() {
+                let mut nibble = Part::ZERO;
+                for (l, low) in low.iter_mut().enumerate() {
+                    let v = 16 * h + l;
+                    let mut acc = Part::ZERO;
+                    for &p in &order[starts[v] as usize..starts[v + 1] as usize] {
+                        // SAFETY: `order` holds positions.
+                        acc.add(unsafe { payloads.get_unchecked(p as usize) });
+                    }
+                    nibble.add(&acc);
+                    low.add(&acc);
                 }
-                *sum = acc;
+                *high = nibble;
             }
-            // Bit `i` of the digit: the sums whose value has it, then fold it away.
-            for (i, row) in rows.iter_mut().enumerate().rev() {
-                let (low, high) = sums[..2 << i].split_at_mut(1 << i);
-                let mut acc = Part::ZERO;
-                for (low, high) in low.iter_mut().zip(&*high) {
-                    acc.add(high);
-                    low.add(high);
+            for (sums, rows) in [low, high].into_iter().zip(rows.as_chunks_mut::<4>().0) {
+                // Bit `i` of the nibble: the sums whose value has it, then fold it away.
+                for (i, row) in rows.iter_mut().enumerate().rev() {
+                    let (low, high) = sums[..2 << i].split_at_mut(1 << i);
+                    let mut acc = Part::ZERO;
+                    for (low, high) in low.iter_mut().zip(&*high) {
+                        acc.add(high);
+                        low.add(high);
+                    }
+                    *row = acc;
                 }
-                *row = acc;
             }
         }
     }
@@ -272,9 +281,8 @@ impl Layer<'_> {
                 a
             },
         );
-        (0..PACKS)
-            .map(|q| std::array::from_fn(|c| sums[48 * q + c].reduce()))
-            .collect()
+        let sums: Vec<F128> = sums.iter().map(|s| s.reduce()).collect();
+        crate::products_gfni::coefficients(&sums)
     }
 
     /// [`Self::pack_products`] by digit buckets: the block's positions grouped by each digit of
@@ -301,11 +309,20 @@ impl Layer<'_> {
                 for r in 0..5 {
                     for z in 0..64 {
                         let js = row_positions(r, z);
-                        let e: [[u32; PACKS]; 5] = std::array::from_fn(|x| embed(words(block, js[x])));
-                        for x in 0..5 {
-                            let p = products(&e[x], &e[(x + 1) % 5], &e[(x + 2) % 5]);
-                            for (q, part) in payloads.iter_mut().enumerate() {
-                                part[js[x]] = Part::pack(p[PART * q..][..PART].try_into().unwrap());
+                        let row = js.map(|j| words(block, j));
+                        cfg_select! {
+                            all(target_arch = "x86_64", target_feature = "avx2", target_feature = "pclmulqdq") => {
+                                // A part is a whole position, so the products pack straight into it.
+                                // SAFETY: a row's five positions are distinct and below `BITS`.
+                                let parts = unsafe { payloads[0].get_disjoint_unchecked_mut(js) };
+                                crate::kernels::row_packed(row, parts.map(|p| &mut p.0));
+                            }
+                            _ => {
+                                crate::kernels::row_products(row, |x, p| {
+                                    for (q, part) in payloads.iter_mut().enumerate() {
+                                        part[js[x]] = Part::pack(p[PART * q..][..PART].try_into().unwrap());
+                                    }
+                                });
                             }
                         }
                     }
@@ -363,7 +380,7 @@ impl Layer<'_> {
         let (nb, written) = (self.witness.shape.n_blocks(), self.witness.written());
         let mixed = parallel::map_reduce_with_state(
             self.rounds.len() * written,
-            || SkipBlock::new(weights),
+            || SkipBlock::new(weights, field),
             || vec![[0u64; 5]; MIXED],
             |skip, total, task| {
                 let (segment, g) = (task / written, task % written);
@@ -411,37 +428,27 @@ impl Layer<'_> {
         let field = round.field;
         let fold: Vec<Element> = eq_table(challenges).iter().map(|&e| field.to_poly(e)).collect();
         let fold: [[u64; GROUP]; 2] = std::array::from_fn(|k| std::array::from_fn(|q| fold[q][k]));
-        #[cfg(all(
-            target_arch = "x86_64",
-            target_feature = "avx512f",
-            target_feature = "avx512bw",
-            target_feature = "gfni"
-        ))]
-        let row_maps = crate::table_gfni::RowMaps::new(field, &fold);
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+        let row_maps = crate::table_maps::RowMaps::new(field, &fold);
         // Rows of segments that do not exist are zero, and so is their product.
         table[self.rounds.len() * layout.live * ROW..layout.len() * ROW].fill(0);
         pads[self.rounds.len() * ROW..].fill(0);
-        // The GFNI rows need no wide scratch.
-        let gfni = cfg!(all(
-            target_arch = "x86_64",
-            target_feature = "avx512f",
-            target_feature = "avx512bw",
-            target_feature = "gfni"
-        ));
-        let scratch = || vec![0u64; if gfni { 0 } else { 6 * BITS }];
+        // The byte-map rows need no wide scratch.
+        let maps = cfg!(all(target_arch = "x86_64", target_feature = "avx2"));
+        let scratch = || vec![0u64; if maps { 0 } else { 6 * BITS }];
         // A block's rows: both groups', or the padding block's one.
         let build = |wide: &mut Vec<u64>, block: &[u64], rows: &mut [u64]| {
             let halves = rows.len() / ROW;
             cfg_select! {
-                all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512bw", target_feature = "gfni") => {
-                    // Each group's value by affine byte maps (`table_gfni`).
+                all(target_arch = "x86_64", target_feature = "avx2") => {
+                    // Each group's value by byte maps (`table_maps`).
                     let _ = wide;
                     row_maps.rows(block, rows, halves);
                 }
                 _ => {
                     // Both groups' unreduced sums, three words each and laid out by word, then reduced.
                     for j in 0..BITS {
-                        let sums = crate::kernels::fold_groups(&embed(words(block, j)), &fold);
+                        let sums = crate::kernels::fold_groups(&crate::kernels::embed(words(block, j)), &fold);
                         for (wide, sum) in wide.as_chunks_mut::<{ 3 * BITS }>().0[..halves].iter_mut().zip(&sums) {
                             let sum: [u64; 3] = crate::basis::carry(sum);
                             for (k, &word) in sum.iter().enumerate() {
