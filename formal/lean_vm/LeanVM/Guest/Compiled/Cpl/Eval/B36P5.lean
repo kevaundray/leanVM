@@ -54,10 +54,10 @@ kernel_rfl scope36_14 :
 
 /-- The values the trace of entry 36 makes over statements 93 to 171 are new. -/
 kernel_rfl once36_14 :
-    onceRun sn36_14 (allocsOf (sc36_14.rest.take 7188)) = some sn36_15
+    onceRun sn36_14 (allocsOf (sc36_14.rest.take 7187)) = some sn36_15
 
 kernel_rfl rst36_14 :
-    sc36_15.rest = sc36_14.rest.drop 7188
+    sc36_15.rest = sc36_14.rest.drop 7187
 
 end
 end LeanVM.Guest.Compiled.CplEval

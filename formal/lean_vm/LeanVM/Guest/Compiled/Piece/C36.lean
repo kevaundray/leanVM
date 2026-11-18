@@ -33,7 +33,7 @@ open LeanVM.Core LeanVM.Compiler
 @[expose] public section
 
 /-- The context `__loop2` is walked in, the length of its trace written out. -/
-noncomputable def ctx36 : Ctx := { ctxOf loopsG sigsG (guestTraced.getD 36 default) with fuel := 435075 }
+noncomputable def ctx36 : Ctx := { ctxOf loopsG sigsG (guestTraced.getD 36 default) with fuel := 435071 }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_1 : St :=
@@ -1537,7 +1537,7 @@ state_lit cut36_60 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_61 : St :=
-  { next := 748,
+  { next := 630,
     locs := (cut36_60).locs.insertAll cut36_61_locs,
     scope :=
       { consts := (cut36_60).scope.consts.insertAll cut36_61_pc,
@@ -1549,7 +1549,7 @@ state_lit cut36_61 : St :=
     pending := #[],
     out := (cut36_60).out.appendList cut36_61_out,
     tables := { len := 5526, shared := [] ++ (cut36_60).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 165068,
+    rest := traceRest (guestTraced.getD 36 default) 165067,
     lazy := none,
     used := [],
     shift := none,
@@ -1562,7 +1562,7 @@ state_lit cut36_61 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_62 : St :=
-  { next := 750,
+  { next := 632,
     locs := (cut36_61).locs.insertAll cut36_62_locs,
     scope :=
       { consts := (cut36_61).scope.consts.insertAll cut36_62_pc,
@@ -1574,7 +1574,7 @@ state_lit cut36_62 : St :=
     pending := #[],
     out := (cut36_61).out,
     tables := { len := 5782, shared := [] ++ (cut36_61).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 165068,
+    rest := traceRest (guestTraced.getD 36 default) 165067,
     lazy := none,
     used := [],
     shift := none,
@@ -1587,7 +1587,7 @@ state_lit cut36_62 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_63 : St :=
-  { next := 790,
+  { next := 672,
     locs := (cut36_62).locs.insertAll cut36_63_locs,
     scope :=
       { consts := (cut36_62).scope.consts.insertAll cut36_63_pc,
@@ -1599,7 +1599,7 @@ state_lit cut36_63 : St :=
     pending := #[],
     out := (cut36_62).out,
     tables := { len := 5782, shared := [] ++ (cut36_62).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 170836,
+    rest := traceRest (guestTraced.getD 36 default) 170835,
     lazy := none,
     used := [],
     shift := none,
@@ -1612,7 +1612,7 @@ state_lit cut36_63 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_64 : St :=
-  { next := 790,
+  { next := 672,
     locs := (cut36_63).locs.insertAll cut36_64_locs,
     scope :=
       { consts := (cut36_63).scope.consts.insertAll cut36_64_pc,
@@ -1624,7 +1624,7 @@ state_lit cut36_64 : St :=
     pending := #[],
     out := (cut36_63).out,
     tables := { len := 5782, shared := [] ++ (cut36_63).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 176497,
+    rest := traceRest (guestTraced.getD 36 default) 176496,
     lazy := none,
     used := [],
     shift := none,
@@ -1637,7 +1637,7 @@ state_lit cut36_64 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_65 : St :=
-  { next := 790,
+  { next := 672,
     locs := (cut36_64).locs.insertAll cut36_65_locs,
     scope :=
       { consts := (cut36_64).scope.consts.insertAll cut36_65_pc,
@@ -1649,7 +1649,7 @@ state_lit cut36_65 : St :=
     pending := #[],
     out := (cut36_64).out,
     tables := { len := 5782, shared := [] ++ (cut36_64).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 182158,
+    rest := traceRest (guestTraced.getD 36 default) 182157,
     lazy := none,
     used := [],
     shift := none,
@@ -1662,7 +1662,7 @@ state_lit cut36_65 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_66 : St :=
-  { next := 790,
+  { next := 672,
     locs := (cut36_65).locs.insertAll cut36_66_locs,
     scope :=
       { consts := (cut36_65).scope.consts.insertAll cut36_66_pc,
@@ -1674,7 +1674,7 @@ state_lit cut36_66 : St :=
     pending := #[],
     out := (cut36_65).out,
     tables := { len := 5782, shared := [] ++ (cut36_65).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 187819,
+    rest := traceRest (guestTraced.getD 36 default) 187818,
     lazy := none,
     used := [],
     shift := none,
@@ -1687,7 +1687,7 @@ state_lit cut36_66 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_67 : St :=
-  { next := 790,
+  { next := 672,
     locs := (cut36_66).locs.insertAll cut36_67_locs,
     scope :=
       { consts := (cut36_66).scope.consts.insertAll cut36_67_pc,
@@ -1699,7 +1699,7 @@ state_lit cut36_67 : St :=
     pending := #[],
     out := (cut36_66).out,
     tables := { len := 5782, shared := [] ++ (cut36_66).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 193480,
+    rest := traceRest (guestTraced.getD 36 default) 193479,
     lazy := none,
     used := [],
     shift := none,
@@ -1712,7 +1712,7 @@ state_lit cut36_67 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_68 : St :=
-  { next := 790,
+  { next := 672,
     locs := (cut36_67).locs.insertAll cut36_68_locs,
     scope :=
       { consts := (cut36_67).scope.consts.insertAll cut36_68_pc,
@@ -1722,9 +1722,9 @@ state_lit cut36_68 : St :=
         mats := (cut36_67).scope.mats.insertAll cut36_68_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_67).out.push (PStmt.chain [] 748 74 749 101 58 [5526] [(cut36_63_b ++ (cut36_64_b ++ (cut36_65_b ++ (cut36_66_b ++ (cut36_67_b ++ [])))))]),
+    out := (cut36_67).out.push (PStmt.chain [] 630 74 631 101 58 [5526] [(cut36_63_b ++ (cut36_64_b ++ (cut36_65_b ++ (cut36_66_b ++ (cut36_67_b ++ [])))))]),
     tables := { len := 5782, shared := [] ++ (cut36_67).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 193481,
+    rest := traceRest (guestTraced.getD 36 default) 193480,
     lazy := none,
     used := [],
     shift := none,
@@ -1737,7 +1737,7 @@ state_lit cut36_68 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_69 : St :=
-  { next := 794,
+  { next := 676,
     locs := (cut36_68).locs.insertAll cut36_69_locs,
     scope :=
       { consts := (cut36_68).scope.consts.insertAll cut36_69_pc,
@@ -1749,7 +1749,7 @@ state_lit cut36_69 : St :=
     pending := #[],
     out := (cut36_68).out.appendList cut36_69_out,
     tables := { len := 5782, shared := [] ++ (cut36_68).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 193491,
+    rest := traceRest (guestTraced.getD 36 default) 193489,
     lazy := none,
     used := [],
     shift := none,
@@ -1762,7 +1762,7 @@ state_lit cut36_69 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_70 : St :=
-  { next := 796,
+  { next := 678,
     locs := (cut36_69).locs.insertAll cut36_70_locs,
     scope :=
       { consts := (cut36_69).scope.consts.insertAll cut36_70_pc,
@@ -1774,7 +1774,7 @@ state_lit cut36_70 : St :=
     pending := #[],
     out := (cut36_69).out,
     tables := { len := 6038, shared := [] ++ (cut36_69).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 193491,
+    rest := traceRest (guestTraced.getD 36 default) 193489,
     lazy := none,
     used := [],
     shift := none,
@@ -1787,7 +1787,7 @@ state_lit cut36_70 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_71 : St :=
-  { next := 836,
+  { next := 718,
     locs := (cut36_70).locs.insertAll cut36_71_locs,
     scope :=
       { consts := (cut36_70).scope.consts.insertAll cut36_71_pc,
@@ -1799,7 +1799,7 @@ state_lit cut36_71 : St :=
     pending := #[],
     out := (cut36_70).out,
     tables := { len := 6038, shared := [] ++ (cut36_70).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 199259,
+    rest := traceRest (guestTraced.getD 36 default) 199257,
     lazy := none,
     used := [],
     shift := none,
@@ -1812,7 +1812,7 @@ state_lit cut36_71 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_72 : St :=
-  { next := 836,
+  { next := 718,
     locs := (cut36_71).locs.insertAll cut36_72_locs,
     scope :=
       { consts := (cut36_71).scope.consts.insertAll cut36_72_pc,
@@ -1824,7 +1824,7 @@ state_lit cut36_72 : St :=
     pending := #[],
     out := (cut36_71).out,
     tables := { len := 6038, shared := [] ++ (cut36_71).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 204920,
+    rest := traceRest (guestTraced.getD 36 default) 204918,
     lazy := none,
     used := [],
     shift := none,
@@ -1837,7 +1837,7 @@ state_lit cut36_72 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_73 : St :=
-  { next := 836,
+  { next := 718,
     locs := (cut36_72).locs.insertAll cut36_73_locs,
     scope :=
       { consts := (cut36_72).scope.consts.insertAll cut36_73_pc,
@@ -1849,7 +1849,7 @@ state_lit cut36_73 : St :=
     pending := #[],
     out := (cut36_72).out,
     tables := { len := 6038, shared := [] ++ (cut36_72).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 210581,
+    rest := traceRest (guestTraced.getD 36 default) 210579,
     lazy := none,
     used := [],
     shift := none,
@@ -1862,7 +1862,7 @@ state_lit cut36_73 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_74 : St :=
-  { next := 836,
+  { next := 718,
     locs := (cut36_73).locs.insertAll cut36_74_locs,
     scope :=
       { consts := (cut36_73).scope.consts.insertAll cut36_74_pc,
@@ -1874,7 +1874,7 @@ state_lit cut36_74 : St :=
     pending := #[],
     out := (cut36_73).out,
     tables := { len := 6038, shared := [] ++ (cut36_73).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 216242,
+    rest := traceRest (guestTraced.getD 36 default) 216240,
     lazy := none,
     used := [],
     shift := none,
@@ -1887,7 +1887,7 @@ state_lit cut36_74 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_75 : St :=
-  { next := 836,
+  { next := 718,
     locs := (cut36_74).locs.insertAll cut36_75_locs,
     scope :=
       { consts := (cut36_74).scope.consts.insertAll cut36_75_pc,
@@ -1899,7 +1899,7 @@ state_lit cut36_75 : St :=
     pending := #[],
     out := (cut36_74).out,
     tables := { len := 6038, shared := [] ++ (cut36_74).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 221903,
+    rest := traceRest (guestTraced.getD 36 default) 221901,
     lazy := none,
     used := [],
     shift := none,
@@ -1912,7 +1912,7 @@ state_lit cut36_75 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_76 : St :=
-  { next := 836,
+  { next := 718,
     locs := (cut36_75).locs.insertAll cut36_76_locs,
     scope :=
       { consts := (cut36_75).scope.consts.insertAll cut36_76_pc,
@@ -1922,9 +1922,9 @@ state_lit cut36_76 : St :=
         mats := (cut36_75).scope.mats.insertAll cut36_76_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_75).out.push (PStmt.chain [] 794 75 795 101 58 [5782] [(cut36_71_b ++ (cut36_72_b ++ (cut36_73_b ++ (cut36_74_b ++ (cut36_75_b ++ [])))))]),
+    out := (cut36_75).out.push (PStmt.chain [] 676 75 677 101 58 [5782] [(cut36_71_b ++ (cut36_72_b ++ (cut36_73_b ++ (cut36_74_b ++ (cut36_75_b ++ [])))))]),
     tables := { len := 6038, shared := [] ++ (cut36_75).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 221904,
+    rest := traceRest (guestTraced.getD 36 default) 221902,
     lazy := none,
     used := [],
     shift := none,
@@ -1937,7 +1937,7 @@ state_lit cut36_76 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_77 : St :=
-  { next := 1080,
+  { next := 962,
     locs := (cut36_76).locs.insertAll cut36_77_locs,
     scope :=
       { consts := (cut36_76).scope.consts.insertAll cut36_77_pc,
@@ -1949,7 +1949,7 @@ state_lit cut36_77 : St :=
     pending := #[],
     out := (cut36_76).out.appendList cut36_77_out,
     tables := { len := 6038, shared := [] ++ (cut36_76).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 222026,
+    rest := traceRest (guestTraced.getD 36 default) 222024,
     lazy := none,
     used := [],
     shift := none,
@@ -1962,7 +1962,7 @@ state_lit cut36_77 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_78 : St :=
-  { next := 1082,
+  { next := 964,
     locs := (cut36_77).locs.insertAll cut36_78_locs,
     scope :=
       { consts := (cut36_77).scope.consts.insertAll cut36_78_pc,
@@ -1974,7 +1974,7 @@ state_lit cut36_78 : St :=
     pending := #[],
     out := (cut36_77).out,
     tables := { len := 6550, shared := [] ++ (cut36_77).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 222026,
+    rest := traceRest (guestTraced.getD 36 default) 222024,
     lazy := none,
     used := [],
     shift := none,
@@ -1987,7 +1987,7 @@ state_lit cut36_78 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_79 : St :=
-  { next := 1087,
+  { next := 969,
     locs := (cut36_78).locs.insertAll cut36_79_locs,
     scope :=
       { consts := (cut36_78).scope.consts.insertAll cut36_79_pc,
@@ -1999,7 +1999,7 @@ state_lit cut36_79 : St :=
     pending := #[],
     out := (cut36_78).out,
     tables := { len := 6550, shared := [] ++ (cut36_78).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 227712,
+    rest := traceRest (guestTraced.getD 36 default) 227710,
     lazy := none,
     used := [],
     shift := none,
@@ -2012,7 +2012,7 @@ state_lit cut36_79 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_80 : St :=
-  { next := 1084,
+  { next := 966,
     locs := (cut36_79).locs.insertAll cut36_80_locs,
     scope :=
       { consts := (cut36_79).scope.consts.insertAll cut36_80_pc,
@@ -2024,7 +2024,7 @@ state_lit cut36_80 : St :=
     pending := #[],
     out := (cut36_79).out,
     tables := { len := 6550, shared := [] ++ (cut36_79).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 233288,
+    rest := traceRest (guestTraced.getD 36 default) 233286,
     lazy := none,
     used := [],
     shift := none,
@@ -2037,7 +2037,7 @@ state_lit cut36_80 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_81 : St :=
-  { next := 1088,
+  { next := 970,
     locs := (cut36_80).locs.insertAll cut36_81_locs,
     scope :=
       { consts := (cut36_80).scope.consts.insertAll cut36_81_pc,
@@ -2047,22 +2047,22 @@ state_lit cut36_81 : St :=
         mats := (cut36_80).scope.mats.insertAll cut36_81_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_80).out.push (PStmt.chain [] 1080 1018 1081 101 58 [6038] [(cut36_79_b ++ (cut36_80_b ++ []))]),
+    out := (cut36_80).out.push (PStmt.chain [] 962 900 963 101 58 [6038] [(cut36_79_b ++ (cut36_80_b ++ []))]),
     tables := { len := 6550, shared := [] ++ (cut36_80).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 233289,
+    rest := traceRest (guestTraced.getD 36 default) 233287,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (6294, 1080)),
+    chainIn := (some (6294, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_80).constOf.insertAll cut36_81_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_82 : St :=
-  { next := 1090,
+  { next := 972,
     locs := (cut36_81).locs.insertAll cut36_82_locs,
     scope :=
       { consts := (cut36_81).scope.consts.insertAll cut36_82_pc,
@@ -2074,7 +2074,7 @@ state_lit cut36_82 : St :=
     pending := #[],
     out := (cut36_81).out,
     tables := { len := 6806, shared := [] ++ (cut36_81).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 233291,
+    rest := traceRest (guestTraced.getD 36 default) 233289,
     lazy := none,
     used := [],
     shift := none,
@@ -2087,7 +2087,7 @@ state_lit cut36_82 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_83 : St :=
-  { next := 1095,
+  { next := 977,
     locs := (cut36_82).locs.insertAll cut36_83_locs,
     scope :=
       { consts := (cut36_82).scope.consts.insertAll cut36_83_pc,
@@ -2099,7 +2099,7 @@ state_lit cut36_83 : St :=
     pending := #[],
     out := (cut36_82).out,
     tables := { len := 6806, shared := [] ++ (cut36_82).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 238977,
+    rest := traceRest (guestTraced.getD 36 default) 238975,
     lazy := none,
     used := [],
     shift := none,
@@ -2112,7 +2112,7 @@ state_lit cut36_83 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_84 : St :=
-  { next := 1092,
+  { next := 974,
     locs := (cut36_83).locs.insertAll cut36_84_locs,
     scope :=
       { consts := (cut36_83).scope.consts.insertAll cut36_84_pc,
@@ -2124,7 +2124,7 @@ state_lit cut36_84 : St :=
     pending := #[],
     out := (cut36_83).out,
     tables := { len := 6806, shared := [] ++ (cut36_83).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 244553,
+    rest := traceRest (guestTraced.getD 36 default) 244551,
     lazy := none,
     used := [],
     shift := none,
@@ -2137,7 +2137,7 @@ state_lit cut36_84 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_85 : St :=
-  { next := 1096,
+  { next := 978,
     locs := (cut36_84).locs.insertAll cut36_85_locs,
     scope :=
       { consts := (cut36_84).scope.consts.insertAll cut36_85_pc,
@@ -2147,22 +2147,22 @@ state_lit cut36_85 : St :=
         mats := (cut36_84).scope.mats.insertAll cut36_85_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_84).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 ([6038] ++ [6294]) ([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))])),
+    out := (cut36_84).out.pop.push (PStmt.chain [] 962 900 963 101 58 ([6038] ++ [6294]) ([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))])),
     tables := { len := 6806, shared := [] ++ (cut36_84).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 244554,
+    rest := traceRest (guestTraced.getD 36 default) 244552,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (6550, 1080)),
+    chainIn := (some (6550, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_84).constOf.insertAll cut36_85_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_86 : St :=
-  { next := 1098,
+  { next := 980,
     locs := (cut36_85).locs.insertAll cut36_86_locs,
     scope :=
       { consts := (cut36_85).scope.consts.insertAll cut36_86_pc,
@@ -2174,7 +2174,7 @@ state_lit cut36_86 : St :=
     pending := #[],
     out := (cut36_85).out,
     tables := { len := 7062, shared := [] ++ (cut36_85).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 244556,
+    rest := traceRest (guestTraced.getD 36 default) 244554,
     lazy := none,
     used := [],
     shift := none,
@@ -2187,7 +2187,7 @@ state_lit cut36_86 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_87 : St :=
-  { next := 1103,
+  { next := 985,
     locs := (cut36_86).locs.insertAll cut36_87_locs,
     scope :=
       { consts := (cut36_86).scope.consts.insertAll cut36_87_pc,
@@ -2199,7 +2199,7 @@ state_lit cut36_87 : St :=
     pending := #[],
     out := (cut36_86).out,
     tables := { len := 7062, shared := [] ++ (cut36_86).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 250242,
+    rest := traceRest (guestTraced.getD 36 default) 250240,
     lazy := none,
     used := [],
     shift := none,
@@ -2212,7 +2212,7 @@ state_lit cut36_87 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_88 : St :=
-  { next := 1100,
+  { next := 982,
     locs := (cut36_87).locs.insertAll cut36_88_locs,
     scope :=
       { consts := (cut36_87).scope.consts.insertAll cut36_88_pc,
@@ -2224,7 +2224,7 @@ state_lit cut36_88 : St :=
     pending := #[],
     out := (cut36_87).out,
     tables := { len := 7062, shared := [] ++ (cut36_87).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 255818,
+    rest := traceRest (guestTraced.getD 36 default) 255816,
     lazy := none,
     used := [],
     shift := none,
@@ -2237,7 +2237,7 @@ state_lit cut36_88 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_89 : St :=
-  { next := 1104,
+  { next := 986,
     locs := (cut36_88).locs.insertAll cut36_89_locs,
     scope :=
       { consts := (cut36_88).scope.consts.insertAll cut36_89_pc,
@@ -2247,22 +2247,22 @@ state_lit cut36_89 : St :=
         mats := (cut36_88).scope.mats.insertAll cut36_89_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_88).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 (([6038] ++ [6294]) ++ [6550]) (([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))])),
+    out := (cut36_88).out.pop.push (PStmt.chain [] 962 900 963 101 58 (([6038] ++ [6294]) ++ [6550]) (([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))])),
     tables := { len := 7062, shared := [] ++ (cut36_88).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 255819,
+    rest := traceRest (guestTraced.getD 36 default) 255817,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (6806, 1080)),
+    chainIn := (some (6806, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_88).constOf.insertAll cut36_89_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_90 : St :=
-  { next := 1106,
+  { next := 988,
     locs := (cut36_89).locs.insertAll cut36_90_locs,
     scope :=
       { consts := (cut36_89).scope.consts.insertAll cut36_90_pc,
@@ -2274,7 +2274,7 @@ state_lit cut36_90 : St :=
     pending := #[],
     out := (cut36_89).out,
     tables := { len := 7318, shared := [] ++ (cut36_89).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 255821,
+    rest := traceRest (guestTraced.getD 36 default) 255819,
     lazy := none,
     used := [],
     shift := none,
@@ -2287,7 +2287,7 @@ state_lit cut36_90 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_91 : St :=
-  { next := 1111,
+  { next := 993,
     locs := (cut36_90).locs.insertAll cut36_91_locs,
     scope :=
       { consts := (cut36_90).scope.consts.insertAll cut36_91_pc,
@@ -2299,7 +2299,7 @@ state_lit cut36_91 : St :=
     pending := #[],
     out := (cut36_90).out,
     tables := { len := 7318, shared := [] ++ (cut36_90).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 261507,
+    rest := traceRest (guestTraced.getD 36 default) 261505,
     lazy := none,
     used := [],
     shift := none,
@@ -2312,7 +2312,7 @@ state_lit cut36_91 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_92 : St :=
-  { next := 1108,
+  { next := 990,
     locs := (cut36_91).locs.insertAll cut36_92_locs,
     scope :=
       { consts := (cut36_91).scope.consts.insertAll cut36_92_pc,
@@ -2324,7 +2324,7 @@ state_lit cut36_92 : St :=
     pending := #[],
     out := (cut36_91).out,
     tables := { len := 7318, shared := [] ++ (cut36_91).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 267083,
+    rest := traceRest (guestTraced.getD 36 default) 267081,
     lazy := none,
     used := [],
     shift := none,
@@ -2337,7 +2337,7 @@ state_lit cut36_92 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_93 : St :=
-  { next := 1112,
+  { next := 994,
     locs := (cut36_92).locs.insertAll cut36_93_locs,
     scope :=
       { consts := (cut36_92).scope.consts.insertAll cut36_93_pc,
@@ -2347,22 +2347,22 @@ state_lit cut36_93 : St :=
         mats := (cut36_92).scope.mats.insertAll cut36_93_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_92).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 ((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))])),
+    out := (cut36_92).out.pop.push (PStmt.chain [] 962 900 963 101 58 ((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))])),
     tables := { len := 7318, shared := [] ++ (cut36_92).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 267084,
+    rest := traceRest (guestTraced.getD 36 default) 267082,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (7062, 1080)),
+    chainIn := (some (7062, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_92).constOf.insertAll cut36_93_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_94 : St :=
-  { next := 1114,
+  { next := 996,
     locs := (cut36_93).locs.insertAll cut36_94_locs,
     scope :=
       { consts := (cut36_93).scope.consts.insertAll cut36_94_pc,
@@ -2374,7 +2374,7 @@ state_lit cut36_94 : St :=
     pending := #[],
     out := (cut36_93).out,
     tables := { len := 7574, shared := [] ++ (cut36_93).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 267086,
+    rest := traceRest (guestTraced.getD 36 default) 267084,
     lazy := none,
     used := [],
     shift := none,
@@ -2387,7 +2387,7 @@ state_lit cut36_94 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_95 : St :=
-  { next := 1119,
+  { next := 1001,
     locs := (cut36_94).locs.insertAll cut36_95_locs,
     scope :=
       { consts := (cut36_94).scope.consts.insertAll cut36_95_pc,
@@ -2399,7 +2399,7 @@ state_lit cut36_95 : St :=
     pending := #[],
     out := (cut36_94).out,
     tables := { len := 7574, shared := [] ++ (cut36_94).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 272772,
+    rest := traceRest (guestTraced.getD 36 default) 272770,
     lazy := none,
     used := [],
     shift := none,
@@ -2412,7 +2412,7 @@ state_lit cut36_95 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_96 : St :=
-  { next := 1116,
+  { next := 998,
     locs := (cut36_95).locs.insertAll cut36_96_locs,
     scope :=
       { consts := (cut36_95).scope.consts.insertAll cut36_96_pc,
@@ -2424,7 +2424,7 @@ state_lit cut36_96 : St :=
     pending := #[],
     out := (cut36_95).out,
     tables := { len := 7574, shared := [] ++ (cut36_95).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 278348,
+    rest := traceRest (guestTraced.getD 36 default) 278346,
     lazy := none,
     used := [],
     shift := none,
@@ -2437,7 +2437,7 @@ state_lit cut36_96 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_97 : St :=
-  { next := 1120,
+  { next := 1002,
     locs := (cut36_96).locs.insertAll cut36_97_locs,
     scope :=
       { consts := (cut36_96).scope.consts.insertAll cut36_97_pc,
@@ -2447,22 +2447,22 @@ state_lit cut36_97 : St :=
         mats := (cut36_96).scope.mats.insertAll cut36_97_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_96).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 (((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) (((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))])),
+    out := (cut36_96).out.pop.push (PStmt.chain [] 962 900 963 101 58 (((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) (((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))])),
     tables := { len := 7574, shared := [] ++ (cut36_96).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 278349,
+    rest := traceRest (guestTraced.getD 36 default) 278347,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (7318, 1080)),
+    chainIn := (some (7318, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_96).constOf.insertAll cut36_97_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_98 : St :=
-  { next := 1122,
+  { next := 1004,
     locs := (cut36_97).locs.insertAll cut36_98_locs,
     scope :=
       { consts := (cut36_97).scope.consts.insertAll cut36_98_pc,
@@ -2474,7 +2474,7 @@ state_lit cut36_98 : St :=
     pending := #[],
     out := (cut36_97).out,
     tables := { len := 7830, shared := [] ++ (cut36_97).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 278351,
+    rest := traceRest (guestTraced.getD 36 default) 278349,
     lazy := none,
     used := [],
     shift := none,
@@ -2487,7 +2487,7 @@ state_lit cut36_98 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_99 : St :=
-  { next := 1127,
+  { next := 1009,
     locs := (cut36_98).locs.insertAll cut36_99_locs,
     scope :=
       { consts := (cut36_98).scope.consts.insertAll cut36_99_pc,
@@ -2499,7 +2499,7 @@ state_lit cut36_99 : St :=
     pending := #[],
     out := (cut36_98).out,
     tables := { len := 7830, shared := [] ++ (cut36_98).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 284037,
+    rest := traceRest (guestTraced.getD 36 default) 284035,
     lazy := none,
     used := [],
     shift := none,
@@ -2512,7 +2512,7 @@ state_lit cut36_99 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_100 : St :=
-  { next := 1124,
+  { next := 1006,
     locs := (cut36_99).locs.insertAll cut36_100_locs,
     scope :=
       { consts := (cut36_99).scope.consts.insertAll cut36_100_pc,
@@ -2524,7 +2524,7 @@ state_lit cut36_100 : St :=
     pending := #[],
     out := (cut36_99).out,
     tables := { len := 7830, shared := [] ++ (cut36_99).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 289613,
+    rest := traceRest (guestTraced.getD 36 default) 289611,
     lazy := none,
     used := [],
     shift := none,
@@ -2537,7 +2537,7 @@ state_lit cut36_100 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_101 : St :=
-  { next := 1128,
+  { next := 1010,
     locs := (cut36_100).locs.insertAll cut36_101_locs,
     scope :=
       { consts := (cut36_100).scope.consts.insertAll cut36_101_pc,
@@ -2547,22 +2547,22 @@ state_lit cut36_101 : St :=
         mats := (cut36_100).scope.mats.insertAll cut36_101_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_100).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 ((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))])),
+    out := (cut36_100).out.pop.push (PStmt.chain [] 962 900 963 101 58 ((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))])),
     tables := { len := 7830, shared := [] ++ (cut36_100).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 289614,
+    rest := traceRest (guestTraced.getD 36 default) 289612,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (7574, 1080)),
+    chainIn := (some (7574, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_100).constOf.insertAll cut36_101_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_102 : St :=
-  { next := 1130,
+  { next := 1012,
     locs := (cut36_101).locs.insertAll cut36_102_locs,
     scope :=
       { consts := (cut36_101).scope.consts.insertAll cut36_102_pc,
@@ -2574,7 +2574,7 @@ state_lit cut36_102 : St :=
     pending := #[],
     out := (cut36_101).out,
     tables := { len := 8086, shared := [] ++ (cut36_101).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 289616,
+    rest := traceRest (guestTraced.getD 36 default) 289614,
     lazy := none,
     used := [],
     shift := none,
@@ -2587,7 +2587,7 @@ state_lit cut36_102 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_103 : St :=
-  { next := 1135,
+  { next := 1017,
     locs := (cut36_102).locs.insertAll cut36_103_locs,
     scope :=
       { consts := (cut36_102).scope.consts.insertAll cut36_103_pc,
@@ -2599,7 +2599,7 @@ state_lit cut36_103 : St :=
     pending := #[],
     out := (cut36_102).out,
     tables := { len := 8086, shared := [] ++ (cut36_102).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 295302,
+    rest := traceRest (guestTraced.getD 36 default) 295300,
     lazy := none,
     used := [],
     shift := none,
@@ -2612,7 +2612,7 @@ state_lit cut36_103 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_104 : St :=
-  { next := 1132,
+  { next := 1014,
     locs := (cut36_103).locs.insertAll cut36_104_locs,
     scope :=
       { consts := (cut36_103).scope.consts.insertAll cut36_104_pc,
@@ -2624,7 +2624,7 @@ state_lit cut36_104 : St :=
     pending := #[],
     out := (cut36_103).out,
     tables := { len := 8086, shared := [] ++ (cut36_103).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 300878,
+    rest := traceRest (guestTraced.getD 36 default) 300876,
     lazy := none,
     used := [],
     shift := none,
@@ -2637,7 +2637,7 @@ state_lit cut36_104 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_105 : St :=
-  { next := 1136,
+  { next := 1018,
     locs := (cut36_104).locs.insertAll cut36_105_locs,
     scope :=
       { consts := (cut36_104).scope.consts.insertAll cut36_105_pc,
@@ -2647,22 +2647,22 @@ state_lit cut36_105 : St :=
         mats := (cut36_104).scope.mats.insertAll cut36_105_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_104).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 (((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) (((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))])),
+    out := (cut36_104).out.pop.push (PStmt.chain [] 962 900 963 101 58 (((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) (((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))])),
     tables := { len := 8086, shared := [] ++ (cut36_104).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 300879,
+    rest := traceRest (guestTraced.getD 36 default) 300877,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (7830, 1080)),
+    chainIn := (some (7830, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_104).constOf.insertAll cut36_105_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_106 : St :=
-  { next := 1138,
+  { next := 1020,
     locs := (cut36_105).locs.insertAll cut36_106_locs,
     scope :=
       { consts := (cut36_105).scope.consts.insertAll cut36_106_pc,
@@ -2674,7 +2674,7 @@ state_lit cut36_106 : St :=
     pending := #[],
     out := (cut36_105).out,
     tables := { len := 8342, shared := [] ++ (cut36_105).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 300881,
+    rest := traceRest (guestTraced.getD 36 default) 300879,
     lazy := none,
     used := [],
     shift := none,
@@ -2687,7 +2687,7 @@ state_lit cut36_106 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_107 : St :=
-  { next := 1143,
+  { next := 1025,
     locs := (cut36_106).locs.insertAll cut36_107_locs,
     scope :=
       { consts := (cut36_106).scope.consts.insertAll cut36_107_pc,
@@ -2699,7 +2699,7 @@ state_lit cut36_107 : St :=
     pending := #[],
     out := (cut36_106).out,
     tables := { len := 8342, shared := [] ++ (cut36_106).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 306567,
+    rest := traceRest (guestTraced.getD 36 default) 306565,
     lazy := none,
     used := [],
     shift := none,
@@ -2712,7 +2712,7 @@ state_lit cut36_107 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_108 : St :=
-  { next := 1140,
+  { next := 1022,
     locs := (cut36_107).locs.insertAll cut36_108_locs,
     scope :=
       { consts := (cut36_107).scope.consts.insertAll cut36_108_pc,
@@ -2724,7 +2724,7 @@ state_lit cut36_108 : St :=
     pending := #[],
     out := (cut36_107).out,
     tables := { len := 8342, shared := [] ++ (cut36_107).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 312143,
+    rest := traceRest (guestTraced.getD 36 default) 312141,
     lazy := none,
     used := [],
     shift := none,
@@ -2737,7 +2737,7 @@ state_lit cut36_108 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_109 : St :=
-  { next := 1144,
+  { next := 1026,
     locs := (cut36_108).locs.insertAll cut36_109_locs,
     scope :=
       { consts := (cut36_108).scope.consts.insertAll cut36_109_pc,
@@ -2747,22 +2747,22 @@ state_lit cut36_109 : St :=
         mats := (cut36_108).scope.mats.insertAll cut36_109_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_108).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 ((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))])),
+    out := (cut36_108).out.pop.push (PStmt.chain [] 962 900 963 101 58 ((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))])),
     tables := { len := 8342, shared := [] ++ (cut36_108).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 312144,
+    rest := traceRest (guestTraced.getD 36 default) 312142,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (8086, 1080)),
+    chainIn := (some (8086, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_108).constOf.insertAll cut36_109_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_110 : St :=
-  { next := 1146,
+  { next := 1028,
     locs := (cut36_109).locs.insertAll cut36_110_locs,
     scope :=
       { consts := (cut36_109).scope.consts.insertAll cut36_110_pc,
@@ -2774,7 +2774,7 @@ state_lit cut36_110 : St :=
     pending := #[],
     out := (cut36_109).out,
     tables := { len := 8598, shared := [] ++ (cut36_109).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 312146,
+    rest := traceRest (guestTraced.getD 36 default) 312144,
     lazy := none,
     used := [],
     shift := none,
@@ -2787,7 +2787,7 @@ state_lit cut36_110 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_111 : St :=
-  { next := 1151,
+  { next := 1033,
     locs := (cut36_110).locs.insertAll cut36_111_locs,
     scope :=
       { consts := (cut36_110).scope.consts.insertAll cut36_111_pc,
@@ -2799,7 +2799,7 @@ state_lit cut36_111 : St :=
     pending := #[],
     out := (cut36_110).out,
     tables := { len := 8598, shared := [] ++ (cut36_110).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 317832,
+    rest := traceRest (guestTraced.getD 36 default) 317830,
     lazy := none,
     used := [],
     shift := none,
@@ -2812,7 +2812,7 @@ state_lit cut36_111 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_112 : St :=
-  { next := 1148,
+  { next := 1030,
     locs := (cut36_111).locs.insertAll cut36_112_locs,
     scope :=
       { consts := (cut36_111).scope.consts.insertAll cut36_112_pc,
@@ -2824,7 +2824,7 @@ state_lit cut36_112 : St :=
     pending := #[],
     out := (cut36_111).out,
     tables := { len := 8598, shared := [] ++ (cut36_111).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 323408,
+    rest := traceRest (guestTraced.getD 36 default) 323406,
     lazy := none,
     used := [],
     shift := none,
@@ -2837,7 +2837,7 @@ state_lit cut36_112 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_113 : St :=
-  { next := 1152,
+  { next := 1034,
     locs := (cut36_112).locs.insertAll cut36_113_locs,
     scope :=
       { consts := (cut36_112).scope.consts.insertAll cut36_113_pc,
@@ -2847,22 +2847,22 @@ state_lit cut36_113 : St :=
         mats := (cut36_112).scope.mats.insertAll cut36_113_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_112).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 (((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) (((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))])),
+    out := (cut36_112).out.pop.push (PStmt.chain [] 962 900 963 101 58 (((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) (((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))])),
     tables := { len := 8598, shared := [] ++ (cut36_112).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 323409,
+    rest := traceRest (guestTraced.getD 36 default) 323407,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (8342, 1080)),
+    chainIn := (some (8342, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_112).constOf.insertAll cut36_113_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_114 : St :=
-  { next := 1154,
+  { next := 1036,
     locs := (cut36_113).locs.insertAll cut36_114_locs,
     scope :=
       { consts := (cut36_113).scope.consts.insertAll cut36_114_pc,
@@ -2874,7 +2874,7 @@ state_lit cut36_114 : St :=
     pending := #[],
     out := (cut36_113).out,
     tables := { len := 8854, shared := [] ++ (cut36_113).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 323411,
+    rest := traceRest (guestTraced.getD 36 default) 323409,
     lazy := none,
     used := [],
     shift := none,
@@ -2887,7 +2887,7 @@ state_lit cut36_114 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_115 : St :=
-  { next := 1159,
+  { next := 1041,
     locs := (cut36_114).locs.insertAll cut36_115_locs,
     scope :=
       { consts := (cut36_114).scope.consts.insertAll cut36_115_pc,
@@ -2899,7 +2899,7 @@ state_lit cut36_115 : St :=
     pending := #[],
     out := (cut36_114).out,
     tables := { len := 8854, shared := [] ++ (cut36_114).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 329097,
+    rest := traceRest (guestTraced.getD 36 default) 329095,
     lazy := none,
     used := [],
     shift := none,
@@ -2912,7 +2912,7 @@ state_lit cut36_115 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_116 : St :=
-  { next := 1156,
+  { next := 1038,
     locs := (cut36_115).locs.insertAll cut36_116_locs,
     scope :=
       { consts := (cut36_115).scope.consts.insertAll cut36_116_pc,
@@ -2924,7 +2924,7 @@ state_lit cut36_116 : St :=
     pending := #[],
     out := (cut36_115).out,
     tables := { len := 8854, shared := [] ++ (cut36_115).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 334673,
+    rest := traceRest (guestTraced.getD 36 default) 334671,
     lazy := none,
     used := [],
     shift := none,
@@ -2937,7 +2937,7 @@ state_lit cut36_116 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_117 : St :=
-  { next := 1160,
+  { next := 1042,
     locs := (cut36_116).locs.insertAll cut36_117_locs,
     scope :=
       { consts := (cut36_116).scope.consts.insertAll cut36_117_pc,
@@ -2947,22 +2947,22 @@ state_lit cut36_117 : St :=
         mats := (cut36_116).scope.mats.insertAll cut36_117_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_116).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 ((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))])),
+    out := (cut36_116).out.pop.push (PStmt.chain [] 962 900 963 101 58 ((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))])),
     tables := { len := 8854, shared := [] ++ (cut36_116).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 334674,
+    rest := traceRest (guestTraced.getD 36 default) 334672,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (8598, 1080)),
+    chainIn := (some (8598, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_116).constOf.insertAll cut36_117_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_118 : St :=
-  { next := 1162,
+  { next := 1044,
     locs := (cut36_117).locs.insertAll cut36_118_locs,
     scope :=
       { consts := (cut36_117).scope.consts.insertAll cut36_118_pc,
@@ -2974,7 +2974,7 @@ state_lit cut36_118 : St :=
     pending := #[],
     out := (cut36_117).out,
     tables := { len := 9110, shared := [] ++ (cut36_117).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 334676,
+    rest := traceRest (guestTraced.getD 36 default) 334674,
     lazy := none,
     used := [],
     shift := none,
@@ -2987,7 +2987,7 @@ state_lit cut36_118 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_119 : St :=
-  { next := 1167,
+  { next := 1049,
     locs := (cut36_118).locs.insertAll cut36_119_locs,
     scope :=
       { consts := (cut36_118).scope.consts.insertAll cut36_119_pc,
@@ -2999,7 +2999,7 @@ state_lit cut36_119 : St :=
     pending := #[],
     out := (cut36_118).out,
     tables := { len := 9110, shared := [] ++ (cut36_118).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 340362,
+    rest := traceRest (guestTraced.getD 36 default) 340360,
     lazy := none,
     used := [],
     shift := none,
@@ -3012,7 +3012,7 @@ state_lit cut36_119 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_120 : St :=
-  { next := 1164,
+  { next := 1046,
     locs := (cut36_119).locs.insertAll cut36_120_locs,
     scope :=
       { consts := (cut36_119).scope.consts.insertAll cut36_120_pc,
@@ -3024,7 +3024,7 @@ state_lit cut36_120 : St :=
     pending := #[],
     out := (cut36_119).out,
     tables := { len := 9110, shared := [] ++ (cut36_119).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 345938,
+    rest := traceRest (guestTraced.getD 36 default) 345936,
     lazy := none,
     used := [],
     shift := none,
@@ -3037,7 +3037,7 @@ state_lit cut36_120 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_121 : St :=
-  { next := 1168,
+  { next := 1050,
     locs := (cut36_120).locs.insertAll cut36_121_locs,
     scope :=
       { consts := (cut36_120).scope.consts.insertAll cut36_121_pc,
@@ -3047,22 +3047,22 @@ state_lit cut36_121 : St :=
         mats := (cut36_120).scope.mats.insertAll cut36_121_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_120).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 (((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) (((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))])),
+    out := (cut36_120).out.pop.push (PStmt.chain [] 962 900 963 101 58 (((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) (((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))])),
     tables := { len := 9110, shared := [] ++ (cut36_120).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 345939,
+    rest := traceRest (guestTraced.getD 36 default) 345937,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (8854, 1080)),
+    chainIn := (some (8854, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_120).constOf.insertAll cut36_121_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_122 : St :=
-  { next := 1170,
+  { next := 1052,
     locs := (cut36_121).locs.insertAll cut36_122_locs,
     scope :=
       { consts := (cut36_121).scope.consts.insertAll cut36_122_pc,
@@ -3074,7 +3074,7 @@ state_lit cut36_122 : St :=
     pending := #[],
     out := (cut36_121).out,
     tables := { len := 9366, shared := [] ++ (cut36_121).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 345941,
+    rest := traceRest (guestTraced.getD 36 default) 345939,
     lazy := none,
     used := [],
     shift := none,
@@ -3087,7 +3087,7 @@ state_lit cut36_122 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_123 : St :=
-  { next := 1175,
+  { next := 1057,
     locs := (cut36_122).locs.insertAll cut36_123_locs,
     scope :=
       { consts := (cut36_122).scope.consts.insertAll cut36_123_pc,
@@ -3099,7 +3099,7 @@ state_lit cut36_123 : St :=
     pending := #[],
     out := (cut36_122).out,
     tables := { len := 9366, shared := [] ++ (cut36_122).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 351627,
+    rest := traceRest (guestTraced.getD 36 default) 351625,
     lazy := none,
     used := [],
     shift := none,
@@ -3112,7 +3112,7 @@ state_lit cut36_123 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_124 : St :=
-  { next := 1172,
+  { next := 1054,
     locs := (cut36_123).locs.insertAll cut36_124_locs,
     scope :=
       { consts := (cut36_123).scope.consts.insertAll cut36_124_pc,
@@ -3124,7 +3124,7 @@ state_lit cut36_124 : St :=
     pending := #[],
     out := (cut36_123).out,
     tables := { len := 9366, shared := [] ++ (cut36_123).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 357203,
+    rest := traceRest (guestTraced.getD 36 default) 357201,
     lazy := none,
     used := [],
     shift := none,
@@ -3137,7 +3137,7 @@ state_lit cut36_124 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_125 : St :=
-  { next := 1176,
+  { next := 1058,
     locs := (cut36_124).locs.insertAll cut36_125_locs,
     scope :=
       { consts := (cut36_124).scope.consts.insertAll cut36_125_pc,
@@ -3147,22 +3147,22 @@ state_lit cut36_125 : St :=
         mats := (cut36_124).scope.mats.insertAll cut36_125_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_124).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 ((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))])),
+    out := (cut36_124).out.pop.push (PStmt.chain [] 962 900 963 101 58 ((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))])),
     tables := { len := 9366, shared := [] ++ (cut36_124).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 357204,
+    rest := traceRest (guestTraced.getD 36 default) 357202,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (9110, 1080)),
+    chainIn := (some (9110, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_124).constOf.insertAll cut36_125_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_126 : St :=
-  { next := 1178,
+  { next := 1060,
     locs := (cut36_125).locs.insertAll cut36_126_locs,
     scope :=
       { consts := (cut36_125).scope.consts.insertAll cut36_126_pc,
@@ -3174,7 +3174,7 @@ state_lit cut36_126 : St :=
     pending := #[],
     out := (cut36_125).out,
     tables := { len := 9622, shared := [] ++ (cut36_125).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 357206,
+    rest := traceRest (guestTraced.getD 36 default) 357204,
     lazy := none,
     used := [],
     shift := none,
@@ -3187,7 +3187,7 @@ state_lit cut36_126 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_127 : St :=
-  { next := 1183,
+  { next := 1065,
     locs := (cut36_126).locs.insertAll cut36_127_locs,
     scope :=
       { consts := (cut36_126).scope.consts.insertAll cut36_127_pc,
@@ -3199,7 +3199,7 @@ state_lit cut36_127 : St :=
     pending := #[],
     out := (cut36_126).out,
     tables := { len := 9622, shared := [] ++ (cut36_126).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 362892,
+    rest := traceRest (guestTraced.getD 36 default) 362890,
     lazy := none,
     used := [],
     shift := none,
@@ -3212,7 +3212,7 @@ state_lit cut36_127 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_128 : St :=
-  { next := 1180,
+  { next := 1062,
     locs := (cut36_127).locs.insertAll cut36_128_locs,
     scope :=
       { consts := (cut36_127).scope.consts.insertAll cut36_128_pc,
@@ -3224,7 +3224,7 @@ state_lit cut36_128 : St :=
     pending := #[],
     out := (cut36_127).out,
     tables := { len := 9622, shared := [] ++ (cut36_127).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 368468,
+    rest := traceRest (guestTraced.getD 36 default) 368466,
     lazy := none,
     used := [],
     shift := none,
@@ -3237,7 +3237,7 @@ state_lit cut36_128 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_129 : St :=
-  { next := 1184,
+  { next := 1066,
     locs := (cut36_128).locs.insertAll cut36_129_locs,
     scope :=
       { consts := (cut36_128).scope.consts.insertAll cut36_129_pc,
@@ -3247,22 +3247,22 @@ state_lit cut36_129 : St :=
         mats := (cut36_128).scope.mats.insertAll cut36_129_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_128).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 (((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ++ [9110]) (((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))]) ++ [(cut36_127_b ++ (cut36_128_b ++ []))])),
+    out := (cut36_128).out.pop.push (PStmt.chain [] 962 900 963 101 58 (((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ++ [9110]) (((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))]) ++ [(cut36_127_b ++ (cut36_128_b ++ []))])),
     tables := { len := 9622, shared := [] ++ (cut36_128).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 368469,
+    rest := traceRest (guestTraced.getD 36 default) 368467,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (9366, 1080)),
+    chainIn := (some (9366, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_128).constOf.insertAll cut36_129_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_130 : St :=
-  { next := 1186,
+  { next := 1068,
     locs := (cut36_129).locs.insertAll cut36_130_locs,
     scope :=
       { consts := (cut36_129).scope.consts.insertAll cut36_130_pc,
@@ -3274,7 +3274,7 @@ state_lit cut36_130 : St :=
     pending := #[],
     out := (cut36_129).out,
     tables := { len := 9878, shared := [] ++ (cut36_129).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 368471,
+    rest := traceRest (guestTraced.getD 36 default) 368469,
     lazy := none,
     used := [],
     shift := none,
@@ -3287,7 +3287,7 @@ state_lit cut36_130 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_131 : St :=
-  { next := 1191,
+  { next := 1073,
     locs := (cut36_130).locs.insertAll cut36_131_locs,
     scope :=
       { consts := (cut36_130).scope.consts.insertAll cut36_131_pc,
@@ -3299,7 +3299,7 @@ state_lit cut36_131 : St :=
     pending := #[],
     out := (cut36_130).out,
     tables := { len := 9878, shared := [] ++ (cut36_130).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 374157,
+    rest := traceRest (guestTraced.getD 36 default) 374155,
     lazy := none,
     used := [],
     shift := none,
@@ -3312,7 +3312,7 @@ state_lit cut36_131 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_132 : St :=
-  { next := 1188,
+  { next := 1070,
     locs := (cut36_131).locs.insertAll cut36_132_locs,
     scope :=
       { consts := (cut36_131).scope.consts.insertAll cut36_132_pc,
@@ -3324,7 +3324,7 @@ state_lit cut36_132 : St :=
     pending := #[],
     out := (cut36_131).out,
     tables := { len := 9878, shared := [] ++ (cut36_131).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 379733,
+    rest := traceRest (guestTraced.getD 36 default) 379731,
     lazy := none,
     used := [],
     shift := none,
@@ -3337,7 +3337,7 @@ state_lit cut36_132 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_133 : St :=
-  { next := 1192,
+  { next := 1074,
     locs := (cut36_132).locs.insertAll cut36_133_locs,
     scope :=
       { consts := (cut36_132).scope.consts.insertAll cut36_133_pc,
@@ -3347,22 +3347,22 @@ state_lit cut36_133 : St :=
         mats := (cut36_132).scope.mats.insertAll cut36_133_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_132).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 ((((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ++ [9110]) ++ [9366]) ((((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))]) ++ [(cut36_127_b ++ (cut36_128_b ++ []))]) ++ [(cut36_131_b ++ (cut36_132_b ++ []))])),
+    out := (cut36_132).out.pop.push (PStmt.chain [] 962 900 963 101 58 ((((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ++ [9110]) ++ [9366]) ((((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))]) ++ [(cut36_127_b ++ (cut36_128_b ++ []))]) ++ [(cut36_131_b ++ (cut36_132_b ++ []))])),
     tables := { len := 9878, shared := [] ++ (cut36_132).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 379734,
+    rest := traceRest (guestTraced.getD 36 default) 379732,
     lazy := none,
     used := [],
     shift := none,
     chain := false,
     note := 0,
-    chainIn := (some (9622, 1080)),
+    chainIn := (some (9622, 962)),
     padRun := (some [⟨[], 0, 98⟩, ⟨[], 0, 99⟩, ⟨[], 0, 100⟩, ⟨[], 0, 101⟩, ⟨[], 0, 102⟩]),
     aliasRun := none,
     constOf := (cut36_132).constOf.insertAll cut36_133_consts }
 
 /-- The walk's state at a cut. -/
 state_lit cut36_134 : St :=
-  { next := 1194,
+  { next := 1076,
     locs := (cut36_133).locs.insertAll cut36_134_locs,
     scope :=
       { consts := (cut36_133).scope.consts.insertAll cut36_134_pc,
@@ -3374,7 +3374,7 @@ state_lit cut36_134 : St :=
     pending := #[],
     out := (cut36_133).out,
     tables := { len := 9878, shared := [] ++ (cut36_133).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 379735,
+    rest := traceRest (guestTraced.getD 36 default) 379733,
     lazy := none,
     used := [],
     shift := none,
@@ -3387,7 +3387,7 @@ state_lit cut36_134 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_135 : St :=
-  { next := 1195,
+  { next := 1077,
     locs := (cut36_134).locs.insertAll cut36_135_locs,
     scope :=
       { consts := (cut36_134).scope.consts.insertAll cut36_135_pc,
@@ -3399,7 +3399,7 @@ state_lit cut36_135 : St :=
     pending := #[],
     out := (cut36_134).out,
     tables := { len := 9878, shared := [] ++ (cut36_134).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 386487,
+    rest := traceRest (guestTraced.getD 36 default) 386485,
     lazy := none,
     used := [],
     shift := none,
@@ -3412,7 +3412,7 @@ state_lit cut36_135 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_136 : St :=
-  { next := 1197,
+  { next := 1079,
     locs := (cut36_135).locs.insertAll cut36_136_locs,
     scope :=
       { consts := (cut36_135).scope.consts.insertAll cut36_136_pc,
@@ -3422,9 +3422,9 @@ state_lit cut36_136 : St :=
         mats := (cut36_135).scope.mats.insertAll cut36_136_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_135).out.pop.push (PStmt.chain [] 1080 1018 1081 101 58 (((((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ++ [9110]) ++ [9366]) ++ [9622]) (((((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))]) ++ [(cut36_127_b ++ (cut36_128_b ++ []))]) ++ [(cut36_131_b ++ (cut36_132_b ++ []))]) ++ [(cut36_135_b ++ [])])),
+    out := (cut36_135).out.pop.push (PStmt.chain [] 962 900 963 101 58 (((((((((((((([6038] ++ [6294]) ++ [6550]) ++ [6806]) ++ [7062]) ++ [7318]) ++ [7574]) ++ [7830]) ++ [8086]) ++ [8342]) ++ [8598]) ++ [8854]) ++ [9110]) ++ [9366]) ++ [9622]) (((((((((((((([(cut36_79_b ++ (cut36_80_b ++ []))] ++ [(cut36_83_b ++ (cut36_84_b ++ []))]) ++ [(cut36_87_b ++ (cut36_88_b ++ []))]) ++ [(cut36_91_b ++ (cut36_92_b ++ []))]) ++ [(cut36_95_b ++ (cut36_96_b ++ []))]) ++ [(cut36_99_b ++ (cut36_100_b ++ []))]) ++ [(cut36_103_b ++ (cut36_104_b ++ []))]) ++ [(cut36_107_b ++ (cut36_108_b ++ []))]) ++ [(cut36_111_b ++ (cut36_112_b ++ []))]) ++ [(cut36_115_b ++ (cut36_116_b ++ []))]) ++ [(cut36_119_b ++ (cut36_120_b ++ []))]) ++ [(cut36_123_b ++ (cut36_124_b ++ []))]) ++ [(cut36_127_b ++ (cut36_128_b ++ []))]) ++ [(cut36_131_b ++ (cut36_132_b ++ []))]) ++ [(cut36_135_b ++ [])])),
     tables := { len := 9878, shared := [] ++ (cut36_135).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 386488,
+    rest := traceRest (guestTraced.getD 36 default) 386486,
     lazy := none,
     used := [],
     shift := none,
@@ -3437,7 +3437,7 @@ state_lit cut36_136 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_137 : St :=
-  { next := 1473,
+  { next := 1237,
     locs := (cut36_136).locs.insertAll cut36_137_locs,
     scope :=
       { consts := (cut36_136).scope.consts.insertAll cut36_137_pc,
@@ -3449,7 +3449,7 @@ state_lit cut36_137 : St :=
     pending := #[],
     out := (cut36_136).out.appendList cut36_137_out,
     tables := { len := 9878, shared := [] ++ (cut36_136).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 386922,
+    rest := traceRest (guestTraced.getD 36 default) 386919,
     lazy := none,
     used := [],
     shift := none,
@@ -3462,7 +3462,7 @@ state_lit cut36_137 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_138 : St :=
-  { next := 1475,
+  { next := 1239,
     locs := (cut36_137).locs.insertAll cut36_138_locs,
     scope :=
       { consts := (cut36_137).scope.consts.insertAll cut36_138_pc,
@@ -3474,7 +3474,7 @@ state_lit cut36_138 : St :=
     pending := #[],
     out := (cut36_137).out,
     tables := { len := 10134, shared := [] ++ (cut36_137).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 386922,
+    rest := traceRest (guestTraced.getD 36 default) 386919,
     lazy := none,
     used := [],
     shift := none,
@@ -3487,7 +3487,7 @@ state_lit cut36_138 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_139 : St :=
-  { next := 1515,
+  { next := 1279,
     locs := (cut36_138).locs.insertAll cut36_139_locs,
     scope :=
       { consts := (cut36_138).scope.consts.insertAll cut36_139_pc,
@@ -3499,7 +3499,7 @@ state_lit cut36_139 : St :=
     pending := #[],
     out := (cut36_138).out,
     tables := { len := 10134, shared := [] ++ (cut36_138).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 392690,
+    rest := traceRest (guestTraced.getD 36 default) 392687,
     lazy := none,
     used := [],
     shift := none,
@@ -3512,7 +3512,7 @@ state_lit cut36_139 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_140 : St :=
-  { next := 1515,
+  { next := 1279,
     locs := (cut36_139).locs.insertAll cut36_140_locs,
     scope :=
       { consts := (cut36_139).scope.consts.insertAll cut36_140_pc,
@@ -3524,7 +3524,7 @@ state_lit cut36_140 : St :=
     pending := #[],
     out := (cut36_139).out,
     tables := { len := 10134, shared := [] ++ (cut36_139).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 398351,
+    rest := traceRest (guestTraced.getD 36 default) 398348,
     lazy := none,
     used := [],
     shift := none,
@@ -3537,7 +3537,7 @@ state_lit cut36_140 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_141 : St :=
-  { next := 1515,
+  { next := 1279,
     locs := (cut36_140).locs.insertAll cut36_141_locs,
     scope :=
       { consts := (cut36_140).scope.consts.insertAll cut36_141_pc,
@@ -3549,7 +3549,7 @@ state_lit cut36_141 : St :=
     pending := #[],
     out := (cut36_140).out,
     tables := { len := 10134, shared := [] ++ (cut36_140).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 404012,
+    rest := traceRest (guestTraced.getD 36 default) 404009,
     lazy := none,
     used := [],
     shift := none,
@@ -3562,7 +3562,7 @@ state_lit cut36_141 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_142 : St :=
-  { next := 1515,
+  { next := 1279,
     locs := (cut36_141).locs.insertAll cut36_142_locs,
     scope :=
       { consts := (cut36_141).scope.consts.insertAll cut36_142_pc,
@@ -3574,7 +3574,7 @@ state_lit cut36_142 : St :=
     pending := #[],
     out := (cut36_141).out,
     tables := { len := 10134, shared := [] ++ (cut36_141).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 409673,
+    rest := traceRest (guestTraced.getD 36 default) 409670,
     lazy := none,
     used := [],
     shift := none,
@@ -3587,7 +3587,7 @@ state_lit cut36_142 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_143 : St :=
-  { next := 1515,
+  { next := 1279,
     locs := (cut36_142).locs.insertAll cut36_143_locs,
     scope :=
       { consts := (cut36_142).scope.consts.insertAll cut36_143_pc,
@@ -3599,7 +3599,7 @@ state_lit cut36_143 : St :=
     pending := #[],
     out := (cut36_142).out,
     tables := { len := 10134, shared := [] ++ (cut36_142).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 415334,
+    rest := traceRest (guestTraced.getD 36 default) 415331,
     lazy := none,
     used := [],
     shift := none,
@@ -3612,7 +3612,7 @@ state_lit cut36_143 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_144 : St :=
-  { next := 1515,
+  { next := 1279,
     locs := (cut36_143).locs.insertAll cut36_144_locs,
     scope :=
       { consts := (cut36_143).scope.consts.insertAll cut36_144_pc,
@@ -3622,9 +3622,9 @@ state_lit cut36_144 : St :=
         mats := (cut36_143).scope.mats.insertAll cut36_144_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_143).out.push (PStmt.chain [] 1473 76 1474 101 58 [9878] [(cut36_139_b ++ (cut36_140_b ++ (cut36_141_b ++ (cut36_142_b ++ (cut36_143_b ++ [])))))]),
+    out := (cut36_143).out.push (PStmt.chain [] 1237 76 1238 101 58 [9878] [(cut36_139_b ++ (cut36_140_b ++ (cut36_141_b ++ (cut36_142_b ++ (cut36_143_b ++ [])))))]),
     tables := { len := 10134, shared := [] ++ (cut36_143).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 415335,
+    rest := traceRest (guestTraced.getD 36 default) 415332,
     lazy := none,
     used := [],
     shift := none,
@@ -3637,7 +3637,7 @@ state_lit cut36_144 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_145 : St :=
-  { next := 1519,
+  { next := 1283,
     locs := (cut36_144).locs.insertAll cut36_145_locs,
     scope :=
       { consts := (cut36_144).scope.consts.insertAll cut36_145_pc,
@@ -3649,7 +3649,7 @@ state_lit cut36_145 : St :=
     pending := #[],
     out := (cut36_144).out.appendList cut36_145_out,
     tables := { len := 10134, shared := [] ++ (cut36_144).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 415345,
+    rest := traceRest (guestTraced.getD 36 default) 415341,
     lazy := none,
     used := [],
     shift := none,
@@ -3662,7 +3662,7 @@ state_lit cut36_145 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_146 : St :=
-  { next := 1521,
+  { next := 1285,
     locs := (cut36_145).locs.insertAll cut36_146_locs,
     scope :=
       { consts := (cut36_145).scope.consts.insertAll cut36_146_pc,
@@ -3674,7 +3674,7 @@ state_lit cut36_146 : St :=
     pending := #[],
     out := (cut36_145).out,
     tables := { len := 10390, shared := [] ++ (cut36_145).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 415345,
+    rest := traceRest (guestTraced.getD 36 default) 415341,
     lazy := none,
     used := [],
     shift := none,
@@ -3687,7 +3687,7 @@ state_lit cut36_146 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_147 : St :=
-  { next := 1544,
+  { next := 1308,
     locs := (cut36_146).locs.insertAll cut36_147_locs,
     scope :=
       { consts := (cut36_146).scope.consts.insertAll cut36_147_pc,
@@ -3699,7 +3699,7 @@ state_lit cut36_147 : St :=
     pending := #[],
     out := (cut36_146).out,
     tables := { len := 10390, shared := [] ++ (cut36_146).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 421967,
+    rest := traceRest (guestTraced.getD 36 default) 421963,
     lazy := none,
     used := [],
     shift := none,
@@ -3712,7 +3712,7 @@ state_lit cut36_147 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_148 : St :=
-  { next := 1544,
+  { next := 1308,
     locs := (cut36_147).locs.insertAll cut36_148_locs,
     scope :=
       { consts := (cut36_147).scope.consts.insertAll cut36_148_pc,
@@ -3724,7 +3724,7 @@ state_lit cut36_148 : St :=
     pending := #[],
     out := (cut36_147).out,
     tables := { len := 10390, shared := [] ++ (cut36_147).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 428512,
+    rest := traceRest (guestTraced.getD 36 default) 428508,
     lazy := none,
     used := [],
     shift := none,
@@ -3737,7 +3737,7 @@ state_lit cut36_148 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_149 : St :=
-  { next := 1544,
+  { next := 1308,
     locs := (cut36_148).locs.insertAll cut36_149_locs,
     scope :=
       { consts := (cut36_148).scope.consts.insertAll cut36_149_pc,
@@ -3749,7 +3749,7 @@ state_lit cut36_149 : St :=
     pending := #[],
     out := (cut36_148).out,
     tables := { len := 10390, shared := [] ++ (cut36_148).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 435057,
+    rest := traceRest (guestTraced.getD 36 default) 435053,
     lazy := none,
     used := [],
     shift := none,
@@ -3762,7 +3762,7 @@ state_lit cut36_149 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit cut36_150 : St :=
-  { next := 1544,
+  { next := 1308,
     locs := (cut36_149).locs.insertAll cut36_150_locs,
     scope :=
       { consts := (cut36_149).scope.consts.insertAll cut36_150_pc,
@@ -3772,9 +3772,9 @@ state_lit cut36_150 : St :=
         mats := (cut36_149).scope.mats.insertAll cut36_150_mats,
         selfFp := (some 58) },
     pending := #[],
-    out := (cut36_149).out.push (PStmt.chain [] 1519 77 1520 101 58 [10134] [(cut36_147_b ++ (cut36_148_b ++ (cut36_149_b ++ [])))]),
+    out := (cut36_149).out.push (PStmt.chain [] 1283 77 1284 101 58 [10134] [(cut36_147_b ++ (cut36_148_b ++ (cut36_149_b ++ [])))]),
     tables := { len := 10390, shared := [] ++ (cut36_149).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 435058,
+    rest := traceRest (guestTraced.getD 36 default) 435054,
     lazy := none,
     used := [],
     shift := none,
@@ -3787,7 +3787,7 @@ state_lit cut36_150 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit full cut36_end : St :=
-  { next := 1551,
+  { next := 1315,
     locs := (cut36_150).locs.insertAll cut36_end_locs,
     scope :=
       { consts := (cut36_150).scope.consts.insertAll cut36_end_pc,
@@ -3799,7 +3799,7 @@ state_lit full cut36_end : St :=
     pending := #[],
     out := (cut36_150).out.appendList cut36_end_out,
     tables := { len := 10390, shared := [] ++ (cut36_150).tables.shared },
-    rest := traceRest (guestTraced.getD 36 default) 435075,
+    rest := traceRest (guestTraced.getD 36 default) 435071,
     lazy := none,
     used := [],
     shift := none,

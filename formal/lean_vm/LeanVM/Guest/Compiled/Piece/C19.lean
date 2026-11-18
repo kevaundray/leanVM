@@ -528,7 +528,7 @@ state_lit cut19_20 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit full cut19_end : St :=
-  { next := 1074,
+  { next := 1007,
     locs := (cut19_20).locs.insertAll cut19_end_locs,
     scope :=
       { consts := (cut19_20).scope.consts.insertAll cut19_end_pc,

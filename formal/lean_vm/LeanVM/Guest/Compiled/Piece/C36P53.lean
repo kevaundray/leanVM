@@ -22,9 +22,9 @@ open LeanVM.Core LeanVM.Compiler
 @[expose] public section
 
 kernel_rfl cut36_p106 :
-    armsRunN ((armsOf ((guestTraced.getD 36 default).core.body.getD 229 default)).drop 0) 0 (armsOf ((guestTraced.getD 36 default).core.body.getD 229 default)).length 1138
-      (⟨1025, 1080, 7830, none, (ArmExit.next 1026 8086 101 58), 1138, 101, 58⟩ : MatchHead).exit 115 ctx36 cut36_106 =
-      .ok ((cut36_107_b, 1144), cut36_107)
+    armsRunN ((armsOf ((guestTraced.getD 36 default).core.body.getD 229 default)).drop 0) 0 (armsOf ((guestTraced.getD 36 default).core.body.getD 229 default)).length 1020
+      (⟨907, 962, 7830, none, (ArmExit.next 908 8086 101 58), 1020, 101, 58⟩ : MatchHead).exit 115 ctx36 cut36_106 =
+      .ok ((cut36_107_b, 1026), cut36_107)
 
 end
 end LeanVM.Guest.Compiled.GuestPiece

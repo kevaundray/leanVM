@@ -22,12 +22,12 @@ open LeanVM.Core LeanVM.Compiler
 @[expose] public section
 
 kernel_rfl cut36_p148 :
-    armsRunN ((armsOf ((guestTraced.getD 36 default).core.body.getD 319 default)).drop 171) 171 (armsOf ((guestTraced.getD 36 default).core.body.getD 319 default)).length 1521
-      (⟨77, 1519, 10134, (some ([], 1520)), (ArmExit.join 1519 101 58), 1521, 101, 58⟩ : MatchHead).exit 85 ctx36 cut36_148 =
-      .ok ((cut36_149_b, 1544), cut36_149)
+    armsRunN ((armsOf ((guestTraced.getD 36 default).core.body.getD 319 default)).drop 171) 171 (armsOf ((guestTraced.getD 36 default).core.body.getD 319 default)).length 1285
+      (⟨77, 1283, 10134, (some ([], 1284)), (ArmExit.join 1283 101 58), 1285, 101, 58⟩ : MatchHead).exit 85 ctx36 cut36_148 =
+      .ok ((cut36_149_b, 1308), cut36_149)
 
 kernel_rfl cut36_p149 :
-    matchPost (⟨77, 1519, 10134, (some ([], 1520)), (ArmExit.join 1519 101 58), 1521, 101, 58⟩ : MatchHead) (cut36_147_b ++ (cut36_148_b ++ (cut36_149_b ++ []))) 1544 ctx36 cut36_149 =
+    matchPost (⟨77, 1283, 10134, (some ([], 1284)), (ArmExit.join 1283 101 58), 1285, 101, 58⟩ : MatchHead) (cut36_147_b ++ (cut36_148_b ++ (cut36_149_b ++ []))) 1308 ctx36 cut36_149 =
       .ok ((), cut36_150)
 
 kernel_rfl cut36_p150 :

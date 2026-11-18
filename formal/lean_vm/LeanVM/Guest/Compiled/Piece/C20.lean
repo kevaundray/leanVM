@@ -27,7 +27,7 @@ noncomputable def ctx20 : Ctx := { ctxOf loopsG sigsG (guestTraced.getD 20 defau
 
 /-- The walk's state at a cut. -/
 state_lit cut20_1 : St :=
-  { next := 2704,
+  { next := 2127,
     locs := ((initSt loopsG (tablesAt outsG 20) (guestTraced.getD 20 default))).locs.insertAll cut20_1_locs,
     scope :=
       { consts := ((initSt loopsG (tablesAt outsG 20) (guestTraced.getD 20 default))).scope.consts.insertAll cut20_1_pc,
@@ -52,7 +52,7 @@ state_lit cut20_1 : St :=
 
 /-- The walk's state at a cut. -/
 state_lit full cut20_end : St :=
-  { next := 5330,
+  { next := 4214,
     locs := (cut20_1).locs.insertAll cut20_end_locs,
     scope :=
       { consts := (cut20_1).scope.consts.insertAll cut20_end_pc,

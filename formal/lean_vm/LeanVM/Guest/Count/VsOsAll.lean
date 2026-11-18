@@ -25,47 +25,47 @@ namespace LeanVM.Guest.Count
 @[expose] public section
 
 /-- `open_stacked`'s words at the arm 0. -/
-theorem osC_0 : osC 0 = 208731 := by
+theorem osC_0 : osC 0 = 182085 := by
   rw [osC_eq_fast, osCF_0]
 
 /-- `open_stacked`'s words at the arm 1. -/
-theorem osC_1 : osC 1 = 208334 := by
+theorem osC_1 : osC 1 = 182331 := by
   rw [osC_eq_fast, osCF_1]
 
 /-- `open_stacked`'s words at the arm 2. -/
-theorem osC_2 : osC 2 = 211299 := by
+theorem osC_2 : osC 2 = 185325 := by
   rw [osC_eq_fast, osCF_2]
 
 /-- `open_stacked`'s words at the arm 3. -/
-theorem osC_3 : osC 3 = 215348 := by
+theorem osC_3 : osC 3 = 189220 := by
   rw [osC_eq_fast, osCF_3]
 
 /-- `open_stacked`'s words at the arm 4. -/
-theorem osC_4 : osC 4 = 225965 := by
+theorem osC_4 : osC 4 = 200263 := by
   rw [osC_eq_fast, osCF_4]
 
 /-- `open_stacked`'s words at the arm 5. -/
-theorem osC_5 : osC 5 = 231277 := by
+theorem osC_5 : osC 5 = 206591 := by
   rw [osC_eq_fast, osCF_5]
 
 /-- `open_stacked`'s words at the arm 6. -/
-theorem osC_6 : osC 6 = 239864 := by
+theorem osC_6 : osC 6 = 219067 := by
   rw [osC_eq_fast, osCF_6]
 
 /-- `open_stacked`'s words at the arm 7. -/
-theorem osC_7 : osC 7 = 245895 := by
+theorem osC_7 : osC 7 = 224697 := by
   rw [osC_eq_fast, osCF_7]
 
 /-- `open_stacked`'s words at the arm 8. -/
-theorem osC_8 : osC 8 = 253442 := by
+theorem osC_8 : osC 8 = 232867 := by
   rw [osC_eq_fast, osCF_8]
 
 /-- `open_stacked`'s words at the arm 9. -/
-theorem osC_9 : osC 9 = 256741 := by
+theorem osC_9 : osC 9 = 236290 := by
   rw [osC_eq_fast, osCF_9]
 
 /-- `open_stacked`'s words at the arm 10. -/
-theorem osC_10 : osC 10 = 259716 := by
+theorem osC_10 : osC 10 = 239382 := by
   rw [osC_eq_fast, osCF_10]
 
 /-- Every arm's callees have constant words certificates. -/

@@ -361,111 +361,111 @@ theorem cut36_walk :
         cut36_p59))
       cut36_p60)
       (placeBlockN_match_at cut36_is172 cut36_p61
-        (armsRun_drop_zero (armsRun_cut (t := 790) rfl (by decide) cut36_p62
-        (armsRun_cut (t := 790) rfl (by decide) cut36_p63
-        (armsRun_cut (t := 790) rfl (by decide) cut36_p64
-        (armsRun_cut (t := 790) rfl (by decide) cut36_p65
-        (armsRun_cut (t := 790) rfl (by decide) cut36_p66
+        (armsRun_drop_zero (armsRun_cut (t := 672) rfl (by decide) cut36_p62
+        (armsRun_cut (t := 672) rfl (by decide) cut36_p63
+        (armsRun_cut (t := 672) rfl (by decide) cut36_p64
+        (armsRun_cut (t := 672) rfl (by decide) cut36_p65
+        (armsRun_cut (t := 672) rfl (by decide) cut36_p66
         (armsRun_end cut36_len172)))))))
         cut36_p67))
       cut36_p68)
       (placeBlockN_match_at cut36_is176 cut36_p69
-        (armsRun_drop_zero (armsRun_cut (t := 836) rfl (by decide) cut36_p70
-        (armsRun_cut (t := 836) rfl (by decide) cut36_p71
-        (armsRun_cut (t := 836) rfl (by decide) cut36_p72
-        (armsRun_cut (t := 836) rfl (by decide) cut36_p73
-        (armsRun_cut (t := 836) rfl (by decide) cut36_p74
+        (armsRun_drop_zero (armsRun_cut (t := 718) rfl (by decide) cut36_p70
+        (armsRun_cut (t := 718) rfl (by decide) cut36_p71
+        (armsRun_cut (t := 718) rfl (by decide) cut36_p72
+        (armsRun_cut (t := 718) rfl (by decide) cut36_p73
+        (armsRun_cut (t := 718) rfl (by decide) cut36_p74
         (armsRun_end cut36_len176)))))))
         cut36_p75))
       cut36_p76)
       (placeBlockN_match_at cut36_is222 cut36_p77
-        (armsRun_drop_zero (armsRun_cut (t := 1088) rfl (by decide) cut36_p78
-        (armsRun_cut (t := 1088) rfl (by decide) cut36_p79
+        (armsRun_drop_zero (armsRun_cut (t := 970) rfl (by decide) cut36_p78
+        (armsRun_cut (t := 970) rfl (by decide) cut36_p79
         (armsRun_end cut36_len222))))
         cut36_p80))
       (placeBlockN_match_at cut36_is223 cut36_p81
-        (armsRun_drop_zero (armsRun_cut (t := 1096) rfl (by decide) cut36_p82
-        (armsRun_cut (t := 1096) rfl (by decide) cut36_p83
+        (armsRun_drop_zero (armsRun_cut (t := 978) rfl (by decide) cut36_p82
+        (armsRun_cut (t := 978) rfl (by decide) cut36_p83
         (armsRun_end cut36_len223))))
         cut36_p84))
       (placeBlockN_match_at cut36_is224 cut36_p85
-        (armsRun_drop_zero (armsRun_cut (t := 1104) rfl (by decide) cut36_p86
-        (armsRun_cut (t := 1104) rfl (by decide) cut36_p87
+        (armsRun_drop_zero (armsRun_cut (t := 986) rfl (by decide) cut36_p86
+        (armsRun_cut (t := 986) rfl (by decide) cut36_p87
         (armsRun_end cut36_len224))))
         cut36_p88))
       (placeBlockN_match_at cut36_is225 cut36_p89
-        (armsRun_drop_zero (armsRun_cut (t := 1112) rfl (by decide) cut36_p90
-        (armsRun_cut (t := 1112) rfl (by decide) cut36_p91
+        (armsRun_drop_zero (armsRun_cut (t := 994) rfl (by decide) cut36_p90
+        (armsRun_cut (t := 994) rfl (by decide) cut36_p91
         (armsRun_end cut36_len225))))
         cut36_p92))
       (placeBlockN_match_at cut36_is226 cut36_p93
-        (armsRun_drop_zero (armsRun_cut (t := 1120) rfl (by decide) cut36_p94
-        (armsRun_cut (t := 1120) rfl (by decide) cut36_p95
+        (armsRun_drop_zero (armsRun_cut (t := 1002) rfl (by decide) cut36_p94
+        (armsRun_cut (t := 1002) rfl (by decide) cut36_p95
         (armsRun_end cut36_len226))))
         cut36_p96))
       (placeBlockN_match_at cut36_is227 cut36_p97
-        (armsRun_drop_zero (armsRun_cut (t := 1128) rfl (by decide) cut36_p98
-        (armsRun_cut (t := 1128) rfl (by decide) cut36_p99
+        (armsRun_drop_zero (armsRun_cut (t := 1010) rfl (by decide) cut36_p98
+        (armsRun_cut (t := 1010) rfl (by decide) cut36_p99
         (armsRun_end cut36_len227))))
         cut36_p100))
       (placeBlockN_match_at cut36_is228 cut36_p101
-        (armsRun_drop_zero (armsRun_cut (t := 1136) rfl (by decide) cut36_p102
-        (armsRun_cut (t := 1136) rfl (by decide) cut36_p103
+        (armsRun_drop_zero (armsRun_cut (t := 1018) rfl (by decide) cut36_p102
+        (armsRun_cut (t := 1018) rfl (by decide) cut36_p103
         (armsRun_end cut36_len228))))
         cut36_p104))
       (placeBlockN_match_at cut36_is229 cut36_p105
-        (armsRun_drop_zero (armsRun_cut (t := 1144) rfl (by decide) cut36_p106
-        (armsRun_cut (t := 1144) rfl (by decide) cut36_p107
+        (armsRun_drop_zero (armsRun_cut (t := 1026) rfl (by decide) cut36_p106
+        (armsRun_cut (t := 1026) rfl (by decide) cut36_p107
         (armsRun_end cut36_len229))))
         cut36_p108))
       (placeBlockN_match_at cut36_is230 cut36_p109
-        (armsRun_drop_zero (armsRun_cut (t := 1152) rfl (by decide) cut36_p110
-        (armsRun_cut (t := 1152) rfl (by decide) cut36_p111
+        (armsRun_drop_zero (armsRun_cut (t := 1034) rfl (by decide) cut36_p110
+        (armsRun_cut (t := 1034) rfl (by decide) cut36_p111
         (armsRun_end cut36_len230))))
         cut36_p112))
       (placeBlockN_match_at cut36_is231 cut36_p113
-        (armsRun_drop_zero (armsRun_cut (t := 1160) rfl (by decide) cut36_p114
-        (armsRun_cut (t := 1160) rfl (by decide) cut36_p115
+        (armsRun_drop_zero (armsRun_cut (t := 1042) rfl (by decide) cut36_p114
+        (armsRun_cut (t := 1042) rfl (by decide) cut36_p115
         (armsRun_end cut36_len231))))
         cut36_p116))
       (placeBlockN_match_at cut36_is232 cut36_p117
-        (armsRun_drop_zero (armsRun_cut (t := 1168) rfl (by decide) cut36_p118
-        (armsRun_cut (t := 1168) rfl (by decide) cut36_p119
+        (armsRun_drop_zero (armsRun_cut (t := 1050) rfl (by decide) cut36_p118
+        (armsRun_cut (t := 1050) rfl (by decide) cut36_p119
         (armsRun_end cut36_len232))))
         cut36_p120))
       (placeBlockN_match_at cut36_is233 cut36_p121
-        (armsRun_drop_zero (armsRun_cut (t := 1176) rfl (by decide) cut36_p122
-        (armsRun_cut (t := 1176) rfl (by decide) cut36_p123
+        (armsRun_drop_zero (armsRun_cut (t := 1058) rfl (by decide) cut36_p122
+        (armsRun_cut (t := 1058) rfl (by decide) cut36_p123
         (armsRun_end cut36_len233))))
         cut36_p124))
       (placeBlockN_match_at cut36_is234 cut36_p125
-        (armsRun_drop_zero (armsRun_cut (t := 1184) rfl (by decide) cut36_p126
-        (armsRun_cut (t := 1184) rfl (by decide) cut36_p127
+        (armsRun_drop_zero (armsRun_cut (t := 1066) rfl (by decide) cut36_p126
+        (armsRun_cut (t := 1066) rfl (by decide) cut36_p127
         (armsRun_end cut36_len234))))
         cut36_p128))
       (placeBlockN_match_at cut36_is235 cut36_p129
-        (armsRun_drop_zero (armsRun_cut (t := 1192) rfl (by decide) cut36_p130
-        (armsRun_cut (t := 1192) rfl (by decide) cut36_p131
+        (armsRun_drop_zero (armsRun_cut (t := 1074) rfl (by decide) cut36_p130
+        (armsRun_cut (t := 1074) rfl (by decide) cut36_p131
         (armsRun_end cut36_len235))))
         cut36_p132))
       (placeBlockN_match_at cut36_is236 cut36_p133
-        (armsRun_drop_zero (armsRun_cut (t := 1197) rfl (by decide) cut36_p134
+        (armsRun_drop_zero (armsRun_cut (t := 1079) rfl (by decide) cut36_p134
         (armsRun_end cut36_len236)))
         cut36_p135))
       cut36_p136)
       (placeBlockN_match_at cut36_is315 cut36_p137
-        (armsRun_drop_zero (armsRun_cut (t := 1515) rfl (by decide) cut36_p138
-        (armsRun_cut (t := 1515) rfl (by decide) cut36_p139
-        (armsRun_cut (t := 1515) rfl (by decide) cut36_p140
-        (armsRun_cut (t := 1515) rfl (by decide) cut36_p141
-        (armsRun_cut (t := 1515) rfl (by decide) cut36_p142
+        (armsRun_drop_zero (armsRun_cut (t := 1279) rfl (by decide) cut36_p138
+        (armsRun_cut (t := 1279) rfl (by decide) cut36_p139
+        (armsRun_cut (t := 1279) rfl (by decide) cut36_p140
+        (armsRun_cut (t := 1279) rfl (by decide) cut36_p141
+        (armsRun_cut (t := 1279) rfl (by decide) cut36_p142
         (armsRun_end cut36_len315)))))))
         cut36_p143))
       cut36_p144)
       (placeBlockN_match_at cut36_is319 cut36_p145
-        (armsRun_drop_zero (armsRun_cut (t := 1544) rfl (by decide) cut36_p146
-        (armsRun_cut (t := 1544) rfl (by decide) cut36_p147
-        (armsRun_cut (t := 1544) rfl (by decide) cut36_p148
+        (armsRun_drop_zero (armsRun_cut (t := 1308) rfl (by decide) cut36_p146
+        (armsRun_cut (t := 1308) rfl (by decide) cut36_p147
+        (armsRun_cut (t := 1308) rfl (by decide) cut36_p148
         (armsRun_end cut36_len319)))))
         cut36_p149))
   exact h

@@ -48,23 +48,25 @@ theorem copyLoop_totalLeOn_fs : ∀ name ∈ [name% «verify_keccak_loop0», nam
   · exact loop_totalLeOn_at (j := idx% «verify_keccak_loop2») (by decide +kernel)
       (by decide +kernel) (by decide +kernel)
 
-/-- **`keccak_plain_rounds__L6_L0`'s words at `Deployed.fs`**: `250`. -/
+/-- **`keccak_plain_rounds__L6_L0`'s words at `Deployed.fs`**: at most `250`. -/
 theorem plain0_totalLe_fs :
     TotalLe coreProgram LeanVM.Guest.Deployed.fs (plainName 0) fun _ ↦ 250 := by
   have h1 := wSB_totalLe (j := idx% «keccak_plain_rounds__L6_L0») (f :=
       "keccak_plain_rounds__L6_L0") (by decide +kernel)
-  rwa [wSB_idx (j := idx% «keccak_plain_rounds__L6_L0») (f := "keccak_plain_rounds__L6_L0")
-      (by decide +kernel),
-    show wSBJ 268 = 250 by decide +kernel] at h1
+  rw [wSB_idx (j := idx% «keccak_plain_rounds__L6_L0») (f := "keccak_plain_rounds__L6_L0")
+      (by decide +kernel)] at h1
+  have h2 : wSBJ 268 ≤ 250 := by decide +kernel
+  exact fun rd t args rets hn hv hb ↦ (h1 rd t args rets hn hv hb).trans h2
 
-/-- **`keccak_plain_rounds__L4_L1`'s words at `Deployed.fs`**: `178`. -/
+/-- **`keccak_plain_rounds__L4_L1`'s words at `Deployed.fs`**: at most `178`. -/
 theorem plain1_totalLe_fs :
     TotalLe coreProgram LeanVM.Guest.Deployed.fs (plainName 1) fun _ ↦ 178 := by
   have h1 := wSB_totalLe (j := idx% «keccak_plain_rounds__L4_L1») (f :=
       "keccak_plain_rounds__L4_L1") (by decide +kernel)
-  rwa [wSB_idx (j := idx% «keccak_plain_rounds__L4_L1») (f := "keccak_plain_rounds__L4_L1")
-      (by decide +kernel),
-    show wSBJ 270 = 178 by decide +kernel] at h1
+  rw [wSB_idx (j := idx% «keccak_plain_rounds__L4_L1») (f := "keccak_plain_rounds__L4_L1")
+      (by decide +kernel)] at h1
+  have h2 : wSBJ 270 ≤ 178 := by decide +kernel
+  exact fun rd t args rets hn hv hb ↦ (h1 rd t args rets hn hv hb).trans h2
 
 namespace VkData
 

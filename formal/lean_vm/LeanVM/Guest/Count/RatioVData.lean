@@ -36,12 +36,12 @@ def krVbgC (i : ℕ) : List ℕ := (krVbgCL.lookup i).getD []
 
 /-- `verify_bus_gkr`'s ratios, in thousandths. -/
 def krVbgA : Opcode → ℕ
-  | .xor => 149
+  | .xor => 188
   | .mulNative => 648
   | .setConstant => 286
-  | .deref => 341
+  | .deref => 421
   | .jump => 143
-  | .keccak => 19
+  | .keccak => 24
 
 /-! ## `verify_keccak` -/
 
@@ -64,12 +64,12 @@ def krVkC (i : ℕ) : List ℕ := (krVkCL.lookup i).getD []
 
 /-- `verify_keccak`'s ratios, in thousandths. -/
 def krVkA : Opcode → ℕ
-  | .xor => 250
+  | .xor => 282
   | .mulNative => 648
   | .setConstant => 236
   | .deref => 300
   | .jump => 118
-  | .keccak => 24
+  | .keccak => 33
 
 /-! ## `__loop14` -/
 

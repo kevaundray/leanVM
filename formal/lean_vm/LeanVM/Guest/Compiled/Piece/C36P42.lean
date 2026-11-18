@@ -22,12 +22,12 @@ open LeanVM.Core LeanVM.Compiler
 @[expose] public section
 
 kernel_rfl cut36_p83 :
-    armsRunN ((armsOf ((guestTraced.getD 36 default).core.body.getD 223 default)).drop 115) 115 (armsOf ((guestTraced.getD 36 default).core.body.getD 223 default)).length 1090
-      (⟨1019, 1080, 6294, none, (ArmExit.next 1020 6550 101 58), 1090, 101, 58⟩ : MatchHead).exit 141 ctx36 cut36_83 =
-      .ok ((cut36_84_b, 1096), cut36_84)
+    armsRunN ((armsOf ((guestTraced.getD 36 default).core.body.getD 223 default)).drop 115) 115 (armsOf ((guestTraced.getD 36 default).core.body.getD 223 default)).length 972
+      (⟨901, 962, 6294, none, (ArmExit.next 902 6550 101 58), 972, 101, 58⟩ : MatchHead).exit 141 ctx36 cut36_83 =
+      .ok ((cut36_84_b, 978), cut36_84)
 
 kernel_rfl cut36_p84 :
-    matchPost (⟨1019, 1080, 6294, none, (ArmExit.next 1020 6550 101 58), 1090, 101, 58⟩ : MatchHead) (cut36_83_b ++ (cut36_84_b ++ [])) 1096 ctx36 cut36_84 =
+    matchPost (⟨901, 962, 6294, none, (ArmExit.next 902 6550 101 58), 972, 101, 58⟩ : MatchHead) (cut36_83_b ++ (cut36_84_b ++ [])) 978 ctx36 cut36_84 =
       .ok ((), cut36_85)
 
 theorem cut36_is224 : isMatchAt (guestTraced.getD 36 default).core.body 224 = true := by decide +kernel
@@ -37,7 +37,7 @@ theorem cut36_len224 : (armsOf ((guestTraced.getD 36 default).core.body.getD 224
 
 kernel_rfl cut36_p85 :
     matchPre (selOf ((guestTraced.getD 36 default).core.body.getD 224 default)) (armsOf ((guestTraced.getD 36 default).core.body.getD 224 default)).length ((guestTraced.getD 36 default).core.body.drop 225) ctx36 cut36_85 =
-      .ok ((⟨1020, 1080, 6550, none, (ArmExit.next 1021 6806 101 58), 1098, 101, 58⟩ : MatchHead), cut36_86)
+      .ok ((⟨902, 962, 6550, none, (ArmExit.next 903 6806 101 58), 980, 101, 58⟩ : MatchHead), cut36_86)
 
 end
 end LeanVM.Guest.Compiled.GuestPiece

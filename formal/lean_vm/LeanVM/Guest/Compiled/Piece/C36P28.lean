@@ -40,7 +40,7 @@ theorem cut36_len172 : (armsOf ((guestTraced.getD 36 default).core.body.getD 172
 
 kernel_rfl cut36_p61 :
     matchPre (selOf ((guestTraced.getD 36 default).core.body.getD 172 default)) (armsOf ((guestTraced.getD 36 default).core.body.getD 172 default)).length ((guestTraced.getD 36 default).core.body.drop 173) ctx36 cut36_61 =
-      .ok ((⟨74, 748, 5526, (some ([], 749)), (ArmExit.join 748 101 58), 750, 101, 58⟩ : MatchHead), cut36_62)
+      .ok ((⟨74, 630, 5526, (some ([], 631)), (ArmExit.join 630 101 58), 632, 101, 58⟩ : MatchHead), cut36_62)
 
 end
 end LeanVM.Guest.Compiled.GuestPiece

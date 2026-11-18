@@ -339,13 +339,13 @@ theorem kwL1_loopRunLe : LoopRunLe Deployed.fs "__loop0" 18 :=
 theorem kwL2_loopRunLe : LoopRunLe Deployed.fs "__loop1" 18 :=
   kw_loopRunLe_of (by rw [wcertOf_of_idx (j := 35) (by decide +kernel)]; rfl : wcertOf "__loop1" = .loop none [] ⟨18, []⟩ [])
 
-/-- **`__loop2`**: at most 1551 words per iteration and its run's phantom frame. -/
-theorem kwL3_loopRunLe : LoopRunLe Deployed.fs "__loop2" 1551 :=
-  kw_loopRunLe_of (by rw [wcertOf_of_idx (j := 36) (by decide +kernel)]; rfl : wcertOf "__loop2" = .loop none [] ⟨1551, []⟩ [])
+/-- **`__loop2`**: at most 1315 words per iteration and its run's phantom frame. -/
+theorem kwL3_loopRunLe : LoopRunLe Deployed.fs "__loop2" 1315 :=
+  kw_loopRunLe_of (by rw [wcertOf_of_idx (j := 36) (by decide +kernel)]; rfl : wcertOf "__loop2" = .loop none [] ⟨1315, []⟩ [])
 
-/-- **`__loop3`**: at most 8582 words per iteration and its run's phantom frame. -/
-theorem kwL4_loopRunLe : LoopRunLe Deployed.fs "__loop3" 8582 :=
-  kw_loopRunLe_of (by rw [wcertOf_of_idx (j := 37) (by decide +kernel)]; rfl : wcertOf "__loop3" = .loop none [] ⟨8582, []⟩ [])
+/-- **`__loop3`**: at most 7265 words per iteration and its run's phantom frame. -/
+theorem kwL4_loopRunLe : LoopRunLe Deployed.fs "__loop3" 7265 :=
+  kw_loopRunLe_of (by rw [wcertOf_of_idx (j := 37) (by decide +kernel)]; rfl : wcertOf "__loop3" = .loop none [] ⟨7265, []⟩ [])
 
 end
 end LeanVM.Guest.Count
