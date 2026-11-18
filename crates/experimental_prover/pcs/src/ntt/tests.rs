@@ -94,6 +94,7 @@ fn interleaved_parallel_matches_scalar() {
     //     (12, 2048, 1)           two gathered passes, with streaming stores
     //     (18, 48, 1)             one gathered pass whose groups drain a line at a time
     //     (20, 9, 1)              streaming stores, rows that are not whole cache lines
+    //     (12, 36, 1)             rows ending in a quad, which a sweep takes several at a time
     //
     // A non-zero start is the commit path, which enters at the rate layer.
     let mut rng = Rng::new(0xC0FFEE);
@@ -109,6 +110,7 @@ fn interleaved_parallel_matches_scalar() {
         (12, 2048, 1),
         (18, 48, 1),
         (20, 9, 1),
+        (12, 36, 1),
     ] {
         let ntt = AdditiveNttF64::standard(log_d);
         let original: Vec<F64> = (0..lanes << log_d).map(|_| F64(rng.next_u64())).collect();

@@ -15,6 +15,24 @@ pub(crate) const ROW_LANES: usize = 4;
 #[cfg(not(all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "avx2")))]
 pub(crate) const ROW_LANES: usize = 8;
 
+/// Lanes a sweep's kernel takes at once: a row of a multiple of them leaves it no partial chunk.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+const SWEEP_LANES: usize = 8 * LANE_VECTORS;
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "pclmulqdq",
+    target_feature = "avx2",
+    not(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))
+))]
+const SWEEP_LANES: usize = 4 * avx2::LANE_VECTORS;
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+const SWEEP_LANES: usize = 8;
+#[cfg(not(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "avx2")
+)))]
+const SWEEP_LANES: usize = 1;
+
 /// Visit every row group of a fused multi-layer block.
 ///
 /// ```text
@@ -31,6 +49,8 @@ pub(crate) const ROW_LANES: usize = 8;
 /// - Each slab hands out its rows in turn, so the groups are disjoint without any pointer arithmetic.
 /// - A source, when given, is a separate buffer of the block's length, cut the same way.
 /// - With no source, a group is read in place.
+/// - Adjacent rows of a slab are independent lanes under the same twiddles, so a group takes as many of them
+///   together as make its rows whole chunks of [`SWEEP_LANES`], where the slab's height allows.
 #[inline(always)]
 fn fused_rows<const N: usize>(
     block: &mut [F64],
@@ -39,6 +59,12 @@ fn fused_rows<const N: usize>(
     num_ntts: usize,
     do_one: impl Fn(Option<[&[F64]; N]>, &mut [&mut [F64]; N]),
 ) {
+    let (stride_rows, num_ntts) = if num_ntts.is_multiple_of(SWEEP_LANES) {
+        (stride_rows, num_ntts)
+    } else {
+        let log_merge = (SWEEP_LANES.trailing_zeros() - num_ntts.trailing_zeros()).min(stride_rows.trailing_zeros());
+        (stride_rows >> log_merge, num_ntts << log_merge)
+    };
     // Words from one slab to the next.
     let stride = stride_rows * num_ntts;
     let len = block.len();
@@ -792,9 +818,9 @@ mod avx2 {
     /// Four-lane vectors of every row that a register kernel keeps in flight: two as on AVX-512, but one with
     /// 128-bit multiplies, where a vector's four products already hide each other's latency.
     #[cfg(target_feature = "vpclmulqdq")]
-    const LANE_VECTORS: usize = 2;
+    pub(super) const LANE_VECTORS: usize = 2;
     #[cfg(not(target_feature = "vpclmulqdq"))]
-    const LANE_VECTORS: usize = 1;
+    pub(super) const LANE_VECTORS: usize = 1;
 
     /// A broadcast twiddle, and whether it is zero: the butterfly is then `v' = v + u`, with no product.
     pub(super) type Twiddle = (__m256i, bool);
