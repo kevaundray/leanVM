@@ -17,8 +17,8 @@
 # prints it. The exit code is 0 when every case gives the crate's answer.
 #
 # Needs cargo and rustc with the target `x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl` (the harness is
-# static, linked by rustc's own `rust-lld`, so no C toolchain or sysroot of the target), clang to assemble, and for
-# AArch64 on another host `qemu-aarch64-static` (or $QEMU_AARCH64) on the PATH.
+# static, linked by rustc's own `rust-lld`, so no C toolchain or sysroot of the target), clang and its `llvm-objcopy`
+# to assemble, and for AArch64 on another host `qemu-aarch64-static` (or $QEMU_AARCH64) on the PATH.
 #
 # `reference/` (a Cargo project of its own) writes the cases: EthLib's verify vectors, fresh keys and signatures, and
 # signatures changed in one place (a flipped bit in the message, the public key, the randomizer, a chain value, a path
@@ -107,6 +107,10 @@ for scheme in "${schemes[@]}"; do
   fi
   echo "assembling $asm"
   clang --target="$triple" -c -o "$out/$scheme.o" "$asm"
+  # Only the entry point stays global: rustc's assembly (`rustc/build.sh`) also defines its own copy of std's symbols,
+  # which the harness's std defines too.
+  entry=${scheme/#vm/leanvm}_verify
+  "$(clang --print-prog-name=llvm-objcopy)" --keep-global-symbol="$entry" "$out/$scheme.o"
   link+=(--cfg "$scheme" -C "link-arg=$out/$scheme.o")
 done
 
