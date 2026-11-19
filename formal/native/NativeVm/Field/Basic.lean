@@ -252,27 +252,31 @@ macro_rules
       apply WP.blk_cons
       apply WP.ins'
       simp only [QInstr.step, QState.setReg_reg, QState.setReg_mem, QState.setMem_reg,
+        QState.setReg_scr, QState.setMem_scr, QState.setScr_reg, QState.setScr_mem,
         reduceCtorEq, ite_false, ite_true, ↓reduceIte, int64Lit_toUInt64, natLit_toUInt64,
         natOne_toUInt64, int64Zero_toUInt64, int64One_toUInt64, Nat.reduceMod]))
   | `(tactic| fstep [$ls,*]) => `(tactic| (
       apply WP.blk_cons
       apply WP.ins'
       simp only [QInstr.step, QState.setReg_reg, QState.setReg_mem, QState.setMem_reg,
+        QState.setReg_scr, QState.setMem_scr, QState.setScr_reg, QState.setScr_mem,
         reduceCtorEq, ite_false, ite_true, ↓reduceIte, int64Lit_toUInt64, natLit_toUInt64,
         natOne_toUInt64, int64Zero_toUInt64, int64One_toUInt64, Nat.reduceMod, $ls,*]))
 
 /-- End a block, reading registers back through the updates. -/
 macro "fdone" : tactic => `(tactic| (
   apply WP.blk_nil
-  try simp only [QState.setReg_reg, QState.setReg_mem, QState.setMem_reg, reduceCtorEq,
-    ite_false, ite_true, ↓reduceIte]))
+  try simp only [QState.setReg_reg, QState.setReg_mem, QState.setMem_reg, QState.setReg_scr,
+    QState.setMem_scr, QState.setScr_reg, QState.setScr_mem, reduceCtorEq, ite_false, ite_true,
+    ↓reduceIte]))
 
 /-- Read registers back through updates. -/
 syntax "rsimp" (Lean.Parser.Tactic.location)? : tactic
 
 macro_rules
   | `(tactic| rsimp $[$loc]?) => `(tactic| (
-      simp only [QState.setReg_reg, QState.setReg_mem, QState.setMem_reg, reduceCtorEq,
+      simp only [QState.setReg_reg, QState.setReg_mem, QState.setMem_reg, QState.setReg_scr,
+        QState.setMem_scr, QState.setScr_reg, QState.setScr_mem, reduceCtorEq,
         ite_false, ite_true, ↓reduceIte, int64Lit_toUInt64, natLit_toUInt64, natOne_toUInt64,
         int64Zero_toUInt64,
         int64One_toUInt64] $[$loc]?))
@@ -282,6 +286,18 @@ theorem WP.then {s : QState} {P E : QState → Prop} {x : Stmt} {xs : List Stmt}
     {Q : QState → Prop} (h : WP x s Q E) (k : ∀ s₁, Q s₁ → WP (blk xs) s₁ P E) :
     WP (blk (x :: xs)) s P E :=
   WP.blk_cons (WP.mono h k fun _ h ↦ h)
+
+/-- An `sload` at the head of a block, its index below `16`. -/
+theorem WP.sload_cons {s : QState} {P E : QState → Prop} {d i : Reg64} {xs : List Stmt}
+    (hi : s.reg i < 16) (h : WP (blk xs) (s.setReg d (s.scr (s.reg i).toNat)) P E) :
+    WP (blk (I (.sload d i) :: xs)) s P E :=
+  WP.blk_cons (WP.ins (by simp only [QInstr.step, hi, ↓reduceIte]) h)
+
+/-- An `sstore` at the head of a block. -/
+theorem WP.sstore_cons {s : QState} {P E : QState → Prop} {k : Nat} {r : Reg64} {xs : List Stmt}
+    (hk : k < 16) (h : WP (blk xs) (s.setScr k (s.reg r)) P E) :
+    WP (blk (I (.sstore k r) :: xs)) s P E :=
+  WP.blk_cons (WP.ins (by simp only [QInstr.step, hk, ↓reduceIte]) h)
 
 theorem isSome_setMem {s : QState} {a : UInt64} (h : (s.mem a).isSome) (b v : UInt64) :
     ((s.setMem b v).mem a).isSome := by
@@ -311,10 +327,16 @@ theorem RegsFrame.setReg {l : List Reg64} {s s' : QState} (h : RegsFrame l s s')
     exact absurd hr hr'
   · exact h r' hr'
 
-/-- Peel register updates off a `RegsFrame` goal, each register written in the frame. -/
+/-- A frame survives a scratch word's update. -/
+theorem RegsFrame.setScr {l : List Reg64} {s s' : QState} (h : RegsFrame l s s') (k : Nat)
+    (v : UInt64) : RegsFrame l s (s'.setScr k v) := h
+
+/-- Peel register and scratch updates off a `RegsFrame` goal, each register written in the
+frame. -/
 macro "rf_tac" : tactic => `(tactic| (
   repeat (first
     | with_reducible refine RegsFrame.setReg ?_ (by simp) _
+    | with_reducible refine RegsFrame.setScr ?_ _ _
     | exact RegsFrame.refl _ _)))
 
 end NativeVm.Field

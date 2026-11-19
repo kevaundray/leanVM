@@ -349,18 +349,51 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
 
 /-! ## The program -/
 
-/-- The return move, run from a machine holding `s'` after a run from `m` that kept the reserved
-registers, leaves what `Exits` says. -/
-theorem exits_of {w : Reg64 → Bool} {s s' : QState} {m m₁ : MachineData} (hR : StateRel s m)
-    (hr : StateRel s' m₁) (hk : Keeps m m₁) (hframe : ∀ r, w r = false → s'.reg r = s.reg r) :
-    Runs [movRetI] m₁ (Exits w s' m) := by
-  refine Runs.orr (Runs.nil ⟨?_, fun r hr0 => ?_, hr.2, fun x hx0 hxs hxw => ?_, ?_⟩)
+/-- `m` with SP set to `v`. -/
+@[expose] def _root_.MachineData.setSP (m : MachineData) (v : UInt64) : MachineData :=
+  { m with regs := { m.regs with SP := v } }
+
+omit [Host] in
+@[simp] theorem getXReg_setSP (m : MachineData) (v : UInt64) (x : XReg) :
+    (m.setSP v).regs.getXReg x = m.regs.getXReg x := by
+  cases x <;> rfl
+
+theorem Runs.sub_sp {is : List Instr} {m : MachineData} {Q : MachineData → Prop}
+    (h : Runs is (m.setSP (m.regs.SP - 128)) Q) : Runs (subSP :: is) m Q := by
+  refine Runs.step (fun p next jmp => ?_) h
+  simp only [Compile.subSP, Instr.interp, Operation.interp, ExtOrImmReg.interp, ConstExpr.interp,
+    MachineData.setRegOrSp, getRegOrSp_sp, RegWidth.bits, MemWidth.bits, ofInt_toInt64]
+  rfl
+
+theorem Runs.add_sp {is : List Instr} {m : MachineData} {Q : MachineData → Prop}
+    (h : Runs is (m.setSP (m.regs.SP + 128)) Q) : Runs (addSP :: is) m Q := by
+  refine Runs.step (fun p next jmp => ?_) h
+  simp only [Compile.addSP, Instr.interp, Operation.interp, ExtOrImmReg.interp, ConstExpr.interp,
+    MachineData.setRegOrSp, getRegOrSp_sp, RegWidth.bits, MemWidth.bits, ofInt_toInt64]
+  rfl
+
+omit [Host] in
+/-- After `SUB SP, SP, #128`, the machine at entry holds `s` with the scratch bank at SP. -/
+theorem EntryRel.enter {s : QState} {m : MachineData} (hR : EntryRel s m) :
+    StateRel s (m.setSP (m.regs.SP - 128)) :=
+  ⟨fun r => by rw [getXReg_setSP]; exact hR.1 r, hR.2.1, hR.2.2⟩
+
+/-- `ADD SP, SP, #128` and the return move, run from a machine holding `s'` after a run from the
+entry machine `m` that kept the reserved registers past the prologue, leave what `Exits` says. -/
+theorem exits_of {w : Reg64 → Bool} {s s' : QState} {m m₁ : MachineData} (hR : EntryRel s m)
+    (hr : StateRel s' m₁) (hk : Keeps (m.setSP (m.regs.SP - 128)) m₁)
+    (hframe : ∀ r, w r = false → s'.reg r = s.reg r) :
+    Runs [addSP, movRetI] m₁ (Exits w s' m) := by
+  refine Runs.add_sp (Runs.orr (Runs.nil ⟨?_, fun r hr0 => ?_, hr.2.1, fun x hx0 hxs hxw => ?_, ?_⟩))
   · simp [← hr.get .rax, Reg64.toX]
   · have : r.toX ≠ .X0 := fun e => hr0 (toX_inj (e.trans rfl))
     simp [this, hr.get]
   · simp only [setX_regs, getXReg_setXReg, hx0, ite_false]
+    rw [show (m₁.setSP (m₁.regs.SP + 128)).regs.getXReg x = m₁.regs.getXReg x from
+      getXReg_setSP _ _ _]
     cases hq : ofX x with
-    | none => exact hk.1 x (reserved_of_ofX hq hxs)
+    | none =>
+      rw [hk.1 x (reserved_of_ofX hq hxs), getXReg_setSP]
     | some q =>
       have hqx := toX_ofX hq
       subst hqx
@@ -368,14 +401,18 @@ theorem exits_of {w : Reg64 → Bool} {s s' : QState} {m m₁ : MachineData} (hR
         cases hwq : w q
         · rfl
         · exact absurd rfl (hxw q hwq)
-      rw [hr.get, hR.get, hframe q hwq]
-  · simp [hk.2]
+      rw [hr.get, hR.1, hframe q hwq]
+  · simp only [setX_regs, SP_setXReg]
+    show m₁.regs.SP + 128 = m.regs.SP
+    rw [hk.2]
+    show m.regs.SP - 128 + 128 = m.regs.SP
+    exact UInt64.sub_add_cancel _ _
 
 /-- From the entry of a compiled program, in any layout, the machine inevitably reaches the body's
 `RET` holding what `Exits` says of the state `Exec` ends with, or, when the body fails, the failure
 handler's `RET` holding what it says of the state the handler ends with. -/
 theorem program_correct {body onFail : Stmt} (hP : Host.prog = program body onFail)
-    {s : QState} {o : Outcome} {m : MachineData} (hE : Exec body s o) (hR : StateRel s m)
+    {s : QState} {o : Outcome} {m : MachineData} (hE : Exec body s o) (hR : EntryRel s m)
     (hFail : ∀ s₁, o = .err s₁ → ∃ s₂, Exec onFail s₁ (.ok s₂)) :
     Eventually (step1 Host.exe)
       (fun st => (∃ s₁, o = .ok s₁ ∧ Exits body.writes s₁ m st.data ∧
@@ -393,18 +430,25 @@ theorem program_correct {body onFail : Stmt} (hP : Host.prog = program body onFa
   obtain ⟨h4, hret⟩ := h3.append
   obtain ⟨hrun, hcb⟩ := h4.append
   have hL0 : Host.prog[0]? = some (.label "qm_entry") := infixGet hrun (i := 0) rfl rfl
-  have hLf : Host.prog[3 + (code body 0).1.length]? = some (.label "qm_fail") :=
+  have hsub : (ins [subSP]).IsInfixAt Host.prog 1 := infix_single (infixGet hrun (i := 1) rfl rfl)
+  have hLf : Host.prog[5 + (code body 0).1.length]? = some (.label "qm_fail") :=
     infixGet hfl (i := 0) rfl (by simp; omega)
   rw [← addrOf_label hL0]
-  refine eventually_trans _ _ _ _ (code_correct hD hE (infixAt hcb (by simp)) hR) ?_
-  rintro ⟨d, pc⟩ hl
+  refine eventually_trans _ _ _ _ (step_block hsub (Runs.sub_sp
+    (Runs.nil (Q := fun d ↦ d = m.setSP (m.regs.SP - 128) ∧ StateRel s d)
+      ⟨rfl, EntryRel.enter hR⟩))) ?_
+  rintro ⟨d, pc⟩ ⟨rfl, rfl, hr0⟩
+  refine eventually_trans _ _ _ _ (code_correct hD hE (infixAt hcb (by simp)) hr0) ?_
+  rintro ⟨d', pc'⟩ hl
   cases o with
   | ok s₁ =>
     obtain ⟨hk1, hr1, rfl⟩ := hl
-    have hmv : (ins [movRetI]).IsInfixAt Host.prog (1 + (code body 0).1.length) :=
-      infix_single (infixGet hret (i := 0) rfl (by simp; omega))
+    have hmv : (ins [addSP, movRetI]).IsInfixAt Host.prog (2 + (code body 0).1.length) :=
+      infixAt (show (ins [addSP, movRetI] ++ [ret]).IsInfixAt _ _ from hret).append.1
+        (by simp; omega)
     refine eventually_weaken _ _ _ _ ?_
-      (step_block hmv (exits_of (w := body.writes) hR hr1 hk1 fun r hr => (hE.reg_frame hr :)))
+      (step_block (infixAt hmv (by simp))
+        (exits_of (w := body.writes) hR hr1 hk1 fun r hr => (hE.reg_frame hr :)))
     rintro st ⟨hpc, hx⟩
     refine Or.inl ⟨s₁, rfl, hx, ?_⟩
     rw [hpc]
@@ -415,12 +459,14 @@ theorem program_correct {body onFail : Stmt} (hP : Host.prog = program body onFa
     obtain ⟨s₂, hE₂⟩ := hFail s₁ rfl
     rw [label_eq hD hLf, ← addrOf_label hLf]
     refine eventually_trans _ _ _ _ (code_correct hD hE₂ (infixAt hcf (by simp; omega)) hr1) ?_
-    rintro ⟨d', pc'⟩ ⟨hk2, hr2, rfl⟩
-    have hmv : (ins [movRetI]).IsInfixAt Host.prog
-        (3 + (code body 0).1.length + 1 + (code onFail (code body 0).2).1.length) :=
-      infix_single (infixGet hretF (i := 0) rfl (by simp; omega))
+    rintro ⟨d'', pc''⟩ ⟨hk2, hr2, rfl⟩
+    have hmv : (ins [addSP, movRetI]).IsInfixAt Host.prog
+        (6 + (code body 0).1.length + (code onFail (code body 0).2).1.length) :=
+      infixAt (show (ins [addSP, movRetI] ++ [ret]).IsInfixAt _ _ from hretF).append.1
+        (by simp; omega)
     refine eventually_weaken _ _ _ _ ?_
-      (step_block hmv (exits_of (w := fun r => body.writes r || onFail.writes r) hR hr2
+      (step_block (infixAt hmv (by simp; omega))
+        (exits_of (w := fun r => body.writes r || onFail.writes r) hR hr2
         (hk1.trans hk2) fun r hr => by
         simp only [Bool.or_eq_false_iff] at hr
         exact (hE₂.reg_frame hr.2 :).trans (hE.reg_frame hr.1 :)))

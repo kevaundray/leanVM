@@ -147,4 +147,19 @@ theorem Exec.det {c : Stmt} {s : QState} {o o' : Outcome} (h : Exec c s o) (h' :
     (s.setMem a v).mem a' = if a' = a then some v else s.mem a' := by
   simp [QState.setMem, Function.update_apply]
 
+@[simp] theorem QState.setReg_scr (s : QState) (r : Reg64) (v : UInt64) :
+    (s.setReg r v).scr = s.scr := rfl
+
+@[simp] theorem QState.setMem_scr (s : QState) (a v : UInt64) : (s.setMem a v).scr = s.scr := rfl
+
+@[simp] theorem QState.setScr_reg (s : QState) (k : Nat) (v : UInt64) :
+    (s.setScr k v).reg = s.reg := rfl
+
+@[simp] theorem QState.setScr_mem (s : QState) (k : Nat) (v : UInt64) :
+    (s.setScr k v).mem = s.mem := rfl
+
+@[simp] theorem QState.setScr_scr (s : QState) (k : Nat) (v : UInt64) (k' : Nat) :
+    (s.setScr k v).scr k' = if k' = k then v else s.scr k' := by
+  simp [QState.setScr, Function.update_apply]
+
 end Native

@@ -90,7 +90,7 @@ theorem int64_ofUInt64_toUInt64 (x : UInt64) : (Int64.ofUInt64 x).toUInt64 = x :
 /-- The stores of `A` at `d`. -/
 theorem stA_spec {d : Nat} {xs : List Stmt} {P : QState → Prop} (h14 : s.reg .r14 = w)
     (hd : d + 1 < 2 ^ 61) (h0 : (s.mem (wd w d)).isSome) (h1 : (s.mem (wd w (d + 1))).isSome)
-    (k : WP (blk xs) ⟨s.reg, updE s.mem w d ⟨s.reg .r9, s.reg .r10⟩⟩ P E) :
+    (k : WP (blk xs) ⟨s.reg, updE s.mem w d ⟨s.reg .r9, s.reg .r10⟩, s.scr⟩ P E) :
     WP (blk (stA d ++ xs)) s P E := by
   unfold stA
   refine wp_store (by rw [Transcript.eval_at, h14, wdisp_toUInt64]; rfl) h0 ?_
@@ -143,7 +143,7 @@ theorem opMul_spec {a b d : Nat} {x y : EW} (h14 : s.reg .r14 = w) (ha : EWAt s.
     rfl
   · intro r hr
     have hr' : r ∉ eRegs := fun m ↦ hr ((show eRegs ⊆ opRegs by decide) m)
-    rw [show ({ reg := t.reg, mem := _ } : QState).reg r = t.reg r from rfl, e3 r hr']
+    rw [show ({ reg := t.reg, mem := _, scr := _ } : QState).reg r = t.reg r from rfl, e3 r hr']
     simp only [opRegs, List.mem_cons, List.not_mem_nil, or_false, not_or] at hr
     obtain ⟨-, -, -, -, -, h9, h10, h11, h12⟩ := hr
     rsimp

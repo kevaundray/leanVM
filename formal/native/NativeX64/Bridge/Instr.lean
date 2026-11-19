@@ -75,125 +75,141 @@ local macro "kunfold" hr:term : tactic => `(tactic|
 /-- An instruction run from a related state ends at the next address in a state related to the one
 `QInstr.step` gives, whatever Kraken leaves undefined. -/
 theorem QInstr.toInstr_correct (i : QInstr) {s s' : QState} {m : MachineData}
-    (h : i.step s = some s') (hr : StateRel s m) (p : Std.Rco Int64) (a : Int64) :
+    (h : i.step s = some s') (hr : StateRel s m) (hsp : decide (i.dst = some .rsp) = false)
+    (p : Std.Rco Int64) (a : Int64) :
     (Instr.interp i.toInstr m p (fun m' => .done ⟨m', a⟩) (fun t m' => .done ⟨m', t⟩)).All
       (fun st => st.pc = a ∧ StateRel s' st.data) := by
+  have hd : ∀ d, i.dst = some d → d ≠ .rsp := fun d h e => by subst e; simp [h] at hsp
   cases i with
   | mov d r =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg d _⟩
+    exact ⟨trivial, hr.setReg d (hd d rfl) _⟩
   | movi d k =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg d _⟩
+    exact ⟨trivial, hr.setReg d (hd d rfl) _⟩
   | load d ad =>
     simp only [QInstr.step, Option.map_eq_some_iff] at h
     obtain ⟨v, hv, rfl⟩ := h
     kunfold hr
-    rw [Addr.interp_eq ad hr p, load_All hr.2 hv]
-    exact ⟨rfl, hr.setReg d _⟩
+    rw [Addr.interp_eq ad hr p, load_All hr.2.1 hv]
+    exact ⟨rfl, hr.setReg d (hd d rfl) _⟩
   | store ad r =>
     simp only [QInstr.step, Option.map_eq_some_iff] at h
     obtain ⟨v, hv, rfl⟩ := h
     kunfold hr
-    rw [Addr.interp_eq ad hr p, store_All hr.2 hv]
+    rw [Addr.interp_eq ad hr p, store_All hr.2.1 hv]
     exact ⟨rfl, hr.store hv _⟩
   | storei ad k =>
     simp only [QInstr.step, Option.map_eq_some_iff] at h
     obtain ⟨v, hv, rfl⟩ := h
     kunfold hr
-    rw [Addr.interp_eq ad hr p, store_All hr.2 hv]
+    rw [Addr.interp_eq ad hr p, store_All hr.2.1 hv]
     exact ⟨rfl, hr.store hv _⟩
   | lea d ad =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg' d (Addr.interp_eq ad hr p)⟩
+    exact ⟨trivial, hr.setReg' d (hd d rfl) (Addr.interp_eq ad hr p)⟩
   | add d r =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_add, BitVec.add_comm])⟩
+    exact ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_add, BitVec.add_comm])⟩
   | addi d k =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_add, BitVec.add_comm])⟩
+    exact ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_add, BitVec.add_comm])⟩
   | sub d r =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_sub])⟩
+    exact ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_sub])⟩
   | subi d k =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_sub])⟩
+    exact ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_sub])⟩
   | xor d r =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact fun _ => ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_xor])⟩
+    exact fun _ => ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_xor])⟩
   | xori d k =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact fun _ => ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_xor])⟩
+    exact fun _ => ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_xor])⟩
   | and d r =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact fun _ => ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_and])⟩
+    exact fun _ => ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_and])⟩
   | andi d k =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact fun _ => ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_and])⟩
+    exact fun _ => ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_and])⟩
   | or d r =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact fun _ => ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_or])⟩
+    exact fun _ => ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_or])⟩
   | not d =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_not])⟩
+    exact ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_not])⟩
   | neg d =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
-    exact ⟨trivial, hr.setReg' d (by rw [UInt64.toBitVec_sub]; simp)⟩
+    exact ⟨trivial, hr.setReg' d (hd d rfl) (by rw [UInt64.toBitVec_sub]; simp)⟩
   | shli d n =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
     rw [imm8_count]
     split
     · rename_i h0; simp only [beq_iff_eq] at h0
-      exact ⟨rfl, hr.setReg' d (by rw [shl_val, h0]; simp)⟩
-    · kleaves hr.setReg' d (shl_val _ _).symm
+      exact ⟨rfl, hr.setReg' d (hd d rfl) (by rw [shl_val, h0]; simp)⟩
+    · kleaves hr.setReg' d (hd d rfl) (shl_val _ _).symm
   | shri d n =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
     rw [imm8_count]
     split
     · rename_i h0; simp only [beq_iff_eq] at h0
-      exact ⟨rfl, hr.setReg' d (by rw [shr_val, h0]; simp)⟩
-    · kleaves hr.setReg' d (shr_val _ _).symm
+      exact ⟨rfl, hr.setReg' d (hd d rfl) (by rw [shr_val, h0]; simp)⟩
+    · kleaves hr.setReg' d (hd d rfl) (shr_val _ _).symm
   | sari d n =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
     rw [imm8_count]
     split
     · rename_i h0; simp only [beq_iff_eq] at h0
-      exact ⟨rfl, hr.setReg' d (by rw [h0]; simp)⟩
-    · kleaves hr.setReg' d rfl
+      exact ⟨rfl, hr.setReg' d (hd d rfl) (by rw [h0]; simp)⟩
+    · kleaves hr.setReg' d (hd d rfl) rfl
   | roli d n =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
     rw [imm8_count]
     split
     · rename_i h0; simp only [beq_iff_eq] at h0
-      exact ⟨rfl, hr.setReg' d (by
+      exact ⟨rfl, hr.setReg' d (hd d rfl) (by
         rw [h0]; simp [BitVec.rotateLeft, BitVec.rotateLeftAux, BitVec.ushiftRight_eq_zero])⟩
-    · kleaves hr.setReg' d rfl
+    · kleaves hr.setReg' d (hd d rfl) rfl
   | shlcl d =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     kunfold hr
     rw [cl_count hr]
     split
     · rename_i h0; simp only [beq_iff_eq] at h0
-      exact ⟨rfl, hr.setReg' d (by rw [shlcl_val, h0]; simp)⟩
-    · kleaves hr.setReg' d (shlcl_val _ _).symm
+      exact ⟨rfl, hr.setReg' d (hd d rfl) (by rw [shlcl_val, h0]; simp)⟩
+    · kleaves hr.setReg' d (hd d rfl) (shlcl_val _ _).symm
+  | sload d i =>
+    simp only [QInstr.step, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    obtain ⟨hi, rfl⟩ := h
+    kunfold hr
+    rw [Addr.interp_eq (bankIdx i) hr p, bankIdx_eval s i hi,
+      load_All hr.2.2.1 (bankAt_slot s.scr _ (UInt64.lt_iff_toNat_lt.mp hi))]
+    exact ⟨rfl, hr.setReg d (hd d rfl) _⟩
+  | sstore k r =>
+    simp only [QInstr.step, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    obtain ⟨hk, rfl⟩ := h
+    kunfold hr
+    rw [Addr.interp_eq (bankSlot k) hr p, bankSlot_eval s hk,
+      store_All hr.2.2.1 (bankAt_slot s.scr _ hk)]
+    exact ⟨rfl, hr.setScr hk _⟩
 
 /-! ## Conditions -/
 

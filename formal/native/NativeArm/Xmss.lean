@@ -29,7 +29,7 @@ open Native.XmssVerifier
 /-- **leanXMSS verification is correct on AArch64.** -/
 theorem verify_correct [Host] (hP : Host.prog = Compile.program body onFail)
     {pk : HashSig.PublicKey} {msg : HashSig.Message} {sig : LeanXmss.Signature}
-    {base : UInt64} {s : QState} {m : MachineData} (hR : StateRel s m) (hrdi : s.reg .rdi = base)
+    {base : UInt64} {s : QState} {m : MachineData} (hR : EntryRel s m) (hrdi : s.reg .rdi = base)
     (hctx : Context.At s.mem base)
     (hin : Context.InputAt s.mem base inputWords (encode pk msg sig)) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (Compile.retOkIndex body) ∧

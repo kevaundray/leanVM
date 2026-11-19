@@ -34,7 +34,7 @@ namespace NativeArm.VmVerifier
 /-- **leanVM verification is correct on AArch64**. -/
 theorem verify_correct [Host] (hP : Host.prog = Compile.program body onFail)
     {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4} {ctx : UInt64}
-    {a : Areas} {s : QState} {m : MachineData} (hR : StateRel s m) (hrdi : s.reg .rdi = ctx)
+    {a : Areas} {s : QState} {m : MachineData} (hR : EntryRel s m) (hrdi : s.reg .rdi = ctx)
     (hin : EntryPre s.mem ctx a bytes bytecode pub) :
     Eventually (step1 Host.exe) (fun st ↦
       (st.pc = Host.addrOf (Compile.retOkIndex body) ∨

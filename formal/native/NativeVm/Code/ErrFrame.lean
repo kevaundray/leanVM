@@ -59,8 +59,9 @@ variable {c x y : Stmt} {xs : List Stmt} {s s' s₁ : QState} {o : Outcome}
 theorem step_mem_of_not_store {i : QInstr} (hi : isStore i = false) (h : i.step s = some s') :
     s'.mem = s.mem := by
   cases i <;> first
-    | (simp only [QInstr.step, Option.map_eq_some_iff, Option.some.injEq] at h
-       first | (subst h; rfl) | (obtain ⟨v, -, rfl⟩ := h; rfl))
+    | (simp only [QInstr.step, Option.map_eq_some_iff, Option.some.injEq,
+         Option.ite_none_right_eq_some] at h
+       first | (subst h; rfl) | (obtain ⟨-, rfl⟩ := h; rfl) | (obtain ⟨v, -, rfl⟩ := h; rfl))
     | simp [isStore] at hi
 
 theorem exec_storeFree (h : Exec c s o) (hc : storeFree c = true) : o.st.mem = s.mem := by

@@ -13,7 +13,8 @@ with `rax = 1` if `LeanXmss.verifyWithKeccak` accepts the signature and `0` if n
 callee-saved registers as they were. Every layout of the code is covered (Kraken's `Host`).
 
 The proof: `body` verifies on the QM machine (`Native.XmssVerifier.body_spec`, `Native.Xmss`), and
-the compiled code does what `body` does (`Compile.program_correct`).
+the compiled code does what `body` does (`Compile.program_correct`), as neither `body` nor
+`onFail` writes `rsp`, which the kernel checks.
 -/
 
 open Native hiding Reg64 Width
@@ -36,7 +37,7 @@ theorem verify_correct [Host] (hP : Host.prog = Compile.program body onFail)
       ⟨m, Host.addrOf 0⟩ := by
   obtain ⟨o, hx, ho⟩ := body_spec hrdi hctx hin
   refine eventually_weaken _ _ _ _ ?_
-    (Compile.program_correct hP hx hR fun s₁ h ↦ by subst h; exact ho.elim)
+    (Compile.program_correct hP (by decide +kernel) (by decide +kernel) hx hR fun s₁ h ↦ by subst h; exact ho.elim)
   rintro st (⟨s₁, rfl, hR₁, hpc⟩ | ⟨s₁, s₂, rfl, -, -, -⟩)
   · obtain ⟨hrax, hcs⟩ := ho
     refine ⟨hpc, (hR₁.1 .rax).trans ?_, fun r hr ↦ ?_⟩

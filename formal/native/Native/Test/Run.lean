@@ -14,10 +14,11 @@ map, for tests of the code against the models.
 
 namespace Native.Test
 
-/-- A state whose registers and memory are tables, for evaluation. -/
+/-- A state whose registers, memory and scratch bank are tables, for evaluation. -/
 structure RState where
   regs : Array UInt64
   mem : Std.HashMap UInt64 UInt64
+  scr : Array UInt64 := Array.replicate 16 0
 
 /-- Register indices. -/
 def regIdx : Reg64 → Nat
@@ -26,14 +27,15 @@ def regIdx : Reg64 → Nat
   | .r14 => 14 | .r15 => 15
 
 /-- The `QState` a table state describes. -/
-def RState.toQ (s : RState) : QState := ⟨fun r ↦ s.regs.getD (regIdx r) 0, fun a ↦ s.mem[a]?⟩
+def RState.toQ (s : RState) : QState :=
+  ⟨fun r ↦ s.regs.getD (regIdx r) 0, fun a ↦ s.mem[a]?, fun k ↦ s.scr.getD k 0⟩
 
 /-- All registers. -/
 def allRegs : List Reg64 :=
   [.rax, .rbx, .rcx, .rdx, .rsi, .rdi, .rsp, .rbp, .r8, .r9, .r10, .r11, .r12, .r13, .r14, .r15]
 
 /-- One instruction on a table state, by `QInstr.step`: the registers read back from the result,
-the word a store writes inserted. -/
+the word a store writes inserted, the scratch word an `sstore` writes set. -/
 def stepI (i : QInstr) (s : RState) : Option RState := do
   let q := s.toQ
   let q' ← i.step q
@@ -44,7 +46,10 @@ def stepI (i : QInstr) (s : RState) : Option RState := do
       let v ← q'.mem addr
       some (s.mem.insert addr v)
     | _ => some s.mem
-  some ⟨regs, mem⟩
+  let scr := match i with
+    | .sstore k _ => s.scr.set! k (q'.scr k)
+    | _ => s.scr
+  some ⟨regs, mem, scr⟩
 
 /-- The outcome of a statement, evaluated with at most `fuel` loop iterations in all. -/
 inductive ROutcome
@@ -71,7 +76,8 @@ partial def run : Nat → Stmt → RState → Option (ROutcome × Nat)
 
 /-- A state with `rdi = base` and the given words. -/
 def RState.ofWords (base : UInt64) (words : List (UInt64 × UInt64)) : RState :=
-  ⟨(allRegs.map fun r ↦ if r = .rdi then base else 0).toArray, Std.HashMap.ofList words⟩
+  { regs := (allRegs.map fun r ↦ if r = .rdi then base else 0).toArray
+    mem := Std.HashMap.ofList words }
 
 /-- The word at `a`, zero if there is none. -/
 def RState.word (s : RState) (a : UInt64) : UInt64 := s.mem[a]?.getD 0

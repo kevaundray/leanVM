@@ -69,6 +69,39 @@ theorem Runs.addr (a : Addr) (hr : StateRel s m)
           rw [AddrExpr.eval_reg]
           simp [h5, Int64.toBitVec_toUInt64, hv])
 
+/-! ## The scratch bank -/
+
+omit [Labels] in
+theorem getRegOrSp_sp (regs : Reg64s) : regs.getRegOrSp sp = regs.SP.toBitVec := by
+  simp [Reg64s.getRegOrSp, Reg64s.getRegOrSp64, RegOrSp.base, BitVec.take]
+
+omit [Labels] in
+/-- An operand on SP passes the alignment check, SP 16-aligned. -/
+theorem sp_check (m : MachineData) (h : m.regs.SP.toNat % 16 = 0) (off : AddrOff)
+    (ok : Unit → Effects) : ({ base := sp, off := off } : AddrExpr).checkSPAlignment m ok = ok () := by
+  have h0 : m.regs.SP.toBitVec % 16#64 = 0#64 := by
+    apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_umod, h]
+  simp [AddrExpr.checkSPAlignment, getRegOrSp_sp, h0]
+
+/-- The address of scratch word `k`. -/
+theorem bankSlotOp_eval {k : Nat} (m : MachineData) (p : Std.Rco Int64) :
+    (bankSlotOp k).eval m p = ((m.regs.SP + (8 * k).toUInt64).toBitVec, m) := by
+  simp only [bankSlotOp, AddrExpr.eval, ConstExpr.interp, getRegOrSp_sp, BitVec.signed,
+    BitVec.ofInt_add, BitVec.ofInt_toInt, ofInt_toInt64, UInt64.toBitVec_add]
+  rfl
+
+/-- The address of the scratch word a register names. -/
+theorem bankIdxOp_eval (i : Reg64) (hr : StateRel s m) (p : Std.Rco Int64) :
+    (bankIdxOp i).eval m p = ((m.regs.SP + (8 * (s.reg i).toNat).toUInt64).toBitVec, m) := by
+  have hs : ((s.reg i).toNat : Int) <<< 3 = ((8 * (s.reg i).toNat : Nat) : Int) := by
+    simp only [Int.shiftLeft_eq, Int.reducePow]
+    omega
+  simp only [bankIdxOp, AddrExpr.eval, MemExtRegExpr.interp, BitVec.apply_mem_extend, getRegOrSp_sp,
+    BitVec.signed, BitVec.unsigned, RegOrZr.base, Reg64s.getRegOrZr64, hr.get, UInt64.toNat_toBitVec,
+    hs, BitVec.ofInt_add, BitVec.ofInt_toInt, BitVec.ofInt_natCast, UInt64.toBitVec_add]
+  rfl
+
 end
 
 end NativeArm

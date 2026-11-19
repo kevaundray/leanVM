@@ -106,10 +106,11 @@ theorem step_at {k : Nat} {d : Directive} (hd : Host.prog[k]? = some d) {post : 
   Host.eventually_of_interp (p := []) (List.isInfixAt_iff_getElem?.mpr (by simpa using hd)) h
 
 theorem step_ins {k : Nat} {i : QInstr} (hd : Host.prog[k]? = some (.instr i.toInstr))
-    {s s' : QState} {m : MachineData} (h : i.step s = some s') (hr : StateRel s m) :
+    {s s' : QState} {m : MachineData} (h : i.step s = some s') (hr : StateRel s m)
+    (hsp : decide (i.dst = some .rsp) = false) :
     Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 1) ∧ StateRel s' st.data)
       ⟨m, Host.addrOf k⟩ :=
-  step_at hd (QInstr.toInstr_correct i h hr _ _)
+  step_at hd (QInstr.toInstr_correct i h hr hsp _ _)
 
 theorem step_cond {k : Nat} {c : Cond} (hd : Host.prog[k]? = some (.instr c.toInstr))
     {s : QState} {m : MachineData} (hr : StateRel s m) :
@@ -164,35 +165,40 @@ omit [Host] in
 theorem infixAt {L P : List Directive} {k j : Nat} (h : L.IsInfixAt P k) (hj : k = j) :
     L.IsInfixAt P j := hj ▸ h
 
-/-- A compiled statement placed anywhere in a program whose labels are distinct runs as `Exec` says:
-it ends after its code, or at `qm_fail` when it fails. -/
+/-- A compiled statement that does not write `rsp`, placed anywhere in a program whose labels are
+distinct, runs as `Exec` says: it ends after its code, or at `qm_fail` when it fails. -/
 theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : QState}
-    {o : Outcome} (hE : Exec c s o) :
+    {o : Outcome} (hE : Exec c s o) : c.writes .rsp = false →
     ∀ {n k : Nat} {m : MachineData}, (code c n).1.IsInfixAt Host.prog k → StateRel s m →
       Eventually (step1 Host.exe)
         (Lands o (Host.addrOf (k + (code c n).1.length)) (label "qm_fail"))
         ⟨m, Host.addrOf k⟩ := by
   induction hE with
-  | skip s => exact fun _ hr => .done _ ⟨hr, by simp [code]⟩
+  | skip s =>
+    intro _ n k m _ hr
+    exact .done _ ⟨hr, by simp [code]⟩
   | ins h =>
-    intro n k m hc hr
-    refine eventually_weaken _ _ _ _ ?_ (step_ins (infixGet hc (i := 0) rfl rfl) h hr)
+    intro hw n k m hc hr
+    refine eventually_weaken _ _ _ _ ?_ (step_ins (infixGet hc (i := 0) rfl rfl) h hr hw)
     rintro ⟨d, pc⟩ ⟨rfl, hr'⟩
     exact ⟨hr', by simp [code]⟩
   | seqOk _ _ iha ihb =>
-    intro n k m hc hr
+    intro hw n k m hc hr
+    simp only [Stmt.writes, Bool.or_eq_false_iff] at hw
     simp only [code] at hc
     obtain ⟨hca, hcb⟩ := hc.append
-    refine eventually_trans _ _ _ _ (iha hca hr) ?_
+    refine eventually_trans _ _ _ _ (iha hw.1 hca hr) ?_
     rintro ⟨d, pc⟩ ⟨hr1, rfl⟩
     exact eventually_weaken _ _ _ _ (fun _ => Lands.congr (by congr 1; simp [code]; omega))
-      (ihb hcb hr1)
+      (ihb hw.2 hcb hr1)
   | seqErr _ iha =>
-    intro n k m hc hr
+    intro hw n k m hc hr
+    simp only [Stmt.writes, Bool.or_eq_false_iff] at hw
     simp only [code] at hc
-    exact eventually_weaken _ _ _ _ (fun _ => Lands.err_any) (iha hc.append.1 hr)
+    exact eventually_weaken _ _ _ _ (fun _ => Lands.err_any) (iha hw.1 hc.append.1 hr)
   | @iteTrue c t e s o hcv _ iht =>
-    intro n k m hc hr
+    intro hw n k m hc hr
+    simp only [Stmt.writes, Bool.or_eq_false_iff] at hw
     simp only [code] at hc
     obtain ⟨h1, hLend⟩ := hc.append
     obtain ⟨h2, -⟩ := h1.append
@@ -204,7 +210,7 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
     rintro _ rfl
     simp only [CondCode.not_interp, hcc, hcv, Bool.not_true, Bool.false_eq_true,
       ↓reduceIte]
-    refine eventually_trans _ _ _ _ (iht (infixAt hct (by simp)) hr1) ?_
+    refine eventually_trans _ _ _ _ (iht hw.1 (infixAt hct (by simp)) hr1) ?_
     rintro ⟨d', pc'⟩ hl
     cases o with
     | err s₁ => exact .done _ (Lands.err_any hl)
@@ -222,7 +228,8 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
       rw [label_eq hD hL, ← addrOf_label hL]
       congr 1; simp [code]; omega
   | @iteFalse c t e s o hcv _ ihe =>
-    intro n k m hc hr
+    intro hw n k m hc hr
+    simp only [Stmt.writes, Bool.or_eq_false_iff] at hw
     simp only [code] at hc
     obtain ⟨h1, hLend⟩ := hc.append
     obtain ⟨h2, hce⟩ := h1.append
@@ -241,11 +248,11 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
       infixGet hLend (i := 0) rfl (by simp; omega)
     rw [label_eq hD hLe, ← addrOf_label hLe]
     refine eventually_weaken _ _ _ _ (fun _ => Lands.congr ?_)
-      (ihe (infixAt hce (by simp; omega)) hr1)
+      (ihe hw.2 (infixAt hce (by simp; omega)) hr1)
     rw [← addrOf_label hL]
     congr 1; simp [code]; omega
   | @loopTrue c b s s₁ o hcv _ _ ihb ihl =>
-    intro n k m hc hr
+    intro hw n k m hc hr
     have hc' := hc
     simp only [code] at hc'
     obtain ⟨h1, hmid⟩ := hc'.append
@@ -258,16 +265,16 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
     rintro _ rfl
     simp only [CondCode.not_interp, hcc, hcv, Bool.not_true, Bool.false_eq_true,
       ↓reduceIte]
-    refine eventually_trans _ _ _ _ (ihb (infixAt hcb (by simp)) hr1) ?_
+    refine eventually_trans _ _ _ _ (ihb hw (infixAt hcb (by simp)) hr1) ?_
     rintro ⟨d', pc'⟩ ⟨hr2, rfl⟩
     have hJm : Host.prog[k + 1 + 1 + 1 + (code b (n + 2)).1.length]? = some (jmp (lbl n)) :=
       infixGet hmid (i := 0) rfl (by simp; omega)
     refine eventually_trans _ _ _ _ (step_jmp hJm) ?_
     rintro _ rfl
     rw [label_eq hD hLtop]
-    exact ihl hc hr2
+    exact ihl hw hc hr2
   | @loopErr c b s s₁ hcv _ ihb =>
-    intro n k m hc hr
+    intro hw n k m hc hr
     simp only [code] at hc
     obtain ⟨h1, -⟩ := hc.append
     obtain ⟨hpre, hcb⟩ := h1.append
@@ -279,9 +286,9 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
     rintro _ rfl
     simp only [CondCode.not_interp, hcc, hcv, Bool.not_true, Bool.false_eq_true,
       ↓reduceIte]
-    exact eventually_weaken _ _ _ _ (fun _ => Lands.err_any) (ihb (infixAt hcb (by simp)) hr1)
+    exact eventually_weaken _ _ _ _ (fun _ => Lands.err_any) (ihb hw (infixAt hcb (by simp)) hr1)
   | @loopFalse c b s hcv =>
-    intro n k m hc hr
+    intro hw n k m hc hr
     simp only [code] at hc
     obtain ⟨h1, hmid⟩ := hc.append
     obtain ⟨hpre, -⟩ := h1.append
@@ -301,7 +308,7 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
     rw [label_eq hD hL, ← addrOf_label hL]
     congr 1; simp [code]; omega
   | fail s =>
-    intro n k m hc hr
+    intro hw n k m hc hr
     refine eventually_trans _ _ _ _ (step_jmp (infixGet hc (i := 0) rfl rfl)) ?_
     rintro _ rfl
     exact .done _ ⟨hr, rfl⟩
@@ -312,6 +319,7 @@ theorem code_correct (hD : (Host.prog.filterMap labelOf).Nodup) {c : Stmt} {s : 
 `ret` in a state related to the one `Exec` ends with, or, when the body fails, the failure
 handler's `ret` in a state related to the one the handler ends with. -/
 theorem program_correct {body onFail : Stmt} (hP : Host.prog = program body onFail)
+    (hw : body.writes .rsp = false) (hwf : onFail.writes .rsp = false)
     {s : QState} {o : Outcome} {m : MachineData} (hE : Exec body s o) (hR : StateRel s m)
     (hFail : ∀ s₁, o = .err s₁ → ∃ s₂, Exec onFail s₁ (.ok s₂)) :
     Eventually (step1 Host.exe)
@@ -331,7 +339,7 @@ theorem program_correct {body onFail : Stmt} (hP : Host.prog = program body onFa
   have hLf : Host.prog[2 + (code body 0).1.length]? = some (.label "qm_fail") :=
     infixGet hfl (i := 0) rfl (by simp; omega)
   rw [← addrOf_label hL0]
-  refine eventually_trans _ _ _ _ (code_correct hD hE (infixAt hcb (by simp)) hR) ?_
+  refine eventually_trans _ _ _ _ (code_correct hD hE hw (infixAt hcb (by simp)) hR) ?_
   rintro ⟨d, pc⟩ hl
   cases o with
   | ok s₁ =>
@@ -341,7 +349,7 @@ theorem program_correct {body onFail : Stmt} (hP : Host.prog = program body onFa
     obtain ⟨hr1, rfl⟩ := hl
     obtain ⟨s₂, hE₂⟩ := hFail s₁ rfl
     rw [label_eq hD hLf, ← addrOf_label hLf]
-    refine eventually_weaken _ _ _ _ ?_ (code_correct hD hE₂ (infixAt hcf (by simp; omega)) hr1)
+    refine eventually_weaken _ _ _ _ ?_ (code_correct hD hE₂ hwf (infixAt hcf (by simp; omega)) hr1)
     rintro ⟨d', pc'⟩ ⟨hr2, rfl⟩
     exact Or.inr ⟨s₁, s₂, rfl, hE₂, hr2, by simp only [retFailIndex]; congr 1; omega⟩
 

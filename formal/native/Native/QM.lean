@@ -14,7 +14,9 @@ proves that the compiled code does on Kraken's machine what `Exec` says the stat
 registers carry x86-64's names; AArch64 maps them to its own (`NativeArm`).
 
 `QState.mem` holds the words the code may read and write: a load or a store anywhere else is
-stuck (`QInstr.step` is `none`), as in Kraken, where it faults.
+stuck (`QInstr.step` is `none`), as in Kraken, where it faults. Beside it, a bank of sixteen scratch
+words (`QState.scr`), apart from memory, which only `sload` and `sstore` reach: x86-64 keeps it in
+the red zone below `rsp`, AArch64 in 128 bytes the program takes below SP on entry.
 -/
 
 @[expose] public section
@@ -34,12 +36,15 @@ inductive Width | W8 | W16 | W32 | W64
 /-- The bytes of a scale. -/
 @[simp] def Width.bytes : Width → Nat | .W8 => 1 | .W16 => 2 | .W32 => 4 | .W64 => 8
 
-/-- The machine state: the registers and the aligned 64-bit words the code may touch. -/
+/-- The machine state: the registers, the aligned 64-bit words the code may touch and the scratch
+bank. -/
 structure QState where
   /-- The general-purpose registers. -/
   reg : Reg64 → UInt64
   /-- The 64-bit word at each address the code may touch; `none` elsewhere. -/
   mem : UInt64 → Option UInt64
+  /-- The scratch bank: words `0` to `15`, apart from `mem`. -/
+  scr : Nat → UInt64
 
 /-- `s` with register `r` set to `v`. -/
 def QState.setReg (s : QState) (r : Reg64) (v : UInt64) : QState :=
@@ -48,6 +53,10 @@ def QState.setReg (s : QState) (r : Reg64) (v : UInt64) : QState :=
 /-- `s` with the word at `a` set to `v`. -/
 def QState.setMem (s : QState) (a : UInt64) (v : UInt64) : QState :=
   { s with mem := Function.update s.mem a (some v) }
+
+/-- `s` with scratch word `k` set to `v`. -/
+def QState.setScr (s : QState) (k : Nat) (v : UInt64) : QState :=
+  { s with scr := Function.update s.scr k v }
 
 /-- An address `base + index · scale + disp`. -/
 structure Addr where
@@ -112,9 +121,14 @@ inductive QInstr
   | roli (d : Reg64) (n : Nat)
   /-- `d := d << (cl & 63)`. -/
   | shlcl (d : Reg64)
+  /-- `d := scr[i]`, the scratch word `i < 16`. -/
+  | sload (d i : Reg64)
+  /-- `scr[k] := s`, for `k < 16`. -/
+  | sstore (k : Nat) (s : Reg64)
   deriving DecidableEq, Repr
 
-/-- One instruction: `none` when it loads or stores a word outside `mem`. -/
+/-- One instruction: `none` when it loads or stores a word outside `mem`, or a scratch word past
+the sixteenth. -/
 def QInstr.step : QInstr → QState → Option QState
   | .mov d r, s => some (s.setReg d (s.reg r))
   | .movi d k, s => some (s.setReg d k.toUInt64)
@@ -138,6 +152,8 @@ def QInstr.step : QInstr → QState → Option QState
   | .sari d n, s => some (s.setReg d (UInt64.ofBitVec ((s.reg d).toBitVec.sshiftRight (n % 64))))
   | .roli d n, s => some (s.setReg d (UInt64.ofBitVec ((s.reg d).toBitVec.rotateLeft (n % 64))))
   | .shlcl d, s => some (s.setReg d (s.reg d <<< (s.reg .rcx &&& 63)))
+  | .sload d i, s => if s.reg i < 16 then some (s.setReg d (s.scr (s.reg i).toNat)) else none
+  | .sstore k r, s => if k < 16 then some (s.setScr k (s.reg r)) else none
 
 /-- The right operand of a comparison. -/
 inductive Rhs

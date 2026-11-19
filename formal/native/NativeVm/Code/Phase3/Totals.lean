@@ -307,7 +307,7 @@ theorem totalCode_spec {side : Nat} (hside : side < 3) (hrdi : s.reg .rdi = env.
   have hs1 := hi.ok3_some' (hR ⟨sSum, 8⟩ (by simp)) (a := sSum + 1) (by simp [Region.stop])
   show WP (blk (stA sSum ++ [opsCode (ops2 side)])) s2 _ _
   refine stA_spec h14' (by decide) (by rw [w2.dom]; exact hs0) (by rw [w2.dom]; exact hs1) ?_
-  have w3 : Wrote env (pcR side) s ⟨s2.reg, updE s2.mem env.work sSum ⟨s2.reg .r9, s2.reg .r10⟩⟩ := by
+  have w3 : Wrote env (pcR side) s ⟨s2.reg, updE s2.mem env.work sSum ⟨s2.reg .r9, s2.reg .r10⟩, s2.scr⟩ := by
     refine ⟨w2.rdi, fun a ha ↦ ?_, fun a ↦ ?_⟩
     · have n0 : a ≠ wd env.work sSum := fun e ↦ ha ⟨sSum, 8⟩ (by simp) ⟨0, by decide, by rw [e]; rfl⟩
       have n1 : a ≠ wd env.work (sSum + 1) := fun e ↦
@@ -320,7 +320,7 @@ theorem totalCode_spec {side : Nat} (hside : side < 3) (hrdi : s.reg .rdi = env.
   have hS3 : EWAt (updE s2.mem env.work sSum ⟨s2.reg .r9, s2.reg .r10⟩) (wd env.work sSum)
       (sumE (fsels ++ tsels)) := hA' ▸ updE_ewat (by decide)
   refine WP.blk_cons (WP.mono (pc_ops2_spec (S := sumE (fsels ++ tsels)) (β := β)
-    (s := ⟨s2.reg, updE s2.mem env.work sSum ⟨s2.reg .r9, s2.reg .r10⟩⟩) hside
+    (s := ⟨s2.reg, updE s2.mem env.work sSum ⟨s2.reg .r9, s2.reg .r10⟩, s2.scr⟩) hside
     (hi.step3 hR w3.step hrdi) h14'
     (pc_ewat w3 hzero (by simp [sl]) (by simp [sl]; omega) (by simp [sl]) hside)
     (pc_ewat w3 hone (by simp [sl]) (by simp [sl]; omega) (by simp [sl]) hside)

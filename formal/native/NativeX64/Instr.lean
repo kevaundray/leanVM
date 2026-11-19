@@ -1,6 +1,6 @@
 module
 
-public import Native.QM
+public import Native.Frame
 public import Kraken.X64.Semantics
 
 /-!
@@ -8,9 +8,11 @@ public import Kraken.X64.Semantics
 
 Each QM register is the x86-64 register of its name (`Reg64.toX64`), and each instruction
 (`QInstr.toInstr`) is one Kraken instruction; a condition is a `cmp` or `test` (`Cond.toInstr`)
-followed by a jump on its condition code (`Cond.cc`). `StateRel s m`: the machine `m` holds the QM
-state `s`, every word of `s.mem` eight little-endian bytes of `m`'s memory at an aligned address.
-Kraken's flags and vector registers are unconstrained.
+followed by a jump on its condition code (`Cond.cc`). The scratch bank is the red zone, the 128
+bytes below `rsp` (`bankIdx`, `bankSlot`). `StateRel s m`: the machine `m` holds the QM state `s`,
+every word of `s.mem` eight little-endian bytes of `m`'s memory at an aligned address, and the
+scratch bank's words in the red zone, apart from them. Kraken's flags and vector registers are
+unconstrained.
 -/
 
 open Native hiding Reg64 Width
@@ -40,6 +42,12 @@ def _root_.Native.Addr.toAddrExpr (a : Addr) : AddrExpr :=
 /-- A 64-bit operation at a 64-bit address size. -/
 abbrev op64 (op : Operation .W64) : Instr := .regular .W64 .W64 op
 
+/-- The scratch word `i` (a register), `[rsp + 8 i - 128]`. -/
+def bankIdx (i : Native.Reg64) : Addr := { base := .rsp, idx := some (i, .W64), disp := -128 }
+
+/-- The scratch word `k`, `[rsp + 8 k - 128]`. -/
+def bankSlot (k : Nat) : Addr := { base := .rsp, disp := Int64.ofNat (8 * k) - 128 }
+
 /-- The Kraken instruction of a `QInstr`. -/
 def _root_.Native.QInstr.toInstr : QInstr → Instr
   | .mov d s => op64 (.mov (.reg (r64 d)) (.reg (r64 s)))
@@ -64,6 +72,8 @@ def _root_.Native.QInstr.toInstr : QInstr → Instr
   | .sari d n => op64 (.sar (.reg (r64 d)) (.imm8 (.int64 (Int64.ofNat n))))
   | .roli d n => op64 (.rol (.reg (r64 d)) (.imm8 (.int64 (Int64.ofNat n))))
   | .shlcl d => op64 (.shl (.reg (r64 d)) .cl)
+  | .sload d i => op64 (.mov (.reg (r64 d)) (.mem (bankIdx i).toAddrExpr))
+  | .sstore k s => op64 (.mov (.mem (bankSlot k).toAddrExpr) (.reg (r64 s)))
 
 /-- Kraken's form of a comparison's right operand. -/
 def _root_.Native.Rhs.toOperand : Rhs → Operand .W64
@@ -95,8 +105,11 @@ def CondCode.not : CondCode → CondCode
 def MemRel (q : UInt64 → Option UInt64) (d : DataMem) : Prop :=
   ∀ a v, q a = some v → a.toNat % 8 = 0 ∧ d.loadBytes a.toBitVec 8 = some v.toBytes
 
-/-- `m` holds `s`: each QM register in the x86-64 register of its name, and the memory. -/
+/-- `m` holds `s`: each QM register in the x86-64 register of its name, the memory, and the
+scratch bank in the red zone, apart from the memory's words. -/
 def StateRel (s : QState) (m : MachineData) : Prop :=
-  (∀ r : Native.Reg64, m.regs.get64 r.toX64 = (s.reg r).toBitVec) ∧ MemRel s.mem m.dmem
+  (∀ r : Native.Reg64, m.regs.get64 r.toX64 = (s.reg r).toBitVec) ∧ MemRel s.mem m.dmem ∧
+    MemRel (bankAt s.scr (s.reg .rsp - 128)) m.dmem ∧
+    ∀ a v, s.mem a = some v → bankAt s.scr (s.reg .rsp - 128) a = none
 
 end NativeX64

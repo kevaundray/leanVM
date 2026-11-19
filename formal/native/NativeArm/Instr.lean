@@ -10,7 +10,8 @@ a list of Kraken AArch64 instructions; `Cond.armCC` is the condition code that h
 `Cond.toArm` exactly when the condition does (`NativeArm.Bridge`). An immediate other than a small
 addend or comparand goes into a scratch register by `MOVZ` (or `MOVN`) and `MOVK`s first: X4 for
 an operand, X5 for an address's displacement, X6 for a stored immediate. An address with an index
-is computed into X4 first; a displacement `LDR`/`STR` cannot encode is added from X5.
+is computed into X4 first; a displacement `LDR`/`STR` cannot encode is added from X5. The scratch
+bank is at SP (`bankIdxOp`, `bankSlotOp`).
 -/
 
 open Native
@@ -91,6 +92,17 @@ abbrev dp (op : RegOrZr .W64 → RegOrZr .W64 → ShiftRegExpr .W64 → Operatio
 /-- The zero register. -/
 abbrev xzr : RegOrZr .W64 := .low .XZR .W64
 
+/-- SP, as a base. -/
+abbrev sp : RegOrSp .W64 := .low .SP .W64
+
+/-- The scratch word `i` (a register), `[SP, Xi, LSL #3]`. -/
+def bankIdxOp (i : Reg64) : AddrExpr :=
+  { base := sp, off := .reg { reg := ⟨.W64, xr i.toX⟩, ext := ⟨.UXTX, .E3⟩ } }
+
+/-- The scratch word `k`, `[SP, #8k]`. -/
+def bankSlotOp (k : Nat) : AddrExpr :=
+  { base := sp, off := .imm { imm := .int64 (Int64.ofNat (8 * k)), index := none } }
+
 /-- The AArch64 instructions of a QM instruction. -/
 def _root_.Native.QInstr.toArm : QInstr → List Instr
   | .mov d s => [dp .ORR_s d.toX xzr (sr s.toX)]
@@ -117,6 +129,8 @@ def _root_.Native.QInstr.toArm : QInstr → List Instr
   | .sari d n => [dp .ORR_s d.toX xzr (sr d.toX .ASR (Int64.ofNat (n % 64)))]
   | .roli d n => [dp .ORR_s d.toX xzr (sr d.toX .ROR (Int64.ofNat ((64 - n % 64) % 64)))]
   | .shlcl d => [⟨.W64, .LSLV (xr d.toX) (xr d.toX) (xr Reg64.rcx.toX)⟩]
+  | .sload d i => [⟨.W64, .LDR (xr d.toX) (.addr (bankIdxOp i))⟩]
+  | .sstore k s => [⟨.W64, .STR (xr s.toX) (bankSlotOp k)⟩]
 
 /-- The flag-setting instructions of a condition. -/
 def _root_.Native.Cond.toArm : Cond → List Instr

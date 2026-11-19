@@ -77,13 +77,13 @@ theorem QInstr.toArm_correct (i : QInstr) {s s' : QState} {m : MachineData}
     simp only [QInstr.step, Option.map_eq_some_iff] at h
     obtain ⟨v, hv, rfl⟩ := h
     exact Runs.addr ad hr fun m₁ hr1 hk1 _ he =>
-      Runs.ldr (Addr.toArm_check ad m₁) he hr1.2 hv
+      Runs.ldr (Addr.toArm_check ad m₁) he hr1.2.1 hv
         (Runs.nil ⟨hr1.setX d rfl, hk1.setX (by simp) _⟩)
   | store ad r =>
     simp only [QInstr.step, Option.map_eq_some_iff] at h
     obtain ⟨v, hv, rfl⟩ := h
     exact Runs.addr ad hr fun m₁ hr1 hk1 _ he =>
-      Runs.str (Addr.toArm_check ad m₁) he hr1.2 hv
+      Runs.str (Addr.toArm_check ad m₁) he hr1.2.1 hv
         (Runs.nil ⟨by rw [getRegOrZr_xr, hr1.get]; exact hr1.store hv _, hk1.dmem _⟩)
   | storei ad k =>
     simp only [QInstr.step, Option.map_eq_some_iff] at h
@@ -93,12 +93,12 @@ theorem QInstr.toArm_correct (i : QInstr) {s s' : QState} {m : MachineData}
     · rename_i hk0
       subst hk0
       exact Runs.addr ad hr fun m₁ hr1 hk1 _ he =>
-        Runs.str (Addr.toArm_check ad m₁) he hr1.2 hv (Runs.nil
+        Runs.str (Addr.toArm_check ad m₁) he hr1.2.1 hv (Runs.nil
           ⟨by rw [getRegOrZr_xzr, show (0#64 : BitVec 64) = (0 : Int64).toUInt64.toBitVec from rfl]
               exact hr1.store hv _, hk1.dmem _⟩)
     · rw [List.append_assoc]
       exact Runs.movImm _ _ (Runs.addr ad (hr.setX_scratch rfl _) fun m₁ hr1 hk1 h6 he =>
-        Runs.str (Addr.toArm_check ad m₁) he hr1.2 hv (Runs.nil
+        Runs.str (Addr.toArm_check ad m₁) he hr1.2.1 hv (Runs.nil
           ⟨by
               rw [getRegOrZr_xr, h6]
               simp only [setX_regs, getXReg_setXReg, ite_true, UInt64.toBitVec_ofBitVec]
@@ -176,6 +176,17 @@ theorem QInstr.toArm_correct (i : QInstr) {s s' : QState} {m : MachineData}
   | shlcl d =>
     simp only [QInstr.step, Option.some.injEq] at h; subst h
     exact Runs.lslv (Runs.nil ⟨hr.setX d (by rw [hr.get, hr.get, shlcl_val]), hk.setX (by simp) _⟩)
+  | sload d i =>
+    simp only [QInstr.step, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    obtain ⟨hi, rfl⟩ := h
+    exact Runs.ldr (sp_check m hr.2.2.1 _) (bankIdxOp_eval i hr) hr.2.2.2.1
+      (bankAt_slot s.scr _ (UInt64.lt_iff_toNat_lt.mp hi))
+      (Runs.nil ⟨hr.setX d rfl, hk.setX (by simp) _⟩)
+  | sstore k r =>
+    simp only [QInstr.step, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    obtain ⟨hk16, rfl⟩ := h
+    exact Runs.str (sp_check m hr.2.2.1 _) (bankSlotOp_eval m) hr.2.2.2.1 (bankAt_slot s.scr _ hk16)
+      (Runs.nil ⟨by rw [getRegOrZr_xr, hr.get]; exact hr.setScr hk16 _, hk.dmem _⟩)
 
 end
 

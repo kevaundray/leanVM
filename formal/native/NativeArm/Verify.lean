@@ -29,7 +29,7 @@ public section
 
 /-- At the body's `RET`, every register AAPCS64 asks a procedure to preserve is as in `m`. -/
 theorem Compile.Exits.saved {body : Stmt} {s s₁ : QState} {m m' : MachineData}
-    (hR : StateRel s m) (hx : Compile.Exits body.writes s₁ m m')
+    (hR : EntryRel s m) (hx : Compile.Exits body.writes s₁ m m')
     (hcs : ∀ r ∈ Context.calleeSaved, s₁.reg r = s.reg r) (hsp : body.writes .rsp = false) :
     (∀ x : XReg, x.saved = true → m'.regs.getXReg x = m.regs.getXReg x) ∧
       m'.regs.SP = m.regs.SP := by
@@ -38,7 +38,7 @@ theorem Compile.Exits.saved {body : Stmt} {s s₁ : QState} {m m' : MachineData}
       have hrd : r ≠ .rdi := by
         simp only [Context.calleeSaved, List.mem_cons, List.not_mem_nil, or_false] at hr
         rcases hr with h | h | h | h | h | h <;> subst h <;> decide
-      rw [hx.2.1 r hrd, hcs r hr, hR.get]
+      rw [hx.2.1 r hrd, hcs r hr, hR.1]
   have other : ∀ x : XReg, x ≠ .X0 → x.scratch = false → (∀ r : Reg64, r.toX = x → r = .rsp) →
       m'.regs.getXReg x = m.regs.getXReg x := fun x h0 hs hr =>
     hx.2.2.2.1 x h0 hs fun r hw he => by

@@ -54,7 +54,7 @@ def runDecode (bytes : ByteArray) : Option (Option RState) := Id.run do
     mem := mem.insert (decA + (8 * i).toUInt64) 0xdeadbeef
   for i in [0:workWords] do
     mem := mem.insert (workA + (8 * i).toUInt64) 0
-  let s : RState := ⟨(allRegs.map fun r ↦ if r = .rdi then ctxA else 0).toArray, mem⟩
+  let s : RState := { regs := (allRegs.map fun r ↦ if r = .rdi then ctxA else 0).toArray, mem }
   match run (2 ^ 40) decode s with
   | some (.ok s, _) => some (some s)
   | some (.err _, _) => some none

@@ -7,7 +7,8 @@ public import Native.WP
 
 A run never adds or removes a word of memory (`Exec.mem_isSome`), and never changes a register no
 instruction of the statement writes (`Exec.reg_frame`). The failure exit relies on both: it reads
-the saved registers through `rdi`.
+the saved registers through `rdi`. A backend keeps the scratch bank as sixteen words at an address
+of its choosing, apart from `mem` (`bankAt`).
 -/
 
 @[expose] public section
@@ -26,8 +27,8 @@ def Outcome.st : Outcome → QState
 def QInstr.dst : QInstr → Option Reg64
   | .mov d _ | .movi d _ | .load d _ | .lea d _ | .add d _ | .addi d _ | .sub d _ | .subi d _
   | .xor d _ | .xori d _ | .and d _ | .andi d _ | .or d _ | .not d | .neg d | .shli d _
-  | .shri d _ | .sari d _ | .roli d _ | .shlcl d => some d
-  | .store _ _ | .storei _ _ => none
+  | .shri d _ | .sari d _ | .roli d _ | .shlcl d | .sload d _ => some d
+  | .store _ _ | .storei _ _ | .sstore _ _ => none
 
 /-- Whether a statement may write the register `r`. -/
 def Stmt.writes (r : Reg64) : Stmt → Bool
@@ -39,9 +40,11 @@ def Stmt.writes (r : Reg64) : Stmt → Bool
 
 theorem QInstr.step_mem_isSome {i : QInstr} {s s' : QState} (h : i.step s = some s') (a : UInt64) :
     (s'.mem a).isSome = (s.mem a).isSome := by
-  cases i <;> simp only [QInstr.step, Option.map_eq_some_iff, Option.some.injEq] at h <;>
+  cases i <;> simp only [QInstr.step, Option.map_eq_some_iff, Option.some.injEq,
+    Option.ite_none_right_eq_some] at h <;>
     first
     | (subst h; rfl)
+    | (obtain ⟨_, rfl⟩ := h; rfl)
     | (obtain ⟨v, hv, rfl⟩ := h; rfl)
     | (obtain ⟨v, hv, rfl⟩ := h
        simp only [QState.setMem_mem]
@@ -50,9 +53,12 @@ theorem QInstr.step_mem_isSome {i : QInstr} {s s' : QState} (h : i.step s = some
 theorem QInstr.step_reg {i : QInstr} {s s' : QState} (h : i.step s = some s') {r : Reg64}
     (hr : decide (i.dst = some r) = false) : s'.reg r = s.reg r := by
   cases i <;> simp [QInstr.dst] at hr <;>
-    simp only [QInstr.step, Option.map_eq_some_iff, Option.some.injEq] at h <;>
+    simp only [QInstr.step, Option.map_eq_some_iff, Option.some.injEq,
+      Option.ite_none_right_eq_some] at h <;>
     first
     | (subst h; simp [QState.setReg, Ne.symm hr])
+    | (obtain ⟨_, rfl⟩ := h; simp [QState.setReg, Ne.symm hr])
+    | (obtain ⟨_, rfl⟩ := h; rfl)
     | (obtain ⟨v, hv, rfl⟩ := h; simp [QState.setReg, Ne.symm hr])
     | (obtain ⟨v, hv, rfl⟩ := h; rfl)
 
@@ -93,5 +99,47 @@ theorem Exec.reg_frame {c : Stmt} {s : QState} {o : Outcome} (h : Exec c s o) {r
   | loopErr _ _ ih => exact ih hr
   | loopFalse => rfl
   | fail => rfl
+
+/-! ## The scratch bank in memory -/
+
+/-- The scratch bank as words at `base`: word `k < 16` at `base + 8 k`. -/
+def bankAt (scr : Nat → UInt64) (base a : UInt64) : Option UInt64 :=
+  if (a - base).toNat < 128 ∧ (a - base).toNat % 8 = 0 then some (scr ((a - base).toNat / 8))
+  else none
+
+theorem toNat_slot {k : Nat} (hk : k < 16) : (8 * k).toUInt64.toNat = 8 * k := by
+  rw [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt (by omega)]
+
+theorem bankAt_slot (scr : Nat → UInt64) (base : UInt64) {k : Nat} (hk : k < 16) :
+    bankAt scr base (base + (8 * k).toUInt64) = some (scr k) := by
+  rw [bankAt, UInt64.add_comm, UInt64.add_sub_cancel, toNat_slot hk,
+    ite_eq_left ⟨by omega, by omega⟩, Nat.mul_div_cancel_left _ (by omega)]
+
+theorem bankAt_update (scr : Nat → UInt64) (base : UInt64) {k : Nat} (hk : k < 16) (v : UInt64) :
+    bankAt (Function.update scr k v) base =
+      Function.update (bankAt scr base) (base + (8 * k).toUInt64) (some v) := by
+  funext a
+  by_cases ha : a = base + (8 * k).toUInt64
+  · subst ha
+    rw [Function.update_self, bankAt_slot _ _ hk, Function.update_self]
+  · rw [Function.update_of_ne ha, bankAt, bankAt]
+    split
+    · rename_i h
+      rw [Function.update_of_ne]
+      intro e
+      apply ha
+      have : a - base = (8 * k).toUInt64 := by
+        apply UInt64.toNat_inj.mp
+        rw [toNat_slot hk]
+        omega
+      rw [← this, UInt64.add_comm, UInt64.sub_add_cancel]
+    · rfl
+
+theorem bankAt_none {scr scr' : Nat → UInt64} {base a : UInt64} (h : bankAt scr base a = none) :
+    bankAt scr' base a = none := by
+  unfold bankAt at h ⊢
+  split at h
+  · cases h
+  · rw [ite_eq_right (by assumption)]
 
 end Native

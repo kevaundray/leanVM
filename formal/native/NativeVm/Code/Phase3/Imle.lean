@@ -107,7 +107,7 @@ theorem imle_body {pt : Array EW} {a n j : Nat} {acc : EW × EW} (hj : j < n) (h
         ↓reduceIte]
       exact updE_ewat_ne (by unfold sl; omega) (by unfold sl; omega) (by unfold sl; omega) hacc
   have hiso1 : ∀ a', (m1 a').isSome = (s.mem a').isSome := updE_isSome hd8 hd9
-  refine WP.blk_cons (WP.mono (ops_spec imleOps (lim := 2 ^ 60) (s := ⟨_, m1⟩) (by norm_num)
+  refine WP.blk_cons (WP.mono (ops_spec imleOps (lim := 2 ^ 60) (s := ⟨_, m1, _⟩) (by norm_num)
     (by rsimp; exact h14) hS (by simp [sl]) (by decide) (by simp [imleOps, opsDsts, EOp.dst, sl])
     (fun d hd ↦ ?_)) ?_ fun _ h ↦ h)
   · simp only [imleOps, opsDsts, EOp.dst, List.map_cons, List.map_nil, List.mem_cons,

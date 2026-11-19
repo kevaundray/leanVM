@@ -7,8 +7,8 @@ import all Kraken.Mem
 /-!
 # Facts about Kraken's machine for the instruction bridge
 
-Registers read and written at 64 bits, addresses of QM's memory operands, aligned 64-bit
-loads and stores through `MemRel`, and the monotonicity of `Effects.All`.
+Registers read and written at 64 bits, addresses of QM's memory operands and of the scratch bank,
+aligned 64-bit loads and stores through `MemRel`, and the monotonicity of `Effects.All`.
 -/
 
 public section
@@ -33,17 +33,20 @@ theorem StateRel.get {s : QState} {m : MachineData} (h : StateRel s m) (r : Nati
   rw [get_r64, h.1]
 
 theorem StateRel.setReg {s : QState} {m : MachineData} (h : StateRel s m) (d : Native.Reg64)
-    (v : UInt64) : StateRel (s.setReg d v) (m.setReg (r64 d) v.toBitVec) := by
-  refine ⟨fun r => ?_, h.2⟩
-  change (m.regs.set64 d.toX64 v.toBitVec).get64 r.toX64 = _
-  rw [get64_set64]
-  by_cases hrd : r = d
-  · subst hrd; simp [QState.setReg]
-  · simp [hrd, QState.setReg, h.1]
+    (hd : d ≠ .rsp) (v : UInt64) : StateRel (s.setReg d v) (m.setReg (r64 d) v.toBitVec) := by
+  have hsp : (s.setReg d v).reg .rsp = s.reg .rsp := by simp [Ne.symm hd]
+  refine ⟨fun r => ?_, h.2.1, ?_, ?_⟩
+  · change (m.regs.set64 d.toX64 v.toBitVec).get64 r.toX64 = _
+    rw [get64_set64]
+    by_cases hrd : r = d
+    · subst hrd; simp [QState.setReg]
+    · simp [hrd, QState.setReg, h.1]
+  · rw [hsp]; exact h.2.2.1
+  · rw [hsp]; exact h.2.2.2
 
 theorem StateRel.setReg' {s : QState} {m : MachineData} (h : StateRel s m) (d : Native.Reg64)
-    {v : UInt64} {w : BitVec 64} (hw : w = v.toBitVec) :
-    StateRel (s.setReg d v) (m.setReg (r64 d) w) := hw ▸ h.setReg d v
+    (hd : d ≠ .rsp) {v : UInt64} {w : BitVec 64} (hw : w = v.toBitVec) :
+    StateRel (s.setReg d v) (m.setReg (r64 d) w) := hw ▸ h.setReg d hd v
 
 /-! ## Addresses -/
 
@@ -65,6 +68,28 @@ theorem Addr.interp_eq [Labels] (a : Addr) {s : QState} {m : MachineData} (h : S
     rw [BitVec.ofInt_add, BitVec.ofInt_add, BitVec.ofInt_mul, BitVec.ofInt_toInt,
       BitVec.ofInt_toInt, hd]
     cases w <;> rfl
+
+/-- The scratch word a register `i < 16` names: word `i` of the red zone. -/
+theorem bankIdx_eval (s : QState) (i : Native.Reg64) (hi : s.reg i < 16) :
+    (bankIdx i).eval s = s.reg .rsp - 128 + (8 * (s.reg i).toNat).toUInt64 := by
+  have hi' : (s.reg i).toNat < 16 := UInt64.lt_iff_toNat_lt.mp hi
+  have h128 : ((-128 : Int64).toUInt64).toNat = 2 ^ 64 - 128 := by decide
+  have hr := (s.reg .rsp).toNat_lt_size
+  apply UInt64.toNat_inj.mp
+  simp only [bankIdx, Addr.eval, UInt64.toNat_add, UInt64.toNat_mul, UInt64.toNat_sub,
+    h128, toNat_slot hi', show (Native.Width.W64.bytes).toUInt64.toNat = 8 from rfl,
+    show (128 : UInt64).toNat = 128 from rfl, UInt64.size] at hr ⊢
+  omega
+
+/-- The scratch word `k < 16`: word `k` of the red zone. -/
+theorem bankSlot_eval (s : QState) {k : Nat} (hk : k < 16) :
+    (bankSlot k).eval s = s.reg .rsp - 128 + (8 * k).toUInt64 := by
+  have hr := (s.reg .rsp).toNat_lt_size
+  apply UInt64.toNat_inj.mp
+  simp only [bankSlot, Addr.eval, Int64.toUInt64_sub, Int64.toUInt64_ofNat', ← Nat.toUInt64_eq,
+    UInt64.toNat_add, UInt64.toNat_sub, toNat_slot hk, show (128 : UInt64).toNat = 128 from rfl,
+    show ((128 : Int64).toUInt64).toNat = 128 from rfl, UInt64.toNat_zero, UInt64.size] at hr ⊢
+  omega
 
 /-! ## Memory -/
 
@@ -137,6 +162,24 @@ theorem MemRel.store {q : UInt64 → Option UInt64} {d : DataMem} (hm : MemRel q
     rintro ⟨j, hj, he⟩
     exact aligned_disjoint ha hb8 hba hi (hlen ▸ hj) he
 
+/-- A store to an aligned word that is none of `q`'s keeps `q`'s words. -/
+theorem MemRel.store_apart {q : UInt64 → Option UInt64} {d : DataMem} (hm : MemRel q d)
+    {a : UInt64} (ha : a.toNat % 8 = 0) (hq : ∀ b v, q b = some v → b ≠ a) (x : UInt64) :
+    MemRel q (Mem.storeInt d a.toBitVec 8 x.toBitVec.toInt) := by
+  have hlen : (Int.toBytes 8 x.toBitVec.toInt).length = 8 := Int.toBytes_length _ _
+  intro b y hb
+  obtain ⟨hb8, hload⟩ := hm b y hb
+  refine ⟨hb8, ?_⟩
+  rw [← hload]
+  apply loadBytes_congr
+  intro i hi
+  unfold Mem.storeInt Mem.storeBytes
+  rw [ExtHashMap.get?_eq_getElem?, ExtHashMap.get?_eq_getElem?, ExtHashMap.union_eq,
+    ExtHashMap.getElem?_union_of_not_mem_right]
+  rw [mem_At_iff]
+  rintro ⟨j, hj, he⟩
+  exact aligned_disjoint ha hb8 (hq b y hb) hi (hlen ▸ hj) he
+
 theorem loadInt_of_rel {q : UInt64 → Option UInt64} {d : DataMem} (hm : MemRel q d) {a v : UInt64}
     (h : q a = some v) : Mem.loadInt d a.toBitVec 8 = some (Int.ofBytes v.toBytes) := by
   simp [Mem.loadInt, (hm a v h).2]
@@ -161,8 +204,34 @@ theorem store_All {q : UInt64 → Option UInt64} {m : MachineData} (hm : MemRel 
 
 theorem StateRel.store {s : QState} {m : MachineData} (hr : StateRel s m) {a v : UInt64}
     (h : s.mem a = some v) (x : UInt64) :
-    StateRel (s.setMem a x) { m with dmem := Mem.storeInt m.dmem a.toBitVec 8 x.toBitVec.toInt } :=
-  ⟨hr.1, hr.2.store h x⟩
+    StateRel (s.setMem a x) { m with dmem := Mem.storeInt m.dmem a.toBitVec 8 x.toBitVec.toInt } := by
+  refine ⟨hr.1, hr.2.1.store h x,
+    hr.2.2.1.store_apart (hr.2.1 a v h).1 (fun b w hb e ↦ ?_) x, fun b w hb ↦ ?_⟩
+  · subst e
+    rw [hr.2.2.2 b v h] at hb
+    cases hb
+  · show bankAt s.scr (s.reg .rsp - 128) b = none
+    by_cases hba : b = a
+    · subst hba
+      exact hr.2.2.2 b v h
+    · rw [QState.setMem_mem, ite_eq_right hba] at hb
+      exact hr.2.2.2 b w hb
+
+/-- A store to scratch word `k` of the red zone. -/
+theorem StateRel.setScr {s : QState} {m : MachineData} (hr : StateRel s m) {k : Nat} (hk : k < 16)
+    (x : UInt64) :
+    StateRel (s.setScr k x)
+      { m with dmem := (Mem.storeInt m.dmem (s.reg .rsp - 128 + (8 * k).toUInt64).toBitVec 8
+        x.toBitVec.toInt) } := by
+  have hb := bankAt_slot s.scr (s.reg .rsp - 128) hk
+  refine ⟨hr.1, hr.2.1.store_apart (hr.2.2.1 _ _ hb).1 (fun b w hw e ↦ ?_) x, ?_,
+    fun b w hw ↦ bankAt_none (hr.2.2.2 b w hw)⟩
+  · subst e
+    rw [hr.2.2.2 _ _ hw] at hb
+    cases hb
+  · show MemRel (bankAt (Function.update s.scr k x) (s.reg .rsp - 128)) _
+    rw [bankAt_update _ _ hk]
+    exact hr.2.2.1.store hb x
 
 /-! ## `Effects.All` -/
 

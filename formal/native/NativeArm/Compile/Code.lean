@@ -8,10 +8,11 @@ public import Std.Data.String.ToNat
 
 `Compile.code` lays a statement out as Kraken directives with local labels `.L<n>` drawn from a
 counter, branching with a condition's flag-setting code and a `B.<cc>` on the inverted condition
-code. `Compile.program` puts the body after the entry label `qm_entry` and the failure handler
-after `qm_fail`, each ending with `ORR X0, XZR, X9` (the result, `rax`, in the return register) and
-`RET`. Every label of a compiled program is distinct (`Compile.program_labels_nodup`), so that
-Kraken's label lookup, which takes the first match, finds each label where the compiler put it.
+code. `Compile.program` puts the body after the entry label `qm_entry` and `SUB SP, SP, #128`, which
+takes the scratch bank below SP, and the failure handler after `qm_fail`, each ending with
+`ADD SP, SP, #128`, `ORR X0, XZR, X9` (the result, `rax`, in the return register) and `RET`. Every
+label of a compiled program is distinct (`Compile.program_labels_nodup`), so that Kraken's label
+lookup, which takes the first match, finds each label where the compiler put it.
 -/
 
 open Native
@@ -34,6 +35,12 @@ def ins (is : List Instr) : Program := is.map .instr
 
 /-- `X0 := X9`: the result `rax` in the return register. -/
 def movRetI : Instr := ⟨.W64, .ORR_s (xr .X0) xzr (sr .X9)⟩
+
+/-- `SUB SP, SP, #128`: the scratch bank, below SP. -/
+def subSP : Instr := ⟨.W64, .SUB_e sp sp (.imm { imm := .int64 128, shift := .S0 })⟩
+
+/-- `ADD SP, SP, #128`: the scratch bank given back. -/
+def addSP : Instr := ⟨.W64, .ADD_e sp sp (.imm { imm := .int64 128, shift := .S0 })⟩
 
 /-- `RET`. -/
 def ret : Directive := .instr ⟨.W64, .RET (xr .X30)⟩
@@ -58,18 +65,18 @@ def code : Stmt → Nat → Program × Nat
   | .fail, n => ([b "qm_fail"], n)
 
 /-- A program's code: `body` from the entry `qm_entry` to a `RET`, then `onFail` from the
-failure exit `qm_fail` to a `RET`, each returning `rax` in X0. -/
+failure exit `qm_fail` to a `RET`, each returning `rax` in X0, the scratch bank below SP. -/
 def program (body onFail : Stmt) : Program :=
   let cb := code body 0
-  [.label "qm_entry"] ++ cb.1 ++ [.instr movRetI, ret] ++ [.label "qm_fail"] ++
-    (code onFail cb.2).1 ++ [.instr movRetI, ret]
+  [.label "qm_entry", .instr subSP] ++ cb.1 ++ [.instr addSP, .instr movRetI, ret] ++
+    [.label "qm_fail"] ++ (code onFail cb.2).1 ++ [.instr addSP, .instr movRetI, ret]
 
 /-- The index of the `RET` that ends the body. -/
-def retOkIndex (body : Stmt) : Nat := 2 + (code body 0).1.length
+def retOkIndex (body : Stmt) : Nat := 4 + (code body 0).1.length
 
 /-- The index of the `RET` that ends the failure handler. -/
 def retFailIndex (body onFail : Stmt) : Nat :=
-  5 + (code body 0).1.length + (code onFail (code body 0).2).1.length
+  8 + (code body 0).1.length + (code onFail (code body 0).2).1.length
 
 /-- The label a directive defines. -/
 def labelOf : Directive → Option Label
@@ -86,7 +93,7 @@ theorem program_retOk (body onFail : Stmt) :
   rw [List.getElem?_append_left (by simp; omega), List.getElem?_append_left (by simp; omega),
     List.getElem?_append_left (by simp; omega), List.getElem?_append_right (by simp; omega)]
   simp only [List.length_append, List.length_cons, List.length_nil]
-  rw [show 2 + (code body 0).1.length - (1 + (code body 0).1.length) = 1 by omega]
+  rw [show 4 + (code body 0).1.length - (2 + (code body 0).1.length) = 2 by omega]
   rfl
 
 theorem program_retFail (body onFail : Stmt) :
@@ -94,8 +101,8 @@ theorem program_retFail (body onFail : Stmt) :
   simp only [program, retFailIndex]
   rw [List.getElem?_append_right (by simp; omega)]
   simp only [List.length_append, List.length_cons, List.length_nil]
-  rw [show 5 + (code body 0).1.length + (code onFail (code body 0).2).1.length -
-    (1 + (code body 0).1.length + 2 + 1 + (code onFail (code body 0).2).1.length) = 1 by omega]
+  rw [show 8 + (code body 0).1.length + (code onFail (code body 0).2).1.length -
+    (2 + (code body 0).1.length + 3 + 1 + (code onFail (code body 0).2).1.length) = 2 by omega]
   rfl
 
 /-! ## Distinct labels -/

@@ -9,9 +9,11 @@ import all Kraken.Mem
 
 Each QM register lives in an AArch64 register (`Reg64.toX`); the compiled code may also clobber
 the scratch registers X4 to X8 (`XReg.scratch`) and writes no other register (`XReg.reserved`: X14
-to X18, X25 to X30 and SP among them). `StateRel s m`: the machine `m` holds the QM state `s`, every
-word of `s.mem` eight little-endian bytes of `m`'s memory at an aligned address. Kraken's flags are
-unconstrained.
+to X18, X25 to X30 and SP among them). The program takes the 128 bytes below SP on entry for the
+scratch bank and gives them back before it returns. `StateRel s m`: the machine `m` holds the QM
+state `s`, every word of `s.mem` eight little-endian bytes of `m`'s memory at an aligned address,
+and the scratch bank's words at SP, 16-aligned, apart from them (`BankAt`); `EntryRel s m`: the
+same at entry, the scratch bank in the 128 bytes below SP. Kraken's flags are unconstrained.
 -/
 
 open Native Std
@@ -58,9 +60,20 @@ def _root_.MachineData.setX (m : MachineData) (r : XReg) (v : BitVec 64) : Machi
 def MemRel (q : UInt64 → Option UInt64) (d : DataMem) : Prop :=
   ∀ a v, q a = some v → a.toNat % 8 = 0 ∧ d.loadBytes a.toBitVec 8 = some v.toBytes
 
-/-- `m` holds `s`: each QM register in its image, and the memory. -/
+/-- The scratch bank of `s` at `b`, 16-aligned: its words in `d`, apart from the words of
+`s.mem`. -/
+def BankAt (s : QState) (d : DataMem) (b : UInt64) : Prop :=
+  b.toNat % 16 = 0 ∧ MemRel (bankAt s.scr b) d ∧ ∀ a v, s.mem a = some v → bankAt s.scr b a = none
+
+/-- `m` holds `s`: each QM register in its image, the memory, and the scratch bank at SP. -/
 def StateRel (s : QState) (m : MachineData) : Prop :=
-  (∀ r, m.regs.getXReg r.toX = s.reg r) ∧ MemRel s.mem m.dmem
+  (∀ r, m.regs.getXReg r.toX = s.reg r) ∧ MemRel s.mem m.dmem ∧ BankAt s m.dmem m.regs.SP
+
+/-- `m` holds `s` at entry: each QM register in its image, the memory, and the scratch bank in the
+128 bytes below SP. -/
+def EntryRel (s : QState) (m : MachineData) : Prop :=
+  (∀ r, m.regs.getXReg r.toX = s.reg r) ∧ MemRel s.mem m.dmem ∧
+    BankAt s m.dmem (m.regs.SP - 128)
 
 /-- `m'` agrees with `m` on the reserved registers and SP. -/
 def Keeps (m m' : MachineData) : Prop :=
@@ -134,7 +147,7 @@ theorem StateRel.get {s : QState} {m : MachineData} (h : StateRel s m) (r : Reg6
 /-- Setting a register that holds no QM register keeps the relation. -/
 theorem StateRel.setX_other {s : QState} {m : MachineData} (h : StateRel s m) {x : XReg}
     (hx : ofX x = none) (v : BitVec 64) : StateRel s (m.setX x v) := by
-  refine ⟨fun r => ?_, h.2⟩
+  refine ⟨fun r => ?_, h.2.1, by simp only [setX_dmem, setX_regs, SP_setXReg]; exact h.2.2⟩
   have : r.toX ≠ x := fun e => by rw [← e, ofX_toX] at hx; cases hx
   simp [this, h.1 r]
 
@@ -145,7 +158,7 @@ theorem StateRel.setX_scratch {s : QState} {m : MachineData} (h : StateRel s m) 
 /-- Setting a QM register's image. -/
 theorem StateRel.setX {s : QState} {m : MachineData} (h : StateRel s m) (d : Reg64) {v : UInt64}
     {w : BitVec 64} (hw : w = v.toBitVec) : StateRel (s.setReg d v) (m.setX d.toX w) := by
-  refine ⟨fun r => ?_, h.2⟩
+  refine ⟨fun r => ?_, h.2.1, by simp only [setX_dmem, setX_regs, SP_setXReg]; exact h.2.2⟩
   by_cases hrd : r = d
   · subst hrd; simp [hw]
   · have : r.toX ≠ d.toX := fun e => hrd (toX_inj e)
@@ -263,10 +276,70 @@ theorem store_All {q : UInt64 → Option UInt64} {m : MachineData} (hm : MemRel 
   unfold MachineData.store
   simp only [Effects.All, MemWidth.bytes, loadInt_of_rel hm h]
 
+/-- A store to an aligned word that is none of `q`'s keeps `q`'s words. -/
+theorem MemRel.store_apart {q : UInt64 → Option UInt64} {d : DataMem} (hm : MemRel q d)
+    {a : UInt64} (ha : a.toNat % 8 = 0) (hq : ∀ b v, q b = some v → b ≠ a) (x : UInt64) :
+    MemRel q (Mem.storeInt d a.toBitVec 8 x.toBitVec.toInt) := by
+  have hlen : (Int.toBytes 8 x.toBitVec.toInt).length = 8 := Int.toBytes_length _ _
+  intro b y hb
+  obtain ⟨hb8, hload⟩ := hm b y hb
+  refine ⟨hb8, ?_⟩
+  rw [← hload]
+  apply loadBytes_congr
+  intro i hi
+  unfold Mem.storeInt Mem.storeBytes
+  rw [ExtHashMap.get?_eq_getElem?, ExtHashMap.get?_eq_getElem?, ExtHashMap.union_eq,
+    ExtHashMap.getElem?_union_of_not_mem_right]
+  rw [mem_At_iff]
+  rintro ⟨j, hj, he⟩
+  exact aligned_disjoint ha hb8 (hq b y hb) hi (hlen ▸ hj) he
+
+/-- A store to a word of `s.mem` keeps the scratch bank. -/
+theorem BankAt.store {s : QState} {d : DataMem} {b : UInt64} (hb : BankAt s d b)
+    (hm : MemRel s.mem d) {a v : UInt64} (h : s.mem a = some v) (x : UInt64) :
+    BankAt (s.setMem a x) (Mem.storeInt d a.toBitVec 8 x.toBitVec.toInt) b := by
+  refine ⟨hb.1, hb.2.1.store_apart (hm a v h).1 (fun c w hc e ↦ ?_) x, fun c w hc ↦ ?_⟩
+  · subst e
+    rw [hb.2.2 c v h] at hc
+    cases hc
+  · show bankAt s.scr b c = none
+    by_cases hca : c = a
+    · subst hca
+      exact hb.2.2 c v h
+    · rw [QState.setMem_mem, ite_eq_right hca] at hc
+      exact hb.2.2 c w hc
+
+/-- A store to scratch word `k` keeps the memory's words. -/
+theorem MemRel.setScr {s : QState} {d : DataMem} {b : UInt64} (hm : MemRel s.mem d)
+    (hb : BankAt s d b) {k : Nat} (hk : k < 16) (x : UInt64) :
+    MemRel s.mem (Mem.storeInt d (b + (8 * k).toUInt64).toBitVec 8 x.toBitVec.toInt) := by
+  have hs := bankAt_slot s.scr b hk
+  refine hm.store_apart (hb.2.1 _ _ hs).1 (fun c w hc e ↦ ?_) x
+  subst e
+  rw [hb.2.2 _ _ hc] at hs
+  cases hs
+
+/-- A store to scratch word `k`. -/
+theorem BankAt.setScr {s : QState} {d : DataMem} {b : UInt64} (hb : BankAt s d b) {k : Nat}
+    (hk : k < 16) (x : UInt64) :
+    BankAt (s.setScr k x) (Mem.storeInt d (b + (8 * k).toUInt64).toBitVec 8 x.toBitVec.toInt) b := by
+  refine ⟨hb.1, ?_, fun c w hc ↦ bankAt_none (hb.2.2 c w hc)⟩
+  show MemRel (bankAt (Function.update s.scr k x) b) _
+  rw [bankAt_update _ _ hk]
+  exact hb.2.1.store (bankAt_slot _ _ hk) x
+
 theorem StateRel.store {s : QState} {m : MachineData} (hr : StateRel s m) {a v : UInt64}
     (h : s.mem a = some v) (x : UInt64) :
     StateRel (s.setMem a x) { m with dmem := Mem.storeInt m.dmem a.toBitVec 8 x.toBitVec.toInt } :=
-  ⟨hr.1, hr.2.store h x⟩
+  ⟨hr.1, hr.2.1.store h x, hr.2.2.store hr.2.1 h x⟩
+
+/-- A store to scratch word `k`, at SP. -/
+theorem StateRel.setScr {s : QState} {m : MachineData} (hr : StateRel s m) {k : Nat} (hk : k < 16)
+    (x : UInt64) :
+    StateRel (s.setScr k x)
+      { m with dmem := (Mem.storeInt m.dmem (m.regs.SP + (8 * k).toUInt64).toBitVec 8
+        x.toBitVec.toInt) } :=
+  ⟨hr.1, hr.2.1.setScr hr.2.2 hk x, hr.2.2.setScr hk x⟩
 
 /-! ## `Effects.All` -/
 

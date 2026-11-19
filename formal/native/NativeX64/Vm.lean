@@ -15,7 +15,8 @@ and the callee-saved registers as they were. Every layout of the code is covered
 
 The proof: from `EntryPre`, `body` ends with the verdict or fails and `onFail` ends with it
 (`NativeVm.Code.entry_spec`, from the wire decoder's and the seven phases' contracts), and
-the compiled code does what they do (`Compile.program_correct`).
+the compiled code does what they do (`Compile.program_correct`), as neither writes `rsp`, which the
+kernel checks.
 -/
 
 open Native hiding Reg64 Width
@@ -44,7 +45,7 @@ theorem verify_correct [Host] (hP : Host.prog = Compile.program body onFail)
       ∀ r ∈ Context.calleeSaved, st.data.regs.get64 r.toX64 = m.regs.get64 r.toX64)
       ⟨m, Host.addrOf 0⟩ := by
   obtain ⟨o, hx, ho⟩ := entry_spec hrdi hin
-  refine eventually_weaken _ _ _ _ ?_ (Compile.program_correct hP hx hR fun s₁ h ↦ ?_)
+  refine eventually_weaken _ _ _ _ ?_ (Compile.program_correct hP (by decide +kernel) (by decide +kernel) hx hR fun s₁ h ↦ ?_)
   · rintro st (⟨s₁, rfl, hR₁, hpc⟩ | ⟨s₁, s₂, rfl, hE₂, hR₂, hpc⟩)
     · obtain ⟨hrax, hcs⟩ := ho
       refine ⟨Or.inl hpc, (hR₁.1 .rax).trans ?_, fun r hr ↦ ?_⟩
