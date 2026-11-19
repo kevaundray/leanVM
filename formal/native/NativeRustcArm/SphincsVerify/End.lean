@@ -1,0 +1,43 @@
+module
+
+public import NativeRustcArm.SphincsVerify.Compose
+public import NativeRustc.Sphincs.Verify
+
+/-!
+# `sphincs_verify` is leanSPHINCS verification, from its regions
+
+`verify_correct_of`: placed in a program, given its callees' contracts and its regions'
+statements, `sphincs_verify` on a context whose input words are `encode pk msg sig` returns to its
+caller `Sphincs.verifyWithKeccak pk msg sig` in X0, its registers and memory kept.
+-/
+
+namespace NativeRustcArm.SphincsVerifyProof
+
+public section
+
+variable [NativeArm.Host]
+
+/-- **`sphincs_verify` from its regions is leanSPHINCS verification.** -/
+theorem verify_correct_of {k : Nat} (hp : Placed Sphincs.SphincsVerify.code k) (hc : Callees)
+    (h1 : ParseSpec) (h2 : DigestSpec) (h3 : ForsSpec) (h4 : ForsKeySpec) (he : EncodeSpec)
+    (hch : ChainsSpec) (ht : TreeSpec)
+    {pk : _root_.Sphincs.PublicKey} {msg : HashSig.Message} {sig : _root_.Sphincs.Signature}
+    {m : MachineData} (hpre : (Run.mk m (Native.SphincsVerifier.encode pk msg sig) k).Pre) :
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = retOf m ∧
+      st.data.regs.X0 = (if _root_.Sphincs.verifyWithKeccak pk msg sig then 1 else 0) ∧
+      Saved m st.data) ⟨m, label "sphincs_verify"⟩ := by
+  have h0 : Sphincs.SphincsVerify.code[0]? = some (.label "sphincs_verify") := by
+    obtain ⟨t, hct⟩ := Sphincs.SphincsVerify.b0_in_code
+    rw [List.drop_zero] at hct
+    rw [← hct]
+    rfl
+  have hl : label "sphincs_verify" = NativeArm.Host.addrOf (k + 0) := hp.label h0
+  rw [hl, Nat.add_zero]
+  have := run_correct ⟨m, Native.SphincsVerifier.encode pk msg sig, k⟩ hp hc hpre h1 h2 h3 h4 he hch
+    ht
+  rw [NativeRustc.Sphincs.verify_eq] at this
+  exact this
+
+end
+
+end NativeRustcArm.SphincsVerifyProof

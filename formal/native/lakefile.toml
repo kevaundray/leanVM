@@ -72,12 +72,41 @@ globs = ["NativeX64", "NativeX64.+"]
 name = "NativeArm"
 globs = ["NativeArm", "NativeArm.+"]
 
+# The signature verifiers as rustc compiles the deployed crates (rustc/): their byte-level models,
+# proved equal to the statement; it imports no Kraken module.
+[[lean_lib]]
+name = "NativeRustc"
+globs = ["NativeRustc.+"]
+
+# rustc's AArch64 output for the signature verifiers, ingested as Kraken programs, and its proofs.
+[[lean_lib]]
+name = "NativeRustcArm"
+globs = ["NativeRustcArm", "NativeRustcArm.+"]
+
+# rustc's x86-64 output for the signature verifiers, ingested as Kraken programs, and its proofs.
+[[lean_lib]]
+name = "NativeRustcX64"
+globs = ["NativeRustcX64", "NativeRustcX64.+"]
+
 # A verifier's x86-64 machine code, `NativeX64.Compile.program body onFail`, printed as an assembly
 # file exporting `xmss_verify`, `sphincs_verify` or `leanvm_verify` (cli/EmitX64.lean); `run/check.sh` assembles it
 # with the harness.
 [[lean_exe]]
 name = "emit-x64"
 root = "EmitX64"
+srcDir = "cli"
+
+# The ingested rustc programs printed back with Kraken's printers, AArch64 (cli/PrintRustcCode.lean)
+# and x86-64 (cli/PrintRustcCodeX64.lean, apart since both declare the same root names), for the
+# check that ingestion is faithful to rustc's assembly.
+[[lean_exe]]
+name = "print-rustc-code"
+root = "PrintRustcCode"
+srcDir = "cli"
+
+[[lean_exe]]
+name = "print-rustc-code-x64"
+root = "PrintRustcCodeX64"
 srcDir = "cli"
 
 # A verifier's AArch64 machine code, `NativeArm.Compile.program body onFail`, printed as an assembly

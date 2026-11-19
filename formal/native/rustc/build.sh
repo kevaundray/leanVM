@@ -4,7 +4,7 @@
 # byte the same on every machine and in every checkout.
 #
 # Usage, from anywhere:
-#   rustc/build.sh            # out/{xmss,sphincs}-{x86_64,aarch64}.{s,o}, and SHA256SUMS of them
+#   rustc/build.sh            # out/{xmss,sphincs}-{x86_64,aarch64}.s (and x86_64.post.s), and SHA256SUMS of them
 #   rustc/build.sh --check    # builds twice, in two fresh directories, and fails unless both match SHA256SUMS
 #
 # Needs rustup with the toolchain of `rust-toolchain.toml` and its two targets (`rustup target add`).
@@ -16,6 +16,13 @@
 # target CPU is the baseline. The targets are musl's, the libc of the harness these objects are linked into.
 # `-C lto=fat` on the static library with one codegen unit makes the assembly one module holding exactly what the
 # export reaches, std's panic and allocation paths included, and `-C panic=abort` leaves out the unwinding tables.
+#
+# No SIMD or floating-point registers: `-neon` on AArch64, `-sse,-sse2` on x86-64, for every crate alike, so that the
+# code a verification runs uses general-purpose registers only, which Kraken models. rustc warns that the target's ABI
+# wants those features: no floating-point value crosses any function boundary here, so the ABI is not affected. The
+# entry crates define `memcpy` and `memset` themselves (`mem.rs`), so the assembly holds every instruction a
+# verification runs. The assembly is the artifact (`run/check.sh` assembles it): rustc's own object is not emitted, as
+# rustc 1.99.1's object and assembly code generation differ under fat LTO.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -26,7 +33,7 @@ export RUSTUP_TOOLCHAIN
 unset RUSTC_BOOTSTRAP RUSTC_WRAPPER
 
 # What the build reads, relative to the repository: the deployed crates' sources and the entry points.
-sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs)
+sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs formal/native/rustc/mem.rs formal/native/rustc/x86-postpass.py)
 
 # build SRC OUT: compiles the tree at SRC (laid out as the repository) into OUT.
 build() {
@@ -43,8 +50,8 @@ build() {
     case $arch in
       # LLVM 23 marks a function's preferred alignment with `.prefalign`, which no released assembler (clang 21) knows;
       # a fixed 16-byte alignment gives `.p2align 4` instead.
-      x86_64) cpu=x86-64 arch_flags=(-C llvm-args=-align-all-functions=4) ;;
-      aarch64) cpu=generic ;;
+      x86_64) cpu=x86-64 arch_flags=(-C llvm-args=-align-all-functions=4 -C target-feature=-sse,-sse2) ;;
+      aarch64) cpu=generic arch_flags=(-C target-feature=-neon) ;;
     esac
     local flags=(
       --edition 2024 --target "$target" -C target-cpu="$cpu"
@@ -63,13 +70,19 @@ build() {
       for scheme in xmss sphincs; do
         rustc "${flags[@]}" --crate-type staticlib --crate-name "$scheme" -C metadata="$scheme" -C lto=fat \
           --extern "lean_$scheme=$deps/$target/liblean_$scheme.rlib" \
-          --emit "link=$deps/$target/lib$scheme.a,asm=$out/$scheme-$arch.s,obj=$out/$scheme-$arch.o" \
+          --emit "link=$deps/$target/lib$scheme.a,asm=$out/$scheme-$arch.s" \
           "formal/native/rustc/$scheme.rs"
+        # The x86-64 code that is assembled, run and proved is the post-passed one (`x86-postpass.py`): GOT-indirect
+        # calls and loads as the linker relaxes them, register calls as direct ones, `bt` and a base-less `lea` as
+        # instructions Kraken reads.
+        if [[ $arch == x86_64 ]]; then
+          python3 formal/native/rustc/x86-postpass.py "$out/$scheme-$arch.s" "$out/$scheme-$arch.post.s"
+        fi
       done
     )
   done
   rm -rf "$deps"
-  (cd "$out" && sha256sum xmss-*.s xmss-*.o sphincs-*.s sphincs-*.o >SHA256SUMS)
+  (cd "$out" && sha256sum xmss-*.s sphincs-*.s >SHA256SUMS)
 }
 
 case ${1:-} in
