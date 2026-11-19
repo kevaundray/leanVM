@@ -1,0 +1,56 @@
+module
+
+public import NativeRustcX64.KeccakF.Prologue
+public import NativeRustcX64.KeccakF.Round
+public import NativeRustcX64.KeccakF.Epilogue
+
+/-!
+# `keccak_f` meets its contract (x86-64)
+
+`keccakF_spec`: rustc's x86-64 `keccak_f`, placed anywhere in the program, from its entry in a
+state satisfying `KeccakFPre` inevitably returns to the address at its RSP, with RSP 8 above, the
+200 bytes at RDI replaced by `Keccak.keccakF` of them (Keccak-f[1600] of their lanes), no byte
+changed outside them and the 240 bytes below RSP, the callee-saved registers restored and every
+mapped byte still mapped (`KeccakFPost`). The prologue (`prologue_step`) reaches the loop
+invariant before the first round, each turn of the loop (`round_step`) one round further, by
+induction on the rounds left (`Sym.loop`), and after the 24th the epilogue (`epilogue_step`)
+returns.
+-/
+
+namespace NativeRustcX64
+
+open KeccakF
+
+public section
+
+variable [Host]
+
+/-- **`keccak_f` meets its contract.** -/
+theorem keccakF_spec {k : Nat} (hp : Placed Common.KeccakF.code k) :
+    Spec (label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost := by
+  intro m0 hpre
+  rw [hp.label (j := 0) rfl, Nat.add_zero]
+  refine Eventually.bind (prologue_step hp hpre) fun st₁ ⟨hA₁, hpc₁⟩ => ?_
+  have hloop := Sym.loop (tr := step1 Host.exe)
+    (Q := fun st => At m0 24 st.data ∧ st.pc = Host.addrOf (k + 329))
+    (fun n st => ∃ i, n = 24 - i ∧ i < 24 ∧ st.pc = Host.addrOf (k + 79) ∧ At m0 i st.data)
+    (fun n st ⟨i, hn, hi, hpc, hA⟩ => by
+      obtain ⟨m, pc⟩ := st
+      simp only at hpc
+      subst hpc
+      refine Eventually.mono (round_step hp hpre hi hA) fun st' ⟨hA', hpc'⟩ => ?_
+      by_cases h : i + 1 = 24
+      · simp only [h, ↓reduceIte] at hpc'
+        exact .inl ⟨h ▸ hA', hpc'⟩
+      · simp only [h, ↓reduceIte] at hpc'
+        exact .inr ⟨24 - (i + 1), by omega, i + 1, rfl, by omega, hpc', hA'⟩)
+    (n := 24) ⟨0, rfl, by decide, hpc₁, hA₁⟩
+  refine Eventually.bind hloop fun st₂ ⟨hA₂, hpc₂⟩ => ?_
+  obtain ⟨m, pc⟩ := st₂
+  simp only at hpc₂
+  subst hpc₂
+  exact epilogue_step hp hpre hA₂
+
+end
+
+end NativeRustcX64

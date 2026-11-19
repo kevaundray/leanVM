@@ -1,6 +1,6 @@
 name = "native"
 version = "0.1.0"
-defaultTargets = ["Native", "NativeX64", "NativeArm"]
+defaultTargets = ["Native", "NativeX64", "NativeArm", "NativeRustc", "NativeRustcArm", "NativeRustcX64"]
 
 [leanOptions]
 warningAsError = true
