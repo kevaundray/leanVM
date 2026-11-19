@@ -40,6 +40,10 @@ jobs:
           key: guest-artifact-lean-${{ runner.os }}-${{ hashFiles('formal/lean_vm/lean-toolchain', 'formal/lean_vm/lake-manifest.json', 'formal/*/lakefile.*') }}-${{ hashFiles('formal/lean_vm/LeanVM/Compiler/**', 'formal/lean_vm/LeanVM/Core/**', 'formal/lean_vm/cli/GuestArtifact.lean', 'formal/Statement/**/*.lean', 'guests/lean_ethereum.py', 'crates/aggregation/src/**') }}
           restore-keys: guest-artifact-lean-${{ runner.os }}-${{ hashFiles('formal/lean_vm/lean-toolchain', 'formal/lean_vm/lake-manifest.json', 'formal/*/lakefile.*') }}-
       - uses: dtolnay/rust-toolchain@stable
+      # `.cargo/config.toml` builds for `target-cpu=native`: a build cached on another CPU model can hold proc
+      # macros rustc dies on (SIGILL). rust-cache hashes `RUST*` variables into its key, so this keys it per model.
+      - name: Key the Rust cache by CPU model
+        run: echo "RUST_CACHE_CPU=$(grep -m1 'model name' /proc/cpuinfo | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: formal/lean_vm/scripts/guest-export
@@ -72,6 +76,8 @@ jobs:
           name: guest-artifact
           path: guests
       - uses: dtolnay/rust-toolchain@stable
+      - name: Key the Rust cache by CPU model (as in `guest-artifact`)
+        run: echo "RUST_CACHE_CPU=$(grep -m1 'model name' /proc/cpuinfo | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: formal/lean_vm/scripts/guest-export
@@ -140,6 +146,8 @@ jobs:
           name: guest-artifact
           path: guests
       - uses: dtolnay/rust-toolchain@stable
+      - name: Key the Rust cache by CPU model (as in `guest-artifact`)
+        run: echo "RUST_CACHE_CPU=$(grep -m1 'model name' /proc/cpuinfo | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: formal/lean_vm/scripts/guest-export
@@ -407,6 +415,8 @@ jobs:
           sudo swapon "$dir/swapfile.lean"
           free -g
       - uses: dtolnay/rust-toolchain@stable
+      - name: Key the Rust cache by CPU model (as in `guest-artifact`)
+        run: echo "RUST_CACHE_CPU=$(grep -m1 'model name' /proc/cpuinfo | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
       # The cargo projects the checks below build, each its own workspace and target: their
       # registry dependencies cached, as in rust.yml; only `main` saves.
       - uses: Swatinem/rust-cache@v2
@@ -521,6 +531,8 @@ jobs:
           sudo swapon "$dir/swapfile.lean"
           free -g
       - uses: dtolnay/rust-toolchain@stable
+      - name: Key the Rust cache by CPU model (as in `guest-artifact`)
+        run: echo "RUST_CACHE_CPU=$(grep -m1 'model name' /proc/cpuinfo | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
       # The cargo projects the checks below build, each its own workspace and target: their
       # registry dependencies cached, as in rust.yml; only `main` saves.
       - uses: Swatinem/rust-cache@v2
@@ -597,6 +609,8 @@ jobs:
       - name: Build the executables
         run: python3 -I ../lake-build.py . ${{ matrix.exes }}
       - uses: dtolnay/rust-toolchain@stable
+      - name: Key the Rust cache by CPU model (as in `guest-artifact`)
+        run: echo "RUST_CACHE_CPU=$(grep -m1 'model name' /proc/cpuinfo | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
       # As in `lean-vm-guest`; one entry per check.
       - uses: Swatinem/rust-cache@v2
         with:
