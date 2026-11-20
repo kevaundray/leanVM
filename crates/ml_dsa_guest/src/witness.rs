@@ -28,16 +28,18 @@ impl Builder {
         }
     }
 
-    /// A twiddle product as `tw_mul` takes it: `b = r + q u` with `r` in 6-bit digits (the last below 32), `u`
-    /// hinted when `wq`, and returns `t = sum_k (zeta 64^k j_k mod q)`, `t = zeta b (mod q)`.
-    fn tw(&mut self, b: i128, zeta: i128, wq: bool) -> i128 {
+    /// A twiddle product as `tw_mul` takes it: `b = r + q u` with `r` in 6-bit digits (the last below 32), or
+    /// with `w8` in digits of 8, 8 and 7 bits, `u` hinted when `wq`; returns `t = sum_k (zeta B^k j_k mod q)`,
+    /// `t = zeta b (mod q)`.
+    fn tw(&mut self, b: i128, zeta: i128, wq: bool, w8: bool) -> i128 {
         let q = Q as i128;
         let (r, u) = (b.rem_euclid(q), b.div_euclid(q));
         assert!(b >= 0 && u < if wq { 1024 } else { 1 }, "a twiddle product's input {b} is past its digits");
-        let d: [i128; 4] = std::array::from_fn(|k| r >> (6 * k) & 63);
+        let (w, n) = if w8 { (8, 3) } else { (6, 4) };
+        let d: Vec<i128> = (0..n).map(|k| r >> (w * k) & ((1 << w) - 1)).collect();
         let entry = d.iter().chain(wq.then_some(&u)).map(|&v| g(v)).collect();
         self.push("tw", entry);
-        (0..4).map(|k| (zeta << (6 * k)) * d[k] % q).sum()
+        (0..n).map(|k| (zeta << (w * k)) * d[k] % q).sum()
     }
 }
 
@@ -152,8 +154,8 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
         s.push("z", zz.iter().map(|&z| g(z)).collect());
         let mut w = [0i128; 256];
         for n in 0..128 {
-            let a = s.tw(zz[n], f, false);
-            let t = s.tw(zz[n + 128], fz, false);
+            let a = s.tw(zz[n], f, false, true);
+            let t = s.tw(zz[n + 128], fz, false, true);
             w[n] = a + t + 2 * q - kf - kfz;
             w[n + 128] = a + 5 * q - kf + kfz - t;
         }
@@ -164,7 +166,8 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
                 for jj in 0..len {
                     let st = 2 * len * blk + jj;
                     let a = w[st];
-                    let t = s.tw(w[st + len], zetas[(1 << lay) + blk], true);
+                    let zi = (1 << lay) + blk;
+                    let t = s.tw(w[st + len], zetas[zi], true, zi < 16);
                     nw[st] = a + t;
                     nw[st + len] = a + 4 * q - t;
                 }
@@ -201,7 +204,8 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
                     let st = 2 * len * blk + jj;
                     let (a, b) = (w[st], w[st + len]);
                     nw[st] = a + b;
-                    nw[st + len] = s.tw(b + (q << (lay + 1)) - a, zetas[(256 >> lay) - 1 - blk], true);
+                    let zi = (256 >> lay) - 1 - blk;
+                    nw[st + len] = s.tw(b + (q << (lay + 1)) - a, zetas[zi], true, zi < 16);
                 }
             }
             w = nw;
