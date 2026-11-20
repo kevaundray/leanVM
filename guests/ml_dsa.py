@@ -6,12 +6,15 @@
 # the message, as Verify does, so the guest never reads a message.
 #
 # Arithmetic mod q lives in the exponent: an integer v is the field element g^v, exact while
-# |v| < 2^63, so + is MUL and a product by a constant is a power. A reduction v = r + q t is
-# advice, r and t in 12-bit limbs, each range checked and weighted by a table lookup. SHAKE
-# runs on the KECCAK permutation, absorbing its own blocks; bytes enter as hinted g-powers,
-# each range checked and tied back to its lane through a table of its bits. The widest range
-# checks, z's 2 ZB + 1 and UseHint's gamma2, need a memory past them, which every run's own
-# size gives.
+# |v| < 2^63, so + is MUL. A product by a constant (an NTT twiddle) takes its input apart as
+# b = r + q u, r in 6- or 8-bit digits and every digit range checked, and sums the digits'
+# products from tables of (zeta B^k j mod q): the advice that reduces is the advice that
+# multiplies. A product of two variables (A NTT(z)) is 2xy = (x + y)^2 - x^2 - y^2 over limbs,
+# by tables of squares. The tables sit in main's frame at cell TB, so a lookup is one DEREF of
+# its index times g^(TB + offset). SHAKE runs on the KECCAK permutation, absorbing its own
+# blocks; bytes enter as hinted g-powers, each range checked and tied back to its lane through a
+# table of its bits. The widest range checks, z's 2 ZB and UseHint's gamma2, need a memory past
+# them, which every run's own size gives.
 from snark_lib import *
 
 K = K_PLACEHOLDER
@@ -679,9 +682,9 @@ def pointwise(a, zh, wb):
 
 
 def intt(wi, oo):
-    # NTT^-1 without its factor 256^-1 in the frame, from the pointwise sums (below 2^50): layer 0 reduces
-    # each pair's sum and lifts its difference by q 2^27; values entering layer lay > 0 are below
-    # 2^(lay + 1) q, by which each difference is lifted; the outputs, below 512 q, into oo.
+    # NTT^-1 without its factor 256^-1 in the frame, from the pointwise sums (each below 14 2^46, so below
+    # q 2^27): layer 0 reduces each pair's sum and lifts its difference by q 2^27; values entering layer
+    # lay > 0 are below 2^(lay + 1) q, by which each difference is lifted; the outputs, below 512 q, into oo.
     v = StackBuf(256)
     for m in unroll(0, 256):
         v[m] = wi[GEN ** m]
