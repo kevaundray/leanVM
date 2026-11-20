@@ -75,7 +75,8 @@ OFF_SQ11 = OFF_SQ10 + 2303
 OFF_SQ12 = OFF_SQ11 + 2303
 SQ_OFF = [OFF_SQ00, OFF_SQ01, OFF_SQ02, OFF_SQ10, OFF_SQ11, OFF_SQ12]
 OFF_BC = OFF_SQ12 + 2175  # 3: g^(4097 256^l v^2), byte l of A's share of its squares
-OFF_R6 = OFF_BC + 768  # 3: g^(64^k v), k = 1..3
+OFF_ZC = OFF_BC + 768  # 4096, 2048: g^(65793 4096^k v^2), limb k of NTT(z)'s share of its squares
+OFF_R6 = OFF_ZC + 6144  # 3: g^(64^k v), k = 1..3
 OFF_R16 = OFF_R6 + 192  # 128: g^(65536 v)
 OFF_QU = OFF_R16 + 128  # 1024: g^(q v)
 OFF_WB = OFF_QU + 1024  # 2 of 512: g^(q 2^10 v), g^(q 2^19 v)
@@ -125,6 +126,10 @@ def main():
     for v in unroll(0, 256):
         for l in unroll(0, 3):
             tab[OFF_BC + 256 * l + v] = (GEN ** const(4097 * 256 ** l)) ** const(v * v)
+    for v in unroll(0, 4096):
+        tab[OFF_ZC + v] = (GEN ** 65793) ** const(v * v)
+    for v in unroll(0, 2048):
+        tab[OFF_ZC + 4096 + v] = (GEN ** 269488128) ** const(v * v)
     for v in unroll(0, 64):
         for k in unroll(0, 3):
             tab[OFF_R6 + 64 * k + v] = GEN ** const(64 ** (k + 1) * v)
@@ -200,9 +205,9 @@ def verify_sig(dg):
     pp = HeapBuf(TAU)
     sample_in_ball(ct, s1, pp)
 
-    zh = HeapBuf(768 * L)
+    zh = HeapBuf(512 * L)
     for j in unroll(0, L):
-        ntt_fwd(zh * GEN ** (768 * j))
+        ntt_fwd(zh * GEN ** (512 * j))
     wb = HeapBuf(256 * K)
     pointwise(a, zh, wb)
     ob = HeapBuf(256 * K)
@@ -281,7 +286,7 @@ def lane_of(eb, at: Const):
 
 def t1_row(ml, s1):
     # Row i of t1: its 40 lanes into ml and its 256 coefficients, times 2^d, into the
-    # row's sparse-product table s1: [g^T | g^-T | g^T | g^-T].
+    # row's sparse-product table s1: [g^T | g^-T | g^T], read at 1..767.
     for u in mul_range(1, GEN ** 8):
         t1_unit(ml * u ** 5, s1 * u ** 32)
     return
@@ -310,9 +315,7 @@ def t1_unit(ml, s1):
 def t1_store(s1, n: Const, gt):
     s1[GEN ** n] = gt
     s1[GEN ** (n + 512)] = gt
-    gi = 1 / gt
-    s1[GEN ** (n + 256)] = gi
-    s1[GEN ** (n + 768)] = gi
+    s1[GEN ** (n + 256)] = 1 / gt
     return
 
 
@@ -580,7 +583,7 @@ def ntt_fwd(zo):
     # f NTT(z) in the frame from the hinted z + ZB, both inputs of layer 0 multiplied (by f and f zeta_1),
     # lifted to f z and f zeta_1 z by constants: values below 10 q after layer 0, each later layer adding
     # less than 4q, so below 38 q throughout. Reduced into zo: limbs x0 < 2^12 at m and x1 < 2^11 at
-    # 256 + m, and at 512 + m their squares' share of the pointwise products.
+    # 256 + m.
     zz = StackBuf(256)
     hint_witness(zz, "z")
     v = StackBuf(256)
@@ -613,7 +616,6 @@ def ntt_fwd(zo):
         assert v[m] == x0 * x1[GEN ** (TB + OFF_S12)] * xu[GEN ** (TB + OFF_QU)]
         zo[GEN ** m] = x0
         zo[GEN ** (256 + m)] = x1
-        zo[GEN ** (512 + m)] = x0[GEN ** (TB + OFF_SQ00)] * x0[GEN ** (TB + OFF_SQ01)] * x0[GEN ** (TB + OFF_SQ02)] * x1[GEN ** (TB + OFF_SQ10)] * x1[GEN ** (TB + OFF_SQ11)] * x1[GEN ** (TB + OFF_SQ12)]
     return
 
 
@@ -639,21 +641,23 @@ def reduce_s(x):
 
 def pointwise(a, zh, wb):
     # 2 sum_j A_ij NTT(z_j), from 2 x y = (x + y)^2 - x^2 - y^2 over the limbs x of NTT(z) and y of A (its
-    # bytes, b2 & 127): SQ_kl read at the pointer g^(x + y), less A's squares (BC) and NTT(z)'s (stored
-    # with it). Each sum is below 2^50, left for NTT^-1 to reduce; the doubling rides along, NTT(z) having
-    # taken 512^-1.
+    # bytes, b2 & 127): SQ_kl read at the pointer g^(x + y), less A's squares (BC) and NTT(z)'s (ZC, shared
+    # by the rows). Each sum is below 2^50, left for NTT^-1 to reduce; the doubling rides along, NTT(z)
+    # having taken 512^-1.
     for mm in mul_range(1, GEN ** 256):
         pa = a * mm
         pz = zh * mm
         pw = wb * mm
         zv = StackBuf(2 * L)
         for j in unroll(0, L):
-            zv[2 * j] = pz[GEN ** (768 * j)]
-            zv[2 * j + 1] = pz[GEN ** (768 * j + 256)]
+            zv[2 * j] = pz[GEN ** (512 * j)]
+            zv[2 * j + 1] = pz[GEN ** (512 * j + 256)]
+            x0 = zv[2 * j]
+            x1 = zv[2 * j + 1]
             if const(j == 0):
-                zsq = pz[GEN ** 512]
+                zsq = x0[GEN ** (TB + OFF_ZC)] * x1[GEN ** (TB + OFF_ZC + 4096)]
             else:
-                zsq = zsq * pz[GEN ** (768 * j + 512)]
+                zsq = zsq * x0[GEN ** (TB + OFF_ZC)] * x1[GEN ** (TB + OFF_ZC + 4096)]
         for i in unroll(0, K):
             for j in unroll(0, L):
                 e = [pa[GEN ** (EXA_POLY * (L * i + j))], pa[GEN ** (EXA_POLY * (L * i + j) + EXA_STRIDE)], pa[GEN ** (EXA_POLY * (L * i + j) + 2 * EXA_STRIDE)]]
