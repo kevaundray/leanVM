@@ -27,6 +27,7 @@ pub struct DecodeWork {
 }
 
 /// The reader: the bytes and a position in them.
+#[repr(C)]
 struct Reader<'a> {
     bytes: &'a [u8],
     c: usize,
@@ -34,6 +35,7 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     /// `leAt`: the little-endian word of the `n ≤ 8` bytes from `c`, which must be there.
+    #[inline(never)]
     fn le(&mut self, n: usize) -> Option<u64> {
         let bytes = self.bytes.get(self.c..self.c.checked_add(n)?)?;
         self.c += n;
@@ -41,16 +43,19 @@ impl Reader<'_> {
     }
 
     /// `rdU32`.
+    #[inline(always)]
     fn u32(&mut self) -> Option<u64> {
         self.le(4)
     }
 
     /// `rdDigest`.
+    #[inline(never)]
     fn digest(&mut self) -> Option<Digest> {
         Some([self.le(8)?, self.le(8)?, self.le(8)?, self.le(8)?])
     }
 
     /// `rdWords n`: `n` words, all there or none read.
+    #[inline(never)]
     fn words(&mut self, out: &mut [u64]) -> Option<()> {
         let end = self.c.checked_add(out.len().checked_mul(8)?)?;
         if end > self.bytes.len() {
@@ -64,6 +69,7 @@ impl Reader<'_> {
 }
 
 /// `insD`: add `x` to the ascending `sorted[..n]` unless it is there; the new count.
+#[inline(never)]
 fn ins_d(sorted: &mut [u64; MAX_QUERIES], n: usize, x: u64) -> usize {
     let mut i = 0;
     while i < n && sorted[i % MAX_QUERIES] < x {
@@ -81,12 +87,94 @@ fn ins_d(sorted: &mut [u64; MAX_QUERIES], n: usize, x: u64) -> usize {
     n + 1
 }
 
-/// The index of `key` in ascending distinct `keys` (`List.lookup` on them).
+/// The index of the first node of `key` (`List.lookup` on the nodes).
+#[inline(never)]
 fn find(nodes: &[Node], key: u64) -> Option<usize> {
-    nodes.binary_search_by_key(&key, |n| n.key).ok()
+    nodes.iter().position(|n| n.key == key)
+}
+
+/// `rdRows` with each row `paddedLeaf`: `n` rows of `row_words` words into `leaves`, each after
+/// `leaf_words - row_words` zeros; whether every row's first word is zero.
+#[inline(never)]
+fn rd_rows(
+    r: &mut Reader,
+    n: usize,
+    leaf_words: usize,
+    row_words: usize,
+    leaves: &mut [[u64; MAX_LEAF_WORDS]; MAX_QUERIES],
+) -> Option<bool> {
+    let mut all_zero = true;
+    for leaf in leaves.get_mut(..n)? {
+        let (zeros, row) = leaf.get_mut(..leaf_words)?.split_at_mut_checked(leaf_words.checked_sub(row_words)?)?;
+        for z in zeros.iter_mut() {
+            *z = 0;
+        }
+        r.words(row)?;
+        all_zero &= row.first().is_none_or(|&x| x == 0);
+    }
+    Some(all_zero)
+}
+
+/// A level of `climbM`: each of the level's `nodes` with its sibling into `sibs` (`sibsM`), and
+/// their parents into `next` (`parentsOf`); the parents' count.
+#[inline(never)]
+fn climb_level(r: &mut Reader, nodes: &[Node], sibs: &mut [Node; MAX_QUERIES], next: &mut [Node; MAX_QUERIES]) -> Option<usize> {
+    let mut parents = 0;
+    for (i, node) in nodes.iter().enumerate() {
+        // `nodes.lookup (v ^^^ 1)`.
+        let found = nodes.iter().find(|m| m.key == node.key ^ 1);
+        let (digest, carried) = match found {
+            Some(m) => (m.digest, false),
+            None => (r.digest()?, true),
+        };
+        *sibs.get_mut(i)? = Node { key: node.key, digest };
+        if node.key % 2 == 0 || carried {
+            let parent = if node.key % 2 == 0 { hash_pair(&node.digest, &digest) } else { hash_pair(&digest, &node.digest) };
+            *next.get_mut(parents)? = Node { key: node.key >> 1, digest: parent };
+            parents += 1;
+        }
+    }
+    Some(parents)
+}
+
+/// The openings of a phase into `out`: its count, height and leaf width, then each query's
+/// position, its leaf (`(positions.zip leaves).lookup q`) and its path (level `l`'s sibling
+/// `(sibs l).lookup (q >>> l)`, else zeros).
+#[allow(clippy::too_many_arguments)]
+#[inline(never)]
+fn write_openings(
+    queries: &[u64],
+    positions: &[u64],
+    leaves: &[[u64; MAX_LEAF_WORDS]; MAX_QUERIES],
+    leaf_words: usize,
+    height: usize,
+    sibs: &[[Node; MAX_QUERIES]; MAX_HEIGHT],
+    sib_counts: &[usize; MAX_HEIGHT],
+    out: &mut [u64],
+) -> Option<()> {
+    let (head, openings) = out.split_at_mut_checked(3)?;
+    head.copy_from_slice(&[queries.len() as u64, height as u64, leaf_words as u64]);
+    for (j, &q) in queries.iter().enumerate() {
+        let o = openings.get_mut(j * OPENING_WORDS..(j + 1) * OPENING_WORDS)?;
+        o[0] = q;
+        let i = positions.iter().position(|&p| p == q)?;
+        for (slot, &x) in o.get_mut(1..1 + leaf_words)?.iter_mut().zip(leaves.get(i)?) {
+            *slot = x;
+        }
+        for level in 0..height {
+            let sibs = sibs.get(level)?.get(..*sib_counts.get(level)?)?;
+            let digest = find(sibs, q >> level).and_then(|k| sibs.get(k)).map_or([0; 4], |s| s.digest);
+            let at = 1 + MAX_LEAF_WORDS + 4 * level;
+            for (slot, &x) in o.get_mut(at..at + 4)?.iter_mut().zip(&digest) {
+                *slot = x;
+            }
+        }
+    }
+    Some(())
 }
 
 /// `phaseM`: a phase at the reader's position into the decoded words `out` (`phaseWords` of them).
+#[inline(never)]
 fn phase_m(r: &mut Reader, out: &mut [u64], w: &mut DecodeWork) -> Option<()> {
     let count = r.u32()?;
     if count > MAX_QUERIES as u64 {
@@ -115,76 +203,27 @@ fn phase_m(r: &mut Reader, out: &mut [u64], w: &mut DecodeWork) -> Option<()> {
         return None;
     }
     let (height, leaf_words, row_words) = (height as usize, leaf_words as usize, row_words as usize);
-    // `rdRows`, each leaf `paddedLeaf`.
-    let mut all_zero = true;
-    for leaf in w.leaves.get_mut(..n)? {
-        let (zeros, row) = leaf.get_mut(..leaf_words)?.split_at_mut_checked(leaf_words - row_words)?;
-        for z in zeros.iter_mut() {
-            *z = 0;
-        }
-        r.words(row)?;
-        all_zero &= row.first().is_none_or(|&x| x == 0);
-    }
+    let all_zero = rd_rows(r, n, leaf_words, row_words, &mut w.leaves)?;
     if row_words > 0 && all_zero {
         return None;
     }
-    let positions = w.positions.get(..n)?;
     for (node, (&p, leaf)) in w.nodes[0].iter_mut().zip(positions.iter().zip(&w.leaves)) {
         *node = Node { key: p, digest: hash_words(leaf.get(..leaf_words)?) };
     }
-    // `climbM`: each level's nodes with their siblings (`sibsM`), then their parents (`parentsOf`).
+    // `climbM`: each level's nodes with their siblings, then their parents.
     let mut level_n = n;
     for level in 0..height {
         let [even, odd] = &mut w.nodes;
         let (nodes, next) = if level % 2 == 0 { (&*even, odd) } else { (&*odd, even) };
-        let nodes = nodes.get(..level_n)?;
-        let sibs = w.sibs.get_mut(level)?;
-        let mut parents = 0;
-        for (i, node) in nodes.iter().enumerate() {
-            // The level's nodes are ascending and distinct: the node beside `v` is a neighbour.
-            let beside = if node.key % 2 == 0 { i.checked_add(1) } else { i.checked_sub(1) };
-            let found = beside.and_then(|j| nodes.get(j)).filter(|m| m.key == node.key ^ 1);
-            let (digest, carried) = match found {
-                Some(m) => (m.digest, false),
-                None => (r.digest()?, true),
-            };
-            *sibs.get_mut(i)? = Node { key: node.key, digest };
-            if node.key % 2 == 0 || carried {
-                let parent = if node.key % 2 == 0 {
-                    hash_pair(&node.digest, &digest)
-                } else {
-                    hash_pair(&digest, &node.digest)
-                };
-                *next.get_mut(parents)? = Node { key: node.key >> 1, digest: parent };
-                parents += 1;
-            }
-        }
+        let parents = climb_level(r, nodes.get(..level_n)?, w.sibs.get_mut(level)?, next)?;
         *w.sib_counts.get_mut(level)? = level_n;
         level_n = parents;
     }
-    // The openings: each query's leaf and its path, looked up.
-    let (head, openings) = out.split_at_mut_checked(3)?;
-    head.copy_from_slice(&[count as u64, height as u64, leaf_words as u64]);
-    for (j, &q) in w.queries.get(..count)?.iter().enumerate() {
-        let o = openings.get_mut(j * OPENING_WORDS..(j + 1) * OPENING_WORDS)?;
-        o[0] = q;
-        let i = positions.binary_search(&q).ok()?;
-        for (slot, &x) in o.get_mut(1..1 + leaf_words)?.iter_mut().zip(w.leaves.get(i)?) {
-            *slot = x;
-        }
-        for level in 0..height {
-            let sibs = w.sibs.get(level)?.get(..*w.sib_counts.get(level)?)?;
-            let digest = find(sibs, q >> level).and_then(|k| sibs.get(k)).map_or([0; 4], |s| s.digest);
-            let at = 1 + MAX_LEAF_WORDS + 4 * level;
-            for (slot, &x) in o.get_mut(at..at + 4)?.iter_mut().zip(&digest) {
-                *slot = x;
-            }
-        }
-    }
-    Some(())
+    write_openings(w.queries.get(..count)?, positions, &w.leaves, leaf_words, height, &w.sibs, &w.sib_counts, out)
 }
 
 /// **The model** (`decodeM`): the stream, the phase count, the phases, no byte left; into `dec`.
+#[inline(never)]
 pub fn decode(bytes: &[u8], dec: &mut [u64], w: &mut DecodeWork) -> Option<()> {
     let l = bytes.len();
     let mut r = Reader { bytes, c: 0 };

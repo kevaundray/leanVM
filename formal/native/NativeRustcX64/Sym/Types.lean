@@ -20,6 +20,8 @@ namespace NativeRustcX64
 /-- A binary operation of a given width on two 64-bit values. -/
 inductive BinOp
   | add | sub | and | or | xor | mul
+  /-- The high half of the unsigned product (`MUL`'s RDX). -/
+  | mulhi
   /-- Shifts and rotations; the count is the second operand's low byte, masked to 5 bits (6 bits
   at width 64). -/
   | shl | shr | sar | rol | ror
@@ -57,6 +59,12 @@ inductive CmpOp
   | addV | subV
   /-- Signed overflow of `INC`, `DEC`, `NEG` of the first operand. -/
   | incV | decV | negV
+  /-- The unsigned product overflows the width (`MUL`'s CF and OF). -/
+  | mulC
+  /-- The carry and signed overflow of the sum with a carry in `c` (`ADC`). -/
+  | adcC (c : Bool) | adcV (c : Bool)
+  /-- The borrow and signed overflow of the difference with a borrow in `c` (`SBB`). -/
+  | sbbC (c : Bool) | sbbV (c : Bool)
   deriving DecidableEq, Repr, Lean.ToExpr
 
 mutual

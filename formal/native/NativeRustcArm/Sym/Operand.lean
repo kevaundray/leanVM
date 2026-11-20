@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcArm.Sym.Flags
-public import NativeRustcArm.Sym.Mem
+public import NativeRustcArm.Sym.Slots
 
 /-!
 # Operands of instructions
@@ -44,6 +44,18 @@ theorem lo12_val (x : BitVec 64) :
 
 variable [Labels] {env : Env} {S : SState} {m : MachineData}
 
+/-- The address of an `ADRP` or `:lo12:` operand (`labelAddr`) is the operand's value. -/
+theorem labelAddr_spec {t : ConstExpr} {x : Sym} (h : labelAddr t = some x) (p : Std.Rco Int64) :
+    (t.interp p).toBitVec = x.eval env := by
+  unfold labelAddr at h
+  split at h
+  · cases h
+    rfl
+  · cases h
+    simp only [ConstExpr.interp, Int64.toBitVec_add, Sym.eval, BinOp.apply, low_W64, ext_W64,
+      BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  · cases h
+
 theorem Match.shiftOp (hm : Match env S m) {w : RegWidth} {e : ShiftRegExpr w} {b : Sym}
     (h : S.shiftOp e = some b) (p : Std.Rco Int64) : e.interp m.regs p = low w (b.eval env) := by
   unfold SState.shiftOp at h
@@ -81,18 +93,19 @@ theorem Match.extOrImm (hm : Match env S m) {w : RegWidth} {e : ExtOrImmReg} {b 
         cases h
         simp only [ExtOrImmReg.interp, ConstExpr.interp, eval_lit_toNat, low_ext]
     | lo12 c' =>
-      cases c' with
-      | label l =>
-        cases sh with
-        | S0 =>
-          cases w with
-          | W32 => cases h
-          | W64 =>
-            cases h
+      cases sh with
+      | S0 =>
+        cases w with
+        | W32 => cases h
+        | W64 =>
+          cases hx : labelAddr c' with
+          | none => simp only [immSym, hx, reduceCtorEq] at h
+          | some x =>
+            simp only [immSym, hx, Option.some.injEq] at h
+            subst h
             simp only [ExtOrImmReg.interp, ConstExpr.interp, Sym.eval, BinOp.apply, low_W64,
-              ext_W64, ofInt_toInt64, lo12_val]
-        | S12 => cases h
-      | _ => cases sh <;> cases h
+              ext_W64, ofInt_toInt64, lo12_val, labelAddr_spec (env := env) hx p]
+      | S12 => cases h
     | _ => cases sh <;> cases h
 
 theorem logicImm_spec {w : RegWidth} {c : ConstExpr} {b : Sym} (h : logicImm w c = some b)

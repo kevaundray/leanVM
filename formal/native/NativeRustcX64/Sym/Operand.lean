@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcX64.Sym.Flags
-public import NativeRustcX64.Sym.Mem
+public import NativeRustcX64.Sym.Slots
 
 /-!
 # Operands of instructions
@@ -122,12 +122,13 @@ theorem store_All (hm : Match env S m) (hwf : env.WF) {w : Width} {A : BitVec 64
   exact hret _ hm'
 
 omit [Labels] in
-/-- After a store, a load of the same bytes reads the stored value. -/
+/-- After a store at a constant offset, a load of the same bytes reads the stored value. -/
 theorem SState.storeAt_loadOne {S S' : SState} {a u : Sym} {n : Nat}
-    (h : S.storeAt a n u = some S') (hn : 0 < n) : S'.loadOne a n = some (mkBytes u 0 n) := by
+    (h : S.storeAt a n u = some S') (hs : S.slots a n = none) (hn : 0 < n) :
+    S'.loadOne a n = some (mkBytes u 0 n) := by
   unfold SState.storeAt at h
   cases hacc : S.access a n with
-  | none => rw [hacc] at h; cases h
+  | none => rw [hacc, hs] at h; cases h
   | some ro =>
     obtain ⟨r, o⟩ := ro
     rw [hacc] at h

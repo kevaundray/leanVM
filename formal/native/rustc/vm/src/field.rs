@@ -37,7 +37,7 @@ const fn reduce(lo: u64, hi: u64) -> u64 {
 }
 
 /// `kmul`: the product in `K`.
-#[inline(always)]
+#[inline(never)]
 pub const fn kmul(a: u64, b: u64) -> u64 {
     let (lo, hi) = clmul(a, b);
     reduce(lo, hi)
@@ -50,6 +50,7 @@ fn ksquare(a: u64) -> u64 {
 }
 
 /// `kpow`: `a^n` in `K`, square-and-multiply from the low bit (`kpowAux`).
+#[inline(never)]
 pub fn kpow(a: u64, n: u64) -> u64 {
     let (mut base, mut acc, mut n) = (a, 1u64, n);
     while n != 0 {
@@ -63,7 +64,9 @@ pub fn kpow(a: u64, n: u64) -> u64 {
 }
 
 /// `kinv`: `a^(2^64 - 2)`, `0` at `0`, by Itoh-Tsujii (`K::inv`, `crates/verifier/src/field.rs`).
+#[inline(never)]
 pub fn kinv(a: u64) -> u64 {
+    #[inline(never)]
     fn sq(mut v: u64, n: u32) -> u64 {
         let mut i = 0;
         while i < n {
@@ -85,6 +88,7 @@ pub fn kinv(a: u64) -> u64 {
 }
 
 /// `gpowK`: `g^n` as a lane.
+#[inline(always)]
 pub fn gpow_k(n: u64) -> u64 {
     kpow(2, n)
 }
@@ -103,11 +107,13 @@ pub const ONE: EW = EW::new(1, 0);
 pub const GEN: EW = EW::new(2, 0);
 
 impl EW {
+    #[inline(always)]
     pub const fn new(c0: u64, c1: u64) -> Self {
         Self { c0, c1 }
     }
 
     /// `EW.ofK`.
+    #[inline(always)]
     pub const fn of_k(a: u64) -> Self {
         Self::new(a, 0)
     }
@@ -119,7 +125,7 @@ impl EW {
     }
 
     /// `EW.mul`: `y² = x·y + 1`, Karatsuba over the carry-less products (`Mul for E`).
-    #[inline(always)]
+    #[inline(never)]
     pub fn mul(self, b: Self) -> Self {
         let (p0l, p0h) = clmul(self.c0, b.c0);
         let (p1l, p1h) = clmul(self.c1, b.c1);
@@ -137,6 +143,7 @@ impl EW {
     }
 
     /// `EW.sqIter`: `x^(2^k)`.
+    #[inline(never)]
     pub fn sq_iter(k: usize, mut x: Self) -> Self {
         let mut i = 0;
         while i < k {
@@ -164,21 +171,25 @@ impl core::ops::Mul for EW {
 }
 
 /// `gpow`: `g^index` in limb `0`.
+#[inline(always)]
 pub fn gpow(index: u64) -> EW {
     EW::of_k(gpow_k(index))
 }
 
 /// `sumE`.
+#[inline(never)]
 pub fn sum_e(values: &[EW]) -> EW {
     values.iter().fold(ZERO, |acc, &v| acc + v)
 }
 
 /// `prodE`.
+#[inline(never)]
 pub fn prod_e(values: &[EW]) -> EW {
     values.iter().fold(ONE, |acc, &v| acc * v)
 }
 
 /// `powers`: `1, base, base², …`, as many as `out` holds.
+#[inline(never)]
 pub fn powers(base: EW, out: &mut [EW]) {
     let mut power = ONE;
     for slot in out.iter_mut() {
@@ -189,6 +200,7 @@ pub fn powers(base: EW, out: &mut [EW]) {
 
 /// `eqKernel`: the `2^|point|` equality weights, the first coordinate the lowest bit; `None` when
 /// `out` is shorter. The kernel fills `out[..2^|point|]`.
+#[inline(never)]
 pub fn eq_kernel(point: &[EW], out: &mut [EW]) -> Option<usize> {
     let size = 1usize.checked_shl(u32::try_from(point.len()).ok()?)?;
     if out.len() < size {
@@ -213,6 +225,7 @@ pub fn eq_kernel(point: &[EW], out: &mut [EW]) -> Option<usize> {
 /// `multilinearEval`: `point.foldl foldPairs mle`, its first entry or `0`. Folded as the entries
 /// arrive, one pending entry per level: entry `i` of level `k` pairs with entry `i + 1` when `i` is
 /// even, as `foldPairs` pairs them, and an unpaired last entry is dropped as `foldPairs` drops it.
+#[inline(never)]
 pub fn multilinear_eval_by(n: usize, entry: impl Fn(usize) -> EW, point: &[EW]) -> EW {
     let m = point.len();
     if m >= 64 {
@@ -220,7 +233,7 @@ pub fn multilinear_eval_by(n: usize, entry: impl Fn(usize) -> EW, point: &[EW]) 
         return ZERO;
     }
     let mut pending = [ZERO; 64];
-    let mut full = 0u64; // bit `k`: level `k` holds a pending entry
+    let mut full = [false; 64]; // level `k` holds a pending entry
     for i in 0..n {
         let mut value = entry(i);
         let mut level = 0;
@@ -229,15 +242,15 @@ pub fn multilinear_eval_by(n: usize, entry: impl Fn(usize) -> EW, point: &[EW]) 
                 // The first entry to reach level `m` is the result.
                 return value;
             }
-            let bit = 1u64 << level;
-            if full & bit == 0 {
+            let Some(f) = full.get_mut(level) else { return ZERO };
+            if !*f {
+                *f = true;
                 if let Some(slot) = pending.get_mut(level) {
                     *slot = value;
                 }
-                full |= bit;
                 break;
             }
-            full &= !bit;
+            *f = false;
             let (a, r) = match (pending.get(level), point.get(level)) {
                 (Some(&a), Some(&r)) => (a, r),
                 _ => return ZERO,
@@ -250,23 +263,42 @@ pub fn multilinear_eval_by(n: usize, entry: impl Fn(usize) -> EW, point: &[EW]) 
 }
 
 /// `multilinearEval` of an array.
+#[inline(always)]
 pub fn multilinear_eval(mle: &[EW], point: &[EW]) -> EW {
     multilinear_eval_by(mle.len(), |i| mle.get(i).copied().unwrap_or(ZERO), point)
 }
 
 /// `eqEval`: `Π (1 + x + y)` over the common length.
+#[inline(never)]
 pub fn eq_eval(left: &[EW], right: &[EW]) -> EW {
     left.iter().zip(right).fold(ONE, |acc, (&x, &z)| acc * (ONE + x + z))
 }
 
 /// `eqEval` with its left side given by index, `n` entries of it.
+#[inline(never)]
 pub fn eq_eval_fn(n: usize, left: impl Fn(usize) -> EW, right: &[EW]) -> EW {
     right.iter().take(n).enumerate().fold(ONE, |acc, (k, &z)| acc * (ONE + left(k) + z))
 }
 
 /// `dot`: `Σ x·y` over the common length.
+#[inline(never)]
 pub fn dot(left: &[EW], right: &[EW]) -> EW {
     left.iter().zip(right).fold(ZERO, |acc, (&x, &y)| acc + x * y)
+}
+
+/// The bit length of `v` (`0` at `0`), by halving the range: no bit-scan instruction (`bsr`,
+/// `bsf`, `clz`), which Kraken's x86-64 lacks.
+#[inline(never)]
+pub const fn bit_length(v: u64) -> usize {
+    let (mut n, mut v, mut s) = (0, v, 32);
+    while s > 0 {
+        if v >> s != 0 {
+            n += s;
+            v >>= s;
+        }
+        s /= 2;
+    }
+    n + (v != 0) as usize
 }
 
 /// `n >>> s` on `Nat`s below `2^64`.
@@ -282,6 +314,7 @@ pub fn bit_e(n: u64, k: usize) -> EW {
 }
 
 /// `paddingWeight`: the multilinear extension of `[z ≥ n]`, from the low bit.
+#[inline(never)]
 pub fn padding_weight(point: &[EW], n: u64) -> EW {
     let mut pad = ONE;
     for (k, &r) in point.iter().enumerate() {
@@ -292,6 +325,7 @@ pub fn padding_weight(point: &[EW], n: u64) -> EW {
 }
 
 /// `indexMleFrom`.
+#[inline(never)]
 pub fn index_mle_from(generator_power: EW, point: &[EW]) -> EW {
     let (mut acc, mut power) = (ONE, generator_power);
     for &r in point {
@@ -302,16 +336,19 @@ pub fn index_mle_from(generator_power: EW, point: &[EW]) -> EW {
 }
 
 /// `indexMle`.
+#[inline(always)]
 pub fn index_mle(point: &[EW]) -> EW {
     index_mle_from(GEN, point)
 }
 
 /// `polyEval`: Horner's rule, constant first.
+#[inline(never)]
 pub fn poly_eval(coefficients: &[EW], point: EW) -> EW {
     coefficients.iter().rev().fold(ZERO, |acc, &c| acc * point + c)
 }
 
 /// `selectorPoint`: the low `out.len()` bits of `selector`, lowest first.
+#[inline(never)]
 pub fn selector_point(selector: u64, out: &mut [EW]) {
     for (bit, slot) in out.iter_mut().enumerate() {
         *slot = bit_e(selector, bit);

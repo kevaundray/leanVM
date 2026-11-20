@@ -83,6 +83,8 @@ def BinOp.apply : BinOp → (w : Width) → BitVec 64 → BitVec 64 → BitVec 6
   | .or, w, x, y => ext w (low w x ||| low w y)
   | .xor, w, x, y => ext w (low w x ^^^ low w y)
   | .mul, w, x, y => ext w (low w x * low w y)
+  | .mulhi, w, x, y =>
+    ext w (BitVec.ofInt w.bits (((low w x).unsigned * (low w y).unsigned) >>> w.bits))
   | .shl, w, x, y => ext w (low w x <<< shiftCount w y)
   | .shr, w, x, y => ext w ((low w x).ushiftRight (shiftCount w y))
   | .sar, w, x, y => ext w ((low w x).sshiftRight (shiftCount w y))
@@ -125,6 +127,15 @@ def CmpOp.apply : CmpOp → (w : Width) → BitVec 64 → BitVec 64 → Bool
   | .incV, w, x, _ => (low w x + 1).signed != (low w x).signed + 1
   | .decV, w, x, _ => (low w x - 1).signed != (low w x).signed - 1
   | .negV, w, x, _ => (-low w x).signed != -(low w x).signed
+  | .mulC, w, x, y => (low w x * low w y).unsigned != (low w x).unsigned * (low w y).unsigned
+  | .adcC c, w, x, y => (low w x + low w y + (c : w.type)).unsigned !=
+    (low w x).unsigned + (low w y).unsigned + (c : Nat)
+  | .adcV c, w, x, y => (low w x + low w y + (c : w.type)).signed !=
+    (low w x).signed + (low w y).signed + (c : Nat)
+  | .sbbC c, w, x, y => (low w x - low w y - (c : w.type)).unsigned !=
+    (low w x).unsigned - (low w y).unsigned - (c : Nat)
+  | .sbbV c, w, x, y => (low w x - low w y - (c : w.type)).signed !=
+    (low w x).signed - (low w y).signed - (c : Nat)
 
 variable [Labels]
 

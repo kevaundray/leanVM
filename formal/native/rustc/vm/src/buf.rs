@@ -31,6 +31,7 @@ impl<T: Copy, const N: usize> Buf<T, N> {
     }
 
     /// Append `xs`.
+    #[inline(never)]
     pub fn extend(&mut self, xs: &[T]) -> Option<()> {
         for &x in xs {
             self.push(x)?;
@@ -39,12 +40,14 @@ impl<T: Copy, const N: usize> Buf<T, N> {
     }
 
     /// The array `xs`.
+    #[inline(always)]
     pub fn set(&mut self, xs: &[T]) -> Option<()> {
         self.clear();
         self.extend(xs)
     }
 
     /// `n` entries, to be written through the slice returned.
+    #[inline(always)]
     pub fn resize(&mut self, n: usize) -> Option<&mut [T]> {
         let slice = self.items.get_mut(..n)?;
         self.len = n;

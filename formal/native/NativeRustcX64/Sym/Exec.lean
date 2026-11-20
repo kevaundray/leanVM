@@ -14,7 +14,8 @@ keep addresses of the form `ptr r off` (a region's base plus a constant), which
 `NativeRustcX64.Sym.Smart` proves sound; a load at a conditional address (from `CMOV`) is the
 conditional of the loads. Flags Kraken leaves undefined, or that the executor does not follow (the
 overflow of shifts, the carry and overflow of rotations, the flags of `IMUL`, `SHLD`, `SHRD` and
-of shifts by `%cl`), become unknown. All functions are structural, for the kernel to evaluate.
+of shifts by `%cl`, the flags of `MUL` but CF and OF), become unknown. All functions are structural,
+for the kernel to evaluate.
 -/
 
 namespace NativeRustcX64
@@ -177,6 +178,13 @@ def mkBeq (b c : SBool) : SBool :=
   match b, c with
   | .lit x, .lit y => .lit (x == y)
   | b, c => .beq b c
+
+/-- A conditional boolean. -/
+def mkIteB (c a b : SBool) : SBool :=
+  match c with
+  | .lit true => a
+  | .lit false => b
+  | c => if a = b then a else .ite c a b
 
 /-- A comparison. -/
 def mkCmp (op : CmpOp) (w : Width) (a b : Sym) : SBool :=
@@ -416,15 +424,103 @@ def loadSym (ws : List Write) (r o n : Nat) : Sym :=
   | some w =>
     if w.off ≤ o ∧ o + n ≤ w.off + w.n then mkBytes w.v (o - w.off) n else assemble ws r o n
 
+/-! ## Indexed accesses as slots
+
+An access at `o + s * x` in a region, `x` a value with a bound `B` (`SState.bounds`) and the scale
+`s` at least the access's size, is at one of the `B` slots `o + s * k`. A store writes each slot,
+the stored value at slot `k` if `x = k`, else the bytes already there (`slotWrite`); a load is the
+conditional over the slots of their bytes (`slotLoad`), where a slot's bytes conditional on `x`
+(an earlier indexed store at `x`) are picked (`underEq`). -/
+
+/-- An index as a value times a scale: `x * s` (a scaled index register, a multiplication by a
+constant), `x << j` (a shift by a constant below 64), else the index itself at scale `1`. -/
+def idxScale : Sym → Sym × Nat
+  | .bin .mul .W64 x (.lit s) => (x, s)
+  | .bin .shl .W64 x (.lit j) => if j < 64 then (x, 2 ^ j) else (.bin .shl .W64 x (.lit j), 1)
+  | x => (x, 1)
+
+/-- Where `x = k`: a conditional on whether `x = j` is its branch. -/
+def pickEq (x : Sym) (k : Nat) : Sym → Sym
+  | .ite (.cmp .eq .W64 y (.lit j)) a b =>
+    if y = x ∧ j < 2 ^ 64 ∧ k < 2 ^ 64 then (if j = k then a else b)
+    else .ite (.cmp .eq .W64 y (.lit j)) a b
+  | v => v
+
+/-- Where `x = k`: `pickEq`, also under a unary operation. -/
+def underEq (x : Sym) (k : Nat) : Sym → Sym
+  | .un op w a => .un op w (pickEq x k a)
+  | v => pickEq x k v
+
+/-- Slot `k` of a store of `v` at `o + s * x` in region `r`: `v` if `x = k`, else the bytes there. -/
+def slotWrite (ws : List Write) (r o s n : Nat) (x v : Sym) (k : Nat) : Write :=
+  ⟨r, o + s * k, n, mkIte (mkCmp .eq .W64 x (.lit k)) v (loadSym ws r (o + s * k) n)⟩
+
+/-- A load of `n` bytes at `o + s * x` in region `r` for `x` from `k` to `k + c`: the conditional
+over the slots, the last one where `x` is none of the others. -/
+def slotLoad (ws : List Write) (r o s n : Nat) (x : Sym) : Nat → Nat → Sym
+  | k, 0 => underEq x k (loadSym ws r (o + s * k) n)
+  | k, c + 1 => mkIte (mkCmp .eq .W64 x (.lit k)) (underEq x k (loadSym ws r (o + s * k) n))
+      (slotLoad ws r o s n x (k + 1) c)
+
 namespace SState
+
+/-- An indexed access of `n` bytes at `p + i + d` as slots: the region, the offset, the bounded
+value `x`, the scale `s` and the bound `B`, `i = s * x` (`idxScale`), `0 < n ≤ s`, every slot in
+the region. -/
+def slotsAt (S : SState) (p i : Sym) (d : Int) (n : Nat) :
+    Option (Nat × Nat × Sym × Nat × Nat) :=
+  match S.toPtr p, S.bounds.lookup (idxScale i).1 with
+  | some (r, o), some B =>
+    match S.regions[r]? with
+    | some sz =>
+      if 0 ≤ o + d ∧ n ≤ (idxScale i).2 ∧ 0 < n ∧ 0 < B ∧
+          (o + d).toNat + (idxScale i).2 * (B - 1) + n ≤ sz then
+        some (r, (o + d).toNat, (idxScale i).1, (idxScale i).2, B)
+      else none
+    | none => none
+  | _, _ => none
+
+/-- An indexed access of `n` bytes at `x + y + d` as slots, either of `x`, `y` the pointer. -/
+def slots2 (S : SState) (x y : Sym) (d : Int) (n : Nat) : Option (Nat × Nat × Sym × Nat × Nat) :=
+  match S.slotsAt x y d n with
+  | some res => some res
+  | none => S.slotsAt y x d n
+
+/-- An indexed access of `n` bytes at `a` as slots (`slotsAt`): a pointer plus an index, possibly
+plus a literal. -/
+def slots (S : SState) (a : Sym) (n : Nat) : Option (Nat × Nat × Sym × Nat × Nat) :=
+  match a with
+  | .bin .add .W64 (.bin .add .W64 x y) (.lit c) => S.slots2 x y (litInt c) n
+  | .bin .add .W64 x y => S.slots2 x y 0 n
+  | _ => none
+
+/-- An indexed load as the conditional over the slots (`slotLoad`). -/
+def loadSlots (S : SState) (a : Sym) (n : Nat) : Option Sym :=
+  match S.slots a n with
+  | some (r, o, x, s, B) => some (slotLoad S.mem r o s n x 0 (B - 1))
+  | none => none
+
+/-- An indexed store of `v` as a write to each slot (`slotWrite`). -/
+def storeSlots (S : SState) (r o s n : Nat) (x v : Sym) (B : Nat) : SState :=
+  { S with mem := (List.range B).map (slotWrite S.mem r o s n x v) ++ S.mem }
+
+/-- `S` with the alias `x ↦ (r, o)`: `x`'s value is region `r`'s base plus `o` (a fact a proof
+adds, `Match.withAlias`). -/
+def withAlias (S : SState) (x : Sym) (r : Nat) (o : Int) : SState :=
+  { S with aliases := (x, r, o) :: S.aliases }
+
+/-- `S` with the bound `x < B` (a fact a proof adds, `Match.withBound`). -/
+def withBound (S : SState) (x : Sym) (B : Nat) : SState :=
+  { S with bounds := (x, B) :: S.bounds }
 
 /-- The writes with `v`'s low `n` bytes at `o` in region `r`, dropping the writes it covers. -/
 def store (S : SState) (r o n : Nat) (v : Sym) : SState :=
   { S with
     mem := ⟨r, o, n, v⟩ :: S.mem.filter fun w => !(w.r = r ∧ o ≤ w.off ∧ w.off + w.n ≤ o + n) }
 
-/-- A load of `n` bytes at `a`: at a constant offset in a region, or at an indexed offset in a
-region where no write overlaps the bytes the index can reach. -/
+/-- A load of `n` bytes at `a`: at a constant offset in a region, at an indexed offset in a
+region where no write overlaps the bytes the index can reach, else over the slots of an index
+with a bound (`loadSlots`). -/
 def loadOne (S : SState) (a : Sym) (n : Nat) : Option Sym :=
   match S.access a n with
   | some (r, o) => some (loadSym S.mem r o n)
@@ -433,8 +529,8 @@ def loadOne (S : SState) (a : Sym) (n : Nat) : Option Sym :=
     | some (r, o, i, M) =>
       if S.mem.all (fun w => w.r != r || w.off + w.n ≤ o || o + M + n ≤ w.off) then
         some (.loadx r o i n)
-      else none
-    | none => none
+      else S.loadSlots a n
+    | none => S.loadSlots a n
 
 /-- A load of `n` bytes at `a` (`loadOne`); at a conditional address, the conditional of the
 loads at its branches. -/
@@ -446,10 +542,15 @@ def loadAt (S : SState) (a : Sym) (n : Nat) : Option Sym :=
     some (mkIte c vx vy)
   | none => S.loadOne a n
 
-/-- A store of the low `n` bytes of `v` at `a`. -/
-def storeAt (S : SState) (a : Sym) (n : Nat) (v : Sym) : Option SState := do
-  let (r, o) ← S.access a n
-  some (S.store r o n v)
+/-- A store of the low `n` bytes of `v` at `a`: at a constant offset in a region, else to the
+slots of an index with a bound (`storeSlots`). -/
+def storeAt (S : SState) (a : Sym) (n : Nat) (v : Sym) : Option SState :=
+  match S.access a n with
+  | some (r, o) => some (S.store r o n v)
+  | none =>
+    match S.slots a n with
+    | some (r, o, x, s, B) => some (S.storeSlots r o s n x v B)
+    | none => none
 
 /-- A register or memory operand of width `w` (`RegOrMem.interp`); its low `w` bits are the
 value. -/
@@ -610,6 +711,47 @@ def imul (dst : Option (Dst w)) (src1 : RegOrMem w) (src2 : Operand w) (S : SSta
   let S' ← S.writeDst (dst.getD src1) (mkBin .mul w a b)
   fall (S'.setFlags unknownFlags)
 
+/-- One-operand `MUL src` at a width other than 8 bits (`mul`): RDX:RAX the product of RAX and
+`src`; CF and OF whether the high half is nonzero, the other flags unknown. -/
+def mulW (src : RegOrMem w) (S : SState) : Option (SState × Exit) := do
+  let a ← S.getR (.low .rax w)
+  let b ← S.readRM src
+  let S₁ ← S.setR (.low .rax w) (mkBin .mul w a b)
+  let S₂ ← S₁.setR (.low .rdx w) (mkBin .mulhi w a b)
+  let c := mkCmp .mulC w a b
+  fall (S₂.setFlags ⟨some c, none, none, some c⟩)
+
+/-- One-operand `MUL src`; not at 8 bits (which writes AX). -/
+def mul (src : RegOrMem w) (S : SState) : Option (SState × Exit) :=
+  match w with
+  | .W8 => none
+  | _ => mulW src S
+
+/-- The carry flag as a value, `1` or `0`. -/
+def carryBit (c : SBool) : Sym := mkIte c (.lit 1) (.lit 0)
+
+/-- `ADC dst, src`, with the carry flag known. -/
+def adc (dst : Dst w) (src : Operand w) (S : SState) : Option (SState × Exit) := do
+  let a ← S.readOp src
+  let b ← S.readRM dst
+  let c ← S.flags.cf
+  let v := mkBin .add w (mkBin .add w a b) (carryBit c)
+  let S' ← (S.setFlags (resultFlags w v (some (mkIteB c (mkCmp (.adcC true) w a b)
+    (mkCmp (.adcC false) w a b))) (some (mkIteB c (mkCmp (.adcV true) w a b)
+    (mkCmp (.adcV false) w a b))))).writeDst dst v
+  fall S'
+
+/-- `SBB dst, src`, with the carry flag known. -/
+def sbb (dst : Dst w) (src : Operand w) (S : SState) : Option (SState × Exit) := do
+  let a ← S.readOp src
+  let b ← S.readRM dst
+  let c ← S.flags.cf
+  let v := mkBin .sub w (mkBin .sub w b a) (carryBit c)
+  let S' ← (S.setFlags (resultFlags w v (some (mkIteB c (mkCmp (.sbbC true) w b a)
+    (mkCmp (.sbbC false) w b a))) (some (mkIteB c (mkCmp (.sbbV true) w b a)
+    (mkCmp (.sbbV false) w b a))))).writeDst dst v
+  fall S'
+
 /-- A shift or rotation `op dst, count`; its flags `shiftFlags`. -/
 def shift (op : BinOp) (rot : Bool) (dst : Dst w) (c : ShiftCountExpr) (S : SState) :
     Option (SState × Exit) := do
@@ -668,6 +810,8 @@ def stepOp : {w : Width} → Operation w → SState → Option (SState × Exit)
   | _, .lea dst a, S => Step.lea dst a S
   | _, .add dst src, S => Step.add dst src S
   | _, .sub dst src, S => Step.sub dst src S
+  | _, .adc dst src, S => Step.adc dst src S
+  | _, .sbb dst src, S => Step.sbb dst src S
   | _, .and dst src, S => Step.logic .and dst src S
   | _, .or dst src, S => Step.logic .or dst src S
   | _, .xor dst src, S => Step.logic .xor dst src S
@@ -678,6 +822,7 @@ def stepOp : {w : Width} → Operation w → SState → Option (SState × Exit)
   | _, .neg dst, S => Step.neg dst S
   | _, .not dst, S => Step.not dst S
   | _, .imul dst src1 src2, S => Step.imul dst src1 src2 S
+  | _, .mul src, S => Step.mul src S
   | _, .shl dst c, S => Step.shift .shl false dst c S
   | _, .shr dst c, S => Step.shift .shr false dst c S
   | _, .sar dst c, S => Step.shift .sar false dst c S

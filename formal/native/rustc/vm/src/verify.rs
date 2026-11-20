@@ -20,6 +20,7 @@ const TAG_LAST: u64 = 0x31;
 
 /// Word `k` of `ivWords bytecode`: `tagLow`, then word `k + 1` the top byte of the previous word of
 /// `ext` (the tag's ninth for `k = 0`) and the low seven of word `k`.
+#[inline(never)]
 fn iv_word(bytecode: &[u64], k: usize) -> u64 {
     let ext = |i: usize| match i {
         0 => TAG_LAST << 56,
@@ -29,12 +30,14 @@ fn iv_word(bytecode: &[u64], k: usize) -> u64 {
 }
 
 /// `fiatShamirIv`: Keccak-256 of the tag and the bytecode, `9 + 8n` bytes of `ivWords`.
+#[inline(always)]
 fn fiat_shamir_iv(bytecode: &[u64]) -> [u64; 4] {
     let n = bytecode.len();
     keccak256_words(n + 2, 9 + 8 * n, |k| iv_word(bytecode, k))
 }
 
 /// `seed`: Keccak-f of the IV, the public input, zeros.
+#[inline(never)]
 pub fn seed(bytecode: &[u64], public_input: &[u64; 4]) -> State {
     let iv = fiat_shamir_iv(bytecode);
     let mut state = [0u64; 25];
@@ -61,6 +64,7 @@ pub struct Work {
 }
 
 /// **The walk** (`verifyExecution`).
+#[inline(never)]
 fn verify_execution(t: &mut TState, bytecode: &[u64], public_input: &[u64; 4], w: &mut Work) -> Option<()> {
     // 1] memory log-size, table row counts, and the WHIR rate
     let log_inverse_rate = read_announced_sizes(t, bytecode.len() as u64, &mut w.layout)?;
@@ -84,6 +88,7 @@ fn verify_execution(t: &mut TState, bytecode: &[u64], public_input: &[u64; 4], w
 
 /// **The verifier after decoding** (`verify`): the walk from the seed, accepting when it ends with
 /// the stream and the openings consumed.
+#[inline(never)]
 pub fn verify(bytecode: &[u64], public_input: &[u64; 4], dec: Decoded, w: &mut Work) -> bool {
     let mut t = TState::new(seed(bytecode, public_input), dec);
     match verify_execution(&mut t, bytecode, public_input, w) {

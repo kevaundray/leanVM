@@ -26,6 +26,7 @@ pub struct TableEvalW {
 
 /// `tableWeights`: coordinate `v` contributes `1 + equality_point[v] + r_v` to a table taller
 /// than `v`, `r_v` to the others.
+#[inline(never)]
 fn table_weights(heights: &[usize; N_TABLES], equality_point: &[EW], point: &[EW]) -> [EW; N_TABLES] {
     let mut weights = [ONE; N_TABLES];
     for (coord, &challenge) in point.iter().enumerate() {
@@ -40,6 +41,7 @@ fn table_weights(heights: &[usize; N_TABLES], equality_point: &[EW], point: &[EW
 /// `tableTerms`: each table's evaluations read (`tableTermsStep`), its weighted terms added to the
 /// final sum; each table's point and evaluations into `evals`.
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn table_terms(
     t: &mut TState,
     constraint_powers: &[EW],
@@ -75,6 +77,7 @@ fn table_terms(
 
 /// `tableSumcheck`.
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn table_sumcheck(
     t: &mut TState,
     heights: &[usize; N_TABLES],
@@ -96,6 +99,7 @@ fn table_sumcheck(
 }
 
 /// **Phase 4** (`tablePhase`): each table's point and evaluations into `evals`.
+#[inline(never)]
 pub fn table_phase(t: &mut TState, layout: &LayoutW, bus: &BusW, evals: &mut [TableEvalW; N_TABLES]) -> Option<()> {
     let n_powers = N_CONSTRAINTS + N_TREES;
     t.grind(grinding_bits(n_powers as u64 - 1))?;
@@ -108,6 +112,7 @@ pub fn table_phase(t: &mut TState, layout: &LayoutW, bus: &BusW, evals: &mut [Ta
 }
 
 /// `tableColumnClaims`: each table's evaluations at its point, on its global columns, appended.
+#[inline(never)]
 pub fn table_column_claims(evals: &[TableEvalW; N_TABLES], claims: &mut ClaimsW) -> Option<()> {
     for (t, e) in evals.iter().enumerate() {
         let base = global_column_base(t);
@@ -119,6 +124,7 @@ pub fn table_column_claims(evals: &[TableEvalW; N_TABLES], claims: &mut ClaimsW)
 }
 
 /// **Phase 5** (`publicInputPhase`): the two memory columns' claims at `(c, 0, …, 0)`, appended.
+#[inline(never)]
 pub fn public_input_phase(t: &mut TState, layout: &LayoutW, public_input: &[u64; 4], claims: &mut ClaimsW) -> Option<()> {
     let public_challenge = t.sample_challenge();
     let limb = |l: usize| {

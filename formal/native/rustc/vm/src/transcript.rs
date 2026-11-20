@@ -15,23 +15,32 @@ const RATE_SCALARS: usize = 4;
 /// The most roots: one per phase the decoder accepts (`maxRoots`).
 pub const MAX_ROOTS: usize = crate::input::MAX_PHASES;
 
+/// A waiting scalar and its tag.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Pending {
+    pub x: EW,
+    pub tag: u64,
+}
+
 /// `SpongeW`: the Keccak state, the waiting scalars with their tags, the ground challenge.
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct SpongeW {
     pub state: State,
-    pub pending: [(EW, u64); RATE_SCALARS],
+    pub pending: [Pending; RATE_SCALARS],
     pub n_pending: usize,
     pub ground: Option<EW>,
 }
 
 impl SpongeW {
-    /// `duplexInput`: the waiting scalars' lanes over the rate, zeros up to lane `16`, the capacity
-    /// kept.
-    fn duplex_input(&self) -> State {
-        let mut input = self.state;
-        for (i, chunk) in input[..16].chunks_exact_mut(4).enumerate() {
+    /// `duplexInput`, in place: the waiting scalars' lanes over the rate, zeros up to lane `16`, the
+    /// capacity kept.
+    #[inline(never)]
+    fn duplex_input(&mut self) {
+        for (i, chunk) in self.state[..16].chunks_exact_mut(4).enumerate() {
             let lanes = if i < self.n_pending {
-                let (x, tag) = self.pending[i];
+                let Pending { x, tag } = self.pending[i];
                 [x.c0, x.c1, 0, tag]
             } else {
                 [0; 4]
@@ -40,34 +49,36 @@ impl SpongeW {
                 *lane = value;
             }
         }
-        input
     }
 
     /// `duplex`: permute, the queue emptied.
+    #[inline(never)]
     fn duplex(&mut self) {
-        let mut state = self.duplex_input();
-        keccak_f(&mut state);
-        self.state = state;
+        self.duplex_input();
+        keccak_f(&mut self.state);
         self.n_pending = 0;
     }
 
     /// `absorb`: a full queue is permuted first.
+    #[inline(never)]
     fn absorb(&mut self, x: EW, tag: u64) {
         if self.n_pending >= RATE_SCALARS {
             self.duplex();
         }
         if let Some(slot) = self.pending.get_mut(self.n_pending) {
-            *slot = (x, tag);
+            *slot = Pending { x, tag };
             self.n_pending += 1;
         }
     }
 
     /// `challengeOf`: a state's first two lanes.
+    #[inline(always)]
     fn challenge_of(state: &State) -> EW {
         EW::new(state[0], state[1])
     }
 
     /// `squeeze`: the ground challenge, or a permutation's first two lanes.
+    #[inline(never)]
     fn squeeze(&mut self) -> EW {
         match self.ground.take() {
             Some(c) => c,
@@ -80,6 +91,7 @@ impl SpongeW {
 
     /// `absorbNonce`: absorb the nonce with `dsPowNonce` and permute; the third lane, the next
     /// challenge ground.
+    #[inline(never)]
     fn absorb_nonce(&mut self, nonce: EW) -> u64 {
         self.absorb(nonce, DS_POW_NONCE);
         self.duplex();
@@ -90,6 +102,7 @@ impl SpongeW {
 
 /// `RootW`: a root read, with its tree's height and leaf width.
 #[derive(Clone, Copy, Default)]
+#[repr(C)]
 pub struct RootW {
     pub digest: Digest,
     pub height: u64,
@@ -97,6 +110,7 @@ pub struct RootW {
 }
 
 /// `TState`: the sponge, the decoded stream and openings with their cursors, the roots read.
+#[repr(C)]
 pub struct TState<'a> {
     pub sponge: SpongeW,
     pub dec: Decoded<'a>,
@@ -108,6 +122,7 @@ pub struct TState<'a> {
 
 /// The leaves a query opened: the phase's openings in the decoded proof, read in place.
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Rows<'a> {
     openings: &'a [u64],
     pub count: usize,
@@ -116,6 +131,7 @@ pub struct Rows<'a> {
 
 impl<'a> Rows<'a> {
     /// Row `j`'s words.
+    #[inline(never)]
     pub fn row(&self, j: usize) -> &'a [u64] {
         let start = j * OPENING_WORDS + 1;
         self.openings.get(start..start + self.width).unwrap_or(&[])
@@ -123,6 +139,7 @@ impl<'a> Rows<'a> {
 }
 
 /// `climb`: from `node` at position `q`, each level's low bit choosing the side.
+#[inline(never)]
 fn climb(node: Digest, q: u64, path: &[u64], height: usize) -> Digest {
     let (mut acc, mut q) = (node, q);
     for level in 0..height {
@@ -143,12 +160,14 @@ pub fn require(c: bool) -> Option<()> {
 }
 
 /// `grindingBits`.
+#[inline(always)]
 pub const fn grinding_bits(numerator: u64) -> u32 {
-    let log = if numerator <= 1 { 0 } else { 64 - (numerator - 1).leading_zeros() };
+    let log = crate::field::bit_length(numerator.saturating_sub(1)) as u32;
     log.saturating_sub(128 - 125)
 }
 
 /// `powOkW`: the low `bits` bits of the proof of work are zero.
+#[inline(always)]
 fn pow_ok_w(bits: u32, pow: u64) -> bool {
     if bits >= 64 { pow == 0 } else { pow & ((1u64 << bits) - 1) == 0 }
 }
@@ -158,9 +177,10 @@ pub const MAX_COUNT: usize = 5;
 
 impl<'a> TState<'a> {
     /// The start (`verify`'s `start`): the seed, both cursors at `0`, no root.
+    #[inline(always)]
     pub fn new(seed: State, dec: Decoded<'a>) -> Self {
         Self {
-            sponge: SpongeW { state: seed, pending: [(ZERO, 0); RATE_SCALARS], n_pending: 0, ground: None },
+            sponge: SpongeW { state: seed, pending: [Pending { x: ZERO, tag: 0 }; RATE_SCALARS], n_pending: 0, ground: None },
             dec,
             cursor: 0,
             phase: 0,
@@ -171,6 +191,7 @@ impl<'a> TState<'a> {
 
     /// `nextScalar`: the next stream element, unobserved, rejecting at the stream's end or while a
     /// grind's challenge waits.
+    #[inline(never)]
     fn next_scalar(&mut self) -> Option<EW> {
         if self.sponge.ground.is_some() {
             return None;
@@ -181,6 +202,7 @@ impl<'a> TState<'a> {
     }
 
     /// `readScalar`.
+    #[inline(never)]
     pub fn read_scalar(&mut self) -> Option<EW> {
         let x = self.next_scalar()?;
         self.sponge.absorb(x, DS_OBSERVE);
@@ -188,6 +210,7 @@ impl<'a> TState<'a> {
     }
 
     /// `readScalars`, as many as `out` holds.
+    #[inline(never)]
     pub fn read_scalars(&mut self, out: &mut [EW]) -> Option<()> {
         for slot in out.iter_mut() {
             *slot = self.read_scalar()?;
@@ -196,11 +219,13 @@ impl<'a> TState<'a> {
     }
 
     /// `sampleChallenge`.
+    #[inline(always)]
     pub fn sample_challenge(&mut self) -> EW {
         self.sponge.squeeze()
     }
 
     /// `sampleChallenges`, as many as `out` holds.
+    #[inline(never)]
     pub fn sample_challenges(&mut self, out: &mut [EW]) {
         for slot in out.iter_mut() {
             *slot = self.sample_challenge();
@@ -208,6 +233,7 @@ impl<'a> TState<'a> {
     }
 
     /// `grind bits`.
+    #[inline(never)]
     pub fn grind(&mut self, bits: u32) -> Option<()> {
         if bits == 0 {
             return Some(());
@@ -218,6 +244,7 @@ impl<'a> TState<'a> {
     }
 
     /// `readCommitment height width`: a root as two absorbed scalars.
+    #[inline(never)]
     pub fn read_commitment(&mut self, height: u64, width: u64) -> Option<()> {
         let x0 = self.read_scalar()?;
         let x1 = self.read_scalar()?;
@@ -229,6 +256,7 @@ impl<'a> TState<'a> {
 
     /// `queryOpenings i positions`: the next phase opened against root `i` (`openPhase`); its
     /// leaves.
+    #[inline(never)]
     pub fn query_openings(&mut self, i: usize, positions: &[u64]) -> Option<Rows<'a>> {
         let root = *self.roots.get(..self.n_roots)?.get(i)?;
         let phase = self.dec.phase(self.phase)?;
@@ -239,6 +267,7 @@ impl<'a> TState<'a> {
 
     /// `sumcheckRoundPoly count claim eq`: the round polynomial into `msg[..count]`, after its
     /// grind.
+    #[inline(never)]
     fn sumcheck_round_poly(
         &mut self,
         count: usize,
@@ -269,6 +298,7 @@ impl<'a> TState<'a> {
 
     /// `sumcheck claim count equalities`: a round per entry of `out`, round `i`'s equality factor
     /// `equality(i)`; the challenges into `out`, and the final claim.
+    #[inline(never)]
     pub fn sumcheck(
         &mut self,
         claim: EW,
@@ -288,6 +318,7 @@ impl<'a> TState<'a> {
     }
 
     /// `sumcheckPlain claim count rounds`, `rounds` the length of `out`.
+    #[inline(always)]
     pub fn sumcheck_plain(&mut self, claim: EW, count: usize, out: &mut [EW]) -> Option<EW> {
         self.sumcheck(claim, count, |_| None, out)
     }
@@ -295,6 +326,7 @@ impl<'a> TState<'a> {
 
 /// `openPhase`: every opening of `width` leaf words and `height` siblings, the positions the
 /// queried ones in order, each path climbing from its hashed leaf to `root`; the leaves.
+#[inline(never)]
 fn open_phase<'a>(root: &Digest, height: u64, width: u64, positions: &[u64], phase: &'a [u64]) -> Option<Rows<'a>> {
     let (&count, &h, &w) = match phase {
         [count, h, w, ..] => (count, h, w),

@@ -33,6 +33,7 @@ const CLAIM_POINT_CAP: usize = TABLE_POINT_CAP;
 const SLOTS: usize = 1 << QKECCAK_SLOT_BITS;
 
 /// `keccakPi`.
+#[inline(never)]
 const fn keccak_pi(i: usize) -> usize {
     i / 5 + 5 * ((2 * (i % 5) + 3 * (i / 5)) % 5)
 }
@@ -53,6 +54,7 @@ pub struct KeccakScratch {
 
 /// `KeccakClaimW` but its bit weights: the value, the instance weights, the point.
 #[derive(Clone, Copy)]
+#[repr(C)]
 struct KeccakClaimW {
     value: EW,
     mu: Buf<EW, MU>,
@@ -80,6 +82,7 @@ fn along(j: usize, k: usize) -> usize {
 }
 
 /// `keccakLinearTranspose`: the transpose of θ, ρ, π on weight vectors, `w` into `out`.
+#[inline(never)]
 fn linear_transpose(w: &[EW; BITS], g: &mut [EW; BITS], columns: &mut [EW; 5 * 64], out: &mut [EW; BITS]) {
     for lane in 0..25 {
         let (pi, rho) = (keccak_pi(lane), KECCAK_RHO[lane] as usize);
@@ -105,6 +108,7 @@ fn linear_transpose(w: &[EW; BITS], g: &mut [EW; BITS], columns: &mut [EW; 5 * 6
 }
 
 /// `keccakInstanceWeights s`: each unit vector's embedding at `s`.
+#[inline(never)]
 fn instance_weights(s: EW) -> Buf<EW, MU> {
     let mut s_powers = [ZERO; EMBED_BITS];
     powers(s, &mut s_powers);
@@ -116,11 +120,13 @@ fn instance_weights(s: EW) -> Buf<EW, MU> {
 }
 
 /// The equality kernel of a claim's segment coordinates, `claim.point.extract packBits`.
+#[inline(always)]
 fn segment_kernel(point: &[EW], pack_bits: usize, out: &mut [EW; 4]) -> Option<()> {
     eq_kernel(point.get(pack_bits..).unwrap_or(&[]), out).map(|_| ())
 }
 
 /// `verifyKeccakLayer logSteps step claim`, the claim's bit weights `scratch.weights`, replaced.
+#[inline(never)]
 fn verify_layer(t: &mut TState, log_steps: usize, step: usize, claim: &mut KeccakClaimW, scratch: &mut KeccakScratch) -> Option<()> {
     let pack_bits = log_steps.saturating_sub(4);
     let mut product = [ZERO; PRODUCT_BITS];
@@ -172,6 +178,7 @@ fn verify_layer(t: &mut TState, log_steps: usize, step: usize, claim: &mut Kecca
 
 /// `keccakSlotWeights logSteps claim first count`: the weight a claim (its point, its bit weights
 /// `weights`) puts on each `(slot, z)`, into `rows`.
+#[inline(never)]
 fn slot_weights(log_steps: usize, point: &[EW], weights: &[EW; BITS], first: usize, count: usize, rows: &mut [[EW; 64]; SLOTS]) -> Option<()> {
     let mut segments = [ZERO; 4];
     segment_kernel(point, log_steps.saturating_sub(4), &mut segments)?;
@@ -192,6 +199,7 @@ fn slot_weights(log_steps: usize, point: &[EW], weights: &[EW; BITS], first: usi
 /// `keccakOpen logSteps claim first count value`: a sumcheck over the slot into `slot`; the weight
 /// on each slice there (`rows[0]` after the fold), and what is left to match.
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn keccak_open(
     t: &mut TState,
     log_steps: usize,
@@ -219,6 +227,7 @@ fn keccak_open(
 }
 
 /// `keccakFirstClaim inst segment lanePoint output committed`, its bit weights into `weights`.
+#[inline(never)]
 fn first_claim(
     inst: &[EW],
     segment: &[EW; SEGMENT_BITS],
@@ -248,6 +257,7 @@ fn first_claim(
 /// `verifyKeccak logSteps inst output`: the committed outputs' column claim appended to `claims`,
 /// `q_keccak`'s point and slices into `out`.
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn verify_keccak(
     t: &mut TState,
     log_steps: usize,
@@ -314,6 +324,7 @@ fn verify_keccak(
 }
 
 /// **Phase 6** (`keccakPhase`): `KECCAK`'s point and output lanes into `verifyKeccak`.
+#[inline(never)]
 pub fn keccak_phase(
     t: &mut TState,
     layout: &LayoutW,
@@ -324,6 +335,9 @@ pub fn keccak_phase(
 ) -> Option<()> {
     let e = evals.get(OP_KECCAK)?;
     let values = e.values.as_slice();
-    let output: [EW; 25] = core::array::from_fn(|lane| values.get(KECCAK_OUT + lane).copied().unwrap_or(ZERO));
+    // `values.getD (keccakOut + lane) 0`: the lanes there copied, the others zero.
+    let mut output = [ZERO; 25];
+    let present = values.len().saturating_sub(KECCAK_OUT).min(25);
+    output.get_mut(..present)?.copy_from_slice(values.get(KECCAK_OUT..KECCAK_OUT + present)?);
     verify_keccak(t, layout.table_log_heights[OP_KECCAK], e.point.as_slice(), &output, scratch, claims, out)
 }

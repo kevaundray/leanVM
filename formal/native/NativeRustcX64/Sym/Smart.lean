@@ -344,6 +344,17 @@ theorem bytesOf_eq_of_lt {x : BitVec 64} (h : x.toNat < 2 ^ 32) : bytesOf x 0 4 
   unfold mkBeq
   split <;> rfl
 
+@[simp] theorem eval_mkIteB (c a b : SBool) :
+    (mkIteB c a b).eval env = if c.eval env then a.eval env else b.eval env := by
+  unfold mkIteB
+  split
+  · rfl
+  · rfl
+  · split
+    · subst_vars
+      simp
+    · rfl
+
 @[simp] theorem eval_mkCmp (op : CmpOp) (w : Width) (a b : Sym) :
     (mkCmp op w a b).eval env = op.apply w (a.eval env) (b.eval env) := by
   unfold mkCmp

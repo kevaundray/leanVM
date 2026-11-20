@@ -1,8 +1,11 @@
 //! `memcpy` and `memset` for the no_std targets, where LLVM lowers a large copy or fill (an
 //! array's initializer, a struct's move) to a call of them; defined here so the assembly holds
 //! every instruction it runs. The crate is `no_builtins`, so these loops are not turned back into
-//! calls of themselves. A word at a time when the operands allow it.
+//! calls of themselves. A word at a time when the operands allow it. The empty `asm!` in each loop
+//! keeps LLVM from unrolling it: one load and one store per iteration. The code is `../../mem.rs`'s,
+//! the signature verifiers', so that rustc compiles both alike and one proof of each serves both.
 
+use core::arch::asm;
 use core::ffi::c_void;
 
 /// # Safety
@@ -16,12 +19,16 @@ pub unsafe extern "C" fn memcpy(dest: *mut c_void, src: *const c_void, n: usize)
             // SAFETY: the caller's contract, the word inside both areas and aligned.
             unsafe { *(d.add(i) as *mut u64) = *(s.add(i) as *const u64) };
             i += 8;
+            // SAFETY: an empty instruction sequence.
+            unsafe { asm!("", options(nomem, nostack, preserves_flags)) };
         }
     } else {
         while i < n {
             // SAFETY: the caller's contract.
             unsafe { *d.add(i) = *s.add(i) };
             i += 1;
+            // SAFETY: an empty instruction sequence.
+            unsafe { asm!("", options(nomem, nostack, preserves_flags)) };
         }
     }
     dest
@@ -39,12 +46,16 @@ pub unsafe extern "C" fn memset(dest: *mut c_void, c: i32, n: usize) -> *mut c_v
             // SAFETY: the caller's contract, the word inside the area and aligned.
             unsafe { *(d.add(i) as *mut u64) = word };
             i += 8;
+            // SAFETY: an empty instruction sequence.
+            unsafe { asm!("", options(nomem, nostack, preserves_flags)) };
         }
     } else {
         while i < n {
             // SAFETY: the caller's contract.
             unsafe { *d.add(i) = byte };
             i += 1;
+            // SAFETY: an empty instruction sequence.
+            unsafe { asm!("", options(nomem, nostack, preserves_flags)) };
         }
     }
     dest

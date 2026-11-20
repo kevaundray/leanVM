@@ -32,12 +32,6 @@ theorem shiftCount_lt {w : Width} (hw : w = .W32 ∨ w = .W64) (y : BitVec 64) :
 variable [Labels] {env : Env} {w : Width}
 
 omit [Labels] in
-theorem shiftCount_lit : ∀ (w : Width) (j : Nat), j < w.bits →
-    shiftCount w (BitVec.ofNat 64 j) = j := by
-  intro w
-  cases w <;> decide +kernel
-
-omit [Labels] in
 theorem msb_shiftLeft_sub {n : Nat} (A : BitVec n) {k : Nat} (h0 : 0 < k) (hk : k < n) :
     (A <<< (n - k)).msb = A.getLsbD (k - 1) := by
   rw [BitVec.msb_eq_getLsbD_last, BitVec.getLsbD_shiftLeft, show n - 1 - (n - k) = k - 1 by omega]

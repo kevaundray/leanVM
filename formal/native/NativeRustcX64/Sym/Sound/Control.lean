@@ -38,11 +38,29 @@ theorem SState.storeAt_reg {S S' : SState} {a u : Sym} {n : Nat} (h : S.storeAt 
     (r : Reg64) : S'.reg r = S.reg r := by
   unfold SState.storeAt at h
   cases hacc : S.access a n with
-  | none => rw [hacc] at h; cases h
+  | none =>
+    rw [hacc] at h
+    cases hs : S.slots a n with
+    | none => rw [hs] at h; cases h
+    | some q =>
+      rw [hs] at h
+      cases h
+      rfl
   | some ro =>
     rw [hacc] at h
     cases h
     rfl
+
+/-- A stack address below a value is not an indexed access. -/
+theorem slots_mkSub64 (S : SState) (a : Sym) (c n : Nat) :
+    S.slots (mkSub64 a (.lit (c + 1))) n = none := by
+  unfold mkSub64
+  split
+  · rfl
+  · split
+    · split <;> rfl
+    · rw [ite_neg (by simp)]
+      split <;> rfl
 
 theorem rel_target [Labels] (l : Label) (p : Std.Rco Int64) :
     Int64.ofBitVec
@@ -127,7 +145,8 @@ theorem ok_call (t : RelRegOrMem) : OpOk env (.call t : Operation w) := by
     simp only [bytesOf, BitVec.toNat_ofNat, Nat.mul_zero, Nat.pow_zero, Nat.div_one]
     have := env.ret.isLt
     omega
-  obtain ⟨hl8, -⟩ := hm₂.loadOne hwf (SState.storeAt_loadOne hS (by decide)) (by decide)
+  obtain ⟨hl8, -⟩ := hm₂.loadOne hwf
+    (SState.storeAt_loadOne hS (slots_mkSub64 _ _ _ _) (by decide)) (by decide)
   rw [← hm₂.regs .rsp _ hreg, eval_mkBytes] at hl8
   change _ = some ((bytesOf env.ret 0 8).toNat : Int) at hl8
   rw [hb] at hl8

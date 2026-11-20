@@ -8,6 +8,12 @@
 //! function for function, with its names, order and constants; an `Array` of the model is a
 //! fixed-capacity buffer in the caller's areas or on the stack, the capacities those of
 //! `NativeVm/Code/Data.lean`, and a step past a capacity rejects. The model's `none` is `None`.
+//!
+//! The assembly is proved function by function (`formal/native/NativeRustcVm{Arm,X64}`), so every
+//! function says whether it stays one: `#[inline(never)]` on each but the few-instruction helpers,
+//! which are `#[inline(always)]` (in particular `kmul` and `EW::mul` are one copy each of the
+//! carry-less arithmetic). Every struct is `#[repr(C)]`, so that its fields' offsets are its
+//! declaration's.
 
 #![no_std]
 #![no_builtins]
@@ -64,8 +70,9 @@ pub unsafe extern "C" fn leanvm_verify(ctx: *mut u64) -> u64 {
     let (l, n) = (l as usize, n as usize);
     let aligned = |a: u64| a != 0 && a % 8 == 0;
     let dec_words = decoded_words(l);
+    // `EntryPre`'s bounds: `L < 2^32`, `8 n + 9 < 2^32`.
     if l as u64 >= 1 << 32
-        || (n as u64) >= 1 << 28
+        || (n as u64) > ((1 << 32) - 10) / 8
         || (dec_n as usize) < dec_words
         || (work_n as usize) < WORK_WORDS
         || !aligned(dec)

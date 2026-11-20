@@ -6,10 +6,10 @@ public import NativeRustcX64.Sym.Bytes
 /-!
 # Symbolic memory accesses are sound
 
-Where the symbolic executor places an access (`SState.access`), Kraken's machine accesses the same
-bytes of the same region: a symbolic load's value is the integer Kraken loads (`Match.loadAt`); a
-symbolic store's state matches the machine after Kraken's store, whose bytes are all mapped
-(`Match.storeAt`). Address operands are Kraken's (`Match.addr`).
+Where the symbolic executor places an access at a constant offset (`SState.access`) or at a
+bounded index (`SState.accessIdx`), Kraken's machine accesses the same bytes of the same region:
+the symbolic load's value is the integer Kraken loads (`Match.loadSym`, `Match.load_mem0`);
+`NativeRustcX64.Sym.Slots` assembles the loads and stores (`Match.loadAt`, `Match.storeAt`). Address operands are Kraken's (`Match.addr`).
 -/
 
 namespace NativeRustcX64.Sym
@@ -445,129 +445,6 @@ theorem findWrite_none_of_apart {r j o M n : Nat} {ws : List Write}
       decide_eq_true_eq] at h
     rw [findWrite_cons, ite_neg (by omega)]
     exact ih (by simpa using h.2)
-
-/-- A symbolic load at an unconditional address is Kraken's. -/
-theorem Match.loadOne (hm : Match env S m) (hwf : env.WF) {a v : Sym} {n : Nat}
-    (h : S.loadOne a n = some v) (hn : n ≤ 8) :
-    Mem.loadInt m.dmem (a.eval env) n = some ((v.eval env).toNat : Int) ∧
-      (v.eval env).toNat < 2 ^ (8 * n) := by
-  unfold SState.loadOne at h
-  cases hacc : S.access a n with
-  | some ro =>
-    obtain ⟨r, o⟩ := ro
-    rw [hacc] at h
-    cases h
-    obtain ⟨b, sz, hb, hle, ha⟩ := hm.access hacc
-    rw [ha]
-    exact hm.loadSym hwf hb hle hn
-  | none =>
-    rw [hacc] at h
-    cases hidx : S.accessIdx a n with
-    | none => rw [hidx] at h; cases h
-    | some roi =>
-      obtain ⟨r, o, i, M⟩ := roi
-      rw [hidx] at h
-      change (if S.mem.all (fun w => w.r != r || w.off + w.n ≤ o || o + M + n ≤ w.off) then
-        some (Sym.loadx r o i n) else none) = some v at h
-      split at h
-      · rename_i hall
-        cases h
-        obtain ⟨b, sz, hb, hM, hle, ha⟩ := hm.accessIdx hidx
-        rw [ha]
-        exact hm.load_mem0 hwf hb hle hn fun j hj1 hj2 =>
-          findWrite_none_of_apart hall (by omega) (by omega)
-      · cases h
-
-/-- **A symbolic load is Kraken's.** -/
-theorem Match.loadAt (hm : Match env S m) (hwf : env.WF) {a v : Sym} {n : Nat}
-    (h : S.loadAt a n = some v) (hn : n ≤ 8) :
-    Mem.loadInt m.dmem (a.eval env) n = some ((v.eval env).toNat : Int) ∧
-      (v.eval env).toNat < 2 ^ (8 * n) := by
-  unfold SState.loadAt at h
-  cases ha : a.asIte with
-  | none =>
-    rw [ha] at h
-    exact hm.loadOne hwf h hn
-  | some cxy =>
-    obtain ⟨c, x, y⟩ := cxy
-    rw [ha] at h
-    simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at h
-    obtain ⟨vx, hx, vy, hy, rfl⟩ := h
-    rw [asIte_eq ha, eval_mkIte]
-    simp only [Sym.eval]
-    split
-    · exact hm.loadOne hwf hx hn
-    · exact hm.loadOne hwf hy hn
-
-/-! ## Stores -/
-
-/-- **A symbolic store is Kraken's**: the bytes it stores are mapped, and the state after it
-matches the machine after Kraken's store of bytes that are those of the stored value. -/
-theorem Match.storeAt (hm : Match env S m) (hwf : env.WF) {a u : Sym} {n : Nat} {S' : SState}
-    (h : S.storeAt a n u = some S') (hn0 : 0 < n) (hn : n ≤ 8) (val : Int)
-    (hval : ∀ t < n, (Int.toBytes n val)[t]? = some (byteOf (u.eval env) t)) :
-    (Mem.loadInt m.dmem (a.eval env) n).isSome ∧
-      Match env S' { m with dmem := Mem.storeInt m.dmem (a.eval env) n val } := by
-  unfold SState.storeAt at h
-  cases hacc : S.access a n with
-  | none => rw [hacc] at h; cases h
-  | some ro =>
-    obtain ⟨r, o⟩ := ro
-    rw [hacc] at h
-    cases h
-    obtain ⟨b, sz, hb, hle, ha⟩ := hm.access hacc
-    rw [ha]
-    have hbsz := hwf.noWrap r b sz hb
-    have hA : (b + BitVec.ofNat 64 o).toNat = b.toNat + o := toNat_add_ofNat b o (by omega)
-    refine ⟨loadInt_isSome_of_get? _ _ _ fun i hi => ?_, ?_⟩
-    · rw [addr_add]
-      exact hm.get?_some hwf hb (by omega)
-    have hout : ∀ k : BitVec 64, (k.toNat < b.toNat + o ∨ b.toNat + o + n ≤ k.toNat) →
-        (Mem.storeInt m.dmem (b + BitVec.ofNat 64 o) n val).get? k = m.dmem.get? k := by
-      intro k hk
-      rw [get?_storeInt _ _ _ _ _ hn, ite_neg]
-      have := le_toNat_sub k (b + BitVec.ofNat 64 o) n (by omega) (by omega)
-      omega
-    refine ⟨hm.regs, hm.flags, hm.regions, fun r' b' sz' hb' i hi => ?_, hm.labels,
-      hm.bounds, hm.aliases, fun k hk => ?_⟩
-    · have hK : (b' + BitVec.ofNat 64 i).toNat = b'.toNat + i :=
-        toNat_add_ofNat b' i (by have := hwf.noWrap r' b' sz' hb'; omega)
-      by_cases hin : r' = r ∧ o ≤ i ∧ i < o + n
-      · obtain ⟨rfl, hi1, hi2⟩ := hin
-        rw [hb] at hb'
-        cases hb'
-        show _ = memByte env (⟨r', o, n, u⟩ :: _) r' b i
-        rw [get?_storeInt _ _ _ _ _ hn, ite_pos (by
-          rw [toNat_sub_of_le _ _ (by omega)]
-          omega), toNat_sub_of_le _ _ (by omega), hK, hA,
-          show b.toNat + i - (b.toNat + o) = i - o by omega, hval (i - o) (by omega)]
-        unfold memByte
-        rw [findWrite_cons, ite_pos ⟨rfl, hi1, hi2⟩]
-      · rw [hout _ (by
-          by_cases hr : r' = r
-          · subst hr
-            rw [hb] at hb'
-            cases hb'
-            omega
-          · rcases hwf.disjoint r r' b b' sz sz' (Ne.symm hr) hb hb' with h1 | h1 <;> omega),
-          hm.mem r' b' sz' hb' i hi]
-        show _ = memByte env (⟨r, o, n, u⟩ :: _) r' b' i
-        unfold memByte
-        have hf : findWrite r' i (⟨r, o, n, u⟩ :: S.mem.filter fun w =>
-            !decide (w.r = r ∧ o ≤ w.off ∧ w.off + w.n ≤ o + n)) = findWrite r' i S.mem := by
-          rw [findWrite_cons, ite_neg (by
-            intro hc
-            exact hin ⟨hc.1.symm, hc.2⟩)]
-          apply findWrite_filter
-          intro w _ hpw hc
-          simp only [Bool.not_eq_false', decide_eq_true_eq] at hpw
-          exact hin ⟨hc.1.symm.trans hpw.1, by omega⟩
-        rw [hf]
-    · show (Mem.storeInt m.dmem (b + BitVec.ofNat 64 o) n val).get? k = _
-      rw [hout k (by
-        have := hk r b sz hb
-        omega)]
-      exact hm.outside k hk
 
 /-! ## Addresses -/
 

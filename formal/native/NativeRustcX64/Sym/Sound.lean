@@ -3,6 +3,7 @@ module
 public import NativeRustcX64.Sym.Sound.Data
 public import NativeRustcX64.Sym.Sound.Shift
 public import NativeRustcX64.Sym.Sound.Control
+public import NativeRustcX64.Sym.Sound.Carry
 
 /-!
 # The symbolic executor is sound
@@ -42,6 +43,9 @@ theorem stepOp_ok [Labels] {env : Env} {w : Width} (op : Operation w) : OpOk env
   | neg dst => exact ok_neg dst
   | not dst => exact ok_not dst
   | imul dst src1 src2 => exact ok_imul dst src1 src2
+  | mul src => exact ok_mul src
+  | adc dst src => exact ok_adc dst src
+  | sbb dst src => exact ok_sbb dst src
   | shl dst c => exact ok_shl dst c
   | shr dst c => exact ok_shr dst c
   | sar dst c => exact ok_sar dst c

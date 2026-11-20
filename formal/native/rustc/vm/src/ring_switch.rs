@@ -17,11 +17,13 @@ pub struct RingW {
 }
 
 /// `frobenius8 value p`: `value^(2^(8p))`.
+#[inline(always)]
 fn frobenius8(value: EW, p: usize) -> EW {
     EW::sq_iter(RING_MAP_WIDTH * p, value)
 }
 
 /// `ringPsi value g`: `Σ_b g_b v^(2^b)`.
+#[inline(never)]
 fn ring_psi(value: EW, g: &[EW]) -> EW {
     let (mut acc, mut power) = (ZERO, value);
     for &g_b in g {
@@ -32,6 +34,7 @@ fn ring_psi(value: EW, g: &[EW]) -> EW {
 }
 
 /// `ringTarget s f g`: `Σ_p f_p (Σ_i z_p^i Ψ(s_i))^(2^(8p))`, `p` from `7` down.
+#[inline(never)]
 fn ring_target(s: &[EW; 64], f: &[EW], g: &[EW]) -> EW {
     let images: [EW; 64] = core::array::from_fn(|i| ring_psi(s[i], g));
     let (mut acc, mut z) = (ZERO, GEN);
@@ -43,6 +46,7 @@ fn ring_target(s: &[EW; 64], f: &[EW], g: &[EW]) -> EW {
 }
 
 /// `ringCoefficients f g`: `c_(8p+b) = f_p · g_b^(2^(8p))`.
+#[inline(never)]
 fn ring_coefficients(f: &[EW], g: &[EW; RING_MAP_WIDTH], out: &mut [EW; RING_COEFF_COUNT]) {
     let mut g = *g;
     for (chunk, &f_p) in out.chunks_exact_mut(RING_MAP_WIDTH).zip(f) {
@@ -57,6 +61,7 @@ fn ring_coefficients(f: &[EW], g: &[EW; RING_MAP_WIDTH], out: &mut [EW; RING_COE
 
 /// **Phase 7a** (`ringSwitch`): the target and the coefficients into `out`; the point is the
 /// caller's.
+#[inline(never)]
 pub fn ring_switch(t: &mut TState, s: &[EW; 64], out: &mut RingW) -> Option<()> {
     t.grind(BATCH_GRINDING_BITS)?;
     let mut challenges = [ZERO; 2 * RING_MAP_WIDTH];

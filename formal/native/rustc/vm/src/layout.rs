@@ -24,6 +24,7 @@ pub struct TermW {
 }
 
 impl TermW {
+    #[inline(always)]
     fn cols(&self) -> &[usize] {
         self.cols.get(..self.degree).unwrap_or(&[])
     }
@@ -32,6 +33,7 @@ impl TermW {
 /// `TableW`: an instruction's table as data, its padding row a run of `PADDING`; its tuples are
 /// the bus blocks' (`PUSH_BLOCKS`, `PULL_BLOCKS`, `COUNT_BLOCKS`, `busBlocks`).
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct TableW {
     pub opcode: usize,
     pub width: usize,
@@ -41,6 +43,7 @@ pub struct TableW {
 
 impl TableW {
     /// `padding`.
+    #[inline(always)]
     pub fn padding(&self) -> &'static [EW] {
         PADDING.get(self.padding.start..self.padding.start + self.padding.len).unwrap_or(&[])
     }
@@ -49,6 +52,7 @@ impl TableW {
 /// A bus block's fixed part (`BusBlockW` but its `logRows` and `rows`, which are its owner's):
 /// its owner and the tuple it flushes, an index of `TUPLES`.
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Block {
     pub owner: usize,
     pub tuple: usize,
@@ -82,6 +86,7 @@ pub const MAX_LOG_STACK: usize = 30;
 pub const FORM_CAP: usize = 148;
 
 /// A form of `data.rs` (`FormW`), by its index in `FORMS`.
+#[inline(never)]
 pub fn form_terms(form: usize) -> &'static [TermW] {
     match FORMS.get(form) {
         Some(span) => TERMS.get(span.start..span.start + span.len).unwrap_or(&[]),
@@ -90,6 +95,7 @@ pub fn form_terms(form: usize) -> &'static [TermW] {
 }
 
 /// A tuple's forms, as a run of `FORMS`.
+#[inline(always)]
 pub fn tuple_forms(tuple: usize) -> core::ops::Range<usize> {
     match TUPLES.get(tuple) {
         Some(span) => span.start..span.start + span.len,
@@ -98,6 +104,7 @@ pub fn tuple_forms(tuple: usize) -> core::ops::Range<usize> {
 }
 
 /// `FormW.evaluate`: `Σ c · Π column(i)` on a row, a missing column `0`.
+#[inline(never)]
 pub fn evaluate(terms: &[TermW], row: &[EW]) -> EW {
     terms.iter().fold(ZERO, |sum, t| {
         sum + t.cols().iter().fold(t.coeff, |acc, &i| acc * row.get(i).copied().unwrap_or(ZERO))
@@ -113,22 +120,26 @@ pub struct FormBuf {
 }
 
 impl FormBuf {
+    #[inline(always)]
     pub fn terms(&self) -> &[TermW] {
         self.terms.get(..self.len).unwrap_or(&[])
     }
 
     /// The empty form.
+    #[inline(always)]
     pub fn clear(&mut self) {
         self.len = 0;
     }
 
     /// `FormW.const value`.
+    #[inline(always)]
     pub fn set_const(&mut self, value: EW) {
         self.terms[0] = TermW { degree: 0, cols: [0, 0], coeff: value };
         self.len = 1;
     }
 
     /// `addTerm`: add `c` into the coefficient of `t`'s monomial, appending it if it is new.
+    #[inline(never)]
     fn add_term(&mut self, t: &TermW, c: EW) -> Option<()> {
         let n = self.len;
         let terms = self.terms.get_mut(..n)?;
@@ -144,6 +155,7 @@ impl FormBuf {
     }
 
     /// `FormW.addScaled`: add `weight · other`.
+    #[inline(never)]
     pub fn add_scaled(&mut self, other: &[TermW], weight: EW) -> Option<()> {
         for t in other {
             self.add_term(t, weight * t.coeff)?;
@@ -153,6 +165,7 @@ impl FormBuf {
 }
 
 /// `constraintsW`: a table's constraints on a row, `jumpConstraints` for `JUMP`; their count.
+#[inline(never)]
 pub fn constraints_w(opcode: usize, row: &[EW], out: &mut [EW; 2]) -> usize {
     if opcode == OP_JUMP {
         let at = |i: usize| row.get(i).copied().unwrap_or(ZERO);
@@ -166,6 +179,7 @@ pub fn constraints_w(opcode: usize, row: &[EW], out: &mut [EW; 2]) -> usize {
 }
 
 /// `keccakSlotTable[c]`.
+#[inline(always)]
 fn slot_of(c: usize) -> Option<usize> {
     match KECCAK_SLOT.get(c) {
         Some(&s) if s != NO_SLOT => Some(s as usize),
@@ -174,6 +188,7 @@ fn slot_of(c: usize) -> Option<usize> {
 }
 
 /// `keccakOutputTable[c]`.
+#[inline(always)]
 fn is_output(c: usize) -> bool {
     KECCAK_OUTPUT.get(c).copied().unwrap_or(false)
 }
@@ -195,6 +210,7 @@ pub struct PlacementAt {
 }
 
 impl PlacementAt {
+    #[inline(always)]
     pub fn get(&self) -> Option<Placement> {
         if self.present != 0 { Some(self.placement) } else { None }
     }
@@ -202,6 +218,7 @@ impl PlacementAt {
 
 /// `stackPoint`: `point ++ selectorPoint (index >>> variableCount) (stackLog - variableCount)` into
 /// `out`; its length.
+#[inline(never)]
 pub fn stack_point(p: Placement, point: &[EW], stack_log: usize, out: &mut [EW]) -> Option<usize> {
     let tail = stack_log.saturating_sub(p.variable_count);
     let n = point.len().checked_add(tail)?;
@@ -214,6 +231,7 @@ pub fn stack_point(p: Placement, point: &[EW], stack_log: usize, out: &mut [EW])
 }
 
 /// `eqAbove`: `eqEval (selectorPoint (index >>> vc) (|point| - vc)) (point.extract vc |point|)`.
+#[inline(always)]
 pub fn eq_above(p: Placement, point: &[EW]) -> EW {
     let above = point.get(p.variable_count..).unwrap_or(&[]);
     let selector = shr(p.index, p.variable_count);
@@ -221,6 +239,7 @@ pub fn eq_above(p: Placement, point: &[EW]) -> EW {
 }
 
 /// `insertionSort` (`swapDown` for each element in turn) of `order` by `lt`.
+#[inline(never)]
 fn insertion_sort(order: &mut [usize], lt: impl Fn(usize, usize) -> bool) {
     for i in 0..order.len() {
         // `swapDown lt acc i`.
@@ -240,9 +259,9 @@ fn insertion_sort(order: &mut [usize], lt: impl Fn(usize, usize) -> bool) {
 }
 
 /// `log2Ceil`: the bit length of `value - 1`.
+#[inline(always)]
 pub fn log2_ceil(value: u64) -> usize {
-    let v = value.saturating_sub(1);
-    (64 - v.leading_zeros()) as usize
+    crate::field::bit_length(value.saturating_sub(1))
 }
 
 /// The most sizes `stackOffsets` takes: a bus side's three framework blocks and its blocks, or the
@@ -251,6 +270,7 @@ pub const MAX_SIZES: usize = COLUMN_COUNT;
 
 /// `stackOffsets`: blocks of `2^size` end to end, largest first, ties by index; the offsets into
 /// `offsets`, and the log-size of the total.
+#[inline(never)]
 pub fn stack_offsets(sizes: &[usize], offsets: &mut [u64]) -> Option<usize> {
     let n = sizes.len();
     require(n <= MAX_SIZES && offsets.len() >= n)?;
@@ -283,11 +303,13 @@ pub struct LayoutW {
 
 impl LayoutW {
     /// `LayoutW.placement`.
+    #[inline(never)]
     pub fn placement(&self, column: usize) -> Placement {
         self.placements.get(column).and_then(PlacementAt::get).unwrap_or_default()
     }
 
     /// A bus block's `logRows` and `rows`, its owner's (`busBlocks`).
+    #[inline(always)]
     pub fn block_rows(&self, owner: usize) -> (usize, u64) {
         (
             self.table_log_heights.get(owner).copied().unwrap_or(0),
@@ -297,6 +319,7 @@ impl LayoutW {
 }
 
 /// `columnKappas`: every column's log-size.
+#[inline(never)]
 fn column_kappas(log_memory: usize, log_bytecode: usize, heights: &[usize; N_TABLES]) -> [usize; COLUMN_COUNT] {
     let mut kappas = [0; COLUMN_COUNT];
     let head = [log_memory, log_memory, log_memory, log_bytecode, heights[OP_KECCAK] + QKECCAK_SLOT_BITS];
@@ -318,6 +341,7 @@ fn column_kappas(log_memory: usize, log_bytecode: usize, heights: &[usize; N_TAB
 
 /// `placementsOf`: the committed columns stacked, a column with a `q_keccak` slot inside
 /// `q_keccak`'s block, an output lane nowhere; and the stack's log-size.
+#[inline(never)]
 fn placements_of(kappas: &[usize; COLUMN_COUNT], placements: &mut [PlacementAt; COLUMN_COUNT]) -> Option<usize> {
     let mut block_cols = [0usize; COLUMN_COUNT];
     let mut block_sizes = [0usize; COLUMN_COUNT];
@@ -349,11 +373,13 @@ fn placements_of(kappas: &[usize; COLUMN_COUNT], placements: &mut [PlacementAt; 
 }
 
 /// `log2Strict`.
+#[inline(always)]
 fn log2_strict(value: u64) -> Option<usize> {
-    if value > 0 && value & (value - 1) == 0 { Some(value.trailing_zeros() as usize) } else { None }
+    if value > 0 && value & (value - 1) == 0 { Some(crate::field::bit_length(value) - 1) } else { None }
 }
 
 /// `buildLayout bytecode logMemory tableRows` into `layout`; `None` where the Rust errs.
+#[inline(never)]
 fn build_layout(bytecode_len: u64, log_memory: u64, table_rows: &[u64; N_TABLES], layout: &mut LayoutW) -> Option<()> {
     let log_length = log2_strict(bytecode_len)?;
     require(
@@ -375,6 +401,7 @@ fn build_layout(bytecode_len: u64, log_memory: u64, table_rows: &[u64; N_TABLES]
 
 /// **Phase 1** (`readAnnouncedSizes`): the memory log-size, the tables' row counts and the WHIR
 /// rate exponent, checked; the layout into `layout`, and the rate exponent.
+#[inline(never)]
 pub fn read_announced_sizes(t: &mut TState, bytecode_len: u64, layout: &mut LayoutW) -> Option<usize> {
     let mut announced = [ZERO; 2 + N_TABLES];
     t.read_scalars(&mut announced)?;
@@ -389,6 +416,7 @@ pub fn read_announced_sizes(t: &mut TState, bytecode_len: u64, layout: &mut Layo
 }
 
 /// `globalColumnBasesW[t]`.
+#[inline(always)]
 pub fn global_column_base(t: usize) -> usize {
     GLOBAL_COLUMN_BASES.get(t).copied().unwrap_or(0)
 }

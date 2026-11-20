@@ -107,6 +107,7 @@ def UnOp.apply : UnOp → (w : RegWidth) → BitVec 64 → BitVec 64
   | .neg, w, x => ext w (-low w x)
   | .inc, w, x => ext w (low w x + 1#w.bits)
   | .rev, w, x => ext w (revW w (low w x))
+  | .rbit, w, x => ext w (low w x).reverse
   | .shift k n, w, x => ext w (shiftW k (low w x) n)
   | .ubfm immr imms, w, x => ext w (evalUBFM (low w x) immr imms)
   | .sbfm immr imms, w, x => ext w (evalSBFM (low w x) immr imms)

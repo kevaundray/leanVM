@@ -51,6 +51,7 @@ theorem stepOp_ok [Labels] {env : Env} {w : RegWidth} (op : Operation w) : OpOk 
   | MADD dst src1 src2 src3 => exact ok_MADD dst src1 src2 src3
   | MSUB dst src1 src2 src3 => exact ok_MSUB dst src1 src2 src3
   | UMULH dst src1 src2 => exact ok_UMULH dst src1 src2
+  | UMADDL dst src1 src2 src3 => exact ok_UMADDL dst src1 src2 src3
   | AND_i dst src1 imm => exact ok_AND_i dst src1 imm
   | AND_s dst src1 src2 => exact ok_AND_s dst src1 src2
   | ANDS_i dst src1 imm => exact ok_ANDS_i dst src1 imm
@@ -67,6 +68,7 @@ theorem stepOp_ok [Labels] {env : Env} {w : RegWidth} (op : Operation w) : OpOk 
   | SBFM dst src immr imms => exact ok_SBFM dst src immr imms
   | UBFM dst src immr imms => exact ok_UBFM dst src immr imms
   | REV dst src => exact ok_REV dst src
+  | RBIT dst src => exact ok_RBIT dst src
   | EXTR dst src1 src2 lsb => exact ok_EXTR dst src1 src2 lsb
   | MOVZ dst imm sh => exact ok_MOVZ dst imm sh
   | MOVK dst imm sh => exact ok_MOVK dst imm sh

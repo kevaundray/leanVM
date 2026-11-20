@@ -31,6 +31,8 @@ inductive UnOp
   /-- The low bits of the width, zero-extended. -/
   | trunc
   | not | neg | inc | rev
+  /-- `RBIT`: the bits of the width reversed. -/
+  | rbit
   /-- Shift or rotation by a constant (a shifted register operand). -/
   | shift (k : ShiftType) (n : Nat)
   | ubfm (immr imms : Nat)

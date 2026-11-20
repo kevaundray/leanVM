@@ -26,6 +26,11 @@ def arm : Arch Instr ConstExpr where
   comment := "//"
   bodyDirective l :=
     if l.startsWith ".cfi_" then pure none else throw s!"unexpected directive {l}"
+  addend i c := match i with
+    | ⟨.W64, .ADRP dst (.label l)⟩ => pure ⟨.W64, .ADRP dst (.add (.label l) (.int64 (Int64.ofInt c)))⟩
+    | ⟨.W64, .ADD_e dst src (.imm ⟨.lo12 (.label l), .S0⟩)⟩ =>
+      pure ⟨.W64, .ADD_e dst src (.imm ⟨.lo12 (.add (.label l) (.int64 (Int64.ofInt c))), .S0⟩)⟩
+    | _ => throw "an addend outside `adrp` and `add :lo12:`"
   trap := #[0, 0, 0, 0]
   trapAsm := "udf #0"
   dataSize d := match d with

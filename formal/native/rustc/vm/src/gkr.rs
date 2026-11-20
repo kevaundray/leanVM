@@ -10,12 +10,14 @@ pub const N_TREES: usize = 3;
 pub const BUS_POINT_CAP: usize = 63;
 
 /// `GkrStateW`: the three trees' values, at `point`.
+#[repr(C)]
 pub struct GkrStateW {
     pub values: [EW; N_TREES],
     pub point: Buf<EW, BUS_POINT_CAP>,
 }
 
 /// `gkrStep step last state`.
+#[inline(never)]
 fn gkr_step(t: &mut TState, step: usize, last: bool, s: &mut GkrStateW) -> Option<()> {
     t.grind(grinding_bits(N_TREES as u64 - 1))?;
     let combiner = t.sample_challenge();
@@ -54,6 +56,7 @@ fn gkr_step(t: &mut TState, step: usize, last: bool, s: &mut GkrStateW) -> Optio
 }
 
 /// `gkrLayers`: one level when the remaining depth is odd, two otherwise.
+#[inline(never)]
 fn gkr_layers(t: &mut TState, depth: usize, s: &mut GkrStateW) -> Option<()> {
     let mut n = depth;
     while n > 0 {
@@ -75,6 +78,7 @@ fn gkr_layers(t: &mut TState, depth: usize, s: &mut GkrStateW) -> Option<()> {
 }
 
 /// **`verifyGkrGrandProducts depth`**: the count root; the GKR point and the trees' values in `s`.
+#[inline(never)]
 pub fn verify_gkr_grand_products(t: &mut TState, depth: usize, s: &mut GkrStateW) -> Option<EW> {
     let shared = t.read_scalar()?;
     let count = t.read_scalar()?;

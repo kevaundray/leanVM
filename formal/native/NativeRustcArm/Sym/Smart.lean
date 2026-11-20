@@ -101,14 +101,14 @@ theorem asPtr_eq {a : Sym} {r : Nat} {o : Int} (h : a.asPtr = some (r, o)) : a =
   cases a <;> cases h <;> rfl
 
 omit [Labels] in
-theorem asPage_eq {a : Sym} {l : Label} (h : a.asPage = some l) :
-    a = .bin .and .W64 (.label l) (.lit pageMask) := by
+theorem asPage_eq {a x : Sym} (h : a.asPage = some x) :
+    a = .bin .and .W64 x (.lit pageMask) := by
   unfold asPage at h
   split at h
   · split at h
-    · cases h
-      subst_vars
-      rfl
+    · rename_i hn
+      cases h
+      rw [hn.1]
     · cases h
   · cases h
 
@@ -126,14 +126,14 @@ theorem asIte_eq {a x y : Sym} {c : SBool} (h : a.asIte = some (c, x, y)) : a = 
   cases a <;> cases h <;> rfl
 
 omit [Labels] in
-theorem asLo12_eq {a : Sym} {l : Label} (h : a.asLo12 = some l) :
-    a = .bin .and .W64 (.label l) (.lit 0xFFF) := by
+theorem asLo12_eq {a x : Sym} (h : a.asLo12 = some x) :
+    a = .bin .and .W64 x (.lit 0xFFF) := by
   unfold asLo12 at h
   split at h
   · split at h
-    · cases h
-      subst_vars
-      rfl
+    · rename_i hn
+      cases h
+      rw [hn.1]
     · cases h
   · cases h
 
@@ -207,7 +207,7 @@ theorem eval_mkAdd64 (a b : Sym) :
       simp only [Sym.eval, BitVec.ofInt_add, ofInt_litInt]
       rw [BitVec.add_comm (BitVec.ofNat 64 c), BitVec.add_assoc]
     · split
-      · rename_i l l' ha hb
+      · rename_i x x' ha hb
         rw [asPage_eq ha, asLo12_eq hb]
         split
         · subst_vars

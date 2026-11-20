@@ -334,23 +334,6 @@ theorem Match.bytesOf (hm : Match env S m) (hwf : env.WF) {r o n : Nat} {b : Bit
   rfl
 
 omit [Labels] in
-theorem natOfBytes_div (bs : List UInt8) (t : Nat) (ht : t < bs.length) :
-    Nat.ofBytes bs / 2 ^ (8 * t) % 256 = (bs[t]'ht).toNat := by
-  induction bs generalizing t with
-  | nil => cases ht
-  | cons b bs ih =>
-    have hb := b.toNat_lt
-    show (Nat.ofBytes bs * 256 + b.toNat) / 2 ^ (8 * t) % 256 = _
-    cases t with
-    | zero =>
-      simp only [Nat.mul_zero, Nat.pow_zero, Nat.div_one, List.getElem_cons_zero]
-      omega
-    | succ t =>
-      rw [show 8 * (t + 1) = 8 + 8 * t by omega, Nat.pow_add, ← Nat.div_div_eq_div_mul,
-        show (Nat.ofBytes bs * 256 + b.toNat) / 2 ^ 8 = Nat.ofBytes bs by omega]
-      exact ih t (by simp at ht; omega)
-
-omit [Labels] in
 /-- **A byte of an environment load**: byte `t < n` of `env.load r off n` is the environment's byte
 at `off + t` in region `r`. -/
 theorem byteOf_load {r off n t : Nat} (ht : t < n) (hn : n ≤ 8) :
@@ -405,6 +388,56 @@ theorem inRange_iff {x a : BitVec 64} {n : Nat} (hx : x.toNat + n ≤ 2 ^ 64) :
     rw [show 2 ^ 64 - x.toNat + a.toNat = (a.toNat - x.toNat) + 2 ^ 64 by omega,
       Nat.add_mod_right, Nat.mod_eq_of_lt (by omega)]
     omega
+
+/-! ## Facts added mid-block
+
+A block can be run in parts (`exec_then`), adding facts the proof knows to the state between them:
+a register's value re-expressed (`Match.withReg`), an alias for a computed address
+(`SState.withAlias`, e.g. a pointer loaded from memory, which a load or store through it then
+places), a bound for an index (`SState.withBound`, which places an indexed access over the slots of
+the bound). -/
+
+/-- **A register's value re-expressed**: register `r` may be given any symbolic value `v` that is its
+value, e.g. a byte offset as a bounded variable times a scale, or an address the proof knows. -/
+theorem Match.withReg (hm : Match env S m) {r : XReg} {v : Sym}
+    (h : (m.regs.getXReg r).toBitVec = v.eval env) : Match env (S.setReg r (some v)) m where
+  regs r' u hu := by
+    rcases S.reg_setReg r r' (some v) hu with ⟨rfl, hv⟩ | ⟨-, hv⟩
+    · cases hv
+      exact h
+    · exact hm.regs r' u hv
+  sp := hm.sp
+  flags := hm.flags
+  regions := hm.regions
+  mem := hm.mem
+  labels := hm.labels
+  bounds := hm.bounds
+  aliases := hm.aliases
+  outside := hm.outside
+
+/-- **An alias the machine state satisfies** may be added. -/
+theorem Match.withAlias (hm : Match env S m) {x : Sym} {r : Nat} {o : Int}
+    (h : x.eval env = env.base r + BitVec.ofInt 64 o) : Match env (S.withAlias x r o) m :=
+  { hm with
+    aliases := fun x' r' o' hl => by
+      simp only [SState.withAlias, List.lookup_cons] at hl
+      split at hl
+      · rename_i hx
+        rw [beq_iff_eq] at hx
+        subst hx
+        cases hl
+        exact h
+      · exact hm.aliases x' r' o' hl }
+
+/-- **A bound the machine state satisfies** may be added. -/
+theorem Match.withBound (hm : Match env S m) {x : Sym} {B : Nat} (h : (x.eval env).toNat < B) :
+    Match env (S.withBound x B) m :=
+  { hm with
+    bounds := fun x' B' hb => by
+      rcases List.mem_cons.mp hb with hb | hb
+      · cases hb
+        exact h
+      · exact hm.bounds x' B' hb }
 
 /-! ## Registers kept -/
 

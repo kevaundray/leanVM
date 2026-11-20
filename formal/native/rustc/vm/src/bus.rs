@@ -15,6 +15,7 @@ use crate::transcript::{TState, grinding_bits, require};
 const MAX_BLOCKS: usize = PUSH_BLOCKS.len();
 
 /// `BusLayoutW`: a side's depth, the framework blocks' placements, the table blocks'.
+#[repr(C)]
 struct BusLayoutW {
     depth: usize,
     framework: Buf<Placement, 3>,
@@ -22,6 +23,7 @@ struct BusLayoutW {
 }
 
 /// `busLayout frameworkLogRows blocks`.
+#[inline(never)]
 fn bus_layout(framework_log_rows: &[usize], blocks: &[Block], layout: &LayoutW) -> Option<BusLayoutW> {
     let mut sizes = [0usize; 3 + MAX_BLOCKS];
     let n = framework_log_rows.len() + blocks.len();
@@ -58,6 +60,7 @@ const SEP_MEM: EW = GEN;
 
 /// `fingerprints`: the boundary state's, the memory cell's and the bytecode tuple's.
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn fingerprints(
     weights: &[EW],
     memory: &[EW; 2],
@@ -77,6 +80,7 @@ fn fingerprints(
 }
 
 /// `blockForm`: `side_beta` plus the block's fingerprint, a tuple slot at a time, into `form`.
+#[inline(never)]
 fn block_form(block: &Block, side_weights: &[EW], side_beta: EW, form: &mut FormBuf) -> Option<()> {
     form.set_const(side_beta);
     for (slot, coordinate) in tuple_forms(block.tuple).enumerate() {
@@ -87,6 +91,7 @@ fn block_form(block: &Block, side_weights: &[EW], side_beta: EW, form: &mut Form
 
 /// `accumulateSide`: the side's table blocks added to `forms`; the side's total.
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn accumulate_side(
     forms: &mut [[FormBuf; 3]; N_TABLES],
     side: usize,
@@ -125,6 +130,7 @@ fn accumulate_side(
 
 /// `bytecodeShare`: the share, its sumcheck over the slot, the value; the bytecode point into
 /// `point` (its length returned), the share and the value.
+#[inline(never)]
 fn bytecode_share(
     t: &mut TState,
     weights: &[EW],
@@ -150,6 +156,7 @@ fn bytecode_share(
 }
 
 /// `computedBytecodeValue`: the bytecode's multilinear extension at the point is the value.
+#[inline(never)]
 fn computed_bytecode_value(words: &[u64], point: &[EW], value: EW) -> Option<()> {
     let at = |i: usize| EW::of_k(words.get(i).copied().unwrap_or(0));
     require(multilinear_eval_by(words.len(), at, point) == value)
@@ -157,6 +164,7 @@ fn computed_bytecode_value(words: &[u64], point: &[EW], value: EW) -> Option<()>
 
 /// **Phase 3** (`verifyBusBalance`): the bus's result into `bus`, its four column claims appended
 /// to `claims`.
+#[inline(never)]
 pub fn verify_bus_balance(
     t: &mut TState,
     layout: &LayoutW,

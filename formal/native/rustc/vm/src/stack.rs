@@ -27,6 +27,7 @@ pub struct ColumnClaimW {
 pub type ClaimsW = Buf<ColumnClaimW, CLAIM_CAP>;
 
 /// Append the claim `⟨column, point, value⟩`.
+#[inline(never)]
 pub fn push_claim(claims: &mut ClaimsW, column: usize, point: &[EW], value: EW) -> Option<()> {
     let slot = claims.items.get_mut(claims.len)?;
     slot.column = column;
@@ -37,6 +38,7 @@ pub fn push_claim(claims: &mut ClaimsW, column: usize, point: &[EW], value: EW) 
 }
 
 /// `ringWeight r rPrime coefficients`: `Σ_k c_k Π_n (1 + r_n^(2^k) + r'_n)`, `r` squared in place.
+#[inline(never)]
 pub fn ring_weight(r: &[EW], r_prime: &[EW], coefficients: &[EW]) -> Option<EW> {
     let mut powers = [ZERO; POINT_CAP];
     let powers = powers.get_mut(..r.len())?;
@@ -56,6 +58,7 @@ pub fn ring_weight(r: &[EW], r_prime: &[EW], coefficients: &[EW]) -> Option<EW> 
 
 /// `StackWeight.eval` of `ColumnClaimW.onStack` (`eq (stackPoint placement c.point stackLog)`) at
 /// `x`.
+#[inline(never)]
 pub fn column_weight(p: Placement, point: &[EW], stack_log: usize, x: &[EW]) -> Option<EW> {
     let mut z = [ZERO; POINT_CAP + STACK_CAP];
     let n = stack_point(p, point, stack_log, &mut z)?;
@@ -63,6 +66,7 @@ pub fn column_weight(p: Placement, point: &[EW], stack_log: usize, x: &[EW]) -> 
 }
 
 /// `StackWeight.eval` of `ringSwitchClaim`'s weight (`ring p r c`) at `x`.
+#[inline(never)]
 pub fn ring_claim_weight(p: Placement, r: &[EW], coefficients: &[EW], x: &[EW]) -> Option<EW> {
     let low = x.get(..p.variable_count).unwrap_or(x);
     Some(eq_above(p, x) * ring_weight(r, low, coefficients)?)
@@ -76,11 +80,13 @@ pub struct EqClaimW {
 }
 
 /// `levelShape`: `2^(μ − fold + rate)` leaves of `width` words.
+#[inline(always)]
 pub fn level_shape(message_log_before: usize, level: &Level, width: u64) -> (u64, u64) {
     ((message_log_before.saturating_sub(level.fold) + level.log_inv_rate) as u64, width)
 }
 
 /// **`commitStack`**: the stack's root, read at level `0`'s shape.
+#[inline(never)]
 pub fn commit_stack(t: &mut TState, log_n: usize, log_inv_rate: usize) -> Option<()> {
     let (levels, n) = ladder(log_n, log_inv_rate)?;
     let level = levels.get(..n)?.first()?;
@@ -89,6 +95,7 @@ pub fn commit_stack(t: &mut TState, log_n: usize, log_inv_rate: usize) -> Option
 }
 
 /// **`readOod`**: the stack commitment's out-of-domain claim, into `out`.
+#[inline(never)]
 pub fn read_ood(t: &mut TState, stack_log: usize, out: &mut EqClaimW) -> Option<()> {
     t.grind(OOD_GRINDING_BITS)?;
     t.sample_challenges(out.z.resize(stack_log)?);
@@ -97,6 +104,7 @@ pub fn read_ood(t: &mut TState, stack_log: usize, out: &mut EqClaimW) -> Option<
 }
 
 /// `ColumnClaimW.onStack`'s placement: `None` for a column with none.
+#[inline(always)]
 pub fn on_stack(c: &ColumnClaimW, layout: &LayoutW) -> Option<Placement> {
     layout.placements.get(c.column).and_then(|p| p.get())
 }

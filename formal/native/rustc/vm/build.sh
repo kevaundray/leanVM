@@ -4,7 +4,7 @@
 # every checkout.
 #
 # Usage, from anywhere:
-#   rustc/vm/build.sh            # out/vm-{x86_64,aarch64}.{s,o}, and SHA256SUMS of them
+#   rustc/vm/build.sh            # out/vm-{x86_64,aarch64}.s and out/vm-x86_64.post.s, and SHA256SUMS of them
 #   rustc/vm/build.sh --check    # builds twice, in two fresh directories, and fails unless both match SHA256SUMS
 #
 # Needs rustup with the toolchain of `../rust-toolchain.toml` and the targets `x86_64-unknown-none` and
@@ -13,7 +13,9 @@
 # The flags are `../build.sh`'s: plain rustc, the crate's metadata its name, every source path relative to the
 # repository, the sysroot and the output directory remapped, nothing incremental, the baseline CPU, one codegen unit,
 # `panic=abort`, and `-C lto=fat` on a static library so that the assembly is one module holding exactly what the
-# export reaches (the assembly is written after LTO only when the link is emitted too). On x86-64 the small code model
+# export reaches (the assembly is written after LTO only when the link is emitted too). The assembly is the artifact
+# (`run/check.sh` assembles it, the proofs ingest it): rustc's own object is not emitted, as rustc 1.99.1's object and
+# assembly code generation differ under fat LTO. On x86-64 the small code model
 # (the target's default is the kernel's, which a user-space harness cannot link) and `-align-all-functions=4`
 # (rustc's LLVM writes `.prefalign` otherwise, which clang's assembler rejects).
 set -euo pipefail
@@ -48,11 +50,16 @@ build() {
     (
       cd "$src"
       rustc "${flags[@]}" --crate-type staticlib --crate-name native_vm -C metadata=native_vm -C lto=fat \
-        --emit "link=$deps/libnative_vm-$arch.a,asm=$out/vm-$arch.s,obj=$out/vm-$arch.o" "$crate/src/lib.rs"
+        --emit "link=$deps/libnative_vm-$arch.a,asm=$out/vm-$arch.s" "$crate/src/lib.rs"
+      # The x86-64 code that is assembled, run and proved is the post-passed one (`../x86-postpass.py`), every
+      # instruction one Kraken reads.
+      if [[ $arch == x86_64 ]]; then
+        python3 formal/native/rustc/x86-postpass.py "$out/vm-$arch.s" "$out/vm-$arch.post.s"
+      fi
     )
   done
   rm -rf "$deps"
-  (cd "$out" && sha256sum vm-*.s vm-*.o >SHA256SUMS)
+  (cd "$out" && sha256sum vm-*.s >SHA256SUMS)
 }
 
 case ${1:-} in
@@ -69,6 +76,7 @@ case ${1:-} in
     for tree in "$scratch/a" "$scratch/b/deeper/tree"; do
       mkdir -p "$tree/$crate"
       cp -R "$root/$crate/src" "$tree/$crate/"
+      cp "$root/formal/native/rustc/x86-postpass.py" "$tree/formal/native/rustc/"
       build "$tree" "$tree.out"
       if diff "$here/SHA256SUMS" "$tree.out/SHA256SUMS"; then
         echo "$tree: identical to SHA256SUMS"

@@ -194,6 +194,33 @@ theorem mulAcc_sub_ok {dst src1 src2 src3 : RegOrZr w} (hm : Match env S m)
   refine done_fall (hm.setZr dst ?_)
   simp only [eval_mkBin, BinOp.apply, low_ext, hm.getZr ha, hm.getZr hb, hm.getZr hc]
 
+omit [Labels] in
+theorem umaddl_eq (x y : BitVec 32) (z : BitVec 64) :
+    ext .W32 x * ext .W32 y + z = BitVec.ofInt 64 (x.unsigned * y.unsigned + z.unsigned) := by
+  have hx := x.isLt
+  have hy := y.isLt
+  rw [BitVec.unsigned, BitVec.unsigned, BitVec.unsigned,
+    show (x.toNat : Int) * y.toNat + z.toNat = ((x.toNat * y.toNat + z.toNat : Nat) : Int) by
+      push_cast; rfl,
+    BitVec.ofInt_natCast]
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ofNat, BitVec.toNat_add, BitVec.toNat_mul, ext_W32, ext_W32,
+    BitVec.toNat_setWidth, BitVec.toNat_setWidth, Nat.mod_eq_of_lt (Nat.lt_trans hx (by decide)),
+    Nat.mod_eq_of_lt (Nat.lt_trans hy (by decide)), Nat.mod_add_mod]
+
+theorem umaddl_ok {dst : RegOrZr .W64} {src1 src2 : RegOrZr .W32} {src3 : RegOrZr .W64}
+    (hm : Match env S m) (h : Step.umaddl dst src1 src2 src3 S = some (S', x)) (p : Std.Rco Int64) :
+    (Effects.done ⟨{ m with regs := (m.regs.setRegOrZr dst (BitVec.ofInt 64
+      ((m.regs.getRegOrZr src1).unsigned * (m.regs.getRegOrZr src2).unsigned +
+        (m.regs.getRegOrZr src3).unsigned))) }, p.upper⟩).All
+      (fun st => Match env S' st.data ∧ PcOk env x p.upper st) := by
+  simp only [Step.umaddl, Option.bind_eq_bind, Option.bind_eq_some_iff, fall, Option.some.injEq,
+    Prod.mk.injEq] at h
+  obtain ⟨a, ha, b, hb, c, hc, rfl, rfl⟩ := h
+  refine done_fall (hm.setZr dst ?_)
+  rw [hm.getZr ha, hm.getZr hb, hm.getZr hc, ← umaddl_eq]
+  simp only [eval_mkBin, BinOp.apply, eval_truncTo, low_W64, ext_W64]
+
 theorem unary_ok (op : UnOp) (f : w.type → w.type) (hf : ∀ a, op.apply w a = ext w (f (low w a)))
     {dst src : RegOrZr w} (hm : Match env S m) (h : Step.unary op dst src S = some (S', x))
     (p : Std.Rco Int64) :
@@ -362,6 +389,10 @@ theorem ok_UMULH (dst src1 src2 : RegOrZr .W64) : OpOk env (.UMULH dst src1 src2
     (fun a b => (BitVec.ofInt (64 + 64) (a.unsigned * b.unsigned)).extractLsb' 64 64)
     (fun _ _ => rfl) hm h p
 
+theorem ok_UMADDL (dst : RegOrZr .W64) (src1 src2 : RegOrZr .W32) (src3 : RegOrZr .W64) :
+    OpOk env (.UMADDL dst src1 src2 src3) :=
+  fun _ _ _ _ p _ hm h => umaddl_ok hm h p
+
 theorem ok_EXTR (dst src1 src2 : RegOrZr w) (lsb : Nat) : OpOk env (.EXTR dst src1 src2 lsb) :=
   fun _ _ _ _ p _ hm h => reg3_ok (.extr lsb)
     (fun a b => if lsb % w.bits == 0 then b else (a <<< (w.bits - lsb % w.bits)) ||| (b >>> (lsb % w.bits)))
@@ -395,6 +426,9 @@ theorem ok_REV (dst src : RegOrZr w) : OpOk env (.REV dst src) := by
   intro _ _ _ _ p _ hm h
   have := unary_ok .rev (revW w) (fun _ => rfl) hm h p
   cases w <;> exact this
+
+theorem ok_RBIT (dst src : RegOrZr w) : OpOk env (.RBIT dst src) :=
+  fun _ _ _ _ p _ hm h => unary_ok .rbit BitVec.reverse (fun _ => rfl) hm h p
 
 theorem ok_MOVZ (dst : RegOrZr w) (imm : ConstExpr) (sh : MovShift w) :
     OpOk env (.MOVZ dst imm sh) :=

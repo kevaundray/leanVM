@@ -7,14 +7,16 @@ public import Kraken.Layout
 # Ingestion of rustc's assembly, for any architecture
 
 `run arch args` (`ingest-arm`, `ingest-x64`: `IngestArm.lean`, `IngestX64.lean`) writes rustc's
-assembly for the signature verifiers as Lean modules of formal/native under
-`OUT/<arch.ns>/Code/`, each instruction parsed by Kraken's parser for the architecture and written back as
+assembly for the signature verifiers, or for the leanVM verifier, as Lean modules of formal/native under
+`OUT/<ns>/Code/` (`ns` the architecture's namespace, or `--ns`'s), each instruction parsed by Kraken's parser for the architecture and written back as
 the Kraken term it denotes. The two architectures are two executables because Kraken's AArch64 and
 x86-64 declare the same root names (`Instr`, `Directive`, ...); this module, generic in a Kraken
 `Directive I C`, is shared.
 
-For each scheme, the core functions are those reachable from `<scheme>_verify` by calls, jumps and
-references to other functions, without entering the two panic entries of `core` (`isPanic`). A
+For each scheme, the core functions are those reachable from its entry (`<scheme>_verify`, or
+`leanvm_verify` for `vm`) by calls, jumps and references to other functions, without entering the two
+panic entries of `core` (`isPanic`). Each has a Lean name: the signature verifiers' functions by
+`shortName`, the others by the table `--names FILE` gives (a line `<symbol> <Name>` each). A
 function of rustc's assembly starts at `name:` followed by `.Lfunc_begin<n>:` and ends at
 `.Lfunc_end<n>:`. Its text keeps instructions and labels, and the directives inside it the
 architecture keeps (`Arch.bodyDirective`: x86-64's loop alignment); its local labels are renamed after
@@ -152,6 +154,9 @@ inductive Datum
   | bytes (bs : Array UInt8)
   | word (size : Nat) (label : String)
 
+/-- The most bytes of one `.byteArray` directive. -/
+def bytesChunk : Nat := 256
+
 /-- The bytes of a GNU assembler string literal (without its quotes). -/
 def unescape (s : String) : Except String (Array UInt8) := do
   let cs := s.toList.toArray
@@ -208,13 +213,17 @@ def parseData (dataSize : String → Option Nat) (label : String) (body : Array 
         let v := v.toNat % 2 ^ (8 * size) -- two's complement
         out := out.push (.bytes ((List.range size).toArray.map fun k => (v / 2 ^ (8 * k) % 256).toUInt8))
     | _, none => throw s!"{label}: unsupported data directive {line}"
-  -- Merge adjacent bytes.
+  -- Merge adjacent bytes, then cut them in runs of at most `bytesChunk` (a longer array literal exceeds the
+  -- elaborator's recursion depth).
   let mut merged : Array Datum := #[]
   for d in out do
     match merged.back?, d with
     | some (.bytes a), .bytes b => merged := merged.pop.push (.bytes (a ++ b))
     | _, _ => merged := merged.push d
-  return merged
+  return merged.flatMap fun
+    | .bytes bs => ((List.range ((bs.size + bytesChunk - 1) / bytesChunk)).map fun k =>
+        Datum.bytes (bs.extract (k * bytesChunk) ((k + 1) * bytesChunk))).toArray
+    | d => #[d]
 
 /-! ## Lean terms as source -/
 
@@ -270,6 +279,9 @@ partial def labelsIn (e : Expr) : Array String :=
 structure Arch (I C : Type) where
   /-- The Lean namespace and module prefix of its ingested code. -/
   ns : String
+  /-- Whether to write each scheme's `Labels` module (`--no-labels` drops it: the leanVM program's 925 lemmas take
+  minutes to check, and its proofs place functions by one check that the labels are distinct instead). -/
+  labels : Bool := true
   /-- The module of Kraken's syntax the generated modules import. -/
   syntaxModule : String
   /-- The module of the `List.IsInfixAt` lemmas the generated proofs use. -/
@@ -284,6 +296,9 @@ structure Arch (I C : Type) where
   comment : String
   /-- A directive line inside a function: dropped (`none`), or kept as the given line. -/
   bodyDirective : String → Except String (Option String)
+  /-- An instruction whose label operand `l` stands for `l + c`, `c` the addend its line wrote after the
+  label (`adrp x0, l+8`, which Kraken's parser does not read): Kraken's term for `l + c` in place of `l`. -/
+  addend : I → Int → Except String I := fun _ _ => throw "a label with an addend"
   /-- The bytes of the trap a panic entry is replaced with, and its assembly. -/
   trap : Array UInt8
   trapAsm : String
@@ -311,6 +326,10 @@ def shortName (sym : String) : Option String :=
   else if sym.endsWith "4wots9wots_leaf" then some "WotsLeaf"
   else if (sym.splitOn "LeanXmssSignature10from_bytes").length > 1 then some "FromBytes"
   else none
+
+/-- A scheme's entry: `leanvm_verify` for `vm`, else `<scheme>_verify`. -/
+def entryOf (scheme : String) : String :=
+  if scheme == "vm" then "leanvm_verify" else s!"{scheme}_verify"
 
 /-- `Xmss` for `xmss`. -/
 def capitalize (s : String) : String :=
@@ -366,15 +385,31 @@ def cleanLines (arch : Arch I C) (f : AsmFn) (short : String) : Except String (A
     | none => true
   return kept'.map (mapLocalTokens fun t => rename.getD t t)
 
-/-- Kraken's parse of a function's lines, one directive per line, each parsed on its own. -/
+/-- A line ending in a label with an addend, `<…><label>+<c>`: the line without `+<c>`, and `c`. -/
+def splitAddend (l : String) : Option (String × Int) :=
+  match l.splitOn "+" with
+  | [pre, post] =>
+    if !post.isEmpty && post.all Char.isDigit && (pre.back.isAlphanum || pre.back == '_') then
+      some (pre, post.toNat!)
+    else none
+  | _ => none
+
+/-- Kraken's parse of a function's lines, one directive per line, each parsed on its own; a line
+ending in a label with an addend parsed without it, and the addend put back (`Arch.addend`). -/
 def parseLines (arch : Arch I C) (name : String) (lines : Array String) :
     IO (Array (Kraken.Directive I C)) :=
   lines.mapM fun l => do
-    let prog ← try arch.parse l
+    let (src, c) := match splitAddend l with
+      | some (pre, c) => (pre, some c)
+      | none => (l, none)
+    let prog ← try arch.parse src
       catch e => throw <| IO.userError s!"{name}: {l}: {e}"
-    match prog with
-    | [d] => pure d
-    | _ => throw <| IO.userError s!"{name}: {l}: {prog.length} directives"
+    match prog, c with
+    | [d], none => pure d
+    | [.instr i], some c => match arch.addend i c with
+      | .ok i' => pure (.instr i')
+      | .error e => throw <| IO.userError s!"{name}: {l}: {e}"
+    | _, _ => throw <| IO.userError s!"{name}: {l}: {prog.length} directives"
 
 /-- The source of a directive. -/
 def directiveSrc (env : Environment) : Kraken.Directive I C → Except String String
@@ -422,14 +457,14 @@ structure Scheme (I C : Type) where
   rodata : Array (String × Array Datum)
 
 /-- Ingest a scheme's assembly. -/
-def ingestScheme (arch : Arch I C) (env : Environment) (scheme : String) (text : String) :
-    IO (Scheme I C) := do
+def ingestScheme (arch : Arch I C) (env : Environment) (names : Std.HashMap String String)
+    (scheme : String) (text : String) : IO (Scheme I C) := do
   let ls := (text.splitOn "\n").toArray
   let fns ← IO.ofExcept (functions ls)
   let byName : Std.HashMap String AsmFn := fns.foldl (fun m f => m.insert f.name f) {}
   let data := dataItems ls
   -- Reachability from the entry.
-  let entry := s!"{scheme}_verify"
+  let entry := entryOf scheme
   let mut todo := #[entry]
   let mut parsed : Std.HashMap String (Fn I C) := {}
   let mut called : Array String := #[]
@@ -442,7 +477,8 @@ def ingestScheme (arch : Arch I C) (env : Environment) (scheme : String) (text :
       unless called.contains name do called := called.push name
       continue
     let some f := byName[name]? | throw <| IO.userError s!"{scheme}: no function {name}"
-    let some short := shortName name | throw <| IO.userError s!"{scheme}: no Lean name for {name}"
+    let some short := names[name]? <|> shortName name
+      | throw <| IO.userError s!"{scheme}: no Lean name for {name}"
     let lines ← IO.ofExcept (cleanLines arch f short)
     let prog ← parseLines arch name lines
     let srcs ← IO.ofExcept (prog.mapM (directiveSrc env))
@@ -499,6 +535,24 @@ def listSrc (items : Array (String × String)) : String := Id.run do
     let cmt := if asm.isEmpty then "" else s!"  -- {asm.replace "\t" " "}"
     out := out ++ s!"  {src}{sep}{cmt}\n"
   return out ++ "]"
+
+/-- Most directives of one data list in a long one: a list literal of many large data directives exceeds the
+compiler's recursion depth. -/
+def rodataChunk : Nat := 8
+
+/-- The definition of `rodata`: one list literal of at most 32 directives, or else the lists `rodata<k>` of
+`rodataChunk` each, flattened. -/
+def rodataSrc (items : Array (String × String)) : String :=
+  let doc := "/-- The data the core refers to, directly or through data words. -/\n"
+  if items.size ≤ 32 then
+    doc ++ s!"def rodata : List Directive := {listSrc items}\n\n"
+  else
+    let n := (items.size + rodataChunk - 1) / rodataChunk
+    let parts := (List.range n).map fun k =>
+      s!"/-- Directives {k * rodataChunk} to {min items.size ((k + 1) * rodataChunk) - 1} of `rodata`. -/\n" ++
+      s!"def rodata{k} : List Directive := {listSrc (items.extract (k * rodataChunk) ((k + 1) * rodataChunk))}\n\n"
+    String.join parts ++ doc ++
+      s!"def rodata : List Directive := List.flatten [{", ".intercalate ((List.range n).map (s!"rodata{·}"))}]\n\n"
 
 /-- Largest number of directives in one module of blocks. -/
 def partSize : Nat := 500
@@ -621,14 +675,14 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
             pure (← IO.ofExcept (directiveSrc env dir), s!"{arch.wordDirective n} {l'}")
         dataItems := dataItems.push item
     let pieces := fnNs.toList.map (fun (_, n) => s!"{n}.code") ++ [s!"{ns}.traps", s!"{ns}.rodata"]
-    let doc := s!"# `{s.name}_verify` as rustc compiles it\n\n" ++
+    let doc := s!"# `{entryOf s.name}` as rustc compiles it\n\n" ++
       s!"The program `code`: the core functions, a trap for each panic entry they call (`traps`), " ++
       s!"and the data they refer to (`rodata`). Generated by `rustc/ingest/ingest.sh` from rustc's assembly; do not edit."
     let schemeMod := s!"{arch.ns}.Code.{S}"
     files := files.push (modPath schemeMod,
       header doc fnMods ++ s!"namespace {ns}\n\n@[expose] public section\n\n" ++
       s!"/-- Each panic entry the core calls: its label, then `{arch.trapAsm}`. -/\ndef traps : List Directive := {listSrc trapItems}\n\n" ++
-      s!"/-- The data the core refers to, directly or through data words. -/\ndef rodata : List Directive := {listSrc dataItems}\n\n" ++
+      rodataSrc dataItems ++
       s!"/-- The program. -/\ndef code : Program := List.flatten [{", ".intercalate pieces}]\n\n" ++
       s!"end\n\nend {ns}\n")
     -- Offsets of every function and block.
@@ -650,7 +704,7 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
       s!"public theorem traps_at : {ns}.traps.IsInfixAt {ns}.code {trapOff} :=\n  List.isInfixAt_flatten_of (i := {fnNs.size}) rfl (by decide +kernel)\n\n" ++
       s!"public theorem rodata_at : {ns}.rodata.IsInfixAt {ns}.code {dataOff} :=\n  List.isInfixAt_flatten_of (i := {fnNs.size + 1}) rfl (by decide +kernel)\n\n" ++
       s!"public theorem code_length : {ns}.code.length = {total} := by decide +kernel\n\n"
-    let doc := s!"# Where each block of `{s.name}_verify`'s program is\n\n" ++
+    let doc := s!"# Where each block of `{entryOf s.name}`'s program is\n\n" ++
       s!"Each core function's and each block's index in `{ns}.code` (`<Fn>.code_at`, `<Fn>.b<k>_at`), the traps' and the data's. Generated by `rustc/ingest/ingest.sh`; do not edit."
     files := files.push (modPath s!"{schemeMod}.Offsets",
       header doc [schemeMod] ++ s!"namespace {ns}\n\n" ++ sequential ++ offLemmas ++ s!"end {ns}\n")
@@ -679,28 +733,51 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
       idents := idents.push id
       labLemmas := labLemmas ++
         s!"public theorem label_{id} : {ns}.code.findIdx? (· = .label {l.quote}) = some {idx} := by decide +kernel\n\n"
-    let doc := s!"# Where each label of `{s.name}_verify`'s program is\n\n" ++
+    let doc := s!"# Where each label of `{entryOf s.name}`'s program is\n\n" ++
       s!"For each label, the index of its `.label` directive in `{ns}.code`, its only one (`label_<l>`, the label's\n" ++
       s!"name without `.L`). Generated by `rustc/ingest/ingest.sh`; do not edit."
-    files := files.push (modPath s!"{schemeMod}.Labels",
-      header doc [schemeMod] ++ s!"namespace {ns}\n\n" ++ sequential ++ labLemmas ++ s!"end {ns}\n")
+    if arch.labels then
+      files := files.push (modPath s!"{schemeMod}.Labels",
+        header doc [schemeMod] ++ s!"namespace {ns}\n\n" ++ sequential ++ labLemmas ++ s!"end {ns}\n")
   -- The root.
   let mods := schemes.toList.flatMap fun s =>
-    [s!"{arch.ns}.Code.{capitalize s.name}.Offsets", s!"{arch.ns}.Code.{capitalize s.name}.Labels"]
-  let doc := "# rustc's code for the signature verifiers, ingested\n\nThe programs, their blocks' indices and their labels' indices. Generated by `rustc/ingest/ingest.sh`; do not edit."
+    [s!"{arch.ns}.Code.{capitalize s.name}.Offsets"] ++
+      (if arch.labels then [s!"{arch.ns}.Code.{capitalize s.name}.Labels"] else [])
+  let what := if schemes.all (·.name == "vm") then "the leanVM verifier" else "the signature verifiers"
+  let doc := s!"# rustc's code for {what}, ingested\n\nThe programs, their blocks' indices and their labels' indices. Generated by `rustc/ingest/ingest.sh`; do not edit."
   files := files.push (modPath s!"{arch.ns}.Code", header doc mods)
   return files
 
-/-- `ingest-<arch> OUT SCHEME=FILE.s ...`. -/
+/-- The table of Lean names `--names FILE` gives: a line `<symbol> <Name>` each. -/
+def readNames (path : String) : IO (Std.HashMap String String) := do
+  let mut m := {}
+  for line in (← IO.FS.readFile path).splitOn "\n" do
+    match (trimStr line).splitOn " " with
+    | [""] => pure ()
+    | [sym, name] => m := m.insert sym name
+    | _ => throw <| IO.userError s!"{path}: bad line {line}"
+  return m
+
+/-- `ingest-<arch> OUT [--ns NS] [--names FILE] [--no-labels] SCHEME=FILE.s ...`. -/
 def run (arch : Arch I C) (args : List String) : IO UInt32 := do
+  let rec opts (arch : Arch I C) (names : Std.HashMap String String) :
+      List String → IO (Arch I C × Std.HashMap String String × List String)
+    | "--ns" :: ns :: rest => opts { arch with ns } names rest
+    | "--names" :: path :: rest => do opts arch (← readNames path) rest
+    | "--no-labels" :: rest => opts { arch with labels := false } names rest
+    | rest => pure (arch, names, rest)
   match args with
-  | out :: specs@(_ :: _) =>
+  | out :: rest =>
+    let (arch, names, specs) ← opts arch {} rest
+    if specs.isEmpty then
+      IO.eprintln "usage: ingest-<arch> OUT [--ns NS] [--names FILE] [--no-labels] SCHEME=FILE.s ..."
+      return 2
     initSearchPath (← findSysroot)
     let env ← importModules #[{ module := arch.syntaxModule.toName }] {}
     let mut schemes := #[]
     for spec in specs do
       let [name, path] := spec.splitOn "=" | throw <| IO.userError s!"bad argument {spec}"
-      schemes := schemes.push (← ingestScheme arch env name (← IO.FS.readFile path))
+      schemes := schemes.push (← ingestScheme arch env names name (← IO.FS.readFile path))
     let files ← emit arch env schemes
     for (path, contents) in files do
       let p : System.FilePath := out / path
@@ -708,7 +785,7 @@ def run (arch : Arch I C) (args : List String) : IO UInt32 := do
       IO.FS.writeFile p contents
     return 0
   | _ =>
-    IO.eprintln "usage: ingest-<arch> OUT SCHEME=FILE.s ..."
+    IO.eprintln "usage: ingest-<arch> OUT [--ns NS] [--names FILE] [--no-labels] SCHEME=FILE.s ..."
     return 2
 
 end

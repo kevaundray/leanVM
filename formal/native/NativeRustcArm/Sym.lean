@@ -18,4 +18,12 @@ bases), a start state (`Sym.init`, its `Match` by `Sym.match_init`), `sym_block 
 then `Sym.exec_sound hk h hwf hm` and the facts of the final `Match` and `PcOk`. A loop's state at
 its head takes the loop's variables as atoms (`Sym.var`, bounded by `SState.bounds` where it
 indexes memory) or rebases the regions per iteration.
+
+Memory accesses: at a constant offset in a region (a region pointer, a label at a region's base, a
+value with an alias), at a bounded index in an area no write touches (loads), or over the slots
+`o + s * k` of an index `s * x` with `x < B` (`SState.slots`, loads and stores; a store writes each
+slot, `ite (x = k) v old`). Facts a proof adds to a state, at its start or between two parts of a
+block: `Match.withBound`, `Match.withAlias` (a computed pointer), `Match.withReg` (a register's
+value re-expressed, e.g. a byte offset as a bounded variable times the access size). Examples:
+`Sym/Test/Slots.lean`.
 -/

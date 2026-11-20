@@ -1,6 +1,6 @@
 name = "native"
 version = "0.1.0"
-defaultTargets = ["Native", "NativeX64", "NativeArm", "NativeRustc", "NativeRustcArm", "NativeRustcX64"]
+defaultTargets = ["Native", "NativeX64", "NativeArm", "NativeRustc", "NativeRustcArm", "NativeRustcX64", "NativeRustcVm", "NativeRustcVmArm", "NativeRustcVmX64"]
 
 [leanOptions]
 warningAsError = true
@@ -88,6 +88,22 @@ globs = ["NativeRustcArm", "NativeRustcArm.+"]
 name = "NativeRustcX64"
 globs = ["NativeRustcX64", "NativeRustcX64.+"]
 
+# The no_std leanVM verifier rustc compiles (rustc/vm/): its lemmas tying the crate's computations to
+# `NativeVm.Model`; it imports no Kraken module.
+[[lean_lib]]
+name = "NativeRustcVm"
+globs = ["NativeRustcVm.+"]
+
+# rustc's AArch64 output for the leanVM verifier, ingested as a Kraken program, and its proofs.
+[[lean_lib]]
+name = "NativeRustcVmArm"
+globs = ["NativeRustcVmArm", "NativeRustcVmArm.+"]
+
+# rustc's x86-64 output for the leanVM verifier, ingested as a Kraken program, and its proofs.
+[[lean_lib]]
+name = "NativeRustcVmX64"
+globs = ["NativeRustcVmX64", "NativeRustcVmX64.+"]
+
 # A verifier's x86-64 machine code, `NativeX64.Compile.program body onFail`, printed as an assembly
 # file exporting `xmss_verify`, `sphincs_verify` or `leanvm_verify` (cli/EmitX64.lean); `run/check.sh` assembles it
 # with the harness.
@@ -107,6 +123,17 @@ srcDir = "cli"
 [[lean_exe]]
 name = "print-rustc-code-x64"
 root = "PrintRustcCodeX64"
+srcDir = "cli"
+
+# The same for the ingested leanVM verifier, apart so that the signature printers don't compile it.
+[[lean_exe]]
+name = "print-rustc-vm-code"
+root = "PrintRustcVmCode"
+srcDir = "cli"
+
+[[lean_exe]]
+name = "print-rustc-vm-code-x64"
+root = "PrintRustcVmCodeX64"
 srcDir = "cli"
 
 # A verifier's AArch64 machine code, `NativeArm.Compile.program body onFail`, printed as an assembly

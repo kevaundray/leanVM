@@ -7,7 +7,7 @@ public import NativeRustcArm.Sym.Operand
 
 `OpOk` for `B`, `B.cond`, `CBZ`/`CBNZ`, `TBZ`/`TBNZ` (a conditional exit on Kraken's condition),
 `BL` (the return address in X30, which the symbolic state forgets), `RET` (to X30), `ADRP` of a
-label and `NOP`.
+label, possibly plus a constant, and `NOP`.
 -/
 
 namespace NativeRustcArm.Sym
@@ -101,12 +101,20 @@ theorem ok_RET (r : RegOrZr .W64) : OpOk env (.RET r) := by
 
 theorem ok_ADRP (dst : RegOrZr .W64) (t : ConstExpr) : OpOk env (.ADRP dst t) := by
   intro S S' x m p _ hm h
+  change (do let a ← labelAddr t; fall (S.setZr dst (.bin .and .W64 a (.lit pageMask)))) =
+    some (S', x) at h
+  simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, fall, Option.some.injEq,
+    Prod.mk.injEq] at h
+  obtain ⟨a, ha, rfl, rfl⟩ := h
+  have hv : (Sym.bin .and .W64 a (.lit pageMask)).eval env =
+      ext .W64 (BitVec.ofInt 64 (t.interp p).toInt &&& ~~~0xFFF#64) := by
+    simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, ofInt_toInt64,
+      labelAddr_spec (env := env) ha p]
+    rfl
   cases t with
-  | label l =>
-    cases h
-    exact done_fall (hm.setZr dst (x := BitVec.ofInt 64 (Labels.label l).toInt &&& ~~~0xFFF#64)
-      (by simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, ofInt_toInt64]; rfl))
-  | _ => cases h
+  | label l => exact done_fall (hm.setZr dst hv)
+  | add t₁ t₂ => exact done_fall (hm.setZr dst hv)
+  | _ => cases ha
 
 theorem ok_NOP : OpOk env (.NOP : Operation w) :=
   fun _ _ _ _ _ _ hm h => by
