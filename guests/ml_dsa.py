@@ -62,7 +62,7 @@ OFF_LB = 0  # 8: byte v as lane byte k, v << 8k
 OFF_T1 = 2048  # 8: a t1 coefficient's share of byte v, times 2^d, in the exponent
 OFF_X256 = 4096  # g^(256 v)
 OFF_M127 = 4352  # g^(v & 127)
-OFF_TOP = 4608  # v & 127 == 127
+OFF_TOPW = 4608  # g^8191 if v & 127 == 127, else 1
 OFF_SG = 4864  # 8: g^(256 bit_t(v))
 OFF_S12 = 6912  # 2048: g^(4096 v)
 # Squares for the pointwise products: SQ_kl[s] = g^(2^(12k + 8l) s^2), s up to a 12- or 11-bit limb of
@@ -108,10 +108,7 @@ def main():
         tab[OFF_T1 + 1792 + v] = GEN ** const(v * 4 * 8192)
         tab[OFF_X256 + v] = GEN ** const(256 * v)
         tab[OFF_M127 + v] = GEN ** const(v % 128)
-        if const(v % 128 == 127):
-            tab[OFF_TOP + v] = 1
-        else:
-            tab[OFF_TOP + v] = 0
+        tab[OFF_TOPW + v] = GEN ** const(8191 * (v % 128 // 127))
     for v in unroll(0, 2048):
         tab[OFF_S12 + v] = GEN ** const(4096 * v)
     # `GEN ** e` takes e below 2^32, so a wider exponent is a power of a power.
@@ -160,7 +157,7 @@ def main():
     assert tp == GEN ** TB
     digs = HeapBuf(2 * N_SIGS)
     for s in mul_range(1, GEN ** N_SIGS):
-        verify_sig(tp, digs * s * s)
+        verify_sig(digs * s * s)
     acc = StackBuf(2)
     acc[0] = digs[1]
     acc[1] = digs[GEN]
@@ -174,13 +171,13 @@ def main():
     return
 
 
-def verify_sig(tp, dg):
+def verify_sig(dg):
     # pk = rho || t1: rho hinted as lanes, t1 as bytes; both go into the lanes tr hashes.
     ml = HeapBuf(17 * PK_BLOCKS)
     hint_witness(ml[0:4], "rho")
     s1 = HeapBuf(1024 * K)
     for i in unroll(0, K):
-        t1_row(tp, ml * GEN ** (4 + 40 * i), s1 * GEN ** (1024 * i))
+        t1_row(ml * GEN ** (4 + 40 * i), s1 * GEN ** (1024 * i))
     pad_lanes(ml, PK_LANES, PK_BLOCKS)
     tr = absorb17(ml, PK_BLOCKS)
     hl = HeapBuf(17 * W1H_BLOCKS)
@@ -196,12 +193,12 @@ def verify_sig(tp, dg):
     rc1 = ml[GEN ** 2] + Y_TOWER * ml[GEN ** 3]
     for i in unroll(0, K):
         for j in unroll(0, L):
-            expand_poly(tp, rc0, rc1, const(j + 256 * i + PAD_FIRST * 65536), a * GEN ** (EXA_POLY * (L * i + j)))
+            expand_poly(rc0, rc1, const(j + 256 * i + PAD_FIRST * 65536), a * GEN ** (EXA_POLY * (L * i + j)))
 
     ct = HeapBuf(CT_LANES)
     hint_witness(ct[0:CT_LANES], "ct")
     pp = HeapBuf(TAU)
-    sample_in_ball(tp, ct, s1, pp)
+    sample_in_ball(ct, s1, pp)
 
     zh = HeapBuf(768 * L)
     for j in unroll(0, L):
@@ -267,45 +264,45 @@ def absorb17(ln, nblocks: Const):
 
 
 @inline
-def lane_of(tp, eb, at: Const):
+def lane_of(eb, at: Const):
     # The lane whose eight bytes, low first, are hinted at eb[at..at+8] in the exponent.
     for k in unroll(0, 8):
         e = eb[at + k]
         assert log(e) < 256
         if const(k == 0):
-            acc = tp[e * GEN ** OFF_LB]
+            acc = e[GEN ** (TB + OFF_LB)]
         else:
-            acc = acc + tp[e * GEN ** (OFF_LB + 256 * k)]
+            acc = acc + e[GEN ** (TB + OFF_LB + 256 * k)]
     return acc
 
 
 # ===================================== t1 ========================================
 
 
-def t1_row(tp, ml, s1):
+def t1_row(ml, s1):
     # Row i of t1: its 40 lanes into ml and its 256 coefficients, times 2^d, into the
     # row's sparse-product table s1: [g^T | g^-T | g^T | g^-T].
     for u in mul_range(1, GEN ** 8):
-        t1_unit(tp, ml * u ** 5, s1 * u ** 32)
+        t1_unit(ml * u ** 5, s1 * u ** 32)
     return
 
 
-def t1_unit(tp, ml, s1):
+def t1_unit(ml, s1):
     # Five lanes, 40 bytes, 32 coefficients of ten bits.
     eb = StackBuf(40)
     hint_witness(eb, "t1")
     for w in unroll(0, 5):
-        ml[GEN ** w] = lane_of(tp, eb, 8 * w)
+        ml[GEN ** w] = lane_of(eb, 8 * w)
     for g in unroll(0, 8):
-        b0 = tp * eb[5 * g]
-        b1 = tp * eb[5 * g + 1]
-        b2 = tp * eb[5 * g + 2]
-        b3 = tp * eb[5 * g + 3]
-        b4 = tp * eb[5 * g + 4]
-        t1_store(s1, 4 * g, b0[GEN ** OFF_T1] * b1[GEN ** (OFF_T1 + 256)])
-        t1_store(s1, 4 * g + 1, b1[GEN ** (OFF_T1 + 512)] * b2[GEN ** (OFF_T1 + 768)])
-        t1_store(s1, 4 * g + 2, b2[GEN ** (OFF_T1 + 1024)] * b3[GEN ** (OFF_T1 + 1280)])
-        t1_store(s1, 4 * g + 3, b3[GEN ** (OFF_T1 + 1536)] * b4[GEN ** (OFF_T1 + 1792)])
+        b0 = eb[5 * g]
+        b1 = eb[5 * g + 1]
+        b2 = eb[5 * g + 2]
+        b3 = eb[5 * g + 3]
+        b4 = eb[5 * g + 4]
+        t1_store(s1, 4 * g, b0[GEN ** (TB + OFF_T1)] * b1[GEN ** (TB + OFF_T1 + 256)])
+        t1_store(s1, 4 * g + 1, b1[GEN ** (TB + OFF_T1 + 512)] * b2[GEN ** (TB + OFF_T1 + 768)])
+        t1_store(s1, 4 * g + 2, b2[GEN ** (TB + OFF_T1 + 1024)] * b3[GEN ** (TB + OFF_T1 + 1280)])
+        t1_store(s1, 4 * g + 3, b3[GEN ** (TB + OFF_T1 + 1536)] * b4[GEN ** (TB + OFF_T1 + 1792)])
     return
 
 
@@ -322,54 +319,72 @@ def t1_store(s1, n: Const, gt):
 # =================================== ExpandA =====================================
 
 
-def expand_poly(tp, rc0, rc1, lane4, ap):
+def expand_poly(rc0, rc1, lane4, ap):
     # RejNTTPoly(rho || s || r): SHAKE128, five squeezed blocks of 56 three-byte
     # candidates, the accepted ones' limbs (b0, b1, b2 & 127) in the exponent at ap.
     cp = [0, 0, PAD128_LAST, 0, 0]
     st = StackBuf(13)
     keccak([rc0, rc1], [lane4, 0], st, tail=[0, 0, 0, 0], cap=cp)
-    cnt = expand_block(tp, st, ap, GEN ** 0)
+    cnt = expand_block(st, ap, GEN ** 0)
     for b in unroll(1, 5):
         nx = StackBuf(13)
         keccak(st[0:2], st[2:4], nx, tail=st[4:8], cap=st)
         st = nx
-        cnt = expand_block(tp, st, ap, cnt)
+        cnt = expand_block(st, ap, cnt)
     # At least 256 accepted; any past them are never read.
     assert log(cnt / GEN ** 256) < EXA_STRIDE - 255
     return
 
 
-def expand_block(tp, st: StackBuf(13), ap, cnt):
-    # The 21 rate lanes of st, as 168 hinted bytes.
+def expand_block(st: StackBuf(13), ap, cnt):
+    # The 21 rate lanes of st, as 168 hinted bytes. The prover says whether the block rejects a candidate:
+    # if not, each of the 56 is shown below q and stored in turn; if so, each is taken or not, and at least
+    # one is not.
     eb = StackBuf(168)
     hint_witness(eb, "exa")
     for c in unroll(0, 8):
-        st[c] = lane_of(tp, eb, 16 * c) + Y_TOWER * lane_of(tp, eb, 16 * c + 8)
-    st[8] = lane_of(tp, eb, 128)
-    st[9] = lane_of(tp, eb, 136) + Y_TOWER * lane_of(tp, eb, 144)
-    st[10] = lane_of(tp, eb, 152) + Y_TOWER * lane_of(tp, eb, 160)
-    for c in unroll(0, 56):
-        cnt = candidate(tp, eb, ap, cnt, c)
-    return cnt
+        st[c] = lane_of(eb, 16 * c) + Y_TOWER * lane_of(eb, 16 * c + 8)
+    st[8] = lane_of(eb, 128)
+    st[9] = lane_of(eb, 136) + Y_TOWER * lane_of(eb, 144)
+    st[10] = lane_of(eb, 152) + Y_TOWER * lane_of(eb, 160)
+    nc = StackBuf(1)
+    fast = hint_witness("exf")
+    if fast == 0:
+        bp = ap * cnt
+        for c in unroll(0, 56):
+            e0 = eb[3 * c]
+            e1 = eb[3 * c + 1]
+            e2 = eb[3 * c + 2]
+            # b0 + 256 b1 + 65536 (b2 & 127) < q: b0 + 256 b1 + 8191 [b2 & 127 == 127] < 65536.
+            assert_gpow(GEN ** 65535 / (e0 * e1[GEN ** (TB + OFF_X256)] * e2[GEN ** (TB + OFF_TOPW)]))
+            store_limbs(bp * GEN ** c, e0, e1, e2)
+        nc[0] = cnt * GEN ** 56
+    else:
+        cc = cnt
+        for c in unroll(0, 56):
+            cc = candidate(eb, ap, cc, c)
+        assert cc != cnt * GEN ** 56
+        nc[0] = cc
+    return nc[0]
 
 
 @inline
-def candidate(tp, eb, ap, cnt, c: Const):
+def candidate(eb, ap, cnt, c: Const):
     # Candidate b0 + 256 b1 + 65536 (b2 & 127) is below q unless b2 & 127 == 127 and
     # b0 + 256 b1 > 0xE000; only then does the prover say which.
     e0 = eb[3 * c]
     e1 = eb[3 * c + 1]
     e2 = eb[3 * c + 2]
     nc = StackBuf(1)
-    if tp[e2 * GEN ** OFF_TOP] == 0:
-        accept(tp, ap, cnt, e0, e1, e2)
+    if e2[GEN ** (TB + OFF_TOPW)] == 1:
+        store_limbs(ap * cnt, e0, e1, e2)
         nc[0] = cnt * GEN
     else:
-        y = e0 * tp[e1 * GEN ** OFF_X256]
+        y = e0 * e1[GEN ** (TB + OFF_X256)]
         rej = hint_witness("exr")
         if rej == 0:
             assert log(y) < 57345
-            accept(tp, ap, cnt, e0, e1, e2)
+            store_limbs(ap * cnt, e0, e1, e2)
             nc[0] = cnt * GEN
         else:
             assert log(y / GEN ** 57345) < 8191
@@ -378,11 +393,10 @@ def candidate(tp, eb, ap, cnt, c: Const):
 
 
 @inline
-def accept(tp, ap, cnt, e0, e1, e2):
-    p = ap * cnt
+def store_limbs(p, e0, e1, e2):
     p[1] = e0
     p[GEN ** EXA_STRIDE] = e1
-    p[GEN ** (2 * EXA_STRIDE)] = tp[e2 * GEN ** OFF_M127]
+    p[GEN ** (2 * EXA_STRIDE)] = e2[GEN ** (TB + OFF_M127)]
     return
 
 
@@ -402,7 +416,7 @@ def sib_lane(ct, n: Const):
     return v
 
 
-def sample_in_ball(tp, ct, s1, pp):
+def sample_in_ball(ct, s1, pp):
     # c = SampleInBall(c~), as the pointers its sparse product reads: nonzero k at
     # position p with sign bit b is s1 g^(256 - p + 256 b), read at + m for coefficient m.
     nx = StackBuf(13)
@@ -416,8 +430,8 @@ def sample_in_ball(tp, ct, s1, pp):
     eb = StackBuf(136)
     hint_witness(eb, "sib")
     for c in unroll(0, 8):
-        st[c] = lane_of(tp, eb, 16 * c) + Y_TOWER * lane_of(tp, eb, 16 * c + 8)
-    st[8] = lane_of(tp, eb, 128)
+        st[c] = lane_of(eb, 16 * c) + Y_TOWER * lane_of(eb, 16 * c + 8)
+    st[8] = lane_of(eb, 128)
     # The positions j_k: byte t is taken while k < TAU, accepted if j <= i = 256 - TAU + k.
     jb = HeapBuf(TAU)
     # A cell, so that every step's bound is a runtime one.
@@ -440,7 +454,8 @@ def sample_in_ball(tp, ct, s1, pp):
         nxt[k] = jk
         pos = nxt
     for k in unroll(0, TAU):
-        sg = tp[eb[k // 8] * GEN ** (OFF_SG + 256 * (k % 8))]
+        e = eb[k // 8]
+        sg = e[GEN ** (TB + OFF_SG + 256 * (k % 8))]
         pp[GEN ** k] = s1 * GEN ** 256 * sg / pos[k]
     return
 

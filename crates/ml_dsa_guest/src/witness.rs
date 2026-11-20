@@ -95,9 +95,15 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
             let mut n = 0;
             for block in bytes.chunks(168) {
                 s.push("exa", block.iter().map(|&b| g(b.into())).collect());
-                for c in block.chunks(3) {
-                    let v = u64::from(c[0]) | u64::from(c[1]) << 8 | u64::from(c[2] & 127) << 16;
-                    if c[2] & 127 == 127 {
+                let cands: Vec<u64> = block
+                    .chunks(3)
+                    .map(|c| u64::from(c[0]) | u64::from(c[1]) << 8 | u64::from(c[2] & 127) << 16)
+                    .collect();
+                // Whether the block rejects one: then each candidate whose b2 & 127 is 127 says which.
+                let slow = cands.iter().any(|&v| v >= Q);
+                s.push("exf", vec![E::new(u64::from(slow), 0)]);
+                for &v in &cands {
+                    if slow && v >> 16 == 127 {
                         s.push("exr", vec![E::new(u64::from(v >= Q), 0)]);
                     }
                     if v < Q {

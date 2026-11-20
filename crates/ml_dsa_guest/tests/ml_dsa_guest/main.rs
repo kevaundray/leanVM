@@ -200,10 +200,11 @@ fn every_hint_is_checked() {
     for (s, (name, entries)) in honest.iter().enumerate() {
         for _ in 0..3 {
             let mut w = honest.clone();
-            let (e, v) = (rng.below(entries.len()), rng.below(entries[0].len()));
+            let e = rng.below(entries.len());
+            let v = rng.below(entries[e].len());
             let x = &mut w[s].1[e][v];
             *x = match name.as_str() {
-                "rho" | "mu" | "ct" | "exr" | "sibf" => *x + verifier::E::new(1, 0),
+                "rho" | "mu" | "ct" | "exf" | "exr" | "sibf" => *x + verifier::E::new(1, 0),
                 _ => *x * verifier::E::new(2, 0),
             };
             assert!(!run(&w), "stream {name}, entry {e}, value {v} is unchecked");
