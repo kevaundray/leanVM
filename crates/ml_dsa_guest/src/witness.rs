@@ -28,18 +28,16 @@ impl Builder {
         }
     }
 
-    /// A reduction `x = r + q t` as `reduce_mul` reads it: `r`, `r < 2^23`, in limbs of 12 and 11 bits, then `t`,
-    /// `t < 2^33`, in limbs of 12, 12 and 9.
-    fn red(&mut self, x: i128) {
-        let (r, t) = (x.rem_euclid(Q as i128), x.div_euclid(Q as i128));
-        assert!(
-            (0..1 << 33).contains(&t),
-            "a reduction's quotient {t} is past its limbs"
-        );
-        self.push(
-            "red",
-            vec![g(r & 4095), g(r >> 12), g(t & 4095), g(t >> 12 & 4095), g(t >> 24)],
-        );
+    /// A twiddle product as `tw_mul` takes it: `b = r + q u` with `r` in 6-bit digits (the last below 32), `u`
+    /// hinted when `wq`, and returns `t = sum_k (zeta 64^k j_k mod q)`, `t = zeta b (mod q)`.
+    fn tw(&mut self, b: i128, zeta: i128, wq: bool) -> i128 {
+        let q = Q as i128;
+        let (r, u) = (b.rem_euclid(q), b.div_euclid(q));
+        assert!(b >= 0 && u < if wq { 1024 } else { 1 }, "a twiddle product's input {b} is past its digits");
+        let d: [i128; 4] = std::array::from_fn(|k| r >> (6 * k) & 63);
+        let entry = d.iter().chain(wq.then_some(&u)).map(|&v| g(v)).collect();
+        self.push("tw", entry);
+        (0..4).map(|k| (zeta << (6 * k)) * d[k] % q).sum()
     }
 }
 
@@ -141,63 +139,66 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
         c[j] = if signs >> kk & 1 == 1 { -1 } else { 1 };
     }
 
-    // NTT(z), z lifted by q.
-    let zetas = fips::zetas();
+    // NTT(z) from z + q, each butterfly's product by `tw`.
+    let zetas: Vec<i128> = fips::zetas().iter().map(|&z| i128::from(z)).collect();
+    let (q, zb) = (Q as i128, p.z_bound() as i128);
+    let kz = zetas[1] * zb % q;
     let mut z_hat = vec![[0i128; 256]; l];
     for (j, zj) in sig.z.iter().enumerate() {
-        s.push(
-            "z",
-            zj.iter().map(|&z| g(i128::from(z) + p.z_bound() as i128)).collect(),
-        );
-        let mut w: [i128; 256] = std::array::from_fn(|n| i128::from(zj[n]) + Q as i128);
-        for lay in 0..8 {
+        let zz: Vec<i128> = zj.iter().map(|&z| i128::from(z) + zb).collect();
+        s.push("z", zz.iter().map(|&z| g(z)).collect());
+        let mut w = [0i128; 256];
+        for n in 0..128 {
+            let a = zz[n] + q - zb;
+            let t = s.tw(zz[n + 128], zetas[1], false);
+            w[n] = a + t + q - kz;
+            w[n + 128] = a + 4 * q + kz - t;
+        }
+        for lay in 1..8 {
             let len = 128 >> lay;
             let mut nw = [0i128; 256];
-            for jj in 0..len {
-                for blk in 0..1 << lay {
+            for blk in 0..1 << lay {
+                for jj in 0..len {
                     let st = 2 * len * blk + jj;
-                    let (a, b) = (w[st], w[st + len]);
-                    let x = i128::from(zetas[(1 << lay) + blk]) * b;
-                    s.red(x);
-                    let r = x.rem_euclid(Q as i128);
-                    nw[st] = a + r;
-                    nw[st + len] = a + Q as i128 - r;
+                    let a = w[st];
+                    let t = s.tw(w[st + len], zetas[(1 << lay) + blk], true);
+                    nw[st] = a + t;
+                    nw[st + len] = a + 4 * q - t;
                 }
             }
             w = nw;
         }
         for (m, &x) in w.iter().enumerate() {
-            let (r, t) = (x.rem_euclid(Q as i128), x.div_euclid(Q as i128));
-            s.push("zr", vec![g(r & 4095), g(r >> 12), g(t)]);
+            let (r, u) = (x.rem_euclid(q), x.div_euclid(q));
+            s.push("zr", vec![g(r & 4095), g(r >> 12), g(u)]);
             z_hat[j][m] = r;
         }
     }
 
-    // A NTT(z), then NTT^-1 without its factor 256^-1.
+    // 2 A NTT(z), as the guest sums it over limbs, then reduced.
     let mut w_hat = vec![[0i128; 256]; k];
     for m in 0..256 {
         for i in 0..k {
-            let x: i128 = (0..l).map(|j| a_hat[i][j][m] * z_hat[j][m]).sum();
-            s.red(x);
-            w_hat[i][m] = x.rem_euclid(Q as i128);
+            let x = 2 * (0..l).map(|j| a_hat[i][j][m] * z_hat[j][m]).sum::<i128>();
+            let (r, t) = (x.rem_euclid(q), x.div_euclid(q));
+            s.push("wr", vec![g(r & 4095), g(r >> 12), g(t & 511), g(t >> 9 & 511), g(t >> 18)]);
+            w_hat[i][m] = r;
         }
     }
+
+    // NTT^-1 without its factor 256^-1, each difference lifted past the values entering its layer.
     let mut o = vec![[0i128; 256]; k];
     for i in 0..k {
         let mut w = w_hat[i];
         for lay in 0..8 {
             let len = 1 << lay;
             let mut nw = [0i128; 256];
-            for jj in 0..len {
-                for blk in 0..128 >> lay {
+            for blk in 0..128 >> lay {
+                for jj in 0..len {
                     let st = 2 * len * blk + jj;
                     let (a, b) = (w[st], w[st + len]);
                     nw[st] = a + b;
-                    let d = a + (2 << lay) * Q as i128 - b;
-                    assert!(d >= 0);
-                    let x = d * (Q - zetas[(256 >> lay) - 1 - blk]) as i128;
-                    s.red(x);
-                    nw[st + len] = x.rem_euclid(Q as i128);
+                    nw[st + len] = s.tw(b + (q << (lay + 1)) - a, zetas[(256 >> lay) - 1 - blk], true);
                 }
             }
             w = nw;
@@ -205,10 +206,10 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
         o[i] = w;
     }
 
-    // w' = 256^-1 o - c t1 2^d, UseHint, the hint bits counted.
+    // w' = 512^-1 o - c t1 2^d, UseHint, the hint bits counted.
     let m_w1 = p.m() as i128;
     let gamma2 = p.gamma2 as i128;
-    let k1 = (32736i128 * (1 << 31) + 64 * 1023 * 8192) / Q as i128 + 1;
+    let k1 = (16368 * 512 * q + 64 * 1023 * 8192) / q + 1;
     for i in 0..k {
         let ct1: [i128; 256] = std::array::from_fn(|m| {
             (0..256)
@@ -219,7 +220,8 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
                 .sum()
         });
         for m in 0..256 {
-            let x = -32736 * o[i][m] - (ct1[m] << D) + k1 * Q as i128;
+            let x = -16368 * o[i][m] - (ct1[m] << D) + k1 * q;
+            assert!((0..512 * q).contains(&o[i][m]) && x >= 0);
             let rr = x.rem_euclid(Q as i128);
             // Decompose, the r1 = m case kept as r1 = m, r0 <= 0.
             let mut r0 = rr.rem_euclid(2 * gamma2);
