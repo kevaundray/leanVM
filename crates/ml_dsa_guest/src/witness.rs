@@ -39,7 +39,10 @@ impl Builder {
             1 => vec![u],
             _ => vec![u & 1023, u >> 10 & 511, u >> 19],
         };
-        assert!(b >= 0 && u < [1, 1024, 1 << 28][wq as usize], "a twiddle product's input {b} is past its digits");
+        assert!(
+            b >= 0 && u < [1, 1024, 1 << 28][wq as usize],
+            "a twiddle product's input {b} is past its digits"
+        );
         let (w, n) = if w8 { (8, 3) } else { (6, 4) };
         let d: Vec<i128> = (0..n).map(|k| r >> (w * k) & ((1 << w) - 1)).collect();
         self.push("tw", d.iter().chain(&u_limbs).map(|&v| g(v)).collect());
@@ -214,7 +217,10 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
                     if lay == 0 {
                         let (r, t) = ((a + b).rem_euclid(q), (a + b).div_euclid(q));
                         assert!(t < 1 << 28);
-                        s.push("wr", vec![g(r & 4095), g(r >> 12), g(t & 1023), g(t >> 10 & 511), g(t >> 19)]);
+                        s.push(
+                            "wr",
+                            vec![g(r & 4095), g(r >> 12), g(t & 1023), g(t >> 10 & 511), g(t >> 19)],
+                        );
                         nw[st] = r;
                         nw[st + len] = s.tw(b + (q << 27) - a, zetas[zi], 2, false);
                     } else {
