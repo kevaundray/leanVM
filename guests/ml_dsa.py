@@ -47,13 +47,14 @@ NCH = 256 // CHW
 EXA_STRIDE = 280  # accepted candidates a poly can take: five blocks of 56
 EXA_POLY = 3 * EXA_STRIDE  # its three limb arrays
 
-# f = 512^-1 mod q, as f - q = 2^4 - 2^14 (NTT^-1's outputs carry 512: its 256 and the pointwise products'
-# 2); K1 q is past f o + Z for every NTT^-1 output o < 512 q.
-K1 = (16368 * 512 * Q + 64 * 1023 * 8192) // Q + 1
-G_QB = GEN ** (Q - ZB)
+# NTT^-1's outputs carry 512 (its 256 and the pointwise products' 2), so NTT(z) takes f = 512^-1 mod q
+# with z: layer 0 multiplies both its inputs, by f and by f zeta_1, the twiddles 256 and 257 of the tables.
+F512 = 8364049
+FZ1 = 8357072  # f zeta_1 mod q
+KF = F512 * ZB - Q * (F512 * ZB // Q)  # f ZB mod q
+KFZ = FZ1 * ZB - Q * (FZ1 * ZB // Q)  # f zeta_1 ZB mod q
 GQ = GEN ** Q
 GQ4 = GEN ** (4 * Q)
-KZ = 4808194 * ZB - Q * (4808194 * ZB // Q)  # zeta_1 ZB mod q
 
 # Tables in main's frame, which starts at cell TB; a sub-table of 256 holds byte v at v.
 TB = 2
@@ -64,12 +65,9 @@ OFF_M127 = 4352  # g^(v & 127)
 OFF_TOP = 4608  # v & 127 == 127
 OFF_SG = 4864  # 8: g^(256 bit_t(v))
 OFF_S12 = 6912  # 2048: g^(4096 v)
-OFF_Q0 = 8960  # 4096: g^(q v)
-OFF_Q1 = 13056  # 4096: g^(q 2^12 v)
-OFF_Q2 = 17152  # 512: g^(q 2^24 v)
 # Squares for the pointwise products: SQ_kl[s] = g^(2^(12k + 8l) s^2), s up to a 12- or 11-bit limb of
 # NTT(z) plus a byte (or b2 & 127) of A.
-OFF_SQ00 = 17664
+OFF_SQ00 = 8960
 OFF_SQ01 = OFF_SQ00 + 4351
 OFF_SQ02 = OFF_SQ01 + 4351
 OFF_SQ10 = OFF_SQ02 + 4223
@@ -80,8 +78,8 @@ OFF_BC = OFF_SQ12 + 2175  # 3: g^(4097 256^l v^2), byte l of A's share of its sq
 OFF_R6 = OFF_BC + 768  # 3: g^(64^k v), k = 1..3
 OFF_QU = OFF_R6 + 192  # 1024: g^(q v)
 OFF_W9 = OFF_QU + 1024  # 3 of 512: g^(q 2^(9k) v)
-OFF_TW = OFF_W9 + 1536  # 255 twiddles of 64, 64, 64, 32: g^(zeta_i 64^k v mod q)
-OFF_UH = OFF_TW + 255 * 224  # 7 columns of NKP: D, H, w1, the two straddles' low and high parts
+OFF_TW = OFF_W9 + 1536  # 257 twiddles of 64, 64, 64, 32: g^(zeta_i 64^k v mod q), then f and f zeta_1
+OFF_UH = OFF_TW + 257 * 224  # 7 columns of NKP: D, H, w1, the two straddles' low and high parts
 TAB_SIZE = OFF_UH + 7 * NKP
 
 ZETAS = [1, 4808194, 3765607, 3761513, 5178923, 5496691, 5234739, 5178987, 7778734, 3542485, 2682288, 2129892, 3764867, 7375178, 557458, 7159240, 5010068, 4317364, 2663378, 6705802, 4855975, 7946292, 676590, 7044481, 5152541, 1714295, 2453983, 1460718, 7737789, 4795319, 2815639, 2283733, 3602218, 3182878, 2740543, 4793971, 5269599, 2101410, 3704823, 1159875, 394148, 928749, 1095468, 4874037, 2071829, 4361428, 3241972, 2156050, 3415069, 1759347, 7562881, 4805951, 3756790, 6444618, 6663429, 4430364, 5483103, 3192354, 556856, 3870317, 2917338, 1853806, 3345963, 1858416, 3073009, 1277625, 5744944, 3852015, 4183372, 5157610, 5258977, 8106357, 2508980, 2028118, 1937570, 4564692, 2811291, 5396636, 7270901, 4158088, 1528066, 482649, 1148858, 5418153, 7814814, 169688, 2462444, 5046034, 4213992, 4892034, 1987814, 5183169, 1736313, 235407, 5130263, 3258457, 5801164, 1787943, 5989328, 6125690, 3482206, 4197502, 7080401, 6018354, 7062739, 2461387, 3035980, 621164, 3901472, 7153756, 2925816, 3374250, 1356448, 5604662, 2683270, 5601629, 4912752, 2312838, 7727142, 7921254, 348812, 8052569, 1011223, 6026202, 4561790, 6458164, 6143691, 1744507, 1753, 6444997, 5720892, 6924527, 2660408, 6600190, 8321269, 2772600, 1182243, 87208, 636927, 4415111, 4423672, 6084020, 5095502, 4663471, 8352605, 822541, 1009365, 5926272, 6400920, 1596822, 4423473, 4620952, 6695264, 4969849, 2678278, 4611469, 4829411, 635956, 8129971, 5925040, 4234153, 6607829, 2192938, 6653329, 2387513, 4768667, 8111961, 5199961, 3747250, 2296099, 1239911, 4541938, 3195676, 2642980, 1254190, 8368000, 2998219, 141835, 8291116, 2513018, 7025525, 613238, 7070156, 6161950, 7921677, 6458423, 4040196, 4908348, 2039144, 6500539, 7561656, 6201452, 6757063, 2105286, 6006015, 6346610, 586241, 7200804, 527981, 5637006, 6903432, 1994046, 2491325, 6987258, 507927, 7192532, 7655613, 6545891, 5346675, 8041997, 2647994, 3009748, 5767564, 4148469, 749577, 4357667, 3980599, 2569011, 6764887, 1723229, 1665318, 2028038, 1163598, 5011144, 3994671, 8368538, 7009900, 3020393, 3363542, 214880, 545376, 7609976, 3105558, 7277073, 508145, 7826699, 860144, 3430436, 140244, 6866265, 6195333, 3123762, 2358373, 6187330, 5365997, 6663603, 2926054, 7987710, 8077412, 3531229, 4405932, 4606686, 1900052, 7598542, 1054478, 7648983]
@@ -110,11 +108,6 @@ def main():
             tab[OFF_TOP + v] = 0
     for v in unroll(0, 2048):
         tab[OFF_S12 + v] = GEN ** const(4096 * v)
-    for v in unroll(0, 4096):
-        tab[OFF_Q0 + v] = GQ ** v
-        tab[OFF_Q1 + v] = GQ ** const(4096 * v)
-    for v in unroll(0, 512):
-        tab[OFF_Q2 + v] = (GQ ** 16777216) ** v
     # `GEN ** e` takes e below 2^32, so a wider exponent is a power of a power.
     for s in unroll(0, 4351):
         tab[OFF_SQ00 + s] = GEN ** const(s * s)
@@ -141,6 +134,10 @@ def main():
         for k in unroll(0, 4):
             for v in unroll(0, 64 - 32 * (k // 3)):
                 tab[OFF_TW + 224 * zi - 224 + 64 * k + v] = GEN ** const(ZETAS[zi] * 64 ** k * v % Q)
+    for k in unroll(0, 4):
+        for v in unroll(0, 64 - 32 * (k // 3)):
+            tab[OFF_TW + 224 * 255 + 64 * k + v] = GEN ** const(F512 * 64 ** k * v % Q)
+            tab[OFF_TW + 224 * 256 + 64 * k + v] = GEN ** const(FZ1 * 64 ** k * v % Q)
     for kp in unroll(0, NKP):
         tab[OFF_UH + kp] = GEN ** UH_D[kp]
         tab[OFF_UH + NKP + kp] = GEN ** UH_H[kp]
@@ -211,7 +208,7 @@ def verify_sig(tp, dg):
 
     hw = HeapBuf(NCH * K)
     for i in unroll(0, K):
-        final_row(tp, ob * GEN ** (256 * i), zc * GEN ** (256 * i), hl * GEN ** (8 + 4 * W1_BITS * i), hw * GEN ** (NCH * i))
+        final_row(ob * GEN ** (256 * i), zc * GEN ** (256 * i), hl * GEN ** (8 + 4 * W1_BITS * i), hw * GEN ** (NCH * i))
     weight = hw[1]
     for n in unroll(1, NCH * K):
         weight = weight * hw[GEN ** n]
@@ -516,19 +513,20 @@ def tw_mul(b, zi: Const, wq: Const):
 
 
 def ntt_fwd(zo):
-    # NTT(z) in the frame from the hinted z + ZB: layer 0 adds less than 5q to z + q, each later one less
-    # than 4q, so every value stays below 35 q. NTT(z) reduced into zo: its limbs x0 < 2^12 at m and
-    # x1 < 2^11 at 256 + m, and at 512 + m their squares' share of the pointwise products.
+    # f NTT(z) in the frame from the hinted z + ZB, both inputs of layer 0 multiplied (by f and f zeta_1),
+    # lifted to f z and f zeta_1 z by constants: values below 10 q after layer 0, each later layer adding
+    # less than 4q, so below 38 q throughout. Reduced into zo: limbs x0 < 2^12 at m and x1 < 2^11 at
+    # 256 + m, and at 512 + m their squares' share of the pointwise products.
     zz = StackBuf(256)
     hint_witness(zz, "z")
     v = StackBuf(256)
     for n in unroll(0, 128):
         assert log(zz[n]) < 2 * ZB + 1
         assert log(zz[n + 128]) < 2 * ZB + 1
-        a = zz[n] * G_QB
-        t = tw_mul(zz[n + 128], 1, 0)
-        v[n] = a * t * GEN ** (Q - KZ)
-        v[n + 128] = a * GEN ** (4 * Q + KZ) / t
+        a = tw_mul(zz[n], 256, 0)
+        t = tw_mul(zz[n + 128], 257, 0)
+        v[n] = a * t * GEN ** (2 * Q - KF - KFZ)
+        v[n + 128] = a * GEN ** (5 * Q - KF + KFZ) / t
     for lay in unroll(1, 8):
         nv = StackBuf(256)
         for blk in unroll(0, 2 ** lay):
@@ -633,22 +631,22 @@ def intt(wi, oo):
 # ================================ UseHint and w1 =================================
 
 
-def final_row(tp, o, zc, hl, hw):
-    # Row i: w' = 512^-1 o - c t1 2^d, Decompose and UseHint by table, w1 packed into
-    # the lanes c~' hashes, the hint bits' count into hw, one chunk of lanes a frame.
+def final_row(o, zc, hl, hw):
+    # Row i: w' = o - c t1 2^d, Decompose and UseHint by table, w1 packed into the lanes c~' hashes, the
+    # hint bits' count into hw, one chunk of lanes a frame.
     for cc in mul_range(1, GEN ** NCH):
         base = cc ** CHW
         po = o * base
         pz = zc * base
         us = StackBuf(CHW)
         for c in unroll(0, CHW):
-            us[c] = use_hint(tp, po[GEN ** c], pz[GEN ** c])
+            us[c] = use_hint(po[GEN ** c], pz[GEN ** c])
         for c in unroll(0, CHW):
             uc = us[c]
             if const(c == 0):
-                wt = uc[GEN ** (OFF_UH + NKP)]
+                wt = uc[GEN ** (TB + OFF_UH + NKP)]
             else:
-                wt = wt * uc[GEN ** (OFF_UH + NKP)]
+                wt = wt * uc[GEN ** (TB + OFF_UH + NKP)]
         hw[cc] = wt
         pl = hl * cc ** LPC
         for ln in unroll(0, LPC):
@@ -657,21 +655,18 @@ def final_row(tp, o, zc, hl, hw):
 
 
 @inline
-def use_hint(tp, ov, zv):
-    # x = f o + K1 q + Z + gamma2 - 1 = D(k') + u + q t, u < gamma2; returns k' as a
-    # pointer into the UseHint columns.
-    h = StackBuf(5)
+def use_hint(ov, zv):
+    # x = o + Z + 64 q + gamma2 - 1 = D(k') + u + q t with u < gamma2 and t < 1024, both sides below 2^33
+    # (o < 512 q, |Z| < 64 q); returns k', which indexes the UseHint columns.
+    h = StackBuf(3)
     hint_witness(h, "fin")
     assert log(h[0]) < NKP
     assert log(h[1]) < GAMMA2
-    assert log(h[2]) < 4096
-    assert log(h[3]) < 4096
-    assert log(h[4]) < 512
-    o16 = ov ** 16
-    x = o16 / o16 ** 1024 * zv * (GQ ** K1 * GEN ** (GAMMA2 - 1))
-    u = tp * h[0]
-    assert x == u[GEN ** OFF_UH] * h[1] * tp[h[2] * GEN ** OFF_Q0] * tp[h[3] * GEN ** OFF_Q1] * tp[h[4] * GEN ** OFF_Q2]
-    return u
+    assert log(h[2]) < 1024
+    kp = h[0]
+    tt = h[2]
+    assert ov * zv * GEN ** (64 * Q + GAMMA2 - 1) == kp[GEN ** (TB + OFF_UH)] * h[1] * tt[GEN ** (TB + OFF_QU)]
+    return kp
 
 
 @inline
@@ -681,18 +676,18 @@ def w1_lane(us, ln: Const):
     if const(64 * ln % W1_BITS != 0):
         cs = us[64 * ln // W1_BITS]
         if const(W1_BITS * (64 * ln // W1_BITS) % 64 == 60):
-            acc = cs[GEN ** (OFF_UH + 4 * NKP)]
+            acc = cs[GEN ** (TB + OFF_UH + 4 * NKP)]
         else:
-            acc = cs[GEN ** (OFF_UH + 6 * NKP)]
+            acc = cs[GEN ** (TB + OFF_UH + 6 * NKP)]
     for c in unroll(0, CHW):
         if const(W1_BITS * c // 64 == ln):
             uc = us[c]
             if const((W1_BITS * c % 64 + W1_BITS - 1) // 64 == 0):
-                part = uc[GEN ** (OFF_UH + 2 * NKP)] * const(2 ** (W1_BITS * c % 64))
+                part = uc[GEN ** (TB + OFF_UH + 2 * NKP)] * const(2 ** (W1_BITS * c % 64))
             elif const(W1_BITS * c % 64 == 60):
-                part = uc[GEN ** (OFF_UH + 3 * NKP)]
+                part = uc[GEN ** (TB + OFF_UH + 3 * NKP)]
             else:
-                part = uc[GEN ** (OFF_UH + 5 * NKP)]
+                part = uc[GEN ** (TB + OFF_UH + 5 * NKP)]
             if const(W1_BITS * c == 64 * ln):
                 acc = part
             else:

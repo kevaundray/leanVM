@@ -139,20 +139,23 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
         c[j] = if signs >> kk & 1 == 1 { -1 } else { 1 };
     }
 
-    // NTT(z) from z + q, each butterfly's product by `tw`.
+    // f NTT(z), f = 512^-1 mod q, from z + ZB, each butterfly's product by `tw`; layer 0 multiplies both inputs.
     let zetas: Vec<i128> = fips::zetas().iter().map(|&z| i128::from(z)).collect();
     let (q, zb) = (Q as i128, p.z_bound() as i128);
-    let kz = zetas[1] * zb % q;
+    let f = 8364049;
+    assert_eq!(512 * f % q, 1);
+    let fz = f * zetas[1] % q;
+    let (kf, kfz) = (f * zb % q, fz * zb % q);
     let mut z_hat = vec![[0i128; 256]; l];
     for (j, zj) in sig.z.iter().enumerate() {
         let zz: Vec<i128> = zj.iter().map(|&z| i128::from(z) + zb).collect();
         s.push("z", zz.iter().map(|&z| g(z)).collect());
         let mut w = [0i128; 256];
         for n in 0..128 {
-            let a = zz[n] + q - zb;
-            let t = s.tw(zz[n + 128], zetas[1], false);
-            w[n] = a + t + q - kz;
-            w[n + 128] = a + 4 * q + kz - t;
+            let a = s.tw(zz[n], f, false);
+            let t = s.tw(zz[n + 128], fz, false);
+            w[n] = a + t + 2 * q - kf - kfz;
+            w[n + 128] = a + 5 * q - kf + kfz - t;
         }
         for lay in 1..8 {
             let len = 128 >> lay;
@@ -206,10 +209,9 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
         o[i] = w;
     }
 
-    // w' = 512^-1 o - c t1 2^d, UseHint, the hint bits counted.
+    // w' = o - c t1 2^d, UseHint, the hint bits counted.
     let m_w1 = p.m() as i128;
     let gamma2 = p.gamma2 as i128;
-    let k1 = (16368 * 512 * q + 64 * 1023 * 8192) / q + 1;
     for i in 0..k {
         let ct1: [i128; 256] = std::array::from_fn(|m| {
             (0..256)
@@ -220,7 +222,7 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
                 .sum()
         });
         for m in 0..256 {
-            let x = -16368 * o[i][m] - (ct1[m] << D) + k1 * q;
+            let x = o[i][m] - (ct1[m] << D) + 64 * q;
             assert!((0..512 * q).contains(&o[i][m]) && x >= 0);
             let rr = x.rem_euclid(Q as i128);
             // Decompose, the r1 = m case kept as r1 = m, r0 <= 0.
@@ -233,10 +235,10 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
             let h = i128::from(sig.h[i][m]);
             let kp = r1 + (m_w1 + 1) * sb + (2 * m_w1 + 1) * h;
             let u = r0 + gamma2 - 1 - sb * gamma2;
-            let t = (x + gamma2 - 1 - (r1 * 2 * gamma2 + sb * gamma2) - u) / Q as i128;
-            assert_eq!(x + gamma2 - 1, r1 * 2 * gamma2 + sb * gamma2 + u + t * Q as i128);
-            assert!((0..1 << 33).contains(&t));
-            s.push("fin", vec![g(kp), g(u), g(t & 4095), g(t >> 12 & 4095), g(t >> 24)]);
+            let t = (x + gamma2 - 1 - (r1 * 2 * gamma2 + sb * gamma2) - u) / q;
+            assert_eq!(x + gamma2 - 1, r1 * 2 * gamma2 + sb * gamma2 + u + t * q);
+            assert!((0..1024).contains(&t));
+            s.push("fin", vec![g(kp), g(u), g(t)]);
         }
     }
     Ok(())
