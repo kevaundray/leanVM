@@ -29,16 +29,20 @@ impl Builder {
     }
 
     /// A twiddle product as `tw_mul` takes it: `b = r + q u` with `r` in 6-bit digits (the last below 32), or
-    /// with `w8` in digits of 8, 8 and 7 bits, `u` hinted when `wq`; returns `t = sum_k (zeta B^k j_k mod q)`,
-    /// `t = zeta b (mod q)`.
-    fn tw(&mut self, b: i128, zeta: i128, wq: bool, w8: bool) -> i128 {
+    /// with `w8` in digits of 8, 8 and 7 bits, and `u` none (`wq` 0), below 1024 (1) or below 2^28 in limbs of
+    /// 10, 9 and 9 bits (2); returns `t = sum_k (zeta B^k j_k mod q)`, `t = zeta b (mod q)`.
+    fn tw(&mut self, b: i128, zeta: i128, wq: u8, w8: bool) -> i128 {
         let q = Q as i128;
         let (r, u) = (b.rem_euclid(q), b.div_euclid(q));
-        assert!(b >= 0 && u < if wq { 1024 } else { 1 }, "a twiddle product's input {b} is past its digits");
+        let u_limbs = match wq {
+            0 => vec![],
+            1 => vec![u],
+            _ => vec![u & 1023, u >> 10 & 511, u >> 19],
+        };
+        assert!(b >= 0 && u < [1, 1024, 1 << 28][wq as usize], "a twiddle product's input {b} is past its digits");
         let (w, n) = if w8 { (8, 3) } else { (6, 4) };
         let d: Vec<i128> = (0..n).map(|k| r >> (w * k) & ((1 << w) - 1)).collect();
-        let entry = d.iter().chain(wq.then_some(&u)).map(|&v| g(v)).collect();
-        self.push("tw", entry);
+        self.push("tw", d.iter().chain(&u_limbs).map(|&v| g(v)).collect());
         (0..n).map(|k| (zeta << (w * k)) * d[k] % q).sum()
     }
 }
@@ -158,10 +162,12 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
     for (j, zj) in sig.z.iter().enumerate() {
         let zz: Vec<i128> = zj.iter().map(|&z| i128::from(z) + zb).collect();
         s.push("z", zz.iter().map(|&z| g(z)).collect());
+        // A z past the norm bound has no digits; those of the nearest bound make the run fail.
+        let zz: Vec<i128> = zz.iter().map(|&z| z.clamp(0, 2 * zb)).collect();
         let mut w = [0i128; 256];
         for n in 0..128 {
-            let a = s.tw(zz[n], f, false, true);
-            let t = s.tw(zz[n + 128], fz, false, true);
+            let a = s.tw(zz[n], f, 0, true);
+            let t = s.tw(zz[n + 128], fz, 0, true);
             w[n] = a + t + 2 * q - kf - kfz;
             w[n + 128] = a + 5 * q - kf + kfz - t;
         }
@@ -173,7 +179,7 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
                     let st = 2 * len * blk + jj;
                     let a = w[st];
                     let zi = (1 << lay) + blk;
-                    let t = s.tw(w[st + len], zetas[zi], true, zi < 16);
+                    let t = s.tw(w[st + len], zetas[zi], 1, zi < 16);
                     nw[st] = a + t;
                     nw[st + len] = a + 4 * q - t;
                 }
@@ -187,18 +193,13 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
         }
     }
 
-    // 2 A NTT(z), as the guest sums it over limbs, then reduced.
-    let mut w_hat = vec![[0i128; 256]; k];
-    for m in 0..256 {
-        for i in 0..k {
-            let x = 2 * (0..l).map(|j| a_hat[i][j][m] * z_hat[j][m]).sum::<i128>();
-            let (r, t) = (x.rem_euclid(q), x.div_euclid(q));
-            s.push("wr", vec![g(r & 4095), g(r >> 12), g(t & 511), g(t >> 9 & 511), g(t >> 18)]);
-            w_hat[i][m] = r;
-        }
-    }
+    // 2 A NTT(z), as the guest sums it over limbs, unreduced.
+    let w_hat: Vec<[i128; 256]> = (0..k)
+        .map(|i| std::array::from_fn(|m| 2 * (0..l).map(|j| a_hat[i][j][m] * z_hat[j][m]).sum::<i128>()))
+        .collect();
 
-    // NTT^-1 without its factor 256^-1, each difference lifted past the values entering its layer.
+    // NTT^-1 without its factor 256^-1: layer 0 reduces each pair's sum, and each difference is lifted past
+    // the values entering its layer.
     let mut o = vec![[0i128; 256]; k];
     for i in 0..k {
         let mut w = w_hat[i];
@@ -209,9 +210,17 @@ fn claim_streams(p: &Params, claim: &Claim, s: &mut Builder) -> Result<(), Rejec
                 for jj in 0..len {
                     let st = 2 * len * blk + jj;
                     let (a, b) = (w[st], w[st + len]);
-                    nw[st] = a + b;
                     let zi = (256 >> lay) - 1 - blk;
-                    nw[st + len] = s.tw(b + (q << (lay + 1)) - a, zetas[zi], true, zi < 16);
+                    if lay == 0 {
+                        let (r, t) = ((a + b).rem_euclid(q), (a + b).div_euclid(q));
+                        assert!(t < 1 << 28);
+                        s.push("wr", vec![g(r & 4095), g(r >> 12), g(t & 1023), g(t >> 10 & 511), g(t >> 19)]);
+                        nw[st] = r;
+                        nw[st + len] = s.tw(b + (q << 27) - a, zetas[zi], 2, false);
+                    } else {
+                        nw[st] = a + b;
+                        nw[st + len] = s.tw(b + (q << (lay + 1)) - a, zetas[zi], 1, zi < 16);
+                    }
                 }
             }
             w = nw;

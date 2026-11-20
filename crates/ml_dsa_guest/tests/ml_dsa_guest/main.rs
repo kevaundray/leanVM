@@ -128,7 +128,8 @@ impl Rng {
 }
 
 /// Random keys and messages, each signature as signed and with one bit flipped in its key, `mu` or signature (in
-/// its `c~`, its `z` or its hint), the guest agreeing with the reference on every one.
+/// its `c~`, its `z` or its hint), or with one `z` coefficient just past the norm bound either way, the guest
+/// agreeing with the reference on every one.
 #[test]
 fn differential() {
     let mut rng = Rng(0x6d6c_2d64_7361);
@@ -141,7 +142,7 @@ fn differential() {
             let ctx: Vec<u8> = (0..rng.below(8)).map(|_| rng.next() as u8).collect();
             let valid = signed(&p, rng.bytes(), &msg, &ctx);
             let mut cases = vec![valid.clone()];
-            for target in 0..5 {
+            for target in 0..7 {
                 let mut c = valid.clone();
                 let bit = 1 << rng.below(8);
                 match target {
@@ -149,7 +150,17 @@ fn differential() {
                     1 => c.mu[rng.below(64)] ^= bit,
                     2 => c.sig[rng.below(ct)] ^= bit,
                     3 => c.sig[ct + rng.below(z_end - ct)] ^= bit,
-                    _ => c.sig[z_end + rng.below(p.omega + p.k)] ^= bit,
+                    4 => c.sig[z_end + rng.below(p.omega + p.k)] ^= bit,
+                    // z_n = ZB + 1 or -(ZB + 1), stored as gamma1 - z in gamma1_bits + 1 bits.
+                    _ => {
+                        let (w, z) = (p.gamma1_bits as usize + 1, p.z_bound() as i64 + 1);
+                        let v = (1i64 << p.gamma1_bits) - if target == 5 { z } else { -z };
+                        let at = 8 * ct + w * rng.below(256 * p.l);
+                        for b in 0..w {
+                            let (byte, mask) = (&mut c.sig[(at + b) / 8], 1u8 << ((at + b) % 8));
+                            *byte = if v >> b & 1 == 1 { *byte | mask } else { *byte & !mask };
+                        }
+                    }
                 }
                 cases.push(c);
             }

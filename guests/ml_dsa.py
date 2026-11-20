@@ -78,12 +78,12 @@ OFF_BC = OFF_SQ12 + 2175  # 3: g^(4097 256^l v^2), byte l of A's share of its sq
 OFF_R6 = OFF_BC + 768  # 3: g^(64^k v), k = 1..3
 OFF_R16 = OFF_R6 + 192  # 128: g^(65536 v)
 OFF_QU = OFF_R16 + 128  # 1024: g^(q v)
-OFF_W9 = OFF_QU + 1024  # 3 of 512: g^(q 2^(9k) v)
+OFF_WB = OFF_QU + 1024  # 2 of 512: g^(q 2^10 v), g^(q 2^19 v)
 # Twiddle products: a twiddle a layer has few of (zeta_1..15, f and f zeta_1, TW8_ZETA) by 8-bit digits,
 # tables of 256, 256, 128: g^(zeta 256^k v mod q); the others (zeta_16..255) by 6-bit digits, tables of
 # 64, 64, 64, 32: g^(zeta 64^k v mod q).
 TW8_ZETA = [4808194, 3765607, 3761513, 5178923, 5496691, 5234739, 5178987, 7778734, 3542485, 2682288, 2129892, 3764867, 7375178, 557458, 7159240, F512, FZ1]
-OFF_TW8 = OFF_W9 + 1536
+OFF_TW8 = OFF_WB + 1024
 OFF_TW = OFF_TW8 + 17 * 640
 OFF_UH = OFF_TW + 240 * 224  # 7 columns of NKP: D, H, w1, the two straddles' low and high parts
 TAB_SIZE = OFF_UH + 7 * NKP
@@ -133,8 +133,8 @@ def main():
     for v in unroll(0, 1024):
         tab[OFF_QU + v] = GQ ** v
     for v in unroll(0, 512):
-        for k in unroll(0, 3):
-            tab[OFF_W9 + 512 * k + v] = (GQ ** const(512 ** k)) ** v
+        tab[OFF_WB + v] = (GQ ** 1024) ** v
+        tab[OFF_WB + 512 + v] = (GQ ** 524288) ** v
     for ti in unroll(0, 17):
         for k in unroll(0, 3):
             for v in unroll(0, 256 - 128 * (k // 2)):
@@ -525,9 +525,10 @@ def tw_mul(b, zi: Const, wq: Const):
 @inline
 def tw6(b, zi: Const, wq: Const):
     # t = sum_k T_k[j_k] for the advice b = r + q u with r = sum_k 64^k j_k, j_3 < 32 and the others below
-    # 64, and u < 1024 (u = 0 when wq = 0): an identity of integers, both sides being below 2^34.
-    h = StackBuf(5)
-    hint_witness(h[0:4 + wq], "tw")
+    # 64, and u = 0 (wq = 0), u < 1024 (wq = 1) or u < 2^28 in limbs of 10, 9 and 9 bits (wq = 2): an
+    # identity of integers, both sides being below 2^52.
+    h = StackBuf(7)
+    hint_witness(h[0:4 + wq + wq // 2], "tw")
     assert log(h[0]) < 64
     assert log(h[1]) < 64
     assert log(h[2]) < 64
@@ -536,12 +537,20 @@ def tw6(b, zi: Const, wq: Const):
     e1 = h[1]
     e2 = h[2]
     e3 = h[3]
-    if const(wq == 1):
+    if const(wq == 0):
+        assert b == e0 * e1[GEN ** (TB + OFF_R6)] * e2[GEN ** (TB + OFF_R6 + 64)] * e3[GEN ** (TB + OFF_R6 + 128)]
+    elif const(wq == 1):
         assert log(h[4]) < 1024
         eu = h[4]
         assert b == e0 * e1[GEN ** (TB + OFF_R6)] * e2[GEN ** (TB + OFF_R6 + 64)] * e3[GEN ** (TB + OFF_R6 + 128)] * eu[GEN ** (TB + OFF_QU)]
     else:
-        assert b == e0 * e1[GEN ** (TB + OFF_R6)] * e2[GEN ** (TB + OFF_R6 + 64)] * e3[GEN ** (TB + OFF_R6 + 128)]
+        assert log(h[4]) < 1024
+        assert log(h[5]) < 512
+        assert log(h[6]) < 512
+        eu = h[4]
+        ev = h[5]
+        ew = h[6]
+        assert b == e0 * e1[GEN ** (TB + OFF_R6)] * e2[GEN ** (TB + OFF_R6 + 64)] * e3[GEN ** (TB + OFF_R6 + 128)] * eu[GEN ** (TB + OFF_QU)] * ev[GEN ** (TB + OFF_WB)] * ew[GEN ** (TB + OFF_WB + 512)]
     t = e0[GEN ** (TB + OFF_TW + 224 * zi - 3584)] * e1[GEN ** (TB + OFF_TW + 224 * zi - 3520)] * e2[GEN ** (TB + OFF_TW + 224 * zi - 3456)] * e3[GEN ** (TB + OFF_TW + 224 * zi - 3392)]
     return t
 
@@ -576,10 +585,11 @@ def ntt_fwd(zo):
     hint_witness(zz, "z")
     v = StackBuf(256)
     for n in unroll(0, 128):
-        assert log(zz[n]) < 2 * ZB + 1
-        assert log(zz[n + 128]) < 2 * ZB + 1
         a = tw_mul(zz[n], 256, 0)
         t = tw_mul(zz[n + 128], 257, 0)
+        # Each z + ZB is its digits' sum, so at least 0; its complement bounds it by 2 ZB.
+        assert_gpow(GEN ** (2 * ZB) / zz[n])
+        assert_gpow(GEN ** (2 * ZB) / zz[n + 128])
         v[n] = a * t * GEN ** (2 * Q - KF - KFZ)
         v[n + 128] = a * GEN ** (5 * Q - KF + KFZ) / t
     for lay in unroll(1, 8):
@@ -608,14 +618,14 @@ def ntt_fwd(zo):
 
 
 @inline
-def reduce_w(x):
-    # g^r for x = g^(r + q t), r < 2^23 in limbs of 12 and 11 bits and t < 2^27 in three of 9: both sides
-    # are below 2^51.
+def reduce_s(x):
+    # g^r for x = g^(r + q t), r < 2^23 in limbs of 12 and 11 bits and t < 2^28 in limbs of 10, 9 and 9:
+    # both sides are below 2^52.
     h = StackBuf(5)
     hint_witness(h, "wr")
     assert log(h[0]) < 4096
     assert log(h[1]) < 2048
-    assert log(h[2]) < 512
+    assert log(h[2]) < 1024
     assert log(h[3]) < 512
     assert log(h[4]) < 512
     r1 = h[1]
@@ -623,14 +633,15 @@ def reduce_w(x):
     t1 = h[3]
     t2 = h[4]
     r = h[0] * r1[GEN ** (TB + OFF_S12)]
-    assert x == r * t0[GEN ** (TB + OFF_W9)] * t1[GEN ** (TB + OFF_W9 + 512)] * t2[GEN ** (TB + OFF_W9 + 1024)]
+    assert x == r * t0[GEN ** (TB + OFF_QU)] * t1[GEN ** (TB + OFF_WB)] * t2[GEN ** (TB + OFF_WB + 512)]
     return r
 
 
 def pointwise(a, zh, wb):
     # 2 sum_j A_ij NTT(z_j), from 2 x y = (x + y)^2 - x^2 - y^2 over the limbs x of NTT(z) and y of A (its
     # bytes, b2 & 127): SQ_kl read at the pointer g^(x + y), less A's squares (BC) and NTT(z)'s (stored
-    # with it). The sum is below 2^50; the doubling rides into NTT^-1, whose last step takes 512^-1.
+    # with it). Each sum is below 2^50, left for NTT^-1 to reduce; the doubling rides along, NTT(z) having
+    # taken 512^-1.
     for mm in mul_range(1, GEN ** 256):
         pa = a * mm
         pz = zh * mm
@@ -659,17 +670,25 @@ def pointwise(a, zh, wb):
                         den = el[GEN ** (TB + OFF_BC)]
                     else:
                         den = den * el[GEN ** (TB + OFF_BC + 256 * l)]
-            pw[GEN ** (256 * i)] = reduce_w(num / (den * zsq))
+            pw[GEN ** (256 * i)] = num / (den * zsq)
     return
 
 
 def intt(wi, oo):
-    # NTT^-1 without its factor 256^-1 in the frame, from inputs below 2^23: values entering layer lay > 0
-    # are below 2^(lay + 1) q, by which each difference is lifted; the outputs, below 512 q, into oo.
+    # NTT^-1 without its factor 256^-1 in the frame, from the pointwise sums (below 2^50): layer 0 reduces
+    # each pair's sum and lifts its difference by q 2^27; values entering layer lay > 0 are below
+    # 2^(lay + 1) q, by which each difference is lifted; the outputs, below 512 q, into oo.
     v = StackBuf(256)
     for m in unroll(0, 256):
         v[m] = wi[GEN ** m]
-    for lay in unroll(0, 8):
+    nv = StackBuf(256)
+    for blk in unroll(0, 128):
+        a = v[2 * blk]
+        b = v[2 * blk + 1]
+        nv[2 * blk] = reduce_s(a * b)
+        nv[2 * blk + 1] = tw_mul(b * (GEN ** const(Q * 512)) ** 262144 / a, 255 - blk, 2)
+    v = nv
+    for lay in unroll(1, 8):
         nv = StackBuf(256)
         for blk in unroll(0, 2 ** (7 - lay)):
             for jj in unroll(0, 2 ** lay):
