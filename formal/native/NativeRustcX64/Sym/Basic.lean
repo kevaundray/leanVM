@@ -13,6 +13,8 @@ labels' addresses, the return address of a call, further variables), the flags s
 `SBool`, memory the list of the symbolic writes into the regions, newest first.
 `Sym.Match env S m`: the machine state `m` is what `S` describes in `env`. An operation of width
 `w` computes on the low `w` bits of its operands and zero-extends its result (`Sym.low`, `Sym.ext`).
+Initial-memory descriptions (`SState.known`) are separately justified against `env.mem0`; they
+name values loaded from unwritten bytes without enlarging the block's write footprint.
 -/
 
 namespace NativeRustcX64
@@ -85,6 +87,7 @@ def BinOp.apply : BinOp → (w : Width) → BitVec 64 → BitVec 64 → BitVec 6
   | .mul, w, x, y => ext w (low w x * low w y)
   | .mulhi, w, x, y =>
     ext w (BitVec.ofInt w.bits (((low w x).unsigned * (low w y).unsigned) >>> w.bits))
+  | .bts, w, x, y => ext w (low w x ||| ((1 : w.type) <<< ((low w y).toNat % w.bits)))
   | .shl, w, x, y => ext w (low w x <<< shiftCount w y)
   | .shr, w, x, y => ext w ((low w x).ushiftRight (shiftCount w y))
   | .sar, w, x, y => ext w ((low w x).sshiftRight (shiftCount w y))
@@ -128,6 +131,7 @@ def CmpOp.apply : CmpOp → (w : Width) → BitVec 64 → BitVec 64 → Bool
   | .decV, w, x, _ => (low w x - 1).signed != (low w x).signed - 1
   | .negV, w, x, _ => (-low w x).signed != -(low w x).signed
   | .mulC, w, x, y => (low w x * low w y).unsigned != (low w x).unsigned * (low w y).unsigned
+  | .bit, w, x, y => (low w x).getLsbD ((low w y).toNat % w.bits)
   | .adcC c, w, x, y => (low w x + low w y + (c : w.type)).unsigned !=
     (low w x).unsigned + (low w y).unsigned + (c : Nat)
   | .adcV c, w, x, y => (low w x + low w y + (c : w.type)).signed !=
@@ -148,6 +152,7 @@ def Sym.eval (env : Env) : Sym → BitVec 64
   | .var i => env.vars i
   | .ptr r off => env.base r + BitVec.ofInt 64 off
   | .label l => (Labels.label l).toBitVec
+  | .gotSlot l => (Labels.gotSlot l).toBitVec
   | .load r off n => env.load r off n
   | .loadx r off idx n => env.load r (off + (idx.eval env).toNat) n
   | .retAddr => env.ret
@@ -242,6 +247,13 @@ structure Match (env : Env) (S : SState) (m : MachineData) : Prop where
   bounds : ∀ x n, (x, n) ∈ S.bounds → (x.eval env).toNat < n
   aliases : ∀ x r o, S.aliases.lookup x = some (r, o) → x.eval env = env.base r + BitVec.ofInt 64 o
   outside : ∀ a, env.Outside a → m.dmem.get? a = env.mem0.get? a
+  known : ∀ w ∈ S.known, ∀ i < w.n,
+    env.mem0.get? (env.base w.r + BitVec.ofNat 64 (w.off + i)) =
+      some (byteOf (w.v.eval env) i) := by
+        first
+        | intro w hw; cases hw
+        | intro w hw i hi
+          solve_by_elim [Match.known]
 
 /-- Where a block's exit leaves the machine, `next` the address after the block. A call leaves the
 return address at RSP (`retOf`); a return goes to the address it popped. -/

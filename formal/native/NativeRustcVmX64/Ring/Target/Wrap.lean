@@ -120,9 +120,9 @@ theorem sqS (hp : Placed code k) (hpre : RingTargetPre m0)
     (hsz : T'.regions = (2352 + 8) :: (rsC m0).map Prod.snd) (hfl : T'.flags = atomFlags)
     (hlab : T'.labels = []) (hal : ∀ m' ret, AliasesOk T' (envS m0 m' 2352 (rsC m0) vals' ret))
     (hbd : T'.bounds = []) {st : MachineState}
-    (h : At m0 k off (rsC m0) T vals (CAt m0) st) :
+    (h : At m0 k off (rsC m0) T vals (CAt m0) st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) (At m0 k off' (rsC m0) T' vals' (CAt m0)) st :=
-  cstep hp (layC hpre) hds hne hoff hrun hwr hsp hsq (S := ewSqIterStack) (by decide)
+  cstep (hknown := hknown) hp (layC hpre) hds hne hoff hrun hwr hsp hsq (S := ewSqIterStack) (by decide)
     (fun _ _ _ _ _ _ hs ↦ hs) (fun _ _ hq ↦ ⟨hq.2.2.1, hq.2.2.2⟩) hL hLW hvals hrax hrdx
     (fun _ _ _ mc m' hm hq ↦ hres mc m' hm hq)
     (fun _ _ _ hB hI hm hsp hq ↦ cAt_call (geoT hpre) ((layC hpre).wf hB.kept) hmiss hm hI hsp
@@ -146,9 +146,9 @@ theorem mulS (hp : Placed code k) (hpre : RingTargetPre m0)
     (hsz : T'.regions = (2352 + 8) :: (rsC m0).map Prod.snd) (hfl : T'.flags = atomFlags)
     (hlab : T'.labels = []) (hal : ∀ m' ret, AliasesOk T' (envS m0 m' 2352 (rsC m0) vals' ret))
     (hbd : T'.bounds = []) {st : MachineState}
-    (h : At m0 k off (rsC m0) T vals (CAt m0) st) :
+    (h : At m0 k off (rsC m0) T vals (CAt m0) st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) (At m0 k off' (rsC m0) T' vals' (CAt m0)) st :=
-  cstep hp (layC hpre) hds hne hoff hrun hwr hsp hmul (S := ewMulStack) (by decide)
+  cstep (hknown := hknown) hp (layC hpre) hds hne hoff hrun hwr hsp hmul (S := ewMulStack) (by decide)
     (fun _ _ _ _ _ _ hs ↦ hs) (fun _ _ hq ↦ ⟨hq.2.2.1, hq.2.2.2⟩) hL hLW hvals hrax hrdx
     (fun _ _ _ mc m' hm hq ↦ hres mc m' hm hq)
     (fun _ _ _ hB hI hm hsp hq ↦ cAt_call (geoT hpre) ((layC hpre).wf hB.kept) hmiss hm hI hsp
@@ -192,7 +192,7 @@ theorem polyS (hp : Placed code k) (hpre : RingTargetPre m0)
     (hsz : T'.regions = (2352 + 8) :: (rsC m0).map Prod.snd) (hfl : T'.flags = atomFlags)
     (hlab : T'.labels = []) (hal : ∀ m' ret, AliasesOk T' (envS m0 m' 2352 (rsC m0) vals' ret))
     (hbd : T'.bounds = []) {st : MachineState}
-    (h : At m0 k off (rsC m0) T vals (CAt m0) st) :
+    (h : At m0 k off (rsC m0) T vals (CAt m0) st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) (At m0 k off' (rsC m0) T' vals' (CAt m0)) st := by
   have g := geoT hpre
   have hb := g.base
@@ -214,7 +214,7 @@ theorem polyS (hp : Placed code k) (hpre : RingTargetPre m0)
       rw [(e1 hm).2, Array.length_toList, imgs_size]; rfl
     unfold slice
     rw [h64, (e1 hm).1, NativeRustcVm.ewsOf_of_ewsAt hC]
-  refine cstep hp (layC hpre) hds hne hoff hrun hwr hsp hpoly (S := polyEvalStack) (by decide)
+  refine cstep (hknown := hknown) hp (layC hpre) hds hne hoff hrun hwr hsp hpoly (S := polyEvalStack) (by decide)
     (fun m mc hB _ hm hk hso ↦ ?_) (fun _ _ hq ↦ ⟨changes0 hq.2.1, hq.2.2⟩) hL hLW hvals hrax hrdx
     (fun _ hB hI mc m' hm hq ↦ hres mc m' hm (hsl hB hI hm) hq)
     (fun _ _ _ hB hI hm hsp hq ↦ cAt_call g ((layC hpre).wf hB.kept) hmiss hm hI hsp

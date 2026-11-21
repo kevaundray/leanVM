@@ -419,6 +419,7 @@ theorem Match.withReg (hm : Match env S m) {r : Reg64} {v : Sym}
   bounds := hm.bounds
   aliases := hm.aliases
   outside := hm.outside
+  known := hm.known
 
 /-- **An alias the machine state satisfies** may be added. -/
 theorem Match.withAlias (hm : Match env S m) {x : Sym} {r : Nat} {o : Int}

@@ -48,12 +48,12 @@ theorem outExtendStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst o
     (cont : ∀ st', At m0 k (p0 + ds.length) wrAll T' (vv m0 V) st' → boolRet st'.data = 1 →
       NativeRustcVm.BufEWAt st'.data.dmem (keccakOutArg m0) 36 (xs ++ ys) →
       Chg m0 st.data.dmem st'.data.dmem [(0, 88), (3296, 48)] [(4, 0, 584)] →
-      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
+      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R st := by
   have c := ctx_of hpre
   have h := lay_of hpre
   have ho := fun ret ↦ argLoad c hat.2.same (vals := vv m0 V) (ret := ret) (i := 1) (by decide)
-  refine stepC (T' := T') (vals' := vv m0 V) hp c h hat hds hne hrun hat.2.mt hw0
+  refine stepC (hknown := hknown) (T' := T') (vals' := vv m0 V) hp c h hat hds hne hrun hat.2.mt hw0
     (oc := 48) (by decide) hsp hext (Sk := bufEWExtendStack) (by rw [vk_eq]; decide)
     (fun mc hmc hk hsk hso hrsp hch hkk ↦ ?_) (Lc := []) (Oc := [(4, 0, 584)])
     (fun mc m' hmc hq ↦ ?_) rfl (by decide) (by decide) htm hok hrspT hL hLW

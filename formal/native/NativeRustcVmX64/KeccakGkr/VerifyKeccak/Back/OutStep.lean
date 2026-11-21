@@ -49,7 +49,7 @@ theorem stepHeader (hp : Placed NativeRustcVmX64.Vm.VerifyKeccak.code k) (c : Ct
           (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc ∧ Q mc st'.data ∧
         Chg m0 st.data.dmem mc.dmem (wsL S') [(4, 0, 8)]) →
       Chg m0 st.data.dmem st'.data.dmem (wsL S' ++ [(0, oc)]) [(4, 0, 8), (4, 0, 584)] →
-      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
+      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB⟩ := hat
@@ -61,7 +61,7 @@ theorem stepHeader (hp : Placed NativeRustcVmX64.Vm.VerifyKeccak.code k) (c : Ct
     (ret := (Host.addrOf (k + o + ds.length)).toBitVec)
   have hra : k + (o + ds.length) = k + o + ds.length := by omega
   rw [hra] at hP hQ cont
-  refine callZ (W := fun _ ↦ ChgR m0 [] [(4, 0, 584)]) h hB (hds.trans hp.1 hne) hrun
+  refine callZ (hknown := hknown) (W := fun _ ↦ ChgR m0 [] [(4, 0, 584)]) h hB (hds.trans hp.1 hne) hrun
     (hm _) hwr hoc hsp hspec hS
     (fun mc hmc hk hsk hso hrsp ↦ hP mc hmc ⟨hrsp, hoc, hk, hso⟩ hsk
       (chg_header c hmc hwf hw0) (hmc.kept hwf)) hQ

@@ -172,8 +172,9 @@ theorem Bnd.switch [Labels] {F N : Nat} {rs rs' : List (BitVec 64 × Nat)} {wr w
     (hsz : T'.regions = (F + 8) :: rs'.map Prod.snd) (hfl : T'.flags = atomFlags)
     (hlab : T'.labels = []) (hbd : T'.bounds = [])
     (hal : ∀ ret, AliasesOk T' (envS m0 m F rs' vals' ret))
-    (hwr : ∀ q, outsOf rs wr q → outsOf rs' wr' q) : Bnd m0 F N rs' wr' T' vals' m :=
-  ⟨fun ret ↦ match_links (hB.mt 0) hok hL hLW (fun _ ↦ rfl) rfl rfl rfl hvals hfl
+    (hwr : ∀ q, outsOf rs wr q → outsOf rs' wr' q) (hknown : T'.known = [] := by rfl) :
+    Bnd m0 F N rs' wr' T' vals' m :=
+  ⟨fun ret ↦ match_links (hknown := hknown) (hB.mt 0) hok hL hLW (fun _ ↦ rfl) rfl rfl rfl hvals hfl
       (regions_envS hsz) hlab (fun _ _ h ↦ by rw [hbd] at h; cases h) (hal ret),
     fun q hq ↦ hB.same q fun h ↦ hq (h.elim .inl fun h' ↦ .inr (hwr q h')),
     hB.kept⟩
@@ -184,7 +185,8 @@ theorem Bnd.sw [Labels] {F N : Nat} {rs rs' : List (BitVec 64 × Nat)} {wr wr' :
     (hB : Bnd m0 F N rs wr T vals m) (hok : SwOk T T' = true)
     (hsz : T'.regions = (F + 8) :: rs'.map Prod.snd)
     (hal : ∀ ret, AliasesOk T' (envS m0 m F rs' vals ret))
-    (hwr : ∀ q, outsOf rs wr q → outsOf rs' wr' q) : Bnd m0 F N rs' wr' T' vals m := by
+    (hwr : ∀ q, outsOf rs wr q → outsOf rs' wr' q) (hknown : T'.known = [] := by rfl) :
+    Bnd m0 F N rs' wr' T' vals m := by
   unfold SwOk at hok
   simp only [Bool.and_eq_true, beq_iff_eq, List.isEmpty_iff] at hok
   obtain ⟨⟨⟨⟨htpl, hfl⟩, hlab⟩, hbd⟩, hl⟩ := hok
@@ -196,7 +198,7 @@ theorem Bnd.sw [Labels] {F N : Nat} {rs rs' : List (BitVec 64 × Nat)} {wr wr' :
     | none => intro hl; cases hl
     | some LW =>
       intro hl
-      refine Bnd.switch hB htpl hL hLW (fun p hp ↦ ?_) hsz hfl hlab hbd hal hwr
+      refine Bnd.switch (hknown := hknown) hB htpl hL hLW (fun p hp ↦ ?_) hsz hfl hlab hbd hal hwr
       have := List.all_eq_true.mp hl p hp
       rw [beq_iff_eq] at this
       rw [this]
@@ -243,14 +245,14 @@ theorem jfall (hp : Placed code k) {rs : List (BitVec 64 × Nat)} {wr : Nat → 
     (hbd : T'.bounds = [])
     (hI : ∀ m m', Bnd m0 672 NW rs wr T vals m → I m →
       Match (envS m0 m 672 rs vals 0) (after ds T) m' → I' m')
-    {st : MachineState} (hA : At m0 k off rs wr T vals I st) :
+    {st : MachineState} (hA : At m0 k off rs wr T vals I st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) (At m0 k next rs wr T' vals' I') st := by
   obtain ⟨hrun, hwr, hL, hLW⟩ := JOk.spec hok
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB, hId⟩ := hA
   simp only at hpc hB hId
   subst hpc
-  exact jumpStep h hB (hds.trans hp.1 hne) hrun (fun _ h ↦ by cases h) hwr hL hLW
+  exact jumpStep (hknown := hknown) h hB (hds.trans hp.1 hne) hrun (fun _ h ↦ by cases h) hwr hL hLW
     (hvals d hB hId) hsz hfl hlab hal (fun _ _ _ _ h ↦ by rw [hbd] at h; cases h)
     fun st' hpc hB' hm ↦ .done _ ⟨by rw [hpc, Nat.add_assoc, hnext], hB', hI d st'.data hB hId hm⟩
 
@@ -268,14 +270,14 @@ theorem jjump (hp : Placed code k) {rs : List (BitVec 64 × Nat)} {wr : Nat → 
     (hbd : T'.bounds = [])
     (hI : ∀ m m', Bnd m0 672 NW rs wr T vals m → I m →
       Match (envS m0 m 672 rs vals 0) (after ds T) m' → I' m')
-    {st : MachineState} (hA : At m0 k off rs wr T vals I st) :
+    {st : MachineState} (hA : At m0 k off rs wr T vals I st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) (At m0 k off' rs wr T' vals' I') st := by
   obtain ⟨hrun, hwr, hL, hLW⟩ := JOk.spec hok
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB, hId⟩ := hA
   simp only at hpc hB hId
   subst hpc
-  exact jumpStep h hB (hds.trans hp.1 hne) hrun (fun _ h ↦ by cases h) hwr hL hLW
+  exact jumpStep (hknown := hknown) h hB (hds.trans hp.1 hne) hrun (fun _ h ↦ by cases h) hwr hL hLW
     (hvals d hB hId) hsz hfl hlab hal (fun _ _ _ _ h ↦ by rw [hbd] at h; cases h)
     fun st' hpc hB' hm ↦ .done _ ⟨by simp only [PcOk] at hpc; rw [hpc, hl], hB',
       hI d st'.data hB hId hm⟩
@@ -296,7 +298,7 @@ theorem jcond (hp : Placed code k) {rs : List (BitVec 64 × Nat)} {wr : Nat → 
     (hbd : T'.bounds = [])
     (hI : ∀ m m', Bnd m0 672 NW rs wr T vals m → I m →
       Match (envS m0 m 672 rs vals 0) (after ds T) m' → I' m')
-    {st : MachineState} (hA : At m0 k off rs wr T vals I st) :
+    {st : MachineState} (hA : At m0 k off rs wr T vals I st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe)
       (At m0 k (if b then off' else next) rs wr T' vals' I') st := by
   obtain ⟨hrun, hwr, hL, hLW⟩ := JOk.spec hok
@@ -304,7 +306,7 @@ theorem jcond (hp : Placed code k) {rs : List (BitVec 64 × Nat)} {wr : Nat → 
   obtain ⟨hpc, hB, hId⟩ := hA
   simp only at hpc hB hId
   subst hpc
-  refine jumpStep h hB (hds.trans hp.1 hne) hrun (fun _ h ↦ by cases h) hwr hL hLW
+  refine jumpStep (hknown := hknown) h hB (hds.trans hp.1 hne) hrun (fun _ h ↦ by cases h) hwr hL hLW
     (hvals d hB hId) hsz hfl hlab hal (fun _ _ _ _ h ↦ by rw [hbd] at h; cases h)
     fun st' hpc hB' hm ↦ .done _ ⟨?_, hB', hI d st'.data hB hId hm⟩
   simp only [PcOk, hc d hB hId] at hpc
@@ -333,14 +335,14 @@ theorem mstep (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.V
     (hI : ∀ m mc m', Bnd m0 672 NW rs noWr T vals m → I m →
       (∃ ret, Match (envS m0 m 672 rs vals ret) (after ds T) mc) → rspOf mc = fb m0 →
       SameOutside mc.dmem m'.dmem (InRange (stackBelow mc ewMulStack) ewMulStack) → I' m')
-    {st : MachineState} (hA : At m0 k off rs noWr T vals I st) :
+    {st : MachineState} (hA : At m0 k off rs noWr T vals I st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) (At m0 k next rs noWr T' vals' I') st := by
   obtain ⟨hrun, hwr, hsp, hL, hLW⟩ := COk.spec hok
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB, hId⟩ := hA
   simp only at hpc hB hId
   subst hpc
-  refine callStep h hB (hds.trans hp.1 hne) hrun hwr hsp hmul (S := ewMulStack) (by decide)
+  refine callStep (hknown := hknown) h hB (hds.trans hp.1 hne) hrun hwr hsp hmul (S := ewMulStack) (by decide)
     (fun _ _ _ h ↦ h) (W := fun _ ↦ False)
     (fun _ _ hq ↦ ⟨fun p hp ↦ hq.2.2.1 p fun h ↦ hp (.inl h), hq.2.2.2⟩) (fun _ h ↦ h.elim)
     hL hLW (hvals d hB hId)
@@ -361,8 +363,9 @@ theorem At.sw {off : Nat} {rs rs' : List (BitVec 64 × Nat)} {wr wr' : Nat → B
     (hA : At m0 k off rs wr T vals I st) (hok : SwOk T T' = true)
     (hsz : T'.regions = (672 + 8) :: rs'.map Prod.snd)
     (hal : ∀ m ret, AliasesOk T' (envS m0 m 672 rs' vals ret))
-    (hwr : ∀ q, outsOf rs wr q → outsOf rs' wr' q) : At m0 k off rs' wr' T' vals I st :=
-  ⟨hA.1, Bnd.sw hA.2.1 hok hsz (hal st.data) hwr, hA.2.2⟩
+    (hwr : ∀ q, outsOf rs wr q → outsOf rs' wr' q) (hknown : T'.known = [] := by rfl) :
+    At m0 k off rs' wr' T' vals I st :=
+  ⟨hA.1, Bnd.sw (hknown := hknown) hA.2.1 hok hsz (hal st.data) hwr, hA.2.2⟩
 
 end
 

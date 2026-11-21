@@ -287,7 +287,8 @@ theorem match_tpl [Labels] {env : Env} {T : SState} {m : MachineData}
     (haliases : AliasesOk T env)
     (hw : ∀ r b sz j v t, env.regions[r]? = some (b, sz) → j < sz →
       findWrite r j T.mem = some (v, t) →
-      m.dmem.get? (b + BitVec.ofNat 64 j) = some (byteOf (v.eval env) t)) :
+      m.dmem.get? (b + BitVec.ofNat 64 j) = some (byteOf (v.eval env) t))
+    (hknown : T.known = [] := by rfl) :
     Match env T m where
   regs := hregs
   flags := by
@@ -306,6 +307,7 @@ theorem match_tpl [Labels] {env : Env} {T : SState} {m : MachineData}
   bounds := hbounds
   aliases := haliases
   outside a _ := by rw [hmem0]
+  known := by rw [hknown]; intro w hw; cases hw
 
 variable {m0 : MachineData} {F N : Nat} {rs : List (BitVec 64 × Nat)} {wr : Nat → Bool}
 
@@ -539,13 +541,13 @@ theorem match_links [Labels] {env env' : Env} {S' T' : SState} {m : MachineData}
     (hflags : T'.flags = atomFlags)
     (hregions : ∀ (r n : Nat), T'.regions[r]? = some n → ∃ b, env'.regions[r]? = some (b, n))
     (hlab : T'.labels = []) (hbd : ∀ x n, (x, n) ∈ T'.bounds → (x.eval env').toNat < n)
-    (hal : AliasesOk T' env') : Match env' T' m := by
+    (hal : AliasesOk T' env') (hknown : T'.known = [] := by rfl) : Match env' T' m := by
   simp only [tplOk, Bool.and_eq_true, List.all_eq_true] at hok
   obtain ⟨hokr, hokw⟩ := hok
   have hb0 : ∀ o, (Sym.ptr 0 o).eval env' = (Sym.ptr 0 o).eval env := by
     intro o
     simp only [Sym.eval, Env.base, h0]
-  refine match_tpl hmem hfl ?_ hflags hregions hlab hbd hal ?_
+  refine match_tpl (hknown := hknown) hmem hfl ?_ hflags hregions hlab hbd hal ?_
   · intro r v hv
     obtain ⟨a, ha, haL⟩ := rlinks_spec hL hv
     have hk := hokr r (mem_allRegs r)
@@ -615,12 +617,12 @@ theorem jumpStep (h : Lay m0 F N rs) {T T' S' : SState} {vals vals' : Nat → Bi
     {R : MachineState → Prop}
     (cont : ∀ st, PcOk (envS m0 m F rs vals 0) x (Host.addrOf (k + ds.length)) st →
       Bnd m0 F N rs wr T' vals' st.data → Match (envS m0 m F rs vals 0) S' st.data →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ := by
   have hwf := h.wf hB.kept (vals := vals) (ret := 0)
   refine exec_then hk hrun hwf (fun l hl ↦ absurd hl (hx l)) (hB.mt 0) fun st hm hpc ↦
     cont st hpc ⟨fun ret ↦ ?_, ?_, fun p hp ↦ hm.kept hwf p (hB.kept p hp)⟩ hm
-  · refine match_tpl rfl rfl (reg_link_jump hL hm (fun _ ↦ rfl) (fun _ ↦ rfl)
+  · refine match_tpl (hknown := hknown) rfl rfl (reg_link_jump hL hm (fun _ ↦ rfl) (fun _ ↦ rfl)
       (fun p hp ↦ hvals 0 p (List.mem_append_left _ hp))) hfl (regions_envS hsz) hlab
       (hbd st.data ret) (hal st.data ret) ?_
     intro r b sz j v t hb hj hf
@@ -672,7 +674,7 @@ theorem callStep (h : Lay m0 F N rs) {T T' S' : SState} {vals vals' : Nat → Bi
     (cont : ∀ st, st.pc = Host.addrOf (k + ds.length) → Bnd m0 F N rs wr T' vals' st.data →
       (∃ mc, Match (envS m0 m F rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc ∧
         rspOf mc = stackBelow m0 F ∧ Q mc st.data) →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ := by
   let ra := (Host.addrOf (k + ds.length)).toBitVec
   have hwf := h.wf hB.kept (vals := vals) (ret := ra)
@@ -692,7 +694,7 @@ theorem callStep (h : Lay m0 F N rs) {T T' S' : SState} {vals vals' : Nat → Bi
     fun st' hpc' hrsp2 hqc ↦ cont st' hpc' ⟨fun ret ↦ ?_, ?_, fun p hp ↦ (hQ _ _ hqc).2.2 p (hkept p hp)⟩
       ⟨st.data, hm, hrsp, hqc⟩
   · obtain ⟨hso, hsv⟩ := hQ _ _ hqc
-    refine match_tpl rfl rfl ?_ hfl (regions_envS hsz) hlab (hbd st'.data ret) (hal st'.data ret) ?_
+    refine match_tpl (hknown := hknown) rfl rfl ?_ hfl (regions_envS hsz) hlab (hbd st'.data ret) (hal st'.data ret) ?_
     · intro r v hv
       obtain ⟨a, ha, haL⟩ := rlinks_spec hL hv
       rcases regLink_spec ha with ⟨-, rfl, rfl, -⟩ | ⟨hnr, hr | ⟨i, rfl, -, hr⟩ |
@@ -784,9 +786,9 @@ theorem sqStep (h : Lay m0 F N rs) (hsq : Spec (Labels.label NativeRustcVmX64.Vm
     (hbd : T'.bounds = [])
     {R : MachineState → Prop}
     (cont : ∀ st, st.pc = Host.addrOf (k + ds.length) → Bnd m0 F N rs wr T' vals' st.data →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ :=
-  callStep h hB hk hrun hwr hsp hsq hS (fun _ _ _ h ↦ h) (W := fun _ ↦ False)
+  callStep (hknown := hknown) h hB hk hrun hwr hsp hsq hS (fun _ _ _ h ↦ h) (W := fun _ ↦ False)
     (fun _ _ hq ↦ ⟨fun p hp ↦ hq.2.2.1 p fun h ↦ hp (.inl h), hq.2.2.2⟩) (fun _ h ↦ h.elim)
     hL hLW hvals
     (fun i hi mc m' hm hq ↦ hq.1.trans (hrax i hi mc fun r v h ↦ hm.regs r v h))
@@ -813,9 +815,9 @@ theorem mulStep (h : Lay m0 F N rs) (hmul : Spec (Labels.label NativeRustcVmX64.
     (hlab : T'.labels = []) (hal : ∀ m' ret, AliasesOk T' (envS m0 m' F rs vals' ret)) (hbd : T'.bounds = [])
     {R : MachineState → Prop}
     (cont : ∀ st, st.pc = Host.addrOf (k + ds.length) → Bnd m0 F N rs wr T' vals' st.data →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ :=
-  callStep h hB hk hrun hwr hsp hmul hS (fun _ _ _ h ↦ h) (W := fun _ ↦ False)
+  callStep (hknown := hknown) h hB hk hrun hwr hsp hmul hS (fun _ _ _ h ↦ h) (W := fun _ ↦ False)
     (fun _ _ hq ↦ ⟨fun p hp ↦ hq.2.2.1 p fun h ↦ hp (.inl h), hq.2.2.2⟩) (fun _ h ↦ h.elim)
     hL hLW hvals
     (fun i hi mc m' hm hq ↦ hq.1.trans (hrax i hi mc fun r v h ↦ hm.regs r v h))

@@ -4,6 +4,7 @@ public import NativeRustcX64.Sym.Sound.Data
 public import NativeRustcX64.Sym.Sound.Shift
 public import NativeRustcX64.Sym.Sound.Control
 public import NativeRustcX64.Sym.Sound.Carry
+public import NativeRustcX64.Sym.Sound.Bit
 
 /-!
 # The symbolic executor is sound
@@ -54,6 +55,8 @@ theorem stepOp_ok [Labels] {env : Env} {w : Width} (op : Operation w) : OpOk env
   | shld dst src c => exact ok_shld dst src c
   | shrd dst src c => exact ok_shrd dst src c
   | bswap dst => exact ok_bswap dst
+  | bt base offset => exact ok_bt base offset
+  | bts base offset => exact ok_bts base offset
   | jcc cc l => exact ok_jcc cc l
   | jmp t => exact ok_jmp t
   | call t => exact ok_call t
@@ -176,6 +179,7 @@ theorem match_init [Labels] {env : Env} {regions : List Nat} {known : List (Reg6
   bounds := hbounds
   aliases := haliases
   outside a _ := by rw [hmem]
+  known := by intro w h; cases h
 
 end
 

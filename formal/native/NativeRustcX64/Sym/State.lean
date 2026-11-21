@@ -50,6 +50,8 @@ structure SState where
   /-- Facts `(x, (r, o))`: `x`'s value is region `r`'s base plus `o` (an address the code computes
   from an index, e.g. `rsi + rcx`). -/
   aliases : List (Sym × Nat × Int) := []
+  /-- Symbolic descriptions of initial memory, independent of the actual writes in `mem`. -/
+  known : List Write := []
   deriving DecidableEq, Repr, Lean.ToExpr
 
 /-- How a block ends. -/

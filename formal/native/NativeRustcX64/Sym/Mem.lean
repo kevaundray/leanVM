@@ -481,6 +481,12 @@ theorem ofInt_index (x : BitVec 64) (n : Nat) :
     BitVec.ofInt 64 ((x.take 64).toInt * (n : Int)) = x * BitVec.ofNat 64 n := by
   rw [BitVec.ofInt_mul, ofInt_base, BitVec.ofInt_natCast]
 
+/-- Symbolic constants denote exactly Kraken's constants, including symbolic GOT addresses. -/
+theorem eval_constSym {c : ConstExpr} {x : Sym} (h : constSym c = some x)
+    (p : Std.Rco Int64) : x.eval env = (c.interp p).toBitVec := by
+  cases c <;> cases h
+  all_goals first | exact eval_lit_toNat env _ | rfl
+
 /-- **An address operand is Kraken's** (64-bit addresses). -/
 theorem Match.addr (hm : Match env S m) {a : AddrExpr} {x : Sym} (h : S.addr a = some x)
     (p : Std.Rco Int64) :
@@ -494,10 +500,14 @@ theorem Match.addr (hm : Match env S m) {a : AddrExpr} {x : Sym} (h : S.addr a =
     · cases h
       exact ofInt_rip p.upper (Labels.label l)
     · cases h
-  · rename_i k
-    simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at h
-    obtain ⟨b, hb, i, hi, rfl⟩ := h
-    rw [eval_mkAdd64, eval_mkAdd64, eval_lit_toNat]
+  · rename_i l
+    split at h
+    · cases h
+      exact ofInt_rip p.upper (Labels.gotSlot l)
+    · cases h
+  · simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at h
+    obtain ⟨d, hd, b, hb, i, hi, rfl⟩ := h
+    rw [eval_mkAdd64, eval_mkAdd64, eval_constSym hd p]
     have hI : ∀ I : Int, (∀ r sc, idx = some ⟨r, sc⟩ →
         I = ((m.regs.get64 r).take 64).toInt * (sc.bytes : Int)) → (idx = none → I = 0) →
         BitVec.ofInt 64 I = i.eval env := by
@@ -519,17 +529,51 @@ theorem Match.addr (hm : Match env S m) {a : AddrExpr} {x : Sym} (h : S.addr a =
     | none =>
       cases hb
       cases idx with
-      | none => exact ofInt_addr _ _ k _ _ rfl (hI _ nofun fun _ => rfl)
-      | some ix => exact ofInt_addr _ _ k _ _ rfl (hI _ (fun _ _ h => by cases h; rfl) nofun)
+      | none => exact ofInt_addr _ _ (disp.interp p) _ _ rfl (hI _ nofun fun _ => rfl)
+      | some ix =>
+        exact ofInt_addr _ _ (disp.interp p) _ _ rfl (hI _ (fun _ _ h => by cases h; rfl) nofun)
     | some br =>
       cases br with
       | rip => cases hb
       | reg r =>
         have hB := (ofInt_base (m.regs.get64 r)).trans (hm.regs r b hb)
         cases idx with
-        | none => exact ofInt_addr _ _ k _ _ hB (hI _ nofun fun _ => rfl)
-        | some ix => exact ofInt_addr _ _ k _ _ hB (hI _ (fun _ _ h => by cases h; rfl) nofun)
-  · cases h
+        | none => exact ofInt_addr _ _ (disp.interp p) _ _ hB (hI _ nofun fun _ => rfl)
+        | some ix =>
+          exact ofInt_addr _ _ (disp.interp p) _ _ hB (hI _ (fun _ _ h => by cases h; rfl) nofun)
+
+/-- Add a symbolic description of initial bytes without changing the actual write footprint.
+For a GOT slot use `v := .label target` and an alias `(.gotSlot target, r, off)`. -/
+theorem Match.withKnownBytes (hm : Match env S m) {r off n : Nat} {v : Sym}
+    (hbytes : ∀ i < n, env.mem0.get? (env.base r + BitVec.ofNat 64 (off + i)) =
+      some (byteOf (v.eval env) i)) :
+    Match env (S.withKnownBytes r off n v) m := by
+  refine { hm with known := ?_ }
+  intro w hw
+  rcases List.mem_cons.mp hw with rfl | hw
+  · exact hbytes
+  · exact hm.known w hw
+
+/-- Descriptions of initial memory evaluate to that memory, byte by byte. -/
+theorem memByte_known {known : List Write}
+    (hknown : ∀ w ∈ known, ∀ i < w.n,
+      env.mem0.get? (env.base w.r + BitVec.ofNat 64 (w.off + i)) =
+        some (byteOf (w.v.eval env) i))
+    {r : Nat} {b : BitVec 64} {sz : Nat} (hb : env.regions[r]? = some (b, sz)) (i : Nat) :
+    memByte env known r b i = env.mem0.get? (b + BitVec.ofNat 64 i) := by
+  induction known with
+  | nil => rfl
+  | cons w ws ih =>
+    unfold memByte
+    rw [findWrite_cons]
+    by_cases hw : w.r = r ∧ w.off ≤ i ∧ i < w.off + w.n
+    · rw [ite_pos hw]
+      have he := hknown w List.mem_cons_self (i - w.off) (by omega)
+      have hbase : env.base w.r = b := Env.base_eq (hw.1 ▸ hb)
+      have hoff : w.off + (i - w.off) = i := by omega
+      simpa only [hbase, hoff] using he.symm
+    · rw [ite_neg hw]
+      exact ih (fun w' hw' => hknown w' (List.mem_cons_of_mem _ hw'))
 
 end
 

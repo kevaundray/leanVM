@@ -16,6 +16,7 @@ stack arguments stay the entry's.
 - `jumpZ`: a block without a call, run from a state `S` the machine matches.
 - `callZ`: a block ending in a call at RSP the frame's offset `oc`, then the callee's contract;
   the callee's outputs `W` may depend on the state at the call.
+  Both wrappers require the destination template's known-byte list to be empty.
 - `exitZ`: the last block, ending in `ret`.
 -/
 
@@ -193,7 +194,7 @@ theorem match_with [Labels] {env : Env} {T : SState} {m : MachineData} (hm : Mat
     (hbd : ∀ x n, (x, n) ∈ bd → (x.eval env).toNat < n)
     (hal : ∀ x r o, al.lookup x = some (r, o) → x.eval env = env.base r + BitVec.ofInt 64 o) :
     Match env { T with bounds := bd, aliases := al } m :=
-  ⟨hm.regs, hm.flags, hm.regions, hm.mem, hm.labels, hbd, hal, hm.outside⟩
+  { hm with bounds := hbd, aliases := hal }
 
 theorem BndZ.weaken [Labels] {T : SState} {vals : Nat → BitVec 64} {m : MachineData}
     (hB : BndZ m0 F Z N rs wr T vals m) {wr' : Nat → Bool} (hw : ∀ i, wr i = true → wr' i = true) :
@@ -239,11 +240,11 @@ theorem jumpZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → 
     {R : MachineState → Prop}
     (cont : ∀ st, PcOk (envZ m0 m F Z rs vals 0) x (Host.addrOf (k + ds.length)) st →
       BndZ m0 F Z N rs wr T' vals' st.data → Match (envZ m0 m F Z rs vals 0) S' st.data →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ := by
   have hwf := h.wf hB.kept (vals := vals) (ret := 0)
   refine exec_then hk hrun hwf (fun l hl ↦ absurd hl (hx l)) hm fun st hm' hpc ↦
-    cont st hpc ⟨fun ret ↦ match_links hm' hok hL hLW (fun _ ↦ rfl) rfl rfl rfl hvals hfl
+    cont st hpc ⟨fun ret ↦ match_links (hknown := hknown) hm' hok hL hLW (fun _ ↦ rfl) rfl rfl rfl hvals hfl
       (regions_envZ hsz) hlab (hbd st.data ret) (hal st.data ret), ?_,
       fun p hp ↦ hm'.kept hwf p (hB.kept p hp)⟩ hm'
   intro q hq
@@ -297,7 +298,7 @@ theorem callZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → 
         rspOf mc = stackBelow m0 (F - oc) ∧ Q mc st.data ∧
         SameOutside m.dmem mc.dmem
           (Written (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S')) →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ := by
   let ra := (Host.addrOf (k + ds.length)).toBitVec
   have h' : Lay m0 (F - oc) N rs := h.lay hoc
@@ -321,7 +322,7 @@ theorem callZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → 
   · obtain ⟨hso, hsv⟩ := hQ _ _ hm' hqc
     have hR : ∀ r v, S'.reg r = some v → reg st.data r = v.eval (envZ m0 m F Z rs vals ra) :=
       fun r v hv ↦ hm'.regs r v hv
-    refine match_tpl rfl rfl ?_ hfl (regions_envZ hsz) hlab (hbd st'.data ret)
+    refine match_tpl (hknown := hknown) rfl rfl ?_ hfl (regions_envZ hsz) hlab (hbd st'.data ret)
       (hal st'.data ret) ?_
     · intro r v hv
       by_cases hr : r = .rsp

@@ -88,7 +88,7 @@ theorem cpStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
       Chg m0 st.data.dmem mc.dmem (wsL S') [] →
       Chg m0 mc.dmem st'.data.dmem ((0, 48) :: Lc) Oc →
       Chg m0 st.data.dmem st'.data.dmem (wsL S' ++ (0, 48) :: Lc) Oc →
-      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
+      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R st := by
   have c := ctx_of hpre
   have h := lay_of hpre
@@ -99,7 +99,7 @@ theorem cpStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
     rw [e]
     show (BitVec.ofNat 64 n).toNat = n
     rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hn]
-  refine stepC (T' := T') (vals' := vals') hp c h hat hds hne hrun hat.2.mt hw0 (oc := 48)
+  refine stepC (hknown := hknown) (T' := T') (vals' := vals') hp c h hat hds hne hrun hat.2.mt hw0 (oc := 48)
     (by decide) hsp hmemcpy (Sk := 0) (by rw [vk_eq]; decide)
     (fun mc hmc hk hsk hso hrsp _ _ ↦ ?_) (Lc := Lc) (Oc := Oc) (fun mc m' hmc hq ↦ ?_) hLc hOc hwO
     htm hok hrspT hL hLW hvals (fun i hi ↦ nomatch tregE hrax hi)

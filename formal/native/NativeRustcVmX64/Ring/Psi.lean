@@ -57,12 +57,13 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm
     (hrax : T'.reg .rax = some (.var 6)) (hrdx : T'.reg .rdx = some (.var 7))
     (hsz : T'.regions = [88, 128]) (hfl : T'.flags = atomFlags) (hlab : T'.labels = [])
     (hal : T'.aliases = []) (hbd : T'.bounds = []) {st : MachineState}
-    (h : At m0 k off T vals st) : Eventually (step1 Host.exe) (At m0 k off' T' vals') st := by
+    (h : At m0 k off T vals st) (hknown : T'.known = [] := by rfl) :
+    Eventually (step1 Host.exe) (At m0 k off' T' vals') st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB⟩ := h
   simp only at hpc hB
   subst hpc
-  refine mulStep (lay hpre) hmul (by decide) hB (hds.trans hp.1 hne) hrun hwr hsp hL hLW
+  refine mulStep (hknown := hknown) (lay hpre) hmul (by decide) hB (hds.trans hp.1 hne) hrun hwr hsp hL hLW
     (hvals d) (fun i hi mc hR ↦ ?_) (fun i hi mc hR ↦ ?_) hsz hfl hlab
     (fun _ _ x r o h ↦ by rw [hal] at h; cases h) hbd
     fun st hpc' hB' ↦ .done _ ⟨by rw [hpc', Nat.add_assoc, hoff], hB'⟩

@@ -373,7 +373,7 @@ theorem startA {sizes : List Nat} {known : List (Reg64 × Sym)} {al : List (Sym 
       known)
     (hal : ∀ ret, AliasesOk (tpl sizes known [] [] al) (envA m0 m0 F A rs vals ret)) :
     BndA m0 F A N rs wr (tpl sizes known [] [] al) vals m0 :=
-  ⟨fun ret ↦ match_tpl rfl rfl (fun r v hv ↦ by
+  ⟨fun ret ↦ match_tpl (hknown := rfl) rfl rfl (fun r v hv ↦ by
       rw [tpl_reg] at hv
       cases hv
       cases hl : known.lookup r with
@@ -386,7 +386,7 @@ theorem startA {sizes : List Nat} {known : List (Reg64 × Sym)} {al : List (Sym 
       (fun _ _ _ _ _ _ _ _ h ↦ by cases h),
     fun _ _ ↦ rfl, fun _ h ↦ h⟩
 
-/-- **A block without a call**, to the template `T'`. -/
+/-- **A block without a call**, to the template `T'` with no known bytes. -/
 theorem jumpStepA (h : LayA m0 F A N rs) {T T' S' : SState} {vals vals' : Nat → BitVec 64}
     {m : MachineData} (hB : BndA m0 F A N rs wr T vals m) {ds : List Directive} {k : Nat}
     {x : Exit} (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', x))
@@ -405,14 +405,14 @@ theorem jumpStepA (h : LayA m0 F A N rs) {T T' S' : SState} {vals vals' : Nat �
       BndA m0 F A N rs wr T' vals' st.data → Match (envA m0 m F A rs vals 0) S' st.data →
       SameOutside m.dmem st.data.dmem
         (fun q ↦ InRange (stackBelow m0 N) N q ∨ outsOf rs wr' q) →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ := by
   have hwr := writeOk_mono hsub hwr'
   have hwf := h.wf hB.kept (vals := vals) (ret := 0)
   refine exec_then hk hrun hwf (fun l hl ↦ absurd hl (hx l)) (hB.mt 0) fun st hm hpc ↦
     cont st hpc ⟨fun ret ↦ ?_, ?_, fun p hp ↦ hm.kept hwf p (hB.kept p hp)⟩ hm
       fun q hq ↦ hm.get?_mem0 hwf fun hW ↦ hq (h.written hwr' hW)
-  · refine match_tpl rfl rfl (reg_link_jump hL hm (fun _ ↦ rfl) (fun _ ↦ rfl)
+  · refine match_tpl (hknown := hknown) rfl rfl (reg_link_jump hL hm (fun _ ↦ rfl) (fun _ ↦ rfl)
       (fun p hp ↦ hvals 0 p (List.mem_append_left _ hp))) hfl (regions_envA hsz) hlab
       (hbd st.data ret) (hal st.data ret) ?_
     intro r b sz j v t hb hj hf
@@ -429,8 +429,8 @@ theorem jumpStepA (h : LayA m0 F A N rs) {T T' S' : SState} {vals vals' : Nat �
     rw [hm.get?_mem0 hwf fun hW ↦ hq (h.written hwr hW)]
     exact hB.same q hq
 
-/-- **A block ending in a call**, the callee's contract, to the template `T'`; RAX and RDX the
-callee's result `cf` of the registers at the call. -/
+/-- **A block ending in a call**, the callee's contract, to the template `T'` with no known
+bytes; RAX and RDX the callee's result `cf` of the registers at the call. -/
 theorem callStepA (h : LayA m0 F A N rs) {T T' S' : SState} {vals vals' : Nat → BitVec 64}
     {m : MachineData} (hB : BndA m0 F A N rs wr T vals m) {ds : List Directive} {k : Nat}
     {l : Label} (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', .call l))
@@ -469,7 +469,7 @@ theorem callStepA (h : LayA m0 F A N rs) {T T' S' : SState} {vals vals' : Nat �
           (fun q ↦ InRange (stackBelow m0 N) N q ∨ outsOf rs wr' q) ∧ Q mc st.data) →
       SameOutside m.dmem st.data.dmem
         (fun q ↦ InRange (stackBelow m0 N) N q ∨ outsOf rs wr' q) →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ := by
   have hwr := writeOk_mono hsub hwr'
   have hWo' : ∀ q, W q → outsOf rs wr q := fun q hq ↦ by
@@ -498,7 +498,7 @@ theorem callStepA (h : LayA m0 F A N rs) {T T' S' : SState} {vals vals' : Nat �
   · obtain ⟨hso, hsv⟩ := hQ _ _ hm hqc
     have hR : ∀ r v, S'.reg r = some v → reg st.data r = v.eval (envA m0 m F A rs vals ra) :=
       fun r v hv ↦ hm.regs r v hv
-    refine match_tpl rfl rfl ?_ hfl (regions_envA hsz) hlab (hbd st'.data ret)
+    refine match_tpl (hknown := hknown) rfl rfl ?_ hfl (regions_envA hsz) hlab (hbd st'.data ret)
       (hal st'.data ret) ?_
     · intro r v hv
       obtain ⟨a, ha, haL⟩ := rlinks_spec hL hv
@@ -582,7 +582,7 @@ theorem exitStepA (h : LayA m0 F A N rs) {T S' : SState} {vals : Nat → BitVec 
   · obtain ⟨v, hv, he⟩ := hcs r hr
     rw [hm.regs r v hv, he]
 
-/-- **A block ending in a call of `EW::mul`.** -/
+/-- **A block ending in a call of `EW::mul`**, to a template with no known bytes. -/
 theorem mulStepA (h : LayA m0 F A N rs)
     (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hS : F + ewMulStack ≤ N) {T T' S' : SState} {vals vals' : Nat → BitVec 64}
@@ -607,9 +607,9 @@ theorem mulStepA (h : LayA m0 F A N rs)
     (cont : ∀ st, st.pc = Host.addrOf (k + ds.length) → BndA m0 F A N rs wr T' vals' st.data →
       SameOutside m.dmem st.data.dmem
         (fun q ↦ InRange (stackBelow m0 N) N q ∨ outsOf rs wr' q) →
-      Eventually (step1 Host.exe) R st) :
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ :=
-  callStepA h hB hk hrun wr' hsub hwr hsp hmul hS
+  callStepA (hknown := hknown) h hB hk hrun wr' hsub hwr hsp hmul hS
     (fun _ _ _ h ↦ h) (W := fun _ ↦ False)
     (fun _ _ _ hq ↦ ⟨fun p hp ↦ hq.2.2.1 p fun h ↦ hp (.inl h), hq.2.2.2⟩) (fun _ h ↦ h.elim)
     hL hLW hvals (fun i hi mc m' hR hq ↦ hq.1.trans (hrax i hi mc hR))

@@ -184,12 +184,13 @@ theorem cstep (hp : Placed code k) {rs : List (BitVec 64 × Nat)} (h : Lay m0 23
     (hsz : T'.regions = (2352 + 8) :: rs.map Prod.snd) (hfl : T'.flags = atomFlags)
     (hlab : T'.labels = []) (hal : ∀ m' ret, AliasesOk T' (envS m0 m' 2352 rs vals' ret))
     (hbd : T'.bounds = []) {st : MachineState}
-    (hA : At m0 k off rs T vals I st) : Eventually (step1 Host.exe) (At m0 k off' rs T' vals' I) st := by
+    (hA : At m0 k off rs T vals I st) (hknown : T'.known = [] := by rfl) :
+    Eventually (step1 Host.exe) (At m0 k off' rs T' vals' I) st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB, hId⟩ := hA
   simp only at hpc hB hId
   subst hpc
-  refine callStep h hB (hds.trans hp.1 hne) hrun hwr hsp hspec hS
+  refine callStep (hknown := hknown) h hB (hds.trans hp.1 hne) hrun hwr hsp hspec hS
     (fun mc hm hk hso ↦ hP d mc hB hId hm hk hso)
     (W := fun _ ↦ False)
     (fun m m' hq ↦ ⟨fun q hq' ↦ (hQ m m' hq).1 q fun h ↦ hq' (.inl h), (hQ m m' hq).2⟩)

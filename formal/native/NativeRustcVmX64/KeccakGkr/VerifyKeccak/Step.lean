@@ -132,7 +132,7 @@ theorem stepJ (hp : Placed code k) (c : Ctx a inst m0)
       BndZ m0 3344 3368 verifyKeccakStack (rsOf m0) wr T' vals' st'.data →
       Match (envZ m0 st.data 3344 3368 (rsOf m0) vals 0) S' st'.data →
       Chg m0 st.data.dmem st'.data.dmem (wsL S') [] → Kept st.data.dmem st'.data.dmem →
-      Eventually (step1 Host.exe) R st') :
+      Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB⟩ := hat
@@ -141,7 +141,7 @@ theorem stepJ (hp : Placed code k) (c : Ctx a inst m0)
   rw [← sizes_eq m0] at hsz
   have hwr := frameW_ok hw0 (F := 3344) (sz := 3368 :: (rsOf m0).map Prod.snd) (wr := wr) le_rfl
   have h0 := frameW_r0 hw0
-  refine jumpZ h hB (hds.trans hp.1 hne) hrun hm hx hwr hL hLW hvals hok hsz hfl hlab hal
+  refine jumpZ (hknown := hknown) h hB (hds.trans hp.1 hne) hrun hm hx hwr hL hLW hvals hok hsz hfl hlab hal
     (fun _ _ _ _ hx ↦ by rw [hbd] at hx; cases hx) fun st' hpc' hB' hm' ↦ ?_
   exact cont st' (by rw [← Nat.add_assoc]; exact hpc') hB' hm' (chg_block c hm' (h.wf hB.kept) hwr h0)
     (hm'.kept (h.wf hB.kept))
@@ -195,7 +195,7 @@ theorem stepC (hp : Placed code k) (c : Ctx a inst m0)
         rspOf mc = stackBelow m0 (3344 - oc) ∧ Q mc st'.data ∧
         Chg m0 st.data.dmem mc.dmem (wsL S') []) →
       Chg m0 st.data.dmem st'.data.dmem (wsL S' ++ (0, oc) :: Lc) Oc →
-      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
+      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB⟩ := hat
@@ -209,7 +209,7 @@ theorem stepC (hp : Placed code k) (c : Ctx a inst m0)
   have hds' : ds.IsInfixAt Host.prog (k + o) := hds.trans hp.1 hne
   have hra : k + (o + ds.length) = k + o + ds.length := by omega
   rw [hra] at hP hrax hrdx cont hQ
-  refine callZ (W := fun _ ↦ ChgR m0 Lc Oc) h hB hds' hrun (hm _) hwr hoc hsp hspec hS
+  refine callZ (hknown := hknown) (W := fun _ ↦ ChgR m0 Lc Oc) h hB hds' hrun (hm _) hwr hoc hsp hspec hS
     (fun mc hmc hk hsk hso hrsp ↦ hP mc hmc hk hsk hso hrsp (chg_block c hmc hwf hwr h0)
       (hmc.kept hwf))
     (fun mc m' hmc hq ↦ hQ mc m' hmc hq) (fun _ _ q hq ↦ ChgR.wo c hLc hOc hwO hq) hok hrspT hL hLW

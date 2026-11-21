@@ -303,6 +303,18 @@ def constInt : ConstExpr → Option Int64
   | .int64 k => some k
   | _ => none
 
+/-- A position-independent symbolic constant; GOT slots remain symbolic addresses. -/
+def constSym : ConstExpr → Option Sym
+  | .int64 k => some (.lit k.toBitVec.toNat)
+  | .label l => some (.label l)
+  | .gotSlot l => some (.gotSlot l)
+  | _ => none
+
+/-- Only a value known to be a label can be an indirect control target. -/
+def asLabel : Sym → Option Label
+  | .label l => some l
+  | _ => none
+
 /-- A jump target, `l - .` relative to the address after the instruction. -/
 def relTarget : RelRegOrMem → Option Label
   | .rel (.sub (.label l) .after_current_instruction) => some l
@@ -329,11 +341,15 @@ def addr (S : SState) (a : AddrExpr) : Option Sym :=
     match a.base, a.idx with
     | some .rip, none => some (.label l)
     | _, _ => none
-  | .int64 k => do
+  | .sub (.gotSlot l) .after_current_instruction =>
+    match a.base, a.idx with
+    | some .rip, none => some (.gotSlot l)
+    | _, _ => none
+  | c => do
+    let d ← constSym c
     let b ← S.baseSym a.base
     let i ← S.indexSym a.idx
-    some (mkAdd64 (mkAdd64 b i) (.lit k.toBitVec.toNat))
-  | _ => none
+    some (mkAdd64 (mkAdd64 b i) d)
 
 /-- The region and offset an address is by itself: an alias, a region pointer, a label at a
 region's base. -/
@@ -513,6 +529,11 @@ def withAlias (S : SState) (x : Sym) (r : Nat) (o : Int) : SState :=
 def withBound (S : SState) (x : Sym) (B : Nat) : SState :=
   { S with bounds := (x, B) :: S.bounds }
 
+/-- Record symbolic initial bytes without adding a write to the block's footprint.
+`Match.withKnownBytes` proves their contents in `env.mem0`; actual stores take precedence. -/
+def withKnownBytes (S : SState) (r off n : Nat) (v : Sym) : SState :=
+  { S with known := ⟨r, off, n, v⟩ :: S.known }
+
 /-- The writes with `v`'s low `n` bytes at `o` in region `r`, dropping the writes it covers. -/
 def store (S : SState) (r o n : Nat) (v : Sym) : SState :=
   { S with
@@ -523,7 +544,7 @@ region where no write overlaps the bytes the index can reach, else over the slot
 with a bound (`loadSlots`). -/
 def loadOne (S : SState) (a : Sym) (n : Nat) : Option Sym :=
   match S.access a n with
-  | some (r, o) => some (loadSym S.mem r o n)
+  | some (r, o) => some (loadSym (S.mem ++ S.known) r o n)
   | none =>
     match S.accessIdx a n with
     | some (r, o, i, M) =>
@@ -563,9 +584,7 @@ def readRM (S : SState) {w : Width} : RegOrMem w → Option Sym
 /-- An operand of width `w` (`Operand.interp`); its low `w` bits are the value. -/
 def readOp (S : SState) {w : Width} : Operand w → Option Sym
   | .regOrMem o => S.readRM o
-  | .imm c => do
-    let k ← constInt c
-    some (.lit k.toBitVec.toNat)
+  | .imm c => constSym c
 
 /-- A write of width `w` of a value already zero-extended to a destination (`MachineData.set`). -/
 def writeDst (S : SState) {w : Width} (d : Dst w) (u : Sym) : Option SState :=
@@ -581,6 +600,21 @@ def count (S : SState) : ShiftCountExpr → Option Sym
   | .imm8 c => do
     let k ← constInt c
     some (.lit k.toBitVec.toNat)
+
+/-- Bit offsets use the full operand-width register, but only the immediate's low byte. -/
+def bitOffset (S : SState) {w : Width} : BitOffset w → Option Sym
+  | .reg r => S.getR r
+  | .imm c => (constSym c).map (truncTo .W8)
+
+/-- Resolve direct and indirect control targets without guessing concrete addresses. -/
+def target (S : SState) : RelRegOrMem → Option Label
+  | .rel c => relTarget (.rel c)
+  | .reg r => do
+    let v ← S.getR r
+    asLabel v
+  | .mem a => do
+    let v ← S.readRM (.mem a : RegOrMem .W64)
+    asLabel v
 
 end SState
 
@@ -674,6 +708,23 @@ def test (a : RegOrMem w) (b : Operand w) (S : SState) : Option (SState × Exit)
   let x ← S.readRM a
   let y ← S.readOp b
   fall (S.setFlags (logicFlags w (mkBin .and w x y)))
+
+
+/-- `BT`: CF is the selected bit, ZF is preserved, all other tracked flags are unknown. -/
+def bt (base : Reg w) (offset : BitOffset w) (S : SState) : Option (SState × Exit) :=
+  if w == .W8 then none else do
+    let a ← S.getR base
+    let b ← S.bitOffset offset
+    fall (S.setFlags ⟨some (mkCmp .bit w a b), S.flags.zf, none, none⟩)
+
+/-- `BTS` has `BT`'s flags and sets the selected bit in the base register. -/
+def bts (base : Reg w) (offset : BitOffset w) (S : SState) : Option (SState × Exit) :=
+  if w == .W8 then none else do
+    let a ← S.getR base
+    let b ← S.bitOffset offset
+    let S' ← (S.setFlags ⟨some (mkCmp .bit w a b), S.flags.zf, none, none⟩).setR base
+      (mkBin .bts w a b)
+    fall S'
 
 /-- `INC dst`. -/
 def inc (dst : RegOrMem w) (S : SState) : Option (SState × Exit) := do
@@ -782,9 +833,9 @@ def bswap (dst : Reg w) (S : SState) : Option (SState × Exit) :=
     fall S'
   | _ => none
 
-/-- `CALL l`: the return address (`Sym.retAddr`) pushed. -/
+/-- `CALL`: resolve the target before pushing the return address (`Sym.retAddr`). -/
 def call (t : RelRegOrMem) (S : SState) : Option (SState × Exit) := do
-  let l ← relTarget t
+  let l ← S.target t
   let sp ← S.reg .rsp
   let sp' := mkSub64 sp (.lit 8)
   let S' ← (S.setReg .rsp (some sp')).storeAt sp' 8 .retAddr
@@ -817,6 +868,8 @@ def stepOp : {w : Width} → Operation w → SState → Option (SState × Exit)
   | _, .xor dst src, S => Step.logic .xor dst src S
   | _, .cmp a b, S => Step.cmp a b S
   | _, .test a b, S => Step.test a b S
+  | _, .bt base offset, S => Step.bt base offset S
+  | _, .bts base offset, S => Step.bts base offset S
   | _, .inc dst, S => Step.inc dst S
   | _, .dec dst, S => Step.dec dst S
   | _, .neg dst, S => Step.neg dst S
@@ -835,7 +888,7 @@ def stepOp : {w : Width} → Operation w → SState → Option (SState × Exit)
     let c ← condSym cc S.flags
     some (S, .cond c l)
   | _, .jmp t, S => do
-    let l ← relTarget t
+    let l ← S.target t
     some (S, .jump l)
   | _, .call t, S => Step.call t S
   | _, .ret, S => Step.ret S

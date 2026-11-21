@@ -134,12 +134,13 @@ theorem mstep (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.V
     (hsz : T'.regions = [184, 128, 16]) (hfl : T'.flags = atomFlags) (hlab : T'.labels = [])
     (hal : ∀ m' ret, AliasesOk T' (envS (own m0 m) m' 176 (rsP m0 p) vals' ret))
     (hbd : T'.bounds = []) {st : MachineState}
-    (hA : TAt m0 m p k off T vals st) : Eventually (step1 Host.exe) (TAt m0 m p k off' T' vals') st := by
+    (hA : TAt m0 m p k off T vals st) (hknown : T'.known = [] := by rfl) :
+    Eventually (step1 Host.exe) (TAt m0 m p k off' T' vals') st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB⟩ := hA
   simp only at hpc hB
   subst hpc
-  refine mulStep (lay h hM hpl) hmul (by decide) hB (hds.trans hp.1 hne) hrun hwr hsp hL hLW
+  refine mulStep (hknown := hknown) (lay h hM hpl) hmul (by decide) hB (hds.trans hp.1 hne) hrun hwr hsp hL hLW
     (hvals d (Mem.of_bnd h hM hpl hB)) (fun i hi mc hR ↦ ?_) (fun i hi mc hR ↦ ?_) hsz hfl hlab hal
     hbd
     fun st hpc' hB' ↦ .done _ ⟨by rw [hpc', Nat.add_assoc, hoff], hB'⟩
@@ -169,12 +170,13 @@ theorem sstep (hp : Placed code k)
     (hsz : T'.regions = [184, 128, 16]) (hfl : T'.flags = atomFlags) (hlab : T'.labels = [])
     (hal : ∀ m' ret, AliasesOk T' (envS (own m0 m) m' 176 (rsP m0 p) vals' ret))
     (hbd : T'.bounds = []) {st : MachineState}
-    (hA : TAt m0 m p k off T vals st) : Eventually (step1 Host.exe) (TAt m0 m p k off' T' vals') st := by
+    (hA : TAt m0 m p k off T vals st) (hknown : T'.known = [] := by rfl) :
+    Eventually (step1 Host.exe) (TAt m0 m p k off' T' vals') st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB⟩ := hA
   simp only at hpc hB
   subst hpc
-  refine sqStep (lay h hM hpl) hsq (by decide) hB (hds.trans hp.1 hne) hrun hwr hsp hL hLW
+  refine sqStep (hknown := hknown) (lay h hM hpl) hsq (by decide) hB (hds.trans hp.1 hne) hrun hwr hsp hL hLW
     (hvals d (Mem.of_bnd h hM hpl hB)) (fun i hi mc hR ↦ ?_) (fun i hi mc hR ↦ ?_) hsz hfl hlab hal
     hbd
     fun st hpc' hB' ↦ .done _ ⟨by rw [hpc', Nat.add_assoc, hoff], hB'⟩

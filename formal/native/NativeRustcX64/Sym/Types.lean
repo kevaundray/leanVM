@@ -22,6 +22,8 @@ inductive BinOp
   | add | sub | and | or | xor | mul
   /-- The high half of the unsigned product (`MUL`'s RDX). -/
   | mulhi
+  /-- Set the bit indexed modulo the operand width (`BTS`). -/
+  | bts
   /-- Shifts and rotations; the count is the second operand's low byte, masked to 5 bits (6 bits
   at width 64). -/
   | shl | shr | sar | rol | ror
@@ -61,6 +63,8 @@ inductive CmpOp
   | incV | decV | negV
   /-- The unsigned product overflows the width (`MUL`'s CF and OF). -/
   | mulC
+  /-- The bit indexed modulo the operand width (`BT`, `BTS`). -/
+  | bit
   /-- The carry and signed overflow of the sum with a carry in `c` (`ADC`). -/
   | adcC (c : Bool) | adcV (c : Bool)
   /-- The borrow and signed overflow of the difference with a borrow in `c` (`SBB`). -/
@@ -81,6 +85,8 @@ inductive Sym
   | ptr (r : Nat) (off : Int)
   /-- A label's address. -/
   | label (l : Label)
+  /-- The address of a label's GOT slot, not the contents of that slot. -/
+  | gotSlot (l : Label)
   /-- The `n` bytes of the environment's memory at `off` in region `r`, little-endian. -/
   | load (r off n : Nat)
   /-- The `n` bytes of the environment's memory at `off` plus the value of `idx` in region `r`

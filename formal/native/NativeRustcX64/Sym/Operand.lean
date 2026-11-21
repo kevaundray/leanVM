@@ -167,11 +167,9 @@ theorem Match.readOp (hm : Match env S m) (hwf : env.WF) {w : Width} {o : Operan
   cases o with
   | regOrMem o => exact hm.readRM hwf h p hret
   | imm c =>
-    simp only [SState.readOp, Option.bind_eq_bind, Option.bind_eq_some_iff,
-      Option.some.injEq] at h
-    obtain ⟨k, hk, rfl⟩ := h
-    cases c <;> cases hk
-    rw [eval_lit_toNat] at hret
+    have hc := eval_constSym (env := env) h p
+    show (ret ((c.interp p).toBitVec.truncate _) m).All post
+    rw [← hc]
     exact hret
 
 /-- **A write to a destination is Kraken's**, of a value already zero-extended. -/
@@ -205,6 +203,26 @@ theorem Match.count (hm : Match env S m) {c : ShiftCountExpr} {n : Sym} (h : S.c
   show (c.interp m p).toNat &&& _ = _
   rw [hv]
   cases w <;> rfl
+
+/-- Bit offsets have Kraken's modulo-width semantics, including low-byte immediates. -/
+theorem Match.bitOffset (hm : Match env S m) {w : Width} {o : BitOffset w} {v : Sym}
+    (h : S.bitOffset o = some v) (p : Std.Rco Int64)
+    {ret : Nat → Effects} {post : MachineState → Prop}
+    (hret : (ret ((low w (v.eval env)).toNat % w.bits)).All post) :
+    (o.interp m p ret).All post := by
+  cases o with
+  | reg r =>
+    show (ret ((m.regs.get r).toNat % w.bits)).All post
+    rw [hm.getR h]
+    exact hret
+  | imm c =>
+    obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h
+    have he : (low w ((truncTo .W8 u).eval env)).toNat =
+        ((c.interp p).toBitVec.take 8).toNat := by
+      rw [eval_truncTo, eval_constSym hu p, take_eq_low .W8]
+      cases w <;> simp only [toNat_low, toNat_ext, Width.bits] <;> omega
+    rw [he] at hret
+    exact hret
 
 end
 

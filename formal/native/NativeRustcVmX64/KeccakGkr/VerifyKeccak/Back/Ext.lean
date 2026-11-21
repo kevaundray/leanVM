@@ -92,11 +92,11 @@ theorem extStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
     (cont : ∀ st', At m0 k (p0 + ds.length + dt.length) wr T' vals st' →
       NativeRustcVm.BufEWAt st'.data.dmem (off (fb m0) 408) 36 (xs ++ ys) →
       Chg m0 st.data.dmem st'.data.dmem [(0, 152), (408, 584), (3296, 48)] [] →
-      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
+      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
     Eventually (step1 Host.exe) R st := by
   have c := ctx_of hpre
   have h := lay_of hpre
-  refine stepC (T' := T') (vals' := vals) hp c h hat hds hne hrun hat.2.mt hw0 (oc := 48)
+  refine stepC (hknown := hknown) (T' := T') (vals' := vals) hp c h hat hds hne hrun hat.2.mt hw0 (oc := 48)
     (by decide) hsp hext (Sk := bufEWExtendStack) (by rw [vk_eq]; decide)
     (fun mc hmc hk hsk hso hrsp hch hkk ↦ ?_) (Lc := [(408, 584)]) (Oc := [])
     (fun mc m' hmc hq ↦ ?_) (by decide) rfl rfl htm hok hrspT hL hLW
@@ -127,7 +127,7 @@ theorem extStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
   simp only [hfit, ↓reduceIte] at hres
   obtain ⟨hal1, hbuf1⟩ := hres
   -- The verdict.
-  refine stepJ (T' := T') (vals' := vals) (o := p0 + ds.length) hp c h ⟨hpc1, hB1⟩ hdt hnet hrt
+  refine stepJ (hknown := hknown) (T' := T') (vals' := vals) (o := p0 + ds.length) hp c h ⟨hpc1, hB1⟩ hdt hnet hrt
     nofun (hB1.mt 0) hw2 hL2 hLW2 (varLinks_eval hvl2 _) hok hsz hfl hlab
     (fun _ _ _ _ _ hx ↦ by simp [hal] at hx) hbd fun st2 hpc2 hB2 _ hc2 hk2 ↦ ?_
   simp only [PcOk] at hpc2

@@ -348,7 +348,7 @@ theorem Match.storeSlots (hm : Match env S m) (hwf : env.WF) {a u x : Sym} {n r 
     have := le_toNat_sub k (b + BitVec.ofNat 64 (o + s * X)) n (by omega) (by omega)
     omega
   refine ⟨hm.regs, hm.flags, hm.regions, fun r' b' sz' hb' i hi => ?_, hm.labels,
-    hm.bounds, hm.aliases, fun k hk => ?_⟩
+    hm.bounds, hm.aliases, fun k hk => ?_, hm.known⟩
   · have hK : (b' + BitVec.ofNat 64 i).toNat = b'.toNat + i :=
       toNat_add_ofNat b' i (by have := hwf.noWrap r' b' sz' hb'; omega)
     show _ = memByte env ((List.range B).map (slotWrite S.mem r o s n x u) ++ S.mem) r' b' i
@@ -397,6 +397,19 @@ theorem Match.storeSlots (hm : Match env S m) (hwf : env.WF) {a u x : Sym} {n r 
 
 /-! ## Loads and stores -/
 
+/-- Initial-memory descriptions can be appended behind actual writes when interpreting a load. -/
+theorem Match.withKnownMemory (hm : Match env S m) :
+    Match env { S with mem := S.mem ++ S.known } m := by
+  refine { hm with mem := ?_ }
+  intro r b sz hb i hi
+  rw [hm.mem r b sz hb i hi]
+  change memByte env S.mem r b i = memByte env (S.mem ++ S.known) r b i
+  unfold memByte
+  rw [findWrite_append]
+  cases findWrite r i S.mem with
+  | none => exact (memByte_known hm.known hb i).symm
+  | some vt => rfl
+
 /-- A symbolic load at an unconditional address is Kraken's. -/
 theorem Match.loadOne (hm : Match env S m) (hwf : env.WF) {a v : Sym} {n : Nat}
     (h : S.loadOne a n = some v) (hn : n ≤ 8) :
@@ -410,7 +423,7 @@ theorem Match.loadOne (hm : Match env S m) (hwf : env.WF) {a v : Sym} {n : Nat}
     cases h
     obtain ⟨b, sz, hb, hle, ha⟩ := hm.access hacc
     rw [ha]
-    exact hm.loadSym hwf hb hle hn
+    exact hm.withKnownMemory.loadSym hwf hb hle hn
   | none =>
     rw [hacc] at h
     cases hidx : S.accessIdx a n with
@@ -490,7 +503,7 @@ theorem Match.storeAt (hm : Match env S m) (hwf : env.WF) {a u : Sym} {n : Nat} 
       have := le_toNat_sub k (b + BitVec.ofNat 64 o) n (by omega) (by omega)
       omega
     refine ⟨hm.regs, hm.flags, hm.regions, fun r' b' sz' hb' i hi => ?_, hm.labels,
-      hm.bounds, hm.aliases, fun k hk => ?_⟩
+      hm.bounds, hm.aliases, fun k hk => ?_, hm.known⟩
     · have hK : (b' + BitVec.ofNat 64 i).toNat = b'.toNat + i :=
         toNat_add_ofNat b' i (by have := hwf.noWrap r' b' sz' hb'; omega)
       by_cases hin : r' = r ∧ o ≤ i ∧ i < o + n
