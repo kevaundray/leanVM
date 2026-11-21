@@ -81,11 +81,13 @@ sym_block b187_exec := Sym.exec Sphincs.SphincsVerify.b187
 variable [NativeArm.Host]
 
 /-- **The epilogue**: from a state of the frame at `b188`, the machine returns to the caller with
-X0 as it was and the entry's callee-saved registers, SP and mapped bytes. -/
+X0 as it was, no byte changed outside the stack area, and the entry's callee-saved registers, SP
+and mapped bytes. -/
 theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (m : MachineData) (hF : r.Frame m) :
     Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = retOf r.m0 ∧
-      st.data.regs.X0 = m.regs.X0 ∧ Saved r.m0 st.data) ⟨m, r.pc 2781⟩ := by
+      st.data.regs.X0 = m.regs.X0 ∧ SameOutside r.m0.dmem st.data.dmem r.StackArea ∧
+      Saved r.m0 st.data) ⟨m, r.pc 2781⟩ := by
   have hk := Sphincs.SphincsVerify.b188_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF (fun _ ↦ 0)
   have hm := r.match_frame hpre hF (vars := fun _ ↦ 0) (known := []) (labels := []) (bounds := [])
@@ -110,11 +112,13 @@ theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
     · exact (hm'.regs .X28 _ rfl).trans (ls 2 29296 rfl (by decide) _ rfl)
     · exact (hm'.regs .X29 _ rfl).trans (ls 0 29280 rfl (by decide) _ rfl)
     · exact (hm'.regs .X30 _ rfl).trans (ls 1 29288 rfl (by decide) _ rfl)
-  refine ⟨?_, ?_, fun x hx ↦ hreg x (.inl hx), ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, fun x hx ↦ hreg x (.inl hx), ?_, ?_⟩
   · rw [hpc]
     simp only [retOf]
     rw [show st.data.regs.X30 = r.m0.regs.X30 from hreg .X30 (.inr rfl)]
   · exact UInt64.toBitVec_inj.mp (hm'.regs .X0 _ rfl)
+  · rw [hm'.dmem_eq hwf rfl]
+    exact hF.2.2.2.1
   · apply UInt64.toBitVec_inj.mp
     rw [hm'.sp]
     exact r.base_add_frame hpre
@@ -124,8 +128,8 @@ theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
 theorem done_of_epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (m : MachineData) (hF : r.Frame m) {v : Bool} (hx : m.regs.X0 = if v then 1 else 0) :
     Eventually (step1 NativeArm.Host.exe) (r.Done v) ⟨m, r.pc 2781⟩ :=
-  NativeRustcArm.Eventually.mono (epilogue r hp hpre m hF) fun _ ⟨h1, h2, h3⟩ ↦
-    ⟨h1, h2.trans hx, h3⟩
+  NativeRustcArm.Eventually.mono (epilogue r hp hpre m hF) fun _ ⟨h1, h2, h3, h4⟩ ↦
+    ⟨h1, h2.trans hx, h3, h4⟩
 
 /-- **Returning `0`** from `b187`, where a layer has no codeword. -/
 theorem fail_return (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)

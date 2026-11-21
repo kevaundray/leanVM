@@ -11,7 +11,8 @@ from its entry with `rdi` at a context holding the wire bytes, the bytecode word
 input as `NativeVm.Input` lays them out, with room for the decoded proof and the working area
 (`NativeVm.Code.EntryPre`), inevitably reaches a `ret`, the body's or the failure handler's, with
 `rax = 1` if the bytes decode (`Proof.fromBytes`) to a proof `verifyWith` accepts and `0` if not,
-and the callee-saved registers as they were. Every layout of the code is covered (Kraken's `Host`).
+and the callee-saved registers and `rsp` as they were. Every layout of the code is covered (Kraken's
+`Host`).
 
 The proof: from `EntryPre`, `body` ends with the verdict or fails and `onFail` ends with it
 (`NativeVm.Code.entry_spec`, from the wire decoder's and the seven phases' contracts), and
@@ -42,20 +43,26 @@ theorem verify_correct [Host] (hP : Host.prog = Compile.program body onFail)
         (if (Id.run (Proof.fromBytes (m := Id) keccakF1600 bytes)).elim false
             (fun π ↦ Id.run (verifyWith (m := Id) keccakF1600 (bytecode.map K.ofLane) pub π))
           then 1 else 0) ∧
-      ∀ r ∈ Context.calleeSaved, st.data.regs.get64 r.toX64 = m.regs.get64 r.toX64)
+      (∀ r ∈ Context.calleeSaved, st.data.regs.get64 r.toX64 = m.regs.get64 r.toX64) ∧
+      st.data.regs.get64 .rsp = m.regs.get64 .rsp)
       ⟨m, Host.addrOf 0⟩ := by
   obtain ⟨o, hx, ho⟩ := entry_spec hrdi hin
-  refine eventually_weaken _ _ _ _ ?_ (Compile.program_correct hP (by decide +kernel) (by decide +kernel) hx hR fun s₁ h ↦ ?_)
+  have hw : body.writes .rsp = false := by decide +kernel
+  have hwf : onFail.writes .rsp = false := by decide +kernel
+  refine eventually_weaken _ _ _ _ ?_ (Compile.program_correct hP hw hwf hx hR fun s₁ h ↦ ?_)
   · rintro st (⟨s₁, rfl, hR₁, hpc⟩ | ⟨s₁, s₂, rfl, hE₂, hR₂, hpc⟩)
     · obtain ⟨hrax, hcs⟩ := ho
-      refine ⟨Or.inl hpc, (hR₁.1 .rax).trans ?_, fun r hr ↦ ?_⟩
+      refine ⟨Or.inl hpc, (hR₁.1 .rax).trans ?_, fun r hr ↦ ?_,
+        (hR₁.1 .rsp).trans ((congrArg UInt64.toBitVec (hx.reg_frame hw)).trans (hR.1 .rsp).symm)⟩
       · rw [hrax, verdict_input]
         split <;> rfl
       · rw [hR₁.1, hcs r hr, hR.1]
     · obtain ⟨o', hx', ho'⟩ := ho
       obtain rfl := hx'.det hE₂
       obtain ⟨hrax, hcs⟩ := ho'
-      refine ⟨Or.inr hpc, (hR₂.1 .rax).trans ?_, fun r hr ↦ ?_⟩
+      refine ⟨Or.inr hpc, (hR₂.1 .rax).trans ?_, fun r hr ↦ ?_,
+        (hR₂.1 .rsp).trans ((congrArg UInt64.toBitVec ((hE₂.reg_frame hwf).trans (hx.reg_frame hw))).trans
+          (hR.1 .rsp).symm)⟩
       · rw [hrax, verdict_input]
         split <;> rfl
       · rw [hR₂.1, hcs r hr, hR.1]

@@ -61,6 +61,7 @@ theorem verify_correct
       (stackBelow m sphincsStack) sphincsStack) :
     Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = retOf m ∧
       st.data.regs.X0 = (if _root_.Sphincs.verifyWithKeccak pk msg sig then 1 else 0) ∧
+      SameOutside m.dmem st.data.dmem (InRange (stackBelow m sphincsStack) sphincsStack) ∧
       Saved m st.data) ⟨m, label "sphincs_verify"⟩ :=
   verify_correct_of (placed hP) (callees hP)
     (parseSpec_of Parse.parseHead_spec ParseTail.parseTail_spec) digest_spec fors_spec forsKey_spec

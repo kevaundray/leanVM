@@ -211,11 +211,12 @@ def addr (off : Nat) : UInt64 := UInt64.ofBitVec (r.off off)
 def Inputs (m : MachineData) : Prop :=
   BytesAt m.dmem (r.off 112) (pkBytes r.w) ∧ BytesAt m.dmem (r.off 20540) (sigMem r.sig)
 
-/-- **Done**: returned to the caller, RSP 8 above, with `v` in RAX, its registers and memory
-kept. -/
+/-- **Done**: returned to the caller, RSP 8 above, with `v` in RAX, no byte changed outside the
+stack area, its registers and memory kept. -/
 def Done (v : Bool) (st : MachineState) : Prop :=
   st.pc = retOf r.m0 ∧ rspOf st.data = rspOf r.m0 + 8#64 ∧
-    reg st.data .rax = (if v then 1 else 0) ∧ Saved r.m0 st.data
+    reg st.data .rax = (if v then 1 else 0) ∧ SameOutside r.m0.dmem st.data.dmem r.StackArea ∧
+    Saved r.m0 st.data
 
 /-! ## The states between regions -/
 

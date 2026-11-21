@@ -45,6 +45,7 @@ theorem verify_correct (pk : HashSig.PublicKey) (msg : HashSig.Message) (sig : L
       (stackBelow m xmssVerifyStack) (xmssVerifyStack + 8)) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧ rspOf st.data = rspOf m + 8#64 ∧
       reg st.data .rax = (if LeanXmss.verifyWithKeccak pk msg sig then 1 else 0) ∧
+      SameOutside m.dmem st.data.dmem (InRange (stackBelow m xmssVerifyStack) xmssVerifyStack) ∧
       Saved m st.data) ⟨m, label "xmss_verify"⟩ := by
   have hmemcpy := Mem.Memcpy.memcpy_spec (placed_memcpy hP)
   have hmemset := Mem.Memset.memset_spec (placed_memset hP)
@@ -56,7 +57,7 @@ theorem verify_correct (pk : HashSig.PublicKey) (msg : HashSig.Message) (sig : L
     (wotsLeaf_spec (placed_wotsLeaf hP) ⟨hmemcpy, hmemset, hupdate, hfinalize, hkf⟩)
     (Xmss.FromBytes.fromBytes_spec (placed_fromBytes hP) hmemcpy)
   refine Eventually.mono (hspec m ⟨hstack, hrc, Xmss.XmssVerify.words_at _ 309 hin, hinw, hina⟩)
-    fun st ⟨h1, h2, h3, _, h5⟩ => ⟨h1, h2, ?_, h5⟩
+    fun st ⟨h1, h2, h3, h4, h5⟩ => ⟨h1, h2, ?_, h4, h5⟩
   rw [h3, Xmss.verify_eq]
 
 end

@@ -9,8 +9,8 @@ public import NativeRustcVmArm.Spec.Top
 its label with the context at X0 as `NativeVm.Code.EntryPre` describes it, the alignment it
 checks, its stack and the read-only data in place and apart from the caller's areas, the machine
 inevitably returns to its caller with X0 `1` exactly when the wire bytes decode
-(`Proof.fromBytes`) to a proof `verifyWith` accepts, else `0`, the callee-saved registers and SP
-kept.
+(`Proof.fromBytes`) to a proof `verifyWith` accepts, else `0`, no byte changed outside the decoded
+and working areas and its stack, and the callee-saved registers and SP kept.
 -/
 
 namespace NativeRustcVmArm.VmVerifier
@@ -39,9 +39,12 @@ theorem verify_correct_of
       st.data.regs.X0 = (if (Id.run (Proof.fromBytes (m := Id) keccakF1600 bytes)).elim false
           (fun π ↦ Id.run (verifyWith (m := Id) keccakF1600 (bytecode.map K.ofLane) pub π))
         then 1 else 0) ∧
+      NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
+        [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
+          ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmArm.stackR m leanvmVerifyStack]) ∧
       Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
   NativeRustcArm.Eventually.mono (hspec a bytes bytecode pub m ⟨hstack, hrod, hin, hal, hapS, hapR⟩)
-    fun _ ⟨hpc, hx, _, hs⟩ ↦ ⟨hpc, hx, hs⟩
+    fun _ ⟨hpc, hx, ho, hs⟩ ↦ ⟨hpc, hx, ho, hs⟩
 
 end
 

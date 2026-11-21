@@ -91,11 +91,13 @@ sym_block b196_exec := Sym.exec Sphincs.SphincsVerify.b196
 variable [Host]
 
 /-- **The epilogue**: from a state of the frame at `b197`, the machine returns to the caller, RSP
-8 above the entry's, with RAX as it was and the entry's callee-saved registers and mapped bytes. -/
+8 above the entry's, with RAX as it was, no byte changed outside the stack area, and the entry's
+callee-saved registers and mapped bytes. -/
 theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (m : MachineData) (hF : r.Frame m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf r.m0 ∧
-      rspOf st.data = rspOf r.m0 + 8#64 ∧ reg st.data .rax = reg m .rax ∧ Saved r.m0 st.data)
+      rspOf st.data = rspOf r.m0 + 8#64 ∧ reg st.data .rax = reg m .rax ∧
+      SameOutside r.m0.dmem st.data.dmem r.StackArea ∧ Saved r.m0 st.data)
       ⟨m, r.pc 2370⟩ := by
   have hk := Sphincs.SphincsVerify.b197_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
@@ -115,7 +117,7 @@ theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
     · exact (hm'.regs .r13 _ rfl).trans (ls 2 29352 rfl (by decide) _ rfl)
     · exact (hm'.regs .r14 _ rfl).trans (ls 3 29360 rfl (by decide) _ rfl)
     · exact (hm'.regs .r15 _ rfl).trans (ls 4 29368 rfl (by decide) _ rfl)
-  refine ⟨?_, ?_, (hm'.regs .rax _ rfl), hreg, fun p h ↦ hm'.kept hwf p (hF.2.2.2 p h)⟩
+  refine ⟨?_, ?_, (hm'.regs .rax _ rfl), ?_, hreg, fun p h ↦ hm'.kept hwf p (hF.2.2.2 p h)⟩
   · simp only [Sym.PcOk] at hpc
     rw [hpc]
     rw [show (r.env m (fun _ ↦ 0) 0).base 0 + BitVec.ofNat 64 29384 = rspOf r.m0 from
@@ -125,12 +127,15 @@ theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
     show r.base + BitVec.ofInt 64 29392 = rspOf r.m0 + 8#64
     rw [← r.base_add_frame hpre, BitVec.add_assoc]
     rfl
+  · rw [hm'.dmem_eq hwf rfl]
+    exact hF.2.2.1
 
 /-- **Returning `v`**: from a state of the frame at `b197` with RAX the boolean `v`, `Done v`. -/
 theorem done_of_epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (m : MachineData) (hF : r.Frame m) {v : Bool} (hx : reg m .rax = if v then 1 else 0) :
     Eventually (step1 Host.exe) (r.Done v) ⟨m, r.pc 2370⟩ :=
-  Eventually.mono (epilogue r hp hpre m hF) fun _ ⟨h1, h2, h3, h4⟩ ↦ ⟨h1, h2, h3.trans hx, h4⟩
+  Eventually.mono (epilogue r hp hpre m hF) fun _ ⟨h1, h2, h3, h4, h5⟩ ↦
+    ⟨h1, h2, h3.trans hx, h4, h5⟩
 
 /-- **Returning `0`** from `b196`, where a layer has no codeword. -/
 theorem fail_return (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)

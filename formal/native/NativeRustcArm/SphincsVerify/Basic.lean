@@ -222,9 +222,11 @@ def Inputs (m : MachineData) : Prop :=
   BytesAt m.dmem (r.off 8208) (pkBytes r.w) ∧ BytesAt m.dmem (r.off 8244) (sigMem r.sig) ∧
     r.WordAt m 376 (r.addr 12468)
 
-/-- **Done**: returned to the caller with `v` in X0, its registers and memory kept. -/
+/-- **Done**: returned to the caller with `v` in X0, no byte changed outside the stack area, its
+registers and memory kept. -/
 def Done (v : Bool) (st : MachineState) : Prop :=
-  st.pc = retOf r.m0 ∧ st.data.regs.X0 = (if v then 1 else 0) ∧ Saved r.m0 st.data
+  st.pc = retOf r.m0 ∧ st.data.regs.X0 = (if v then 1 else 0) ∧
+    SameOutside r.m0.dmem st.data.dmem r.StackArea ∧ Saved r.m0 st.data
 
 /-! ## The states between regions -/
 

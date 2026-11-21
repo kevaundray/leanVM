@@ -59,6 +59,7 @@ theorem verify_correct
       (stackBelow m sphincsStack) (sphincsStack + 8)) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧ rspOf st.data = rspOf m + 8#64 ∧
       reg st.data .rax = (if _root_.Sphincs.verifyWithKeccak pk msg sig then 1 else 0) ∧
+      SameOutside m.dmem st.data.dmem (InRange (stackBelow m sphincsStack) sphincsStack) ∧
       Saved m st.data) ⟨m, label "sphincs_verify"⟩ :=
   verify_correct_of (placed hP) (callees hP) Parse.parse_spec digest_spec fors_spec forsKey_spec
     encode_spec Chains.chainsSpec Tree.tree_spec (k := 63)

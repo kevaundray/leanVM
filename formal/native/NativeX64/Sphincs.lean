@@ -10,7 +10,7 @@ The machine code `Compile.program SphincsVerifier.body SphincsVerifier.onFail`, 
 x86-64 from its entry with `rdi` at a context (`Native.Context`) whose input area holds the words
 of a public key, a message and a signature (`SphincsVerifier.encode`), inevitably reaches the body's
 `ret` with `rax = 1` if `Sphincs.verifyWithKeccak` accepts the signature and `0` if not, and the
-callee-saved registers as they were. Every layout of the code is covered (Kraken's `Host`).
+callee-saved registers and `rsp` as they were. Every layout of the code is covered (Kraken's `Host`).
 
 The proof: `body` verifies on the QM machine (`Native.SphincsVerifier.body_spec`, `Native.Sphincs`),
 and the compiled code does what `body` does (`Compile.program_correct`), as neither `body` nor
@@ -33,14 +33,17 @@ theorem verify_correct [Host] (hP : Host.prog = Compile.program body onFail)
     (hin : Context.InputAt s.mem base inputWords (encode pk msg sig)) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (Compile.retOkIndex body) ∧
       st.data.regs.get64 .rax = (if _root_.Sphincs.verifyWithKeccak pk msg sig then 1 else 0) ∧
-      ∀ r ∈ Context.calleeSaved, st.data.regs.get64 r.toX64 = m.regs.get64 r.toX64)
+      (∀ r ∈ Context.calleeSaved, st.data.regs.get64 r.toX64 = m.regs.get64 r.toX64) ∧
+      st.data.regs.get64 .rsp = m.regs.get64 .rsp)
       ⟨m, Host.addrOf 0⟩ := by
   obtain ⟨o, hx, ho⟩ := body_spec hrdi hctx hin
+  have hw : body.writes .rsp = false := by decide +kernel
   refine eventually_weaken _ _ _ _ ?_
-    (Compile.program_correct hP (by decide +kernel) (by decide +kernel) hx hR fun s₁ h ↦ by subst h; exact ho.elim)
+    (Compile.program_correct hP hw (by decide +kernel) hx hR fun s₁ h ↦ by subst h; exact ho.elim)
   rintro st (⟨s₁, rfl, hR₁, hpc⟩ | ⟨s₁, s₂, rfl, -, -, -⟩)
   · obtain ⟨hrax, hcs⟩ := ho
-    refine ⟨hpc, (hR₁.1 .rax).trans ?_, fun r hr ↦ ?_⟩
+    refine ⟨hpc, (hR₁.1 .rax).trans ?_, fun r hr ↦ ?_,
+      (hR₁.1 .rsp).trans ((congrArg UInt64.toBitVec (hx.reg_frame hw)).trans (hR.1 .rsp).symm)⟩
     · rw [hrax]
       split <;> rfl
     · rw [hR₁.1, hcs r hr, hR.1]

@@ -9,8 +9,8 @@ public import NativeRustcVmX64.Spec.Top
 its label with the context at RDI as `NativeVm.Code.EntryPre` describes it, the alignment it
 checks, its stack and the read-only data in place and apart from the caller's areas, the machine
 inevitably returns to its caller with RSP 8 above (the return address popped), RAX `1` exactly
-when the wire bytes decode (`Proof.fromBytes`) to a proof `verifyWith` accepts, else `0`, and the
-callee-saved registers kept.
+when the wire bytes decode (`Proof.fromBytes`) to a proof `verifyWith` accepts, else `0`, no byte
+changed outside the decoded and working areas and its stack, and the callee-saved registers kept.
 -/
 
 namespace NativeRustcVmX64.VmVerifier
@@ -39,9 +39,12 @@ theorem verify_correct_of
       reg st.data .rax = (if (Id.run (Proof.fromBytes (m := Id) keccakF1600 bytes)).elim false
           (fun π ↦ Id.run (verifyWith (m := Id) keccakF1600 (bytecode.map K.ofLane) pub π))
         then (1 : UInt64) else 0).toBitVec ∧
+      NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
+        [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
+          ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmX64.frameR m leanvmVerifyStack]) ∧
       Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
   Eventually.mono (hspec a bytes bytecode pub m ⟨hstack, hrod, hin, hal, hapS, hapR⟩)
-    fun _ ⟨hpc, hsp, hx, _, hs⟩ ↦ ⟨hpc, hsp, hx, hs⟩
+    fun _ ⟨hpc, hsp, hx, ho, hs⟩ ↦ ⟨hpc, hsp, hx, ho, hs⟩
 
 end
 

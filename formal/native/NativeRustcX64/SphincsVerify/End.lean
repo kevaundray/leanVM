@@ -26,6 +26,7 @@ theorem verify_correct_of {k : Nat} (hp : Placed Sphincs.SphincsVerify.code k) (
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧
       rspOf st.data = rspOf m + 8#64 ∧
       reg st.data .rax = (if _root_.Sphincs.verifyWithKeccak pk msg sig then 1 else 0) ∧
+      SameOutside m.dmem st.data.dmem (InRange (stackBelow m sphincsStack) sphincsStack) ∧
       Saved m st.data) ⟨m, label "sphincs_verify"⟩ := by
   have h0 : Sphincs.SphincsVerify.code[0]? = some (.label "sphincs_verify") := by
     obtain ⟨t, hct⟩ := Sphincs.SphincsVerify.b0_in_code

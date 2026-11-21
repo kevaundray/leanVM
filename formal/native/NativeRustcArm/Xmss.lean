@@ -45,6 +45,7 @@ theorem verify_correct (pk : HashSig.PublicKey) (msg : HashSig.Message) (sig : L
       (stackBelow m xmssVerifyStack) xmssVerifyStack) :
     Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = retOf m ∧
       st.data.regs.X0 = (if LeanXmss.verifyWithKeccak pk msg sig then 1 else 0) ∧
+      SameOutside m.dmem st.data.dmem (InRange (stackBelow m xmssVerifyStack) xmssVerifyStack) ∧
       Saved m st.data) ⟨m, label "xmss_verify"⟩ := by
   have hmemcpy := Mem.Memcpy.memcpy_spec (placed_memcpy hP)
   have hmemset := Mem.Memset.memset_spec (placed_memset hP)
@@ -61,7 +62,7 @@ theorem verify_correct (pk : HashSig.PublicKey) (msg : HashSig.Message) (sig : L
     rw [Xmss.XmssVerify.wordsBytes_map] at hin
     exact bytesAt_flatten_piece 309 (fun _ _ => length_wordBytes _) hin i hi
   refine NativeRustcArm.Eventually.mono (hspec m ⟨hstack, hrc, hwords, hinw, hina⟩)
-    fun st ⟨h1, h2, _, h4⟩ => ⟨h1, ?_, h4⟩
+    fun st ⟨h1, h2, h3, h4⟩ => ⟨h1, ?_, h3, h4⟩
   rw [h2, NativeRustc.Xmss.verify_eq]
 
 end

@@ -36,6 +36,9 @@ theorem verify_correct (hP : NativeArm.Host.prog = Vm.code)
       st.data.regs.X0 = (if (Id.run (Proof.fromBytes (m := Id) keccakF1600 bytes)).elim false
           (fun π ↦ Id.run (verifyWith (m := Id) keccakF1600 (bytecode.map K.ofLane) pub π))
         then 1 else 0) ∧
+      NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
+        [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
+          ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmArm.stackR m leanvmVerifyStack]) ∧
       Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
   verify_correct_of_specs hP (Assembly.decode hP)
     (Assembly.verifyExecution hP (Assembly.verifyBusBalance hP) (Assembly.keccakPhase hP)

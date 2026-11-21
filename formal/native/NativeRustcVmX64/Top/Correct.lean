@@ -65,6 +65,9 @@ theorem verify_correct_of_specs (hP : Host.prog = Vm.code)
       reg st.data .rax = (if (Id.run (Proof.fromBytes (m := Id) keccakF1600 bytes)).elim false
           (fun π ↦ Id.run (verifyWith (m := Id) keccakF1600 (bytecode.map K.ofLane) pub π))
         then (1 : UInt64) else 0).toBitVec ∧
+      NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
+        [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
+          ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmX64.frameR m leanvmVerifyStack]) ∧
       Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
   verify_correct_of (leanvmVerify_spec_of hP hdec hve) hin hal hstack hrod hapS hapR
 
