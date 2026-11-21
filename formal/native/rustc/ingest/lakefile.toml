@@ -7,7 +7,7 @@ defaultTargets = ["ingest-arm", "ingest-x64"]
 [[require]]
 name = "Kraken"
 git = "https://github.com/kevaundray/kraken"
-rev = "93ef4310decd3be96a76ac00fbd943738f73111f"
+rev = "6930e39c710ac5e5307612e985f97520858023ab"
 
 # The ingestion, generic in the architecture (IngestCore.lean).
 [[lean_lib]]
