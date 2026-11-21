@@ -12,10 +12,11 @@ public meta import NativeRustcX64.Code.Sphincs.SphincsVerify
 
 The symbolic states the FORS proof starts blocks from and the executor's results (`run_b<k>`).
 Most blocks run in the frame (`frameS k`: region 0 the frame with the return address, RSP its
-base, region 1 the 16 bytes below it, the registers `k` known); where the proof knows a hasher's
-`buf_len`, the start state holds it as a literal write (`litS`), so the executor folds the update
-loops' branches. Blocks that follow one another without a call run on (`after`). Three blocks
-index the frame by the tree `c` (R13) or the height `z` (RCX):
+base, region 1 the 16 bytes below it, regions 2 and 3 the loader's `memcpy` and `memset` slots,
+and the registers `k` known). Register-held call targets are carried through the node invariants.
+Where the proof knows a hasher's `buf_len`, the start state holds it as a literal write (`litS`),
+so the executor folds the update loops' branches. Blocks without an intervening call run on (`after`).
+Three blocks index the frame by the tree `c` (R13) or the height `z` (RCX):
 - `b58` (`.LSphincsVerify_19`, a tree's head) loads tree `c`'s leaf index at `11400 + 8 c`: R13
   bounded by 24 (`s58`);
 - `b65` (`.LSphincsVerify_20`, a node's head) loads the path's node `z` of tree `c`, at the
@@ -46,7 +47,7 @@ theorem exec_after {ds ds' : List Directive} {S S₁ : SState} {x : Exit}
 
 /-- The frame's symbolic state: RSP its base, the registers `k`. -/
 def frameS (k : List (Reg64 × Sym)) : SState :=
-  init [frameRegion, 16] ((.rsp, .ptr 0 0) :: k) [] [] Run.frameAliases
+  Run.frameState k
 
 /-- The frame's symbolic state with the literal 64-bit word `v` at `off`. -/
 def litS (k : List (Reg64 × Sym)) (off v : Nat) : SState :=
@@ -60,11 +61,11 @@ def rootSym : Sym := .bin .add .W64 (.ptr 0 0) (.bin .shl .W64 (.reg .r13) (.lit
 
 /-- At `b58`: the frame, R13 the tree (below 24). -/
 def s58 : SState :=
-  init [frameRegion, 16] [(.rsp, .ptr 0 0)] [] [(.reg .r13, 24)] (Run.frameAliases ++ [])
+  Run.frameState [(.rbx, .label "memset")] [] [(.reg .r13, 24)]
 
-/-- At `b65`: the frame's first 20540 bytes, the slots, the path's node; RCX below 10. -/
+/-- At `b65`: the frame's prefix, slots, path node; RCX below 10 and RBX `memset`. -/
 def s65 : SState :=
-  init [20540, 16, 16] [(.rsp, .ptr 0 0)] [] [(.reg .rcx, 10)]
+  init [20540, 16, 16] [(.rsp, .ptr 0 0), (.rbx, .label "memset")] [] [(.reg .rcx, 10)]
     (Run.frameAliases ++ [(pathSym, 2, 0)])
 
 /-- At `b96`: the frame's first 20156 bytes, the slots, the root's slot. -/
@@ -75,22 +76,25 @@ def s96 : SState :=
 def s96e : SState := ((exec b96 s96).getD (s96, .fall)).1
 
 /-- After `memset` of hasher A: its `buf_len` zero. -/
-def s66 : SState := litS [] 4432 0
+def s66 : SState := litS [(.r14, .label "memcpy")] 4432 0
 
 /-- After the address's `memcpy`: RBX, R13 the loop's, RBP the address, R12 hasher A,
 `buf_len` 16. -/
 def s75 : SState :=
-  litS [(.rbx, .lit 32), (.r13, .lit 32), (.rbp, .ptr 0 9344), (.r12, .ptr 0 4096)] 4432 16
+  litS [(.rbx, .lit 32), (.r13, .lit 32), (.rbp, .ptr 0 9344), (.r12, .ptr 0 4096),
+    (.r14, .label "memcpy")] 4432 16
 
 /-- After the clone: hasher B's `buf_len` 48. -/
-def s80 : SState := litS [] 912 48
+def s80 : SState := litS [(.r14, .label "memcpy")] 912 48
 
 /-- After the children's `memcpy`: RBX, R12 the loop's, RBP the children, B's `buf_len` 48. -/
-def s86 : SState := litS [(.rbx, .lit 32), (.r12, .lit 32), (.rbp, .ptr 0 3072)] 912 48
+def s86 : SState := litS [(.rbx, .lit 32), (.r12, .lit 32), (.rbp, .ptr 0 3072),
+  (.r14, .label "memcpy")] 912 48
 
 /-- After the state's copy, the block's `memset` and the block's `memcpy`: R13 B's `buf_len`
 (80), R15 the block, R12 hasher A. -/
-def s91 : SState := frameS [(.r13, .lit 80), (.r15, .ptr 0 2048), (.r12, .ptr 0 4096)]
+def s91 : SState := frameS [(.r13, .lit 80), (.r15, .ptr 0 2048), (.r12, .ptr 0 4096),
+  (.r14, .label "memcpy")]
 
 end
 
@@ -100,7 +104,7 @@ sym_block run_b58 := exec b58 s58
 sym_block run_b59 := exec b59 (frameS [(.r12, .ptr 0 4096), (.r14, .ptr 0 112)])
 sym_block run_b60 := exec b60 (frameS [(.r12, .ptr 0 4096)])
 sym_block run_b61 := exec b61 (frameS [(.r12, .ptr 0 4096)])
-sym_block run_b62 := exec b62 (frameS [(.r14, .ptr 0 576)])
+sym_block run_b62 := exec b62 (frameS [(.r14, .ptr 0 576), (.rbx, .label "memcpy")])
 sym_block run_b63 := exec b63 (frameS [])
 sym_block run_b64 := exec b64 (frameS [])
 sym_block run_b65 := exec b65 s65

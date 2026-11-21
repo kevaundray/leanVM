@@ -79,11 +79,10 @@ public theorem bottom {k : Nat} (hp : Placed code k)
     Eventually (step1 Host.exe) R st := by
   have C := h.common
   -- Block 5.
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b5Offset + b5.length)).toBitVec
-  have hwf : env.WF := frame_wf P C.kept
+  let env := Env.ofMachine st.data (frameRs m₀) (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b5Offset + b5.length)).toBitVec
+  have hwf : env.WF := frameG_wf P C.kept
   have hm0 : Match env st5 st.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨h.rsp.trans (ad_int m₀ 24).symm,
-      h.rbp.trans (ad_int m₀ 56).symm, trivial⟩ trivial trivial trivial
+    match_stG P C.same h.rsp ⟨h.rbp.trans (ad_int m₀ 56).symm, trivial⟩
   obtain ⟨h0, h1, h2, h3, h8, h9, hsp, hk, hw, h6w, h7w, -⟩ := st5_facts
   refine call_step (b5_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b5 hwf rfl hpc hm0
     fun st₁ hpc₁ hm₁ => ?_
@@ -249,12 +248,11 @@ public theorem bottom {k : Nat} (hp : Placed code k)
       rw [← hrest]
       exact bytesAt_bytesOf (C₂.mapped P (by fro))
     -- Block 7.
-    let env₃ := Env.ofMachine st₃.data [frR m₀] (fun _ => 0)
+    let env₃ := Env.ofMachine st₃.data (frameRs m₀) (fun _ => 0)
       (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b7Offset + b7.length)).toBitVec
-    have hwf₃ : env₃.WF := frame_wf P C₃.kept
+    have hwf₃ : env₃.WF := frameG_wf P C₃.kept
     have hm₃' : Match env₃ (stF []) st₃.data :=
-      match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp₃.trans (ad_int m₀ 24).symm, trivial⟩ trivial
-        trivial trivial
+      match_stG P C₃.same hrsp₃ trivial
     obtain ⟨f0, f1, f2, fsp, fk, f72, fw, flow⟩ := st7_facts
     refine call_step (b7_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b7 hwf₃ rfl hpc₃'
       hm₃' fun st₄ hpc₄ hm₄ => ?_
@@ -306,11 +304,10 @@ public theorem bottom {k : Nat} (hp : Placed code k)
       rwa [ad_add] at this
     have hrsp₅' : rspOf st₅.data = ad m₀ (fr + 24) := by rw [hrsp₅, hrsp₄, ad_add]
     -- Block 8.
-    let env₅ := Env.ofMachine st₅.data [frR m₀] (fun _ => 0) 0
-    have hwf₅ : env₅.WF := frame_wf P C₅.kept
+    let env₅ := Env.ofMachine st₅.data (frameRs m₀) (fun _ => 0) 0
+    have hwf₅ : env₅.WF := frameG_wf P C₅.kept
     have hm₅ : Match env₅ (stF []) st₅.data :=
-      match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp₅'.trans (ad_int m₀ 24).symm, trivial⟩ trivial
-        trivial trivial
+      match_stG P C₅.same hrsp₅' trivial
     obtain ⟨e3, ebp, e15, esp, e12, emem⟩ := st8_facts
     refine fall_step (b8_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b8 hwf₅ (hpc₅.trans rfl)
       hm₅ fun st₆ hpc₆ hm₆ => hok st₆ x leaf hl (hpc₆.trans rfl) ?_

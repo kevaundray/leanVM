@@ -3,6 +3,7 @@ module
 public import NativeRustcX64.Code.Xmss.Names
 
 public import NativeRustcX64.Spec.Mem
+public import NativeRustcX64.Spec.Got
 public import NativeRustc.Keccak.Hasher
 
 /-!
@@ -13,6 +14,8 @@ below RSP (`keccakFStack`, `updateStack`, `finalizeStack` bytes: its pushes, its
 zone and its callees' stacks with their return addresses; `StackOk` also maps the return address
 at RSP). Each returns with the callee-saved registers kept (and RSP 8 above, `Spec`), and changes no
 byte outside its outputs and its stack.
+The hasher entry points also require the loader's GOT slots, disjoint from their full stack
+budget and their input/output areas. `keccak_f` does not use the GOT.
 
 - `keccak_f(a)` (RDI): the 200 bytes at `a` become `Keccak.keccakF` of them.
 - `Hasher::update(h, data, n)` (RDI, RSI, RDX): a hasher at `h` (344 bytes) that has absorbed
@@ -68,13 +71,14 @@ def KeccakFPost (m m' : MachineData) : Prop :=
     SameOutside m.dmem m'.dmem (fun p ↦ InRange a 200 p ∨ InRange (stackBelow m keccakFStack)
       keccakFStack p) ∧ Saved m m'
 
-/-- `Hasher::update`'s precondition. -/
+/-- `Hasher::update`'s precondition, including the read-only `memcpy` GOT slot. -/
 def UpdatePre (m : MachineData) : Prop :=
   let h := reg m .rdi; let d := reg m .rsi; let n := (reg m .rdx).toNat
   StackOk m updateStack ∧ RcAt m updateStack ∧ (∃ a, Keccak.HasherHolds (bytesOf m.dmem h 344) a) ∧
     Mapped m.dmem h 344 ∧ NoWrap h 344 ∧ Mapped m.dmem d n ∧ NoWrap d n ∧ Apart h 344 d n ∧
     Apart h 344 (stackBelow m updateStack) (updateStack + 8) ∧
-    Apart d n (stackBelow m updateStack) (updateStack + 8) ∧ Apart h 344 rcAddr 192
+    Apart d n (stackBelow m updateStack) (updateStack + 8) ∧ Apart h 344 rcAddr 192 ∧
+    GotAt m updateStack [(h, 344), (d, n)] ["memcpy"]
 
 /-- `Hasher::update`'s postcondition. -/
 def UpdatePost (m m' : MachineData) : Prop :=
@@ -85,14 +89,15 @@ def UpdatePost (m m' : MachineData) : Prop :=
     SameOutside m.dmem m'.dmem (fun p ↦ InRange h 344 p ∨ InRange (stackBelow m updateStack)
       updateStack p) ∧ Saved m m'
 
-/-- `Hasher::finalize`'s precondition. -/
+/-- `Hasher::finalize`'s precondition, including the read-only memory-routine GOT slots. -/
 def FinalizePre (m : MachineData) : Prop :=
   let o := reg m .rdi; let h := reg m .rsi
   StackOk m finalizeStack ∧ RcAt m finalizeStack ∧
     (∃ a, Keccak.HasherHolds (bytesOf m.dmem h 344) a) ∧ Mapped m.dmem h 344 ∧ NoWrap h 344 ∧
     Mapped m.dmem o 32 ∧ NoWrap o 32 ∧ Apart o 32 h 344 ∧
     Apart h 344 (stackBelow m finalizeStack) (finalizeStack + 8) ∧
-    Apart o 32 (stackBelow m finalizeStack) (finalizeStack + 8) ∧ Apart o 32 rcAddr 192
+    Apart o 32 (stackBelow m finalizeStack) (finalizeStack + 8) ∧ Apart o 32 rcAddr 192 ∧
+    GotAt m finalizeStack [(o, 32), (h, 344)] ["memcpy", "memset"]
 
 /-- `Hasher::finalize`'s postcondition. -/
 def FinalizePost (m m' : MachineData) : Prop :=

@@ -91,6 +91,7 @@ theorem leaf_hash (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.
       (r.load_word (allOf_left (allOf_left hK₂.2)).2.2.2.2.1.2.2))
     (toNat_of_lit hm₃ rfl (by decide)) (r.pre_pp hpre) (by decide)
     (by simp [slotsOff, Run.chainSlots])
+    (((r.got hpre).1 "memcpy" (by simp)).2.2.2 (reg r.m0 .rsi, 16) (by simp))
     (hH₂.keepB hkb₃ (by decide) (by decide +kernel))
   refine ⟨hpre₃, fun m₄ hsp₄ hQ₄ ↦ ?_⟩
   obtain ⟨hK₄, hS₄, -, hH₄⟩ := hpost₃ m₄ hsp₄ hQ₄

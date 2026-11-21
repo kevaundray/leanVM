@@ -69,16 +69,19 @@ theorem seg_b150 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     {x E : List UInt8} (hx : x.length = 64) (hE : E.length ≤ 1024) {i : Nat} {e : List UInt8}
     (he : e.length = 16) {R : MachineState → Prop} {m : MachineData} (hK : Keep r l x E i m)
     (h12 : Run.RegIs m .r12 (r.off 4096)) (hcell : BytesAt m.dmem (r.off 184) e)
+    (hf : Funcs m)
     (cont : ∀ m', Keep r l x E i m' → Run.RegIs m' .r12 (r.off 4096) →
-      BytesAt m'.dmem (r.off 184) e → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset⟩) :
+      BytesAt m'.dmem (r.off 184) e → Funcs m' →
+      Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b150Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) 0
-  have hm := match_frameS hK.1 hK.2.1 (ret := 0) (k := []) trivial
+  have hm := match_frameS hpre hK.1 hK.2.1 (ret := 0) (k := []) trivial
   refine blk r hp b150_in_code (List.cons_ne_nil _ _) run_b150 hwf (fun _ h ↦ nomatch h) hm
     fun st hm1 hpc ↦ ?_
   exact pc_at (hpc.trans (labelAt r hp b116_in_code rfl))
     (cont _ (Keep.of_block hpre hx hE hK hm1 hwf (by decide +kernel) rfl) (regIs_reg hm1 rfl h12)
-      (r.bytesAt_kept hpre hm1 hwf (by omega) hcell (by rw [he]; decide +kernel)))
+      (r.bytesAt_kept hpre hm1 hwf (by omega) hcell (by rw [he]; decide +kernel))
+      ⟨regIs_reg hm1 rfl hf.1, regIs_reg hm1 rfl hf.2⟩)
 
 /-- **`b118`**: the chain's word `BE32(i)` at `72`; then the steps at `b119`. -/
 theorem seg_b118 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l : Nat}
@@ -87,11 +90,12 @@ theorem seg_b118 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (hF : r.Frame m) (hK : KeepRest r l x E m) (h80 : r.WordAt m 80 i.toUInt64)
     (h168 : r.WordAt m 168 (16 * i).toUInt64) (hsi : Run.RegIs m .rsi (BitVec.ofNat 64 d))
     (h12 : Run.RegIs m .r12 (r.off 4096)) (hcell : BytesAt m.dmem (r.off 184) v)
+    (hf : Funcs m)
     (cont : ∀ m', Keep r l x E i m' → Regs r m' d → BytesAt m'.dmem (r.off 184) v →
       Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b119Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b118Offset⟩ := by
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
-  have hm := match_frameS hF hK (ret := 0) (k := []) trivial
+  have hm := match_frameS hpre hF hK (ret := 0) (k := []) trivial
   refine blk r hp b118_in_code (List.cons_ne_nil _ _) run_b118 hwf (fun _ h ↦ nomatch h) hm
     fun st hm1 hpc ↦ ?_
   have hw := frame_write_val hm1 (o := 72) (n := 4)
@@ -110,7 +114,8 @@ theorem seg_b118 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
       r.bytesAt_kept hpre hm1 hwf (by simp [NativeRustc.length_wordBytes]) h168
         (by rw [NativeRustc.length_wordBytes]; decide +kernel), hw⟩
   exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b119Offset) (hpc.trans rfl) (cont _ hK1
-    ⟨regIs_reg hm1 rfl hsi, regIs_reg hm1 rfl h12⟩
+    ⟨regIs_reg hm1 rfl hsi, regIs_reg hm1 rfl h12,
+      regIs_reg hm1 rfl hf.1, regIs_reg hm1 rfl hf.2⟩
     (r.bytesAt_kept hpre hm1 hwf (by omega) hcell (by rw [hv]; decide +kernel)))
 
 end

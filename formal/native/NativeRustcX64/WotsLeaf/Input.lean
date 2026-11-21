@@ -31,7 +31,7 @@ theorem pre_msg (hpre : r.Pre) :
 theorem pre_rnd (hpre : r.Pre) : WotsLeafPre.Input r.m0 (WotsLeafPre.rndPtr r.m0) 16 :=
   hpre.2.2.2.2.2.2.2.1
 theorem pre_values (hpre : r.Pre) :
-    WotsLeafPre.Input r.m0 (WotsLeafPre.valuesPtr r.m0) (16 * 58) := hpre.2.2.2.2.2.2.2.2
+    WotsLeafPre.Input r.m0 (WotsLeafPre.valuesPtr r.m0) (16 * 58) := hpre.2.2.2.2.2.2.2.2.1
 
 omit [Labels] in
 /-- A part of an input is an input. -/
@@ -65,11 +65,15 @@ theorem apart_regions (hpre : r.Pre) {b : BitVec 64} {n : Nat} (h : WotsLeafPre.
 
 /-- **An input as the executor's extra region.** -/
 theorem extraOK_input (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem) {b : BitVec 64}
-    {n : Nat} (h : WotsLeafPre.Input r.m0 b n) : ExtraOK r m [(b, n)] :=
+    {n : Nat} (h : WotsLeafPre.Input r.m0 b n)
+    (hg : ∀ l ∈ ["memcpy", "memset"], Apart (gotAddr l) 8 b n) : ExtraOK r m [(b, n)] :=
   ⟨⟨⟨fun i hi ↦ hk _ (h.1 i hi), h.2.1⟩, trivial⟩, ⟨r.apart_regions hpre h, trivial⟩,
-    List.pairwise_singleton _ _⟩
+    List.pairwise_singleton _ _, by
+      intro l hl e he
+      simp only [List.mem_singleton] at he
+      subst e
+      exact hg l hl⟩
 
-omit [Labels] in
 /-- **A word the frame holds as a value's bytes** loads as the value. -/
 theorem load_word {m : MachineData} {extra : List (BitVec 64 × Nat)} {ret : BitVec 64} {o : Nat}
     {v : BitVec 64} (h : BytesAt m.dmem (r.off o) ((List.range 8).map (byteOf v))) :

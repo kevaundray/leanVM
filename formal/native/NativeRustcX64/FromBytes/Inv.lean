@@ -3,6 +3,7 @@ module
 public import NativeRustcX64.FromBytes.Glue
 public import NativeRustcX64.Spec.FromBytes
 public import NativeRustcX64.Code.Xmss.FromBytes
+public import NativeRustcX64.Got
 
 /-!
 # `from_bytes`'s closure: the states of its proof
@@ -65,6 +66,10 @@ def pathBytes (m₀ : MachineData) : List UInt8 := ((List.range 16).map (pathSlo
 def Scratch (m₀ : MachineData) (p : BitVec 64) : Prop :=
   InRange (base m₀) fromBytesStack p ∨ InRange (cur m₀) 8 p
 
+/-- The loader's single GOT slot needed by the closure. -/
+abbrev ParserGot [Labels] (m₀ : MachineData) : Prop :=
+  GotAt m₀ fromBytesStack [(out m₀, 1200), (cur m₀, 8), (sig m₀, 2404)] ["memcpy"]
+
 /-- What holds from the prologue's end to the last `memcpy`, RSP at stack offset `o`. -/
 structure CommonAt (m₀ m : MachineData) (o : Nat) : Prop where
   r15 : m.regs.get64 .r15 = cur m₀
@@ -114,7 +119,7 @@ structure MidAt (m₀ m : MachineData) : Prop where
   chain : BytesAt m.dmem (base m₀ + BitVec.ofNat 64 952) (chainBytes m₀)
 
 /-- At the `memcpy` of the path to the output (RSP below the frame, at the return address). -/
-structure PathCall (m₀ m : MachineData) : Prop where
+structure PathCall [Labels] (m₀ m : MachineData) : Prop where
   common : CommonAt m₀ m 0
   rbx : m.regs.get64 .rbx = out m₀
   rdi : m.regs.get64 .rdi = out m₀
@@ -123,6 +128,7 @@ structure PathCall (m₀ m : MachineData) : Prop where
   cursor : BytesAt m.dmem (cur m₀) (regBytes (BitVec.ofNat 64 (pos m₀ + 1200)))
   chain : BytesAt m.dmem (base m₀ + BitVec.ofNat 64 952) (chainBytes m₀)
   path : BytesAt m.dmem (base m₀ + BitVec.ofNat 64 24) (pathBytes m₀)
+  r14 : m.regs.get64 .r14 = (Labels.label "memcpy").toBitVec
 
 /-- The facts of the precondition the proof uses, as arithmetic on addresses. -/
 structure Pre (m₀ : MachineData) : Prop where
@@ -144,9 +150,9 @@ structure Pre (m₀ : MachineData) : Prop where
   outSig : Apart (out m₀) 1200 (sig m₀) 2404
   curSig : Apart (cur m₀) 8 (sig m₀) 2404
 
-theorem pre_of {m₀ : MachineData} (h : FromBytesPre m₀) : Pre m₀ := by
+theorem pre_of [Labels] {m₀ : MachineData} (h : FromBytesPre m₀) : Pre m₀ := by
   obtain ⟨⟨hle, hnw, hmap⟩, hpos, ⟨ho1, ho2, ho3⟩, ⟨hc1, hc2, hc3⟩, ⟨hs1, hs2, hs3⟩, hoc, hos,
-    hcs⟩ := h
+    hcs, _⟩ := h
   have hF : (base m₀).toNat = (rspOf m₀).toNat - fromBytesStack := by
     unfold base stackBelow
     rw [BitVec.toNat_sub, BitVec.toNat_ofNat]
@@ -179,6 +185,31 @@ theorem Pre.baseNW' {m₀ : MachineData} (P : Pre m₀) : NoWrap (base m₀) fro
   have := P.baseNW
   unfold NoWrap fromBytesStack at *
   omega
+
+/-- Neither parser scratch nor its output can overwrite the `memcpy` slot. -/
+theorem Pre.got_not_changed [Labels] {m₀ : MachineData} (P : Pre m₀) (G : ParserGot m₀)
+    {i : Nat} (hi : i < 8) :
+    ¬(Scratch m₀ (gotAddr "memcpy" + BitVec.ofNat 64 i) ∨
+      InRange (out m₀) 1200 (gotAddr "memcpy" + BitVec.ofNat 64 i)) := by
+  have hg := G.1 "memcpy" (by simp)
+  rintro ((h | h) | h)
+  · have hs : Apart (gotAddr "memcpy") 8 (base m₀) fromBytesStack := by
+      have hs := hg.2.2.1
+      change Apart (gotAddr "memcpy") 8 (base m₀) (fromBytesStack + 8) at hs
+      unfold Apart at hs ⊢
+      omega
+    exact hs.not_inRange hg.2.1 P.baseNW' hi h
+  · exact (hg.2.2.2 (cur m₀, 8) (by simp)).not_inRange hg.2.1 P.curNW hi h
+  · exact (hg.2.2.2 (out m₀, 1200) (by simp)).not_inRange hg.2.1 P.outNW hi h
+
+/-- The GOT bytes in any parser state with the ordinary write footprint. -/
+theorem Pre.got_byte [Labels] {m₀ m : MachineData} (P : Pre m₀) (G : ParserGot m₀)
+    (hs : SameOutside m₀.dmem m.dmem (fun p => Scratch m₀ p ∨ InRange (out m₀) 1200 p))
+    {i : Nat} (hi : i < 8) :
+    m.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+      some (byteOf (Labels.label "memcpy").toBitVec i) := by
+  rw [hs _ (P.got_not_changed G hi)]
+  exact G.byte (by simp) hi
 
 /-- The signature's bytes are not scratch. -/
 theorem Pre.sig_not_scratch {m₀ : MachineData} (P : Pre m₀) {x : Nat} (hx : x < 2404) :

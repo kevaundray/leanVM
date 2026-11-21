@@ -39,7 +39,7 @@ theorem pc_next {st : MachineState} {a b : Nat} {ds : List Directive}
 theorem ctxS_match {m : MachineData} (hF : r.Frame m) (hrbx : Run.RegIs m .rbx (ctx r))
     (vars : Nat → BitVec 64) (ret : BitVec 64) :
     Match (Env.ofMachine m (regs3 r) vars ret) ctxS m :=
-  match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
+  match_ofMachine ⟨rfl, rfl, rfl, rfl, rfl, trivial⟩
     ⟨by
       show rspOf m = r.base + BitVec.ofInt 64 0
       rw [hF.1]

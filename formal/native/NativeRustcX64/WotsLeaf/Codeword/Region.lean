@@ -28,15 +28,17 @@ def Run.chainSlots (r : Run) : List Slot :=
     (96, 8, regBytes r.out), (104, 8, regBytes (reg r.m0 .rsi)), (614, 58, r.digitsPre 58)]
 
 /-- **At the chains' loop, chain 0**: what the frame keeps, RDX `0`, R12 the frame's byte `112`. -/
-def Run.AtChains0 (r : Run) (m : MachineData) : Prop :=
-  Keep r r.chainSlots m ∧ Run.RegIs m .rdx (BitVec.ofNat 64 0) ∧ Run.RegIs m .r12 (r.off 112)
+def Run.AtChains0 [Labels] (r : Run) (m : MachineData) : Prop :=
+  Keep r r.chainSlots m ∧ Run.RegIs m .rdx (BitVec.ofNat 64 0) ∧ Run.RegIs m .r12 (r.off 112) ∧
+    Run.RegIs m .r13 (Labels.label "memcpy").toBitVec ∧
+    Run.RegIs m .rbx (Labels.label "memset").toBitVec
 
 end
 
 public section
 
 section
-variable {r : Run}
+variable {r : Run} [Labels]
 
 /-- The digest's low word, loaded. -/
 theorem load_lo {m : MachineData} (h : BytesAt m.dmem (r.off 112) r.digest32)
@@ -143,7 +145,7 @@ theorem codeword_region : RegionSpec (fun r m ↦ r.AtCheck m) NativeRustcX64.Xm
     (by rw [length_digitsPre]; decide) hD9
   refine .done _ (.inr ⟨?_, ⟨⟨hK10.1, hK10.2.1, ⟨by simp, by norm_num, h48⟩, hK10.2.2.1, hK10.2.2.2.1,
     hK10.2.2.2.2.1, ⟨length_digitsPre _ _, by norm_num, hD10⟩, trivial⟩, regIs_lit hm10 rfl,
-    regIs_ptr hm10 rfl⟩, hcw⟩)
+    regIs_ptr hm10 rfl, hm10.regs .r13 _ rfl, hm10.regs .rbx _ rfl⟩, hcw⟩)
   rw [show st10.pc = _ from hpc10]
   exact Run.label_of_block r hp b15_in_code rfl
 

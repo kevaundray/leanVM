@@ -20,10 +20,10 @@ open NativeRustc NativeRustc.Sphincs NativeRustcX64.Sym NativeRustcX64.Sphincs.S
 @[expose] public section
 
 /-- At the entry: region 0 the frame (RSP its top `29384`), region 1 the slots below it, region 2
-the input (RDI 1024 below it). -/
+the input (RDI 1024 below it), then the loader's memcpy and memset slots. -/
 def entryS : SState :=
-  init [29392, 16, 7816] [(.rsp, .ptr 0 29384), (.rdi, .ptr 2 (-1024))] [] []
-    [(.ptr 0 (-8), 1, 8), (.ptr 0 (-16), 1, 0)]
+  (init [29392, 16, 7816, 8, 8] [(.rsp, .ptr 0 29384), (.rdi, .ptr 2 (-1024))] [] []
+    (Run.frameAliases ++ [(.gotSlot "memset", 4, 0)])).withKnownBytes 4 0 8 (.label "memset")
 
 /-- The key's words in registers: R14, R15, R13, RBP the words 0 .. 3. -/
 def KeyRegs (r : Run) (m : MachineData) : Prop :=
@@ -68,20 +68,23 @@ theorem prologue_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) :
   have hk : b0.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := wf3 r hpre (m := r.m0) (fun _ h ↦ h) (fun _ _ ↦ rfl) (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b1Offset).toBitVec
   have hS0 : SameOutside r.m0.dmem r.m0.dmem r.StackArea := fun _ _ ↦ rfl
-  have hm : Match (Env.ofMachine r.m0 (regs3 r) (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b1Offset).toBitVec) entryS r.m0 :=
-    match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
-      ⟨by
-        show rspOf r.m0 = r.base + BitVec.ofInt 64 ((29384 : Nat) : Int)
-        rw [BitVec.ofInt_natCast]
-        simp [Run.base, frameSize],
-      by
-        show reg r.m0 .rdi = r.input + BitVec.ofInt 64 (-1024)
-        rw [input_sub], trivial⟩
-      trivial trivial
-      ⟨r.alias8, by
-        show r.base + BitVec.ofInt 64 (-16) = (r.base - 16#64) + BitVec.ofInt 64 0
-        rw [show BitVec.ofInt 64 (-16) = -16#64 by decide, show BitVec.ofInt 64 0 = 0#64 by decide]
-        bv_omega, trivial⟩
+  have hm : Match (Env.ofMachine r.m0 (regs3 r) (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b1Offset).toBitVec) entryS r.m0 := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, rfl, rfl, rfl, trivial⟩
+        ⟨by
+          show rspOf r.m0 = r.base + BitVec.ofInt 64 ((29384 : Nat) : Int)
+          rw [BitVec.ofInt_natCast]
+          simp [Run.base, frameSize],
+        by
+          show reg r.m0 .rdi = r.input + BitVec.ofInt 64 (-1024)
+          rw [input_sub], trivial⟩
+        trivial trivial
+        ⟨r.alias8, by
+          show r.base + BitVec.ofInt 64 (-16) = (r.base - 16#64) + BitVec.ofInt 64 0
+          rw [show BitVec.ofInt 64 (-16) = -16#64 by decide, show BitVec.ofInt 64 0 = 0#64 by decide]
+          bv_omega, by simp [Sym.eval, Env.base, regs3, gotAddr], trivial⟩
+    · intro i hi
+      simpa [Sym.eval, Env.base, regs3] using r.got_byte hpre hS0 (by simp : "memset" ∈ _) hi
   refine exec_then hk run_b0 hwf (fun _ _ ↦ rfl) hm fun st hm' hpc ↦ ?_
   have h0 : (regs3 r)[0]? = some (r.base, 29392) := rfl
   have hcall : r.AtCall st.data := by

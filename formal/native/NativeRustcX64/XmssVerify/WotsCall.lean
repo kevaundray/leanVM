@@ -39,7 +39,7 @@ theorem wotsLeafPre (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m�
   have e8 : rspOf m + 8#64 = ad m₀ (fr + 8) := by rw [hrsp, ad_add]
   have e16 : rspOf m + 16#64 = ad m₀ (fr + 16) := by rw [hrsp, ad_add]
   refine ⟨stackOk_at P C hrsp (by omega) (by decide), rcAt_at P C hrsp (by omega) (by decide),
-    ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [e8]; exact C.mapped P (by fro)
   · rw [hrsp]; exact P.ad_nw (by fro)
   · rw [h0]; exact wotsInput P C hrsp ho h (by omega)
@@ -47,6 +47,18 @@ theorem wotsLeafPre (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m�
   · rw [h4, h5]; exact wotsInput P C hrsp ho4 h4' hn5
   · rw [WotsLeafPre.rndPtr, e8, ptrAt_of h6]; exact wotsInput P C hrsp ho6 h6' (by omega)
   · rw [WotsLeafPre.valuesPtr, e16, ptrAt_of h7]; exact wotsInput P C hrsp ho7 h7' (by omega)
+  · simp only [h0, h1, h4, h5, WotsLeafPre.rndPtr, WotsLeafPre.valuesPtr,
+      e8, e16, ptrAt_of h6, ptrAt_of h7]
+    apply gotAt_at P C hrsp (by omega) (by decide) (by decide)
+    intro l hl a ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl | rfl | rfl | rfl | rfl
+    · exact got_apart P hl (by fro) (by dsimp; decide)
+    · exact got_apart P hl (by fro) (by dsimp; decide)
+    · exact got_apart P hl (by fro) hn5
+    · exact got_apart P hl (by fro) (by dsimp; decide)
+    · exact got_apart P hl (by fro) (by dsimp; decide)
+    · exact got_apart P hl (by fro) (by dsimp; decide)
 
 omit [Labels] in
 /-- The chain values `wots_leaf` reads from a layer's bytes in the frame. -/

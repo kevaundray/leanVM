@@ -166,10 +166,10 @@ theorem knownOK_reg {m : MachineData} {ret : BitVec 64} {y : Reg64} {k : List (R
   ⟨rfl, hk⟩
 
 /-- The frame's symbolic state for a state of the frame. -/
-theorem Run.frame_match (r : Run) {m : MachineData} (hF : r.Frame m) {ret : BitVec 64}
+theorem Run.frame_match (r : Run) (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) {ret : BitVec 64}
     {k : List (Reg64 × Sym)} (hk : KnownOK r m ret k) :
     Match (r.env m (fun _ ↦ 0) ret) (frameS k) m :=
-  r.match_frame hF hk trivial trivial trivial
+  r.match_frame hpre hF hk trivial trivial trivial
 
 omit [Labels] in
 /-- **Bytes in memory, two pieces.** -/
@@ -225,7 +225,7 @@ theorem Run.frameCall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hp
   have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc j').toBitVec
   have hk' := hb.trans hp.1 (by rintro rfl; cases hx)
   refine exec_then hk' hx hwf (fun _ _ ↦ by show (r.pc j').toBitVec = _; rw [Run.pc, ← hj, Nat.add_assoc])
-    (Run.frame_match r hK.1 hk) fun st hm₁ hpc ↦ ?_
+    (Run.frame_match r hpre hK.1 hk) fun st hm₁ hpc ↦ ?_
   have hok' := hok
   simp only [keepOK, Bool.and_eq_true] at hok'
   have hc := Run.AtCall.of_match r hpre hK.1 hm₁ hwf hrsp hok'.1.1.1
@@ -251,7 +251,7 @@ theorem Run.frameFall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hp
     Eventually (step1 Host.exe) R ⟨m, r.pc j⟩ := by
   have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) 0
   have hk' := hb.trans hp.1 hne
-  refine exec_then hk' hx hwf (fun _ h ↦ nomatch h) (Run.frame_match r hK.1 hk)
+  refine exec_then hk' hx hwf (fun _ h ↦ nomatch h) (Run.frame_match r hpre hK.1 hk)
     fun st hm₁ hpc ↦ ?_
   obtain ⟨m₁, pc⟩ := st
   simp only [PcOk] at hpc

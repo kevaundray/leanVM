@@ -13,10 +13,12 @@ registers (352 to 383) and its return address (384). After the prologue RSP is t
 offset 8.
 
 The symbolic states its proof starts blocks from and the executor's results (`run_*`):
-- `entryS`, at the entry (`b0`, ending in `callq memcpy`): region 0 the frame (RSP at 384);
-- `copyS`, after the first `memcpy` (`b1`, `b2`, `b3`, ending in `callq memset`): region 0 the
-  frame, region 1 the hasher (R15);
-- `setS`, after `memset` (`b4`, ending in `callq memcpy`): likewise, R15 the hasher's buffer;
+- `entryS`, at the entry (`b0`, ending in an indirect `memcpy` call): region 0 the frame
+  (RSP at 384), region 1 the hasher, region 2 the loader's `memcpy` slot;
+- `copyS`, after the first `memcpy` (`b1`, `b2`, `b3`, ending in an indirect `memset` call):
+  region 0 the frame, region 1 the hasher (R15), region 2 the loader's `memset` slot;
+- `setS`, after `memset` (`b4`, ending in an indirect `memcpy` call): likewise with the
+  `memcpy` slot, R15 the hasher's buffer;
 - `padS`, after the second `memcpy` (`b5`'s first instruction, `b5a`: `PAD_FIRST` XORed into the
   byte after the buffered ones): region 0 that byte, at RSP + R14 + 8;
 - `xorS`, after it (the rest of `b5`, `b5b`: `PAD_LAST`, the block's lanes XORed into the state's,
@@ -52,14 +54,23 @@ def b5a : List Directive := b5.take 1
 /-- The rest of `b5`. -/
 def b5b : List Directive := b5.drop 1
 
+/-- The loader's slot description is knowledge, not a write by this function. -/
+def knownGot (l : Label) : List Write := [⟨2, 0, 8, .label l⟩]
+
 /-- At the entry. -/
-def entryS : SState := init [392] [(.rsp, .ptr 0 384)]
+def entryS : SState :=
+  (init [392, 344, 8] [(.rsp, .ptr 0 384)]
+    (aliases := [(.gotSlot "memcpy", 2, 0)])).withKnownBytes 2 0 8 (.label "memcpy")
 
 /-- After the first `memcpy`. -/
-def copyS : SState := init [392, 344] [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)]
+def copyS : SState :=
+  (init [392, 344, 8] [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)]
+    (aliases := [(.gotSlot "memset", 2, 0)])).withKnownBytes 2 0 8 (.label "memset")
 
 /-- After `memset`. -/
-def setS : SState := init [392, 344] [(.rsp, .ptr 0 8), (.r12, .ptr 0 16), (.r15, .ptr 1 200)]
+def setS : SState :=
+  (init [392, 344, 8] [(.rsp, .ptr 0 8), (.r12, .ptr 0 16), (.r15, .ptr 1 200)]
+    (aliases := [(.gotSlot "memcpy", 2, 0)])).withKnownBytes 2 0 8 (.label "memcpy")
 
 /-- The address `8(%rsp,%r14)`. -/
 def padAddr : Sym := .bin .add .W64 (.bin .add .W64 (.reg .rsp) (.reg .r14)) (.lit 8)

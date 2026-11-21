@@ -2,6 +2,7 @@ module
 
 public import NativeRustcX64.XmssVerify.Callee
 public import NativeRustcX64.XmssVerify.Exec
+public import NativeRustcX64.Got
 
 /-!
 # `xmss_verify`: the prologue (x86-64)
@@ -10,7 +11,8 @@ Block 0 from the entry: the callee-saved registers pushed, the frame allocated (
 probe), `memset(frame + 932, 0, 2400)`; block 1: the input's words 0 to 3 into registers, words 4
 to 7 (the message) to the frame at `152`, word 8 into R13 and its `u32` to `80` and `952`; to the
 head of the loop copying the signature's words (`LoopAt` before its first turn). One environment
-per block: region 0 the frame region, 1 the input words.
+per block: block 0 uses region 0 for the frame and regions 1 and 2 for the ordinary-memory
+`memcpy` and `memset` GOT slots; block 1 uses region 0 for the frame and region 1 for the input.
 -/
 
 namespace NativeRustcX64.Xmss.XmssVerify
@@ -108,6 +110,53 @@ omit [Labels] in
 theorem ad_int (m₀ : MachineData) (q : Nat) :
     ad m₀ fr + BitVec.ofInt 64 (q : Int) = ad m₀ (fr + q) := by
   rw [BitVec.ofInt_natCast, ad_add]
+
+/-- One environment includes the frame and both loader-provided slots. -/
+abbrev frameRs (m₀ : MachineData) : List (BitVec 64 × Nat) :=
+  [frR m₀, (gotAddr "memcpy", 8), (gotAddr "memset", 8)]
+
+theorem frameG_wf (P : Pre w m₀) {m : MachineData} (hk : Kept m₀.dmem m.dmem)
+    {vs : Nat → BitVec 64} {ret : BitVec 64} : (Env.ofMachine m (frameRs m₀) vs ret).WF := by
+  have hc := P.got.1 "memcpy" (by simp)
+  have hs := P.got.1 "memset" (by simp)
+  exact Env.wf_of
+    ⟨⟨(P.mapped.sub (i := fr) (k := 5816) (by fro)).kept hk, P.ad_nw (by fro)⟩,
+      ⟨(P.got.mapped (by simp)).kept hk, hc.2.1⟩,
+      ⟨(P.got.mapped (by simp)).kept hk, hs.2.1⟩, trivial⟩
+    (pairwise3 (got_apart P (by simp) (by fro) (by change 0 < 5816; decide)).symm
+      (got_apart P (by simp) (by fro) (by change 0 < 5816; decide)).symm
+      (by simpa using P.got.2))
+
+theorem got_byte (P : Pre w m₀) {m : MachineData}
+    (hs : SameOutside m₀.dmem m.dmem (InRange (lo m₀) 9200))
+    {l : Label} (hl : l ∈ ["memcpy", "memset"]) {i : Nat} (hi : i < 8) :
+    m.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      some (byteOf (Labels.label l).toBitVec i) := by
+  have hg := P.got.1 l hl
+  rw [hs _ (fun hin => not_inRange_of_apart P.loNW
+    ((hg.2.2.1.sub_left hg.2.1 (by omega) (by omega)).symm) (P.lo_mono hin))]
+  exact P.got.byte hl hi
+
+theorem match_stG (P : Pre w m₀) {m : MachineData}
+    (hs : SameOutside m₀.dmem m.dmem (InRange (lo m₀) 9200))
+    {ret : BitVec 64} {sp : Nat} {known : List (Reg64 × Sym)}
+    (hsp : rspOf m = ad m₀ (fr + sp))
+    (hk : AllOf (fun p => reg m p.1 =
+      p.2.eval (Env.ofMachine m (frameRs m₀) (fun _ => 0) ret)) known) :
+    Match (Env.ofMachine m (frameRs m₀) (fun _ => 0) ret) (stG sp known) m := by
+  apply Match.withKnownBytes
+  · apply Match.withKnownBytes
+    · apply match_ofMachine
+      · exact ⟨rfl, rfl, rfl, trivial⟩
+      · exact ⟨hsp.trans (ad_int m₀ sp).symm, hk⟩
+      · exact trivial
+      · exact trivial
+      · exact ⟨by simp [Sym.eval, Env.base, frameRs, gotAddr],
+          by simp [Sym.eval, Env.base, frameRs, gotAddr], trivial⟩
+    · intro i hi
+      simpa [Sym.eval, Env.base, frameRs] using got_byte P hs (by simp : "memcpy" ∈ _) hi
+  · intro i hi
+    simpa [Sym.eval, Env.base, frameRs] using got_byte P hs (by simp : "memset" ∈ _) hi
 
 omit [Labels] in
 theorem sp_eq (m₀ : MachineData) : ad m₀ (fr + 5808) = rspOf m₀ := by

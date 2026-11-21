@@ -253,7 +253,7 @@ theorem index_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : 
     exact h
   refine ⟨hF₃, hI₃, regIs_lit hm₃ (y := .r13) (c := 0) rfl, ?_, ?_,
     regIs_keep hm₃ rfl g12, regIs_ptr hm₃ (y := .r14) (o := 112) rfl,
-    ?_, ?_, ?_, ?_, h176⟩
+    ?_, ?_, ?_, ?_, h176, hm₃.regs .rbx _ rfl⟩
   · rw [hr15, bytes_treeWord, htree]
   · rw [hrbp, bytes_leafWord _ _ hbp8 hleaf]
   · have := hm₃.bytesAt_write (r := 0) (o := 80) (n := 8) (b := r.base) (sz := 29392) rfl

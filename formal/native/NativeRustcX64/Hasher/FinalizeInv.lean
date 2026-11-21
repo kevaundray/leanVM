@@ -4,6 +4,7 @@ public import NativeRustcX64.Code.Common.Finalize.Names
 
 public import NativeRustcX64.Hasher.Bytes
 public import NativeRustcX64.Hasher.FinalizeExec
+public import NativeRustcX64.Got
 
 /-!
 # `Hasher::finalize` (x86-64): where things are, what its states keep
@@ -32,6 +33,10 @@ def hAt (m : MachineData) : BitVec 64 := reg m .rsi
 def spAt (m : MachineData) : BitVec 64 := rspOf m
 /-- The frame's address. -/
 def frAt (m : MachineData) : BitVec 64 := spAt m - 384#64
+
+/-- Frame, input hasher, and the ordinary-memory slot read by the current block. -/
+def gotRegions [Labels] (m0 : MachineData) (l : Label) : List (BitVec 64 × Nat) :=
+  [(frAt m0, 392), (hAt m0, 344), (gotAddr l, 8)]
 
 /-- The hasher's bytes at the entry. -/
 def hbytes (m0 : MachineData) : List UInt8 := bytesOf m0.dmem (hAt m0) 344
@@ -89,13 +94,18 @@ theorem geo_of {m0 : MachineData} [Labels] (hpre : FinalizePre m0) : Geo m0 := b
   · exact hos.imp id fun h => by unfold oAt spAt; have := hu ▸ hs; omega
 
 theorem geoRc_of {m0 : MachineData} [Labels] (hpre : FinalizePre m0) : GeoRc m0 := by
-  obtain ⟨⟨hs, -, -⟩, ⟨-, hnw, hrs⟩, -, -, -, -, -, -, -, -, hor⟩ := hpre
+  obtain ⟨⟨hs, -, -⟩, ⟨-, hnw, hrs⟩, -, -, -, -, -, -, -, -, hor, -⟩ := hpre
   have hb : (stackBelow m0 finalizeStack).toNat = (rspOf m0).toNat - 624 := stackBelow_toNat hs
   have hu : finalizeStack = 624 := rfl
   unfold Apart at hrs hor
   rw [hb, hu] at hrs
   refine ⟨hnw, ?_, hor⟩
   exact hrs.imp id fun h => by unfold spAt; have := hu ▸ hs; omega
+
+/-- The loader assumptions at the finalize entry. -/
+theorem got_of {m0 : MachineData} [Labels] (hpre : FinalizePre m0) :
+    GotAt m0 finalizeStack [(oAt m0, 32), (hAt m0, 344)] ["memcpy", "memset"] :=
+  hpre.2.2.2.2.2.2.2.2.2.2.2
 
 theorem frAt_toNat {m0 : MachineData} (g : Geo m0) : (frAt m0).toNat = (spAt m0).toNat - 384 :=
   toNat_sub_ofNat' (by have := g.s; omega)
@@ -145,6 +155,28 @@ theorem rc_same {m0 m1 m : MachineData} [Labels] (g : Geo m0) (gr : GeoRc m0)
   have ht := toNat_add_ofNat' (a := rcAddr) (i := i) (by have := gr.nw; omega)
   rw [hfr.same _ (by rw [chgF_iff g, ht]; have := gr.rs; omega),
     h01 _ (by rw [frame_iff g, ht]; have := gr.rs; omega)]
+
+/-- Neither the prologue nor any intermediate frame mutation changes a GOT slot. -/
+theorem got_same {m0 m1 m : MachineData} [Labels] (hpre : FinalizePre m0)
+    (hfr : Fr m0 m1 m)
+    (h01 : SameOutside m0.dmem m1.dmem (InRange (frAt m0) 384))
+    {l : Label} (hl : l ∈ ["memcpy", "memset"]) {i : Nat} (hi : i < 8) :
+    m.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  have g := geo_of hpre
+  obtain ⟨_, hn, hs, _⟩ := (got_of hpre).1 l hl
+  have hb := stackBelow_toNat g.s
+  change Apart (gotAddr l) 8 (stackBelow m0 finalizeStack) (finalizeStack + 8) at hs
+  change (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 624 at hb
+  unfold Apart at hs
+  rw [hb] at hs
+  change _ ≤ _ ∨ (spAt m0).toNat - 624 + (624 + 8) ≤ _ at hs
+  have ht := toNat_add_ofNat' (a := gotAddr l) (i := i) (by
+    change (gotAddr l).toNat + 8 ≤ 2 ^ 64 at hn
+    omega)
+  have hs0 := g.s
+  rw [hfr.same _ (by rw [chgF_iff g, ht]; omega),
+    h01 _ (by rw [frame_iff g, ht]; omega)]
 
 /-- `Fr` after a step that keeps RSP, RBX, RBP and R13, changes memory only in `ChgF` and unmaps
 nothing. -/

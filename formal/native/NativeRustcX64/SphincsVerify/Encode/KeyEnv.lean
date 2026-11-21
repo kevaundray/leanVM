@@ -9,8 +9,8 @@ public import NativeRustcX64.SphincsVerify.Bswap
 # The frame's environment with `LAYER_HEIGHTS`
 
 `b104` reads `LAYER_HEIGHTS` (the rodata label `NativeRustcX64.Sphincs.Symbols.rodata7Label`, 24 bytes): its environment has the
-frame's two regions and the table as region 2 (`Run.envL`). It is well formed (`Run.envL_wf`), a
-fresh symbolic state with the label at region 2 describes a state of the frame
+frame's two regions and the table as region 2 (`Run.envL`), followed by the loader's memcpy and
+memset slots at regions 3 and 4. It is well formed (`Run.envL_wf`), and a seeded symbolic state
 (`Run.match_frameL`), a block ending in a call that writes only the frame's places is at the call
 (`Run.AtCall.of_matchL`), and keeps the bytes it does not write (`Run.bytesAt_keptL`). A word of
 the frame or of the table loaded is the word (`Run.load_word`, `Run.load_height`); a block's write
@@ -62,7 +62,9 @@ variable (r : Run) [Labels]
 
 /-- The environment of a state of the frame, region 2 `LAYER_HEIGHTS`. -/
 abbrev envL (m : MachineData) (ret : BitVec 64 := 0) : Sym.Env :=
-  Sym.Env.ofMachine m (r.frameRegs ++ [((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24)]) (fun _ ↦ 0) ret
+  Sym.Env.ofMachine m [(r.base, frameRegion), (r.base - 16#64, 16),
+    ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24),
+    (gotAddr "memcpy", 8), (gotAddr "memset", 8)] (fun _ ↦ 0) ret
 
 omit [Labels] in
 theorem length_lhBytes : lhBytes.length = 24 := by decide
@@ -79,50 +81,81 @@ theorem envL_wf (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) (ret : BitVec 
   have hbw := r.below_toNat hpre
   simp only [sphincsStack_eq] at hA hbw
   refine Sym.Env.wf_of ⟨⟨w0.mapped 0 _ _ rfl, w0.noWrap 0 _ _ rfl⟩,
-    ⟨w0.mapped 1 _ _ rfl, w0.noWrap 1 _ _ rfl⟩, ⟨fun i hi ↦ ?_, hw⟩, trivial⟩ ?_
+    ⟨w0.mapped 1 _ _ rfl, w0.noWrap 1 _ _ rfl⟩, ⟨fun i hi ↦ ?_, hw⟩,
+    ⟨w0.mapped 2 _ _ rfl, w0.noWrap 2 _ _ rfl⟩,
+    ⟨w0.mapped 3 _ _ rfl, w0.noWrap 3 _ _ rfl⟩, trivial⟩ ?_
   · show (m.dmem.get? ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec + BitVec.ofNat 64 i)).isSome
     rw [hlh i (by rw [length_lhBytes]; exact hi)]
     rfl
   · have h01 := w0.disjoint 0 1 _ _ _ _ (by decide) rfl rfl
-    unfold Apart at hA
-    refine List.pairwise_append.2 ⟨List.pairwise_pair.2 h01, List.pairwise_singleton _ _,
-      fun a ha b hb ↦ ?_⟩
-    change a ∈ [(r.base, frameRegion), (r.base - 16#64, 16)] at ha
-    rw [List.mem_singleton] at hb
-    subst hb
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
-    rcases ha with rfl | rfl
-    · unfold Apart
-      dsimp only
+    have h02 : Apart r.base frameRegion (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 := by
+      unfold Apart at *
       rw [frameRegion_eq]
       omega
-    · unfold Apart
-      dsimp only
+    have h12 : Apart (r.base - 16#64) 16 (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 := by
+      unfold Apart at *
       rw [hlo]
       omega
+    refine List.Pairwise.cons ?_ (List.Pairwise.cons ?_ (List.Pairwise.cons ?_ ?_))
+    · intro e he
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+      rcases he with rfl | rfl | rfl | rfl
+      · exact h01
+      · exact h02
+      · exact (r.got_apart_frame hpre (by simp)).symm
+      · exact (r.got_apart_frame hpre (by simp)).symm
+    · intro e he
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+      rcases he with rfl | rfl | rfl
+      · exact h12
+      · exact (r.got_apart_below hpre (by simp)).symm
+      · exact (r.got_apart_below hpre (by simp)).symm
+    · intro e he
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+      rcases he with rfl | rfl
+      · exact (r.got_apart_lh hpre (by simp)).symm
+      · exact (r.got_apart_lh hpre (by simp)).symm
+    · simpa using (r.got hpre).2
+
+omit [Labels] in
+/-- Keep the height table at region 2; loader slots occupy regions 3 and 4. -/
+def frameStateL (known : List (Reg64 × Sym))
+    (aliases : List (Sym × Nat × Int) := []) : Sym.SState :=
+  ((Sym.init [frameRegion, 16, 24, 8, 8] ((.rsp, .ptr 0 0) :: known)
+    [(NativeRustcX64.Sphincs.Symbols.rodata7Label, 2)] []
+    (frameAliases ++ [(.gotSlot "memcpy", 3, 0), (.gotSlot "memset", 4, 0)] ++ aliases)).withKnownBytes
+      3 0 8 (.label "memcpy")).withKnownBytes 4 0 8 (.label "memset")
 
 /-- **A fresh symbolic state** for a state of the frame, `LAYER_HEIGHTS` at region 2. -/
-theorem match_frameL {m : MachineData} {ret : BitVec 64} (hF : r.Frame m)
+theorem match_frameL (hpre : r.Pre) {m : MachineData} {ret : BitVec 64} (hF : r.Frame m)
     {known : List (Reg64 × Sym)}
     {aliases : List (Sym × Nat × Int)}
     (hknown : Sym.AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.envL m ret)) known)
     (haliases : Sym.AllOf (fun p ↦ p.1.eval (r.envL m ret) =
       (r.envL m ret).base p.2.1 + BitVec.ofInt 64 p.2.2) aliases) :
-    Sym.Match (r.envL m ret) (Sym.init [frameRegion, 16, 24] ((.rsp, .ptr 0 0) :: known)
-      [(NativeRustcX64.Sphincs.Symbols.rodata7Label, 2)] [] (frameAliases ++ aliases)) m :=
-  Sym.match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
-    ⟨by
-      show rspOf m = r.base + BitVec.ofInt 64 0
-      simp only [BitVec.ofInt_ofNat, BitVec.add_zero]
-      exact hF.1, hknown⟩
-    ⟨rfl, trivial⟩ trivial
-    ⟨by
-      show r.base + BitVec.ofInt 64 (-8) = (r.base - 16#64) + BitVec.ofInt 64 8
-      exact alias8 r,
-    by
-      show r.base + BitVec.ofInt 64 (-16) = (r.base - 16#64) + BitVec.ofInt 64 0
-      rw [show BitVec.ofInt 64 (-16) = -16#64 by decide, show BitVec.ofInt 64 0 = 0#64 by decide]
-      bv_omega, haliases⟩
+    Sym.Match (r.envL m ret) (frameStateL known aliases) m := by
+  apply Sym.Match.withKnownBytes
+  · apply Sym.Match.withKnownBytes
+    · apply Sym.match_ofMachine
+      · exact ⟨rfl, rfl, rfl, rfl, rfl, trivial⟩
+      · exact ⟨by
+          show rspOf m = r.base + BitVec.ofInt 64 0
+          simp only [BitVec.ofInt_ofNat, BitVec.add_zero]
+          exact hF.1, hknown⟩
+      · exact ⟨rfl, trivial⟩
+      · trivial
+      · refine ⟨alias8 r, ?_, ?_, ?_, haliases⟩
+        · change r.base + BitVec.ofInt 64 (-16) = (r.base - 16#64) + BitVec.ofInt 64 0
+          rw [show BitVec.ofInt 64 (-16) = -16#64 by decide, show BitVec.ofInt 64 0 = 0#64 by decide]
+          bv_omega
+        · simp [Sym.eval, Sym.Env.base, gotAddr]
+        · simp [Sym.eval, Sym.Env.base, gotAddr]
+    · intro i hi
+      simpa [Sym.eval, Sym.Env.base, envL] using
+        r.got_byte hpre hF.2.2.1 (by simp : "memcpy" ∈ _) hi
+  · intro i hi
+    simpa [Sym.eval, Sym.Env.base, envL] using
+      r.got_byte hpre hF.2.2.1 (by simp : "memset" ∈ _) hi
 
 /-- The places a block's writes (`frameWrites`) cover are in the stack area off the saved
 registers. -/

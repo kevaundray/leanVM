@@ -21,10 +21,12 @@ open LeanVM.Protocol.KeccakHash
 @[expose] public section
 
 /-- **At a chain step** (`b17`): chain `i` at position `p`, its value `cur` at `80`. -/
-def Run.AtStep (r : Run) (i p : Nat) (cur : List UInt8) (m : MachineData) : Prop :=
+def Run.AtStep [Labels] (r : Run) (i p : Nat) (cur : List UInt8) (m : MachineData) : Prop :=
   Keep r (r.stepSlots i) m ∧ BytesAt m.dmem (r.off 80) cur ∧
     Run.RegIs m .r14 (BitVec.ofNat 64 p) ∧ Run.RegIs m .rdx (BitVec.ofNat 64 i) ∧
-    Run.RegIs m .r12 (r.off 112)
+    Run.RegIs m .r12 (r.off 112) ∧
+    Run.RegIs m .r13 (Labels.label "memcpy").toBitVec ∧
+    Run.RegIs m .rbx (Labels.label "memset").toBitVec
 
 /-- The value a step leaves: `keccak_f` of the padded `T` XORed into the zero state, its first
 16 bytes. -/
@@ -61,6 +63,8 @@ theorem seg_b47 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i p : Nat} 
     {A : List UInt8} (hA : A.length = 200) {R : MachineState → Prop} {m : MachineData}
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))), (112, 200, A)]) m)
     (h12 : Run.RegIs m .r12 (r.off 112))
+    (h13 : Run.RegIs m .r13 (Labels.label "memcpy").toBitVec)
+    (hbx : Run.RegIs m .rbx (Labels.label "memset").toBitVec)
     (cont : ∀ m', r.AtStep i (p + 1) (A.take 16) m' →
       Eventually (step1 Host.exe) R ⟨m', if p + 1 = 3 then r.pc NativeRustcX64.Xmss.WotsLeaf.b48Offset else r.pc NativeRustcX64.Xmss.WotsLeaf.b17Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b47Offset⟩ := by
@@ -74,7 +78,8 @@ theorem seg_b47 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i p : Nat} 
     regIs_eval hm (v := .load 0 56 8) rfl (r.load_word h56)
   have hdx : Run.RegIs st.data .rdx (BitVec.ofNat 64 i) :=
     regIs_eval hm (v := .load 0 464 8) rfl (r.load_word h464)
-  refine pc_at ?_ (cont _ ⟨hK1.left, hcur, h14, hdx, regIs_reg hm rfl h12⟩)
+  refine pc_at ?_ (cont _ ⟨hK1.left, hcur, h14, hdx, regIs_reg hm rfl h12,
+    regIs_reg hm rfl h13, regIs_reg hm rfl hbx⟩)
   rw [pc_cond hpc (b := decide (p + 1 ≠ 3)) ?_, Run.label_of_block r hp b17_in_code rfl]
   · obtain rfl | rfl | rfl : p = 0 ∨ p = 1 ∨ p = 2 := by omega
     all_goals rfl
@@ -90,6 +95,8 @@ theorem seg_b46 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))),
       (112, 200, List.replicate 200 0), (472, 136, T ++ List.replicate 72 0)]) m)
     (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 64)) (h12 : Run.RegIs m .r12 (r.off 112))
+    (h13 : Run.RegIs m .r13 (Labels.label "memcpy").toBitVec)
+    (hbx : Run.RegIs m .rbx (Labels.label "memset").toBitVec)
     (cont : StepCont r i p T R) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b46Offset⟩ := by
   obtain ⟨s56, ⟨-, -, hA0⟩, ⟨-, -, hblk⟩, -⟩ := allOf_right hK.2
@@ -121,7 +128,10 @@ theorem seg_b46 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     at hB
   have hl' : A.length = 200 := by rw [← hA, Keccak.keccakF, Keccak.length_stateBytes]
   exact seg_b47 hp hpre hp3 hl' (hK₂.add ⟨⟨hl', by norm_num, hB⟩, trivial⟩)
-    (RegIs.of_saved hS rfl h12') fun m' h ↦ cont m' (by rw [stepOut, hA]; exact h)
+    (RegIs.of_saved hS rfl h12')
+    (RegIs.of_saved hS rfl (regIs_reg hm₁ rfl h13))
+    (RegIs.of_saved hS rfl (regIs_reg hm₁ rfl hbx))
+    fun m' h ↦ cont m' (by rw [stepOut, hA]; exact h)
 
 /-- **`b45`**: B's 64 buffered bytes copied to the zeroed block; then `b46`. -/
 theorem seg_b45 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre) {i p : Nat}
@@ -130,7 +140,9 @@ theorem seg_b45 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))),
       (112, 200, List.replicate 200 0), (472, 136, List.replicate 136 0), (904, 64, T)]) m)
     (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 64)) (h14 : Run.RegIs m .r14 (r.off 472))
-    (h12 : Run.RegIs m .r12 (r.off 112)) (cont : StepCont r i p T R) :
+    (h12 : Run.RegIs m .r12 (r.off 112))
+    (h13 : Run.RegIs m .r13 (Labels.label "memcpy").toBitVec)
+    (hbx : Run.RegIs m .rbx (Labels.label "memset").toBitVec) (cont : StepCont r i p T R) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b45Offset⟩ := by
   obtain ⟨s56, s112, ⟨-, -, hK0⟩, ⟨-, -, hT904⟩, -⟩ := allOf_right hK.2
   have hz : BytesAt m.dmem (r.off 536) (List.replicate 72 0) := by
@@ -141,7 +153,7 @@ theorem seg_b45 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     hK.left.add ⟨s56, s112, ⟨by simp only [List.length_replicate], by norm_num, hz⟩, ⟨hT, by norm_num, hT904⟩,
       trivial⟩
   refine frameCall r hp hpre b45_in_code (List.cons_ne_nil _ _) run_b45 (by decide) rfl hK'
-    trivial extraOK_nil ⟨known_lit h15, known_ptr h14, trivial⟩ trivial trivial hc.1
+    trivial extraOK_nil ⟨known_lit h15, known_ptr h14, h13, trivial⟩ trivial trivial hc.1
     fun m₁ hm₁ hK₁ _ ↦ ?_
   obtain ⟨⟨-, -, hT₁⟩, -⟩ := (allOf_right hK₁.2).2.2.2
   obtain ⟨hpre₁, hpost₁⟩ := memcpyFrame hpre hK₁ (regIs_ptr hm₁ rfl) (regIs_ptr hm₁ rfl)
@@ -152,7 +164,9 @@ theorem seg_b45 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
   exact seg_b46 hp hc hpre hp3 hT
     (hK₂.left.add ⟨t56, t112, ⟨by simp only [List.length_append, List.length_replicate, hT],
       by norm_num, BytesAt.cat hB hz₂ (by rw [hT])⟩, trivial⟩)
-    (RegIs.of_saved hS rfl (regIs_lit hm₁ rfl)) (RegIs.of_saved hS rfl (regIs_reg hm₁ rfl h12)) cont
+    (RegIs.of_saved hS rfl (regIs_lit hm₁ rfl)) (RegIs.of_saved hS rfl (regIs_reg hm₁ rfl h12))
+    (RegIs.of_saved hS rfl (hm₁.regs .r13 _ rfl))
+    (RegIs.of_saved hS rfl (regIs_reg hm₁ rfl hbx)) cont
 
 /-- **`b42 .. b44`**: B's zero state copied into A, the bound check, the block zeroed; then
 `b45`. -/
@@ -161,11 +175,12 @@ theorem seg_b42 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     {m : MachineData}
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))),
       (704, 200, List.replicate 200 0), (904, 64, T)]) m)
-    (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 64)) (cont : StepCont r i p T R) :
+    (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 64))
+    (h13 : Run.RegIs m .r13 (Labels.label "memcpy").toBitVec) (cont : StepCont r i p T R) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b42Offset⟩ := by
   -- `b42`: `memcpy` of B's state into A.
   refine frameCall r hp hpre b42_in_code (List.cons_ne_nil _ _) run_b42 (by decide) rfl hK
-    trivial extraOK_nil trivial trivial trivial hc.1 fun m₁ hm₁ hK₁ _ ↦ ?_
+    trivial extraOK_nil ⟨h13, trivial⟩ trivial trivial hc.1 fun m₁ hm₁ hK₁ _ ↦ ?_
   obtain ⟨s56, ⟨-, -, hB0⟩, s904, -⟩ := allOf_right hK₁.2
   obtain ⟨hpre₁, hpost₁⟩ := memcpyFrame hpre hK₁ (regIs_ptr hm₁ rfl) (regIs_ptr hm₁ rfl)
     (toNat_of_lit hm₁ rfl (by decide)) (by decide) (by decide) (by decide) rfl
@@ -176,6 +191,8 @@ theorem seg_b42 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
   have h12 : Run.RegIs m₂ .r12 (r.off 112) := RegIs.of_saved hS₂ rfl (regIs_ptr hm₁ rfl)
   have h15₂ : Run.RegIs m₂ .r15 (BitVec.ofNat 64 64) :=
     RegIs.of_saved hS₂ rfl (regIs_reg hm₁ rfl h15)
+  have h13₂ : Run.RegIs m₂ .r13 (Labels.label "memcpy").toBitVec :=
+    RegIs.of_saved hS₂ rfl (hm₁.regs .r13 _ rfl)
   have hK₂' : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))),
       (112, 200, List.replicate 200 0), (904, 64, T)]) m₂ :=
     hK₂.left.add ⟨t56, ⟨by simp only [List.length_replicate], by norm_num, hA0⟩, t904, trivial⟩
@@ -196,7 +213,9 @@ theorem seg_b42 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hK₅.left.add ⟨u56, u112, ⟨by simp only [List.length_replicate], by norm_num, hZ⟩, u904,
       trivial⟩)
     (RegIs.of_saved hS₅ rfl (regIs_lit hm₄ rfl)) (RegIs.of_saved hS₅ rfl (regIs_ptr hm₄ rfl))
-    (RegIs.of_saved hS₅ rfl (regIs_reg hm₄ rfl (regIs_reg hm3 rfl h12))) cont
+    (RegIs.of_saved hS₅ rfl (regIs_reg hm₄ rfl (regIs_reg hm3 rfl h12)))
+    (RegIs.of_saved hS₅ rfl (regIs_reg hm₄ rfl (regIs_reg hm3 rfl h13₂)))
+    (RegIs.of_saved hS₅ rfl (hm₄.regs .rbx _ rfl)) cont
 
 end
 

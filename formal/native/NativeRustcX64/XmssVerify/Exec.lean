@@ -34,8 +34,14 @@ theorem after_eq {ds : List Directive} {S S₁ : SState} {x : Exit} (h : exec ds
   rw [after, h]
   rfl
 
+/-- The frame and the two ordinary-memory GOT slots. -/
+def stG (sp : Int) (known : List (Reg64 × Sym)) : SState :=
+  ((init [5816, 8, 8] ((.rsp, .ptr 0 sp) :: known) [] []
+    [(.gotSlot "memcpy", 1, 0), (.gotSlot "memset", 2, 0)]).withKnownBytes
+      1 0 8 (.label "memcpy")).withKnownBytes 2 0 8 (.label "memset")
+
 /-- The entry. -/
-def st0 : SState := init [5816] [(.rsp, .ptr 0 5808)]
+def st0 : SState := stG 5808 []
 
 /-- Block 1: the frame and the input words. -/
 def st1 : SState := init [5816, 2472] [(.rsp, .ptr 0 24), (.rbx, .ptr 1 (-1024))]
@@ -48,14 +54,16 @@ bytes `RSP + 8 R14 + 932 ..`. -/
 def stC : SState := init [48, 48] [] [] [] [(idx8 .rbx, 0, -1096), (idx8 .rsp, 1, -932)]
 
 /-- The frame, RSP at its offset 24, with the registers `known`. -/
-def stF (known : List (Reg64 × Sym)) : SState := init [5816] ((.rsp, .ptr 0 24) :: known)
+def stF (known : List (Reg64 × Sym)) : SState := stG 24 known
 
 /-- After `wots_leaf`: RSP at the frame's offset 8. -/
 def stR : SState := init [5816] [(.rsp, .ptr 0 8)]
 
-/-- A turn over a layer's path: region 0 the frame below the layers, region 1 the turn's node of
-the path. -/
-def stN (known : List (Reg64 × Sym)) : SState := init [3356, 16] ((.rsp, .ptr 0 24) :: known)
+/-- A turn over a layer's path: region 0 the frame below the layers, region 1 the turn's node,
+and region 2 the memset GOT slot. -/
+def stN (known : List (Reg64 × Sym)) : SState :=
+  (init [3356, 16, 8] ((.rsp, .ptr 0 24) :: known) [] []
+    [(.gotSlot "memset", 2, 0)]).withKnownBytes 2 0 8 (.label "memset")
 
 def st3 : SState := stF []
 def st4 : SState := stF [(.rbx, .ptr 0 184), (.r15, .ptr 0 952)]

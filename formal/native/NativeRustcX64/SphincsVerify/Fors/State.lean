@@ -23,17 +23,18 @@ open NativeRustc NativeRustc.Sphincs NativeRustcX64.Sym LeanVM.Protocol.KeccakHa
 
 /-- **At tree `c`'s head** `b58` (`.LSphincsVerify_19`): R13 the tree, R12 hasher A, R14
 `PK.seed`, R15 the tree's word, EBP the key pair's. -/
-structure AtTree (r : Run) (c : Nat) (m : MachineData) : Prop where
+structure AtTree [Labels] (r : Run) (c : Nat) (m : MachineData) : Prop where
   keep : Keep0 r c m
   r13 : Run.RegIs m .r13 (BitVec.ofNat 64 c)
   r12 : Run.RegIs m .r12 (r.off 4096)
   r14 : Run.RegIs m .r14 (r.off 112)
   r15 : wordBytes (UInt64.ofBitVec (reg m .r15)) = be64 (r.key 0).tree
   rbp : wordBytes (UInt64.ofBitVec (reg m .rbp)) = be32 (r.key 0).leaf ++ [0, 0, 0, 0]
+  rbx : Run.RegIs m .rbx (Labels.label "memset").toBitVec
 
 /-- **At a node's head** `b65` (`.LSphincsVerify_20`): tree `c`, height `z < 10` (RCX), the
 value after `z` steps at `10368`, `c` at `104`. -/
-structure AtNode (r : Run) (c z : Nat) (m : MachineData) : Prop where
+structure AtNode [Labels] (r : Run) (c z : Nat) (m : MachineData) : Prop where
   keep : Keep r c m
   hz : z < 10
   rcx : Run.RegIs m .rcx (BitVec.ofNat 64 z)
@@ -43,6 +44,8 @@ structure AtNode (r : Run) (c z : Nat) (m : MachineData) : Prop where
   rbp : wordBytes (UInt64.ofBitVec (reg m .rbp)) = be32 (r.key 0).leaf ++ [0, 0, 0, 0]
   w104 : r.WordAt m 104 c.toUInt64
   cur : BytesAt m.dmem (r.off 10368) (r.forsUpTo c z)
+  rbx : Run.RegIs m .rbx (Labels.label "memset").toBitVec
+  r14 : Run.RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 end
 

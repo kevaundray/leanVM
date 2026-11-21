@@ -80,11 +80,9 @@ public theorem epilogue {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : Ma
       SameOutside m₀.dmem st'.data.dmem
         (InRange (stackBelow m₀ xmssVerifyStack) xmssVerifyStack) ∧
       Saved m₀ st'.data) st := by
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) 0
-  have hwf : env.WF := frame_wf P C.kept
-  have hm : Match env (stF []) st.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp.trans (ad_int m₀ 24).symm, trivial⟩ trivial trivial
-      trivial
+  let env := Env.ofMachine st.data (frameRs m₀) (fun _ => 0) 0
+  have hwf : env.WF := frameG_wf P C.kept
+  have hm : Match env (stF []) st.data := match_stG P C.same hrsp trivial
   have hread := hm.read hwf (r := 0) (o := 5808) (n := 8) rfl (by decide) (by decide)
   obtain ⟨esp, eax, esave, emem⟩ := st28_facts
   refine exec_at (b28_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b28' hwf
@@ -130,11 +128,9 @@ public theorem fail {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : Machin
       SameOutside m₀.dmem st'.data.dmem
         (InRange (stackBelow m₀ xmssVerifyStack) xmssVerifyStack) ∧
       Saved m₀ st'.data) st := by
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) 0
-  have hwf : env.WF := frame_wf P h.common.kept
-  have hm : Match env (stF []) st.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨h.rsp.trans (ad_int m₀ 24).symm, trivial⟩ trivial trivial
-      trivial
+  let env := Env.ofMachine st.data (frameRs m₀) (fun _ => 0) 0
+  have hwf : env.WF := frameG_wf P h.common.kept
+  have hm : Match env (stF []) st.data := match_stG P h.common.same h.rsp trivial
   obtain ⟨esp, eax, emem⟩ := st27_facts
   refine fall_step (b27_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b27 hwf hpc hm
     fun st' hpc' hm' => ?_
@@ -155,11 +151,9 @@ public theorem final {k : Nat} (hp : Placed code k) (P : Pre w m₀) {leaf : Lis
       SameOutside m₀.dmem st'.data.dmem
         (InRange (stackBelow m₀ xmssVerifyStack) xmssVerifyStack) ∧
       Saved m₀ st'.data) st := by
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) 0
-  have hwf : env.WF := frame_wf P h.common.kept
-  have hm : Match env (stF []) st.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨h.rsp.trans (ad_int m₀ 24).symm, trivial⟩ trivial trivial
-      trivial
+  let env := Env.ofMachine st.data (frameRs m₀) (fun _ => 0) 0
+  have hwf : env.WF := frameG_wf P h.common.kept
+  have hm : Match env (stF []) st.data := match_stG P h.common.same h.rsp trivial
   obtain ⟨esp, eax, emem⟩ := st26_facts
   refine exec_at (b26_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b26' hwf
     (fun _ h => nomatch h) hpc hm fun st' hm' hpc' => ?_

@@ -253,7 +253,7 @@ theorem forsKey2_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hp
     regIs_ptr hm₁ (y := .r15) (o := 144) rfl,
     copy hm₁ (r := 0) (r' := 0) (sz := 29392) (o := 144) (o' := 4096) (n := 16) rfl (by decide)
       rfl (length_forsPk r) hP',
-    h176, hkb₁ 568 _ (by omega) (by rw [hw]; rfl) h568⟩
+    h176, hkb₁ 568 _ (by omega) (by rw [hw]; rfl) h568, hm₁.regs .r14 _ rfl⟩
 
 end
 

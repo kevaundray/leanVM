@@ -20,7 +20,8 @@ open NativeRustcX64.Sym
 set_option Elab.async false
 
 /-- The symbolic state at block 23. -/
-@[expose] public def stT0 : SState := init [1928, 1200] [(.rsp, .ptr 0 8), (.rbx, .ptr 1 0)]
+@[expose] public def stT0 : SState :=
+  init [1928, 1200] [(.rsp, .ptr 0 8), (.rbx, .ptr 1 0), (.r14, .label "memcpy")]
 
 sym_block b23_execT := exec b23 stT0
 

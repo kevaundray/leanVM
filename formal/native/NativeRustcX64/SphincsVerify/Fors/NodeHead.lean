@@ -22,7 +22,7 @@ open NativeRustcX64.Sphincs.SphincsVerify
 
 /-- **At `b66`**: hasher A zero, the children at `3072`, the node's address at `9344`, `z + 1` at
 `64`, `c` at `104`. -/
-structure N1 (r : Run) (c z : Nat) (m : MachineData) : Prop where
+structure N1 [Labels] (r : Run) (c z : Nat) (m : MachineData) : Prop where
   keep : Keep r c m
   hz : z < 10
   w64 : r.WordAt m 64 (z + 1).toUInt64
@@ -31,6 +31,7 @@ structure N1 (r : Run) (c z : Nat) (m : MachineData) : Prop where
   a0 : BytesAt m.dmem (r.off 4096) (List.replicate 344 0)
   ch : BytesAt m.dmem (r.off 3072) (r.childrenOf c z)
   ad : BytesAt m.dmem (r.off 9344) (r.nodeAdrsOf c z)
+  r14 : Run.RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 end
 
@@ -78,7 +79,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
     {c z : Nat} {m : MachineData} (h : AtNode r c z m) {R : MachineState → Prop}
     (cont : ∀ m', N1 r c z m' → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b65Offset⟩ := by
-  obtain ⟨hK, hz, hcx, h13, h12, h15, hbp, w104, hcur⟩ := h
+  obtain ⟨hK, hz, hcx, h13, h12, h15, hbp, w104, hcur, hbx, h14⟩ := h
   have hc24 := hK.2.1.hc
   have hleaf := r.leafOf_lt hc24
   have hcx' : m.regs.get64 .rcx = BitVec.ofNat 64 z := hcx
@@ -91,8 +92,8 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
     (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec) hK.2.2.2
   have hm : Match (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec)
       s65 m := by
-    refine r.matchW hK.1 (known := []) (bounds := [(.reg .rcx, 10)])
-      (aliases := [(pathSym, 2, 0)]) trivial
+    refine r.matchW hK.1 (known := [(.rbx, .label "memset")]) (bounds := [(.reg .rcx, 10)])
+      (aliases := [(pathSym, 2, 0)]) ⟨hbx, trivial⟩
       ⟨by show (m.regs.get64 .rcx).toNat < 10; rw [hcx']; simp; omega, trivial⟩ ⟨?_, trivial⟩
     show (Sym.load 0 72 8).eval _ + BinOp.apply .shl .W64 (m.regs.get64 .rcx)
       (BitVec.ofNat 64 4) = r.off (20540 + 176 * c + 16 * z) + BitVec.ofInt 64 0
@@ -231,7 +232,8 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
       hkc₂ (by flen) (by flen) (keptW (by flen)
         (by rw [NativeRustc.length_wordBytes]; decide +kernel) w104), Chains.RegIs.of_saved hS₂ rfl (Chains.regIs_reg hm₁ rfl h12), hz₂,
       hkc₂ (by rw [hchl]; omega) (by rw [hchl]; omega) ch,
-      hkc₂ (by rw [Run.nodeAdrsOf, hadl]; omega) (by rw [Run.nodeAdrsOf, hadl]; omega) ad⟩
+      hkc₂ (by rw [Run.nodeAdrsOf, hadl]; omega) (by rw [Run.nodeAdrsOf, hadl]; omega) ad,
+      Chains.RegIs.of_saved hS₂ rfl (Chains.regIs_reg hm₁ rfl h14)⟩
 
 end
 

@@ -23,10 +23,11 @@ variable (r : Run)
 
 /-- **The fold's loop head**, `z` steps done: RCX `z`, R12 hasher A, the path's address at `72`,
 the layer's word at `96`, the value at `10368`. -/
-@[expose] def AtNode (l : Nat) (e : List (List UInt8)) (z : Nat) (m : MachineData) : Prop :=
+@[expose] def AtNode [Labels] (l : Nat) (e : List (List UInt8)) (z : Nat) (m : MachineData) : Prop :=
   Base r l m ∧ z < heightOf l ∧ Run.RegIs m .rcx (BitVec.ofNat 64 z) ∧
     Run.RegIs m .r12 (r.off 4096) ∧ r.WordAt m 72 (r.addr (24764 + 16 * pathStart l)) ∧
-    r.WordAt m 96 (l * 16777216).toUInt64 ∧ BytesAt m.dmem (r.off 10368) (r.foldUpTo l e z)
+    r.WordAt m 96 (l * 16777216).toUInt64 ∧ BytesAt m.dmem (r.off 10368) (r.foldUpTo l e z) ∧
+    Run.RegIs m .rbx (Labels.label "memset").toBitVec
 
 variable {r} [Host]
 
@@ -44,7 +45,7 @@ theorem entry (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List UI
   have hld96 : (r.env m (fun _ ↦ 0) 0).load 0 96 8 = l.toUInt64.toBitVec := load_word h.2.1.2.2
   have hld160 : (r.env m (fun _ ↦ 0) 0).load 0 160 8 = (heightOf l).toUInt64.toBitVec :=
     load_word h.1.2.2.1.2.2.1
-  refine exec_then (hb158 hp) run_b158 hwf (fun _ h ↦ nomatch h) (match_leaf h _)
+  refine exec_then (hb158 hp) run_b158 hwf (fun _ h ↦ nomatch h) (match_leaf hpre h _)
     fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := false) hpc1 (by
     sym_simp; rw [hld96, hld160]; rcases l_cases hl with rfl | rfl | rfl <;> decide)
@@ -64,7 +65,8 @@ theorem entry (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List UI
   have hB4 := Base.of_match hpre h.1 hm4 hwf rfl (by decide) (by decide) rfl
   have hlen : (wotsLeafHash r.seed (r.key l) e).length = 16 := length_th _ _ _
   refine .done _ ⟨hpc4.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b161_next), hB4, heightOf_pos hl,
-    hm4.regs .rcx _ rfl, (hm4.regs .r12 _ rfl).trans (eval_ptr 4096), ?_, ?_, ?_⟩
+    hm4.regs .rcx _ rfl, (hm4.regs .r12 _ rfl).trans (eval_ptr 4096), ?_, ?_, ?_,
+    hm4.regs .rbx _ rfl⟩
   · refine write_eval hm4 (o := 72) (n := 8) (v := pathSym) (w := r.off (24764 + 16 * pathStart l)) (by decide)
       (by decide) ?_ (bytes_word _)
     simp only [pathSym, Sym.eval, SBool.eval, BinOp.apply, CmpOp.apply, low_W64,

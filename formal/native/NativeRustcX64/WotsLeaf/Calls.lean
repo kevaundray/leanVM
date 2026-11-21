@@ -120,8 +120,17 @@ theorem update_pre (hpre : r.Pre) {m : MachineData} (hF : r.CallFrame m) {a b n 
   have hN : updateStack ≤ finalizeStack := by decide
   obtain ⟨m1, w1⟩ := r.frame_mapped hpre hF (a := a) (n := 344) (by omega)
   obtain ⟨m2, w2⟩ := r.frame_mapped hpre hF (a := b) (n := n) (by omega)
-  exact ⟨r.stackOk hpre hF hN, r.rcAt hpre hF hN, hh, m1, w1, m2, w2, r.apart_off hpre ha hb hd,
-    r.apart_off_below hpre hF.rsp ha hN, r.apart_off_below hpre hF.rsp hb hN, r.apart_rc hpre ha⟩
+  refine ⟨r.stackOk hpre hF hN, r.rcAt hpre hF hN, hh, m1, w1, m2, w2, r.apart_off hpre ha hb hd,
+    r.apart_off_below hpre hF.rsp ha hN, r.apart_off_below hpre hF.rsp hb hN, r.apart_rc hpre ha, ?_⟩
+  apply r.gotAt hpre hF hN (by decide)
+  intro l hl p hp
+  have hl' : l ∈ ["memcpy", "memset"] := by
+    simp only [List.mem_singleton] at hl
+    simp [hl]
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+  rcases hp with rfl | rfl
+  · exact r.got_apart_off hpre hl' ha
+  · exact r.got_apart_off hpre hl' hb
 
 /-- **`Hasher::update(a, d, n)`**'s precondition, the hasher at `a`, the data `d` an input apart
 from the stack area. -/
@@ -129,14 +138,22 @@ theorem update_pre_input (hpre : r.Pre) {m : MachineData} (hF : r.CallFrame m) {
     {d : BitVec 64} (h0 : RegIs m .rdi (r.off a)) (h1 : RegIs m .rsi d)
     (h2 : (reg m .rdx).toNat = n) (ha : a + 344 ≤ 2768) (hdm : Mapped m.dmem d n)
     (hdw : NoWrap d n) (hda : Apart d n (stackBelow r.m0 wotsLeafStack) (wotsLeafStack + 8))
-    (hdf : Apart (r.off a) 344 d n)
+    (hdf : Apart (r.off a) 344 d n) (hdgot : Apart (gotAddr "memcpy") 8 d n)
     (hh : ∃ x, Keccak.HasherHolds (bytesOf m.dmem (r.off a) 344) x) : UpdatePre m := by
   simp only [UpdatePre]
   rw [h2, show reg m .rdi = r.off a from h0, show reg m .rsi = d from h1]
   have hN : updateStack ≤ finalizeStack := by decide
   obtain ⟨m1, w1⟩ := r.frame_mapped hpre hF (a := a) (n := 344) (by omega)
-  exact ⟨r.stackOk hpre hF hN, r.rcAt hpre hF hN, hh, m1, w1, hdm, hdw, hdf,
-    r.apart_off_below hpre hF.rsp ha hN, r.apart_below hpre hF.rsp hN hda, r.apart_rc hpre ha⟩
+  refine ⟨r.stackOk hpre hF hN, r.rcAt hpre hF hN, hh, m1, w1, hdm, hdw, hdf,
+    r.apart_off_below hpre hF.rsp ha hN, r.apart_below hpre hF.rsp hN hda, r.apart_rc hpre ha, ?_⟩
+  apply r.gotAt hpre hF hN (by decide)
+  intro l hl p hp
+  simp only [List.mem_singleton] at hl
+  subst l
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+  rcases hp with rfl | rfl
+  · exact r.got_apart_off hpre (by simp) ha
+  · exact hdgot
 
 /-- **`Hasher::finalize(o, a)`**'s precondition, the hasher at `a`, the output at `o`. -/
 theorem finalize_pre (hpre : r.Pre) {m : MachineData} (hF : r.CallFrame m) {o a : Nat}
@@ -148,8 +165,14 @@ theorem finalize_pre (hpre : r.Pre) {m : MachineData} (hF : r.CallFrame m) {o a 
   have hN : finalizeStack ≤ finalizeStack := le_rfl
   obtain ⟨m1, w1⟩ := r.frame_mapped hpre hF (a := a) (n := 344) (by omega)
   obtain ⟨m2, w2⟩ := r.frame_mapped hpre hF (a := o) (n := 32) (by omega)
-  exact ⟨r.stackOk hpre hF hN, r.rcAt hpre hF hN, hh, m1, w1, m2, w2, r.apart_off hpre ho ha hd,
-    r.apart_off_below hpre hF.rsp ha hN, r.apart_off_below hpre hF.rsp ho hN, r.apart_rc hpre ho⟩
+  refine ⟨r.stackOk hpre hF hN, r.rcAt hpre hF hN, hh, m1, w1, m2, w2, r.apart_off hpre ho ha hd,
+    r.apart_off_below hpre hF.rsp ha hN, r.apart_off_below hpre hF.rsp ho hN, r.apart_rc hpre ho, ?_⟩
+  apply r.gotAt hpre hF hN (by decide)
+  intro l hl p hp
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+  rcases hp with rfl | rfl
+  · exact r.got_apart_off hpre hl ho
+  · exact r.got_apart_off hpre hl ha
 
 /-- **`keccak_f(a)`**'s precondition. -/
 theorem keccakF_pre (hpre : r.Pre) {m : MachineData} (hF : r.CallFrame m) {a : Nat}

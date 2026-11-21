@@ -19,7 +19,7 @@ open NativeRustcX64.Sphincs.SphincsVerify
 public section
 
 section
-variable (r : Run)
+variable (r : Run) [Labels]
 
 /-- **At `b180`**: hasher B holds `PK.seed | ADRS | children`, `buf_len` still 48; R12, R15 the
 turn's bytes taken and left, R13 the children. -/
@@ -53,8 +53,8 @@ theorem nodeD (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hwf := frame_wf' hpre hB (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b179Offset + b179.length)).toBitVec
   have hld : (r.env m (fun _ ↦ 0) (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b179Offset + b179.length)).toBitVec).load 0 912 8
       = (Nat.toUInt64 48).toBitVec := load_word hW
-  have hm0 := match_fs hB.2.1 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b179Offset + b179.length)).toBitVec)
-    (known := kAB) ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm, trivial⟩
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b179Offset + b179.length)).toBitVec)
+    (known := kAB) ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm, trivial⟩
   refine exec_then (hb175 hp) run_b175 hwf (fun _ h ↦ nomatch h) hm0 fun st1 hm1 hpc1 ↦ ?_
   have hpc1' : st1.pc = Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b177Offset) := hpc1.trans (lbl_74 hp)
   refine exec_at (hb177 hp) (exec_after run_b175 run_b177) hwf (fun _ h ↦ nomatch h) hpc1' hm1
@@ -133,9 +133,9 @@ theorem nodeE (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hwf := frame_wf' hpre hB (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b183Offset + b183.length)).toBitVec
   have hld : (r.env m (fun _ ↦ 0) (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b183Offset + b183.length)).toBitVec).load 0 912 8
       = (Nat.toUInt64 48).toBitVec := load_word hW
-  have hm0 := match_fs hB.2.1 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b183Offset + b183.length)).toBitVec)
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b183Offset + b183.length)).toBitVec)
     (known := [(.rbp, .ptr 0 576), (.r12, .lit 32), (.r15, .lit 32), (.r13, .ptr 0 3072)])
-    ⟨hB.2.2.2.trans (eval_ptr 576).symm, h12, h15, h13.trans (eval_ptr 3072).symm, trivial⟩
+    ⟨hB.2.2.2.1.trans (eval_ptr 576).symm, h12, h15, h13.trans (eval_ptr 3072).symm, trivial⟩
   refine exec_then (hb180 hp) run_b180 hwf (fun _ h ↦ nomatch h) hm0 fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := true) hpc1 (by sym_simp; rw [hld]; decide)
   rw [Sym.ite_pos (rfl : true = true), lbl_78 hp] at hpc1'

@@ -1,6 +1,6 @@
 module
 
-public import NativeRustcX64.Sym.Basic
+public import NativeRustcX64.SphincsVerify.Frame
 
 /-!
 # The parse's symbolic states (x86-64)
@@ -18,13 +18,13 @@ open NativeRustcX64.Sym
 @[expose] public section
 
 /-- The symbolic frame state: RSP the frame's base, the registers `k`, the bounds `b`, the slots
-below the frame aliased. -/
+below the frame aliased, and the memcpy and memset GOT slots seeded in regions 2 and 3. -/
 def fS (k : List (Reg64 × Sym)) (b : List (Sym × Nat) := []) : SState :=
-  init [29392, 16] ((.rsp, .ptr 0 0) :: k) [] b [(.ptr 0 (-8), 1, 8), (.ptr 0 (-16), 1, 0)]
+  Run.frameState k [] b
 
-/-- The symbolic frame state with the input as region 2. -/
+/-- The symbolic frame state with the input at region 2 and GOT slots at regions 3 and 4. -/
 def fS3 (k : List (Reg64 × Sym)) : SState :=
-  init [29392, 16, 7816] ((.rsp, .ptr 0 0) :: k) [] [] [(.ptr 0 (-8), 1, 8), (.ptr 0 (-16), 1, 0)]
+  init [29392, 16, 7816, 8, 8] ((.rsp, .ptr 0 0) :: k) [] [] Run.frameAliases
 
 /-- A word loop's turn: the source `RBX + i + so` and the destination `RSP + i + d0` aliased into
 regions 0 and 1, `i` the counter. -/

@@ -30,11 +30,12 @@ theorem seg_b37 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
       (704, 200, List.replicate 200 0), (904, 32, SA), (1040, 8, regBytes (BitVec.ofNat 64 32))]) m)
     (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 32)) (h14 : Run.RegIs m .r14 (BitVec.ofNat 64 32))
     (hbx : Run.RegIs m .rbx (r.off 672)) (h12 : Run.RegIs m .r12 (BitVec.ofNat 64 32))
+    (h13 : Run.RegIs m .r13 (Labels.label "memcpy").toBitVec)
     (cont : StepCont r i p (SA ++ P) R) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b37Offset⟩ := by
   -- `b37`: `memcpy` of `P`.
   refine frameCall r hp hpre b37_in_code (List.cons_ne_nil _ _) run_b37 (by decide) rfl hK
-    trivial extraOK_nil ⟨known_lit h15, known_lit h14, known_ptr hbx, trivial⟩ trivial trivial
+    trivial extraOK_nil ⟨known_lit h15, known_lit h14, known_ptr hbx, h13, trivial⟩ trivial trivial
     hc.1 fun m₁ hm₁ hK₁ _ ↦ ?_
   obtain ⟨-, ⟨-, -, hP₁⟩, -⟩ := allOf_right hK₁.2
   obtain ⟨hpre₁, hpost₁⟩ := memcpyFrame hpre hK₁ (regIs_ptr hm₁ rfl) (regIs_ptr hm₁ rfl)
@@ -46,12 +47,15 @@ theorem seg_b37 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
   have hbx₂ : Run.RegIs m₂ .rbx (r.off 672) := RegIs.of_saved hS₂ rfl (regIs_ptr hm₁ rfl)
   have h12₂ : Run.RegIs m₂ .r12 (BitVec.ofNat 64 32) :=
     RegIs.of_saved hS₂ rfl (regIs_reg hm₁ rfl h12)
+  have h13₂ : Run.RegIs m₂ .r13 (Labels.label "memcpy").toBitVec :=
+    RegIs.of_saved hS₂ rfl (hm₁.regs .r13 _ rfl)
   have hK₂' : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))),
       (704, 200, List.replicate 200 0), (904, 64, SA ++ P)]) m₂ :=
     hK₂.left.add ⟨t56, t704, ⟨by simp only [List.length_append, hSA, hP], by norm_num,
       BytesAt.cat hSA₂ hB (by rw [hSA])⟩, trivial⟩
   -- `b38`: B's `buf_len` 64.
-  have hm₀ := match_seeded (match_frameS hK₂'.1.1 (sextra := []) (extra := [])
+  have hm₀ := match_seeded (match_frameS
+    (fun _ hl _ hi => r.got_byte hpre hK₂'.1.2.2.1 hl hi) hK₂'.1.1 (sextra := []) (extra := [])
     (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b38Offset + b38.length)).toBitVec) (k := [(.r14, .lit 32)]) (bounds := [])
     (aliases := []) trivial ⟨known_lit h14₂, trivial⟩ trivial trivial)
     h1040
@@ -64,7 +68,8 @@ theorem seg_b37 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
       known_ptr (regIs_reg hm3 rfl hbx₂), trivial⟩ trivial trivial fun st4 hm4 hK4 _ hpc4 ↦ ?_
   refine pc_at ((pc_true hpc4).trans (Run.label_of_block r hp b42_in_code rfl)) ?_
   exact seg_b42 hp hc hpre hp3 (by simp only [List.length_append, hSA, hP]) hK4
-    (regIs_reg hm4 rfl (regIs_lit hm3 rfl)) cont
+    (regIs_reg hm4 rfl (regIs_lit hm3 rfl))
+    (regIs_reg hm4 rfl (regIs_reg hm3 rfl h13₂)) cont
 
 /-- **`b31 .. b36`**: A cloned into B, B's `buf_len` loaded, the loop's first bounds; then
 `b37`. -/
@@ -73,16 +78,19 @@ theorem seg_b31 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     {R : MachineState → Prop} {m : MachineData}
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))), (672, 32, P),
       (112, 200, List.replicate 200 0), (312, 32, SA), (448, 8, regBytes (BitVec.ofNat 64 32))]) m)
-    (h12 : Run.RegIs m .r12 (r.off 112)) (cont : StepCont r i p (SA ++ P) R) :
+    (h12 : Run.RegIs m .r12 (r.off 112))
+    (h13 : Run.RegIs m .r13 (Labels.label "memcpy").toBitVec) (cont : StepCont r i p (SA ++ P) R) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b31Offset⟩ := by
   -- `b31`: `memcpy` of A into B.
   refine frameCall r hp hpre b31_in_code (List.cons_ne_nil _ _) run_b31 (by decide) rfl hK
-    trivial extraOK_nil ⟨known_ptr h12, trivial⟩ trivial trivial hc.1 fun m₁ hm₁ hK₁ _ ↦ ?_
+    trivial extraOK_nil ⟨known_ptr h12, h13, trivial⟩ trivial trivial hc.1 fun m₁ hm₁ hK₁ _ ↦ ?_
   obtain ⟨-, -, ⟨-, -, hA0⟩, ⟨-, -, hSA₁⟩, ⟨-, -, h448⟩, -⟩ := allOf_right hK₁.2
   obtain ⟨hpre₁, hpost₁⟩ := memcpyFrame' hpre hK₁ (regIs_ptr hm₁ rfl) (regIs_ptr hm₁ rfl)
     (toNat_of_lit hm₁ rfl (by decide)) (by decide) (by decide) (by decide) rfl
   refine ⟨hpre₁, fun m₂ hsp hQ ↦ ?_⟩
-  obtain ⟨hK₂, -, hB⟩ := hpost₁ m₂ hsp hQ
+  obtain ⟨hK₂, hS₂, hB⟩ := hpost₁ m₂ hsp hQ
+  have h13₂ : Run.RegIs m₂ .r13 (Labels.label "memcpy").toBitVec :=
+    RegIs.of_saved hS₂ rfl (hm₁.regs .r13 _ rfl)
   obtain ⟨t56, t672, -⟩ := allOf_right hK₂.2
   have hB0 : BytesAt m₂.dmem (r.off 704) (List.replicate 200 0) :=
     copy_slice (c := 0) (bs := List.replicate 200 0) hB
@@ -97,7 +105,8 @@ theorem seg_b31 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
       (704, 200, List.replicate 200 0), (904, 32, SA)]) m₂ :=
     hK₂.left.add ⟨t56, t672, ⟨by simp only [List.length_replicate], by norm_num, hB0⟩,
       ⟨hSA, by norm_num, hBsa⟩, trivial⟩
-  have hm₀ := match_seeded (match_frameS hK₂'.1.1 (sextra := []) (extra := [])
+  have hm₀ := match_seeded (match_frameS
+    (fun _ hl _ hi => r.got_byte hpre hK₂'.1.2.2.1 hl hi) hK₂'.1.1 (sextra := []) (extra := [])
     (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b32Offset + b32.length)).toBitVec) (k := []) (bounds := []) (aliases := []) trivial
     trivial trivial trivial) hB32
   refine frameStepS r hp hpre b32_in_code (List.cons_ne_nil _ _) run_b32 (by decide) rfl hK₂'
@@ -121,7 +130,8 @@ theorem seg_b31 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
   refine pc_at (pc_false hpc5) ?_
   exact seg_b37 hp hc hpre hp3 hSA hP hK5 (regIs_reg hm5 rfl (regIs_lit hm4 rfl))
     (regIs_reg hm5 rfl (regIs_lit hm4 rfl)) (regIs_reg hm5 rfl (regIs_ptr hm4 rfl))
-    (regIs_reg hm5 rfl (regIs_lit hm4 rfl)) cont
+    (regIs_reg hm5 rfl (regIs_lit hm4 rfl))
+    (regIs_reg hm5 rfl (regIs_reg hm4 rfl (regIs_reg hm3 rfl h13₂))) cont
 
 end
 

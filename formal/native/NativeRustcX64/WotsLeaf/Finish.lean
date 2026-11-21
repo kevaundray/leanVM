@@ -10,7 +10,7 @@ public import NativeRustcX64.WotsLeaf.Input
 entry's mapped bytes kept, memory changed only at `out` and in the stack area, and the result at
 `out` (`WotsLeafOut1`), the function returns with its postcondition (`Run.Done`). `fail_path`:
 from `b11` (directive 155) the tag `0` stored at `out`, then `finish`. A block with `out` as
-region 2 (`match_out`, `outWrites`, `sameOutside_out`).
+region 4 (`match_out`, `outWrites`, `sameOutside_out`).
 -/
 
 namespace NativeRustcX64.WotsLeafProof
@@ -19,8 +19,8 @@ open NativeRustc NativeRustc.Xmss NativeRustcX64.Sym NativeRustcX64.Xmss.WotsLea
 
 @[expose] public section
 
-/-- The writes of a symbolic state are all in `out` (region 2). -/
-def outWrites (S : SState) : Bool := S.mem.all fun w ↦ w.r == 2 && decide (w.off + w.n ≤ 75)
+/-- The writes of a symbolic state are all in `out` (region 4). -/
+def outWrites (S : SState) : Bool := S.mem.all fun w ↦ w.r == 4 && decide (w.off + w.n ≤ 75)
 
 end
 
@@ -29,15 +29,17 @@ public section
 section
 variable {r : Run} [Labels]
 
-/-- `out` as the executor's region 2, the alias of the word at `96` its base. -/
+/-- `out` as the executor's region 4, the alias of the word at `96` its base. -/
 theorem match_out (hpre : r.Pre) {L : List Slot} {m : MachineData} (hK : Keep r L m)
     (h96 : BytesAt m.dmem (r.off 96) (regBytes r.out)) {ret : BitVec 64} {k : List (Reg64 × Sym)}
     (hk : KnownOK r m [(r.out, 75)] ret k) :
     Match (r.envR m [(r.out, 75)] ret) (outS k) m ∧ (r.envR m [(r.out, 75)] ret).WF := by
-  refine ⟨match_frameS hK.1.1 (sextra := [75]) (extra := [(r.out, 75)]) (bounds := [])
-    (aliases := [(.load 0 96 8, (2, 0))])
+  refine ⟨match_frameS (fun _ hl _ hi => r.got_byte hpre hK.1.2.2.1 hl hi)
+    hK.1.1 (sextra := [75]) (extra := [(r.out, 75)]) (bounds := [])
+    (aliases := [(.load 0 96 8, (4, 0))])
     (show 75 = 75 ∧ True from ⟨rfl, trivial⟩) hk trivial ⟨?_, trivial⟩,
-    envR_wf hpre hK.1.2.2.2 (r.extraOK_input hpre hK.1.2.2.2 (r.pre_out hpre)) ret⟩
+    envR_wf hpre hK.1.2.2.2 (r.extraOK_input hpre hK.1.2.2.2 (r.pre_out hpre)
+      (fun l hl => ((r.got hpre).1 l hl).2.2.2 (r.out, 75) (by simp))) ret⟩
   show (r.envR m [(r.out, 75)] ret).load 0 96 8 = r.out + BitVec.ofInt 64 0
   rw [r.load_word h96]
   simp
@@ -90,7 +92,7 @@ theorem fail_path (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) 
   refine blk r hp b11_in_code (List.cons_ne_nil _ _) run_b11 hwf rfl hm
     fun st hm' hpc ↦ pc_at hpc ?_
   have hso1 := sameOutside_out hpre hm' hwf (by decide)
-  have h0 := bytesAt_write_val hm' (r := 2) (o := 0) (n := 1) (b := r.out) (sz := 75) rfl
+  have h0 := bytesAt_write_val hm' (r := 4) (o := 0) (n := 1) (b := r.out) (sz := 75) rfl
     (by decide) (v := .lit 0) (by decide)
   refine finish r hp hpre st.data ?_ ?_ ?_ ?_ ?_
   · unfold reg

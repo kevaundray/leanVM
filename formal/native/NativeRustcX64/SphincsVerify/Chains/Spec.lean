@@ -67,9 +67,10 @@ theorem seg_b117 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hEl : E.length = 16 * i) {R : MachineState → Prop} {m : MachineData} (hF : r.Frame m)
     (hK : KeepRest r l x E m) (h0 : Run.RegIs m .rax (BitVec.ofNat 64 i))
     (h12 : Run.RegIs m .r12 (r.off 4096))
+    (hf : Funcs m)
     (cont : ∀ m', r.Frame m' → KeepRest r l x E m' → r.WordAt m' 80 i.toUInt64 →
       r.WordAt m' 168 (16 * i).toUInt64 → Run.RegIs m' .r12 (r.off 4096) →
-      BytesAt m'.dmem (r.off 184) (chainEnd r l x i) →
+      BytesAt m'.dmem (r.off 184) (chainEnd r l x i) → Funcs m' →
       Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset⟩ := by
   have hv := SigMem.length_wots_getD r.w hl hi
@@ -124,6 +125,7 @@ theorem seg_b117 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     unfold Run.RegIs reg
     rw [reg_same hm1 rfl]
     exact h12
+  have hf' : Funcs st.data := ⟨regIs_reg hm1 rfl hf.1, regIs_reg hm1 rfl hf.2⟩
   have hsp : rspOf st.data = r.base := by
     rw [rspOf, hm1.regs .rsp _ rfl]
     show r.off 0 + BitVec.ofInt 64 0 = r.base
@@ -186,15 +188,15 @@ theorem seg_b117 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
         simp only [decide_eq_true_eq] at h
         omega
       next => rfl
-    refine pc_at hp' (seg_b118 hp hpre hx (by omega) hi hv hF1 hK1 h80 h168 hsi h12' hcell
+    refine pc_at hp' (seg_b118 hp hpre hx (by omega) hi hv hF1 hK1 h80 h168 hsi h12' hcell hf'
       fun m1 k1 g1 c1 ↦ ?_)
     have hk : 3 - (x.getD i 0).toNat = 2 - (x.getD i 0).toNat + 1 := by omega
     exact steps hp hc hpre hx (by omega) (2 - (x.getD i 0).toNat) _ (by omega) hv k1 g1 c1
-      fun m2 k2 g2 c2 ↦ seg_b150 hp hpre hx (by omega) (length_chain _ _ _ _ _ hv) k2 g2.2 c2
-        fun m3 k3 g3 c3 ↦ cont m3 k3.1 k3.2.1 k3.2.2.1 k3.2.2.2.1 g3 (by
+      fun m2 k2 g2 c2 ↦ seg_b150 hp hpre hx (by omega) (length_chain _ _ _ _ _ hv) k2 g2.2.1 c2 g2.2.2
+        fun m3 k3 g3 c3 f3 ↦ cont m3 k3.1 k3.2.1 k3.2.2.1 k3.2.2.2.1 g3 (by
           unfold chainEnd
           rw [hk]
-          exact c3)
+          exact c3) f3
   · have hp' : st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset := by
       rw [hpc']
       split
@@ -202,7 +204,7 @@ theorem seg_b117 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
       next h =>
         simp only [decide_eq_true_eq] at h
         omega
-    refine pc_at hp' (cont _ hF1 hK1 h80 h168 h12' ?_)
+    refine pc_at hp' (cont _ hF1 hK1 h80 h168 h12' ?_ hf')
     unfold chainEnd
     rw [show 3 - (x.getD i 0).toNat = 0 by omega]
     exact hcell
@@ -212,37 +214,37 @@ theorem chains_loop (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) 
     {l : Nat} {x : List UInt8} (hl : l < 3) (hx : x.length = 64) :
     ∀ (n i : Nat) {m : MachineData}, i + n = 64 → 0 < n → r.Frame m →
       KeepRest r l x ((List.range i).map (chainEnd r l x)).flatten m →
-      Run.RegIs m .rax (BitVec.ofNat 64 i) → Run.RegIs m .r12 (r.off 4096) →
+      Run.RegIs m .rax (BitVec.ofNat 64 i) → Run.RegIs m .r12 (r.off 4096) → Funcs m →
       Eventually (step1 Host.exe)
         (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b151Offset ∧ r.AtWotsPk l (r.chainEnds l x) st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset⟩
-  | 0, _, _, _, hn, _, _, _, _ => absurd hn (by decide)
-  | n + 1, i, m, hin, _, hF, hK, h0, h12 => by
+  | 0, _, _, _, hn, _, _, _, _, _ => absurd hn (by decide)
+  | n + 1, i, m, hin, _, hF, hK, h0, h12, hf => by
     have hi : i < 64 := by omega
     have hEl := length_ends r hl x (i := i) (by omega)
-    refine seg_b117 hp hc hpre hl hx hi hEl hF hK h0 h12 fun m1 f1 k1 a1 b1 g1 c1 ↦ ?_
+    refine seg_b117 hp hc hpre hl hx hi hEl hF hK h0 h12 hf fun m1 f1 k1 a1 b1 g1 c1 hf1 ↦ ?_
     refine seg_b116 hp hpre hx hi hEl
-      (length_chain _ _ _ _ _ (SigMem.length_wots_getD r.w hl hi)) f1 k1 a1 b1 g1 c1
-      fun m2 f2 k2 g0 g12 ↦ ?_
+      (length_chain _ _ _ _ _ (SigMem.length_wots_getD r.w hl hi)) f1 k1 a1 b1 g1 c1 hf1
+      fun m2 f2 k2 g0 g12 hf2 ↦ ?_
     have k2' : KeepRest r l x ((List.range (i + 1)).map (chainEnd r l x)).flatten m2 := by
       rw [ends_succ]
       exact k2
     by_cases h : i + 1 = 64
     · simp only [h, ↓reduceIte]
       rw [h] at k2'
-      refine .done _ ⟨rfl, hl, ?_, f2, k2'.1, k2'.2.1, g12, k2'.2.2.1, k2'.2.2.2.1, ?_⟩
+      refine .done _ ⟨rfl, hl, ?_, f2, k2'.1, k2'.2.1, g12, k2'.2.2.1, k2'.2.2.2.1, ?_, hf2⟩
       · rw [chainEnds_eq]
         exact length_ends r hl x (le_refl _)
       · rw [chainEnds_eq]
         exact k2'.2.2.2.2.2
     · simp only [h, ↓reduceIte]
-      exact chains_loop hp hc hpre hl hx n (i + 1) (by omega) (by omega) f2 k2' g0 g12
+      exact chains_loop hp hc hpre hl hx n (i + 1) (by omega) (by omega) f2 k2' g0 g12 hf2
 
 /-- **Region 5b on x86-64, a layer's chains**: from `AtChains l x` at `b117` to
 `AtWotsPk l (chainEnds l x)` at `b151`. -/
 theorem chainsSpec : ChainsSpec := by
-  intro l x r hp hc hpre m ⟨hl, hx, hF, hI, hLS, h0, h12, hbp, h13, hxa⟩
+  intro l x r hp hc hpre m ⟨hl, hx, hF, hI, hLS, h0, h12, hbp, h13, hxa, hf⟩
   exact chains_loop hp hc hpre hl hx 64 0 rfl (by decide) hF
-    ⟨hI, hLS, hbp, h13, hxa, fun _ h ↦ absurd h (by simp)⟩ h0 h12
+    ⟨hI, hLS, hbp, h13, hxa, fun _ h ↦ absurd h (by simp)⟩ h0 h12 hf
 
 end
 

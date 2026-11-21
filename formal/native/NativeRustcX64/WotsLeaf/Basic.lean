@@ -7,7 +7,7 @@ public import NativeRustcX64.Code.Xmss.WotsLeaf
 # `wots_leaf` on x86-64: its map, its frame, its regions
 
 rustc compiles `lean_xmss::wots::wots_leaf` (blocks `b0` to `b58` of
-`NativeRustcX64.Xmss.WotsLeaf`, assembly `rustc/out/xmss-x86_64.post.s` from line 11135) with
+`NativeRustcX64.Xmss.WotsLeaf`, raw assembly `rustc/out/xmss-x86_64.s`) with
 `message_digest`, `codeword`, `chain` and `wots_leaf_hash` inlined, and in each chain step `th`'s
 hasher inlined too (`memset`, the public parameter buffered, the address by `update`'s loop, the
 clone, the payload by the loop, `finalize`'s final block and `keccak_f`); it calls `memset`,

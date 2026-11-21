@@ -12,10 +12,12 @@ calls (offset 0), its locals (8 to 63), the pushed registers (64 to 111) and its
 (112). In the loop RSP is the frame's offset 8.
 
 The symbolic states its proof starts blocks from and the executor's results (`run_b<k>`):
-- `entryS`, at the entry (`b0`): region 0 the frame (RSP at 112), region 1 the hasher (RDI);
-- `headS`, at the loop head `.LUpdate_1` (`b3`, `b4`, `b5`, ending in `callq memcpy`), after
+- `entryS`, at the entry (`b0`): region 0 the frame (RSP at 112), region 1 the hasher (RDI),
+  region 2 the loader's `memcpy` slot;
+- `headS`, at the loop head `.LUpdate_1` (`b3`, `b4`, `b5`, ending in `callq *%rbp`), after
   `memcpy` (`b6`), at the absorption (`b7`, ending in `callq keccak_f`) and after `keccak_f`
-  (`b8`): region 0 the hasher (R14, R13 its buffer), region 1 the frame (RSP at 8);
+  (`b8`): region 0 the hasher (R14, R13 its buffer), region 1 the frame (RSP at 8), region 2
+  the `memcpy` slot. RBP holds its resolved target, reloaded during absorption;
 - `regsS`, at `.LUpdate_5` (`b2`): no region;
 - `exitS`, at `.LUpdate_6` (`b9`): region 0 the frame (RSP at 8).
 -/
@@ -43,10 +45,15 @@ theorem exec_after {ds ds' : List Directive} {S S₁ : SState} {x : Exit}
   exact h'
 
 /-- At the entry. -/
-def entryS : SState := init [120, 344] [(.rsp, .ptr 0 112), (.rdi, .ptr 1 0)]
+def entryS : SState :=
+  (init [120, 344, 8] [(.rsp, .ptr 0 112), (.rdi, .ptr 1 0)]
+    (aliases := [(.gotSlot "memcpy", 2, 0)])).withKnownBytes 2 0 8 (.label "memcpy")
 
-/-- In the loop. -/
-def headS : SState := init [344, 120] [(.r14, .ptr 0 0), (.r13, .ptr 0 200), (.rsp, .ptr 1 8)]
+/-- In the loop, RBP keeps the resolved `memcpy` target; absorption reloads it from the GOT. -/
+def headS : SState :=
+  (init [344, 120, 8]
+    [(.r14, .ptr 0 0), (.r13, .ptr 0 200), (.rsp, .ptr 1 8), (.rbp, .label "memcpy")]
+    (aliases := [(.gotSlot "memcpy", 2, 0)])).withKnownBytes 2 0 8 (.label "memcpy")
 
 /-- At `.LUpdate_5`: registers only. -/
 def regsS : SState := init []

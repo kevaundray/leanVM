@@ -51,9 +51,9 @@ theorem empty_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m
       (fun st => st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b2Offset) ∧ Mid m0 c (takeN m0 c Hc) st.data)
       ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b8Offset)⟩ := by
   have g := geo_of hpre
-  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)]
+  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)]
   have hwf : env.WF := wf_head hpre hab.frame
-  have hm : Match env headS m := match_headS hab.frame
+  have hm : Match env headS m := match_headS hpre hab.frame
   have hA := hab.bytes
   generalize hAdef : writeAt (counted m0 c Hc) 0 (absorb ((counted m0 c Hc).take 200)
     (((counted m0 c Hc).drop 200).take 136)) = A at hA
@@ -86,7 +86,7 @@ theorem empty_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m
   have hfr : Frame m0 st8.data := by
     refine hab.frame.update g (Match.reg_eq hm hm8 rfl rfl) (Match.reg_eq hm hm8 rfl rfl)
       (Match.reg_eq hm hm8 rfl rfl) (fun p hp => hm8.get?_mem0 hwf fun hw => hp ?_)
-      (hm8.kept hwf)
+      (hm8.kept hwf) (hm8.regs .rbp (.label "memcpy") rfl)
     rw [chgL_iff g]
     left
     exact written_hasher (by decide) hw
@@ -129,7 +129,8 @@ theorem next_spec (hp : Placed code k) {m0 m : MachineData} {c t : Nat} (hmid : 
   have hfr : Frame m0 st.data := by
     refine ⟨(Match.reg_atom hm' rfl).trans hmid.frame.r14,
       (Match.reg_atom hm' rfl).trans hmid.frame.r13,
-      (Match.reg_atom hm' rfl).trans hmid.frame.rsp, ?_, fun p hp => ?_, fun p hp => ?_⟩
+      (Match.reg_atom hm' rfl).trans hmid.frame.rsp, ?_, fun p hp => ?_, fun p hp => ?_,
+      (Match.reg_atom hm' rfl).trans hmid.frame.rbp⟩
     · have hs := hmid.frame.saved
       simp only [AllOf, pushSlots] at hs ⊢
       obtain ⟨s0, s1, s2, s3, s4, s5, -⟩ := hs

@@ -90,8 +90,12 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} (h
     {e : List UInt8} (he : e.length = 16) {R : MachineState → Prop} {m : MachineData}
     (hK : Keep r (r.endSlots i) m) (h80 : BytesAt m.dmem (r.off 80) e)
     (hdx : Run.RegIs m .rdx (BitVec.ofNat 64 i)) (h12 : Run.RegIs m .r12 (r.off 112))
+    (h13 : Run.RegIs m .r13 (Labels.label "memcpy").toBitVec)
+    (hbx : Run.RegIs m .rbx (Labels.label "memset").toBitVec)
     (cont : ∀ m', Keep r (r.chainSlots ++ [(1080, 16 * (i + 1), r.endsPre i ++ e)]) m' →
       Run.RegIs m' .rdx (BitVec.ofNat 64 (i + 1)) → Run.RegIs m' .r12 (r.off 112) →
+      Run.RegIs m' .r13 (Labels.label "memcpy").toBitVec →
+      Run.RegIs m' .rbx (Labels.label "memset").toBitVec →
       Eventually (step1 Host.exe) R ⟨m', if i + 1 = 58 then r.pc NativeRustcX64.Xmss.WotsLeaf.b51Offset else r.pc NativeRustcX64.Xmss.WotsLeaf.b15Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b14Offset⟩ := by
   have hF := hK.1
@@ -175,7 +179,8 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} (h
     simp only [CmpOp.apply, BinOp.apply, low_W64, ext_W64]
     rw [← BitVec.ofNat_add, beq_ofNat (by omega) (by omega)]
   refine pc_at ?_ (cont _ ⟨hF1, allOf_append hC ⟨⟨by simp only [List.length_append, hEl, he]; omega,
-    by show 1080 + 16 * (i + 1) ≤ 2712; omega, hE'⟩, trivial⟩⟩ hdx' (regIs_reg hm1 rfl h12))
+    by show 1080 + 16 * (i + 1) ≤ 2712; omega, hE'⟩, trivial⟩⟩ hdx' (regIs_reg hm1 rfl h12)
+      (regIs_reg hm1 rfl h13) (regIs_reg hm1 rfl hbx))
   rw [pc_cond hpc hc, Run.label_of_block r hp b51_in_code rfl]
   by_cases h : i + 1 = 58
   · rw [ite_pos h, decide_eq_true h]

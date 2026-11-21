@@ -18,7 +18,9 @@ public import NativeRustcX64.XmssVerify.Layers
 `xmssVerify_spec`: `xmss_verify`, placed anywhere in a program whose callees meet their contracts,
 meets `XmssVerifyPre`/`XmssVerifyPost` (`NativeRustcX64.Spec.XmssVerify`): the prologue (`head`),
 the copy of the signature's words (`copy`), the parsing of the key and the layers (`parse`), the
-bottom and top layers and the comparison with the key's root (`layers`).
+bottom and top layers and the comparison with the key's root (`layers`). The entry's `GotAt`
+contract supplies precisely the `memcpy` and `memset` slots read by the raw blocks and their
+callees; `Pre` carries it through the frame and caller proofs without changing block indices.
 -/
 
 namespace NativeRustcX64.Xmss.XmssVerify

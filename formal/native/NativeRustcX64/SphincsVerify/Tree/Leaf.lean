@@ -22,7 +22,7 @@ open NativeRustcX64.Sphincs.SphincsVerify
 public section
 
 section
-variable (r : Run)
+variable (r : Run) [Labels]
 
 /-- The leaf's spills: the layer's word (`104`), the key pair's (`60`), the layer (`96`). -/
 @[expose] def LeafX (l : Nat) (m : MachineData) : Prop :=
@@ -33,7 +33,8 @@ variable (r : Run)
 ends. -/
 @[expose] def LeafC (l : Nat) (e : List (List UInt8)) (m : MachineData) : Prop :=
   Base r l m ∧ LeafX r l m ∧ Run.RegIs m .r12 (r.off 4096) ∧ Run.RegIs m .r13 (r.off 2048) ∧
-    BytesAt m.dmem (r.off 28280) e.flatten ∧ e.flatten.length = 1024
+    BytesAt m.dmem (r.off 28280) e.flatten ∧ e.flatten.length = 1024 ∧
+    Run.RegIs m .rbx (Labels.label "memset").toBitVec
 
 end
 
@@ -48,7 +49,8 @@ variable {r : Run} [Labels]
 @[expose] def LeafAt (r : Run) (l : Nat) (e : List (List UInt8)) (m : MachineData) : Prop :=
   r.AtCall m ∧ Keep r l m ∧ LeafX r l m ∧ Run.RegIs m .rbp (r.off 576) ∧
     Run.RegIs m .r12 (r.off 4096) ∧ Run.RegIs m .r13 (r.off 2048) ∧
-    BytesAt m.dmem (r.off 28280) e.flatten
+    BytesAt m.dmem (r.off 28280) e.flatten ∧
+    Run.RegIs m .rbx (Labels.label "memset").toBitVec ∧ Run.RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 /-- **A block of the leaf's stretch**, ending in a call. -/
 theorem LeafC.block (hpre : r.Pre) {l : Nat} {e : List (List UInt8)} {m m' : MachineData}
@@ -56,9 +58,11 @@ theorem LeafC.block (hpre : r.Pre) {l : Nat} {e : List (List UInt8)} {m m' : Mac
     (hm : Match (r.env m vars ret) S m') (hwf : (r.env m vars ret).WF)
     (hsp : S.reg .rsp = some (.ptr 0 (-8))) (hw : Run.frameWrites S = true) (hk : keepW S = true)
     (hl : leafW S = true) (hbp : S.reg .rbp = some (.ptr 0 576))
-    (h12 : S.reg .r12 = some (.ptr 0 4096)) (h13 : S.reg .r13 = some (.ptr 0 2048)) :
+    (h12 : S.reg .r12 = some (.ptr 0 4096)) (h13 : S.reg .r13 = some (.ptr 0 2048))
+    (hbx : S.reg .rbx = some (.label "memset") := by rfl)
+    (h14 : S.reg .r14 = some (.label "memcpy") := by rfl) :
     LeafAt r l e m' := by
-  obtain ⟨hB, ⟨h104, h60, h96⟩, -, -, hE, hEl⟩ := h
+  obtain ⟨hB, ⟨h104, h60, h96⟩, -, -, hE, hEl, -⟩ := h
   simp only [leafW, Bool.and_eq_true] at hl
   obtain ⟨⟨n60, n96⟩, nE⟩ := hl
   have k := fun {o : Nat} {bs : List UInt8} (ho : o + bs.length ≤ 29384)
@@ -79,7 +83,8 @@ theorem LeafC.block (hpre : r.Pre) {l : Nat} {e : List (List UInt8)} {m m' : Mac
      k (by rw [length_wordBytes]; decide) h96
       (n96' 96 (by decide) (by decide) _ (by rw [length_wordBytes]; decide))⟩,
     (hm.regs _ _ hbp).trans (eval_ptr 576), (hm.regs _ _ h12).trans (eval_ptr 4096),
-    (hm.regs _ _ h13).trans (eval_ptr 2048), k (by omega) hE (by rw [hEl]; exact nE)⟩
+    (hm.regs _ _ h13).trans (eval_ptr 2048), k (by omega) hE (by rw [hEl]; exact nE),
+    hm.regs .rbx _ hbx, hm.regs .r14 _ h14⟩
 
 /-- **After the call** that changed the frame's bytes `a .. a + n` above the spills. -/
 theorem LeafAt.post (hpre : r.Pre) {l : Nat} {e : List (List UInt8)} {m m' : MachineData}
@@ -87,15 +92,15 @@ theorem LeafAt.post (hpre : r.Pre) {l : Nat} {e : List (List UInt8)} {m m' : Mac
     (hsp : rspOf m' = rspOf m + 8#64) {a n N : Nat} (ha : 576 ≤ a) (han : a + n ≤ 20540)
     (hN : N ≤ finalizeStack) (hout : SameOutside m.dmem m'.dmem (r.CallOut m a n N)) :
     LeafC r l e m' := by
-  obtain ⟨hc, hK, ⟨h104, h60, h96⟩, hbp, h12, h13, hE⟩ := h
+  obtain ⟨hc, hK, ⟨h104, h60, h96⟩, hbp, h12, h13, hE, hbx, h14⟩ := h
   have k := fun {o : Nat} {bs : List UInt8} (ho : o + bs.length ≤ 29384)
     (hd : o + bs.length ≤ a ∨ a + n ≤ o) (h : BytesAt m.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hc (by omega) hN hout ho hd h
-  exact ⟨Base.of_call hpre hl hc hK hbp hS hsp ha han hN hout,
+  exact ⟨Base.of_call hpre hl hc hK hbp h14 hS hsp ha han hN hout,
     ⟨k (by simp [be32]) (by simp [be32]; omega) h104, k (by simp [be32]) (by simp [be32]; omega) h60,
      k (by rw [length_wordBytes]; decide) (by rw [length_wordBytes]; omega) h96⟩,
     regIs_of_saved rfl h12 hS, regIs_of_saved rfl h13 hS,
-    k (by omega) (by omega) hE, hEl⟩
+    k (by omega) (by omega) hE, hEl, regIs_of_saved rfl hbx hS⟩
 
 end
 
@@ -108,12 +113,14 @@ theorem frame_wf' (hpre : r.Pre) {l : Nat} {m : MachineData} (hB : Base r l m) (
   r.frame_wf hpre hB.2.1.2.2.2 _ _
 
 /-- A fresh state of the leaf's stretch. -/
-theorem match_leaf {l : Nat} {e : List (List UInt8)} {m : MachineData} (h : LeafC r l e m)
-    (ret : BitVec 64) : Match (r.env m (fun _ ↦ 0) ret) wotsS m :=
-  r.match_frame h.1.2.1
-    (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.r13, .ptr 0 2048)] from
-      ⟨h.2.2.1.trans (eval_ptr 4096).symm, h.1.2.2.2.trans (eval_ptr 576).symm,
-        h.2.2.2.1.trans (eval_ptr 2048).symm, trivial⟩) trivial trivial trivial
+theorem match_leaf (hpre : r.Pre) {l : Nat} {e : List (List UInt8)} {m : MachineData}
+    (h : LeafC r l e m) (ret : BitVec 64) : Match (r.env m (fun _ ↦ 0) ret) wotsS m :=
+  r.match_frame hpre h.1.2.1
+    (show AllOf _ [(Reg64.r14, Sym.label "memcpy"), (.r12, .ptr 0 4096),
+      (.rbp, .ptr 0 576), (.r13, .ptr 0 2048), (.rbx, .label "memset")] from
+      ⟨h.1.2.2.2.2, h.2.2.1.trans (eval_ptr 4096).symm,
+        h.1.2.2.2.1.trans (eval_ptr 576).symm,
+        h.2.2.2.1.trans (eval_ptr 2048).symm, h.2.2.2.2.2.2, trivial⟩) trivial trivial trivial
 
 /-- **`b151` and `memset`**: the address at `8320`, hasher A zero. -/
 theorem stage1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
@@ -121,12 +128,12 @@ theorem stage1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b152Offset ∧ LeafC r l e st.data ∧
       BytesAt st.data.dmem (r.off 8320) ((r.key l).adrs 1) ∧
       BytesAt st.data.dmem (r.off 4096) Keccak.new) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b151Offset⟩ := by
-  obtain ⟨hl, hEl, hF, hIn, hSp, h12, hbp, h13, hE⟩ := h
+  obtain ⟨hl, hEl, hF, hIn, hSp, h12, hbp, h13, hE, hbx, h14⟩ := h
   obtain ⟨h96, h200, h208, h160, h216, h104, h88, h60, h568, -⟩ := hSp
-  have hC : LeafC r l e m := ⟨⟨hl, hF, ⟨hIn, h88, h160, h200, h208, h216, h568⟩, hbp⟩,
-    ⟨h104, h60, h96⟩, h12, h13, hE, hEl⟩
+  have hC : LeafC r l e m := ⟨⟨hl, hF, ⟨hIn, h88, h160, h200, h208, h216, h568⟩, hbp, h14⟩,
+    ⟨h104, h60, h96⟩, h12, h13, hE, hEl, hbx⟩
   have hwf := frame_wf' hpre hC.1 (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b151Offset + b151.length)).toBitVec
-  refine exec_then (hb151 hp) run_b151 hwf (fun _ _ ↦ rfl) (match_leaf hC _) fun st hm hpc ↦ ?_
+  refine exec_then (hb151 hp) run_b151 hwf (fun _ _ ↦ rfl) (match_leaf hpre hC _) fun st hm hpc ↦ ?_
   have hA := hC.block hpre hm hwf rfl (by decide) (by decide) (by decide) rfl rfl rfl
   have h0 : Run.RegIs st.data .rdi (r.off 4096) := (hm.regs .rdi _ rfl).trans (eval_ptr 4096)
   have h1 : reg st.data .rsi = 0 := hm.regs .rsi _ rfl
@@ -164,7 +171,7 @@ theorem stage2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       BytesAt st.data.dmem (r.off 8320) ((r.key l).adrs 1) ∧
       HasherHolds (bytesOf st.data.dmem (r.off 4096) 344) r.seed) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b152Offset⟩ := by
   have hwf := frame_wf' hpre h.1 (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b152Offset + b152.length)).toBitVec
-  refine exec_then (hb152 hp) run_b152 hwf (fun _ _ ↦ rfl) (match_leaf h _) fun st hm hpc ↦ ?_
+  refine exec_then (hb152 hp) run_b152 hwf (fun _ _ ↦ rfl) (match_leaf hpre h _) fun st hm hpc ↦ ?_
   have hL := h.block hpre hm hwf rfl (by decide) (by decide) (by decide) rfl rfl rfl
   have h0 : Run.RegIs st.data .rdi (r.off 4096) := (hm.regs .rdi _ rfl).trans (eval_ptr 4096)
   have h1 : Run.RegIs st.data .rsi (r.off 112) := (hm.regs .rsi _ rfl).trans (eval_ptr 112)
@@ -188,7 +195,7 @@ theorem stage2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (by decide) ⟨_, hH1⟩) fun st' hpc' hsp hpost ↦ ?_
   obtain ⟨hh, hout, hS⟩ := r.update_out h0 h1 h2 hpost
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b152_next),
-    hL.post hpre h.1.1 h.2.2.2.2.2 hS hsp (by decide) (by decide) (by decide) hout,
+    hL.post hpre h.1.1 h.2.2.2.2.2.1 hS hsp (by decide) (by decide) (by decide) hout,
     r.bytesAt_of_call hpre hL.1 (by decide) (by decide) hout (by rw [length_adrs]; decide)
       (by rw [length_adrs]; omega) hA1, ?_⟩
   have := hh [] hH1
@@ -203,7 +210,7 @@ theorem stage3 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       HasherHolds (bytesOf st.data.dmem (r.off 4096) 344) (r.seed ++ (r.key l).adrs 1))
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b153Offset⟩ := by
   have hwf := frame_wf' hpre h.1 (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b153Offset + b153.length)).toBitVec
-  refine exec_then (hb153 hp) run_b153 hwf (fun _ _ ↦ rfl) (match_leaf h _) fun st hm hpc ↦ ?_
+  refine exec_then (hb153 hp) run_b153 hwf (fun _ _ ↦ rfl) (match_leaf hpre h _) fun st hm hpc ↦ ?_
   have hL := h.block hpre hm hwf rfl (by decide) (by decide) (by decide) rfl rfl rfl
   have h0 : Run.RegIs st.data .rdi (r.off 4096) := (hm.regs .rdi _ rfl).trans (eval_ptr 4096)
   have h1 : Run.RegIs st.data .rsi (r.off 8320) := (hm.regs .rsi _ rfl).trans (eval_ptr 8320)
@@ -225,7 +232,7 @@ theorem stage3 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (by decide) ⟨_, hH1⟩) fun st' hpc' hsp hpost ↦ ?_
   obtain ⟨hh, hout, hS⟩ := r.update_out h0 h1 h2 hpost
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b153_next),
-    hL.post hpre h.1.1 h.2.2.2.2.2 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
+    hL.post hpre h.1.1 h.2.2.2.2.2.1 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
   have := hh _ hH1
   rwa [hadr] at this
 
@@ -237,7 +244,7 @@ theorem stage4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       HasherHolds (bytesOf st.data.dmem (r.off 576) 344) (r.seed ++ (r.key l).adrs 1))
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b154Offset⟩ := by
   have hwf := frame_wf' hpre h.1 (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b154Offset + b154.length)).toBitVec
-  refine exec_then (hb154 hp) run_b154 hwf (fun _ _ ↦ rfl) (match_leaf h _) fun st hm hpc ↦ ?_
+  refine exec_then (hb154 hp) run_b154 hwf (fun _ _ ↦ rfl) (match_leaf hpre h _) fun st hm hpc ↦ ?_
   have hL := h.block hpre hm hwf rfl (by decide) (by decide) (by decide) rfl rfl rfl
   have h0 : Run.RegIs st.data .rdi (r.off 576) := (hm.regs .rdi _ rfl).trans (eval_ptr 576)
   have h1 : Run.RegIs st.data .rsi (r.off 4096) := (hm.regs .rsi _ rfl).trans (eval_ptr 4096)
@@ -249,7 +256,7 @@ theorem stage4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (by decide)) fun st' hpc' hsp hpost ↦ ?_
   obtain ⟨hcp, hout, hS⟩ := r.memcpy_out h0 h1 h2 hpost
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b154_next),
-    hL.post hpre h.1.1 h.2.2.2.2.2 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
+    hL.post hpre h.1.1 h.2.2.2.2.2.1 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
   have e1 := bytesOf_of_bytesAt hcp
   rw [Hasher.length_bytesOf] at e1
   have e2 := bytesOf_of_bytesAt hkp
@@ -265,7 +272,7 @@ theorem stage5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       HasherHolds (bytesOf st.data.dmem (r.off 576) 344) (r.seed ++ (r.key l).adrs 1 ++ e.flatten))
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b155Offset⟩ := by
   have hwf := frame_wf' hpre h.1 (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b155Offset + b155.length)).toBitVec
-  refine exec_then (hb155 hp) run_b155 hwf (fun _ _ ↦ rfl) (match_leaf h _) fun st hm hpc ↦ ?_
+  refine exec_then (hb155 hp) run_b155 hwf (fun _ _ ↦ rfl) (match_leaf hpre h _) fun st hm hpc ↦ ?_
   have hL := h.block hpre hm hwf rfl (by decide) (by decide) (by decide) rfl rfl rfl
   have h0 : Run.RegIs st.data .rdi (r.off 576) := (hm.regs .rdi _ rfl).trans (eval_ptr 576)
   have h1 : Run.RegIs st.data .rsi (r.off 28280) := (hm.regs .rsi _ rfl).trans (eval_ptr 28280)
@@ -280,13 +287,13 @@ theorem stage5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hH1 : HasherHolds (bytesOf st.data.dmem (r.off 576) 344) (r.seed ++ (r.key l).adrs 1) := by
     rw [hbo (by decide) (by decide)]; exact hH
   have hends : bytesOf st.data.dmem (r.off 28280) 1024 = e.flatten := by
-    rw [hbo (by decide) (by decide), ← h.2.2.2.2.2]
+    rw [hbo (by decide) (by decide), ← h.2.2.2.2.2.1]
     exact bytesOf_of_bytesAt h.2.2.2.2.1
   refine call_then hpc hc.2.2.1 (r.update_pre hpre hL.1 h0 h1 h2 (by decide) (by decide)
     (by decide) ⟨_, hH1⟩) fun st' hpc' hsp hpost ↦ ?_
   obtain ⟨hh, hout, hS⟩ := r.update_out h0 h1 h2 hpost
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b155_next),
-    hL.post hpre h.1.1 h.2.2.2.2.2 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
+    hL.post hpre h.1.1 h.2.2.2.2.2.1 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
   have := hh _ hH1
   rwa [hends] at this
 
@@ -298,7 +305,7 @@ theorem stage6 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       BytesAt st.data.dmem (r.off 10368) (hashBytes (r.seed ++ (r.key l).adrs 1 ++ e.flatten)))
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b156Offset⟩ := by
   have hwf := frame_wf' hpre h.1 (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b156Offset + b156.length)).toBitVec
-  refine exec_then (hb156 hp) run_b156 hwf (fun _ _ ↦ rfl) (match_leaf h _) fun st hm hpc ↦ ?_
+  refine exec_then (hb156 hp) run_b156 hwf (fun _ _ ↦ rfl) (match_leaf hpre h _) fun st hm hpc ↦ ?_
   have hL := h.block hpre hm hwf rfl (by decide) (by decide) (by decide) rfl rfl rfl
   have h0 : Run.RegIs st.data .rdi (r.off 10368) := (hm.regs .rdi _ rfl).trans (eval_ptr 10368)
   have h1 : Run.RegIs st.data .rsi (r.off 576) := (hm.regs .rsi _ rfl).trans (eval_ptr 576)
@@ -313,7 +320,7 @@ theorem stage6 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (by decide) ⟨_, hH1⟩) fun st' hpc' hsp hpost ↦ ?_
   obtain ⟨hf, hout, hS⟩ := r.finalize_out h0 h1 hpost
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b156_next),
-    hL.post hpre h.1.1 h.2.2.2.2.2 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
+    hL.post hpre h.1.1 h.2.2.2.2.2.1 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
   rw [finalize_eq hH1] at hf
   exact hf
 
@@ -325,7 +332,7 @@ theorem stage7 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       BytesAt st.data.dmem (r.off 9408) (wotsLeafHash r.seed (r.key l) e))
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b157Offset⟩ := by
   have hwf := frame_wf' hpre h.1 (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b157Offset + b157.length)).toBitVec
-  refine exec_then (hb157 hp) run_b157 hwf (fun _ _ ↦ rfl) (match_leaf h _) fun st hm hpc ↦ ?_
+  refine exec_then (hb157 hp) run_b157 hwf (fun _ _ ↦ rfl) (match_leaf hpre h _) fun st hm hpc ↦ ?_
   have hL := h.block hpre hm hwf rfl (by decide) (by decide) (by decide) rfl rfl rfl
   have h0 : Run.RegIs st.data .rdi (r.off 9344) := (hm.regs .rdi _ rfl).trans (eval_ptr 9344)
   have h1 : Run.RegIs st.data .rsi (r.off 2048) := (hm.regs .rsi _ rfl).trans (eval_ptr 2048)
@@ -348,7 +355,7 @@ theorem stage7 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (by decide)) fun st' hpc' hsp hpost ↦ ?_
   obtain ⟨hcp, hout, hS⟩ := r.memcpy_out h0 h1 h2 hpost
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b157_next),
-    hL.post hpre h.1.1 h.2.2.2.2.2 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
+    hL.post hpre h.1.1 h.2.2.2.2.2.1 hS hsp (by decide) (by decide) (by decide) hout, ?_⟩
   have hs := bytesAt_sub hcp 64 16
   have hl16 : (wotsLeafHash r.seed (r.key l) e).length = 16 := length_th _ _ _
   rw [← Hasher.bytesOf_add _ _ (by decide : 64 + 16 ≤ 80), Run.off_add, ← hl16,

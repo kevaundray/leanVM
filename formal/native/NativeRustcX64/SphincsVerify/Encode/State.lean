@@ -35,13 +35,15 @@ theorem noWriteIn_mono {S : Sym.SState} {o n o' n' : Nat} (h : Run.noWriteIn S o
 def encKeeps (S : Sym.SState) : Bool :=
   Run.frameWrites S && S.reg .rbx == some (.reg .rbx) && S.reg .rbp == some (.reg .rbp) &&
     S.reg .r12 == some (.reg .r12) && S.reg .r13 == some (.reg .r13) &&
-    S.reg .r15 == some (.reg .r15) && Run.noWriteIn S 0 576 && Run.noWriteIn S 20540 7740
+    S.reg .r15 == some (.reg .r15) && Run.noWriteIn S 0 576 && Run.noWriteIn S 20540 7740 &&
+    S.reg .r14 == some (.label "memcpy")
 
 /-- `encKeeps` but for EBX (a block that swaps the counter). -/
 def encKeepsNoBx (S : Sym.SState) : Bool :=
   Run.frameWrites S && S.reg .rbp == some (.reg .rbp) && S.reg .r12 == some (.reg .r12) &&
     S.reg .r13 == some (.reg .r13) && S.reg .r15 == some (.reg .r15) &&
-    Run.noWriteIn S 0 576 && Run.noWriteIn S 20540 7740
+    Run.noWriteIn S 0 576 && Run.noWriteIn S 20540 7740 &&
+    S.reg .r14 == some (.label "memcpy")
 
 namespace Run
 
@@ -54,7 +56,11 @@ def EncPlace (o n : Nat) : Prop := o + n ≤ 576 ∨ (20540 ≤ o ∧ o + n ≤ 
 def EncData (l : Nat) (s : List UInt8) (c : UInt32) (m : MachineData) : Prop :=
   r.Inputs m ∧ r.LayerSpills l m ∧ RegIs m .r12 (r.off 4096) ∧ RegIs m .rbp (r.off 576) ∧
     RegIs m .r13 (r.off 2048) ∧ RegIs m .r15 (r.off 144) ∧ BytesAt m.dmem (r.off 144) s ∧
-    UInt32.ofNat (reg m .rbx).toNat = c
+    UInt32.ofNat (reg m .rbx).toNat = c ∧ RegIs m .r14 (label "memcpy").toBitVec
+
+theorem EncData.memcpy {l : Nat} {s : List UInt8} {c : UInt32} {m : MachineData}
+    (h : r.EncData l s c m) : RegIs m .r14 (label "memcpy").toBitVec :=
+  h.2.2.2.2.2.2.2.2
 
 /-- **The encoding's invariant.** -/
 def EncBase (l : Nat) (s : List UInt8) (c : UInt32) (m : MachineData) : Prop :=
@@ -72,16 +78,15 @@ theorem length_pkBytes : (pkBytes r.w).length = 32 := by
 omit [Labels] in
 theorem length_sigMem : (sigMem r.sig).length = 7740 := SigMem.length_sigMem r.w
 
-omit [Labels] in
 /-- **The data, from bytes kept** at its places, its registers kept and EBX's counter `c'`. -/
 theorem encData_of_bytes' {l : Nat} {s : List UInt8} {c c' : UInt32} {m m' : MachineData}
     (h : r.EncData l s c m) (hs : s.length = 16)
     (hk : ∀ {o : Nat} {bs : List UInt8}, EncPlace o bs.length →
       BytesAt m.dmem (r.off o) bs → BytesAt m'.dmem (r.off o) bs)
-    (hreg : ∀ x : Reg64, x = .rbp ∨ x = .r12 ∨ x = .r13 ∨ x = .r15 → reg m' x = reg m x)
+    (hreg : ∀ x : Reg64, x = .rbp ∨ x = .r12 ∨ x = .r13 ∨ x = .r15 ∨ x = .r14 → reg m' x = reg m x)
     (hc : UInt32.ofNat (reg m' .rbx).toNat = c') : r.EncData l s c' m' := by
   obtain ⟨⟨hpk, hsig⟩, ⟨s96, s200, s208, s160, s216, s104, s88, s60, s568, s176⟩, h12, hbp, h13,
-    h15, hsm, -⟩ := h
+    h15, hsm, -, h14⟩ := h
   have w : ∀ o, o + 8 ≤ 576 → ∀ v : UInt64, r.WordAt m o v → r.WordAt m' o v := fun o ho v hv ↦
     hk (by rw [EncPlace, length_wordBytes]; omega) hv
   refine ⟨⟨hk (by rw [EncPlace, r.length_pkBytes]; omega) hpk,
@@ -90,22 +95,22 @@ theorem encData_of_bytes' {l : Nat} {s : List UInt8} {c c' : UInt32} {m m' : Mac
       w 160 (by omega) _ s160, w 216 (by omega) _ s216,
       hk (by rw [EncPlace, length_be32]; omega) s104, hk (by rw [EncPlace, length_be64]; omega) s88,
       hk (by rw [EncPlace, length_be32]; omega) s60, w 568 (by omega) _ s568,
-      w 176 (by omega) _ s176⟩, ?_, ?_, ?_, ?_, hk (by rw [EncPlace, hs]; omega) hsm, hc⟩
+      w 176 (by omega) _ s176⟩, ?_, ?_, ?_, ?_, hk (by rw [EncPlace, hs]; omega) hsm, hc, ?_⟩
   · rw [RegIs, hreg .r12 (by simp)]; exact h12
   · rw [RegIs, hreg .rbp (by simp)]; exact hbp
   · rw [RegIs, hreg .r13 (by simp)]; exact h13
   · rw [RegIs, hreg .r15 (by simp)]; exact h15
+  · rw [RegIs, hreg .r14 (by simp)]; exact h14
 
-omit [Labels] in
 /-- **The data, from bytes kept** at its places and its registers kept. -/
 theorem encData_of_bytes {l : Nat} {s : List UInt8} {c : UInt32} {m m' : MachineData}
     (h : r.EncData l s c m) (hs : s.length = 16)
     (hk : ∀ {o : Nat} {bs : List UInt8}, EncPlace o bs.length →
       BytesAt m.dmem (r.off o) bs → BytesAt m'.dmem (r.off o) bs)
-    (hreg : ∀ x : Reg64, x = .rbx ∨ x = .rbp ∨ x = .r12 ∨ x = .r13 ∨ x = .r15 →
+    (hreg : ∀ x : Reg64, x = .rbx ∨ x = .rbp ∨ x = .r12 ∨ x = .r13 ∨ x = .r15 ∨ x = .r14 →
       reg m' x = reg m x) : r.EncData l s c m' :=
   r.encData_of_bytes' h hs hk (fun x hx ↦ hreg x (.inr hx))
-    (by rw [hreg .rbx (.inl rfl)]; exact h.2.2.2.2.2.2.2)
+    (by rw [hreg .rbx (.inl rfl)]; exact h.2.2.2.2.2.2.2.1)
 
 /-- **A call keeps the data** when it changes only bytes of hasher A or hasher B. -/
 theorem encData_of_call (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32}
@@ -116,7 +121,7 @@ theorem encData_of_call (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32}
   r.encData_of_bytes h hs
     (fun hp hb ↦ r.bytesAt_of_call hpre hc (by omega) hN hout (by unfold EncPlace at hp; omega)
       (by unfold EncPlace at hp; omega) hb)
-    fun x hx ↦ hS.1 x (by rcases hx with rfl | rfl | rfl | rfl | rfl <;> rfl)
+    fun x hx ↦ hS.1 x (by rcases hx with rfl | rfl | rfl | rfl | rfl | rfl <;> rfl)
 
 /-- **A block keeps the data** when it keeps the registers and writes none of its bytes. -/
 theorem encData_of_block (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32}
@@ -124,19 +129,20 @@ theorem encData_of_block (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32}
     {ret : BitVec 64} {S : Sym.SState} (hm : Sym.Match (r.env m vars ret) S m')
     (hwf : (r.env m vars ret).WF) (hS : encKeeps S = true) : r.EncData l s c m' := by
   simp only [encKeeps, Bool.and_eq_true, beq_iff_eq] at hS
-  obtain ⟨⟨⟨⟨⟨⟨⟨-, hbx⟩, hbp⟩, h12⟩, h13⟩, h15⟩, k0⟩, ksig⟩ := hS
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨-, hbx⟩, hbp⟩, h12⟩, h13⟩, h15⟩, k0⟩, ksig⟩, h14⟩ := hS
   refine r.encData_of_bytes h hs (fun hp hb ↦ r.bytesAt_kept hpre hm hwf
     (by unfold EncPlace at hp; omega) hb ?_) fun x hx ↦ ?_
   · unfold EncPlace at hp
     rcases hp with hp | hp
     · exact noWriteIn_mono k0 (Nat.zero_le _) (by omega)
     · exact noWriteIn_mono ksig hp.1 (by omega)
-  · rcases hx with rfl | rfl | rfl | rfl | rfl
+  · rcases hx with rfl | rfl | rfl | rfl | rfl | rfl
     · exact hm.regs .rbx _ hbx
     · exact hm.regs .rbp _ hbp
     · exact hm.regs .r12 _ h12
     · exact hm.regs .r13 _ h13
     · exact hm.regs .r15 _ h15
+    · exact (hm.regs .r14 _ h14).trans h.2.2.2.2.2.2.2.2.symm
 
 /-- **A block that changes EBX keeps the data**, with EBX's new counter. -/
 theorem encData_of_block' (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32}
@@ -145,18 +151,19 @@ theorem encData_of_block' (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32}
     (hwf : (r.env m vars ret).WF) (hS : encKeepsNoBx S = true) :
     r.EncData l s (UInt32.ofNat (reg m' .rbx).toNat) m' := by
   simp only [encKeepsNoBx, Bool.and_eq_true, beq_iff_eq] at hS
-  obtain ⟨⟨⟨⟨⟨⟨-, hbp⟩, h12⟩, h13⟩, h15⟩, k0⟩, ksig⟩ := hS
+  obtain ⟨⟨⟨⟨⟨⟨⟨-, hbp⟩, h12⟩, h13⟩, h15⟩, k0⟩, ksig⟩, h14⟩ := hS
   refine r.encData_of_bytes' h hs (fun hp hb ↦ r.bytesAt_kept hpre hm hwf
     (by unfold EncPlace at hp; omega) hb ?_) (fun x hx ↦ ?_) rfl
   · unfold EncPlace at hp
     rcases hp with hp | hp
     · exact noWriteIn_mono k0 (Nat.zero_le _) (by omega)
     · exact noWriteIn_mono ksig hp.1 (by omega)
-  · rcases hx with rfl | rfl | rfl | rfl
+  · rcases hx with rfl | rfl | rfl | rfl | rfl
     · exact hm.regs .rbp _ hbp
     · exact hm.regs .r12 _ h12
     · exact hm.regs .r13 _ h13
     · exact hm.regs .r15 _ h15
+    · exact (hm.regs .r14 _ h14).trans h.2.2.2.2.2.2.2.2.symm
 
 end Run
 

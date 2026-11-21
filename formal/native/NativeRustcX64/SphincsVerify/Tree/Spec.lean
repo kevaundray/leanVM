@@ -109,17 +109,19 @@ theorem nodeI_loop (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (Li
     {z : Nat} {m : MachineData} (h : AtN8 r l e z m) (hlt : z + 1 < heightOf l) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b162Offset ∧ AtNode r l e (z + 1) st.data)
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b188Offset⟩ := by
-  obtain ⟨hB, hz, hN, h12, h13, hV⟩ := h
+  obtain ⟨hB, hz, hN, h12, h13, hV, hbx⟩ := h
   have hl := hB.1
   have hh := heightOf_le hl
   have hwf := frame_wf' hpre hB 0
   have hld64 : (r.env m (fun _ ↦ 0) 0).load 0 64 8 = (z + 1).toUInt64.toBitVec := load_word hN.1
   have hld160 : (r.env m (fun _ ↦ 0) 0).load 0 160 8 = (heightOf l).toUInt64.toBitVec :=
     load_word hB.2.2.1.2.2.1
-  have hm0 := match_fs hB.2.1 (ret := 0) (known := kAB ++ [(.r13, .ptr 0 2048)])
-    (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.r13, .ptr 0 2048)] from
-      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm,
-        h13.trans (eval_ptr 2048).symm, trivial⟩)
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := 0)
+    (known := kAB ++ [(.r13, .ptr 0 2048), (.rbx, .label "memset")])
+    (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576),
+      (.r13, .ptr 0 2048), (.rbx, .label "memset")] from
+      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm,
+        h13.trans (eval_ptr 2048).symm, hbx, trivial⟩)
   refine exec_then (hb188 hp) run_b188 hwf (fun _ h ↦ nomatch h) hm0 fun st hm hpc ↦ ?_
   have hpc' := pc_cond (b := true) hpc (by
     simp only [SBool.eval, Sym.eval, CmpOp.apply, low_W64, hld64, hld160, toBitVec_toUInt64]
@@ -133,7 +135,8 @@ theorem nodeI_loop (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (Li
   refine .done _ ⟨hpc', Base.of_match hpre hB hm hwf rfl (by decide) (by decide) rfl, hlt,
     (hm.regs .rcx _ rfl).trans (hld64.trans (toBitVec_toUInt64 _)),
     (hm.regs .r12 _ rfl).trans (eval_ptr 4096), ?_, ?_,
-    value_at hm hl hz hV (o := 10368) (by decide) (by decide) (by decide)⟩
+    value_at hm hl hz hV (o := 10368) (by decide) (by decide) (by decide),
+    hm.regs .rbx _ rfl⟩
   · have := hN.of_match hpre hm hwf (by decide); exact this.2.1
   · have := hN.of_match hpre hm hwf (by decide); exact this.2.2
 
@@ -151,7 +154,7 @@ theorem fold_exit (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (Lis
     Eventually (step1 Host.exe) (fun st ↦
       if l = 2 then r.Done (r.layerRoot l e == r.pk.root) st
       else st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b104Offset ∧ r.AtLayer (l + 1) (r.layerRoot l e) st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b188Offset⟩ := by
-  obtain ⟨hB, hz, hN, h12, h13, hV⟩ := h
+  obtain ⟨hB, hz, hN, h12, h13, hV, hbx⟩ := h
   have hl := hB.1
   have hh := heightOf_le hl
   have hwf := frame_wf' hpre hB 0
@@ -162,10 +165,12 @@ theorem fold_exit (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (Lis
   have hld200 : (r.env m (fun _ ↦ 0) 0).load 0 200 8 = (l + 1).toUInt64.toBitVec := load_word h200
   have hld208 : (r.env m (fun _ ↦ 0) 0).load 0 208 8 = (4656 + 1028 * (l + 1)).toUInt64.toBitVec :=
     load_word h208
-  have hm0 := match_fs hB.2.1 (ret := 0) (known := kAB ++ [(.r13, .ptr 0 2048)])
-    (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.r13, .ptr 0 2048)] from
-      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm,
-        h13.trans (eval_ptr 2048).symm, trivial⟩)
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := 0)
+    (known := kAB ++ [(.r13, .ptr 0 2048), (.rbx, .label "memset")])
+    (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576),
+      (.r13, .ptr 0 2048), (.rbx, .label "memset")] from
+      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm,
+        h13.trans (eval_ptr 2048).symm, hbx, trivial⟩)
   refine exec_then (hb188 hp) run_b188 hwf (fun _ h ↦ nomatch h) hm0 fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := false) hpc1 (by
     simp only [SBool.eval, Sym.eval, CmpOp.apply, low_W64, hld64, hld160, heq]
@@ -233,9 +238,9 @@ theorem fold_exit (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (Lis
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofInt]
       omega
     refine .done _ ⟨hpc3', by omega, hlen, hF3, hB3.2.2.1.1, ?_, ?_, hm3.regs .rdx _ rfl,
-      hm3.regs .rbx _ rfl, (hm3.regs .r12 _ rfl).trans (eval_ptr 4096), hB3.2.2.2,
+      hm3.regs .rbx _ rfl, (hm3.regs .r12 _ rfl).trans (eval_ptr 4096), hB3.2.2.2.1,
       (hm3.regs .r13 _ rfl).trans (eval_ptr 2048), (hm3.regs .r15 _ rfl).trans (eval_ptr 144), hR,
-      h176, hB3.2.2.1.2.2.2.2.2.2⟩
+      h176, hB3.2.2.1.2.2.2.2.2.2, hB3.2.2.2.2⟩
     · exact (hm3.regs .rcx _ rfl).trans (hld208.trans (toBitVec_toUInt64 _))
     · exact (hm3.regs .rsi _ rfl).trans (hld200.trans (toBitVec_toUInt64 _))
 

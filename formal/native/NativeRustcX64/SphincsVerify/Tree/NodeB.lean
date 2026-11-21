@@ -20,7 +20,7 @@ open NativeRustcX64.Sphincs.SphincsVerify
 public section
 
 section
-variable (r : Run)
+variable (r : Run) [Labels]
 
 /-- **At `b171`**: hasher A's state zero, its buffer `PK.seed | ADRS` then zeros, `buf_len` 16;
 RBX, R15 the turn's bytes taken and left, R13 the address's end. -/
@@ -45,10 +45,12 @@ section
 variable {r : Run} [Labels]
 
 /-- A fresh state of the frame with the registers `known`. -/
-theorem match_fs {m : MachineData} (hF : r.Frame m) {ret : BitVec 64} {known : List (Reg64 × Sym)}
+theorem match_fs (hpre : r.Pre) {m : MachineData} (hF : r.Frame m)
+    (h14 : Run.RegIs m .r14 (Labels.label "memcpy").toBitVec)
+    {ret : BitVec 64} {known : List (Reg64 × Sym)}
     (hk : AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m (fun _ ↦ 0) ret)) known) :
     Match (r.env m (fun _ ↦ 0) ret) (frameS known) m :=
-  r.match_frame hF hk trivial trivial trivial
+  r.match_frame hpre hF ⟨h14, hk⟩ trivial trivial trivial
 
 /-- The bytes of a block's state a block does not write, as `bytesOf` reads them. -/
 theorem bytesOf_kept (hpre : r.Pre) {m m' : MachineData} {vars : Nat → BitVec 64}
@@ -84,8 +86,8 @@ theorem nodeB (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hwf := frame_wf' hpre hB (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b170Offset + b170.length)).toBitVec
   have hld : (r.env m (fun _ ↦ 0) (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b170Offset + b170.length)).toBitVec).load 0 4432 8
       = 0 := load_sub (i := 336) (v := 0) hA0 (by decide)
-  have hm0 := match_fs hB.2.1 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b170Offset + b170.length)).toBitVec)
-    (known := kAB) ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm, trivial⟩
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b170Offset + b170.length)).toBitVec)
+    (known := kAB) ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm, trivial⟩
   refine exec_then (hb163 hp) run_b163 hwf (fun _ h ↦ nomatch h) hm0 fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := true) hpc1 (by sym_simp; rw [hld]; decide)
   rw [Sym.ite_pos (rfl : true = true), lbl_67 hp] at hpc1'
@@ -178,11 +180,11 @@ theorem nodeC (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hwf := frame_wf' hpre hB (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b174Offset + b174.length)).toBitVec
   have hld : (r.env m (fun _ ↦ 0) (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b174Offset + b174.length)).toBitVec).load 0 4432 8
       = (16 : UInt64).toBitVec := load_word hW
-  have hm0 := match_fs hB.2.1 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b174Offset + b174.length)).toBitVec)
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b174Offset + b174.length)).toBitVec)
     (known := kAB ++ [(.rbx, .lit 32), (.r15, .lit 32), (.r13, .ptr 0 9344)])
     (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.rbx, .lit 32),
       (.r15, .lit 32), (.r13, .ptr 0 9344)] from
-      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm, hbx, h15,
+      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm, hbx, h15,
         h13.trans (eval_ptr 9344).symm, trivial⟩)
   refine exec_then (hb171 hp) run_b171 hwf (fun _ h ↦ nomatch h) hm0 fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := true) hpc1 (by sym_simp; rw [hld]; decide)

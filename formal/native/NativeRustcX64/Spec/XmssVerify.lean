@@ -12,7 +12,9 @@ the key, message and signature the words encode, `Xmss.verify_eq`), else `0`, wi
 registers kept (and RSP 8 above, `Spec`), and changes no byte outside its stack
 (`xmssVerifyStack` bytes below RSP: its pushes and frame of `48 + 5736`, the two stack arguments
 and the return address of its call of `wots_leaf`, and `wots_leaf`'s stack, the deepest of its
-callees'). It reads the round constants (`RcAt`).
+callees'). It reads the round constants (`RcAt`) and the `memcpy` and `memset` GOT slots,
+whose eight-byte label pointers must occupy nonwrapping, mutually disjoint slots apart from
+the stack, return address and input words (`GotAt`).
 -/
 
 namespace NativeRustcX64
@@ -43,7 +45,8 @@ def XmssVerifyPre (w : Nat → UInt64) (m : MachineData) : Prop :=
     (∀ i < xmssInputWords, BytesAt m.dmem (xmssInput m + BitVec.ofNat 64 (8 * i))
       (LeanVM.Protocol.KeccakHash.wordBytes (w i))) ∧
     NoWrap (xmssInput m) (8 * xmssInputWords) ∧
-    Apart (xmssInput m) (8 * xmssInputWords) (stackBelow m xmssVerifyStack) (xmssVerifyStack + 8)
+    Apart (xmssInput m) (8 * xmssInputWords) (stackBelow m xmssVerifyStack) (xmssVerifyStack + 8) ∧
+    GotAt m xmssVerifyStack [(xmssInput m, 8 * xmssInputWords)] ["memcpy", "memset"]
 
 /-- `xmss_verify`'s postcondition on the input words `w`. -/
 def XmssVerifyPost (w : Nat → UInt64) (m m' : MachineData) : Prop :=

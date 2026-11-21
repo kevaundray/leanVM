@@ -21,7 +21,9 @@ open NativeRustcX64.Sym
 set_option Elab.async false
 
 /-- The symbolic state of block 5: the stack, RSP the frame. -/
-@[expose] public def stM : SState := init [1928] [(.rsp, .ptr 0 8)]
+@[expose] public def stM : SState :=
+  (init [1928, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot "memcpy", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memcpy")
 
 sym_block b5_execM := exec b5 stM
 
@@ -68,6 +70,7 @@ theorem Pre.not_stack {m₀ : MachineData} (P : Pre m₀) {o s x : Nat} (hs : o 
 /-- **The `memcpy` of the chain values.** -/
 public theorem mid [Host] {k : Nat} (hp : Placed code k)
     (hmemcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
+    (G : ParserGot m₀)
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b5Offset)) (h : LoopDone m₀ st.data)
     {R : MachineState → Prop}
     (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b6Offset) → MidAt m₀ st'.data →
@@ -77,11 +80,24 @@ public theorem mid [Host] {k : Nat} (hp : Placed code k)
   have := P.pos
   have hB := P.baseNW
   unfold NoWrap at hB
-  let env := Env.ofMachine st.data [(base m₀, 1928)] (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b6Offset)).toBitVec
-  have hwf : env.WF := Env.wf_of ⟨⟨P.stackMapped.kept C.kept, P.baseNW⟩, trivial⟩
-    (List.pairwise_singleton _ _)
-  have hm : Match env stM st.data := match_ofMachine ⟨rfl, trivial⟩
-    ⟨C.rsp.trans (by simp [Sym.eval]), trivial⟩ trivial trivial trivial
+  let env := Env.ofMachine st.data [(base m₀, 1928), (gotAddr "memcpy", 8)]
+    (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b6Offset)).toBitVec
+  have hg := G.1 "memcpy" (by simp)
+  have hwf : env.WF := Env.wf_of
+    ⟨⟨P.stackMapped.kept C.kept, P.baseNW⟩,
+      ⟨(G.mapped (by simp)).kept C.kept, hg.2.1⟩, trivial⟩
+    (List.pairwise_pair.mpr hg.2.2.1.symm)
+  have hm : Match env stM st.data := by
+    apply Match.withKnownBytes
+    · apply match_ofMachine
+      · exact ⟨rfl, rfl, trivial⟩
+      · exact ⟨C.rsp.trans (by simp [Sym.eval]), trivial⟩
+      · exact trivial
+      · exact trivial
+      · exact ⟨by simp [Sym.eval, Env.base, gotAddr], trivial⟩
+    · intro i hi
+      simpa [Sym.eval, Env.base, env] using
+        P.got_byte G (C.same.mono fun _ => Or.inl) hi
   obtain ⟨hdi, hsi, hdx, hsp, h12, h13, h15, hbp, hbx, h14, hmem⟩ := stM1_regs
   refine call_step (b5_in_code.trans hp.1 (List.cons_ne_nil _ _)) b5_execM hwf rfl hpc hm
     fun st₁ hpc₁ hm₁ => ?_

@@ -108,6 +108,12 @@ theorem regIs_lit {env : Env} {m' : MachineData} {S : SState} (hm : Match env S 
   rw [hm.regs y _ h]
   rfl
 
+/-- A register holding a raw indirect-call target. -/
+theorem regIs_label {env : Env} {m : MachineData} {S : SState} (hm : Match env S m)
+    {y : Reg64} {l : Label} (h : S.reg y = some (.label l)) :
+    Run.RegIs m y (Labels.label l).toBitVec :=
+  hm.regs y _ h
+
 /-- **A register a block keeps.** -/
 theorem regIs_reg {m m' : MachineData} {regions : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64}
     {ret : BitVec 64} {S : SState} (hm : Match (Env.ofMachine m regions vars ret) S m') {y : Reg64}
@@ -142,7 +148,7 @@ theorem known_lit {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64}
   h
 
 /-- **A fresh symbolic state for the frame**: the registers `k` and `keptK`. -/
-theorem match_frameS {l : Nat} {x E : List UInt8} {m : MachineData}
+theorem match_frameS (hpre : r.Pre) {l : Nat} {x E : List UInt8} {m : MachineData}
     (hF : r.Frame m) (hK : KeepRest r l x E m) {ret : BitVec 64} {k : List (Reg64 × Sym)}
     (hk : AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m (fun _ ↦ 0) ret)) k) :
     Match (r.env m (fun _ ↦ 0) ret) (frameS k) m := by
@@ -150,7 +156,7 @@ theorem match_frameS {l : Nat} {x E : List UInt8} {m : MachineData}
       keptK := by
     unfold keptK
     exact ⟨known_ptr hK.2.2.1, known_ptr hK.2.2.2.1, trivial⟩
-  exact r.match_frame hF (vars := fun _ ↦ 0) (ret := ret) (known := k ++ keptK) (labels := [])
+  exact r.match_frame hpre hF (vars := fun _ ↦ 0) (ret := ret) (known := k ++ keptK) (labels := [])
     (bounds := []) (aliases := []) (allOf_append hk hk2) trivial trivial trivial
 
 /-- **A literal word the memory holds**, as a write of the symbolic state. -/

@@ -20,7 +20,7 @@ open NativeRustcX64.Sym
 set_option Elab.async false
 
 /-- After the `memcpy` of the path. -/
-structure TailAt (m₀ m : MachineData) : Prop where
+structure TailAt [Labels] (m₀ m : MachineData) : Prop where
   rbx : m.regs.get64 .rbx = out m₀
   rbp : m.regs.get64 .rbp = m₀.regs.get64 .rbp
   rsp : m.regs.get64 .rsp = base m₀ + BitVec.ofNat 64 8
@@ -32,6 +32,7 @@ structure TailAt (m₀ m : MachineData) : Prop where
   cursor : BytesAt m.dmem (cur m₀) (regBytes (BitVec.ofNat 64 (pos m₀ + 1200)))
   chain : BytesAt m.dmem (base m₀ + BitVec.ofNat 64 952) (chainBytes m₀)
   path : BytesAt m.dmem (out m₀) (pathBytes m₀)
+  r14 : m.regs.get64 .r14 = (Labels.label "memcpy").toBitVec
 
 theorem length_pathBytes {m₀ : MachineData} (P : Pre m₀) : (pathBytes m₀).length = 256 := by
   unfold pathBytes
@@ -92,7 +93,7 @@ theorem tailAt_of [Labels] {m₀ m m' : MachineData} (P : Pre m₀) (h : PathCal
     C.kept.trans hs.2, fun j hj => (C.save j hj).sameOutside hsame fun t ht => ?_,
     C.rand.sameOutside hsame fun t ht => ?_,
     h.cursor.sameOutside hsame fun t ht => hoc t (by rw [length_regBytes] at ht; exact ht),
-    h.chain.sameOutside hsame fun t ht => ?_, ?_⟩
+    h.chain.sameOutside hsame fun t ht => ?_, ?_, (hs.1 .r14 rfl).trans h.r14⟩
   · show rspOf m' = _
     rw [hrsp]
     show m.regs.get64 .rsp + _ = _
@@ -162,14 +163,18 @@ public theorem tail [Host] {k : Nat} (hp : Placed code k)
   rw [hret] at hpc₁
   have T := tailAt_of P h hrsp₁ hpost₁
   -- Block 23.
-  let env₂ := Env.ofMachine st₁.data [(base m₀, 1928), (out m₀, 1200)] (fun _ => 0)
-    (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b24Offset)).toBitVec
+  let env₂ := Env.ofMachine st₁.data [(base m₀, 1928), (out m₀, 1200)]
+    (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b24Offset)).toBitVec
   have hwf₂ : env₂.WF :=
-    Env.wf_of ⟨⟨P.stackMapped.kept T.kept, P.baseNW⟩, ⟨P.outMapped.kept T.kept, P.outNW⟩, trivial⟩
-      (List.pairwise_pair.mpr P.outF.symm)
-  have hm₁ : Match env₂ stT0 st₁.data := match_ofMachine ⟨rfl, rfl, trivial⟩
-    ⟨T.rsp.trans (by simp [Sym.eval]), T.rbx.trans (by simp [Sym.eval]), trivial⟩
-    trivial trivial trivial
+    Env.wf_of ⟨⟨P.stackMapped.kept T.kept, P.baseNW⟩, ⟨P.outMapped.kept T.kept, P.outNW⟩,
+      trivial⟩ (List.pairwise_pair.mpr P.outF.symm)
+  have hm₁ : Match env₂ stT0 st₁.data := by
+    apply match_ofMachine
+    · exact ⟨rfl, rfl, trivial⟩
+    · exact ⟨T.rsp.trans (by simp [Sym.eval]), T.rbx.trans (by simp [Sym.eval]), T.r14, trivial⟩
+    · exact trivial
+    · exact trivial
+    · exact trivial
   obtain ⟨hdi, hsi, hdx, hsp, hbp, hwrites, hch, hsv, hpa⟩ := stT1_facts
   refine call_step (b23_in_code.trans hp.1 (List.cons_ne_nil _ _)) b23_execT hwf₂ rfl hpc₁ hm₁
     fun st₂ hpc₂ hm₂ => ?_

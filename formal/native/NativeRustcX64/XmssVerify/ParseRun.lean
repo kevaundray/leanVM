@@ -75,7 +75,7 @@ theorem fromBytesPre (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m
       FromBytesPre.Buf m (ad m₀ (fr + x)) s := fun hx hs hs0 =>
     ⟨C.mapped P (by fro), P.ad_nw (by fro),
       apart_at P hrsp (by decide) (by fro) (by omega) (by fro) hs0⟩
-  refine ⟨stackOk_at P C hrsp (by omega) (by decide), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+  refine ⟨stackOk_at P C hrsp (by omega) (by decide), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
     simp only [FromBytesPre.cursor, h0, h1, h2]
   · have hb8 := hcur.bytesOf
     rw [NativeRustc.length_wordBytes] at hb8
@@ -88,6 +88,16 @@ theorem fromBytesPre (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m
   · exact P.apart_ad (by omega) (by fro) (by fro) (by omega) (by omega)
   · exact P.apart_ad (by omega) (by fro) (by fro) (by omega) (by omega)
   · exact P.apart_ad (by omega) (by fro) (by fro) (by omega) (by omega)
+  · apply gotAt_at P C hrsp (by omega) (by decide) (by decide)
+    intro l hl a ha
+    have hl' : l ∈ ["memcpy", "memset"] := by
+      simp only [List.mem_singleton] at hl
+      simp [hl]
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl | rfl
+    · exact got_apart P hl' (by fro) (by dsimp; decide)
+    · exact got_apart P hl' (by fro) (by dsimp; decide)
+    · exact got_apart P hl' (by fro) (by dsimp; decide)
 
 end
 
@@ -108,11 +118,9 @@ public theorem parse {k : Nat} (hp : Placed code k)
   have hsig := sig_of h
   have hmsg := msg_of h
   -- Block 3.
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b3Offset + b3.length)).toBitVec
-  have hwf : env.WF := frame_wf P C.kept
-  have hm0 : Match env st3 st.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨h.rsp.trans (ad_int m₀ 24).symm, trivial⟩ trivial trivial
-      trivial
+  let env := Env.ofMachine st.data (frameRs m₀) (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b3Offset + b3.length)).toBitVec
+  have hwf : env.WF := frameG_wf P C.kept
+  have hm0 : Match env st3 st.data := match_stG P C.same h.rsp trivial
   obtain ⟨h0, h1, h2, hsp, hbx, h15, hbp, h12, h13, hw, hov1, hov2, hov3⟩ := st3_facts
   refine call_step (b3_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b3 hwf rfl hpc hm0
     fun st₁ hpc₁ hm₁ => ?_
@@ -185,14 +193,13 @@ public theorem parse {k : Nat} (hp : Placed code k)
   have hsig₂ := hk₂ hsig₁ (by omega) (by simp [length_sigB]) (by simp [length_sigB])
   have hrsp₂' : rspOf st₂.data = ad m₀ (fr + 24) := by rw [hrsp₂, hrsp₁, ad_add]
   -- Block 4.
-  let env₃ := Env.ofMachine st₂.data [frR m₀] (fun _ => 0)
+  let env₃ := Env.ofMachine st₂.data (frameRs m₀) (fun _ => 0)
     (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b4Offset + b4.length)).toBitVec
-  have hwf₃ : env₃.WF := frame_wf P C₂.kept
+  have hwf₃ : env₃.WF := frameG_wf P C₂.kept
   have hm₃ : Match env₃ st4 st₂.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp₂'.trans (ad_int m₀ 24).symm,
-      ((hs₂.1 .rbx rfl).trans ((hx hbx).trans (eval_ptr0 _).symm)),
-      ((hs₂.1 .r15 rfl).trans ((hx h15).trans (eval_ptr0 _).symm)), trivial⟩
-      trivial trivial trivial
+    match_stG P C₂.same hrsp₂'
+      ⟨((hs₂.1 .rbx rfl).trans ((hx hbx).trans (eval_ptr0 _).symm)),
+        ((hs₂.1 .r15 rfl).trans ((hx h15).trans (eval_ptr0 _).symm)), trivial⟩
   obtain ⟨g0, g1, g2, gsp, gk, gw⟩ := st4_facts
   refine call_step (b4_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b4 hwf₃ rfl
     (hpc₂.trans rfl) hm₃ fun st₃ hpc₃ hm₃' => ?_

@@ -15,7 +15,9 @@ public import NativeRustcX64.SphincsVerify.Basic
 `XmssVerifier.verify_correct` assumes the round constants `rcBytes` at `NativeRustcX64.Xmss.Symbols.rodata0Label` (`RcAt`), and
 `SphincsVerifier.verify_correct` those and `LAYER_HEIGHTS`' `lhBytes` at `NativeRustcX64.Sphincs.Symbols.rodata7Label`. These are the
 bytes the ingested programs' data hold at those labels, so a loader placing the program's data
-there meets the assumption.
+there meets those assumptions. The separate `GotAt` loader hypothesis supplies the reached
+symbols' addresses in ordinary-memory GOT slots, disjoint from one another, the stack and the
+protected areas; these dynamically relocated slots are not part of the static data below.
 -/
 
 namespace NativeRustcX64

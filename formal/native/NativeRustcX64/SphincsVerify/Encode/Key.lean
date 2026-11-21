@@ -56,11 +56,11 @@ def wr (S : SState) (o n : Nat) (v : Sym) : Bool :=
 
 /-- `b104`'s start for layer `l`: `AtLayer`'s registers, the chain values' address at `176`. -/
 def s104 (l : Nat) : SState :=
-  init [frameRegion, 16, 24]
-    [(.rsp, .ptr 0 0), (.rcx, .lit (4656 + 1028 * l)), (.rsi, .lit l), (.rdx, .label NativeRustcX64.Sphincs.Symbols.rodata7Label),
+  Run.frameStateL
+    [(.rcx, .lit (4656 + 1028 * l)), (.rsi, .lit l), (.rdx, .label NativeRustcX64.Sphincs.Symbols.rodata7Label),
       (.rbx, .lit 0), (.r12, .ptr 0 4096), (.rbp, .ptr 0 576), (.r13, .ptr 0 2048),
-      (.r15, .ptr 0 144)] [(NativeRustcX64.Sphincs.Symbols.rodata7Label, 2)] []
-    (Run.frameAliases ++ [(.load 0 176 8, 0, ((25196 + 1028 * l : Nat) : Int))])
+      (.r15, .ptr 0 144)]
+    [(.load 0 176 8, 0, ((25196 + 1028 * l : Nat) : Int))]
 
 /-- `b104` for layer `l` as the executor runs it. -/
 def b104Ok (l : Nat) : Bool :=
@@ -79,7 +79,7 @@ def b104Ok (l : Nat) : Bool :=
       wr S 88 8 (.un .bswap .W64 (treeS l)) && wr S 60 4 (leafBE l) &&
       wr S 2048 4 (.lit (revL l)) && wr S 2052 4 (.lit 0) &&
       wr S 2056 8 (.un .bswap .W64 (treeS l)) && wr S 2064 4 (.lit 117440512) &&
-      wr S 2068 4 (leafBE l) && wr S 2072 8 (.lit 0)
+      wr S 2068 4 (leafBE l) && wr S 2072 8 (.lit 0) && S.reg .r14 == some (.reg .r14)
   | none => false
 
 theorem b104Ok_all : ∀ l < 3, b104Ok l = true := by decide +kernel
@@ -212,7 +212,7 @@ theorem b104_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b105Offset ∧
       r.EncBase l s (r.layerSig l).counter st.data ∧ r.EncAdrs l st.data ∧
       Keccak.HasherHolds (bytesOf st.data.dmem (r.off 4096) 344) []) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b104Offset⟩ := by
-  obtain ⟨hl, hs, hF, hI, hcx, hsi, hdx, hbx, h12, hbp, h13, h15, hsm, h176, h568⟩ := h
+  obtain ⟨hl, hs, hF, hI, hcx, hsi, hdx, hbx, h12, hbp, h13, h15, hsm, h176, h568, h14⟩ := h
   have hok := b104Ok_all l hl
   rw [b104Ok] at hok
   rcases hx : exec Sphincs.SphincsVerify.b104 (s104 l) with _ | ⟨S, x⟩
@@ -221,11 +221,11 @@ theorem b104_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   rw [hx] at hok
   simp only [Bool.and_eq_true, beq_iff_eq, and_assoc] at hok
   obtain ⟨rfl, hX0, hX1, hX2, hX19, hsp, hX12, hXbp, hX13, hX15, hfw, k112, k144, k176, k568,
-    ksig, w96, w200, w208, w160, w216, w104, w88, w60, a0, a4, a8, a16, a20, a24⟩ := hok
+    ksig, w96, w200, w208, w160, w216, w104, w88, w60, a0, a4, a8, a16, a20, a24, hX14⟩ := hok
   have hk := Sphincs.SphincsVerify.b104_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let ret : BitVec 64 := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b104Offset + Sphincs.SphincsVerify.b104.length)).toBitVec
   have hwf := r.envL_wf hpre hF ret
-  have hm := r.match_frameL hF (ret := ret) (known := [(.rcx, .lit (4656 + 1028 * l)),
+  have hm := r.match_frameL hpre hF (ret := ret) (known := [(.rcx, .lit (4656 + 1028 * l)),
       (.rsi, .lit l), (.rdx, .label NativeRustcX64.Sphincs.Symbols.rodata7Label), (.rbx, .lit 0), (.r12, .ptr 0 4096),
       (.rbp, .ptr 0 576), (.r13, .ptr 0 2048), (.r15, .ptr 0 144)])
     (aliases := [(.load 0 176 8, 0, ((25196 + 1028 * l : Nat) : Int))])
@@ -303,7 +303,8 @@ theorem b104_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
       (hm'.regs .rbp _ hXbp).trans (r.ptr_evalL m ret _),
       (hm'.regs .r13 _ hX13).trans (r.ptr_evalL m ret _),
       (hm'.regs .r15 _ hX15).trans (r.ptr_evalL m ret _),
-      kept (by rw [hs]; omega) hsm (by rw [hs]; exact k144), hc19⟩
+      kept (by rw [hs]; omega) hsm (by rw [hs]; exact k144), hc19,
+      (hm'.regs .r14 _ hX14).trans h14⟩
   have hR0 : Run.RegIs st.data .rdi (r.off 4096) :=
     (hm'.regs .rdi _ hX0).trans (r.ptr_evalL m ret _)
   have hR2 : (reg st.data .rdx).toNat = 344 := by

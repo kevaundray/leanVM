@@ -6,9 +6,9 @@ public import NativeRustcX64.SphincsVerify.Parse.State
 /-!
 # The parse's environments (x86-64)
 
-Region 0 the frame with the return address, region 1 the 16 bytes below it (`Run.frameRegs`),
-region 2 the input (`regs3`): well formed in a state keeping the entry's mapped bytes and changing
-none outside the stack area (`wf3`). The input words (`input_words`), a loaded word
+Region 0 is the frame, region 1 the 16 bytes below it, region 2 the input, and regions 3 and 4
+the memcpy and memset GOT slots (`regs3`), preserving the input's index. The input words
+(`input_words`), a loaded word
 (`load_word`). After a block of an environment whose regions 0 and 1 are the frame's, with writes
 there (`frameWrites`) or below the return address (`entryWrites`): the stack area
 (`written_stack`), the frame's invariant (`frame_of_block`).
@@ -21,7 +21,9 @@ open NativeRustc NativeRustc.Sphincs NativeRustcX64.Sym LeanVM.Protocol.KeccakHa
 @[expose] public section
 
 /-- The frame's regions and the input. -/
-abbrev regs3 (r : Run) : List (BitVec 64 × Nat) := r.frameRegs ++ [(r.input, 7816)]
+abbrev regs3 (r : Run) [Labels] : List (BitVec 64 × Nat) :=
+  [(r.base, frameRegion), (r.base - 16#64, 16), (r.input, 7816),
+    (gotAddr "memcpy", 8), (gotAddr "memset", 8)]
 
 /-- The writes are in region 0 below the return address, or in region 1. -/
 def entryWrites (S : SState) : Bool :=
@@ -55,7 +57,7 @@ theorem input_words (hpre : r.Pre) {d : DataMem} (hS : SameOutside r.m0.dmem d r
     {s n : Nat} (h : s + n ≤ 977) : BytesAt d (r.input + BitVec.ofNat 64 (8 * s)) (wb r.w s n) := by
   have hlen : (Native.Keccak.wordsBytes ((List.range 977).map r.w)).length = 8 * 977 := by
     rw [Native.Keccak.Proof.length_wordsBytes, List.length_map, List.length_range]
-  have hin := r.bytesAt_entry hpre hS hpre.2.2.2.2.2.1 (hlen ▸ hpre.2.2.2.2.2.2.2)
+  have hin := r.bytesAt_entry hpre hS hpre.2.2.2.2.2.1 (hlen ▸ hpre.2.2.2.2.2.2.2.1)
     (hlen ▸ hpre.2.2.2.2.2.2.1)
   rw [← slice_words r.w h]
   exact bytesAt_sub hin (by rw [hlen]; omega)
@@ -75,18 +77,47 @@ theorem wf3 (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem)
   have hb := r.base_toNat hpre
   have hbl := r.below_toNat hpre
   have hi := input_toNat r hpre
-  have hA := hpre.2.2.2.2.2.2.2
+  have hA := hpre.2.2.2.2.2.2.2.1
   have hlo : (r.base - 16#64).toNat = r.base.toNat - 16 := toNat_sub_ofNat (by omega)
   have hmap := (input_words r hpre hS (s := 0) (n := 977) (by decide)).mapped
   rw [length_wb] at hmap
   simp only [Nat.mul_zero, BitVec.add_zero] at hmap
-  refine Sym.Env.wf_of ⟨⟨fun i hi ↦ hw.mapped 0 _ _ rfl i hi, hw.noWrap 0 _ _ rfl⟩,
-    ⟨fun i hi ↦ hw.mapped 1 _ _ rfl i hi, hw.noWrap 1 _ _ rfl⟩,
-    ⟨fun i hi ↦ hmap i (by omega), by unfold NoWrap; omega⟩, trivial⟩ ?_
+  have h0 : Mapped m.dmem r.base frameRegion ∧ NoWrap r.base frameRegion :=
+    ⟨hw.mapped 0 r.base frameRegion rfl, hw.noWrap 0 r.base frameRegion rfl⟩
+  have h1 : Mapped m.dmem (r.base - 16#64) 16 ∧ NoWrap (r.base - 16#64) 16 :=
+    ⟨hw.mapped 1 (r.base - 16#64) 16 rfl, hw.noWrap 1 (r.base - 16#64) 16 rfl⟩
+  have h3 : Mapped m.dmem (gotAddr "memcpy") 8 ∧ NoWrap (gotAddr "memcpy") 8 :=
+    ⟨hw.mapped 2 (gotAddr "memcpy") 8 rfl, hw.noWrap 2 (gotAddr "memcpy") 8 rfl⟩
+  have h4 : Mapped m.dmem (gotAddr "memset") 8 ∧ NoWrap (gotAddr "memset") 8 :=
+    ⟨hw.mapped 3 (gotAddr "memset") 8 rfl, hw.noWrap 3 (gotAddr "memset") 8 rfl⟩
+  refine Sym.Env.wf_of ⟨h0, h1,
+    ⟨fun i hi ↦ hmap i (by omega), by unfold NoWrap; omega⟩, h3, h4, trivial⟩ ?_
   simp only [Apart, Run.sphincsStack_eq] at hA hbl
-  exact pairwise3 (hw.disjoint 0 1 _ _ _ _ (by decide) rfl rfl)
-    (by show Apart r.base frameRegion r.input 7816; unfold Apart; rw [Run.frameRegion_eq]; omega)
-    (by show Apart (r.base - 16#64) 16 r.input 7816; unfold Apart; omega)
+  refine List.Pairwise.cons ?_ (List.Pairwise.cons ?_ (List.Pairwise.cons ?_ ?_))
+  · intro e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl | rfl | rfl
+    · exact hw.disjoint 0 1 _ _ _ _ (by decide) rfl rfl
+    · show Apart r.base frameRegion r.input 7816
+      unfold Apart
+      rw [Run.frameRegion_eq]
+      omega
+    · exact (r.got_apart_frame hpre (by simp)).symm
+    · exact (r.got_apart_frame hpre (by simp)).symm
+  · intro e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl | rfl
+    · show Apart (r.base - 16#64) 16 r.input 7816
+      unfold Apart
+      omega
+    · exact (r.got_apart_below hpre (by simp)).symm
+    · exact (r.got_apart_below hpre (by simp)).symm
+  · intro e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl
+    · exact (((r.got hpre).1 "memcpy" (by simp)).2.2.2 (r.input, 8 * 977) (by simp)).symm
+    · exact (((r.got hpre).1 "memset" (by simp)).2.2.2 (r.input, 8 * 977) (by simp)).symm
+  · simpa using (r.got hpre).2
 
 /-- **The input's bytes `8 s .. 8 s + k` and the frame's `a .. a + n`** are a well-formed
 environment. -/
@@ -98,7 +129,7 @@ theorem wf_in_frame (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem
   have hbl := r.below_toNat hpre
   have hb := r.base_toNat hpre
   have ho := r.off_toNat hpre (a := a) (by omega)
-  have hA := hpre.2.2.2.2.2.2.2
+  have hA := hpre.2.2.2.2.2.2.2.1
   have hmap := (input_words r hpre hS (s := 0) (n := 977) (by decide)).mapped
   rw [length_wb] at hmap
   simp only [Nat.mul_zero, BitVec.add_zero] at hmap

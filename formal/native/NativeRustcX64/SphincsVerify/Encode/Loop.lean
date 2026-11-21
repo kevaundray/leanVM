@@ -39,9 +39,8 @@ def loopWrites (j : Nat) : List Write :=
 
 /-- Turn `j`'s symbolic state. -/
 def loopInit (j : Nat) : SState :=
-  init [frameRegion, 16]
-    [(.rsp, .ptr 0 0), (.rdi, .lit (4 * j)), (.rsi, .ptr 0 ((577 + 2 * j : Nat) : Int))]
-    [] [] Run.frameAliases
+  Run.frameState
+    [(.rdi, .lit (4 * j)), (.rsi, .ptr 0 ((577 + 2 * j : Nat) : Int))]
 
 /-- Turn `j` as the executor runs it: back to the loop's head unless last, RDI and RSI on, RAX,
 RDX, RSP and the callee-saved registers kept, the two digits written. -/
@@ -144,7 +143,7 @@ theorem loop_step (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
   subst hxe
   have hk := Sphincs.SphincsVerify.b113_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
-  have hm := r.match_frame hF (vars := fun _ ↦ 0) (ret := 0)
+  have hm := r.match_frame hpre hF (vars := fun _ ↦ 0) (ret := 0)
     (known := [(.rdi, .lit (4 * j)), (.rsi, .ptr 0 ((577 + 2 * j : Nat) : Int))]) (labels := [])
     (bounds := []) (aliases := []) ⟨h7, h6.trans (r.ptr_eval m _ _ _).symm, trivial⟩ trivial
     trivial trivial

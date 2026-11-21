@@ -5,14 +5,16 @@ public import NativeRustcX64.Code.Common.Update.Names
 public import NativeRustcX64.Hasher.Bytes
 public import NativeRustcX64.Hasher.UpdateExec
 public import NativeRustcX64.KeccakF.Inv
+public import NativeRustcX64.Got
 
 /-!
 # `Hasher::update`'s loop: its states (x86-64)
 
 From the entry state `m0` (hasher at `hAt m0`, input `input m0` of `nOf m0` bytes, RSP `spAt m0`,
 the frame at `frm m0`): what every state after the prologue keeps (`Frame`: the hasher and buffer
-pointers, RSP, the pushed registers in the frame, memory as `m0`'s but in the hasher and the stack
-below RSP (`Chg`), every mapped byte); the loop head `.LUpdate_1` having absorbed the input's first
+pointers, RSP, the pushed registers in the frame, the resolved `memcpy` target in RBP, memory
+as `m0`'s but in the hasher and the stack below RSP (`Chg`), every mapped byte); the loop head
+`.LUpdate_1` having absorbed the input's first
 `c` bytes (`Inv`); `.LUpdate_5` after a turn that took `t` more (`Mid`). `UpdatePre`'s addresses as
 numbers (`Geo`, `geo_of`); the input and the round constants as at the entry (`input_same`,
 `rc_same`). The blocks' places and labels (`hb<k>`, `lbl_*`).
@@ -59,7 +61,7 @@ def pushSlots : List (Nat × Reg64) :=
   [(64, .rbx), (72, .r12), (80, .r13), (88, .r14), (96, .r15), (104, .rbp)]
 
 /-- What every state after the prologue keeps. -/
-structure Frame (m0 m : MachineData) : Prop where
+structure Frame [Labels] (m0 m : MachineData) : Prop where
   r14 : reg m .r14 = hAt m0
   r13 : reg m .r13 = hAt m0 + 200#64
   rsp : rspOf m = frm m0 + 8#64
@@ -67,9 +69,10 @@ structure Frame (m0 m : MachineData) : Prop where
     WordAt m.dmem (frm m0 + BitVec.ofNat 64 p.1) (reg m0 p.2)) pushSlots
   same : SameOutside m0.dmem m.dmem (Chg m0)
   kept : Kept m0.dmem m.dmem
+  rbp : reg m .rbp = (Labels.label "memcpy").toBitVec
 
 /-- **The loop head** `.LUpdate_1`, the input's first `c` bytes absorbed. -/
-structure Inv (m0 : MachineData) (c : Nat) (m : MachineData) : Prop where
+structure Inv [Labels] (m0 : MachineData) (c : Nat) (m : MachineData) : Prop where
   frame : Frame m0 m
   le : c ≤ nOf m0
   rbx : reg m .rbx = BitVec.ofNat 64 (nOf m0 - c)
@@ -78,7 +81,7 @@ structure Inv (m0 : MachineData) (c : Nat) (m : MachineData) : Prop where
   holds : Holds m0 (hasher m0 m) c
 
 /-- **`.LUpdate_5`**, after a turn from `c` absorbed bytes that took `t` more. -/
-structure Mid (m0 : MachineData) (c t : Nat) (m : MachineData) : Prop where
+structure Mid [Labels] (m0 : MachineData) (c t : Nat) (m : MachineData) : Prop where
   frame : Frame m0 m
   le : c + t ≤ nOf m0
   pos : 0 < t ∨ c = nOf m0
@@ -129,12 +132,17 @@ theorem geo_of {m0 : MachineData} [Labels] (hpre : UpdatePre m0) : Geo m0 := by
   · exact hds.imp id fun h => by unfold dAt spAt; omega
 
 theorem geoRc_of {m0 : MachineData} [Labels] (hpre : UpdatePre m0) : GeoRc m0 := by
-  obtain ⟨⟨hs, -, -⟩, ⟨-, hnw, hrs⟩, -, -, -, -, -, -, -, -, hhr⟩ := hpre
+  obtain ⟨⟨hs, -, -⟩, ⟨-, hnw, hrs⟩, -, -, -, -, -, -, -, -, hhr, -⟩ := hpre
   have hu : updateStack = 352 := rfl
   have hb : (stackBelow m0 updateStack).toNat = (rspOf m0).toNat - 352 := stackBelow_toNat hs
   unfold Apart at hrs
   rw [hb, hu] at hrs
   exact ⟨hnw, hrs.imp id fun h => by unfold spAt; omega, hhr⟩
+
+/-- The loader assumptions at the update entry. -/
+theorem got_of {m0 : MachineData} [Labels] (hpre : UpdatePre m0) :
+    GotAt m0 updateStack [(hAt m0, 344), (dAt m0, nOf m0)] ["memcpy"] :=
+  hpre.2.2.2.2.2.2.2.2.2.2.2
 
 theorem frm_toNat {m0 : MachineData} (g : Geo m0) : (frm m0).toNat = (spAt m0).toNat - 112 :=
   toNat_sub_ofNat (by have := g.s; omega)
@@ -203,11 +211,12 @@ theorem push_not_chgL {m0 : MachineData} (g : Geo m0) {o i : Nat} (ho : 64 ≤ o
   have := g.s
   omega
 
-/-- `Frame` after a step that keeps R13, R14 and RSP, changes memory only where the loop does and
-unmaps nothing. -/
-theorem Frame.update {m0 m m' : MachineData} (g : Geo m0) (hf : Frame m0 m)
+/-- `Frame` after a step that keeps the frame pointers and resolved call target, changes memory
+only where the loop does, and unmaps nothing. -/
+theorem Frame.update [Labels] {m0 m m' : MachineData} (g : Geo m0) (hf : Frame m0 m)
     (h13 : reg m' .r13 = reg m .r13) (h14 : reg m' .r14 = reg m .r14) (hsp : rspOf m' = rspOf m)
-    (hd : ∀ p, ¬ChgL m0 p → m'.dmem.get? p = m.dmem.get? p) (hk : Kept m.dmem m'.dmem) :
+    (hd : ∀ p, ¬ChgL m0 p → m'.dmem.get? p = m.dmem.get? p) (hk : Kept m.dmem m'.dmem)
+    (hbp : reg m' .rbp = (Labels.label "memcpy").toBitVec) :
     Frame m0 m' where
   r14 := h14.trans hf.r14
   r13 := h13.trans hf.r13
@@ -229,9 +238,10 @@ theorem Frame.update {m0 m m' : MachineData} (g : Geo m0) (hf : Frame m0 m)
     rw [hd p fun h => hp (chg_of_chgL g h)]
     exact hf.same p hp
   kept p hp := hk p (hf.kept p hp)
+  rbp := hbp
 
 /-- **The input is as at the entry** in any state of the loop. -/
-theorem input_same {m0 m : MachineData} (g : Geo m0) (hfr : Frame m0 m) {i : Nat}
+theorem input_same {m0 m : MachineData} [Labels] (g : Geo m0) (hfr : Frame m0 m) {i : Nat}
     (hi : i < nOf m0) :
     m.dmem.get? (dAt m0 + BitVec.ofNat 64 i) = m0.dmem.get? (dAt m0 + BitVec.ofNat 64 i) := by
   have ht := toNat_add_ofNat' (a := dAt m0) (i := i) (by have := g.d; omega)
@@ -244,30 +254,96 @@ theorem rc_same {m0 m : MachineData} [Labels] (g : Geo m0) (gr : GeoRc m0) (hfr 
   have ht := toNat_add_ofNat' (a := rcAddr) (i := i) (by have := gr.nw; omega)
   rw [hfr.same _ (by rw [chg_iff g, ht]; have := gr.hr; have := gr.rs; omega)]
 
-/-- The environment of a loop state: the hasher, region 0, and the frame, region 1. -/
+/-- The loop's frame cannot change the loader's `memcpy` slot. -/
+theorem got_same {m0 m : MachineData} [Labels] (hpre : UpdatePre m0) (hfr : Frame m0 m)
+    {i : Nat} (hi : i < 8) :
+    m.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) := by
+  have g := geo_of hpre
+  obtain ⟨_, hn, hs, ha⟩ := (got_of hpre).1 "memcpy" (by simp)
+  have hh := ha (hAt m0, 344) (by simp)
+  change Apart (gotAddr "memcpy") 8 (hAt m0) 344 at hh
+  have hb := stackBelow_toNat g.s
+  change Apart (gotAddr "memcpy") 8 (stackBelow m0 updateStack) (updateStack + 8) at hs
+  change (stackBelow m0 updateStack).toNat = (spAt m0).toNat - 352 at hb
+  unfold Apart at hs hh
+  rw [hb] at hs
+  change _ ≤ _ ∨ (spAt m0).toNat - 352 + (352 + 8) ≤ _ at hs
+  have ht := toNat_add_ofNat' (a := gotAddr "memcpy") (i := i) (by
+    change (gotAddr "memcpy").toNat + 8 ≤ 2 ^ 64 at hn
+    omega)
+  apply hfr.same
+  rw [chg_iff g, ht]
+  have := g.s
+  omega
+
+/-- The GOT slot is apart from both symbolic data regions. -/
+theorem got_apart {m0 : MachineData} [Labels] (hpre : UpdatePre m0) :
+    Apart (hAt m0) 344 (gotAddr "memcpy") 8 ∧
+      Apart (frm m0) 120 (gotAddr "memcpy") 8 := by
+  have g := geo_of hpre
+  obtain ⟨_, _, hs, ha⟩ := (got_of hpre).1 "memcpy" (by simp)
+  have hh := ha (hAt m0, 344) (by simp)
+  refine ⟨hh.symm, ?_⟩
+  change Apart (gotAddr "memcpy") 8 (stackBelow m0 updateStack) (updateStack + 8) at hs
+  unfold Apart at hs ⊢
+  rw [stackBelow_toNat (n := updateStack) g.s] at hs
+  rw [frm_toNat g]
+  change _ ≤ (spAt m0).toNat - 352 ∨
+    (spAt m0).toNat - 352 + (352 + 8) ≤ _ at hs
+  have := g.s
+  omega
+
+/-- The loop environment contains the hasher, frame, and read-only loader slot. -/
 theorem wf_head {m0 m : MachineData} [Labels] (hpre : UpdatePre m0) (hfr : Frame m0 m)
     {vs : Nat → BitVec 64} {ret : BitVec 64} :
-    (Env.ofMachine m [(hAt m0, 344), (frm m0, 120)] vs ret).WF := by
+    (Env.ofMachine m [(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)] vs ret).WF := by
   have g := geo_of hpre
+  obtain ⟨hhg, hfg⟩ := got_apart hpre
+  have hhf : Apart (hAt m0) 344 (frm m0) 120 := by
+    unfold Apart
+    rw [frm_toNat g]
+    have := g.hs
+    have := g.s
+    omega
   refine Env.wf_of ⟨⟨fun i hi => hfr.kept _ (hpre.2.2.2.1 i hi), g.h⟩,
-    ⟨fun i hi => hfr.kept _ (frm_mapped hpre i hi), ?_⟩, trivial⟩ (List.pairwise_pair.mpr ?_)
+    ⟨fun i hi => hfr.kept _ (frm_mapped hpre i hi), ?_⟩,
+    ⟨fun i hi => hfr.kept _ ((got_of hpre).mapped (by simp) i hi),
+      ((got_of hpre).1 "memcpy" (by simp)).2.1⟩, trivial⟩ ?_
   · show (frm m0).toNat + 120 ≤ _
     rw [frm_toNat g]
     have := g.s8
     have := g.s
     omega
-  · show (hAt m0).toNat + 344 ≤ (frm m0).toNat ∨ (frm m0).toNat + 120 ≤ (hAt m0).toNat
-    rw [frm_toNat g]
-    have := g.hs
-    have := g.s
-    omega
+  · apply List.pairwise_cons.mpr
+    refine ⟨?_, List.pairwise_pair.mpr hfg⟩
+    intro a ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl
+    · exact hhf
+    · exact hhg
 
-/-- `headS` describes a loop state. -/
-theorem match_headS {m0 m : MachineData} [Labels] (hfr : Frame m0 m) {vs : Nat → BitVec 64}
-    {ret : BitVec 64} : Match (Env.ofMachine m [(hAt m0, 344), (frm m0, 120)] vs ret) headS m :=
-  match_ofMachine ⟨rfl, rfl, trivial⟩
-    ⟨hfr.r14.trans (BitVec.add_zero _).symm, hfr.r13.trans rfl, hfr.rsp.trans rfl, trivial⟩
-    trivial trivial trivial
+/-- `headS` describes a loop state, including the actual loader bytes and RBP target. -/
+theorem match_headS {m0 m : MachineData} [Labels] (hpre : UpdatePre m0)
+    (hfr : Frame m0 m) {vs : Nat → BitVec 64} {ret : BitVec 64} :
+    Match (Env.ofMachine m [(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)] vs ret)
+      headS m := by
+  have hm := match_ofMachine (m := m)
+    (regions := [(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)])
+    (vars := vs) (ret := ret) (sregions := [344, 120, 8])
+    (known := [(.r14, .ptr 0 0), (.r13, .ptr 0 200), (.rsp, .ptr 1 8),
+      (.rbp, .label "memcpy")])
+    (labels := []) (bounds := []) (aliases := [(.gotSlot "memcpy", 2, 0)])
+    ⟨rfl, rfl, rfl, trivial⟩
+    ⟨hfr.r14.trans (BitVec.add_zero _).symm, hfr.r13.trans rfl,
+      hfr.rsp.trans rfl, hfr.rbp, trivial⟩
+    trivial trivial ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes (r := 2) (off := 0) (n := 8) (v := .label "memcpy")
+  intro i hi
+  simp only [Nat.zero_add]
+  change m.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) = _
+  rw [got_same hpre hfr hi]
+  exact (got_of hpre).byte (l := "memcpy") (by simp) hi
 
 /-! ## Places -/
 

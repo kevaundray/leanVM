@@ -54,126 +54,126 @@ public theorem label_SphincsVerify_15 : NativeRustcX64.Sphincs.code.findIdx? (·
 
 public theorem label_SphincsVerify_17 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_17") = some 580 := by decide +kernel
 
-public theorem label_SphincsVerify_19 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_19") = some 743 := by decide +kernel
+public theorem label_SphincsVerify_19 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_19") = some 719 := by decide +kernel
 
-public theorem label_SphincsVerify_20 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_20") = some 793 := by decide +kernel
+public theorem label_SphincsVerify_20 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_20") = some 769 := by decide +kernel
 
-public theorem label_SphincsVerify_22 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_22") = some 898 := by decide +kernel
+public theorem label_SphincsVerify_22 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_22") = some 871 := by decide +kernel
 
-public theorem label_SphincsVerify_27 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_27") = some 904 := by decide +kernel
+public theorem label_SphincsVerify_27 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_27") = some 877 := by decide +kernel
 
-public theorem label_SphincsVerify_23 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_23") = some 909 := by decide +kernel
+public theorem label_SphincsVerify_23 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_23") = some 882 := by decide +kernel
 
-public theorem label_SphincsVerify_28 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_28") = some 984 := by decide +kernel
+public theorem label_SphincsVerify_28 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_28") = some 957 := by decide +kernel
 
-public theorem label_SphincsVerify_33 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_33") = some 994 := by decide +kernel
+public theorem label_SphincsVerify_33 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_33") = some 967 := by decide +kernel
 
-public theorem label_SphincsVerify_29 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_29") = some 999 := by decide +kernel
+public theorem label_SphincsVerify_29 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_29") = some 972 := by decide +kernel
 
-public theorem label_SphincsVerify_34 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_34") = some 1074 := by decide +kernel
+public theorem label_SphincsVerify_34 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_34") = some 1047 := by decide +kernel
 
-public theorem label_SphincsVerify_38 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_38") = some 1192 := by decide +kernel
+public theorem label_SphincsVerify_38 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_38") = some 1165 := by decide +kernel
 
-public theorem label_SphincsVerify_39 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_39") = some 1272 := by decide +kernel
+public theorem label_SphincsVerify_39 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_39") = some 1245 := by decide +kernel
 
-public theorem label_SphincsVerify_60 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_60") = some 1601 := by decide +kernel
+public theorem label_SphincsVerify_60 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_60") = some 1574 := by decide +kernel
 
-public theorem label_SphincsVerify_42 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_42") = some 1611 := by decide +kernel
+public theorem label_SphincsVerify_42 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_42") = some 1584 := by decide +kernel
 
-public theorem label_SphincsVerify_44 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_44") = some 1628 := by decide +kernel
+public theorem label_SphincsVerify_44 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_44") = some 1601 := by decide +kernel
 
-public theorem label_SphincsVerify_46 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_46") = some 1709 := by decide +kernel
+public theorem label_SphincsVerify_46 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_46") = some 1682 := by decide +kernel
 
-public theorem label_SphincsVerify_51 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_51") = some 1715 := by decide +kernel
+public theorem label_SphincsVerify_51 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_51") = some 1688 := by decide +kernel
 
-public theorem label_SphincsVerify_47 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_47") = some 1720 := by decide +kernel
+public theorem label_SphincsVerify_47 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_47") = some 1693 := by decide +kernel
 
-public theorem label_SphincsVerify_52 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_52") = some 1795 := by decide +kernel
+public theorem label_SphincsVerify_52 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_52") = some 1768 := by decide +kernel
 
-public theorem label_SphincsVerify_57 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_57") = some 1805 := by decide +kernel
+public theorem label_SphincsVerify_57 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_57") = some 1778 := by decide +kernel
 
-public theorem label_SphincsVerify_53 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_53") = some 1810 := by decide +kernel
+public theorem label_SphincsVerify_53 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_53") = some 1783 := by decide +kernel
 
-public theorem label_SphincsVerify_58 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_58") = some 1885 := by decide +kernel
+public theorem label_SphincsVerify_58 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_58") = some 1858 := by decide +kernel
 
-public theorem label_SphincsVerify_61 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_61") = some 1956 := by decide +kernel
+public theorem label_SphincsVerify_61 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_61") = some 1929 := by decide +kernel
 
-public theorem label_SphincsVerify_65 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_65") = some 2048 := by decide +kernel
+public theorem label_SphincsVerify_65 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_65") = some 2019 := by decide +kernel
 
-public theorem label_SphincsVerify_67 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_67") = some 2148 := by decide +kernel
+public theorem label_SphincsVerify_67 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_67") = some 2119 := by decide +kernel
 
-public theorem label_SphincsVerify_72 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_72") = some 2152 := by decide +kernel
+public theorem label_SphincsVerify_72 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_72") = some 2123 := by decide +kernel
 
-public theorem label_SphincsVerify_68 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_68") = some 2157 := by decide +kernel
+public theorem label_SphincsVerify_68 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_68") = some 2128 := by decide +kernel
 
-public theorem label_SphincsVerify_73 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_73") = some 2231 := by decide +kernel
+public theorem label_SphincsVerify_73 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_73") = some 2202 := by decide +kernel
 
-public theorem label_SphincsVerify_78 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_78") = some 2240 := by decide +kernel
+public theorem label_SphincsVerify_78 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_78") = some 2211 := by decide +kernel
 
-public theorem label_SphincsVerify_74 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_74") = some 2245 := by decide +kernel
+public theorem label_SphincsVerify_74 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_74") = some 2216 := by decide +kernel
 
-public theorem label_SphincsVerify_79 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_79") = some 2319 := by decide +kernel
+public theorem label_SphincsVerify_79 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_79") = some 2290 := by decide +kernel
 
-public theorem label_SphincsVerify_91 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_91") = some 2388 := by decide +kernel
+public theorem label_SphincsVerify_91 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_91") = some 2359 := by decide +kernel
 
-public theorem label_SphincsVerify_82 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_82") = some 2391 := by decide +kernel
+public theorem label_SphincsVerify_82 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_82") = some 2362 := by decide +kernel
 
-public theorem label_SphincsVerify_86 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_86") = some 2416 := by decide +kernel
+public theorem label_SphincsVerify_86 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_86") = some 2387 := by decide +kernel
 
-public theorem label_SphincsVerify_87 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_87") = some 2420 := by decide +kernel
+public theorem label_SphincsVerify_87 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_87") = some 2391 := by decide +kernel
 
-public theorem label_SphincsVerify_88 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_88") = some 2425 := by decide +kernel
+public theorem label_SphincsVerify_88 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_88") = some 2396 := by decide +kernel
 
-public theorem label_SphincsVerify_84 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_84") = some 2431 := by decide +kernel
+public theorem label_SphincsVerify_84 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_84") = some 2402 := by decide +kernel
 
-public theorem label_SphincsVerify_85 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_85") = some 2433 := by decide +kernel
+public theorem label_SphincsVerify_85 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_85") = some 2404 := by decide +kernel
 
-public theorem label_SphincsVerify_89 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_89") = some 2442 := by decide +kernel
+public theorem label_SphincsVerify_89 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_89") = some 2413 := by decide +kernel
 
-public theorem label_SphincsVerify_92 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_92") = some 2448 := by decide +kernel
+public theorem label_SphincsVerify_92 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_92") = some 2419 := by decide +kernel
 
-public theorem label_SphincsVerify_90 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_90") = some 2453 := by decide +kernel
+public theorem label_SphincsVerify_90 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LSphincsVerify_90") = some 2424 := by decide +kernel
 
-public theorem label_KeccakF : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") = some 2457 := by decide +kernel
+public theorem label_KeccakF : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") = some 2428 := by decide +kernel
 
-public theorem label_KeccakF_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LKeccakF_1") = some 2536 := by decide +kernel
+public theorem label_KeccakF_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LKeccakF_1") = some 2507 := by decide +kernel
 
-public theorem label_Update : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") = some 2838 := by decide +kernel
+public theorem label_Update : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") = some 2809 := by decide +kernel
 
-public theorem label_Update_5 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_5") = some 2854 := by decide +kernel
+public theorem label_Update_5 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_5") = some 2825 := by decide +kernel
 
-public theorem label_Update_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_1") = some 2859 := by decide +kernel
+public theorem label_Update_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_1") = some 2830 := by decide +kernel
 
-public theorem label_Update_6 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_6") = some 2933 := by decide +kernel
+public theorem label_Update_6 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_6") = some 2904 := by decide +kernel
 
-public theorem label_Update_7 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_7") = some 2943 := by decide +kernel
+public theorem label_Update_7 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_7") = some 2914 := by decide +kernel
 
-public theorem label_Finalize : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") = some 2947 := by decide +kernel
+public theorem label_Finalize : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") = some 2918 := by decide +kernel
 
-public theorem label_Finalize_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_3") = some 3025 := by decide +kernel
+public theorem label_Finalize_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_3") = some 2996 := by decide +kernel
 
-public theorem label_Finalize_4 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_4") = some 3031 := by decide +kernel
+public theorem label_Finalize_4 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_4") = some 3002 := by decide +kernel
 
-public theorem label_PanicFmt : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt") = some 3036 := by decide +kernel
+public theorem label_PanicFmt : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt") = some 3007 := by decide +kernel
 
-public theorem label_SliceIndexFail : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail") = some 3038 := by decide +kernel
+public theorem label_SliceIndexFail : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail") = some 3009 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.1") = some 3040 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.1") = some 3011 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.3") = some 3042 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.3") = some 3013 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.8") = some 3044 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.8") = some 3015 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_9 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.9") = some 3046 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_9 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.9") = some 3017 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_11 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.11") = some 3049 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_11 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.11") = some 3020 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_12 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12") = some 3052 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_12 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12") = some 3023 := by decide +kernel
 
-public theorem label_anon_440213f1c62d8b61420e6860e9721951_0 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.0") = some 3055 := by decide +kernel
+public theorem label_anon_440213f1c62d8b61420e6860e9721951_0 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.0") = some 3026 := by decide +kernel
 
-public theorem label_anon_440213f1c62d8b61420e6860e9721951_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.8") = some 3057 := by decide +kernel
+public theorem label_anon_440213f1c62d8b61420e6860e9721951_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.8") = some 3028 := by decide +kernel
 
-public theorem label_anon_440213f1c62d8b61420e6860e9721951_10 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.10") = some 3059 := by decide +kernel
+public theorem label_anon_440213f1c62d8b61420e6860e9721951_10 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.10") = some 3030 := by decide +kernel
 
 end NativeRustcX64.Sphincs

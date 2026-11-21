@@ -7,6 +7,7 @@ public import NativeRustcX64.Code.Common.Memset.Names
 public import NativeRustcX64.Code.Common.Update.Names
 
 public import NativeRustcX64.Spec.Keccak
+public import NativeRustcX64.Spec.Got
 public import NativeRustc.Xmss.Model
 
 /-!
@@ -75,7 +76,9 @@ section
 variable [Labels]
 
 /-- `wots_leaf`'s precondition: the stack, the round constants, the stack arguments' 16 bytes
-mapped, not wrapping with the return address below them, the inputs. -/
+mapped, not wrapping with the return address below them, and the inputs. The actual `memcpy`
+and `memset` GOT pointers occupy nonwrapping, mutually disjoint slots, apart from the stack,
+return address, stack arguments, output, public parameters, message, randomizer, and values. -/
 def WotsLeafPre (m : MachineData) : Prop :=
   let o := reg m .rdi
   StackOk m wotsLeafStack ∧ RcAt m wotsLeafStack ∧
@@ -84,7 +87,11 @@ def WotsLeafPre (m : MachineData) : Prop :=
     WotsLeafPre.Input m (reg m .rsi) 16 ∧
     WotsLeafPre.Input m (reg m .r8) (reg m .r9).toNat ∧
     WotsLeafPre.Input m (WotsLeafPre.rndPtr m) 16 ∧
-    WotsLeafPre.Input m (WotsLeafPre.valuesPtr m) (16 * 58)
+    WotsLeafPre.Input m (WotsLeafPre.valuesPtr m) (16 * 58) ∧
+    GotAt m wotsLeafStack
+      [(o, 75), (reg m .rsi, 16), (reg m .r8, (reg m .r9).toNat),
+        (WotsLeafPre.rndPtr m, 16), (WotsLeafPre.valuesPtr m, 16 * 58),
+        (rspOf m + 8#64, 16)] ["memcpy", "memset"]
 
 /-- The 75 bytes at `out` as x86 `wots_leaf` writes them: `None` a tag `0`, `Some (x, leaf)` the
 tag `1`, the codeword's 58 digits and the leaf's 16 bytes. -/

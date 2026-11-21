@@ -50,7 +50,6 @@ namespace Run
 
 variable (r : Run) [Labels]
 
-omit [Labels] in
 /-- A pushed register in the frame: the word at `29336 + 8 j`. -/
 theorem load_saved {m : MachineData} (hF : r.Frame m) (vars : Nat → BitVec 64) (ret : BitVec 64)
     (j o : Nat) (ho : o = 29336 + 8 * j) (hj : j < 6) (x : UInt64)
@@ -83,10 +82,10 @@ theorem ret_slot (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) :
 end Run
 
 sym_block b197_exec := Sym.exec Sphincs.SphincsVerify.b197
-  (Sym.init [29392, 16] [(.rsp, .ptr 0 0)])
+  (Sym.init [29392, 16, 8, 8] [(.rsp, .ptr 0 0)])
 
 sym_block b196_exec := Sym.exec Sphincs.SphincsVerify.b196
-  (Sym.init [29392, 16] [(.rsp, .ptr 0 0)])
+  (Sym.init [29392, 16, 8, 8] [(.rsp, .ptr 0 0)])
 
 variable [Host]
 
@@ -101,8 +100,8 @@ theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b197Offset⟩ := by
   have hk := Sphincs.SphincsVerify.b197_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
-  have hm : Sym.Match (r.env m (fun _ ↦ 0) 0) (Sym.init [frameRegion, 16] [(.rsp, .ptr 0 0)]) m :=
-    Sym.match_ofMachine ⟨rfl, rfl, trivial⟩
+  have hm : Sym.Match (r.env m (fun _ ↦ 0) 0) (Sym.init [frameRegion, 16, 8, 8] [(.rsp, .ptr 0 0)]) m :=
+    Sym.match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩
       ⟨by show rspOf m = r.base + BitVec.ofInt 64 0; simp only [BitVec.ofInt_ofNat,
         BitVec.add_zero]; exact hF.1, trivial⟩ trivial trivial trivial
   have hread := hm.read hwf (r := 0) (o := 29384) (n := 8) rfl (by decide) (by decide)
@@ -143,8 +142,8 @@ theorem fail_return (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre
     Eventually (step1 Host.exe) (r.Done false) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b196Offset⟩ := by
   have hk := Sphincs.SphincsVerify.b196_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
-  have hm : Sym.Match (r.env m (fun _ ↦ 0) 0) (Sym.init [frameRegion, 16] [(.rsp, .ptr 0 0)]) m :=
-    Sym.match_ofMachine ⟨rfl, rfl, trivial⟩
+  have hm : Sym.Match (r.env m (fun _ ↦ 0) 0) (Sym.init [frameRegion, 16, 8, 8] [(.rsp, .ptr 0 0)]) m :=
+    Sym.match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩
       ⟨by show rspOf m = r.base + BitVec.ofInt 64 0; simp only [BitVec.ofInt_ofNat,
         BitVec.add_zero]; exact hF.1, trivial⟩ trivial trivial trivial
   refine Sym.exec_then hk b196_exec hwf (fun _ h ↦ nomatch h) hm fun st hm' hpc ↦ ?_

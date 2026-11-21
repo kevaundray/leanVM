@@ -28,9 +28,10 @@ def L2 (r : Run) : List (Nat × Nat × List UInt8) :=
   L1 r ++ [(1760, 128, slice (sigBytes r.w) 6424 128), (10368, 1024, slice (sigBytes r.w) 5400 1024)]
 
 /-- **At `b31`**: two layers parsed; EBP, R15D the first two counters' bytes. -/
-def LS2 (r : Run) (m : MachineData) : Prop :=
+def LS2 (r : Run) [Labels] (m : MachineData) : Prop :=
   r.Frame m ∧ Facts r m.dmem (L2 r) ∧ Low4 (reg m .rbp) (be32 (r.w 538).toUInt32) ∧
-    Low4 (reg m .r15) (be32 (r.w 683).toUInt32)
+    Low4 (reg m .r15) (be32 (r.w 683).toUInt32) ∧
+    Run.RegIs m .r12 (Labels.label "memcpy").toBitVec
 
 end
 
@@ -51,13 +52,14 @@ theorem layer1_a (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
       BytesAt st.data.dmem (r.off 576) (slice (sigBytes r.w) 5400 1024) ∧
       Run.RegIs st.data .rbx (r.off 1760) ∧ Run.RegIs st.data .r14 (r.off 576) ∧
       Low4 (reg st.data .rbp) (be32 (r.w 538).toUInt32) ∧
-      Low4 (reg st.data .r15) (be32 (r.w 683).toUInt32)) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b23Offset⟩ := by
+      Low4 (reg st.data .r15) (be32 (r.w 683).toUInt32) ∧
+      Run.RegIs st.data .r12 (Labels.label "memcpy").toBitVec) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b23Offset⟩ := by
   obtain ⟨hF, hL, hbx, hbp⟩ := h
   -- `b23`: the counter's bytes
   have hk : b23.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b23Offset) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
   have hm₀ : Match (r.env m (fun _ ↦ 0) 0) (fS []) m :=
-    r.match_frame hF (known := []) trivial trivial trivial trivial
+    r.match_frame hpre hF (known := []) trivial trivial trivial trivial
   refine exec_then hk run_b23 hwf (fun _ h ↦ nomatch h) hm₀ fun st hm' hpc ↦ ?_
   have hd : st.data.dmem = m.dmem := hm'.dmem_eq hwf rfl
   have hreg := keepsRegs_regs (rs := [.rsp, .rbx, .rbp, .r12, .r13, .r14]) hm₀ hm' (by decide)
@@ -92,20 +94,22 @@ theorem layer1_a (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
         regIs_saved hS rfl ((hm₃.regs .rbx _ rfl).trans hbx₂),
         regIs_saved hS rfl (regIs_ptr0 r hm₃ (y := .r14) rfl),
         low4_saved hS rfl (hbp₂.of_eq (hm₃.regs .rbp _ rfl)),
-        low4_saved hS rfl (h15₂.of_eq (hm₃.regs .r15 _ rfl))⟩⟩
+        low4_saved hS rfl (h15₂.of_eq (hm₃.regs .r15 _ rfl)),
+        regIs_saved hS rfl (hm₃.regs .r12 _ rfl)⟩⟩
 
 /-- **`b26 .. b30`**: the second layer's path at `1760`, its chain values at `10368`. -/
 theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : MachineData}
     (h : r.Frame m ∧ Facts r m.dmem (L1 r) ∧
       BytesAt m.dmem (r.off 576) (slice (sigBytes r.w) 5400 1024) ∧
       Run.RegIs m .rbx (r.off 1760) ∧ Run.RegIs m .r14 (r.off 576) ∧
-      Low4 (reg m .rbp) (be32 (r.w 538).toUInt32) ∧ Low4 (reg m .r15) (be32 (r.w 683).toUInt32)) :
+      Low4 (reg m .rbp) (be32 (r.w 538).toUInt32) ∧ Low4 (reg m .r15) (be32 (r.w 683).toUInt32) ∧
+      Run.RegIs m .r12 (Labels.label "memcpy").toBitVec) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b31Offset ∧ LS2 r st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b26Offset⟩ := by
-  obtain ⟨hF, hL, hcv, hbx, h14, hbp, h15⟩ := h
+  obtain ⟨hF, hL, hcv, hbx, h14, hbp, h15, h12⟩ := h
   have hl : (slice (sigBytes r.w) 5400 1024).length = 1024 := length_slice_sig r.w (by decide)
   -- `b26`: the path to `1760`, the chain values to `2048`
   refine memcpy_block r hp hpre hc b26_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b27Offset) rfl run_b26 (by decide) rfl hF
-    ⟨hbx.trans (eval_base r rfl 1760).symm, h14.trans (eval_base r rfl 576).symm, trivial⟩ trivial
+    ⟨hbx.trans (eval_base r rfl 1760).symm, h14.trans (eval_base r rfl 576).symm, h12, trivial⟩ trivial
     (a := 2048) (s := 576) (n := 1024) (by decide) (by decide) (by decide) fun m₁ hm₁ ↦
     ⟨regIs_ptr0 r hm₁ rfl, regIs_ptr0 r hm₁ rfl, rdx_lit hm₁ rfl (by decide),
       fun m₂ hF₂ hS hB hout hc₁ ↦ ?_⟩
@@ -126,41 +130,46 @@ theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
   have hbp₂ := low4_saved hS rfl (hbp.of_eq (hm₁.regs .rbp _ rfl))
   have h15₂ := low4_saved hS rfl (h15.of_eq (hm₁.regs .r15 _ rfl))
   have hbx₂ := regIs_saved hS rfl (regIs_ptr0 r hm₁ (y := .rbx) rfl)
+  have h12₂ := regIs_saved hS rfl (hm₁.regs .r12 _ rfl : Run.RegIs m₁ .r12 (Labels.label "memcpy").toBitVec)
   -- `b27`: to `9344`
   refine memcpy_pure r hp hpre hc b27_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b28Offset) rfl run_b27 (by decide) rfl hF₂
-    ⟨hbx₂.trans (eval_base r rfl 2048).symm, trivial⟩ hL₂ (by facts_dec2) (a := 9344) (s := 2048)
+    ⟨hbx₂.trans (eval_base r rfl 2048).symm, h12₂, trivial⟩ hL₂ (by facts_dec2) (a := 9344) (s := 2048)
     (n := 1024) (by facts_dec2) hB' hl (by decide) (by decide) (by decide) (by decide)
     fun m₃ hm₃ ↦ ⟨regIs_ptr0 r hm₃ rfl, regIs_ptr0 r hm₃ rfl, rdx_lit hm₃ rfl (by decide),
       fun m₄ hF₄ hS₄ hL₄ hB₄ ↦ ?_⟩
   have hbp₄ := low4_saved hS₄ rfl (hbp₂.of_eq (hm₃.regs .rbp _ rfl))
   have h15₄ := low4_saved hS₄ rfl (h15₂.of_eq (hm₃.regs .r15 _ rfl))
   have h14₄ := regIs_saved hS₄ rfl (regIs_ptr0 r hm₃ (y := .r14) rfl)
+  have h12₄ := regIs_saved hS₄ rfl (hm₃.regs .r12 _ rfl : Run.RegIs m₃ .r12 (Labels.label "memcpy").toBitVec)
   -- `b28`: to `3072`
   refine memcpy_pure r hp hpre hc b28_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b29Offset) rfl run_b28 (by decide) rfl hF₄
-    ⟨h14₄.trans (eval_base r rfl 9344).symm, trivial⟩ hL₄ (by facts_dec2) (a := 3072) (s := 9344)
+    ⟨h14₄.trans (eval_base r rfl 9344).symm, h12₄, trivial⟩ hL₄ (by facts_dec2) (a := 3072) (s := 9344)
     (n := 1024) (by facts_dec2) hB₄ hl (by decide) (by decide) (by decide) (by decide)
     fun m₅ hm₅ ↦ ⟨regIs_ptr0 r hm₅ rfl, regIs_ptr0 r hm₅ rfl, rdx_lit hm₅ rfl (by decide),
       fun m₆ hF₆ hS₆ hL₆ hB₆ ↦ ?_⟩
   have hbp₆ := low4_saved hS₆ rfl (hbp₄.of_eq (hm₅.regs .rbp _ rfl))
   have h15₆ := low4_saved hS₆ rfl (h15₄.of_eq (hm₅.regs .r15 _ rfl))
   have hbx₆ := regIs_saved hS₆ rfl (regIs_ptr0 r hm₅ (y := .rbx) rfl)
+  have h12₆ := regIs_saved hS₆ rfl (hm₅.regs .r12 _ rfl : Run.RegIs m₅ .r12 (Labels.label "memcpy").toBitVec)
   -- `b29`: to `11392`
   refine memcpy_pure r hp hpre hc b29_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b30Offset) rfl run_b29 (by decide) rfl hF₆
-    ⟨hbx₆.trans (eval_base r rfl 3072).symm, trivial⟩ hL₆ (by facts_dec2) (a := 11392) (s := 3072)
+    ⟨hbx₆.trans (eval_base r rfl 3072).symm, h12₆, trivial⟩ hL₆ (by facts_dec2) (a := 11392) (s := 3072)
     (n := 1024) (by facts_dec2) hB₆ hl (by decide) (by decide) (by decide) (by decide)
     fun m₇ hm₇ ↦ ⟨regIs_ptr0 r hm₇ rfl, regIs_ptr0 r hm₇ rfl, rdx_lit hm₇ rfl (by decide),
       fun m₈ hF₈ hS₈ hL₈ hB₈ ↦ ?_⟩
   have hbp₈ := low4_saved hS₈ rfl (hbp₆.of_eq (hm₇.regs .rbp _ rfl))
   have h15₈ := low4_saved hS₈ rfl (h15₆.of_eq (hm₇.regs .r15 _ rfl))
   have h14₈ := regIs_saved hS₈ rfl (regIs_ptr0 r hm₇ (y := .r14) rfl)
+  have h12₈ := regIs_saved hS₈ rfl (hm₇.regs .r12 _ rfl : Run.RegIs m₇ .r12 (Labels.label "memcpy").toBitVec)
   -- `b30`: to `10368`
   refine memcpy_pure r hp hpre hc b30_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b31Offset) rfl run_b30 (by decide) rfl hF₈
-    ⟨h14₈.trans (eval_base r rfl 11392).symm, trivial⟩ hL₈ (by facts_dec2) (a := 10368)
+    ⟨h14₈.trans (eval_base r rfl 11392).symm, h12₈, trivial⟩ hL₈ (by facts_dec2) (a := 10368)
     (s := 11392) (n := 1024) (by facts_dec2) hB₈ hl (by decide) (by decide) (by decide) (by decide)
     fun m₉ hm₉ ↦ ⟨regIs_ptr0 r hm₉ rfl, regIs_ptr0 r hm₉ rfl, rdx_lit hm₉ rfl (by decide),
       fun m₁₀ hF₁₀ hS₁₀ hL₁₀ hB₁₀ ↦ .done _ ⟨rfl, hF₁₀, ?_,
         low4_saved hS₁₀ rfl (hbp₈.of_eq (hm₉.regs .rbp _ rfl)),
-        low4_saved hS₁₀ rfl (h15₈.of_eq (hm₉.regs .r15 _ rfl))⟩⟩
+        low4_saved hS₁₀ rfl (h15₈.of_eq (hm₉.regs .r15 _ rfl)),
+        regIs_saved hS₁₀ rfl (hm₉.regs .r12 _ rfl)⟩⟩
   rw [L2, ← List.singleton_append, ← List.append_assoc, facts_append, ← L1p]
   exact ⟨hL₁₀, ⟨hl, hB₁₀⟩, trivial⟩
 

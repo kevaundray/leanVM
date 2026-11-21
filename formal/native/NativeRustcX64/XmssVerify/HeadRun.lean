@@ -17,15 +17,14 @@ open NativeRustcX64.Sym LeanVM.Protocol.KeccakHash
 
 variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 
-theorem match_st0 {ret : BitVec 64} :
-    Match (Env.ofMachine m₀ [frR m₀] (fun _ => 0) ret) st0 m₀ :=
-  match_ofMachine ⟨rfl, trivial⟩ ⟨(sp_eq m₀).symm.trans (ad_int m₀ 5808).symm, trivial⟩
-    trivial trivial trivial
+theorem match_st0 (P : Pre w m₀) {ret : BitVec 64} :
+    Match (Env.ofMachine m₀ (frameRs m₀) (fun _ => 0) ret) st0 m₀ :=
+  match_stG P (fun _ _ => rfl) (sp_eq m₀).symm trivial
 
 /-- `Common` after block 0. -/
 theorem common_b0 (P : Pre w m₀) {m : MachineData} {ret : BitVec 64}
-    (hm : Match (Env.ofMachine m₀ [frR m₀] (fun _ => 0) ret) (after b0 st0) m) : Common m₀ m := by
-  have hwf := frame_wf P (Kept.refl m₀.dmem) (m := m₀) (vs := fun _ => 0) (ret := ret)
+    (hm : Match (Env.ofMachine m₀ (frameRs m₀) (fun _ => 0) ret) (after b0 st0) m) : Common m₀ m := by
+  have hwf := frameG_wf P (Kept.refl m₀.dmem) (m := m₀) (vs := fun _ => 0) (ret := ret)
   obtain ⟨-, -, -, -, -, hw⟩ := st0'_facts
   refine ⟨fun j hj => ?_, ?_, hm.kept hwf⟩
   · have := hm.bytesAt_write (r := 0) rfl (by omega) (st0'_save j hj)
@@ -47,10 +46,10 @@ public theorem head {k : Nat} (hp : Placed code k)
     (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b2Offset) → LoopAt w m₀ st.data 0 →
       Eventually (step1 Host.exe) R st) :
     Eventually (step1 Host.exe) R ⟨m₀, Host.addrOf k⟩ := by
-  have hwf := frame_wf P (Kept.refl m₀.dmem) (m := m₀) (vs := fun _ => 0)
+  have hwf := frameG_wf P (Kept.refl m₀.dmem) (m := m₀) (vs := fun _ => 0)
     (ret := (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b1Offset)).toBitVec)
   refine call_step (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b0 hwf rfl
-    (by rw [NativeRustcX64.Xmss.XmssVerify.b0Offset, Nat.add_zero]) match_st0 fun st₁ hpc₁ hm₁ => ?_
+    (by rw [NativeRustcX64.Xmss.XmssVerify.b0Offset, Nat.add_zero]) (match_st0 P) fun st₁ hpc₁ hm₁ => ?_
   change Match _ (after b0 st0) st₁.data at hm₁
   have C₁ := common_b0 P hm₁
   obtain ⟨h0, h2, hsp, hbx, h14, -⟩ := st0'_facts

@@ -130,8 +130,17 @@ theorem update_pre (hpre : r.Pre) {m : MachineData} (hc : r.AtCall m) {a b n : N
   have hN : updateStack ≤ finalizeStack := by decide
   obtain ⟨m1, w1⟩ := r.frame_mapped hpre hc.2.2.2 ha
   obtain ⟨m2, w2⟩ := r.frame_mapped hpre hc.2.2.2 hb
-  exact ⟨r.stackOk hpre hc hN, r.rcAt hpre hc hN, hh, m1, w1, m2, w2, r.apart_off hpre ha hb hd,
-    r.apart_off_below hpre hc ha hN, r.apart_off_below hpre hc hb hN, r.apart_rc hpre ha⟩
+  refine ⟨r.stackOk hpre hc hN, r.rcAt hpre hc hN, hh, m1, w1, m2, w2, r.apart_off hpre ha hb hd,
+    r.apart_off_below hpre hc ha hN, r.apart_off_below hpre hc hb hN, r.apart_rc hpre ha, ?_⟩
+  apply r.gotAt hpre hc hN (by decide)
+  intro l hl p hp
+  have hl' : l ∈ ["memcpy", "memset"] := by
+    simp only [List.mem_singleton] at hl
+    simp [hl]
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+  rcases hp with rfl | rfl
+  · exact r.got_apart_off hpre hl' ha
+  · exact r.got_apart_off hpre hl' hb
 
 /-- **`Hasher::finalize(o, a)`**'s precondition, the hasher at `a`, the output at `o`. -/
 theorem finalize_pre (hpre : r.Pre) {m : MachineData} (hc : r.AtCall m) {o a : Nat}
@@ -143,8 +152,14 @@ theorem finalize_pre (hpre : r.Pre) {m : MachineData} (hc : r.AtCall m) {o a : N
   have hN : finalizeStack ≤ finalizeStack := le_rfl
   obtain ⟨m1, w1⟩ := r.frame_mapped hpre hc.2.2.2 ha
   obtain ⟨m2, w2⟩ := r.frame_mapped hpre hc.2.2.2 ho
-  exact ⟨r.stackOk hpre hc hN, r.rcAt hpre hc hN, hh, m1, w1, m2, w2, r.apart_off hpre ho ha hd,
-    r.apart_off_below hpre hc ha hN, r.apart_off_below hpre hc ho hN, r.apart_rc hpre ho⟩
+  refine ⟨r.stackOk hpre hc hN, r.rcAt hpre hc hN, hh, m1, w1, m2, w2, r.apart_off hpre ho ha hd,
+    r.apart_off_below hpre hc ha hN, r.apart_off_below hpre hc ho hN, r.apart_rc hpre ho, ?_⟩
+  apply r.gotAt hpre hc hN (by decide)
+  intro l hl p hp
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+  rcases hp with rfl | rfl
+  · exact r.got_apart_off hpre hl ho
+  · exact r.got_apart_off hpre hl ha
 
 /-- **`keccak_f(a)`**'s precondition. -/
 theorem keccakF_pre (hpre : r.Pre) {m : MachineData} (hc : r.AtCall m) {a : Nat}

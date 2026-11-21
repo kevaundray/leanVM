@@ -69,7 +69,7 @@ theorem sumOf_eval [Labels] (env : Env) (e : Sym) :
   | case4 => intro os h; cases h
 
 /-- `b114`'s start. -/
-def s114 : SState := init [frameRegion, 16] [(.rsp, .ptr 0 0)] [] [] Run.frameAliases
+def s114 : SState := Run.frameState []
 
 /-- The codeword's byte `j`, as `b115` stores it. -/
 def cwS (j : Nat) : Sym := .un .trunc .W8 (.un (.zext .W8) .W32 (.load 0 (576 + j) 1))
@@ -88,7 +88,8 @@ def b115Ok (S : SState) : Bool :=
     x == .jump NativeRustcX64.Sphincs.SphincsVerify.label_42 && S'.reg .rax == some (.lit 0) &&
       S'.reg .r12 == some (.ptr 0 4096) && S'.reg .r13 == some (.ptr 0 2048) &&
       S'.reg .rbp == some (.reg .rbp) && S'.reg .rsp == some (.ptr 0 0) && Run.frameWrites S' &&
-      spillsKept S' &&
+      spillsKept S' && S'.reg .rbx == some (.label "memset") &&
+      S'.reg .r14 == some (.reg .r14) &&
       (List.range 64).all fun j ↦ findWrite 0 (3072 + j) S'.mem == some (cwS j, 0)
   | none => false
 
@@ -108,7 +109,6 @@ namespace Run
 
 variable (r : Run) [Labels]
 
-omit [Labels] in
 /-- A one-byte load of the frame. -/
 theorem load1 {m : MachineData} (vars : Nat → BitVec 64) (ret : BitVec 64) {o : Nat} {b : UInt8}
     (h : m.dmem.get? (r.off o) = some b) : ((r.env m vars ret).load 0 o 1).toNat = b.toNat := by
@@ -171,6 +171,7 @@ at `3072`. -/
 theorem sum_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     {l : Nat} {V : Nat} {m : MachineData} (hl : l < 3) (hF : r.Frame m) (hI : r.Inputs m)
     (hL : r.LayerSpills l m) (hbp : Run.RegIs m .rbp (r.off 576))
+    (h14 : Run.RegIs m .r14 (Labels.label "memcpy").toBitVec)
     (hd : ∀ t < 64, m.dmem.get? (r.off (576 + t)) = some (digitByte V t)) :
     Eventually (step1 Host.exe) (fun st ↦
       (((digits V).map UInt8.toNat).sum ≠ 128 ∧ r.Done false st) ∨
@@ -179,7 +180,7 @@ theorem sum_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
   have hok := sumOk_eq
   unfold sumOk at hok
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
-  have hm := r.match_frame hF (vars := fun _ ↦ 0) (ret := 0) (known := []) (labels := [])
+  have hm := r.match_frame hpre hF (vars := fun _ ↦ 0) (ret := 0) (known := []) (labels := [])
     (bounds := []) (aliases := []) trivial trivial trivial trivial
   have hk := Sphincs.SphincsVerify.b114_in_code.trans hp.1 (List.cons_ne_nil _ _)
   rcases hx : exec Sphincs.SphincsVerify.b114 s114 with _ | ⟨S, x⟩
@@ -214,7 +215,7 @@ theorem sum_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
       rw [hx2] at h115
       simp only [spillsKept, Bool.and_eq_true, beq_iff_eq, and_assoc] at h115
       obtain ⟨rfl, hX0, hX12, hX13, hXbp, hsp2, hfw2, k60, k88, k96, k104, k112, k160, k176, k200,
-        k208, k216, k568, ksig, hw⟩ := h115
+        k208, k216, k568, ksig, hXbx, hX14, hw⟩ := h115
       refine Sym.exec_at hk2 hx2 hwf (fun _ h ↦ by cases h) hpc1 hm1 fun st2 hm2 hpc2 ↦
         .done _ (.inr ⟨h128, ?_, ?_⟩)
       · simp only [Sym.PcOk] at hpc2
@@ -237,7 +238,8 @@ theorem sum_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
           kept (by rw [length_wordBytes]; omega) s568 (by rw [length_wordBytes]; exact k568),
           kept (by rw [length_wordBytes]; omega) s176 (by rw [length_wordBytes]; exact k176)⟩,
         hm2.regs .rax _ hX0, (hm2.regs .r12 _ hX12).trans (r.ptr_eval _ _ _ 4096),
-        (hm2.regs .rbp _ hXbp).trans hbp, (hm2.regs .r13 _ hX13).trans (r.ptr_eval _ _ _ 2048), ?_⟩
+        (hm2.regs .rbp _ hXbp).trans hbp, (hm2.regs .r13 _ hX13).trans (r.ptr_eval _ _ _ 2048),
+        ?_, hm2.regs .rbx _ hXbx, (hm2.regs .r14 _ hX14).trans h14⟩
       intro i hi
       rw [length_digits] at hi
       rw [Run.off_add, show r.off (3072 + i) = r.base + BitVec.ofNat 64 (3072 + i) from rfl,

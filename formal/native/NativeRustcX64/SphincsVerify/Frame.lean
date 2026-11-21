@@ -4,6 +4,7 @@ public import NativeRustcX64.Code.Sphincs.Names
 
 public import NativeRustcX64.SphincsVerify.Basic
 public import NativeRustcX64.Sym.Run
+public import NativeRustcX64.Got
 
 /-!
 # The frame's facts for calls and blocks (x86-64)
@@ -263,6 +264,73 @@ theorem rcAt (hpre : r.Pre) {m : MachineData} (hc : r.AtCall m) {n : Nat}
     rfl
   exact ⟨r.bytesAt_entry hpre hc.2.2.1 hrc (hlen ▸ hA) (hlen ▸ hw), hw, r.apart_below hpre hc hn hA⟩
 
+/-- The loader's two reachable function pointers. -/
+theorem got (hpre : r.Pre) :
+    GotAt r.m0 sphincsStack
+      [(r.input, 8 * 977), ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24)]
+      ["memcpy", "memset"] :=
+  hpre.2.2.2.2.2.2.2.2
+
+theorem got_apart_lh (hpre : r.Pre) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    Apart (gotAddr l) 8 (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 :=
+  ((r.got hpre).1 l hl).2.2.2
+    ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24) (by simp)
+
+theorem got_apart_off (hpre : r.Pre) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    {a n : Nat} (ha : a + n ≤ 29384) : Apart (gotAddr l) 8 (r.off a) n := by
+  have hg := ((r.got hpre).1 l hl).2.2.1
+  have hb := r.below_toNat hpre
+  have ho := r.off_toNat hpre (a := a) (by omega)
+  simp only [stackBelow, sphincsStack_eq] at hg hb
+  apply apart_of_sub hg (by omega)
+  omega
+
+theorem got_apart_frame (hpre : r.Pre) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    Apart (gotAddr l) 8 r.base frameRegion := by
+  have hg := ((r.got hpre).1 l hl).2.2.1
+  have hb := r.below_toNat hpre
+  simp only [stackBelow, sphincsStack_eq] at hg hb
+  apply apart_of_sub hg (by omega)
+  rw [frameRegion_eq]
+  omega
+
+theorem got_apart_below (hpre : r.Pre) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    Apart (gotAddr l) 8 (r.base - 16#64) 16 := by
+  have hg := ((r.got hpre).1 l hl).2.2.1
+  have hb := r.below_toNat hpre
+  have ht := r.base_toNat hpre
+  have hs : (r.base - 16#64).toNat = r.base.toNat - 16 := toNat_sub_ofNat (by omega)
+  simp only [stackBelow, sphincsStack_eq] at hg hb
+  apply apart_of_sub hg (by omega)
+  omega
+
+theorem got_byte (hpre : r.Pre) {d : DataMem} (hs : SameOutside r.m0.dmem d r.StackArea)
+    {l : Label} (hl : l ∈ ["memcpy", "memset"]) {i : Nat} (hi : i < 8) :
+    d.get? (gotAddr l + BitVec.ofNat 64 i) =
+      some (Sym.byteOf (Labels.label l).toBitVec i) := by
+  have hg := (r.got hpre).1 l hl
+  have hb := r.below_toNat hpre
+  have ht := r.base_toNat hpre
+  simp only [sphincsStack_eq] at hb
+  have hnw : NoWrap (stackBelow r.m0 sphincsStack) (sphincsStack + 8) := by
+    unfold NoWrap
+    rw [sphincsStack_eq]
+    omega
+  rw [hs _ (fun h => hg.2.2.1.not_inRange hg.2.1 hnw hi (Nat.lt_trans h (by omega)))]
+  exact (r.got hpre).byte hl hi
+
+theorem gotAt (hpre : r.Pre) {m : MachineData} (hc : r.AtCall m) {n : Nat}
+    (hn : n ≤ finalizeStack) {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hl : symbols.Sublist ["memcpy", "memset"])
+    (ha : ∀ l ∈ symbols, ∀ a ∈ areas, Apart (gotAddr l) 8 a.1 a.2) :
+    GotAt m n areas symbols := by
+  apply ((r.got hpre).symbols hl).transport
+  · intro l hl' i hi
+    rw [r.got_byte hpre hc.2.2.1 (hl.subset hl') hi, (r.got hpre).byte (hl.subset hl') hi]
+  · intro l hl'
+    exact r.apart_below hpre hc hn (((r.got hpre).1 l (hl.subset hl')).2.2.1)
+  · exact ha
+
 /-! ## The invariant again -/
 
 /-- A change in the frame's bytes `a .. a + n` below the saved registers is in the stack area,
@@ -318,19 +386,18 @@ theorem Frame.of_post {m m' : MachineData} (hc : r.AtCall m) (hsp : rspOf m' = r
 
 /-! ## The frame as the executor's regions -/
 
-/-- The executor's regions: the frame with the return address, the 16 bytes below it. -/
-abbrev frameRegs : List (BitVec 64 × Nat) := [(r.base, frameRegion), (r.base - 16#64, 16)]
+/-- The frame, slots below it, and the memcpy and memset GOT slots. -/
+abbrev frameRegs : List (BitVec 64 × Nat) :=
+  [(r.base, frameRegion), (r.base - 16#64, 16), (gotAddr "memcpy", 8), (gotAddr "memset", 8)]
 
 /-- The environment of a state of the frame. -/
 abbrev env (m : MachineData) (vars : Nat → BitVec 64 := fun _ ↦ 0) (ret : BitVec 64 := 0) :
     Sym.Env :=
   Sym.Env.ofMachine m r.frameRegs vars ret
 
-omit [Labels] in
 theorem env_base0 (m : MachineData) (vars : Nat → BitVec 64) (ret : BitVec 64) :
     (r.env m vars ret).base 0 = r.base := rfl
 
-omit [Labels] in
 theorem env_base1 (m : MachineData) (vars : Nat → BitVec 64) (ret : BitVec 64) :
     (r.env m vars ret).base 1 = r.base - 16#64 := rfl
 
@@ -357,13 +424,36 @@ theorem frame_wf (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem)
       omega
     · unfold NoWrap
       omega
-  refine Sym.Env.wf_of ⟨h0, h1, trivial⟩ (List.pairwise_pair.mpr ?_)
-  show Apart r.base frameRegion (r.base - 16#64) 16
-  unfold Apart
-  omega
+  refine Sym.Env.wf_of ⟨h0, h1,
+    ⟨fun i hi => hk _ ((r.got hpre).mapped (by simp : "memcpy" ∈ _) i hi),
+      ((r.got hpre).1 "memcpy" (by simp)).2.1⟩,
+    ⟨fun i hi => hk _ ((r.got hpre).mapped (by simp : "memset" ∈ _) i hi),
+      ((r.got hpre).1 "memset" (by simp)).2.1⟩, trivial⟩ ?_
+  refine List.Pairwise.cons ?_ (List.Pairwise.cons ?_ ?_)
+  · intro e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl | rfl
+    · change Apart r.base frameRegion (r.base - 16#64) 16
+      unfold Apart
+      omega
+    · exact (r.got_apart_frame hpre (by simp)).symm
+    · exact (r.got_apart_frame hpre (by simp)).symm
+  · intro e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl
+    · exact (r.got_apart_below hpre (by simp)).symm
+    · exact (r.got_apart_below hpre (by simp)).symm
+  · simpa using (r.got hpre).2
 
 /-- The slots `call` and `push` write below the frame: region 1. -/
 abbrev frameAliases : List (Sym × Nat × Int) := [(.ptr 0 (-8), 1, 8), (.ptr 0 (-16), 1, 0)]
+
+/-- The frame and loader bytes used by each fresh symbolic block state. -/
+@[expose] def frameState (known : List (Reg64 × Sym)) (labels : List (Label × Nat) := [])
+    (bounds : List (Sym × Nat) := []) (aliases : List (Sym × Nat × Int) := []) : Sym.SState :=
+  ((Sym.init [frameRegion, 16, 8, 8] ((.rsp, .ptr 0 0) :: known) labels bounds
+    (frameAliases ++ [(.gotSlot "memcpy", 2, 0), (.gotSlot "memset", 3, 0)] ++ aliases)).withKnownBytes
+      2 0 8 (.label "memcpy")).withKnownBytes 3 0 8 (.label "memset")
 
 omit [Labels] in
 theorem alias8 :
@@ -371,9 +461,8 @@ theorem alias8 :
   rw [show BitVec.ofInt 64 (-8) = -8#64 by decide, show BitVec.ofInt 64 8 = 8#64 by decide]
   bv_omega
 
-/-- **A fresh symbolic state for a state of the frame**: region 0 the frame (RSP its base),
-region 1 the slots below, the `known` registers, labels, bounds and further aliases as given. -/
-theorem match_frame {m : MachineData} (hF : r.Frame m) {vars : Nat → BitVec 64}
+/-- A fresh symbolic frame state with the loader bytes justified by the invariant. -/
+theorem match_frame (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) {vars : Nat → BitVec 64}
     {ret : BitVec 64} {known : List (Reg64 × Sym)} {labels : List (Label × Nat)}
     {bounds : List (Sym × Nat)} {aliases : List (Sym × Nat × Int)}
     (hknown : Sym.AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m vars ret)) known)
@@ -381,22 +470,28 @@ theorem match_frame {m : MachineData} (hF : r.Frame m) {vars : Nat → BitVec 64
     (hbounds : Sym.AllOf (fun p ↦ (p.1.eval (r.env m vars ret)).toNat < p.2) bounds)
     (haliases : Sym.AllOf (fun p ↦ p.1.eval (r.env m vars ret) =
       (r.env m vars ret).base p.2.1 + BitVec.ofInt 64 p.2.2) aliases) :
-    Sym.Match (r.env m vars ret)
-      (Sym.init [frameRegion, 16] ((.rsp, .ptr 0 0) :: known) labels bounds (frameAliases ++ aliases))
-      m :=
-  Sym.match_ofMachine ⟨rfl, rfl, trivial⟩
-    ⟨by
-      show rspOf m = r.base + BitVec.ofInt 64 0
-      simp only [BitVec.ofInt_ofNat, BitVec.add_zero]
-      exact hF.1, hknown⟩
-    hlabels hbounds
-    ⟨by
-      show r.base + BitVec.ofInt 64 (-8) = (r.base - 16#64) + BitVec.ofInt 64 8
-      exact alias8 r,
-    by
-      show r.base + BitVec.ofInt 64 (-16) = (r.base - 16#64) + BitVec.ofInt 64 0
-      rw [show BitVec.ofInt 64 (-16) = -16#64 by decide, show BitVec.ofInt 64 0 = 0#64 by decide]
-      bv_omega, haliases⟩
+    Sym.Match (r.env m vars ret) (frameState known labels bounds aliases) m := by
+  apply Sym.Match.withKnownBytes
+  · apply Sym.Match.withKnownBytes
+    · apply Sym.match_ofMachine
+      · exact ⟨rfl, rfl, rfl, rfl, trivial⟩
+      · exact ⟨by
+          show rspOf m = r.base + BitVec.ofInt 64 0
+          simpa only [BitVec.ofInt_ofNat, BitVec.add_zero] using hF.1, hknown⟩
+      · exact hlabels
+      · exact hbounds
+      · refine ⟨alias8 r, ?_, ?_, ?_, haliases⟩
+        · change r.base + BitVec.ofInt 64 (-16) = (r.base - 16#64) + BitVec.ofInt 64 0
+          rw [show BitVec.ofInt 64 (-16) = -16#64 by decide, show BitVec.ofInt 64 0 = 0#64 by decide]
+          bv_omega
+        · simp [Sym.eval, Sym.Env.base, gotAddr]
+        · simp [Sym.eval, Sym.Env.base, gotAddr]
+    · intro i hi
+      simpa [Sym.eval, Sym.Env.base, env, frameRegs] using
+        r.got_byte hpre hF.2.2.1 (by simp : "memcpy" ∈ _) hi
+  · intro i hi
+    simpa [Sym.eval, Sym.Env.base, env, frameRegs] using
+      r.got_byte hpre hF.2.2.1 (by simp : "memset" ∈ _) hi
 
 /-- No write of a symbolic state touches the frame's bytes `o .. o + n`. -/
 @[expose] def noWriteIn (S : Sym.SState) (o n : Nat) : Bool :=

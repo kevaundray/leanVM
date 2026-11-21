@@ -26,11 +26,12 @@ public theorem fromBytes_spec [Host] {k : Nat} (hp : Placed code k)
     Spec (label NativeRustcX64.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost := by
   intro m₀ hpre
   have P := pre_of hpre
+  have G : ParserGot m₀ := hpre.2.2.2.2.2.2.2.2
   rw [hp.label NativeRustcX64.Xmss.FromBytes.entry_at, NativeRustcX64.Xmss.FromBytes.entryOffset, Nat.add_zero]
   exact head hp hpre fun st hpc h =>
     NativeRustcX64.Eventually.bind (loop hp P hpc h) fun st' ⟨hpc', h'⟩ =>
-      mid hp hmemcpy P hpc' h' fun st'' hpc'' h'' =>
-        path hp P hpc'' h'' fun s hs hret hc => tail hp hmemcpy P hs hret hc
+      mid hp hmemcpy P G hpc' h' fun st'' hpc'' h'' =>
+        path hp P G hpc'' h'' fun s hs hret hc => tail hp hmemcpy P hs hret hc
 
 /--
 info: 'NativeRustcX64.Xmss.FromBytes.fromBytes_spec' depends on axioms: [propext, Classical.choice, Quot.sound]

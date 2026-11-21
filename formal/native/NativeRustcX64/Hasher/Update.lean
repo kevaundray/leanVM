@@ -78,20 +78,46 @@ theorem update_spec (hp : Placed code k)
   have hfrN := frm_toNat g
   rw [lbl_entry hp]
   -- The prologue.
-  let env0 := Env.ofMachine m0 [(frm m0, 120), (hAt m0, 344)]
-  have hwf0 : env0.WF :=
-    Env.wf_of ⟨⟨frm_mapped hpre, by
-        show (frm m0).toNat + 120 ≤ _; rw [hfrN]; have := g.s8; have := g.s; omega⟩,
-      ⟨hpre.2.2.2.1, g.h⟩, trivial⟩
-      (List.pairwise_pair.mpr (by
-        show (frm m0).toNat + 120 ≤ (hAt m0).toNat ∨ (hAt m0).toNat + 344 ≤ (frm m0).toNat
-        rw [hfrN]; have := g.hs; have := g.s; omega))
-  have hm0 : Match env0 entryS m0 :=
-    match_ofMachine ⟨rfl, rfl, trivial⟩
+  let env0 := Env.ofMachine m0 [(frm m0, 120), (hAt m0, 344), (gotAddr "memcpy", 8)]
+  obtain ⟨hhg, hfg⟩ := got_apart hpre
+  have hfh : Apart (frm m0) 120 (hAt m0) 344 := by
+    unfold Apart
+    rw [hfrN]
+    have := g.hs
+    have := g.s
+    omega
+  have hwf0 : env0.WF := by
+    refine Env.wf_of ⟨⟨frm_mapped hpre, ?_⟩,
+      ⟨hpre.2.2.2.1, g.h⟩,
+      ⟨(got_of hpre).mapped (by simp),
+        ((got_of hpre).1 "memcpy" (by simp)).2.1⟩, trivial⟩ ?_
+    · show (frm m0).toNat + 120 ≤ _
+      rw [hfrN]
+      have := g.s8
+      have := g.s
+      omega
+    · apply List.pairwise_cons.mpr
+      refine ⟨?_, List.pairwise_pair.mpr hhg⟩
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · exact hfh
+      · exact hfg
+  have hm0 : Match env0 entryS m0 := by
+    have hm := match_ofMachine (m := m0)
+      (regions := [(frm m0, 120), (hAt m0, 344), (gotAddr "memcpy", 8)])
+      (vars := fun _ => 0) (ret := 0) (sregions := [120, 344, 8])
+      (known := [(.rsp, .ptr 0 112), (.rdi, .ptr 1 0)])
+      (labels := []) (bounds := []) (aliases := [(.gotSlot "memcpy", 2, 0)])
+      ⟨rfl, rfl, rfl, trivial⟩
       ⟨show rspOf m0 = (spAt m0 - 112#64) + BitVec.ofInt 64 112 by
           rw [show BitVec.ofInt 64 112 = 112#64 from rfl]
           exact (BitVec.sub_add_cancel _ _).symm,
-        (BitVec.add_zero _).symm, trivial⟩ trivial trivial trivial
+        (BitVec.add_zero _).symm, trivial⟩ trivial trivial
+      ⟨(BitVec.add_zero _).symm, trivial⟩
+    apply hm.withKnownBytes (r := 2) (off := 0) (n := 8) (v := .label "memcpy")
+    intro i hi
+    simpa [Env.base, Sym.eval] using (got_of hpre).byte (l := "memcpy") (by simp) hi
   refine exec_then (hb0 hp) run_b0 hwf0 nofun hm0 fun m1s hm1 hpc1 => ?_
   obtain ⟨m1, pc1⟩ := m1s
   simp only [PcOk, lbl_1 hp] at hpc1
@@ -102,7 +128,8 @@ theorem update_spec (hp : Placed code k)
       m1.dmem.get? p = m0.dmem.get? p := fun p hp =>
     hm1.get?_mem0 hwf0 fun ⟨w, hw, b, sz, hb, h1, h2⟩ => hp (by
       obtain ⟨hr, ho, hn⟩ := hl0 w hw
-      change ([(frm m0, 120), (hAt m0, 344)] : List (BitVec 64 × Nat))[w.r]? = some (b, sz) at hb
+      change ([(frm m0, 120), (hAt m0, 344), (gotAddr "memcpy", 8)] :
+        List (BitVec 64 × Nat))[w.r]? = some (b, sz) at hb
       rw [hr] at hb
       obtain ⟨rfl, rfl⟩ : frm m0 = b ∧ 120 = sz := by simpa using hb
       rw [hfrN] at h1 h2
@@ -114,7 +141,7 @@ theorem update_spec (hp : Placed code k)
     omega)
   have hb1 : env0.base 1 = hAt m0 := rfl
   have hinv : Inv m0 0 m1 := by
-    refine ⟨⟨?_, ?_, ?_, ?_, fun p hp => hw1 p ?_, ?_⟩, Nat.zero_le _, ?_, ?_, ?_, ?_⟩
+    refine ⟨⟨?_, ?_, ?_, ?_, fun p hp => hw1 p ?_, ?_, ?_⟩, Nat.zero_le _, ?_, ?_, ?_, ?_⟩
     · exact (hm1.regs .r14 _ rfl).trans (BitVec.add_zero _)
     · exact (hm1.regs .r13 _ rfl).trans rfl
     · exact (hm1.regs .rsp _ rfl).trans rfl
@@ -129,6 +156,7 @@ theorem update_spec (hp : Placed code k)
       have := g.s
       omega
     · exact hm1.kept hwf0
+    · exact hm1.regs .rbp (.label "memcpy") rfl
     · rw [show reg m1 .rbx = _ from hm1.regs .rbx _ rfl, Nat.sub_zero]
       exact toBitVec_eq_ofNat _
     · rw [show reg m1 .r15 = _ from hm1.regs .r15 _ rfl]

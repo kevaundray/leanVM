@@ -52,8 +52,8 @@ def blockOK (S : SState) (d : Int) : Bool := Run.frameWrites S && S.reg .rsp == 
 
 /-- The environment of the frame's blocks: no variables, `ret` the return address a call
 pushes. -/
-abbrev Run.envR (r : Run) (m : MachineData) (extra : List (BitVec 64 × Nat)) (ret : BitVec 64) :
-    Env := r.env m extra (fun _ ↦ 0) ret
+abbrev Run.envR [Labels] (r : Run) (m : MachineData) (extra : List (BitVec 64 × Nat)) (ret : BitVec 64) :
+    Env := r.env m ((gotAddr "memcpy", 8) :: (gotAddr "memset", 8) :: extra) (fun _ ↦ 0) ret
 
 /-- The known registers of `frameS k` hold their values. -/
 def KnownOK [Labels] (r : Run) (m : MachineData) (extra : List (BitVec 64 × Nat)) (ret : BitVec 64)
@@ -62,11 +62,12 @@ def KnownOK [Labels] (r : Run) (m : MachineData) (extra : List (BitVec 64 × Nat
 
 /-- The extra regions are mapped, do not wrap, are apart from the frame's two regions and from
 each other. -/
-def ExtraOK (r : Run) (m : MachineData) (extra : List (BitVec 64 × Nat)) : Prop :=
+def ExtraOK [Labels] (r : Run) (m : MachineData) (extra : List (BitVec 64 × Nat)) : Prop :=
   AllOf (fun e : BitVec 64 × Nat ↦ Mapped m.dmem e.1 e.2 ∧ NoWrap e.1 e.2) extra ∧
     AllOf (fun e : BitVec 64 × Nat ↦ Apart r.base regionSize e.1 e.2 ∧
       Apart (r.base - 8#64) 8 e.1 e.2) extra ∧
-    extra.Pairwise fun e e' ↦ Apart e.1 e.2 e'.1 e'.2
+    extra.Pairwise (fun e e' ↦ Apart e.1 e.2 e'.1 e'.2) ∧
+    ∀ l ∈ ["memcpy", "memset"], ∀ e ∈ extra, Apart (gotAddr l) 8 e.1 e.2
 
 /-- The frame's bytes a block from `m` to `m₁` (literal state `S`) did not write are kept. -/
 def KB (r : Run) (S : SState) (m m₁ : MachineData) : Prop :=
@@ -148,8 +149,8 @@ theorem slotsKept_spec {S : SState} {L : List Slot} (h : slotsKept S L = true) :
     ∀ s ∈ L, Run.noWriteIn S s.1 s.2.1 = true :=
   fun s hs ↦ List.all_eq_true.mp h s hs
 
-theorem extraOK_nil {r : Run} {m : MachineData} : ExtraOK r m [] :=
-  ⟨trivial, trivial, List.Pairwise.nil⟩
+theorem extraOK_nil [Labels] {r : Run} {m : MachineData} : ExtraOK r m [] :=
+  ⟨trivial, trivial, List.Pairwise.nil, by simp⟩
 
 /-- Slots of `L ++ L'`. -/
 theorem SlotsAt.append {r : Run} {m : MachineData} {L L' : List Slot} (h : SlotsAt r m L)
@@ -237,21 +238,55 @@ theorem known_lit {m : MachineData} {extra : List (BitVec 64 × Nat)} {ret : Bit
 
 /-- **A fresh symbolic state for a state of the frame**: the registers `k`, the extra regions,
 bounds and aliases. -/
-theorem match_frameS {m : MachineData} (hsp : reg m .rsp = r.base) {extra : List (BitVec 64 × Nat)}
+theorem match_frameS {m : MachineData}
+    (hgot : ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      m.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        some (byteOf (Labels.label l).toBitVec i))
+    (hsp : reg m .rsp = r.base) {extra : List (BitVec 64 × Nat)}
     {sextra : List Nat} (hex : RegionsOk sextra extra) {ret : BitVec 64} {k : List (Reg64 × Sym)}
     (hk : KnownOK r m extra ret k) {bounds : List (Sym × Nat)}
     (hbounds : AllOf (fun p ↦ (p.1.eval (r.envR m extra ret)).toNat < p.2) bounds)
     {aliases : List (Sym × Nat × Int)}
     (haliases : AllOf (fun p ↦ p.1.eval (r.envR m extra ret) =
       (r.envR m extra ret).base p.2.1 + BitVec.ofInt 64 p.2.2) aliases) :
-    Match (r.envR m extra ret) (frameS k sextra bounds aliases) m :=
-  r.match_frame hsp hex hk trivial hbounds haliases
+    Match (r.envR m extra ret) (frameS k sextra bounds aliases) m := by
+  apply Match.withKnownBytes
+  · apply Match.withKnownBytes
+    · apply match_ofMachine
+      · exact ⟨rfl, rfl, rfl, rfl, hex⟩
+      · exact ⟨by simpa [Sym.eval, Run.envR, Run.env, Env.base] using hsp, hk⟩
+      · exact trivial
+      · exact hbounds
+      · refine ⟨?_, ?_, ?_, haliases⟩
+        · change r.base + BitVec.ofInt 64 (-8) = r.base - 8#64 + BitVec.ofInt 64 0
+          simp [BitVec.sub_eq_add_neg]
+        · simp [Sym.eval, Env.base, gotAddr]
+        · simp [Sym.eval, Env.base, gotAddr]
+    · intro i hi
+      simpa [Sym.eval, Run.envR, Run.env, Env.base] using
+        hgot "memcpy" (by simp) i hi
+  · intro i hi
+    simpa [Sym.eval, Run.envR, Run.env, Env.base] using
+      hgot "memset" (by simp) i hi
 
 /-- The frame's environment with extra regions is well formed. -/
 theorem envR_wf (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem)
     {extra : List (BitVec 64 × Nat)} (hx : ExtraOK r m extra) (ret : BitVec 64) :
-    (r.envR m extra ret).WF :=
-  r.env_wf hpre hk hx.1 hx.2.1 hx.2.2 _ ret
+    (r.envR m extra ret).WF := by
+  have hc := (r.got hpre).1 "memcpy" (by simp)
+  have hs := (r.got hpre).1 "memset" (by simp)
+  refine r.env_wf hpre hk (extra := (gotAddr "memcpy", 8) :: (gotAddr "memset", 8) :: extra)
+    ⟨⟨fun i hi => hk _ ((r.got hpre).mapped (by simp : "memcpy" ∈ _) i hi), hc.2.1⟩,
+      ⟨fun i hi => hk _ ((r.got hpre).mapped (by simp : "memset" ∈ _) i hi), hs.2.1⟩, hx.1⟩
+    ⟨r.got_apart_regions hpre (by simp), r.got_apart_regions hpre (by simp), hx.2.1⟩
+    ?_ _ ret
+  refine List.Pairwise.cons ?_ (List.Pairwise.cons ?_ hx.2.2.1)
+  · intro e he
+    rcases List.mem_cons.mp he with rfl | he
+    · simpa using (r.got hpre).2
+    · exact hx.2.2.2 "memcpy" (by simp) e he
+  · intro e he
+    exact hx.2.2.2 "memset" (by simp) e he
 
 /-- **Slots a call does not change** stay. -/
 theorem SlotsAt.of_call (hpre : r.Pre) {m m' : MachineData} (hsp : rspOf m = r.base - 8#64)
@@ -392,7 +427,8 @@ theorem updateFrame (hpre : r.Pre) {L : List Slot} {m₁ : MachineData} (hK : Ca
 theorem updateInput (hpre : r.Pre) {L : List Slot} {m₁ : MachineData} (hK : CallKeep r L m₁)
     {a n : Nat} {d : BitVec 64} (h0 : Run.RegIs m₁ .rdi (r.off a)) (h1 : Run.RegIs m₁ .rsi d)
     (h2 : (reg m₁ .rdx).toNat = n) (hin : WotsLeafPre.Input r.m0 d n) (ha : a + 344 ≤ 2712)
-    (hL : slotsOff L a 344 = true) {x : List UInt8} (hH : HasherAt r m₁ a x) :
+    (hL : slotsOff L a 344 = true) (hdgot : Apart (gotAddr "memcpy") 8 d n)
+    {x : List UInt8} (hH : HasherAt r m₁ a x) :
     UpdatePre m₁ ∧ ∀ m₂, rspOf m₂ = rspOf m₁ + 8#64 → UpdatePost m₁ m₂ →
       Keep r L m₂ ∧ Saved m₁ m₂ ∧ KC r m₁ m₂ a 344 ∧
       HasherAt r m₂ a (x ++ bytesOf r.m0.dmem d n) := by
@@ -405,7 +441,7 @@ theorem updateInput (hpre : r.Pre) {L : List Slot} {m₁ : MachineData} (hK : Ca
     simp only [Run.wotsLeafStack_eq'] at *
     omega
   refine ⟨r.update_pre_input hpre hK.1 h0 h1 h2 (by omega)
-    (fun i hi ↦ hK.1.kept _ (hin.1 i hi)) hin.2.1 hA8 hdf hH.holds_some, fun m₂ hsp hQ ↦ ?_⟩
+    (fun i hi ↦ hK.1.kept _ (hin.1 i hi)) hin.2.1 hA8 hdf hdgot hH.holds_some, fun m₂ hsp hQ ↦ ?_⟩
   obtain ⟨hA, hout, hS⟩ := r.update_out h0 h1 h2 hQ
   have hK₂ := Keep.of_call hpre hK hS hsp ha (by decide) hout hL
   have hA' := hA x hH.holds
@@ -512,7 +548,8 @@ theorem frameStep (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre)
       Eventually (step1 Host.exe) R st) :
     Eventually (step1 Host.exe) R ⟨m, r.pc j⟩ := by
   have hwf := envR_wf hpre ((r.frame_iff m).1 hK.1).kept hxo (r.pc (j + ds.length)).toBitVec
-  exact blk r hp hb hne hx hwf rfl (match_frameS hK.1.1 hex hk hbounds haliases) fun st hm hpc ↦
+  exact blk r hp hb hne hx hwf rfl
+    (match_frameS (fun _ hl _ hi => r.got_byte hpre hK.1.2.2.1 hl hi) hK.1.1 hex hk hbounds haliases) fun st hm hpc ↦
     cont st hm (hK.of_block hpre hm hwf hok hL) (kb_of_block hpre hm hwf) hpc
 
 /-- **A block of the frame ending in a call**, then the callee's contract. -/
@@ -538,7 +575,8 @@ theorem frameCall (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre)
         Eventually (step1 Host.exe) R ⟨m₂, r.pc (j + ds.length)⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc j⟩ := by
   have hwf := envR_wf hpre ((r.frame_iff m).1 hK.1).kept hxo (r.pc (j + ds.length)).toBitVec
-  exact blk r hp hb hne hx hwf rfl (match_frameS hK.1.1 hex hk hbounds haliases) fun st hm hpc ↦
+  exact blk r hp hb hne hx hwf rfl
+    (match_frameS (fun _ hl _ hi => r.got_byte hpre hK.1.2.2.1 hl hi) hK.1.1 hex hk hbounds haliases) fun st hm hpc ↦
     callAt hpc hspec (cont st.data hm (CallKeep.of_block hpre hK hm hwf hok hL)
       (kb_of_block hpre hm hwf))
 

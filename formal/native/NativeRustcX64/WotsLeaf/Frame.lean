@@ -2,6 +2,7 @@ module
 
 public import NativeRustcX64.WotsLeaf.Basic
 public import NativeRustcX64.Sym.Run
+public import NativeRustcX64.Got
 
 /-!
 # The frame's facts for calls and blocks
@@ -348,6 +349,39 @@ theorem rcAt (hpre : r.Pre) {m : MachineData} (hF : r.CallFrame m) {n : Nat}
     rfl
   exact ⟨r.bytesAt_entry hpre hF hrc (hlen ▸ hA) (hlen ▸ hw), hw, r.apart_below hpre hF.1 hn hA⟩
 
+/-- The loader's slots at the function entry. -/
+theorem got (hpre : r.Pre) :
+    GotAt r.m0 wotsLeafStack
+      [(r.out, 75), (reg r.m0 .rsi, 16), (reg r.m0 .r8, (reg r.m0 .r9).toNat),
+        (WotsLeafPre.rndPtr r.m0, 16), (WotsLeafPre.valuesPtr r.m0, 16 * 58),
+        (rspOf r.m0 + 8#64, 16)] ["memcpy", "memset"] :=
+  hpre.2.2.2.2.2.2.2.2.2
+
+/-- GOT slots are apart from the frame and its return address. -/
+theorem got_apart_off (hpre : r.Pre) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    {a n : Nat} (ha : a + n ≤ 2768) : Apart (gotAddr l) 8 (r.off a) n := by
+  have hg := ((r.got hpre).1 l hl).2.2.1
+  have hb := r.below_toNat hpre
+  have ho := r.off_toNat hpre (a := a) (by omega)
+  simp only [stackBelow] at hb
+  apply apart_of_sub hg (by omega)
+  simp only [wotsLeafStack_eq'] at *
+  omega
+
+/-- A callee reads the same GOT bytes as the caller, with its smaller stack footprint. -/
+theorem gotAt (hpre : r.Pre) {m : MachineData} (hF : r.CallFrame m) {n : Nat}
+    (hn : n ≤ finalizeStack) {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hl : symbols.Sublist ["memcpy", "memset"])
+    (ha : ∀ l ∈ symbols, ∀ a ∈ areas, Apart (gotAddr l) 8 a.1 a.2) :
+    GotAt m n areas symbols := by
+  apply ((r.got hpre).symbols hl).transport
+  · intro l hl' i hi
+    have hg := (r.got hpre).1 l (hl.subset hl')
+    exact hF.2.2.1 _ (r.not_area_of_apart hpre hg.2.2.1 hg.2.1 hi)
+  · intro l hl'
+    exact r.apart_below hpre hF.rsp hn ((r.got hpre).1 l (hl.subset hl')).2.2.1
+  · exact ha
+
 /-! ## The invariant again -/
 
 /-- A change in the frame's bytes `a .. a + n` before the saved registers is in the stack area,
@@ -452,6 +486,46 @@ theorem env_wf (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem)
 theorem frame_wf (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem)
     (vars : Nat → BitVec 64) (ret : BitVec 64) : (r.env m [] vars ret).WF :=
   r.env_wf hpre hk (extra := []) trivial trivial List.Pairwise.nil vars ret
+
+/-- Both GOT slots are apart from the frame including the caller's stack arguments. -/
+theorem got_apart_regions (hpre : r.Pre) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    Apart r.base regionSize (gotAddr l) 8 ∧ Apart (r.base - 8#64) 8 (gotAddr l) 8 := by
+  have hg := (r.got hpre).1 l hl
+  have hs := hg.2.2.1
+  have ha := hg.2.2.2 (rspOf r.m0 + 8#64, 16) (by simp)
+  have hb := r.below_toNat hpre
+  have ht := r.base_top hpre
+  have hc := r.callSp_toNat hpre
+  have hsp := r.base_toNat hpre
+  have h8 : (rspOf r.m0 + 8#64).toNat = (rspOf r.m0).toNat + 8 :=
+    Sym.toNat_add_ofNat _ 8 (by omega)
+  unfold Apart regionSize at *
+  simp only [stackBelow, wotsLeafStack_eq'] at hs ha hb
+  omega
+
+/-- The frame invariant preserves the bytes that resolve indirect calls. -/
+theorem got_byte (hpre : r.Pre) {m : MachineData}
+    (hs : SameOutside r.m0.dmem m.dmem r.StackArea)
+    {l : Label} (hl : l ∈ ["memcpy", "memset"]) {i : Nat} (hi : i < 8) :
+    m.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      some (Sym.byteOf (Labels.label l).toBitVec i) := by
+  have hg := (r.got hpre).1 l hl
+  rw [hs _ (r.not_area_of_apart hpre hg.2.2.1 hg.2.1 hi)]
+  exact (r.got hpre).byte hl hi
+
+/-- Writing the final output also leaves the GOT slots unchanged. -/
+theorem got_byte_changed (hpre : r.Pre) {m : MachineData}
+    (hs : SameOutside r.m0.dmem m.dmem r.Changed)
+    {l : Label} (hl : l ∈ ["memcpy", "memset"]) {i : Nat} (hi : i < 8) :
+    m.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      some (Sym.byteOf (Labels.label l).toBitVec i) := by
+  have hg := (r.got hpre).1 l hl
+  rw [hs _ (by
+    rintro (hout | hstack)
+    · exact (hg.2.2.2 (r.out, 75) (by simp)).not_inRange hg.2.1
+        hpre.2.2.2.2.1.2.1 hi hout
+    · exact r.not_area_of_apart hpre hg.2.2.1 hg.2.1 hi hstack)]
+  exact (r.got hpre).byte hl hi
 
 /-- A fresh symbolic state for the frame: regions 0 and 1, RSP the base, the alias for a call's
 return address, the `known` registers, labels, bounds and aliases as given. -/

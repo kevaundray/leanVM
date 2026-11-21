@@ -6,9 +6,9 @@ public import NativeRustcX64.XmssVerify.Bytes
 /-!
 # `xmss_verify`: what its path loops' blocks store (x86-64)
 
-A path turn's blocks run with two regions: the frame below the layers (region 0, `3356` bytes)
-and the turn's node of the path (region 1, `16` bytes) (`nodeR`, `node_wf`). The bytes of a
-store to the frame (`frameWrite`), a path step's two children stored in the order the bit test
+A path turn's blocks run with the frame below the layers (region 0, `3356` bytes),
+the turn's node of the path (region 1, `16` bytes), and the memset GOT slot (region 2)
+(`nodeR`, `node_wf`). The bytes of a store to the frame (`frameWrite`), a path step's two children stored in the order the bit test
 says (`childrenAt`), a node's address (`addrAt`), and the values the blocks compute
 (`add1_eval`, `trunc_toNat`, `shr16_toNat`, `hiBytes_bottom`, `hiBytes_top`).
 -/
@@ -21,18 +21,34 @@ public section
 
 variable [Labels] {w : Nat → UInt64} {m₀ m m' : MachineData}
 
-/-- A path turn's regions: the frame below the layers and the path node at the frame offset
-`o`. -/
+/-- A path turn's regions: the frame below the layers, the path node at the frame offset
+`o`, and the memset GOT slot. -/
 abbrev nodeR (m₀ : MachineData) (o : Nat) : List (BitVec 64 × Nat) :=
-  [(ad m₀ fr, 3356), (ad m₀ (fr + o), 16)]
+  [(ad m₀ fr, 3356), (ad m₀ (fr + o), 16), (gotAddr "memset", 8)]
 
 theorem node_wf (P : Pre w m₀) (hk : Kept m₀.dmem m.dmem) {o : Nat} (ho : 3356 ≤ o)
     (ho' : o + 16 ≤ 5816) {vs : Nat → BitVec 64} {ret : BitVec 64} :
     (Env.ofMachine m (nodeR m₀ o) vs ret).WF :=
   Env.wf_of ⟨⟨(P.mapped.sub (i := fr) (k := 3356) (by fro)).kept hk, P.ad_nw (by fro)⟩,
-      ⟨(P.mapped.sub (i := fr + o) (k := 16) (by fro)).kept hk, P.ad_nw (by fro)⟩, trivial⟩
-    (List.pairwise_pair.mpr (P.apart_ad (s := 3356) (s' := 16) (by omega) (by fro) (by fro)
-      (by decide) (by decide)))
+      ⟨(P.mapped.sub (i := fr + o) (k := 16) (by fro)).kept hk, P.ad_nw (by fro)⟩,
+      ⟨(P.got.mapped (by simp)).kept hk, (P.got.1 "memset" (by simp)).2.1⟩, trivial⟩
+    (pairwise3 (P.apart_ad (s := 3356) (s' := 16) (by omega) (by fro) (by fro)
+      (by decide) (by decide))
+      (got_apart P (by simp) (by fro) (by dsimp; decide)).symm
+      (got_apart P (by simp) (by fro) (by dsimp; decide)).symm)
+
+theorem match_stN (P : Pre w m₀)
+    (hs : SameOutside m₀.dmem m.dmem (InRange (lo m₀) 9200))
+    {o : Nat} {ret : BitVec 64} {known : List (Reg64 × Sym)}
+    (hk : AllOf (fun p => reg m p.1 =
+      p.2.eval (Env.ofMachine m (nodeR m₀ o) (fun _ => 0) ret))
+      ((.rsp, .ptr 0 24) :: known)) :
+    Match (Env.ofMachine m (nodeR m₀ o) (fun _ => 0) ret) (stN known) m := by
+  apply Match.withKnownBytes
+  · exact match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ hk trivial trivial
+      ⟨by simp [Sym.eval, Env.base, nodeR, gotAddr], trivial⟩
+  · intro i hi
+    simpa [Sym.eval, Env.base, nodeR] using got_byte P hs (by simp : "memset" ∈ _) hi
 
 /-- **An `n`-byte store** to the frame. -/
 theorem frameWrite {N : Nat} {rest : List (BitVec 64 × Nat)} {vs : Nat → BitVec 64}
@@ -78,7 +94,6 @@ theorem regBytes_frame {N : Nat} {rest : List (BitVec 64 × Nat)} {vs : Nat → 
     rw [ad_add]
     exact h)
 
-omit [Labels] in
 /-- **A 64-bit load from a path turn's node**: the bytes there. -/
 theorem regBytes_node {O : Nat} {vs : Nat → BitVec 64} {ret : BitVec 64} {o : Nat}
     {bs : List UInt8} (hl : bs.length = 8) (h : BytesAt m.dmem (ad m₀ (fr + O + o)) bs) :

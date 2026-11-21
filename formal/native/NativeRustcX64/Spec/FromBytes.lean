@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcX64.Spec.Keccak
+public import NativeRustcX64.Spec.Got
 public import NativeRustc.Xmss.Model
 
 /-!
@@ -36,12 +37,13 @@ return address. -/
 def FromBytesPre.Buf (m : MachineData) (a : BitVec 64) (n : Nat) : Prop :=
   Mapped m.dmem a n ∧ NoWrap a n ∧ Apart a n (stackBelow m fromBytesStack) (fromBytesStack + 8)
 
-/-- The closure's precondition. -/
-def FromBytesPre (m : MachineData) : Prop :=
+/-- The closure's precondition, including the read-only `memcpy` GOT slot. -/
+def FromBytesPre [Labels] (m : MachineData) : Prop :=
   let o := reg m .rdi; let c := reg m .rsi; let b := reg m .rdx
   StackOk m fromBytesStack ∧ FromBytesPre.cursor m + 1200 ≤ 2404 ∧
     FromBytesPre.Buf m o 1200 ∧ FromBytesPre.Buf m c 8 ∧ FromBytesPre.Buf m b 2404 ∧
-    Apart o 1200 c 8 ∧ Apart o 1200 b 2404 ∧ Apart c 8 b 2404
+    Apart o 1200 c 8 ∧ Apart o 1200 b 2404 ∧ Apart c 8 b 2404 ∧
+    GotAt m fromBytesStack [(o, 1200), (c, 8), (b, 2404)] ["memcpy"]
 
 /-- The closure's postcondition. -/
 def FromBytesPost (m m' : MachineData) : Prop :=

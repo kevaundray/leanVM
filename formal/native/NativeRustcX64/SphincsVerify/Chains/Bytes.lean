@@ -145,6 +145,7 @@ theorem Match.withWrite {env : Env} {S : SState} {m : MachineData} (hm : Match e
   bounds := hm.bounds
   aliases := hm.aliases
   outside := hm.outside
+  known := hm.known
   mem r' b' n' hb' i hi := by
     have h0 := hm.mem r' b' n' hb' i hi
     rw [hS] at h0

@@ -71,7 +71,8 @@ theorem BytesAt.mapped {d : DataMem} {a : BitVec 64} {bs : List UInt8} (h : Byte
 variable [Labels]
 
 /-- **A state with writes the memory already holds**: where `S` has no write, the state with the
-writes `ws` describes `m` too, when `m` has each write's bytes. -/
+writes `ws` describes `m` too, when `m` has each write's bytes. Initial-memory facts, including
+resolved GOT bytes, remain unchanged and are not added to the write footprint. -/
 theorem Match.withWrites {env : Env} {S : SState} {m : MachineData} (hm : Match env S m)
     (hS : S.mem = []) {ws : List Write}
     (hws : ∀ w ∈ ws, ∀ b sz, env.regions[w.r]? = some (b, sz) → ∀ i < w.n,
@@ -84,6 +85,7 @@ theorem Match.withWrites {env : Env} {S : SState} {m : MachineData} (hm : Match 
   bounds := hm.bounds
   aliases := hm.aliases
   outside := hm.outside
+  known := hm.known
   mem r' b' n' hb' i hi := by
     have h0 := hm.mem r' b' n' hb' i hi
     rw [hS] at h0

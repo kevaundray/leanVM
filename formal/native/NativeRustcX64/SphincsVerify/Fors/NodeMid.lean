@@ -21,7 +21,7 @@ open NativeRustcX64.Sphincs.SphincsVerify
 
 /-- **At `b91`**: R13 B's `buf_len` (80), R15 the final block, R12 hasher A; A's state zero, B's
 buffer `PK.seed | ADRS | children`. -/
-structure N2 (r : Run) (c z : Nat) (m : MachineData) : Prop where
+structure N2 [Labels] (r : Run) (c z : Nat) (m : MachineData) : Prop where
   keep : Keep r c m
   hz : z < 10
   w64 : r.WordAt m 64 (z + 1).toUInt64
@@ -31,6 +31,7 @@ structure N2 (r : Run) (c z : Nat) (m : MachineData) : Prop where
   r12 : Run.RegIs m .r12 (r.off 4096)
   a0 : BytesAt m.dmem (r.off 4096) (List.replicate 200 0)
   t : BytesAt m.dmem (r.off 776) (r.seed ++ r.nodeAdrsOf c z ++ r.childrenOf c z)
+  r14 : Run.RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 end
 
@@ -53,14 +54,15 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     {c z : Nat} {m : MachineData} (h : N1 r c z m) {R : MachineState → Prop}
     (cont : ∀ m', N2 r c z m' → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b91Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset⟩ := by
-  obtain ⟨hK, hz, w64, w104, h12, ha0, hch, had⟩ := h
+  obtain ⟨hK, hz, w64, w104, h12, ha0, hch, had, h14⟩ := h
   have hc24 := hK.2.1.hc
   have hadl : (r.nodeAdrsOf c z).length = 32 := length_forsNodeAdrs _ _ _ _
   have hchl := r.length_childrenOf hc24 hz
   have hsl := Digest.length_seed r
   -- b66, b69, b72 .. b74: `PK.seed` into A's buffer, the address's `memcpy`
   have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b75Offset).toBitVec
-  have hm := match_litS hK.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b75Offset).toBitVec) (k := []) trivial (o := 4432) (v := 0)
+  have hm := match_litS hpre hK.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b75Offset).toBitVec)
+    (k := [(.r14, .label "memcpy")]) ⟨h14, trivial⟩ (o := 4432) (v := 0)
     (by rw [bytes_lit0]; exact zeros_slice ha0 (a := 336) (k := 8) (by omega))
   refine Chains.blk r hp b66_in_code (List.cons_ne_nil _ _) run_b66 hwf (fun _ h ↦ nomatch h) hm
     fun st₁ hm₁ hpc₁ ↦ ?_
@@ -92,6 +94,7 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have r15 : Run.RegIs m₆ .r15 (r.off 2048) :=
     Chains.RegIs.of_saved hS₆ rfl (Chains.regIs_ptr hm₅ rfl)
   have r12 := Chains.RegIs.of_saved hS₆ rfl (Chains.regIs_reg hm₅ rfl h12)
+  have h14 := Chains.RegIs.of_saved hS₆ rfl (Chains.regIs_label (y := .r14) hm₅ rfl)
   have g64 := hkc₆ (by flen) (by flen) (kept₅ (by flen)
     (by rw [NativeRustc.length_wordBytes]; decide +kernel) w64)
   have g104 := hkc₆ (by flen) (by flen) (kept₅ (by flen)
@@ -105,12 +108,13 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have ga0 := hkc₆ (by flen) (by flen) ga0
   -- b75, b71, b79: A's `buf_len` 48, the clone into B
   have hwf₆ := r.frame_wf hpre hK₆.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b80Offset).toBitVec
-  have hm₆ := match_litS hK₆.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b80Offset).toBitVec)
-    (k := [(.rbx, .lit 32), (.r13, .lit 32), (.rbp, .ptr 0 9344), (.r12, .ptr 0 4096)])
+  have hm₆ := match_litS hpre hK₆.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b80Offset).toBitVec)
+    (k := [(.rbx, .lit 32), (.r13, .lit 32), (.rbp, .ptr 0 9344), (.r12, .ptr 0 4096),
+      (.r14, .label "memcpy")])
     ⟨Chains.known_lit (Chains.RegIs.of_saved hS₆ rfl (Chains.regIs_lit hm₅ rfl)),
       Chains.known_lit (Chains.RegIs.of_saved hS₆ rfl (Chains.regIs_lit hm₅ rfl)),
       Chains.known_ptr (Chains.RegIs.of_saved hS₆ rfl (Chains.regIs_ptr hm₅ rfl)),
-      Chains.known_ptr r12, trivial⟩ g16
+      Chains.known_ptr r12, h14, trivial⟩ g16
   refine Chains.blk r hp b75_in_code (List.cons_ne_nil _ _) run_b75 hwf₆ (fun _ h ↦ nomatch h) hm₆
     fun st₇ hm₇ hpc₇ ↦ ?_
   refine Chains.pc_at ((Chains.pc_true hpc₇).trans (Chains.labelAt r hp b71_in_code rfl)) ?_
@@ -130,6 +134,7 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (Chains.toNat_of_lit hm₉ rfl (by decide)) (by decide) (by decide) (by decide)
     fun m₁₀ hK₁₀ hS₁₀ hkc₁₀ hB₁₀ ↦ ?_
   have r15 := Chains.RegIs.of_saved hS₁₀ rfl (Chains.regIs_reg hm₉ rfl r15)
+  have h14 := Chains.RegIs.of_saved hS₁₀ rfl (Chains.regIs_label (y := .r14) hm₉ rfl)
   have g64 := hkc₁₀ (by flen) (by flen) (kept₉ (by flen)
     (by rw [NativeRustc.length_wordBytes]; decide +kernel) g64)
   have g104 := hkc₁₀ (by flen) (by flen) (kept₉ (by flen)
@@ -141,7 +146,8 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have gB48 := Chains.copy_slice (c := 336) hB₁₀ (by flen) g48
   -- b80, b83 .. b85: the children into B's buffer
   have hwf₁₀ := r.frame_wf hpre hK₁₀.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b86Offset).toBitVec
-  have hm₁₀ := match_litS hK₁₀.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b86Offset).toBitVec) (k := []) trivial gB48
+  have hm₁₀ := match_litS hpre hK₁₀.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b86Offset).toBitVec)
+    (k := [(.r14, .label "memcpy")]) ⟨h14, trivial⟩ gB48
   refine Chains.blk r hp b80_in_code (List.cons_ne_nil _ _) run_b80 hwf₁₀ (fun _ h ↦ nomatch h)
     hm₁₀ fun st₁₁ hm₁₁ hpc₁₁ ↦ ?_
   refine Chains.pc_at (hpc₁₁.trans (Chains.labelAt r hp b83_in_code rfl)) ?_
@@ -160,6 +166,7 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (kept₁₄ (by rw [hchl]; omega) (by rw [hchl]; decide +kernel) gch)
     fun m₁₅ hK₁₅ hS₁₅ hkc₁₅ hch₁₅ ↦ ?_
   have r15 := Chains.RegIs.of_saved hS₁₅ rfl (Chains.regIs_reg hm₁₄ rfl r15)
+  have h14 := Chains.RegIs.of_saved hS₁₅ rfl (Chains.regIs_label (y := .r14) hm₁₄ rfl)
   have g64 := hkc₁₅ (by flen) (by flen) (kept₁₄ (by flen)
     (by rw [NativeRustc.length_wordBytes]; decide +kernel) g64)
   have g104 := hkc₁₅ (by flen) (by flen) (kept₁₄ (by flen)
@@ -179,11 +186,11 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     rw [List.length_append, List.length_append, hsl, hadl, hchl]
   -- b86, b82, b90: B's `buf_len` 80, B's zero state into A
   have hwf₁₅ := r.frame_wf hpre hK₁₅.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b91Offset).toBitVec
-  have hm₁₅ := match_litS hK₁₅.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b91Offset).toBitVec)
-    (k := [(.rbx, .lit 32), (.r12, .lit 32), (.rbp, .ptr 0 3072)])
+  have hm₁₅ := match_litS hpre hK₁₅.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b91Offset).toBitVec)
+    (k := [(.rbx, .lit 32), (.r12, .lit 32), (.rbp, .ptr 0 3072), (.r14, .label "memcpy")])
     ⟨Chains.known_lit (Chains.RegIs.of_saved hS₁₅ rfl (Chains.regIs_lit hm₁₄ rfl)),
       Chains.known_lit (Chains.RegIs.of_saved hS₁₅ rfl (Chains.regIs_lit hm₁₄ rfl)),
-      Chains.known_ptr (Chains.RegIs.of_saved hS₁₅ rfl (Chains.regIs_ptr hm₁₄ rfl)), trivial⟩ g912
+      Chains.known_ptr (Chains.RegIs.of_saved hS₁₅ rfl (Chains.regIs_ptr hm₁₄ rfl)), h14, trivial⟩ g912
   refine Chains.blk r hp b86_in_code (List.cons_ne_nil _ _) run_b86 hwf₁₅ (fun _ h ↦ nomatch h)
     hm₁₅ fun st₁₆ hm₁₆ hpc₁₆ ↦ ?_
   refine Chains.pc_at ((Chains.pc_true hpc₁₆).trans (Chains.labelAt r hp b82_in_code rfl)) ?_
@@ -208,7 +215,8 @@ theorem node_mid (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
         Chains.RegIs.of_saved hS₁₉ rfl (Chains.regIs_lit hm₁₈ rfl),
         Chains.RegIs.of_saved hS₁₉ rfl (Chains.regIs_reg hm₁₈ rfl r15),
         Chains.RegIs.of_saved hS₁₉ rfl (Chains.regIs_ptr hm₁₈ rfl), hA₁₉,
-        hkc₁₉ (by rw [hTl]; omega) (by rw [hTl]; omega) gT⟩
+        hkc₁₉ (by rw [hTl]; omega) (by rw [hTl]; omega) gT,
+        Chains.RegIs.of_saved hS₁₉ rfl (Chains.regIs_label (y := .r14) hm₁₈ rfl)⟩
 
 end
 

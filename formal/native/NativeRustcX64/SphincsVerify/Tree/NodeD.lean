@@ -22,25 +22,28 @@ open NativeRustcX64.Sphincs.SphincsVerify
 public section
 
 section
-variable (r : Run)
+variable (r : Run) [Labels]
 
 /-- **At `b186`**: the final block's place zero; RBX the input's length, R13 the place. -/
 @[expose] def AtN6b (l : Nat) (e : List (List UInt8)) (z : Nat) (m : MachineData) : Prop :=
   Base r l m ∧ z < heightOf l ∧ NW r l z m ∧ Run.RegIs m .r12 (r.off 4096) ∧ Run.RegIs m .rbx 80 ∧
     Run.RegIs m .r13 (r.off 2048) ∧ BytesAt m.dmem (r.off 4096) (List.replicate 200 0) ∧
-    BytesAt m.dmem (r.off 776) (r.nodeIn l e z) ∧ BytesAt m.dmem (r.off 2048) (List.replicate 136 0)
+    BytesAt m.dmem (r.off 776) (r.nodeIn l e z) ∧ BytesAt m.dmem (r.off 2048) (List.replicate 136 0) ∧
+    Run.RegIs m .r15 (Labels.label "memset").toBitVec
 
 /-- **At `b187`**: the final block (the input, zeros) at `2048`. -/
 @[expose] def AtN7 (l : Nat) (e : List (List UInt8)) (z : Nat) (m : MachineData) : Prop :=
   Base r l m ∧ z < heightOf l ∧ NW r l z m ∧ Run.RegIs m .r12 (r.off 4096) ∧ Run.RegIs m .rbx 80 ∧
     Run.RegIs m .r13 (r.off 2048) ∧ BytesAt m.dmem (r.off 4096) (List.replicate 200 0) ∧
-    BytesAt m.dmem (r.off 2048) (r.nodeIn l e z ++ List.replicate 56 0)
+    BytesAt m.dmem (r.off 2048) (r.nodeIn l e z ++ List.replicate 56 0) ∧
+    Run.RegIs m .r15 (Labels.label "memset").toBitVec
 
 /-- **At `b188`**: hasher A's state the node's padded input absorbed. -/
 @[expose] def AtN8 (l : Nat) (e : List (List UInt8)) (z : Nat) (m : MachineData) : Prop :=
   Base r l m ∧ z < heightOf l ∧ NW r l z m ∧ Run.RegIs m .r12 (r.off 4096) ∧
     Run.RegIs m .r13 (r.off 2048) ∧
-    BytesAt m.dmem (r.off 4096) (keccakF (xorBlock (List.replicate 200 0) (finalBlock (r.nodeIn l e z))))
+    BytesAt m.dmem (r.off 4096) (keccakF (xorBlock (List.replicate 200 0) (finalBlock (r.nodeIn l e z)))) ∧
+    Run.RegIs m .rbx (Labels.label "memset").toBitVec
 
 end
 
@@ -55,10 +58,10 @@ theorem nodeF (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hl := hB.1
   have hlI := length_nodeIn r (e := e) hl hz
   have hwf := frame_wf' hpre hB (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b185Offset + b185.length)).toBitVec
-  have hm0 := match_fs hB.2.1 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b185Offset + b185.length)).toBitVec)
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b185Offset + b185.length)).toBitVec)
     (known := kAB ++ [(.rbx, .lit 80)])
     (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.rbx, .lit 80)] from
-      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm, hbx, trivial⟩)
+      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm, hbx, trivial⟩)
   refine exec_then (hb184 hp) run_b184 hwf (fun _ h ↦ nomatch h) hm0 fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := false) hpc1 rfl
   rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcX64.Sphincs.SphincsVerify.b184_next] at hpc1'
@@ -90,7 +93,8 @@ theorem nodeF (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b185_next), hB', hz, hN',
     regIs_of_saved rfl h12' hS, regIs_of_saved rfl hbx' hS, regIs_of_saved rfl h13 hS,
     kc (by rw [List.length_replicate]; decide) (by rw [List.length_replicate]; decide) hZ2,
-    kc (by omega) (by omega) hT2, ?_⟩
+    kc (by omega) (by omega) hT2, ?_,
+    regIs_of_saved rfl (hm2.regs .r15 _ rfl) hS⟩
   rw [h1] at hz0
   exact hz0
 
@@ -99,16 +103,16 @@ theorem nodeG (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN6b r l e z m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b187Offset ∧ AtN7 r l e z st.data)
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b186Offset⟩ := by
-  obtain ⟨hB, hz, hN, h12, hbx, h13, hZ, hT, hK⟩ := h
+  obtain ⟨hB, hz, hN, h12, hbx, h13, hZ, hT, hK, h15⟩ := h
   have hl := hB.1
   have hlI := length_nodeIn r (e := e) hl hz
   have hwf := frame_wf' hpre hB (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b186Offset + b186.length)).toBitVec
-  have hm0 := match_fs hB.2.1 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b186Offset + b186.length)).toBitVec)
-    (known := kAB ++ [(.rbx, .lit 80), (.r13, .ptr 0 2048)])
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b186Offset + b186.length)).toBitVec)
+    (known := kAB ++ [(.rbx, .lit 80), (.r13, .ptr 0 2048), (.r15, .label "memset")])
     (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.rbx, .lit 80),
-      (.r13, .ptr 0 2048)] from
-      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm, hbx,
-        h13.trans (eval_ptr 2048).symm, trivial⟩)
+      (.r13, .ptr 0 2048), (.r15, .label "memset")] from
+      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm, hbx,
+        h13.trans (eval_ptr 2048).symm, h15, trivial⟩)
   refine exec_then (hb186 hp) run_b186 hwf (fun _ _ ↦ rfl) hm0 fun st hm hpc ↦ ?_
   have hc1 := hB.atCall hpre hm hwf rfl (by decide)
   have h0 : Run.RegIs st.data .rdi (r.off 2048) := (hm.regs .rdi _ rfl).trans (eval_ptr 2048)
@@ -141,23 +145,24 @@ theorem nodeG (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     regIs_of_saved rfl h12' hS, regIs_of_saved rfl hbx' hS, regIs_of_saved rfl h13' hS,
     kc (by rw [List.length_replicate]; decide) (by rw [List.length_replicate]; decide) hZ1,
     bytesAt_cat hlI hIn (kc (by rw [List.length_replicate]; decide) (by decide)
-      (bytesAt_zero hK1 (i := 80) (k := 56) (by decide)))⟩
+      (bytesAt_zero hK1 (i := 80) (k := 56) (by decide))),
+    regIs_of_saved rfl (hm.regs .r15 _ rfl) hS⟩
 
 /-- **`b187` and `keccak_f`**: the final absorb. -/
 theorem nodeH (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN7 r l e z m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b188Offset ∧ AtN8 r l e z st.data)
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b187Offset⟩ := by
-  obtain ⟨hB, hz, hN, h12, hbx, h13, hZ, hK⟩ := h
+  obtain ⟨hB, hz, hN, h12, hbx, h13, hZ, hK, h15⟩ := h
   have hl := hB.1
   have hlI := length_nodeIn r (e := e) hl hz
   have hwf := frame_wf' hpre hB (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b187Offset + b187.length)).toBitVec
-  have hm0 := match_fs hB.2.1 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b187Offset + b187.length)).toBitVec)
-    (known := kAB ++ [(.rbx, .lit 80), (.r13, .ptr 0 2048)])
+  have hm0 := match_fs hpre hB.2.1 hB.2.2.2.2 (ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b187Offset + b187.length)).toBitVec)
+    (known := kAB ++ [(.rbx, .lit 80), (.r13, .ptr 0 2048), (.r15, .label "memset")])
     (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.rbx, .lit 80),
-      (.r13, .ptr 0 2048)] from
-      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm, hbx,
-        h13.trans (eval_ptr 2048).symm, trivial⟩)
+      (.r13, .ptr 0 2048), (.r15, .label "memset")] from
+      ⟨h12.trans (eval_ptr 4096).symm, hB.2.2.2.1.trans (eval_ptr 576).symm, hbx,
+        h13.trans (eval_ptr 2048).symm, h15, trivial⟩)
   refine exec_then (hb187 hp) run_b187 hwf (fun _ _ ↦ rfl) hm0 fun st hm hpc ↦ ?_
   have hc1 := hB.atCall hpre hm hwf rfl (by decide)
   have h0 : Run.RegIs st.data .rdi (r.off 4096) := (hm.regs .rdi _ rfl).trans (eval_ptr 4096)
@@ -183,7 +188,8 @@ theorem nodeH (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hN' : NW r l z st'.data := NW.of_call hpre hc1 (a := 4096) (n := 200) (N := keccakFStack)
     (by decide) (by decide) (by decide) hout hN1
   refine .done _ ⟨hpc'.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b187_next), hB', hz, hN',
-    regIs_of_saved rfl h12' hS, regIs_of_saved rfl h13' hS, ?_⟩
+    regIs_of_saved rfl h12' hS, regIs_of_saved rfl h13' hS, ?_,
+    regIs_of_saved rfl (hm.regs .rbx _ rfl) hS⟩
   have := bytesOf_of_bytesAt hX
   rw [hlX] at this
   rw [← this]

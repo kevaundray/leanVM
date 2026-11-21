@@ -118,7 +118,6 @@ theorem length_hbytes {T : List UInt8} (hT : T.length ≤ 136) (n : Nat) :
 section
 variable {r : Run} [Labels]
 
-omit [Labels] in
 theorem regs0 (m : MachineData) (vars : Nat → BitVec 64) (ret : BitVec 64) :
     (r.env m vars ret).regions[0]? = some (r.base, frameRegion) := rfl
 
@@ -136,7 +135,6 @@ theorem write_eval {m m' : MachineData} {vars : Nat → BitVec 64} {ret : BitVec
     {bs : List UInt8} (hbs : (List.range n).map (byteOf w) = bs) : BytesAt m'.dmem (r.off o) bs :=
   hbs ▸ hv ▸ hm.bytesAt_write (regs0 m vars ret) hle hw
 
-omit [Labels] in
 /-- The bytes of a load of known bytes. -/
 theorem bytes_load {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64} {o n : Nat}
     {bs : List UInt8} (h : BytesAt m.dmem (r.off o) bs) (hl : bs.length = n) (hn : n ≤ 8) :
@@ -150,7 +148,6 @@ theorem bytes_load {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64
     rw [Run.off_add]; rfl, h t h2]
   rfl
 
-omit [Labels] in
 /-- A load of a word's bytes is the word. -/
 theorem load_word {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64} {o : Nat}
     {v : UInt64} (h : r.WordAt m o v) : (r.env m vars ret).load 0 o 8 = v.toBitVec := by
@@ -158,7 +155,6 @@ theorem load_word {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64}
     (by show BytesAt m.dmem (r.base + BitVec.ofNat 64 o) _; exact h)]
   exact ofInt_ofBytes_wordBytes v
 
-omit [Labels] in
 /-- A word of known bytes, as loaded. -/
 theorem load_sub {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64} {o : Nat}
     {bs : List UInt8} (h : BytesAt m.dmem (r.off o) bs) {i : Nat} {v : UInt64}
@@ -168,7 +164,6 @@ theorem load_sub {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64} 
   rw [← hv]
   exact bytesAt_sub h i 8
 
-omit [Labels] in
 /-- A 16-byte value's low 8 bytes, as loaded. -/
 theorem load_lo {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64} {o : Nat}
     {v : List UInt8} (h : BytesAt m.dmem (r.off o) v) (hl : v.length = 16) :
@@ -176,7 +171,6 @@ theorem load_lo {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64} {
   rw [← List.take_append_drop 8 v] at h
   exact bytes_load (bytesAt_append_left h) (by simp [hl]) (by decide)
 
-omit [Labels] in
 /-- A 16-byte value's high 8 bytes, as loaded. -/
 theorem load_hi {m : MachineData} {vars : Nat → BitVec 64} {ret : BitVec 64} {o : Nat}
     {v : List UInt8} (h : BytesAt m.dmem (r.off o) v) (hl : v.length = 16) :
@@ -238,8 +232,9 @@ height (`160`), the next layer and its offset (`200`, `208`), the key's leaf (`2
     r.WordAt m 568 r.idx
 
 /-- **Every state of the region**: the layer, the frame, `Keep`, RBP hasher B. -/
-@[expose] def Base (l : Nat) (m : MachineData) : Prop :=
-  l < 3 ∧ r.Frame m ∧ Keep r l m ∧ Run.RegIs m .rbp (r.off 576)
+@[expose] def Base [Labels] (l : Nat) (m : MachineData) : Prop :=
+  l < 3 ∧ r.Frame m ∧ Keep r l m ∧ Run.RegIs m .rbp (r.off 576) ∧
+    Run.RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 end
 
@@ -307,10 +302,11 @@ theorem Keep.of_call (hpre : r.Pre) {l : Nat} {m m' : MachineData} (hc : r.AtCal
 theorem Base.of_match (hpre : r.Pre) {l : Nat} {m m' : MachineData} {vars : Nat → BitVec 64}
     {ret : BitVec 64} {S : SState} (hB : Base r l m) (hm : Match (r.env m vars ret) S m')
     (hwf : (r.env m vars ret).WF) (hsp : S.reg .rsp = some (.ptr 0 0))
-    (hw : Run.frameWrites S = true) (hk : keepW S = true) (hbp : S.reg .rbp = some (.ptr 0 576)) :
+    (hw : Run.frameWrites S = true) (hk : keepW S = true) (hbp : S.reg .rbp = some (.ptr 0 576))
+    (h14 : S.reg .r14 = some (.label "memcpy") := by rfl) :
     Base r l m' :=
   ⟨hB.1, Run.Frame.of_match r hpre hB.2.1 hm hwf hsp hw, hB.2.2.1.of_match hpre hm hwf hk,
-    (hm.regs _ _ hbp).trans (eval_ptr 576)⟩
+    (hm.regs _ _ hbp).trans (eval_ptr 576), hm.regs .r14 _ h14⟩
 
 /-- **At a call after a block** from a state of the region. -/
 theorem Base.atCall (hpre : r.Pre) {l : Nat} {m m' : MachineData} {vars : Nat → BitVec 64}
@@ -321,12 +317,13 @@ theorem Base.atCall (hpre : r.Pre) {l : Nat} {m m' : MachineData} {vars : Nat �
 
 /-- **`Base` after a call** from a block's end (`AtCall`, `Keep` and RBP there). -/
 theorem Base.of_call (hpre : r.Pre) {l : Nat} {m m' : MachineData} (hl : l < 3) (hc : r.AtCall m)
-    (hK : Keep r l m) (hbp : Run.RegIs m .rbp (r.off 576)) (hS : Saved m m')
+    (hK : Keep r l m) (hbp : Run.RegIs m .rbp (r.off 576))
+    (h14 : Run.RegIs m .r14 (Labels.label "memcpy").toBitVec) (hS : Saved m m')
     (hsp : rspOf m' = rspOf m + 8#64) {a n N : Nat} (ha : 576 ≤ a) (han : a + n ≤ 20540)
     (hN : N ≤ finalizeStack) (hout : SameOutside m.dmem m'.dmem (r.CallOut m a n N)) :
     Base r l m' :=
   ⟨hl, r.frame_of_call hpre hc hS hsp (by omega) hN hout, hK.of_call hpre hc ha han hN hout,
-    regIs_of_saved rfl hbp hS⟩
+    regIs_of_saved rfl hbp hS, regIs_of_saved rfl h14 hS⟩
 
 end
 

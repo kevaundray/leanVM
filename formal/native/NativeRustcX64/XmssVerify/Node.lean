@@ -109,7 +109,7 @@ theorem hashNode (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) Up
     (C : Common m₀ st.data) (hrsp : rspOf st.data = ad m₀ (fr + 24))
     (hr15 : reg st.data .r15 = ad m₀ (fr + 184))
     (hk12 : ∀ (m : MachineData) (ret : BitVec 64), SavedBut X st.data m →
-      AllOf (fun p => reg m p.1 = p.2.eval (Env.ofMachine m [frR m₀] (fun _ => 0) ret)) k12)
+      AllOf (fun p => reg m p.1 = p.2.eval (Env.ofMachine m (frameRs m₀) (fun _ => 0) ret)) k12)
     {pp A Ch : List UInt8} (hlp : pp.length = 16) (hlA : A.length = 16) (hlC : Ch.length = 32)
     (hh : Keccak.HasherHolds (bytesOf st.data.dmem (ad m₀ (fr + 184)) 344) [])
     (hpp : BytesAt st.data.dmem (ad m₀ (fr + 56)) pp)

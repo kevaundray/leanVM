@@ -19,7 +19,10 @@ open NativeRustcX64.Sym NativeRustcX64.Xmss.WotsLeaf
 
 /-- At the entry: the frame (region 0) and the call's return slot (region 1), RSP the return
 address's place. -/
-def entryS : SState := init [2784, 8] [(.rsp, .ptr 0 2760)] [] [] [(.ptr 0 (-8), (1, 0))]
+def entryS : SState :=
+  ((init [2784, 8, 8, 8] [(.rsp, .ptr 0 2760)] [] []
+    [(.ptr 0 (-8), (1, 0)), (.gotSlot "memcpy", 2, 0), (.gotSlot "memset", 3, 0)]).withKnownBytes
+    2 0 8 (.label "memcpy")).withKnownBytes 3 0 8 (.label "memset")
 
 end
 

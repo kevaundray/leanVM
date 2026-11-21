@@ -182,6 +182,9 @@ theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
     show rspOf m₂ = r.base
     rw [hsp₂, hsp₁, r.callSp_add]
   have hk₂ : Kept r.m0.dmem m₂.dmem := fun p h ↦ hS₂.2 p (hF₁.kept p h)
+  have hs₂ : SameOutside r.m0.dmem m₂.dmem r.Changed := fun p hp =>
+    (hout₂ p (fun h => hp (Or.inl (out1 p h)))).trans
+      (hF₁.2.2.1 p (fun h => hp (Or.inr h)))
   have h96₂ : BytesAt m₂.dmem (r.off 96) (regBytes r.out) :=
     bytesAt_of_sameOutside (allOf_left (allOf_left hK₁.2)).2.2.2.1.2.2 hout₂ fun i hi ↦ by
       rw [Run.off_add]
@@ -191,12 +194,15 @@ theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
       rw [Run.off_add]
       exact nout1 _ (by rw [Run.length_savedBytes] at hi; omega)
   -- `b57`: the tag 1 at `out`.
-  have hwf := envR_wf hpre hk₂ (r.extraOK_input hpre hk₂ hpo) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec
+  have hwf := envR_wf hpre hk₂ (r.extraOK_input hpre hk₂ hpo
+    (fun l hl => ((r.got hpre).1 l hl).2.2.2 (r.out, 75) (by simp)))
+    (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec
   have hm₂ : Match (r.envR m₂ [(r.out, 75)] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec)
-      (outS [(.rbx, .ptr 2 0)]) m₂ := by
-    refine match_frameS hrsp₂ (sextra := [75]) (extra := [(r.out, 75)])
-      (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec) (k := [(.rbx, .ptr 2 0)]) (bounds := [])
-      (aliases := [(.load 0 96 8, (2, 0))]) ⟨rfl, trivial⟩ ⟨?_, trivial⟩ trivial ⟨?_, trivial⟩
+      (outS [(.rbx, .ptr 4 0)]) m₂ := by
+    refine match_frameS (fun _ hl _ hi => r.got_byte_changed hpre hs₂ hl hi)
+      hrsp₂ (sextra := [75]) (extra := [(r.out, 75)])
+      (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec) (k := [(.rbx, .ptr 4 0)]) (bounds := [])
+      (aliases := [(.load 0 96 8, (4, 0))]) ⟨rfl, trivial⟩ ⟨?_, trivial⟩ trivial ⟨?_, trivial⟩
     · show m₂.regs.get64 .rbx = r.out + BitVec.ofInt 64 0
       rw [hS₂.1 .rbx rfl, show m₁.regs.get64 .rbx = r.out from hbx₁]
       simp
@@ -212,7 +218,7 @@ theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
     dsimp only at h1 h2
     omega
   have hT : BytesAt st.data.dmem (r.out + BitVec.ofNat 64 0) [1] := by
-    have := bytesAt_write_val hm₃ (r := 2) (o := 0) (n := 1) (b := r.out) (sz := 75) rfl
+    have := bytesAt_write_val hm₃ (r := 4) (o := 0) (n := 1) (b := r.out) (sz := 75) rfl
       (by decide) (v := .lit 1) (by decide +kernel)
     rwa [show (Sym.lit 1).eval (r.envR m₂ [(r.out, 75)] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec) =
       BitVec.ofNat 64 1 from rfl, bytes_byte] at this

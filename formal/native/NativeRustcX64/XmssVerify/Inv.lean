@@ -62,10 +62,11 @@ structure Pre [Labels] (w : Nat → UInt64) (m₀ : MachineData) : Prop where
   words : ∀ i < 309, BytesAt m₀.dmem (inp m₀ + BitVec.ofNat 64 (8 * i)) (wordBytes (w i))
   inpNW : NoWrap (inp m₀) 2472
   inpApart : Apart (inp m₀) 2472 (lo m₀) 9208
+  got : GotAt m₀ xmssVerifyStack [(inp m₀, 2472)] ["memcpy", "memset"]
 
 theorem pre_of [Labels] {w : Nat → UInt64} {m₀ : MachineData} (h : XmssVerifyPre w m₀) :
     Pre w m₀ := by
-  obtain ⟨⟨hle, hnw, hmap⟩, ⟨hrc, hrcw, hrca⟩, hw, hinw, hap⟩ := h
+  obtain ⟨⟨hle, hnw, hmap⟩, ⟨hrc, hrcw, hrca⟩, hw, hinw, hap, hgot⟩ := h
   have hlo : (lo m₀).toNat = (rspOf m₀).toNat - 9200 := by
     unfold lo stackBelow
     rw [BitVec.toNat_sub]
@@ -73,7 +74,7 @@ theorem pre_of [Labels] {w : Nat → UInt64} {m₀ : MachineData} (h : XmssVerif
     simp only [BitVec.toNat_ofNat] at *
     rw [stack_eq] at *
     omega
-  exact ⟨hle, hnw, hlo, hmap, hrc, hrcw, hrca, hw, hinw, hap⟩
+  exact ⟨hle, hnw, hlo, hmap, hrc, hrcw, hrca, hw, hinw, hap, hgot⟩
 
 section
 variable [Labels] {w : Nat → UInt64} {m₀ : MachineData}

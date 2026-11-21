@@ -31,7 +31,8 @@ set_option Elab.async false
 
 /-- The symbolic state after the first `memcpy`. -/
 @[expose] public def stP0 : SState :=
-  init [1928, 8, 1200] [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)] [] [] pathAliases
+  (init [1928, 8, 1200, 8] [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)] [] []
+    ((.gotSlot "memcpy", 3, 0) :: pathAliases)).withKnownBytes 3 0 8 (.label "memcpy")
 
 sym_block b6_execP := exec b6 stP0
 
@@ -122,6 +123,8 @@ public theorem stP17_regs : stP17.reg .rdi = some (.reg .rbx) ∧ stP17.reg .rsi
     stP17.reg .rdx = some (.lit 256) ∧ stP17.reg .rsp = some (.ptr 0 0) ∧
     stP17.reg .rbx = some (.reg .rbx) ∧ stP17.reg .r15 = some (.ptr 1 0) ∧
     stP17.reg .rbp = some (.reg .rbp) := by decide +kernel
+
+public theorem stP17_r14 : stP17.reg .r14 = some (.label "memcpy") := by decide +kernel
 
 public theorem stP17_path : ∀ t < 256,
     findWrite 0 (24 + t) stP17.mem = some (.load 2 (944 + 8 * (t / 8)) 8, t % 8) := by

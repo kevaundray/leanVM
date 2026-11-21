@@ -21,8 +21,9 @@ open NativeRustcX64.Sym
 set_option Elab.async false
 
 /-- The environment at block 6, the return address of its `memcpy` call `ret`. -/
-@[expose] public def envP (m₀ m : MachineData) (ret : BitVec 64) : Env :=
-  Env.ofMachine m [(base m₀, 1928), (cur m₀, 8), (sig m₀ + BitVec.ofNat 64 (pos m₀), 1200)]
+@[expose] public def envP [Labels] (m₀ m : MachineData) (ret : BitVec 64) : Env :=
+  Env.ofMachine m [(base m₀, 1928), (cur m₀, 8),
+    (sig m₀ + BitVec.ofNat 64 (pos m₀), 1200), (gotAddr "memcpy", 8)]
     (fun _ => 0) ret
 
 theorem hs_false [Labels] {env : Env} {v N : Nat} (hx : env.regs .r13 = BitVec.ofNat 64 v)
@@ -45,42 +46,52 @@ theorem hi_false [Labels] {env : Env} {v N : Nat} (hx : env.regs .r13 = BitVec.o
     simp
 
 section
-variable {m₀ m : MachineData} {ret : BitVec 64}
+variable [Labels] {m₀ m : MachineData} {ret : BitVec 64}
 
-theorem envP_wf (P : Pre m₀) (C : Common m₀ m) : (envP m₀ m ret).WF := by
+theorem envP_wf (P : Pre m₀) (G : ParserGot m₀) (C : Common m₀ m) :
+    (envP m₀ m ret).WF := by
   have := P.pos
+  have hg := G.1 "memcpy" (by simp)
   exact Env.wf_of ⟨⟨P.stackMapped.kept C.kept, P.baseNW⟩, ⟨P.curMapped.kept C.kept, P.curNW⟩,
-    ⟨(P.sigMapped.sub (by omega)).kept C.kept, NoWrap.sub P.sigNW (by omega)⟩, trivial⟩
-    (pairwise3 P.curF.symm (P.sigF.symm.sub_right P.sigNW (by omega) (by omega))
-      (P.curSig.sub_right P.sigNW (by omega) (by omega)))
+    ⟨(P.sigMapped.sub (by omega)).kept C.kept, NoWrap.sub P.sigNW (by omega)⟩,
+    ⟨(G.mapped (by simp)).kept C.kept, hg.2.1⟩, trivial⟩
+    (pairwise4 P.curF.symm (P.sigF.symm.sub_right P.sigNW (by omega) (by omega))
+      hg.2.2.1.symm (P.curSig.sub_right P.sigNW (by omega) (by omega))
+      (hg.2.2.2 (cur m₀, 8) (by simp)).symm
+      ((hg.2.2.2 (sig m₀, 2404) (by simp)).sub_right P.sigNW (by omega) (by omega)).symm)
 
-theorem match_envP [Labels] (h : MidAt m₀ m) : Match (envP m₀ m ret) stP0 m := by
+theorem match_envP (P : Pre m₀) (G : ParserGot m₀) (h : MidAt m₀ m) :
+    Match (envP m₀ m ret) stP0 m := by
   have C := h.common
   unfold envP stP0
-  apply match_ofMachine
-  · exact ⟨rfl, rfl, rfl, trivial⟩
-  · exact ⟨C.rsp.trans (by simp [Sym.eval]), C.r15.trans (by simp [Sym.eval, cur]), trivial⟩
-  · exact trivial
-  · exact trivial
-  · refine ⟨?_, allOf_map_range fun j hj => ?_⟩
-    · simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, Env.ofMachine_regs, h.r14, h.r12,
-        Env.base_ofMachine_eq]
-      simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.map_some,
-        Option.getD_some, sig]
-      rw [show BitVec.ofInt 64 944 = BitVec.ofNat 64 944 from rfl, addr_add_addr]
-    · simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, Env.ofMachine_regs, h.r14, h.r13,
-        Env.base_ofMachine_eq]
-      simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.map_some,
-        Option.getD_some, BitVec.ofInt_natCast, addr_add_addr, sig]
-      rw [← BitVec.ofNat_add, show pos m₀ + 912 + (48 + 16 * j) = pos m₀ + (960 + 16 * j) by omega]
+  apply Match.withKnownBytes
+  · apply match_ofMachine
+    · exact ⟨rfl, rfl, rfl, rfl, trivial⟩
+    · exact ⟨C.rsp.trans (by simp [Sym.eval]), C.r15.trans (by simp [Sym.eval, cur]), trivial⟩
+    · exact trivial
+    · exact trivial
+    · refine ⟨by simp [Sym.eval, Env.base, gotAddr], ?_, allOf_map_range fun j hj => ?_⟩
+      · simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, Env.ofMachine_regs, h.r14, h.r12,
+          Env.base_ofMachine_eq]
+        simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.map_some,
+          Option.getD_some, sig]
+        rw [show BitVec.ofInt 64 944 = BitVec.ofNat 64 944 from rfl, addr_add_addr]
+      · simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, Env.ofMachine_regs, h.r14, h.r13,
+          Env.base_ofMachine_eq]
+        simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.map_some,
+          Option.getD_some, BitVec.ofInt_natCast, addr_add_addr, sig]
+        rw [← BitVec.ofNat_add, show pos m₀ + 912 + (48 + 16 * j) = pos m₀ + (960 + 16 * j) by omega]
+  · intro i hi
+    simpa [Sym.eval, Env.base] using P.got_byte G (C.same.mono fun _ => Or.inl) hi
 
 end
 
 /-- The machine state at the `memcpy` of the path. -/
-theorem pathCall [Labels] {m₀ m m' : MachineData} {ret : BitVec 64} (P : Pre m₀) (h : MidAt m₀ m)
+theorem pathCall [Labels] {m₀ m m' : MachineData} {ret : BitVec 64} (P : Pre m₀)
+    (G : ParserGot m₀) (h : MidAt m₀ m)
     (hm : Match (envP m₀ m ret) stP17 m') : PathCall m₀ m' := by
   have C := h.common
-  have hwf := envP_wf (ret := ret) P C
+  have hwf := envP_wf (ret := ret) P G C
   have := P.pos
   have hr0 : (envP m₀ m ret).regions[0]? = some (base m₀, 1928) := rfl
   have hfr : ∀ {o : Nat} {bs : List UInt8}, o + bs.length ≤ 1928 →
@@ -108,7 +119,7 @@ theorem pathCall [Labels] {m₀ m m' : MachineData} {ret : BitVec 64} (P : Pre m
     (hm.regs .rbx _ hbx).trans h.rbx, (hm.regs .rdi _ hdi).trans h.rbx,
     (hm.regs .rsi _ hsi).trans (by simp [Sym.eval, envP]), hm.regs .rdx _ hdx, ?_,
     hfr (by rw [length_chainBytes P]; omega) (by rw [length_chainBytes P]; exact stP17_chain)
-      h.chain, ?_⟩
+      h.chain, ?_, hm.regs .r14 _ stP17_r14⟩
   · rcases hp with hp | hp | hp
     · exact hp
     · exact P.stack_scratch (o := 0) (s := 280) (by omega) (by simpa using hp)
@@ -134,18 +145,19 @@ theorem pathCall [Labels] {m₀ m m' : MachineData} {ret : BitVec 64} (P : Pre m
 
 /-- **The path**: from block 6 to the call `memcpy(out, stack + 24, 256)`. -/
 public theorem path [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (P : Pre m₀)
+    (G : ParserGot m₀)
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b6Offset)) (h : MidAt m₀ st.data)
     {R : MachineState → Prop}
     (cont : ∀ st' : MachineState, st'.pc = Labels.label NativeRustcX64.Common.Memcpy.entryLabel →
       retOf st'.data = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset) → PathCall m₀ st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
-  have hwf := envP_wf (ret := (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset)).toBitVec) P h.common
+  have hwf := envP_wf (ret := (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset)).toBitVec) P G h.common
   have := P.pos
   have hx : (envP m₀ st.data (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset)).toBitVec).regs .r13 =
     BitVec.ofNat 64 (pos m₀ + 912) := h.r13
   refine cond_step (b6_in_code.trans hp.1 (List.cons_ne_nil _ _)) b6_execP hwf hpc
-    (match_envP h) (hs_false hx (by omega) (by decide)) fun s1 hpc1 hm1 => ?_
+    (match_envP P G h) (hs_false hx (by omega) (by decide)) fun s1 hpc1 hm1 => ?_
   refine cond_step (b7_in_code.trans hp.1 (List.cons_ne_nil _ _)) b7_execP hwf
     (hpc1.trans rfl) hm1 (hi_false hx (by omega) (by decide)) fun s2 hpc2 hm2 => ?_
   refine cond_step (b8_in_code.trans hp.1 (List.cons_ne_nil _ _)) b8_execP hwf
@@ -178,6 +190,6 @@ public theorem path [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (
     (hpc15.trans rfl) hm15 (hi_false hx (by omega) (by decide)) fun s16 hpc16 hm16 => ?_
   refine call_step (b22_in_code.trans hp.1 (List.cons_ne_nil _ _)) b22_execP hwf rfl
     (hpc16.trans rfl) hm16 fun s hpc' hm => cont s hpc'.1 (hpc'.2.trans rfl) ?_
-  exact pathCall P h hm
+  exact pathCall P G h hm
 
 end NativeRustcX64.Xmss.FromBytes

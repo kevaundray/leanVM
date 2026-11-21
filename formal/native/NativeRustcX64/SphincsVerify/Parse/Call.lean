@@ -67,7 +67,7 @@ theorem memcpy_block (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {ds : 
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) (r.pc jn).toBitVec
   have hk' : ds.IsInfixAt Host.prog (r.k + jd) := hb.trans hp.1 (by rintro rfl; cases hx)
   refine exec_then hk' hx hwf (fun _ _ ↦ by rw [← hjn, Nat.add_assoc]; rfl)
-    (r.match_frame hF hk trivial hbd trivial) fun st hm₁ hpc ↦ ?_
+    (r.match_frame hpre hF hk trivial hbd trivial) fun st hm₁ hpc ↦ ?_
   have hc₁ := Run.AtCall.of_match r hpre hF hm₁ hwf hrsp hfw
   obtain ⟨h0, h1, h2, hcont⟩ := h st.data hm₁
   refine call_then hpc hc.1 (r.memcpy_pre hpre hc₁ h0 h1 h2 (by omega) hs hd)
@@ -95,7 +95,7 @@ theorem memset_block (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {ds : 
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) (r.pc jn).toBitVec
   have hk' : ds.IsInfixAt Host.prog (r.k + jd) := hb.trans hp.1 (by rintro rfl; cases hx)
   refine exec_then hk' hx hwf (fun _ _ ↦ by rw [← hjn, Nat.add_assoc]; rfl)
-    (r.match_frame hF hk trivial trivial trivial) fun st hm₁ hpc ↦ ?_
+    (r.match_frame hpre hF hk trivial trivial trivial) fun st hm₁ hpc ↦ ?_
   have hc₁ := Run.AtCall.of_match r hpre hF hm₁ hwf hrsp hfw
   obtain ⟨h0, h2, hcont⟩ := h st.data hm₁
   refine call_then hpc hc.2.1 (r.memset_pre hpre hc₁ h0 h2 (by omega)) fun st₂ hpc₂ hsp₂ hQ ↦ ?_

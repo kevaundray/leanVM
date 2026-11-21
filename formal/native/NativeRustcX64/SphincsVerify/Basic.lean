@@ -15,9 +15,8 @@ public import NativeRustcX64.Code.Sphincs.SphincsVerify
 # `sphincs_verify` on x86-64: its map, its frame, its regions
 
 rustc compiles `rustc/sphincs.rs`'s `sphincs_verify` (blocks `b0` to `b200` of
-`NativeRustcX64.Sphincs.SphincsVerify`, assembly `rustc/out/sphincs-x86_64.post.s` lines 98 to
-2524, post-passed: the calls through registers and the GOT made direct, `bt` rewritten as a
-`push`/`shr`/`pop`/`setb`) with all of `lean_sphincs` inlined, `Hasher::update`'s loop and
+`NativeRustcX64.Sphincs.SphincsVerify`, raw assembly `rustc/out/sphincs-x86_64.s`)
+with all of `lean_sphincs` inlined, `Hasher::update`'s loop and
 `Hasher::finalize` included where the hasher is a local; it calls `memcpy`, `memset`,
 `Hasher::update`, `Hasher::finalize` and `keccak_f` only. The regions and their interfaces follow
 the AArch64 proof's (`NativeRustcArm.SphincsVerifyProof`): the same region states over the same
@@ -188,14 +187,17 @@ def resultFrom (l : Nat) (s : List UInt8) : Bool :=
 
 /-! ## The run's facts -/
 
-/-- **The precondition**: the stack, the round constants, `LAYER_HEIGHTS` and the 977 input words
-in place, apart from the stack. -/
+/-- **The precondition**: the stack, round constants, `LAYER_HEIGHTS`, input words,
+and the two loader-provided GOT slots, separated from writable memory. -/
 def Pre [Labels] : Prop :=
   StackOk r.m0 sphincsStack ∧ RcAt r.m0 sphincsStack ∧
     BytesAt r.m0.dmem (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec lhBytes ∧ NoWrap (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 ∧
     Apart (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 (stackBelow r.m0 sphincsStack) (sphincsStack + 8) ∧
     BytesAt r.m0.dmem r.input (wordsBytes ((List.range 977).map r.w)) ∧ NoWrap r.input (8 * 977) ∧
-    Apart r.input (8 * 977) (stackBelow r.m0 sphincsStack) (sphincsStack + 8)
+    Apart r.input (8 * 977) (stackBelow r.m0 sphincsStack) (sphincsStack + 8) ∧
+    GotAt r.m0 sphincsStack
+      [(r.input, 8 * 977), ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24)]
+      ["memcpy", "memset"]
 
 /-- **The frame's invariant**: RSP the base, the pushed registers in place, no byte changed
 outside the stack area (the return address kept), every mapped byte still mapped. -/
@@ -227,21 +229,22 @@ def Done (v : Bool) (st : MachineState) : Prop :=
 
 /-- **At `b43`** (after the parse): RBP the randomizer (`base + 25180`); the key, the signature,
 the message in place; `176` the first layer's chain values' address. -/
-def AtHMsg (m : MachineData) : Prop :=
+def AtHMsg [Labels] (m : MachineData) : Prop :=
   r.Frame m ∧ r.Inputs m ∧ RegIs m .rbp (r.off 25180) ∧ BytesAt m.dmem (r.off 1600) r.msg ∧
-    r.WordAt m 176 (r.addr 25196)
+    r.WordAt m 176 (r.addr 25196) ∧ RegIs m .r12 (Labels.label "memcpy").toBitVec
 
 /-- **At `b58`, tree 0** (after the digest): R13 the tree `0`, R15 the address's tree word, EBP
 the key pair's (also at `80` and `60`), R12 hasher A, R14 `PK.seed`; the 24 leaves at `11400`;
 `568` the index. -/
-def AtFors (m : MachineData) : Prop :=
+def AtFors [Labels] (m : MachineData) : Prop :=
   r.Frame m ∧ r.Inputs m ∧ RegIs m .r13 0 ∧
     wordBytes (UInt64.ofBitVec (reg m .r15)) = be64 (r.key 0).tree ∧
     wordBytes (UInt64.ofBitVec (reg m .rbp)) = be32 (r.key 0).leaf ++ [0, 0, 0, 0] ∧
     RegIs m .r12 (r.off 4096) ∧ RegIs m .r14 (r.off 112) ∧
     BytesAt m.dmem (r.off 80) (be64 (r.key 0).tree) ∧ BytesAt m.dmem (r.off 60) (be32 (r.key 0).leaf) ∧
     BytesAt m.dmem (r.off 11400) (wordsBytes (r.leaves.map Nat.toUInt64)) ∧
-    r.WordAt m 568 r.idx ∧ r.WordAt m 176 (r.addr 25196)
+    r.WordAt m 568 r.idx ∧ r.WordAt m 176 (r.addr 25196) ∧
+    RegIs m .rbx (Labels.label "memset").toBitVec
 
 /-- **At `b97`** (after the FORS trees): R15 the tree's word, EBP the key pair's; the 24 roots at
 `20156`; `568` the index. -/
@@ -261,7 +264,7 @@ def AtLayer [Labels] (l : Nat) (s : List UInt8) (m : MachineData) : Prop :=
     RegIs m .rdx (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec ∧ RegIs m .rbx 0 ∧ RegIs m .r12 (r.off 4096) ∧
     RegIs m .rbp (r.off 576) ∧ RegIs m .r13 (r.off 2048) ∧ RegIs m .r15 (r.off 144) ∧
     BytesAt m.dmem (r.off 144) s ∧ r.WordAt m 176 (r.addr (25196 + 1028 * l)) ∧
-    r.WordAt m 568 r.idx
+    r.WordAt m 568 r.idx ∧ RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 /-- The layer loop's spills a layer's chains and tree read: the layer, the next layer, its
 offset, the height, the key's leaf, the layer's, the tree's and the key pair's words (`BE`), the
@@ -276,16 +279,18 @@ def LayerSpills (l : Nat) (m : MachineData) : Prop :=
 
 /-- **At `b117`, chain 0 of layer `l < 3`**, the codeword `x` at `3072`: RAX `0`, R12 hasher A,
 RBP hasher B, R13 `base + 2048`. -/
-def AtChains (l : Nat) (x : List UInt8) (m : MachineData) : Prop :=
+def AtChains [Labels] (l : Nat) (x : List UInt8) (m : MachineData) : Prop :=
   l < 3 ∧ x.length = 64 ∧ r.Frame m ∧ r.Inputs m ∧ r.LayerSpills l m ∧ RegIs m .rax 0 ∧
     RegIs m .r12 (r.off 4096) ∧ RegIs m .rbp (r.off 576) ∧ RegIs m .r13 (r.off 2048) ∧
-    BytesAt m.dmem (r.off 3072) x
+    BytesAt m.dmem (r.off 3072) x ∧
+    RegIs m .rbx (Labels.label "memset").toBitVec ∧ RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 /-- **At `b151`, layer `l < 3`'s chain ends `e`** at `28280`: R12, RBP, R13 as in the chains. -/
-def AtWotsPk (l : Nat) (e : List (List UInt8)) (m : MachineData) : Prop :=
+def AtWotsPk [Labels] (l : Nat) (e : List (List UInt8)) (m : MachineData) : Prop :=
   l < 3 ∧ e.flatten.length = 1024 ∧ r.Frame m ∧ r.Inputs m ∧ r.LayerSpills l m ∧
     RegIs m .r12 (r.off 4096) ∧ RegIs m .rbp (r.off 576) ∧ RegIs m .r13 (r.off 2048) ∧
-    BytesAt m.dmem (r.off 28280) e.flatten
+    BytesAt m.dmem (r.off 28280) e.flatten ∧
+    RegIs m .rbx (Labels.label "memset").toBitVec ∧ RegIs m .r14 (Labels.label "memcpy").toBitVec
 
 end Run
 
@@ -317,11 +322,11 @@ def ParseSpec : Prop :=
 
 /-- Region 2, the digest: from `b43` to `b58` (directive 680). -/
 def DigestSpec : Prop :=
-  RegionSpec Run.AtHMsg NativeRustcX64.Sphincs.SphincsVerify.b43Offset fun r st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b58Offset ∧ r.AtFors st.data
+  RegionSpec (fun r => r.AtHMsg) NativeRustcX64.Sphincs.SphincsVerify.b43Offset fun r st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b58Offset ∧ r.AtFors st.data
 
 /-- Region 3, the FORS trees: from `b58` to `b97` (directive 1088). -/
 def ForsSpec : Prop :=
-  RegionSpec Run.AtFors NativeRustcX64.Sphincs.SphincsVerify.b58Offset fun r st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b97Offset ∧ r.AtForsKey st.data
+  RegionSpec (fun r => r.AtFors) NativeRustcX64.Sphincs.SphincsVerify.b58Offset fun r st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b97Offset ∧ r.AtForsKey st.data
 
 /-- Region 4, the FORS key: from `b97` to `b104` (directive 1129), layer 0. -/
 def ForsKeySpec : Prop :=

@@ -32,7 +32,7 @@ open NativeRustcX64.Sym
 set_option Elab.async false
 
 /-- The start of a block of the hashing: RSP the frame's base. -/
-def sCall : SState := init [frameRegion, 16] [(.rsp, .ptr 0 0)] [] [] Run.frameAliases
+def sCall : SState := Run.frameState [(.r14, .label "memcpy")]
 
 sym_block b105_exec := exec Sphincs.SphincsVerify.b105 sCall
 sym_block b106_exec := exec Sphincs.SphincsVerify.b106 sCall
@@ -129,9 +129,10 @@ theorem enc_block (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
     Eventually (step1 Host.exe) R ⟨m, r.pc j⟩ := by
   have hk := hb.trans hp.1 hne
   have hwf := r.frame_wf hpre h.2.2.1.2.2.2 (fun _ ↦ 0) (Host.addrOf (r.k + j + b.length)).toBitVec
-  have hm := r.match_frame h.2.2.1 (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (r.k + j + b.length)).toBitVec) (known := []) (labels := [])
-    (bounds := []) (aliases := []) trivial trivial trivial trivial
+  have hm := r.match_frame hpre h.2.2.1 (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (r.k + j + b.length)).toBitVec)
+    (known := [(.r14, .label "memcpy")]) (labels := [])
+    (bounds := []) (aliases := []) ⟨Run.EncData.memcpy r h.2.2.2, trivial⟩ trivial trivial trivial
   exact Sym.exec_then hk hx hwf (fun _ _ ↦ rfl) hm fun st hm' hpc ↦
     cont st hwf hm' hpc (r.encData_of_block hpre h.2.2.2 h.2.1 hm' hwf hS)
 
@@ -151,9 +152,10 @@ theorem enc_block' (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre 
     Eventually (step1 Host.exe) R ⟨m, r.pc j⟩ := by
   have hk := hb.trans hp.1 hne
   have hwf := r.frame_wf hpre h.2.2.1.2.2.2 (fun _ ↦ 0) (Host.addrOf (r.k + j + b.length)).toBitVec
-  have hm := r.match_frame h.2.2.1 (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (r.k + j + b.length)).toBitVec) (known := []) (labels := [])
-    (bounds := []) (aliases := []) trivial trivial trivial trivial
+  have hm := r.match_frame hpre h.2.2.1 (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (r.k + j + b.length)).toBitVec)
+    (known := [(.r14, .label "memcpy")]) (labels := [])
+    (bounds := []) (aliases := []) ⟨Run.EncData.memcpy r h.2.2.2, trivial⟩ trivial trivial trivial
   exact Sym.exec_then hk hx hwf (fun _ _ ↦ rfl) hm fun st hm' hpc ↦
     cont st hwf hm' hpc (r.encData_of_block' hpre h.2.2.2 h.2.1 hm' hwf hS)
 
@@ -317,7 +319,7 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
       (fun i hi ↦ by interval_cases i <;> rfl)
     simp only [Sym.eval] at this
     rw [bytes_trunc32, bytes_bswap32] at this
-    rw [← h10.2.2.2.2.2.2.2.2.2.2]
+    rw [← h10.2.2.2.2.2.2.2.2.2.2.1]
     exact this
   refine call_update r hc hpre hpc11 hl hs hc11 hd11 (a := 4096) (b := 2048) (n := 4)
     ((hm11.regs .rdi _ rfl).trans h10.2.2.2.2.2.1)

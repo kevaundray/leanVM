@@ -12,7 +12,7 @@ the entry's mapped bytes kept, the machine returns to the caller with the entry'
 registers, RSP 8 above the entry's and memory as it was. `finish`: with memory changed only at
 `out` and in the stack area and the result at `out` (`WotsLeafOut1`), the function returns with
 its postcondition (`Run.Done`). `fail_path`: from `b11` (directive 155) the tag `0` stored at
-`out`, then `finish`. `out` as the executor's region 2, reached by the alias of the word at `96`
+`out`, then `finish`. `out` as the executor's region 4, reached by the alias of the word at `96`
 (`outS`, `match_out`).
 -/
 
@@ -23,8 +23,8 @@ open LeanVM.Protocol.KeccakHash
 
 @[expose] public section
 
-/-- `out` (region 2) reached by the alias of the word at `96`, the registers `k`. -/
-def outS (k : List (Reg64 × Sym)) : SState := frameS k [75] [] [(.load 0 96 8, (2, 0))]
+/-- `out` (region 4) reached by the alias of the word at `96`, the registers `k`. -/
+def outS (k : List (Reg64 × Sym)) : SState := frameS k [75] [] [(.load 0 96 8, (4, 0))]
 
 end
 
@@ -53,7 +53,6 @@ namespace Run
 
 variable (r : Run) [Labels]
 
-omit [Labels] in
 /-- A saved register in the frame: the word at `2712 + 8 j`. -/
 theorem load_saved {m : MachineData} (hsv : BytesAt m.dmem (r.off 2712) (savedBytes r.m0))
     (extra : List (BitVec 64 × Nat)) (ret : BitVec 64) (j o : Nat) (ho : o = 2712 + 8 * j)
@@ -98,9 +97,10 @@ theorem epilogue (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre)
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf r.m0 ∧
       rspOf st.data = rspOf r.m0 + 8#64 ∧ Saved r.m0 st.data ∧
       ∀ p, st.data.dmem.get? p = m.dmem.get? p) ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b12Offset⟩ := by
-  have hwf := r.frame_wf hpre hk (fun _ ↦ 0) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b12Offset + b12.length)).toBitVec
+  have hwf := envR_wf hpre hk extraOK_nil (r.pc (NativeRustcX64.Xmss.WotsLeaf.b12Offset + b12.length)).toBitVec
   have hm : Match (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b12Offset + b12.length)).toBitVec) (frameS []) m :=
-    match_frameS hsp (extra := []) (sextra := []) (k := []) (bounds := []) (aliases := [])
+    match_frameS (fun _ hl _ hi => r.got_byte_changed hpre hs hl hi)
+      hsp (extra := []) (sextra := []) (k := []) (bounds := []) (aliases := [])
       trivial trivial trivial trivial
   refine blk r hp b12_in_code (List.cons_ne_nil _ _) run_b12 hwf rfl hm fun st hm' hpc ↦
     .done _ ?_

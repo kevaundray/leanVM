@@ -10,7 +10,8 @@ public meta import NativeRustcX64.SphincsVerify.Frame
 # The tree region's blocks on x86-64, run by the symbolic executor
 
 Each stretch between calls runs from a fresh state of the frame (`Run.match_frame`: region 0 the
-frame, RSP its base, region 1 the slots below it) with the registers it relies on known
+frame, RSP its base, region 1 the slots below it, and regions 2 and 3 the loader slots), with
+the live register-held function pointers seeded alongside each block's data registers
 (`frameS`): the one-time leaf's blocks `b151` .. `b157` (each ending in a call) and the path's
 checks `b158` .. `b161` (`wotsS`); a node's loop head `b162` (`nodeS p`: RCX the height, below 10,
 `72(%rsp)` the layer's path from node `p`), then after each of its calls (`s2` .. `s9`); the exit
@@ -38,23 +39,33 @@ theorem exec_after {ds ds' : List Directive} {S S₁ : SState} {x : Exit}
 /-- The frame's regions, RSP the base, the registers `k`. -/
 def frameS (k : List (Reg64 × Sym)) (bounds : List (Sym × Nat) := [])
     (aliases : List (Sym × Nat × Int) := []) : SState :=
-  init [frameRegion, 16] ((.rsp, .ptr 0 0) :: k) [] bounds (Run.frameAliases ++ aliases)
+  Run.frameState ((.r14, .label "memcpy") :: k) [] bounds aliases
 
 /-- R12 hasher A, RBP hasher B. -/
 def kAB : List (Reg64 × Sym) := [(.r12, .ptr 0 4096), (.rbp, .ptr 0 576)]
 
 /-- The one-time leaf's states: R12, RBP, R13 `base + 2048`. -/
-def wotsS : SState := frameS (kAB ++ [(.r13, .ptr 0 2048)])
+def wotsS : SState := frameS (kAB ++ [(.r13, .ptr 0 2048), (.rbx, .label "memset")])
 
 /-- A node's loop head: RCX the height, below 10, `72(%rsp)` the layer's path from node `p`. -/
 def nodeS (p : Nat) : SState :=
-  frameS (kAB ++ [(.rcx, .reg .rcx)]) [(.bin .shl .W64 (.reg .rcx) (.lit 4), 145)]
+  frameS (kAB ++ [(.rcx, .reg .rcx), (.rbx, .label "memset")]) [(.bin .shl .W64 (.reg .rcx) (.lit 4), 145)]
     [(.load 0 72 8, 0, ((24764 + 16 * p : Nat) : Int))]
 
 /-- What `b161` stores at `72(%rsp)`: the layer's path's address, from the layer at
 `96(%rsp)`. -/
 def pathSym : Sym :=
-  NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.ptr 0 24764) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.shl) (Width.W64) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.and) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.load 0 96 8)) (NativeRustcX64.Sym.lit 0)) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0))) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0)))) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0))) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0))))) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0))) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0)))) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.add) (Width.W64) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0))) (NativeRustcX64.Sym.bin (NativeRustcX64.BinOp.merge) (Width.W8) (NativeRustcX64.Sym.lit 0) (NativeRustcX64.Sym.ite (NativeRustcX64.SBool.not (NativeRustcX64.SBool.cmp (NativeRustcX64.CmpOp.eq) (Width.W64) (NativeRustcX64.Sym.load 0 96 8) (NativeRustcX64.Sym.lit 1))) (NativeRustcX64.Sym.lit 1) (NativeRustcX64.Sym.lit 0)))))) (NativeRustcX64.Sym.lit 8))) (NativeRustcX64.Sym.lit 4))
+  .bin .add .W64 (.ptr 0 24764)
+    (.bin .shl .W64
+      (.ite (.cmp .eq .W64 (.bin .and .W64 (.load 0 96 8) (.load 0 96 8)) (.lit 0))
+        (.load 0 96 8)
+        (.bin .add .W64
+          (.bin .mul .W64
+            (.bin .merge .W8 (.lit 0)
+              (.ite (.not (.cmp .eq .W64 (.load 0 96 8) (.lit 1))) (.lit 1) (.lit 0)))
+            (.lit 8))
+          (.lit 8)))
+      (.lit 4))
 
 /-- After `memset`. -/
 def s2 : SState := frameS kAB
@@ -67,9 +78,9 @@ def s5 : SState := frameS [(.rbp, .ptr 0 576), (.r12, .lit 32), (.r15, .lit 32),
 /-- After the state's `memcpy`: RBX the final block's length. -/
 def s6 : SState := frameS (kAB ++ [(.rbx, .lit 80)])
 /-- After the block's `memset`: RBX, R13 the block. -/
-def s7 : SState := frameS (kAB ++ [(.rbx, .lit 80), (.r13, .ptr 0 2048)])
+def s7 : SState := frameS (kAB ++ [(.rbx, .lit 80), (.r13, .ptr 0 2048), (.r15, .label "memset")])
 /-- After `keccak_f`, at the loop's test. -/
-def s9 : SState := frameS (kAB ++ [(.r13, .ptr 0 2048)])
+def s9 : SState := frameS (kAB ++ [(.r13, .ptr 0 2048), (.rbx, .label "memset")])
 
 end
 

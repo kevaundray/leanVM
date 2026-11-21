@@ -116,9 +116,9 @@ public theorem turn0 {k : Nat} (hp : Placed code k)
     (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b9Offset + b9.length)).toBitVec
   have hwf : env.WF := node_wf P C.kept (by omega) (by omega)
   have hm : Match env st9 st.data :=
-    match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨h.rsp.trans (eval_ptr0 24).symm,
+    match_stN P C.same ⟨h.rsp.trans (eval_ptr0 24).symm,
       h.r12.trans ((congrArg (ad m₀) (by omega)).trans (eval_ptr1 0).symm),
-      h.r15.trans (eval_ptr0 184).symm, trivial⟩ trivial trivial trivial
+      h.r15.trans (eval_ptr0 184).symm, trivial⟩
   obtain ⟨f0, f1, f2, fsp, fbp, g14, g12, g15, gbx, fw, flow⟩ := st9_regs
   obtain ⟨c0, c1, c2, c3⟩ := st9_children
   obtain ⟨a1, a2, a3, a4, a5⟩ := st9_addr
@@ -219,9 +219,8 @@ public theorem turn0 {k : Nat} (hp : Placed code k)
   let env₃ := Env.ofMachine st₃.data (nodeR m₀ (3356 + 16 * z)) (fun _ => 0) 0
   have hwf₃ : env₃.WF := node_wf P C₃.kept (by omega) (by omega)
   have hm₃ : Match env₃ st15 st₃.data :=
-    match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hrsp₃.trans (eval_ptr0 24).symm,
-      hr14₃.trans (eval_ptr0 592).symm, hr12₃.trans (eval_ptr1 0).symm, trivial⟩ trivial trivial
-      trivial
+    match_stN P C₃.same ⟨hrsp₃.trans (eval_ptr0 24).symm,
+      hr14₃.trans (eval_ptr0 592).symm, hr12₃.trans (eval_ptr1 0).symm, trivial⟩
   obtain ⟨esp, e12, ekeep, ew, elow, e592, e600⟩ := st15_facts
   refine exec_at (b15_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b15' hwf₃
     (fun _ h => nomatch h) (hpc₃.trans rfl) hm₃ fun st₄ hm₄ hpc₄ => ?_

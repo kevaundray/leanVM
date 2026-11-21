@@ -31,7 +31,7 @@ def counted (m0 : MachineData) (c : Nat) (Hc : List UInt8) : List UInt8 :=
   writeAt (copied m0 c Hc) 336 (wordBytes (bufLen Hc + takeN m0 c Hc).toUInt64)
 
 /-- At the absorption (`b7`): the buffer is full. -/
-structure Full (m0 : MachineData) (c : Nat) (Hc : List UInt8) (m : MachineData) : Prop where
+structure Full [Labels] (m0 : MachineData) (c : Nat) (Hc : List UInt8) (m : MachineData) : Prop where
   frame : Frame m0 m
   le : c ≤ nOf m0
   rbx : reg m .rbx = BitVec.ofNat 64 (nOf m0 - c)
@@ -77,9 +77,9 @@ theorem count_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m
         (st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b7Offset) ∧ Full m0 c Hc st.data))
       ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b6Offset)⟩ := by
   have g := geo_of hpre
-  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)]
+  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)]
   have hwf : env.WF := wf_head hpre hcp.frame
-  have hm : Match env headS m := match_headS hcp.frame
+  have hm : Match env headS m := match_headS hpre hcp.frame
   have henv : ∀ r, env.regs r = reg m r := fun _ => rfl
   have hb0 : env.base 0 = hAt m0 := rfl
   have hn : nOf m0 < 2 ^ 64 := BitVec.isLt _
@@ -152,6 +152,7 @@ theorem count_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m
   have hfr : Frame m0 st6.data := by
     refine hcp.frame.update g (Match.reg_eq hm hm6 rfl rfl) (Match.reg_eq hm hm6 rfl rfl)
       (Match.reg_eq hm hm6 rfl rfl) (fun p hp => hm6.get?_mem0 hwf ?_) (hm6.kept hwf)
+      (hm6.regs .rbp (.label "memcpy") rfl)
     rintro ⟨w, hw, b, sz, hb, h1, h2⟩
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hw
     subst hw

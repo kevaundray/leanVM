@@ -19,7 +19,7 @@ open NativeRustcX64.Common.Update NativeRustcX64.KeccakF NativeRustcX64.Hasher
 @[expose] public section
 
 /-- After `keccak_f`: the state absorbed the full buffer. -/
-structure Absorbed (m0 : MachineData) (c : Nat) (Hc : List UInt8) (m : MachineData) : Prop where
+structure Absorbed [Labels] (m0 : MachineData) (c : Nat) (Hc : List UInt8) (m : MachineData) : Prop where
   frame : Frame m0 m
   le : c ≤ nOf m0
   rbx : reg m .rbx = BitVec.ofNat 64 (nOf m0 - c)
@@ -64,10 +64,10 @@ theorem absorb_spec (hp : Placed code k)
       ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b7Offset)⟩ := by
   have g := geo_of hpre
   have gr := geoRc_of hpre
-  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)] (fun _ => 0)
+  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)] (fun _ => 0)
     (Host.addrOf (k + NativeRustcX64.Common.Update.b8Offset)).toBitVec
   have hwf : env.WF := wf_head hpre hfu.frame
-  have hm : Match env headS m := match_headS hfu.frame
+  have hm : Match env headS m := match_headS hpre hfu.frame
   have hb0 : env.base 0 = hAt m0 := rfl
   have hfrN := frm_toNat g
   have hH : hasher m0 m = counted m0 c Hc := hfu.bytes
@@ -119,7 +119,8 @@ theorem absorb_spec (hp : Placed code k)
     exact BitVec.add_zero _
   have hnw7 : ∀ p, ¬ChgL m0 p → st7.data.dmem.get? p = m.dmem.get? p := fun p hp =>
     hm7.get?_mem0 hwf fun ⟨w, hw, b, sz, hb, h1, h2⟩ => hp (by
-      change ([(hAt m0, 344), (frm m0, 120)] : List (BitVec 64 × Nat))[w.r]? = some (b, sz) at hb
+      change ([(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)] :
+        List (BitVec 64 × Nat))[w.r]? = some (b, sz) at hb
       rw [chgL_iff g]
       rcases hl w hw with ⟨hr, hle⟩ | ⟨hr, hle⟩
       · rw [hr] at hb
@@ -187,6 +188,7 @@ theorem absorb_spec (hp : Placed code k)
       ((hreg .r14 rfl).trans (Match.reg_eq hm hm7 rfl rfl))
       (hrsp'.trans (by rw [hrsp7, hfu.frame.rsp])) (fun p hp => ?_)
       (fun p hp => hsavedK.2 p (hm7.kept hwf p hp))
+      ((hreg .rbp rfl).trans (hm7.regs .rbp (.label "memcpy") rfl))
     rw [hsameK p fun hr => hp ?_, hnw7 p hp]
     rw [chgL_iff g]
     rcases hr with hr | hr

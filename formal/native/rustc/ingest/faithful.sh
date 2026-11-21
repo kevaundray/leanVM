@@ -3,7 +3,7 @@
 # NativeRustcX64.{Xmss,Sphincs}.code, NativeRustcVmArm.Vm.code, NativeRustcVmX64.Vm.code), printed by Kraken's
 # printer (`print-rustc-code`, `print-rustc-code-x64`, `print-rustc-vm-code`, `print-rustc-vm-code-x64`, which add
 # only section and alignment directives) and assembled, has the bytes and relocations of rustc's assembly (rustc/out/<scheme>-
-# aarch64.s, rustc/out/<scheme>-x86_64.post.s, rustc/vm/out/vm-aarch64.s, rustc/vm/out/vm-x86_64.post.s;
+# aarch64.s, rustc/out/<scheme>-x86_64.s, rustc/vm/out/vm-aarch64.s, rustc/vm/out/vm-x86_64.post.s;
 # rustc/build.sh and rustc/vm/build.sh build them when missing)
 # assembled the same way, in every core function, and the data they refer to (compare.py says how relocations and
 # data are compared, and the one encoding it allows to differ). The panic entries, traps in the ingested programs,
@@ -17,7 +17,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 native=$(cd "$here/../.." && pwd)
 out=$native/rustc/out
 
-for f in xmss-aarch64.s sphincs-aarch64.s xmss-x86_64.post.s sphincs-x86_64.post.s; do
+for f in xmss-aarch64.s sphincs-aarch64.s xmss-x86_64.s sphincs-x86_64.s; do
   [ -f "$out/$f" ] || { "$native/rustc/build.sh" >&2; break; }
 done
 vmout=$native/rustc/vm/out
@@ -38,7 +38,7 @@ for scheme in xmss sphincs vm; do
               print=("$native/.lake/build/bin/print-rustc-vm-code-x64") ;;
       *-arm) target=aarch64-unknown-linux-musl rustc=$out/$scheme-aarch64.s
              print=("$native/.lake/build/bin/print-rustc-code" arm) ;;
-      *-x64) target=x86_64-unknown-linux-musl rustc=$out/$scheme-x86_64.post.s
+      *-x64) target=x86_64-unknown-linux-musl rustc=$out/$scheme-x86_64.s
              print=("$native/.lake/build/bin/print-rustc-code-x64") ;;
     esac
     "${print[@]}" "$scheme" "$tmp/$scheme-$arch-ingested.s"

@@ -4,7 +4,7 @@
 # byte the same on every machine and in every checkout.
 #
 # Usage, from anywhere:
-#   rustc/build.sh            # out/{xmss,sphincs}-{x86_64,aarch64}.s (and x86_64.post.s), and SHA256SUMS of them
+#   rustc/build.sh            # out/{xmss,sphincs}-{x86_64,aarch64}.s and SHA256SUMS of them
 #   rustc/build.sh --check    # builds twice, in two fresh directories, and fails unless both match SHA256SUMS
 #
 # Needs rustup with the toolchain of `rust-toolchain.toml` and its two targets (`rustup target add`).
@@ -33,7 +33,7 @@ export RUSTUP_TOOLCHAIN
 unset RUSTC_BOOTSTRAP RUSTC_WRAPPER RUSTFLAGS
 
 # What the build reads, relative to the repository: the deployed crates' sources and the entry points.
-sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs formal/native/rustc/mem.rs formal/native/rustc/x86-postpass.py)
+sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs formal/native/rustc/mem.rs)
 
 # build SRC OUT: compiles the tree at SRC (laid out as the repository) into OUT.
 build() {
@@ -72,17 +72,11 @@ build() {
           --extern "lean_$scheme=$deps/$target/liblean_$scheme.rlib" \
           --emit "link=$deps/$target/lib$scheme.a,asm=$out/$scheme-$arch.s" \
           "formal/native/rustc/$scheme.rs"
-        # The x86-64 code that is assembled, run and proved is the post-passed one (`x86-postpass.py`): GOT-indirect
-        # calls and loads as the linker relaxes them, register calls as direct ones, `bt` and a base-less `lea` as
-        # instructions Kraken reads.
-        if [[ $arch == x86_64 ]]; then
-          python3 formal/native/rustc/x86-postpass.py "$out/$scheme-$arch.s" "$out/$scheme-$arch.post.s"
-        fi
       done
     )
   done
   rm -rf "$deps"
-  (cd "$out" && sha256sum xmss-*.s sphincs-*.s >SHA256SUMS)
+  (cd "$out" && sha256sum xmss-{aarch64,x86_64}.s sphincs-{aarch64,x86_64}.s >SHA256SUMS)
 }
 
 case ${1:-} in

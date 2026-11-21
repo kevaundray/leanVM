@@ -33,8 +33,9 @@ theorem seg_b116 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (hF : r.Frame m) (hK : KeepRest r l x E m) (h80 : r.WordAt m 80 i.toUInt64)
     (h168 : r.WordAt m 168 (16 * i).toUInt64) (h12 : Run.RegIs m .r12 (r.off 4096))
     (hcell : BytesAt m.dmem (r.off 184) e)
+    (hf : Funcs m)
     (cont : ∀ m', r.Frame m' → KeepRest r l x (E ++ e) m' →
-      Run.RegIs m' .rax (BitVec.ofNat 64 (i + 1)) → Run.RegIs m' .r12 (r.off 4096) →
+      Run.RegIs m' .rax (BitVec.ofNat 64 (i + 1)) → Run.RegIs m' .r12 (r.off 4096) → Funcs m' →
       Eventually (step1 Host.exe) R ⟨m', if i + 1 = 64 then r.pc NativeRustcX64.Sphincs.SphincsVerify.b151Offset else r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset⟩) :
     Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset⟩ := by
   obtain ⟨m0, w0⟩ := r.frame_mapped hpre hF.2.2.2 (a := 0) (n := 28280) (by decide)
@@ -88,7 +89,8 @@ theorem seg_b116 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     rw [reg_same hm1 rfl]
     exact h12
   refine pc_at (a := if i + 1 = 64 then r.pc NativeRustcX64.Sphincs.SphincsVerify.b151Offset else r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset) ?_
-    (cont _ hF1 (hK1.extend hE') h0 h12')
+    (cont _ hF1 (hK1.extend hE') h0 h12'
+      ⟨regIs_reg hm1 rfl hf.1, regIs_reg hm1 rfl hf.2⟩)
   rw [pc_cond hpc, labelAt r hp b151_in_code rfl]
   have hl : (Env.ofMachine m [(r.off 0, 28280), (r.off (28280 + 16 * i), 16)]).load 0 80 8 =
       BitVec.ofNat 64 i := load0_word h80

@@ -11,10 +11,10 @@ public meta import NativeRustcX64.Code.Xmss.XmssVerify
 
 Its first block (`NativeRustcX64.Xmss.XmssVerify.b0`: the callee-saved registers pushed, the
 5736-byte frame allocated with a stack probe `movq $0, (%rsp)`, `memset`'s arguments in 32-bit
-registers, `callq memset`) and its second (`b1`: 64-bit loads from the signature, stack stores,
+registers, a GOT-indirect `callq`) and its second (`b1`: 64-bit loads from the signature, stack stores,
 a 32-bit `movl` to a register and to memory). Region 0 is the stack from the `call`'s return-address
 slot up to the entry's return address (5800 bytes, RSP at entry at offset 5792), region 1 the
-signature RDI points to.
+signature RDI points to, and region 2 the memset GOT slot.
 -/
 
 namespace NativeRustcX64.Sym.Test.Xmss
@@ -23,8 +23,10 @@ set_option Elab.async false
 
 open NativeRustcX64.Xmss.XmssVerify
 
-/-- At entry: RSP at offset 5792 of the stack (region 0), RDI the signature (region 1). -/
-def atEntry : SState := init [5800, 2400] [(.rsp, .ptr 0 5792), (.rdi, .ptr 1 0)]
+/-- At entry: RSP at offset 5792 of the stack, RDI the signature, and the memset slot initialized. -/
+def atEntry : SState :=
+  (init [5800, 2400, 8] [(.rsp, .ptr 0 5792), (.rdi, .ptr 1 0)] [] []
+    [(.gotSlot "memset", 2, 0)]).withKnownBytes 2 0 8 (.label "memset")
 
 sym_block entry_exec := exec b0 atEntry
 

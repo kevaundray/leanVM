@@ -17,9 +17,14 @@ open NativeRustc NativeRustc.Sphincs NativeRustcX64.Sym LeanVM.Protocol.KeccakHa
 
 @[expose] public section
 
-/-- The registers a step keeps: RSI the position, R12 hasher A. -/
-def Regs (r : Run) (m : MachineData) (pos : Nat) : Prop :=
-  Run.RegIs m .rsi (BitVec.ofNat 64 pos) ∧ Run.RegIs m .r12 (r.off 4096)
+/-- Raw call targets at a chain boundary, restored by the final block of each step. -/
+def Funcs [Labels] (m : MachineData) : Prop :=
+  Run.RegIs m .rbx (Labels.label "memset").toBitVec ∧
+    Run.RegIs m .r14 (Labels.label "memcpy").toBitVec
+
+/-- The position, hasher A, and the register-held call targets at a step's head. -/
+def Regs [Labels] (r : Run) (m : MachineData) (pos : Nat) : Prop :=
+  Run.RegIs m .rsi (BitVec.ofNat 64 pos) ∧ Run.RegIs m .r12 (r.off 4096) ∧ Funcs m
 
 end
 

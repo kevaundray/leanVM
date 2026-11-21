@@ -52,12 +52,11 @@ public theorem top {k : Nat} (hp : Placed code k)
   have C := h.common
   have hleaf : leaf.length = 16 := (wotsLeaf_length hl0).2
   -- Block 16.
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0)
+  let env := Env.ofMachine st.data (frameRs m₀) (fun _ => 0)
     (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b16Offset + b16.length)).toBitVec
-  have hwf : env.WF := frame_wf P C.kept
+  have hwf : env.WF := frameG_wf P C.kept
   have hm0 : Match env (stF []) st.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨h.rsp.trans (ad_int m₀ 24).symm, trivial⟩ trivial trivial
-      trivial
+    match_stG P C.same h.rsp trivial
   obtain ⟨h0, h1, h2, h3, hbx, h8, h9, hsp, h12, hw, h6w, h7w⟩ := st16_facts
   refine call_step (b16_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b16 hwf rfl hpc hm0
     fun st₁ hpc₁ hm₁ => ?_
@@ -225,11 +224,10 @@ public theorem top {k : Nat} (hp : Placed code k)
       rw [hd₃]
       exact this
     -- Block 18.
-    let env₃ := Env.ofMachine st₃.data [frR m₀] (fun _ => 0) 0
-    have hwf₃ : env₃.WF := frame_wf P C₃.kept
+    let env₃ := Env.ofMachine st₃.data (frameRs m₀) (fun _ => 0) 0
+    have hwf₃ : env₃.WF := frameG_wf P C₃.kept
     have hm₃' : Match env₃ (stF []) st₃.data :=
-      match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp₃.trans (ad_int m₀ 24).symm, trivial⟩ trivial
-        trivial trivial
+      match_stG P C₃.same hrsp₃ trivial
     obtain ⟨e1, e2, e3, esp, ebp, e13, e14, e15, e12, emem⟩ := st18_facts
     refine fall_step (b18_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b18 hwf₃ hpc₃' hm₃'
       fun st₄ hpc₄ hm₄ => hok st₄ x' leaf' hl (hpc₄.trans rfl) ?_

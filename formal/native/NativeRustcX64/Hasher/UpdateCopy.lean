@@ -22,7 +22,7 @@ open NativeRustcX64.KeccakF NativeRustcX64.Hasher
 
 /-- After `memcpy`: the hasher `Hc` of the loop head with `t` input bytes copied into its buffer;
 RBX, R15 as at the loop head and R12 `t`. -/
-structure Copied (m0 : MachineData) (c : Nat) (Hc : List UInt8) (m : MachineData) : Prop where
+structure Copied [Labels] (m0 : MachineData) (c : Nat) (Hc : List UInt8) (m : MachineData) : Prop where
   frame : Frame m0 m
   le : c ≤ nOf m0
   rbx : reg m .rbx = BitVec.ofNat 64 (nOf m0 - c)
@@ -74,10 +74,10 @@ theorem copy_spec (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustc
   generalize hLdef : bufLen (hasher m0 m) = L at hL
   have hx0 : (reg m .rdi).toNat = L := hLdef ▸ hinv.rdi
   have hmap : Mapped m.dmem (hAt m0) 344 := fun i hi => hinv.frame.kept _ (hpre.2.2.2.1 i hi)
-  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)] (fun _ => 0)
+  let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120), (gotAddr "memcpy", 8)] (fun _ => 0)
     (Host.addrOf (k + NativeRustcX64.Common.Update.b6Offset)).toBitVec
   have hwf : env.WF := wf_head hpre hinv.frame
-  have hm : Match env headS m := match_headS hinv.frame
+  have hm : Match env headS m := match_headS hpre hinv.frame
   have henv : ∀ r, env.regs r = reg m r := fun _ => rfl
   have h64 : Width.W64.bits = 64 := rfl
   -- The take `cmovb` computes.
@@ -206,6 +206,7 @@ theorem copy_spec (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustc
       ((hreg .r14 rfl).trans (Match.reg_eq hm hm5 rfl rfl))
       (hrsp'.trans (by rw [hRSP, hinv.frame.rsp])) (fun p hp => ?_)
       (fun p hp => hsaved.2 p (hm5.kept hwf p hp))
+      ((hreg .rbp rfl).trans (hm5.regs .rbp (.label "memcpy") rfl))
     rw [chgL_iff g] at hp
     rw [hsame p fun hr => hp (Or.inl ?_), hmem5 p (by rw [hfrN]; have := g.s; omega)]
     rcases Nat.eq_zero_or_pos t with h0 | h0

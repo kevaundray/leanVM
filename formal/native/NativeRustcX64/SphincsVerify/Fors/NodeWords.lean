@@ -7,7 +7,7 @@ public import NativeRustcX64.Sym.Sound.Shift
 # A FORS node's words (x86-64)
 
 What `b65` computes for a node at height `z < 10` of tree `c < 24` from the leaf index `l < 1024`:
-the bit that orders the children (`bit_eval`: `shrq %cl` then `shrq $1`, the carry), the height's
+the bit that orders the children (`bit_eval`: the carry from `btq`), the height's
 word (`bytes_height`), the node's index word (`bytes_nodeIndex`: `c << (9 - z)` plus `l >> (z + 1)`,
 the shift count `9 - z` from `movb $9, %cl; subb %dl, %cl`), the node's address in the pieces
 `b65` writes (`nodeAdrs_eq`); a load's bytes (`bytes_load`) and 16 bytes stored by two 8-byte
@@ -20,31 +20,23 @@ open NativeRustc NativeRustc.Sphincs NativeRustcX64.Sym LeanVM.Protocol.KeccakHa
 
 /-- The carry ordering a node's children: bit `z` (RCX) of the leaf index (`88(%rsp)`). -/
 @[expose] public def bitC : SBool :=
-  .msb .W64 (.bin .shl .W64 (.bin .shr .W64 (.load 0 88 8) (.reg .rcx)) (.lit 63))
+  .cmp .bit .W64 (.load 0 88 8) (.reg .rcx)
 
 public section
-
-/-- `(x >>> z) <<< 63`'s top bit is bit `z` of `x`. -/
-theorem msb_shl63_shr (x : BitVec 64) {z : Nat} (hz : z < 64) :
-    ((x.ushiftRight z) <<< 63).msb = x.getLsbD z := by
-  show ((x >>> z) <<< 63).msb = _
-  rw [BitVec.msb_eq_getLsbD_last, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_ushiftRight]
-  simp [hz]
 
 theorem testBit_eq (l z : Nat) : l.testBit z = !decide (l >>> z &&& 1 = 0) := by
   rw [Nat.testBit, Nat.and_comm]
   cases h : (1 &&& l >>> z) == 0 <;> simp_all
 
-/-- **The bit ordering a node's children**: the carry of `shrq $1` after `shrq %cl`. -/
+/-- **The bit ordering a node's children**: the carry from `btq`. -/
 theorem bit_eval [Labels] {env : Env} {l z : Nat} (hz : z < 10)
     (hl : env.load 0 88 8 = BitVec.ofNat 64 l)
     (hc : env.regs .rcx = BitVec.ofNat 64 z) :
     bitC.eval env = !decide (l >>> z &&& 1 = 0) := by
-  simp only [bitC, SBool.eval, Sym.eval, BinOp.apply, low_W64, ext_W64, hc]
-  rw [hl, shiftCount_lit .W64 z (by simp [Width.bits]; omega),
-    shiftCount_lit .W64 63 (by simp [Width.bits]), msb_shl63_shr _ (by omega),
-    BitVec.getLsbD_ofNat, testBit_eq]
-  simp [show z < 64 by omega]
+  simp only [bitC, SBool.eval, Sym.eval, CmpOp.apply, low_W64, hc, hl, Width.bits]
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show z < 2 ^ 64 by omega),
+    Nat.mod_eq_of_lt (show z < 64 by omega), BitVec.getLsbD_ofNat]
+  simpa [show z < 64 by omega] using testBit_eq l z
 
 /-- The height's word, as `b65` computes it. -/
 theorem bytes_height (z : Nat) :

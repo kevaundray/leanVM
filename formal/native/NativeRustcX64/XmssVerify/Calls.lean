@@ -68,12 +68,21 @@ theorem updatePre (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m₀
     (ha : ∃ a, Keccak.HasherHolds (bytesOf m.dmem (ad m₀ (fr + h)) 344) a) : UpdatePre m := by
   unfold UpdatePre
   rw [h0, h1, h2]
-  exact ⟨stackOk_at P C hrsp (by decide) (by decide), rcAt_at P C hrsp (by decide) (by decide),
+  refine ⟨stackOk_at P C hrsp (by decide) (by decide), rcAt_at P C hrsp (by decide) (by decide),
     ha, C.mapped P (by fro), P.ad_nw (by fro), C.mapped P (by fro), P.ad_nw (by fro),
     P.apart_ad (by omega) (by fro) (by fro) (by decide) hn,
     apart_at P hrsp (by decide) (by fro) (by fro) (by fro) (by decide),
     apart_at P hrsp (by decide) (by fro) (by fro) (by fro) hn,
-    (P.rc_apart (by fro) (by decide)).symm⟩
+    (P.rc_apart (by fro) (by decide)).symm, ?_⟩
+  apply gotAt_at P C hrsp (by decide) (by decide) (by decide)
+  intro l hl a ha
+  have hl' : l ∈ ["memcpy", "memset"] := by
+    simp only [List.mem_singleton] at hl
+    simp [hl]
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+  rcases ha with rfl | rfl
+  · exact got_apart P hl' (by fro) (by dsimp; decide)
+  · exact got_apart P hl' (by fro) hn
 
 theorem finalizePre (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m₀ (fr + 16))
     {o h : Nat} (h0 : reg m .rdi = ad m₀ (fr + o)) (h1 : reg m .rsi = ad m₀ (fr + h))
@@ -82,12 +91,18 @@ theorem finalizePre (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m�
     (ha : ∃ a, Keccak.HasherHolds (bytesOf m.dmem (ad m₀ (fr + h)) 344) a) : FinalizePre m := by
   unfold FinalizePre
   rw [h0, h1]
-  exact ⟨stackOk_at P C hrsp (by decide) (by decide), rcAt_at P C hrsp (by decide) (by decide),
+  refine ⟨stackOk_at P C hrsp (by decide) (by decide), rcAt_at P C hrsp (by decide) (by decide),
     ha, C.mapped P (by fro), P.ad_nw (by fro), C.mapped P (by fro), P.ad_nw (by fro),
     P.apart_ad (by omega) (by fro) (by fro) (by decide) (by decide),
     apart_at P hrsp (by decide) (by fro) (by fro) (by fro) (by decide),
     apart_at P hrsp (by decide) (by fro) (by fro) (by fro) (by decide),
-    (P.rc_apart (by fro) (by decide)).symm⟩
+    (P.rc_apart (by fro) (by decide)).symm, ?_⟩
+  apply gotAt_at P C hrsp (by decide) (by decide) (by decide)
+  intro l hl a ha
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+  rcases ha with rfl | rfl
+  · exact got_apart P hl (by fro) (by dsimp; decide)
+  · exact got_apart P hl (by fro) (by dsimp; decide)
 
 end
 
@@ -105,24 +120,23 @@ theorem callBlock (P : Pre w m₀) {X : Reg64} {ds : List Directive} {j : Nat}
       S'.reg .rsp = some (.ptr 0 16))
     {st : MachineState} (hpc : st.pc = Host.addrOf j) (C : Common m₀ st.data)
     (hrsp : rspOf st.data = ad m₀ (fr + 24))
-    (hknown : AllOf (fun p => reg st.data p.1 = p.2.eval (Env.ofMachine st.data [frR m₀]
+    (hknown : AllOf (fun p => reg st.data p.1 = p.2.eval (Env.ofMachine st.data (frameRs m₀)
       (fun _ => 0) (Host.addrOf (j + ds.length)).toBitVec)) known) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, PcOk (Env.ofMachine st.data [frR m₀] (fun _ => 0)
+    (cont : ∀ st' : MachineState, PcOk (Env.ofMachine st.data (frameRs m₀) (fun _ => 0)
         (Host.addrOf (j + ds.length)).toBitVec) (.call l) (Host.addrOf (j + ds.length)) st' →
       rspOf st'.data = ad m₀ (fr + 16) → Common m₀ st'.data → SavedBut X st.data st'.data →
       (∀ {x : Nat} {bs : List UInt8}, 24 ≤ x → x + bs.length ≤ 5816 →
         BytesAt st.data.dmem (ad m₀ (fr + x)) bs → BytesAt st'.data.dmem (ad m₀ (fr + x)) bs) →
-      (∀ r v, S'.reg r = some v → reg st'.data r = v.eval (Env.ofMachine st.data [frR m₀]
+      (∀ r v, S'.reg r = some v → reg st'.data r = v.eval (Env.ofMachine st.data (frameRs m₀)
         (fun _ => 0) (Host.addrOf (j + ds.length)).toBitVec)) →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   obtain ⟨hw, hkeep, hsp⟩ := hf
-  have hwf := frame_wf P C.kept (vs := fun _ => 0)
+  have hwf := frameG_wf P C.kept (vs := fun _ => 0)
     (ret := (Host.addrOf (j + ds.length)).toBitVec)
-  have hm : Match (Env.ofMachine st.data [frR m₀] (fun _ => 0)
+  have hm : Match (Env.ofMachine st.data (frameRs m₀) (fun _ => 0)
       (Host.addrOf (j + ds.length)).toBitVec) (stF known) st.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp.trans (ad_int m₀ 24).symm, hknown⟩ trivial trivial
-      trivial
+    match_stG P C.same hrsp hknown
   refine call_step hk hx hwf rfl hpc hm fun st' hpc' hm' => ?_
   simp only [hx, Option.getD_some] at hm'
   exact cont st' hpc' ((hm'.regs _ _ hsp).trans (eval_ptr0 16)) (Common.block P C hwf hm' hw)

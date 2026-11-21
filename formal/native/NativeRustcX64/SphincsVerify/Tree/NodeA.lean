@@ -90,7 +90,7 @@ variable (r : Run)
 
 /-- **After the node's `memset`**: `NW`, R12 hasher A; hasher A zero, the address at `9344`, the
 children at `3072`. -/
-@[expose] def AtN2 (l : Nat) (e : List (List UInt8)) (z : Nat) (m : MachineData) : Prop :=
+@[expose] def AtN2 [Labels] (l : Nat) (e : List (List UInt8)) (z : Nat) (m : MachineData) : Prop :=
   Base r l m ∧ z < heightOf l ∧ NW r l z m ∧ Run.RegIs m .r12 (r.off 4096) ∧
     BytesAt m.dmem (r.off 4096) (List.replicate 344 0) ∧
     BytesAt m.dmem (r.off 9344) (r.nodeAdrs l z) ∧
@@ -172,9 +172,10 @@ theorem Base.call (hpre : r.Pre) {l : Nat} {m m₁ m' : MachineData} {vars : Nat
     (hw : Run.frameWrites S = true) (hk : keepW S = true) (hbp : S.reg .rbp = some (.ptr 0 576))
     (hS : Saved m₁ m') (hsp' : rspOf m' = rspOf m₁ + 8#64) {a n N : Nat} (ha : 576 ≤ a)
     (han : a + n ≤ 20540) (hN : N ≤ finalizeStack)
-    (hout : SameOutside m₁.dmem m'.dmem (r.CallOut m₁ a n N)) : Base r l m' :=
+    (hout : SameOutside m₁.dmem m'.dmem (r.CallOut m₁ a n N))
+    (h14 : S.reg .r14 = some (.label "memcpy") := by rfl) : Base r l m' :=
   Base.of_call hpre hB.1 (hB.atCall hpre hm hwf hsp hw) (hB.2.2.1.of_match hpre hm hwf hk)
-    ((hm.regs _ _ hbp).trans (eval_ptr 576)) hS hsp' ha han hN hout
+    ((hm.regs _ _ hbp).trans (eval_ptr 576)) (hm.regs .r14 _ h14) hS hsp' ha han hN hout
 
 
 /-- The node's address, from `b162`'s writes. -/
@@ -310,10 +311,11 @@ theorem nodeA_gen (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (wC2 : ∀ i < 8, findWrite 0 (3088 + i) S'.mem = some (.ite (.not bitC) (.load 0 10368 8)
       (.loadx 0 (24764 + 16 * p) idxS 8), i))
     (wC3 : ∀ i < 8, findWrite 0 (3088 + 8 + i) S'.mem = some (.ite (.not bitC) (.load 0 10376 8)
-      (.loadx 0 (24772 + 16 * p) idxS 8), i)) :
+      (.loadx 0 (24772 + 16 * p) idxS 8), i))
+    (h14 : S'.reg .r14 = some (.label "memcpy") := by rfl) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b163Offset ∧ AtN2 r l e z st.data)
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b162Offset⟩ := by
-  obtain ⟨hB, hz, hrcx, hr12, h72, h96, hV⟩ := h
+  obtain ⟨hB, hz, hrcx, hr12, h72, h96, hV, hbx⟩ := h
   have hl := hB.1
   have hh := heightOf_le hl
   have ret := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b162Offset + b162.length)).toBitVec
@@ -321,9 +323,11 @@ theorem nodeA_gen (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hld72 : (r.env m (fun _ ↦ 0) (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b162Offset + b162.length)).toBitVec).load 0 72 8 =
       r.off (24764 + 16 * p) := by rw [load_word h72, ← hpp]; rfl
   have hm0 : Match (r.env m (fun _ ↦ 0) (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b162Offset + b162.length)).toBitVec)
-      (nodeS p) m := r.match_frame hB.2.1
-    (show AllOf _ [(Reg64.r12, Sym.ptr 0 4096), (.rbp, .ptr 0 576), (.rcx, .reg .rcx)] from
-      ⟨hr12.trans (eval_ptr 4096).symm, hB.2.2.2.trans (eval_ptr 576).symm, rfl, trivial⟩) trivial
+      (nodeS p) m := r.match_frame hpre hB.2.1
+    (show AllOf _ [(Reg64.r14, Sym.label "memcpy"), (.r12, .ptr 0 4096),
+      (.rbp, .ptr 0 576), (.rcx, .reg .rcx), (.rbx, .label "memset")] from
+      ⟨hB.2.2.2.2, hr12.trans (eval_ptr 4096).symm,
+        hB.2.2.2.1.trans (eval_ptr 576).symm, rfl, hbx, trivial⟩) trivial
     ⟨by show (idxS.eval _).toNat < 145; rw [eval_idx hrcx (by omega)]; omega, trivial⟩
     ⟨by show (Sym.load 0 72 8).eval _ = _; rw [Sym.eval, hld72, ← eval_ptr]; rfl, trivial⟩
   refine exec_then (hb162 hp) hrun hwf (fun _ _ ↦ rfl) hm0 fun st hm hpc ↦ ?_
@@ -368,7 +372,7 @@ theorem nodeA_gen (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hA' := kc (bs := r.nodeAdrs l z) (by omega) (by omega) hA
   have hC' := kc (bs := r.children l (r.foldUpTo l e z) z) (by omega) (by omega) hC
   have hB' := Base.call hpre hB hm hwf hsp hfw hk hbp hS hsp' (a := 4096) (n := 344) (N := 0)
-    (by decide) (by decide) (Nat.zero_le _) hout
+    (by decide) (by decide) (Nat.zero_le _) hout h14
   have hN' : NW r l z st'.data :=
     NW.of_call hpre hc1 (a := 4096) (n := 344) (N := 0) (by decide) (by decide) (Nat.zero_le _)
       hout ⟨h64, h72', h96'⟩

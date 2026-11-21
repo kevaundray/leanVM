@@ -22,8 +22,9 @@ public section
 theorem le32_eq (x : UInt32) : le32 x = (be32 x).reverse := rfl
 
 /-- **The facts at `b43`** are `AtHMsg`'s. -/
-theorem atHMsg_of (r : Run) {m : MachineData} (hF : r.Frame m) (hL : Facts r m.dmem (A5 r))
-    (hbp : Run.RegIs m .rbp (r.off 25180)) : r.AtHMsg m := by
+theorem atHMsg_of (r : Run) [Labels] {m : MachineData} (hF : r.Frame m) (hL : Facts r m.dmem (A5 r))
+    (hbp : Run.RegIs m .rbp (r.off 25180))
+    (h12 : Run.RegIs m .r12 (Labels.label "memcpy").toBitVec) : r.AtHMsg m := by
   have g : ∀ {o n : Nat} {bs : List UInt8}, (o, n, bs) ∈ A5 r → BytesAt m.dmem (r.off o) bs :=
     fun h ↦ hL.get h
   have hsig : BytesAt m.dmem (r.off 20540) (sigMem r.sig) := by
@@ -53,7 +54,7 @@ theorem atHMsg_of (r : Run) {m : MachineData} (hF : r.Frame m) (hL : Facts r m.d
     simpa using e8
   exact ⟨hF, ⟨g (o := 112) (n := 32) (by simp [A5, A4, A3, A2, A1, L3, L2, L1, L0, base3]), hsig⟩,
     hbp, g (o := 1600) (n := 32) (by simp [A5, A4, A3, A2, A1, L3, L2, L1, L0, base3]),
-    g (o := 176) (n := 8) (by simp [A5, A4, A3, A2])⟩
+    g (o := 176) (n := 8) (by simp [A5, A4, A3, A2]), h12⟩
 
 /-- **The parse** (`b0 .. b42`): from the entry, `AtHMsg` at `b43`. -/
 theorem parse_spec [Host] : ParseSpec := by
@@ -80,8 +81,8 @@ theorem parse_spec [Host] : ParseSpec := by
   refine Eventually.bind (layer2_spec r hp hpre hc h) fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ ?_
   simp only at hpc
   subst hpc
-  exact Eventually.mono (assemble_spec r hp hpre hc h) fun st ⟨hpc, hF, hL, hbp⟩ ↦
-    ⟨hpc, atHMsg_of r hF hL hbp⟩
+  exact Eventually.mono (assemble_spec r hp hpre hc h) fun st ⟨hpc, hF, hL, hbp, h12⟩ ↦
+    ⟨hpc, atHMsg_of r hF hL hbp h12⟩
 
 end
 

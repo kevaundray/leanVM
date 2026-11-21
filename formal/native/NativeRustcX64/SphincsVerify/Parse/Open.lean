@@ -27,13 +27,14 @@ def base3 (r : Run) : List (Nat × Nat × List UInt8) :=
   [(1600, 32, r.msg), (12416, 7740, sigBytes r.w), (112, 32, pkBytes r.w)]
 
 /-- **The openings' loop at turn `c`**: the first `c` openings at `4096`; RBP, RBX, R14, R15 the
-frame's `20700`, `20540`, `576`, `592`; R13 `176 (c + 1)`. -/
-def OS (r : Run) (c : Nat) (m : MachineData) : Prop :=
+frame's `20700`, `20540`, `576`, `592`; R13 `176 (c + 1)`, R12 the memcpy entry. -/
+def OS (r : Run) [Labels] (c : Nat) (m : MachineData) : Prop :=
   r.Frame m ∧ Facts r m.dmem (base3 r) ∧
     BytesAt m.dmem (r.off 4096) ((List.range c).map (obytes r.w)).flatten ∧
     Run.RegIs m .rbp (r.off 20700) ∧ Run.RegIs m .rbx (r.off 20540) ∧
     Run.RegIs m .r14 (r.off 576) ∧ Run.RegIs m .r15 (r.off 592) ∧
-    Run.RegIs m .r13 (BitVec.ofNat 64 (176 * (c + 1)))
+    Run.RegIs m .r13 (BitVec.ofNat 64 (176 * (c + 1))) ∧
+    Run.RegIs m .r12 (Labels.label "memcpy").toBitVec
 
 end
 
@@ -66,7 +67,7 @@ theorem b9_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData}
   have hk : b9.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b9Offset) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre h.1.2.2.2 (fun _ ↦ 0) 0
   have hm : Match (r.env m (fun _ ↦ 0) 0) (fS []) m :=
-    r.match_frame h.1 (known := []) trivial trivial trivial trivial
+    r.match_frame hpre h.1 (known := []) trivial trivial trivial trivial
   refine exec_then hk run_b9 hwf (fun _ h ↦ nomatch h) hm fun st hm' hpc ↦ ?_
   obtain ⟨hF, hmsg, hraw, -, h14, h15, h13, hbp⟩ := h
   have hF' := frame_of_block r hpre hF rfl rfl hm' hwf rfl (by decide)
@@ -85,7 +86,7 @@ theorem b9_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData}
     ⟨length_sigBytes r.w, bytesAt_of_block r rfl hm' hraw (N := 7740) (by decide)
       (by rw [length_sigBytes]) (by decide)⟩, ⟨length_pk r.w, hpk⟩, trivial⟩,
     fun i hi ↦ by simp at hi, regIs_ptr0 r hm' rfl, regIs_ptr0 r hm' rfl, regIs_ptr0 r hm' rfl,
-    regIs_ptr0 r hm' rfl, (hm'.regs .r13 _ rfl).trans rfl⟩
+    regIs_ptr0 r hm' rfl, (hm'.regs .r13 _ rfl).trans rfl, hm'.regs .r12 _ rfl⟩
 
 end
 

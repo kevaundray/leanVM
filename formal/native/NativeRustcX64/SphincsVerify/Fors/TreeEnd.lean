@@ -41,7 +41,7 @@ theorem tree_end (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {c 
     Eventually (step1 Host.exe) (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b58Offset ∧
       AtTree r (c + 1) st.data) ∨ (c + 1 = 24 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b97Offset ∧ r.AtForsKey st.data))
       ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b96Offset⟩ := by
-  obtain ⟨⟨hF, hB⟩, h13, h12, h15, hbp, hroot⟩ := h
+  obtain ⟨⟨hF, hB⟩, h13, h12, h15, hbp, hroot, hbx⟩ := h
   have hc24 := hB.hc
   have h13' : m.regs.get64 .r13 = BitVec.ofNat 64 c := h13
   have hwf := r.wfW hpre hF.2.2.2 (n0 := 20156) (o2 := 20156 + 16 * c) (by omega) (by omega)
@@ -90,7 +90,8 @@ theorem tree_end (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {c 
   by_cases hlt : c + 1 < 24
   · simp only [hlt, decide_true, ite_true] at hpc
     rw [Chains.labelAt r hp b58_in_code rfl] at hpc
-    refine Or.inl ⟨hlt, hpc, ⟨hF₁, hlt, hI, g176, g568, g80, g60, gl, hroots⟩, ?_, ?_, ?_, ?_, ?_⟩
+    refine Or.inl ⟨hlt, hpc, ⟨hF₁, hlt, hI, g176, g568, g80, g60, gl, hroots⟩,
+      ?_, ?_, ?_, ?_, ?_, Chains.regIs_reg hm₁ rfl hbx⟩
     · unfold Run.RegIs reg
       rw [hm₁.regs .r13 _ rfl]
       show BinOp.apply .add .W64 (m.regs.get64 .r13) (BitVec.ofNat 64 1) = _

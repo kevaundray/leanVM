@@ -8,7 +8,9 @@ public import NativeRustcX64.XmssVerify.Inv
 At a callee's entry RSP is the frame region's offset `q` (`16` for the calls from RSP `24`, `0`
 for `wots_leaf`, its two stack arguments pushed): the stack below it (`stackBelow_at`) is the
 stack's from `fr + q - n`; from `Common`, the callees' stack facts (`stackOk_at`, `rcAt_at`) and
-a buffer of the frame's apart from a callee's stack (`apart_at`). The callees' preconditions
+a buffer of the frame's apart from a callee's stack (`apart_at`). `gotAt_at` transports the
+unchanged loader slots to the callee's stack and buffers, retaining pairwise slot separation
+and restricting the symbols to those the callee reads. The callees' preconditions
 (`memsetPre`, `memcpyPre`, `updatePre`, `finalizePre`, `fromBytesPre`). `Common.call`: a call
 that keeps the callee-saved registers and changes only bytes of the stack other than the pushed
 registers keeps `Common`.
@@ -76,6 +78,32 @@ theorem rcAt_at (P : Pre w m₀) (C : Common m₀ m) {q n : Nat} (h : rspOf m = 
     exact P.rc i (by rw [rcBytes_length]; exact hi)
   · rw [stackBelow_at h hn]
     exact P.rc_apart (by fro) (by omega)
+
+/-- GOT slots remain outside every frame slice. -/
+theorem got_apart (P : Pre w m₀) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    {o s : Nat} (ho : o + s ≤ 9208) (hs : 0 < s) :
+    Apart (gotAddr l) 8 (ad m₀ o) s :=
+  (P.got.1 l hl).2.2.1.sub_right P.loNW ho hs
+
+/-- Calls read the entry's GOT bytes, which the frame invariant preserves. -/
+theorem gotAt_at (P : Pre w m₀) (C : Common m₀ m) {q n : Nat}
+    (h : rspOf m = ad m₀ (fr + q)) (hq : q + 8 ≤ 5816) (hn : n ≤ fr + q)
+    {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hl : symbols.Sublist ["memcpy", "memset"])
+    (ha : ∀ l ∈ symbols, ∀ a ∈ areas, Apart (gotAddr l) 8 a.1 a.2) :
+    GotAt m n areas symbols := by
+  apply (P.got.symbols hl).transport
+  · intro l hl' i hi
+    have hg := P.got.1 l (hl.subset hl')
+    apply C.same
+    intro hin
+    exact not_inRange_of_apart P.loNW
+      ((hg.2.2.1.sub_left hg.2.1 (by omega) (by omega)).symm) (P.lo_mono hin)
+  · intro l hl'
+    change Apart (gotAddr l) 8 (stackBelow m n) (n + 8)
+    rw [stackBelow_at h hn]
+    exact got_apart P (hl.subset hl') (by fro) (by omega)
+  · exact ha
 
 /-! ## Preconditions -/
 

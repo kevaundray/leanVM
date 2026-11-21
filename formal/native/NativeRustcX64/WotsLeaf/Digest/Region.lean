@@ -72,16 +72,27 @@ theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) NativeRustcX64.Xmss.Wo
   intro r hp hc hpre m hm0
   subst hm0
   -- The prologue.
-  have hwf0 := r.frame_wf hpre (m := r.m0) (fun _ h ↦ h) (fun _ ↦ 0) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b0Offset + b0.length)).toBitVec
-  have hm0 : Match (r.envR r.m0 [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b0Offset + b0.length)).toBitVec) entryS r.m0 :=
-    match_ofMachine ⟨rfl, rfl, trivial⟩
-      ⟨by show rspOf r.m0 = r.base + BitVec.ofInt 64 2760; rw [r.base_add_frame hpre], trivial⟩
-      trivial trivial
-      ⟨by
-        show r.base + BitVec.ofInt 64 (-8) = r.base - 8#64 + BitVec.ofInt 64 0
-        rw [show BitVec.ofInt 64 (-8) = -8#64 by decide +kernel,
-          show BitVec.ofInt 64 0 = 0#64 by decide +kernel, BitVec.add_zero, BitVec.sub_eq_add_neg],
-        trivial⟩
+  have hwf0 := envR_wf hpre (m := r.m0) (fun _ h ↦ h) extraOK_nil
+    (r.pc (NativeRustcX64.Xmss.WotsLeaf.b0Offset + b0.length)).toBitVec
+  have hm0 : Match (r.envR r.m0 [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b0Offset + b0.length)).toBitVec) entryS r.m0 := by
+    apply Match.withKnownBytes
+    · apply Match.withKnownBytes
+      · apply match_ofMachine
+        · exact ⟨rfl, rfl, rfl, rfl, trivial⟩
+        · exact ⟨by show rspOf r.m0 = r.base + BitVec.ofInt 64 2760; rw [r.base_add_frame hpre], trivial⟩
+        · exact trivial
+        · exact trivial
+        · refine ⟨?_, ?_, ?_, trivial⟩
+          · change r.base + BitVec.ofInt 64 (-8) = r.base - 8#64 + BitVec.ofInt 64 0
+            simp [BitVec.sub_eq_add_neg]
+          · simp [Sym.eval, Env.base, gotAddr]
+          · simp [Sym.eval, Env.base, gotAddr]
+      · intro i hi
+        simpa [Sym.eval, Run.envR, Run.env, Env.base] using
+          (r.got hpre).byte (by simp : "memcpy" ∈ _) hi
+    · intro i hi
+      simpa [Sym.eval, Run.envR, Run.env, Env.base] using
+        (r.got hpre).byte (by simp : "memset" ∈ _) hi
   refine blk r hp b0_in_code (List.cons_ne_nil _ _) run_b0 hwf0 rfl hm0 fun st hm1 hpc ↦ ?_
   have hF1 := frame_of_entry hpre hm1 hwf0 rfl (by decide) (by decide)
   have hS1 := prologue_slots hm1 (by decide) (by decide) (by decide) (by decide) (by decide)
@@ -114,7 +125,8 @@ theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) NativeRustcX64.Xmss.Wo
       ⟨length_regBytes _, by norm_num, h104⟩, trivial⟩
   obtain ⟨hpre3, hpost3⟩ := updateInput hpre hK3' (regIs_of_reg hm3 rfl hR2.1)
     (regIs_of_reg hm3 rfl hR2.2.1) (toNat_of_lit hm3 rfl (by decide)) (r.pre_pp hpre) (by decide)
-    rfl (hH2.keepB hkb3 (by decide) (by decide))
+    rfl (((r.got hpre).1 "memcpy" (by simp)).2.2.2 (reg r.m0 .rsi, 16) (by simp))
+    (hH2.keepB hkb3 (by decide) (by decide))
   refine ⟨hpre3, fun m4 hsp4 hQ4 ↦ ?_⟩
   obtain ⟨hK4, hS4, -, hH4⟩ := hpost3 m4 hsp4 hQ4
   have hR4 := hR3.of_saved hS4
@@ -135,7 +147,9 @@ theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) NativeRustcX64.Xmss.Wo
   obtain ⟨hpre7, hpost7⟩ := updateInput hpre hK7 (regIs_of_reg hm7 rfl hR6.1)
     (regIs_of_reg hm7 rfl hR6.2.2.2.1)
     (congrArg BitVec.toNat (regIs_of_reg hm7 (y := .rdx) rfl hR6.2.2.1)) (r.pre_msg hpre)
-    (by decide) rfl (hH6.keepB hkb7 (by decide) (by decide))
+    (by decide) rfl (((r.got hpre).1 "memcpy" (by simp)).2.2.2
+      (reg r.m0 .r8, (reg r.m0 .r9).toNat) (by simp))
+    (hH6.keepB hkb7 (by decide) (by decide))
   refine ⟨hpre7, fun m8 hsp8 hQ8 ↦ ?_⟩
   obtain ⟨hK8, hS8, -, hH8⟩ := hpost7 m8 hsp8 hQ8
   have hR8 := hR7.of_saved hS8
@@ -145,7 +159,9 @@ theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) NativeRustcX64.Xmss.Wo
   have hR9 := hR8.of_block hm9 rfl rfl rfl rfl rfl
   obtain ⟨hpre9, hpost9⟩ := updateInput hpre hK9 (regIs_of_reg hm9 rfl hR8.1)
     (regIs_of_reg hm9 rfl hR8.2.2.2.2) (toNat_of_lit hm9 rfl (by decide)) (r.pre_rnd hpre)
-    (by decide) rfl (hH8.keepB hkb9 (by decide) (by decide))
+    (by decide) rfl (((r.got hpre).1 "memcpy" (by simp)).2.2.2
+      (WotsLeafPre.rndPtr r.m0, 16) (by simp))
+    (hH8.keepB hkb9 (by decide) (by decide))
   refine ⟨hpre9, fun m10 hsp10 hQ10 ↦ ?_⟩
   obtain ⟨hK10, hS10, -, hH10⟩ := hpost9 m10 hsp10 hQ10
   have hR10 := hR9.of_saved hS10

@@ -87,6 +87,47 @@ theorem mapped_frame [Labels] {m0 : MachineData} (hpre : FinalizePre m0) :
   rwa [show rspOf m0 - BitVec.ofNat 64 finalizeStack + BitVec.ofNat 64 (240 + i) =
     frAt m0 + BitVec.ofNat 64 i from stack_frame] at this
 
+/-- A memory-call block adds its loader slot to the ordinary frame/input regions. -/
+theorem wf_got [Labels] {m0 m : MachineData} (hpre : FinalizePre m0)
+    (hk : Kept m0.dmem m.dmem) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    {vs : Nat → BitVec 64} {ret : BitVec 64} :
+    (Env.ofMachine m (gotRegions m0 l) vs ret).WF := by
+  have g := geo_of hpre
+  have hs0 := g.s
+  have hs8 := g.s8
+  have hf := frAt_toNat g
+  obtain ⟨_, hn, hs, ha⟩ := (got_of hpre).1 l hl
+  have hh := ha (hAt m0, 344) (by simp)
+  have hb := stackBelow_toNat g.s
+  change Apart (gotAddr l) 8 (stackBelow m0 finalizeStack) (finalizeStack + 8) at hs
+  change (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 624 at hb
+  unfold Apart at hs hh
+  rw [hb] at hs
+  change _ ≤ _ ∨ (spAt m0).toNat - 624 + (624 + 8) ≤ _ at hs
+  have hfh : Apart (frAt m0) 392 (hAt m0) 344 := by
+    unfold Apart
+    rw [hf]
+    have := g.hs
+    omega
+  have hfg : Apart (frAt m0) 392 (gotAddr l) 8 := by
+    unfold Apart
+    rw [hf]
+    omega
+  have hhg : Apart (hAt m0) 344 (gotAddr l) 8 := hh.symm
+  refine Env.wf_of ⟨⟨fun i hi => hk _ (mapped_frame hpre i hi), ?_⟩,
+    ⟨fun i hi => hk _ (hpre.2.2.2.1 i hi), g.h⟩,
+    ⟨fun i hi => hk _ ((got_of hpre).mapped hl i hi), hn⟩, trivial⟩ ?_
+  · change (frAt m0).toNat + 392 ≤ 2 ^ 64
+    rw [hf]
+    omega
+  · apply List.pairwise_cons.mpr
+    refine ⟨?_, List.pairwise_pair.mpr hhg⟩
+    intro a ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl
+    · exact hfh
+    · exact hfg
+
 variable [Host] {k : Nat}
 
 set_option linter.unusedSimpArgs false in
@@ -111,18 +152,32 @@ theorem stage2_spec (hp : Placed code k)
   have hHo : ∀ o, o < 344 → (hAt m0 + BitVec.ofNat 64 o).toNat = (hAt m0).toNat + o :=
     fun o ho => toNat_add_ofNat' (by have := g.h; omega)
   -- The prologue.
-  have hwf0 : (Env.ofMachine m0 [(frAt m0, 392)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b0Offset + b0.length)).toBitVec).WF :=
-    Env.wf_of ⟨⟨hmapF, hFnw⟩, trivial⟩ (List.pairwise_singleton _ _)
-  have hbF0 : (Env.ofMachine m0 [(frAt m0, 392)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b0Offset + b0.length)).toBitVec).base 0 = frAt m0 := Env.base_ofMachine m0 _ _ _ rfl
-  have hm0 := match_ofMachine (m := m0) (regions := [(frAt m0, 392)]) (vars := fun _ => 0)
-    (ret := (Host.addrOf (k + NativeRustcX64.Common.Finalize.b0Offset + b0.length)).toBitVec) (sregions := [392])
-    (known := [(.rsp, .ptr 0 384)]) (labels := []) (bounds := []) (aliases := []) ⟨rfl, trivial⟩
+  let env0 := Env.ofMachine m0 (gotRegions m0 "memcpy") (fun _ => 0)
+    (Host.addrOf (k + NativeRustcX64.Common.Finalize.b0Offset + b0.length)).toBitVec
+  have hwf0 : env0.WF := wf_got hpre (fun _ h => h) (by simp)
+  have hbF0 : env0.base 0 = frAt m0 := rfl
+  have hknown0 : ∀ w ∈ knownGot "memcpy", ∀ i < w.n,
+      env0.mem0.get? (env0.base w.r + BitVec.ofNat 64 (w.off + i)) =
+        some (byteOf (w.v.eval env0) i) := by
+    intro w hw i hi
+    simp only [knownGot, List.mem_singleton] at hw
+    subst w
+    simpa [env0, gotRegions, Env.base, Sym.eval] using
+      (got_of hpre).byte (l := "memcpy") (by simp) hi
+  have hm0base := match_ofMachine (m := m0) (regions := gotRegions m0 "memcpy")
+    (vars := fun _ => 0)
+    (ret := (Host.addrOf (k + NativeRustcX64.Common.Finalize.b0Offset + b0.length)).toBitVec)
+    (sregions := [392, 344, 8]) (known := [(.rsp, .ptr 0 384)])
+    (labels := []) (bounds := []) (aliases := [(.gotSlot "memcpy", 2, 0)])
+    ⟨rfl, rfl, rfl, trivial⟩
     ⟨by
       simp only [Sym.eval, hbF0]
       show spAt m0 = spAt m0 - 384#64 + 384#64
-      exact (BitVec.sub_add_cancel _ _).symm, trivial⟩ trivial trivial trivial
+      exact (BitVec.sub_add_cancel _ _).symm, trivial⟩ trivial trivial
+    ⟨(BitVec.add_zero _).symm, trivial⟩
+  have hm0 : Match env0 entryS m0 :=
+    hm0base.withKnownBytes (r := 2) (off := 0) (n := 8) (v := .label "memcpy")
+      (hknown0 ⟨2, 0, 8, .label "memcpy"⟩ (by simp [knownGot]))
   refine exec_then (hb0 hp) run_b0 hwf0 (fun _ _ => rfl) hm0 fun st1 hm1 hpc1 => ?_
   have hl0 := b0_mem
   rw [after_eq run_b0] at hl0
@@ -140,8 +195,7 @@ theorem stage2_spec (hp : Placed code k)
       m0.dmem.get? (hAt m0 + BitVec.ofNat 64 i) := fun i hi => h01 _ (by
     rw [frame_iff g, hHo i (by omega)]; have := g.hs; omega)
   have hX : ∀ r v, (after b0 entryS).reg r = some v → reg st1.data r =
-      v.eval (Env.ofMachine m0 [(frAt m0, 392)] (fun _ => 0)
-        (Host.addrOf (k + NativeRustcX64.Common.Finalize.b0Offset + b0.length)).toBitVec) := fun r v h => by
+      v.eval env0 := fun r v h => by
     rw [after_eq run_b0] at h
     exact hm1.regs r v h
   have hrdi1 : reg st1.data .rdi = frAt m0 + BitVec.ofNat 64 152 := by
@@ -215,31 +269,30 @@ theorem stage2_spec (hp : Placed code k)
   obtain ⟨d2, pc2⟩ := st2
   have hpc2' : pc2 = Host.addrOf (k + NativeRustcX64.Common.Finalize.b1Offset) := by rw [show pc2 = _ from hpc2]; rfl
   subst hpc2'
-  have hwf2 : (Env.ofMachine d2 [(frAt m0, 392), (hAt m0, 344)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b3Offset + b3.length)).toBitVec).WF :=
-    Env.wf_of ⟨⟨fun i hi => hfr2.kept _ (hmapF i hi), hFnw⟩,
-      ⟨fun i hi => hfr2.kept _ (hmapH i hi), g.h⟩, trivial⟩
-      (List.pairwise_pair.mpr (by
-        show (frAt m0).toNat + 392 ≤ (hAt m0).toNat ∨ (hAt m0).toNat + 344 ≤ (frAt m0).toNat
-        rw [hf]; have := g.hs; omega))
-  have hbF : (Env.ofMachine d2 [(frAt m0, 392), (hAt m0, 344)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b3Offset + b3.length)).toBitVec).base 0 = frAt m0 :=
-    Env.base_ofMachine d2 _ _ _ rfl
-  have hbH : (Env.ofMachine d2 [(frAt m0, 392), (hAt m0, 344)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b3Offset + b3.length)).toBitVec).base 1 = hAt m0 :=
-    Env.base_ofMachine d2 _ _ _ rfl
-  have hm2 := match_ofMachine (m := d2) (regions := [(frAt m0, 392), (hAt m0, 344)])
+  let env2 := Env.ofMachine d2 (gotRegions m0 "memset") (fun _ => 0)
+    (Host.addrOf (k + NativeRustcX64.Common.Finalize.b3Offset + b3.length)).toBitVec
+  have hwf2 : env2.WF := wf_got hpre hfr2.kept (by simp)
+  have hbF : env2.base 0 = frAt m0 := rfl
+  have hbH : env2.base 1 = hAt m0 := rfl
+  have hknown2 : ∀ i < 8, env2.mem0.get? (env2.base 2 + BitVec.ofNat 64 (0 + i)) =
+      some (byteOf ((Sym.label "memset").eval env2) i) := by
+    intro i hi
+    simp only [Nat.zero_add]
+    change d2.dmem.get? (gotAddr "memset" + BitVec.ofNat 64 i) = _
+    rw [got_same hpre hfr2 h01 (l := "memset") (by simp) hi]
+    exact (got_of hpre).byte (l := "memset") (by simp) hi
+  have hm2base := match_ofMachine (m := d2) (regions := gotRegions m0 "memset")
     (vars := fun _ => 0) (ret := (Host.addrOf (k + NativeRustcX64.Common.Finalize.b3Offset + b3.length)).toBitVec)
-    (sregions := [392, 344]) (known := [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)]) (labels := [])
-    (bounds := []) (aliases := []) ⟨rfl, rfl, trivial⟩
+    (sregions := [392, 344, 8]) (known := [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)]) (labels := [])
+    (bounds := []) (aliases := [(.gotSlot "memset", 2, 0)]) ⟨rfl, rfl, rfl, trivial⟩
     ⟨by simp only [Sym.eval, hbF]; exact hfr2.rsp,
       by
         simp only [Sym.eval, hbH]
         rw [show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]
         exact hr15,
-      trivial⟩ trivial trivial trivial
-  have hload : (Env.ofMachine d2 [(frAt m0, 392), (hAt m0, 344)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b3Offset + b3.length)).toBitVec).load 1 336 8 =
+      trivial⟩ trivial trivial ⟨(BitVec.add_zero _).symm, trivial⟩
+  have hm2 : Match env2 copyS d2 := hm2base.withKnownBytes hknown2
+  have hload : env2.load 1 336 8 =
       BitVec.ofInt 64 (Int.ofBytes ((hbytes m0).drop 336)) := by
     rw [load_eq_bytesOf _ hbH (N := 344) (by omega) (fun i hi => hfr2.kept _ (hmapH i hi)),
       List.take_of_length_le (by simp [length_bytesOf])]
@@ -319,26 +372,27 @@ theorem stage2_spec (hp : Placed code k)
   obtain ⟨d6, pc6⟩ := st6
   have hpc6' : pc6 = Host.addrOf (k + NativeRustcX64.Common.Finalize.b4Offset) := by rw [show pc6 = _ from hpc6]; rfl
   subst hpc6'
-  have hwf6 : (Env.ofMachine d6 [(frAt m0, 392), (hAt m0, 344)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b4Offset + b4.length)).toBitVec).WF :=
-    Env.wf_of ⟨⟨fun i hi => hfr6.kept _ (hmapF i hi), hFnw⟩,
-      ⟨fun i hi => hfr6.kept _ (hmapH i hi), g.h⟩, trivial⟩
-      (List.pairwise_pair.mpr (by
-        show (frAt m0).toNat + 392 ≤ (hAt m0).toNat ∨ (hAt m0).toNat + 344 ≤ (frAt m0).toNat
-        rw [hf]; have := g.hs; omega))
-  have hbF6 : (Env.ofMachine d6 [(frAt m0, 392), (hAt m0, 344)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b4Offset + b4.length)).toBitVec).base 0 = frAt m0 :=
-    Env.base_ofMachine d6 _ _ _ rfl
-  have hbH6 : (Env.ofMachine d6 [(frAt m0, 392), (hAt m0, 344)] (fun _ => 0)
-      (Host.addrOf (k + NativeRustcX64.Common.Finalize.b4Offset + b4.length)).toBitVec).base 1 = hAt m0 :=
-    Env.base_ofMachine d6 _ _ _ rfl
-  have hm6 := match_ofMachine (m := d6) (regions := [(frAt m0, 392), (hAt m0, 344)])
+  let env6 := Env.ofMachine d6 (gotRegions m0 "memcpy") (fun _ => 0)
+    (Host.addrOf (k + NativeRustcX64.Common.Finalize.b4Offset + b4.length)).toBitVec
+  have hwf6 : env6.WF := wf_got hpre hfr6.kept (by simp)
+  have hbF6 : env6.base 0 = frAt m0 := rfl
+  have hbH6 : env6.base 1 = hAt m0 := rfl
+  have hknown6 : ∀ i < 8, env6.mem0.get? (env6.base 2 + BitVec.ofNat 64 (0 + i)) =
+      some (byteOf ((Sym.label "memcpy").eval env6) i) := by
+    intro i hi
+    simp only [Nat.zero_add]
+    change d6.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) = _
+    rw [got_same hpre hfr6 h01 (l := "memcpy") (by simp) hi]
+    exact (got_of hpre).byte (l := "memcpy") (by simp) hi
+  have hm6base := match_ofMachine (m := d6) (regions := gotRegions m0 "memcpy")
     (vars := fun _ => 0) (ret := (Host.addrOf (k + NativeRustcX64.Common.Finalize.b4Offset + b4.length)).toBitVec)
-    (sregions := [392, 344]) (known := [(.rsp, .ptr 0 8), (.r12, .ptr 0 16), (.r15, .ptr 1 200)])
-    (labels := []) (bounds := []) (aliases := []) ⟨rfl, rfl, trivial⟩
+    (sregions := [392, 344, 8]) (known := [(.rsp, .ptr 0 8), (.r12, .ptr 0 16), (.r15, .ptr 1 200)])
+    (labels := []) (bounds := []) (aliases := [(.gotSlot "memcpy", 2, 0)]) ⟨rfl, rfl, rfl, trivial⟩
     ⟨by simp only [Sym.eval, hbF6]; exact hfr6.rsp,
       by simp only [Sym.eval, hbF6]; exact hr12',
-      by simp only [Sym.eval, hbH6]; exact hr15'', trivial⟩ trivial trivial trivial
+      by simp only [Sym.eval, hbH6]; exact hr15'', trivial⟩ trivial trivial
+    ⟨(BitVec.add_zero _).symm, trivial⟩
+  have hm6 : Match env6 setS d6 := hm6base.withKnownBytes hknown6
   refine exec_then (hb4 hp) run_b4 hwf6 (fun _ _ => rfl) hm6 fun st7 hm7 hpc7 => ?_
   have hl4 := b4_mem
   rw [after_eq run_b4] at hl4

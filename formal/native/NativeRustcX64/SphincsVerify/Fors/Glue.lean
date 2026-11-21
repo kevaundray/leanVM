@@ -245,20 +245,20 @@ theorem Keep.of_call (hpre : r.Pre) {c : Nat} {m m' : MachineData} (hK : KeepC r
     hK.2.1.of_call hpre hK.1 ha hN hout, hK.2.2.of_call hpre hK.1 ha hN hout⟩
 
 /-- A fresh symbolic state for the frame: the registers `k`. -/
-theorem match_frameS {m : MachineData} (hF : r.Frame m) {ret : BitVec 64}
+theorem match_frameS (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) {ret : BitVec 64}
     {k : List (Reg64 × Sym)}
     (hk : AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m (fun _ ↦ 0) ret)) k) :
     Match (r.env m (fun _ ↦ 0) ret) (frameS k) m :=
-  r.match_frame hF (vars := fun _ ↦ 0) (ret := ret) (known := k) (labels := []) (bounds := [])
+  r.match_frame hpre hF (vars := fun _ ↦ 0) (ret := ret) (known := k) (labels := []) (bounds := [])
     (aliases := []) hk trivial trivial trivial
 
 /-- The frame's symbolic state with a literal word the memory holds. -/
-theorem match_litS {m : MachineData} (hF : r.Frame m) {ret : BitVec 64}
+theorem match_litS (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) {ret : BitVec 64}
     {k : List (Reg64 × Sym)}
     (hk : AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m (fun _ ↦ 0) ret)) k) {o v : Nat}
     (h : BytesAt m.dmem (r.off o) ((List.range 8).map (byteOf (BitVec.ofNat 64 v)))) :
     Match (r.env m (fun _ ↦ 0) ret) (litS k o v) m :=
-  Chains.match_withLit (match_frameS hF hk) rfl h
+  Chains.match_withLit (match_frameS hpre hF hk) rfl h
 
 end
 
