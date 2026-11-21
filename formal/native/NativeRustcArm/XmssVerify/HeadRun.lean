@@ -98,7 +98,7 @@ public theorem head {k : Nat} (hp : Placed code k)
         (And.intro (by simp) trivial)))
     · rw [C₂.sp]
       simp [Sym.eval, regs0]
-    · refine ⟨?_, ?_, ?_, trivial⟩
+    · refine ⟨?_, ?_, ?_, ?_, trivial⟩
       · show (st₂.data.regs.getXReg .X20).toBitVec = _
         rw [hs.1 .X20 rfl, hm₁.regs .X20 _ h20]
         rfl
@@ -107,6 +107,9 @@ public theorem head {k : Nat} (hp : Placed code k)
         rfl
       · show (st₂.data.regs.getXReg .X21).toBitVec = _
         rw [hs.1 .X21 rfl, hm₁.regs .X21 _ st0'_x21]
+        rfl
+      · show (st₂.data.regs.getXReg .X22).toBitVec = _
+        rw [hs.1 .X22 rfl, hm₁.regs .X22 _ st0'_x22]
         rfl
     · exact trivial
     · exact trivial
@@ -122,14 +125,14 @@ public theorem head {k : Nat} (hp : Placed code k)
   refine ⟨Common.block P C₂ hwf₂ hm₂ hm₃ (by rw [hsp]; rfl) rfl h29 hw hsave, ?_, ?_, ?_,
     hword (i := 0) (by omega) h8, hword (i := 1) (by omega) h9, hword (i := 2) (by omega) h10,
     hword (i := 3) (by omega) h11, hword (i := 8) (by omega) h24, ?_, fun k hk => ?_, ?_,
-    fun k hk => absurd hk (by omega), ?_⟩
+    fun k hk => absurd hk (by omega), ?_, ?_, ?_⟩
   · rw [hm₃.regs .X19 _ h19']
     simp only [Sym.eval, Env.base_ofMachine_eq, regs0, List.getElem?_cons_zero, Option.map_some,
       Option.getD_some, BitVec.ofInt_ofNat, ad_add]
   · rw [hm₃.regs .X20 _ h20']
     exact inp_eq m₀
   · rw [hm₃.regs .X12 _ h12]
-    rfl
+    simp [Sym.eval, Env.base_ofMachine_eq, regs0, ad_add]
   · have := hm₃.regs .X23 _ h23
     simp only [Sym.eval, UnOp.apply, low_W32, ext_W32,
       load_word P C₂.same (i := 8) (by omega) (base1_regs0 (8 * 8))] at this
@@ -152,5 +155,8 @@ public theorem head {k : Nat} (hp : Placed code k)
   · rw [hm₃.regs .X21 _ st1'_x21]
     simp only [Sym.eval, Env.base_ofMachine_eq, regs0, List.getElem?_cons_zero, Option.map_some,
       Option.getD_some, BitVec.ofInt_ofNat, ad_add]
+  · rw [hm₃.regs .X13 _ st1'_x13]
+    rfl
+  · exact hm₃.regs .X14 _ st1'_x14
 
 end NativeRustcArm.Xmss.XmssVerify

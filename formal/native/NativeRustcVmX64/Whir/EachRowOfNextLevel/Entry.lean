@@ -145,7 +145,7 @@ theorem entry_a (hp : Placed code k)
     simp only [PcOk] at hpc3
     split at hpc3
     · rename_i hc
-      exact absurd hc (by simp only [SBool.eval, Sym.eval, CmpOp.apply, hl152]; try decide)
+      exact absurd hc (by simp only [SBool.eval, Sym.eval, CmpOp.apply, hl152]; decide)
     · exact hpc3
   refine exec_at hk2 (exec_after run_b1 run_b2) hwf (fun _ _ ↦ rfl) hpc3' hm3
     fun st4 hm4 hpc4 ↦ ?_

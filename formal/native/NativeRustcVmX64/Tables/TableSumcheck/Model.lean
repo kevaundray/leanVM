@@ -100,7 +100,7 @@ theorem rv_succ (xs : List EW) {j : Nat} (hj : 2 * j + 2 ≤ xs.length) (i : Nat
       if i = j then rv xs j (xs.length - 1 - j)
       else if i = xs.length - 1 - j then rv xs j j else rv xs j i := by
   unfold rv
-  split <;> split <;> (try split) <;> (try split) <;> first | rfl | omega | (congr 1; omega)
+  split <;> split <;> split <;> (try split) <;> first | rfl | omega | (congr 1; omega)
 
 /-- **Half the swaps**: the reverse. -/
 theorem rv_half {xs : List EW} {i : Nat} (hi : i < xs.length) :

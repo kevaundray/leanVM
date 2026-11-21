@@ -41,9 +41,9 @@ def gotRegions [Labels] (m0 : MachineData) (l : Label) : List (BitVec 64 × Nat)
 /-- The hasher's bytes at the entry. -/
 def hbytes (m0 : MachineData) : List UInt8 := bytesOf m0.dmem (hAt m0) 344
 
-/-- What the states after the prologue change: the frame's first 352 bytes and the 240 bytes of
+/-- What the states after the prologue change: the frame's first 352 bytes and the 288 bytes of
 `keccak_f`'s stack below it. -/
-def ChgF (m0 : MachineData) (p : BitVec 64) : Prop := InRange (frAt m0 - 240#64) 592 p
+def ChgF (m0 : MachineData) (p : BitVec 64) : Prop := InRange (frAt m0 - 288#64) 640 p
 
 /-- What every state between blocks after the prologue keeps. -/
 structure Fr (m0 m1 m : MachineData) : Prop where
@@ -57,16 +57,16 @@ structure Fr (m0 m1 m : MachineData) : Prop where
 structure Geo (m0 : MachineData) : Prop where
   o : (oAt m0).toNat + 32 ≤ 2 ^ 64
   h : (hAt m0).toNat + 344 ≤ 2 ^ 64
-  s : 624 ≤ (spAt m0).toNat
+  s : 672 ≤ (spAt m0).toNat
   s8 : (spAt m0).toNat + 8 ≤ 2 ^ 64
   oh : (oAt m0).toNat + 32 ≤ (hAt m0).toNat ∨ (hAt m0).toNat + 344 ≤ (oAt m0).toNat
-  hs : (hAt m0).toNat + 344 ≤ (spAt m0).toNat - 624 ∨ (spAt m0).toNat + 8 ≤ (hAt m0).toNat
-  os : (oAt m0).toNat + 32 ≤ (spAt m0).toNat - 624 ∨ (spAt m0).toNat + 8 ≤ (oAt m0).toNat
+  hs : (hAt m0).toNat + 344 ≤ (spAt m0).toNat - 672 ∨ (spAt m0).toNat + 8 ≤ (hAt m0).toNat
+  os : (oAt m0).toNat + 32 ≤ (spAt m0).toNat - 672 ∨ (spAt m0).toNat + 8 ≤ (oAt m0).toNat
 
 /-- The round constants' place as numbers. -/
 structure GeoRc [Labels] (m0 : MachineData) : Prop where
   nw : rcAddr.toNat + 192 ≤ 2 ^ 64
-  rs : rcAddr.toNat + 192 ≤ (spAt m0).toNat - 624 ∨ (spAt m0).toNat + 8 ≤ rcAddr.toNat
+  rs : rcAddr.toNat + 192 ≤ (spAt m0).toNat - 672 ∨ (spAt m0).toNat + 8 ≤ rcAddr.toNat
   ro : (oAt m0).toNat + 32 ≤ rcAddr.toNat ∨ rcAddr.toNat + 192 ≤ (oAt m0).toNat
 
 end
@@ -85,8 +85,8 @@ theorem stackBelow_toNat {m : MachineData} {n : Nat} (h : n ≤ (rspOf m).toNat)
 
 theorem geo_of {m0 : MachineData} [Labels] (hpre : FinalizePre m0) : Geo m0 := by
   obtain ⟨⟨hs, hs8, -⟩, -, -, -, hh, -, ho, hoh, hhs, hos, -⟩ := hpre
-  have hb : (stackBelow m0 finalizeStack).toNat = (rspOf m0).toNat - 624 := stackBelow_toNat hs
-  have hu : finalizeStack = 624 := rfl
+  have hb : (stackBelow m0 finalizeStack).toNat = (rspOf m0).toNat - 672 := stackBelow_toNat hs
+  have hu : finalizeStack = 672 := rfl
   unfold Apart at hoh hhs hos
   rw [hb, hu] at hhs hos
   refine ⟨ho, hh, hu ▸ hs, hs8, hoh, ?_, ?_⟩
@@ -95,8 +95,8 @@ theorem geo_of {m0 : MachineData} [Labels] (hpre : FinalizePre m0) : Geo m0 := b
 
 theorem geoRc_of {m0 : MachineData} [Labels] (hpre : FinalizePre m0) : GeoRc m0 := by
   obtain ⟨⟨hs, -, -⟩, ⟨-, hnw, hrs⟩, -, -, -, -, -, -, -, -, hor, -⟩ := hpre
-  have hb : (stackBelow m0 finalizeStack).toNat = (rspOf m0).toNat - 624 := stackBelow_toNat hs
-  have hu : finalizeStack = 624 := rfl
+  have hb : (stackBelow m0 finalizeStack).toNat = (rspOf m0).toNat - 672 := stackBelow_toNat hs
+  have hu : finalizeStack = 672 := rfl
   unfold Apart at hrs hor
   rw [hb, hu] at hrs
   refine ⟨hnw, ?_, hor⟩
@@ -111,13 +111,13 @@ theorem frAt_toNat {m0 : MachineData} (g : Geo m0) : (frAt m0).toNat = (spAt m0)
   toNat_sub_ofNat' (by have := g.s; omega)
 
 theorem chg_base {m0 : MachineData} (g : Geo m0) :
-    (frAt m0 - 240#64).toNat = (spAt m0).toNat - 624 := by
+    (frAt m0 - 288#64).toNat = (spAt m0).toNat - 672 := by
   rw [toNat_sub_ofNat' (by rw [frAt_toNat g]; have := g.s; omega), frAt_toNat g]
   omega
 
 /-- What the states change, as numbers. -/
 theorem chgF_iff {m0 : MachineData} (g : Geo m0) (p : BitVec 64) :
-    ChgF m0 p ↔ (spAt m0).toNat - 624 ≤ p.toNat ∧ p.toNat < (spAt m0).toNat - 32 := by
+    ChgF m0 p ↔ (spAt m0).toNat - 672 ≤ p.toNat ∧ p.toNat < (spAt m0).toNat - 32 := by
   unfold ChgF
   rw [inRange_iff (by rw [chg_base g]; have := g.s8; omega), chg_base g]
   have := g.s
@@ -167,10 +167,10 @@ theorem got_same {m0 m1 m : MachineData} [Labels] (hpre : FinalizePre m0)
   obtain ⟨_, hn, hs, _⟩ := (got_of hpre).1 l hl
   have hb := stackBelow_toNat g.s
   change Apart (gotAddr l) 8 (stackBelow m0 finalizeStack) (finalizeStack + 8) at hs
-  change (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 624 at hb
+  change (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 672 at hb
   unfold Apart at hs
   rw [hb] at hs
-  change _ ≤ _ ∨ (spAt m0).toNat - 624 + (624 + 8) ≤ _ at hs
+  change _ ≤ _ ∨ (spAt m0).toNat - 672 + (672 + 8) ≤ _ at hs
   have ht := toNat_add_ofNat' (a := gotAddr l) (i := i) (by
     change (gotAddr l).toNat + 8 ≤ 2 ^ 64 at hn
     omega)

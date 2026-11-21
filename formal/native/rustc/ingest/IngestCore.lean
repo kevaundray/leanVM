@@ -327,9 +327,10 @@ structure Arch (I C : Type) where
   dataSize : String → Option Nat
   wordDirective : Nat → String
 
-/-- The two panic entries of `core` (their crate hash differs between targets): the core calls them,
+/-- The panic entries of `core` (their crate hash differs between targets): the core calls them,
 the ingested program traps there. -/
-def panicSuffixes : List String := ["9panicking9panic_fmt", "5slice5index16slice_index_fail"]
+def panicSuffixes : List String := ["9panicking9panic_fmt", "5slice5index16slice_index_fail",
+  "6option13unwrap_failed"]
 
 def isPanic (sym : String) : Bool := panicSuffixes.any fun p => sym.endsWith p
 
@@ -339,13 +340,14 @@ def shortName (sym : String) : Option String :=
   else if sym == "memset" then some "Memset"
   else if sym.endsWith "9panicking9panic_fmt" then some "PanicFmt"
   else if sym.endsWith "5index16slice_index_fail" then some "SliceIndexFail"
+  else if sym.endsWith "6option13unwrap_failed" then some "UnwrapFailed"
   else if sym == "xmss_verify" then some "XmssVerify"
   else if sym == "sphincs_verify" then some "SphincsVerify"
   else if sym.endsWith "9keccak2568keccak_f" then some "KeccakF"
   else if sym.endsWith "6Hasher6update" then some "Update"
   else if sym.endsWith "6Hasher8finalize" then some "Finalize"
   else if sym.endsWith "4wots9wots_leaf" then some "WotsLeaf"
-  else if (sym.splitOn "LeanXmssSignature10from_bytes").length > 1 then some "FromBytes"
+  else if sym.endsWith "14LayerSignature4read" then some "LayerRead"
   else none
 
 /-- A scheme's entry: `leanvm_verify` for `vm`, else `<scheme>_verify`. -/

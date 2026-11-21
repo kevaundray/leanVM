@@ -9,7 +9,7 @@ public import NativeRustcX64.XmssVerify.Tree0Run
 # `xmss_verify`: the top layer's one-time leaf (x86-64)
 
 Block 16: `wots_leaf` of the top layer (its output at `184`, the message the bottom root at
-`592`, the key index the leaf index's high half from `72`, the randomizer and the chain values
+`592`, the key index the leaf index's high half from `80`, the randomizer and the chain values
 passed on the stack); block 17: to the failure (block 27) if its tag is not `1`; block 18: the
 leaf into RCX and RDX, to the loop over the top layer's path (`TreeAt1` at level `0`).
 -/
@@ -86,8 +86,8 @@ theorem li1_toNat (w : Nat → UInt64) : (li1 w).toNat = (w 8).toNat % 2 ^ 32 / 
 theorem st16_facts : (after b16 (stF [])).reg .rdi = some (.ptr 0 184) ∧
     (after b16 (stF [])).reg .rsi = some (.ptr 0 56) ∧
     (after b16 (stF [])).reg .rdx = some (.lit 1) ∧
-    (after b16 (stF [])).reg .rcx = some (.bin .shr .W32 (.load 0 72 8) (.lit 16)) ∧
-    (after b16 (stF [])).reg .rbx = some (.bin .shr .W32 (.load 0 72 8) (.lit 16)) ∧
+    (after b16 (stF [])).reg .rcx = some (.bin .shr .W32 (.load 0 80 8) (.lit 16)) ∧
+    (after b16 (stF [])).reg .rbx = some (.bin .shr .W32 (.load 0 80 8) (.lit 16)) ∧
     (after b16 (stF [])).reg .r8 = some (.ptr 0 592) ∧
     (after b16 (stF [])).reg .r9 = some (.lit 16) ∧
     (after b16 (stF [])).reg .rsp = some (.ptr 0 0) ∧

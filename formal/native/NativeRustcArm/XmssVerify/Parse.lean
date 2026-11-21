@@ -7,10 +7,10 @@ meta import NativeRustcArm.Code.Xmss.XmssVerify
 /-!
 # `xmss_verify`: parsing the signature
 
-Block 3: the key's words to the frame at `2448`, the cursor `4` at `5408`, the call of
-`from_bytes`'s closure for the bottom layer (to `2492`); block 4: its call for the top layer (to
-`3692`). `parse`: from the end of the copy (`LoopAt 75`) to block 5 (`Parsed`: the message, the
-key and the two layers in the frame).
+Block 3 writes the key at `2448` and a slice descriptor `(frame + 48, 2400)`
+at `5408`, then reads the bottom layer into `2492`. Block 4 reads the top
+layer into `3692` using the advanced descriptor. `Parsed` records the
+unchanged message and key alongside both decoded layers.
 -/
 
 namespace NativeRustcArm.Xmss.XmssVerify
@@ -44,7 +44,7 @@ sym_block b3_exec := exec b3 (stF0 [])
 def st3 : SState := ((exec b3 (stF0 [])).getD (stF0 [], .fall)).1
 
 theorem st3_facts : st3.reg .X0 = some (.ptr 0 2492) ∧ st3.reg .X1 = some (.ptr 0 5408) ∧
-    st3.reg .X2 = some (.ptr 0 44) ∧ st3.reg .X19 = some (.ptr 0 2492) ∧
+    st3.reg .X19 = some (.ptr 0 2492) ∧
     st3.reg .X20 = some (.ptr 0 2448) ∧ st3.reg .X24 = some (.reg .X24) ∧
     st3.reg .X23 = some (.reg .X23) ∧ st3.reg .X29 = some (.reg .X29) ∧ st3.sp = .ptr 0 0 ∧
     writesIn st3 [0] = true ∧ (∀ x, 5776 ≤ x → x < 5872 → findWrite 0 x st3.mem = none) ∧
@@ -55,7 +55,10 @@ theorem st3_x21 : st3.reg .X21 = some (.reg .X21) := by decide +kernel
 theorem st3_pk : ∀ j < 4, ∀ t < 8, findWrite 0 (2448 + 8 * j + t) st3.mem =
     some (.reg ([XReg.X8, .X9, .X10, .X11].getD j .X0), t) := by decide +kernel
 
-theorem st3_cursor : ∀ t < 8, findWrite 0 (5408 + t) st3.mem = some (.lit 4, t) := by
+theorem st3_cursorData : ∀ t < 8, findWrite 0 (5408 + t) st3.mem = some (.reg .X19, t) := by
+  decide +kernel
+
+theorem st3_cursorLength : ∀ t < 8, findWrite 0 (5416 + t) st3.mem = some (.lit 2400, t) := by
   decide +kernel
 
 sym_block b4_exec := exec b4 (stF0 [(.X19, .ptr 0 2492)])
@@ -64,7 +67,7 @@ sym_block b4_exec := exec b4 (stF0 [(.X19, .ptr 0 2492)])
 def st4 : SState := ((exec b4 (stF0 [(.X19, .ptr 0 2492)])).getD (stF0 [], .fall)).1
 
 theorem st4_facts : st4.reg .X0 = some (.ptr 0 3692) ∧ st4.reg .X1 = some (.ptr 0 5408) ∧
-    st4.reg .X2 = some (.ptr 0 44) ∧ st4.mem = [] ∧ st4.sp = .ptr 0 0 ∧
+    st4.mem = [] ∧ st4.sp = .ptr 0 0 ∧
     st4.reg .X19 = some (.ptr 0 2492) ∧
     (∀ r ∈ [XReg.X20, .X21, .X23, .X24, .X29], st4.reg r = some (.reg r)) ∧
     writesIn st4 [0] = true ∧

@@ -27,9 +27,9 @@ def msgBytes (w : Nat → UInt64) : List UInt8 := NativeRustc.Xmss.messageBytes 
 /-- At the head of the loop copying the signature's words, before turn `i`. -/
 structure LoopAt (w : Nat → UInt64) (m₀ m : MachineData) (i : Nat) : Prop where
   common : Common m₀ m
-  x19 : (m.regs.getXReg .X19).toBitVec = ad m₀ (fb + 44)
+  x19 : (m.regs.getXReg .X19).toBitVec = ad m₀ (fb + 48)
   x20 : (m.regs.getXReg .X20).toBitVec = m₀.regs.X0.toBitVec
-  x12 : (m.regs.getXReg .X12).toBitVec = BitVec.ofNat 64 (1120 + 32 * i)
+  x12 : (m.regs.getXReg .X12).toBitVec = ad m₀ (fb + 64 + 32 * i)
   x8 : (m.regs.getXReg .X8) = w 0
   x9 : (m.regs.getXReg .X9) = w 1
   x10 : (m.regs.getXReg .X10) = w 2
@@ -40,6 +40,8 @@ structure LoopAt (w : Nat → UInt64) (m₀ m : MachineData) (i : Nat) : Prop wh
   li : BytesAt m.dmem (ad m₀ (fb + 44)) ((wordBytes (w 8)).take 4)
   sig : ∀ k < 4 * i, BytesAt m.dmem (ad m₀ (fb + 48 + 8 * k)) (wordBytes (w (9 + k)))
   x21 : (m.regs.getXReg .X21).toBitVec = ad m₀ (fb + 5392)
+  x13 : (m.regs.getXReg .X13).toBitVec = inp m₀ + BitVec.ofNat 64 (96 + 32 * i)
+  x14 : (m.regs.getXReg .X14).toBitVec = BitVec.ofNat 64 (300 - 4 * i)
 
 /-- The symbolic state at the entry: region 0 the frame (SP its top), 1 the input words. -/
 def st0 : SState := init [(5872, true), (2472, false)] (.ptr 0 5872) [(.X0, .ptr 1 (-1024))]
@@ -50,11 +52,13 @@ sym_block b0_exec := exec b0 st0
 def st0' : SState := ((exec b0 st0).getD (st0, .fall)).1
 
 theorem st0'_facts : st0'.reg .X0 = some (.ptr 0 48) ∧ st0'.reg .X1 = some (.lit 0) ∧
-    st0'.reg .X2 = some (.lit 2400) ∧ st0'.reg .X19 = some (.ptr 0 44) ∧
+    st0'.reg .X2 = some (.lit 2400) ∧ st0'.reg .X19 = some (.ptr 0 48) ∧
     st0'.reg .X20 = some (.ptr 1 (-1024)) ∧ st0'.reg .X29 = some (.ptr 0 5776) ∧
     st0'.sp = .ptr 0 0 ∧ writesIn st0' [0] = true := by decide +kernel
 
 theorem st0'_x21 : st0'.reg .X21 = some (.ptr 0 5392) := by decide +kernel
+
+theorem st0'_x22 : st0'.reg .X22 = some (.ptr 0 44) := by decide +kernel
 
 theorem st0'_save : ∀ j < 12, ∀ t < 8,
     findWrite 0 (5776 + 8 * j + t) st0'.mem = some (.reg (saveRegs.getD j .X0), t) := by
@@ -62,7 +66,7 @@ theorem st0'_save : ∀ j < 12, ∀ t < 8,
 
 /-- The symbolic state at block 1: region 0 the frame (SP its base), 1 the input words. -/
 def st1 : SState := init [(5872, true), (2472, false)] (.ptr 0 0)
-  [(.X20, .ptr 1 (-1024)), (.X19, .ptr 0 44), (.X21, .ptr 0 5392)]
+  [(.X20, .ptr 1 (-1024)), (.X19, .ptr 0 48), (.X21, .ptr 0 5392), (.X22, .ptr 0 44)]
 
 sym_block b1_exec := exec b1 st1
 
@@ -71,13 +75,17 @@ def st1' : SState := ((exec b1 st1).getD (st1, .fall)).1
 
 theorem st1'_facts : st1'.reg .X8 = some (.load 1 0 8) ∧ st1'.reg .X9 = some (.load 1 8 8) ∧
     st1'.reg .X10 = some (.load 1 16 8) ∧ st1'.reg .X11 = some (.load 1 24 8) ∧
-    st1'.reg .X12 = some (.lit 1120) ∧ st1'.reg .X24 = some (.load 1 64 8) ∧
-    st1'.reg .X23 = some (.un .trunc .W32 (.load 1 64 8)) ∧ st1'.reg .X19 = some (.ptr 0 44) ∧
+    st1'.reg .X12 = some (.ptr 0 64) ∧ st1'.reg .X24 = some (.load 1 64 8) ∧
+    st1'.reg .X23 = some (.un .trunc .W32 (.load 1 64 8)) ∧ st1'.reg .X19 = some (.ptr 0 48) ∧
     st1'.reg .X20 = some (.ptr 1 (-1024)) ∧ st1'.reg .X29 = some (.reg .X29) ∧
     st1'.sp = .ptr 0 0 ∧ writesIn st1' [0] = true ∧
     (∀ x, 5776 ≤ x → x < 5872 → findWrite 0 x st1'.mem = none) := by decide +kernel
 
 theorem st1'_x21 : st1'.reg .X21 = some (.ptr 0 5392) := by decide +kernel
+
+theorem st1'_x13 : st1'.reg .X13 = some (.ptr 1 96) := by decide +kernel
+
+theorem st1'_x14 : st1'.reg .X14 = some (.lit 300) := by decide +kernel
 
 theorem st1'_msg : ∀ k < 4, ∀ t < 8,
     findWrite 0 (8 + 8 * k + t) st1'.mem = some (.load 1 (8 * (4 + k)) 8, t) := by decide +kernel

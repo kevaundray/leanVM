@@ -97,7 +97,7 @@ theorem post_of [Labels] {m0 m : MachineData} {bp : BitVec 64} {B : List UInt8} 
 
 variable [Host] {k : Nat}
 
-theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : code[j]? = some (.label l)) :
+theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : Vm.ReaderWords.code[j]? = some (.label l)) :
     Labels.label l = Host.addrOf (k + j) :=
   hp.label h
 

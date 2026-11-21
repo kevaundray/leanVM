@@ -18,7 +18,7 @@ the round's lanes are written as 64-bit vectors; a few lanes per theorem (`laneR
 namespace NativeRustcVmX64.KeccakF
 
 open NativeRustcX64 NativeRustcX64.Sym NativeRustc.Keccak LeanVM.Semantics
-open NativeRustcX64.KeccakF (WordAt wordAt_of_eq wordAt_write allOf_append)
+open NativeRustcX64.KeccakF (WordAt wordAt_of_eq wordAt_write)
 
 @[expose] public section
 
@@ -235,13 +235,16 @@ theorem body_lanes [Labels] {env : Env} {m : MachineData} {S : SState} {x : Exit
     AllOf (fun p : Reg64 × Nat =>
       m.regs.get64 p.1 = (roundCL a (parOf a) rc p.2).toBitVec) laneRegs ∧
     AllOf (fun p : Nat × Nat =>
-      WordAt m.dmem (b + BitVec.ofNat 64 p.1) (roundCL a (parOf a) rc p.2).toBitVec) laneSlots :=
-  ⟨allOf_append (body_regsA hx hm hb hregs hslots hrc)
-      (allOf_append (body_regsB hx hm hb hregs hslots hrc) (body_regsC hx hm hb hregs hslots hrc)),
-    allOf_append (body_slotsA hx hm hb hregs hslots hrc)
-      (allOf_append (body_slotsB hx hm hb hregs hslots hrc)
-        (allOf_append (body_slotsC hx hm hb hregs hslots hrc)
-          (body_slotsD hx hm hb hregs hslots hrc)))⟩
+      WordAt m.dmem (b + BitVec.ofNat 64 p.1) (roundCL a (parOf a) rc p.2).toBitVec) laneSlots := by
+  constructor
+  · simpa only [laneRegs, laneRegsA, laneRegsB, laneRegsC, AllOf, and_assoc, and_true] using
+      And.intro (body_regsA hx hm hb hregs hslots hrc)
+        (And.intro (body_regsB hx hm hb hregs hslots hrc) (body_regsC hx hm hb hregs hslots hrc))
+  · simpa only [laneSlots, laneSlotsA, laneSlotsB, laneSlotsC, laneSlotsD, AllOf, and_assoc,
+      and_true] using
+      And.intro (body_slotsA hx hm hb hregs hslots hrc)
+        (And.intro (body_slotsB hx hm hb hregs hslots hrc)
+          (And.intro (body_slotsC hx hm hb hregs hslots hrc) (body_slotsD hx hm hb hregs hslots hrc)))
 
 end
 

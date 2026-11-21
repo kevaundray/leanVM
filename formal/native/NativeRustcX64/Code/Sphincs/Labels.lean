@@ -136,44 +136,44 @@ public theorem label_SphincsVerify_90 : NativeRustcX64.Sphincs.code.findIdx? (·
 
 public theorem label_KeccakF : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") = some 2428 := by decide +kernel
 
-public theorem label_KeccakF_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LKeccakF_1") = some 2507 := by decide +kernel
+public theorem label_KeccakF_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LKeccakF_1") = some 2504 := by decide +kernel
 
-public theorem label_Update : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") = some 2809 := by decide +kernel
+public theorem label_Update : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") = some 3044 := by decide +kernel
 
-public theorem label_Update_5 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_5") = some 2825 := by decide +kernel
+public theorem label_Update_5 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_5") = some 3060 := by decide +kernel
 
-public theorem label_Update_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_1") = some 2830 := by decide +kernel
+public theorem label_Update_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_1") = some 3065 := by decide +kernel
 
-public theorem label_Update_6 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_6") = some 2904 := by decide +kernel
+public theorem label_Update_6 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_6") = some 3139 := by decide +kernel
 
-public theorem label_Update_7 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_7") = some 2914 := by decide +kernel
+public theorem label_Update_7 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LUpdate_7") = some 3149 := by decide +kernel
 
-public theorem label_Finalize : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") = some 2918 := by decide +kernel
+public theorem label_Finalize : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") = some 3153 := by decide +kernel
 
-public theorem label_Finalize_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_3") = some 2996 := by decide +kernel
+public theorem label_Finalize_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_3") = some 3231 := by decide +kernel
 
-public theorem label_Finalize_4 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_4") = some 3002 := by decide +kernel
+public theorem label_Finalize_4 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".LFinalize_4") = some 3237 := by decide +kernel
 
-public theorem label_PanicFmt : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt") = some 3007 := by decide +kernel
+public theorem label_PanicFmt : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt") = some 3242 := by decide +kernel
 
-public theorem label_SliceIndexFail : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail") = some 3009 := by decide +kernel
+public theorem label_SliceIndexFail : NativeRustcX64.Sphincs.code.findIdx? (· = .label "_RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail") = some 3244 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.1") = some 3011 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_1 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.1") = some 3246 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.3") = some 3013 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_3 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.3") = some 3248 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.8") = some 3015 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.8") = some 3250 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_9 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.9") = some 3017 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_9 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.9") = some 3252 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_11 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.11") = some 3020 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_11 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.11") = some 3255 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_12 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12") = some 3023 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_12 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12") = some 3258 := by decide +kernel
 
-public theorem label_anon_440213f1c62d8b61420e6860e9721951_0 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.0") = some 3026 := by decide +kernel
+public theorem label_anon_440213f1c62d8b61420e6860e9721951_0 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.0") = some 3261 := by decide +kernel
 
-public theorem label_anon_440213f1c62d8b61420e6860e9721951_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.8") = some 3028 := by decide +kernel
+public theorem label_anon_440213f1c62d8b61420e6860e9721951_8 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.8") = some 3263 := by decide +kernel
 
-public theorem label_anon_440213f1c62d8b61420e6860e9721951_10 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.10") = some 3030 := by decide +kernel
+public theorem label_anon_440213f1c62d8b61420e6860e9721951_10 : NativeRustcX64.Sphincs.code.findIdx? (· = .label ".Lanon.440213f1c62d8b61420e6860e9721951.10") = some 3265 := by decide +kernel
 
 end NativeRustcX64.Sphincs

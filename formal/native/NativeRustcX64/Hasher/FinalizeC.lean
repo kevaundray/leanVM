@@ -85,17 +85,17 @@ theorem stage4_spec (hp : Placed code k)
   have hrsp5 : st5.data.regs.get64 .rsp = frAt m0 := by
     rw [hm5.regs .rsp _ rfl]; simp only [Sym.eval, hbF]; simp
   have hspN : (rspOf st5.data).toNat = (spAt m0).toNat - 384 := by rw [rspOf, hrsp5, hf]
-  have hsb : stackBelow st5.data keccakFStack = frAt m0 - 240#64 := by
+  have hsb : stackBelow st5.data keccakFStack = frAt m0 - 288#64 := by
     rw [stackBelow, rspOf, hrsp5]; rfl
-  have hS240 : (frAt m0 - 240#64).toNat = (spAt m0).toNat - 624 := chg_base g
+  have hS288 : (frAt m0 - 288#64).toNat = (spAt m0).toNat - 672 := chg_base g
   have hrdi : reg st5.data .rdi = frAt m0 + BitVec.ofNat 64 152 := by
     unfold reg; rw [hm5.regs .rdi _ rfl]; simp only [Sym.eval, hbF]; rfl
-  have hmapS : Mapped m0.dmem (frAt m0 - 240#64) 632 := fun i hi => by
-    have := hpre.1.2.2 i (by show i < 624 + 8; omega)
-    rwa [show rspOf m0 - BitVec.ofNat 64 finalizeStack = frAt m0 - 240#64 by
+  have hmapS : Mapped m0.dmem (frAt m0 - 288#64) 680 := fun i hi => by
+    have := hpre.1.2.2 i (by show i < 672 + 8; omega)
+    rwa [show rspOf m0 - BitVec.ofNat 64 finalizeStack = frAt m0 - 288#64 by
       apply BitVec.eq_of_toNat_eq
-      have hfs : finalizeStack = 624 := rfl
-      rw [hfs, toNat_sub_ofNat' (by have := g.s; unfold spAt at this; omega), hS240]
+      have hfs : finalizeStack = 672 := rfl
+      rw [hfs, toNat_sub_ofNat' (by have := g.s; unfold spAt at this; omega), hS288]
       rfl] at this
   have hk5 : Kept m.dmem st5.data.dmem := hm5.kept hwf
   refine call_then hpc5 hkf ?pre fun st6 hpc6 hrsp6 hpost6 => ?_
@@ -103,7 +103,7 @@ theorem stage4_spec (hp : Placed code k)
     simp only [KeccakFPre, keccakFStack]
     refine ⟨⟨by rw [hspN]; omega, by rw [hspN]; omega, fun i hi => ?_⟩,
       ⟨fun i hi => ?_, gr.nw, ?_⟩, fun i hi => ?_, ?_, ?_, ?_⟩
-    · rw [show rspOf st5.data - BitVec.ofNat 64 240 = frAt m0 - 240#64 by
+    · rw [show rspOf st5.data - BitVec.ofNat 64 288 = frAt m0 - 288#64 by
         rw [rspOf, hrsp5]]
       exact hk5 _ (hfr.kept _ (hmapS i (by omega)))
     · have hrcl : rcBytes.length = 192 := by
@@ -119,17 +119,17 @@ theorem stage4_spec (hp : Placed code k)
           omega),
         Env.ofMachine_mem0, rc_same g gr hfr hpro.same hi]
       exact hpre.2.1.1 i (by rw [hrcl]; exact hi)
-    · show _ + 192 ≤ (stackBelow st5.data 240).toNat ∨ (stackBelow st5.data 240).toNat + 248 ≤ _
-      rw [show stackBelow st5.data 240 = frAt m0 - 240#64 from hsb, hS240]
+    · show _ + 192 ≤ (stackBelow st5.data 288).toNat ∨ (stackBelow st5.data 288).toNat + 296 ≤ _
+      rw [show stackBelow st5.data 288 = frAt m0 - 288#64 from hsb, hS288]
       have := gr.rs
       omega
     · rw [hrdi, add_ofNat_add]
       exact hk5 _ (hfr.kept _ (mapped_frame hpre _ (by omega)))
     · show (reg st5.data .rdi).toNat + 200 ≤ _
       rw [hrdi, hFo _ (by omega)]; omega
-    · show (reg st5.data .rdi).toNat + 200 ≤ (stackBelow st5.data 240).toNat ∨
-        (stackBelow st5.data 240).toNat + 248 ≤ (reg st5.data .rdi).toNat
-      rw [hrdi, show stackBelow st5.data 240 = frAt m0 - 240#64 from hsb, hS240, hFo _ (by omega),
+    · show (reg st5.data .rdi).toNat + 200 ≤ (stackBelow st5.data 288).toNat ∨
+        (stackBelow st5.data 288).toNat + 296 ≤ (reg st5.data .rdi).toNat
+      rw [hrdi, show stackBelow st5.data 288 = frAt m0 - 288#64 from hsb, hS288, hFo _ (by omega),
         hf]
       omega
     · show (reg st5.data .rdi).toNat + 200 ≤ rcAddr.toNat ∨
@@ -140,7 +140,7 @@ theorem stage4_spec (hp : Placed code k)
   obtain ⟨hbytesK, hsameK, hsavedK⟩ := hpost6
   have hrdi' : reg st5.data .rdi = _ := hrdi
   rw [hrdi', hxor] at hbytesK
-  rw [hrdi', hsb, show keccakFStack = 240 from rfl] at hsameK
+  rw [hrdi', hsb, show keccakFStack = 288 from rfl] at hsameK
   have hfr6 : Fr m0 m1 st6.data := hfr.after_call hm5 hwf hbF rfl
     (fun r hr => by
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
@@ -154,8 +154,8 @@ theorem stage4_spec (hp : Placed code k)
       · rw [inRange_iff (by rw [hFo _ (by omega)]; omega), hFo _ (by omega)] at h
         exact chg_of_frame g (o := 152) (n := 200) (by decide) h
       · unfold ChgF
-        rw [inRange_iff (by rw [hS240]; omega), hS240] at h
-        rw [inRange_iff (by rw [hS240]; omega), hS240]
+        rw [inRange_iff (by rw [hS288]; omega), hS288] at h
+        rw [inRange_iff (by rw [hS288]; omega), hS288]
         omega)
   refine Eventually.done _ ⟨by rw [hpc6]; rfl, hfr6, ?_⟩
   have := bytesOf_of_bytesAt hbytesK

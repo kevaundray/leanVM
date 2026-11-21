@@ -50,7 +50,7 @@ def Chg (m0 : MachineData) (p : BitVec 64) : Prop :=
 
 /-- What the loop changes: the hasher and the stack below the pushed registers. -/
 def ChgL (m0 : MachineData) (p : BitVec 64) : Prop :=
-  InRange (hAt m0) 344 p ∨ InRange (stackBelow m0 updateStack) 304 p
+  InRange (hAt m0) 344 p ∨ InRange (stackBelow m0 updateStack) 352 p
 
 /-- The bytes `H` have absorbed the input's first `c` bytes after whatever the entry's had. -/
 def Holds (m0 : MachineData) (H : List UInt8) (c : Nat) : Prop :=
@@ -95,16 +95,16 @@ structure Mid [Labels] (m0 : MachineData) (c t : Nat) (m : MachineData) : Prop w
 structure Geo (m0 : MachineData) : Prop where
   h : (hAt m0).toNat + 344 ≤ 2 ^ 64
   d : (dAt m0).toNat + nOf m0 ≤ 2 ^ 64
-  s : 352 ≤ (spAt m0).toNat
+  s : 400 ≤ (spAt m0).toNat
   s8 : (spAt m0).toNat + 8 ≤ 2 ^ 64
   hd : (hAt m0).toNat + 344 ≤ (dAt m0).toNat ∨ (dAt m0).toNat + nOf m0 ≤ (hAt m0).toNat
-  hs : (hAt m0).toNat + 344 ≤ (spAt m0).toNat - 352 ∨ (spAt m0).toNat + 8 ≤ (hAt m0).toNat
-  ds : (dAt m0).toNat + nOf m0 ≤ (spAt m0).toNat - 352 ∨ (spAt m0).toNat + 8 ≤ (dAt m0).toNat
+  hs : (hAt m0).toNat + 344 ≤ (spAt m0).toNat - 400 ∨ (spAt m0).toNat + 8 ≤ (hAt m0).toNat
+  ds : (dAt m0).toNat + nOf m0 ≤ (spAt m0).toNat - 400 ∨ (spAt m0).toNat + 8 ≤ (dAt m0).toNat
 
 /-- The round constants' place, as numbers. -/
 structure GeoRc [Labels] (m0 : MachineData) : Prop where
   nw : rcAddr.toNat + 192 ≤ 2 ^ 64
-  rs : rcAddr.toNat + 192 ≤ (spAt m0).toNat - 352 ∨ (spAt m0).toNat + 8 ≤ rcAddr.toNat
+  rs : rcAddr.toNat + 192 ≤ (spAt m0).toNat - 400 ∨ (spAt m0).toNat + 8 ≤ rcAddr.toNat
   hr : (hAt m0).toNat + 344 ≤ rcAddr.toNat ∨ rcAddr.toNat + 192 ≤ (hAt m0).toNat
 
 end
@@ -123,8 +123,8 @@ theorem stackBelow_toNat {m : MachineData} {n : Nat} (h : n ≤ (rspOf m).toNat)
 
 theorem geo_of {m0 : MachineData} [Labels] (hpre : UpdatePre m0) : Geo m0 := by
   obtain ⟨⟨hs, hs8, -⟩, -, -, -, hh, -, hd, hhd, hhs, hds, -⟩ := hpre
-  have hu : updateStack = 352 := rfl
-  have hb : (stackBelow m0 updateStack).toNat = (rspOf m0).toNat - 352 := stackBelow_toNat hs
+  have hu : updateStack = 400 := rfl
+  have hb : (stackBelow m0 updateStack).toNat = (rspOf m0).toNat - 400 := stackBelow_toNat hs
   unfold Apart at hhs hds
   rw [hb, hu] at hhs hds
   refine ⟨hh, hd, hs, hs8, hhd, ?_, ?_⟩
@@ -133,8 +133,8 @@ theorem geo_of {m0 : MachineData} [Labels] (hpre : UpdatePre m0) : Geo m0 := by
 
 theorem geoRc_of {m0 : MachineData} [Labels] (hpre : UpdatePre m0) : GeoRc m0 := by
   obtain ⟨⟨hs, -, -⟩, ⟨-, hnw, hrs⟩, -, -, -, -, -, -, -, -, hhr, -⟩ := hpre
-  have hu : updateStack = 352 := rfl
-  have hb : (stackBelow m0 updateStack).toNat = (rspOf m0).toNat - 352 := stackBelow_toNat hs
+  have hu : updateStack = 400 := rfl
+  have hb : (stackBelow m0 updateStack).toNat = (rspOf m0).toNat - 400 := stackBelow_toNat hs
   unfold Apart at hrs
   rw [hb, hu] at hrs
   exact ⟨hnw, hrs.imp id fun h => by unfold spAt; omega, hhr⟩
@@ -150,10 +150,10 @@ theorem frm_toNat {m0 : MachineData} (g : Geo m0) : (frm m0).toNat = (spAt m0).t
 /-- What `update` changes, as numbers. -/
 theorem chg_iff {m0 : MachineData} (g : Geo m0) (p : BitVec 64) :
     Chg m0 p ↔ ((hAt m0).toNat ≤ p.toNat ∧ p.toNat < (hAt m0).toNat + 344) ∨
-      ((spAt m0).toNat - 352 ≤ p.toNat ∧ p.toNat < (spAt m0).toNat) := by
-  have hb : (stackBelow m0 updateStack).toNat = (spAt m0).toNat - 352 :=
+      ((spAt m0).toNat - 400 ≤ p.toNat ∧ p.toNat < (spAt m0).toNat) := by
+  have hb : (stackBelow m0 updateStack).toNat = (spAt m0).toNat - 400 :=
     stackBelow_toNat g.s
-  have hu : updateStack = 352 := rfl
+  have hu : updateStack = 400 := rfl
   unfold Chg
   rw [hu] at hb ⊢
   rw [inRange_iff g.h, inRange_iff (by rw [hb]; have := g.s8; have := g.s; omega), hb]
@@ -162,13 +162,13 @@ theorem chg_iff {m0 : MachineData} (g : Geo m0) (p : BitVec 64) :
 
 /-- The stack's bytes from the frame. -/
 theorem stack_frm {m0 : MachineData} (g : Geo m0) {i : Nat} (hi : i < 120) :
-    rspOf m0 - BitVec.ofNat 64 updateStack + BitVec.ofNat 64 (240 + i) =
+    rspOf m0 - BitVec.ofNat 64 updateStack + BitVec.ofNat 64 (288 + i) =
       frm m0 + BitVec.ofNat 64 i := by
   have hs := g.s
   have hs8 := g.s8
-  have hsb : (rspOf m0 - BitVec.ofNat 64 updateStack).toNat = (spAt m0).toNat - 352 :=
+  have hsb : (rspOf m0 - BitVec.ofNat 64 updateStack).toNat = (spAt m0).toNat - 400 :=
     stackBelow_toNat hs
-  have e1 : (rspOf m0 - BitVec.ofNat 64 updateStack + BitVec.ofNat 64 (240 + i)).toNat =
+  have e1 : (rspOf m0 - BitVec.ofNat 64 updateStack + BitVec.ofNat 64 (288 + i)).toNat =
       (spAt m0).toNat - 112 + i := by
     rw [toNat_add_ofNat' (by rw [hsb]; omega), hsb]
     omega
@@ -179,14 +179,14 @@ theorem stack_frm {m0 : MachineData} (g : Geo m0) {i : Nat} (hi : i < 120) :
 /-- The frame's mapped bytes: the stack's at the entry. -/
 theorem frm_mapped {m0 : MachineData} [Labels] (hpre : UpdatePre m0) :
     Mapped m0.dmem (frm m0) 120 := fun i hi => by
-  have := hpre.1.2.2 (240 + i) (by show 240 + i < 352 + 8; omega)
+  have := hpre.1.2.2 (288 + i) (by show 288 + i < 400 + 8; omega)
   rwa [stack_frm (geo_of hpre) hi] at this
 
 /-- What the loop changes, as numbers. -/
 theorem chgL_iff {m0 : MachineData} (g : Geo m0) (p : BitVec 64) :
     ChgL m0 p ↔ ((hAt m0).toNat ≤ p.toNat ∧ p.toNat < (hAt m0).toNat + 344) ∨
-      ((spAt m0).toNat - 352 ≤ p.toNat ∧ p.toNat < (spAt m0).toNat - 48) := by
-  have hb : (stackBelow m0 updateStack).toNat = (spAt m0).toNat - 352 :=
+      ((spAt m0).toNat - 400 ≤ p.toNat ∧ p.toNat < (spAt m0).toNat - 48) := by
+  have hb : (stackBelow m0 updateStack).toNat = (spAt m0).toNat - 400 :=
     stackBelow_toNat g.s
   unfold ChgL
   rw [inRange_iff g.h, inRange_iff (by rw [hb]; have := g.s8; have := g.s; omega), hb]
@@ -265,10 +265,10 @@ theorem got_same {m0 m : MachineData} [Labels] (hpre : UpdatePre m0) (hfr : Fram
   change Apart (gotAddr "memcpy") 8 (hAt m0) 344 at hh
   have hb := stackBelow_toNat g.s
   change Apart (gotAddr "memcpy") 8 (stackBelow m0 updateStack) (updateStack + 8) at hs
-  change (stackBelow m0 updateStack).toNat = (spAt m0).toNat - 352 at hb
+  change (stackBelow m0 updateStack).toNat = (spAt m0).toNat - 400 at hb
   unfold Apart at hs hh
   rw [hb] at hs
-  change _ ≤ _ ∨ (spAt m0).toNat - 352 + (352 + 8) ≤ _ at hs
+  change _ ≤ _ ∨ (spAt m0).toNat - 400 + (400 + 8) ≤ _ at hs
   have ht := toNat_add_ofNat' (a := gotAddr "memcpy") (i := i) (by
     change (gotAddr "memcpy").toNat + 8 ≤ 2 ^ 64 at hn
     omega)
@@ -289,8 +289,8 @@ theorem got_apart {m0 : MachineData} [Labels] (hpre : UpdatePre m0) :
   unfold Apart at hs ⊢
   rw [stackBelow_toNat (n := updateStack) g.s] at hs
   rw [frm_toNat g]
-  change _ ≤ (spAt m0).toNat - 352 ∨
-    (spAt m0).toNat - 352 + (352 + 8) ≤ _ at hs
+  change _ ≤ (spAt m0).toNat - 400 ∨
+    (spAt m0).toNat - 400 + (400 + 8) ≤ _ at hs
   have := g.s
   omega
 

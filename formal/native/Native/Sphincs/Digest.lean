@@ -61,7 +61,7 @@ theorem mdWords_drop (R seed root : BitVec 128) (m : BitVec 256) {c : Nat} (hc :
     rw [wordsBytes_length]; simp [mdHead]
   rw [mdWords, wordsBytes_append, List.drop_append, h80, List.drop_of_length_le (by omega),
     List.nil_append]
-  interval_cases c <;> (simp [wordsBytes, wordBytes, List.range_succ]; try decide)
+  interval_cases c <;> decide
 
 theorem mdLane_eq (pk : _root_.Sphincs.PublicKey) (R : BitVec 128) (m : BitVec 256) {c k : Nat}
     (hk : k < 4) :

@@ -4,7 +4,7 @@ public import NativeRustcArm.Code.Xmss.XmssVerify.Names
 
 public import NativeRustcArm.XmssVerify
 public import NativeRustcArm.XmssVerify.Placed
-public import NativeRustcArm.FromBytes
+public import NativeRustcArm.LayerRead
 public import NativeRustcArm.WotsLeaf
 public import NativeRustcArm.Mem.Memcpy
 public import NativeRustcArm.Mem.Memset
@@ -24,7 +24,7 @@ with `LeanXmss.verifyWithKeccak pk msg sig` in X0, its callee-saved registers, S
 outside its stack kept.
 
 The proof: each function's contract for this program (`memcpy_spec`, `memset_spec`,
-`keccakF_spec`, `update_spec`, `finalize_spec`, `fromBytes_spec`, `wotsLeaf_spec`,
+`keccakF_spec`, `update_spec`, `finalize_spec`, `layerRead_spec`, `wotsLeaf_spec`,
 `xmssVerify_spec`) and the byte model's equality with the statement (`NativeRustc.Xmss.verify_eq`).
 -/
 
@@ -57,7 +57,7 @@ theorem verify_correct (pk : HashSig.PublicKey) (msg : HashSig.Message) (sig : L
   have hspec := Xmss.XmssVerify.xmssVerify_spec (placed hP)
     (w := Native.XmssVerifier.encode pk msg sig) hmemset hmemcpy hupdate hfinalize
     (WotsLeaf.wotsLeaf_spec (placed_wotsLeaf hP) hmemcpy hmemset hupdate hfinalize hkf)
-    (Xmss.FromBytes.fromBytes_spec (placed_fromBytes hP) hmemcpy)
+    (Xmss.LayerRead.layerRead_spec (placed_layerRead hP) hmemcpy)
   have hwords : ∀ i < xmssInputWords, BytesAt m.dmem (xmssInput m + BitVec.ofNat 64 (8 * i))
       (wordBytes (Native.XmssVerifier.encode pk msg sig i)) := by
     intro i hi

@@ -82,7 +82,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
   let env := Env.ofMachine st.data (frameRs m₀) (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b5Offset + b5.length)).toBitVec
   have hwf : env.WF := frameG_wf P C.kept
   have hm0 : Match env st5 st.data :=
-    match_stG P C.same h.rsp ⟨h.rbp.trans (ad_int m₀ 56).symm, trivial⟩
+    match_stG P C.same h.rsp ⟨h.r15.trans (ad_int m₀ 56).symm, trivial⟩
   obtain ⟨h0, h1, h2, h3, h8, h9, hsp, hk, hw, h6w, h7w, -⟩ := st5_facts
   refine call_step (b5_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b5 hwf rfl hpc hm0
     fun st₁ hpc₁ hm₁ => ?_
@@ -96,7 +96,8 @@ public theorem bottom {k : Nat} (hp : Placed code k)
     fun hb h24 hle => frame_keep2 P hwf hm₁ st5_low hb h24 hle (by omega)
   have hpk₁ := hk₁ h.pk (by omega) (by simp [length_pkB])
   have hmsg₁ := hk₁ h.msg (by omega) (by simp [length_msgB])
-  have hli₁ := hk₁ h.li8 (by omega) (by simp [length_regBytes])
+  have hli₁ : reg st₁.data .rbp = u32W (w 8) :=
+    (hm₁.regs .rbp _ (hk .rbp (by simp))).trans h.rbp
   have hlen0 : (bottomL w).memBytes.length = 1200 :=
     length_memBytes (by simp [length_sigB])
   have hlen1 : (topL w).memBytes.length = 1200 :=
@@ -171,7 +172,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
       BytesAt st₂.data.dmem (ad m₀ (fr + x)) bs :=
     fun hb hle h1 => keep_callR P hrsp₁ (by decide) (by decide) hsame₂ hb hle (Nat.zero_le _) h1
   have hpk₂ := hk₂ hpk₁ (by rw [length_pkB]; omega) (by rw [length_pkB]; omega)
-  have hli₂ := hk₂ hli₁ (by rw [length_regBytes]; omega) (by rw [length_regBytes]; omega)
+  have hli₂ : reg st₂.data .rbp = u32W (w 8) := (hs₂.1 .rbp rfl).trans hli₁
   have hbot₂ := hk₂ hbot₁ (by rw [hlen0]; omega) (by omega)
   have htop₂ := hk₂ htop₁ (by rw [hlen1]; omega) (by omega)
   have hr12₂ : reg st₂.data .r12 = ad m₀ (fr + 3356) :=
@@ -253,7 +254,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
     have hwf₃ : env₃.WF := frameG_wf P C₃.kept
     have hm₃' : Match env₃ (stF []) st₃.data :=
       match_stG P C₃.same hrsp₃ trivial
-    obtain ⟨f0, f1, f2, fsp, fk, f72, fw, flow⟩ := st7_facts
+    obtain ⟨f0, f1, f2, fsp, fk, f80, fw, flow⟩ := st7_facts
     refine call_step (b7_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b7 hwf₃ rfl hpc₃'
       hm₃' fun st₄ hpc₄ hm₄ => ?_
     change Match _ (after b7 (stF [])) st₄.data at hm₄
@@ -262,18 +263,19 @@ public theorem bottom {k : Nat} (hp : Placed code k)
         reg st₄.data r = ad m₀ (fr + o) := fun hr => (hm₄.regs _ _ hr).trans (eval_ptr0 _)
     have hrsp₄ : rspOf st₄.data = ad m₀ (fr + 16) := hy fsp
     have hk₄ : ∀ {x : Nat} {bs : List UInt8}, BytesAt st₂.data.dmem (ad m₀ (fr + x)) bs →
-        80 ≤ x → x + bs.length ≤ 5816 → BytesAt st₄.data.dmem (ad m₀ (fr + x)) bs :=
-      fun hb h80 hle => frame_keep P hwf₃ hm₄ fw (hd₃ ▸ hb) h80 hle
+        88 ≤ x → x + bs.length ≤ 5816 → BytesAt st₄.data.dmem (ad m₀ (fr + x)) bs :=
+      fun hb h88 hle => frame_keep P hwf₃ hm₄ fw (hd₃ ▸ hb) h88 hle
     have hxl₄ := hk₄ hxl₂ (by omega) (by simp [hlens.1, hlens.2])
     have hpk₄ : BytesAt st₄.data.dmem (ad m₀ (fr + 40)) (pkB w) :=
       frame_keep2 P hwf₃ hm₄ flow (hd₃ ▸ hpk₂) (by omega) (by simp [length_pkB]) (by simp [length_pkB])
-    have hw8₄ : BytesAt st₄.data.dmem (ad m₀ (fr + 72)) (regBytes (w 8).toBitVec) := by
-      have := hm₄.bytesAt_write (r := 0) rfl (by omega) f72
+    have hw8₄ : BytesAt st₄.data.dmem (ad m₀ (fr + 80)) (regBytes (w 8).toBitVec) := by
+      have := hm₄.bytesAt_write (r := 0) rfl (by omega) f80
       have e : (Sym.reg .r13).eval env₃ = (w 8).toBitVec :=
         (hreg₃ .r13 (by simp)).trans hr13₂
       rw [ad_add, e] at this
       exact this
-    have hli₄ := hk₄ hli₂ (by omega) (by simp [length_regBytes])
+    have hli₄ : reg st₄.data .rbp = u32W (w 8) :=
+      (hm₄.regs .rbp _ (fk .rbp (by simp))).trans ((hreg₃ .rbp (by simp)).trans hli₂)
     have hbot₄ := hk₄ hbot₂ (by omega) (by simp [hlen0])
     have htop₄ := hk₄ htop₂ (by omega) (by simp [hlen1])
     have hn74 : (reg st₄.data .rdx).toNat = 74 := by
@@ -313,7 +315,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
       hm₅ fun st₆ hpc₆ hm₆ => hok st₆ x leaf hl (hpc₆.trans rfl) ?_
     change Match _ (after b8 (stF [])) st₆.data at hm₆
     have hd₆ : st₆.data.dmem = st₅.data.dmem := hm₆.dmem_eq hwf₅ emem
-    have hli₅ := hk₅ hli₄ (by simp [length_regBytes]) (by simp [length_regBytes])
+    have hli₅ : reg st₅.data .rbp = u32W (w 8) := (hs₅.1 .rbp rfl).trans hli₄
     refine ⟨C₅.congr hd₆, (hm₆.regs _ _ esp).trans (eval_ptr0 _), ?_, ?_, ?_,
       (hm₆.regs _ _ e15).trans (eval_ptr0 _), hd₆ ▸ hk₅ hpk₄ (by simp [length_pkB])
         (by simp [length_pkB]),
@@ -321,11 +323,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
       hd₆ ▸ hk₅ hbot₄ (by simp [hlen0]) (by simp),
       hd₆ ▸ hk₅ htop₄ (by simp [hlen1]) (by simp), ?_⟩
     · exact (hm₆.regs _ _ ebp).trans rfl
-    · rw [show reg st₆.data .rbx = _ from hm₆.regs _ _ e3]
-      simp only [Sym.eval]
-      rw [Env.load_of_bytesAt (length_regBytes _) (by
-        rw [show env₅.base 0 + BitVec.ofNat 64 80 = ad m₀ (fr + 80) from ad_add _ _ _]
-        exact hli₅), ofBytes_regBytes]
+    · exact (hm₆.regs .rbx _ e3).trans hli₅
     · refine (hm₆.regs _ _ e12).trans ?_
       show reg st₅.data .r12 = _
       exact (hs₅.1 .r12 rfl).trans ((hm₄.regs _ _ (fk .r12 (by simp))).trans

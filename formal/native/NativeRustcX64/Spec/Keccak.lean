@@ -35,8 +35,8 @@ open NativeRustc
 /-- The round constants' bytes: the 24 constants, little-endian. -/
 def rcBytes : List UInt8 := LeanVM.Parameters.keccakRC.flatMap LeanVM.Protocol.KeccakHash.wordBytes
 
-/-- The stack `keccak_f` uses: 6 pushes, a 64-byte frame and the 128-byte red zone below it. -/
-def keccakFStack : Nat := 48 + 64 + 128
+/-- The stack `keccak_f` uses: 6 pushes, a 112-byte frame and the 128-byte red zone below it. -/
+def keccakFStack : Nat := 48 + 112 + 128
 /-- The stack `Hasher::update` uses: 6 pushes, a 56-byte frame, then `keccak_f`'s return address
 and stack (`memcpy` uses only its return address). -/
 def updateStack : Nat := 48 + 56 + 8 + keccakFStack

@@ -38,13 +38,13 @@ abbrev shiftWord (a b : UInt64) : UInt64 := (a >>> 56) ||| (b <<< 8)
 theorem shiftWord_byte_succ (a b : UInt64) (k : ℕ) (hk : k < 7) :
     (shiftWord a b >>> (8 * (k + 1)).toUInt64).toUInt8 = (b >>> (8 * k).toUInt64).toUInt8 := by
   apply UInt8.toBitVec_inj.mp
-  interval_cases k <;>
-  · ext i hi
+  interval_cases k <;> (
+    ext i hi
     simp [BitVec.getElem_setWidth, BitVec.getLsbD_ushiftRight, BitVec.getLsbD_shiftLeft]
     rw [BitVec.getLsbD_of_ge _ _ (by omega)]
     simp (disch := omega) only [Bool.false_or, decide_eq_true, decide_eq_false, Bool.true_and,
-      Bool.not_false]
-    try (congr 1; omega)
+      Bool.not_false])
+  all_goals (congr 1; omega)
 
 theorem shiftWord_byte_zero (a b : UInt64) :
     (shiftWord a b >>> (8 * 0).toUInt64).toUInt8 = (a >>> (8 * 7).toUInt64).toUInt8 := by

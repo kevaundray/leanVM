@@ -1,14 +1,14 @@
 module
 
 public import NativeRustcArm.XmssVerify.Inv
-public import NativeRustcArm.Spec.FromBytes
+public import NativeRustcArm.Spec.LayerRead
 
 /-!
 # `xmss_verify`: its callees' preconditions and what their postconditions keep
 
 From `Common` and arguments that are ranges of the frame (`ad m₀ o`, `o ≥ fb`): the callees'
 preconditions (`memsetPre`, `memcpyPre`, `updatePre`, `finalizePre`, `wotsLeafPre`,
-`fromBytesPre`); and `Common.call`: a call that keeps the callee-saved registers and SP and changes
+`layerReadPre`); and `Common.call`: a call that keeps the callee-saved registers and SP and changes
 only bytes of the stack other than the save area keeps `Common`. `Common.keep`: bytes of the stack
 outside what a call changes are kept.
 -/

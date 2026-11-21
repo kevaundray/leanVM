@@ -47,7 +47,7 @@ theorem cntC_core {mu f : Nat} (hrdi : s.reg .rdi = p.env.ctx)
       Nat.mul_one, toUInt64_add]
   · rw [← hs']
     repeat (first | rw [QState.setReg_mem] | rw [setMem_ne _ _ ?_])
-    all_goals exact ha _ rfl
+    exact ha _ rfl
 
 /-- **`cJ := 2^μ + fold`.** -/
 theorem cntC_spec {mu f : Nat} (hrdi : s.reg .rdi = p.env.ctx)

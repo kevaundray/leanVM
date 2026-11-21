@@ -4,7 +4,7 @@ public import NativeRustcArm.Code.Common.Finalize.Names
 public import NativeRustcArm.Code.Common.Memcpy.Names
 public import NativeRustcArm.Code.Common.Memset.Names
 public import NativeRustcArm.Code.Common.Update.Names
-public import NativeRustcArm.Code.Xmss.FromBytes.Names
+public import NativeRustcArm.Code.Xmss.LayerRead.Names
 public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
 
 public import NativeRustcArm.XmssVerify.Frame
@@ -37,7 +37,7 @@ structure Callees [Host] : Prop where
   update : Spec (label NativeRustcArm.Common.Update.entryLabel) UpdatePre UpdatePost
   finalize : Spec (label NativeRustcArm.Common.Finalize.entryLabel) FinalizePre FinalizePost
   wots : Spec (label NativeRustcArm.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost
-  fromBytes : Spec (label NativeRustcArm.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost
+  layerRead : Spec (label NativeRustcArm.Xmss.LayerRead.entryLabel) LayerReadPre LayerReadPost
 
 /-- What a callee with `n` bytes of output at frame offset `a` and `s` bytes of stack may
 change. -/

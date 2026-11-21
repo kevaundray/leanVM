@@ -91,7 +91,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   -- `b7`: the grind's verdict.
   obtain ⟨h0, hnext, hs2, -⟩ := hq
   have hg : grindBits st6.data = Whir.queryGrindingBits := by
-    show st6.data.regs.X1.toNat % 2 ^ 32 = 17; rw [x1]; all_goals decide
+    show st6.data.regs.X1.toNat % 2 ^ 32 = 17; rw [x1]; decide
   rw [hg] at h0 hnext
   rw [x0] at hnext hs2
   have hl2 : Live level m0 m2 folded :=

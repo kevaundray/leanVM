@@ -88,13 +88,13 @@ theorem ewMul_eq (a0 a1 b0 b1 : BitVec 64) :
     ← kmul_toBitVec, Prod.mk.injEq]
   constructor <;> apply inj <;> simp only [hx, toQuot_reduce, toQuot_kmul, toPoly_xor]
   · simp only [← map_mul, ← map_add]
-    congr 1
+    apply congrArg (AdjoinRoot.mk BF64.basePoly)
     linear_combination h0 + h1
   · rw [show AdjoinRoot.mk BF64.basePoly (toPoly (kmul a1 b1)) =
         BF64.toQuot (BF64.ofBitVec (kmul a1 b1)) from rfl, toQuot_kmul,
       show (2 : UInt64).toBitVec = 2#64 from rfl, toPoly_two]
     simp only [← map_mul, ← map_add]
-    congr 1
+    apply congrArg (AdjoinRoot.mk BF64.basePoly)
     linear_combination hm + h0 + h1 + hs + X * h1 + add_self_poly (toPoly a0 * toPoly b0) +
       add_self_poly (toPoly a1 * toPoly b1)
 

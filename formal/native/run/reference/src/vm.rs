@@ -149,12 +149,16 @@ fn adversarial_wires(honest: &[u8]) -> Vec<(String, Vec<u8>)> {
     out
 }
 
-/// What the crate `verifier` says of a wire: it decodes and verifies; a panic is a rejection.
+/// What the crate `verifier` says of a wire: it decodes and verifies; only caught verifier panics are silenced.
 fn verdict(bytecode: &verifier::Bytecode, public: &[u8; 32], wire: &[u8]) -> bool {
-    panic::catch_unwind(AssertUnwindSafe(|| {
+    let hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
         verifier::Proof::from_bytes(wire).is_some_and(|proof| verifier::verify_execution(bytecode, public, &proof).is_ok())
     }))
-    .unwrap_or(false)
+    .unwrap_or(false);
+    panic::set_hook(hook);
+    result
 }
 
 /// Writes the cases of every fixture under `fixtures` to `dir`; returns their stems and verdicts, in order.
@@ -167,8 +171,6 @@ pub fn cases(dir: &Path, fixtures: &Path) -> Vec<(String, bool)> {
     found.sort();
     assert!(!found.is_empty(), "no fixture under {}", fixtures.display());
 
-    let hook = panic::take_hook();
-    panic::set_hook(Box::new(|_| {}));
     let mut list = Vec::new();
     for (fixture_idx, fixture) in found.into_iter().enumerate() {
         let name = fixture.file_name().unwrap().to_str().unwrap().to_string();
@@ -239,6 +241,5 @@ pub fn cases(dir: &Path, fixtures: &Path) -> Vec<(String, bool)> {
             }
         }
     }
-    panic::set_hook(hook);
     list
 }

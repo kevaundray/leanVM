@@ -43,7 +43,7 @@ structure TreeAt0 (w : Nat → UInt64) (m₀ : MachineData) (leaf : List UInt8) 
   r12 : reg m .r12 = ad m₀ (fr + 3356 + 16 * z)
   r15 : reg m .r15 = ad m₀ (fr + 184)
   pk : BytesAt m.dmem (ad m₀ (fr + 40)) (pkB w)
-  w8 : BytesAt m.dmem (ad m₀ (fr + 72)) (regBytes (w 8).toBitVec)
+  w8 : BytesAt m.dmem (ad m₀ (fr + 80)) (regBytes (w 8).toBitVec)
   bottom : BytesAt m.dmem (ad m₀ (fr + 3356)) (bottomL w).memBytes
   top : BytesAt m.dmem (ad m₀ (fr + 4556)) (topL w).memBytes
   cur : BytesAt m.dmem (ad m₀ (fr + 592)) (pf (pp w) 0 (li w).toNat (bottomL w).path leaf z)
@@ -57,7 +57,7 @@ theorem st5_facts : (after b5 st5).reg .rdi = some (.ptr 0 184) ∧
     (after b5 st5).reg .rcx = some (.un .trunc .W32 (.reg .r13)) ∧
     (after b5 st5).reg .r8 = some (.ptr 0 152) ∧ (after b5 st5).reg .r9 = some (.lit 32) ∧
     (after b5 st5).reg .rsp = some (.ptr 0 0) ∧
-    (∀ r ∈ [Reg64.r12, .r13], (after b5 st5).reg r = some (.reg r)) ∧
+    (∀ r ∈ [Reg64.r12, .r13, .rbp], (after b5 st5).reg r = some (.reg r)) ∧
     writesBelow (after b5 st5) [(0, 5760)] = true ∧
     (∀ u < 8, findWrite 0 (8 + u) (after b5 st5).mem = some (.ptr 0 4540, u)) ∧
     (∀ u < 8, findWrite 0 (16 + u) (after b5 st5).mem = some (.ptr 0 3612, u)) ∧
@@ -80,12 +80,12 @@ theorem st7_facts : (after b7 (stF [])).reg .rdi = some (.ptr 0 534) ∧
     (after b7 (stF [])).reg .rdx = some (.lit 74) ∧
     (after b7 (stF [])).reg .rsp = some (.ptr 0 16) ∧
     (∀ r ∈ [Reg64.rbx, .rbp, .r12, .r13, .r15], (after b7 (stF [])).reg r = some (.reg r)) ∧
-    (∀ u < 8, findWrite 0 (72 + u) (after b7 (stF [])).mem = some (.reg .r13, u)) ∧
-    writesBelow (after b7 (stF [])) [(0, 80)] = true ∧
-    (∀ w ∈ (after b7 (stF [])).mem, w.r = 0 ∧ (w.off + w.n ≤ 24 ∨ 72 ≤ w.off)) := by
+    (∀ u < 8, findWrite 0 (80 + u) (after b7 (stF [])).mem = some (.reg .r13, u)) ∧
+    writesBelow (after b7 (stF [])) [(0, 88)] = true ∧
+    (∀ w ∈ (after b7 (stF [])).mem, w.r = 0 ∧ (w.off + w.n ≤ 24 ∨ 80 ≤ w.off)) := by
   decide +kernel
 
-theorem st8_facts : (after b8 (stF [])).reg .rbx = some (.load 0 80 8) ∧
+theorem st8_facts : (after b8 (stF [])).reg .rbx = some (.reg .rbp) ∧
     (after b8 (stF [])).reg .rbp = some (.lit 0) ∧
     (after b8 (stF [])).reg .r15 = some (.ptr 0 184) ∧
     (after b8 (stF [])).reg .rsp = some (.ptr 0 24) ∧

@@ -265,7 +265,7 @@ theorem outer_step (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm
     hkeep (bs := NativeRustcVm.wordBytes m0.regs.X0)
       (by rw [NativeRustcVm.length_wordBytes]; omega) (hd5 ▸ hT4.out)
   have hlay6 : WordsAt s6.data.dmem (fbOf m0 + BitVec.ofNat 64 16) L :=
-    hkeep (by rw [hLb]; all_goals omega) (hd5 ▸ hlay4)
+    hkeep (by rw [hLb]; omega) (hd5 ▸ hlay4)
   have ekeep : ∀ r ∈ [XReg.X20, .X24, .X27, .X28],
       s6.data.regs.getXReg r = s4.data.regs.getXReg r := fun r hr ↦ by
     simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr

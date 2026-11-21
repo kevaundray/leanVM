@@ -29,7 +29,7 @@ public section
 
 variable [Labels] {w : Nat → UInt64} {m₀ m m' : MachineData}
 
-theorem Common.mapped (P : Pre w m₀) (C : Common m₀ m) {o s : Nat} (h : o + s ≤ 9208) :
+theorem Common.mapped (P : Pre w m₀) (C : Common m₀ m) {o s : Nat} (h : o + s ≤ 9256) :
     Mapped m.dmem (ad m₀ o) s :=
   (P.mapped.sub h).kept C.kept
 
@@ -59,7 +59,7 @@ theorem stackOk_at (P : Pre w m₀) (C : Common m₀ m) {q n : Nat} (h : rspOf m
     exact C.mapped P (by fro)
 
 theorem apart_at (P : Pre w m₀) {q n o s : Nat} (h : rspOf m = ad m₀ (fr + q))
-    (hn : n ≤ fr + q) (hk : fr + q + 8 ≤ 9208) (ho : fr + q + 8 ≤ o) (hs : o + s ≤ 9208)
+    (hn : n ≤ fr + q) (hk : fr + q + 8 ≤ 9256) (ho : fr + q + 8 ≤ o) (hs : o + s ≤ 9256)
     (hs0 : 0 < s) : Apart (ad m₀ o) s (stackBelow m n) (n + 8) := by
   rw [stackBelow_at h hn]
   exact P.apart_ad (by omega) hs (by omega) hs0 (by omega)
@@ -81,7 +81,7 @@ theorem rcAt_at (P : Pre w m₀) (C : Common m₀ m) {q n : Nat} (h : rspOf m = 
 
 /-- GOT slots remain outside every frame slice. -/
 theorem got_apart (P : Pre w m₀) {l : Label} (hl : l ∈ ["memcpy", "memset"])
-    {o s : Nat} (ho : o + s ≤ 9208) (hs : 0 < s) :
+    {o s : Nat} (ho : o + s ≤ 9256) (hs : 0 < s) :
     Apart (gotAddr l) 8 (ad m₀ o) s :=
   (P.got.1 l hl).2.2.1.sub_right P.loNW ho hs
 
@@ -109,7 +109,7 @@ theorem gotAt_at (P : Pre w m₀) (C : Common m₀ m) {q n : Nat}
 
 theorem memsetPre (P : Pre w m₀) (C : Common m₀ m) {q o n : Nat} (h : rspOf m = ad m₀ (fr + q))
     (hq : q + 8 ≤ 5816) (h0 : reg m .rdi = ad m₀ o) (h2 : (reg m .rdx).toNat = n)
-    (ho : fr + q + 8 ≤ o) (h : o + n ≤ 9208) (hn : 0 < n) : MemsetPre m := by
+    (ho : fr + q + 8 ≤ o) (h : o + n ≤ 9256) (hn : 0 < n) : MemsetPre m := by
   unfold MemsetPre
   rw [h0, h2]
   refine ⟨stackOk_at P C ‹_› hq (by omega), C.mapped P h, P.ad_nw h, ?_⟩
@@ -119,7 +119,7 @@ theorem memsetPre (P : Pre w m₀) (C : Common m₀ m) {q o n : Nat} (h : rspOf 
 theorem memcpyPre (P : Pre w m₀) (C : Common m₀ m) {q o o' n : Nat}
     (h : rspOf m = ad m₀ (fr + q)) (hq : q + 8 ≤ 5816) (h0 : reg m .rdi = ad m₀ o)
     (h1 : reg m .rsi = ad m₀ o') (h2 : (reg m .rdx).toNat = n) (ho : fr + q + 8 ≤ o)
-    (hb : o + n ≤ 9208) (hb' : o' + n ≤ 9208) (hd : o + n ≤ o' ∨ o' + n ≤ o) (hn : 0 < n) :
+    (hb : o + n ≤ 9256) (hb' : o' + n ≤ 9256) (hd : o + n ≤ o' ∨ o' + n ≤ o) (hn : 0 < n) :
     MemcpyPre m := by
   unfold MemcpyPre
   rw [h0, h1, h2]
@@ -134,7 +134,7 @@ omit [Labels] in
 /-- **A call keeps `Common`** when it keeps the callee-saved registers and changes only bytes of
 the stack outside the pushed registers. -/
 theorem Common.call (C : Common m₀ m) (hs : Saved m m') {R : BitVec 64 → Prop}
-    (hsame : SameOutside m.dmem m'.dmem R) (hR : ∀ p, R p → InRange (lo m₀) 9200 p)
+    (hsame : SameOutside m.dmem m'.dmem R) (hR : ∀ p, R p → InRange (lo m₀) 9248 p)
     (hsave : ∀ x, fr + 5760 ≤ x → x < fr + 5808 → ¬R (ad m₀ x)) : Common m₀ m' where
   save j hj := (C.save j hj).sameOutside hsame fun t ht => by
     rw [ad_add]

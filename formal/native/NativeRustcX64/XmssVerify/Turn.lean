@@ -38,7 +38,7 @@ theorem node_wf (P : Pre w m₀) (hk : Kept m₀.dmem m.dmem) {o : Nat} (ho : 33
       (got_apart P (by simp) (by fro) (by dsimp; decide)).symm)
 
 theorem match_stN (P : Pre w m₀)
-    (hs : SameOutside m₀.dmem m.dmem (InRange (lo m₀) 9200))
+    (hs : SameOutside m₀.dmem m.dmem (InRange (lo m₀) 9248))
     {o : Nat} {ret : BitVec 64} {known : List (Reg64 × Sym)}
     (hk : AllOf (fun p => reg m p.1 =
       p.2.eval (Env.ofMachine m (nodeR m₀ o) (fun _ => 0) ret))

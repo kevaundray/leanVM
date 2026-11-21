@@ -166,7 +166,7 @@ public theorem XmssVerify.b26_at : NativeRustcArm.Xmss.XmssVerify.b26.IsInfixAt 
 public theorem XmssVerify.b27_at : NativeRustcArm.Xmss.XmssVerify.b27.IsInfixAt NativeRustcArm.Xmss.code (XmssVerify.programOffset + NativeRustcArm.Xmss.XmssVerify.b27Offset) :=
   NativeRustcArm.Xmss.XmssVerify.b27_in_code.trans XmssVerify.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def KeccakF.programOffset : Nat := 328
+@[expose] public def KeccakF.programOffset : Nat := 322
 
 public theorem KeccakF.code_at : NativeRustcArm.Common.KeccakF.code.IsInfixAt NativeRustcArm.Xmss.code KeccakF.programOffset :=
   List.isInfixAt_flatten_of (i := 3) rfl (by decide +kernel)
@@ -180,7 +180,7 @@ public theorem KeccakF.b1_at : NativeRustcArm.Common.KeccakF.b1.IsInfixAt Native
 public theorem KeccakF.b2_at : NativeRustcArm.Common.KeccakF.b2.IsInfixAt NativeRustcArm.Xmss.code (KeccakF.programOffset + NativeRustcArm.Common.KeccakF.b2Offset) :=
   NativeRustcArm.Common.KeccakF.b2_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Update.programOffset : Nat := 558
+@[expose] public def Update.programOffset : Nat := 552
 
 public theorem Update.code_at : NativeRustcArm.Common.Update.code.IsInfixAt NativeRustcArm.Xmss.code Update.programOffset :=
   List.isInfixAt_flatten_of (i := 4) rfl (by decide +kernel)
@@ -215,7 +215,7 @@ public theorem Update.b8_at : NativeRustcArm.Common.Update.b8.IsInfixAt NativeRu
 public theorem Update.b9_at : NativeRustcArm.Common.Update.b9.IsInfixAt NativeRustcArm.Xmss.code (Update.programOffset + NativeRustcArm.Common.Update.b9Offset) :=
   NativeRustcArm.Common.Update.b9_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Finalize.programOffset : Nat := 654
+@[expose] public def Finalize.programOffset : Nat := 648
 
 public theorem Finalize.code_at : NativeRustcArm.Common.Finalize.code.IsInfixAt NativeRustcArm.Xmss.code Finalize.programOffset :=
   List.isInfixAt_flatten_of (i := 5) rfl (by decide +kernel)
@@ -244,99 +244,87 @@ public theorem Finalize.b6_at : NativeRustcArm.Common.Finalize.b6.IsInfixAt Nati
 public theorem Finalize.b7_at : NativeRustcArm.Common.Finalize.b7.IsInfixAt NativeRustcArm.Xmss.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b7Offset) :=
   NativeRustcArm.Common.Finalize.b7_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FromBytes.programOffset : Nat := 759
+@[expose] public def LayerRead.programOffset : Nat := 753
 
-public theorem FromBytes.code_at : NativeRustcArm.Xmss.FromBytes.code.IsInfixAt NativeRustcArm.Xmss.code FromBytes.programOffset :=
+public theorem LayerRead.code_at : NativeRustcArm.Xmss.LayerRead.code.IsInfixAt NativeRustcArm.Xmss.code LayerRead.programOffset :=
   List.isInfixAt_flatten_of (i := 6) rfl (by decide +kernel)
 
-public theorem FromBytes.b0_at : NativeRustcArm.Xmss.FromBytes.b0.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b0Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b0_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b0_at : NativeRustcArm.Xmss.LayerRead.b0.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b0Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b0_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b1_at : NativeRustcArm.Xmss.FromBytes.b1.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b1Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b1_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b1_at : NativeRustcArm.Xmss.LayerRead.b1.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b1Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b1_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b2_at : NativeRustcArm.Xmss.FromBytes.b2.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b2Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b2_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b2_at : NativeRustcArm.Xmss.LayerRead.b2.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b2Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b2_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b3_at : NativeRustcArm.Xmss.FromBytes.b3.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b3Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b3_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b3_at : NativeRustcArm.Xmss.LayerRead.b3.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b3Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b3_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b4_at : NativeRustcArm.Xmss.FromBytes.b4.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b4Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b4_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b4_at : NativeRustcArm.Xmss.LayerRead.b4.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b4Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b4_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b5_at : NativeRustcArm.Xmss.FromBytes.b5.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b5Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b5_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b5_at : NativeRustcArm.Xmss.LayerRead.b5.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b5Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b5_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b6_at : NativeRustcArm.Xmss.FromBytes.b6.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b6Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b6_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b6_at : NativeRustcArm.Xmss.LayerRead.b6.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b6Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b6_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b7_at : NativeRustcArm.Xmss.FromBytes.b7.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b7Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b7_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b7_at : NativeRustcArm.Xmss.LayerRead.b7.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b7Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b7_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b8_at : NativeRustcArm.Xmss.FromBytes.b8.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b8Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b8_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b8_at : NativeRustcArm.Xmss.LayerRead.b8.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b8Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b8_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b9_at : NativeRustcArm.Xmss.FromBytes.b9.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b9Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b9_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b9_at : NativeRustcArm.Xmss.LayerRead.b9.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b9Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b9_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b10_at : NativeRustcArm.Xmss.FromBytes.b10.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b10Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b10_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b10_at : NativeRustcArm.Xmss.LayerRead.b10.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b10Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b10_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b11_at : NativeRustcArm.Xmss.FromBytes.b11.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b11Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b11_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b11_at : NativeRustcArm.Xmss.LayerRead.b11.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b11Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b11_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b12_at : NativeRustcArm.Xmss.FromBytes.b12.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b12Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b12_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b12_at : NativeRustcArm.Xmss.LayerRead.b12.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b12Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b12_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b13_at : NativeRustcArm.Xmss.FromBytes.b13.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b13Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b13_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b13_at : NativeRustcArm.Xmss.LayerRead.b13.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b13Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b13_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b14_at : NativeRustcArm.Xmss.FromBytes.b14.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b14Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b14_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b14_at : NativeRustcArm.Xmss.LayerRead.b14.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b14Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b14_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b15_at : NativeRustcArm.Xmss.FromBytes.b15.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b15Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b15_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b15_at : NativeRustcArm.Xmss.LayerRead.b15.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b15Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b15_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b16_at : NativeRustcArm.Xmss.FromBytes.b16.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b16Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b16_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b16_at : NativeRustcArm.Xmss.LayerRead.b16.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b16Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b16_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b17_at : NativeRustcArm.Xmss.FromBytes.b17.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b17Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b17_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b17_at : NativeRustcArm.Xmss.LayerRead.b17.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b17Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b17_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b18_at : NativeRustcArm.Xmss.FromBytes.b18.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b18Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b18_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b18_at : NativeRustcArm.Xmss.LayerRead.b18.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b18Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b18_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b19_at : NativeRustcArm.Xmss.FromBytes.b19.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b19Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b19_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b19_at : NativeRustcArm.Xmss.LayerRead.b19.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b19Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b19_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b20_at : NativeRustcArm.Xmss.FromBytes.b20.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b20Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b20_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b20_at : NativeRustcArm.Xmss.LayerRead.b20.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b20Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b20_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b21_at : NativeRustcArm.Xmss.FromBytes.b21.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b21Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b21_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b21_at : NativeRustcArm.Xmss.LayerRead.b21.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b21Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b21_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b22_at : NativeRustcArm.Xmss.FromBytes.b22.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b22Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b22_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b22_at : NativeRustcArm.Xmss.LayerRead.b22.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b22Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b22_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b23_at : NativeRustcArm.Xmss.FromBytes.b23.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b23Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b23_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b23_at : NativeRustcArm.Xmss.LayerRead.b23.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b23Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b23_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b24_at : NativeRustcArm.Xmss.FromBytes.b24.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b24Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b24_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
+public theorem LayerRead.b24_at : NativeRustcArm.Xmss.LayerRead.b24.IsInfixAt NativeRustcArm.Xmss.code (LayerRead.programOffset + NativeRustcArm.Xmss.LayerRead.b24Offset) :=
+  NativeRustcArm.Xmss.LayerRead.b24_in_code.trans LayerRead.code_at (List.cons_ne_nil _ _)
 
-public theorem FromBytes.b25_at : NativeRustcArm.Xmss.FromBytes.b25.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b25Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b25_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
-
-public theorem FromBytes.b26_at : NativeRustcArm.Xmss.FromBytes.b26.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b26Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b26_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
-
-public theorem FromBytes.b27_at : NativeRustcArm.Xmss.FromBytes.b27.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b27Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b27_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
-
-public theorem FromBytes.b28_at : NativeRustcArm.Xmss.FromBytes.b28.IsInfixAt NativeRustcArm.Xmss.code (FromBytes.programOffset + NativeRustcArm.Xmss.FromBytes.b28Offset) :=
-  NativeRustcArm.Xmss.FromBytes.b28_in_code.trans FromBytes.code_at (List.cons_ne_nil _ _)
-
-@[expose] public def WotsLeaf.programOffset : Nat := 972
+@[expose] public def WotsLeaf.programOffset : Nat := 898
 
 public theorem WotsLeaf.code_at : NativeRustcArm.Xmss.WotsLeaf.code.IsInfixAt NativeRustcArm.Xmss.code WotsLeaf.programOffset :=
   List.isInfixAt_flatten_of (i := 7) rfl (by decide +kernel)
@@ -494,11 +482,11 @@ public theorem WotsLeaf.b49_at : NativeRustcArm.Xmss.WotsLeaf.b49.IsInfixAt Nati
 public theorem WotsLeaf.b50_at : NativeRustcArm.Xmss.WotsLeaf.b50.IsInfixAt NativeRustcArm.Xmss.code (WotsLeaf.programOffset + NativeRustcArm.Xmss.WotsLeaf.b50Offset) :=
   NativeRustcArm.Xmss.WotsLeaf.b50_in_code.trans WotsLeaf.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def trapsOffset : Nat := 1653
+@[expose] public def trapsOffset : Nat := 1579
 
-@[expose] public def rodataOffset : Nat := 1657
+@[expose] public def rodataOffset : Nat := 1585
 
-@[expose] public def programLength : Nat := 1677
+@[expose] public def programLength : Nat := 1605
 
 public theorem traps_at : NativeRustcArm.Xmss.traps.IsInfixAt NativeRustcArm.Xmss.code trapsOffset :=
   List.isInfixAt_flatten_of (i := 8) rfl (by decide +kernel)

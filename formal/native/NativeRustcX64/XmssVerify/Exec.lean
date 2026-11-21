@@ -11,7 +11,7 @@ The symbolic states the proof starts blocks from, the executor's results (`run_b
 states they end in (`after`). Region 0 is the frame region (5816 bytes, RSP after the prologue at
 its offset 24) unless said otherwise:
 - `st0`, the entry (`b0`, ending in `callq memset`): RSP at 5808;
-- `st1` (`b1`): region 1 the input words, RBX the context;
+- `st1` (`b1`): region 1 the input words, R14 the context;
 - `stC`, a turn of the loop copying the signature's words (`b2`): region 0 the 48 input bytes
   the turn reads, region 1 the 48 frame bytes it writes, as aliases of the indexed addresses;
 - `stF known`, the frame with RSP at 24 and the registers `known` (`b3`–`b8`, `b10`–`b14`,
@@ -44,14 +44,14 @@ def stG (sp : Int) (known : List (Reg64 × Sym)) : SState :=
 def st0 : SState := stG 5808 []
 
 /-- Block 1: the frame and the input words. -/
-def st1 : SState := init [5816, 2472] [(.rsp, .ptr 0 24), (.rbx, .ptr 1 (-1024))]
+def st1 : SState := init [5816, 2472] [(.rsp, .ptr 0 24), (.r14, .ptr 1 (-1024))]
 
-/-- The scaled index `R14 * 8` added to a register, as the executor builds the address. -/
-def idx8 (r : Reg64) : Sym := mkAdd64 (.reg r) (mkBin .mul .W64 (.reg .r14) (.lit 8))
+/-- The scaled index `R15 * 8` added to a register, as the executor builds the address. -/
+def idx8 (r : Reg64) : Sym := mkAdd64 (.reg r) (mkBin .mul .W64 (.reg .r15) (.lit 8))
 
-/-- A turn of the copy loop: region 0 the input bytes `RBX + 8 R14 + 1096 ..`, region 1 the frame
-bytes `RSP + 8 R14 + 932 ..`. -/
-def stC : SState := init [48, 48] [] [] [] [(idx8 .rbx, 0, -1096), (idx8 .rsp, 1, -932)]
+/-- A turn of the copy loop: region 0 the input bytes `R14 + 8 R15 + 1096 ..`, region 1 the frame
+bytes `RSP + 8 R15 + 932 ..`. -/
+def stC : SState := init [48, 48] [] [] [] [(idx8 .r14, 0, -1096), (idx8 .rsp, 1, -932)]
 
 /-- The frame, RSP at its offset 24, with the registers `known`. -/
 def stF (known : List (Reg64 × Sym)) : SState := stG 24 known
@@ -65,9 +65,9 @@ def stN (known : List (Reg64 × Sym)) : SState :=
   (init [3356, 16, 8] ((.rsp, .ptr 0 24) :: known) [] []
     [(.gotSlot "memset", 2, 0)]).withKnownBytes 2 0 8 (.label "memset")
 
-def st3 : SState := stF []
-def st4 : SState := stF [(.rbx, .ptr 0 184), (.r15, .ptr 0 952)]
-def st5 : SState := stF [(.rbp, .ptr 0 56)]
+def st3 : SState := stF [(.rbx, .ptr 0 956)]
+def st4 : SState := stF [(.rbx, .ptr 0 184)]
+def st5 : SState := stF [(.r15, .ptr 0 56)]
 def st9 : SState := stN [(.r12, .ptr 1 0), (.r15, .ptr 0 184)]
 def stH : SState := stF [(.r15, .ptr 0 184)]
 def stH1 : SState := stF [(.r15, .ptr 0 184), (.r13, .ptr 0 608)]

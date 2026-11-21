@@ -171,7 +171,7 @@ theorem gkrLayers_roots : ∀ n st, KeepsRoots (gkrLayers n st)
 theorem verifyBusBalance_roots (layout : LayoutW) : KeepsRoots (verifyBusBalance layout) := by
   unfold verifyBusBalance verifyGkrGrandProducts bytecodeShare computedBytecodeValue
   keeps
-  all_goals exact gkrLayers_roots _ _
+  exact gkrLayers_roots _ _
 
 theorem tablePhase_roots (layout : LayoutW) (bus : BusResultW) :
     KeepsRoots (tablePhase layout bus) := by

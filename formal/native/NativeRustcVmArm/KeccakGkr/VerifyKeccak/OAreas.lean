@@ -65,10 +65,10 @@ theorem open_areas (h : P0 a s cs inst output m0) (hn : Nums a inst m0) (hfr : V
   · exact (ok_of (ok_rc h) hn.rcW hfr le_rfl).2
   · exact (ok_loc hn hfr (by omega)).1
   · exact (ok_loc hn hfr (by omega)).2
-  all_goals try simp only [NativeRustcArm.Apart, stackRegion,
+  all_goals simp only [NativeRustcArm.Apart, stackRegion,
     DecArea.region, rcRegion]
   all_goals try rw [hk]
-  all_goals try simp only [lo, lp, l0, l2, hr, hw', hs, et, er]
+  all_goals simp only [lo, lp, l0, l2, hr, hw', hs, et, er]
   all_goals clear lo lp l0 l2 hr hw' hs et er hk hfr h hSP
   all_goals first
     | omega

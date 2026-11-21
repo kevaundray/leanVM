@@ -699,7 +699,7 @@ public theorem KeccakF.b1_at : NativeRustcX64.Common.KeccakF.b1.IsInfixAt Native
 public theorem KeccakF.b2_at : NativeRustcX64.Common.KeccakF.b2.IsInfixAt NativeRustcX64.Sphincs.code (KeccakF.programOffset + NativeRustcX64.Common.KeccakF.b2Offset) :=
   NativeRustcX64.Common.KeccakF.b2_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Update.programOffset : Nat := 2809
+@[expose] public def Update.programOffset : Nat := 3044
 
 public theorem Update.code_at : NativeRustcX64.Common.Update.code.IsInfixAt NativeRustcX64.Sphincs.code Update.programOffset :=
   List.isInfixAt_flatten_of (i := 4) rfl (by decide +kernel)
@@ -737,7 +737,7 @@ public theorem Update.b9_at : NativeRustcX64.Common.Update.b9.IsInfixAt NativeRu
 public theorem Update.b10_at : NativeRustcX64.Common.Update.b10.IsInfixAt NativeRustcX64.Sphincs.code (Update.programOffset + NativeRustcX64.Common.Update.b10Offset) :=
   NativeRustcX64.Common.Update.b10_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Finalize.programOffset : Nat := 2918
+@[expose] public def Finalize.programOffset : Nat := 3153
 
 public theorem Finalize.code_at : NativeRustcX64.Common.Finalize.code.IsInfixAt NativeRustcX64.Sphincs.code Finalize.programOffset :=
   List.isInfixAt_flatten_of (i := 5) rfl (by decide +kernel)
@@ -769,11 +769,11 @@ public theorem Finalize.b7_at : NativeRustcX64.Common.Finalize.b7.IsInfixAt Nati
 public theorem Finalize.b8_at : NativeRustcX64.Common.Finalize.b8.IsInfixAt NativeRustcX64.Sphincs.code (Finalize.programOffset + NativeRustcX64.Common.Finalize.b8Offset) :=
   NativeRustcX64.Common.Finalize.b8_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def trapsOffset : Nat := 3007
+@[expose] public def trapsOffset : Nat := 3242
 
-@[expose] public def rodataOffset : Nat := 3011
+@[expose] public def rodataOffset : Nat := 3246
 
-@[expose] public def programLength : Nat := 3033
+@[expose] public def programLength : Nat := 3268
 
 public theorem traps_at : NativeRustcX64.Sphincs.traps.IsInfixAt NativeRustcX64.Sphincs.code trapsOffset :=
   List.isInfixAt_flatten_of (i := 6) rfl (by decide +kernel)

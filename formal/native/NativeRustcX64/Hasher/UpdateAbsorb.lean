@@ -43,12 +43,12 @@ theorem rcBytes_length : rcBytes.length = 192 := by
 
 /-- `keccak_f`'s stack below the frame is `update`'s. -/
 theorem frm_sub {m0 : MachineData} (g : Geo m0) :
-    frm m0 - BitVec.ofNat 64 240 = rspOf m0 - BitVec.ofNat 64 updateStack := by
+    frm m0 - BitVec.ofNat 64 288 = rspOf m0 - BitVec.ofNat 64 updateStack := by
   apply BitVec.eq_of_toNat_eq
   rw [toNat_sub_ofNat (by rw [frm_toNat g]; have := g.s; omega), frm_toNat g,
     toNat_sub_ofNat (by have := g.s; exact this)]
   have := g.s
-  show (spAt m0).toNat - 112 - 240 = (spAt m0).toNat - 352
+  show (spAt m0).toNat - 112 - 288 = (spAt m0).toNat - 400
   omega
 
 variable [Host] {k : Nat}
@@ -110,9 +110,9 @@ theorem absorb_spec (hp : Placed code k)
     show frm m0 + BitVec.ofInt 64 0 = _
     exact BitVec.add_zero _
   have hs := g.s
-  have hsb : stackBelow st7.data 240 = rspOf m0 - BitVec.ofNat 64 updateStack := by
+  have hsb : stackBelow st7.data 288 = rspOf m0 - BitVec.ofNat 64 updateStack := by
     rw [stackBelow, hrsp7, frm_sub g]
-  have hsbN : (rspOf m0 - BitVec.ofNat 64 updateStack).toNat = (spAt m0).toNat - 352 :=
+  have hsbN : (rspOf m0 - BitVec.ofNat 64 updateStack).toNat = (spAt m0).toNat - 400 :=
     stackBelow_toNat hs
   have hX0 : reg st7.data .rdi = hAt m0 := by
     rw [show reg st7.data .rdi = _ from hm7.regs .rdi _ rfl]
@@ -142,20 +142,20 @@ theorem absorb_spec (hp : Placed code k)
   refine call_then hpc7 hkf ?pre fun st' hpc' hrsp' hpost => ?_
   case pre =>
     refine ⟨⟨?_, ?_, fun i hi => ?_⟩, ⟨hrc7, gr.nw, ?_⟩, fun i hi => ?_, ?_, ?_, ?_⟩
-    · show 240 ≤ (rspOf st7.data).toNat
+    · show 288 ≤ (rspOf st7.data).toNat
       rw [hrsp7, hfrN]
       omega
     · rw [hrsp7, hfrN]
       have := g.s8
       omega
-    · show (st7.data.dmem.get? (stackBelow st7.data 240 + _)).isSome
+    · show (st7.data.dmem.get? (stackBelow st7.data 288 + _)).isSome
       rw [hsb]
       exact hm7.kept hwf _ (hfu.frame.kept _ (hpre.1.2.2 i (by
-        have h' : keccakFStack = 240 := rfl
+        have h' : keccakFStack = 288 := rfl
         rw [h'] at hi
-        show i < 352 + 8
+        show i < 400 + 8
         omega)))
-    · show _ + 192 ≤ (stackBelow st7.data 240).toNat ∨ (stackBelow st7.data 240).toNat + 248 ≤ _
+    · show _ + 192 ≤ (stackBelow st7.data 288).toNat ∨ (stackBelow st7.data 288).toNat + 296 ≤ _
       rw [hsb, hsbN]
       have := gr.rs
       omega
@@ -166,8 +166,8 @@ theorem absorb_spec (hp : Placed code k)
       rw [hX0]
       have := g.h
       omega
-    · show (reg st7.data .rdi).toNat + 200 ≤ (stackBelow st7.data 240).toNat ∨
-        (stackBelow st7.data 240).toNat + (240 + 8) ≤ (reg st7.data .rdi).toNat
+    · show (reg st7.data .rdi).toNat + 200 ≤ (stackBelow st7.data 288).toNat ∨
+        (stackBelow st7.data 288).toNat + (288 + 8) ≤ (reg st7.data .rdi).toNat
       rw [hX0, hsb, hsbN]
       have := g.hs
       omega
@@ -179,7 +179,7 @@ theorem absorb_spec (hp : Placed code k)
   obtain ⟨hbytesK, hsameK, hsavedK⟩ := hpost
   have hX0' : reg st7.data .rdi = _ := hX0
   simp only [reg] at hX0'
-  simp only [hX0', hxor, show keccakFStack = 240 from rfl] at hbytesK hsameK
+  simp only [hX0', hxor, show keccakFStack = 288 from rfl] at hbytesK hsameK
   rw [hsb] at hsameK
   have hreg : ∀ r, calleeSaved r = true → st'.data.regs.get64 r = st7.data.regs.get64 r :=
     hsavedK.1

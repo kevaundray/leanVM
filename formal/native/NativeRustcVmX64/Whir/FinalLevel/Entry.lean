@@ -148,7 +148,7 @@ theorem cSize_eval [Labels] (env : Env) (h : (env.regs .rcx).toNat < 64) {f : Na
     exact decide_eq_false (by omega)
   simp only [cSize, SBool.eval, Sym.eval, c1, c2, Bool.not_true, Bool.false_eq_true, ite_false]
   simp only [CmpOp.apply, BinOp.apply, low8_merge]
-  all_goals decide
+  decide
 
 /-- A block's writes `rs` all below `hi`. -/
 theorem Wr.le {rs : List (Nat × Nat)} {S : SState} (h : Wr rs S) {hi : Nat}

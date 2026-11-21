@@ -55,8 +55,7 @@ theorem mulX_eq_kmul (t : UInt64) : mulX t = kmul 2 t := by
     rcases Nat.lt_succ_iff_lt_or_eq.mp h2 with h3 | h3
     · left; exact UInt64.toNat_inj.mp (by simpa using h3)
     · right; exact UInt64.toNat_inj.mp (by simpa using h3)
-  rcases this with rfl | rfl <;> (apply UInt64.toBitVec_inj.mp; simp) <;>
-    rw [show (18446744073709551615#64 : BitVec 64) = BitVec.allOnes 64 by decide, BitVec.and_allOnes]
+  rcases this with rfl | rfl <;> (apply UInt64.toBitVec_inj.mp; simp)
 
 theorem K_ofLane_mulX (t : UInt64) : K.ofLane (mulX t) = g * K.ofLane t := by
   rw [mulX_eq_kmul, K_ofLane_kmul]

@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcX64.SphincsVerify.Calls
-public import NativeRustcX64.FromBytes.Glue
+public import NativeRustcX64.LayerRead.Glue
 public import NativeRustc.Sphincs.ParseMem
 public import NativeRustcX64.SphincsVerify.Bswap
 

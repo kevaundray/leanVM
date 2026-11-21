@@ -108,7 +108,7 @@ theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
   have hc8 := r.callSp_toNat hpre
   have hon : r.out.toNat + 75 ≤ 2 ^ 64 := hpo.2.1
   have hoA : r.out.toNat + 75 ≤ (stackBelow r.m0 wotsLeafStack).toNat ∨
-      (stackBelow r.m0 wotsLeafStack).toNat + 3416 ≤ r.out.toNat := hpo.2.2
+      (stackBelow r.m0 wotsLeafStack).toNat + 3464 ≤ r.out.toNat := hpo.2.2
   -- No byte of the frame is in `out`.
   have nout : ∀ o, o < 2768 → ¬InRange r.out 75 (r.off o) := fun o ho hin' ↦ by
     rw [Sym.inRange_iff hon, r.off_toNat hpre (by omega)] at hin'
@@ -156,7 +156,7 @@ theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
     obtain ⟨ms, ws⟩ := r.frame_mapped hpre hF₁ (a := 112) (n := 74) (by decide)
     have o112 := r.off_toNat hpre (a := 112) (by decide)
     have hd : (r.out + BitVec.ofNat 64 1).toNat + 74 ≤ (stackBelow r.m0 wotsLeafStack).toNat ∨
-        (stackBelow r.m0 wotsLeafStack).toNat + 3416 ≤ (r.out + BitVec.ofNat 64 1).toNat :=
+        (stackBelow r.m0 wotsLeafStack).toNat + 3464 ≤ (r.out + BitVec.ofNat 64 1).toNat :=
       hin.2.2
     have hdw : (r.out + BitVec.ofNat 64 1).toNat + 74 ≤ 2 ^ 64 := hin.2.1
     refine ⟨r.stackOk hpre hF₁ (by decide), fun i hi ↦ hF₁.kept _ (hin.1 i hi), ms, hin.2.1, ws,

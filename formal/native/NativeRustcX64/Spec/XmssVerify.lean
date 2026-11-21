@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcX64.Spec.WotsLeaf
-public import NativeRustcX64.Spec.FromBytes
+public import NativeRustcX64.Spec.LayerRead
 
 /-!
 # The contract of `xmss_verify` (x86-64)

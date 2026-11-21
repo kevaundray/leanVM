@@ -105,6 +105,8 @@ theorem sibsM_eq (nodes : List (Nat × Digest)) : ∀ (l : List (Nat × Digest))
     | some d =>
       have hmem : v ^^^ 1 ∈ keys nodes := lookup_isSome_iff.1 (by rw [hl]; rfl)
       have hck : carriedKeys nodes ((v, d0) :: l) = carriedKeys nodes l := by
+        change (v :: keys l).filter (fun w ↦ w ^^^ 1 ∉ keys nodes) = _
+        rw [List.filter_cons]
         simp [carriedKeys, hmem]
       simp only [Option.bind_eq_bind]
       rw [sibsM_eq nodes l hnd' hc, hck]
@@ -117,6 +119,8 @@ theorem sibsM_eq (nodes : List (Nat × Digest)) : ∀ (l : List (Nat × Digest))
       have hmem : v ^^^ 1 ∉ keys nodes := fun h ↦ by
         have := lookup_isSome_iff.2 h; rw [hl] at this; cases this
       have hck : carriedKeys nodes ((v, d0) :: l) = v :: carriedKeys nodes l := by
+        change (v :: keys l).filter (fun w ↦ w ^^^ 1 ∉ keys nodes) = _
+        rw [List.filter_cons]
         simp [carriedKeys, hmem]
       simp only [Option.bind_eq_bind]
       rw [hck, List.length_cons, rdDigests]

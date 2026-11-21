@@ -1,38 +1,21 @@
 module
 
-public import NativeRustcX64.FromBytes.Inv
-meta import NativeRustcX64.FromBytes.Inv
-meta import NativeRustcX64.Code.Xmss.FromBytes
+public import NativeRustcX64.LayerRead.Inv
+meta import NativeRustcX64.LayerRead.Inv
+meta import NativeRustcX64.Code.Xmss.LayerRead
 
-/-!
-# `from_bytes`'s closure: the path's blocks, symbolically
+/-! # Symbolic execution of the sixteen authentication-path reads -/
 
-Blocks 6 to 22 from one symbolic state (`stP0`): region 0 the stack (RSP its offset 8), 1 the
-cursor (R15), 2 the layer's 1200 bytes of the signature from the cursor's value `pos`; the
-addresses of the path nodes, `r14 + r12` and `r14 + (r13 + 48 + 16 j)`, are aliases into region 2
-(`r12` is `pos + 944`, `r13` is `pos + 912`). The states after each block (`stP1` to `stP17`) and
-what the last one holds: the 16 path nodes in the frame from stack offset 24, the cursor
-`r13 + 288`, the call `memcpy(rbx, stack + 24, 256)` with its return address at stack offset 0, no
-write over the chain values, the pushed registers or the randomizer.
--/
-
-namespace NativeRustcX64.Xmss.FromBytes
+namespace NativeRustcX64.Xmss.LayerRead
 
 open NativeRustcX64.Sym
 
 set_option Elab.async false
 
-/-- The aliases of the path nodes' addresses. -/
-@[expose] public def pathAliases : List (Sym × Nat × Int) :=
-  (.bin .add .W64 (.reg .r14) (.reg .r12), (2, 944)) ::
-    (List.range 15).map fun j =>
-      (.bin .add .W64 (.reg .r14) (.bin .add .W64 (.reg .r13) (.lit (48 + 16 * j))),
-        (2, (960 + 16 * j : Nat)))
-
-/-- The symbolic state after the first `memcpy`. -/
 @[expose] public def stP0 : SState :=
-  (init [1928, 8, 1200, 8] [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)] [] []
-    ((.gotSlot "memcpy", 3, 0) :: pathAliases)).withKnownBytes 3 0 8 (.label "memcpy")
+  (init [1944, 16, 1200, 8]
+    [(.rsp, .ptr 0 8), (.r14, .ptr 1 0), (.r13, .ptr 2 912), (.r15, .ptr 2 944)] [] []
+    [(.gotSlot "memcpy", 3, 0)]).withKnownBytes 3 0 8 (.label "memcpy")
 
 sym_block b6_execP := exec b6 stP0
 
@@ -119,34 +102,29 @@ sym_block b22_execP := exec b22 stP16
 /-- After block 22. -/
 @[expose] public def stP17 : SState := ((exec b22 stP16).getD (stP16, .fall)).1
 
-public theorem stP17_regs : stP17.reg .rdi = some (.reg .rbx) ∧ stP17.reg .rsi = some (.ptr 0 24) ∧
-    stP17.reg .rdx = some (.lit 256) ∧ stP17.reg .rsp = some (.ptr 0 0) ∧
-    stP17.reg .rbx = some (.reg .rbx) ∧ stP17.reg .r15 = some (.ptr 1 0) ∧
-    stP17.reg .rbp = some (.reg .rbp) := by decide +kernel
-
-public theorem stP17_r14 : stP17.reg .r14 = some (.label "memcpy") := by decide +kernel
+public theorem stP17_regs : stP17.reg .rdi = some (.load 0 24 8) ∧
+    stP17.reg .rsi = some (.ptr 0 32) ∧ stP17.reg .rdx = some (.lit 256) ∧
+    stP17.reg .rsp = some (.ptr 0 0) ∧ stP17.reg .r14 = some (.load 0 24 8) ∧
+    stP17.reg .rbx = some (.label "memcpy") := by decide +kernel
 
 public theorem stP17_path : ∀ t < 256,
-    findWrite 0 (24 + t) stP17.mem = some (.load 2 (944 + 8 * (t / 8)) 8, t % 8) := by
+    findWrite 0 (32 + t) stP17.mem = some (.load 2 (944 + 8 * (t / 8)) 8, t % 8) := by
   decide +kernel
 
 public theorem stP17_cursor : ∀ t < 8,
-    findWrite 1 (0 + t) stP17.mem = some (.bin .add .W64 (.reg .r13) (.lit 288), t) := by
+    findWrite 1 (0 + t) stP17.mem = some (.ptr 2 1200, t) := by decide +kernel
+public theorem stP17_length : ∀ t < 8,
+    findWrite 1 (8 + t) stP17.mem =
+      some (.bin .add .W64 (.lit (2 ^ 64 - 288))
+        (.bin .add .W64 (.lit (2 ^ 64 - 16)) (.reg .rbx)), t) := by decide +kernel
+
+public theorem stP17_writes : writesBelow stP17 [(0, 288), (1, 16)] = true := by decide +kernel
+public theorem stP17_input : firstOverlap 0 16 8 stP17.mem = none := by decide +kernel
+public theorem stP17_output : firstOverlap 0 24 8 stP17.mem = none := by decide +kernel
+public theorem stP17_chain : firstOverlap 0 960 928 stP17.mem = none := by decide +kernel
+public theorem stP17_save : ∀ j < 6, firstOverlap 0 (1888 + 8 * j) 8 stP17.mem = none := by
   decide +kernel
-
-public theorem stP17_writes : writesBelow stP17 [(0, 280), (1, 8)] = true := by decide +kernel
-
-public theorem stP17_rand : firstOverlap 0 8 16 stP17.mem = none := by decide +kernel
-
-public theorem stP17_chain : firstOverlap 0 952 928 stP17.mem = none := by decide +kernel
-
-public theorem stP17_save : ∀ j < 5, firstOverlap 0 (1880 + 8 * j) 8 stP17.mem = none := by
-  decide +kernel
-
-public theorem stP17_keeps : stP17.reg .r15 = some (.ptr 1 0) ∧ stP17.reg .rbp = some (.reg .rbp) ∧
-    stP17.reg .rbx = some (.reg .rbx) := by decide +kernel
-
 public theorem stP17_retAddr : ∀ t < 8, findWrite 0 (0 + t) stP17.mem = some (.retAddr, t) := by
   decide +kernel
 
-end NativeRustcX64.Xmss.FromBytes
+end NativeRustcX64.Xmss.LayerRead

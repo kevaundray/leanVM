@@ -5,7 +5,7 @@ public import NativeRustcArm.Code.Common.Memset.Names
 
 public import NativeRustcArm.SphincsVerify.Frame
 public import NativeRustc.Sphincs.ParseBytes
-public import NativeRustcArm.FromBytes.Glue
+public import NativeRustcArm.LayerRead.Glue
 
 /-!
 # What the parse's proof shares

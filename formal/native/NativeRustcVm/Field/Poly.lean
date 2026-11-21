@@ -64,7 +64,8 @@ noncomputable def cls (a : BitVec 64) (r : ℕ) : ℕ[X] :=
 
 theorem coeff_cls (a : BitVec 64) (r n : ℕ) :
     (cls a r).coeff n = if n < 16 ∧ a.getLsbD (4 * n + r) then 1 else 0 := by
-  simp only [cls, finsetSum_coeff, coeff_monomial, Finset.sum_ite_eq', Finset.mem_range]
+  simp only [cls, finsetSum_coeff, coeff_monomial, Finsupp.single_apply,
+    Finset.sum_ite_eq', Finset.mem_range]
   by_cases h : n < 16 <;> simp [h]
 
 theorem coeff_cls_le (a : BitVec 64) (r n : ℕ) : (cls a r).coeff n ≤ 1 := by

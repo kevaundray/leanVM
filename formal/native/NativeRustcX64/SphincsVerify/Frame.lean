@@ -65,18 +65,18 @@ namespace Run
 
 theorem frameSize_eq : frameSize = 29384 := rfl
 theorem frameRegion_eq : frameRegion = 29392 := rfl
-theorem finalizeStack_eq : finalizeStack = 624 := rfl
-theorem sphincsStack_eq : sphincsStack = 30016 := rfl
+theorem finalizeStack_eq : finalizeStack = 672 := rfl
+theorem sphincsStack_eq : sphincsStack = 30064 := rfl
 
 theorem off_add (r : Run) (a i : Nat) : r.off a + BitVec.ofNat 64 i = r.off (a + i) := by
   simp only [off, BitVec.add_assoc, BitVec.ofNat_add]
 
 variable (r : Run) [Labels]
 
-/-- The frame's base: `frameSize` below RSP at entry, 632 bytes of the stack below it, the return
+/-- The frame's base: `frameSize` below RSP at entry, 680 bytes of the stack below it, the return
 address above. -/
 theorem base_toNat (hpre : r.Pre) :
-    r.base.toNat + 29384 = (rspOf r.m0).toNat ∧ 632 ≤ r.base.toNat ∧
+    r.base.toNat + 29384 = (rspOf r.m0).toNat ∧ 680 ≤ r.base.toNat ∧
       (rspOf r.m0).toNat + 8 ≤ 2 ^ 64 := by
   have hle := hpre.1.1
   have hw := hpre.1.2.1
@@ -91,9 +91,9 @@ theorem off_toNat (hpre : r.Pre) {a : Nat} (ha : a ≤ 29384) :
   have := r.base_toNat hpre
   exact Sym.toNat_add_ofNat _ _ (by omega)
 
-/-- The stack area's start: 632 bytes below the frame. -/
+/-- The stack area's start: 680 bytes below the frame. -/
 theorem below_toNat (hpre : r.Pre) :
-    (stackBelow r.m0 sphincsStack).toNat + 632 = r.base.toNat := by
+    (stackBelow r.m0 sphincsStack).toNat + 680 = r.base.toNat := by
   have := r.base_toNat hpre
   have hle := hpre.1.1
   rw [sphincsStack_eq] at hle ⊢
@@ -101,10 +101,10 @@ theorem below_toNat (hpre : r.Pre) :
   rw [toNat_sub_ofNat (by omega)]
   omega
 
-/-- The bytes from 632 below the frame to its return address are mapped, in any state keeping
+/-- The bytes from 680 below the frame to its return address are mapped, in any state keeping
 the entry's mapped bytes. -/
 theorem area_mapped (hpre : r.Pre) {d : DataMem} (hk : Kept r.m0.dmem d) {p : BitVec 64}
-    (h1 : r.base.toNat ≤ p.toNat + 632) (h2 : p.toNat < r.base.toNat + 29392) :
+    (h1 : r.base.toNat ≤ p.toNat + 680) (h2 : p.toNat < r.base.toNat + 29392) :
     (d.get? p).isSome := by
   have hw := r.below_toNat hpre
   have hb := r.base_toNat hpre
@@ -140,9 +140,9 @@ theorem apart_off (hpre : r.Pre) {a n a' n' : Nat} (ha : a + n ≤ 29384) (ha' :
   rw [r.off_toNat hpre (by omega), r.off_toNat hpre (by omega)]
   omega
 
-/-- The stack area: from 632 bytes below the frame to the return address. -/
+/-- The stack area: from 680 bytes below the frame to the return address. -/
 theorem stackArea_iff (hpre : r.Pre) (p : BitVec 64) :
-    r.StackArea p ↔ r.base.toNat ≤ p.toNat + 632 ∧ p.toNat < r.base.toNat + 29384 := by
+    r.StackArea p ↔ r.base.toNat ≤ p.toNat + 680 ∧ p.toNat < r.base.toNat + 29384 := by
   have hw := r.below_toNat hpre
   have hb := r.base_toNat hpre
   unfold StackArea

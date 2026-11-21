@@ -14,8 +14,8 @@ public def dataAlign : String → Nat
   | ".Lanon.5ef9b7c546f4dc64388b910df55ec241.9" => 3
   | ".Lanon.5ef9b7c546f4dc64388b910df55ec241.11" => 3
   | ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12" => 3
-  | ".Lanon.8904a1d42b45721118d46dfe0d42d8fa.1" => 0
-  | ".Lanon.8904a1d42b45721118d46dfe0d42d8fa.2" => 3
+  | ".Lanon.2110530ee3456a504423839f2911ae7b.1" => 0
+  | ".Lanon.2110530ee3456a504423839f2911ae7b.2" => 3
   | _ => 0
 
 end NativeRustcX64.Xmss

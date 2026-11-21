@@ -190,7 +190,7 @@ theorem wordsAt4 {d : DataMem} {a : BitVec 64} {w0 w1 w2 w3 : UInt64}
 
 variable [Host] {k : Nat}
 
-theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : code[j]? = some (.label l)) :
+theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : Vm.ReaderDigest.code[j]? = some (.label l)) :
     Labels.label l = Host.addrOf (k + j) :=
   hp.label h
 

@@ -8,7 +8,7 @@ import Native.Xmss.ModelSpec
 
 `xmssVerify` of the input words `w` unfolded to the layers' roots (`xmssVerify_eq`): the key's
 bytes (`pkB`, its root and public parameter `root`, `pp`), the message's (`msgB`), the signature's
-(`sigB`), its layers (`bottomL`, `topL`, parsed by `from_bytes`'s closure from cursors `4` and
+(`sigB`), its layers (`bottomL`, `topL`, parsed by `LayerSignature::read` from offsets `4` and
 `1204`) and the keys' indices (`li`, `li1`). The `u32` of a word's first four bytes
 (`u32Bytes_toUInt32`).
 -/

@@ -13,6 +13,8 @@ abbrev trap0Label : String := "_RNvNtCs8l20omZJ7ql_4core9panicking9panic_fmt"
 
 abbrev trap1Label : String := "_RNvNtNtCs8l20omZJ7ql_4core5slice5index16slice_index_fail"
 
+abbrev trap2Label : String := "_RNvNtCs8l20omZJ7ql_4core6option13unwrap_failed"
+
 abbrev rodata0Label : String := ".Lanon.47fac95803119c4a094797088418c9d4.1"
 
 abbrev rodata1Label : String := ".Lanon.47fac95803119c4a094797088418c9d4.3"
@@ -25,9 +27,9 @@ abbrev rodata4Label : String := ".Lanon.47fac95803119c4a094797088418c9d4.11"
 
 abbrev rodata5Label : String := ".Lanon.47fac95803119c4a094797088418c9d4.12"
 
-abbrev rodata6Label : String := ".Lanon.879b150ff0a477d898a58a7cb1237282.1"
+abbrev rodata6Label : String := ".Lanon.e3df3b3b29d21204f5358235f5c92520.1"
 
-abbrev rodata7Label : String := ".Lanon.879b150ff0a477d898a58a7cb1237282.2"
+abbrev rodata7Label : String := ".Lanon.e3df3b3b29d21204f5358235f5c92520.2"
 
 end
 

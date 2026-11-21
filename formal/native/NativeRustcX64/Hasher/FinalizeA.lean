@@ -74,7 +74,7 @@ theorem getD_stage2 (T A : List UInt8) {L : Nat} (hT : T.length = L) (hL : L ≤
       rw [show L + (136 - L) = 136 by omega]
 
 theorem stack_frame {s : BitVec 64} {i : Nat} :
-    s - BitVec.ofNat 64 624 + BitVec.ofNat 64 (240 + i) = s - 384#64 + BitVec.ofNat 64 i := by
+    s - BitVec.ofNat 64 672 + BitVec.ofNat 64 (288 + i) = s - 384#64 + BitVec.ofNat 64 i := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_sub, BitVec.toNat_ofNat]
   have := s.isLt
@@ -83,8 +83,8 @@ theorem stack_frame {s : BitVec 64} {i : Nat} :
 /-- The frame is data memory at the entry. -/
 theorem mapped_frame [Labels] {m0 : MachineData} (hpre : FinalizePre m0) :
     Mapped m0.dmem (frAt m0) 392 := fun i hi => by
-  have := hpre.1.2.2 (240 + i) (by show 240 + i < 624 + 8; omega)
-  rwa [show rspOf m0 - BitVec.ofNat 64 finalizeStack + BitVec.ofNat 64 (240 + i) =
+  have := hpre.1.2.2 (288 + i) (by show 288 + i < 672 + 8; omega)
+  rwa [show rspOf m0 - BitVec.ofNat 64 finalizeStack + BitVec.ofNat 64 (288 + i) =
     frAt m0 + BitVec.ofNat 64 i from stack_frame] at this
 
 /-- A memory-call block adds its loader slot to the ordinary frame/input regions. -/
@@ -100,10 +100,10 @@ theorem wf_got [Labels] {m0 m : MachineData} (hpre : FinalizePre m0)
   have hh := ha (hAt m0, 344) (by simp)
   have hb := stackBelow_toNat g.s
   change Apart (gotAddr l) 8 (stackBelow m0 finalizeStack) (finalizeStack + 8) at hs
-  change (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 624 at hb
+  change (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 672 at hb
   unfold Apart at hs hh
   rw [hb] at hs
-  change _ ≤ _ ∨ (spAt m0).toNat - 624 + (624 + 8) ≤ _ at hs
+  change _ ≤ _ ∨ (spAt m0).toNat - 672 + (672 + 8) ≤ _ at hs
   have hfh : Apart (frAt m0) 392 (hAt m0) 344 := by
     unfold Apart
     rw [hf]

@@ -28,14 +28,15 @@ def b0 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUB_e RegWidth.W64 (RegOrSp.low XRegOrSp.SP RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1 : Int64)) ImmShift.S12)))),  -- sub sp, sp, #1, lsl #12
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low XRegOrXzr.XZR RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (0 : Int64)) (@Option.none Index))))))),  -- ldr xzr, [sp]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUB_e RegWidth.W64 (RegOrSp.low XRegOrSp.SP RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1680 : Int64)) ImmShift.S0)))),  -- sub sp, sp, #1680
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X19) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (44 : Int64)) ImmShift.S0)))),  -- add x19, sp, #44
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X22) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (44 : Int64)) ImmShift.S0)))),  -- add x22, sp, #44
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low XRegOrXzr.XZR RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (0 : Int64)) (@Option.none Index))))))),  -- ldr xzr, [sp]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ORR_s RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X20) RegWidth.W64) (RegOrZr.low XRegOrXzr.XZR RegWidth.W64) (@ShiftRegExpr.mk RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X0) RegWidth.W64) (0 : Int64) ShiftType.LSL))),  -- mov x20, x0
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X21) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1 : Int64)) ImmShift.S12)))),  -- add x21, sp, #1, lsl #12
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X0) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X19) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (4 : Int64)) ImmShift.S0)))),  -- add x0, x19, #4
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X0) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X22) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (4 : Int64)) ImmShift.S0)))),  -- add x0, x22, #4
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.ORR_s RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X1) RegWidth.W32) (RegOrZr.low XRegOrXzr.XZR RegWidth.W32) (@ShiftRegExpr.mk RegWidth.W32 (RegOrZr.low XRegOrXzr.XZR RegWidth.W32) (0 : Int64) ShiftType.LSL))),  -- mov w1, wzr
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.MOVZ RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X2) RegWidth.W32) (ConstExpr.int64 (2400 : Int64)) (@MovShift.LSL0 RegWidth.W32))),  -- mov w2, #2400
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X21) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X21) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1296 : Int64)) ImmShift.S0)))),  -- add x21, x21, #1296
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X19) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X22) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (4 : Int64)) ImmShift.S0)))),  -- add x19, x22, #4
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.BL (ConstExpr.label "memset")))  -- bl memset
 ]
 
@@ -43,37 +44,31 @@ def b0 : List Directive := [
 def b1 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1056 : Int64)) (@Option.none Index))))))),  -- ldr x8, [x20, #1056]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X9) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1064 : Int64)) (@Option.none Index))))))),  -- ldr x9, [x20, #1064]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X12) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X22) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (20 : Int64)) ImmShift.S0)))),  -- add x12, x22, #20
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X10) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1072 : Int64)) (@Option.none Index))))))),  -- ldr x10, [x20, #1072]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X12) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1080 : Int64)) (@Option.none Index))))))),  -- ldr x12, [x20, #1080]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X13) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1080 : Int64)) (@Option.none Index))))))),  -- ldr x13, [x20, #1080]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.MOVZ RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X14) RegWidth.W32) (ConstExpr.int64 (300 : Int64)) (@MovShift.LSL0 RegWidth.W32))),  -- mov w14, #300
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X24) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1088 : Int64)) (@Option.none Index))))))),  -- ldr x24, [x20, #1088]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X11) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1048 : Int64)) (@Option.none Index))))))),  -- ldr x11, [x20, #1048]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X9) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (8 : Int64)) (@Option.none Index)))))),  -- stp x8, x9, [sp, #8]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1024 : Int64)) (@Option.none Index))))))),  -- ldr x8, [x20, #1024]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X9) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1032 : Int64)) (@Option.none Index))))))),  -- ldr x9, [x20, #1032]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.ORR_s RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X23) RegWidth.W32) (RegOrZr.low XRegOrXzr.XZR RegWidth.W32) (@ShiftRegExpr.mk RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X24) RegWidth.W32) (0 : Int64) ShiftType.LSL))),  -- mov w23, w24
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X10) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X12) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (24 : Int64)) (@Option.none Index)))))),  -- stp x10, x12, [sp, #24]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.MOVZ RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X12) RegWidth.W32) (ConstExpr.int64 (1120 : Int64)) (@MovShift.LSL0 RegWidth.W32))),  -- mov w12, #1120
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X10) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X13) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (24 : Int64)) (@Option.none Index)))))),  -- stp x10, x13, [sp, #24]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X13) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1120 : Int64)) ImmShift.S0)))),  -- add x13, x20, #1120
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X10) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1040 : Int64)) (@Option.none Index))))))),  -- ldr x10, [x20, #1040]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.ORR_s RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X23) RegWidth.W32) (RegOrZr.low XRegOrXzr.XZR RegWidth.W32) (@ShiftRegExpr.mk RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X24) RegWidth.W32) (0 : Int64) ShiftType.LSL))),  -- mov w23, w24
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X11) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (1048 : Int64)) (@Option.none Index))))))),  -- ldr x11, [x20, #1048]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.STR RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X24) RegWidth.W32) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (44 : Int64)) (@Option.none Index))))))  -- str w24, [sp, #44]
 ]
 
 /-- Block 2, at `.LXmssVerify_1`. -/
 def b2 : List Directive := [
   @Kraken.Directive.label Instr ConstExpr ".LXmssVerify_1",  -- .LXmssVerify_1:
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_s RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X13) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X20) RegWidth.W64) (@ShiftRegExpr.mk RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X12) RegWidth.W64) (0 : Int64) ShiftType.LSL))),  -- add x13, x20, x12
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_s RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X14) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X19) RegWidth.W64) (@ShiftRegExpr.mk RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X12) RegWidth.W64) (0 : Int64) ShiftType.LSL))),  -- add x14, x19, x12
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X12) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X12) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (32 : Int64)) ImmShift.S0)))),  -- add x12, x12, #32
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X17) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X13) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (-24 : Int64)) (@Option.none Index)))))),  -- ldp x15, x17, [x13, #-24]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUB_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X16) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X14) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1116 : Int64)) ImmShift.S0)))),  -- sub x16, x14, #1116
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X0) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X13) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X13) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (-8 : Int64)) (@Option.none Index)))))),  -- ldp x0, x13, [x13, #-8]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUB_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X18) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X14) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1108 : Int64)) ImmShift.S0)))),  -- sub x18, x14, #1108
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUBS_e RegWidth.W64 (RegOrZr.low XRegOrXzr.XZR RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X12) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (3520 : Int64)) ImmShift.S0)))),  -- cmp x12, #3520
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X16) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (0 : Int64)) (@Option.none Index)))))),  -- str x15, [x16]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUB_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X15) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X14) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1100 : Int64)) ImmShift.S0)))),  -- sub x15, x14, #1100
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUB_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X14) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X14) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1092 : Int64)) ImmShift.S0)))),  -- sub x14, x14, #1092
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X17) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X18) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (0 : Int64)) (@Option.none Index)))))),  -- str x17, [x18]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X0) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X15) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (0 : Int64)) (@Option.none Index)))))),  -- str x0, [x15]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X13) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X14) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (0 : Int64)) (@Option.none Index)))))),  -- str x13, [x14]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X16) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X13) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (-24 : Int64)) (@Option.none Index)))))),  -- ldp x15, x16, [x13, #-24]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.SUBS_e RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X14) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X14) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (4 : Int64)) ImmShift.S0)))),  -- subs x14, x14, #4
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X16) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X12) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (-16 : Int64)) (@Option.none Index)))))),  -- stp x15, x16, [x12, #-16]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X17) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X13) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (-8 : Int64)) (@Option.none Index)))))),  -- ldp x15, x17, [x13, #-8]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X13) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X13) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (32 : Int64)) ImmShift.S0)))),  -- add x13, x13, #32
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X17) RegWidth.W64) (AddrExpr.mk (RegOrSp.low (XRegOrSp.reg XReg.X12) RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (32 : Int64)) (@Option.some Index Index.Post)))))),  -- stp x15, x17, [x12], #32
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.B_cond CondCode.NE (ConstExpr.label ".LXmssVerify_1")))  -- b.ne .LXmssVerify_1
 ]
 
@@ -81,27 +76,26 @@ def b2 : List Directive := [
 def b3 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1 : Int64)) ImmShift.S12)))),  -- add x1, sp, #1, lsl #12
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (2448 : Int64)) (@Option.none Index)))))),  -- str x8, [sp, #2448]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.MOVZ RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W32) (ConstExpr.int64 (4 : Int64)) (@MovShift.LSL0 RegWidth.W32))),  -- mov w8, #4
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.MOVZ RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W32) (ConstExpr.int64 (2400 : Int64)) (@MovShift.LSL0 RegWidth.W32))),  -- mov w8, #2400
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X0) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (2492 : Int64)) ImmShift.S0)))),  -- add x0, sp, #2492
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1312 : Int64)) ImmShift.S0)))),  -- add x1, x1, #1312
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X2) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (44 : Int64)) ImmShift.S0)))),  -- add x2, sp, #44
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X9) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (2456 : Int64)) (@Option.none Index)))))),  -- str x9, [sp, #2456]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (2448 : Int64)) ImmShift.S0)))),  -- add x20, sp, #2448
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X19) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (2492 : Int64)) ImmShift.S0)))),  -- add x19, sp, #2492
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X10) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (2464 : Int64)) (@Option.none Index)))))),  -- str x10, [sp, #2464]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X20) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (2448 : Int64)) ImmShift.S0)))),  -- add x20, sp, #2448
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X11) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (2472 : Int64)) (@Option.none Index)))))),  -- str x11, [sp, #2472]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (5408 : Int64)) (@Option.none Index)))))),  -- str x8, [sp, #5408]
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.BL (ConstExpr.label "_RNCNvMs0_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB7_17LeanXmssSignature10from_bytess_0B9_")))  -- bl _RNCNvMs0_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB7_17LeanXmssSignature10from_bytess_0B9_
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X19) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (5408 : Int64)) (@Option.none Index)))))),  -- str x19, [sp, #5408]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X19) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (2492 : Int64)) ImmShift.S0)))),  -- add x19, sp, #2492
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X8) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (5416 : Int64)) (@Option.none Index)))))),  -- str x8, [sp, #5416]
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.BL (ConstExpr.label "_RNvMs_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB4_14LayerSignature4read")))  -- bl _RNvMs_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB4_14LayerSignature4read
 ]
 
 /-- Block 4, after the branch or call ending block 3. -/
 def b4 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1 : Int64)) ImmShift.S12)))),  -- add x1, sp, #1, lsl #12
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X0) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X19) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1200 : Int64)) ImmShift.S0)))),  -- add x0, x19, #1200
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X2) RegWidth.W64) (RegOrSp.low XRegOrSp.SP RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (44 : Int64)) ImmShift.S0)))),  -- add x2, sp, #44
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1312 : Int64)) ImmShift.S0)))),  -- add x1, x1, #1312
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X22) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X19) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1200 : Int64)) ImmShift.S0)))),  -- add x22, x19, #1200
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.BL (ConstExpr.label "_RNCNvMs0_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB7_17LeanXmssSignature10from_bytess_0B9_")))  -- bl _RNCNvMs0_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB7_17LeanXmssSignature10from_bytess_0B9_
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X1) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1312 : Int64)) ImmShift.S0)))),  -- add x1, x1, #1312
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.BL (ConstExpr.label "_RNvMs_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB4_14LayerSignature4read")))  -- bl _RNvMs_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB4_14LayerSignature4read
 ]
 
 /-- Block 5, after the branch or call ending block 4. -/
@@ -410,187 +404,187 @@ def b27 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27]
 
-def codeLength : Nat := 280
+def codeLength : Nat := 274
 
 def b0Offset : Nat := 0
 
-def b0Length : Nat := 20
+def b0Length : Nat := 21
 
-def b0End : Nat := 20
+def b0End : Nat := 21
 
-def b1Offset : Nat := 20
+def b1Offset : Nat := 21
 
-def b1Length : Nat := 14
+def b1Length : Nat := 16
 
-def b1End : Nat := 34
+def b1End : Nat := 37
 
-def b2Offset : Nat := 34
+def b2Offset : Nat := 37
 
-def b2Length : Nat := 16
+def b2Length : Nat := 8
 
-def b2End : Nat := 50
+def b2End : Nat := 45
 
-def b3Offset : Nat := 50
+def b3Offset : Nat := 45
 
 def b3Length : Nat := 13
 
-def b3End : Nat := 63
+def b3End : Nat := 58
 
-def b4Offset : Nat := 63
+def b4Offset : Nat := 58
 
-def b4Length : Nat := 6
+def b4Length : Nat := 5
 
-def b4End : Nat := 69
+def b4End : Nat := 63
 
-def b5Offset : Nat := 69
+def b5Offset : Nat := 63
 
 def b5Length : Nat := 11
 
-def b5End : Nat := 80
+def b5End : Nat := 74
 
-def b6Offset : Nat := 80
+def b6Offset : Nat := 74
 
 def b6Length : Nat := 2
 
-def b6End : Nat := 82
+def b6End : Nat := 76
 
-def b7Offset : Nat := 82
+def b7Offset : Nat := 76
 
 def b7Length : Nat := 31
 
-def b7End : Nat := 113
+def b7End : Nat := 107
 
-def b8Offset : Nat := 113
+def b8Offset : Nat := 107
 
 def b8Length : Nat := 27
 
-def b8End : Nat := 140
+def b8End : Nat := 134
 
-def b9Offset : Nat := 140
+def b9Offset : Nat := 134
 
 def b9Length : Nat := 6
 
-def b9End : Nat := 146
+def b9End : Nat := 140
 
-def b10Offset : Nat := 146
+def b10Offset : Nat := 140
 
 def b10Length : Nat := 6
 
-def b10End : Nat := 152
+def b10End : Nat := 146
 
-def b11Offset : Nat := 152
+def b11Offset : Nat := 146
 
 def b11Length : Nat := 6
 
-def b11End : Nat := 158
+def b11End : Nat := 152
 
-def b12Offset : Nat := 158
+def b12Offset : Nat := 152
 
 def b12Length : Nat := 6
 
-def b12End : Nat := 164
+def b12End : Nat := 158
 
-def b13Offset : Nat := 164
+def b13Offset : Nat := 158
 
 def b13Length : Nat := 5
 
-def b13End : Nat := 169
+def b13End : Nat := 163
 
-def b14Offset : Nat := 169
+def b14Offset : Nat := 163
 
 def b14Length : Nat := 7
 
-def b14End : Nat := 176
+def b14End : Nat := 170
 
-def b15Offset : Nat := 176
+def b15Offset : Nat := 170
 
 def b15Length : Nat := 14
 
-def b15End : Nat := 190
+def b15End : Nat := 184
 
-def b16Offset : Nat := 190
+def b16Offset : Nat := 184
 
 def b16Length : Nat := 3
 
-def b16End : Nat := 193
+def b16End : Nat := 187
 
-def b17Offset : Nat := 193
+def b17Offset : Nat := 187
 
 def b17Length : Nat := 9
 
-def b17End : Nat := 202
+def b17End : Nat := 196
 
-def b18Offset : Nat := 202
+def b18Offset : Nat := 196
 
 def b18Length : Nat := 26
 
-def b18End : Nat := 228
+def b18End : Nat := 222
 
-def b19Offset : Nat := 228
+def b19Offset : Nat := 222
 
 def b19Length : Nat := 5
 
-def b19End : Nat := 233
+def b19End : Nat := 227
 
-def b20Offset : Nat := 233
+def b20Offset : Nat := 227
 
 def b20Length : Nat := 6
 
-def b20End : Nat := 239
+def b20End : Nat := 233
 
-def b21Offset : Nat := 239
+def b21Offset : Nat := 233
 
 def b21Length : Nat := 6
 
-def b21End : Nat := 245
+def b21End : Nat := 239
 
-def b22Offset : Nat := 245
+def b22Offset : Nat := 239
 
 def b22Length : Nat := 6
 
-def b22End : Nat := 251
+def b22End : Nat := 245
 
-def b23Offset : Nat := 251
+def b23Offset : Nat := 245
 
 def b23Length : Nat := 5
 
-def b23End : Nat := 256
+def b23End : Nat := 250
 
-def b24Offset : Nat := 256
+def b24Offset : Nat := 250
 
 def b24Length : Nat := 6
 
-def b24End : Nat := 262
+def b24End : Nat := 256
 
-def b25Offset : Nat := 262
+def b25Offset : Nat := 256
 
 def b25Length : Nat := 6
 
-def b25End : Nat := 268
+def b25End : Nat := 262
 
-def b26Offset : Nat := 268
+def b26Offset : Nat := 262
 
 def b26Length : Nat := 2
 
-def b26End : Nat := 270
+def b26End : Nat := 264
 
-def b27Offset : Nat := 270
+def b27Offset : Nat := 264
 
 def b27Length : Nat := 10
 
-def b27End : Nat := 280
+def b27End : Nat := 274
 
 def entryOffset : Nat := 0
 
-def label_1Offset : Nat := 34
+def label_1Offset : Nat := 37
 
-def label_4Offset : Nat := 113
+def label_4Offset : Nat := 107
 
-def label_7Offset : Nat := 202
+def label_7Offset : Nat := 196
 
-def label_9Offset : Nat := 268
+def label_9Offset : Nat := 262
 
-def label_10Offset : Nat := 270
+def label_10Offset : Nat := 264
 
 end
 

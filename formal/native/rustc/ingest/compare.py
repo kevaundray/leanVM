@@ -30,7 +30,7 @@ SHT_SYMTAB, SHT_RELA, SHT_NOBITS = 2, 4, 8
 SHF_MERGE, SHF_STRINGS = 0x10, 0x20
 STT_SECTION = 3
 EM_X86_64, EM_AARCH64 = 0x3E, 0xB7
-PANIC_SUFFIXES = ("9panicking9panic_fmt", "5slice5index16slice_index_fail")
+PANIC_SUFFIXES = ("9panicking9panic_fmt", "5slice5index16slice_index_fail", "6option13unwrap_failed")
 
 
 def normalise(machine, code):

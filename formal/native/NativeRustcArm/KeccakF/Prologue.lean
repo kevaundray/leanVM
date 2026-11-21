@@ -119,10 +119,11 @@ theorem prologue_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : Machin
       simp only [hl0, hl1, hl2, hl3, hl4, hl5, hl6, hl7, hl8, hl9, hl10, hl11, hl12, hl13, hl14, hl15, hl16, hl17, hl18, hl19, hl20, hl21, hl22, hl23, hl24, par, UInt64.toBitVec_xor, Nat.reduceAdd]
       ac_rfl
   · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, trivial⟩ <;>
-    · refine wordAt_of_eq (wordAt_write hm' hb0 (by decide) rfl) ?_
-      sym_simp
-      try simp [Env.base, env]
-      try rfl
+      refine wordAt_of_eq (wordAt_write hm' hb0 (by decide) rfl) ?_
+    all_goals sym_simp
+    · simp [Env.base, env]
+      rfl
+    all_goals rfl
 
 end
 

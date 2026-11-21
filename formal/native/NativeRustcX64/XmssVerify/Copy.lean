@@ -9,7 +9,7 @@ public import NativeRustcX64.XmssVerify.Head
 
 Block 2, turn `t < 50`: input words `9 + 6 t` to `14 + 6 t` to the frame region at
 `956 + 48 t`. A fresh environment per turn: region 0 the 48 input bytes read, 1 the 48 frame
-bytes written; the indexed address sums `RBX + 8 R14` and `RSP + 8 R14` are aliases of them
+bytes written; the indexed address sums `R14 + 8 R15` and `RSP + 8 R15` are aliases of them
 (`stC`). `copy`: from `LoopAt 0` to `LoopAt 50` at block 3.
 -/
 
@@ -22,14 +22,14 @@ set_option Elab.async false
 public section
 
 theorem stC'_facts : writesIn (after b2 stC) [1] = true ∧
-    (∀ r ∈ [Reg64.rbx, .rsp, .rax, .rcx, .rdx, .rsi, .r13], (after b2 stC).reg r = some (.reg r)) ∧
-    (after b2 stC).reg .r14 = some (.bin .add .W64 (.lit 6) (.reg .r14)) := by decide +kernel
+    (∀ r ∈ [Reg64.r14, .rsp, .rax, .rcx, .rdx, .rsi, .r13, .rbx, .rbp], (after b2 stC).reg r = some (.reg r)) ∧
+    (after b2 stC).reg .r15 = some (.bin .add .W64 (.lit 6) (.reg .r15)) := by decide +kernel
 
 theorem stC'_copy : ∀ j < 6, ∀ u < 8,
     findWrite 1 (8 * j + u) (after b2 stC).mem = some (.load 0 (8 * j) 8, u) := by decide +kernel
 
 theorem run_b2' : exec b2 stC = some (after b2 stC, .cond
-    (.not (.cmp .eq .W64 (.bin .add .W64 (.lit 6) (.reg .r14)) (.lit 300))) NativeRustcX64.Xmss.XmssVerify.label_1) := by
+    (.not (.cmp .eq .W64 (.bin .add .W64 (.lit 6) (.reg .r15)) (.lit 300))) NativeRustcX64.Xmss.XmssVerify.label_1) := by
   rw [run_b2]
   rfl
 
@@ -47,11 +47,11 @@ theorem regsC_wf (P : Pre w m₀) (ht : t < 50) (hk : Kept m₀.dmem m.dmem) :
     (List.pairwise_pair.mpr (P.inp_apart (by omega) (by fro) (by omega) (by omega)))
 
 theorem idx8_eval (r : Reg64) {env : Env} :
-    (idx8 r).eval env = env.regs r + env.regs .r14 * 8#64 := by
+    (idx8 r).eval env = env.regs r + env.regs .r15 * 8#64 := by
   simp only [idx8, eval_mkAdd64, eval_mkBin, Sym.eval, BinOp.apply, low_W64, ext_W64]
 
 omit [Labels] in
-theorem alias_rbx (ctx : BitVec 64) (t : Nat) :
+theorem alias_context (ctx : BitVec 64) (t : Nat) :
     ctx + BitVec.ofNat 64 (6 * t) * 8#64 =
       ctx + BitVec.ofNat 64 1024 + BitVec.ofNat 64 (72 + 48 * t) + BitVec.ofInt 64 (-1096) := by
   have e : BitVec.ofInt 64 (-1096) = 0#64 - 1096#64 := by decide
@@ -70,19 +70,19 @@ theorem match_C (h : LoopAt w m₀ m t) : Match (Env.ofMachine m (regsC m₀ t))
   unfold stC
   refine match_ofMachine (sregions := [48, 48]) ⟨rfl, rfl, trivial⟩ trivial trivial trivial
     ⟨?_, ?_, trivial⟩
-  · show (idx8 .rbx).eval _ = _
+  · show (idx8 .r14).eval _ = _
     rw [idx8_eval]
-    show reg m .rbx + reg m .r14 * 8#64 = inp m₀ + BitVec.ofNat 64 (72 + 48 * t) + _
-    rw [h.rbx, h.r14]
-    exact alias_rbx _ t
+    show reg m .r14 + reg m .r15 * 8#64 = inp m₀ + BitVec.ofNat 64 (72 + 48 * t) + _
+    rw [h.r14, h.r15]
+    exact alias_context _ t
   · show (idx8 .rsp).eval _ = _
     rw [idx8_eval]
-    show rspOf m + reg m .r14 * 8#64 = ad m₀ (fr + 956 + 48 * t) + _
-    rw [h.rsp, h.r14]
+    show rspOf m + reg m .r15 * 8#64 = ad m₀ (fr + 956 + 48 * t) + _
+    rw [h.rsp, h.r15]
     exact alias_rsp _ t
 
 /-- A byte of the stack outside turn `t`'s frame bytes is outside its regions. -/
-theorem outsideC (P : Pre w m₀) (ht : t < 50) {x : Nat} (hx : x < 9208)
+theorem outsideC (P : Pre w m₀) (ht : t < 50) {x : Nat} (hx : x < 9256)
     (hd : x < fr + 956 + 48 * t ∨ fr + 1004 + 48 * t ≤ x) :
     (Env.ofMachine m (regsC m₀ t)).Outside (ad m₀ x) :=
   Env.outside_of_apart ⟨P.inp_apart (by omega) (by omega) (by omega) (by omega),
@@ -91,7 +91,7 @@ theorem outsideC (P : Pre w m₀) (ht : t < 50) {x : Nat} (hx : x < 9208)
 /-- Bytes of the stack outside turn `t`'s frame bytes are kept. -/
 theorem keepC (P : Pre w m₀) (ht : t < 50) {S : SState} {m' : MachineData}
     (hm : Match (Env.ofMachine m (regsC m₀ t)) S m') {o : Nat} {bs : List UInt8}
-    (ho : o + bs.length ≤ 9208)
+    (ho : o + bs.length ≤ 9256)
     (hd : o + bs.length ≤ fr + 956 + 48 * t ∨ fr + 1004 + 48 * t ≤ o)
     (h : BytesAt m.dmem (ad m₀ o) bs) : BytesAt m'.dmem (ad m₀ o) bs :=
   hm.bytesAt_outside (fun u hu => by rw [ad_add]; exact outsideC P ht (by omega) (by omega)) h
@@ -102,10 +102,10 @@ theorem afterC (P : Pre w m₀) (ht : t < 50) (h : LoopAt w m₀ m t) {m' : Mach
     (hm : Match (Env.ofMachine m (regsC m₀ t)) (after b2 stC) m') : LoopAt w m₀ m' (t + 1) := by
   have C := h.common
   have hwf := regsC_wf P ht (m := m) C.kept
-  obtain ⟨hw, hregs, h14⟩ := stC'_facts
-  have hreg : ∀ r ∈ [Reg64.rbx, .rsp, .rax, .rcx, .rdx, .rsi, .r13], reg m' r = reg m r :=
+  obtain ⟨hw, hregs, h15⟩ := stC'_facts
+  have hreg : ∀ r ∈ [Reg64.r14, .rsp, .rax, .rcx, .rdx, .rsi, .r13, .rbx, .rbp], reg m' r = reg m r :=
     fun r hr => hm.regs r _ (hregs r hr)
-  refine ⟨⟨fun j hj => ?_, ?_, C.kept.trans (hm.kept hwf)⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+  refine ⟨⟨fun j hj => ?_, ?_, C.kept.trans (hm.kept hwf)⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     fun k hk => ?_, ?_, ?_, fun k hk => ?_⟩
   · exact keepC P ht hm (by rw [length_regBytes]; fro) (by rw [length_regBytes]; omega)
       (C.save j hj)
@@ -118,10 +118,10 @@ theorem afterC (P : Pre w m₀) (ht : t < 50) (h : LoopAt w m₀ m t) {m' : Mach
     obtain ⟨rfl, rfl⟩ := hb
     exact P.inRange_lo (by fro) hin
   · exact (hreg .rsp (by simp)).trans h.rsp
-  · exact (hreg .rbx (by simp)).trans h.rbx
-  · rw [show reg m' .r14 = _ from hm.regs .r14 _ h14]
+  · exact (hreg .r14 (by simp)).trans h.r14
+  · rw [show reg m' .r15 = _ from hm.regs .r15 _ h15]
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, Env.ofMachine_regs]
-    rw [show m.regs.get64 .r14 = reg m .r14 from rfl, h.r14, BitVec.ofNat_add_ofNat]
+    rw [show m.regs.get64 .r15 = reg m .r15 from rfl, h.r15, BitVec.ofNat_add_ofNat]
     congr 1
     omega
   · exact (hreg .rax (by simp)).trans h.rax
@@ -129,9 +129,10 @@ theorem afterC (P : Pre w m₀) (ht : t < 50) (h : LoopAt w m₀ m t) {m' : Mach
   · exact (hreg .rdx (by simp)).trans h.rdx
   · exact (hreg .rsi (by simp)).trans h.rsi
   · exact (hreg .r13 (by simp)).trans h.r13
+  · exact (hreg .rbx (by simp)).trans h.rbx
   · exact keepC P ht hm (by rw [NativeRustc.length_wordBytes]; fro)
       (by rw [NativeRustc.length_wordBytes]; omega) (h.msg k hk)
-  · exact keepC P ht hm (by rw [length_regBytes]; fro) (by rw [length_regBytes]; omega) h.li8
+  · exact (hreg .rbp (by simp)).trans h.rbp
   · exact keepC P ht hm (by simp; fro) (by simp; omega) h.li
   · by_cases hkt : k < 6 * t
     · exact keepC P ht hm (by rw [NativeRustc.length_wordBytes]; fro)
@@ -162,11 +163,11 @@ theorem turnC [Host] {k : Nat} (hp : Placed code k) (P : Pre w m₀) (ht : t < 5
   refine exec_at (b2_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b2' hwf
     (fun _ h => nomatch h) hpc (match_C h) fun st' hm hpc' => .done _ ?_
   have A := afterC P ht h hm
-  have hc : (SBool.not (.cmp .eq .W64 (.bin .add .W64 (.lit 6) (.reg .r14)) (.lit 300))).eval
+  have hc : (SBool.not (.cmp .eq .W64 (.bin .add .W64 (.lit 6) (.reg .r15)) (.lit 300))).eval
       (Env.ofMachine st.data (regsC m₀ t)) = decide (t + 1 < 50) := by
     simp only [SBool.eval, CmpOp.apply, Sym.eval, BinOp.apply, low_W64, ext_W64,
       Env.ofMachine_regs]
-    rw [show st.data.regs.get64 .r14 = reg st.data .r14 from rfl, h.r14, BitVec.ofNat_add_ofNat]
+    rw [show st.data.regs.get64 .r15 = reg st.data .r15 from rfl, h.r15, BitVec.ofNat_add_ofNat]
     by_cases hlt : t + 1 < 50
     · simp only [hlt, decide_true, Bool.not_eq_true']
       simp [BitVec.toNat_eq]

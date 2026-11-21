@@ -1,6 +1,6 @@
 module
 
-public import NativeRustcArm.FromBytes.Glue
+public import NativeRustcArm.LayerRead.Glue
 public import NativeRustcArm.Spec.XmssVerify
 public import NativeRustcArm.Code.Xmss.XmssVerify
 

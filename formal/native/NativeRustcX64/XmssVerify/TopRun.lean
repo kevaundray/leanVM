@@ -21,12 +21,12 @@ set_option Elab.async false
 
 public section
 
-/-- Bits 16 to 31 of a word loaded from `72`. -/
-theorem hi16_eval [Labels] {env : Env} {x : UInt64} (h : env.load 0 72 8 = x.toBitVec) :
-    (Sym.bin .shr .W32 (.load 0 72 8) (.lit 16)).eval env =
+/-- Bits 16 to 31 of a word loaded from `80`. -/
+theorem hi16_eval [Labels] {env : Env} {x : UInt64} (h : env.load 0 80 8 = x.toBitVec) :
+    (Sym.bin .shr .W32 (.load 0 80 8) (.lit 16)).eval env =
       BitVec.ofNat 64 (x.toNat % 2 ^ 32 / 2 ^ 16) := by
   apply BitVec.eq_of_toNat_eq
-  show (BinOp.apply .shr .W32 (env.load 0 72 8) (BitVec.ofNat 64 16)).toNat = _
+  show (BinOp.apply .shr .W32 (env.load 0 80 8) (BitVec.ofNat 64 16)).toNat = _
   rw [shr16_toNat, h, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show x.toNat % 2 ^ 32 / 2 ^ 16 < 2 ^ 64
     by omega)]
   rfl
@@ -85,9 +85,9 @@ public theorem top {k : Nat} (hp : Placed code k)
   have h9' : (reg st₁.data .r9).toNat = 16 := by
     rw [show reg st₁.data .r9 = _ from hm₁.regs _ _ h9]
     rfl
-  have hw8 : env.load 0 72 8 = (w 8).toBitVec := by
+  have hw8 : env.load 0 80 8 = (w 8).toBitVec := by
     rw [Env.load_of_bytesAt (length_regBytes _) (by
-      rw [show env.base 0 + BitVec.ofNat 64 72 = ad m₀ (fr + 72) from ad_add _ _ _]
+      rw [show env.base 0 + BitVec.ofNat 64 80 = ad m₀ (fr + 80) from ad_add _ _ _]
       exact h.w8), ofBytes_regBytes]
   -- `wots_leaf` of the top layer.
   have hpre₁ : WotsLeafPre st₁.data :=

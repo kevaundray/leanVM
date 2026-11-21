@@ -6,7 +6,7 @@ public import NativeRustcX64.Code.Xmss.XmssVerify
 public import NativeRustcX64.Code.Common.KeccakF
 public import NativeRustcX64.Code.Common.Update
 public import NativeRustcX64.Code.Common.Finalize
-public import NativeRustcX64.Code.Xmss.FromBytes
+public import NativeRustcX64.Code.Xmss.LayerRead
 public import NativeRustcX64.Code.Xmss.WotsLeaf
 
 /-!
@@ -24,6 +24,8 @@ def traps : List Directive := [
   @Kraken.Directive.label Instr ConstExpr "_RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt",  -- _RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt:
   @Kraken.Directive.byteArray Instr ConstExpr (ByteArray.mk #[(15 : UInt8), (11 : UInt8)]),  -- ud2
   @Kraken.Directive.label Instr ConstExpr "_RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail",  -- _RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail:
+  @Kraken.Directive.byteArray Instr ConstExpr (ByteArray.mk #[(15 : UInt8), (11 : UInt8)]),  -- ud2
+  @Kraken.Directive.label Instr ConstExpr "_RNvNtCs1gUZZmupoa8_4core6option13unwrap_failed",  -- _RNvNtCs1gUZZmupoa8_4core6option13unwrap_failed:
   @Kraken.Directive.byteArray Instr ConstExpr (ByteArray.mk #[(15 : UInt8), (11 : UInt8)])  -- ud2
 ]
 
@@ -44,15 +46,15 @@ def rodata : List Directive := [
   @Kraken.Directive.label Instr ConstExpr ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12",  -- .Lanon.5ef9b7c546f4dc64388b910df55ec241.12:
   @Kraken.Directive.word Instr ConstExpr (8 : Nat) (ConstExpr.label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.3"),  -- .quad .Lanon.5ef9b7c546f4dc64388b910df55ec241.3
   @Kraken.Directive.byteArray Instr ConstExpr (ByteArray.mk #[(27 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (178 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (50 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8)]),
-  @Kraken.Directive.label Instr ConstExpr ".Lanon.8904a1d42b45721118d46dfe0d42d8fa.1",  -- .Lanon.8904a1d42b45721118d46dfe0d42d8fa.1:
+  @Kraken.Directive.label Instr ConstExpr ".Lanon.2110530ee3456a504423839f2911ae7b.1",  -- .Lanon.2110530ee3456a504423839f2911ae7b.1:
   @Kraken.Directive.byteArray Instr ConstExpr (ByteArray.mk #[(99 : UInt8), (114 : UInt8), (97 : UInt8), (116 : UInt8), (101 : UInt8), (115 : UInt8), (47 : UInt8), (108 : UInt8), (101 : UInt8), (97 : UInt8), (110 : UInt8), (95 : UInt8), (120 : UInt8), (109 : UInt8), (115 : UInt8), (115 : UInt8), (47 : UInt8), (115 : UInt8), (114 : UInt8), (99 : UInt8), (47 : UInt8), (115 : UInt8), (99 : UInt8), (104 : UInt8), (101 : UInt8), (109 : UInt8), (101 : UInt8), (46 : UInt8), (114 : UInt8), (115 : UInt8), (0 : UInt8)]),
-  @Kraken.Directive.label Instr ConstExpr ".Lanon.8904a1d42b45721118d46dfe0d42d8fa.2",  -- .Lanon.8904a1d42b45721118d46dfe0d42d8fa.2:
-  @Kraken.Directive.word Instr ConstExpr (8 : Nat) (ConstExpr.label ".Lanon.8904a1d42b45721118d46dfe0d42d8fa.1"),  -- .quad .Lanon.8904a1d42b45721118d46dfe0d42d8fa.1
-  @Kraken.Directive.byteArray Instr ConstExpr (ByteArray.mk #[(30 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (84 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (19 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8)])
+  @Kraken.Directive.label Instr ConstExpr ".Lanon.2110530ee3456a504423839f2911ae7b.2",  -- .Lanon.2110530ee3456a504423839f2911ae7b.2:
+  @Kraken.Directive.word Instr ConstExpr (8 : Nat) (ConstExpr.label ".Lanon.2110530ee3456a504423839f2911ae7b.1"),  -- .quad .Lanon.2110530ee3456a504423839f2911ae7b.1
+  @Kraken.Directive.byteArray Instr ConstExpr (ByteArray.mk #[(30 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (71 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8), (50 : UInt8), (0 : UInt8), (0 : UInt8), (0 : UInt8)])
 ]
 
 /-- The program. -/
-def code : Program := List.flatten [NativeRustcX64.Common.Memcpy.code, NativeRustcX64.Common.Memset.code, NativeRustcX64.Xmss.XmssVerify.code, NativeRustcX64.Common.KeccakF.code, NativeRustcX64.Common.Update.code, NativeRustcX64.Common.Finalize.code, NativeRustcX64.Xmss.FromBytes.code, NativeRustcX64.Xmss.WotsLeaf.code, NativeRustcX64.Xmss.traps, NativeRustcX64.Xmss.rodata]
+def code : Program := List.flatten [NativeRustcX64.Common.Memcpy.code, NativeRustcX64.Common.Memset.code, NativeRustcX64.Xmss.XmssVerify.code, NativeRustcX64.Common.KeccakF.code, NativeRustcX64.Common.Update.code, NativeRustcX64.Common.Finalize.code, NativeRustcX64.Xmss.LayerRead.code, NativeRustcX64.Xmss.WotsLeaf.code, NativeRustcX64.Xmss.traps, NativeRustcX64.Xmss.rodata]
 
 end
 

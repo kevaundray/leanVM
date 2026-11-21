@@ -5,7 +5,7 @@ public import NativeRustc.Bytes
 import Native.Xmss.ModelSpec
 
 /-!
-# Memory facts for the function proofs of `from_bytes` and `xmss_verify`
+# Memory facts for the function proofs of `LayerSignature::read` and `xmss_verify`
 
 Addresses of non-wrapping ranges (`toNat_addr`), sub-ranges of mapped, non-wrapping and apart
 ranges (`Mapped.sub`, `NoWrap.sub`, `Apart.sub`), what is kept (`SameOutside.trans`,

@@ -100,7 +100,7 @@ public theorem epilogue {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : Ma
       m₀.dmem.get? (rspOf m₀ + BitVec.ofNat 64 i) := fun i hi => by
     apply C.same
     rw [← sp_eq m₀, ad_add]
-    have h := P.not_inRange_ad (o := 0) (s := 9200) (x := fr + 5808 + i) (by omega) (by fro)
+    have h := P.not_inRange_ad (o := 0) (s := 9248) (x := fr + 5808 + i) (by omega) (by fro)
       (Or.inr (by fro))
     rwa [show ad m₀ 0 = lo m₀ from BitVec.add_zero _] at h
   rw [show env.base 0 + BitVec.ofNat 64 5808 = rspOf m₀ from (ad_add _ _ _).trans (sp_eq m₀),

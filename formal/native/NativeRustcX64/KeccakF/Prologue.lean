@@ -9,8 +9,8 @@ public import NativeRustcX64.KeccakF.Blocks
 `prologue_step`: from `keccak_f`'s entry, in a state satisfying `KeccakFPre`, the machine
 inevitably reaches the round loop's head with the loop invariant before the first round
 (`At m0 0`): the prologue (`prologue`, run in the environment of the entry state with the frame
-and the state as regions) pushes the callee-saved registers, stores the state pointer and a zero
-counter in the frame, loads the 25 lanes into registers and frame slots, and XORs the column
+and the state as regions) pushes the callee-saved registers, stores the state pointer, initializes
+the register counter to 8, loads the 25 lanes into registers and frame slots, and XORs the column
 parities.
 -/
 
@@ -31,7 +31,7 @@ theorem prologue_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : Machin
   obtain ⟨hstk, -, hmap, hnw, hap, -⟩ := hpre
   have hk : Common.KeccakF.b0.IsInfixAt Host.prog (k + NativeRustcX64.Common.KeccakF.b0Offset) :=
     Common.KeccakF.b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  let env := Env.ofMachine m0 [(frame m0, 248), (m0.regs.get64 .rdi, 200)]
+  let env := Env.ofMachine m0 [(frame m0, 296), (m0.regs.get64 .rdi, 200)]
   have hwf : env.WF :=
     Env.wf_of ⟨⟨hstk.2.2, frame_noWrap hstk⟩, ⟨hmap, hnw⟩, trivial⟩
       (List.pairwise_pair.mpr hap.symm)
@@ -40,7 +40,7 @@ theorem prologue_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : Machin
       ⟨show rspOf m0 = _ from (frame_add m0).symm.trans rfl,
         show m0.regs.get64 .rdi = _ from (BitVec.add_zero _).symm.trans rfl, trivial⟩
       trivial trivial trivial
-  have hb0 : env.regions[0]? = some (frame m0, 248) := rfl
+  have hb0 : env.regions[0]? = some (frame m0, 296) := rfl
   have hl : ∀ {off : Nat} (j : Nat), off = 8 * j → j < 25 →
       env.load 1 off 8 = (Keccak.lane (stAfter m0 0) j).toBitVec :=
     fun j hoff hj => load_lane' hoff hj
@@ -97,7 +97,7 @@ theorem prologue_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : Machin
   refine exec_then hk prologue hwf nofun hm fun st hm' hpc => .done _ ⟨?_, hpc⟩
   refine ⟨(hm'.regs .rsp _ rfl).trans rfl, ?_, ?_, ?_, ?_, ?_, ?_,
     same_region hm' hwf hb0 (by decide) (by decide), hm'.kept hwf⟩
-  · exact wordAt_of_eq (wordAt_write hm' hb0 (by decide) rfl) rfl
+  · exact (hm'.regs .rdi _ rfl).trans rfl
   · refine wordAt_of_eq (wordAt_write hm' hb0 (by decide) rfl) ?_
     exact BitVec.add_zero _
   all_goals simp only [AllOf, laneRegs, laneSlots, parRegs, savedSlots]

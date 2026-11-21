@@ -23,7 +23,7 @@ theorem wotsInput (P : Pre w m₀) (C : Common m₀ m) (hrsp : rspOf m = ad m₀
     {x n : Nat} (hx : 24 ≤ x) (h : x + n ≤ 5816) (hn : 0 < n) :
     WotsLeafPre.Input m (ad m₀ (fr + x)) n := by
   refine ⟨C.mapped P (by fro), P.ad_nw (by fro), ?_⟩
-  rw [stackBelow_at hrsp (by decide), show wotsLeafStack = 3392 from rfl]
+  rw [stackBelow_at hrsp (by decide), show wotsLeafStack = 3440 from rfl]
   exact P.apart_ad (by fro) (by fro) (by fro) hn (by decide)
 
 /-- **`wots_leaf`'s precondition** at a call from the frame. -/

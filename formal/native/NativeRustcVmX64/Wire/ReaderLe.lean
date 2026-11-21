@@ -124,7 +124,7 @@ variable [Host] {k : Nat}
 abbrev Post (m : MachineData) (st : MachineState) : Prop :=
   st.pc = retOf m ∧ rspOf st.data = rspOf m + 8#64 ∧ ReaderLePost m st.data
 
-theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : code[j]? = some (.label l)) :
+theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : Vm.ReaderLe.code[j]? = some (.label l)) :
     Labels.label l = Host.addrOf (k + j) :=
   hp.label h
 

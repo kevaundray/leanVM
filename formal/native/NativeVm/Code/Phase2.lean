@@ -283,10 +283,10 @@ theorem phase2_ok : Phase2Ok phase2 := by
       from wd_wd _ _ _]
     refine ⟨?_, ?_⟩
     · rw [setMem_wd_ne _ _ (by omega) (by omega) (by omega), setMem_wd_eq _ _ rfl]
-      try reg_simp
+      reg_simp
       rw [h9]
     · rw [wd_wd, setMem_wd_eq _ _ (by omega)]
-      try reg_simp
+      reg_simp
       rw [h10]
   · exact hb2.1
 

@@ -25,7 +25,7 @@ theorem match_st0 (P : Pre w m₀) {ret : BitVec 64} :
 theorem common_b0 (P : Pre w m₀) {m : MachineData} {ret : BitVec 64}
     (hm : Match (Env.ofMachine m₀ (frameRs m₀) (fun _ => 0) ret) (after b0 st0) m) : Common m₀ m := by
   have hwf := frameG_wf P (Kept.refl m₀.dmem) (m := m₀) (vs := fun _ => 0) (ret := ret)
-  obtain ⟨-, -, -, -, -, hw⟩ := st0'_facts
+  obtain ⟨-, -, -, -, -, -, hw⟩ := st0'_facts
   refine ⟨fun j hj => ?_, ?_, hm.kept hwf⟩
   · have := hm.bytesAt_write (r := 0) rfl (by omega) (st0'_save j hj)
     rw [show fr + 5760 + 8 * j = fr + (5760 + 8 * j) by omega, ← ad_add]
@@ -52,7 +52,7 @@ public theorem head {k : Nat} (hp : Placed code k)
     (by rw [NativeRustcX64.Xmss.XmssVerify.b0Offset, Nat.add_zero]) (match_st0 P) fun st₁ hpc₁ hm₁ => ?_
   change Match _ (after b0 st0) st₁.data at hm₁
   have C₁ := common_b0 P hm₁
-  obtain ⟨h0, h2, hsp, hbx, h14, -⟩ := st0'_facts
+  obtain ⟨h0, h2, hsp, h14, h15, hbx, -⟩ := st0'_facts
   have hrsp₁ : rspOf st₁.data = ad m₀ (fr + 16) :=
     (hm₁.regs .rsp _ hsp).trans (ad_int m₀ 16)
   have hx0 : reg st₁.data .rdi = ad m₀ (fr + 956) :=
@@ -68,26 +68,29 @@ public theorem head {k : Nat} (hp : Placed code k)
     fun x hx hx' => P.not_inRange_ad (by fro) (by fro) (by omega)
   have hrsp₂ : rspOf st₂.data = ad m₀ (fr + 24) := by
     rw [hrsp₂, hrsp₁, ad_add]
-  have hbx₂ : reg st₂.data .rbx = reg m₀ .rdi :=
-    (hs.1 .rbx rfl).trans (hm₁.regs .rbx _ hbx)
-  have h14₂ : reg st₂.data .r14 = 0#64 := (hs.1 .r14 rfl).trans (hm₁.regs .r14 _ h14)
+  have h14₂ : reg st₂.data .r14 = reg m₀ .rdi :=
+    (hs.1 .r14 rfl).trans (hm₁.regs .r14 _ h14)
+  have h15₂ : reg st₂.data .r15 = 0#64 := (hs.1 .r15 rfl).trans (hm₁.regs .r15 _ h15)
+  have hbx₂ : reg st₂.data .rbx = ad m₀ (fr + 956) :=
+    (hs.1 .rbx rfl).trans ((hm₁.regs .rbx _ hbx).trans (ad_int m₀ 956))
   have hwf₂ := in_wf P C₂.kept (m := st₂.data) (vs := fun _ => 0) (ret := 0)
   have hm₂ : Match (Env.ofMachine st₂.data (inR m₀) (fun _ => 0) 0) st1 st₂.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
-      ⟨hrsp₂.trans (ad_int m₀ 24).symm, hbx₂.trans (inp_eq m₀).symm, trivial⟩
+      ⟨hrsp₂.trans (ad_int m₀ 24).symm, h14₂.trans (inp_eq m₀).symm, trivial⟩
       trivial trivial trivial
   refine fall_step (b1_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b1 hwf₂
     (hpc₂.trans rfl) hm₂ fun st₃ hpc₃ hm₃ => cont st₃ (hpc₃.trans rfl) ?_
   change Match _ (after b1 st1) st₃.data at hm₃
-  obtain ⟨hax, hcx, hdx, hsi, h13, hsp₃, hbx₃, h14₃, hw⟩ := st1'_facts
+  obtain ⟨hax, hcx, hdx, hsi, h13, hsp₃, h14₃, h15₃, hbx₃, hw⟩ := st1'_facts
   have hword : ∀ {r : Reg64} {i : Nat}, i < 309 → (after b1 st1).reg r = some (.load 1 (8 * i) 8) →
       reg st₃.data r = (w i).toBitVec := fun hi h =>
     (hm₃.regs _ _ h).trans (load_word P C₂.same hi rfl)
   have h13' := hword (i := 8) (by omega) h13
   refine ⟨Common.block P C₂ hwf₂ hm₃ hw, (hm₃.regs .rsp _ hsp₃).trans (ad_int m₀ 24),
-    (hm₃.regs .rbx _ hbx₃).trans (inp_eq m₀), (hm₃.regs .r14 _ h14₃).trans h14₂,
+    (hm₃.regs .r14 _ h14₃).trans (inp_eq m₀), (hm₃.regs .r15 _ h15₃).trans h15₂,
     hword (i := 0) (by omega) hax, hword (i := 1) (by omega) hcx, hword (i := 2) (by omega) hdx,
-    hword (i := 3) (by omega) hsi, h13', fun k hk => ?_, ?_, ?_, fun k hk => absurd hk (by omega)⟩
+    hword (i := 3) (by omega) hsi, h13', (hm₃.regs .rbx _ hbx₃).trans hbx₂,
+    fun k hk => ?_, ?_, ?_, fun k hk => absurd hk (by omega)⟩
   · have := copy_word P hm₃ (rd := 0) (od := 152 + 8 * k) rfl (by omega) (i := 4 + k) (by omega)
       (rs := 1) (os := 8 * (4 + k)) (fun t _ => rfl) C₂.same
       (st1'_msg k hk)
@@ -98,9 +101,7 @@ public theorem head {k : Nat} (hp : Placed code k)
       simp only [Sym.eval, UnOp.apply, ext, low]
       rw [load_word (env := Env.ofMachine st₂.data (inR m₀) (fun _ => 0) 0) P C₂.same (i := 8) (by omega) (by simp only [Nat.reduceMul]; rfl)]
       rfl
-    have := hm₃.bytesAt_write (r := 0) rfl (by omega) st1'_li8
-    rw [hv, ad_add] at this
-    exact this
+    exact (hm₃.regs .rbp _ st1'_rbp).trans hv
   · intro t ht
     simp only [List.length_take, NativeRustc.length_wordBytes] at ht
     rw [ad_add, show fr + 952 + t = fr + (952 + t) by omega, ← ad_add,

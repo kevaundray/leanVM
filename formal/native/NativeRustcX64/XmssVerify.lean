@@ -4,7 +4,7 @@ public import NativeRustcX64.Code.Common.Finalize.Names
 public import NativeRustcX64.Code.Common.Memcpy.Names
 public import NativeRustcX64.Code.Common.Memset.Names
 public import NativeRustcX64.Code.Common.Update.Names
-public import NativeRustcX64.Code.Xmss.FromBytes.Names
+public import NativeRustcX64.Code.Xmss.LayerRead.Names
 public import NativeRustcX64.Code.Xmss.WotsLeaf.Names
 public import NativeRustcX64.Code.Xmss.XmssVerify.Names
 
@@ -53,7 +53,7 @@ public theorem xmssVerify_spec [Host] {k : Nat} (hp : Placed code k) {w : Nat â†
     (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost)
     (hfin : Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost)
     (hwots : Spec (label NativeRustcX64.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost)
-    (hfb : Spec (label NativeRustcX64.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost) :
+    (hfb : Spec (label NativeRustcX64.Xmss.LayerRead.entryLabel) LayerReadPre LayerReadPost) :
     Spec (label NativeRustcX64.Xmss.XmssVerify.entryLabel) (XmssVerifyPre w) (XmssVerifyPost w) := by
   intro mâ‚€ hpre
   have P := pre_of hpre

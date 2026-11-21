@@ -247,7 +247,7 @@ theorem ok_finish (hx1 : m.regs.X1.toNat = n) {S : SState} {st : MachineState} {
 
 end Ok
 
-theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : code[j]? = some (.label l)) :
+theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : Vm.ReaderLe.code[j]? = some (.label l)) :
     Labels.label l = Host.addrOf (k + j) :=
   hp.label h
 

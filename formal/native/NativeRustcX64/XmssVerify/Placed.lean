@@ -62,7 +62,7 @@ theorem labelsOk_update : labelsOk Xmss.code Common.Update.code NativeRustcX64.X
   decide +kernel
 theorem labelsOk_finalize : labelsOk Xmss.code Common.Finalize.code NativeRustcX64.Xmss.Finalize.programOffset = true := by
   decide +kernel
-theorem labelsOk_fromBytes : labelsOk Xmss.code Xmss.FromBytes.code NativeRustcX64.Xmss.FromBytes.programOffset = true := by
+theorem labelsOk_layerRead : labelsOk Xmss.code Xmss.LayerRead.code NativeRustcX64.Xmss.LayerRead.programOffset = true := by
   decide +kernel
 theorem labelsOk_wotsLeaf : labelsOk Xmss.code Xmss.WotsLeaf.code NativeRustcX64.Xmss.WotsLeaf.programOffset = true := by
   decide +kernel
@@ -83,8 +83,8 @@ theorem placed_update : Placed Common.Update.code NativeRustcX64.Xmss.Update.pro
   placed_of hP Update.code_at labelsOk_update
 theorem placed_finalize : Placed Common.Finalize.code NativeRustcX64.Xmss.Finalize.programOffset :=
   placed_of hP Finalize.code_at labelsOk_finalize
-theorem placed_fromBytes : Placed Xmss.FromBytes.code NativeRustcX64.Xmss.FromBytes.programOffset :=
-  placed_of hP FromBytes.code_at labelsOk_fromBytes
+theorem placed_layerRead : Placed Xmss.LayerRead.code NativeRustcX64.Xmss.LayerRead.programOffset :=
+  placed_of hP LayerRead.code_at labelsOk_layerRead
 theorem placed_wotsLeaf : Placed Xmss.WotsLeaf.code NativeRustcX64.Xmss.WotsLeaf.programOffset :=
   placed_of hP WotsLeaf.code_at labelsOk_wotsLeaf
 

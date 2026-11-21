@@ -19,7 +19,7 @@ public section
 
 variable [Host] {k : Nat} {m : MachineData} {L : List UInt64}
 
-theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : code[j]? = some (.label l)) :
+theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : Vm.InsD.code[j]? = some (.label l)) :
     Labels.label l = Host.addrOf (k + j) :=
   hp.label h
 

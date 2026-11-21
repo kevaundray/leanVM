@@ -38,104 +38,96 @@ public theorem label_XmssVerify : NativeRustcX64.Xmss.code.findIdx? (· = .label
 
 public theorem label_XmssVerify_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_1") = some 96 := by decide +kernel
 
-public theorem label_XmssVerify_4 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_4") = some 153 := by decide +kernel
+public theorem label_XmssVerify_4 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_4") = some 151 := by decide +kernel
 
-public theorem label_XmssVerify_7 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_7") = some 243 := by decide +kernel
+public theorem label_XmssVerify_7 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_7") = some 241 := by decide +kernel
 
-public theorem label_XmssVerify_10 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_10") = some 309 := by decide +kernel
+public theorem label_XmssVerify_10 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_10") = some 307 := by decide +kernel
 
-public theorem label_XmssVerify_9 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_9") = some 311 := by decide +kernel
+public theorem label_XmssVerify_9 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LXmssVerify_9") = some 309 := by decide +kernel
 
-public theorem label_KeccakF : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") = some 320 := by decide +kernel
+public theorem label_KeccakF : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") = some 318 := by decide +kernel
 
-public theorem label_KeccakF_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LKeccakF_1") = some 399 := by decide +kernel
+public theorem label_KeccakF_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LKeccakF_1") = some 394 := by decide +kernel
 
-public theorem label_Update : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") = some 701 := by decide +kernel
+public theorem label_Update : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") = some 934 := by decide +kernel
 
-public theorem label_Update_5 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_5") = some 717 := by decide +kernel
+public theorem label_Update_5 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_5") = some 950 := by decide +kernel
 
-public theorem label_Update_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_1") = some 722 := by decide +kernel
+public theorem label_Update_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_1") = some 955 := by decide +kernel
 
-public theorem label_Update_6 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_6") = some 796 := by decide +kernel
+public theorem label_Update_6 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_6") = some 1029 := by decide +kernel
 
-public theorem label_Update_7 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_7") = some 806 := by decide +kernel
+public theorem label_Update_7 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LUpdate_7") = some 1039 := by decide +kernel
 
-public theorem label_Finalize : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") = some 810 := by decide +kernel
+public theorem label_Finalize : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") = some 1043 := by decide +kernel
 
-public theorem label_Finalize_3 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFinalize_3") = some 888 := by decide +kernel
+public theorem label_Finalize_3 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFinalize_3") = some 1121 := by decide +kernel
 
-public theorem label_Finalize_4 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFinalize_4") = some 894 := by decide +kernel
+public theorem label_Finalize_4 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFinalize_4") = some 1127 := by decide +kernel
 
-public theorem label_FromBytes : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNCNvMs0_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB7_17LeanXmssSignature10from_bytess_0B9_") = some 899 := by decide +kernel
+public theorem label_LayerRead : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvMs_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB4_14LayerSignature4read") = some 1132 := by decide +kernel
 
-public theorem label_FromBytes_2 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFromBytes_2") = some 923 := by decide +kernel
+public theorem label_LayerRead_2 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LLayerRead_2") = some 1153 := by decide +kernel
 
-public theorem label_FromBytes_22 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFromBytes_22") = some 1104 := by decide +kernel
+public theorem label_LayerRead_22 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LLayerRead_22") = some 1315 := by decide +kernel
 
-public theorem label_FromBytes_23 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFromBytes_23") = some 1107 := by decide +kernel
+public theorem label_WotsLeaf : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvNtCs7Pyp4CbMBld_9lean_xmss4wots9wots_leaf") = some 1318 := by decide +kernel
 
-public theorem label_FromBytes_24 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFromBytes_24") = some 1113 := by decide +kernel
+public theorem label_WotsLeaf_3 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_3") = some 1442 := by decide +kernel
 
-public theorem label_FromBytes_25 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFromBytes_25") = some 1116 := by decide +kernel
+public theorem label_WotsLeaf_25 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_25") = some 1473 := by decide +kernel
 
-public theorem label_FromBytes_27 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFromBytes_27") = some 1121 := by decide +kernel
+public theorem label_WotsLeaf_26 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_26") = some 1476 := by decide +kernel
 
-public theorem label_FromBytes_26 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LFromBytes_26") = some 1127 := by decide +kernel
+public theorem label_WotsLeaf_23 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_23") = some 1486 := by decide +kernel
 
-public theorem label_WotsLeaf : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvNtCs7Pyp4CbMBld_9lean_xmss4wots9wots_leaf") = some 1131 := by decide +kernel
+public theorem label_WotsLeaf_5 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_5") = some 1495 := by decide +kernel
 
-public theorem label_WotsLeaf_3 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_3") = some 1255 := by decide +kernel
+public theorem label_WotsLeaf_7 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_7") = some 1509 := by decide +kernel
 
-public theorem label_WotsLeaf_25 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_25") = some 1286 := by decide +kernel
+public theorem label_WotsLeaf_9 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_9") = some 1591 := by decide +kernel
 
-public theorem label_WotsLeaf_26 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_26") = some 1289 := by decide +kernel
+public theorem label_WotsLeaf_14 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_14") = some 1598 := by decide +kernel
 
-public theorem label_WotsLeaf_23 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_23") = some 1299 := by decide +kernel
+public theorem label_WotsLeaf_10 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_10") = some 1603 := by decide +kernel
 
-public theorem label_WotsLeaf_5 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_5") = some 1308 := by decide +kernel
+public theorem label_WotsLeaf_15 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_15") = some 1677 := by decide +kernel
 
-public theorem label_WotsLeaf_7 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_7") = some 1322 := by decide +kernel
+public theorem label_WotsLeaf_20 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_20") = some 1687 := by decide +kernel
 
-public theorem label_WotsLeaf_9 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_9") = some 1404 := by decide +kernel
+public theorem label_WotsLeaf_16 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_16") = some 1692 := by decide +kernel
 
-public theorem label_WotsLeaf_14 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_14") = some 1411 := by decide +kernel
+public theorem label_WotsLeaf_21 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_21") = some 1766 := by decide +kernel
 
-public theorem label_WotsLeaf_10 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_10") = some 1416 := by decide +kernel
+public theorem label_WotsLeaf_27 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_27") = some 1834 := by decide +kernel
 
-public theorem label_WotsLeaf_15 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_15") = some 1490 := by decide +kernel
+public theorem label_WotsLeaf_28 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_28") = some 1838 := by decide +kernel
 
-public theorem label_WotsLeaf_20 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_20") = some 1500 := by decide +kernel
+public theorem label_WotsLeaf_24 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_24") = some 1843 := by decide +kernel
 
-public theorem label_WotsLeaf_16 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_16") = some 1505 := by decide +kernel
+public theorem label_WotsLeaf_29 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_29") = some 1899 := by decide +kernel
 
-public theorem label_WotsLeaf_21 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_21") = some 1579 := by decide +kernel
+public theorem label_PanicFmt : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt") = some 1905 := by decide +kernel
 
-public theorem label_WotsLeaf_27 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_27") = some 1647 := by decide +kernel
+public theorem label_SliceIndexFail : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail") = some 1907 := by decide +kernel
 
-public theorem label_WotsLeaf_28 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_28") = some 1651 := by decide +kernel
+public theorem label_UnwrapFailed : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvNtCs1gUZZmupoa8_4core6option13unwrap_failed") = some 1909 := by decide +kernel
 
-public theorem label_WotsLeaf_24 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_24") = some 1656 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.1") = some 1911 := by decide +kernel
 
-public theorem label_WotsLeaf_29 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".LWotsLeaf_29") = some 1712 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_3 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.3") = some 1913 := by decide +kernel
 
-public theorem label_PanicFmt : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvNtCs1gUZZmupoa8_4core9panicking9panic_fmt") = some 1718 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_8 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.8") = some 1915 := by decide +kernel
 
-public theorem label_SliceIndexFail : NativeRustcX64.Xmss.code.findIdx? (· = .label "_RNvNtNtCs1gUZZmupoa8_4core5slice5index16slice_index_fail") = some 1720 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_9 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.9") = some 1917 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.1") = some 1722 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_11 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.11") = some 1920 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_3 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.3") = some 1724 := by decide +kernel
+public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_12 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12") = some 1923 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_8 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.8") = some 1726 := by decide +kernel
+public theorem label_anon_2110530ee3456a504423839f2911ae7b_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.2110530ee3456a504423839f2911ae7b.1") = some 1926 := by decide +kernel
 
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_9 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.9") = some 1728 := by decide +kernel
-
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_11 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.11") = some 1731 := by decide +kernel
-
-public theorem label_anon_5ef9b7c546f4dc64388b910df55ec241_12 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.5ef9b7c546f4dc64388b910df55ec241.12") = some 1734 := by decide +kernel
-
-public theorem label_anon_8904a1d42b45721118d46dfe0d42d8fa_1 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.8904a1d42b45721118d46dfe0d42d8fa.1") = some 1737 := by decide +kernel
-
-public theorem label_anon_8904a1d42b45721118d46dfe0d42d8fa_2 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.8904a1d42b45721118d46dfe0d42d8fa.2") = some 1739 := by decide +kernel
+public theorem label_anon_2110530ee3456a504423839f2911ae7b_2 : NativeRustcX64.Xmss.code.findIdx? (· = .label ".Lanon.2110530ee3456a504423839f2911ae7b.2") = some 1928 := by decide +kernel
 
 end NativeRustcX64.Xmss

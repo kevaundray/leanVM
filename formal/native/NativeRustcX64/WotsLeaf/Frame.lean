@@ -66,8 +66,8 @@ theorem addr_add_add (a : BitVec 64) (o i : Nat) :
 namespace Run
 
 theorem frameSize_eq : frameSize = 2760 := rfl
-theorem finalizeStack_eq : finalizeStack = 624 := rfl
-theorem wotsLeafStack_eq' : wotsLeafStack = 3392 := rfl
+theorem finalizeStack_eq : finalizeStack = 672 := rfl
+theorem wotsLeafStack_eq' : wotsLeafStack = 3440 := rfl
 
 /-- **The frame's invariant at RSP `sp`.** -/
 @[expose] def FrameAt (r : Run) (sp : BitVec 64) (m : MachineData) : Prop :=
@@ -90,7 +90,7 @@ variable (r : Run) [Labels]
 /-- The frame's base: `frameSize` below RSP at entry, a return address and the callees' stack
 below it. -/
 theorem base_toNat (hpre : r.Pre) :
-    r.base.toNat + 2760 = (rspOf r.m0).toNat ∧ 632 ≤ r.base.toNat ∧
+    r.base.toNat + 2760 = (rspOf r.m0).toNat ∧ 680 ≤ r.base.toNat ∧
       (rspOf r.m0).toNat + 8 ≤ 2 ^ 64 := by
   have hle := hpre.1.1
   have hw := hpre.1.2.1
@@ -121,7 +121,7 @@ theorem off_add (a i : Nat) : r.off a + BitVec.ofNat 64 i = r.off (a + i) := by
 
 /-- The stack area's start: a return address and `finalizeStack` below the frame. -/
 theorem below_toNat (hpre : r.Pre) :
-    (stackBelow r.m0 wotsLeafStack).toNat + 632 = r.base.toNat := by
+    (stackBelow r.m0 wotsLeafStack).toNat + 680 = r.base.toNat := by
   have := r.base_toNat hpre
   have hle := hpre.1.1
   rw [wotsLeafStack_eq'] at hle ⊢
@@ -131,7 +131,7 @@ theorem below_toNat (hpre : r.Pre) :
 
 /-- The stack area's bytes are mapped, in any state keeping the entry's mapped bytes. -/
 theorem area_mapped (hpre : r.Pre) {m : MachineData} (hk : Kept r.m0.dmem m.dmem) {p : BitVec 64}
-    (h1 : r.base.toNat ≤ p.toNat + 632) (h2 : p.toNat < r.base.toNat + 2768) :
+    (h1 : r.base.toNat ≤ p.toNat + 680) (h2 : p.toNat < r.base.toNat + 2768) :
     (m.dmem.get? p).isSome := by
   have hw := r.below_toNat hpre
   have hb := r.base_toNat hpre
@@ -198,7 +198,7 @@ theorem apart_off (hpre : r.Pre) {a n a' n' : Nat} (ha : a + n ≤ 2768) (ha' : 
 
 /-- The stack area is the frame, a return address and the `finalizeStack` bytes below it. -/
 theorem stackArea_iff (hpre : r.Pre) (p : BitVec 64) :
-    r.StackArea p ↔ r.base.toNat ≤ p.toNat + 632 ∧ p.toNat < r.base.toNat + 2760 := by
+    r.StackArea p ↔ r.base.toNat ≤ p.toNat + 680 ∧ p.toNat < r.base.toNat + 2760 := by
   have hw := r.below_toNat hpre
   have hb := r.base_toNat hpre
   unfold StackArea

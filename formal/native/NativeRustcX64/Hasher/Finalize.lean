@@ -141,8 +141,8 @@ theorem finalize_spec (hp : Placed code k)
     apply List.map_congr_left
     intro i hi
     rw [hret i (List.mem_range.mp hi)]
-  have hs624 : (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 624 :=
-    stackBelow_toNat (by show 624 ≤ (spAt m0).toNat; omega)
+  have hs672 : (stackBelow m0 finalizeStack).toNat = (spAt m0).toNat - 672 :=
+    stackBelow_toNat (by show 672 ≤ (spAt m0).toNat; omega)
   refine Eventually.done _ ⟨hpcR, ?_, ?_, ?_, ?_⟩
   · -- RSP 8 above.
     show st.data.regs.get64 .rsp = _
@@ -177,8 +177,8 @@ theorem finalize_spec (hp : Placed code k)
     rw [e, Native.Keccak.Proof.getD_take, ite_pos' hj]
   · -- Memory outside the output and the stack.
     intro p hp
-    change ¬(InRange (oAt m0) 32 p ∨ InRange (stackBelow m0 finalizeStack) 624 p) at hp
-    rw [inRange_iff g.o, inRange_iff (by rw [hs624]; omega), hs624] at hp
+    change ¬(InRange (oAt m0) 32 p ∨ InRange (stackBelow m0 finalizeStack) 672 p) at hp
+    rw [inRange_iff g.o, inRange_iff (by rw [hs672]; omega), hs672] at hp
     rw [hmem' p (by omega), hfr.same p (by rw [chgF_iff g]; omega),
       hpro.same p (by rw [frame_iff g]; omega)]
   · -- The registers kept.

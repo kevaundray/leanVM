@@ -12,7 +12,7 @@ machine code of `rustc/xmss.rs` to refine: the address of a hash call (`Tweak`, 
 digest (`messageDigest`), the codeword (`codeword`, `is_codeword` with its `count_ones`), the
 one-time leaf (`wotsLeaf`, `wots.rs`), a Merkle node (`node`, `tree.rs`), a layer with
 `keccak256`'s `path_fold` (`layerRoot`, `NativeRustc.Keccak.pathFold`) and `verify`
-(`scheme.rs`); the signature's parsing (`Signature.fromBytes`, its closure `takeLayer`) and the
+(`scheme.rs`); the signature's parsing (`Signature.fromBytes`, `LayerSignature::read` modeled by `takeLayer`) and the
 wrapper `xmss_verify`'s bytes of the 309 input words (`xmssVerify`). The layouts rustc chose for
 the structures the machine code passes in memory are `LayerSignature.memBytes`,
 `Signature.memBytes` and `WotsLeafOut`. `NativeRustc.Xmss.Verify` proves `xmssVerify` equal to
@@ -179,8 +179,7 @@ def verify (pk : PublicKey) (message : List UInt8) (sig : Signature) : Bool :=
 /-- `LeanXmssPublicKey::from_bytes`: the root, then the public parameter. -/
 def PublicKey.fromBytes (bytes : List UInt8) : PublicKey := ⟨bytes.take 16, bytes.drop 16⟩
 
-/-- `from_bytes`'s closure `layer`, with the cursor `at` (`cursor`): the randomizer, the 58 chain
-values and the 16 path nodes from byte `cursor`, and the cursor past them. -/
+/-- `LayerSignature::read` on the slice cursor, modeled by an offset: the randomizer, the 58 chain values and the 16 path nodes from byte `cursor`, and the offset past them. -/
 def takeLayer (bytes : List UInt8) (cursor : Nat) : LayerSignature × Nat :=
   (⟨slice bytes cursor 16, (List.range 58).map fun i ↦ slice bytes (cursor + 16 + 16 * i) 16,
       (List.range 16).map fun j ↦ slice bytes (cursor + 944 + 16 * j) 16⟩, cursor + 1200)
@@ -191,8 +190,7 @@ def Signature.fromBytes (bytes : List UInt8) : Signature :=
 
 /-! ## The layouts in memory -/
 
-/-- A `LayerSignature`'s 1200 bytes as rustc lays it out (`from_bytes`'s closure): the path at
-`0`, the chain values at `256`, the randomizer at `1184`. -/
+/-- A `LayerSignature`'s 1200 bytes as rustc lays out `LayerSignature::read`'s result: the path at `0`, the chain values at `256`, the randomizer at `1184`. -/
 def LayerSignature.memBytes (ls : LayerSignature) : List UInt8 :=
   ls.path.flatten ++ ls.chainValues.flatten ++ ls.randomizer
 

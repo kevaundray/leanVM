@@ -30,20 +30,20 @@ def atEntry : SState :=
 
 sym_block entry_exec := exec b0 atEntry
 
-/-- After `memset` returns: RSP 8 bytes into the stack, RBX the signature. -/
-def atReturn : SState := init [5800, 2400] [(.rsp, .ptr 0 8), (.rbx, .ptr 1 0)]
+/-- After `memset` returns: RSP 8 bytes into the stack, R14 the signature. -/
+def atReturn : SState := init [5800, 2400] [(.rsp, .ptr 0 8), (.r14, .ptr 1 0)]
 
 sym_block afterMemset_exec := exec b1 atReturn
 
 /-- The second block reads the signature's words at 1024 to 1088 and stores some on the stack;
 the low half of the word at 1088 is stored at `928(%rsp)`. -/
-example : (exec b1 atReturn).map (fun r => (r.1.reg .r13, r.1.reg .rdi, r.2)) =
+example : (exec b1 atReturn).map (fun r => (r.1.reg .r13, r.1.reg .rbp, r.2)) =
     some (some (.load 1 1088 8), some (.un .trunc .W32 (.load 1 1088 8)), .fall) := by
   rw [afterMemset_exec]
   rfl
 
 /-- The prologue calls `memset` with the return address after the block at RSP, RDI the frame at
-offset 940, ESI zero, EDX 2400; RBX the signature; the entry's RBX saved below its return
+offset 940, ESI zero, EDX 2400; R14 the signature; the entry's RBX saved below its return
 address and the entry's return address kept. -/
 theorem entry_spec [Host] {k : Nat} (hk : b0.IsInfixAt Host.prog k) {env : Env}
     (hwf : env.WF) (hret : env.ret = (Host.addrOf (k + b0.length)).toBitVec) {m : MachineData}
@@ -54,7 +54,7 @@ theorem entry_spec [Host] {k : Nat} (hk : b0.IsInfixAt Host.prog k) {env : Env}
       st.data.regs.get64 .rsi = 0#64 ∧
       st.data.regs.get64 .rdx = 2400#64 ∧
       st.data.regs.get64 .rsp = env.base 0 ∧
-      st.data.regs.get64 .rbx = env.base 1 ∧
+      st.data.regs.get64 .r14 = env.base 1 ∧
       Mem.loadInt st.data.dmem (env.base 0 + 5744#64) 8 = some ((env.regs .rbx).toNat : Int) ∧
       Mem.loadInt st.data.dmem (env.base 0 + 5792#64) 8 = some ((env.load 0 5792 8).toNat : Int))
       ⟨m, Host.addrOf k⟩ := by
@@ -69,7 +69,7 @@ theorem entry_spec [Host] {k : Nat} (hk : b0.IsInfixAt Host.prog k) {env : Env}
     rfl
   · rw [hm'.regs .rsp _ rfl]
     simp [Sym.eval]
-  · rw [hm'.regs .rbx _ rfl]
+  · rw [hm'.regs .r14 _ rfl]
     simp [Sym.eval]
   · rw [hm'.read hwf (r := 0) (o := 5744) (n := 8) rfl (by decide) (by decide)]
     rfl

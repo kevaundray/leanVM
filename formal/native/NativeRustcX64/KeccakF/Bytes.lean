@@ -105,6 +105,21 @@ theorem load_rc {r i : Nat} (hb : BytesAt env.mem0 (env.base r) rcBytes) (hi : i
   rw [hb (8 * i + k) (by omega), Option.getD_some, getElem_eq_getD', show rcBytes = wordsBytes keccakRC from rfl,
     getD_wordsBytes, show (8 * i + k) / 8 = i by omega, show (8 * i + k) % 8 = k by omega]
 
+/-- A round constant loaded through a subregion of the table. -/
+theorem load_rc_at [Labels] {r i off : Nat}
+    (hb : BytesAt env.mem0 rcAddr rcBytes)
+    (ha : env.base r + BitVec.ofNat 64 off = rcAddr + BitVec.ofNat 64 (8 * i))
+    (hi : i < 24) : env.load r off 8 = (keccakRC.getD i 0).toBitVec := by
+  have hlen : rcBytes.length = 192 := by
+    rw [show rcBytes = wordsBytes keccakRC from rfl, length_wordsBytes]
+    rfl
+  apply load_eq_of_bytes
+  intro k hk
+  rw [← addr_add, ha, addr_add, hb (8 * i + k) (by omega), Option.getD_some,
+    getElem_eq_getD', show rcBytes = wordsBytes keccakRC from rfl,
+    getD_wordsBytes, show (8 * i + k) / 8 = i by omega,
+    show (8 * i + k) % 8 = k by omega]
+
 /-- **The state's bytes** from its lanes' words. -/
 theorem bytesAt_stateBytes {d : DataMem} {a : BitVec 64} {A : KeccakState}
     (h : ∀ j < 25, WordAt d (a + BitVec.ofNat 64 (8 * j)) (Keccak.lane A j).toBitVec) :
