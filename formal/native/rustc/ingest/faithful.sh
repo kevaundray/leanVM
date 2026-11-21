@@ -2,7 +2,7 @@
 # The ingested programs are rustc's: each ingested program (NativeRustcArm.{Xmss,Sphincs}.code,
 # NativeRustcX64.{Xmss,Sphincs}.code, NativeRustcVmArm.Vm.code, NativeRustcVmX64.Vm.code), printed by Kraken's
 # printer (`print-rustc-code`, `print-rustc-code-x64`, `print-rustc-vm-code`, `print-rustc-vm-code-x64`, which add
-# only section directives) and assembled, has the bytes and relocations of rustc's assembly (rustc/out/<scheme>-
+# only section and alignment directives) and assembled, has the bytes and relocations of rustc's assembly (rustc/out/<scheme>-
 # aarch64.s, rustc/out/<scheme>-x86_64.post.s, rustc/vm/out/vm-aarch64.s, rustc/vm/out/vm-x86_64.post.s;
 # rustc/build.sh and rustc/vm/build.sh build them when missing)
 # assembled the same way, in every core function, and the data they refer to (compare.py says how relocations and

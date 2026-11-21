@@ -2,17 +2,18 @@ module
 
 import Kraken.X64.PrintATT
 import NativeRustcVmX64.Code.Vm
+import NativeRustcVmX64.Code.VmAlign
 
 /-!
 # `print-rustc-vm-code-x64`
 
 `lake exe print-rustc-vm-code-x64 vm FILE.s` writes the ingested rustc program of the leanVM verifier
 for x86-64 (`NativeRustcVmX64.Vm.code`) as an assembly file, each directive printed by Kraken's AT&T
-printer (`Kraken.X64.ATT.directive`), as `print-rustc-code-x64` does the signature verifiers'. Only sections are added: each function (a label
-not starting with `.L`) opens a section `.text.<name>`, as rustc's do, and each data label of `rodata`
-a section `.rodata.<label>` of its own. `rustc/ingest/faithful.sh` assembles the file and compares it
-with rustc's assembly, assembled. (AArch64's is `print-rustc-code`, a separate executable: Kraken's two
-architectures declare the same root names.)
+printer (`Kraken.X64.ATT.directive`), as `print-rustc-code-x64` does the signature verifiers'. Sections and alignment
+are added: each function (a label not starting with `.L`) opens a section `.text.<name>`, as rustc's do, and each data label
+of `rodata` a section `.rodata.<label>` with rustc's alignment from its separate `Align` module. `rustc/ingest/faithful.sh`
+assembles the file and compares it with rustc's assembly, assembled. (AArch64's is `print-rustc-code`,
+a separate executable: Kraken's two architectures declare the same root names.)
 -/
 
 /-- The directives printed, each label for which `opens` gives a section directive opening it. -/
@@ -31,21 +32,22 @@ def printWithSections (ds : Program) (opens : String → Option String) : Except
 
 /-- The assembly of `code`, whose last directives are `rodata`: a section `.text.<f>` at each label `f`
 not starting with `.L` before `rodata`, a section `.rodata.<l>` at each label `l` of `rodata`. -/
-def asmFile (code rodata : Program) : Except String String := do
+def asmFile (code rodata : Program) (dataAlign : String → Nat) : Except String String := do
   let n := code.length - rodata.length
   unless code.drop n == rodata do throw "the program does not end with its data"
   let text ← printWithSections (code.take n) fun l =>
     if l.startsWith ".L" then none else some s!"\t.section .text.{l},\"ax\",@progbits\n\t.p2align 4\n"
-  let data ← printWithSections rodata fun l => some s!"\t.section .rodata.{l},\"a\",@progbits\n"
+  let data ← printWithSections rodata fun l =>
+    some s!"\t.section .rodata.{l},\"a\",@progbits\n\t.p2align {dataAlign l}\n"
   return text ++ data
 
 public def main (args : List String) : IO UInt32 := do
-  let prog? : Option (Program × Program) := match args with
-    | ["vm", _] => some (NativeRustcVmX64.Vm.code, NativeRustcVmX64.Vm.rodata)
+  let prog? : Option (Program × Program × (String → Nat)) := match args with
+    | ["vm", _] => some (NativeRustcVmX64.Vm.code, NativeRustcVmX64.Vm.rodata, NativeRustcVmX64.Vm.dataAlign)
     | _ => none
   match prog?, args with
-  | some (code, rodata), [_, path] =>
-    match asmFile code rodata with
+  | some (code, rodata, dataAlign), [_, path] =>
+    match asmFile code rodata dataAlign with
     | .ok s => IO.FS.writeFile path s; return 0
     | .error e => IO.eprintln e; return 1
   | _, _ =>
