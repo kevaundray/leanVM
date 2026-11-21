@@ -7,6 +7,7 @@ public import NativeRustcX64.Hasher.Update
 public import NativeRustcX64.Hasher.Finalize
 public import NativeRustcX64.Sphincs
 public import NativeRustcX64.Xmss
+public import NativeRustcX64.Rodata
 
 /-!
 # The rustc-compiled verifiers on x86-64
@@ -47,3 +48,15 @@ axiom footprint grows beyond Lean's three standard axioms.
 /-- info: 'NativeRustcX64.XmssVerifier.verify_correct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms NativeRustcX64.XmssVerifier.verify_correct
+
+/-- info: 'NativeRustcX64.Xmss.rc_data' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms NativeRustcX64.Xmss.rc_data
+
+/-- info: 'NativeRustcX64.Sphincs.rc_data' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms NativeRustcX64.Sphincs.rc_data
+
+/-- info: 'NativeRustcX64.Sphincs.lh_data' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms NativeRustcX64.Sphincs.lh_data

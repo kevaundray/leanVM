@@ -11,6 +11,7 @@ Each item's bytes in `Vm.rodata` are `Item.bytes`, the model's values laid out a
 namespace NativeRustcVmArm.Rodata
 
 open NativeRustcVm.Data
+open NativeRustcArm (dataAt)
 
 set_option Elab.async false
 

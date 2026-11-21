@@ -15,6 +15,7 @@ are the item's (`data_eq`): what `RodataAt` asks memory to hold is what the prog
 namespace NativeRustcVmX64.Rodata
 
 open NativeRustcVm.Data
+open NativeRustcX64 (dataAt)
 
 /-- **Each item's bytes in the program's data.** -/
 public theorem data_eq : ∀ t : Item, dataAt (itemLabel t) Vm.rodata = some t.bytes

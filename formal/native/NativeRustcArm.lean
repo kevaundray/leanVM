@@ -7,6 +7,7 @@ public import NativeRustcArm.Hasher.Update
 public import NativeRustcArm.Hasher.Finalize
 public import NativeRustcArm.Sphincs
 public import NativeRustcArm.Xmss
+public import NativeRustcArm.Rodata
 
 /-!
 # The rustc-compiled verifiers on AArch64
@@ -46,3 +47,15 @@ contracts. The build fails if an axiom footprint grows beyond Lean's three stand
 /-- info: 'NativeRustcArm.XmssVerifier.verify_correct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms NativeRustcArm.XmssVerifier.verify_correct
+
+/-- info: 'NativeRustcArm.Xmss.rc_data' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms NativeRustcArm.Xmss.rc_data
+
+/-- info: 'NativeRustcArm.Sphincs.rc_data' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms NativeRustcArm.Sphincs.rc_data
+
+/-- info: 'NativeRustcArm.Sphincs.lh_data' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms NativeRustcArm.Sphincs.lh_data
