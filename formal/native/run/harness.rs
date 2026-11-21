@@ -48,11 +48,17 @@ const SAVED: &[&str] = &["rbx", "rbp", "r12", "r13", "r14", "r15"];
 #[cfg(target_arch = "x86_64")]
 const RESULT: &str = "rax";
 #[cfg(target_arch = "x86_64")]
-const LINKAGE: usize = 0;
+const LINKAGE: usize = 3;
 
-// Seven pushes keep the stack 16-byte aligned at the call.
+// Six callee-saved pushes plus `sub $8, %rsp` keep %rsp 16-byte aligned at `call *%rax`.
+// `regs` and the pre-call `%rsp` wait in `.bss` (`harness_saved`) so a broken `%rsp` is captured and reported
+// cleanly instead of crashing. Caller-saved registers are poisoned before the call so `ctx`/`regs` do not leak.
 #[cfg(target_arch = "x86_64")]
 core::arch::global_asm!(
+    ".bss",
+    ".p2align 3",
+    "harness_saved:",
+    "  .zero 16",
     ".text",
     ".globl harness_call",
     ".type harness_call, @function",
@@ -63,7 +69,11 @@ core::arch::global_asm!(
     "  push %r13",
     "  push %r14",
     "  push %r15",
-    "  push %rdx",
+    "  sub $8, %rsp",
+    "  lea harness_saved(%rip), %r10",
+    "  mov %rdx, 0(%r10)",
+    "  mov %rsp, 8(%r10)",
+    "  mov %rsp, 48(%rdx)",
     "  mov %rdi, %rax",
     "  mov %rsi, %rdi",
     "  movabs $0x0123456789abcde1, %rbx",
@@ -72,14 +82,29 @@ core::arch::global_asm!(
     "  movabs $0x0123456789abcde4, %r13",
     "  movabs $0x0123456789abcde5, %r14",
     "  movabs $0x0123456789abcde6, %r15",
+    "  movabs $0xdeadbeefcafe0001, %rsi",
+    "  movabs $0xdeadbeefcafe0002, %rdx",
+    "  movabs $0xdeadbeefcafe0003, %rcx",
+    "  movabs $0xdeadbeefcafe0004, %r8",
+    "  movabs $0xdeadbeefcafe0005, %r9",
+    "  movabs $0xdeadbeefcafe0006, %r10",
+    "  movabs $0xdeadbeefcafe0007, %r11",
     "  call *%rax",
-    "  pop %rdx",
+    "  mov %rsp, %r11",
+    "  lea harness_saved(%rip), %r10",
+    "  mov 0(%r10), %rdx",
+    "  mov 8(%r10), %rsp",
+    "  pushfq",
+    "  pop %rcx",
     "  mov %rbx, 0(%rdx)",
     "  mov %rbp, 8(%rdx)",
     "  mov %r12, 16(%rdx)",
     "  mov %r13, 24(%rdx)",
     "  mov %r14, 32(%rdx)",
     "  mov %r15, 40(%rdx)",
+    "  mov %r11, 56(%rdx)",
+    "  mov %rcx, 64(%rdx)",
+    "  add $8, %rsp",
     "  pop %r15",
     "  pop %r14",
     "  pop %r13",
@@ -102,6 +127,7 @@ const LINKAGE: usize = 4;
 
 // The frame keeps the harness's own x19..x30; `regs` and the frame's sp wait in `harness_saved` rather than in a
 // register or on the stack, which the verifier may break, so the wrapper returns whatever it left there.
+// Caller-saved registers x1..x15 and x17 are poisoned before `blr x16` so `ctx`/`regs` do not leak.
 #[cfg(target_arch = "aarch64")]
 core::arch::global_asm!(
     ".bss",
@@ -141,6 +167,25 @@ core::arch::global_asm!(
     "  add x27, x19, #8",
     "  add x28, x19, #9",
     "  add x29, x19, #10",
+    "  movz x1, #0x0001",
+    "  movk x1, #0xcafe, lsl #16",
+    "  movk x1, #0xbeef, lsl #32",
+    "  movk x1, #0xdead, lsl #48",
+    "  add x2, x1, #1",
+    "  add x3, x1, #2",
+    "  add x4, x1, #3",
+    "  add x5, x1, #4",
+    "  add x6, x1, #5",
+    "  add x7, x1, #6",
+    "  add x8, x1, #7",
+    "  add x9, x1, #8",
+    "  add x10, x1, #9",
+    "  add x11, x1, #10",
+    "  add x12, x1, #11",
+    "  add x13, x1, #12",
+    "  add x14, x1, #13",
+    "  add x15, x1, #14",
+    "  add x17, x1, #15",
     "  blr x16",
     "1:",
     "  adrp x9, harness_saved",
@@ -194,36 +239,102 @@ fn scheme(name: &str) -> Option<(usize, Option<Verify>)> {
     }
 }
 
-/// Words between `GUARD_WORDS` guard words on each side, in one allocation; the verifier gets the inside.
-struct Guarded(Vec<u64>);
+const PROT_NONE: i32 = 0;
+const PROT_READ: i32 = 1;
+const PROT_WRITE: i32 = 2;
+const MAP_PRIVATE: i32 = 0x02;
+const MAP_ANONYMOUS: i32 = 0x20;
+const SC_PAGESIZE: i32 = 30;
+
+unsafe extern "C" {
+    fn mmap(addr: *mut u8, len: usize, prot: i32, flags: i32, fd: i32, offset: isize) -> *mut u8;
+    fn mprotect(addr: *mut u8, len: usize, prot: i32) -> i32;
+    fn munmap(addr: *mut u8, len: usize) -> i32;
+    fn sysconf(name: i32) -> isize;
+}
+
+fn page_size() -> usize {
+    let p = unsafe { sysconf(SC_PAGESIZE) };
+    if p > 0 { p as usize } else { 4096 }
+}
+
+/// Words between `PROT_NONE` guard pages (with leading in-band `GUARD` words up to the page boundary), right-aligned
+/// so the end of the payload abuts the trailing `PROT_NONE` guard page: any out-of-bounds read or write past the end
+/// faults immediately, and `readonly` areas are protected with `PROT_READ`.
+struct Guarded {
+    base: *mut u8,
+    total: usize,
+    page: usize,
+    prefix_words: usize,
+    len_words: usize,
+}
 
 impl Guarded {
+    fn with_prot(words: &[u64], readonly: bool) -> Self {
+        let page = page_size();
+        let payload_bytes = words.len() * 8;
+        let min_data = GUARD_WORDS * 8 + payload_bytes;
+        let data_bytes = min_data.div_ceil(page).max(1) * page;
+        let total = page + data_bytes + page;
+        // SAFETY: anonymous private mapping, initially PROT_NONE, then data pages made RW.
+        let base = unsafe { mmap(core::ptr::null_mut(), total, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0) };
+        assert!(base != (!0usize as *mut u8), "mmap failed");
+        let data_ptr = unsafe { base.add(page) };
+        let rc = unsafe { mprotect(data_ptr, data_bytes, PROT_READ | PROT_WRITE) };
+        assert_eq!(rc, 0, "mprotect RW failed");
+        let total_words = data_bytes / 8;
+        let prefix_words = total_words - words.len();
+        let slice = unsafe { core::slice::from_raw_parts_mut(data_ptr as *mut u64, total_words) };
+        slice[..prefix_words].fill(GUARD);
+        slice[prefix_words..].copy_from_slice(words);
+        if readonly {
+            let rc = unsafe { mprotect(data_ptr, data_bytes, PROT_READ) };
+            assert_eq!(rc, 0, "mprotect RO failed");
+        }
+        Self {
+            base,
+            total,
+            page,
+            prefix_words,
+            len_words: words.len(),
+        }
+    }
+
     fn new(words: &[u64]) -> Self {
-        let mut all = vec![GUARD; words.len() + 2 * GUARD_WORDS];
-        all[GUARD_WORDS..GUARD_WORDS + words.len()].copy_from_slice(words);
-        Guarded(all)
+        Self::with_prot(words, false)
+    }
+
+    fn new_readonly(words: &[u64]) -> Self {
+        Self::with_prot(words, true)
     }
 
     fn len(&self) -> usize {
-        self.0.len() - 2 * GUARD_WORDS
+        self.len_words
+    }
+
+    fn data_words(&self) -> &[u64] {
+        unsafe { core::slice::from_raw_parts(self.base.add(self.page) as *const u64, self.prefix_words + self.len_words) }
     }
 
     fn words(&self) -> &[u64] {
-        &self.0[GUARD_WORDS..GUARD_WORDS + self.len()]
+        &self.data_words()[self.prefix_words..]
     }
 
-    /// The inside's address, in the allocation even when the inside is empty.
+    /// The inside's address, 8-byte aligned even when empty.
     fn addr(&mut self) -> *mut u64 {
-        let n = self.len();
-        self.0[GUARD_WORDS..GUARD_WORDS + n].as_mut_ptr()
+        unsafe { (self.base.add(self.page) as *mut u64).add(self.prefix_words) }
     }
 
     fn guards_intact(&self) -> bool {
-        let n = self.len();
-        self.0[..GUARD_WORDS]
-            .iter()
-            .chain(&self.0[GUARD_WORDS + n..])
-            .all(|&w| w == GUARD)
+        self.data_words()[..self.prefix_words].iter().all(|&w| w == GUARD)
+    }
+}
+
+impl Drop for Guarded {
+    fn drop(&mut self) {
+        unsafe {
+            munmap(self.base, self.total);
+        }
     }
 }
 
@@ -244,6 +355,14 @@ fn call(verify: Verify, ctx: *mut u64, faults: &mut Vec<String>) -> u64 {
     for (i, reg) in SAVED.iter().enumerate() {
         if regs[i] != PATTERN + i as u64 {
             faults.push(format!("callee-saved {reg} not preserved"));
+        }
+    }
+    if let &[rsp_before, rsp_after, rflags] = &regs[SAVED.len()..] {
+        if rsp_after != rsp_before {
+            faults.push("rsp not preserved".into());
+        }
+        if rflags & (1 << 10) != 0 {
+            faults.push("DF not cleared".into());
         }
     }
     if let &[ret, sp, x30, sp_after] = &regs[SAVED.len()..] {
@@ -295,13 +414,16 @@ fn sig_case<'a>(name: &str, tokens: &mut impl Iterator<Item = &'a str>) -> Resul
 }
 
 fn run_sig(path: &str, verify: Verify, expect: u64, input: &[u64]) -> i32 {
-    let mut words = vec![0; SIG_CTX_WORDS];
+    let mut words = vec![JUNK; SIG_CTX_WORDS];
     words[SIG_INPUT_WORD..SIG_INPUT_WORD + input.len()].copy_from_slice(input);
     let mut ctx = Guarded::new(&words);
     let mut faults = Vec::new();
     let result = call(verify, ctx.addr(), &mut faults);
     if !ctx.guards_intact() {
         faults.push("a write outside the context".into());
+    }
+    if ctx.words()[SIG_INPUT_WORD..SIG_INPUT_WORD + input.len()] != *input {
+        faults.push("a write to the input".into());
     }
     report(path, expect, result, &faults)
 }
@@ -365,8 +487,8 @@ fn vm_case<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<(Vec<u64>, 
 /// `VM_KEPT` words after the call.
 fn run_vm(path: &str, verify: Verify, expect: u64, bytecode: &[u64], public: &[u64], wire: &[u8]) -> i32 {
     let wire_words = le_words(wire);
-    let mut wire_area = Guarded::new(&wire_words);
-    let mut bytecode_area = Guarded::new(bytecode);
+    let mut wire_area = Guarded::new_readonly(&wire_words);
+    let mut bytecode_area = Guarded::new_readonly(bytecode);
     let mut decoded = Guarded::new(&vec![JUNK; vm_decoded_words(wire.len())]);
     let mut work = Guarded::new(&vec![JUNK; vm_work_words(bytecode.len())]);
     let mut words = vec![JUNK; VM_CTX_WORDS];
@@ -456,11 +578,74 @@ fn run(path: &str) -> i32 {
     }
 }
 
+/// Defensive context-precondition checks for the rustc-compiled `leanvm_verify` (`rustc/vm/src/lib.rs`).
+fn run_vm_preconditions() -> i32 {
+    let Some(verify) = VM else {
+        eprintln!("harness: leanvm_verify is not linked in");
+        return 2;
+    };
+    let mut wire_area = Guarded::new_readonly(&[0u64; 1]);
+    let mut bc_area = Guarded::new_readonly(&[0u64; 24]);
+    let mut dec_area = Guarded::new(&vec![JUNK; vm_decoded_words(8)]);
+    let mut work_area = Guarded::new(&vec![JUNK; vm_work_words(16)]);
+    let base: [u64; 12] = [
+        wire_area.addr() as u64,
+        8,
+        bc_area.addr() as u64,
+        16,
+        0,
+        0,
+        0,
+        0,
+        dec_area.addr() as u64,
+        dec_area.len() as u64,
+        work_area.addr() as u64,
+        work_area.len() as u64,
+    ];
+    let cases: &[(&str, [u64; 12])] = &[
+        ("l-ge-2p32", { let mut c = base; c[1] = 1u64 << 32; c }),
+        ("n-gt-bcSmall", { let mut c = base; c[3] = ((1u64 << 32) - 10) / 8 + 1; c }),
+        ("dec-undersized", { let mut c = base; c[9] = (vm_decoded_words(8) - 1) as u64; c }),
+        ("work-undersized", { let mut c = base; c[11] = 1; c }),
+        ("dec-null", { let mut c = base; c[8] = 0; c }),
+        ("dec-unaligned", { let mut c = base; c[8] += 1; c }),
+        ("work-null", { let mut c = base; c[10] = 0; c }),
+        ("work-unaligned", { let mut c = base; c[10] += 1; c }),
+        ("bc-null-nonzero-n", { let mut c = base; c[2] = 0; c }),
+        ("bc-unaligned-nonzero-n", { let mut c = base; c[2] += 1; c }),
+        ("wire-null-nonzero-l", { let mut c = base; c[0] = 0; c }),
+        ("bc-empty", { let mut c = base; c[3] = 0; c }),
+        ("bc-non-pow2", { let mut c = base; c[3] = 24; c }),
+    ];
+    let mut worst = 0;
+    for &(name, header) in cases {
+        let mut words = vec![JUNK; VM_CTX_WORDS];
+        words[..12].copy_from_slice(&header);
+        let mut ctx = Guarded::new(&words);
+        let mut faults = Vec::new();
+        let result = call(verify, ctx.addr(), &mut faults);
+        if !ctx.guards_intact() {
+            faults.push("a write outside the context".into());
+        }
+        worst = worst.max(report(&format!("vm_precondition_{name}"), 0, result, &faults));
+    }
+    worst
+}
+
 fn main() {
     let cases: Vec<String> = env::args().skip(1).collect();
     if cases.is_empty() {
-        eprintln!("usage: harness CASE...");
+        eprintln!("usage: harness [--vm-preconditions] CASE...");
         process::exit(2);
     }
-    process::exit(cases.iter().map(|case| run(case)).max().unwrap_or(0));
+    let mut worst = 0;
+    for arg in &cases {
+        let rc = if arg == "--vm-preconditions" {
+            run_vm_preconditions()
+        } else {
+            run(arg)
+        };
+        worst = worst.max(rc);
+    }
+    process::exit(worst);
 }

@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Compares the functions of an object file assembled from an ingested program with rustc's object file.
 
-Usage: compare.py RUSTC.o INGESTED.o
+Usage: compare.py [--entry NAME]... RUSTC.o INGESTED.o
 
 Both files are ELF relocatable files for AArch64 or x86-64. Every function of INGESTED.o (a symbol at the
 start of a `.text.<name>` section), other than the traps (the panic entries of `core`, which the ingested
 program replaces with a trap: `PANIC_SUFFIXES`), must be a function of RUSTC.o of the same size whose
-bytes and relocations are the same. A relocation is compared as its offset, its type, its target and its
-addend: a target is a function (or other named symbol) by name, or a data item by contents, recursively
-(its bytes and its own relocations). A section symbol stands for the named symbol at the start of its
-section when there is one (each function has a section of its own); otherwise for its section's
-contents (each data item of either file has a section of its own), or, in a section of mergeable
-strings, for the string at the addend up to its terminating NUL. Local labels never reach the object
-files, so their names (which ingestion renames) are not compared. Every function a relocation of
-INGESTED.o targets must be defined in it, and every data section of INGESTED.o must be reached.
+bytes and relocations are the same. Every `*_verify` entry function present in RUSTC.o (and every symbol
+named with `--entry`) must be present in INGESTED.o. A relocation is compared as its offset, its type, its
+target and its addend: a target is a function by name, or a data item by contents, recursively (its bytes
+and its own relocations). A section symbol stands for the named function at the start of its section when
+there is one (each function has a section of its own); otherwise for its section's contents (each data item
+of either file has a section of its own), or, in a section of mergeable strings, for the string at the
+addend up to its terminating NUL. Local labels never reach the object files, so their names (which
+ingestion renames) are not compared. Every function a relocation of INGESTED.o targets (including nested
+relocations inside data items) must be defined in it, and every data section of INGESTED.o must be reached.
 
 AArch64 instruction words are compared exactly but for one bit: a byte load or store with a register
 offset (`LDRB`, `STRB`, `LDRSB`) encodes `[Xn, Xm]` with S = 0 and `[Xn, Xm, LSL #0]` with S = 1, both
@@ -40,7 +41,8 @@ def normalise(machine, code):
     out = bytearray(code)
     for k in range(0, len(code) - len(code) % 4, 4):
         w = int.from_bytes(code[k:k + 4], "little")
-        if w & 0xFF200C00 == 0x38200800:
+        # Valid register-offset LDRB/STRB/LDRSB encodings have option<1> = 1 (bit 14 = 1).
+        if w & 0xFF204C00 == 0x38204800:
             out[k:k + 4] = (w & ~(1 << 12)).to_bytes(4, "little")
     return bytes(out)
 
@@ -73,14 +75,14 @@ class Elf:
                     name, info, _, shndx, value, size = struct.unpack_from("<IBBHQQ", data, s["off"] + 24 * k)
                     self.syms.append(dict(name=self._str(data, names["off"], name), type=info & 0xF,
                                           bind=info >> 4, shndx=shndx, value=value, size=size))
-        # Relocations of each section: offset -> (type, symbol index, addend).
+        # Relocations of each section: offset -> list of (type, symbol index, addend).
         self.relocs = {}
         for s in secs:
             if s["type"] == SHT_RELA:
                 rs = self.relocs.setdefault(s["info"], {})
                 for k in range(s["size"] // 24):
                     off, info, addend = struct.unpack_from("<QQq", data, s["off"] + 24 * k)
-                    rs[off] = (info & 0xFFFFFFFF, info >> 32, addend)
+                    rs.setdefault(off, []).append((info & 0xFFFFFFFF, info >> 32, addend))
 
     @staticmethod
     def _str(data, base, off):
@@ -109,14 +111,16 @@ class Elf:
         if sym["type"] != STT_SECTION and sym["name"] and not sym["name"].startswith((".L", "$")):
             if sym["shndx"] == 0:
                 return ("undefined", sym["name"], addend)
-            return ("symbol", sym["name"], addend)
+            if self.secs[sym["shndx"]]["name"].startswith(".text."):
+                return ("symbol", sym["name"], addend)
         shndx, off = sym["shndx"], sym["value"] + addend
         sec = self.secs[shndx]
         if sec["flags"] & SHF_MERGE and sec["flags"] & SHF_STRINGS:
             return (self.datum(shndx, off, sec["data"].index(b"\0", off) + 1, depth, reached), 0)
-        named = self.named_at(shndx, 0)
-        if named:
-            return ("symbol", named[0], off)
+        if sec["name"].startswith(".text."):
+            named = self.named_at(shndx, 0)
+            if named:
+                return ("symbol", named[0], off)
         return (self.datum(shndx, 0, sec["size"], depth, reached), off)
 
     def datum(self, shndx, start, end, depth, reached):
@@ -125,24 +129,64 @@ class Elf:
             raise SystemExit(f"{self.path}: data refers to data too deeply")
         if reached is not None:
             reached.add(shndx)
-        rels = tuple(sorted((o - start, t, self.target(si, a, depth + 1, reached))
-                            for o, (t, si, a) in self.relocs.get(shndx, {}).items() if start <= o < end))
+        rels = tuple(sorted(
+            (o - start, t, self.target(si, a, depth + 1, reached))
+            for o, entries in self.relocs.get(shndx, {}).items() if start <= o < end
+            for (t, si, a) in entries
+        ))
         return ("data", self.secs[shndx]["data"][start:end].hex(), rels)
 
     def function(self, shndx, reached=None):
         sec = self.secs[shndx]
-        rels = {o: (t, self.target(si, a, 0, reached)) for o, (t, si, a) in self.relocs.get(shndx, {}).items()}
+        rels = {
+            o: tuple(sorted((t, self.target(si, a, 0, reached)) for (t, si, a) in entries))
+            for o, entries in self.relocs.get(shndx, {}).items()
+        }
         return sec["data"], rels
 
 
+def undefined_targets(target):
+    """Yield every undefined symbol name referenced directly or inside nested data relocations."""
+    if not isinstance(target, tuple) or not target:
+        return
+    if target[0] == "undefined":
+        yield target[1]
+    elif target[0] == "data":
+        for _, _, sub in target[2]:
+            yield from undefined_targets(sub)
+    elif isinstance(target[0], tuple):
+        yield from undefined_targets(target[0])
+
+
 def main():
-    if len(sys.argv) != 3:
+    args = sys.argv[1:]
+    entries = []
+    pos = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--entry" and i + 1 < len(args):
+            entries.append(args[i + 1])
+            i += 2
+        elif args[i].startswith("--entry="):
+            entries.append(args[i].split("=", 1)[1])
+            i += 1
+        elif args[i].startswith("-"):
+            raise SystemExit(__doc__)
+        else:
+            pos.append(args[i])
+            i += 1
+    if len(pos) != 2:
         raise SystemExit(__doc__)
-    ref, mine = Elf(sys.argv[1]), Elf(sys.argv[2])
+    ref_path, mine_path = pos
+    ref, mine = Elf(ref_path), Elf(mine_path)
     if ref.machine != mine.machine or ref.machine not in (EM_X86_64, EM_AARCH64):
-        raise SystemExit(f"{sys.argv[1]}, {sys.argv[2]}: machines {ref.machine}, {mine.machine}")
+        raise SystemExit(f"{ref_path}, {mine_path}: machines {ref.machine}, {mine.machine}")
     ref_fns, mine_fns = ref.functions(), mine.functions()
     errors = []
+    required_entries = set(entries) | {n for n in ref_fns if n.endswith("_verify")}
+    for name in sorted(required_entries):
+        if name not in mine_fns:
+            errors.append(f"{name}: required entry function missing from {mine.path}")
     reached = set()
     compared = 0
     for name, shndx in sorted(mine_fns.items()):
@@ -166,9 +210,10 @@ def main():
         for o in sorted(set(rrels) | set(mrels)):
             if rrels.get(o) != mrels.get(o):
                 errors.append(f"{name}+{o:#x}: relocation {mrels.get(o)} ingested, {rrels.get(o)} rustc")
-        for o, (_, t) in mrels.items():
-            if t[0] == "undefined":
-                errors.append(f"{name}+{o:#x}: {t[1]} is not in the ingested program")
+        for o, rel_list in mrels.items():
+            for _, t in rel_list:
+                for undef in undefined_targets(t):
+                    errors.append(f"{name}+{o:#x}: {undef} is not in the ingested program")
         compared += 1
     for i, s in enumerate(mine.secs):
         if s["name"].startswith(".rodata") and s["size"] and i not in reached:
@@ -176,8 +221,8 @@ def main():
     for e in errors:
         print(f"MISMATCH {e}")
     if errors or compared == 0:
-        raise SystemExit(f"{sys.argv[2]}: {len(errors)} mismatches against {sys.argv[1]}")
-    print(f"{sys.argv[2]}: {compared} functions identical to {sys.argv[1]}, "
+        raise SystemExit(f"{mine_path}: {len(errors)} mismatches against {ref_path}")
+    print(f"{mine_path}: {compared} functions identical to {ref_path}, "
           f"{len(reached)} data sections reached")
 
 

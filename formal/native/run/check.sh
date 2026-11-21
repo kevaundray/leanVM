@@ -5,10 +5,13 @@
 # Usage, from anywhere:
 #   run/check.sh                            # x86-64, the default schemes printed by `lake exe emit-x64` (formal/native)
 #   run/check.sh --arch arm                 # AArch64, printed by `lake exe emit-arm` (formal/native)
-#   run/check.sh [--arch x86|arm] XMSS.S [SPHINCS.S [VM.S]]
+#   run/check.sh --rustc [--arch x86|arm]   # test the rustc-compiled assemblies (`rustc/out/`, `rustc/vm/out/`) and
+#                                           # the rustc leanVM verifier's defensive context precondition checks
+#   run/check.sh [--arch x86|arm] [--xmss FILE] [--sphincs FILE] [--vm FILE] [ASM...]
 #                                           # given assembly files, exporting `xmss_verify`, `sphincs_verify` and
-#                                           # `leanvm_verify`; an absent or empty argument is printed by the
-#                                           # architecture's emitter
+#                                           # `leanvm_verify`; positional paths match CHECK_SCHEMES in order (or
+#                                           # xmss, sphincs, vm when three are passed); an absent or empty argument
+#                                           # is printed by the architecture's emitter
 #   CHECK_SCHEMES=vm run/check.sh           # some schemes (`xmss`, `sphincs`, `vm`; the default all three)
 #   CHECK_VM_FIXTURES=DIR                   # the leanVM verifier fixtures to use, an earlier
 #                                           # `formal/lean_vm/scripts/export-verifier-fixtures-rust.sh DIR`; without
@@ -25,20 +28,29 @@
 # node, a FORS secret or path node, a counter, the leaf index; another key), each as the scheme's input words
 # (`Native/Xmss/Layout.lean`, `Native/Sphincs/Layout.lean`) with what the crate's `verify` returns; for leanVM, each
 # fixture's proof and copies of its wire cut, extended or with a bit flipped in each field (`reference/src/vm.rs`),
-# with what the crate `verifier` returns. `harness.rs`, linked with the assembled verifiers, lays out each case's
-# context (and for leanVM the areas `NativeVm/Input.lean` asks for), runs the verifier on it and compares its result
-# with that bit.
+# plus mutated public inputs, mutated valid bytecodes and adversarial malformed wire encodings, with what the crate
+# `verifier` returns. `harness.rs`, linked with the assembled verifiers, lays out each case's context (and for leanVM
+# the areas `NativeVm/Input.lean` asks for), runs the verifier on it and compares its result with that bit.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 project=$(dirname "$here")
 
 arch=x86
+use_rustc=0
+declare -A named_given=()
 paths=()
 while [[ $# -gt 0 ]]; do
   case $1 in
     --arch) arch=${2:-}; shift 2 || { echo "--arch needs x86 or arm" >&2; exit 2; } ;;
     --arch=*) arch=${1#--arch=}; shift ;;
+    --rustc) use_rustc=1; shift ;;
+    --xmss) named_given[xmss]=${2:-}; shift 2 || { echo "--xmss needs a path" >&2; exit 2; } ;;
+    --xmss=*) named_given[xmss]=${1#--xmss=}; shift ;;
+    --sphincs) named_given[sphincs]=${2:-}; shift 2 || { echo "--sphincs needs a path" >&2; exit 2; } ;;
+    --sphincs=*) named_given[sphincs]=${1#--sphincs=}; shift ;;
+    --vm) named_given[vm]=${2:-}; shift 2 || { echo "--vm needs a path" >&2; exit 2; } ;;
+    --vm=*) named_given[vm]=${1#--vm=}; shift ;;
     -*) echo "unknown option $1" >&2; exit 2 ;;
     *) paths+=("$1"); shift ;;
   esac
@@ -51,12 +63,18 @@ case $arch in
     machine=x86_64
     emitter=(lake exe emit-x64)
     qemu=${QEMU_X86_64:-qemu-x86_64-static}
+    rustc_xmss=$project/rustc/out/xmss-x86_64.post.s
+    rustc_sphincs=$project/rustc/out/sphincs-x86_64.post.s
+    rustc_vm=$project/rustc/vm/out/vm-x86_64.post.s
     ;;
   arm)
     triple=aarch64-unknown-linux-musl
     machine=aarch64
     emitter=(lake exe emit-arm)
     qemu=${QEMU_AARCH64:-qemu-aarch64-static}
+    rustc_xmss=$project/rustc/out/xmss-aarch64.s
+    rustc_sphincs=$project/rustc/out/sphincs-aarch64.s
+    rustc_vm=$project/rustc/vm/out/vm-aarch64.s
     ;;
   *) echo "unknown architecture $arch, not x86 or arm" >&2; exit 2 ;;
 esac
@@ -64,7 +82,32 @@ runner=()
 [[ $(uname -m) == "$machine" ]] || runner=("$qemu")
 
 read -r -a schemes <<<"${CHECK_SCHEMES:-xmss sphincs vm}"
-declare -A given=([xmss]=${paths[0]:-} [sphincs]=${paths[1]:-} [vm]=${paths[2]:-})
+declare -A given=([xmss]="" [sphincs]="" [vm]="")
+if [[ $use_rustc -eq 1 ]]; then
+  given[xmss]=$rustc_xmss
+  given[sphincs]=$rustc_sphincs
+  given[vm]=$rustc_vm
+fi
+if [[ ${#paths[@]} -gt 0 ]]; then
+  if [[ ${#paths[@]} -le ${#schemes[@]} ]]; then
+    for i in "${!paths[@]}"; do
+      given[${schemes[$i]}]=${paths[$i]}
+    done
+  else
+    given[xmss]=${paths[0]:-}
+    given[sphincs]=${paths[1]:-}
+    given[vm]=${paths[2]:-}
+  fi
+fi
+for k in "${!named_given[@]}"; do
+  given[$k]=${named_given[$k]}
+done
+
+# Pin the harness's rustc toolchain to `rustc/rust-toolchain.toml` unless caller overrides it.
+if [[ -z ${RUSTUP_TOOLCHAIN:-} && -f "$project/rustc/rust-toolchain.toml" ]]; then
+  RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$project/rustc/rust-toolchain.toml")
+  export RUSTUP_TOOLCHAIN
+fi
 
 out=${CHECK_OUT:-$(mktemp -d)}
 mkdir -p "$out"
@@ -120,6 +163,16 @@ rustc --edition 2024 -C opt-level=1 --target "$triple" -C linker=rust-lld --chec
 
 total=0
 bad=0
+if [[ $use_rustc -eq 1 && " ${schemes[*]} " == *" vm "* ]]; then
+  total=$((total + 1))
+  rc=0
+  timeout 600 "${runner[@]}" "$out/harness" --vm-preconditions 2>"$out/vm_preconditions.err" || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    bad=$((bad + 1))
+    echo "vm_preconditions: HARNESS ERROR (exit $rc): $(cat "$out/vm_preconditions.err")"
+  fi
+  [[ -s $out/vm_preconditions.err ]] || rm -f "$out/vm_preconditions.err"
+fi
 while read -r name; do
   [[ " ${schemes[*]} " == *" ${name%%_*} "* ]] || continue
   total=$((total + 1))

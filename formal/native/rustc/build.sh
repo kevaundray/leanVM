@@ -30,7 +30,7 @@ root=$(cd "$here/../../.." && pwd)
 
 RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$here/rust-toolchain.toml")
 export RUSTUP_TOOLCHAIN
-unset RUSTC_BOOTSTRAP RUSTC_WRAPPER
+unset RUSTC_BOOTSTRAP RUSTC_WRAPPER RUSTFLAGS
 
 # What the build reads, relative to the repository: the deployed crates' sources and the entry points.
 sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs formal/native/rustc/mem.rs formal/native/rustc/x86-postpass.py)

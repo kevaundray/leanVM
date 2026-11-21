@@ -57,11 +57,15 @@ const CTX_WORDS: usize = 12;
 ///
 /// # Safety
 ///
-/// `ctx` points to the context of `NativeVm/Input.lean`: words `0`, `1` the wire bytes' address and
-/// count, `2`, `3` the bytecode's words' address and count, `4 .. 7` the public input, `8`, `9` the
-/// decoded area's address and word count, `10`, `11` the working area's; every area readable (the
-/// decoded and the working areas writable) over its count and apart from the others but for the
-/// wire and the bytecode, which are only read. The counts and the alignment are checked here.
+/// `ctx` must be non-null, 8-byte aligned, and readable over its first 12 words (`NativeVm/Input.lean`):
+/// words `0`, `1` the wire bytes' address and count, `2`, `3` the bytecode's words' address and count,
+/// `4 .. 7` the public input, `8`, `9` the decoded area's address and word count, `10`, `11` the working
+/// area's; every area readable over its count, the decoded and working areas writable and initialized over
+/// their counts (since Rust `&mut [u64]` / `&mut T` references require initialized integer memory), and all
+/// areas apart from one another except the read-only wire and bytecode. The area counts and alignments
+/// (other than `ctx` itself) are checked here. Like `Statement/LeanVmVerifier.lean`, this entry point does
+/// not check `is_valid_encoding_of_a_leanisa_program`; callers on untrusted bytecode must validate it
+/// externally to match `crates/verifier::Bytecode::new`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn leanvm_verify(ctx: *mut u64) -> u64 {
     // SAFETY: the caller's contract, the context's first words readable.
