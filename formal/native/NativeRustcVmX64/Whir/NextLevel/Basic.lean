@@ -101,6 +101,9 @@ structure Ctx (a : DecArea) (s : TState) (level : Whir.Level) (w : WhirStateW)
   lt : NativeRustcVm.Apart (lA m0) levelBytes (tA m0) tstateBytes
   at' : NativeRustcVm.Apart (rspOf m0 + 8#64) 8 (tA m0) tstateBytes
   ap : NativeRustcVm.Apart (rspOf m0 + 8#64) 8 (pA m0) whirBytes
+  got : GotAt m0 nextLevelStack ([(tA m0, tstateBytes), (a.words, 8 * a.len),
+    (pA m0, whirBytes), (lA m0, levelBytes), (rspOf m0 + 8#64, 8)] ++ rodataAreas)
+    ["memcpy", "memset"]
 
 /-- The function's goal. -/
 abbrev Goal (a : DecArea) (s : TState) (level : Whir.Level) (w : WhirStateW)
@@ -173,8 +176,8 @@ variable [Labels] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirState
 
 theorem Ctx.of_pre (h : NextLevelPre a s level w rounds m0) : Ctx a s level w rounds m0 := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18,
-    h19⟩ := h
-  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, h19⟩
+    h19, hg⟩ := h
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, h19, hg⟩
 
 namespace Ctx
 

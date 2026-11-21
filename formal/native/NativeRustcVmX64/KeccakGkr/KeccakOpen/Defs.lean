@@ -42,7 +42,8 @@ abbrev rwA (m0 : MachineData) : BitVec 64 := openRows m0
 abbrev argA (m0 : MachineData) : BitVec 64 := rspOf m0 + 8#64
 
 /-- The fold's regions besides the frame: the slot point, the rows, the stack arguments. -/
-def RF (m0 : MachineData) : List (BitVec 64 × Nat) := [(slA m0, 96), (rwA m0, 65536), (argA m0, 48)]
+def RF [Labels] (m0 : MachineData) : List (BitVec 64 × Nat) :=
+  [(slA m0, 96), (rwA m0, 65536), (argA m0, 48), (gotAddr "memcpy", 8)]
 
 /-- The fold's environment. -/
 abbrev E [Labels] (m0 st : MachineData) (vars : Nat → BitVec 64) (ret : BitVec 64) : Env :=
@@ -78,6 +79,10 @@ structure PreOk [Labels] (a : DecArea) (s : TState) (c : KeccakClaimW) (m0 : Mac
   cnt : 1 ≤ (openCount m0).toNat
   fc : (openFirst m0).toNat + (openCount m0).toNat ≤ keccakSegments
   areas : Areas m0 keccakOpenStack (wsOf m0) (rsOf a c m0)
+  got : GotAt m0 keccakOpenStack
+    [(oA m0, 24), (tA m0, tstateBytes), (slA m0, 96), (rwA m0, rowsBytes),
+      (a.region.addr, a.region.size), (reg m0 .rcx, 16 * c.point.size), (reg m0 .r9, weightsBytes),
+      (rcAddr, 192), (argA m0, 48)] ["memcpy"]
 
 /-- **The addresses as numbers**: RSP `R`, the result `O`, the `TState` `T`, the slot point `S`,
 the rows `W`, the decoded words `A` (`L` bytes), the point `Q` (`K` bytes), the bit weights `B`,
@@ -174,7 +179,8 @@ theorem slots_le' : ∀ p ∈ slots, p.1 + 8 ≤ 2208 := fun p hp ↦ (slots_le 
 
 theorem preOk (h : KeccakOpenPre a s c m0) : PreOk a s c m0 :=
   ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-    h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2⟩
+    h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.1,
+    h.2.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2.2⟩
 
 omit [Labels] in
 theorem apart_n {a1 a2 : BitVec 64} {n1 n2 : Nat} (h : NativeRustcVm.Apart a1 n1 a2 n2) :

@@ -187,11 +187,27 @@ theorem iter_c (hp : Placed code k) (hfold : Spec (label NativeRustcVmX64.Vm.Fol
     rw [e3rdi, e3rsi, e3rdx]
     refine ⟨hfr3.stackOk hl (by decide), hts,
       hfr3.whirIn_frame hl (by decide) (by omega) (by decide),
-      hfr3.whirIn_frame hl (by decide) (by decide) (by decide), ?_⟩
-    unfold Apart
-    rw [a1176, a1440]
-    have : whatBytes = 256 := rfl
-    omega
+      hfr3.whirIn_frame hl (by decide) (by decide) (by decide), ?_, ?_⟩
+    · unfold Apart
+      rw [a1176, a1440]
+      have : whatBytes = 256 := rfl
+      omega
+    · apply hfr3.got_callee hl c.got c.got_nw
+        (fun q h => ⟨(bOf m0, 16), by simp, h⟩) (by decide)
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · refine ⟨(stackBelow m0 eachRowNextStack, eachRowNextStack + 8), by simp, ?_, ?_⟩ <;>
+          rw [a1440, hl.baseN] <;> have := hl.sp <;> rw [stack_eq] at * <;> omega
+      · have hsp : 3136 ≤ (rspOf m0).toNat := hl.sp
+        refine ⟨(stackBelow m0 eachRowNextStack, eachRowNextStack + 8), by simp, ?_, ?_⟩
+        · change (stackBelow m0 eachRowNextStack).toNat ≤ (fb m0 + BitVec.ofNat 64 1176).toNat
+          rw [a1176, hl.baseN, stack_eq]
+          omega
+        · change (fb m0 + BitVec.ofNat 64 1176).toNat + 256 ≤
+            (stackBelow m0 eachRowNextStack).toNat + (eachRowNextStack + 8)
+          rw [a1176, hl.baseN, stack_eq]
+          omega
   refine call_then hpc3 hsat hP3 fun st4 hpc4 hrsp4 hq4 ↦ ?_
   obtain ⟨hval4, hch4, hsv4⟩ := hq4
   rw [e3rdi] at hch4

@@ -7,6 +7,7 @@ public import NativeRustcVmX64.Spec.Wire
 public import NativeRustcVm.Wire.ClimbFacts
 public import NativeRustcVm.Wire.ReaderFacts
 public import NativeRustcVm.Wire.WordsFacts
+public import NativeRustcX64.Got
 
 /-!
 # `climb_level`'s places and memory (x86-64)
@@ -75,6 +76,9 @@ structure Geo [Labels] (m0 : MachineData) (bp : BitVec 64) (L : Nat) : Prop wher
   cR : rcAddr.toNat + 192 ≤ (rdr m0).toNat ∨ (rdr m0).toNat + 24 ≤ rcAddr.toNat
   cS : rcAddr.toNat + 192 ≤ (sibs m0).toNat ∨ (sibs m0).toNat + 10240 ≤ rcAddr.toNat
   cX : rcAddr.toNat + 192 ≤ (nxt m0).toNat ∨ (nxt m0).toNat + 10240 ≤ rcAddr.toNat
+  got : GotAt m0 climbLevelStack
+    [(rcAddr, 192), (rdr m0, 24), (sibs m0, nodesBytes), (nxt m0, nodesBytes)]
+    ["memcpy", "memset"]
 
 /-- What a run may change of the entry's memory: the stack, the reader's cursor, the outputs. -/
 def Chg (m0 : MachineData) (d : Mem 64) : Prop :=
@@ -312,6 +316,32 @@ theorem Geo.rc_keep (g : Geo m0 bp L) {d : Mem 64} (h : Chg m0 d) :
   have hcX := g.cX
   intro i hi
   refine h _ fun hq ↦ ?_
+  dsimp only at hq
+  rw [NativeRustcVm.toNat_add_ofNat (by omega)] at hq
+  omega
+
+/-- The loader slots survive every write allowed by `climb_level`. -/
+theorem Geo.got_keep (g : Geo m0 bp L) {d : Mem 64} (h : Chg m0 d) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      d.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  intro l hl i hi
+  obtain ⟨_, hn, hs, ha⟩ := g.got.1 l hl
+  have hr := ha (rdr m0, 24) (by simp)
+  have hsb := ha (sibs m0, nodesBytes) (by simp)
+  have hx := ha (nxt m0, nodesBytes) (by simp)
+  change Apart (gotAddr l) 8 (stackBelow m0 1056) 1064 at hs
+  have ht : (stackBelow m0 1056).toNat = sp m0 - 1056 := stackBelow_toNat g.s0.1
+  unfold Apart at hs hr hsb hx
+  change (gotAddr l).toNat + 8 ≤ 2 ^ 64 at hn
+  rw [ht] at hs
+  change (gotAddr l).toNat + 8 ≤ (rdr m0).toNat ∨
+    (rdr m0).toNat + 24 ≤ (gotAddr l).toNat at hr
+  change (gotAddr l).toNat + 8 ≤ (sibs m0).toNat ∨
+    (sibs m0).toNat + 10240 ≤ (gotAddr l).toNat at hsb
+  change (gotAddr l).toNat + 8 ≤ (nxt m0).toNat ∨
+    (nxt m0).toNat + 10240 ≤ (gotAddr l).toNat at hx
+  refine h _ fun hq => ?_
   dsimp only at hq
   rw [NativeRustcVm.toNat_add_ofNat (by omega)] at hq
   omega

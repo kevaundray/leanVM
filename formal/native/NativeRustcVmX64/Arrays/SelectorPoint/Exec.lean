@@ -8,8 +8,8 @@ public meta import NativeRustcVmX64.Arrays.Common
 /-!
 # `selector_point`'s blocks, run by the symbolic executor (x86-64)
 
-Region 0 is the 16 bytes below the entry's RSP, where the post-pass's expansions of `bt` push
-RCX and RDI, and the return address (`Field.frameS 16`).
+Region 0 contains the return address and the contract's reserved 16 bytes below RSP
+(`Field.frameS 16`). Raw `bt` does not access this region.
 - `Field.frameS 16` at the entry (`b0`) and the return without a last entry (`b8`);
 - `regsS`, registers only: the tests (`b1`, `b4`), the pair loop's start (`b2`);
 - `pairS`, the pair loop (`b3`): region 1 the two entries written, RSI their address;
@@ -17,7 +17,7 @@ RCX and RDI, and the return address (`Field.frameS 16`).
 - `lastS`, the last entry and the return (`b7` `b8`, `b6` `b7` `b8`): region 1 the entry, RSI its
   address.
 
-An entry is `bitSym z`: bit `z` of RDI (the carry of the expanded `bt`, `setb`) where R8 < 64, else
+An entry is `bitSym z`: bit `z` of RDI (the carry of raw `bt`, `setb`) where R8 < 64, else
 RCX (zero).
 -/
 
@@ -36,15 +36,14 @@ def oddS : SState := init [24] [(.rsp, .ptr 0 16)]
 /-- The last entry and the return: region 1 the entry, RSI its address. -/
 def lastS : SState := init [24, 16] [(.rsp, .ptr 0 16), (.rsi, .ptr 1 0)]
 
-/-- `setb` after the expanded `bt` of RDI by `z`. -/
+/-- `setb` after raw `bt` of RDI by `z`. -/
 def setbSym (z : Sym) : Sym :=
-  .bin .merge .W8 (.lit 0) (.ite (.msb .W64 (.bin .shl .W64 (.bin .shr .W64 (.reg .rdi) z)
-    (.lit 63))) (.lit 1) (.lit 0))
+  .bin .merge .W8 (.lit 0) (.ite (.cmp .bit .W64 (.reg .rdi) z) (.lit 1) (.lit 0))
 /-- The pair loop's entry: the bit where R8 < 64, else RCX. -/
 def bitSym (z : Sym) : Sym :=
   .ite (.not (.cmp .ult .W64 (.reg .r8) (.lit 64))) (.reg .rcx) (setbSym z)
 /-- The first entry's bit index. -/
-def z9 : Sym := .un .trunc .W32 (.reg .r8)
+def z9 : Sym := .reg .r8
 /-- The second entry's bit index. -/
 def z11 : Sym := .un (.zext .W8) .W32 (.un .trunc .W32 (.bin .add .W64 (.reg .r8) (.lit 1)))
 

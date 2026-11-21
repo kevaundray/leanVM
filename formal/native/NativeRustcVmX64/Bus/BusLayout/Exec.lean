@@ -16,7 +16,11 @@ open NativeRustcVmX64.Transcript NativeRustcVmX64.Bus
 def slots : Slots :=
   [(1800, .rbp), (1792, .r15), (1784, .r14), (1776, .r13), (1768, .r12), (1760, .rbx)]
 
-def entryS : SState := init [1816] [(.rsp, .ptr 0 1808)]
+def gotS (o : Nat) (l : Label) : SState :=
+  (init [1816, 8] [(.rsp, .ptr 0 o)] [] [] [(.gotSlot l, 1, 0)]).withKnownBytes
+    1 0 8 (.label l)
+
+def entryS : SState := gotS 1808 "memset"
 def midS : SState := init [1816] [(.rsp, .ptr 0 8)]
 def fwS (k : Nat) : SState := init [1816, 8 * k] [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)]
 
@@ -58,7 +62,7 @@ sym_block run_b8 := exec b8 sT
 sym_block run_b16 := exec b16 sO
 sym_block run_b17 := exec b17 sH17
 sym_block run_b19 := exec b19 sT
-sym_block run_b20 := exec b20 midS
+sym_block run_b20 := exec b20 (gotS 8 "memset")
 sym_block run_b21 := exec b21 midS
 sym_block run_b22 := exec b22 midS
 sym_block run_b23 := exec b23 midS
@@ -69,7 +73,7 @@ sym_block run_b28 := exec b28 fS
 sym_block run_b30 := exec b30 midS
 sym_block run_b31a := exec (b31.take 4) tS
 sym_block run_b31b := exec (b31.drop 4) midS
-sym_block run_b33 := exec b33 midS
+sym_block run_b33 := exec b33 (gotS 8 "memcpy")
 sym_block run_b34 := exec b34 outS
 sym_block run_b35 := exec b35 (after b34 outS)
 
@@ -173,11 +177,11 @@ public theorem ok_b15 : MidOk 1808 8 slots (after b15 midS) = true ∧ (after b1
     Keeps [.rax, .rcx, .rbx, .rbp, .r12, .r13, .r14, .r15] (after b15 midS) := by
   decide +kernel
 
-public theorem ok_b20 : MidOk 1808 0 slots (after b20 midS) = true ∧
-    (∀ w ∈ (after b20 midS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
-    (after b20 midS).reg .rdi = some (.ptr 0 1328) ∧ (after b20 midS).reg .rdx = some (.lit 432) ∧
-    (after b20 midS).reg .rsi = some (.lit 0) ∧ (after b20 midS).reg .r12 = some (.ptr 0 1328) ∧
-    Keeps [.rbx, .rbp, .r13, .r14, .r15] (after b20 midS) := by
+public theorem ok_b20 : MidOk 1808 0 slots (after b20 (gotS 8 "memset")) = true ∧
+    (∀ w ∈ (after b20 (gotS 8 "memset")).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
+    (after b20 (gotS 8 "memset")).reg .rdi = some (.ptr 0 1328) ∧ (after b20 (gotS 8 "memset")).reg .rdx = some (.lit 432) ∧
+    (after b20 (gotS 8 "memset")).reg .rsi = some (.lit 0) ∧ (after b20 (gotS 8 "memset")).reg .r12 = some (.ptr 0 1328) ∧
+    Keeps [.rbx, .rbp, .r13, .r14, .r15] (after b20 (gotS 8 "memset")) := by
   decide +kernel
 
 public theorem ok_b21 : MidOk 1808 0 slots (after b21 midS) = true ∧
@@ -241,12 +245,12 @@ public theorem ok_b31b : MidOk 1808 8 slots (after (b31.drop 4) midS) = true ∧
     Keeps [.rax, .rcx, .rdx, .rbx, .r14, .r15] (after (b31.drop 4) midS) := by
   decide +kernel
 
-public theorem ok_b33 : MidOk 1808 0 slots (after b33 midS) = true ∧
-    (∀ w ∈ (after b33 midS).mem, w.r = 0) ∧ Wrote 0 [(16, .reg .rdx)] (after b33 midS) ∧
-    (∀ w ∈ (after b33 midS).mem, w.off + w.n ≤ 8 ∨ 16 ≤ w.off ∧ w.off + w.n ≤ 24) ∧
-    (after b33 midS).reg .rdi = some (.bin .add .W64 (.reg .rbx) (.lit 8)) ∧
-    (after b33 midS).reg .rsi = some (.ptr 0 8) ∧ (after b33 midS).reg .rdx = some (.lit 888) ∧
-    Keeps [.rbx] (after b33 midS) := by
+public theorem ok_b33 : MidOk 1808 0 slots (after b33 (gotS 8 "memcpy")) = true ∧
+    (∀ w ∈ (after b33 (gotS 8 "memcpy")).mem, w.r = 0) ∧ Wrote 0 [(16, .reg .rdx)] (after b33 (gotS 8 "memcpy")) ∧
+    (∀ w ∈ (after b33 (gotS 8 "memcpy")).mem, w.off + w.n ≤ 8 ∨ 16 ≤ w.off ∧ w.off + w.n ≤ 24) ∧
+    (after b33 (gotS 8 "memcpy")).reg .rdi = some (.bin .add .W64 (.reg .rbx) (.lit 8)) ∧
+    (after b33 (gotS 8 "memcpy")).reg .rsi = some (.ptr 0 8) ∧ (after b33 (gotS 8 "memcpy")).reg .rdx = some (.lit 888) ∧
+    Keeps [.rbx] (after b33 (gotS 8 "memcpy")) := by
   decide +kernel
 
 /-- After the tag and the epilogue. -/

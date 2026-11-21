@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Transcript.Glue
 public import NativeRustcVmX64.Spec.Transcript
 public import NativeRustcVmX64.Basic
+public import NativeRustcX64.Got
 
 /-!
 # A function's frame, through its blocks and calls (x86-64)
@@ -537,6 +538,41 @@ theorem RcAt.callee (h : RcAt m0 n) (hd : ∀ i < 192, d.dmem.get? (rcAddr + Bit
   have : (LeanVM.Parameters.keccakRC.flatMap NativeRustcVm.wordBytes).length = 192 := by
     rw [length_flatMap_wordBytes]; rfl
   exact hi.trans_eq this
+
+/-- Preserve loader bytes through writes to a subset of the protected areas and stack. -/
+theorem got_keep {areas writes : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hg : GotAt m0 n areas symbols) (hst : StackOk m0 n)
+    (hmem : ∀ a ∈ writes, a ∈ areas)
+    (hnw : ∀ a ∈ writes, NativeRustcVm.NoWrap a.1 a.2)
+    (hs : NativeRustcVm.SameOutside m0.dmem d.dmem (fun q =>
+      (∃ a ∈ writes, NativeRustcVm.InRange a.1 a.2 q) ∨
+        NativeRustcVm.InRange (stackBelow m0 n) n q)) :
+    ∀ l ∈ symbols, ∀ i < 8, d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) :=
+  (hg.areas hmem).unchanged hst hnw (SameOutside.mono hs fun _ h => h.elim Or.inr Or.inl)
+
+/-- Pass preserved loader bytes and the protected geometry to a callee. -/
+theorem got_callee {areas areas' : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hg : GotAt m0 n areas symbols)
+    (hd : ∀ l ∈ symbols, ∀ i < 8, d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i))
+    (hsp : rspOf d = stackBelow m0 F) (hn : n ≤ (rspOf m0).toNat) {n' : Nat}
+    (hn' : F + n' ≤ n)
+    (ha : ∀ l ∈ symbols, ∀ a ∈ areas', Apart (gotAddr l) 8 a.1 a.2) :
+    GotAt d n' areas' symbols :=
+  hg.transport hd (fun l hl => apart_callee (hg.1 l hl).2.2.1 hsp hn hn') ha
+
+/-- A callee's temporary output in the caller's frame is apart from every GOT slot. -/
+theorem got_apart_frame {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hg : GotAt m0 n areas symbols) (hst : StackOk m0 n) {l : Label} (hl : l ∈ symbols)
+    {ob len : Nat} (hF : F ≤ n) (hob : ob + len ≤ F) :
+    Apart (gotAddr l) 8 (off (stackBelow m0 F) ob) len := by
+  have hf := apart_frame (hg.1 l hl).2.2.1 hst.1 hF
+  have hn := hst.1
+  have hb := stackBelow_toNat (m := m0) (n := F) (by have := hst.1; omega)
+  have ho : (off (stackBelow m0 F) ob).toNat = (stackBelow m0 F).toNat + ob :=
+    toNat_off (by have := hst.2.1; omega)
+  exact Apart.sub hf (by rw [ho]; omega) (by rw [ho]; omega)
 
 /-- The round constants, kept where the memory changed only apart from them. -/
 theorem rc_keep {d d' : DataMem} {R : BitVec 64 → Prop} (hs : NativeRustcVm.SameOutside d d' R)

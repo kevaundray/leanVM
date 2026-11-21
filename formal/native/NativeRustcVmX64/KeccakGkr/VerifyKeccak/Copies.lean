@@ -95,8 +95,58 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
       first.point.toList.length.toUInt64 := by
     have := hcl.2.2.2.1
     rwa [koff_off] at this
+  have hg := c.got.1 "memcpy" (by simp)
+  have hspan : Apart (gotAddr "memcpy") 8 (stackBelow m0 verifyKeccakStack)
+      (verifyKeccakStack - 3344 + 3368) := by
+    have hs : Apart (gotAddr "memcpy") 8 (stackBelow m0 verifyKeccakStack)
+        (verifyKeccakStack + 8) := hg.2.2.1
+    have ha := hg.2.2.2 (rspOf m0 + 8#64, 16) (by simp)
+    have hK := c.K
+    have har := c.ar
+    have hN := c.sp
+    unfold Apart at hs ha ⊢
+    dsimp only [Prod.fst, Prod.snd] at ha
+    rw [vk_eq] at *
+    omega
+  have hG := h.withGot (c.got.areas (areas' := rsOf m0) (by
+    intro p hp
+    simp only [rsOf, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl <;> simp)) hspan
+  have hmG : ∀ ret, Match
+      (envZ m0 st.data 3344 3368 (rsOf m0 ++ [(gotAddr "memcpy", 8)]) (vv m0 (V1 cm)) ret)
+      t9G st.data := by
+    intro ret
+    apply Match.withKnownBytes
+    · apply match_links
+        (env' := envZ m0 st.data 3344 3368 (rsOf m0 ++ [(gotAddr "memcpy", 8)])
+          (vv m0 (V1 cm)) ret) (T' := t9R) (hknown := rfl)
+        (hat.2.mt ret) (by decide) rfl rfl
+        (fun _ ↦ rfl) rfl rfl rfl (by vtacJ) rfl (regions_envZ rfl) rfl
+        (fun _ _ hx ↦ by cases hx)
+      intro x r o hx
+      by_cases he : x = .gotSlot "memcpy"
+      · subst x
+        simp only [t9R, List.lookup, beq_self_eq_true,
+          Option.some.injEq, Prod.mk.injEq] at hx
+        obtain ⟨rfl, rfl⟩ := hx
+        simp [Sym.eval, Env.base, rsOf, gotAddr]
+      · have he' : (x == .gotSlot "memcpy") = false := by
+          apply Bool.eq_false_iff.mpr
+          intro hx
+          exact he (eq_of_beq hx)
+        simp [t9R, List.lookup, he'] at hx
+    · intro i hi
+      simp only [Nat.zero_add, Sym.eval, Env.base_ofMachine_eq, Env.ofMachine_mem0]
+      change st.data.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) = _
+      rw [same_ro c hat.2.same hg.2.1 hg.2.2.1
+        (fun _ ↦ hg.2.2.2 (reg m0 .rdi, 760) (by simp))
+        (fun _ ↦ hg.2.2.2 (reg m0 .r9, 205824) (by simp))
+        (fun _ ↦ hg.2.2.2 (keccakClaims m0, 97288) (by simp))
+        (fun _ ↦ hg.2.2.2 (keccakOutArg m0, 1608) (by simp)) i hi]
+      exact c.got.byte (by simp) hi
   -- `b9`: the value and `mu` to `2536`.
-  refine cpStep (T' := t10) (vals' := vv m0 (V1 cm)) hp hpre hmemcpy hat b9_in_code
+  refine cpStep (T' := t10) (vals' := vv m0 (V1 cm)) (hm := hmG)
+    (hwfS := fun ret ↦ hG.wf hat.2.kept) hp hpre hmemcpy hat b9_in_code
     (by simp [b9]) run_b9 (by decide) rfl (D := off (fb m0) 2536) (Sr := off (fb m0) 1000)
     (n := 280) (fun mc hmc ↦ (hmc.regs .rdi _ rfl).trans (ev_frame 2536))
     (fun mc hmc ↦ (hmc.regs .rsi _ rfl).trans (ev_frame 1000)) rfl (by decide)
@@ -115,7 +165,8 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
   have hl10 : ∀ ret, (envZ m0 st10.data 3344 3368 (rsOf m0) (vv m0 (V1 cm)) ret).load 0 1280 8 =
       first.point.toList.length.toUInt64.toBitVec := fun _ ↦ ld_frame w10
   -- `b10`: the point's elements to `2816`, its size into RBP.
-  refine cpStep (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat10
+  refine cpStep (hm := hat10.2.mt) (hwfS := fun _ ↦ h.wf hat10.2.kept)
+    (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat10
     b10_in_code (by simp [b10]) run_b10 (by decide) rfl (D := off (fb m0) 2816)
     (Sr := off (fb m0) 1288) (n := 480)
     (fun mc hmc ↦ (hmc.regs .rdi _ rfl).trans (ev_frame 2816))
@@ -135,7 +186,8 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
   have C11 : Img st.data.dmem (off (fb m0) 1288) st11.data.dmem (off (fb m0) 2816) 480 :=
     C10.trans ((imgF c hb10 (by decide) (by decide) (by decide) (by decide)).trans hi10)
   -- `b11`: the value and `mu` to `1768`.
-  refine cpStep (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat11
+  refine cpStep (hm := hat11.2.mt) (hwfS := fun _ ↦ h.wf hat11.2.kept)
+    (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat11
     b11_in_code (by simp [b11]) run_b11 (by decide) rfl (D := off (fb m0) 1768)
     (Sr := off (fb m0) 2536) (n := 280)
     (fun mc hmc ↦ (hmc.regs .rdi _ rfl).trans (ev_frame 1768))
@@ -154,7 +206,8 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
   have C12 : Img st.data.dmem (off (fb m0) 1288) st12.data.dmem (off (fb m0) 2816) 480 :=
     C11.trans (imgF c hc11 (by decide) (by decide) (by decide) (by decide))
   -- `b12`: the point's size at `2048`, its elements to `2056`.
-  refine cpStep (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat12
+  refine cpStep (hm := hat12.2.mt) (hwfS := fun _ ↦ h.wf hat12.2.kept)
+    (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat12
     b12_in_code (by simp [b12]) run_b12 (by decide) rfl (D := off (fb m0) 2056)
     (Sr := off (fb m0) 2816) (n := 480)
     (fun mc hmc ↦ (hmc.regs .rdi _ rfl).trans (ev_frame 2056))
@@ -180,7 +233,8 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
   have D13 : Img st.data.dmem (off (fb m0) 1288) st13.data.dmem (off (fb m0) 2816) 480 :=
     C12.trans (imgF c hc12 (by decide) (by decide) (by decide) (by decide))
   -- `b13`: the value and `mu` to `992`.
-  refine cpStep (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat13
+  refine cpStep (hm := hat13.2.mt) (hwfS := fun _ ↦ h.wf hat13.2.kept)
+    (T' := t11) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat13
     b13_in_code (by simp [b13]) run_b13 (by decide) rfl (D := off (fb m0) 992)
     (Sr := off (fb m0) 2536) (n := 280)
     (fun mc hmc ↦ (hmc.regs .rdi _ rfl).trans (ev_frame 992))
@@ -202,7 +256,8 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
   have D14 : Img st.data.dmem (off (fb m0) 1288) st14.data.dmem (off (fb m0) 2816) 480 :=
     D13.trans (imgF c hc13 (by decide) (by decide) (by decide) (by decide))
   -- `b14`: the point's size at `120` and `1272`, its elements to `1280`.
-  refine cpStep (T' := t15) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat14
+  refine cpStep (hm := hat14.2.mt) (hwfS := fun _ ↦ h.wf hat14.2.kept)
+    (T' := t15) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat14
     b14_in_code (by simp [b14]) run_b14 (by decide) rfl (D := off (fb m0) 1280)
     (Sr := off (fb m0) 2816) (n := 480)
     (fun mc hmc ↦ (hmc.regs .rdi _ rfl).trans (ev_frame 1280))
@@ -234,7 +289,8 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     hk10 (NativeRustcVmX64.Transcript.kept_trans hk11 (NativeRustcVmX64.Transcript.kept_trans hk12
       (NativeRustcVmX64.Transcript.kept_trans hk13 hk14))))
   have hw15 := Chg.wtsR c hch (by decide) (by decide) (o := 0) (by decide) (by decide) hw
-  refine cpStep (T' := t16) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat15
+  refine cpStep (hm := hat15.2.mt) (hwfS := fun _ ↦ h.wf hat15.2.kept)
+    (T' := t16) (vals' := vv m0 (V2 cm first.point.size)) hp hpre hmemcpy hat15
     b15_in_code (by simp [b15]) run_b15 (by decide) rfl (D := off (ob m0 2) 25600)
     (Sr := off (ob m0 2) 0) (n := 25600)
     (fun mc hmc ↦ (hmc.regs .rdi _ rfl).trans (addW (reg m0 .r9) (BitVec.ofNat 64 25600)))

@@ -47,7 +47,7 @@ structure P [Labels] (m0 : MachineData) (a : DecArea) (s : TState) : Prop where
   slO : Apart (reg m0 .rsi) (16 * coeffCount) (reg m0 .rdx) ringWBytes
 
 theorem P.intro [Labels] {a : DecArea} {s : TState} (h : RingSwitchPre a s m0) : P m0 a s :=
-  ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2⟩
+  ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1⟩
 
 /-- A range apart from the stack (and the return address) has no byte of the frame. -/
 theorem not_frame (hst : StackOk m0 ringSwitchStack) {a : BitVec 64} {n : Nat}

@@ -27,7 +27,7 @@ public section
 
 theorem eightN_eval [Labels] (env : Env) :
     (eightN.eval env).toNat = 8 * (env.regs .rdx).toNat % 2 ^ 64 := by
-  simp only [eightN, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add]
+  simp only [eightN, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_mul, BitVec.toNat_ofNat]
   omega
 
 variable [Host] {k : Nat}

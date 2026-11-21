@@ -52,6 +52,7 @@ structure Facts (m0 : MachineData) : Prop where
   prod : RodataApart (pp m0) placementsBytes
   ap : Apart (kk m0) kappasBytes (pp m0) placementsBytes
   kle : ∀ x ∈ natsOf m0 (reg m0 .rdi) columnCountW, x ≤ 36
+  got : GotAt m0 placementsOfStack [(kk m0, kappasBytes), (pp m0, placementsBytes)] ["memset"]
 
 end
 
@@ -81,7 +82,7 @@ variable [Labels] {m0 : MachineData}
 
 theorem Facts.of_pre (h : PlacementsOfPre m0) : Facts m0 :=
   ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-    h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2⟩
+    h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2⟩
 
 theorem Facts.κ_le (hF : Facts m0) {c : Nat} (hc : c < 158) : κ m0 c ≤ 36 := by
   have hs : (natsOf m0 (reg m0 .rdi) columnCountW).size = 158 := by
@@ -342,6 +343,51 @@ variable [Host] {m0 : MachineData}
 theorem match0 {d : MachineData} {ret : BitVec 64} (hb : B m0 8 d) :
     Match (frameEnv m0 d 5120 [] (fun _ ↦ 0) ret) bodyS d :=
   match_ofMachine ⟨rfl, trivial⟩ ⟨hb.fr.rsp_eval, trivial⟩ trivial trivial trivial
+
+/-- The GOT bytes survive the body's stack and output writes. -/
+theorem Facts.got_bytes (hF : Facts m0) {d : MachineData} {o : Nat} (hb : B m0 o d) :
+    ∀ l ∈ ["memset"], ∀ i < 8,
+      d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) :=
+  got_keep hF.got hF.stack (writes := [(pp m0, placementsBytes)])
+    (by simp) (by simpa using (noWrap_iff.mp hF.pr.2))
+    (hb.same.mono (by intro q h; simpa [R, SS_eq] using h))
+
+/-- The frame plus the preserved loader slot is a well-formed environment. -/
+theorem Facts.got_wf (hF : Facts m0) {d : MachineData} {o : Nat} (hb : B m0 o d)
+    {ret : BitVec 64} :
+    (frameEnv m0 d 5120 [(gotAddr "memset", 8)] (fun _ ↦ 0) ret).WF :=
+  frame_wf ⟨Mapped.keeps (frame_mapped hF.stack (by decide)) hb.fr.kept, hF.fnw⟩
+    (by intro x hx; simp only [List.mem_singleton] at hx; subst x
+        exact ⟨Mapped.keeps (hF.got.mapped (by simp)) hb.fr.kept,
+          (hF.got.1 "memset" (by simp)).2.1⟩)
+    (List.pairwise_pair.mpr (apart_frame
+      (hF.got.1 "memset" (by simp)).2.2.1 hF.stack.1 (by decide)).symm)
+
+/-- Execute a GOT-reading block whose writes stay inside the frame. -/
+theorem runGot (hF : Facts m0) {ds : List Directive} {kk : Nat} {Sy1 : SState} {x : Exit}
+    {st : MachineState} {o' : Nat} {ret : BitVec 64} {Q : MachineState → Prop}
+    (hk : ds.IsInfixAt Host.prog kk) (hx : exec ds gotS = some (Sy1, x))
+    (hret : ∀ l, x = .call l → ret = (Host.addrOf (kk + ds.length)).toBitVec)
+    (hpc : st.pc = Host.addrOf kk) (hb : B m0 8 st.data) (hok : MidOk 5120 o' slots Sy1 = true)
+    (hw : ∀ w ∈ Sy1.mem, w.r = 0 ∧ w.off + w.n ≤ 5120)
+    (cont : ∀ st', Match (frameEnv m0 st.data 5120 [(gotAddr "memset", 8)] (fun _ ↦ 0) ret)
+        Sy1 st'.data →
+      PcOk (frameEnv m0 st.data 5120 [(gotAddr "memset", 8)] (fun _ ↦ 0) ret)
+        x (Host.addrOf (kk + ds.length)) st' →
+      B m0 o' st'.data → Eventually (step1 Host.exe) Q st') :
+    Eventually (step1 Host.exe) Q st := by
+  have hwf := hF.got_wf (ret := ret) hb
+  have hm : Match (frameEnv m0 st.data 5120 [(gotAddr "memset", 8)] (fun _ ↦ 0) ret)
+      gotS st.data := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb.fr.rsp_eval, trivial⟩ trivial trivial
+        ⟨by simp [Sym.eval, Env.base, gotAddr], trivial⟩
+    · intro i hi
+      simpa [Sym.eval, Env.base, frameEnv] using
+        (hF.got_bytes hb "memset" (by simp) i hi).trans (hF.got.byte (by simp) hi)
+  exact exec_at hk hx hwf hret hpc hm fun st' hm' hpc' ↦
+    cont st' hm' hpc' (hb.of_block_frame hF.stack (by decide) hwf hm' hok slots_le hw)
 
 /-- **A block of the frame alone** keeps the body. -/
 theorem run0 (hF : Facts m0) {ds : List Directive} {kk : Nat} {Sy1 : SState} {x : Exit}

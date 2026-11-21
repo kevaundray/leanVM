@@ -172,6 +172,25 @@ theorem out_not_rc (c : Ctx m0 t a N F) {o : BitVec 64} {n : Nat} (ho : OutOk m0
     {q : BitVec 64} (hq : NativeRustcVm.InRange o n q) : ¬ NativeRustcVm.InRange rcAddr 192 q :=
   not_inRange_of_apart ho.2.2.2.2.2 ho.2.1 c.rc.2.1 hq
 
+
+/-- A callee inherits loader slots when its caller's writes stay in protected areas. -/
+theorem gotAt (c : Ctx m0 t a N F) (h : At m0 F d) (hle : F + Nc ≤ N)
+    {areas areas' : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hg : GotAt m0 N areas symbols) {R : BitVec 64 → Prop}
+    (hs : NativeRustcVm.SameOutside m0.dmem d.dmem R)
+    (hR : ∀ q, R q → NativeRustcVm.InRange (stackBelow m0 N) N q ∨
+      ∃ x ∈ areas, NativeRustcVm.NoWrap x.1 x.2 ∧ NativeRustcVm.InRange x.1 x.2 q)
+    (ha : ∀ l ∈ symbols, ∀ x ∈ areas', Apart (gotAddr l) 8 x.1 x.2) :
+    GotAt d Nc areas' symbols := by
+  refine hg.transport (fun l hl i hi ↦ hs _ ?_)
+    (fun l hl ↦ c.apart h hle (hg.1 l hl).2.2.1) ha
+  intro hw
+  have hin : NativeRustcVm.InRange (gotAddr l) 8 (gotAddr l + BitVec.ofNat 64 i) :=
+    inRange_off_self hi (by decide)
+  rcases hR _ hw with hw | ⟨x, hx, hn, hw⟩
+  · exact not_inRange_of_apart (hg.1 l hl).2.2.1 (hg.1 l hl).2.1
+      c.noWrap_stack hin (inRange_mono hw (by omega))
+  · exact not_inRange_of_apart ((hg.1 l hl).2.2.2 x hx) (hg.1 l hl).2.1 hn hin hw
 end Ctx
 
 /-- A state at a call from a frame at offset `0`. -/

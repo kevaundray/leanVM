@@ -253,8 +253,46 @@ theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   have hpre : ReadScalarsPre a si st2.data := by
     simp only [ReadScalarsPre]
     rw [ex0, ex1, ex2]
-    exact ⟨hb2'.stackOk_at hS (Nat.zero_le _) (by simpa using hle), c0.rcAt hat hle, hts2,
-      c0.tstateOk hat hle, c0.outOk hat hle (outOk_sub eo hsub)⟩
+    refine ⟨hb2'.stackOk_at hS (Nat.zero_le _) (by simpa using hle), c0.rcAt hat hle, hts2,
+      c0.tstateOk hat hle, c0.outOk hat hle (outOk_sub eo hsub), ?_⟩
+    refine got_callee (Pre.got h) (got_keep (Pre.got h) hS
+      (writes := [(oA m0, 24), (tA m0, tstateBytes), (ev m0, tableEvalsBytes)])
+      (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+          rcases hb with rfl | rfl | rfl <;> simp)
+      (by
+        intro b hb
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl | rfl
+        · exact (Pre.out h).2.1
+        · exact (Pre.ts h).footprint.1.2
+        · exact (Pre.evs h).2.1)
+      (by simpa [outs, or_assoc] using hb2'.same))
+      hat.sp hS.1 hle ?_
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((Pre.got h).1 l hl).2.2.2 (tA m0, tstateBytes) (by simp)
+    · exact ((Pre.got h).1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+    · change Apart (gotAddr l) 8 (evi m0 i + BitVec.ofNat 64 496) (16 * (tb i).width)
+      have he : (evi m0 i).toNat = (ev m0).toNat + 1968 * i := by
+        unfold evi
+        exact NativeRustcVm.toNat_add_ofNat (by
+          have hn : (ev m0).toNat + tableEvalsBytes ≤ 2 ^ 64 := (Pre.evs h).2.1
+          unfold tableEvalsBytes nTables tableEvalBytes at hn
+          omega)
+      have ha : (evi m0 i + BitVec.ofNat 64 496).toNat = (evi m0 i).toNat + 496 :=
+        NativeRustcVm.toNat_add_ofNat (by
+          have hn := evi_noWrap h hi
+          unfold NativeRustcVm.NoWrap at hn
+          omega)
+      have hg : Apart (gotAddr l) 8 (ev m0) tableEvalsBytes :=
+        ((Pre.got h).1 l hl).2.2.2 (ev m0, tableEvalsBytes) (by simp)
+      refine Apart.sub hg ?_ ?_
+      · rw [ha, he]; omega
+      · rw [ha, he]
+        unfold tableEvalsBytes nTables tableEvalBytes
+        omega
+    · exact ((Pre.got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
   simp only [PcOk] at hpc2
   refine call_then (env := E m0 st1.data [(evi m0 i, 1968)] 0) hpc2 (hrs a si) hpre
     fun st3 hpc3 hrsp3 hq3 ↦ ?_

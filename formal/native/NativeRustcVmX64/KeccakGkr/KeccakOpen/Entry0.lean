@@ -51,13 +51,20 @@ theorem sc_run (hp : Placed code k) (h : PreOk a s c m0)
   have hwf := wf_fold h (st := m0) (fun _ hx ↦ hx) (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset + b0.length)).toBitVec)
   have hmatch : Match (E m0 m0 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset + b0.length)).toBitVec) e0S m0 := by
-    refine match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial
-      ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5, ?_, trivial⟩
-    show (E m0 m0 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset + b0.length)).toBitVec).load 3 32 8 =
-      slA m0 + BitVec.ofInt 64 0
-    rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h (fun _ _ ↦ rfl) (i := 4) (by decide), ofInt0,
-      BitVec.add_zero]
-    rfl
+    apply Match.withKnownBytes
+    · refine match_ofMachine ⟨rfl, rfl, rfl, rfl, rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial
+        ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5, ?_,
+          by simp [Sym.eval, RF, Env.base, gotAddr], trivial⟩
+      show (E m0 m0 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset + b0.length)).toBitVec).load 3 32 8 =
+        slA m0 + BitVec.ofInt 64 0
+      rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h (fun _ _ ↦ rfl) (i := 4) (by decide), ofInt0,
+        BitVec.add_zero]
+      rfl
+    · intro i hi
+      simp only [Nat.zero_add]
+      change m0.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+        some (byteOf (Labels.label "memcpy").toBitVec i)
+      exact h.got.byte (l := "memcpy") (by simp) hi
   refine exec_at (infix_of b0_in_code (by simp [b0]) hp) x0 hwf (fun _ _ ↦ rfl) rfl hmatch
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨_, hf, hws, hw8, hdi, hsi, hdx, hcx, hr8, hr9, hbx, hbp, h12, h13, h14⟩ := f0
@@ -98,11 +105,35 @@ theorem sc_run (hp : Placed code k) (h : PreOk a s c m0)
     rw [ydi, ysi, y8, y9, ya]
     refine ⟨⟨?_, ?_⟩, hctx.stackOk hat hle, hctx.rcAt hat hle, hts, hctx.tstateOk hat hle,
       by decide, by decide, hctx.outOk_frame hat hle (by decide) (by decide),
-      hctx.outOk hat hle (slot_out h), ?_⟩
+      hctx.outOk hat hle (slot_out h), ?_, ?_⟩
     · rw [hat.sp]
       exact mapped_off (o := 8) (hctx.mapped_frame hat.kept) (by decide)
     · rw [hat.sp, hfb]; omega
     · exact Apart.symm' (hctx.apart_of_stack (slot_out h).2.2.2.2.1 (by decide))
+    · apply h.got.transport
+      · intro l hl i hi
+        simp only [List.mem_singleton] at hl
+        subst l
+        exact (got_byte h hb1.same hi).trans (h.got.byte (by simp) hi).symm
+      · intro l hl
+        exact hctx.apart hat hle (h.got.1 l hl).2.2.1
+      · intro l hl p hp
+        have hg := (h.got.1 l hl).2.2.2
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+        rcases hp with rfl | rfl | rfl | rfl | rfl
+        · exact hg _ (by simp)
+        · exact hg (a.region.addr, a.region.size) (by simp)
+        · have hs : Apart (gotAddr l) 8 (stackBelow m0 keccakOpenStack)
+              (keccakOpenStack + 8) := (h.got.1 l hl).2.2.1
+          have hb := stackBelow_toNat h.st.1
+          have hf := fb_off h (j := 88) (by decide)
+          have hN := h.st.1
+          unfold Apart at hs ⊢
+          rw [hb] at hs
+          rw [hf]
+          omega
+        · exact hg _ (by simp)
+        · exact hg _ (by simp)
   refine call_then hpc1 (hsc a s) hpre fun st2 hpc2 hrsp hpost ↦ ?_
   obtain ⟨hout, hso, hsv⟩ := hpost
   rw [ysi, ydi, y9, ya, y8, yclaim] at hout

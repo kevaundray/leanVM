@@ -115,7 +115,7 @@ theorem stageB (hp : Placed code k)
       SB a stream openings m0 st.data) st1 := by
   have g := geo_of hpre
   obtain ⟨hst, hrod, hn32, hdecF, hdecA, ⟨hbcM, -⟩, ⟨hpubM, -⟩, ⟨hdecM, -⟩, ⟨haM, -⟩,
-    ⟨hwM, -⟩, -, hapR, hbcD⟩ := hpre
+    ⟨hwM, -⟩, -, hapR, hbcD, hgot⟩ := hpre
   obtain ⟨hf1, hs1, hrbx1, hr121, hr131, hr141, hr151, hrbp1, hseed1⟩ := hSA
   have hS := verifyStack_eq
   have hR := g.R
@@ -265,7 +265,7 @@ theorem stageB (hp : Placed code k)
     simp only [eRdi, eRsi, eRdx, eRcx, eR8]
     refine ⟨stackOk_callee hst hf2.kept hsp2 (by omega), hrod2, hn32, htst, rfl,
       ⟨Mapped.keeps hbcM hf2.kept, g.bcN⟩, ⟨Mapped.keeps hpubM hf2.kept, g.pubN⟩,
-      ⟨Mapped.keeps hwM hf2.kept, hwN⟩, ?_, ?_, fun h0 ↦ ⟨?_, (hbcD h0).2⟩⟩
+      ⟨Mapped.keeps hwM hf2.kept, hwN⟩, ?_, ?_, (fun h0 ↦ ⟨?_, (hbcD h0).2⟩), ?_⟩
     · simp only [NativeRustcVm.disjoint_cons_iff, List.forall_mem_cons, List.mem_nil_iff,
         false_implies, implies_true, NativeRustcVm.disjoint_nil, and_true, NativeRustcVm.Apart,
         stackR, DecArea.region, hVE, hstR, hT, tstateBytes]
@@ -287,6 +287,30 @@ theorem stageB (hp : Placed code k)
       obtain ⟨b1, b2, b3⟩ := g.bc h0
       have := g.areaWork
       refine ⟨⟨?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_⟩, ⟨?_, ?_⟩, ?_⟩ <;> omega
+    · apply NativeRustcVmX64.GotAt.callee hgot
+      · apply NativeRustcVmX64.GotAt.unchanged_stack hgot hst
+        change NativeRustcVm.SameOutside m0.dmem st2.data.dmem
+          (NativeRustcVm.InRange (stackBelow m0 verifyStack) verifyStack)
+        rw [hS]
+        exact hsame2
+      · rw [hS, hVE, hsb2]
+      · rw [hS, hVE, hsb2]
+        omega
+      · intro p hp
+        rcases List.mem_append.mp hp with hp | hp
+        · rcases List.mem_append.mp hp with hp | hp
+          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+            rcases hp with rfl | rfl | rfl | rfl
+            · refine ⟨(stackBelow m0 verifyStack, verifyStack + 8), by simp, ?_, ?_⟩
+              · simp only [hS, sb_eq, hT]
+                omega
+              · simp only [hS, sb_eq, hT, tstateBytes]
+                omega
+            · exact ⟨(a.words, 8 * a.len), by simp, Nat.le_refl _, Nat.le_refl _⟩
+            · exact ⟨(reg m0 .rdx, 32), by simp, Nat.le_refl _, Nat.le_refl _⟩
+            · exact ⟨(reg m0 .r8, workAreaBytes), by simp, Nat.le_refl _, Nat.le_refl _⟩
+          · exact ⟨p, by simp [hp], Nat.le_refl _, Nat.le_refl _⟩
+        · exact ⟨p, by simp [hp], Nat.le_refl _, Nat.le_refl _⟩
   refine call_then hpc2 (hve a _) hpre2 fun st3 hpc3 hrsp3 hpost3 ↦ ?_
   obtain ⟨hres3, hs3, hsv3⟩ := hpost3
   simp only [eRdi, eRsi, eRdx, eRcx, eR8] at hres3 hs3

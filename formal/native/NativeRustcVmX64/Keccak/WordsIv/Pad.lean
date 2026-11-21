@@ -167,7 +167,7 @@ theorem pad_run (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) Nativ
   have hrdi : st3.data.regs.get64 .rdi = frame m0 + BitVec.ofNat 64 40 := by
     rw [hm3'.regs .rdi _ rfl]
     simp [Sym.eval]
-  refine call_kf hkf g.stk g.rc (slotsI_low m0) hc3 (lanes_congr hl3 fun i hi =>
+  refine call_kf hkf g.stk g.rc g.got (slotsI_low m0) hc3 (lanes_congr hl3 fun i hi =>
     lane_lastG _ _ _ _ ht hi) hrdi hpc3 fun st4 hpc4 hc4 hl4 _ => .done _ ⟨hc4, hl4, ?_⟩
   rw [hpc4]
   rfl

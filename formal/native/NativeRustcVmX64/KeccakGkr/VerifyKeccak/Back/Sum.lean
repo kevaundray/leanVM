@@ -14,7 +14,7 @@ namespace NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back
 
 open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Ring NativeRustcVmX64.KeccakGkr.SeqZ
 open NativeRustcVmX64.Vm.VerifyKeccak NativeVm.Model NativeRustcVmX64.Transcript
-open NativeRustcVm.Transcript (DecArea TStateAt)
+open NativeRustcVm.Transcript (DecArea TStateAt tstateBytes)
 open NativeRustcVm.KeccakGkr (off ClaimAt)
 
 public section
@@ -63,12 +63,34 @@ theorem sumStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
       stackArg_of hmc rfl rfl (by decide) (i := 0) (v := .lit 4) (by decide) (by decide)
     unfold SumcheckPlainPre SumcheckOk
     rw [rdi, rsi, r9, r8, arg]
-    exact ⟨argsOk c h ca (by decide), hsk, ca.rc c hrc (by rw [vk_eq]; decide),
+    refine ⟨argsOk c h ca (by decide), hsk, ca.rc c hrc (by rw [vk_eq]; decide),
       Chg.ts c hch (by decide) rfl (by decide) hkk hts,
       ca.tok c (by rw [vk_eq]; decide), by decide, by decide,
       ca.outF c h (by rw [vk_eq]; decide) (by decide) (by decide),
       ca.outF c h (by rw [vk_eq]; decide) (by decide) (by decide),
-      sepF0 c (by decide) (by decide) (by decide)⟩
+      sepF0 c (by decide) (by decide) (by decide), ?_⟩
+    apply ca.got c (by rw [vk_eq]; decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region, tstateBytes, show (4#64).toNat = 4 from rfl]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl | rfl
+    · exact ⟨(reg m0 .rdi, 760), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+      all_goals
+        dsimp only [Prod.fst, Prod.snd]
+        rw [c.K, h.addr (by decide)]
+        have := c.sp
+        rw [vk_eq] at *
+        omega
+    · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+      all_goals
+        dsimp only [Prod.fst, Prod.snd]
+        rw [c.K, h.addr (by decide)]
+        have := c.sp
+        rw [vk_eq] at *
+        omega
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   · have rdi : reg mc .rdi = off (fb m0) 96 := (hmc.regs .rdi _ rfl).trans (ev_frame 96)
     have rsi : reg mc .rsi = off (ob m0 1) 0 := (hmc.regs .rsi _ rfl).trans (off0 _).symm
     have r9 : reg mc .r9 = off (fb m0) 168 := (hmc.regs .r9 _ rfl).trans (ev_frame 168)

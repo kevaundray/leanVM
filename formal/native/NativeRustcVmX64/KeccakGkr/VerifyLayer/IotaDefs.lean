@@ -7,8 +7,8 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Segs
 
 The state kept from the segment kernel to the first check (`K0`: the body, the `TState`, the
 product, the spills but the pack's, the segment kernel, R12 and R13 the projection), kept by a
-block writing the frame below `24` only (`K0.blk`, the expanded `bt`'s push) and by a leaf call
-(`K0.leaf`). A round constant's bit tested by the expanded `bt` (`rcBit`) and its next bit as a
+block writing the frame below `24` only (`K0.blk`) and by a leaf call
+(`K0.leaf`). A round constant's bit tested by raw `bt` (`rcBit`) and its next bit as a
 mask (`rcMask`), by `decide` over the 24 constants; the bit weights loaded (`wLoad`).
 -/
 
@@ -75,10 +75,9 @@ theorem spills3_sub {m0 : MachineData} {c : KeccakClaimW} {d : DataMem}
   unfold spills2
   exact List.mem_cons_of_mem _ hq)
 
-/-- **The expanded `bt`**: bit `j` of a round constant. -/
+/-- **The raw `bt`**: bit `j` of a round constant. -/
 theorem rcBit : ∀ r < 24, ∀ j < 64,
-    (low .W64 (BinOp.apply .shl .W64 (BinOp.apply .shr .W64 (rcW r).toBitVec (BitVec.ofNat 64 j))
-      (BitVec.ofNat 64 63))).msb = testBitW (rcW r) j := by
+    CmpOp.apply .bit .W64 (rcW r).toBitVec (BitVec.ofNat 64 j) = testBitW (rcW r) j := by
   unfold rcW
   rw [NativeVm.Code.P6.keccakRCW_eq]
   decide +kernel

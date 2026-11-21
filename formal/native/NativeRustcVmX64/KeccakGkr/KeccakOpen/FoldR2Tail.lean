@@ -24,7 +24,7 @@ theorem row2_1 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b28Offset) ∧
       Row cx m0 rows 2 2 (varsOf cx.sl 2 0) k18 w24 st'.data) st := by
   refine (row_run (t := 2) (i := 1) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := k18) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := k18) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := w19) (ws1 := w23) (ws2 := w24) (ws := w24)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 1032) (so := 8)
@@ -49,7 +49,7 @@ theorem row2_2 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b33Offset) ∧
       Row cx m0 rows 2 3 (varsOf cx.sl 2 0) k18 w29 st'.data) st := by
   refine (row_run (t := 2) (i := 2) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := k18) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := k18) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := w24) (ws1 := w28) (ws2 := w29) (ws := w29)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 2048) (so := 0)
@@ -74,7 +74,7 @@ theorem row2_3 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b38Offset) ∧
       Row cx m0 rows 2 4 (varsOf cx.sl 2 0) k18 W6 st'.data) st := by
   refine (row_run (t := 2) (i := 3) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := k18) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := k18) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := w29) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 3072) (so := 0)
@@ -99,7 +99,7 @@ theorem row2_4 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b43Offset) ∧
       Row cx m0 rows 2 5 (varsOf cx.sl 2 0) k18 W6 st'.data) st := by
   refine (row_run (t := 2) (i := 4) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := k18) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := k18) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 4096) (so := 0)
@@ -124,7 +124,7 @@ theorem row2_5 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b48Offset) ∧
       Row cx m0 rows 2 6 (varsOf cx.sl 2 0) k18 W6 st'.data) st := by
   refine (row_run (t := 2) (i := 5) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := k18) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := k18) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 5128) (so := 8)
@@ -149,7 +149,7 @@ theorem row2_6 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b53Offset) ∧
       Row cx m0 rows 2 7 (varsOf cx.sl 2 0) k18 W6 st'.data) st := by
   refine (row_run (t := 2) (i := 6) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := k18) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := k18) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 6152) (so := 8)
@@ -174,7 +174,7 @@ theorem row2_7 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b58Offset) ∧
       Row cx m0 rows 2 8 (varsOf cx.sl 2 0) k18 W6 st'.data) st := by
   refine (row_run (t := 2) (i := 7) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := k18) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := k18) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 7168) (so := 0)

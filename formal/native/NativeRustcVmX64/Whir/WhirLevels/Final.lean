@@ -89,7 +89,7 @@ theorem final_tail (hp : Placed code k0)
     ⟨by rw [hrsp]; exact Mapped.keeps c.args.1 hsv.2, by rw [hrsp]; exact c.args.2⟩
   have hpre : FinalLevelPre a s (lvl (logN m0) rate k) ba b w rs st1.data := by
     refine ⟨?_, hargs, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, qAt_le _ _ _, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-      ?_, ?_⟩
+      ?_, ?_, ?_⟩
     · rw [ht]; exact c.whirT hat hsm1 hle
     · rw [ht, hd]; exact hm.ts
     · rw [hpa, hd]; exact hm.wa
@@ -111,6 +111,17 @@ theorem final_tail (hp : Placed code k0)
     · rw [h9]; exact c.bap
     · rw [hrsp, ht]; exact c.at'
     · rw [hrsp, hpa]; exact c.ap
+    · rw [ht, hpa, hdx, hrsp]
+      apply c.got_call hat hsm1 hle (by decide)
+      intro ar har
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with (rfl | rfl | rfl | rfl | rfl) | har
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(pA m0, whirBytes), by simp, le_rfl, le_rfl⟩
+      · exact c.got_level (by omega)
+      · exact ⟨(rspOf m0 + 8#64, 8), by simp, le_rfl, le_rfl⟩
+      · exact ⟨ar, by simp [har], le_rfl, le_rfl⟩
   simp only [PcOk] at hpc1
   refine Eventually.bind (Spec.apply (hfl a s _ ba b w rs) hpc1 hpre) fun st2 ⟨hpc2, hrsp2, hq⟩ ↦
     .done _ ?_

@@ -24,6 +24,57 @@ public section
 variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
+/-- Frame subregions used by either opening stay inside the protected stack. -/
+theorem open_frame_cover (c : Ctx a inst m0) {o n : Nat}
+    (ho : o < 3368) (hn : o + n ≤ 3352) :
+    (stackBelow m0 verifyKeccakStack).toNat ≤ (off (fb m0) o).toNat ∧
+      (off (fb m0) o).toNat + n ≤
+        (stackBelow m0 verifyKeccakStack).toNat + (verifyKeccakStack + 8) := by
+  rw [c.K, off_fb c ho]
+  have hsp := c.sp
+  have hstack := vk_eq
+  omega
+
+/-- Scratch subregions used by either opening stay inside the protected scratch. -/
+theorem open_scratch_cover (c : Ctx a inst m0) {o n : Nat}
+    (ho : o < 205824) (hn : o + n ≤ 205824) :
+    (reg m0 .r9).toNat ≤ (off (reg m0 .r9) o).toNat ∧
+      (off (reg m0 .r9) o).toNat + n ≤ (reg m0 .r9).toNat + 205824 := by
+  have hw := c.sW
+  rw [NativeRustcVm.Transcript.toNat_off (by omega)]
+  omega
+
+/-- The opening's GOT footprint, independent of the symbolic execution state. -/
+private theorem open1_got (c : Ctx a inst m0) {mc : MachineData}
+    (ca : CallAt m0 wrA 0 mc) {n : Nat} (hn : n ≤ 30) :
+    GotAt mc keccakOpenStack
+      [(off (fb m0) 408, 24), (reg m0 .rdi, tstateBytes),
+        (off (fb m0) 232, 96), (off (reg m0 .r9) 140288, rowsBytes),
+        (a.region.addr, a.region.size), (off (fb m0) 2056, 16 * n),
+        (off (reg m0 .r9) 0, weightsBytes), (rcAddr, 192), (rspOf mc + 8#64, 48)]
+      ["memcpy"] := by
+  rw [args_eq ca]
+  apply ca.got c ko_le
+  simp only [List.forall_mem_cons]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by decide)⟩
+  · exact ⟨(reg m0 .rdi, 760), by simp, le_rfl, le_rfl⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by decide)⟩
+  · exact ⟨(reg m0 .r9, 205824), by simp,
+      open_scratch_cover c (by decide) (by decide)⟩
+  · exact ⟨(a.region.addr, a.region.size), by simp, le_rfl, le_rfl⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by omega)⟩
+  · exact ⟨(reg m0 .r9, 205824), by simp,
+      open_scratch_cover c (by decide) (by decide)⟩
+  · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by decide)⟩
+  · intro p hp
+    exact (List.not_mem_nil hp).elim
+
 /-- **The first opening** (`b40`, `b41`): at `b42` (`t42`). -/
 theorem open1Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
     (hko : ∀ s c, Spec (Labels.label NativeRustcVmX64.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c)
@@ -100,9 +151,10 @@ theorem open1Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
         (Chg.frame c hch' (by decide) (by decide) (o := 2056) (n := 480) (by decide) (by decide))
         (by simp only [Array.length_toList]; omega),
       Chg.wtsR c hch' (by decide) (by decide) (by decide) (by decide) hfw, hsf, by decide,
-      by decide, ?_⟩
-    exact areas_ko c h ca (by decide) (by decide) (by decide) (by decide) hsz (by decide)
-      (by decide) (by decide) (by decide)
+      by decide, ?_, ?_⟩
+    · exact areas_ko c h ca (by decide) (by decide) (by decide) (by decide) hsz (by decide)
+        (by decide) (by decide) (by decide)
+    · exact open1_got c ca hsz
   · -- Its changes.
     have rdi : reg mc .rdi = off (fb m0) 408 := (hmc.regs .rdi _ rfl).trans (ev_frame 408)
     have rsi : reg mc .rsi = off (ob m0 1) 0 := (hmc.regs .rsi _ rfl).trans (off0 _).symm

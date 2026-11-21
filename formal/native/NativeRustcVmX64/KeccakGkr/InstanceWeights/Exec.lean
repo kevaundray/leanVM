@@ -16,8 +16,8 @@ public import NativeRustcVmX64.Code.Vm.Powers.Names
 
 Region 0 the 1048-byte frame and the return address: the six pushes (offsets `1000` to `1040`),
 the 984 bytes of locals from offset `16` (RSP's in the body), below them the 8-byte slot a call
-pushes its return address in (offset `8`) and the 8 bytes more the post-pass's expansions of `bt`
-push and pop. The prologue (`b0`, up to the call of `powers`) from the entry; after the call, `b1`,
+pushes its return address in (offset `8`) and eight unused bytes. Region 1 in the body is the
+read-only `memcpy` GOT slot. The prologue (`b0`, up to the call of `powers`) from the entry; after the call, `b1`,
 the fourteen turns of the loop (`b2`, its control flow constant: the loop counter is a literal)
 and the tail (`b3`, up to the call of `memcpy`) in one environment (`it`); the epilogue (`b4`).
 -/
@@ -31,8 +31,13 @@ open NativeRustcVmX64.Transcript
 
 /-- The entry: region 0 the frame below RSP and the return address. -/
 def entryS : SState := init [1056] [(.rsp, .ptr 0 1048)]
-/-- The body: RSP at offset `16`. -/
-def bodyS : SState := init [1056] [(.rsp, .ptr 0 16)]
+/-- The body: RSP at offset `16`, with the ordinary-memory `memcpy` slot. -/
+def bodyS : SState :=
+  (init [1056, 8] [(.rsp, .ptr 0 16)]
+    (aliases := [(.gotSlot "memcpy", 1, 0)])).withKnownBytes 1 0 8 (.label "memcpy")
+
+/-- The epilogue reads only its frame. -/
+def exitS : SState := init [1056] [(.rsp, .ptr 0 16)]
 /-- After `b1` and `n` turns of the loop. -/
 def it : Nat → SState
   | 0 => after b1 bodyS
@@ -63,7 +68,7 @@ sym_block l11 := exec b2 (it 11)
 sym_block l12 := exec b2 (it 12)
 sym_block l13 := exec b2 (it 13)
 sym_block e3 := exec b3 (it 14)
-sym_block e4 := exec b4 bodyS
+sym_block e4 := exec b4 exitS
 
 public section
 
@@ -118,10 +123,10 @@ theorem ok_b3 : MidOk 1048 8 slots (after b3 (it 14)) = true ∧ itemsOk (after 
   rw [after_eq e3]
   decide +kernel
 
-theorem exit_b4 : exec b4 bodyS = some (after b4 bodyS, .ret (.load 0 1048 8)) :=
+theorem exit_b4 : exec b4 exitS = some (after b4 exitS, .ret (.load 0 1048 8)) :=
   e4.trans (by rw [after_eq e4])
 
-theorem ok_b4 : EpiOk 1048 slots (after b4 bodyS) = true ∧ (after b4 bodyS).mem = [] := by
+theorem ok_b4 : EpiOk 1048 slots (after b4 exitS) = true ∧ (after b4 exitS).mem = [] := by
   rw [after_eq e4]
   decide +kernel
 

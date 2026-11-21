@@ -153,6 +153,7 @@ theorem bl_call (h : VerifyBusBalancePre a s0 L m0)
     (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.BusLayout.entryLabel ∧ retOf st.data = next)
     {side : Nat} {it : NativeRustcVm.Data.Item}
     (hit : it.bytes = (sideBlocks side).flatMap NativeRustcVm.Data.Block.bytes)
+    (hitgot : it ∈ [.pushBlocks, .pullBlocks, .countBlocks])
     (hl1 : 2 ≤ (sideBlocks side).length) (hl2 : (sideBlocks side).length ≤ maxBlocks)
     (hown : ∀ x ∈ sideBlocks side, x.owner < nTables)
     {rows : Array Nat} (hrows : busBlocks L.tableLogHeights rows = (L.push, L.pull, L.count))
@@ -161,6 +162,8 @@ theorem bl_call (h : VerifyBusBalancePre a s0 L m0)
     (hfok : InOk st.data (reg st.data .rsi) (8 * (reg st.data .rdx).toNat) busLayoutStack)
     (hfap : NativeRustcVm.Apart (loc m0 672) optBusLayoutBytes (reg st.data .rsi)
       (8 * (reg st.data .rdx).toNat))
+    (hfgot : ∀ l ∈ ["memcpy", "memset"], 0 < (reg st.data .rdx).toNat →
+      Apart (gotAddr l) 8 (reg st.data .rsi) (8 * (reg st.data .rdx).toNat))
     (xdi : reg st.data .rdi = loc m0 672) (xcx : reg st.data .rcx = rodataAddr it)
     (x8 : (reg st.data .r8).toNat = (sideBlocks side).length) (x9 : reg st.data .r9 = reg m0 .rsi)
     (cont : ∀ m2, St m0 104 m2 →
@@ -191,11 +194,26 @@ theorem bl_call (h : VerifyBusBalancePre a s0 L m0)
     refine ⟨cal_stack h fr (by omega) hle, hfw3, by rw [hfw]; exact hfw30, hfok, hl1, hl2, rfl,
       hown, by rw [← hit]; exact hro.1, ?_, lay_at h fr, cal_in h fr (by omega) hle (pre_layOk h),
       cal_localIn h fr (by omega) hle (by omega) (by omega), hfap, ?_,
-      (apart_loc hS (pre_layOk h).2 (j := 672) (l := optBusLayoutBytes) (by omega)).symm⟩
+      (apart_loc hS (pre_layOk h).2 (j := 672) (l := optBusLayoutBytes) (by omega)).symm,
+      cal_got h fr (by omega) hle (by rfl) ?_⟩
     · rw [← hlen]
       exact ⟨⟨NativeRustcVm.BytesAt.mapped hro.1, hro.2.1⟩, hro.2.2⟩
     · rw [← hlen]
       exact (apart_loc hS ((pre_ro h) it).2.2 (j := 672) (l := optBusLayoutBytes) (by omega)).symm
+    · intro l hl b hb
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with (rfl | rfl | rfl) | hb
+      · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+      · rw [← hlen]
+        apply ((pre_got h).1 l hl).2.2.2
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hitgot
+        rcases hitgot with rfl | rfl | rfl <;> simp
+      · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+      · by_cases hn : 8 * (reg st.data .rdx).toNat = 0
+        · simp only [hn, ↓reduceIte, List.not_mem_nil] at hb
+        · simp only [hn, ↓reduceIte, List.mem_singleton] at hb
+          subst b
+          exact hfgot l hl (by omega)
   · obtain ⟨ho, -, hsv⟩ := hq2
     have ho' := ho rows
     rw [xdi, hfw, sideOf_eq hrows side] at ho'

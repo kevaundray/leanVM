@@ -70,6 +70,10 @@ variable [Labels]
 /-- An item's address: its label's. -/
 def rodataAddr (t : Item) : BitVec 64 := (label (itemLabel t)).toBitVec
 
+/-- The read-only regions reached by the VM verifier. -/
+def rodataAreas : List (BitVec 64 × Nat) :=
+  Item.all.map fun t => (rodataAddr t, t.bytes.length)
+
 /-- **The read-only data at its labels**, apart from the `n` bytes below RSP and the return
 address at RSP. -/
 def RodataAt (m : MachineData) (n : Nat) : Prop :=

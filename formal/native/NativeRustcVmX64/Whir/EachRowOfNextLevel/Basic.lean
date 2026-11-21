@@ -101,7 +101,7 @@ def Done (rows : Array (Array UInt64)) (m0 : MachineData) (st : MachineState) : 
   st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧ EachRowNextPost rows m0 st.data
 
 /-- The precondition, by name. -/
-structure Ctx (rows : Array (Array UInt64)) (op : BitVec 64) (m0 : MachineData) : Prop where
+structure Ctx [Labels] (rows : Array (Array UInt64)) (op : BitVec 64) (m0 : MachineData) : Prop where
   stk : StackOk m0 eachRowNextStack
   args : ArgsOk m0 2
   rowsAt : NativeRustcVm.Sumcheck.RowsAt m0.dmem (reg m0 .rcx) op rows
@@ -128,6 +128,11 @@ structure Ctx (rows : Array (Array UInt64)) (op : BitVec 64) (m0 : MachineData) 
   brd : Apart (bOf m0) 16 (reg m0 .r9) (roundBytes * (stackArg m0 0).toNat)
   bh : Apart (bOf m0) 16 (nextEnv m0 1) (16 * (nextEnv m0 2).toNat)
   bqw : Apart (bOf m0) 16 (nextEnv m0 4) (16 * (nextEnv m0 5).toNat)
+  got : GotAt m0 eachRowNextStack [(reg m0 .rcx, 32), (op, 8 * NativeRustcVm.Sumcheck.openingsWords),
+    (reg m0 .rsi, 8 * (reg m0 .rdx).toNat), (reg m0 .r9, roundBytes * (stackArg m0 0).toNat),
+    (stackArg m0 1, 48), (nextEnv m0 0, 8), (nextEnv m0 1, 16 * (nextEnv m0 2).toNat),
+    (nextEnv m0 4, 16 * (nextEnv m0 5).toNat), (bOf m0, 16), (rspOf m0 + 8#64, 16)]
+    ["memcpy", "memset"]
 
 end
 
@@ -152,6 +157,9 @@ theorem rv [Labels] {env : Env} {S : SState} {m : MachineData} {r : Reg64} {v : 
 theorem sv {m m' : MachineData} (h : Saved m m') (r : Reg64) (hc : calleeSaved r = true) :
     reg m' r = reg m r :=
   h.1 r hc
+
+section
+variable [Labels]
 
 theorem ctx (hpre : EachRowNextPre rows op m0) : Ctx rows op m0 where
   stk := hpre.1.1
@@ -179,11 +187,36 @@ theorem ctx (hpre : EachRowNextPre rows op m0) : Ctx rows op m0 where
   bq := hpre.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   brd := hpre.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   bh := hpre.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  bqw := hpre.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+  bqw := hpre.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
+  got := hpre.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 
 /-- The layout. -/
 theorem lay (c : Ctx rows op m0) : EachRow.Lay m0 1984 16 eachRowNextStack :=
   ⟨c.stk, by decide, by decide, c.args.1, c.args.2⟩
+
+/-- The inputs and batched output protected from the loader slots do not wrap. -/
+theorem Ctx.got_nw (c : Ctx rows op m0) :
+    ∀ a ∈ [(reg m0 .rcx, 32), (op, 8 * NativeRustcVm.Sumcheck.openingsWords),
+      (reg m0 .rsi, 8 * (reg m0 .rdx).toNat), (reg m0 .r9, roundBytes * (stackArg m0 0).toNat),
+      (stackArg m0 1, 48), (nextEnv m0 0, 8), (nextEnv m0 1, 16 * (nextEnv m0 2).toNat),
+      (nextEnv m0 4, 16 * (nextEnv m0 5).toNat), (bOf m0, 16), (rspOf m0 + 8#64, 16)],
+      NoWrap a.1 a.2 := by
+  intro a ha
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+  rcases ha with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact c.rin.1.2
+  · exact c.opin.1.2
+  · exact c.qin.1.2
+  · exact c.rdin.1.2
+  · exact c.envin.1.2
+  · exact c.muin.1.2
+  · exact c.hin.1.2
+  · exact c.qwin.1.2
+  · exact c.bin.1.2
+  · have ht := (lay c).top
+    unfold NoWrap
+    rw [toNat_add_ofNat _ _ (by omega)]
+    omega
 
 /-- The batched value is not in the stack, nor in region 0. -/
 theorem notB (c : Ctx rows op m0) {o : Nat} (ho : o < 2008) :
@@ -216,7 +249,7 @@ theorem keepWB (c : Ctx rows op m0) {d d' : DataMem} (hs : SameOutside d d' (InR
     h
 
 /-- The frame alone, as an environment. -/
-theorem frame_env [Labels] (c : Ctx rows op m0) {m : MachineData} (hfr : FR m0 8 m)
+theorem frame_env (c : Ctx rows op m0) {m : MachineData} (hfr : FR m0 8 m)
     (ret : BitVec 64) :
     (EachRow.envE m0 m 1984 16 [] (fun _ ↦ 0) ret).WF ∧
       Match (EachRow.envE m0 m 1984 16 [] (fun _ ↦ 0) ret) frameS m :=
@@ -224,7 +257,7 @@ theorem frame_env [Labels] (c : Ctx rows op m0) {m : MachineData} (hfr : FR m0 8
     match_ofMachine ⟨rfl, trivial⟩ ⟨hfr.match_rsp, trivial⟩ trivial trivial trivial⟩
 
 /-- An environment with one input region, region 0 without the arguments. -/
-theorem env1 [Labels] (c : Ctx rows op m0) {m : MachineData} {o : Nat} (hfr : FR m0 o m)
+theorem env1 (c : Ctx rows op m0) {m : MachineData} {o : Nat} (hfr : FR m0 o m)
     {a : BitVec 64} {n : Nat} (hin : WhirIn m0 a n eachRowNextStack) (ret : BitVec 64) :
     (EachRow.envE m0 m 1984 0 [(a, n)] (fun _ ↦ 0) ret).WF :=
   EachRow.envE_wf (lay c) (Nat.zero_le _) hfr.kept
@@ -234,6 +267,7 @@ theorem env1 [Labels] (c : Ctx rows op m0) {m : MachineData} {o : Nat} (hfr : FR
       exact ⟨fun i hi ↦ hfr.kept _ (hin.1.1 i hi), hin.1.2⟩)
     (List.pairwise_pair.mpr ((lay c).apart0 hin.2))
 
+omit [Labels] in
 /-- **The locals kept** by a change outside them. -/
 theorem Low.keepR {R : BitVec 64 → Prop} {d d' : DataMem} (h : Low m0 d)
     (hs : SameOutside d d' R)
@@ -304,6 +338,8 @@ theorem argW (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m)
     rw [BitVec.toNat_add, show (8#64).toNat = 8 from rfl,
       Nat.mod_eq_of_lt (by have := (rspOf m0).isLt; omega)] at *
     omega) _ (by omega)
+
+end
 
 variable [Host] {k : Nat}
 

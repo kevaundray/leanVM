@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Exec
 public import NativeRustcVmX64.Top.Basic
+public import NativeRustcVmX64.Got
 public import NativeRustcVmX64.Spec.Layout
 public import NativeRustcVmX64.Spec.Bus
 public import NativeRustcVmX64.Spec.Tables
@@ -20,8 +21,8 @@ The addresses it may change (`Writable`: the `TState`, the working area, its sta
 between the calls (`At`: the frame, RSP at offset `40`, the changes `Writable`, RBX the working
 area, R14 the `TState`); at a call (`AtCall`: RSP at offset `32`, a callee's stack below it), the
 facts a callee's precondition asks of the stack, the read-only data, the `TState` and the working
-area's parts (`AtCall.stackOk`, `rodataAt`, `tstateOk`, `outOk`, …), and the frame after it
-(`AtCall.ret`).
+area's parts (`AtCall.stackOk`, `rodataAt`, `tstateOk`, `outOk`, …), the preserved loader slots
+(`AtCall.got`), and the frame after it (`AtCall.ret`).
 -/
 
 namespace NativeRustcVmX64.Top.VerifyExecution
@@ -104,12 +105,17 @@ public structure Geo [Labels] (a : DecArea) (m0 : MachineData) : Prop where
   rp : RodataApart (reg m0 .rcx) 32
   rw : RodataApart (reg m0 .r8) 495552
   rb : 0 < (reg m0 .rdx).toNat → RodataApart (reg m0 .rsi) (8 * (reg m0 .rdx).toNat)
+  got : GotAt m0 verifyExecutionStack
+    ([(reg m0 .rdi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rcx, 32), (reg m0 .r8, workAreaBytes)] ++ rodataAreas ++
+      if (reg m0 .rdx).toNat = 0 then [] else
+        [(reg m0 .rsi, 8 * (reg m0 .rdx).toNat)]) ["memcpy", "memset"]
 
 public section
 
 theorem geo_of [Labels] {a : DecArea} {s : TState} {m0 : MachineData}
     (hpre : VerifyExecutionPre a s m0) : Geo a m0 := by
-  obtain ⟨hst, hrod, hn32, hts, -, ⟨hbM, hbN⟩, ⟨hpM, hpN⟩, ⟨hwM, hwN⟩, hdis, hapR, hbcD⟩ := hpre
+  obtain ⟨hst, hrod, hn32, hts, -, ⟨hbM, hbN⟩, ⟨hpM, hpN⟩, ⟨hwM, hwN⟩, hdis, hapR, hbcD, hgot⟩ := hpre
   have hs : 17888 ≤ (rspOf m0).toNat := hst.1
   have h8 := hst.2.1
   have hR : (rspOf m0).toNat = vsb m0 + 17888 := by rw [vsb, stackBelow_toNat hs]; omega
@@ -124,7 +130,7 @@ theorem geo_of [Labels] {a : DecArea} {s : TState} {m0 : MachineData}
   obtain ⟨hrt, hra, hrp, hrw⟩ := hapR
   refine ⟨hR, by omega, hTN, hAN, hpN, hwN, hbN, by omega, by omega, by omega, by omega, h12, h13,
     h14, h23, h24, h34, fun hn ↦ ?_, fun hn ↦ ?_, fun hn ↦ ?_, fun hn ↦ ?_, hn32, hst.2.2, hpM,
-    hwM, hbM, hrod, hrt, hra, hrp, hrw, fun hn ↦ (hbcD hn).2⟩
+    hwM, hbM, hrod, hrt, hra, hrp, hrw, fun hn ↦ (hbcD hn).2, hgot⟩
   all_goals
     obtain ⟨h, -⟩ := hbcD hn
     simp only [NativeRustcVm.disjoint_cons_iff, List.forall_mem_cons, List.mem_nil_iff,
@@ -269,12 +275,86 @@ theorem AtCall.rodataAt (h : AtCall m0 d c) (g : Geo a m0) (hc : c ≤ 96) {N : 
   · rw [vsb_eq, h.sb g hc hN]; omega
   · rw [vsb_eq, h.sb g hc hN]; omega
 
+/-- The loader slots remain outside every write of the execution walk. -/
+theorem AtCall.got (h : AtCall m0 d c) (g : Geo a m0) (hc : c ≤ 96) {N : Nat}
+    (hN : N ≤ 17792 + c) {areas : List (BitVec 64 × Nat)}
+    (hap : ∀ l ∈ ["memcpy", "memset"], ∀ r ∈ areas,
+      NativeRustcVm.Apart (gotAddr l) 8 r.1 r.2) :
+    GotAt d N areas ["memcpy", "memset"] := by
+  apply g.got.transport _ _ hap
+  · intro l hl i hi
+    apply h.same
+    intro hw
+    obtain ⟨_, hn, hs, ha⟩ := g.got.1 l hl
+    have ht : NativeRustcVm.Apart (gotAddr l) 8 (reg m0 .rdi) tstateBytes :=
+      ha (reg m0 .rdi, tstateBytes) (by simp)
+    have hwork : NativeRustcVm.Apart (gotAddr l) 8 (reg m0 .r8) workAreaBytes :=
+      ha (reg m0 .r8, workAreaBytes) (by simp)
+    have hq := NativeRustcVm.toNat_add_ofNat
+      (a := gotAddr l) (i := i) (by change (gotAddr l).toNat + 8 ≤ 2 ^ 64 at hn; omega)
+    change NativeRustcVm.Apart (gotAddr l) 8 (stackBelow m0 17888) 17896 at hs
+    unfold NativeRustcVm.Apart at hs ht hwork
+    rw [vsb_eq] at hs
+    change _ + 8 ≤ _ ∨ _ + 760 ≤ _ at ht
+    change _ + 8 ≤ _ ∨ _ + 495552 ≤ _ at hwork
+    rcases g.writable hw with hw | hw | hw <;> omega
+  · intro l hl
+    apply NativeRustcVm.Apart.mono_right (g.got.1 l hl).2.2.1
+    · change vsb m0 ≤ (stackBelow d N).toNat
+      rw [h.sb g hc hN]; omega
+    · change (stackBelow d N).toNat + (N + 8) ≤ vsb m0 + 17896
+      rw [h.sb g hc hN]; omega
+
+theorem Geo.gotT (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    NativeRustcVm.Apart (gotAddr l) 8 (reg m0 .rdi) tstateBytes :=
+  (g.got.1 l hl).2.2.2 (reg m0 .rdi, tstateBytes) (by simp)
+
+theorem Geo.gotA (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    NativeRustcVm.Apart (gotAddr l) 8 a.words (8 * a.len) :=
+  (g.got.1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+
+theorem Geo.gotB (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    (hn : (reg m0 .rdx).toNat ≠ 0) :
+    NativeRustcVm.Apart (gotAddr l) 8 (reg m0 .rsi) (8 * (reg m0 .rdx).toNat) :=
+  (g.got.1 l hl).2.2.2 (reg m0 .rsi, 8 * (reg m0 .rdx).toNat) (by simp [hn])
+
+theorem Geo.gotP (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    NativeRustcVm.Apart (gotAddr l) 8 (reg m0 .rcx) 32 :=
+  (g.got.1 l hl).2.2.2 (reg m0 .rcx, 32) (by simp)
+
+theorem Geo.gotW (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    {o n : Nat} (ho : o < 495552) (hn : o + n ≤ 495552) :
+    NativeRustcVm.Apart (gotAddr l) 8 (off (reg m0 .r8) o) n := by
+  have hw : NativeRustcVm.Apart (gotAddr l) 8 (reg m0 .r8) workAreaBytes :=
+    (g.got.1 l hl).2.2.2 (reg m0 .r8, workAreaBytes) (by simp)
+  apply NativeRustcVm.Apart.mono_right hw
+  · rw [g.wo ho]; omega
+  · rw [g.wo ho]; change _ ≤ _ + 495552; omega
+
+theorem Geo.gotRod (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    (t : NativeRustcVm.Data.Item) :
+    NativeRustcVm.Apart (gotAddr l) 8 (rodataAddr t) t.bytes.length := by
+  have hr : (rodataAddr t, t.bytes.length) ∈ rodataAreas :=
+    List.mem_map.mpr ⟨t, by cases t <;> decide, rfl⟩
+  exact (g.got.1 l hl).2.2.2 (rodataAddr t, t.bytes.length)
+    (by simp only [List.mem_append, hr, or_true, true_or])
+
+theorem Geo.gotRodata (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    ∀ r ∈ rodataAreas, NativeRustcVm.Apart (gotAddr l) 8 r.1 r.2 :=
+  fun r hr ↦ (g.got.1 l hl).2.2.2 r
+    (by simp only [List.mem_append, hr, or_true, true_or])
+
 theorem AtCall.rcAt (h : AtCall m0 d c) (g : Geo a m0) (hc : c ≤ 96) {N : Nat} (hN : N ≤ 17792 + c) : RcAt d N :=
   (h.rodataAt g hc hN).rcAt
 
 omit [Labels] in
 theorem rc_len : (NativeRustcVm.Data.Item.bytes .keccakRC).length = 192 := by
   rw [NativeRustcVm.Data.Item.bytes, NativeRustcVm.length_wordsBytes, keccakRC_eq]; rfl
+
+theorem Geo.gotRc (g : Geo a m0) {l : Label} (hl : l ∈ ["memcpy", "memset"]) :
+    NativeRustcVm.Apart (gotAddr l) 8 rcAddr 192 := by
+  have h := g.gotRod hl .keccakRC
+  rwa [rc_len, ← rcAddr_eq] at h
 
 /-- The `TState` apart from the round constants. -/
 theorem Geo.tRc (g : Geo a m0) : NativeRustcVm.Apart (reg m0 .rdi) tstateBytes rcAddr 192 := by

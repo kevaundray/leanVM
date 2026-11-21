@@ -23,9 +23,7 @@ def b0 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r12 Width.W64))))),  -- pushq %r12
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rbx Width.W64))))),  -- pushq %rbx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64))))),  -- pushq %rax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r15 Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rdx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rdx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rdx,%rdx), %r15
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r15 Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.r15)) (@Option.some AddrIndex (AddrIndex.mk Reg64.r15 Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%r15,%r15), %r15
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r15 Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.r15)) (@Option.some AddrIndex (AddrIndex.mk Reg64.r15 Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%r15,%r15), %r15
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r15 Width.W64) (AddrExpr.mk (@Option.none RegOrRip) (@Option.some AddrIndex (AddrIndex.mk Reg64.rdx Width.W64)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (,%rdx,8), %r15
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.xor Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rax Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rax Width.W32))))),  -- xorl %eax, %eax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.mov Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.mem Width.W64 (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rdi)) (@Option.none AddrIndex) (ConstExpr.int64 (16 : Int64))))))),  -- movq 16(%rdi), %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.add Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r15 Width.W64))))),  -- addq %r15, %rcx
@@ -101,75 +99,75 @@ def b9 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9]
 
-def codeLength : Nat := 43
+def codeLength : Nat := 41
 
 def b0Offset : Nat := 0
 
-def b0Length : Nat := 13
+def b0Length : Nat := 11
 
-def b0End : Nat := 13
+def b0End : Nat := 11
 
-def b1Offset : Nat := 13
+def b1Offset : Nat := 11
 
 def b1Length : Nat := 3
 
-def b1End : Nat := 16
+def b1End : Nat := 14
 
-def b2Offset : Nat := 16
+def b2Offset : Nat := 14
 
 def b2Length : Nat := 3
 
-def b2End : Nat := 19
+def b2End : Nat := 17
 
-def b3Offset : Nat := 19
+def b3Offset : Nat := 17
 
 def b3Length : Nat := 3
 
-def b3End : Nat := 22
+def b3End : Nat := 20
 
-def b4Offset : Nat := 22
+def b4Offset : Nat := 20
 
 def b4Length : Nat := 4
 
-def b4End : Nat := 26
+def b4End : Nat := 24
 
-def b5Offset : Nat := 26
+def b5Offset : Nat := 24
 
 def b5Length : Nat := 2
 
-def b5End : Nat := 28
+def b5End : Nat := 26
 
-def b6Offset : Nat := 28
+def b6Offset : Nat := 26
 
 def b6Length : Nat := 4
 
-def b6End : Nat := 32
+def b6End : Nat := 30
 
-def b7Offset : Nat := 32
+def b7Offset : Nat := 30
 
 def b7Length : Nat := 2
 
-def b7End : Nat := 34
+def b7End : Nat := 32
 
-def b8Offset : Nat := 34
+def b8Offset : Nat := 32
 
 def b8Length : Nat := 2
 
-def b8End : Nat := 36
+def b8End : Nat := 34
 
-def b9Offset : Nat := 36
+def b9Offset : Nat := 34
 
 def b9Length : Nat := 7
 
-def b9End : Nat := 43
+def b9End : Nat := 41
 
 def entryOffset : Nat := 0
 
-def label_4Offset : Nat := 22
+def label_4Offset : Nat := 20
 
-def label_5Offset : Nat := 34
+def label_5Offset : Nat := 32
 
-def label_8Offset : Nat := 36
+def label_8Offset : Nat := 34
 
 end
 

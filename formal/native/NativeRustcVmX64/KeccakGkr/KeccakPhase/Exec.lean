@@ -33,8 +33,10 @@ open NativeRustcVmX64.Sumcheck
 /-- The frame's slots: the pushed registers. -/
 def slots : Slots := [(472, .rbp), (464, .r15), (456, .r14), (448, .r13), (440, .r12), (432, .rbx)]
 
-/-- At the entry: the frame (region 0), the evaluations (region 1, RDX). -/
-def entryS : SState := init [488, 11808] [(.rsp, .ptr 0 480), (.rdx, .ptr 1 0)]
+/-- At the entry: the frame, the evaluations, and the ordinary `memcpy` GOT slot. -/
+def entryS : SState :=
+  (init [488, 11808, 8] [(.rsp, .ptr 0 480), (.rdx, .ptr 1 0)]
+    (aliases := [(.gotSlot "memcpy", 2, 0)])).withKnownBytes 2 0 8 (.label "memcpy")
 
 /-- After `memcpy`: the frame, the evaluations (RBX). -/
 def retS : SState := init [488, 11808] [(.rsp, .ptr 0 24), (.rbx, .ptr 1 0)]

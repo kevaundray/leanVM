@@ -200,11 +200,19 @@ theorem head1 (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hts1 : TStateAt st1.data.dmem (tA m0) a s := c.ts_frame le_rfl (hm1.kept hwf0) hs1 c.ts
   have hwt := c.whirT hat hf1.same hle
   have hpre : ReadCommitmentPre a s st1.data := by
-    refine ⟨hwt.1, hwt.2.1, ?_, ?_, c.roots⟩
+    refine ⟨hwt.1, hwt.2.1, ?_, ?_, c.roots, ?_⟩
     · show TStateAt st1.data.dmem (reg st1.data .rdi) a s
       rw [ht1]; exact hts1
     · show TStateOk st1.data (reg st1.data .rdi) a readCommitmentStack
       rw [ht1]; exact hwt.2.2.2.1
+    · rw [ht1]
+      apply c.got_call hf1 (by omega) hle (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_rc
   refine call_then hpc1 (hrc a s) hpre fun st2 hpc2 hrsp2 hq ↦ ?_
   obtain ⟨hok, hnext, hch, hsv⟩ := hq
   rw [hsi, hdx] at hok hnext
@@ -301,7 +309,7 @@ theorem head2 (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hle : 8176 - 64 + readScalarsStack ≤ nextLevelStack := by decide
   have hwt := c.whirT hat hf2.same hle
   have hpre : ReadScalarsPre a s1 st2.data := by
-    refine ⟨hwt.1, hwt.2.1, ?_, ?_, ?_⟩
+    refine ⟨hwt.1, hwt.2.1, ?_, ?_, ?_, ?_⟩
     · show TStateAt st2.data.dmem (reg st2.data .rdi) a s1
       rw [ht2]; exact hts2
     · show TStateOk st2.data (reg st2.data .rdi) a readScalarsStack
@@ -310,6 +318,15 @@ theorem head2 (hp : Placed code k) (c : Ctx a s level w rounds m0)
         (16 * (reg st2.data .rdx).toNat) readScalarsStack
       rw [ht2, hsi2, hdx2]
       exact c.outLoc (by omega) hf2 hle (by omega) (by omega)
+    · rw [ht2, hsi2, hdx2]
+      apply c.got_call hf2 (by omega) hle (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_loc (by omega) (by have := c.fold; unfold roundCap at this; omega)
+      · exact c.got_rc
   refine call_then hpc2 (hrs a s1) hpre fun st3 hpc3 hrsp3 hq ↦ ?_
   obtain ⟨hok, hxs, hnext, hch, hsv⟩ := hq
   rw [hdx2] at hok hxs hnext hch
@@ -384,12 +401,20 @@ theorem head3 (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hle : 8176 - 64 + grindStack ≤ nextLevelStack := by decide
   have hwt := c.whirT hat hf1.same hle
   have hpre : GrindPre a s2 st1.data := by
-    refine ⟨hwt.1, hwt.2.1, ?_, ?_, ?_⟩
+    refine ⟨hwt.1, hwt.2.1, ?_, ?_, ?_, ?_⟩
     · show TStateAt st1.data.dmem (reg st1.data .rdi) a s2
       rw [ht1]; exact hts1
     · show TStateOk st1.data (reg st1.data .rdi) a grindStack
       rw [ht1]; exact hwt.2.2.2.1
     · rw [hbits]; decide
+    · rw [ht1]
+      apply c.got_call hf1 (by omega) hle (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_rc
   refine call_then hpc1 (hgr a s2) hpre fun st2 hpc2 hrsp2 hq ↦ ?_
   obtain ⟨hok, hnext, hch, hsv⟩ := hq
   rw [hbits] at hok hnext

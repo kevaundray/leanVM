@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Ring.Switch.Basic
+public import NativeRustcVmX64.Got
 public import NativeRustcVmX64.Code.Vm.RingCoefficients.Names
 public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
 public import NativeRustcVmX64.Code.Vm.RingTarget.Names
@@ -98,6 +99,40 @@ theorem ringSwitch_spec (hp : Placed code k)
       ¬ NativeRustcVm.InRange t tstateBytes q ∧ ¬ NativeRustcVm.InRange a.words (8 * a.len) q :=
     fun q hq ↦ hOS_T q (.inr (frame_in hst (by decide) hq))
   have hsl := h.sl
+  have hgot := hpre.2.2.2.2.2.2.2.2
+  have hgotCall {d : MachineData} {n' : Nat} {areas' : List (BitVec 64 × Nat)}
+      (hsame : SameOutside m0.dmem d.dmem (Ch m0)) (hsp : rspOf d = fb)
+      (hle : 432 + n' ≤ ringSwitchStack)
+      (hcover : ∀ ar ∈ areas', ∃ b ∈ (stackBelow m0 ringSwitchStack, ringSwitchStack + 8) ::
+        [(t, tstateBytes), (a.words, 8 * a.len), (o, ringWBytes), (sA, 16 * coeffCount), (rcAddr, 192)],
+        b.1.toNat ≤ ar.1.toNat ∧ ar.1.toNat + ar.2 ≤ b.1.toNat + b.2) :
+      GotAt d n' areas' ["memcpy"] := by
+    have hb := hgot.unchanged hst
+      (by
+        intro ar har
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+        rcases har with rfl | rfl | rfl | rfl | rfl
+        · exact hTn
+        · exact hAn
+        · exact hon
+        · exact hsl.1.2
+        · exact h.rc.2.1)
+      (fun q hq => hsame q (fun hc => hq (by
+        rcases hc with hc | hc | hc
+        · exact Or.inr ⟨(o, ringWBytes), by simp [o], hc⟩
+        · exact Or.inr ⟨(t, tstateBytes), by simp [t], hc⟩
+        · exact Or.inl hc)))
+    have hd : (stackBelow d n').toNat = (rspOf m0).toNat - 432 - n' := by
+      rw [stackBelow_toNat (by rw [hsp, hfbN]; change 432 + n' ≤ 3008 at hle; omega),
+        hsp, hfbN]
+    apply NativeRustcVmX64.GotAt.callee hgot hb _ _ hcover
+    · rw [hSN, hd]
+      change 432 + n' ≤ 3008 at hle
+      omega
+    · rw [hSN, hd]
+      change _ + (n' + 8) ≤ _ + (3008 + 8)
+      change 432 + n' ≤ 3008 at hle
+      omega
   have hsl_keep : ∀ d : MachineData, SameOutside m0.dmem d.dmem (Ch m0) →
       arr d sA coeffCount = arr m0 sA coeffCount := by
     intro d hs
@@ -153,9 +188,16 @@ theorem ringSwitch_spec (hp : Placed code k)
   have hpre1 : GrindPre a s st1.data := by
     unfold GrindPre
     rw [e1di, hgb]
-    exact ⟨stackOk_callee hst hf1.kept hsp1 (by decide),
+    refine ⟨stackOk_callee hst hf1.kept hsp1 (by decide),
       RcAt.callee h.rc (rc_keep hs1' hChR) hsp1 hst.1 (by decide), hts1,
-      TStateOk.callee h.tok hsp1 hst.1 (by decide), by decide⟩
+      TStateOk.callee h.tok hsp1 hst.1 (by decide), by decide, ?_⟩
+    apply hgotCall hs1' hsp1 (by decide)
+    intro ar har
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with rfl | rfl | rfl
+    · exact ⟨(t, tstateBytes), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   refine call_then hpc1 (hgr a s) hpre1 fun st2 hpc2 hrsp2 hQ2 ↦ ?_
   obtain ⟨hok2, hnext2, hs2, hsv2⟩ := hQ2
   rw [e1di, hgb] at hnext2
@@ -241,10 +283,23 @@ theorem ringSwitch_spec (hp : Placed code k)
   have hpre5 : SampleChallengesPre a t1 st5.data := by
     unfold SampleChallengesPre
     rw [f5di, f5si, f5dx]
-    exact ⟨stackOk_callee hst hf5.kept hsp5 (by decide),
+    refine ⟨stackOk_callee hst hf5.kept hsp5 (by decide),
       RcAt.callee h.rc (rc_keep hs5' hChR) hsp5 hst.1 (by decide), hts5,
       TStateOk.callee h.tok hsp5 hst.1 (by decide),
-      OutOk.frame hst (by decide) hsp5 hf5.kept (by decide) (by decide) h.tok h.rc⟩
+      OutOk.frame hst (by decide) hsp5 hf5.kept (by decide) (by decide) h.tok h.rc, ?_⟩
+    apply hgotCall hs5' hsp5 (by decide)
+    intro ar har
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with rfl | rfl | rfl | rfl
+    · exact ⟨(t, tstateBytes), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 ringSwitchStack, ringSwitchStack + 8), by simp, ?_, ?_⟩ <;>
+        dsimp only [Prod.fst, Prod.snd] <;>
+        rw [hSN, toNat_off (by unfold NativeRustcVm.NoWrap at hfnw; omega), hfbN]
+      · omega
+      · change _ + 16 * 16 ≤ _ + (3008 + 8)
+        omega
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   refine call_then hpc5 (hsc a t1) hpre5 fun st6 hpc6 hrsp6 hQ6 ↦ ?_
   obtain ⟨⟨xs, t2, hrun, hxs6, hts6⟩, hs6, hsv6⟩ := hQ6
   rw [f5dx, show (BitVec.ofNat 64 16).toNat = 16 from rfl] at hrun
@@ -427,13 +482,63 @@ theorem ringSwitch_spec (hp : Placed code k)
     unfold arr ringWidth
     exact congrArg List.toArray (frame_keep (SameOutside.trans hs8 hs9) fun j hj1 hj2 h' ↦
       h'.elim (fun h' ↦ hR8 j (by omega) h') (fun h' ↦ not_low j (by omega) (by omega) h'))
+  have hgotBytes := hgot.unchanged hst
+    (by
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl | rfl
+      · exact hTn
+      · exact hAn
+      · exact hon
+      · exact hsl.1.2
+      · exact h.rc.2.1)
+    (fun q hq => hs9' q (fun hc => hq (by
+      rcases hc with hc | hc | hc
+      · exact Or.inr ⟨(o, ringWBytes), by simp [o], hc⟩
+      · exact Or.inr ⟨(t, tstateBytes), by simp [t], hc⟩
+      · exact Or.inl hc)))
+  have hgot9 : GotAt st9.data ringTargetStack
+      [(sA, 16 * coeffCount), (off fb 8, 16 * ringWidth),
+        (off fb 264, 16 * ringWidth)] ["memcpy"] := by
+    have hs9N : (stackBelow st9.data ringTargetStack).toNat =
+        (rspOf m0).toNat - 3008 := by
+      rw [stackBelow_toNat (by
+        rw [hsp9, hfbN]
+        change 2576 ≤ (rspOf m0).toNat - 432
+        have hN : 3008 ≤ (rspOf m0).toNat := hst.1
+        omega), hsp9, hfbN]
+      change (rspOf m0).toNat - 432 - 2576 = _
+      omega
+    apply NativeRustcVmX64.GotAt.callee hgot hgotBytes
+    · rw [hSN, hs9N]
+    · rw [hSN, hs9N]
+      change _ + (2576 + 8) ≤ _ + (3008 + 8)
+      omega
+    · intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact ⟨(sA, 16 * coeffCount), by simp [sA], le_rfl, le_rfl⟩
+      · refine ⟨(stackBelow m0 ringSwitchStack, ringSwitchStack + 8),
+          List.mem_cons_self, ?_, ?_⟩ <;>
+          dsimp only [Prod.fst, Prod.snd] <;>
+          rw [hSN, toNat_off (by unfold NativeRustcVm.NoWrap at hfnw; omega), hfbN]
+        · omega
+        · change _ + 16 * 8 ≤ _ + (3008 + 8)
+          omega
+      · refine ⟨(stackBelow m0 ringSwitchStack, ringSwitchStack + 8),
+          List.mem_cons_self, ?_, ?_⟩ <;>
+          dsimp only [Prod.fst, Prod.snd] <;>
+          rw [hSN, toNat_off (by unfold NativeRustcVm.NoWrap at hfnw; omega), hfbN]
+        · omega
+        · change _ + 16 * 8 ≤ _ + (3008 + 8)
+          omega
   have hpre9 : RingTargetPre st9.data := by
     unfold RingTargetPre ArrOk
     rw [f9di, f9si, f9dx]
     exact ⟨stackOk_callee hst hf9.kept hsp9 (by decide),
       ⟨⟨Mapped.keeps hsl.1.1 hf9.kept, hsl.1.2⟩, apart_callee hsl.2 hsp9 hst.1 (by decide)⟩,
       hframeOk st9.data _ 8 128 hf9.kept hsp9 (by decide) (by decide) (by decide),
-      hframeOk st9.data _ 264 128 hf9.kept hsp9 (by decide) (by decide) (by decide)⟩
+      hframeOk st9.data _ 264 128 hf9.kept hsp9 (by decide) (by decide) (by decide), hgot9⟩
   refine call_then hpc9 hrt hpre9 fun st10 hpc10 hrsp10 ⟨hv10, hs10, hsv10⟩ ↦ ?_
   rw [f9di, f9si, f9dx, hk79 8 (by decide) (by decide), hk79 264 (by decide) (by decide), hfx, hgx,
     hsl_keep st9.data hs9'] at hv10

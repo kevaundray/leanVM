@@ -152,10 +152,14 @@ theorem walk (hp : Placed code k)
     have hrc : NativeRustcVm.Apart (off (reg m0 .r8) 0) 3912 rcAddr 192 := by
       have := g.wRod (o := 0) (n := 3912) (by omega) (by omega) .keccakRC
       rwa [rc_len, ← rcAddr_eq] at this
-    exact ⟨hC.stackOk g hc hN', hRo.rcAt, hRo, hts1, hC.tstateOk g hc hN', g.rt,
+    refine ⟨hC.stackOk g hc hN', hRo.rcAt, hRo, hts1, hC.tstateOk g hc hN', g.rt,
       by rw [List.size_toArray, length_bcE], hC.readable g (by omega) (by decide),
       hC.offStack g hc (by omega) (by decide) hN', g.wRod (by omega) (by decide), hrc,
-      g.apartWT (by omega) (by decide), g.apartWA (by omega) (by decide)⟩
+      g.apartWT (by omega) (by decide), g.apartWA (by omega) (by decide), ?_⟩
+    apply hC.got g hc hN'
+    intro l hl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq]
+    exact ⟨g.gotT hl, g.gotA hl, g.gotW hl (by omega) (by decide), g.gotRc hl⟩
   refine call_then hpc1 (hras _ a s) hpre1 fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hrax, hres, hch, hsv⟩ := hpost
   simp only [eRdi, eRdx, hN, show NativeRustcVm.Layout.layoutBytes = 3912 from rfl] at hres hch

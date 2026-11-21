@@ -78,6 +78,8 @@ structure Geo [Labels] (m0 : MachineData) : Prop where
   nw : NoWrap (bc m0) (8 * nW m0)
   ap : 0 < nW m0 → Apart (bc m0) (8 * nW m0) (stackBelow m0 NativeRustcVmX64.keccak256WordsStack)
     (NativeRustcVmX64.keccak256WordsStack + 8)
+  got : GotAt m0 NativeRustcVmX64.keccak256WordsStack
+    [(m0.regs.get64 .rdi, 32), (NativeRustcVmX64.rcAddr, 192)] ["memcpy", "memset"]
 
 end
 

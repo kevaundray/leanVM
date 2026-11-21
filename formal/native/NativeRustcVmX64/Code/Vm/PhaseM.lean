@@ -45,9 +45,7 @@ def b1 : List Directive := [
 /-- Block 2, after the branch or call ending block 1. -/
 def b2 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.mov Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.mem Width.W64 (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rsp)) (@Option.none AddrIndex) (ConstExpr.int64 (32 : Int64))))))),  -- movq 32(%rsp), %rax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r13 Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rax)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rax,%rax), %r13
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r13 Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.r13)) (@Option.some AddrIndex (AddrIndex.mk Reg64.r13 Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%r13,%r13), %r13
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r13 Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.r13)) (@Option.some AddrIndex (AddrIndex.mk Reg64.r13 Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%r13,%r13), %r13
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.r13 Width.W64) (AddrExpr.mk (@Option.none RegOrRip) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W64)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (,%rax,8), %r13
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.test Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64))))),  -- testq %rax, %rax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.jcc Width.W64 CondCode.z ".LPhaseM_5"))  -- je .LPhaseM_5
 ]
@@ -371,7 +369,7 @@ def b37 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32, b33, b34, b35, b36, b37]
 
-def codeLength : Nat := 201
+def codeLength : Nat := 199
 
 def b0Offset : Nat := 0
 
@@ -387,241 +385,241 @@ def b1End : Nat := 19
 
 def b2Offset : Nat := 19
 
-def b2Length : Nat := 6
+def b2Length : Nat := 4
 
-def b2End : Nat := 25
+def b2End : Nat := 23
 
-def b3Offset : Nat := 25
+def b3Offset : Nat := 23
 
 def b3Length : Nat := 2
 
-def b3End : Nat := 27
+def b3End : Nat := 25
 
-def b4Offset : Nat := 27
+def b4Offset : Nat := 25
 
 def b4Length : Nat := 4
 
-def b4End : Nat := 31
+def b4End : Nat := 29
 
-def b5Offset : Nat := 31
+def b5Offset : Nat := 29
 
 def b5Length : Nat := 2
 
-def b5End : Nat := 33
+def b5End : Nat := 31
 
-def b6Offset : Nat := 33
+def b6Offset : Nat := 31
 
 def b6Length : Nat := 4
 
-def b6End : Nat := 37
+def b6End : Nat := 35
 
-def b7Offset : Nat := 37
+def b7Offset : Nat := 35
 
 def b7Length : Nat := 4
 
-def b7End : Nat := 41
+def b7End : Nat := 39
 
-def b8Offset : Nat := 41
+def b8Offset : Nat := 39
 
 def b8Length : Nat := 3
 
-def b8End : Nat := 44
+def b8End : Nat := 42
 
-def b9Offset : Nat := 44
+def b9Offset : Nat := 42
 
 def b9Length : Nat := 3
 
-def b9End : Nat := 47
+def b9End : Nat := 45
 
-def b10Offset : Nat := 47
+def b10Offset : Nat := 45
 
 def b10Length : Nat := 3
 
-def b10End : Nat := 50
+def b10End : Nat := 48
 
-def b11Offset : Nat := 50
+def b11Offset : Nat := 48
 
 def b11Length : Nat := 5
 
-def b11End : Nat := 55
+def b11End : Nat := 53
 
-def b12Offset : Nat := 55
+def b12Offset : Nat := 53
 
 def b12Length : Nat := 4
 
-def b12End : Nat := 59
+def b12End : Nat := 57
 
-def b13Offset : Nat := 59
+def b13Offset : Nat := 57
 
 def b13Length : Nat := 5
 
-def b13End : Nat := 64
+def b13End : Nat := 62
 
-def b14Offset : Nat := 64
+def b14Offset : Nat := 62
 
 def b14Length : Nat := 5
 
-def b14End : Nat := 69
+def b14End : Nat := 67
 
-def b15Offset : Nat := 69
+def b15Offset : Nat := 67
 
 def b15Length : Nat := 5
 
-def b15End : Nat := 74
+def b15End : Nat := 72
 
-def b16Offset : Nat := 74
+def b16Offset : Nat := 72
 
 def b16Length : Nat := 4
 
-def b16End : Nat := 78
+def b16End : Nat := 76
 
-def b17Offset : Nat := 78
+def b17Offset : Nat := 76
 
 def b17Length : Nat := 3
 
-def b17End : Nat := 81
+def b17End : Nat := 79
 
-def b18Offset : Nat := 81
+def b18Offset : Nat := 79
 
 def b18Length : Nat := 8
 
-def b18End : Nat := 89
+def b18End : Nat := 87
 
-def b19Offset : Nat := 89
+def b19Offset : Nat := 87
 
 def b19Length : Nat := 6
 
-def b19End : Nat := 95
+def b19End : Nat := 93
 
-def b20Offset : Nat := 95
+def b20Offset : Nat := 93
 
 def b20Length : Nat := 2
 
-def b20End : Nat := 97
+def b20End : Nat := 95
 
-def b21Offset : Nat := 97
+def b21Offset : Nat := 95
 
 def b21Length : Nat := 2
 
-def b21End : Nat := 99
+def b21End : Nat := 97
 
-def b22Offset : Nat := 99
+def b22Offset : Nat := 97
 
 def b22Length : Nat := 2
 
-def b22End : Nat := 101
+def b22End : Nat := 99
 
-def b23Offset : Nat := 101
+def b23Offset : Nat := 99
 
 def b23Length : Nat := 7
 
-def b23End : Nat := 108
+def b23End : Nat := 106
 
-def b24Offset : Nat := 108
+def b24Offset : Nat := 106
 
 def b24Length : Nat := 7
 
-def b24End : Nat := 115
+def b24End : Nat := 113
 
-def b25Offset : Nat := 115
+def b25Offset : Nat := 113
 
 def b25Length : Nat := 7
 
-def b25End : Nat := 122
+def b25End : Nat := 120
 
-def b26Offset : Nat := 122
+def b26Offset : Nat := 120
 
 def b26Length : Nat := 11
 
-def b26End : Nat := 133
+def b26End : Nat := 131
 
-def b27Offset : Nat := 133
+def b27Offset : Nat := 131
 
 def b27Length : Nat := 16
 
-def b27End : Nat := 149
+def b27End : Nat := 147
 
-def b28Offset : Nat := 149
+def b28Offset : Nat := 147
 
 def b28Length : Nat := 3
 
-def b28End : Nat := 152
+def b28End : Nat := 150
 
-def b29Offset : Nat := 152
+def b29Offset : Nat := 150
 
 def b29Length : Nat := 3
 
-def b29End : Nat := 155
+def b29End : Nat := 153
 
-def b30Offset : Nat := 155
+def b30Offset : Nat := 153
 
 def b30Length : Nat := 3
 
-def b30End : Nat := 158
+def b30End : Nat := 156
 
-def b31Offset : Nat := 158
+def b31Offset : Nat := 156
 
 def b31Length : Nat := 11
 
-def b31End : Nat := 169
+def b31End : Nat := 167
 
-def b32Offset : Nat := 169
+def b32Offset : Nat := 167
 
 def b32Length : Nat := 4
 
-def b32End : Nat := 173
+def b32End : Nat := 171
 
-def b33Offset : Nat := 173
+def b33Offset : Nat := 171
 
 def b33Length : Nat := 6
 
-def b33End : Nat := 179
+def b33End : Nat := 177
 
-def b34Offset : Nat := 179
+def b34Offset : Nat := 177
 
 def b34Length : Nat := 4
 
-def b34End : Nat := 183
+def b34End : Nat := 181
 
-def b35Offset : Nat := 183
+def b35Offset : Nat := 181
 
 def b35Length : Nat := 4
 
-def b35End : Nat := 187
+def b35End : Nat := 185
 
-def b36Offset : Nat := 187
+def b36Offset : Nat := 185
 
 def b36Length : Nat := 12
 
-def b36End : Nat := 199
+def b36End : Nat := 197
 
-def b37Offset : Nat := 199
+def b37Offset : Nat := 197
 
 def b37Length : Nat := 2
 
-def b37End : Nat := 201
+def b37End : Nat := 199
 
 def entryOffset : Nat := 0
 
-def label_3Offset : Nat := 27
+def label_3Offset : Nat := 25
 
-def label_5Offset : Nat := 37
+def label_5Offset : Nat := 35
 
-def label_9Offset : Nat := 64
+def label_9Offset : Nat := 62
 
-def label_23Offset : Nat := 78
+def label_23Offset : Nat := 76
 
-def label_24Offset : Nat := 81
+def label_24Offset : Nat := 79
 
-def label_11Offset : Nat := 89
+def label_11Offset : Nat := 87
 
-def label_17Offset : Nat := 122
+def label_17Offset : Nat := 120
 
-def label_22Offset : Nat := 155
+def label_22Offset : Nat := 153
 
-def label_19Offset : Nat := 183
+def label_19Offset : Nat := 181
 
-def label_20Offset : Nat := 187
+def label_20Offset : Nat := 185
 
 end
 

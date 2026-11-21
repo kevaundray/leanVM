@@ -195,7 +195,7 @@ theorem areas_rs {m : MachineData} {n : Nat} {ws rs : List NativeRustcVm.Region}
 
 /-- **The addresses of the precondition.** -/
 theorem geo_of (h : VerifyLayerPre a s c m0) : Geo m0 := by
-  obtain ⟨hS, -, -, -, -, -, -, -, -, hA⟩ := h
+  obtain ⟨hS, -, -, -, -, -, -, -, -, hA, -⟩ := h
   have hN : 3232 ≤ (rspOf m0).toNat := by have := hS.1; rw [stack_eq] at this; exact this
   have hsb : (stackBelow m0 verifyLayerStack).toNat = (rspOf m0).toNat - 3232 := by
     rw [stack_eq]; exact NativeRustcVm.toNat_sub_ofNat hN

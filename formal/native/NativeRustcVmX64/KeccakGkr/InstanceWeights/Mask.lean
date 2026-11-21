@@ -8,7 +8,7 @@ public import NativeRustcVm.MemLemmas
 # `instance_weights`: the sums as masks (x86-64)
 
 rustc unrolled `instance_weights`' sums: each word of each weight is an `xor` tree of the powers'
-words, each selected by `cmovae` on the carry of an expanded `bt` of a literal mask at the literal
+words, each selected by `cmovae` on the carry of a raw `bt` of a literal mask at the literal
 loop counter. The symbolic executor leaves such a word as an `xor` tree of `ite`s, on closed
 conditions (`cbool`, `cbool_eval`), between loads from the powers' buffer (`112` bytes into the
 frame) and `0`. `symMask` reads such a tree as the set of powers it sums (a bit mask), `xorOf` sums
@@ -168,6 +168,7 @@ theorem csym_eval : ∀ (t : Sym) (x : BitVec 64), csym t = some x → t.eval en
   | .var _, _, h => by simp [csym] at h
   | .ptr _ _, _, h => by simp [csym] at h
   | .label _, _, h => by simp [csym] at h
+  | .gotSlot _, _, h => by simp [csym] at h
   | .load _ _ _, _, h => by simp [csym] at h
   | .loadx _ _ _ _, _, h => by simp [csym] at h
   | .retAddr, _, h => by simp [csym] at h
@@ -243,6 +244,7 @@ theorem symMask_eval (d : Nat) :
   | .var _, _, h => by simp [symMask] at h
   | .ptr _ _, _, h => by simp [symMask] at h
   | .label _, _, h => by simp [symMask] at h
+  | .gotSlot _, _, h => by simp [symMask] at h
   | .loadx _ _ _ _, _, h => by simp [symMask] at h
   | .retAddr, _, h => by simp [symMask] at h
   | .un _ _ _, _, h => by simp [symMask] at h

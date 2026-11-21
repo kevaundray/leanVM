@@ -262,8 +262,17 @@ theorem callKeccak (hp : Placed code k)
     unfold KeccakPhasePre
     simp only [eRdi, eRdx, eRcx, eR8, eR9]
     rw [hN]
-    exact ⟨hC.stackOk g hc hN', hRd.rcAt, projectAt_of hRd, rhoAt_of hRd, hts1, hcl1, hcs, hev1,
-      eRsi, hk1.trans eRsi.symm, hk2, hC.keccakAreas g hts1 hN'⟩
+    refine ⟨hC.stackOk g hc hN', hRd.rcAt, projectAt_of hRd, rhoAt_of hRd, hts1, hcl1, hcs, hev1,
+      eRsi, hk1.trans eRsi.symm, hk2, hC.keccakAreas g hts1 hN', ?_⟩
+    apply GotAt.symbols (symbols := ["memcpy", "memset"]) (hs := by decide)
+    apply hC.got g hc hN'
+    intro l hl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq]
+    refine ⟨g.gotT hl, g.gotW hl (by omega) (by decide),
+      g.gotW hl (by omega) (by decide), g.gotW hl (by omega) (by decide),
+      g.gotA hl, g.gotW hl (by omega) (by decide), g.gotRc hl, ?_, ?_⟩
+    · simpa only [projectAddr_eq, rmfeProject_length] using g.gotRod hl .rmfeProject
+    · simpa only [rhoAddr_eq, keccakRho_length] using g.gotRod hl .keccakRho
   refine call_then hpc1 (hkp a s cs L ev) hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hres, hch, hsv⟩ := hpost
   simp only [eRdi, eRcx, eR8, eR9, hN] at hres hch

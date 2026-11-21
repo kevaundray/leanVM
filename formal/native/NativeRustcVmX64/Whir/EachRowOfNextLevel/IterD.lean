@@ -130,9 +130,21 @@ theorem iter_d_tail (hp : Placed code k)
   have hP : NovelEvalPre st2.data := by
     unfold NovelEvalPre
     rw [e2rdi, e2rsi, e2rdx, e2rcx, e2r8]
-    exact ⟨hfr2.stackOk hl (by decide), hfr2.whirIn_input hl c.hin (by decide),
+    refine ⟨hfr2.stackOk hl (by decide), hfr2.whirIn_input hl c.hin (by decide),
       hfr2.whirIn_frame hl (by decide) (by omega) (by decide),
-      hfr2.whirIn_frame hl (by decide) (by decide) (by decide)⟩
+      hfr2.whirIn_frame hl (by decide) (by decide) (by decide), ?_⟩
+    apply hfr2.got_callee hl (c.got.symbols (by decide)) c.got_nw
+      (fun q h => ⟨(bOf m0, 16), by simp, h⟩) (by decide)
+    intro a ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl | rfl
+    · exact ⟨(nextEnv m0 1, 16 * (nextEnv m0 2).toNat), by simp, le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 eachRowNextStack, eachRowNextStack + 8), by simp, ?_, ?_⟩ <;>
+        rw [hl.addr (o := 1184) (by decide), hl.baseN] <;>
+        have := hl.sp <;> rw [stack_eq] at * <;> omega
+    · refine ⟨(stackBelow m0 eachRowNextStack, eachRowNextStack + 8), by simp, ?_, ?_⟩ <;>
+        rw [hl.addr (o := 128) (by decide), hl.baseN] <;>
+        have := hl.sp <;> rw [stack_eq] at * <;> omega
   refine call_then hpc2 hnov hP fun st3 hpc3 hrsp3 hq3 ↦ ?_
   obtain ⟨hval, hch, hsv⟩ := hq3
   rw [e2rdi] at hch

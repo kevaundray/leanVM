@@ -20,7 +20,7 @@ namespace NativeRustcVmX64.KeccakGkr.VerifyKeccak
 
 open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Ring NativeRustcVmX64.KeccakGkr.SeqZ
 open NativeRustcVmX64.Vm.VerifyKeccak NativeVm.Model NativeRustcVmX64.Transcript
-open NativeRustcVm.Transcript (DecArea TStateAt)
+open NativeRustcVm.Transcript (DecArea TStateAt tstateBytes)
 
 public section
 
@@ -46,7 +46,8 @@ theorem frontA (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
     startZ rfl fun ret ↦ ⟨((ev_frame 3344).trans off_frame_F).symm, trivial⟩
   have hpc0 : Labels.label NativeRustcVmX64.Vm.VerifyKeccak.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyKeccak.b0Offset) := hp.label NativeRustcVmX64.Vm.VerifyKeccak.entry_at
   -- `b0` and `bit_length`.
-  refine stepC (T' := t1) (vals' := vv m0 {}) (o := NativeRustcVmX64.Vm.VerifyKeccak.b0Offset) hp c h ⟨hpc0, hB0⟩ b0_in_code
+  refine stepC (hwfS := fun _ ↦ h.wf hB0.kept)
+    (T' := t1) (vals' := vv m0 {}) (o := NativeRustcVmX64.Vm.VerifyKeccak.b0Offset) hp c h ⟨hpc0, hB0⟩ b0_in_code
     (by simp [b0]) run_b0 hB0.mt (by decide) (oc := 48) (by decide) rfl hbl (Sk := bitLengthStack)
     (by rw [vk_eq]; decide) (fun mc _ _ hsk _ _ _ _ ↦ hsk) (Lc := []) (Oc := [])
     (fun mc m' _ hq ↦ chgQ hq.2.1 (fun q h ↦ .inl h) hq.2.2) (by decide) (by decide) (by decide)
@@ -62,7 +63,8 @@ theorem frontA (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
   have hts1 := Chg.ts c hchg1 (by decide) (by decide) (by decide) hk1 hts
   rw [NativeRustcVmX64.Vm.VerifyKeccak.b0_next] at hpc1
   -- `b1` and the grind.
-  refine stepC (T' := t2) (vals' := vv m0 {}) (o := NativeRustcVmX64.Vm.VerifyKeccak.b1Offset) hp c h ⟨hpc1, hB1⟩ b1_in_code
+  refine stepC (hwfS := fun _ ↦ h.wf hB1.kept)
+    (T' := t2) (vals' := vv m0 {}) (o := NativeRustcVmX64.Vm.VerifyKeccak.b1Offset) hp c h ⟨hpc1, hB1⟩ b1_in_code
     (by simp [b1]) run_b1 hB1.mt (by decide) (oc := 48) (by decide) rfl (hgr s) (Sk := grindStack)
     (by rw [vk_eq]; decide) (fun mc hmc hk hsk hso hrsp hch hkk ↦ ?_) (Lc := []) (Oc := [(1, 0, 760)])
     (fun mc m' hmc hq ↦ chgQ hq.2.2.1 (fun q h ↦ h.elim (fun h ↦ .inr (inR_reg (i := 1) (o := 0)
@@ -82,9 +84,17 @@ theorem frontA (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
     unfold GrindPre
     dsimp only
     rw [hdi, hsi]
-    exact ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
+    refine ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
       Chg.ts c hch (by decide) (by decide) (by decide) hkk hts1, ca.tok c (by rw [vk_eq]; decide),
-      by decide⟩
+      by decide, ?_⟩
+    apply ca.got c (by rw [vk_eq]; decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region, tstateBytes]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl
+    · exact ⟨(reg m0 .rdi, 760), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   -- `b2`: the grind's check.
   have hdi : reg mc .rdi = reg m0 .rdi := hmc.regs .rdi _ rfl
   have hsi : grindBits mc = 0 := by

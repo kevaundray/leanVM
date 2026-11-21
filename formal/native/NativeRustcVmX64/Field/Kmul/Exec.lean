@@ -15,8 +15,9 @@ public meta import NativeRustcVmX64.Code.Vm.Kmul
 parts: the first pushes, computes the low word of the carry-less product and bit-reverses the
 first factor (R15, variable `0`); the second bit-reverses the second factor (RCX, variable `1`);
 the third multiplies the reversed factors (RSI, variable `2`); the fourth bit-reverses that
-product (RCX, variable `3`); the fifth reduces and returns. Each variable is checked against its
-definition (`c1` to `c4`), the result against the transcription's reduction (`c5`).
+product (RCX, variable `3`); the fifth reduces and returns, retaining rustc's base-less scaled
+`lea`. Each variable is checked against its definition (`c1` to `c4`), the result against the
+transcription's reduction (`c5`).
 -/
 
 namespace NativeRustcVmX64.Field.Kmul
@@ -29,7 +30,7 @@ sym_part r1 := exec (slice b0 0 100) (frameS 48)
 sym_part r2 := exec (slice b0 100 16) (r1.out.setReg .r15 (some (.var 0)))
 sym_part r3 := exec (slice b0 116 66) (r2.out.setReg .rcx (some (.var 1)))
 sym_part r4 := exec (slice b0 182 19) (r3.out.setReg .rsi (some (.var 2)))
-sym_part r5 := exec (slice b0 201 24) (r4.out.setReg .rcx (some (.var 3)))
+sym_part r5 := exec (slice b0 201 22) (r4.out.setReg .rcx (some (.var 3)))
 
 public theorem c1 : (r1.out.reg .r15).map (fun v ↦ Lin.checkRev 64 v (.reg .rdi)) = some true := by
   decide +kernel

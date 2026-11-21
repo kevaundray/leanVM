@@ -121,12 +121,9 @@ theorem toNat_shl3_32 (x : BitVec 64) :
 theorem e8_eval [Labels] (env : Env) {x : BitVec 64} (h : env.load 0 8 8 = x) :
     e8.eval env = BitVec.ofNat 64 (8 * x.toNat) := by
   apply BitVec.eq_of_toNat_eq
-  show (BinOp.apply .add .W64 (BinOp.apply .add .W64 (BinOp.apply .add .W64 (env.load 0 8 8)
-    (env.load 0 8 8)) (BinOp.apply .add .W64 (env.load 0 8 8) (env.load 0 8 8)))
-    (BinOp.apply .add .W64 (BinOp.apply .add .W64 (env.load 0 8 8) (env.load 0 8 8))
-    (BinOp.apply .add .W64 (env.load 0 8 8) (env.load 0 8 8)))).toNat = _
+  change (BinOp.apply .mul .W64 (env.load 0 8 8) (BitVec.ofNat 64 8)).toNat = _
   rw [h]
-  simp only [toNat_add64, BitVec.toNat_ofNat]
+  simp only [BinOp.apply, low_W64, ext_W64, BitVec.toNat_mul, BitVec.toNat_ofNat]
   omega
 
 theorem e8m_eval [Labels] (env : Env) {x : BitVec 64} (h : env.load 0 8 8 = x) (hx : x.toNat ≤ 64)
@@ -211,7 +208,7 @@ theorem zB1_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
   have hpos : 0 < lw m0 := by omega
   obtain ⟨hmid, hmem, hrax, hK⟩ := ok_b16
   have hin : 512 * i + 8 * t + 8 ≤ 512 * nr m0 := by omega
-  refine rg_step hp g (j := 89) (y := .bin .add .W64 (.reg .r14) (.reg .rax)) (sz := 8)
+  refine rg_step hp g (j := NativeRustcVmX64.Vm.RdRows.b16Offset) (y := .bin .add .W64 (.reg .r14) (.reg .rax)) (sz := 8)
     b16_in_code (by simp [b16]) exit_b16 nofun hmid (fun w hw ↦ by
       have h' : w ∈ (after b16 zS).mem := hw
       rw [hmem] at h'

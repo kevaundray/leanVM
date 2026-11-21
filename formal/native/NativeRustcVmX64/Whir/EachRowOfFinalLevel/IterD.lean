@@ -46,7 +46,7 @@ theorem iter_d (hp : Placed code k) (hnov : Spec (label NativeRustcVmX64.Vm.Nove
   have htop := hl.ok.2.1
   have hstk : eachRowFinalStack = 3088 := rfl
   have hflen : (stackArg m0 2).toNat ≤ laneCap := hpre.2.1
-  have hfold : WhirIn m0 (stackArg m0 1) (16 * (stackArg m0 2).toNat) eachRowFinalStack := hpre.2.2
+  have hfold : WhirIn m0 (stackArg m0 1) (16 * (stackArg m0 2).toNat) eachRowFinalStack := hpre.2.2.1
   have hjr := h.hj
   have hjq := h.hjq
   have hrs : rows.size ≤ 256 := hpre.1.2.2.1.2.1
@@ -92,9 +92,19 @@ theorem iter_d (hp : Placed code k) (hnov : Spec (label NativeRustcVmX64.Vm.Nove
   have hP1 : NovelEvalPre st1.data := by
     unfold NovelEvalPre
     rw [e1rdi, e1rsi, e1rdx, e1rcx, e1r8]
-    exact ⟨hfr1.stackOk hl (by decide), hfr1.whirIn_input hl hfold (by decide),
+    refine ⟨hfr1.stackOk hl (by decide), hfr1.whirIn_input hl hfold (by decide),
       hfr1.whirIn_frame hl (by decide) (by omega) (by decide),
-      hfr1.whirIn_frame hl (by decide) (by decide) (by decide)⟩
+      hfr1.whirIn_frame hl (by decide) (by decide) (by decide), ?_⟩
+    apply hfr1.got_callee hl (hpre.2.2.2.symbols (by decide)) (got_nw hpre)
+      (by intro q h; cases h) (by decide)
+    intro a ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl | rfl
+    · exact ⟨(stackArg m0 1, 16 * (stackArg m0 2).toNat), by simp, le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 eachRowFinalStack, eachRowFinalStack + 8), by simp, ?_, ?_⟩ <;>
+        rw [hl.addr (o := 1136) (by decide), hl.baseN, hstk] <;> omega
+    · refine ⟨(stackBelow m0 eachRowFinalStack, eachRowFinalStack + 8), by simp, ?_, ?_⟩ <;>
+        rw [hl.addr (o := 80) (by decide), hl.baseN, hstk] <;> omega
   refine call_then hpc1 hnov hP1 fun st2 hpc2 hrsp2 hq2 ↦ ?_
   obtain ⟨hval, hch, hsv⟩ := hq2
   rw [e1rdi] at hch

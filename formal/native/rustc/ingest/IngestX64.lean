@@ -7,9 +7,8 @@ import Kraken.X64.Parser
 # `ingest-x64`
 
 `ingest-x64 OUT SCHEME=FILE.s ...`: rustc's x86-64 assembly as the modules `NativeRustcX64.Code.*`
-(`IngestCore`): raw for the signature verifiers, and for the leanVM verifier as `rustc/x86-postpass.py`
-rewrites it (`rustc/vm/out/vm-x86_64.post.s`) until its proofs move to the raw assembly. Loop
-alignment inside a function, `.p2align n`, is kept as Kraken's `.align 2^n` (padding that is never run
+(`IngestCore`): raw for every program. Loop alignment inside a function, `.p2align n`, is kept
+as Kraken's `.align 2^n` (padding that is never run
 but moves what follows); the panic entries become `ud2`.
 -/
 

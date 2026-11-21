@@ -54,8 +54,8 @@ theorem readOod_spec (hp : Placed code k)
     (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (a : DecArea) (s : TState) :
     Spec (Labels.label NativeRustcVmX64.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s) := by
-  rintro m0 ⟨hst, hrc, hts, htok, hlog, hout⟩
-  rw [stack_eq] at hst hrc htok hout
+  rintro m0 ⟨hst, hrc, hts, htok, hlog, hout, hgot⟩
+  rw [stack_eq] at hst hrc htok hout hgot
   set t := reg m0 .rdi with htdef
   set o := reg m0 .rdx with hodef
   set L := (reg m0 .rsi).toNat with hLdef
@@ -115,6 +115,20 @@ theorem readOod_spec (hp : Placed code k)
       (List.pairwise_pair.mpr (Apart.symm' hOF))
   have hsp_of : ∀ {d : MachineData}, Frame m0 64 slots 0 d → rspOf d = fb :=
     fun hf ↦ by rw [hf.sp, off_zero]
+  have hgotBytes : ∀ {d : MachineData},
+      NativeRustcVm.SameOutside m0.dmem d.dmem (Out m0) →
+      ∀ l ∈ ["memcpy"], ∀ i < 8,
+        d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+          m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+    intro d hs
+    exact got_keep hgot hst (writes := [(o, eqClaimBytes), (t, tstateBytes)])
+      (by simp [hodef, htdef]) (by
+        intro a' ha
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl
+        · exact hOn
+        · exact hTn)
+      (hs.mono (by intro q hq; simpa [Out, stack_eq, hodef, htdef, or_assoc] using hq))
   -- `b0`: the prologue, `call grind`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 64) (rest := []) (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ReadOod.b0Offset + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
@@ -142,12 +156,17 @@ theorem readOod_spec (hp : Placed code k)
   -- `grind`.
   have hpg : GrindPre a s st1.data := by
     show StackOk _ _ ∧ RcAt _ _ ∧ TStateAt _ (reg st1.data .rdi) a s ∧
-      TStateOk _ (reg st1.data .rdi) a _ ∧ (reg st1.data .rsi).toNat % 2 ^ 32 < 64
+      TStateOk _ (reg st1.data .rdi) a _ ∧ (reg st1.data .rsi).toNat % 2 ^ 32 < 64 ∧ _
     rw [hX7, hX6]
-    exact ⟨stackOk_callee hst hf1.kept hsp1 (by decide),
+    refine ⟨stackOk_callee hst hf1.kept hsp1 (by decide),
       RcAt.callee hrc (rc_keep hso1 hrcOut) hsp1 hn (by decide),
       hts.frame hf1.kept (fun q hq ↦ hRF q (inRange_mono hq (by omega))) hs1,
-      TStateOk.callee htok hsp1 hn (by decide), by decide⟩
+      TStateOk.callee htok hsp1 hn (by decide), by decide, ?_⟩
+    apply got_callee hgot (hgotBytes hso1) hsp1 hn (by decide)
+    intro l hl a' ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl | rfl <;>
+      exact (hgot.1 l hl).2.2.2 _ (by simp [htdef])
   have hgb : grindBits st1.data = 15 := by
     show (reg st1.data .rsi).toNat % 2 ^ 32 = 15; rw [hX6]; rfl
   refine call_then hpc1 (hgr a s) hpg fun st2 hpc2 hrsp2 ⟨hok2, hnext2, hs2, hsv2⟩ => ?_
@@ -259,12 +278,12 @@ theorem readOod_spec (hp : Placed code k)
   have hpsc : SampleChallengesPre a s1 st5.data := by
     show StackOk _ _ ∧ RcAt _ _ ∧ TStateAt _ (reg st5.data .rdi) a s1 ∧
       TStateOk _ (reg st5.data .rdi) a _ ∧
-      OutOk _ (reg st5.data .rdi) a (reg st5.data .rsi) (16 * (reg st5.data .rdx).toNat) _
+      OutOk _ (reg st5.data .rdi) a (reg st5.data .rsi) (16 * (reg st5.data .rdx).toNat) _ ∧ _
     rw [hX7₅, hX6₅, hX2₅]
     have hOS5 := apart_callee hOS hsp5 hn (n' := sampleChallengesStack) (by decide)
     refine ⟨stackOk_callee hst hf5.kept hsp5 (by decide),
       RcAt.callee hrc (rc_keep hso5 hrcOut) hsp5 hn (by decide), hts5,
-      TStateOk.callee htok hsp5 hn (by decide), ?_, ?_, ?_, ?_, ?_, ?_⟩
+      TStateOk.callee htok hsp5 hn (by decide), ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
     · intro i hi
       rw [off_add]
       exact hf5.kept _ (hOm _ (by omega))
@@ -273,6 +292,16 @@ theorem readOod_spec (hp : Placed code k)
     · exact NativeRustcVm.Apart.mono hOA (by omega) (by omega) le_rfl le_rfl
     · exact NativeRustcVm.Apart.mono hOS5 (by omega) (by omega) le_rfl le_rfl
     · exact NativeRustcVm.Apart.mono hOR (by omega) (by omega) le_rfl le_rfl
+    · apply got_callee hgot (hgotBytes hso5) hsp5 hn (by decide)
+      intro l hl a' ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl | rfl | rfl
+      · exact (hgot.1 l hl).2.2.2 _ (by simp [htdef])
+      · exact (hgot.1 l hl).2.2.2 _ (by simp)
+      · exact Transcript.Apart.sub ((hgot.1 l hl).2.2.2 (o, eqClaimBytes) (by simp [hodef]))
+          (by dsimp only; rw [hoff8]; omega)
+          (by rw [hoff8]; change _ ≤ o.toNat + 504; omega)
+      · exact (hgot.1 l hl).2.2.2 _ (by simp)
   refine call_then hpc5 (hsc a s1) hpsc
     fun st6 hpc6 hrsp6 ⟨⟨xs, s2, hr2, hxs, hts6⟩, hs6, hsv6⟩ => ?_
   rw [hX7₅, hX6₅, hX2₅] at hs6
@@ -327,12 +356,20 @@ theorem readOod_spec (hp : Placed code k)
     hts6.frame (hm7.kept (hfr hf6)) (fun q hq ↦ hRF q (inRange_mono hq (by omega))) hs7
   have hprs : ReadScalarPre a s2 st7.data := by
     show StackOk _ _ ∧ RcAt _ _ ∧ TStateAt _ (reg st7.data .rsi) a s2 ∧
-      TStateOk _ (reg st7.data .rsi) a _ ∧ OutOk _ (reg st7.data .rsi) a (reg st7.data .rdi) 24 _
+      TStateOk _ (reg st7.data .rsi) a _ ∧ OutOk _ (reg st7.data .rsi) a (reg st7.data .rdi) 24 _ ∧ _
     rw [hX7₇, hX6₇]
-    exact ⟨stackOk_callee hst hf7.kept hsp7 (by decide),
+    refine ⟨stackOk_callee hst hf7.kept hsp7 (by decide),
       RcAt.callee hrc (rc_keep hso7 hrcOut) hsp7 hn (by decide), hts7,
       TStateOk.callee htok hsp7 hn (by decide),
-      OutOk.frame hst (by decide) hsp7 hf7.kept (by decide) (by decide) htok hrc⟩
+      OutOk.frame hst (by decide) hsp7 hf7.kept (by decide) (by decide) htok hrc, ?_⟩
+    apply got_callee hgot (hgotBytes hso7) hsp7 hn (by decide)
+    intro l hl a' ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl | rfl | rfl
+    · exact (hgot.1 l hl).2.2.2 _ (by simp [htdef])
+    · exact (hgot.1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame hgot hst hl (by decide) (by dsimp only; decide)
+    · exact (hgot.1 l hl).2.2.2 _ (by simp)
   refine call_then hpc7 (hrs a s2) hprs fun st8 hpc8 hrsp8 ⟨hopt, hnext8, hs8, hsv8⟩ => ?_
   rw [hX7₇] at hopt hs8
   rw [hX6₇] at hnext8 hs8

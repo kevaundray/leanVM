@@ -99,7 +99,7 @@ public section
 variable {m0 : MachineData} {E : Nat → EW} [Host] {k : Nat}
 
 omit [Host] in
-theorem geoT (hpre : RingTargetPre m0) : NativeRustcVmX64.Field.Geo m0 2352 NT :=
+theorem geoT [Labels] (hpre : RingTargetPre m0) : NativeRustcVmX64.Field.Geo m0 2352 NT :=
   ⟨hpre.1, by decide, by decide⟩
 
 /-- **A block and its call of `EW::sq_iter`.** -/

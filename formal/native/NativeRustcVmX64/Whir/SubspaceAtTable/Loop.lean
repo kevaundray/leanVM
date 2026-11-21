@@ -115,7 +115,7 @@ theorem step (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.V
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b3Offset)) (hI : Inv m0 i st.data) :
     Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b7Offset) ∧ Done m0 s.data) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b3Offset) ∧ Inv m0 (i + 1) s.data ∧ i + 1 < nOf m0)) st := by
-  obtain ⟨hS, hn31, htin, houtin, hap⟩ := hpre
+  obtain ⟨hS, hn31, htin, houtin, hap, _⟩ := hpre
   have hF : 336 ≤ subspaceAtTableStack := by decide
   have hle : 336 + kmulStack ≤ subspaceAtTableStack := by decide
   have hn : nOf m0 ≤ 31 := hn31

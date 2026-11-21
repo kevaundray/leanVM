@@ -44,6 +44,7 @@ structure Facts (bc : Array UInt64) (m0 : MachineData) : Prop where
   lo : OffStack m0 (ll m0) layoutBytes 7824
   lrod : RodataApart (ll m0) layoutBytes
   ap : Apart (rp m0) 48 (ll m0) layoutBytes
+  got : GotAt m0 buildLayoutStack [(rp m0, 48), (ll m0, layoutBytes)] ["memset"]
 
 /-- `build_layout`'s postcondition, reached. -/
 abbrev Post (bc : Array UInt64) (m0 : MachineData) (st : MachineState) : Prop :=
@@ -247,7 +248,7 @@ variable [Labels] {bc : Array UInt64}
 
 theorem Facts.of_pre (h : BuildLayoutPre bc m0) : Facts bc m0 :=
   ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-    h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2⟩
+    h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2⟩
 
 theorem Facts.rsp (hF : Facts bc m0) : 7824 ≤ (rspOf m0).toNat ∧ (rspOf m0).toNat + 8 ≤ 2 ^ 64 :=
   ⟨hF.stack.1, hF.stack.2.1⟩

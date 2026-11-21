@@ -169,10 +169,19 @@ theorem layerStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
     unfold VerifyLayerPre
     dsimp only
     rw [rdi, rsi, rdx, rcx, r8]
-    exact ⟨hsk, ca.rc c hrc hN, ca.pj c hpj, ca.rh c hrh,
+    refine ⟨hsk, ca.rc c hrc hN, ca.pj c hpj, ca.rh c hrh,
       Chg.ts c hch hokS (by decide) (by decide) hkk hts,
       Chg.claimF c hch hokS (by decide) hmS (by decide) hcl,
-      Chg.wtsR c hch hokS (by decide) (by decide) (by decide) hcw, hj, hfit, areas_vl c h ca⟩
+      Chg.wtsR c hch hokS (by decide) (by decide) (by decide) hcw, hj, hfit, areas_vl c h ca, ?_⟩
+    apply ca.got c hN
+    simp only [NativeRustcVm.Transcript.DecArea.region, tstateBytes, NativeRustcVm.KeccakGkr.claimBytes, NativeRustcVm.KeccakGkr.scratchBytes]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    all_goals first
+      | (refine ⟨_, ?_, le_rfl, le_rfl⟩; solve | simp)
+      | (refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩ <;>
+          rw [c.K, h.addr (by decide)] <;> have := c.sp <;> rw [vk_eq] at * <;> omega)
   · -- Its changes.
     have rdi : reg mc .rdi = off (ob m0 1) 0 := (hmc.regs .rdi _ hdi).trans (off0 _).symm
     have rcx : reg mc .rcx = off (fb m0) 992 := (hmc.regs .rcx _ hcx).trans (ev_frame 992)

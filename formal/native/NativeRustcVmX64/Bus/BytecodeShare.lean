@@ -67,8 +67,15 @@ theorem rs_call (h : BytecodeSharePre a s0 m0)
   case pre =>
     unfold ReadScalarPre
     rw [hsi, hdi]
-    exact ⟨c.stackOk hat le_rs, c.rcAt hat le_rs, hts, c.tstateOk hat le_rs,
-      c.outOk_frame hat le_rs (by omega) (by omega)⟩
+    refine ⟨c.stackOk hat le_rs, c.rcAt hat le_rs, hts, c.tstateOk hat le_rs,
+      c.outOk_frame hat le_rs (by omega) (by omega), hf.got_callee h OT_OA le_rs ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   obtain ⟨hopt, hnext, hso, hsv⟩ := hpost
   rw [hdi] at hopt
   rw [hsi] at hnext
@@ -337,10 +344,18 @@ theorem after_share (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     refine ⟨⟨by rw [hargA]; exact mapped_off (c.mapped_frame hf2.frame.kept) (by omega),
       by rw [hsp2]; omega⟩,
       c.stackOk hat2 le_sc, c.rcAt hat2 le_sc, hts2, c.tstateOk hat2 le_sc, by omega,
-      by decide, o128, o32, ?_⟩
-    unfold NativeRustcX64.Apart
-    rw [toNat_off (by omega), toNat_off (by omega)]
-    omega
+      by decide, o128, o32, ?_, hf2.got_callee h OT_OA le_sc ?_⟩
+    · unfold NativeRustcX64.Apart
+      rw [toNat_off (by omega), toNat_off (by omega)]
+      omega
+    · intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl | rfl | rfl
+      · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+      · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+      · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+      · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+      · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   obtain ⟨hout3, hso3, hsv3⟩ := hpost3
   rw [e2si, e2di, e2r9, e2r8, e2n, e2cl] at hout3
   rw [e2si, e2di, e2r9, e2n] at hso3

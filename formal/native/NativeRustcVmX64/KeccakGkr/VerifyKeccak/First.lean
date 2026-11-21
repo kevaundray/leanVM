@@ -157,10 +157,52 @@ theorem firstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
       by rw [hlp5]; rfl,
       Chg.ewsF c hch' (by decide) (by decide) (by rw [Array.length_toList, hlp5]; decide)
         (by rw [Array.length_toList, hlp5]; decide) hlp,
-      hosz, ca.lanes c hosz hout, ?_⟩
-    have := areas_fc (inst := inst) c h ca
-    simpa [ewsRegion, argsRegion, hseg1, hlp5, NativeRustcVm.KeccakGkr.claimBytes,
-      NativeRustcVm.KeccakGkr.weightsBytes, args_eq ca] using this
+      hosz, ca.lanes c hosz hout, ?_, ?_⟩
+    · have := areas_fc (inst := inst) c h ca
+      simpa [ewsRegion, argsRegion, hseg1, hlp5, NativeRustcVm.KeccakGkr.claimBytes,
+        NativeRustcVm.KeccakGkr.weightsBytes, args_eq ca] using this
+    · rw [args_eq ca]
+      apply ca.got c (by rw [vk_eq]; decide)
+      simp only [NativeRustcVm.Transcript.DecArea.region, NativeRustcVm.KeccakGkr.claimBytes, NativeRustcVm.KeccakGkr.weightsBytes]
+      intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+        all_goals
+          dsimp only [Prod.fst, Prod.snd]
+          rw [c.K, h.addr (by decide)]
+          have := c.sp
+          rw [vk_eq] at *
+          omega
+      · refine ⟨(reg m0 .r9, 205824), by simp, ?_, ?_⟩
+        · change (reg m0 .r9).toNat ≤ (off (reg m0 .r9) 0).toNat
+          rw [off0]
+        · change (off (reg m0 .r9) 0).toNat + 25600 ≤ (reg m0 .r9).toNat + 205824
+          rw [off0]
+          omega
+      · exact ⟨(reg m0 .rdx, 16 * inst.size), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+        all_goals
+          dsimp only [Prod.fst, Prod.snd]
+          rw [c.K, h.addr (by decide)]
+          have := c.sp
+          rw [vk_eq] at *
+          omega
+      · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+        all_goals
+          dsimp only [Prod.fst, Prod.snd]
+          rw [c.K, h.addr (by decide)]
+          have := c.sp
+          rw [vk_eq] at *
+          omega
+      · exact ⟨(reg m0 .r8, 400), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+        all_goals
+          dsimp only [Prod.fst, Prod.snd]
+          rw [c.K, h.addr (by decide)]
+          have := c.sp
+          rw [vk_eq] at *
+          omega
   · -- Its changes.
     have rdi : reg mc .rdi = off (fb m0) 992 := (hmc.regs .rdi _ rfl).trans (ev_frame 992)
     obtain ⟨-, -, -, hso, hsv⟩ := hq

@@ -29,9 +29,9 @@ open NativeRustcVmX64.Arrays (stackOk_mono load8_eq wordAt_of_write eval_reg eva
 public section
 
 theorem eight_mul (x : BitVec 64) :
-    x + x + (x + x) + (x + x + (x + x)) = BitVec.ofNat 64 (8 * x.toNat) := by
+    x * BitVec.ofNat 64 8 = BitVec.ofNat 64 (8 * x.toNat) := by
   apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  simp only [BitVec.toNat_mul, BitVec.toNat_ofNat]
   omega
 
 theorem ptr_eval [Labels] {m0 st : MachineData} {F : Nat} {vars : Nat → BitVec 64}
@@ -64,7 +64,7 @@ theorem finish (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX
     {m0 : MachineData} (hpre : SubspaceAtTablePre m0) {st : MachineState}
     (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b7Offset)) (hD : Done m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
-  obtain ⟨hS, hn31, htin, houtin, hap⟩ := hpre
+  obtain ⟨hS, hn31, htin, houtin, hap, hgot⟩ := hpre
   have hF : 336 ≤ subspaceAtTableStack := by decide
   have hn : nOf m0 ≤ 31 := hn31
   have hwb : whatBytes = 256 := rfl
@@ -79,17 +79,28 @@ theorem finish (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX
       NativeRustcVm.wordBytes).length = 8 * nOf m0 := by
     rw [NativeRustcVm.length_wordsBytes, Array.length_toList, hlist]
   -- `b7`: the count, `memcpy`
-  have hwf7 := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b8Offset)).toBitVec) hS hF
-  refine exec_at (hb7 hp) run_b7 hwf7 (fun _ _ ↦ rfl) hpc hfr.mid_match fun st1 hm1 hpc1 ↦ ?_
+  have hwf7 := hfr.got_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b8Offset)).toBitVec) hS hF hgot (by simp : "memcpy" ∈ _)
+  have hm7 := hfr.got_match (l := "memcpy") (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b8Offset)).toBitVec)
+    (fun i hi => hfr.got_byte hS hgot
+    (by
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl
+      · exact htin.1.2
+      · exact houtin.1.2)
+    (by intro r hr; simp only [outsOf, List.mem_singleton] at hr; subst r; simp)
+    (by simp) hi)
+  refine exec_at (hb7 hp) run_b7 hwf7 (fun _ _ ↦ rfl) hpc hm7 fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hk1, hsp1, hw1⟩ := after_eq run_b7 ▸ b7_call
   have hrsp1 := rsp_call hm1 hsp1
   have hcount : NativeRustcVm.WordAt st1.data.dmem (stackBelow m0 336 + BitVec.ofNat 64 32)
       (.ofBitVec (reg m0 .rdx)) := by
     have := wordAt_of_write hm1 (r := 0) (o := 32) rfl (by decide) (v := .load 0 16 8)
       (by decide)
-    rwa [eval_load, load8_eq, show (frameEnv m0 st.data 336 (fun _ ↦ 0)
+    rwa [eval_load, load8_eq, show (gotEnv m0 st.data 336 "memcpy" (fun _ ↦ 0)
       (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b8Offset)).toBitVec).base 0 = stackBelow m0 336 from rfl,
-      Env.ofMachine_mem0, NativeRustcVm.wordOf_of_wordAt (show NativeRustcVm.WordAt st.data.dmem
+      gotEnv_mem0, NativeRustcVm.wordOf_of_wordAt (show NativeRustcVm.WordAt st.data.dmem
         (stackBelow m0 336 + BitVec.ofNat 64 16) _ from hD.cnt), UInt64.ofBitVec_toBitVec] at this
   have hwhat1 : NativeRustcVm.WordsAt st1.data.dmem (stackBelow m0 336 + BitVec.ofNat 64 40)
       (subspaceAtTable (tbOf m0) (xOf m0)).toList :=
@@ -104,7 +115,7 @@ theorem finish (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX
     exact congrArg UInt64.toBitVec (NativeRustcVm.wordOf_of_wordAt (show NativeRustcVm.WordAt
       st.data.dmem (stackBelow m0 336 + BitVec.ofNat 64 24) _ from hD.out))
   have hrsi : reg st1.data .rsi = stackBelow m0 336 + BitVec.ofNat 64 32 :=
-    (hm1.regs .rsi _ rfl).trans (ptr_eval 32)
+    (hm1.regs .rsi _ rfl).trans (gotEnv_ptr 32)
   have hrdx : (reg st1.data .rdx).toNat = 256 := by
     rw [show reg st1.data .rdx = _ from hm1.regs .rdx _ rfl]; rfl
   have hfb : (stackBelow m0 336).toNat = (rspOf m0).toNat - 336 := hfe
@@ -127,7 +138,7 @@ theorem finish (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX
     · unfold Apart; rw [h32]; omega
     · unfold Apart; rw [hrsp1, hfb]; omega
   refine Frame.call hmemcpy hfr hS (by decide : 336 + 0 ≤ subspaceAtTableStack) (L := 288)
-    (by decide) slots_ok hout hwf7 hfr.mid_match hm1 hpc1 hk1 hsp1
+    (by decide) slots_ok hout hwf7 hm7 hm1 hpc1 hk1 hsp1
     (fun w hw ↦ ⟨(hw1 w hw).1, by have := (hw1 w hw).2.2; omega⟩) hpre1
     (fun m' ⟨_, _, hso, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hso p fun h ↦ hp (.inl (by
       simp only [hrdi, hrdx] at h
@@ -164,7 +175,7 @@ theorem subspaceAtTable_spec (hp : Placed code k)
     Spec (Labels.label NativeRustcVmX64.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost := by
   intro m0 hpre
   have hpre' := hpre
-  obtain ⟨hS, hn31, htin, houtin, hap⟩ := hpre'
+  obtain ⟨hS, hn31, htin, houtin, hap, hgot⟩ := hpre'
   have hF : 336 ≤ subspaceAtTableStack := by decide
   have hn : nOf m0 ≤ 31 := hn31
   have hnn : nOf m0 = (reg m0 .rdx).toNat := rfl
@@ -184,18 +195,28 @@ theorem subspaceAtTable_spec (hp : Placed code k)
   have harg : ∀ r ∈ [Reg64.rdi, .rsi, .rdx, .rcx], reg st1.data r = reg m0 r := fun r hr ↦
     hm1.regs r (.reg r) ((after_eq run_b0a ▸ b0a_args) r hr)
   -- `b0b`: the arguments, `memset`
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b1Offset)).toBitVec) hS hF
-  refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hfr1.mid_match fun st2 hm2 hpc2 ↦ ?_
+  have hwf2 := hfr1.got_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b1Offset)).toBitVec) hS hF hgot (by simp : "memset" ∈ _)
+  have hm2start := hfr1.got_match (l := "memset") (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceAtTable.b1Offset)).toBitVec)
+    (fun i hi => hfr1.got_byte hS hgot
+    (by
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl
+      · exact htin.1.2
+      · exact houtin.1.2)
+    (by intro r hr; simp only [outsOf, List.mem_singleton] at hr; subst r; simp)
+    (by simp) hi)
+  refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hm2start fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_b0b ▸ b0b_call
   have hrsp2 := rsp_call hm2 hsp2
   have hkept2 : Kept m0.dmem st2.data.dmem := fun p h ↦ hm2.kept hwf2 p (hfr1.kept p h)
   have hout2 : NativeRustcVm.WordAt st2.data.dmem (stackBelow m0 336 + BitVec.ofNat 64 24)
       (.ofBitVec (reg m0 .rdi)) := by
     have := wordAt_of_write hm2 (r := 0) (o := 24) rfl (by decide) (v := .reg .rdi) (by decide)
-    rwa [eval_reg, Env.ofMachine_regs, show st1.data.regs.get64 .rdi = reg m0 .rdi from
-      harg .rdi (by simp)] at this
+    rwa [eval_reg, gotEnv_regs, harg .rdi (by simp)] at this
   have hrdi2 : reg st2.data .rdi = stackBelow m0 336 + BitVec.ofNat 64 40 :=
-    (hm2.regs .rdi _ rfl).trans (ptr_eval 40)
+    (hm2.regs .rdi _ rfl).trans (gotEnv_ptr 40)
   have hrdx2 : (reg st2.data .rdx).toNat = 248 := by
     rw [show reg st2.data .rdx = _ from hm2.regs .rdx _ rfl]; rfl
   have hfb : (stackBelow m0 336).toNat = (rspOf m0).toNat - 336 := hfe
@@ -209,7 +230,7 @@ theorem subspaceAtTable_spec (hp : Placed code k)
     · unfold NoWrap; rw [h40]; omega
     · unfold Apart; rw [hrsp2, hfb, h40]; omega
   refine Frame.call hmemset hfr1 hS (by decide : 336 + 0 ≤ subspaceAtTableStack) (L := 288)
-    (by decide) slots_ok hout hwf2 hfr1.mid_match hm2 hpc2 hk2 hsp2
+    (by decide) slots_ok hout hwf2 hm2start hm2 hpc2 hk2 hsp2
     (fun w hw ↦ ⟨(hw2 w hw).1, by have := (hw2 w hw).2; omega⟩) hpre2
     (fun m' ⟨_, _, hso, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hso p fun h ↦ hp (.inr (.inl (by
       simp only [hrdi2, hrdx2] at h
@@ -284,7 +305,7 @@ theorem subspaceAtTable_spec (hp : Placed code k)
     have hI0 : Inv m0 0 st5.data := by
       refine ⟨hfr5, ?_, ?_, ?_, ?_, hd5 ▸ hcnt4, hd5 ▸ hout4, ?_⟩
       · refine (hm5.regs .rbx _ rfl).trans ?_
-        simp only [eval_add, eval_load, hL16]
+        simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, hL16]
         exact eight_mul _
       · refine (Match.reg_eq hfr4.mid_match hm5 rfl rfl).trans ?_
         refine (r4 .r12 (by simp)).trans ((e3 .r12 (by simp)).trans ?_)

@@ -176,7 +176,7 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     exact ⟨⟨⟨hone.1.mapped, hone.2.1⟩, hone.2.2⟩,
       NativeRustcVm.Apart.mono hbr (Nat.le_refl _) (by omega) (Nat.le_refl _) (Nat.le_refl _)⟩
   simp only [PcOk] at hpc2
-  refine accCall h hacc fr2 hpc2 (side := 2) (by omega) (it := .countBlocks) rfl
+  refine accCall h hacc fr2 hpc2 (side := 2) (by omega) (it := .countBlocks) rfl (by simp)
     (o := 624) (ol := 4584) (by omega) (by omega) (by omega) (by omega) hcount2 hcs2 hF2 hfits
     x0 x1 (by rw [show reg st2.data .rdx = _ from hm2.regs .rdx _ hrdx]; rfl)
     (by rw [show reg st2.data .rcx = _ from hm2.regs .rcx _ hrcx]; rfl)
@@ -184,7 +184,18 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (fun hn ↦ absurd hn (by rw [e2]; decide)) hw3
     e7 (by rw [e8, hnsz]; exact psz) (by rw [e2])
     ((congrArg₂ (slice st2.data) e3 e4).trans (one_slice hone.1)) (by rw [e5, e6]) hptv
-    (by rw [e9, e10]) fun m3 fr3 hopt3 hF3 hfits3 hs3 hk3 hcs3 ↦ ?_
+    (by rw [e9, e10]) (by
+      intro l hl
+      constructor
+      · intro hn
+        rw [e2] at hn
+        change 0 < 0 at hn
+        omega
+      · rw [e3, e4]
+        have hg := ((pre_got h).1 l hl).2.2.2
+          (rodataAddr .one, NativeRustcVm.Data.Item.one.bytes.length) (by simp)
+        simpa only [hone16, BitVec.toNat_ofNat] using hg)
+    fun m3 fr3 hopt3 hF3 hfits3 hs3 hk3 hcs3 ↦ ?_
   -- `b52`: the count side's tag.
   rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b51Offset + b51.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b52Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b51_next]]
   have hwf4 := wf0 h fr3.frame.kept (vars := fun _ ↦ 0) (ret := 0)

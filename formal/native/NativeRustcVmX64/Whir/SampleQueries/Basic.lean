@@ -8,6 +8,7 @@ public import NativeRustcVm.Whir.Sample
 public import NativeRustcVm.Whir.Per
 public import NativeRustcVm.Transcript.Update
 public import NativeRustcVmX64.Code.Vm.QueryBits.Names
+public import NativeRustcVmX64.Got
 public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
@@ -238,8 +239,8 @@ theorem pre_tok (h : SampleQueriesPre a s0 m0) : TStateOk m0 (tA m0) a sampleQue
 theorem pre_ts (h : SampleQueriesPre a s0 m0) : TStateAt m0.dmem (tA m0) a s0 := h.2.1
 theorem pre_cnt (h : SampleQueriesPre a s0 m0) : cnt m0 ≤ 230 := h.2.2.1
 theorem pre_out (h : SampleQueriesPre a s0 m0) :
-    OutOk m0 (tA m0) a (oA m0) queryBufBytes sampleQueriesStack := h.2.2.2.1
-theorem pre_oro (h : SampleQueriesPre a s0 m0) : RodataApart (oA m0) queryBufBytes := h.2.2.2.2
+    OutOk m0 (tA m0) a (oA m0) queryBufBytes sampleQueriesStack := h.2.2.2.1.1
+theorem pre_oro (h : SampleQueriesPre a s0 m0) : RodataApart (oA m0) queryBufBytes := h.2.2.2.1.2
 
 theorem pre_hn (h : SampleQueriesPre a s0 m0) : sampleQueriesStack ≤ (rspOf m0).toNat := (pre_S h).1
 theorem pre_h8 (h : SampleQueriesPre a s0 m0) : (rspOf m0).toNat + 8 ≤ 2 ^ 64 := (pre_S h).2.1
@@ -470,10 +471,44 @@ theorem squeeze_call (h : SampleQueriesPre a s0 m0)
       Transcript.RcAt.callee hrc (Transcript.rc_keep hso1 hrcOut) hsp1 hn (by rw [N_eq]),
       ⟨fun j hj ↦ hts1.footprint.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_,
         Transcript.apart_callee (n := sampleQueriesStack) (F := 128) ?_ hsp1 hn (by rw [N_eq]), ?_⟩,
-      hts1.sponge⟩
+      hts1.sponge, ?_⟩
     · show (tA m0).toNat + 328 ≤ 2 ^ 64; omega
     · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
     · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
+    · have hg := h.2.2.2.2
+      have hgout := hg.areas (areas' := [(oA m0, queryBufBytes), (tA m0, tstateBytes)])
+        (by intro ar har; simp only [List.mem_cons, List.not_mem_nil, or_false] at har; rcases har with rfl | rfl <;> simp [oA, tA])
+      have hbytes := hgout.unchanged hS
+        (by
+          intro ar har
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+          rcases har with rfl | rfl
+          · exact noWrap_iff.mpr (pre_out h).2.1
+          · exact noWrap_iff.mpr hfp.1.2)
+        (fun q hq => hso1 q (fun hc => hq (by
+          rcases hc with ho | ht | hs
+          · exact .inr ⟨(oA m0, queryBufBytes), by simp, ho⟩
+          · exact .inr ⟨(tA m0, tstateBytes), by simp, ht⟩
+          · exact .inl hs)))
+      have hbase : stackBelow st1.data squeezeStack = stackBelow m0 sampleQueriesStack := by
+        unfold stackBelow
+        rw [hsp1]
+        unfold fb stackBelow
+        rw [N_eq]
+        bv_omega
+      apply NativeRustcVmX64.GotAt.callee hg hbytes
+      · rw [hbase]
+      · rw [hbase, N_eq]
+        omega
+      · intro ar har
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+        rcases har with rfl | rfl
+        · exact ⟨(tA m0, tstateBytes), by simp [tA], le_rfl, by
+            change (tA m0).toNat + 328 ≤ (tA m0).toNat + 760; omega⟩
+        · have hrcmem : (rcAddr, 192) ∈ rodataAreas := by
+            change (rodataAddr .keccakRC, NativeRustcVm.Data.Item.bytes .keccakRC |>.length) ∈ rodataAreas
+            exact List.mem_map.mpr ⟨.keccakRC, by decide, rfl⟩
+          exact ⟨(rcAddr, 192), by simp [hrcmem], le_rfl, le_rfl⟩
   refine call_then hpc (hsq s.sponge) hpre fun st2 hpc2 hrsp2 ⟨hc0, hc1, hsp2, hs2, hsv2⟩ ↦ ?_
   rw [hrdi] at hsp2 hs2
   have hcal : ∀ q, InRange (stackBelow st1.data squeezeStack) squeezeStack q →

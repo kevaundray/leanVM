@@ -81,11 +81,11 @@ theorem TailLive.claim (hpre : VerifyLayerPre a s c m0) {d d' : DataMem}
   · exact claim_not_scratch hpre (by decide) hq hq'
 
 omit [Labels] in
-theorem hexClaim {d : MachineData} {ret : BitVec 64} {S : SState}
+theorem hexClaim {d : MachineData} {ret : BitVec 64} {S : SState} {extra : List (BitVec 64 × Nat)}
     (g : Geo m0)
     (h : S.mem.all (fun w ↦ w.r == 0 || (w.r == 1 && decide (w.off + w.n ≤ 768))) = true) :
     ∀ w ∈ S.mem, w.r ≠ 0 → ∀ p n,
-      (envB m0 d [(cA m0, 768)] (fun _ ↦ 0) ret).regions[w.r]? = some (p, n) →
+      (envB m0 d ((cA m0, 768) :: extra) (fun _ ↦ 0) ret).regions[w.r]? = some (p, n) →
       ∀ q, p.toNat + w.off ≤ q.toNat → q.toNat < p.toNat + w.off + w.n → InRange (cA m0) 768 q := by
   intro w hw hr p n he q h1 h2
   have hh := List.all_eq_true.mp h w hw
@@ -169,9 +169,9 @@ theorem claim_not_fr (hpre : VerifyLayerPre a s c m0) {q : BitVec 64}
 
 theorem TailLive.claimBlk (hpre : VerifyLayerPre a s c m0) {d d' : MachineData}
     (h : TailLive m0 a c ch b pt lp t s6 d.dmem) (hpt : pt.size ≤ 30)
-    {ret : BitVec 64} {S : SState}
-    (hwf : (envB m0 d [(cA m0, 768)] (fun _ ↦ 0) ret).WF)
-    (hm : Match (envB m0 d [(cA m0, 768)] (fun _ ↦ 0) ret) S d')
+    {ret : BitVec 64} {S : SState} {extra : List (BitVec 64 × Nat)}
+    (hwf : (envB m0 d ((cA m0, 768) :: extra) (fun _ ↦ 0) ret).WF)
+    (hm : Match (envB m0 d ((cA m0, 768) :: extra) (fun _ ↦ 0) ret) S d')
     (hbr : belowRet 2016 S = true) (hin : writesIn S = true)
     (hmiss : missB 24 1944 S = true)
     (hex : S.mem.all (fun w ↦ w.r == 0 || (w.r == 1 && decide (w.off + w.n ≤ 768))) = true) :

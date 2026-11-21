@@ -15,8 +15,8 @@ output pointer at 24, the table's pointer and count at 32, 40, the queries' coun
 queries' and the weights' pointers at 56, 64, the query's index at 72, the sum at 80, 88, the
 product's high word at 96, `subspace_table`'s `Option` (later `subspace_at_table`'s `Buf`) from 104,
 the table's copy (count at 616, pairs from 624).
-- `entryS`: `b0a` (the prologue); `midS`: `b0b`, `b1`, `b2`, `b3`, `b6`, `b9`, `b10a`, `b10c`,
-  `b11`, `b12`, `b13`, `b18b`;
+- `entryS`: `b0a` (the prologue); `midS`: `b0b`, `b1`, `b3`, `b6`, `b9`, `b10a`, `b10c`,
+  `b11`, `b12`, `b13`, `b18b`; `b2` additionally reads the `memcpy` GOT slot;
 - `a4S`, `a8S` (region 1 the stack arguments): `b4`, `b8`;
 - `wS` (region 1 weight `j`), `qS` (region 1 query `j`): `b7`'s halves;
 - `pS` (region 0 the point's element `i`, region 1 `What_i`): `b10b`;
@@ -92,7 +92,7 @@ set_option Elab.async false
 sym_block run_b0a := exec b0a entryS
 sym_block run_b0b := exec b0b (midS 1168)
 sym_block run_b1 := exec b1 (midS 1168)
-sym_block run_b2 := exec b2 (midS 1168)
+sym_block run_b2 := exec b2 (gotMidS 1168 "memcpy")
 sym_block run_b3 := exec b3 (midS 1168)
 sym_block run_b4 := exec b4 a4S
 sym_block run_b6 := exec b6 (midS 1168)
@@ -130,9 +130,9 @@ public theorem b0b_call : keepsRegs (midS 1168) (after b0b (midS 1168)) (freeReg
 public theorem b1_keeps : keepsAll (midS 1168) (after b1 (midS 1168)) (freeRegs slots) = true := by
   decide +kernel
 
-public theorem b2_call : keepsRegs (midS 1168) (after b2 (midS 1168)) (freeRegs slots) = true ∧
-    (after b2 (midS 1168)).mem.map wsig = [(0, 0, 8), (0, 24, 8)] ∧
-    (∀ i < 8, findWrite 0 (24 + i) (after b2 (midS 1168)).mem = some (.reg .r14, i)) := by
+public theorem b2_call : keepsRegs (gotMidS 1168 "memcpy") (after b2 (gotMidS 1168 "memcpy")) (freeRegs slots) = true ∧
+    (after b2 (gotMidS 1168 "memcpy")).mem.map wsig = [(0, 0, 8), (0, 24, 8)] ∧
+    (∀ i < 8, findWrite 0 (24 + i) (after b2 (gotMidS 1168 "memcpy")).mem = some (.reg .r14, i)) := by
   decide +kernel
 
 public theorem b3_write : keepsRegs (midS 1168) (after b3 (midS 1168)) (.rsp :: freeRegs slots) = true ∧

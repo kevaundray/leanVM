@@ -89,7 +89,7 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
         (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b6Offset) ∧ j < Q.size ∧ PInv m0 P Q h w (j + 1) st.data))
       ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b6Offset)⟩ := by
   have hst := hpre.1
-  obtain ⟨-, -, -, -, -, hQn, hQw, hmp, hnwp, -, hnwq, -, -, haps, -, haqs, -, -, -, -, -, haqp⟩ :=
+  obtain ⟨-, -, -, -, -, hQn, hQw, hmp, hnwp, -, hnwq, -, -, haps, -, haqs, -, -, -, -, -, haqp, -⟩ :=
     id hpre
   have hsize := hi.shape.2
   have hPq : P.size ≤ 256 := hph.2.2.1

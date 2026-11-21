@@ -229,9 +229,21 @@ theorem entry_a (hp : Placed code k)
     have := wordAt_of_write hm2 (r := 0) (o := 64) rfl (by decide) (v := .reg .r8) hv64
     rwa [eval_reg, Env.ofMachine_regs,
       show st1.data.regs.get64 .r8 = _ from harg .r8 (by simp)] at this
+  have hgot := hpre.2.2.2.2.2.2.2
   have hP1 : SubspaceTablePre st2.data :=
     ⟨stackOk_callee hS hkept2 hrsp2 hle_t, by
-      rw [hrdi2]; exact whirIn_fr hS hkept2 hrsp2 hle_t (by omega) (by decide)⟩
+      rw [hrdi2]; exact whirIn_fr hS hkept2 hrsp2 hle_t (by omega) (by decide), by
+      apply hfr1.got_after hS hle_t hgot hwf2 hm2 (hw_of hsig2 (by decide)) hrsp2
+      intro a ha
+      simp only [List.mem_singleton] at ha
+      subst a
+      dsimp only [Prod.fst, Prod.snd]
+      rw [hrdi2, show fbOf m0 = stackBelow m0 1168 from rfl,
+        fb_toNat hS hF (j := 104) (by omega)]
+      have hb := (frame_ok hS hF).2.2
+      rw [hb]
+      unfold tableBytes rootCap
+      omega⟩
   refine Frame.call htab hfr1 hS hle_t (L := 1120) (by omega) hsl out_nil hwf2 hfr1.mid_match
     hm2 hpc2 hk2 rfl (hw_of hsig2 (by decide)) hP1
     (fun m' ⟨_, hch, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hch p fun h ↦ hp (h.elim (fun ⟨r, hr, hin⟩ ↦ by
@@ -319,8 +331,15 @@ theorem entry_b (hp : Placed code k)
   have hts := hA.tlen
   have hfr := hA.fr
   -- `b2`: the output spilled, `memcpy`
-  have hwf5 := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b3Offset)).toBitVec) hS hF
-  refine exec_at (hb2 hp) run_b2 hwf5 (fun _ _ ↦ rfl) hpc hfr.mid_match fun st5 hm5 hpc5 ↦ ?_
+  have hgot := hpre.2.2.2.2.2.2.2
+  have hgot0 := hgot.areas (areas' := []) (by simp)
+  have hwf5 := hfr.got_wf (l := "memcpy") (vars := fun _ => 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b3Offset)).toBitVec)
+    hS hF hgot (by simp)
+  have hm5start := hfr.got_match (l := "memcpy") (vars := fun _ => 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b3Offset)).toBitVec)
+    (fun i hi => hfr.got_byte hS hgot0 (by simp) (by intro r hr; cases hr) (by simp) hi)
+  refine exec_at (hb2 hp) run_b2 hwf5 (fun _ _ ↦ rfl) hpc hm5start fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hk5, hsig5, hv24⟩ := after_eq run_b2 ▸ b2_call
   have hrsp5 := rsp_call hm5 rfl
   have hkept5 : Kept m0.dmem st5.data.dmem := fun p h ↦ hm5.kept hwf5 p (hfr.kept p h)
@@ -340,7 +359,7 @@ theorem entry_b (hp : Placed code k)
     (hall_of hsig5 (by decide))
   have w24 : WordAt st5.data.dmem (fbOf m0 + BitVec.ofNat 64 24) (.ofBitVec (reg m0 .rdi)) := by
     have := wordAt_of_write hm5 (r := 0) (o := 24) rfl (by decide) (v := .reg .r14) hv24
-    rwa [eval_reg, Env.ofMachine_regs, show st.data.regs.get64 .r14 = _ from hA.r14] at this
+    rwa [eval_reg, gotEnv_regs, hA.r14] at this
   have h624 : (fbOf m0 + BitVec.ofNat 64 624).toNat = (rspOf m0).toNat - 1168 + 624 :=
     fb_toNat hS hF (by omega)
   have h120 : (fbOf m0 + BitVec.ofNat 64 120).toNat = (rspOf m0).toNat - 1168 + 120 :=
@@ -356,7 +375,7 @@ theorem entry_b (hp : Placed code k)
     · unfold Apart; rw [h624, h120]; omega
     · unfold Apart; rw [h624, hrsp5, show (stackBelow m0 1168).toNat = _ from hfb]; omega
   refine Frame.call hmemcpy hfr hS (N := 0) hle_0 (L := 1120) (by omega) hsl out_nil hwf5
-    hfr.mid_match hm5 hpc5 hk5 rfl (hw_of hsig5 (by decide)) hP5
+    hm5start hm5 hpc5 hk5 rfl (hw_of hsig5 (by decide)) hP5
     (fun m' ⟨_, _, hso, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hso p fun h ↦ hp (.inr (.inl (by
       simp only [hrdi5, hrdx5] at h
       exact inRange_low_of hS hF (c := 624) (n := 496) (by omega) (by omega) h)))⟩)
@@ -372,7 +391,7 @@ theorem entry_b (hp : Placed code k)
   have e5 : ∀ r ∈ [Reg64.rbx, .r15], reg st5.data r = reg st.data r := by
     intro r hr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
-    rcases hr with rfl | rfl <;> exact Match.reg_eq hfr.mid_match hm5 rfl rfl
+    rcases hr with rfl | rfl <;> exact Match.reg_eq hm5start hm5 rfl rfl
   have hpairs6 : PairsAt st6.data.dmem (fbOf m0 + BitVec.ofNat 64 624) (tbOf m0).toList := by
     have hp5 : PairsAt st5.data.dmem (fbOf m0 + BitVec.ofNat 64 120) (tbOf m0).toList := by
       have hp0 := hA.pairs

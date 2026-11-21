@@ -69,23 +69,23 @@ theorem fb_not_low {j : Nat} (h1 : 8 ≤ j) (h2 : j < 2 ^ 64) :
   omega
 
 /-- The sizes' bytes are not the output's nor the stack's. -/
-theorem sizes_out (hpre : StackOffsetsPre m0) {q : BitVec 64}
+theorem sizes_out [Labels] (hpre : StackOffsetsPre m0) {q : BitVec 64}
     (h : NativeRustcVm.InRange (reg m0 .rdi) (8 * n m0) q) :
     ¬ (R m0 q ∨ NativeRustcVm.InRange (stackBelow m0 1344) 1344 q) := by
   rintro (h' | h')
-  · exact not_inRange_of_apart hpre.2.2.2.2.2.2 hpre.2.2.1.2 hpre.2.2.2.2.1.2 h h'
+  · exact not_inRange_of_apart hpre.2.2.2.2.2.2.1 hpre.2.2.1.2 hpre.2.2.2.2.1.2 h h'
   · exact not_inRange_of_apart hpre.2.2.2.1 hpre.2.2.1.2 (noWrap_stackBelow hpre.1) h
       (inRange_mono h' (show 1344 ≤ stackOffsetsStack + 8 by decide))
 
 /-- **The sizes in a body**: as at the entry. -/
-theorem sizes_same (hpre : StackOffsetsPre m0) {o : Nat} {d : MachineData} (hb : B m0 o d) :
+theorem sizes_same [Labels] (hpre : StackOffsetsPre m0) {o : Nat} {d : MachineData} (hb : B m0 o d) :
     natsOf d (reg m0 .rdi) (n m0) = sizes m0 := by
   simp only [natsOf, sizes]
   rw [NativeRustcVm.wordsOf_congr fun t ht ↦ hb.same _ (sizes_out hpre
     (inRange_off_self ht (by have hn : n m0 ≤ 158 := hpre.2.1; omega)))]
 
 /-- The order array's bytes are not the output's. -/
-theorem ob_not_R (hpre : StackOffsetsPre m0) {o : Nat} (ho : o < 1264) :
+theorem ob_not_R [Labels] (hpre : StackOffsetsPre m0) {o : Nat} (ho : o < 1264) :
     ¬ R m0 (ob m0 + BitVec.ofNat 64 o) := fun h ↦ by
   have hst : StackOk m0 1344 := hpre.1
   refine R_not_frame hst hpre.2.2.2.2.2.1 hpre.2.2.2.2.1.2 h ?_

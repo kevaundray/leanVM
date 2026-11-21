@@ -148,10 +148,10 @@ theorem finish (hp : Placed code k)
   have hf8 : (off (fb m0) 8).toNat = (fb m0).toNat + 8 := toNat_off (by omega)
   have hbd := hE.bd
   -- `b33`: the framework's count; `memcpy` of the layout.
-  have hwf0 := wf0 (d := st.data) hst hN hbd.fr.kept (vars := fun _ ↦ 0)
+  have hwf0 := wf_got hpre hbd.fr.kept (l := "memcpy") (by simp) (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b33Offset + b33.length)).toBitVec)
   refine exec_at (infix_of b33_in_code (by simp [b33]) hp) run_b33 hwf0 (fun _ _ ↦ rfl) hpc
-    (match_ofMachine ⟨rfl, trivial⟩ ⟨hbd.fr.rsp_eval, trivial⟩ trivial trivial trivial)
+    (match_got hpre hbd.same (by simp) hbd.fr.sp)
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hw1, hwr1, hbd1, hdi1, hsi1, hdx1, hk1⟩ := after_eq run_b33 ▸ ok_b33
   have bd1 := Body.of_block hst hN hbd hwf0 hm1 hmid1 hw1 slots_le

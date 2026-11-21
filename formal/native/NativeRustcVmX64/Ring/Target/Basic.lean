@@ -73,12 +73,12 @@ variable {m0 : MachineData}
 theorem nt_eq : NT = 2576 := rfl
 
 /-- The images loop's layout: `s`. -/
-theorem layL (hpre : RingTargetPre m0) : Lay m0 2352 NT [(sA m0, 1024)] :=
+theorem layL [Labels] (hpre : RingTargetPre m0) : Lay m0 2352 NT [(sA m0, 1024)] :=
   ⟨hpre.1, by decide, by decide, ⟨⟨hpre.2.1.1.1, hpre.2.1.1.2, hpre.2.1.2⟩, trivial⟩,
     List.pairwise_singleton _ _⟩
 
 /-- The turns' layout: `f`. -/
-theorem layC (hpre : RingTargetPre m0) : Lay m0 2352 NT [(fA m0, 128)] :=
+theorem layC [Labels] (hpre : RingTargetPre m0) : Lay m0 2352 NT [(fA m0, 128)] :=
   ⟨hpre.1, by decide, by decide, ⟨⟨hpre.2.2.1.1.1, hpre.2.2.1.1.2, hpre.2.2.1.2⟩, trivial⟩,
     List.pairwise_singleton _ _⟩
 

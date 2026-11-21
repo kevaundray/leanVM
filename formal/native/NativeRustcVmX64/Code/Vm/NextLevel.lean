@@ -263,7 +263,7 @@ def b18 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rdi Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rsp)) (@Option.none AddrIndex) (ConstExpr.int64 (4376 : Int64))))),  -- leaq 4376(%rsp), %rdi
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rsi Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rsp)) (@Option.none AddrIndex) (ConstExpr.int64 (688 : Int64))))),  -- leaq 688(%rsp), %rsi
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.mov Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rdx Width.W32)) (@Operand.imm Width.W32 (ConstExpr.int64 (3680 : Int64))))),  -- movl $3680, %edx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.call Width.W64 (RelRegOrMem.rel (ConstExpr.sub (ConstExpr.label "memcpy") ConstExpr.after_current_instruction))))  -- callq memcpy
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.call Width.W64 (RelRegOrMem.mem (AddrExpr.mk (@Option.some RegOrRip RegOrRip.rip) (@Option.none AddrIndex) (ConstExpr.sub (ConstExpr.gotSlot "memcpy") ConstExpr.after_current_instruction)))))  -- callq *memcpy@GOTPCREL(%rip)
 ]
 
 /-- Block 19, after the branch or call ending block 18. -/

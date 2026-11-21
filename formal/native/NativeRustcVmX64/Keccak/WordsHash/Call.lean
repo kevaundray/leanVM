@@ -52,6 +52,8 @@ theorem call_kf (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) Nativ
       NativeRustcVmX64.KeccakFPost) {m0 : MachineData}
     (hstk : StackOk m0 NativeRustcVmX64.keccak256WordsStack)
     (hrc : NativeRustcVmX64.RcAt m0 NativeRustcVmX64.keccak256WordsStack)
+    (hgot : GotAt m0 NativeRustcVmX64.keccak256WordsStack
+      [(m0.regs.get64 .rdi, 32), (NativeRustcVmX64.rcAddr, 192)] ["memcpy", "memset"])
     {L : List (Nat × BitVec 64)} (hL : LowSlots L) {R : List (Reg64 × BitVec 64)}
     {st : MachineState} {env : Env} {next : Int64} {A : KeccakState}
     (hc : Ctx m0 L R 0 st.data) (hl : Lanes m0 st.data.dmem (Keccak.lane A))
@@ -97,7 +99,7 @@ theorem call_kf (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) Nativ
             Keccak.length_rcBytes
           omega)
   have hpre : NativeRustcVmX64.KeccakFPre st.data := by
-    refine ⟨⟨?_, ?_, ?_⟩, ⟨hrc1, hrcnw, ?_⟩, ?_, ?_, ?_, ?_⟩
+    refine ⟨⟨?_, ?_, ?_⟩, ⟨hrc1, hrcnw, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
     · show 480 ≤ (rspOf st.data).toNat
       rw [hspn]; omega
     · rw [hspn]; omega
@@ -127,6 +129,38 @@ theorem call_kf (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) Nativ
       unfold Apart
       rw [hrdi, h40]
       omega
+    · have hg := hgot.symbols (show ["memcpy"].Sublist ["memcpy", "memset"] by simp)
+      refine hg.transport ?_ ?_ ?_
+      · intro l hl i hi
+        apply hc.same
+        have hs := (hg.1 l hl).2.2.1
+        change Apart (gotAddr l) 8
+          (stackBelow m0 NativeRustcVmX64.keccak256WordsStack) _ at hs
+        have hn := (hg.1 l hl).2.1
+        exact fun h => hs.not_inRange hn
+          (by unfold NoWrap; rw [stk_eq]; omega) hi (Nat.lt_trans h (by decide))
+      · intro l hl
+        have hs := (hg.1 l hl).2.2.1
+        change Apart (gotAddr l) 8
+          (stackBelow m0 NativeRustcVmX64.keccak256WordsStack) _ at hs
+        change Apart (gotAddr l) 8 (stackBelow st.data 480) 488
+        rw [hsb']
+        rw [stk_eq] at hs
+        unfold Apart at hs ⊢
+        omega
+      · intro l hl a ha
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl
+        · have hs := (hg.1 l hl).2.2.1
+          change Apart (gotAddr l) 8
+            (stackBelow m0 NativeRustcVmX64.keccak256WordsStack) _ at hs
+          change Apart (gotAddr l) 8 (st.data.regs.get64 .rdi) 200
+          rw [hrdi]
+          rw [stk_eq] at hs
+          unfold Apart at hs ⊢
+          rw [h40]
+          omega
+        · exact (hg.1 l hl).2.2.2 (NativeRustcVmX64.rcAddr, 192) (by simp)
   refine call_then hpc hkf hpre fun st' hpc' hrsp' hpost => ?_
   obtain ⟨hw, hsame, hsaved⟩ := hpost
   simp only [NativeRustcX64.reg, hrdi, hK4] at hw hsame

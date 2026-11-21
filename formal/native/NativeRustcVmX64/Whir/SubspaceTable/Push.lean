@@ -55,7 +55,7 @@ theorem push (hp : Placed code k) (hkinv : Spec (Labels.label NativeRustcVmX64.V
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b21Offset) ∧ Done m0 s.data) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b23Offset) ∧ NoneAt m0 s.data)) st := by
   have hpre' := hpre
-  obtain ⟨hS, hout⟩ := hpre'
+  obtain ⟨hS, hout, _⟩ := hpre'
   obtain ⟨hF, hlek, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1

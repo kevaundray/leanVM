@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Defs
 public import NativeRustcVmX64.Sumcheck.Ctx
 public import NativeRustcVmX64.Arrays.Common
+public import NativeRustcVmX64.Got
 
 /-!
 # `verify_layer` on x86-64: memory in the body
@@ -184,7 +185,62 @@ theorem pre_seg (h : VerifyLayerPre a s c m0) : SegmentsFit (reg m0 .rsi).toNat 
   h.2.2.2.2.2.2.2.2.1
 theorem pre_areas (h : VerifyLayerPre a s c m0) :
     Areas m0 3232 [⟨tA m0, tstateBytes⟩, ⟨cA m0, 768⟩, ⟨sA m0, 205824⟩]
-      [a.region, rcRegion, projectRegion, rhoRegion] := stack_eq ▸ h.2.2.2.2.2.2.2.2.2
+      [a.region, rcRegion, projectRegion, rhoRegion] := stack_eq ▸ h.2.2.2.2.2.2.2.2.2.1
+
+/-- Exactly the loader slot reached by this function and its callees. -/
+theorem pre_got (h : VerifyLayerPre a s c m0) :
+    GotAt m0 verifyLayerStack
+      [(tA m0, tstateBytes), (cA m0, 768), (sA m0, 205824),
+        (a.region.addr, a.region.size), (rcAddr, 192), (projectAddr, 128), (rhoAddr, 100)]
+      ["memcpy"] := h.2.2.2.2.2.2.2.2.2.2
+
+/-- Every body write misses the ordinary-memory loader slot. -/
+theorem Body.got_bytes (hpre : VerifyLayerPre a s c m0)
+    {W : BitVec 64 → Prop} {o : Nat} {d : MachineData}
+    (hb : Body m0 W o d) (hW : ∀ q, W q → outs m0 q) :
+    ∀ l ∈ ["memcpy"], ∀ i < 8,
+      d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  intro l hl i hi
+  have hg := (pre_got hpre).1 l hl
+  have g := geo_of hpre
+  have hst : NoWrap (stackBelow m0 3232) (3232 + 8) :=
+    noWrap_stackBelow (pre_stack hpre)
+  have hgs : Apart (gotAddr l) 8 (stackBelow m0 3232) (3232 + 8) := by
+    simpa only [stack_eq, stackBelow, apart_eq] using hg.2.2.1
+  apply hb.same
+  rintro (h | h)
+  · exact hgs.not_inRange hg.2.1 hst hi (inRange_mono h (by omega))
+  rcases hW _ h with ht | hc | hs
+  · exact (hg.2.2.2 (tA m0, tstateBytes) (by simp)).not_inRange hg.2.1 g.ht hi ht
+  · exact (hg.2.2.2 (cA m0, 768) (by simp)).not_inRange hg.2.1 g.hc hi hc
+  · have hsc : InRange (sA m0) 205824 (gotAddr l + BitVec.ofNat 64 i) := by
+      exact inRange_of_off g.hs (show 25600 + 114688 ≤ 205824 by decide) hs
+    exact (hg.2.2.2 (sA m0, 205824) (by simp)).not_inRange hg.2.1 g.hs hi hsc
+
+/-- A callee's protected subregions inherit the body's preserved loader slot. -/
+theorem Body.got (hpre : VerifyLayerPre a s c m0)
+    {W : BitVec 64 → Prop} {o n : Nat} {d : MachineData}
+    (hb : Body m0 W o d) (hW : ∀ q, W q → outs m0 q)
+    (ho : o ≤ 2016) (hn : 2016 - o + n ≤ 3232)
+    {areas : List (BitVec 64 × Nat)}
+    (hcover : ∀ p ∈ areas,
+      ∃ b ∈ (stackBelow m0 verifyLayerStack, verifyLayerStack + 8) ::
+        [(tA m0, tstateBytes), (cA m0, 768), (sA m0, 205824),
+          (a.region.addr, a.region.size), (rcAddr, 192), (projectAddr, 128), (rhoAddr, 100)],
+        b.1.toNat ≤ p.1.toNat ∧ p.1.toNat + p.2 ≤ b.1.toNat + b.2) :
+    GotAt d n areas ["memcpy"] := by
+  have g := geo_of hpre
+  have hN := g.hN
+  have ht := g.top
+  have hrsp : (rspOf d).toNat = (rspOf m0).toNat - 2016 + o := by
+    rw [hb.fr.sp]
+    exact g.fa (by omega)
+  have hbase : (stackBelow d n).toNat = (rspOf m0).toNat - 2016 + o - n := by
+    rw [stackBelow_toNat (by omega), hrsp]
+  apply NativeRustcVmX64.GotAt.callee (pre_got hpre) (hb.got_bytes hpre hW) _ _ hcover
+  · rw [stack_eq, g.sbN, hbase]; omega
+  · rw [stack_eq, g.sbN, hbase]; omega
 
 /-- A written region and a read one of the precondition apart, as numbers. -/
 theorem pre_apart (h : VerifyLayerPre a s c m0) {w r : NativeRustcVm.Region}

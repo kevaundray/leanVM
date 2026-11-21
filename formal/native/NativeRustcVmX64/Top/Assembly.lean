@@ -8,7 +8,7 @@ public import NativeRustcVmX64.Code.Vm.LeanvmVerify.Names
 /-!
 # The end-to-end x86-64 verifier theorem
 
-`verify_correct` proves the rustc-generated `leanvm_verify` against the verifier model. Every callee contract is discharged by its assembly proof at its place in `Vm.code`; only the program placement and natural entry, memory, and alignment assumptions remain.
+`verify_correct` proves rustc's raw `leanvm_verify` assembly against the verifier model. Every callee contract is discharged by its assembly proof at its place in `Vm.code`; only the program placement, entry, memory, alignment, and loader-slot (`GotAt`) assumptions remain.
 -/
 
 namespace NativeRustcVmX64.VmVerifier
@@ -30,7 +30,10 @@ theorem verify_correct (hP : Host.prog = Vm.code)
     (hapS : ApartFrom (entryRegions (ctxOf m) a bytes.length bytecode.length)
       (stackBelow m leanvmVerifyStack) (leanvmVerifyStack + 8))
     (hapR : ∀ r ∈ entryRegions (ctxOf m) a bytes.length bytecode.length, 0 < r.size →
-      RodataApart r.addr r.size) :
+      RodataApart r.addr r.size)
+    (hgot : GotAt m leanvmVerifyStack
+      ((entryRegions (ctxOf m) a bytes.length bytecode.length).map (fun r => (r.addr, r.size)) ++
+        rodataAreas) ["memcpy", "memset"]) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧ rspOf st.data = rspOf m + 8#64 ∧
       reg st.data .rax = (if (Id.run (Proof.fromBytes (m := Id) keccakF1600 bytes)).elim false
           (fun π ↦ Id.run (verifyWith (m := Id) keccakF1600 (bytecode.map K.ofLane) pub π))
@@ -40,7 +43,7 @@ theorem verify_correct (hP : Host.prog = Vm.code)
           ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmX64.frameR m leanvmVerifyStack]) ∧
       Saved m st.data) ⟨m, label NativeRustcVmX64.Vm.LeanvmVerify.entryLabel⟩ :=
   verify_correct_of_specs hP (Assembly.decode hP) (Assembly.verifyExecution hP)
-    hin hal hstack hrod hapS hapR
+    hin hal hstack hrod hapS hapR hgot
 
 end
 

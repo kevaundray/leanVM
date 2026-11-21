@@ -85,7 +85,7 @@ theorem grind_spec (hp : Placed code k)
     (han : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorbNonce.entryLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp))
     (a : DecArea) (s : TState) :
     Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s) := by
-  rintro m0 ⟨hst, hrc, hts, htok, hbits⟩
+  rintro m0 ⟨hst, hrc, hts, htok, hbits, hgot⟩
   set t := reg m0 .rdi with htdef
   set bits := grindBits m0 with hbdef
   set fb := stackBelow m0 48 with hfb
@@ -305,10 +305,19 @@ theorem grind_spec (hp : Placed code k)
       RcAt.callee hrc (rc_keep hso5 hrcOut) hsp5 hn (by decide),
       ⟨fun j hj ↦ hts5.footprint.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_,
         apart_callee (n := grindStack) (F := 48) ?_ hsp5 hn (by decide), ?_⟩,
-      hts5.sponge⟩
+      hts5.sponge, ?_⟩
     · show t.toNat + 328 ≤ 2 ^ 64; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
+    · refine got_callee hgot (got_keep hgot hst (writes := [(t, tstateBytes)])
+        (by simp [t]) (by simpa using hTn) (by simpa using hso5))
+        hsp5 hn (by decide) ?_
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact Apart.sub ((hgot.1 l hl).2.2.2 (t, tstateBytes) (by simp [t]))
+          (Nat.le_refl _) (by simp only [spongeBytes, tstateBytes]; omega)
+      · exact (hgot.1 l hl).2.2.2 (rcAddr, 192) (by simp)
   refine call_then hpc5 (han s1.sponge) hpre5 fun st6 hpc6 hrsp6 ⟨hx0₆, hsp6, hs6, hsv6⟩ => ?_
   rw [hX6₅, hX2₅] at hx0₆ hsp6
   rw [hX7₅] at hsp6 hs6

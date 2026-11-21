@@ -218,8 +218,16 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun m2 fr2 hq2 hs2 hcs2 ↦ ?_
   · unfold ReadScalarsPre
     rw [x1di, x1si, x1dx]
-    exact ⟨cal_stack h fr1 (by omega) hle, cal_rc h fr1 (by omega) hle, hts1,
-      cal_tok h fr1 (by omega) hle, cal_local h fr1 (by omega) hle (by omega) (by omega)⟩
+    refine ⟨cal_stack h fr1 (by omega) hle, cal_rc h fr1 (by omega) hle, hts1,
+      cal_tok h fr1 (by omega) hle, cal_local h fr1 (by omega) hle (by omega) (by omega),
+      cal_got h fr1 (by omega) hle (by decide) ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   · rw [x1di, x1si, x1dx] at hq'
     rcases hq' with hq' | hq' | hq'
     · exact .inr (.inl hq')
@@ -311,8 +319,16 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun m5 fr5 hq5 hs5 hcs5 ↦ ?_
   · unfold ReadScalarPre
     rw [x4si, x4di]
-    exact ⟨cal_stack h fr4 (by omega) hle4, cal_rc h fr4 (by omega) hle4, hts4,
-      cal_tok h fr4 (by omega) hle4, cal_local h fr4 (by omega) hle4 (by omega) (by omega)⟩
+    refine ⟨cal_stack h fr4 (by omega) hle4, cal_rc h fr4 (by omega) hle4, hts4,
+      cal_tok h fr4 (by omega) hle4, cal_local h fr4 (by omega) hle4 (by omega) (by omega),
+      cal_got h fr4 (by omega) hle4 (by decide) ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   · rw [x4si, x4di] at hq'
     rcases hq' with hq' | hq' | hq'
     · exact .inr (.inl hq')

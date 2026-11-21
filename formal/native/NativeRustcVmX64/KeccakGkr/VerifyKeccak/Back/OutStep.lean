@@ -61,8 +61,9 @@ theorem stepHeader (hp : Placed NativeRustcVmX64.Vm.VerifyKeccak.code k) (c : Ct
     (ret := (Host.addrOf (k + o + ds.length)).toBitVec)
   have hra : k + (o + ds.length) = k + o + ds.length := by omega
   rw [hra] at hP hQ cont
-  refine callZ (hknown := hknown) (W := fun _ ↦ ChgR m0 [] [(4, 0, 584)]) h hB (hds.trans hp.1 hne) hrun
-    (hm _) hwr hoc hsp hspec hS
+  refine callZ (hknown := hknown) (hwrites := h.written hwr)
+    (W := fun _ ↦ ChgR m0 [] [(4, 0, 584)]) h hB (hds.trans hp.1 hne) hrun
+    (hm _) hoc hsp hspec hS
     (fun mc hmc hk hsk hso hrsp ↦ hP mc hmc ⟨hrsp, hoc, hk, hso⟩ hsk
       (chg_header c hmc hwf hw0) (hmc.kept hwf)) hQ
     (fun _ _ q hq ↦ ChgR.wo c rfl (by decide) (by decide) hq)

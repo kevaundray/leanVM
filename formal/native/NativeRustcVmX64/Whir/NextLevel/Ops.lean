@@ -56,6 +56,8 @@ structure H22 [Labels] (a : DecArea) (level : Whir.Level) (w : WhirStateW)
   rows : RowsAt d.dmem (loc m0 760) op rows
   opIn : WhirIn m0 op (8 * openingsWords) nextLevelStack
   ts : TStateAt d.dmem (tA m0) a s9
+  opBounds : a.words.toNat ≤ op.toNat ∧
+    op.toNat + 8 * openingsWords ≤ a.words.toNat + 8 * a.len
 
 end
 
@@ -156,12 +158,20 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hqn : qs.size ≤ 230 := by have := hH.qbuf.1; rwa [Array.length_toList] at this
   have hqa := c.qA_toNat
   -- `b18`: the count, the queries' address, `memcpy(sp + 4448, sp + 760, 3680)`
-  refine blk_stepZ c b18_in_code (by simp [b18]) hp exit_b18 ok_b18.1 ok_b18.2.1 (by decide)
-    (fun p hp ↦ by simp at hp; subst hp; right; omega) hK hpc
-    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b19Offset)).toBitVec) (fun _ _ ↦ rfl) fun st1 hm1 hpc1 hK1 hs1 hz1 ↦ ?_
+  have hwfCopy := c.got_wf hK.fr
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b19Offset)).toBitVec)
+  refine exec_at (infix_of b18_in_code (by simp [b18]) hp) exit_b18 hwfCopy
+    (fun _ _ => rfl) hpc (c.m_copy hK.fr) fun st1 hm1 hpc1 => ?_
+  obtain ⟨hfr1, hs1⟩ := c.blk hK.fr hwfCopy hm1 ok_b18.1
+    (hi := 8128) le_rfl (by decide +kernel)
+  have h80 := Ctx.bytes_blk hwfCopy hm1 (writesIn_of_mid ok_b18.1) ok_b18.2.1
+    (by simp [NativeRustcVm.length_wordBytes])
+    (by intro p hp; simp only [List.mem_singleton] at hp; subst p; left; decide) hK.w80
+  have hK1 := c.K_frame hK hfr1 (by omega) hs1 h80
+  have hz1 := keepZ_blk hwfCopy hm1 (writesIn_of_mid ok_b18.1) ok_b18.2.1 (by decide)
   obtain ⟨-, -, hrdi1, hrsi1, hrdx1, hrbp1, hr131, hkr1⟩ := ok_b18
-  let env1 := argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b19Offset)).toBitVec
-  have e1 : ∀ {r : Reg64} {v : Sym}, (after b18 retS).reg r = some v →
+  let env1 := argEnv m0 st.data 8176 8 [(gotAddr "memcpy", 8)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b19Offset)).toBitVec
+  have e1 : ∀ {r : Reg64} {v : Sym}, (after b18 copyS).reg r = some v →
       reg st1.data r = v.eval env1 := fun h ↦ hm1.regs _ _ h
   have hrax : env1.regs .rax = BitVec.ofNat 64 qs.size := hH.rax
   have h8184 : env1.load 0 8184 8 = pA m0 :=
@@ -174,7 +184,7 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
       (e1 (hkr1 .r14 (by simp))).trans hH.r14, by rw [e1 (hkr1 .r15 (by simp))]; exact hH.r15,
       (e1 hrbp1).trans (vN_eval env1 hrax (by omega)),
       (e1 hr131).trans (vQ_eval env1 hrax (by omega) h8184)⟩
-  have hts1 := c.ts_frame (hi := 8128) (by omega) (hm1.kept (c.wf0 hK.fr.frame.kept)) hs1 hH.ts
+  have hts1 := c.ts_frame (hi := 8128) (by omega) (hm1.kept hwfCopy) hs1 hH.ts
   have hqb1 := c.qbuf_frame (hi := 8128) (by omega) hs1 hH.qbuf
   have hat1 := c.at_call (o := 64) (by omega) hK1.fr
   have hle1 : 8176 - 64 + 0 ≤ nextLevelStack := by decide
@@ -305,7 +315,7 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hpre5 : QueryOpeningsPre a s8 qs st5.data := by
     simp only [QueryOpeningsPre, ho5, ht5, hq5, hn5]
     refine ⟨hwt5.1, hwt5.2.1, hts5, hwt5.2.2.2.1, trivial, ?_, hpos.1.2.1, hpos.1.2.2.2.2.1,
-      hpos.1.2.2.2.1, c.outLoc (o := 64) (by omega) hK5.fr hle5 (by omega) (by omega), ?_⟩
+      hpos.1.2.2.2.1, c.outLoc (o := 64) (by omega) hK5.fr hle5 (by omega) (by omega), ?_, ?_⟩
     · rw [← e8]; exact hqb5.2.2
     · refine (show NativeRustcVm.Apart (loc m0 760) 32 (pA m0 + BitVec.ofNat 64 61360)
         (8 * qs.size) from ?_)
@@ -313,6 +323,21 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
       rw [c.loc_toNat (by omega), NativeRustcVm.toNat_add_ofNat (by have := g.pW; omega)]
       have := g.pS; have := g.hN
       omega
+    · apply c.got_call hK5.fr (by omega) hle5 (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(pA m0, whirBytes), by simp, ?_, ?_⟩
+        · change (pA m0).toNat ≤ (pA m0 + BitVec.ofNat 64 61360).toNat
+          rw [NativeRustcVm.toNat_add_ofNat (by have := g.pW; omega)]
+          omega
+        · change (pA m0 + BitVec.ofNat 64 61360).toNat + _ ≤ (pA m0).toNat + 63200
+          rw [NativeRustcVm.toNat_add_ofNat (by have := g.pW; omega)]
+          omega
+      · exact c.got_loc (by omega) (by omega)
+      · exact c.got_rc
   refine call_then hpc5 (hqo a s8 qs) hpre5 fun st6 hpc6 hrsp6 hq ↦ ?_
   obtain ⟨hrw, hnext, hch6, hsv6⟩ := hq
   rw [ho5, hi5] at hrw
@@ -399,7 +424,12 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
     hff2.keep (hz3.trans (hz4.trans (hz5.trans (hz6.trans (KeepZ.of_eq hd7))))) hxs hos
   exact .done _ (Or.inr ⟨hpc7', rows, _, s9, by rw [hrun9, hr]; rfl,
     ⟨hK7, hRK6.six hk7, hff7, hH.size, hH.osize, hqn, hq7, h120', h4440''', hpow7, hrw7, hop,
-      hts7⟩⟩)
+      hts7, by
+        have hopenings : 0 < openingsWords := by decide
+        rw [show off (a.word (phaseBase a.l s8.phase)) 24 =
+          a.words + BitVec.ofNat 64 (8 * phaseBase a.l s8.phase + 24) from off_off _ _ _,
+          NativeRustcVm.toNat_add_ofNat (by have := g.aW; omega)]
+        constructor <;> omega⟩⟩)
 
 end
 

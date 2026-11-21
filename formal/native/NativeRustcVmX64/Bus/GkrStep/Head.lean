@@ -135,7 +135,16 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     (slots_call (by omega) (by omega)) (by omega) (outs_not_frame h) (fun _ h ↦ .inl (.inl h))
     (hgr s0) fr3 hpc3 ⟨c32.stackOk hat3 (le32 (by simp)), c32.rcAt hat3 (le32 (by simp)),
       by rw [edi3]; exact hts3, by rw [edi3]; exact c32.tstateOk hat3 (le32 (by simp)),
-      by rw [hbits]; decide⟩
+      by rw [hbits]; decide, by
+        rw [edi3]
+        apply got_atC h (by omega) fr3 (le32 (by simp))
+        intro l hl b hb
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl | rfl
+        · rw [ht]
+          exact ((pre_got h).1 l hl).2.2.2 (reg m0 .rdi, tstateBytes) (by simp)
+        · exact ((pre_got h).1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+        · exact ((pre_got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)⟩
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.2.1 fun q hq ↦ by
       rw [edi3] at hq; exact hq.elim .inr .inl, hq.2.2.2⟩)
     fun m4 fr4 hq4 hs4 hcs4 ↦ ?_
@@ -204,10 +213,19 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     have hnw : t.toNat + 760 ≤ 2 ^ 64 := hfp.1.2
     refine ⟨c32.stackOk hat6 hle6, c32.rcAt hat6 hle6,
       ⟨fun j hj ↦ hfp.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_, ?_, ?_⟩,
-      hts6.sponge⟩
+      hts6.sponge, ?_⟩
     · show t.toNat + 328 ≤ 2 ^ 64; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
+    · apply got_atC h (by omega) fr6 hle6
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · rw [ht]
+        have hsep := ((pre_got h).1 l hl).2.2.2 (reg m0 .rdi, tstateBytes) (by simp)
+        exact NativeRustcVm.Apart.mono_right hsep (Nat.le_refl _)
+          (by dsimp only [Prod.fst, Prod.snd, spongeBytes, tstateBytes]; omega)
+      · exact ((pre_got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
   simp only [PcOk] at hpc6
   have hR : ∀ q, NativeRustcVm.InRange t spongeBytes q → NativeRustcVm.InRange t tstateBytes q :=
     fun q hq ↦ inRange_mono hq (by decide)

@@ -111,7 +111,7 @@ theorem start (hp : Placed code k) (hmemset : Spec (Labels.label NativeRustcVmX6
       WordsAt s.data.dmem (fbOf m0 + BitVec.ofNat 64 552) (initL 0) ∧
       reg s.data .rbx = reg m0 .rdi ∧ reg s.data .r14 = reg m0 .rsi ∧
       reg s.data .r15 = fbOf m0 + BitVec.ofNat 64 552) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b0Offset)⟩ := by
-  obtain ⟨hS, hout⟩ := hpre
+  obtain ⟨hS, hout, hgot⟩ := hpre
   obtain ⟨hF, -, -, hle0⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1
@@ -126,13 +126,19 @@ theorem start (hp : Placed code k) (hmemset : Spec (Labels.label NativeRustcVmX6
   have hfr1 : Fr m0 st1.data := Frame.of_entry hS hF hm1 hsp0 hw0 hregs0 hmem0
   have harg : ∀ r ∈ [Reg64.rdi, .rsi], reg st1.data r = reg m0 r := fun r hr ↦
     hm1.regs r (.reg r) (hargs0 r hr)
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b1Offset)).toBitVec) hS hF
-  refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hfr1.mid_match fun st2 hm2 hpc2 ↦ ?_
+  have hwf2 := hfr1.got_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b1Offset)).toBitVec) hS hF hgot (by simp : "memset" ∈ _)
+  have hm2start := hfr1.got_match (l := "memset") (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b1Offset)).toBitVec)
+    (fun i hi => hfr1.got_byte hS hgot
+    (by intro ar har; simp only [List.mem_singleton] at har; subst ar; exact hout.1.2)
+    (by intro r hr; simp only [outsOf, List.mem_singleton] at hr; subst r; simp)
+    (by simp) hi)
+  refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hm2start fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_b0b ▸ b0b_call
   have hrsp2 := rsp_call hm2 hsp2
   have hkept2 : Kept m0.dmem st2.data.dmem := fun p h ↦ hm2.kept hwf2 p (hfr1.kept p h)
   have hrdi2 : reg st2.data .rdi = fbOf m0 + BitVec.ofNat 64 552 :=
-    (hm2.regs .rdi _ rfl).trans (ptr0_eval 552)
+    (hm2.regs .rdi _ rfl).trans (gotEnv_ptr 552)
   have hrdx2 : (reg st2.data .rdx).toNat = 248 := by
     rw [show reg st2.data .rdx = _ from hm2.regs .rdx _ rfl]; rfl
   have hrsi2 : reg st2.data .rsi = BitVec.ofNat 64 0 := hm2.regs .rsi _ rfl
@@ -146,7 +152,7 @@ theorem start (hp : Placed code k) (hmemset : Spec (Labels.label NativeRustcVmX6
     · unfold NoWrap; rw [h552]; omega
     · unfold Apart; rw [hrsp2, hfe, h552]; omega
   refine Frame.call hmemset hfr1 hS hle0 (L := 800) (by decide) hsl (out_one hout) hwf2
-    hfr1.mid_match hm2 hpc2 hk2 hsp2 (fun w hw ↦ ⟨(hw2 w hw).1, by have := (hw2 w hw).2; omega⟩)
+    hm2start hm2 hpc2 hk2 hsp2 (fun w hw ↦ ⟨(hw2 w hw).1, by have := (hw2 w hw).2; omega⟩)
     hpre2
     (fun m' ⟨_, _, hso, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hso p fun h ↦ hp (.inr (.inl (by
       simp only [hrdi2, hrdx2] at h
@@ -158,7 +164,7 @@ theorem start (hp : Placed code k) (hmemset : Spec (Labels.label NativeRustcVmX6
     exact hset
   · exact (hsv3.1 .rbx rfl).trans ((hm2.regs .rbx _ rfl).trans (harg .rdi (by simp)))
   · exact (hsv3.1 .r14 rfl).trans ((hm2.regs .r14 _ rfl).trans (harg .rsi (by simp)))
-  · exact (hsv3.1 .r15 rfl).trans ((hm2.regs .r15 _ rfl).trans (ptr0_eval 552))
+  · exact (hsv3.1 .r15 rfl).trans ((hm2.regs .r15 _ rfl).trans (gotEnv_ptr 552))
 
 end
 

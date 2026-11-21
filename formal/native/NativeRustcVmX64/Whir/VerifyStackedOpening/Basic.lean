@@ -110,11 +110,14 @@ structure Parts (a : DecArea) (s : TState) (layout : LayoutW) (target : EW)
     NativeRustcVm.Apart r.addr r.size (pA m0) whirBytes ∧
     NativeRustcVm.Apart r.addr r.size (scA m0) scalesBytes
   pw : (vsoInputs m0).Pairwise fun r r' ↦ NativeRustcVm.Apart r.addr r.size r'.addr r'.size
+  got : GotAt m0 verifyStackedOpeningStack
+    ([(tA m0, tstateBytes), (a.words, 8 * a.len), (scA m0, scalesBytes), (pA m0, whirBytes)] ++
+      (vsoInputs m0).map (fun r => (r.addr, r.size)) ++ rodataAreas) ["memcpy", "memset"]
 
 theorem parts (h : VerifyStackedOpeningPre a s layout target coefficients point slices cs z value
     m0) : Parts a s layout target coefficients point slices cs z value m0 := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17⟩ := h
-  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17⟩
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, hg⟩ := h
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, hg⟩
 
 omit [Labels] in
 theorem mem_lay : (⟨reg m0 .rsi, NativeRustcVm.Layout.layoutBytes⟩ : NativeRustcVm.Region) ∈

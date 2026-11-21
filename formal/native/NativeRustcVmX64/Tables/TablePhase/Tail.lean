@@ -165,7 +165,7 @@ theorem tail6 (hp : Placed code k)
       ⟨fun i hi ↦ ?_, ?_⟩, by rw [e1di]; exact hts1, by rw [e1di]; exact c.tstateOk hat (by decide),
       by rw [e1di, hsa1]; exact c.outOk hat (by decide) p.2.2.2.2.2.1, ?_, ?_,
       by rw [e1di]; exact p.2.2.2.2.2.2.1, by rw [hsa1]; exact p.2.2.2.2.2.2.2.1, ?_, ?_, ?_, ?_,
-      ?_, ?_⟩
+      ?_, ?_, ?_⟩
     · rw [hsp1, show (8#64 : BitVec 64) = BitVec.ofNat 64 8 from rfl, NativeRustcVm.addr_add_add]
       exact hk1 _ (fr.frame.kept _ (hfrm (8 + i) (by omega)))
     · rw [hsp1, hfb]; omega
@@ -182,6 +182,35 @@ theorem tail6 (hp : Placed code k)
     · rw [e1dx]; exact hB1
     · rw [e1di, hsa1, e1cx]; exact local_in h hat (by decide) (by omega) (by omega)
     · rw [e1di, hsa1, e18]; exact local_in h hat (by decide) (by omega) (by omega)
+    · rw [e1di, hsa1, hsp1, e1si, e1dx, e1cx, e18]
+      refine got_call h fr1 (by omega) hle_s ?_
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      · exact ((got h).1 l hl).2.2.2 (reg m0 .rdi, tstateBytes) (by simp)
+      · exact ((got h).1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+      · exact ((got h).1 l hl).2.2.2 (reg m0 .rcx, tableEvalsBytes) (by simp)
+      · exact got_apart_frame (got h) hS hl (ob := 8) (len := 16) N_ge (by decide)
+      · change Apart (gotAddr l) 8 (reg m0 .rsi + BitVec.ofNat 64 24) 48
+        have hn : (reg m0 .rsi).toNat + layoutBytes ≤ 2 ^ 64 :=
+          p.2.2.2.2.2.2.2.2.1.1.2
+        have he : (reg m0 .rsi + BitVec.ofNat 64 24).toNat = (reg m0 .rsi).toNat + 24 :=
+          NativeRustcVm.toNat_add_ofNat (by
+            have hsize : 24 < layoutBytes := by decide
+            omega)
+        have hg : Apart (gotAddr l) 8 (reg m0 .rsi) layoutBytes :=
+          ((got h).1 l hl).2.2.2 (reg m0 .rsi, layoutBytes) (by simp)
+        refine Apart.sub hg ?_ ?_
+        · rw [he]; omega
+        · rw [he]
+          have hsize : 24 + 48 ≤ layoutBytes := by decide
+          omega
+      · exact ((got h).1 l hl).2.2.2 (reg m0 .rdx, busBytes) (by simp)
+      · exact got_apart_frame (got h) hS hl (ob := 32) (len := 32) N_ge (by decide)
+      · exact got_apart_frame (got h) hS hl (ob := 64) (len := 48) N_ge (by decide)
+      · exact ((got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
+      · exact ((got h).1 l hl).2.2.2
+          (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length) (by simp)
   -- the call
   refine Fr.call hS N_ge (c := 0) (lo := 0) (len := 0) (by omega) hle_s
     (fun p hp ↦ by have := slots_le p hp; have := (show ∀ p ∈ slots, 112 ≤ p.1 by decide) p hp; omega)

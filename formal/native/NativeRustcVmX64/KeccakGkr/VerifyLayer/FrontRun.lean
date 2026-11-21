@@ -166,10 +166,29 @@ theorem front (hp : Placed code k)
       TStateAt st.data.dmem (reg st.data .rdi) a s ∧
       TStateOk st.data (reg st.data .rdi) a readScalarsStack ∧
       OutOk st.data (reg st.data .rdi) a (reg st.data .rsi) (16 * (reg st.data .rdx).toNat)
-        readScalarsStack
+        readScalarsStack ∧
+      GotAt st.data readScalarsStack
+        [(reg st.data .rdi, tstateBytes), (a.words, 8 * a.len),
+          (reg st.data .rsi, 16 * (reg st.data .rdx).toNat), (rcAddr, 192)] ["memcpy"]
     rw [hrdi, hrsi, hrdx]
-    exact ⟨cx.stackOk hat (by decide), cx.rcAt hat (by decide), hts, cx.tstateOk hat (by decide),
-      cx.outOk_frame hat (by decide) (o := 456) (n := 752) (by decide) (by decide)⟩
+    refine ⟨cx.stackOk hat (by decide), cx.rcAt hat (by decide), hts, cx.tstateOk hat (by decide),
+      cx.outOk_frame hat (by decide) (o := 456) (n := 752) (by decide) (by decide), ?_⟩
+    apply hb1.got hpre hWo (by decide) (by decide)
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl
+    · exact ⟨_, by simp, le_rfl, le_rfl⟩
+    · exact ⟨_, by simp [NativeRustcVm.Transcript.DecArea.region], le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 verifyLayerStack, verifyLayerStack + 8), by simp, ?_, ?_⟩
+      all_goals
+        have h47 : (47#64).toNat = 47 := rfl
+        have hN := g.hN
+        have ht := g.top
+        rw [stack_eq, g.sbN, NativeRustcVm.Transcript.toNat_off
+          (by rw [stackBelow_toNat (by omega)]; omega),
+          stackBelow_toNat (by omega)]
+        omega
+    · exact ⟨_, by simp, le_rfl, le_rfl⟩
   obtain ⟨hok, hxs, hnext, hso, hsv⟩ := hq
   simp only [hrdi, hrsi, hrdx] at hok hxs hnext hso
   rw [show (47#64).toNat = productBits from rfl] at hok hxs hnext hso

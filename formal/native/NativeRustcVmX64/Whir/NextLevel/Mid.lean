@@ -186,7 +186,7 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hle2 : 8176 - 64 + sampleChallengesStack ≤ nextLevelStack := by decide
   have hwt2 := c.whirT hat2 hK2.fr.same hle2
   have hpre2 : SampleChallengesPre a s3 st2.data := by
-    refine ⟨hwt2.1, hwt2.2.1, ?_, ?_, ?_⟩
+    refine ⟨hwt2.1, hwt2.2.1, ?_, ?_, ?_, ?_⟩
     · show TStateAt st2.data.dmem (reg st2.data .rdi) a s3
       rw [ht2]; exact hts2
     · show TStateOk st2.data (reg st2.data .rdi) a sampleChallengesStack
@@ -195,6 +195,15 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
         (16 * (reg st2.data .rdx).toNat) sampleChallengesStack
       rw [ht2, hsi2, hdx2]
       exact c.outLoc (by omega) hK2.fr hle2 (by omega) (by omega)
+    · rw [ht2, hsi2, hdx2]
+      apply c.got_call hK2.fr (by omega) hle2 (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_loc (by omega) (by have := c.mu; unfold stackCap at this; omega)
+      · exact c.got_rc
   refine call_then hpc2 (hsc a s3) hpre2 fun st3 hpc3 hrsp3 hq ↦ ?_
   obtain ⟨⟨ood, s4, hres4, hood, hts4⟩, hch3, hsv3⟩ := hq
   rw [hdx2] at hres4 hch3
@@ -244,7 +253,7 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hle4 : 8176 - 64 + readScalarStack ≤ nextLevelStack := by decide
   have hwt4 := c.whirT hat4 hK4.fr.same hle4
   have hpre4 : ReadScalarPre a s4 st4.data := by
-    refine ⟨hwt4.1, hwt4.2.1, ?_, ?_, ?_⟩
+    refine ⟨hwt4.1, hwt4.2.1, ?_, ?_, ?_, ?_⟩
     · show TStateAt st4.data.dmem (reg st4.data .rsi) a s4
       rw [ht4]; exact hts4'
     · show TStateOk st4.data (reg st4.data .rsi) a readScalarStack
@@ -252,6 +261,15 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
     · show OutOk st4.data (reg st4.data .rsi) a (reg st4.data .rdi) 24 readScalarStack
       rw [ht4, ho4]
       exact c.outLoc (by omega) hK4.fr hle4 (by omega) (by omega)
+    · rw [ht4, ho4]
+      apply c.got_call hK4.fr (by omega) hle4 (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_loc (by omega) (by omega)
+      · exact c.got_rc
   refine call_then hpc4 (hrsc a s4) hpre4 fun st5 hpc5 hrsp5 hq ↦ ?_
   obtain ⟨hopt, hnext5, hch5, hsv5⟩ := hq
   rw [ho4] at hopt hch5
@@ -339,12 +357,20 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hle7 : 8176 - 64 + grindStack ≤ nextLevelStack := by decide
   have hwt7 := c.whirT hat7 hK7.fr.same hle7
   have hpre7 : GrindPre a s5 st7.data := by
-    refine ⟨hwt7.1, hwt7.2.1, ?_, ?_, ?_⟩
+    refine ⟨hwt7.1, hwt7.2.1, ?_, ?_, ?_, ?_⟩
     · show TStateAt st7.data.dmem (reg st7.data .rdi) a s5
       rw [ht7]; exact hts7
     · show TStateOk st7.data (reg st7.data .rdi) a grindStack
       rw [ht7]; exact hwt7.2.2.2.1
     · rw [hbits7]; decide
+    · rw [ht7]
+      apply c.got_call hK7.fr (by omega) hle7 (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_rc
   refine call_then hpc7 (hgr a s5) hpre7 fun st8 hpc8 hrsp8 hq ↦ ?_
   obtain ⟨hok8, hnext8, hch8, hsv8⟩ := hq
   rw [hbits7] at hok8 hnext8

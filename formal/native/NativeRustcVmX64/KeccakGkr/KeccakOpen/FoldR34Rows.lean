@@ -28,7 +28,7 @@ theorem row3_0 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b63Offset) ∧
       Row cx m0 rows 3 1 (varsOf cx.sl 3 0) k58 W6 st'.data) st := by
   refine (row_run (t := 3) (i := 0) (vars := varsOf cx.sl 3 0) (dst := 0)
-    (ks0 := [(.r13, P)]) (ks1 := k58) (ks2 := k58) (ks := k58)
+    (ks0 := [(.r13, P)]) (ks1 := kCopy k58) (ks2 := k58) (ks := k58)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .r12) (cx1 := .rbp) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 8) (so := 8)
@@ -53,7 +53,7 @@ theorem row3_1 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b68Offset) ∧
       Row cx m0 rows 3 2 (varsOf cx.sl 3 0) k58 W6 st'.data) st := by
   refine (row_run (t := 3) (i := 1) (vars := varsOf cx.sl 3 0) (dst := 0)
-    (ks0 := k58) (ks1 := k58) (ks2 := k58) (ks := k58)
+    (ks0 := k58) (ks1 := kCopy k58) (ks2 := k58) (ks := k58)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .r12) (cx1 := .rbp) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 1032) (so := 8)
@@ -78,7 +78,7 @@ theorem row3_2 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b73Offset) ∧
       Row cx m0 rows 3 3 (varsOf cx.sl 3 0) k58 W6 st'.data) st := by
   refine (row_run (t := 3) (i := 2) (vars := varsOf cx.sl 3 0) (dst := 0)
-    (ks0 := k58) (ks1 := k58) (ks2 := k58) (ks := k58)
+    (ks0 := k58) (ks1 := kCopy k58) (ks2 := k58) (ks := k58)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .r12) (cx1 := .rbp) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 2048) (so := 0)
@@ -103,7 +103,7 @@ theorem row3_3 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b78Offset) ∧
       Row cx m0 rows 3 4 (varsOf cx.sl 3 0) k58 W6 st'.data) st := by
   refine (row_run (t := 3) (i := 3) (vars := varsOf cx.sl 3 0) (dst := 0)
-    (ks0 := k58) (ks1 := k58) (ks2 := k58) (ks := k58)
+    (ks0 := k58) (ks1 := kCopy k58) (ks2 := k58) (ks := k58)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .r12) (cx1 := .rbp) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 3072) (so := 0)
@@ -128,7 +128,7 @@ theorem row4_0 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b83Offset) ∧
       Row cx m0 rows 4 1 (varsOf cx.sl 4 0) k78 W6 st'.data) st := by
   refine (row_run (t := 4) (i := 0) (vars := varsOf cx.sl 4 0) (dst := 0)
-    (ks0 := [(.r13, P)]) (ks1 := k78) (ks2 := k78) (ks := k78)
+    (ks0 := [(.r13, P)]) (ks1 := kCopy k78) (ks2 := k78) (ks := k78)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .r12) (cx1 := .r13) (lo0 := .r14) (lo1 := .r15)
     (dr := .rbp) (s0 := 8) (so := 8)
@@ -153,7 +153,7 @@ theorem row4_1 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b88Offset) ∧
       Row cx m0 rows 4 2 (varsOf cx.sl 4 0) k78 W6 st'.data) st := by
   refine (row_run (t := 4) (i := 1) (vars := varsOf cx.sl 4 0) (dst := 0)
-    (ks0 := k78) (ks1 := k78) (ks2 := k78) (ks := k78)
+    (ks0 := k78) (ks1 := kCopy k78) (ks2 := k78) (ks := k78)
     (ws0 := W6) (ws1 := W6) (ws2 := W6) (ws := W6)
     (ib := .rbx) (cx0 := .r12) (cx1 := .r13) (lo0 := .r14) (lo1 := .r15)
     (dr := .rbp) (s0 := 1032) (so := 8)

@@ -40,7 +40,7 @@ theorem readScalar_spec (hp : Placed code k)
     (habs : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorb.entryLabel) (AbsorbPre sp) (AbsorbPost sp))
     (a : DecArea) (s : TState) :
     Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s) := by
-  rintro m0 ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, -⟩⟩
+  rintro m0 ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, -⟩, hgot⟩
   set t := reg m0 .rsi with htdef
   set o := reg m0 .rdi with hodef
   set fb := stackBelow m0 80 with hfb
@@ -241,10 +241,19 @@ theorem readScalar_spec (hp : Placed code k)
       RcAt.callee hrc (rc_keep hso4 hrcOut) hsp4 hn (by decide),
       ⟨fun i hi ↦ hts4.footprint.1.1 i (by simp only [spongeBytes] at hi; show i < 760; omega), ?_,
         apart_callee (n := readScalarStack) (F := 80) ?_ hsp4 hn (by decide), ?_⟩,
-      hts4.sponge⟩
+      hts4.sponge, ?_⟩
     · show t.toNat + 328 ≤ 2 ^ 64; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
+    · refine got_callee hgot (got_keep hgot hst (writes := [(t, tstateBytes)])
+        (by simp [t]) (by simpa using hTn) (by simpa [tstateBytes] using hso4))
+        hsp4 hn (by decide) ?_
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact Apart.sub ((hgot.1 l hl).2.2.2 (t, tstateBytes) (by simp [t]))
+          (Nat.le_refl _) (by simp only [spongeBytes, tstateBytes]; omega)
+      · exact (hgot.1 l hl).2.2.2 (rcAddr, 192) (by simp)
   refine call_then hpc4 (habs s1.sponge) hpre4 fun st5 hpc5 hrsp5 ⟨hsp5, hs5, hsv5⟩ => ?_
   rw [hX7₄, hX6₄, hX2₄, hX1₄] at hsp5
   rw [hX7₄] at hs5

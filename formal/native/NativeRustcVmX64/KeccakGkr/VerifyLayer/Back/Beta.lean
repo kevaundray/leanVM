@@ -93,9 +93,19 @@ variable [Host] {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
       then BinOp.apply .sub .W32 (reg d2 .rax) 3#64 else 0#64).toNat % 2 ^ 32 = 0
     rw [h1]; decide
   have hat4 := hb4.at_ hpre hWo (by decide)
+  have hgot4 : GotAt st3.data grindStack
+      [(tA m0, tstateBytes), (a.words, 8 * a.len), (rcAddr, 192)] ["memcpy"] := by
+    apply hb4.got hpre hWo (by decide) (by decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl
+    · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   refine call_then hpc4 (hgr s5) ⟨cx.stackOk hat4 (by decide), cx.rcAt hat4 (by decide),
     by rw [hrdi4]; exact hts4, by rw [hrdi4]; exact cx.tstateOk hat4 (by decide),
-    by rw [hgb]; decide⟩ fun st5 hpc5 hrsp5 hq5 ↦ ?_
+    by rw [hgb]; decide, by rw [hrdi4]; exact hgot4⟩ fun st5 hpc5 hrsp5 hq5 ↦ ?_
   obtain ⟨hok, hnext, hso, hsv⟩ := hq5
   rw [hgb] at hok hnext
   rw [hrdi4] at hnext hso

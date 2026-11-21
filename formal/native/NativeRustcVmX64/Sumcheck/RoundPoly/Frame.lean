@@ -74,7 +74,7 @@ theorem ctx_of (h : RoundPolyPre a s e m0) : Ctx m0 (tAt m0) a roundPolyStack 11
 /-- The message as an output. -/
 theorem msgOk (h : RoundPolyPre a s e m0) :
     OutOk m0 (tAt m0) a (msgAt m0) (16 * maxCount) roundPolyStack :=
-  h.2.2.2.2.2.2.2.2.2
+  h.2.2.2.2.2.2.2.2.2.1
 
 theorem msg_noWrap (h : RoundPolyPre a s e m0) : NativeRustcVm.NoWrap (msgAt m0) 80 :=
   (msgOk h).2.1
@@ -140,6 +140,43 @@ theorem RF.rc (h : RoundPolyPre a s e m0) {o : Nat} {d : MachineData} (hf : RF m
 /-- At a call. -/
 theorem RF.at (h : RoundPolyPre a s e m0) {d : MachineData} (hf : RF m0 0 d) : At m0 112 d :=
   At.of_frame hf.frame (hf.rc h)
+
+/-- Loader assumptions at any call, including outputs in the frame or message. -/
+theorem RF.gotAt (h : RoundPolyPre a s e m0) {d : MachineData} (hf : RF m0 0 d)
+    {Nc : Nat} (hle : 112 + Nc ≤ roundPolyStack) {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ (["memcpy"] : List Label), ∀ x ∈ areas,
+      Apart (gotAddr l) 8 x.1 x.2) : GotAt d Nc areas ["memcpy"] := by
+  have c := ctx_of h
+  have hg := h.2.2.2.2.2.2.2.2.2.2
+  refine c.gotAt (hf.at h) hle hg hf.same ?_ ha
+  intro q hq
+  rcases hq with hq | hq | hq
+  · exact Or.inr ⟨(msgAt m0, 80), by simp [maxCount], msg_noWrap h, hq⟩
+  · exact Or.inr ⟨(tAt m0, tstateBytes), by simp, c.fp.1.2, hq⟩
+  · exact Or.inl hq
+
+/-- GOT slots are apart from each entry area. -/
+theorem got_area (h : RoundPolyPre a s e m0) {l : Label} (hl : l ∈ (["memcpy"] : List Label))
+    {x : BitVec 64 × Nat}
+    (hx : x ∈ [(tAt m0, tstateBytes), (a.words, 8 * a.len), (reg m0 .r8, 24),
+      (msgAt m0, 80), (rcAddr, 192)]) : Apart (gotAddr l) 8 x.1 x.2 :=
+  (h.2.2.2.2.2.2.2.2.2.2.1 l hl).2.2.2 x hx
+
+theorem got_frame (h : RoundPolyPre a s e m0) {l : Label}
+    (hl : l ∈ (["memcpy"] : List Label)) {o n : Nat} (hon : o + n ≤ 112) :
+    Apart (gotAddr l) 8 (off (fa m0) o) n :=
+  (ctx_of h).apart_of_stack (h.2.2.2.2.2.2.2.2.2.2.1 l hl).2.2.1 hon
+
+theorem got_msg (h : RoundPolyPre a s e m0) {l : Label}
+    (hl : l ∈ (["memcpy"] : List Label)) {o n : Nat} (ho : o < 80) (hon : o + n ≤ 80) :
+    Apart (gotAddr l) 8 (off (msgAt m0) o) n := by
+  have ha := got_area h hl (x := (msgAt m0, 80)) (by simp)
+  have hn := msg_noWrap h
+  change (gotAddr l).toNat + 8 ≤ (msgAt m0).toNat ∨
+    (msgAt m0).toNat + 80 ≤ (gotAddr l).toNat at ha
+  unfold NativeRustcX64.Apart
+  rw [toNat_off (by unfold NativeRustcVm.NoWrap at hn; omega)]
+  omega
 
 theorem wf_envB (h : RoundPolyPre a s e m0) {d : MachineData} (hk : Kept m0.dmem d.dmem)
     (ret : BitVec 64) : (envB m0 d ret).WF := by

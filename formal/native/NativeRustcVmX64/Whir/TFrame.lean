@@ -8,6 +8,7 @@ public import NativeRustcVm.Whir.Sample
 public import NativeRustcVmX64.Code.Vm.EWMul.Names
 public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Got
 public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
@@ -44,6 +45,11 @@ structure TCtx [Labels] (m0 : MachineData) (F N : Nat) (t : BitVec 64) (a : DecA
   orc : ∀ q, outs q → ¬ InRange rcAddr 192 q
   oa : ∀ q, outs q → ¬ InRange a.words (8 * a.len) q
   ofr : ∀ q, outs q → ¬ InRange (stackBelow m0 F) (F + 8) q
+  got : GotAt m0 N [(t, tstateBytes), (a.words, 8 * a.len), (rcAddr, 192)] ["memcpy"]
+  got_keep : ∀ d : MachineData,
+    SameOutside m0.dmem d.dmem (fun q => outs q ∨ InRange (stackBelow m0 N) N q) →
+    ∀ i < 8, d.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i)
 
 /-- **A state of the body**: the frame, RSP at its offset `8`; memory changed only in the outputs
 and the stack. -/
@@ -70,6 +76,46 @@ variable [Labels] {m0 : MachineData} {F N : Nat} {t : BitVec 64} {a : DecArea}
 
 theorem TCtx.hN (c : TCtx m0 F N t a outs) : N ≤ (rspOf m0).toNat := c.stack.1
 theorem TCtx.h8 (c : TCtx m0 F N t a outs) : (rspOf m0).toNat + 8 ≤ 2 ^ 64 := c.stack.2.1
+
+/-- The Keccak constants are one of the verifier's already protected read-only items. -/
+theorem rc_mem_rodata : (rcAddr, 192) ∈ rodataAreas := by
+  change (rodataAddr .keccakRC, NativeRustcVm.Data.Item.bytes .keccakRC |>.length) ∈ rodataAreas
+  exact List.mem_map.mpr ⟨.keccakRC, by decide, rfl⟩
+
+/-- Calls preserve the loader bytes and protect only subranges of existing areas. -/
+theorem TCtx.got_callee (c : TCtx m0 F N t a outs) {d : MachineData} {n : Nat}
+    {areas : List (BitVec 64 × Nat)}
+    (hs : SameOutside m0.dmem d.dmem (fun q => outs q ∨ InRange (stackBelow m0 N) N q))
+    (hsp : rspOf d = stackBelow m0 F) (hle : F + n ≤ N)
+    (hcover : ∀ ar ∈ areas, ∃ b ∈ (stackBelow m0 N, N + 8) ::
+      [(t, tstateBytes), (a.words, 8 * a.len), (rcAddr, 192)],
+      b.1.toNat ≤ ar.1.toNat ∧ ar.1.toNat + ar.2 ≤ b.1.toNat + b.2) :
+    GotAt d n areas ["memcpy"] := by
+  have hfb := stackBelow_toNat (m := m0) (n := F) (by have := c.hN; have := c.hF; omega)
+  have hsb := stackBelow_toNat c.hN
+  have hd : (stackBelow d n).toNat = (rspOf m0).toNat - F - n := by
+    rw [stackBelow_toNat (by rw [hsp, hfb]; have := c.hN; omega), hsp, hfb]
+  apply NativeRustcVmX64.GotAt.callee c.got _ _ _ hcover
+  · intro l hl i hi
+    simp only [List.mem_singleton] at hl
+    subst l
+    exact c.got_keep d hs i hi
+  · rw [hsb, hd]; have := c.hN; omega
+  · rw [hsb, hd]; have := c.hN; omega
+
+/-- Local transcript buffers lie in the caller's existing stack area. -/
+theorem TCtx.got_local (c : TCtx m0 F N t a outs) {ob n : Nat} (hob : ob + n ≤ F) :
+    ∃ b ∈ (stackBelow m0 N, N + 8) ::
+      [(t, tstateBytes), (a.words, 8 * a.len), (rcAddr, 192)],
+      b.1.toNat ≤ (off (stackBelow m0 F) ob).toNat ∧
+        (off (stackBelow m0 F) ob).toNat + n ≤ b.1.toNat + b.2 := by
+  have hfb := stackBelow_toNat (m := m0) (n := F) (by have := c.hN; have := c.hF; omega)
+  have hsb := stackBelow_toNat c.hN
+  have hf := c.hF
+  have hn := c.hN
+  have ht := c.h8
+  refine ⟨(stackBelow m0 N, N + 8), by simp, ?_, ?_⟩ <;>
+    rw [hsb, NativeRustcVm.Transcript.toNat_off (by rw [hfb]; omega), hfb] <;> omega
 
 theorem TCtx.fnw (c : TCtx m0 F N t a outs) : NativeRustcVm.NoWrap (stackBelow m0 F) (F + 8) :=
   Transcript.frame_noWrap c.stack c.hF
@@ -319,11 +365,18 @@ theorem AtCall.readScalar (c : TCtx m0 F N t a outs)
     · exact .inr (.inl (by rwa [hrdi] at h))
     · exact .inr (.inr (c.ot q (by rwa [hrsi] at h)))
     · exact .inl h
-  · show StackOk _ _ ∧ RcAt _ _ ∧ TStateAt _ (reg st1.data .rsi) a s ∧
-      TStateOk _ (reg st1.data .rsi) a _ ∧ OutOk _ (reg st1.data .rsi) a (reg st1.data .rdi) 24 _
+  · unfold ReadScalarPre
     rw [hrsi, hrdi]
     exact ⟨c.stackOk h1.fr.kept hsp hle, c.rcAt h1.same hsp hle, h1.ts, c.tstateOk hsp hle,
-      c.localOk h1.fr.kept hsp hle hob8 hob⟩
+      c.localOk h1.fr.kept hsp hle hob8 hob, by
+        apply c.got_callee h1.same hsp hle
+        intro ar har
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+        rcases har with rfl | rfl | rfl | rfl
+        · exact ⟨(t, tstateBytes), by simp, le_rfl, le_rfl⟩
+        · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+        · exact c.got_local hob
+        · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩⟩
   · obtain ⟨hopt, hnext, hso, hsv⟩ := hq
     rw [hrdi] at hopt
     rw [hrsi] at hnext
@@ -360,10 +413,10 @@ theorem AtCall.grind (c : TCtx m0 F N t a outs)
   · rcases hq with h | h
     · exact .inr (.inr (c.ot q (by rwa [hrdi] at h)))
     · exact .inl h
-  · show StackOk _ _ ∧ RcAt _ _ ∧ TStateAt _ (reg st1.data .rdi) a s ∧
-      TStateOk _ (reg st1.data .rdi) a _ ∧ grindBits st1.data < 64
+  · unfold GrindPre
     rw [hrdi, hbits]
-    exact ⟨c.stackOk h1.fr.kept hsp hle, c.rcAt h1.same hsp hle, h1.ts, c.tstateOk hsp hle, hb⟩
+    exact ⟨c.stackOk h1.fr.kept hsp hle, c.rcAt h1.same hsp hle, h1.ts, c.tstateOk hsp hle, hb,
+      c.got_callee h1.same hsp hle (fun ar har => ⟨ar, by simp [har], le_rfl, le_rfl⟩)⟩
   · obtain ⟨hok, hnext, hso, hsv⟩ := hq
     rw [hbits] at hok hnext
     rw [hrdi] at hnext
@@ -406,15 +459,21 @@ theorem AtCall.squeeze (c : TCtx m0 F N t a outs)
     have h1' : t.toNat + 760 ≤ (stackBelow st1.data squeezeStack).toNat ∨
         (stackBelow st1.data squeezeStack).toNat + (squeezeStack + 8) ≤ t.toNat := htok.1
     have h2 : t.toNat + 760 ≤ rcAddr.toNat ∨ rcAddr.toNat + 192 ≤ t.toNat := htok.2.2
-    show StackOk _ _ ∧ RcAt _ _ ∧ SpongeOk _ (reg st1.data .rdi) _ ∧
-      SpongeAt _ (reg st1.data .rdi) s.sponge
+    unfold SqueezePre
     rw [hrdi]
     refine ⟨c.stackOk h1.fr.kept hsp hle, c.rcAt h1.same hsp hle,
       ⟨fun j hj ↦ h1.ts.footprint.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega),
-        ?_, ?_, ?_⟩, h1.ts.sponge⟩
+        ?_, ?_, ?_⟩, h1.ts.sponge, ?_⟩
     · show t.toNat + 328 ≤ 2 ^ 64; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
+    · apply c.got_callee h1.same hsp hle
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl
+      · exact ⟨(t, tstateBytes), by simp, le_rfl, by
+          change t.toNat + 328 ≤ t.toNat + 760; omega⟩
+      · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   · obtain ⟨hc0, hc1, hsp2, hs2, hsv2⟩ := hq
     rw [hrdi] at hsp2 hs2
     have hts2 : TStateAt st2.data.dmem t a (NativeRustcVm.Whir.sq s).2 := by

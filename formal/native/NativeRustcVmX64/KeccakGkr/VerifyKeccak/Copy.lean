@@ -55,13 +55,14 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 /-- **A block and `memcpy`.** -/
 theorem cpStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
     (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {wr : Nat → Bool}
-    {T T' S' : SState} {vals vals' : Nat → BitVec 64} {o : Nat} {st : MachineState}
+    {T S T' S' : SState} {vals vals' : Nat → BitVec 64} {o : Nat} {st : MachineState}
+    {srcRs : List (BitVec 64 × Nat)}
     (hat : At m0 k o wr T vals st) {ds : List Directive} (hds : ds.IsInfixAt code o) (hne : ds ≠ [])
-    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.Memcpy.entryLabel)) (hw0 : frameW S' = true)
+    (hrun : exec ds S = some (S', .call NativeRustcVmX64.Vm.Memcpy.entryLabel)) (hw0 : frameW S' = true)
     (hsp : S'.reg .rsp = some (.ptr 0 48)) {D Sr : BitVec 64} {n : Nat}
-    (hdi : ∀ mc, Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+    (hdi : ∀ mc, Match (envZ m0 st.data 3344 3368 srcRs vals
       (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc → reg mc .rdi = D)
-    (hsi : ∀ mc, Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+    (hsi : ∀ mc, Match (envZ m0 st.data 3344 3368 srcRs vals
       (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc → reg mc .rsi = Sr)
     (hdx : S'.reg .rdx = some (.lit n)) (hn : n < 2 ^ 64)
     (hD : ∀ mc, CallAt m0 wr 48 mc → NativeRustcVm.Mapped mc.dmem D n ∧
@@ -76,30 +77,34 @@ theorem cpStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
     {L LW : List (Nat × Sym)} (hL : rlinksOf true S' T' noRsp = some L)
     (hLW : wlinks S' T'.mem = some LW)
     (hvals : ∀ ret, ∀ p ∈ L ++ LW,
-      p.2.eval (envZ m0 st.data 3344 3368 (rsOf m0) vals ret) = vals' p.1)
+      p.2.eval (envZ m0 st.data 3344 3368 srcRs vals ret) = vals' p.1)
     (hrax : T'.reg .rax = some (.reg .rax)) (hrdx : T'.reg .rdx = some (.reg .rdx))
     (hsz : T'.regions = sizes) (hfl : T'.flags = atomFlags)
     (hlab : T'.labels = []) (hal : T'.aliases = []) (hbd : T'.bounds = [])
     {R : MachineState → Prop}
     (cont : ∀ st' mc, At m0 k (o + ds.length) wr T' vals' st' →
-      Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+      Match (envZ m0 st.data 3344 3368 srcRs vals
         (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc →
       Img mc.dmem Sr st'.data.dmem D n →
       Chg m0 st.data.dmem mc.dmem (wsL S') [] →
       Chg m0 mc.dmem st'.data.dmem ((0, 48) :: Lc) Oc →
       Chg m0 st.data.dmem st'.data.dmem (wsL S' ++ (0, 48) :: Lc) Oc →
-      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
+      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) 
+    (hm : ∀ ret, Match (envZ m0 st.data 3344 3368 srcRs vals ret) S st.data := by
+      exact hat.2.mt)
+    (hwfS : ∀ ret, (envZ m0 st.data 3344 3368 srcRs vals ret).WF := by
+      intro ret; exact (lay_of hpre).wf hat.2.kept) :
     Eventually (step1 Host.exe) R st := by
   have c := ctx_of hpre
   have h := lay_of hpre
   have hdxN : ∀ mc : MachineData, reg mc .rdx = (Sym.lit n).eval
-      (envZ m0 st.data 3344 3368 (rsOf m0) vals
+      (envZ m0 st.data 3344 3368 srcRs vals
         (Host.addrOf (k + (o + ds.length))).toBitVec) → (reg mc .rdx).toNat = n := by
     intro mc e
     rw [e]
     show (BitVec.ofNat 64 n).toNat = n
     rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hn]
-  refine stepC (hknown := hknown) (T' := T') (vals' := vals') hp c h hat hds hne hrun hat.2.mt hw0 (oc := 48)
+  refine stepC (hknown := hknown) (hwfS := hwfS) (T' := T') (vals' := vals') hp c h hat hds hne hrun hm hw0 (oc := 48)
     (by decide) hsp hmemcpy (Sk := 0) (by rw [vk_eq]; decide)
     (fun mc hmc hk hsk hso hrsp _ _ ↦ ?_) (Lc := Lc) (Oc := Oc) (fun mc m' hmc hq ↦ ?_) hLc hOc hwO
     htm hok hrspT hL hLW hvals (fun i hi ↦ nomatch tregE hrax hi)

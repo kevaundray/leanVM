@@ -143,7 +143,7 @@ theorem pre_of {ls : List Whir.Level} {st : MachineData}
       BasisIn st (win m0 104) (baOf layout cs m0) whirLevelsStack o n := fun o n ho hr ↦
     ⟨hok.win_in h (lo := 104) (n := 56) (by omega) (by omega) hN, ho, fun r hr' ↦ ⟨(hregs r hr').1, hr r hr'⟩⟩
   refine ⟨?_, ?_, ?_, ?_, ⟨(reg m0 .rdx).toNat, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    ?_⟩
+    ?_, ?_, ?_⟩
   · rw [hc.rdi]
     exact ⟨hok.stackOk h hN, hok.rcAt h hN, hok.rodataAt h hN,
       ⟨apart_callee htok.1 hsp h.wt.1.1 hN, apart_callee htok.2.1 hsp h.wt.1.1 hN, htok.2.2⟩,
@@ -192,8 +192,32 @@ theorem pre_of {ls : List Whir.Level} {st : MachineData}
     rw [regions_baOf]
     refine List.pairwise_cons.mpr ⟨fun r hr ↦ ?_, h.pw⟩
     exact h.sc8_apart (Apart.symm' (h.ins r hr).2.2.2)
-  · rw [hrsp8, hc.rdi, harg]
-    exact ⟨h.win_t (lo := 8) (n := 8) (by omega), h.win_p (lo := 8) (n := 8) (by omega)⟩
+  · rw [hrsp8, hc.rdi]
+    exact h.win_t (lo := 8) (n := 8) (by omega)
+  · rw [hrsp8, harg]
+    exact h.win_p (lo := 8) (n := 8) (by omega)
+  · rw [hc.rdi, harg, hc.r8, hrsp8]
+    apply hok.got_callee h hN (.refl _)
+    intro ar har
+    simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with (rfl | rfl | rfl | rfl | rfl) | har
+    · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(pA m0, whirBytes), by simp, le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 verifyStackedOpeningStack, verifyStackedOpeningStack + 8),
+        List.mem_cons_self, ?_, ?_⟩ <;>
+        dsimp only <;> rw [h.sb, h.win_toNat (by omega)]
+      · omega
+      · rw [stack_eq]
+        simp only [levelBytes]
+        omega
+    · refine ⟨(stackBelow m0 verifyStackedOpeningStack, verifyStackedOpeningStack + 8),
+        List.mem_cons_self, ?_, ?_⟩ <;>
+        dsimp only <;> rw [h.sb, h.win_toNat (by omega)]
+      · omega
+      · rw [stack_eq]
+        omega
+    · exact ⟨ar, by simp [har], le_rfl, le_rfl⟩
 
 end
 

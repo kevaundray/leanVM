@@ -16,7 +16,7 @@ namespace NativeRustcVmX64.KeccakGkr.VerifyKeccak
 
 open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Ring NativeRustcVmX64.KeccakGkr.SeqZ
 open NativeRustcVmX64.Vm.VerifyKeccak NativeVm.Model NativeRustcVmX64.Transcript
-open NativeRustcVm.Transcript (DecArea TStateAt OptEWAt)
+open NativeRustcVm.Transcript (DecArea TStateAt OptEWAt tstateBytes)
 open NativeRustcVm.KeccakGkr (off)
 
 public section
@@ -70,9 +70,23 @@ theorem sampleStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     unfold SampleChallengesPre
     dsimp only
     rw [rdi, rsi, rdx]
-    exact ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
+    refine ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
       Chg.ts c hch hokS (by decide) (by decide) hkk hts, ca.tok c (by rw [vk_eq]; decide),
-      ca.outF c h (by rw [vk_eq]; decide) ho hon⟩
+      ca.outF c h (by rw [vk_eq]; decide) ho hon, ?_⟩
+    apply ca.got c (by rw [vk_eq]; decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region, tstateBytes]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl
+    · exact ⟨(reg m0 .rdi, 760), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+      all_goals
+        rw [c.K, h.addr (by omega)]
+        have := c.sp
+        rw [vk_eq] at *
+        omega
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   · have rdi : reg mc .rdi = off (ob m0 1) 0 := (hmc.regs .rdi _ hdi).trans (off0 _).symm
     have rsi : reg mc .rsi = off (fb m0) o := (hmc.regs .rsi _ hsi).trans (ev_frame o)
     have rdx := hdxN mc (hmc.regs .rdx _ hdx)
@@ -122,7 +136,8 @@ theorem frontB (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
     fun st5 lp s3 hat5 hr3 hlp hts3 hc5 ↦ ?_
   have hsz5 : lp.size = 5 := Bus.Gkr.sampleChallenges_size hr3
   -- `b5`: the committed value.
-  refine stepC (T' := t2) (vals' := vv m0 {}) hp c h hat5 b5_in_code (by simp [b5]) run_b5
+  refine stepC (hwfS := fun _ ↦ h.wf hat5.2.kept)
+    (T' := t2) (vals' := vv m0 {}) hp c h hat5 b5_in_code (by simp [b5]) run_b5
     hat5.2.mt (by decide) (oc := 48) (by decide) rfl (hrs s3) (Sk := readScalarStack)
     (by rw [vk_eq]; decide) (fun mc hmc hk hsk hso hrsp hch hkk ↦ ?_) (Lc := [(992, 24)])
     (Oc := [(1, 0, 760)]) (fun mc m' hmc hq ↦ ?_) (by decide) (by decide) (by decide) (by decide)
@@ -136,9 +151,23 @@ theorem frontB (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
     unfold ReadScalarPre
     dsimp only
     rw [rdi, rsi]
-    exact ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
+    refine ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
       Chg.ts c hch (by decide) (by decide) (by decide) hkk hts3, ca.tok c (by rw [vk_eq]; decide),
-      ca.outF c h (by rw [vk_eq]; decide) (by decide) (by decide)⟩
+      ca.outF c h (by rw [vk_eq]; decide) (by decide) (by decide), ?_⟩
+    apply ca.got c (by rw [vk_eq]; decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region, tstateBytes]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl
+    · exact ⟨(reg m0 .rdi, 760), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩
+      all_goals
+        rw [c.K, h.addr (by decide)]
+        have := c.sp
+        rw [vk_eq] at *
+        omega
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   · have rsi : reg mc .rsi = off (ob m0 1) 0 := (hmc.regs .rsi _ rfl).trans (off0 _).symm
     have rdi : reg mc .rdi = off (fb m0) 992 := (hmc.regs .rdi _ rfl).trans (ev_frame 992)
     obtain ⟨-, -, hso, hsv⟩ := hq

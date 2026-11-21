@@ -50,7 +50,7 @@ public section
 variable {rows : Array (Array UInt64)} {op : BitVec 64} {m0 : MachineData} {j : Nat}
 
 /-- Row `j`'s place in the openings. -/
-theorem row_bound (c : Ctx rows op m0) (hj : j < rows.size) :
+theorem row_bound [Labels] (c : Ctx rows op m0) (hj : j < rows.size) :
     8 * (1 + j * openingWords) + 8 * (rows[j]'hj).size ≤ 8 * NativeRustcVm.Sumcheck.openingsWords := by
   obtain ⟨-, hsz, w, hw, -, hrow⟩ := c.rowsAt
   rw [(hrow j hj).1]

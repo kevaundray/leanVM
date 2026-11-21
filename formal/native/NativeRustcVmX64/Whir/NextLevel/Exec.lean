@@ -54,6 +54,11 @@ def entryS : SState := init [8184, 24] [(.rsp, .ptr 0 8176), (.rdx, .ptr 1 0)]
 /-- In the body: RSP at offset `72`. -/
 def retS : SState := init [8192] [(.rsp, .ptr 0 72)]
 
+/-- The copy reads its function pointer from a read-only loader slot. -/
+def copyS : SState :=
+  (init [8192, 8] [(.rsp, .ptr 0 72)] [] [] [(.gotSlot "memcpy", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memcpy")
+
 /-- In the body with the level (region 1) at RBP. -/
 def levelS : SState := init [8184, 24] [(.rsp, .ptr 0 72), (.rbp, .ptr 1 0)]
 
@@ -148,7 +153,7 @@ sym_block run_b13b := exec (b13.drop 1) levelS
 sym_block run_b15 := exec b15 retS
 sym_block run_b16 := exec b16 qS
 sym_block run_b17 := exec b17 zeroS
-sym_block run_b18 := exec b18 retS
+sym_block run_b18 := exec b18 copyS
 sym_block run_b19 := exec b19 retS
 sym_block run_b20 := exec b20 retS
 sym_block run_b21 := exec b21 retS
@@ -280,12 +285,12 @@ public theorem ok_b17 : (∀ w ∈ (after b17 zeroS).mem, w.r = 0 ∧ w.off + w.
     (after b17 zeroS).reg .rcx = some (.bin .add .W64 (.lit 80) (.reg .rcx)) ∧
     KR (allRegs.filter (· != .rcx)) (after b17 zeroS) := by decide +kernel
 
-public theorem exit_b18 : exec b18 retS = some (after b18 retS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+public theorem exit_b18 : exec b18 copyS = some (after b18 copyS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b18.trans (by rw [after_eq run_b18])
-public theorem ok_b18 : MidOk 8176 64 slots (after b18 retS) = true ∧ Wr [(64, 72)] (after b18 retS) ∧
-    (after b18 retS).reg .rdi = some (.ptr 0 4448) ∧ (after b18 retS).reg .rsi = some (.ptr 0 760) ∧
-    (after b18 retS).reg .rdx = some (.lit 3680) ∧ (after b18 retS).reg .rbp = some vN ∧
-    (after b18 retS).reg .r13 = some vQ ∧ KR [.rbx, .r12, .r14, .r15] (after b18 retS) := by
+public theorem ok_b18 : MidOk 8176 64 slots (after b18 copyS) = true ∧ Wr [(64, 72)] (after b18 copyS) ∧
+    (after b18 copyS).reg .rdi = some (.ptr 0 4448) ∧ (after b18 copyS).reg .rsi = some (.ptr 0 760) ∧
+    (after b18 copyS).reg .rdx = some (.lit 3680) ∧ (after b18 copyS).reg .rbp = some vN ∧
+    (after b18 copyS).reg .r13 = some vQ ∧ KR [.rbx, .r12, .r14, .r15] (after b18 copyS) := by
   decide +kernel
 
 public theorem exit_b19 : exec b19 retS = some (after b19 retS,

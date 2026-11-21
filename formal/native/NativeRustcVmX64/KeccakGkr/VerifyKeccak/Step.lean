@@ -150,14 +150,15 @@ theorem stepJ (hp : Placed code k) (c : Ctx a inst m0)
 theorem stepC (hp : Placed code k) (c : Ctx a inst m0)
     (h : LayZ m0 3344 3368 verifyKeccakStack (rsOf m0)) {wr : Nat → Bool}
     {T S T' S' : SState} {vals vals' : Nat → BitVec 64} {o : Nat} {st : MachineState}
+    {srcRs : List (BitVec 64 × Nat)}
     (hat : At m0 k o wr T vals st) {ds : List Directive} (hds : ds.IsInfixAt code o) (hne : ds ≠ [])
     {l : Label} (hrun : exec ds S = some (S', .call l))
-    (hm : ∀ ret, Match (envZ m0 st.data 3344 3368 (rsOf m0) vals ret) S st.data)
+    (hm : ∀ ret, Match (envZ m0 st.data 3344 3368 srcRs vals ret) S st.data)
     (hw0 : frameW S' = true)
     {oc : Nat} (hoc : oc + 8 ≤ 3344) (hsp : S'.reg .rsp = some (.ptr 0 (oc : Int)))
     {P : MachineData → Prop} {Q : MachineData → MachineData → Prop}
     (hspec : Spec (Labels.label l) P Q) {Sk : Nat} (hS : 3344 - oc + Sk ≤ verifyKeccakStack)
-    (hP : ∀ mc, Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+    (hP : ∀ mc, Match (envZ m0 st.data 3344 3368 srcRs vals
         (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc →
       Kept m0.dmem mc.dmem → StackOk mc Sk →
       SameOutside m0.dmem mc.dmem
@@ -166,7 +167,7 @@ theorem stepC (hp : Placed code k) (c : Ctx a inst m0)
       rspOf mc = stackBelow m0 (3344 - oc) →
       Chg m0 st.data.dmem mc.dmem (wsL S') [] → Kept st.data.dmem mc.dmem → P mc)
     {Lc : List (Nat × Nat)} {Oc : List (Nat × Nat × Nat)}
-    (hQ : ∀ mc m', Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+    (hQ : ∀ mc m', Match (envZ m0 st.data 3344 3368 srcRs vals
         (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc → Q mc m' →
       SameOutside mc.dmem m'.dmem (fun q ↦ InRange (stackBelow mc Sk) Sk q ∨ ChgR m0 Lc Oc q) ∧
         Saved mc m')
@@ -176,13 +177,13 @@ theorem stepC (hp : Placed code k) (c : Ctx a inst m0)
     {L LW : List (Nat × Sym)} (hL : rlinksOf true S' T' noRsp = some L)
     (hLW : wlinks S' T'.mem = some LW)
     (hvals : ∀ ret, ∀ p ∈ L ++ LW,
-      p.2.eval (envZ m0 st.data 3344 3368 (rsOf m0) vals ret) = vals' p.1)
+      p.2.eval (envZ m0 st.data 3344 3368 srcRs vals ret) = vals' p.1)
     (hrax : ∀ i, T'.reg .rax = some (.var i) → ∀ mc m' : MachineData,
-      Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+      Match (envZ m0 st.data 3344 3368 srcRs vals
         (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc → Q mc m' →
       reg m' .rax = vals' i)
     (hrdx : ∀ i, T'.reg .rdx = some (.var i) → ∀ mc m' : MachineData,
-      Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+      Match (envZ m0 st.data 3344 3368 srcRs vals
         (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc → Q mc m' →
       reg m' .rdx = vals' i)
     (hsz : T'.regions = sizes) (hfl : T'.flags = atomFlags)
@@ -190,12 +191,14 @@ theorem stepC (hp : Placed code k) (c : Ctx a inst m0)
     (hbd : T'.bounds = []) {R : MachineState → Prop}
     (cont : ∀ st', st'.pc = Host.addrOf (k + (o + ds.length)) →
       BndZ m0 3344 3368 verifyKeccakStack (rsOf m0) wr T' vals' st'.data →
-      (∃ mc, Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
+      (∃ mc, Match (envZ m0 st.data 3344 3368 srcRs vals
           (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc ∧
         rspOf mc = stackBelow m0 (3344 - oc) ∧ Q mc st'.data ∧
         Chg m0 st.data.dmem mc.dmem (wsL S') []) →
       Chg m0 st.data.dmem st'.data.dmem (wsL S' ++ (0, oc) :: Lc) Oc →
-      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl) :
+      Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') (hknown : T'.known = [] := by rfl)  
+    (hwfS : ∀ ret, (envZ m0 st.data 3344 3368 srcRs vals ret).WF := by
+      intro ret; exact h.wf hat.2.kept) :
     Eventually (step1 Host.exe) R st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB⟩ := hat
@@ -204,12 +207,21 @@ theorem stepC (hp : Placed code k) (c : Ctx a inst m0)
   rw [← sizes_eq m0] at hsz
   have hwr := frameW_ok hw0 (F := 3344) (sz := 3368 :: (rsOf m0).map Prod.snd) (wr := wr) le_rfl
   have h0 := frameW_r0 hw0
-  have hwf := h.wf hB.kept (m := d) (vals := vals)
-    (ret := (Host.addrOf (k + o + ds.length)).toBitVec)
+  have hwf := hwfS (Host.addrOf (k + o + ds.length)).toBitVec
+  have hsrcWritten : ∀ {q}, Written (envZ m0 d 3344 3368 srcRs vals
+      (Host.addrOf (k + o + ds.length)).toBitVec) S' q →
+      InRange (stackBelow m0 verifyKeccakStack) verifyKeccakStack q ∨ outsOf (rsOf m0) wr q := by
+    intro q ⟨w, hw, b, sz, hb, h1, h2⟩
+    have hr : w.r = 0 := by simpa using List.all_eq_true.mp h0 w hw
+    apply h.written (m := d) (vals := vals)
+      (ret := (Host.addrOf (k + o + ds.length)).toBitVec) hwr
+    refine ⟨w, hw, b, sz, ?_, h1, h2⟩
+    rw [hr] at hb ⊢
+    exact hb
   have hds' : ds.IsInfixAt Host.prog (k + o) := hds.trans hp.1 hne
   have hra : k + (o + ds.length) = k + o + ds.length := by omega
   rw [hra] at hP hrax hrdx cont hQ
-  refine callZ (hknown := hknown) (W := fun _ ↦ ChgR m0 Lc Oc) h hB hds' hrun (hm _) hwr hoc hsp hspec hS
+  refine callZ (hknown := hknown) (hwfS := hwf) (hwrites := hsrcWritten) (W := fun _ ↦ ChgR m0 Lc Oc) h hB hds' hrun (hm _) hoc hsp hspec hS
     (fun mc hmc hk hsk hso hrsp ↦ hP mc hmc hk hsk hso hrsp (chg_block c hmc hwf hwr h0)
       (hmc.kept hwf))
     (fun mc m' hmc hq ↦ hQ mc m' hmc hq) (fun _ _ q hq ↦ ChgR.wo c hLc hOc hwO hq) hok hrspT hL hLW

@@ -342,7 +342,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hle : 2672 - 32 + readScalarsStack ≤ finalLevelStack := by decide
   have hwt := c.whirT hat hf5.same hle
   have hpre : ReadScalarsPre a s st5.data := by
-    refine ⟨hwt.1, hwt.2.1, ?_, ?_, ?_⟩
+    refine ⟨hwt.1, hwt.2.1, ?_, ?_, ?_, ?_⟩
     · show TStateAt st5.data.dmem (reg st5.data .rdi) a s
       rw [ht5]; exact hts5
     · show TStateOk st5.data (reg st5.data .rdi) a readScalarsStack
@@ -351,6 +351,15 @@ theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
         (16 * (reg st5.data .rdx).toNat) readScalarsStack
       rw [ht5, hsi5, hdx5]
       exact c.outLoc (by omega) hf5 hle (by omega) (by omega)
+    · rw [ht5, hsi5, hdx5]
+      apply c.got_call hf5 (by omega) hle (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_loc (by omega) (by omega)
+      · exact c.got_rc
   refine call_then hpc5 (hrs a s) hpre fun st6 hpc6 hrsp6 hq ↦ ?_
   obtain ⟨hok, hxs, hnext, hch, hsv⟩ := hq
   rw [hdx5] at hok hxs hnext hch

@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Bus.GkrStep.Exec
 public import NativeRustcVmX64.Bus.GkrCommon
 public import NativeRustcVmX64.Bus.GkrModel
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcX64.Got
 
 /-!
 # `gkr_step`'s frame, its calls, its exits (x86-64)
@@ -94,7 +95,32 @@ theorem pre_size (h : GkrStepPre a s0 g0 m0) :
 theorem pre_gk (h : GkrStepPre a s0 g0 m0) :
     OutOk m0 (reg m0 .rdi) a (reg m0 .rcx) gkrStateBytes gkrStepStack := h.2.2.2.2.2.2.2.1
 theorem pre_gs (h : GkrStepPre a s0 g0 m0) : GkrStateWAt m0.dmem (reg m0 .rcx) g0 :=
-  h.2.2.2.2.2.2.2.2
+  h.2.2.2.2.2.2.2.2.1
+
+theorem pre_got (h : GkrStepPre a s0 g0 m0) :
+    GotAt m0 gkrStepStack [(reg m0 .rdi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rcx, gkrStateBytes), (rcAddr, 192)] ["memcpy"] :=
+  h.2.2.2.2.2.2.2.2.2
+
+theorem FR.got_same (h : GkrStepPre a s0 g0 m0) {c : Nat} {d : MachineData}
+    (fr : FR m0 c d) :
+    ∀ l ∈ ["memcpy"], ∀ i < 8, d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  refine got_keep (pre_got h) h.1
+    (writes := [(reg m0 .rdi, tstateBytes), (reg m0 .rcx, gkrStateBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb; rcases hb with rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact (pre_ts h).footprint.1.2
+      · exact (pre_gk h).2.1)
+    (NativeRustcVm.SameOutside.mono fr.same ?_)
+  intro q hq
+  rcases hq with hq | hq | hq
+  · exact .inr hq
+  · exact .inl ⟨(reg m0 .rdi, tstateBytes), by simp, hq⟩
+  · exact .inl ⟨(reg m0 .rcx, gkrStateBytes), by simp, hq⟩
 
 /-- The entry's context, a frame of `F' ≤ N` bytes. -/
 theorem ctxF (h : GkrStepPre a s0 g0 m0) (F' : Nat) (hF : F' ≤ gkrStepStack) :
@@ -195,6 +221,13 @@ theorem fb_shift (h : GkrStepPre a s0 g0 m0) {c j : Nat} (hc : c + j ≤ 1408) :
 theorem atC (h : GkrStepPre a s0 g0 m0) {c : Nat} (hc : c ≤ 1408) {d : MachineData}
     (fr : FR m0 c d) : At m0 (1408 - c) d :=
   fr.at_ (ctxF h 1408 N_ge) hc (outs_not_rc h)
+
+theorem got_atC (h : GkrStepPre a s0 g0 m0) {c : Nat} (hc : c ≤ 1408)
+    {d : MachineData} (fr : FR m0 c d) {n : Nat} (hn : 1408 - c + n ≤ gkrStepStack)
+    {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ ["memcpy"], ∀ b ∈ areas, Apart (gotAddr l) 8 b.1 b.2) :
+    GotAt d n areas ["memcpy"] :=
+  got_callee (pre_got h) (fr.got_same h) (atC h hc fr).sp h.1.1 hn ha
 
 /-- **A frame output** for a callee at offset `c`: `n` bytes at offset `o ≥ c + 8`. -/
 theorem outFb (h : GkrStepPre a s0 g0 m0) {c : Nat} {d : MachineData} (fr : FR m0 c d)

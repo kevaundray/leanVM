@@ -78,7 +78,7 @@ theorem fullEnd (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) Nativ
     exact lanes_congr this fun i hi => pre_17 _ _ _ hi
   have hrdi : st1.data.regs.get64 .rdi = frame m0 + BitVec.ofNat 64 40 :=
     (hm1.regs .rdi _ rfl).trans hc.regs.2.2.2.2.1
-  refine call_kf hkf g.stk g.rc (slotsH_low m0) hc1 hl1 hrdi hpc1 fun st2 hpc2 hc2 hl2 hsv2 => ?_
+  refine call_kf hkf g.stk g.rc g.got (slotsH_low m0) hc1 hl1 hrdi hpc1 fun st2 hpc2 hc2 hl2 hsv2 => ?_
   have hR2 := regsAt_saved hR1 hsv2 (names := [.r12, .r15, .rbx, .r13, .rbp, .r14]) rfl
     (by decide +kernel)
   -- the next block's branch

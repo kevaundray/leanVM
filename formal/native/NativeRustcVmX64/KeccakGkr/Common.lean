@@ -7,8 +7,8 @@ public import NativeRustcVmX64.Spec.KeccakGkr
 # `keccak_gkr.rs`'s functions on x86-64: common facts
 
 A frame whose body keeps RSP at an offset `o` above the slot its calls push their return address
-in (`o = 8` in `Transcript.Frame`'s functions; more where the post-pass's expansions of `bt` push
-below RSP): a call keeps it, RSP back at `o + 8` (`Frame.call_at`); RSP at offset `o` is the stack
+in (`o = 8` in `Transcript.Frame`'s functions; some frames retain padding below their call slot):
+a call keeps it, RSP back at `o + 8` (`Frame.call_at`); RSP at offset `o` is the stack
 below `F - o` bytes (`off_stackBelow`). The contracts' footprints (`Areas`): the regions mapped,
 not wrapping, apart from the stack and each other (`Areas.ok`, `Areas.apart_stack`,
 `Areas.apart_read`).

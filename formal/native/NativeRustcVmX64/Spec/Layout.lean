@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Spec.Ring
 public import NativeRustcVmX64.Rodata
 public import NativeRustcVm.Layout.Values
+public import NativeRustcVmX64.Got
 public import NativeRustcVmX64.Code.Vm.BuildLayout.Names
 public import NativeRustcVmX64.Code.Vm.ColumnKappas.Names
 public import NativeRustcVmX64.Code.Vm.CommitStack.Names
@@ -30,6 +31,9 @@ function uses the stack below RSP (`<fn>Stack` bytes: its pushes, its frame, its
 addresses and stacks; `StackOk` also maps its return address at RSP), its inputs and outputs are
 apart from that stack and the return address (`OffStack`), and it returns with the callee-saved
 registers kept (and RSP 8 above, `Spec`), no byte changed outside its outputs and that stack.
+Functions that read a GOT slot, directly or through a callee, also require `GotAt` for exactly
+those symbols, apart from their existing stack and memory arguments. The slots remain ordinary
+read-only memory; postconditions and model results are unchanged.
 x86-64 pushes callee-saved registers where AArch64's leaves used none (`FormBuf::add_term`,
 `insertion_sort`, `column_kappas`, `ladder`): those take `StackOk` and `OffStack` for their
 memory arguments, which their callers' stack and arguments satisfy (the callers' own frames
@@ -247,7 +251,7 @@ def StackOffsetsPre (m : MachineData) : Prop :=
   let o := reg m .rdx; let k := 8 * (reg m .rcx).toNat
   StackOk m stackOffsetsStack ∧ (reg m .rsi).toNat ≤ columnCountW ∧ Readable m a n ∧
     OffStack m a n stackOffsetsStack ∧ Readable m o k ∧ OffStack m o k stackOffsetsStack ∧
-    Apart a n o k
+    Apart a n o k ∧ GotAt m stackOffsetsStack [(a, n), (o, k)] ["memset"]
 
 /-- `stack_offsets`' postcondition. -/
 def StackOffsetsPost (m m' : MachineData) : Prop :=
@@ -282,7 +286,9 @@ def PlacementsOfPre (m : MachineData) : Prop :=
   let k := reg m .rdi; let p := reg m .rsi; let s := placementsOfStack
   StackOk m s ∧ RodataAt m s ∧ Readable m k kappasBytes ∧ OffStack m k kappasBytes s ∧
     Readable m p placementsBytes ∧ OffStack m p placementsBytes s ∧ RodataApart p placementsBytes ∧
-    Apart k kappasBytes p placementsBytes ∧ ∀ κ ∈ natsOf m (reg m .rdi) columnCountW, κ ≤ 36
+    Apart k kappasBytes p placementsBytes ∧
+    (∀ κ ∈ natsOf m (reg m .rdi) columnCountW, κ ≤ 36) ∧
+    GotAt m s [(k, kappasBytes), (p, placementsBytes)] ["memset"]
 
 /-- `placements_of`'s postcondition. -/
 def PlacementsOfPost (m m' : MachineData) : Prop :=
@@ -300,7 +306,8 @@ def BuildLayoutPre (bytecode : Array UInt64) (m : MachineData) : Prop :=
   let r := reg m .rdx; let l := reg m .rcx; let s := buildLayoutStack
   StackOk m s ∧ RodataAt m s ∧ (reg m .rdi).toNat = bytecode.size ∧ Readable m r (8 * nTables) ∧
     OffStack m r (8 * nTables) s ∧ Readable m l layoutBytes ∧ OffStack m l layoutBytes s ∧
-    RodataApart l layoutBytes ∧ Apart r (8 * nTables) l layoutBytes
+    RodataApart l layoutBytes ∧ Apart r (8 * nTables) l layoutBytes ∧
+    GotAt m s [(r, 8 * nTables), (l, layoutBytes)] ["memset"]
 
 /-- `build_layout`'s postcondition: AL the `bool`. -/
 def BuildLayoutPost (bytecode : Array UInt64) (m m' : MachineData) : Prop :=
@@ -317,7 +324,9 @@ def ReadAnnouncedSizesPre (bytecode : Array UInt64) (a : DecArea) (s : TState) (
   StackOk m n ∧ RcAt m n ∧ RodataAt m n ∧ TStateAt m.dmem t a s ∧ TStateOk m t a n ∧
     RodataApart t tstateBytes ∧ (reg m .rsi).toNat = bytecode.size ∧ Readable m l layoutBytes ∧
     OffStack m l layoutBytes n ∧ RodataApart l layoutBytes ∧ Apart l layoutBytes rcAddr 192 ∧
-    Apart l layoutBytes t tstateBytes ∧ Apart l layoutBytes a.words (8 * a.len)
+    Apart l layoutBytes t tstateBytes ∧ Apart l layoutBytes a.words (8 * a.len) ∧
+    GotAt m n [(t, tstateBytes), (a.words, 8 * a.len), (l, layoutBytes), (rcAddr, 192)]
+      ["memcpy", "memset"]
 
 /-- `read_announced_sizes`' postcondition: the tag RAX (the full word), the rate RDX. -/
 def ReadAnnouncedSizesPost (bytecode : Array UInt64) (a : DecArea) (s : TState)
@@ -350,7 +359,8 @@ read. -/
 def CommitStackPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rdi; let n := commitStackStack
   StackOk m n ∧ RcAt m n ∧ RodataAt m n ∧ TStateAt m.dmem t a s ∧ TStateOk m t a n ∧
-    s.roots.size < maxRoots
+    s.roots.size < maxRoots ∧
+    GotAt m n [(t, tstateBytes), (a.words, 8 * a.len), (rcAddr, 192)] ["memcpy"]
 
 /-- `commit_stack`'s postcondition: AL the `Option<()>`. -/
 def CommitStackPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
@@ -365,7 +375,9 @@ def CommitStackPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
 def ReadOodPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rdi; let n := readOodStack
   StackOk m n ∧ RcAt m n ∧ TStateAt m.dmem t a s ∧ TStateOk m t a n ∧
-    (reg m .rsi).toNat ≤ maxStackLog ∧ OutOk m t a (reg m .rdx) eqClaimBytes n
+    (reg m .rsi).toNat ≤ maxStackLog ∧ OutOk m t a (reg m .rdx) eqClaimBytes n ∧
+    GotAt m n [(t, tstateBytes), (a.words, 8 * a.len), (reg m .rdx, eqClaimBytes), (rcAddr, 192)]
+      ["memcpy"]
 
 /-- `read_ood`'s postcondition: AL the `Option<()>`. -/
 def ReadOodPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=

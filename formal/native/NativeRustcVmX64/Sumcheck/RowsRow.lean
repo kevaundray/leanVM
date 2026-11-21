@@ -98,7 +98,7 @@ theorem rowsRow_spec (hp : Placed code k) (p : BitVec 64) (rows : Array (Array U
   have hx0 : reg st.data .rax = off p (8 * (1 + j * openingWords)) := by
     refine hax.trans ?_
     apply BitVec.eq_of_toNat_eq
-    simp only [raxS, dbl, mS, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add,
+    simp only [raxS, mS, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add,
       BitVec.toNat_mul, BitVec.toNat_ofNat, hrsi, hl0, off, ho]
     omega
   refine ⟨?_, hx0, ?_⟩

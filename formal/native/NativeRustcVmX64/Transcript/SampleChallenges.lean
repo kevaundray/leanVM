@@ -58,7 +58,7 @@ theorem step (hp : Placed code k)
         SampleChallengesPost a s m0 st'.data) ∨
       (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateSampleChallenges.b2Offset) ∧ i + 1 < (reg m0 .rdx).toNat ∧
         Inv m0 a s (i + 1) st'.data)) st := by
-  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := hpre
+  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩, hgot⟩ := hpre
   set t := reg m0 .rdi with htdef
   set o := reg m0 .rsi with hodef
   set n := (reg m0 .rdx).toNat with hndef
@@ -124,10 +124,29 @@ theorem step (hp : Placed code k)
       RcAt.callee hrc (rc_keep hso3 hrcOut) hsp3 hn (by decide),
       ⟨fun j hj ↦ hts3.footprint.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_,
         apart_callee (n := sampleChallengesStack) (F := 32) ?_ hsp3 hn (by decide), ?_⟩,
-      hts3.sponge⟩
+      hts3.sponge, ?_⟩
     · show t.toNat + 328 ≤ 2 ^ 64; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
     · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
+    · refine got_callee hgot (got_keep hgot hst (writes := [(o, 16 * n), (t, tstateBytes)])
+        (by
+          intro b hb
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+          rcases hb with rfl | rfl <;> simp [o, n, t])
+        (by
+          intro b hb
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+          rcases hb with rfl | rfl
+          · exact hon
+          · exact hTn)
+        (by simpa [or_assoc] using hso3))
+        hsp3 hn (by decide) ?_
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact Apart.sub ((hgot.1 l hl).2.2.2 (t, tstateBytes) (by simp [t]))
+          (Nat.le_refl _) (by simp only [spongeBytes, tstateBytes]; omega)
+      · exact (hgot.1 l hl).2.2.2 (rcAddr, 192) (by simp)
   refine call_then hpc3 (hsq s'.sponge) hpre3
     fun st4 hpc4 hrsp4 ⟨hc0, hc1, hsp4, hs4, hsv4⟩ => ?_
   rw [hX7₃] at hsp4 hs4
@@ -295,7 +314,7 @@ theorem sampleChallenges_spec (hp : Placed code k)
     Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s) := by
   intro m0 hpre
-  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := id hpre
+  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩, -⟩ := id hpre
   set t := reg m0 .rdi with htdef
   set o := reg m0 .rsi with hodef
   set n := (reg m0 .rdx).toNat with hndef

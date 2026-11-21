@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Spec.Sumcheck
 public import NativeRustcVmX64.Spec.Layout
+public import NativeRustcX64.Spec.Got
 public import NativeRustcVm.Bus.Rep
 public import NativeRustcVm.Bus.Blocks
 public import NativeRustcVm.Bus.FitsModel
@@ -80,8 +81,8 @@ open NativeRustcVm (ewsOf wordsOf wordOf ewOf EWsAt EWAt WordAt BufEWAt)
 def maxOf (ns : List Nat) : Nat := ns.foldr max 0
 
 /-- The stack `gkr_step` uses: 6 pushes, its 1320-byte frame, then a callee's return address and
-stack, the sumcheck's three stack arguments and alignment word (32 bytes) above its; the expanded
-`bts`'s two pushes (16 bytes) are within. -/
+stack, the sumcheck's three stack arguments and alignment word (32 bytes) above its. The raw
+`bts` sets the sumcheck's term-count bit without touching the stack. -/
 def gkrStepStack : Nat :=
   48 + 1320 + max (8 + maxOf [bitLengthStack, grindStack, squeezeStack, polyEvalStack,
     readScalarsStack, prodEStack, sampleChallengesStack, mleStack]) (40 + sumcheckGkrStack)
@@ -121,7 +122,9 @@ def GkrStepPre (a : DecArea) (s : TState) (g : GkrStateW) (m : MachineData) : Pr
   StackOk m gkrStepStack ∧ RcAt m gkrStepStack ∧ TStateAt m.dmem t a s ∧
     TStateOk m t a gkrStepStack ∧ ((reg m .rsi).toNat = 1 ∨ (reg m .rsi).toNat = 2) ∧
     (reg m .rdx).toNat ≤ 1 ∧ g.point.size + (reg m .rsi).toNat ≤ busPointCap ∧
-    GkrOk m t a p gkrStepStack ∧ GkrStateWAt m.dmem p g
+    GkrOk m t a p gkrStepStack ∧ GkrStateWAt m.dmem p g ∧
+    GotAt m gkrStepStack [(t, tstateBytes), (a.words, 8 * a.len), (p, gkrStateBytes),
+      (rcAddr, 192)] ["memcpy"]
 
 /-- `gkr_step`'s postcondition: `gkrStep step last g`. -/
 def GkrStepPost (a : DecArea) (s : TState) (g : GkrStateW) (m m' : MachineData) : Prop :=
@@ -137,7 +140,9 @@ def GkrLayersPre (a : DecArea) (s : TState) (g : GkrStateW) (m : MachineData) : 
   let t := reg m .rdi; let p := reg m .rdx
   StackOk m gkrLayersStack ∧ RcAt m gkrLayersStack ∧ TStateAt m.dmem t a s ∧
     TStateOk m t a gkrLayersStack ∧ g.point.size + (reg m .rsi).toNat ≤ busPointCap ∧
-    GkrOk m t a p gkrLayersStack ∧ GkrStateWAt m.dmem p g
+    GkrOk m t a p gkrLayersStack ∧ GkrStateWAt m.dmem p g ∧
+    GotAt m gkrLayersStack [(t, tstateBytes), (a.words, 8 * a.len), (p, gkrStateBytes),
+      (rcAddr, 192)] ["memcpy"]
 
 /-- `gkr_layers`'s postcondition: `gkrLayers depth g`. -/
 def GkrLayersPost (a : DecArea) (s : TState) (g : GkrStateW) (m m' : MachineData) : Prop :=
@@ -154,7 +159,9 @@ def VerifyGkrPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let o := reg m .rdi; let t := reg m .rsi; let p := reg m .rcx
   StackOk m verifyGkrStack ∧ RcAt m verifyGkrStack ∧ TStateAt m.dmem t a s ∧
     TStateOk m t a verifyGkrStack ∧ (reg m .rdx).toNat ≤ busPointCap ∧
-    OutOk m t a o 24 verifyGkrStack ∧ GkrOk m t a p verifyGkrStack ∧ Apart o 24 p gkrStateBytes
+    OutOk m t a o 24 verifyGkrStack ∧ GkrOk m t a p verifyGkrStack ∧ Apart o 24 p gkrStateBytes ∧
+    GotAt m verifyGkrStack [(t, tstateBytes), (a.words, 8 * a.len), (o, 24),
+      (p, gkrStateBytes), (rcAddr, 192)] ["memcpy"]
 
 /-- `verify_gkr_grand_products`'s postcondition: `verifyGkrGrandProducts depth`, the count root
 at `out`, the point and the values at `s`. -/
@@ -273,7 +280,9 @@ def BytecodeSharePre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
     OutOk m t a p (16 * sharePointSlots) N ∧ Apart o 48 p (16 * sharePointSlots) ∧
     Apart p (16 * sharePointSlots) (reg m .rcx) (16 * (reg m .r8).toNat) ∧
     Apart (reg m .rdx) (16 * 16) t tstateBytes ∧
-    Apart (reg m .rcx) (16 * (reg m .r8).toNat) t tstateBytes
+    Apart (reg m .rcx) (16 * (reg m .r8).toNat) t tstateBytes ∧
+    GotAt m N [(t, tstateBytes), (a.words, 8 * a.len), (o, 48), (p, 16 * sharePointSlots),
+      (reg m .rdx, 16 * 16), (reg m .rcx, 16 * (reg m .r8).toNat), (rcAddr, 192)] ["memcpy"]
 
 /-- `bytecode_share`'s postcondition: `bytecodeShare weights bytecode_low`, the share, the
 point's length and the value at `out`, the bytecode point at `point`. -/
@@ -326,7 +335,7 @@ variable [Labels]
 blocks `bl` (RCX, R8), 2 to 51 of them, each of a table; the layout at R9 represents `L`; the
 output (RDI) apart from them. x86-64 only: at least `2` blocks (AArch64: `1`), as rustc enters
 the sizes' pair loop unconditionally (its callers pass `45` or `51` blocks, `PUSH_BLOCKS`,
-`PULL_BLOCKS`, `COUNT_BLOCKS`). -/
+`PULL_BLOCKS`, `COUNT_BLOCKS`). The loader slots are separate from all caller areas. -/
 def BusLayoutPre (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m : MachineData) : Prop :=
   let o := reg m .rdi; let f := reg m .rsi; let b := reg m .rcx
   let lay := reg m .r9; let N := busLayoutStack
@@ -337,7 +346,9 @@ def BusLayoutPre (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m : Machine
     NativeRustcVm.BytesAt m.dmem b (bl.flatMap NativeRustcVm.Data.Block.bytes) ∧ InOk m b nb N ∧
     LayoutWAt m.dmem lay L ∧ InOk m lay layoutBytes N ∧ InOk m o optBusLayoutBytes N ∧
     Apart o optBusLayoutBytes f nf ∧ Apart o optBusLayoutBytes b nb ∧
-    Apart o optBusLayoutBytes lay layoutBytes
+    Apart o optBusLayoutBytes lay layoutBytes ∧
+    GotAt m N ([(o, optBusLayoutBytes), (b, nb), (lay, layoutBytes)] ++
+      (if nf = 0 then [] else [(f, nf)])) ["memcpy", "memset"]
 
 /-- `bus_layout`'s postcondition: `busLayout` of the sizes and the blocks at the layout's heights
 (whatever their rows) at `out`. -/
@@ -405,7 +416,13 @@ def AccumulateSidePre (L : LayoutW) (rows : Array Nat) (bl : List NativeRustcVm.
     Apart fs formsBytes (stackArg m 3) (16 * (stackArg m 4).toNat) ∧
     Apart fs formsBytes (stackArg m 7) (16 * (stackArg m 8).toNat) ∧
     Apart fs formsBytes (rspOf m + 8#64) 88 ∧
-    Apart sl busLayoutBytes (rspOf m + 8#64) 88 ∧ (0 < n → Apart sl busLayoutBytes fp (16 * n))
+    Apart sl busLayoutBytes (rspOf m + 8#64) 88 ∧ (0 < n → Apart sl busLayoutBytes fp (16 * n)) ∧
+    GotAt m N ([(o, 24), (fs, formsBytes), (b, nb), (lay, layoutBytes),
+      (sl, busLayoutBytes), (stackArg m 3, 16 * (stackArg m 4).toNat),
+      (stackArg m 7, 16 * (stackArg m 8).toNat), (rspOf m + 8#64, 88)] ++
+      (if n = 0 then [] else [(fp, 16 * n)]) ++
+      ([.tuples, .tables, .padding, .one] : List NativeRustcVm.Data.Item).map
+        (fun i => (rodataAddr i, i.bytes.length))) ["memcpy"]
 
 /-- `accumulate_side`'s postcondition: `accumulateSide`, its forms at RSI, its total at RDI. -/
 def AccumulateSidePost (L : LayoutW) (rows : Array Nat) (bl : List NativeRustcVm.Data.Block)
@@ -439,7 +456,12 @@ def VerifyBusBalancePre (a : DecArea) (s : TState) (L : LayoutW) (m : MachineDat
     OutOk m t a cl claimsBytes N ∧ RodataApart cl claimsBytes ∧
     Apart cl claimsBytes lay layoutBytes ∧ (0 < n → Apart cl claimsBytes bc (8 * n)) ∧
     Apart bus busBytes cl claimsBytes ∧ RodataApart t tstateBytes ∧
-    (0 < n → Apart bc (8 * n) t tstateBytes)
+    (0 < n → Apart bc (8 * n) t tstateBytes) ∧
+    GotAt m N ([(t, tstateBytes), (a.words, 8 * a.len), (lay, layoutBytes),
+      (bus, busBytes), (cl, claimsBytes), (rcAddr, 192)] ++ (if n = 0 then [] else [(bc, 8 * n)]) ++
+      ([.tuples, .tables, .padding, .pushBlocks, .pullBlocks, .countBlocks, .one] :
+        List NativeRustcVm.Data.Item).map (fun i => (rodataAddr i, i.bytes.length)))
+      ["memcpy", "memset"]
 
 /-- `verify_bus_balance`'s postcondition: `verifyBusBalance L`; on `some`, the next transcript,
 the result at `bus`, its claims at `claims`; AL the `Option<()>`. -/

@@ -350,8 +350,7 @@ def b0 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.and Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rbp Width.W64))))),  -- andq %rbp, %rax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r13 Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (2 : Int64))))),  -- shrq $2, %r13
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.and Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r13 Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rbp Width.W64))))),  -- andq %rbp, %r13
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rax)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rax,%rax), %rax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rax)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rax,%rax), %rax
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.none RegOrRip) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W32)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (,%rax,4), %rax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.add Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r13 Width.W64))))),  -- addq %r13, %rax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.mov Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64))))),  -- movq %rax, %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.and Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdx Width.W64))))),  -- andq %rdx, %rcx
@@ -659,9 +658,7 @@ def b0 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.xor Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64))))),  -- xorq %rcx, %rdx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.xor Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64))))),  -- xorq %rax, %rdx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rdx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rdx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rdx,%rdx), %rax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rdx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rdx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rdx,%rdx), %rcx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rcx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rcx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rcx,%rcx), %rcx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rcx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rcx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rcx,%rcx), %rcx
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.none RegOrRip) (@Option.some AddrIndex (AddrIndex.mk Reg64.rdx Width.W64)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (,%rdx,8), %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.xor Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64))))),  -- xorq %rax, %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.mov Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r10 Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.mem Width.W64 (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rsp)) (@Option.none AddrIndex) (ConstExpr.int64 (16 : Int64))))))),  -- movq 16(%rsp), %r10
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.mov Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r10 Width.W64))))),  -- movq %r10, %rax
@@ -681,9 +678,7 @@ def b0 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (61 : Int64))))),  -- shrq $61, %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.xor Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r9 Width.W64))))),  -- xorq %r9, %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.xor Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64))))),  -- xorq %rcx, %r8
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.r8)) (@Option.some AddrIndex (AddrIndex.mk Reg64.r8 Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%r8,%r8), %rcx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rcx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rcx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rcx,%rcx), %rcx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rcx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rcx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rcx,%rcx), %rcx
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.none RegOrRip) (@Option.some AddrIndex (AddrIndex.mk Reg64.r8 Width.W64)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (,%r8,8), %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.xor Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64))))),  -- xorq %rdi, %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.mov Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r10 Width.W64))))),  -- movq %r10, %rdi
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.xor Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64))))),  -- xorq %r8, %rdi
@@ -706,13 +701,13 @@ def b0 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0]
 
-def codeLength : Nat := 684
+def codeLength : Nat := 679
 
 def b0Offset : Nat := 0
 
-def b0Length : Nat := 684
+def b0Length : Nat := 679
 
-def b0End : Nat := 684
+def b0End : Nat := 679
 
 def entryOffset : Nat := 0
 

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Spec.Transcript
 public import NativeRustcVmX64.Spec.Arrays
+public import NativeRustcX64.Spec.Got
 public import NativeRustcVm.Sumcheck.Rows
 public import NativeRustcVm.Sumcheck.Model
 public import NativeRustcVmX64.Code.Vm.Climb.Names
@@ -22,7 +23,8 @@ RDI, RSI, RDX, RCX, R8, R9, then on the stack above the return address (`stackAr
 stack below RSP (`<fn>Stack` bytes: its pushes, its frame, its callees' return addresses and
 stacks; `StackOk` also maps its return address at RSP) and returns with the callee-saved registers
 kept (and RSP 8 above, `Spec`), no byte changed outside its outputs and that stack. Those that hash
-or touch the transcript read the round constants (`RcAt`). Results are the model's
+or touch the transcript read the round constants (`RcAt`) and ordinary-memory GOT slots
+(`GotAt`), disjoint from their stack and protected areas. Results are the model's
 (`NativeVm.Model`):
 
 - `Rows::row(rows, j)` (RDI, RSI): row `j < count` of the rows at `rows` (`RowsAt`), its address
@@ -134,7 +136,8 @@ def ClimbPre (N : LeanVM.Protocol.Digest) (P : Array LeanVM.Protocol.Digest) (m 
     NoWrap node 32 ∧ NoWrap path (32 * h) ∧ Mapped m.dmem out 32 ∧ NoWrap out 32 ∧
     Apart node 32 (stackBelow m climbStack) (climbStack + 8) ∧
     Apart path (32 * h) (stackBelow m climbStack) (climbStack + 8) ∧
-    Apart out 32 (stackBelow m climbStack) (climbStack + 8) ∧ Apart out 32 rcAddr 192
+    Apart out 32 (stackBelow m climbStack) (climbStack + 8) ∧ Apart out 32 rcAddr 192 ∧
+    GotAt m climbStack [(node, 32), (path, 32 * h), (out, 32), (rcAddr, 192)] ["memcpy", "memset"]
 
 /-- `climb`'s postcondition: `climb N q P` at RDI (`q` RDX). -/
 def ClimbPost (N : LeanVM.Protocol.Digest) (P : Array LeanVM.Protocol.Digest)
@@ -163,7 +166,9 @@ def OpenPhasePre (P : Array OpeningW) (R : LeanVM.Protocol.Digest) (Q : Array UI
     Apart pos (8 * n) (stackBelow m openPhaseStack) (openPhaseStack + 8) ∧
     Apart out 32 (stackBelow m openPhaseStack) (openPhaseStack + 8) ∧
     Apart out 32 ph (8 * phaseWords) ∧ Apart out 32 root 32 ∧ Apart out 32 pos (8 * n) ∧
-    Apart out 32 rcAddr 192 ∧ Apart pos (8 * n) ph (8 * phaseWords)
+    Apart out 32 rcAddr 192 ∧ Apart pos (8 * n) ph (8 * phaseWords) ∧
+    GotAt m openPhaseStack
+      [(ph, 8 * phaseWords), (root, 32), (pos, 8 * n), (out, 32), (rcAddr, 192)] ["memcpy", "memset"]
 
 /-- `open_phase`'s postcondition: `openPhase R height width Q P` (height RDX, width RCX) at RDI
 as an `Option<Rows>` reading the openings at the phase's address + 24. -/
@@ -187,7 +192,9 @@ def QueryOpeningsPre (a : DecArea) (s : TState) (Q : Array UInt64) (m : MachineD
     NoWrap pos (8 * n) ∧
     Apart pos (8 * n) (stackBelow m queryOpeningsStack) (queryOpeningsStack + 8) ∧
     Apart pos (8 * n) a.words (8 * a.len) ∧ OutOk m t a out 32 queryOpeningsStack ∧
-    Apart out 32 pos (8 * n)
+    Apart out 32 pos (8 * n) ∧
+    GotAt m queryOpeningsStack
+      [(t, tstateBytes), (a.words, 8 * a.len), (pos, 8 * n), (out, 32), (rcAddr, 192)] ["memcpy", "memset"]
 
 /-- `query_openings`'s postcondition: `queryOpenings i Q`'s rows (`i` RDX) at RDI, read in the
 decoded area's phase `s.phase`. -/
@@ -210,7 +217,10 @@ def RoundPolyPre (a : DecArea) (s : TState) (e : Option EW) (m : MachineData) : 
     TStateOk m t a roundPolyStack ∧ 2 ≤ (reg m .rsi).toNat ∧ (reg m .rsi).toNat ≤ maxCount ∧
     OptEWAt m.dmem ep e ∧ NoWrap ep 24 ∧
     Apart ep 24 (stackBelow m roundPolyStack) (roundPolyStack + 8) ∧
-    OutOk m t a (reg m .r9) (16 * maxCount) roundPolyStack
+    OutOk m t a (reg m .r9) (16 * maxCount) roundPolyStack ∧
+    GotAt m roundPolyStack
+      [(t, tstateBytes), (a.words, 8 * a.len), (ep, 24), (reg m .r9, 16 * maxCount),
+        (rcAddr, 192)] ["memcpy"]
 
 /-- `sumcheck_round_poly`'s postcondition: `sumcheckRoundPoly count claim e` (`claim` RDX, RCX),
 AL its `Option<()>`, the polynomial at R9. -/
@@ -239,7 +249,9 @@ def SumcheckOk (a : DecArea) (s : TState) (m : MachineData) (t out slots : BitVe
     (count n N : Nat) : Prop :=
   StackOk m N ∧ RcAt m N ∧ TStateAt m.dmem t a s ∧ TStateOk m t a N ∧
     2 ≤ count ∧ count ≤ maxCount ∧ OutOk m t a out 24 N ∧ OutOk m t a slots (16 * n) N ∧
-    Apart out 24 slots (16 * n)
+    Apart out 24 slots (16 * n) ∧
+    GotAt m N [(t, tstateBytes), (a.words, 8 * a.len), (out, 24), (slots, 16 * n),
+      (rcAddr, 192)] ["memcpy"]
 
 /-- The claim a sumcheck starts from: RDX, RCX. -/
 def claimArg (m : MachineData) : EW := ⟨.ofBitVec (reg m .rdx), .ofBitVec (reg m .rcx)⟩

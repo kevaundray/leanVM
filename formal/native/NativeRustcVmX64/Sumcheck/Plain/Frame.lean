@@ -150,7 +150,7 @@ theorem exit_post (hpre : SumcheckPlainPre a s m0) {m : MachineData} (hf : FrP m
     sameOutside_region hwf hm' (r := 1) rfl fun w hw ↦ ⟨(hW w hw).1, Nat.zero_le _, (hW w hw).2⟩
   have hosl : ∀ q, NativeRustcVm.InRange (outP m0) 24 q →
       ¬ NativeRustcVm.InRange (slP m0) (16 * nP m0) q := fun q hq ↦
-    not_inRange_of_apart g.ok.2.2.2.2.2.2.2.2 g.outOk.2.1 g.slOk.2.1 hq
+    not_inRange_of_apart g.ok.2.2.2.2.2.2.2.2.1 g.outOk.2.1 g.slOk.2.1 hq
   refine ⟨hpc.trans (hf.frame.load_ret g.ok.1 (by unfold sumcheckPlainStack; omega)), hrsp, ?_⟩
   unfold SumcheckPlainPost
   dsimp only

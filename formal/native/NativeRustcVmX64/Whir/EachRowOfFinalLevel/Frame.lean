@@ -5,6 +5,7 @@ public import NativeRustcVmX64.Spec.Whir
 public import NativeRustcVmX64.Arrays.Common
 public import NativeRustcVmX64.Transcript.Glue
 public import NativeRustcVmX64.Transcript.Frame
+public import NativeRustcVmX64.Got
 
 /-!
 # `each_row`'s frame (x86-64)
@@ -62,6 +63,11 @@ structure Fr (m0 : MachineData) (F N : Nat) (slots : List (Nat × Reg64))
   slots : SlotsAt m.dmem (stackBelow m0 F) m0 slots
   same : SameOutside m0.dmem m.dmem (fun q ↦ InRange (stackBelow m0 N) N q ∨ outs q)
   kept : Kept m0.dmem m.dmem
+
+/-- The ordinary frame plus a read-only loader slot. -/
+def gotFrameS (F A : Nat) (l : Label) : SState :=
+  (init [F + 8 + A, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot l, 1, 0)]).withKnownBytes
+    1 0 8 (.label l)
 
 end
 
@@ -223,6 +229,79 @@ theorem Fr.match_rsp [Labels] {slots : List (Nat × Reg64)} {outs : BitVec 64 �
     m.regs.get64 .rsp = (Sym.ptr 0 (o : Int)).eval (envE m0 m F A' rest vars ret) := by
   rw [eval_ptr0]
   exact h.rsp
+
+/-- Loader bytes preserved by the row body's declared writable footprint. -/
+theorem Fr.got_bytes [Labels] {slots : List (Nat × Reg64)} {outs : BitVec 64 → Prop}
+    {o : Nat} {m : MachineData} {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    (h : Fr m0 F N slots outs o m) (hl : Lay m0 F A N)
+    (hg : GotAt m0 N areas symbols) (hnw : ∀ a ∈ areas, NoWrap a.1 a.2)
+    (hout : ∀ q, outs q → ∃ a ∈ areas, InRange a.1 a.2 q) :
+    ∀ l ∈ symbols, ∀ i < 8, m.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) :=
+  hg.unchanged hl.ok hnw (fun p hp => h.same p (fun h => hp (h.elim Or.inl
+    (fun h => Or.inr (hout p h)))))
+
+/-- An indirect call reads its actual loader slot, disjoint also from stack arguments. -/
+theorem Fr.got_env [Labels] {slots : List (Nat × Reg64)} {outs : BitVec 64 → Prop}
+    {m : MachineData} {areas : List (BitVec 64 × Nat)} {symbols : List Label} {l : Label}
+    (h : Fr m0 F N slots outs 8 m) (hl : Lay m0 F A N)
+    (hg : GotAt m0 N areas symbols) (hnw : ∀ a ∈ areas, NoWrap a.1 a.2)
+    (hout : ∀ q, outs q → ∃ a ∈ areas, InRange a.1 a.2 q)
+    (hargs : (rspOf m0 + 8#64, A) ∈ areas) (hlmem : l ∈ symbols) (ret : BitVec 64) :
+    (envE m0 m F A [(gotAddr l, 8)] (fun _ => 0) ret).WF ∧
+    Match (envE m0 m F A [(gotAddr l, 8)] (fun _ => 0) ret) (gotFrameS F A l) m := by
+  have hg0 := hg.1 l hlmem
+  have ha := hg0.2.2.2 _ hargs
+  have hs : Apart (gotAddr l) 8 (stackBelow m0 N) (N + 8) := hg0.2.2.1
+  have hap : Apart (stackBelow m0 F) (F + 8 + A) (gotAddr l) 8 := by
+    by_cases hA : A = 0
+    · subst A
+      unfold Apart at hs ⊢
+      rw [hl.baseN] at hs
+      rw [hl.base]
+      have := hl.sp
+      have := hl.le
+      omega
+    · have harg : (rspOf m0 + 8#64).toNat = (rspOf m0).toNat + 8 :=
+        toNat_add_ofNat _ _ (by have := hl.top; omega)
+      unfold Apart at ha hs ⊢
+      change (gotAddr l).toNat + 8 ≤ (rspOf m0 + 8#64).toNat ∨
+        (rspOf m0 + 8#64).toNat + A ≤ (gotAddr l).toNat at ha
+      rw [hl.baseN] at hs
+      rw [harg] at ha
+      rw [hl.base]
+      have := hl.sp
+      have := hl.le
+      omega
+  refine ⟨envE_wf hl le_rfl h.kept (fun a ha => by
+      simp only [List.mem_singleton] at ha
+      subst a
+      exact ⟨fun i hi => h.kept _ (hg.mapped hlmem i hi), hg0.2.1⟩)
+      (List.pairwise_pair.mpr hap), ?_⟩
+  have hm : Match (envE m0 m F A [(gotAddr l, 8)] (fun _ => 0) ret)
+      (init [F + 8 + A, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot l, 1, 0)]) m :=
+    match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨h.match_rsp, trivial⟩ trivial trivial
+      ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes
+  intro i hi
+  simpa [Env.base, Sym.eval] using
+    (h.got_bytes hl hg hnw hout l hlmem i hi).trans (hg.byte hlmem hi)
+
+/-- The callee's protected areas are subranges of the row body's stack or input areas. -/
+theorem Fr.got_callee [Labels] {slots : List (Nat × Reg64)} {outs : BitVec 64 → Prop}
+    {m : MachineData} {areas areas' : List (BitVec 64 × Nat)} {symbols : List Label} {N' : Nat}
+    (h : Fr m0 F N slots outs 0 m) (hl : Lay m0 F A N)
+    (hg : GotAt m0 N areas symbols) (hnw : ∀ a ∈ areas, NoWrap a.1 a.2)
+    (hout : ∀ q, outs q → ∃ a ∈ areas, InRange a.1 a.2 q) (hle : F + N' ≤ N)
+    (hcover : ∀ a ∈ areas', ∃ b ∈ (stackBelow m0 N, N + 8) :: areas,
+      b.1.toNat ≤ a.1.toNat ∧ a.1.toNat + a.2 ≤ b.1.toNat + b.2) :
+    GotAt m N' areas' symbols := by
+  have hsp : rspOf m = stackBelow m0 F := by simpa using h.rsp
+  have hd : (stackBelow m N').toNat = (rspOf m0).toNat - F - N' := by
+    rw [NativeRustcVmX64.Field.stackBelow_toNat' (by rw [hsp, hl.base]; have := hl.sp; omega),
+      hsp, hl.base]
+  apply NativeRustcVmX64.GotAt.callee hg (h.got_bytes hl hg hnw hout) _ _ hcover <;>
+    rw [hd, hl.baseN] <;> have := hl.sp <;> omega
 
 /-- **A block without writes**, RSP at offset `o'` after it. -/
 theorem Fr.ofBlock [Labels] {slots : List (Nat × Reg64)} {outs : BitVec 64 → Prop} {o o' : Nat}

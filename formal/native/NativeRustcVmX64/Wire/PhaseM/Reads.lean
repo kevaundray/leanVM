@@ -113,7 +113,7 @@ theorem and1_eval [Labels] (env : Sym.Env) (h : env.regs .rax = 0 ∨ env.regs .
 
 theorem eight_eval [Labels] (env : Sym.Env) {n : Nat} (h : (env.load 0 40 8).toNat = n)
     (hn : n ≤ 256) : (eightC.eval env).toNat = 8 * n := by
-  simp only [eightC, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add, h]
+  simp only [eightC, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_mul, BitVec.toNat_ofNat, h]
   omega
 
 variable [Host] {k : Nat}

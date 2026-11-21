@@ -67,7 +67,7 @@ theorem stage2 (hp : Placed code k)
     (hS1 : S1 m0 st4.data) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
       SeedPost m0 st.data) st4 := by
-  obtain ⟨hst, hrc, -, ⟨-, -⟩, ⟨hpubM, hpubN⟩, ⟨houtM, houtN⟩, hdP, hdO, -⟩ := hpre
+  obtain ⟨hst, hrc, -, ⟨-, -⟩, ⟨hpubM, hpubN⟩, ⟨houtM, houtN⟩, hdP, hdO, -, hgot⟩ := hpre
   obtain ⟨hf4, hs4, hiv4, hz4, hrbx4, hr144, hr154⟩ := hS1
   set out := reg m0 .rdi with hout
   set pub := reg m0 .rcx with hpub
@@ -183,18 +183,30 @@ theorem stage2 (hp : Placed code k)
     refine (hs5 _ fun h ↦ ?_).trans (hs4 _ fun h ↦ ?_)
     · have := hs5' _ h; omega
     · rw [inR (by unfold NativeRustcVm.NoWrap; omega), hsbn, hss] at h; omega
+  have hg4 := got_keep hst hgot hs4 (fun q h ↦ by
+    rw [inR (by unfold NativeRustcVm.NoWrap; omega), hsbn, hss] at h
+    rw [hsbn]
+    omega)
+  have hg5 := got_keep hst hgot hs5 (fun q h ↦ by
+    have hh := hs5' q h
+    rw [hsbn]
+    omega)
   have hpre5 : KeccakFPre st5.data := by
     unfold KeccakFPre
     simp only [eRdi5]
     refine ⟨stackOk_callee hst hf5.kept hsp5 (by omega),
       RcAt.callee hrc hrc5 hsp5 hn (by omega),
-      mapped_off (hFm _ hf5.kept) (by decide), by unfold NativeRustcX64.NoWrap; omega, ?_, ?_⟩
+      mapped_off (hFm _ hf5.kept) (by decide), by unfold NativeRustcX64.NoWrap; omega, ?_, ?_, ?_⟩
     · rw [stackBelow_callee hsp5 (by omega)]
       unfold NativeRustcX64.Apart
       rw [stackBelow_toNat (by omega)]
       omega
     · unfold NativeRustcX64.Apart
       omega
+    · have hg := got_leaf (n := keccakFStack) (bytes := 200)
+        hst hgot (by simp) hsp5 (by decide) (by decide)
+        (fun l hl i hi ↦ (hg5 l hl i hi).trans (hg4 l hl i hi))
+      exact hg.symbols (show ["memcpy"].Sublist ["memcpy", "memset"] by simp)
   refine call_then hpc5 hkf hpre5 fun st6 hpc6 hrsp6 hpost6 ↦ ?_
   obtain ⟨hkf6, hs6, hsv6⟩ := hpost6
   simp only [eRdi5] at hkf6 hs6
@@ -210,12 +222,34 @@ theorem stage2 (hp : Placed code k)
     Frame.call_low hf5 hsv6 hrsp6 hs6 (fun q h ↦ Or.inl (hR6 q h).2) slots_ge (by decide) hfnw
       slots_le
   -- `b3`: `call memcpy`.
-  have hwf6 := frame_wf (m0 := m0) (d := st6.data) (F := 240) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b3Offset + b3.length)).toBitVec) ⟨hFm _ hf6.kept, hfnw⟩ (by simp)
-    (List.pairwise_singleton _ _)
+  have hg6 := got_keep hst hgot hs6 (fun q h ↦ by
+    have hh := hR6 q h
+    rw [hsbn]
+    omega)
+  have hwf6 := frame_wf (m0 := m0) (d := st6.data) (F := 240)
+    (rest := [(gotAddr "memcpy", 8)]) (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b3Offset + b3.length)).toBitVec)
+    ⟨hFm _ hf6.kept, hfnw⟩
+    (by
+      intro x hx
+      obtain rfl := List.mem_singleton.mp hx
+      exact ⟨Mapped.keeps (hgot.mapped (by simp)) hf6.kept, (hgot.1 "memcpy" (by simp)).2.1⟩)
+    (List.pairwise_pair.mpr (got_frame_apart hst hgot (by simp)).symm)
+  have hm6 : Match
+      (frameEnv m0 st6.data 240 [(gotAddr "memcpy", 8)] (fun _ ↦ 0)
+        (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b3Offset + b3.length)).toBitVec)
+      (gotS "memcpy") st6.data := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial
+        ⟨(BitVec.add_zero _).symm, trivial⟩
+    · intro i hi
+      have hb := (hg6 "memcpy" (by simp) i hi).trans
+        ((hg5 "memcpy" (by simp) i hi).trans
+          ((hg4 "memcpy" (by simp) i hi).trans (hgot.byte (by simp) hi)))
+      simpa [frameEnv, Env.base, Sym.eval] using hb
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf6 (fun _ _ ↦ rfl)
     (hpc6.trans (by rw [show k + NativeRustcVmX64.Vm.Seed.b2Offset + b2.length = k + NativeRustcVmX64.Vm.Seed.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Seed.b2_next]]))
-    (match_ofMachine ⟨rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial trivial)
+    hm6
     fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hw7, hrdi7, hrsi7, hrdx7⟩ := after_eq run_b3 ▸ ok_b3
   have hf7 : Frame m0 240 slots 0 st7.data := Frame.of_block hf6 hwf6 hm7 hmid7 slots_le

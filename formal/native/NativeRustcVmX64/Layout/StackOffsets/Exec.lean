@@ -41,7 +41,9 @@ def slots : Slots :=
 def idx (p i : Reg64) : Sym := .bin .add .W64 (.reg p) (.bin .mul .W64 (.reg i) (.lit 8))
 
 /-- At the entry: RSP at the frame's offset `1328`. -/
-def entryS : SState := init [1336] [(.rsp, .ptr 0 1328)]
+def entryS : SState :=
+  (init [1336, 8] [(.rsp, .ptr 0 1328)] [] [] [(.gotSlot "memset", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memset")
 /-- In the body: RSP at offset `8`. -/
 def bodyS : SState := init [1336] [(.rsp, .ptr 0 8)]
 /-- Eight words of the order array at R13 (region 0). -/
@@ -58,10 +60,7 @@ def ordS : SState := init [1336] [(.rsp, .ptr 0 8)] (bounds := [(.reg .rsi, 1264
 def cs : List Reg64 := [.rbx, .rbp, .r12, .r13, .r14, .r15]
 
 /-- `8 n`, as `b3` computes it from R15 = `n`. -/
-abbrev e8n : Sym :=
-  .bin .add .W64
-    (.bin .add .W64 (.bin .add .W64 (.reg .r15) (.reg .r15)) (.bin .add .W64 (.reg .r15) (.reg .r15)))
-    (.bin .add .W64 (.bin .add .W64 (.reg .r15) (.reg .r15)) (.bin .add .W64 (.reg .r15) (.reg .r15)))
+abbrev e8n : Sym := .bin .mul .W64 (.reg .r15) (.lit 8)
 
 /-- `8 n - 8`. -/
 abbrev eM8 : Sym := .bin .add .W64 (.reg .rbp) (.lit 18446744073709551608)

@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.KeccakGkr.KeccakPhase.Nums
 public import NativeRustcX64.Spec.Mem
 public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Got
 
 /-!
 # `keccak_phase` up to `verify_keccak`
@@ -41,6 +42,7 @@ variable [Host] {k : Nat} {m0 : MachineData}
 theorem front (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {a : DecArea} (hS : StackOk m0 keccakPhaseStack) (hn : Nums a m0)
     (hevm : NativeRustcVm.Mapped m0.dmem (reg m0 .rdx) 11808) {values : Array EW}
+    (hgot : GotAt m0 keccakPhaseStack [(reg m0 .rdx, 11808)] ["memcpy"])
     (h40 : 40 ≤ values.size) (h92 : values.size ≤ 92)
     (hv0 : NativeRustcVm.BufEWAt m0.dmem (off (reg m0 .rdx) 10328) 92 values.toList) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b2Offset) ∧ AtVK m0 values st.data)
@@ -57,14 +59,33 @@ theorem front (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX6
   have hoffE : ∀ j, j < 11808 → (off (reg m0 .rdx) j).toNat = (reg m0 .rdx).toNat + j :=
     fun j hj ↦ toNat_off (by omega)
   have hlv : values.toList.length = values.size := Array.length_toList
-  have hwf0 : (fenv m0 m0 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec).WF :=
-    fenv_wf1 g (fun _ h ↦ h) hevm heW heS
-  have hm0 : Match (fenv m0 m0 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec) entryS m0 :=
-    match_ofMachine ⟨rfl, rfl, trivial⟩
-      ⟨((eval_ptr0' 480).trans off_frame_F).symm, known_ptr rfl rfl, trivial⟩ trivial trivial trivial
-  have hlen0 : (lenS.eval (fenv m0 m0 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
+  have hg := hgot.1 "memcpy" (by simp)
+  have hgf : NativeRustcVm.Apart (gotAddr "memcpy") 8 (stackBelow m0 480) 488 :=
+    apart_frame hg.2.2.1 hS.1 (by rw [kps_eq]; omega)
+  have hge := hg.2.2.2 (reg m0 .rdx, 11808) (by simp)
+  have hwf0 : (fenv m0 m0 480 488 [(reg m0 .rdx, 11808), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec).WF := by
+    apply Env.wf_of
+    · exact ⟨⟨g.map, by change (stackBelow m0 480).toNat + 488 ≤ 2 ^ 64; omega⟩,
+        ⟨hevm, heW⟩, ⟨hgot.mapped (by simp), hg.2.1⟩, trivial⟩
+    · refine List.pairwise_cons.mpr ⟨?_, List.pairwise_pair.mpr (Apart.symm' hge)⟩
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · exact heS
+      · exact Apart.symm' hgf
+  have hm0 : Match (fenv m0 m0 480 488 [(reg m0 .rdx, 11808), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec) entryS m0 := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
+        ⟨((eval_ptr0' 480).trans off_frame_F).symm, known_ptr rfl rfl, trivial⟩
+        trivial trivial ⟨by simp [Sym.eval, Env.base, gotAddr], trivial⟩
+    · intro i hi
+      simp only [Nat.zero_add]
+      change m0.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+        some (byteOf (Labels.label "memcpy").toBitVec i)
+      exact hgot.byte (l := "memcpy") (by simp) hi
+  have hlen0 : (lenS.eval (fenv m0 m0 480 488 [(reg m0 .rdx, 11808), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
       (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec)).toNat = values.size := by
     show (Env.load _ 1 10328 8).toNat = _
     rw [load_ofMachine (b := reg m0 .rdx) rfl hv0.2.1]

@@ -93,12 +93,20 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hle1 : 2672 - 32 + grindStack ≤ finalLevelStack := by decide
   have hwt1 := c.whirT hat1 hf1.same hle1
   have hpre1 : GrindPre a s1 st1.data := by
-    refine ⟨hwt1.1, hwt1.2.1, ?_, ?_, ?_⟩
+    refine ⟨hwt1.1, hwt1.2.1, ?_, ?_, ?_, ?_⟩
     · show TStateAt st1.data.dmem (reg st1.data .rdi) a s1
       rw [ht1]; exact hts1
     · show TStateOk st1.data (reg st1.data .rdi) a grindStack
       rw [ht1]; exact hwt1.2.2.2.1
     · rw [hbits]; decide
+    · rw [ht1]
+      apply c.got_call hf1 (by omega) hle1 (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_rc
   refine call_then hpc1 (hgr a s1) hpre1 fun st2 hpc2 hrsp2 hq ↦ ?_
   obtain ⟨hok, hnext, hch, hsv⟩ := hq
   rw [hbits] at hok hnext
@@ -195,7 +203,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hqo : WhirOut m0 (tA m0) a (qA m0) queryBufBytes finalLevelStack :=
     WL.whirOut_sub c.pout (o := 61352) (k := queryBufBytes) (by decide)
   have hpre5 : SampleQueriesPre a s2 st5.data := by
-    refine ⟨?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
     · show WhirT st5.data (reg st5.data .rdi) a sampleQueriesStack
       rw [ht5]; exact hwt5
     · show TStateAt st5.data.dmem (reg st5.data .rdi) a s2
@@ -205,6 +213,20 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     · show WhirOut st5.data (reg st5.data .rdi) a (reg st5.data .rcx) queryBufBytes
         sampleQueriesStack
       rw [ht5, hcx5]; exact c.whirOut hat5 hle5 hqo
+    · rw [ht5, hcx5]
+      apply c.got_call hf5 (by omega) hle5 (by decide)
+      intro ar har
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with (rfl | rfl | rfl) | har
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(pA m0, whirBytes), by simp, ?_, ?_⟩
+        · change (pA m0).toNat ≤ (qA m0).toNat
+          rw [c.qA_toNat]
+          omega
+        · change (qA m0).toNat + 1848 ≤ (pA m0).toNat + 63200
+          rw [c.qA_toNat]
+      · exact ⟨ar, by simp [har], le_rfl, le_rfl⟩
   refine call_then hpc5 (hsq a s2) hpre5 fun st6 hpc6 hrsp6 hq ↦ ?_
   obtain ⟨hok6, ⟨qs, s3, hres6, hbuf, hts6⟩, hch6, hsv6⟩ := hq
   rw [hsi5, hdx5] at hres6

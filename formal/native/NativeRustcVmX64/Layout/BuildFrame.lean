@@ -161,6 +161,32 @@ theorem Bd.entry {rest : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64} {re
   exact ⟨Frame.of_prologue Frame.entry hwf hm hS hle hcs,
     same_step hst hFS hwf hm hS'.1.2 hS'.1.1.2 hrest fun _ _ ↦ rfl⟩
 
+/-- A prologue may read additional regions while writing only its frame. -/
+theorem Bd.entry_frame {rest : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64} {ret : BitVec 64}
+    {Sy : SState} {o : Nat} (hst : StackOk m0 S) (hFS : F ≤ S)
+    (hwf : (frameEnv m0 m0 F rest vars ret).WF) (hm : Match (frameEnv m0 m0 F rest vars ret) Sy d')
+    (hS : ProOk F o slots Sy = true) (hle : ∀ p ∈ slots, p.1 + 8 ≤ F)
+    (hcs : ∀ p ∈ slots, calleeSaved p.2 = true)
+    (hw : ∀ w ∈ Sy.mem, w.r = 0 ∧ w.off + w.n ≤ F) :
+    Bd m0 F S slots R o d' :=
+  ⟨Frame.of_prologue Frame.entry hwf hm hS hle hcs,
+    (sameOutside_low hwf hm rfl (show F ≤ F + 8 by omega) hw).mono
+      (fun _ h => Or.inr (inRange_frame_stack hst.2.1 hst.1 hFS h))⟩
+
+/-- A block may read additional regions while writing only its frame. -/
+theorem Bd.of_block_frame {rest : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64}
+    {ret : BitVec 64} {Sy : SState} {o o' : Nat} (hb : Bd m0 F S slots R o d)
+    (hst : StackOk m0 S) (hFS : F ≤ S)
+    (hwf : (frameEnv m0 d F rest vars ret).WF) (hm : Match (frameEnv m0 d F rest vars ret) Sy d')
+    (hS : MidOk F o' slots Sy = true) (hle : ∀ p ∈ slots, p.1 + 8 ≤ F)
+    (hw : ∀ w ∈ Sy.mem, w.r = 0 ∧ w.off + w.n ≤ F) :
+    Bd m0 F S slots R o' d' := by
+  refine ⟨Frame.of_block hb.fr hwf hm hS hle, ?_⟩
+  have hs := sameOutside_low hwf hm rfl (show F ≤ F + 8 by omega) hw
+  intro q hq
+  exact (hs q (fun h => hq (Or.inr (inRange_frame_stack hst.2.1 hst.1 hFS h)))).trans
+    (hb.same q hq)
+
 /-- **A block** keeps a body. -/
 theorem Bd.of_block {rest : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64} {ret : BitVec 64}
     {Sy : SState} {o o' : Nat} (hb : Bd m0 F S slots R o d) (hst : StackOk m0 S) (hFS : F ≤ S)

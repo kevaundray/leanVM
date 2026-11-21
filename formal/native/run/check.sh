@@ -65,7 +65,7 @@ case $arch in
     qemu=${QEMU_X86_64:-qemu-x86_64-static}
     rustc_xmss=$project/rustc/out/xmss-x86_64.s
     rustc_sphincs=$project/rustc/out/sphincs-x86_64.s
-    rustc_vm=$project/rustc/vm/out/vm-x86_64.post.s
+    rustc_vm=$project/rustc/vm/out/vm-x86_64.s
     ;;
   arm)
     triple=aarch64-unknown-linux-musl

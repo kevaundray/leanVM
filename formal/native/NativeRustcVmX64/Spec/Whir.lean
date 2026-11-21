@@ -222,8 +222,9 @@ def LanesOfPost (m m' : MachineData) : Prop :=
 /-! ## The subspace polynomials -/
 
 /-- `subspace_table`'s precondition: the `Option<Buf<(u64, u64), 31>>` at RDI. -/
-def SubspaceTablePre (m : MachineData) : Prop :=
-  StackOk m subspaceTableStack ∧ WhirIn m (reg m .rdi) (8 + tableBytes) subspaceTableStack
+def SubspaceTablePre [Labels] (m : MachineData) : Prop :=
+  StackOk m subspaceTableStack ∧ WhirIn m (reg m .rdi) (8 + tableBytes) subspaceTableStack ∧
+    GotAt m subspaceTableStack [(reg m .rdi, 8 + tableBytes)] ["memcpy", "memset"]
 
 /-- `subspace_table`'s postcondition: tag word `1` and the table for `μ ≤ 30` (RSI), else `0`. -/
 def SubspaceTablePost (m m' : MachineData) : Prop :=
@@ -236,11 +237,13 @@ def SubspaceTablePost (m m' : MachineData) : Prop :=
 
 /-- `subspace_at_table`'s precondition: at most `31` pairs at RSI (RDX), the `Buf<u64, 31>` at
 RDI apart from them. -/
-def SubspaceAtTablePre (m : MachineData) : Prop :=
+def SubspaceAtTablePre [Labels] (m : MachineData) : Prop :=
   StackOk m subspaceAtTableStack ∧ (reg m .rdx).toNat ≤ rootCap ∧
     WhirIn m (reg m .rsi) (16 * (reg m .rdx).toNat) subspaceAtTableStack ∧
     WhirIn m (reg m .rdi) whatBytes subspaceAtTableStack ∧
-    Apart (reg m .rdi) whatBytes (reg m .rsi) (16 * (reg m .rdx).toNat)
+    Apart (reg m .rdi) whatBytes (reg m .rsi) (16 * (reg m .rdx).toNat) ∧
+    GotAt m subspaceAtTableStack
+      [(reg m .rsi, 16 * (reg m .rdx).toNat), (reg m .rdi, whatBytes)] ["memcpy", "memset"]
 
 /-- `subspace_at_table`'s postcondition (`x` RCX). -/
 def SubspaceAtTablePost (m m' : MachineData) : Prop :=
@@ -251,10 +254,12 @@ def SubspaceAtTablePost (m m' : MachineData) : Prop :=
 
 /-- `novel_eval`'s precondition: the coefficients (RSI, RDX), the `What`s (RCX, R8 words), the
 `Option<EW>` at RDI. -/
-def NovelEvalPre (m : MachineData) : Prop :=
+def NovelEvalPre [Labels] (m : MachineData) : Prop :=
   StackOk m novelEvalStack ∧ SliceOk m (reg m .rsi) (reg m .rdx) novelEvalStack ∧
     WhirIn m (reg m .rcx) (8 * (reg m .r8).toNat) novelEvalStack ∧
-    WhirIn m (reg m .rdi) 24 novelEvalStack
+    WhirIn m (reg m .rdi) 24 novelEvalStack ∧
+    GotAt m novelEvalStack [(reg m .rsi, 16 * (reg m .rdx).toNat),
+      (reg m .rcx, 8 * (reg m .r8).toNat), (reg m .rdi, 24)] ["memset"]
 
 /-- `novel_eval`'s postcondition. -/
 def NovelEvalPost (m m' : MachineData) : Prop :=
@@ -285,11 +290,15 @@ def FoldRowPost (m m' : MachineData) : Prop :=
 
 /-- `induced_weight`'s precondition: the queries (RDX, RCX words), their weights (R8, R9), the
 point (the stack arguments `0`, `1`), the `Option<EW>` at RDI apart from the argument words. -/
-def InducedWeightPre (m : MachineData) : Prop :=
+def InducedWeightPre [Labels] (m : MachineData) : Prop :=
   let N := inducedWeightStack
   StackOk m N ∧ ArgsOk m 2 ∧ WhirIn m (reg m .rdx) (8 * (reg m .rcx).toNat) N ∧
     SliceOk m (reg m .r8) (reg m .r9) N ∧ SliceOk m (stackArg m 0) (stackArg m 1) N ∧
-    WhirIn m (reg m .rdi) 24 N ∧ Apart (reg m .rdi) 24 (rspOf m + 8#64) 16
+    WhirIn m (reg m .rdi) 24 N ∧ Apart (reg m .rdi) 24 (rspOf m + 8#64) 16 ∧
+    GotAt m N ([(reg m .rdx, 8 * (reg m .rcx).toNat),
+      (reg m .r8, 16 * (reg m .r9).toNat), (reg m .rdi, 24), (rspOf m + 8#64, 16)] ++
+      if 0 < (stackArg m 1).toNat then [(stackArg m 0, 16 * (stackArg m 1).toNat)] else [])
+      ["memcpy", "memset"]
 
 /-- `induced_weight`'s postcondition (`μ` RSI). -/
 def InducedWeightPost (m m' : MachineData) : Prop :=
@@ -301,11 +310,14 @@ def InducedWeightPost (m m' : MachineData) : Prop :=
     ChangesIn m m' inducedWeightStack [⟨o, 24⟩] ∧ Saved m m'
 
 /-- `glued_eval`'s precondition: the glued claim `g` at RSI, the point (RDX, RCX), the
-`Option<EW>` at RDI. -/
-def GluedEvalPre (g : GluedClaimW) (m : MachineData) : Prop :=
+`Option<EW>` at RDI. An empty point has no bytes to protect from the GOT. -/
+def GluedEvalPre [Labels] (g : GluedClaimW) (m : MachineData) : Prop :=
   StackOk m gluedEvalStack ∧ GluedAt m.dmem (reg m .rsi) g ∧
     WhirIn m (reg m .rsi) gluedBytes gluedEvalStack ∧
-    SliceOk m (reg m .rdx) (reg m .rcx) gluedEvalStack ∧ WhirIn m (reg m .rdi) 24 gluedEvalStack
+    SliceOk m (reg m .rdx) (reg m .rcx) gluedEvalStack ∧ WhirIn m (reg m .rdi) 24 gluedEvalStack ∧
+    GotAt m gluedEvalStack ([(reg m .rsi, gluedBytes), (reg m .rdi, 24)] ++
+      if 0 < (reg m .rcx).toNat then [(reg m .rdx, 16 * (reg m .rcx).toNat)] else [])
+      ["memcpy", "memset"]
 
 /-- `glued_eval`'s postcondition. -/
 def GluedEvalPost (g : GluedClaimW) (m m' : MachineData) : Prop :=
@@ -366,7 +378,10 @@ def WhirT (m : MachineData) (t : BitVec 64) (a : DecArea) (N : Nat) : Prop :=
 def SampleQueriesPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rdi
   WhirT m t a sampleQueriesStack ∧ TStateAt m.dmem t a s ∧ (reg m .rdx).toNat ≤ queryCap ∧
-    WhirOut m t a (reg m .rcx) queryBufBytes sampleQueriesStack
+    WhirOut m t a (reg m .rcx) queryBufBytes sampleQueriesStack ∧
+    GotAt m sampleQueriesStack
+      ([(t, tstateBytes), (a.words, 8 * a.len), (reg m .rcx, queryBufBytes)] ++ rodataAreas)
+      ["memcpy"]
 
 /-- `sample_queries`'s postcondition (`depth` RSI). -/
 def SampleQueriesPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
@@ -384,7 +399,10 @@ def FoldRoundPre (a : DecArea) (s : TState) (w : WhirStateW) (m : MachineData) :
   let t := reg m .rsi; let p := reg m .rdx; let o := reg m .rdi
   WhirT m t a foldRoundStack ∧ TStateAt m.dmem t a s ∧ WhirStateAt m.dmem p w ∧
     w.alphas.size < stackCap ∧ WhirOut m t a p stateBytes foldRoundStack ∧
-    WhirOut m t a o 40 foldRoundStack ∧ Apart o 40 p stateBytes
+    WhirOut m t a o 40 foldRoundStack ∧ Apart o 40 p stateBytes ∧
+    GotAt m foldRoundStack
+      ([(t, tstateBytes), (a.words, 8 * a.len), (p, stateBytes), (o, 40)] ++ rodataAreas)
+      ["memcpy"]
 
 /-- `fold_round`'s postcondition: tag word `0`, or `1`, `α` and `β`, the state `foldRound`'s. -/
 def FoldRoundPost (a : DecArea) (s : TState) (w : WhirStateW) (m m' : MachineData) : Prop :=
@@ -404,7 +422,9 @@ def FoldRoundsPre (a : DecArea) (s : TState) (w : WhirStateW) (m : MachineData) 
     (reg m .rsi).toNat ≤ roundCap ∧ w.alphas.size + (reg m .rsi).toNat ≤ stackCap ∧
     WhirOut m t a p stateBytes foldRoundsStack ∧
     WhirOut m t a r (8 + roundBytes * roundCap) foldRoundsStack ∧
-    Apart r (8 + roundBytes * roundCap) p stateBytes
+    Apart r (8 + roundBytes * roundCap) p stateBytes ∧
+    GotAt m foldRoundsStack ([(t, tstateBytes), (a.words, 8 * a.len), (p, stateBytes),
+      (r, 8 + roundBytes * roundCap)] ++ rodataAreas) ["memcpy"]
 
 /-- `fold_rounds`'s postcondition. -/
 def FoldRoundsPost (a : DecArea) (s : TState) (w : WhirStateW) (m m' : MachineData) : Prop :=
@@ -437,9 +457,12 @@ def eachRowArgs (m : MachineData) : Array UInt64 × Array FoldRoundW :=
 
 /-- `each_row::<final_level's closure>`'s precondition: the folded scalars (the stack arguments
 `1`, `2`), at most 64. -/
-def EachRowFinalPre (rows : Array (Array UInt64)) (op : BitVec 64) (m : MachineData) : Prop :=
+def EachRowFinalPre [Labels] (rows : Array (Array UInt64)) (op : BitVec 64) (m : MachineData) : Prop :=
   EachRowIn rows op eachRowFinalStack 3 m ∧ (stackArg m 2).toNat ≤ laneCap ∧
-    SliceOk m (stackArg m 1) (stackArg m 2) eachRowFinalStack
+    SliceOk m (stackArg m 1) (stackArg m 2) eachRowFinalStack ∧
+    GotAt m eachRowFinalStack [(reg m .rcx, 32), (op, 8 * openingsWords),
+      (reg m .rsi, 8 * (reg m .rdx).toNat), (reg m .r9, roundBytes * (stackArg m 0).toNat),
+      (stackArg m 1, 16 * (stackArg m 2).toNat), (rspOf m + 8#64, 24)] ["memcpy", "memset"]
 
 /-- `each_row::<final_level's closure>`'s postcondition: `finalOk` (`index` RDI, `μ` R8). -/
 def EachRowFinalPost (rows : Array (Array UInt64)) (m m' : MachineData) : Prop :=
@@ -455,7 +478,7 @@ def nextEnv (m : MachineData) (i : Nat) : BitVec 64 :=
 /-- `each_row::<next_level's closure>`'s precondition: the closure at the stack argument `1`, its
 `μ` the one in R8, `high` (at most 64), the query weights, the batched value `0` at `&mut batched`,
 apart from the inputs and the argument words. -/
-def EachRowNextPre (rows : Array (Array UInt64)) (op : BitVec 64) (m : MachineData) : Prop :=
+def EachRowNextPre [Labels] (rows : Array (Array UInt64)) (op : BitVec 64) (m : MachineData) : Prop :=
   let N := eachRowNextStack; let b := nextEnv m 3; let env := stackArg m 1
   EachRowIn rows op N 2 m ∧ WhirIn m env 48 N ∧
     WhirIn m (nextEnv m 0) 8 N ∧ wordOf m.dmem (nextEnv m 0) = .ofBitVec (reg m .r8) ∧
@@ -467,7 +490,12 @@ def EachRowNextPre (rows : Array (Array UInt64)) (op : BitVec 64) (m : MachineDa
     Apart b 16 (reg m .rsi) (8 * (reg m .rdx).toNat) ∧
     Apart b 16 (reg m .r9) (roundBytes * (stackArg m 0).toNat) ∧
     Apart b 16 (nextEnv m 1) (16 * (nextEnv m 2).toNat) ∧
-    Apart b 16 (nextEnv m 4) (16 * (nextEnv m 5).toNat)
+    Apart b 16 (nextEnv m 4) (16 * (nextEnv m 5).toNat) ∧
+    GotAt m N [(reg m .rcx, 32), (op, 8 * openingsWords),
+      (reg m .rsi, 8 * (reg m .rdx).toNat), (reg m .r9, roundBytes * (stackArg m 0).toNat),
+      (env, 48), (nextEnv m 0, 8), (nextEnv m 1, 16 * (nextEnv m 2).toNat),
+      (nextEnv m 4, 16 * (nextEnv m 5).toNat), (b, 16), (rspOf m + 8#64, 16)]
+      ["memcpy", "memset"]
 
 /-- `each_row::<next_level's closure>`'s postcondition: `batched` becomes `batchedOf`. -/
 def EachRowNextPost (rows : Array (Array UInt64)) (m m' : MachineData) : Prop :=
@@ -528,7 +556,9 @@ def FinalLevelPre (a : DecArea) (s : TState) (level : Whir.Level) (ba : BasisAdd
     Apart (reg m .rdx) levelBytes t tstateBytes ∧
     BasisIn m (reg m .r9) ba N p whirBytes ∧ BasisIn m (reg m .r9) ba N t tstateBytes ∧
     BasisApart (reg m .r9) ba ∧
-    Apart (rspOf m + 8#64) 8 t tstateBytes ∧ Apart (rspOf m + 8#64) 8 p whirBytes
+    Apart (rspOf m + 8#64) 8 t tstateBytes ∧ Apart (rspOf m + 8#64) 8 p whirBytes ∧
+    GotAt m N ([(t, tstateBytes), (a.words, 8 * a.len), (p, whirBytes),
+      (reg m .rdx, levelBytes), (rspOf m + 8#64, 8)] ++ rodataAreas) ["memcpy", "memset"]
 
 /-- `final_level`'s postcondition: `finalLevelM` (`index` RSI, `laneFolds` R8). -/
 def FinalLevelPost (a : DecArea) (s : TState) (level : Whir.Level) (b : BasisW) (w : WhirStateW)
@@ -555,7 +585,9 @@ def NextLevelPre (a : DecArea) (s : TState) (level : Whir.Level) (w : WhirStateW
     WhirOut m t a p whirBytes N ∧ WhirIn m (reg m .rdx) levelBytes N ∧
     Apart (reg m .rdx) levelBytes p whirBytes ∧
     Apart (reg m .rdx) levelBytes t tstateBytes ∧
-    Apart (rspOf m + 8#64) 8 t tstateBytes ∧ Apart (rspOf m + 8#64) 8 p whirBytes
+    Apart (rspOf m + 8#64) 8 t tstateBytes ∧ Apart (rspOf m + 8#64) 8 p whirBytes ∧
+    GotAt m N ([(t, tstateBytes), (a.words, 8 * a.len), (p, whirBytes),
+      (reg m .rdx, levelBytes), (rspOf m + 8#64, 8)] ++ rodataAreas) ["memcpy", "memset"]
 
 /-- `next_level`'s postcondition: `nextLevelM` (the next level's query count unused; `index` RSI),
 the glued state at the stack argument `0`, the rounds kept. -/
@@ -585,7 +617,9 @@ def WhirLevelsPre (a : DecArea) (s : TState) (levels : List Whir.Level) (ba : Ba
     Apart lv (levelBytes * levels.length) t tstateBytes ∧
     BasisIn m (reg m .rcx) ba N p whirBytes ∧ BasisIn m (reg m .rcx) ba N t tstateBytes ∧
     BasisApart (reg m .rcx) ba ∧
-    Apart (rspOf m + 8#64) 8 t tstateBytes ∧ Apart (rspOf m + 8#64) 8 p whirBytes
+    Apart (rspOf m + 8#64) 8 t tstateBytes ∧ Apart (rspOf m + 8#64) 8 p whirBytes ∧
+    GotAt m N ([(t, tstateBytes), (a.words, 8 * a.len), (p, whirBytes),
+      (lv, levelBytes * levels.length), (rspOf m + 8#64, 8)] ++ rodataAreas) ["memcpy", "memset"]
 
 /-- `whir_levels`'s postcondition: `whirLevels logN laneFolds b 0 levels` (`laneFolds` RDX). -/
 def WhirLevelsPost (a : DecArea) (s : TState) (levels : List Whir.Level) (b : BasisW) (claim : EW)
@@ -624,7 +658,9 @@ def VerifyStackedOpeningPre (a : DecArea) (s : TState) (layout : LayoutW) (targe
     WhirOut m t a sc scalesBytes N ∧ Apart p whirBytes sc scalesBytes ∧
     (∀ r ∈ vsoInputs m, WhirIn m r.addr r.size N ∧ Apart r.addr r.size t tstateBytes ∧
       Apart r.addr r.size p whirBytes ∧ Apart r.addr r.size sc scalesBytes) ∧
-    (vsoInputs m).Pairwise fun r r' ↦ Apart r.addr r.size r'.addr r'.size
+    ((vsoInputs m).Pairwise fun r r' ↦ Apart r.addr r.size r'.addr r'.size) ∧
+    GotAt m N ([(t, tstateBytes), (a.words, 8 * a.len), (sc, scalesBytes), (p, whirBytes)] ++
+      (vsoInputs m).map (fun r => (r.addr, r.size)) ++ rodataAreas) ["memcpy", "memset"]
 
 /-- `verify_stacked_opening`'s postcondition: `verifyStackedOpening` of the stack's log-size, the
 rate exponent (RDX) and the stack claims. -/

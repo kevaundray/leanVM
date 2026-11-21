@@ -52,7 +52,7 @@ theorem prologue_step {k : Nat} (hp : Placed Vm.KeccakF.code k)
     (hpre : NativeRustcVmX64.KeccakFPre m0) :
     Eventually (step1 Host.exe) (fun st => At m0 0 st.data ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b2Offset))
       ⟨m0, Host.addrOf k⟩ := by
-  obtain ⟨hstk, ⟨hrc, hrcnw, hrcap⟩, hmap, hnw, hap, -⟩ := hpre
+  obtain ⟨hstk, ⟨hrc, hrcnw, hrcap⟩, hmap, hnw, hap, -, hgot⟩ := hpre
   have hf := frame_noWrap hstk
   have hft := frame_toNat hstk
   have h1 := hstk.1
@@ -68,16 +68,31 @@ theorem prologue_step {k : Nat} (hp : Placed Vm.KeccakF.code k)
   unfold Apart at hap'
   have hk0 : Vm.KeccakF.b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.KeccakF.b0Offset) :=
     Vm.KeccakF.b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  let env0 := Env.ofMachine m0 [(frame m0, 488), (m0.regs.get64 .rdi, 200)] (fun _ => 0)
+  let env0 := Env.ofMachine m0
+    [(frame m0, 488), (m0.regs.get64 .rdi, 200), (gotAddr "memcpy", 8)] (fun _ => 0)
     (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b0Offset + Vm.KeccakF.b0.length)).toBitVec
-  have hwf0 : env0.WF :=
-    Env.wf_of ⟨⟨hstk.2.2, frame_noWrap hstk⟩, ⟨hmap, hnw⟩, trivial⟩
-      (List.pairwise_pair.mpr hap.symm)
-  have hm0 : Match env0 startEntry m0 :=
-    match_ofMachine ⟨rfl, rfl, trivial⟩
-      ⟨show rspOf m0 = _ from (frame_add m0).symm.trans rfl,
-        show m0.regs.get64 .rdi = _ from (BitVec.add_zero _).symm.trans rfl, trivial⟩
-      trivial trivial trivial
+  obtain ⟨_, hgnw, hgs, hga⟩ := hgot.1 "memcpy" (by simp)
+  have hgf : Apart (gotAddr "memcpy") 8 (frame m0) 488 := hgs
+  have hgo : Apart (gotAddr "memcpy") 8 (m0.regs.get64 .rdi) 200 :=
+    hga (m0.regs.get64 .rdi, 200) (by simp)
+  have hwf0 : env0.WF := by
+    refine Env.wf_of ⟨⟨hstk.2.2, frame_noWrap hstk⟩, ⟨hmap, hnw⟩,
+      ⟨hgot.mapped (by simp), hgnw⟩, trivial⟩ ?_
+    apply List.pairwise_cons.mpr
+    refine ⟨?_, List.pairwise_pair.mpr hgo.symm⟩
+    intro a ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl
+    · exact hap.symm
+    · exact hgf.symm
+  have hm0 : Match env0 startEntry m0 := by
+    refine Match.withKnownBytes ?_ ?_
+    · exact match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
+        ⟨show rspOf m0 = _ from (frame_add m0).symm.trans rfl,
+          show m0.regs.get64 .rdi = _ from (BitVec.add_zero _).symm.trans rfl, trivial⟩
+        trivial trivial ⟨(BitVec.add_zero _).symm, trivial⟩
+    · intro i hi
+      simpa [env0, Env.base, Sym.eval] using hgot.byte (l := "memcpy") (by simp) hi
   have hb0 : env0.regions[0]? = some (frame m0, 488) := rfl
   have hrc192 : rcBytes.length = 192 := length_rcBytes
   refine exec_then hk0 entry hwf0 (fun _ _ => rfl) hm0 fun st1 hm1 hpc1 => ?_

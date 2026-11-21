@@ -6,6 +6,7 @@ public import NativeRustcVmX64.Bus.GkrCommon
 public import NativeRustcVmX64.Bus.Common
 public import NativeRustcVm.Tables.Same
 public import NativeRustcVmX64.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcX64.Got
 
 /-!
 # `verify_bus_balance`'s frame, its exits (x86-64)
@@ -136,7 +137,64 @@ theorem pre_tR : RodataApart (reg m0 .rdi) tstateBytes :=
   h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
 theorem pre_bcT : 0 < (reg m0 .rcx).toNat →
     Apart (reg m0 .rdx) (8 * (reg m0 .rcx).toNat) (reg m0 .rdi) tstateBytes :=
-  h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+  h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
+
+theorem pre_got :
+    GotAt m0 NN ([(reg m0 .rdi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rsi, layoutBytes), (reg m0 .r8, busBytes), (reg m0 .r9, claimsBytes),
+      (rcAddr, 192)] ++
+      (if (reg m0 .rcx).toNat = 0 then [] else [(reg m0 .rdx, 8 * (reg m0 .rcx).toNat)]) ++
+      ([.tuples, .tables, .padding, .pushBlocks, .pullBlocks, .countBlocks, .one] :
+        List NativeRustcVm.Data.Item).map (fun i => (rodataAddr i, i.bytes.length)))
+      ["memcpy", "memset"] :=
+  h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+
+/-- The outputs and stack cannot overwrite loader slots. -/
+theorem got_same {d : MachineData} {o : Nat} (fr : St m0 o d) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  refine got_keep (pre_got h) (pre_stack h)
+    (writes := [(reg m0 .rdi, tstateBytes), (reg m0 .r8, busBytes), (reg m0 .r9, claimsBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb; rcases hb with rfl | rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl
+      · exact (pre_ts h).footprint.1.2
+      · exact (pre_bus h).2.1
+      · exact (pre_cl h).2.1)
+    (NativeRustcVm.SameOutside.mono fr.same ?_)
+  intro q hq
+  rcases hq with hq | hq | hq | hq
+  · exact .inr hq
+  · exact .inl ⟨(reg m0 .rdi, tstateBytes), by simp, hq⟩
+  · exact .inl ⟨(reg m0 .r8, busBytes), by simp, hq⟩
+  · exact .inl ⟨(reg m0 .r9, claimsBytes), by simp, hq⟩
+
+/-- A raw copy call's frame and read-only loader slot. -/
+theorem wf_copy {d : MachineData} (hk : Kept m0.dmem d.dmem)
+    {vars : Nat → BitVec 64} {ret : BitVec 64} :
+    (frameEnv m0 d 5520 [(gotAddr "memcpy", 8)] vars ret).WF :=
+  Bus.wf1 (pre_stack h) N_ge hk
+    ⟨(pre_got h).mapped (by simp), ((pre_got h).1 "memcpy" (by simp)).2.1⟩
+    ((pre_got h).1 "memcpy" (by simp)).2.2.1
+
+theorem match_copy {d : MachineData} (fr : St m0 104 d)
+    {vars : Nat → BitVec 64} {ret : BitVec 64} :
+    Match (frameEnv m0 d 5520 [(gotAddr "memcpy", 8)] vars ret) copyS d := by
+  have hm := match_ofMachine (m := d)
+    (regions := [(fb m0, 5528), (gotAddr "memcpy", 8)]) (vars := vars) (ret := ret)
+    (sregions := [5528, 8]) (known := [(.rsp, .ptr 0 104)])
+    (labels := []) (bounds := []) (aliases := [(.gotSlot "memcpy", 1, 0)])
+    ⟨rfl, rfl, trivial⟩ ⟨fr.frame.rsp_eval, trivial⟩ trivial trivial
+    ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes (r := 1) (off := 0) (n := 8) (v := .label "memcpy")
+  intro i hi
+  simp only [Env.ofMachine_mem0, Env.base_ofMachine_eq, List.getElem?_cons_succ,
+    List.getElem?_cons_zero, Option.map_some, Option.getD_some, Nat.zero_add, Sym.eval]
+  rw [got_same h fr "memcpy" (by simp) i hi]
+  exact (pre_got h).byte (by simp) hi
 
 /-- The entry's context. -/
 theorem ctx : Ctx m0 (reg m0 .rdi) a NN 5520 :=

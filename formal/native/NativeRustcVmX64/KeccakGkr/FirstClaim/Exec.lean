@@ -49,6 +49,15 @@ def storeS : SState :=
   init [1384, 16] [(.rsp, .ptr 0 8)] [] [] [(.bin .add .W64 (.reg .r14) (.reg .rbp), 1, 8)]
 def outS : SState := init [1384, 776] [(.rsp, .ptr 0 8), (.r15, .ptr 1 0)]
 
+/-- The first copy loads the loader's `memcpy` slot into the callee-saved R14. -/
+def copyS : SState :=
+  (init [1384, 24, 8] [(.rsp, .ptr 0 8)] [] []
+    (argAliases ++ [(.gotSlot "memcpy", 2, 0)])).withKnownBytes 2 0 8 (.label "memcpy")
+
+/-- The second copy calls the address retained in R14, without another slot read. -/
+def copyRetS : SState :=
+  init [1384, 24] [(.rsp, .ptr 0 8), (.r14, .label "memcpy")] [] [] argAliases
+
 
 /-- Registers holding their atoms. -/
 def atoms (S : SState) (rs : List Reg64) : Bool := rs.all fun r ↦ S.reg r == some (.reg r)
@@ -86,8 +95,8 @@ sym_block e11 := exec b11 callS
 sym_block e12 := exec b12 callS
 sym_block e13 := exec b13 callS
 sym_block e14 := exec b14 callS
-sym_block e15 := exec b15 callS
-sym_block e16 := exec b16 callS
+sym_block e15 := exec b15 copyS
+sym_block e16 := exec b16 copyRetS
 sym_block e17 := exec b17 outS
 sym_block e20 := exec b20 callS
 
@@ -241,24 +250,25 @@ theorem exit_b13 : exec b13 callS = some (after b13 callS, .call
     NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) :=
   e13.trans (by rw [after_eq e13])
 
-theorem ok_b15 : MidOk 1376 0 slots (after b15 callS) = true ∧ within (after b15 callS) 0 8 = true ∧
-    (after b15 callS).reg .rdi = some (.bin .add .W64 (.reg .r15) (.lit 24)) ∧
-    (after b15 callS).reg .rsi = some (.ptr 0 64) ∧ (after b15 callS).reg .rdx = some (.lit 264) ∧
-    (after b15 callS).reg .r13 = some (.bin .xor .W64 (.reg .r13) (.load 1 0 8)) ∧
-    (after b15 callS).reg .rbp = some (.bin .xor .W64 (.reg .rbp) (.load 1 8 8)) ∧
-    atoms (after b15 callS) [.r15] = true := by
+theorem ok_b15 : MidOk 1376 0 slots (after b15 copyS) = true ∧ within (after b15 copyS) 0 8 = true ∧
+    (after b15 copyS).reg .rdi = some (.bin .add .W64 (.reg .r15) (.lit 24)) ∧
+    (after b15 copyS).reg .rsi = some (.ptr 0 64) ∧ (after b15 copyS).reg .rdx = some (.lit 264) ∧
+    (after b15 copyS).reg .r13 = some (.bin .xor .W64 (.reg .r13) (.load 1 0 8)) ∧
+    (after b15 copyS).reg .rbp = some (.bin .xor .W64 (.reg .rbp) (.load 1 8 8)) ∧
+    atoms (after b15 copyS) [.r15] = true ∧
+    (after b15 copyS).reg .r14 = some (.label "memcpy") := by
   rw [after_eq e15]; decide +kernel
 
-theorem exit_b15 : exec b15 callS = some (after b15 callS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+theorem exit_b15 : exec b15 copyS = some (after b15 copyS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   e15.trans (by rw [after_eq e15])
 
-theorem ok_b16 : MidOk 1376 0 slots (after b16 callS) = true ∧ within (after b16 callS) 0 8 = true ∧
-    (after b16 callS).reg .rdi = some (.bin .add .W64 (.reg .r15) (.lit 288)) ∧
-    (after b16 callS).reg .rsi = some (.ptr 0 840) ∧ (after b16 callS).reg .rdx = some (.lit 488) ∧
-    atoms (after b16 callS) [.rbp, .r13, .r15] = true := by
+theorem ok_b16 : MidOk 1376 0 slots (after b16 copyRetS) = true ∧ within (after b16 copyRetS) 0 8 = true ∧
+    (after b16 copyRetS).reg .rdi = some (.bin .add .W64 (.reg .r15) (.lit 288)) ∧
+    (after b16 copyRetS).reg .rsi = some (.ptr 0 840) ∧ (after b16 copyRetS).reg .rdx = some (.lit 488) ∧
+    atoms (after b16 copyRetS) [.rbp, .r13, .r15] = true := by
   rw [after_eq e16]; decide +kernel
 
-theorem exit_b16 : exec b16 callS = some (after b16 callS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+theorem exit_b16 : exec b16 copyRetS = some (after b16 copyRetS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   e16.trans (by rw [after_eq e16])
 
 theorem ok_b17 : MidOk 1376 8 slots (after b17 outS) = true ∧

@@ -70,6 +70,10 @@ def lF : Label := NativeRustcVmX64.Vm.VerifyBusBalance.label_27
 
 def eS : SState := init [5528, 16] [(.rsp, .ptr 0 5520), (.rsi, .ptr 1 0)]
 def fS (o : Nat) : SState := init [5528] [(.rsp, .ptr 0 (o : Int))]
+/-- The frame and loader slot for a raw indirect copy. -/
+def copyS : SState :=
+  (init [5528, 8] [(.rsp, .ptr 0 104)] [] [] [(.gotSlot "memcpy", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memcpy")
 def cS : SState := init [5528, 8] [(.rsp, .ptr 0 104), (.r15, .ptr 1 0)]
 def bS : SState := init [5528, 107768] [(.rsp, .ptr 0 104)] (aliases := [(.load 0 112 8, 1, 0)])
 def lS (B : Nat) : SState :=
@@ -113,13 +117,13 @@ set_option Elab.async false
 
 sym_block run_b0 := exec b0 eS
 sym_block run_b1 := exec b1 (fS 104)
-sym_block run_b2 := exec b2 (fS 104)
+sym_block run_b2 := exec b2 copyS
 sym_block run_b3 := exec b3 (fS 104)
 sym_block run_b4 := exec b4 (fS 104)
-sym_block run_b5 := exec b5 (fS 104)
+sym_block run_b5 := exec b5 copyS
 sym_block run_b6 := exec b6 (fS 104)
 sym_block run_b7 := exec b7 (fS 104)
-sym_block run_b8 := exec b8 (fS 104)
+sym_block run_b8 := exec b8 copyS
 sym_block run_b9 := exec b9 (fS 104)
 sym_block run_b10 := exec b10 (fS 104)
 sym_block run_b11 := exec b11 (fS 104)
@@ -128,7 +132,7 @@ sym_block run_b13 := exec b13 (fS 104)
 sym_block run_b14 := exec b14 (fS 104)
 sym_block run_b15 := exec b15 (fS 104)
 sym_block run_b16 := exec b16 (lS 132)
-sym_block run_b17 := exec b17 (fS 104)
+sym_block run_b17 := exec b17 copyS
 sym_block run_b18 := exec b18 (fS 104)
 sym_block run_b19 := exec b19 (fS 104)
 sym_block run_b20 := exec b20 (fS 104)
@@ -199,15 +203,15 @@ public theorem exit_b1 : exec b1 (fS 104) = some (after b1 (fS 104), .cond (tag3
   run_b1.trans (by rw [after_eq run_b1]; rfl)
 public theorem ok_b1 : TestOk (after b1 (fS 104)) := by decide +kernel
 
-public theorem exit_b2 : exec b2 (fS 104) = some (after b2 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+public theorem exit_b2 : exec b2 copyS = some (after b2 copyS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b2.trans (by rw [after_eq run_b2])
-public theorem ok_b2 : Mid 96 (after b2 (fS 104)) ∧ W0 96 120 (after b2 (fS 104)) ∧
-    Wrote 0 [(112, .reg .r12)] (after b2 (fS 104)) ∧
-    (after b2 (fS 104)).reg .rdi = some (.ptr 0 2816) ∧
-    (after b2 (fS 104)).reg .rsi = some (.ptr 0 688) ∧
-    (after b2 (fS 104)).reg .rdx = some (.lit 880) ∧
-    (after b2 (fS 104)).reg .r12 = some (.load 0 680 8) ∧
-    Keeps [.rbx, .rbp, .r13, .r14, .r15] (after b2 (fS 104)) := by
+public theorem ok_b2 : Mid 96 (after b2 copyS) ∧ W0 96 120 (after b2 copyS) ∧
+    Wrote 0 [(112, .reg .r12)] (after b2 copyS) ∧
+    (after b2 copyS).reg .rdi = some (.ptr 0 2816) ∧
+    (after b2 copyS).reg .rsi = some (.ptr 0 688) ∧
+    (after b2 copyS).reg .rdx = some (.lit 880) ∧
+    (after b2 copyS).reg .r12 = some (.load 0 680 8) ∧
+    Keeps [.rbx, .rbp, .r13, .r14, .r15] (after b2 copyS) := by
   decide +kernel
 
 public theorem exit_b3 : exec b3 (fS 104) =
@@ -227,12 +231,12 @@ public theorem exit_b4 : exec b4 (fS 104) = some (after b4 (fS 104), .cond (tag8
   run_b4.trans (by rw [after_eq run_b4]; rfl)
 public theorem ok_b4 : TestOk (after b4 (fS 104)) := by decide +kernel
 
-public theorem exit_b5 : exec b5 (fS 104) = some (after b5 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+public theorem exit_b5 : exec b5 copyS = some (after b5 copyS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b5.trans (by rw [after_eq run_b5])
-public theorem ok_b5 : Mid 96 (after b5 (fS 104)) ∧ W0 96 104 (after b5 (fS 104)) ∧
-    (after b5 (fS 104)).reg .rdi = some (.ptr 0 3696) ∧
-    (after b5 (fS 104)).reg .rsi = some (.ptr 0 680) ∧
-    (after b5 (fS 104)).reg .rdx = some (.lit 888) ∧ Keeps cs (after b5 (fS 104)) := by
+public theorem ok_b5 : Mid 96 (after b5 copyS) ∧ W0 96 104 (after b5 copyS) ∧
+    (after b5 copyS).reg .rdi = some (.ptr 0 3696) ∧
+    (after b5 copyS).reg .rsi = some (.ptr 0 680) ∧
+    (after b5 copyS).reg .rdx = some (.lit 888) ∧ Keeps cs (after b5 copyS) := by
   decide +kernel
 
 public theorem exit_b6 : exec b6 (fS 104) =
@@ -251,12 +255,12 @@ public theorem exit_b7 : exec b7 (fS 104) = some (after b7 (fS 104), .cond (tag8
   run_b7.trans (by rw [after_eq run_b7]; rfl)
 public theorem ok_b7 : TestOk (after b7 (fS 104)) := by decide +kernel
 
-public theorem exit_b8 : exec b8 (fS 104) = some (after b8 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+public theorem exit_b8 : exec b8 copyS = some (after b8 copyS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
-public theorem ok_b8 : Mid 96 (after b8 (fS 104)) ∧ W0 96 104 (after b8 (fS 104)) ∧
-    (after b8 (fS 104)).reg .rdi = some (.ptr 0 4584) ∧
-    (after b8 (fS 104)).reg .rsi = some (.ptr 0 680) ∧
-    (after b8 (fS 104)).reg .rdx = some (.lit 888) ∧ Keeps cs (after b8 (fS 104)) := by
+public theorem ok_b8 : Mid 96 (after b8 copyS) ∧ W0 96 104 (after b8 copyS) ∧
+    (after b8 copyS).reg .rdi = some (.ptr 0 4584) ∧
+    (after b8 copyS).reg .rsi = some (.ptr 0 680) ∧
+    (after b8 copyS).reg .rdx = some (.lit 888) ∧ Keeps cs (after b8 copyS) := by
   decide +kernel
 
 /-! ## The grind, the challenges, the GKR walk (`b9` to `b20`) -/
@@ -321,12 +325,12 @@ public theorem ok_b16 : Mid 104 (after b16 (lS 132)) ∧ W0 632 1728 (after b16 
     Keeps cs (after b16 (lS 132)) := by
   decide +kernel
 
-public theorem exit_b17 : exec b17 (fS 104) = some (after b17 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+public theorem exit_b17 : exec b17 copyS = some (after b17 copyS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b17.trans (by rw [after_eq run_b17])
-public theorem ok_b17 : Mid 96 (after b17 (fS 104)) ∧ W0 96 104 (after b17 (fS 104)) ∧
-    (after b17 (fS 104)).reg .rdi = some (.ptr 0 1800) ∧
-    (after b17 (fS 104)).reg .rsi = some (.ptr 0 672) ∧
-    (after b17 (fS 104)).reg .rdx = some (.lit 1008) ∧ Keeps cs (after b17 (fS 104)) := by
+public theorem ok_b17 : Mid 96 (after b17 copyS) ∧ W0 96 104 (after b17 copyS) ∧
+    (after b17 copyS).reg .rdi = some (.ptr 0 1800) ∧
+    (after b17 copyS).reg .rsi = some (.ptr 0 672) ∧
+    (after b17 copyS).reg .rdx = some (.lit 1008) ∧ Keeps cs (after b17 copyS) := by
   decide +kernel
 
 public theorem exit_b18 : exec b18 (fS 104) = some (after b18 (fS 104),

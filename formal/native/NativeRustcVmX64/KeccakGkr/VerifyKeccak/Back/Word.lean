@@ -122,9 +122,18 @@ theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
     unfold ReadScalarPre
     dsimp only
     rw [rdi, rsi]
-    exact ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
+    refine ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
       Chg.ts c hch (by decide) (by decide) (by decide) hkk hts, ca.tok c (by rw [vk_eq]; decide),
-      ca.outF c h (by rw [vk_eq]; decide) (by decide) (by decide)⟩
+      ca.outF c h (by rw [vk_eq]; decide) (by decide) (by decide), ?_⟩
+    apply ca.got c (by rw [vk_eq]; decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region, tstateBytes]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl
+    all_goals first
+      | (refine ⟨_, ?_, le_rfl, le_rfl⟩; solve | simp)
+      | (refine ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp, ?_, ?_⟩ <;>
+          rw [c.K, h.addr (by decide)] <;> have := c.sp <;> rw [vk_eq] at * <;> omega)
   · have rsi : reg mc .rsi = off (ob m0 1) 0 := (hmc.regs .rsi _ rfl).trans (off0 _).symm
     have rdi : reg mc .rdi = off (fb m0) 408 := (hmc.regs .rdi _ rfl).trans (ev_frame 408)
     obtain ⟨-, -, hso, hsv⟩ := hq
@@ -177,7 +186,8 @@ theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
     have hw0 := fun ret ↦ ld_ew (rs := rsOf m0) (vals := vv m0 (Vo V v)) (ret := ret) hw4
     rw [NativeRustcVmX64.Vm.VerifyKeccak.b43_next] at hpc4
     -- `b44`: `EW::mul`.
-    refine stepC (T' := t45) (vals' := vv m0 (Vw V v w)) hp c h ⟨hpc4, hB4⟩ b44_in_code
+    refine stepC (hwfS := fun _ ↦ h.wf hB4.kept)
+      (T' := t45) (vals' := vv m0 (Vw V v w)) hp c h ⟨hpc4, hB4⟩ b44_in_code
       (by simp [b44]) run_b44 hB4.mt (by decide) (oc := 48) (by decide) rfl hmul
       (Sk := ewMulStack) (by rw [vk_eq]; decide) (fun mc hmc hk hsk hso hrsp hch hkk ↦ hsk)
       (Lc := []) (Oc := []) (fun mc m' hmc hq ↦ ?_) (by decide) (by decide) (by decide)

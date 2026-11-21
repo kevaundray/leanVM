@@ -112,7 +112,7 @@ theorem zA_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState
   obtain ⟨hmid, hmem, hrax, hK⟩ := ok_b7
   have hzc : zc m0 ≤ lw m0 := Nat.sub_le _ _
   have hin : 512 * i + 8 * t + 8 ≤ 512 * nr m0 := by omega
-  refine rg_step hp g (j := 42) (y := .bin .add .W64 (.reg .r14) (.reg .rax)) (sz := 8)
+  refine rg_step hp g (j := NativeRustcVmX64.Vm.RdRows.b7Offset) (y := .bin .add .W64 (.reg .r14) (.reg .rax)) (sz := 8)
     b7_in_code (by simp [b7]) exit_b7 nofun hmid (fun w hw ↦ by
       have h' : w ∈ (after b7 zS).mem := hw
       rw [hmem] at h'

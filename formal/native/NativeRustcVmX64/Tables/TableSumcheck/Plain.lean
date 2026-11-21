@@ -156,7 +156,7 @@ theorem plain (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
     unfold SumcheckPlainPre SumcheckOk
     rw [hrsi, hrdi, hr9, hr8, hstk, hnr]
     refine ⟨⟨?_, ?_⟩, c720.stackOk hat hle, c720.rcAt hat hle, hts1, c720.tstateOk hat hle,
-      by decide, by decide, ?_, ?_, ?_⟩
+      by decide, by decide, ?_, ?_, ?_, ?_⟩
     · show NativeRustcVm.Mapped st1.data.dmem (rspOf st1.data + 8#64) (8 * 1)
       rw [hsp1, show (8#64 : BitVec 64) = BitVec.ofNat 64 8 from rfl, off_add]
       exact mapped_off (Mapped.keeps (frame_mapped hS (by omega)) hb1.fr.kept) (by omega)
@@ -172,6 +172,16 @@ theorem plain (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
       have := spN h; have := sp8 h
       rw [toNat_off (by omega), toNat_off (by omega)]
       omega
+    · refine got_call h hb1 (by omega) hle ?_
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl | rfl | rfl
+      · exact ((Pre.got h).1 l hl).2.2.2 (tA m0, tstateBytes) (by simp)
+      · exact ((Pre.got h).1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+      · exact got_apart_frame (Pre.got h) hS hl (ob := 592) (len := 24) (by omega) (by decide)
+      · exact got_apart_frame (Pre.got h) hS hl (ob := 112) (len := 16 * nR heights)
+          (by omega) (by omega)
+      · exact ((Pre.got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
   simp only [PcOk] at hpc1
   refine call_then (env := E m0 d [(argA m0, 16)] ra) hpc1 (hsc a s) hpre fun st2 hpc2 hrsp2 hq ↦ ?_
   have hclaim : claimArg st1.data = tgt m0 := by

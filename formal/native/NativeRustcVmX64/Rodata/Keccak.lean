@@ -43,6 +43,15 @@ theorem rcAddr_eq : rcAddr = rodataAddr .keccakRC := rfl
 omit [Labels] in
 theorem keccakRC_eq : NativeRustcVm.Data.keccakRC = LeanVM.Parameters.keccakRC := rfl
 
+/-- The round-constant region belongs to the verifier's read-only areas. -/
+theorem rc_mem_rodataAreas : (rcAddr, 192) ∈ rodataAreas := by
+  apply List.mem_map.mpr
+  refine ⟨.keccakRC, by decide, ?_⟩
+  have hl : (Item.bytes .keccakRC).length = 192 := by
+    rw [Item.bytes, NativeRustcVm.length_wordsBytes, keccakRC_eq]
+    rfl
+  simp only [hl, rcAddr_eq]
+
 /-- **The round constants at their label**, from the read-only data. -/
 theorem RodataAt.rcAt {m : MachineData} {n : Nat} (h : RodataAt m n) : RcAt m n := by
   have hl : (Item.bytes .keccakRC).length = 192 := by

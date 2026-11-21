@@ -47,7 +47,7 @@ theorem MidM.keep {lo hi : Nat} {d d' : DataMem} (hl : EachRow.Lay m0 1936 24 ea
 theorem qs_size : (qsOf m0).size = (reg m0 .rdx).toNat := size_wordSlice _ _ _
 
 /-- Query `j`, as the entry's memory holds it. -/
-theorem query_word (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineData}
+theorem query_word [Labels] (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineData}
     (hfr : FR m0 o m) (hj : j < (qsOf m0).size) :
     NativeRustcVm.wordOf m.dmem (reg m0 .rsi + BitVec.ofNat 64 (8 * j)) = (qsOf m0)[j]'hj := by
   have hsz := qs_size (m0 := m0)
@@ -57,7 +57,7 @@ theorem query_word (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineDat
   simp [qsOf, eachRowArgs, wordSlice]
 
 /-- **The rows**, unchanged in a body. -/
-theorem rowsAt_of_fr (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineData}
+theorem rowsAt_of_fr [Labels] (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineData}
     (hfr : FR m0 o m) : NativeRustcVm.Sumcheck.RowsAt m.dmem (reg m0 .rcx) op rows := by
   obtain ⟨hp0, hsz, w, hw, hhdr, hrow⟩ := hpre.1.2.2.1
   have hr := hfr.input_same (lay hpre) hpre.1.2.2.2.1 fun _ _ h ↦ h
@@ -81,7 +81,7 @@ theorem rowsAt_of_fr (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineD
 
 /-- The queries' bytes, as numbers: they do not wrap, and end below the stack or start above
 RSP. -/
-theorem qs_bound (hpre : EachRowFinalPre rows op m0) :
+theorem qs_bound [Labels] (hpre : EachRowFinalPre rows op m0) :
     (reg m0 .rsi).toNat + 8 * (qsOf m0).size ≤ 2 ^ 64 ∧
       ((reg m0 .rsi).toNat + 8 * (qsOf m0).size ≤ (rspOf m0).toNat - eachRowFinalStack ∨
         (rspOf m0).toNat + 8 ≤ (reg m0 .rsi).toNat) := by

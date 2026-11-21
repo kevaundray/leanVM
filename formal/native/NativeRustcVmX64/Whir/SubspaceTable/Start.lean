@@ -24,9 +24,9 @@ public section
 
 /-- `8μ` as `b13` computes it. -/
 theorem mu8_eval (x : BitVec 64) :
-    x + x + (x + x) + (x + x + (x + x)) = BitVec.ofNat 64 (8 * x.toNat) := by
+    x * BitVec.ofNat 64 8 = BitVec.ofNat 64 (8 * x.toNat) := by
   apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  simp only [BitVec.toNat_mul, BitVec.toNat_ofNat]
   omega
 
 theorem pairWords_one (a b : UInt64) : pairWords [(a, b)] = [a, b] := by simp [pairWords]
@@ -56,7 +56,7 @@ theorem first (hp : Placed code k) (hkinv : Spec (Labels.label NativeRustcVmX64.
     Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b14Offset) ∧ OInv m0 0 s.data) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b21Offset) ∧ Done m0 s.data)) st := by
   have hpre' := hpre
-  obtain ⟨hS, hout⟩ := hpre'
+  obtain ⟨hS, hout, _⟩ := hpre'
   obtain ⟨hF, hlek, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1
@@ -169,7 +169,7 @@ theorem first (hp : Placed code k) (hkinv : Spec (Labels.label NativeRustcVmX64.
     rwa [eval_reg, Env.ofMachine_regs, show st3.data.regs.get64 .r14 = _ from hr14_3] at this
   have hmu8 : WordAt st4.data.dmem (fbOf m0 + BitVec.ofNat 64 24) (.ofNat (8 * muOf m0)) := by
     have := wordAt_of_write hm4 (r := 0) (o := 24) rfl (by decide) hv24
-    simp only [mu8S, eval_add, eval_reg, Env.ofMachine_regs] at this
+    simp only [mu8S, Sym.eval, BinOp.apply, low_W64, ext_W64, Env.ofMachine_regs] at this
     rw [show st3.data.regs.get64 .r14 = _ from hr14_3, mu8_eval] at this
     exact wordAt_ofNat this
   have hpl := pairWords_len (tableAt (muOf m0) 0)

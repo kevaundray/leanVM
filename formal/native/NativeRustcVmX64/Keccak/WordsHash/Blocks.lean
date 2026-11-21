@@ -22,7 +22,7 @@ never reached: a whole block's words are in the slice.
   (`fullNext`, `b9`);
 - the last block: its head `tailHead` (`b2`); lane `j` loaded (`tailL j`; region 1 the words from
   R15 plus RAX words to lane `j`'s) or zero (`tailZ j`); lanes 1, 13 to 16 load their word into a
-  register in one block and XOR it in another (`tailX j`); the padding: `padA` (`b82`'s first 8
+  register in one block and XOR it in another (`tailX j`); the padding: `padA` (`b82`'s first 6
   directives: lane 16's XOR, the padding word and the padded lane's offset), `padB t` (the next:
   the padding word's XOR, the padded lane `t` an alias at the frame's byte `8 + 8 t` plus 32) and
   `padC` (the rest: `0x80` into byte 135, the call of `keccak_f`);
@@ -38,7 +38,9 @@ set_option Elab.async false
 @[expose] public section
 
 /-- The entry's start: RSP at the frame's offset 288. -/
-def startEntry : SState := init [296] [(.rsp, .ptr 0 288)]
+def startEntry : SState :=
+  (init [296, 8] [(.rsp, .ptr 0 288)] [] []
+    [(.gotSlot "memset", 1, 0)]).withKnownBytes 1 0 8 (.label "memset")
 
 /-- A start in the body: RSP at the frame's offset 8. -/
 def startMain : SState := init [296] [(.rsp, .ptr 0 8)]
@@ -58,13 +60,13 @@ def startPad (t : Nat) : SState :=
 def startEpi : SState := init [296, 32] [(.rsp, .ptr 0 8)] [] [] [(.load 0 32 8, 1, 0)]
 
 /-- `b82`'s first part: lane 16's XOR and the padding's word and offset. -/
-def padACode : List Directive := b82.take 8
+def padACode : List Directive := b82.take 6
 
 /-- `b82`'s second part: the padding word's XOR into the padded lane. -/
-def padBCode : List Directive := (b82.drop 8).take 1
+def padBCode : List Directive := (b82.drop 6).take 1
 
 /-- `b82`'s third part: `PAD_LAST`'s XOR into byte 135 and the call of `keccak_f`. -/
-def padCCode : List Directive := b82.drop 9
+def padCCode : List Directive := b82.drop 7
 
 end
 

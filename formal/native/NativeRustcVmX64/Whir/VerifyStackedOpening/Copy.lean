@@ -73,20 +73,20 @@ theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z val
   have hlen : ls.length ≤ 6 := hlen'
   rw [off_off] at hlv
   -- `b44`, `memcpy`
-  refine h.run hp b44_in_code (List.cons_ne_nil _ _) hpc hok (vars := fun _ ↦ 0) (hok.wf0 h)
-    hok.m_reg run_b44 (o := 0) (by decide +kernel) (by decide) fun st1 hok1 hs1 hm1 hpc1 ↦ ?_
-  have hout1 := Outs.keep h hA.out (hm1.kept (hok.wf0 h)) (h.blk_stack hs1)
-  have hfw1 := FW.block_os (hok.wf0 h) hm1 rfl hA.fw
+  refine h.run hp b44_in_code (List.cons_ne_nil _ _) hpc hok (vars := fun _ ↦ 0) (hok.got_wf h)
+    (hok.m_copy h) run_b44 (o := 0) (by decide +kernel) (by decide) fun st1 hok1 hs1 hm1 hpc1 ↦ ?_
+  have hout1 := Outs.keep h hA.out (hm1.kept (hok.got_wf h)) (h.blk_stack hs1)
+  have hfw1 := FW.block_os (hok.got_wf h) hm1 rfl hA.fw
     [24, 40, 48, 56, 64, 104, 112, 120, 128, 136, 144, 152] rfl (by decide +kernel)
-  have h72_1 := (FW.block_os (L := [(72, _)]) (hok.wf0 h) hm1 rfl (FW.one hA.hi72) [72] rfl
+  have h72_1 := (FW.block_os (L := [(72, _)]) (hok.got_wf h) hm1 rfl (FW.one hA.hi72) [72] rfl
     (by decide +kernel)).get List.mem_cons_self
   have hcnt0 : NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 512) 312)
       ls.length.toUInt64 := by
     rw [off_off] at hcnt
     exact hcnt
-  have hcnt1 := (FW.block_os (L := [(312, ls.length.toUInt64)]) (hok.wf0 h) hm1 rfl
+  have hcnt1 := (FW.block_os (L := [(312, ls.length.toUInt64)]) (hok.got_wf h) hm1 rfl
     (FW.one hcnt0) [312] rfl (by decide +kernel)).get List.mem_cons_self
-  have hlow := sameOutside_low (hok.wf0 h) hm1 (r := 0) rfl (hi := 8) (by omega) (by decide +kernel)
+  have hlow := sameOutside_low (hok.got_wf h) hm1 (r := 0) rfl (hi := 8) (by omega) (by decide +kernel)
   have hlv1 : LevelsAt st1.data.dmem (win m0 168) ls := by
     have hfb : (stackBelow m0 512).toNat = (rspOf m0).toNat - 512 := h.fbn
     have hR := h.rsp

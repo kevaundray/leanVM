@@ -89,7 +89,7 @@ theorem offs_keep {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : Machi
   frameWord_keep hst (by omega) hs (by omega) han (h j hj)
 
 /-- The sizes `stack_offsets` reads. -/
-theorem natsOf_S {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : MachineData}
+theorem natsOf_S [Labels] {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : MachineData}
     (hpre : BusLayoutPre L bl m0) {m : MachineData}
     (hs : SizesAt m.dmem L bl m0 (nf m0 + bl.length)) {a : BitVec 64} (ha : a = off (fb m0) 896) :
     natsOf m a (nf m0 + bl.length) = (S L bl m0).toArray := by
@@ -161,10 +161,10 @@ theorem offsets_run (hp : Placed code k)
   have hbase : (fb m0).toNat = (rspOf m0).toNat - 1808 := stackBelow_toNat (by omega)
   have hbd := hD.bd
   -- `b20`: `memset` of the offsets.
-  have hwf0 := wf0 (d := st.data) hst hN hbd.fr.kept (vars := fun _ ↦ 0)
+  have hwf0 := wf_got hpre hbd.fr.kept (l := "memset") (by simp) (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b20Offset + b20.length)).toBitVec)
   refine exec_at (infix_of b20_in_code (by simp [b20]) hp) run_b20 hwf0 (fun _ _ ↦ rfl) hpc
-    (match_ofMachine ⟨rfl, trivial⟩ ⟨hbd.fr.rsp_eval, trivial⟩ trivial trivial trivial)
+    (match_got hpre hbd.same (by simp) hbd.fr.sp)
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hw1, hdi1, hdx1, hsi1, h12_1, hk1⟩ := after_eq run_b20 ▸ ok_b20
   have bd1 := Body.of_block hst hN hbd hwf0 hm1 hmid1 (fun w h ↦ (hw1 w h).1) slots_le
@@ -239,7 +239,7 @@ theorem offsets_run (hp : Placed code k)
   obtain ⟨hRo, hOo⟩ := frame_ok hst bd3 (a := 1328) (n := 8 * 54)
     (S' := stackOffsetsStack) (by omega) (by omega) hSO
   have hpreS : StackOffsetsPre st3.data := by
-    refine ⟨bd3.stackOk hst hSO, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨bd3.stackOk hst hSO, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [esi3]; unfold columnCountW; omega
     · rw [edi3, esi3]; exact hRs
     · rw [edi3, esi3]; exact hOs
@@ -250,6 +250,16 @@ theorem offsets_run (hp : Placed code k)
       have h1 : (off (fb m0) 896).toNat = (fb m0).toNat + 896 := toNat_off (by omega)
       have h2 : (off (fb m0) 1328).toNat = (fb m0).toNat + 1328 := toNat_off (by omega)
       unfold NativeRustcVm.Apart; rw [h1, h2]; omega
+    · have hg := (pre_got hpre).symbols (show ["memset"].Sublist ["memcpy", "memset"] by decide)
+      refine got_callee hg (fun l hl i hi ↦
+        get_keep hst bd3.same (hg.1 l hl).2.2.1 (hg.1 l hl).2.1 hi)
+        bd3.sp0 hst.1 hSO ?_
+      rw [edi3, esi3, edx3, ecx3]
+      intro l hl a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · exact got_apart_frame hg hst hl hN (by omega)
+      · exact got_apart_frame hg hst hl hN (by omega)
   refine call_then hpc3 hso hpreS fun st4 hpc4 hrsp4 ⟨hres4, hch4, hsv4⟩ ↦ ?_
   have hnats : natsOf st3.data (reg st3.data .rdi) (reg st3.data .rsi).toNat = (S L bl m0).toArray :=
     by rw [esi3]; exact natsOf_S hpre hsz3 edi3

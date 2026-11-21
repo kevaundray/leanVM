@@ -223,7 +223,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
       P.extract fs P.size := by
     rw [hdx1, slice_eq hcxn hys1, extract_drop]
   have hpre1 : GluedEvalPre w.glued[i] st1.data := by
-    refine ⟨(c.sctx (by decide)).stackOk hat1 hle1, ?_, ?_, ?_, ?_⟩
+    refine ⟨(c.sctx (by decide)).stackOk hat1 hle1, ?_, ?_, ?_, ?_, ?_⟩
     · show GluedAt st1.data.dmem (reg st1.data .rsi) w.glued[i]
       rw [hsi1]; exact (c.whir_at hf1.same).1.glued i hi
     · show WhirIn st1.data (reg st1.data .rsi) gluedBytes gluedEvalStack
@@ -239,6 +239,25 @@ theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
       · exact c.sliceLoc (o := 32) (by omega) hf1 hle1 (by omega) (by rw [hcxn, hdl]; omega)
     · show WhirIn st1.data (reg st1.data .rdi) 24 gluedEvalStack
       rw [hdi1]; exact c.inLoc (o := 32) (by omega) hf1 hle1 (by omega) (by omega)
+    · rw [hsi1, hdi1, hdx1, hcxn, hdl]
+      apply c.got_call hf1 (by omega) hle1 (by decide)
+      intro ar har
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with (rfl | rfl) | har
+      · refine ⟨(pA m0, whirBytes), by simp, ?_, ?_⟩
+        · change (pA m0).toNat ≤ gp.toNat
+          rw [hgpn]
+          omega
+        · change gp.toNat + 6064 ≤ (pA m0).toNat + 63200
+          rw [hgpn]
+          omega
+      · exact c.got_loc (by omega) (by omega)
+      · by_cases hn : 0 < P.size - fs
+        · simp only [ite_eq_left hn, List.mem_singleton,
+            ite_eq_right (show ¬P.size < fs by omega)] at har
+          subst ar
+          exact c.got_loc (by omega) (by omega)
+        · simp [hn] at har
   refine call_then hpc1 (hge w.glued[i]) hpre1 fun st2 hpc2 hrsp2 hq ↦ ?_
   obtain ⟨hopt, hch, hsv⟩ := hq
   rw [hdi1, hslice] at hopt

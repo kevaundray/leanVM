@@ -6,7 +6,7 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.IotaDefs
 # `verify_layer` on x86-64: ι's first segment
 
 `b26` loads the round constant `KECCAK_RC[11 - step]` and the first segment's weight; the loop
-`NativeRustcVmX64.Vm.VerifyLayer.label_21` (`b30`, the expanded `bt` of bit `2 i`; `b28` or `b31` the term; `b29` the
+`NativeRustcVmX64.Vm.VerifyLayer.label_21` (`b30`, the raw `bt` of bit `2 i`; `b28` or `b31` the term; `b29` the
 next bit and the sum) sums the bit weights it selects (`IA i`): `iota1`, to `NativeRustcVmX64.Vm.VerifyLayer.label_23`
 with `bitsOf` in RDX, RAX (`IX`).
 -/
@@ -89,7 +89,7 @@ theorem iaStep (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machin
   have hia1 := h.keep hk1 (keepR_regs hm1 (by decide +kernel) fun _ ↦ rfl)
   simp only [PcOk] at hpc1
   have e : ∀ r, (envB m0 d [] (fun _ ↦ 0) 0).regs r = reg d r := fun _ ↦ rfl
-  rw [show (SBool.msb .W64 (.bin .shl .W64 (.bin .shr .W64 (.reg .r9) (.reg .rcx)) (.lit 63))).eval
+  rw [show (SBool.cmp .bit .W64 (.reg .r9) (.reg .rcx)).eval
       (envB m0 d [] (fun _ ↦ 0) 0) = testBitW (rcW (11 - stepN m0)) (2 * i) by
     simp only [SBool.eval, Sym.eval, e, h.r9, h.rcx]
     exact rcBit _ (by omega) _ (by have := h.lt; omega)] at hpc1

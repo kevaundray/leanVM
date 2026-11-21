@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.WhirLevels.Basic
+public import NativeRustcVmX64.Got
 
 /-!
 # `whir_levels`: blocks, calls, conditions (x86-64)
@@ -11,6 +12,8 @@ changes only those bytes; the `TState`, the state, the frame's words across it (
 outputs keeps the frame and its bytes. `Frame.tail`: the registers restored before the tail call,
 RSP the entry's. The exits' conditions (`c1_eval`, `c3_eval`, `c4_eval`, `c6_eval`) and `b4`'s
 `μ` (`v9_eval`).
+The entry's loader slots remain unchanged across these writes (`Ctx.got_bytes`); `Ctx.got_call`
+transports their separation to ordinary calls and the final tail call.
 -/
 
 namespace NativeRustcVmX64.Whir.Levels.WL
@@ -146,6 +149,77 @@ namespace Ctx
 
 variable (c : Ctx a s0 levels ba b claim m0 rate)
 include c
+
+/-- Stack and output writes leave both loader slots unchanged. -/
+theorem got_bytes {d : MachineData} (hs : Sm m0 d) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  have hg := c.got.areas (areas' := [(tA m0, tstateBytes), (pA m0, whirBytes)])
+    (by intro ar har; simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+        rcases har with rfl | rfl <;> simp)
+  apply NativeRustcVmX64.GotAt.unchanged_vm hg c.stack
+  · intro ar har
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with rfl | rfl
+    · exact c.ts0.footprint.1.2
+    · exact c.pout.1.2.1
+  · intro q hq
+    apply hs q
+    rintro (hst | hp | ht)
+    · exact hq (.inl hst)
+    · exact hq (.inr ⟨(pA m0, whirBytes), by simp, hp⟩)
+    · exact hq (.inr ⟨(tA m0, tstateBytes), by simp, ht⟩)
+
+/-- Ordinary and tail callees use contained stack and input/output areas. -/
+theorem got_call {d : MachineData} {F N : Nat} (hat : At m0 F d) (hs : Sm m0 d)
+    (hle : F + N ≤ whirLevelsStack) {areas : List (BitVec 64 × Nat)}
+    {symbols : List Label} (hlabels : symbols.Sublist ["memcpy", "memset"])
+    (hcover : ∀ ar ∈ areas, ∃ b ∈ (stackBelow m0 whirLevelsStack, whirLevelsStack + 8) ::
+      ([(tA m0, tstateBytes), (a.words, 8 * a.len), (pA m0, whirBytes),
+        (lvA m0, levelBytes * levels.length), (rspOf m0 + 8#64, 8)] ++ rodataAreas),
+      b.1.toNat ≤ ar.1.toNat ∧ ar.1.toNat + ar.2 ≤ b.1.toNat + b.2) :
+    GotAt d N areas symbols := by
+  have hsb : stackBelow d N = stackBelow m0 (F + N) :=
+    stackBelow_callee hat.sp (by have := c.hN; omega)
+  have hd := stackBelow_toNat (m := m0) (n := F + N) (by have := c.hN; omega)
+  apply NativeRustcVmX64.GotAt.callee (c.got.symbols hlabels)
+    (fun l hl i hi ↦ c.got_bytes hs l (hlabels.subset hl) i hi) _ _ hcover <;>
+    rw [hsb, hd, c.stk_toNat] <;> have := c.hN <;> omega
+
+/-- A local argument word is protected by the caller's stack separation. -/
+theorem got_loc {areas : List (BitVec 64 × Nat)} {j n : Nat} (hjn : j + n ≤ 120) :
+    ∃ b ∈ (stackBelow m0 whirLevelsStack, whirLevelsStack + 8) :: areas,
+      b.1.toNat ≤ (off (fa m0) j).toNat ∧
+        (off (fa m0) j).toNat + n ≤ b.1.toNat + b.2 := by
+  have hj : (fa m0).toNat + j < 2 ^ 64 := by
+    rw [c.fa_toNat]
+    have := c.hN
+    have := frame_le
+    have := c.sp16
+    omega
+  refine ⟨(stackBelow m0 whirLevelsStack, whirLevelsStack + 8), by simp, ?_, ?_⟩ <;>
+    rw [toNat_off hj, c.fa_toNat, c.stk_toNat] <;>
+    have := c.hN <;> have := frame_le <;> omega
+
+/-- A single level is contained in the protected level array. -/
+theorem got_level {k : Nat} (hk : k < levels.length) :
+    ∃ b ∈ (stackBelow m0 whirLevelsStack, whirLevelsStack + 8) ::
+      ([(tA m0, tstateBytes), (a.words, 8 * a.len), (pA m0, whirBytes),
+        (lvA m0, levelBytes * levels.length), (rspOf m0 + 8#64, 8)] ++ rodataAreas),
+      b.1.toNat ≤ (lvA m0 + BitVec.ofNat 64 (levelBytes * k)).toNat ∧
+        (lvA m0 + BitVec.ofNat 64 (levelBytes * k)).toNat + levelBytes ≤ b.1.toNat + b.2 := by
+  have hle := level_le hk
+  have hnw : (lvA m0).toNat + levelBytes * levels.length ≤ 2 ^ 64 := c.lin.1.2
+  have hadd := NativeRustcVm.toNat_add_ofNat (a := lvA m0) (i := levelBytes * k)
+    (by have : 0 < levelBytes := by decide
+        omega)
+  refine ⟨(lvA m0, levelBytes * levels.length), by simp, ?_⟩
+  change (lvA m0).toNat ≤ (lvA m0 + BitVec.ofNat 64 (levelBytes * k)).toNat ∧
+    (lvA m0 + BitVec.ofNat 64 (levelBytes * k)).toNat + levelBytes ≤
+      (lvA m0).toNat + levelBytes * levels.length
+  rw [hadd]
+  constructor <;> omega
 
 /-- The frame's region below offset `hi ≤ 112` is in the stack. -/
 theorem frame_stack {hi : Nat} (hhi : hi ≤ 112) {q : BitVec 64}

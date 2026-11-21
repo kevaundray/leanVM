@@ -44,7 +44,8 @@ variable {m0 m : MachineData} {P : Array OpeningW} {Q : Array UInt64} {R : Diges
 /-- `8 w` as `b14` computes it. -/
 theorem eightW_eval [Labels] (env : Env) (hw : (env.regs .r14).toNat ≤ 64) :
     (eightW.eval env).toNat = 8 * (env.regs .r14).toNat := by
-  simp only [eightW, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add]
+  simp only [eightW, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_mul,
+    BitVec.toNat_ofNat]
   have := (env.regs .r14).isLt
   omega
 
@@ -160,8 +161,14 @@ theorem hash_spec (hp : Placed code k)
       mapped_off (Mapped.keeps (frame_mapped hst (by decide)) hf2.frame.kept) (by omega),
       fa_noWrap' hst (by omega) (by omega), fun _ ↦ ?_,
       fa_apart_callee hst hsp2 (by decide) (by omega) (by omega), fa_rc hpre.2.1 hst (by omega)
-        (by omega)⟩
-    exact apart_callee' hst hsp2 (by decide) (ph_apart hpre hc0 hcn)
+        (by omega), ?_⟩
+    · exact apart_callee' hst hsp2 (by decide) (ph_apart hpre hc0 hcn)
+    · apply hf2.gotAt hpre (by decide)
+      intro l hl x hx
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+      rcases hx with rfl | rfl
+      · exact got_frame hpre hl (by omega)
+      · exact ((got_of hpre).1 l hl).2.2.2 _ (by simp)
   have hleaf : NativeRustcVm.WordsAt st2.data.dmem (off (phO m0) (32 + 1544 * j))
       (P[j]'hlt).leaf.toList := by
     have := ho.2.2.2.2.1
@@ -273,7 +280,21 @@ theorem path_spec (hp : Placed code k)
       fa_apart_callee hst hsp1 (by decide) (by omega) (by omega),
       apart_callee' hst hsp1 (by decide) (ph_apart hpre hc544 hcn),
       fa_apart_callee hst hsp1 (by decide) (by omega) (by omega),
-      fa_rc hpre.2.1 hst (by omega) (by omega)⟩
+      fa_rc hpre.2.1 hst (by omega) (by omega), ?_⟩
+    apply hf1.gotAt hpre (by decide)
+    intro l hl x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl | rfl
+    · exact got_frame hpre hl (by omega)
+    · have ha := ((got_of hpre).1 l hl).2.2.2 (phO m0, 8 * phaseWords) (by simp)
+      change (gotAddr l).toNat + 8 ≤ (phO m0).toNat ∨
+        (phO m0).toNat + 8 * phaseWords ≤ (gotAddr l).toNat at ha
+      change (gotAddr l).toNat + 8 ≤ (off (phO m0) (544 + 1544 * j)).toNat ∨
+        (off (phO m0) (544 + 1544 * j)).toNat + 32 * h ≤ (gotAddr l).toNat
+      rw [ph_toNat hpre hc544]
+      omega
+    · exact got_frame hpre hl (by omega)
+    · exact ((got_of hpre).1 l hl).2.2.2 _ (by simp)
   refine call_then hpc1 (hcl _ _) hclpre fun st2 hpc2 hrsp2 ⟨hpost, hs2, hsv2⟩ ↦ ?_
   rw [hdi, hdx] at hpost
   rw [hdi] at hs2

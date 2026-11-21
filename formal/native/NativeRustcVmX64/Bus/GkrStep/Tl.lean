@@ -343,7 +343,15 @@ theorem ya_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     (slots_call (by omega) (by omega)) (by omega) (outs_not_frame h) (fun _ h ↦ .inl (.inl h))
     (hgr s3) fr3 hpc3 ⟨c32.stackOk hat3 hle3, c32.rcAt hat3 hle3,
       by rw [edi3]; exact ts3, by rw [edi3]; exact c32.tstateOk hat3 hle3,
-      by rw [hbits]; decide⟩
+      by rw [hbits]; decide, by
+        rw [edi3]
+        apply got_atC h (by omega) fr3 hle3
+        intro l hl b hb
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl | rfl
+        · exact ((pre_got h).1 l hl).2.2.2 _ (by simp [t])
+        · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+        · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)⟩
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.2.1 fun q hq ↦ by
       rw [edi3] at hq; exact hq.elim .inr .inl, hq.2.2.2⟩)
     fun m4 fr4 hq4 hs4 hcs4 ↦ ?_
@@ -402,8 +410,15 @@ theorem ya_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     (hsm s3) fr6 hpc6 ?_ (fun m' hq ↦ ⟨?_, hq.2.2⟩) fun m7 fr7 hq7 hs7 hcs7 ↦ ?_
   · unfold SampleChallengesPre
     rw [edi6, esi6, edx6]
-    exact ⟨c32.stackOk hat6 hle6, c32.rcAt hat6 hle6, ts6, c32.tstateOk hat6 hle6,
-      outFb h fr6 hle6 (by omega) (by omega)⟩
+    refine ⟨c32.stackOk hat6 hle6, c32.rcAt hat6 hle6, ts6, c32.tstateOk hat6 hle6,
+      outFb h fr6 hle6 (by omega) (by omega), got_atC h (by omega) fr6 hle6 ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp [t])
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   · have := hq.2.1
     rw [edi6, esi6, edx6] at this
     exact NativeRustcVm.SameOutside.mono this fun q hq ↦ by

@@ -43,24 +43,12 @@ def b2 : List Directive := [
 def b3 : List Directive := [
   @Kraken.Directive.label Instr ConstExpr ".LSelectorPoint_4",  -- .LSelectorPoint_4:
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.xor Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r9 Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r9 Width.W32))))),  -- xorl %r9d, %r9d
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64))))),  -- pushq %rcx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64))))),  -- pushq %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.mov Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rcx Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r8 Width.W32))))),  -- movl %r8d, %ecx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) ShiftCountExpr.cl)),  -- shrq %cl, %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (1 : Int64))))),  -- shrq $1, %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)))),  -- popq %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)))),  -- popq %rcx
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.bt Width.W64 (Reg.low Reg64.rdi Width.W64) (@BitOffset.reg Width.W64 (Reg.low Reg64.r8 Width.W64)))),  -- btq %r8, %rdi
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W8 (@Operation.setcc Width.W8 CondCode.c (@RegOrMem.reg Width.W8 (Reg.low Reg64.r9 Width.W8)))),  -- setb %r9b
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.lea Width.W32 (Reg.low Reg64.r10 Width.W32) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.r8)) (@Option.none AddrIndex) (ConstExpr.int64 (1 : Int64))))),  -- leal 1(%r8), %r10d
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.movzx Width.W32 Width.W8 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r10 Width.W32)) (@RegOrMem.reg Width.W8 (Reg.low Reg64.r10 Width.W8)))),  -- movzbl %r10b, %r10d
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.xor Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r11 Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r11 Width.W32))))),  -- xorl %r11d, %r11d
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64))))),  -- pushq %rcx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64))))),  -- pushq %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.mov Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rcx Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r10 Width.W32))))),  -- movl %r10d, %ecx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) ShiftCountExpr.cl)),  -- shrq %cl, %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (1 : Int64))))),  -- shrq $1, %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)))),  -- popq %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)))),  -- popq %rcx
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.bt Width.W64 (Reg.low Reg64.rdi Width.W64) (@BitOffset.reg Width.W64 (Reg.low Reg64.r10 Width.W64)))),  -- btq %r10, %rdi
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W8 (@Operation.setcc Width.W8 CondCode.c (@RegOrMem.reg Width.W8 (Reg.low Reg64.r11 Width.W8)))),  -- setb %r11b
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.cmp Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64)) (@Operand.imm Width.W64 (ConstExpr.int64 (64 : Int64))))),  -- cmpq $64, %r8
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.cmovcc Width.W64 CondCode.nc (Reg.low Reg64.r9 Width.W64) (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)))),  -- cmovaeq %rcx, %r9
@@ -84,13 +72,7 @@ def b4 : List Directive := [
 /-- Block 5, after the branch or call ending block 4. -/
 def b5 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.xor Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rax Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rax Width.W32))))),  -- xorl %eax, %eax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64))))),  -- pushq %rcx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64))))),  -- pushq %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.mov Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rcx Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r8 Width.W32))))),  -- movl %r8d, %ecx
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) ShiftCountExpr.cl)),  -- shrq %cl, %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (1 : Int64))))),  -- shrq $1, %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rdi Width.W64)))),  -- popq %rdi
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)))),  -- popq %rcx
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.bt Width.W64 (Reg.low Reg64.rdi Width.W64) (@BitOffset.reg Width.W64 (Reg.low Reg64.r8 Width.W64)))),  -- btq %r8, %rdi
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W8 (@Operation.setcc Width.W8 CondCode.c (@RegOrMem.reg Width.W8 (Reg.low Reg64.rax Width.W8)))),  -- setb %al
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.xor Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rdi Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rdi Width.W32))))),  -- xorl %edi, %edi
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.cmp Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64)) (@Operand.imm Width.W64 (ConstExpr.int64 (64 : Int64))))),  -- cmpq $64, %r8
@@ -120,7 +102,7 @@ def b8 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8]
 
-def codeLength : Nat := 66
+def codeLength : Nat := 48
 
 def b0Offset : Nat := 0
 
@@ -142,49 +124,49 @@ def b2End : Nat := 12
 
 def b3Offset : Nat := 12
 
-def b3Length : Nat := 32
+def b3Length : Nat := 20
 
-def b3End : Nat := 44
+def b3End : Nat := 32
 
-def b4Offset : Nat := 44
+def b4Offset : Nat := 32
 
 def b4Length : Nat := 2
 
-def b4End : Nat := 46
+def b4End : Nat := 34
 
-def b5Offset : Nat := 46
+def b5Offset : Nat := 34
 
-def b5Length : Nat := 13
+def b5Length : Nat := 7
 
-def b5End : Nat := 59
+def b5End : Nat := 41
 
-def b6Offset : Nat := 59
+def b6Offset : Nat := 41
 
 def b6Length : Nat := 2
 
-def b6End : Nat := 61
+def b6End : Nat := 43
 
-def b7Offset : Nat := 61
+def b7Offset : Nat := 43
 
 def b7Length : Nat := 3
 
-def b7End : Nat := 64
+def b7End : Nat := 46
 
-def b8Offset : Nat := 64
+def b8Offset : Nat := 46
 
 def b8Length : Nat := 2
 
-def b8End : Nat := 66
+def b8End : Nat := 48
 
 def entryOffset : Nat := 0
 
 def label_4Offset : Nat := 12
 
-def label_2Offset : Nat := 59
+def label_2Offset : Nat := 41
 
-def label_7Offset : Nat := 61
+def label_7Offset : Nat := 43
 
-def label_8Offset : Nat := 64
+def label_8Offset : Nat := 46
 
 end
 

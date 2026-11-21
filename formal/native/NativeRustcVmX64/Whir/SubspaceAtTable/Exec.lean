@@ -12,12 +12,12 @@ Region 0 is the 336-byte frame (`Field.frameS 336`, `Field.midS 336`: the pushes
 the 280 bytes of locals, the calls' return-address slot at 0) and the return address. From RSP
 (offset `8`): the count at `8(%rsp)` (offset 16), the output pointer at `16(%rsp)` (24), the `what`
 buffer (`len` at 32, 31 items from 40).
-- `b0a` (`entryS`): the prologue; `b0b` (`Field.midS 336`): the arguments, `memset` of the items;
+- `b0a` (`entryS`): the prologue; `b0b` (`gotMidS 336 "memset"`): the arguments and the slot-backed call zeroing the items;
 - `b1`, `b2` (`midS`): the count's store and test, the loop's registers;
 - the loop: `b3` (`ldS`: region 1 the table's pair at `r15 + 2·r14`) calls `kmul` (`What_i`);
   `b4a` (`stS`: region 0 the item `32 + rsp + r14` points to) stores it; `b4b`, `b5` (`midS`)
   call `kmul` (`W²`, `root·W`); `b6` (`regsS`) takes the next `W`, counts;
-- `b7` (`midS`) stores the count in the buffer, calls `memcpy`; `b8` the epilogue.
+- `b7` (`gotMidS 336 "memcpy"`) stores the count in the buffer and calls through its GOT slot; `b8` is the epilogue.
 -/
 
 namespace NativeRustcVmX64.Whir.SubspaceAtTable
@@ -59,7 +59,7 @@ end
 set_option Elab.async false
 
 sym_block run_b0a := exec b0a entryS
-sym_block run_b0b := exec b0b (midS 336)
+sym_block run_b0b := exec b0b (gotMidS 336 "memset")
 sym_block run_b1 := exec b1 (midS 336)
 sym_block run_b2 := exec b2 (midS 336)
 sym_block run_b3 := exec b3 ldS
@@ -67,7 +67,7 @@ sym_block run_b4a := exec b4a stS
 sym_block run_b4b := exec b4b (midS 336)
 sym_block run_b5 := exec b5 (midS 336)
 sym_block run_b6 := exec b6 regsS
-sym_block run_b7 := exec b7 (midS 336)
+sym_block run_b7 := exec b7 (gotMidS 336 "memcpy")
 sym_block run_b8 := exec b8 (midS 336)
 
 public theorem b0a_entry : (∀ p ∈ slots, p.1 + 8 ≤ 336 ∧
@@ -77,9 +77,9 @@ public theorem b0a_entry : (∀ p ∈ slots, p.1 + 8 ≤ 336 ∧
     (after b0a entryS).reg .rsp = some (.ptr 0 8) := by
   decide +kernel
 
-public theorem b0b_call : keepsRegs (midS 336) (after b0b (midS 336)) (freeRegs slots) = true ∧
-    (after b0b (midS 336)).reg .rsp = some (.ptr 0 0) ∧
-    (∀ w ∈ (after b0b (midS 336)).mem, w.r = 0 ∧ w.off + w.n ≤ 32) := by
+public theorem b0b_call : keepsRegs (gotMidS 336 "memset") (after b0b (gotMidS 336 "memset")) (freeRegs slots) = true ∧
+    (after b0b (gotMidS 336 "memset")).reg .rsp = some (.ptr 0 0) ∧
+    (∀ w ∈ (after b0b (gotMidS 336 "memset")).mem, w.r = 0 ∧ w.off + w.n ≤ 32) := by
   decide +kernel
 
 public theorem b0a_args : ∀ r ∈ [Reg64.rdi, .rsi, .rdx, .rcx],
@@ -115,9 +115,9 @@ public theorem b5_call : keepsRegs (midS 336) (after b5 (midS 336)) (freeRegs sl
 public theorem b6_keeps : keepsAll regsS (after b6 regsS) (freeRegs slots) = true := by
   decide +kernel
 
-public theorem b7_call : keepsRegs (midS 336) (after b7 (midS 336)) (freeRegs slots) = true ∧
-    (after b7 (midS 336)).reg .rsp = some (.ptr 0 0) ∧
-    (∀ w ∈ (after b7 (midS 336)).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 32 ≤ w.off) ∧
+public theorem b7_call : keepsRegs (gotMidS 336 "memcpy") (after b7 (gotMidS 336 "memcpy")) (freeRegs slots) = true ∧
+    (after b7 (gotMidS 336 "memcpy")).reg .rsp = some (.ptr 0 0) ∧
+    (∀ w ∈ (after b7 (gotMidS 336 "memcpy")).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 32 ≤ w.off) ∧
       w.off + w.n ≤ 40) := by
   decide +kernel
 

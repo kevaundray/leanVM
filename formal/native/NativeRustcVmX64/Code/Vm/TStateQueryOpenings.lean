@@ -55,7 +55,7 @@ def b2 : List Directive := [
 
 /-- Block 3, after the branch or call ending block 2. -/
 def b3 : List Directive := [
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rbp)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rbp Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rbp,%rbp), %rcx
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rcx Width.W64) (AddrExpr.mk (@Option.none RegOrRip) (@Option.some AddrIndex (AddrIndex.mk Reg64.rbp Width.W16)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (,%rbp,2), %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.add Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rbp Width.W64))))),  -- addq %rbp, %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shl Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rcx Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (4 : Int64))))),  -- shlq $4, %rcx
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rsi Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rbx)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rcx Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rbx,%rcx), %rsi

@@ -375,7 +375,7 @@ theorem call_run (G : Geo m0)
   have hpre : PhaseMPre s3.data := by
     refine ⟨stackOk_callee hst hb3.fr.kept hsp3 (by rw [hPS]),
       RcAt.callee G.rc hrc hsp3 (by omega) (by rw [hPS]), ?_, ?_, BP m0, Bs m0, ci,
-      by rw [hrdi3]; exact hR3, ?_⟩
+      by rw [hrdi3]; exact hR3, ?_, ?_⟩
     · rw [hrsi3]
       have hdm : NativeRustcVm.Mapped m0.dmem (DEC m0) (8 * LEN m0) := G.dOk.1
       show NativeRustcVm.Mapped s3.data.dmem (wd m0 (phaseBase (LN m0) i)) phaseBytes ∧
@@ -391,6 +391,32 @@ theorem call_run (G : Geo m0)
       simp only [stackR, rcR, phaseBytes_eq, workBytes_eq, length_Bs, hsb3, hPS]
       exact pm_disjoint G.sp hS96 hr' (by rw [hout]; omega) (by rw [hout]; omega) G.cS
         (G.cB (by omega)) G.cD G.cW hsD hsW hsB hbD hbW hdW
+    · refine G.got.transport (G.got_keep hb3.chg) ?_ ?_
+      · intro l hl
+        have hs := (G.got.1 l hl).2.2.1
+        change Apart (gotAddr l) 8 (stackBelow m0 1296) 1304 at hs
+        change Apart (gotAddr l) 8 (stackBelow s3.data phaseMStack) (phaseMStack + 8)
+        rw [hPS, hsb3]
+        unfold NativeRustcX64.Apart at hs ⊢
+        omega
+      · intro l hl a ha
+        simp only [hrdi3, hrsi3, hrdx3, List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl | rfl | rfl
+        · exact (G.got.1 l hl).2.2.2 (rcAddr, 192) (by simp)
+        · have hs := (G.got.1 l hl).2.2.1
+          change Apart (gotAddr l) 8 (stackBelow m0 1296) 1304 at hs
+          change Apart (gotAddr l) 8 (rdA m0) 24
+          unfold NativeRustcX64.Apart at hs ⊢
+          rw [hS96] at hs
+          rw [hr']
+          omega
+        · have hd := (G.got.1 l hl).2.2.2 (DEC m0, 8 * LEN m0) (by simp)
+          change Apart (gotAddr l) 8 (wd m0 (phaseBase (LN m0) i)) phaseBytes
+          unfold NativeRustcX64.Apart at hd ⊢
+          dsimp only at hd
+          rw [hout, phaseBytes_eq]
+          omega
+        · exact (G.got.1 l hl).2.2.2 (WK m0, 483584) (by simp)
   refine call_then (env := frameEnv m0 s3.data 80 []) (l := NativeRustcVmX64.Vm.PhaseM.entryLabel) ⟨hpc3a, hret3⟩ hpm
     hpre fun s4 hpc4 hrsp4 ⟨hres4, hso4, hsv4⟩ ↦ ?_
   rw [hrdi3, hrsi3, hrdx3] at hso4

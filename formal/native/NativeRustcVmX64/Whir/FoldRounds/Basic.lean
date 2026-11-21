@@ -210,7 +210,7 @@ theorem pre_r (h : FoldRoundsPre a s w m0) : OutOk m0 (tA m0) a (rA m0) 200 fold
   h.2.2.2.2.2.2.1.1
 theorem pre_rr (h : FoldRoundsPre a s w m0) : RodataApart (rA m0) 200 := h.2.2.2.2.2.2.1.2
 theorem pre_rp (h : FoldRoundsPre a s w m0) : Apart (rA m0) 200 (pA m0) stateBytes :=
-  h.2.2.2.2.2.2.2
+  h.2.2.2.2.2.2.2.1
 
 theorem ctx (h : FoldRoundsPre a s w m0) :
     TCtx m0 160 foldRoundsStack (tA m0) a (outs m0) := by
@@ -222,7 +222,8 @@ theorem ctx (h : FoldRoundsPre a s w m0) :
   have hp := pre_p h
   have hfnw := Transcript.frame_noWrap hS F_le
   have hn : foldRoundsStack ≤ (rspOf m0).toNat := hS.1
-  refine ⟨hS, hrc, htok, hfp, F_le, fun q hq ↦ .inr (.inr hq), ?_, ?_, ?_⟩
+  have hg := h.2.2.2.2.2.2.2.2
+  refine ⟨hS, hrc, htok, hfp, F_le, fun q hq ↦ .inr (.inr hq), ?_, ?_, ?_, ?_, ?_⟩
   · rintro q (hq | hq | hq) hr
     · exact not_inRange_of_apart (Transcript.Apart.symm' ho.2.2.2.2.2) hrc.2.1 ho.2.1 hr hq
     · exact not_inRange_of_apart (Transcript.Apart.symm' hp.2.2.2.2.2) hrc.2.1 hp.2.1 hr hq
@@ -238,6 +239,35 @@ theorem ctx (h : FoldRoundsPre a s w m0) :
         F_le)) hfnw hp.2.1 hr hq
     · exact not_inRange_of_apart (Transcript.Apart.symm' (Transcript.apart_frame htok.1 hn F_le))
         hfnw hfp.1.2 hr hq
+  · apply hg.areas
+    intro ar har
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with rfl | rfl | rfl
+    · simp
+    · simp
+    · exact List.mem_append_right _ rc_mem_rodata
+  · intro d hs
+    have hg' := hg.areas (areas' := [(rA m0, 200), (pA m0, stateBytes), (tA m0, tstateBytes)])
+      (by intro ar har; simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+          rcases har with rfl | rfl | rfl <;>
+            simp [rA, pA, tA, roundBytes, roundCap])
+    apply hg'.unchanged hS ?_ ?_ "memcpy" (by simp)
+    · intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact noWrap_iff.mpr ho.2.1
+      · exact noWrap_iff.mpr hp.2.1
+      · exact noWrap_iff.mpr hfp.1.2
+    · intro q hnot
+      apply hs q
+      intro hq
+      apply hnot
+      rcases hq with (hq | hq | hq) | hq
+      · exact .inr ⟨(rA m0, 200), List.mem_cons_self, hq⟩
+      · exact .inr ⟨(pA m0, stateBytes), List.mem_cons_of_mem _ List.mem_cons_self, hq⟩
+      · exact .inr ⟨(tA m0, tstateBytes),
+          List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self), hq⟩
+      · exact .inl hq
 
 /-- The frame's base as a number. -/
 theorem fb_toNat (h : FoldRoundsPre a s w m0) : (fb m0).toNat = (rspOf m0).toNat - 160 :=
@@ -294,18 +324,46 @@ theorem callPre (h : FoldRoundsPre a s w m0) {d : MachineData} {i : Nat} {s1 : T
   have hsp : rspOf d = stackBelow m0 160 := by rw [hf.sp, off_zero]
   have hp := pre_p h
   have hal' := pre_al h
-  show WhirT d (reg d .rsi) a foldRoundStack ∧ TStateAt d.dmem (reg d .rsi) a s1 ∧
-    WhirStateAt d.dmem (reg d .rdx) w1 ∧ w1.alphas.size < stackCap ∧
-    WhirOut d (reg d .rsi) a (reg d .rdx) stateBytes foldRoundStack ∧
-    WhirOut d (reg d .rsi) a (reg d .rdi) 40 foldRoundStack ∧
-    Apart (reg d .rdi) 40 (reg d .rdx) stateBytes
+  unfold FoldRoundPre
   rw [hsi, hdx, hdi]
   refine ⟨⟨c.stackOk hf.kept hsp call_le, c.rcAt hs hsp call_le, rodataAt_call h hs hsp,
     c.tstateOk hsp call_le, pre_trt h⟩, hts, hws, by unfold stackCap; omega,
     ⟨⟨Mapped.keeps hp.1 hf.kept, hp.2.1, hp.2.2.1, hp.2.2.2.1,
       Transcript.apart_callee hp.2.2.2.2.1 hsp c.hN call_le, hp.2.2.2.2.2⟩, pre_pr h⟩,
     ⟨c.localOk hf.kept hsp call_le (by omega) (by omega),
-      fun t ↦ out_apart h ((pre_ro h).apart t)⟩, out_apart h hp.2.2.2.2.1⟩
+      fun t ↦ out_apart h ((pre_ro h).apart t)⟩, out_apart h hp.2.2.2.2.1, ?_⟩
+  have hg := h.2.2.2.2.2.2.2.2
+  have hn := c.hN
+  have h8 := c.h8
+  have hle := call_le
+  have hfb := fb_toNat h
+  have hsb := stackBelow_toNat hn
+  have hd : (stackBelow d foldRoundStack).toNat =
+      (rspOf m0).toNat - 160 - foldRoundStack := by
+    rw [stackBelow_toNat (by
+      rw [hsp]
+      change foldRoundStack ≤ (fb m0).toNat
+      rw [hfb]
+      omega), hsp]
+    change (fb m0).toNat - foldRoundStack = _
+    rw [hfb]
+  apply NativeRustcVmX64.GotAt.callee hg _ _ _ _
+  · intro l hl j hj
+    simp only [List.mem_singleton] at hl
+    subst l
+    exact c.got_keep d hs j hj
+  · rw [hsb, hd]; omega
+  · rw [hsb, hd]; omega
+  · intro ar har
+    rcases List.mem_append.mp har with har | har
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp [tA], le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(pA m0, stateBytes), by simp [pA], le_rfl, le_rfl⟩
+      · refine ⟨(stackBelow m0 foldRoundsStack, foldRoundsStack + 8), by simp, ?_, ?_⟩ <;>
+          rw [hsb, toNat_off (by rw [hfb]; omega), hfb] <;> omega
+    · exact ⟨ar, by simp [har], le_rfl, le_rfl⟩
 
 omit [Host] in
 /-- The changes in the outputs and the stack, as `ChangesIn`. -/

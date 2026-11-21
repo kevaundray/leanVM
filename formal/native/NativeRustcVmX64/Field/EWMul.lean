@@ -73,7 +73,7 @@ theorem ewMul_spec_rust (hp : Placed code k) :
   rw [show Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel = Host.addrOf k from hp.label NativeRustcVmX64.Vm.EWMul.entry_at]
   let env := frameEnv m m 144 (vars (reg m .rdi) (reg m .rsi) (reg m .rdx) (reg m .rcx))
   have hwf : env.WF := frame_wf hpre fun _ h ↦ h
-  -- Phase 2: these semantic b0-interior slices follow the Exec certificates, not generated block boundaries.
+  -- These semantic slices use raw instruction positions, not generated block boundaries.
   refine exec_then (hk.slice 0 125 (by omega)) r1.run hwf (by rw [x1]; nofun) match_frame
     fun st hm hpc ↦ ?_
   rw [x1, l1] at hpc
@@ -89,22 +89,22 @@ theorem ewMul_spec_rust (hp : Placed code k) :
   refine exec_at (hk.slice 227 95 (by omega)) r5.run hwf (by rw [x5]; nofun) hpc
     (hm.absRev c4 rfl) fun st hm hpc ↦ ?_
   rw [x5, l5] at hpc
-  refine exec_at (hk.slice 322 19 (by omega)) r6.run hwf (by rw [x6]; nofun) hpc
+  refine exec_at (hk.slice 322 18 (by omega)) r6.run hwf (by rw [x6]; nofun) hpc
     (hm.absRev c5 rfl) fun st hm hpc ↦ ?_
   rw [x6, l6] at hpc
-  refine exec_at (hk.slice 341 68 (by omega)) r7.run hwf (by rw [x7]; nofun) hpc
+  refine exec_at (hk.slice 340 68 (by omega)) r7.run hwf (by rw [x7]; nofun) hpc
     (hm.absRev c6 rfl) fun st hm hpc ↦ ?_
   rw [x7, l7] at hpc
-  refine exec_at (hk.slice 409 107 (by omega)) r8.run hwf (by rw [x8]; nofun) hpc
+  refine exec_at (hk.slice 408 107 (by omega)) r8.run hwf (by rw [x8]; nofun) hpc
     (hm.abs c7 ((eval_clmulLowS env _ _).trans rfl)) fun st hm hpc ↦ ?_
   rw [x8, l8] at hpc
-  refine exec_at (hk.slice 516 16 (by omega)) r9.run hwf (by rw [x9]; nofun) hpc
+  refine exec_at (hk.slice 515 16 (by omega)) r9.run hwf (by rw [x9]; nofun) hpc
     (hm.absRev c8 ((congrArg BitVec.reverse (Lin.xor_apply _ _)).trans rfl)) fun st hm hpc ↦ ?_
   rw [x9, l9] at hpc
-  refine exec_at (hk.slice 532 67 (by omega)) r10.run hwf (by rw [x10]; nofun) hpc
+  refine exec_at (hk.slice 531 67 (by omega)) r10.run hwf (by rw [x10]; nofun) hpc
     (hm.absRev c9 ((congrArg BitVec.reverse (Lin.xor_apply _ _)).trans rfl)) fun st hm hpc ↦ ?_
   rw [x10, l10] at hpc
-  refine exec_at (hk.slice 599 85 (by omega)) r11.run hwf (by rw [x11]; nofun) hpc
+  refine exec_at (hk.slice 598 81 (by omega)) r11.run hwf (by rw [x11]; nofun) hpc
     (hm.abs c10 ((eval_clmulLowS env _ _).trans rfl)) fun st hm hpc ↦ ?_
   rw [x11] at hpc
   obtain ⟨hpc, hsp, hso, hsv⟩ := leaf_done hpre hm hpc r11_rsp r11_keeps r11_mem

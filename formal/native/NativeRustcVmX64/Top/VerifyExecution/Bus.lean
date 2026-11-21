@@ -154,7 +154,7 @@ theorem callBus (hp : Placed code k)
       g.apartW (o := 123992) (n := 97288) (o' := 0) (n' := 3912) (by omega) (by omega) (by omega),
       fun hn ↦ ?_,
       g.apartW (o := 4416) (n := 107768) (o' := 123992) (n' := 97288) (by omega) (by omega)
-        (by omega), g.rt, fun hn ↦ ?_⟩
+        (by omega), g.rt, fun hn ↦ ?_, ?_⟩
     · have := hbS hn
       show _ ∨ _
       rw [hsb]; omega
@@ -167,6 +167,27 @@ theorem callBus (hp : Placed code k)
     · have := hbt hn
       show NativeRustcVm.Apart _ _ (reg m0 .rdi) 760
       unfold NativeRustcVm.Apart; omega
+    · apply hC.got g hc hN'
+      intro l hl
+      simp only [List.append_assoc]
+      intro r hr
+      rcases List.mem_append.mp hr with hr | hr
+      · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr
+        rcases hr with rfl | rfl | rfl | rfl | rfl | rfl
+        · exact g.gotT hl
+        · exact g.gotA hl
+        · exact g.gotW hl (by omega) (by dsimp only; decide)
+        · exact g.gotW hl (by omega) (by dsimp only; decide)
+        · exact g.gotW hl (by omega) (by dsimp only; decide)
+        · exact g.gotRc hl
+      · rcases List.mem_append.mp hr with hr | hr
+        · by_cases hn : (reg m0 .rdx).toNat = 0
+          · simp only [hn, ↓reduceIte, List.mem_nil_iff] at hr
+          · simp only [hn, ↓reduceIte, List.mem_cons, List.mem_nil_iff, or_false] at hr
+            subst r
+            exact g.gotB hl hn
+        · obtain ⟨t, _, rfl⟩ := List.mem_map.mp hr
+          exact g.gotRod hl t
   refine call_then hpc1 (hbb a s L) hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hres, hch, hsv⟩ := hpost
   simp only [eRdi, eR8, eR9, hN, show NativeRustcVm.Bus.busBytes = 107768 from rfl,

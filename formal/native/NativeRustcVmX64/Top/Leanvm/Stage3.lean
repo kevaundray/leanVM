@@ -50,7 +50,7 @@ theorem stage3 (hp : Placed code k)
       NativeRustcVm.SameOutside m0.dmem st'.data.dmem (Out m0 a bytes.length) ∧
       Saved m0 st'.data) st := by
   have g := geo_of hpre
-  obtain ⟨hst, hrod, hin, -, -, hapR⟩ := hpre
+  obtain ⟨hst, hrod, hin, -, -, hapR, hgot⟩ := hpre
   have hS := leanvmVerifyStack_eq
   have hR := g.R
   have h8 := g.e8
@@ -230,7 +230,7 @@ theorem stage3 (hp : Placed code k)
         show a.decoded.toBitVec.toNat + 8 * decodedWords bytes.length ≤ 2 ^ 64; simp; omega⟩,
       ⟨Mapped.keeps (NativeRustcVm.Mapped.mono (NativeRustcVm.mapped_of_wordView hin.workSome)
         hwa) hf1.kept, by show a.work.toBitVec.toNat + workAreaBytes ≤ 2 ^ 64; simp; omega⟩,
-      ?_, ?_, fun h0 ↦ ⟨?_, ?_⟩⟩
+      ?_, ?_, (fun h0 ↦ ⟨?_, ?_⟩), ?_⟩
     · refine rodataAt_keep hrod hsame1 notRod ?_ ?_ <;> rw [hvs, hstk1, hS, lsb_eq]
       omega
     · simp only [NativeRustcVm.disjoint_cons_iff, List.forall_mem_cons, List.mem_nil_iff,
@@ -261,6 +261,50 @@ theorem stage3 (hp : Placed code k)
     · rw [hbcE h0]
       exact hapR ⟨a.bytecode.toBitVec, 8 * bytecode.length⟩ (by simp [entryRegions])
         (by show 0 < 8 * bytecode.length; omega)
+    · apply NativeRustcVmX64.GotAt.callee hgot
+      · intro l hl i hi
+        obtain ⟨_, hgn, hgs, hga⟩ := hgot.1 l hl
+        apply hsame1
+        rintro (h | h | h)
+        · apply hgs.not_inRange hgn (noWrap_stackBelow hst) hi
+          exact inRange_mono h (by omega)
+        · exact NativeRustcX64.Apart.not_inRange
+            (hga (a.decoded.toBitVec, 8 * decodedWords bytes.length) (by simp [entryRegions])) hgn
+            (by show a.decoded.toBitVec.toNat + 8 * decodedWords bytes.length ≤ 2 ^ 64; exact gdecN) hi h
+        · have hgwork := NativeRustcVm.Apart.mono_right
+            (hga (a.work.toBitVec, 8 * Code.workWords bytecode.length) (by simp [entryRegions]))
+            (Nat.le_refl a.work.toBitVec.toNat)
+            (show a.work.toBitVec.toNat + workAreaBytes ≤
+              a.work.toBitVec.toNat + 8 * Code.workWords bytecode.length by omega)
+          exact NativeRustcX64.Apart.not_inRange hgwork hgn
+            (by show a.work.toBitVec.toNat + workAreaBytes ≤ 2 ^ 64; exact gworkN) hi h
+      · rw [hS, lsb_eq, hsbv]
+      · rw [hS, lsb_eq, hsbv, hvs]
+        omega
+      · intro p hp
+        rcases List.mem_append.mp hp with hp | hp
+        · rcases List.mem_append.mp hp with hp | hp
+          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+            rcases hp with rfl | rfl | rfl | rfl
+            · refine ⟨(stackBelow m0 leanvmVerifyStack, leanvmVerifyStack + 8), by simp, ?_, ?_⟩ <;>
+                simp only [hS, lsb_eq, hP] <;> omega
+            · refine ⟨(stackBelow m0 leanvmVerifyStack, leanvmVerifyStack + 8), by simp, ?_, ?_⟩ <;>
+                simp only [hS, lsb_eq, hDc] <;> omega
+            · exact ⟨(a.decoded.toBitVec, 8 * decodedWords bytes.length),
+                by simp [entryRegions], Nat.le_refl _, Nat.le_refl _⟩
+            · refine ⟨(a.work.toBitVec, 8 * Code.workWords bytecode.length),
+                by simp [entryRegions], Nat.le_refl _, ?_⟩
+              dsimp only
+              omega
+          · exact ⟨p, by simp [hp], Nat.le_refl _, Nat.le_refl _⟩
+        · split at hp
+          · simp at hp
+          · rename_i hn0
+            simp only [List.mem_singleton] at hp
+            subst p
+            rw [hbcE (by omega)]
+            exact ⟨(a.bytecode.toBitVec, 8 * bytecode.length), by simp [entryRegions],
+              Nat.le_refl _, Nat.le_refl _⟩
   refine call_then hpc1 (hver a' _ _) hpre1 fun st2 hpc2 hrsp2 hpost2 ↦ ?_
   obtain ⟨hres2, hs2, hsv2⟩ := hpost2
   simp only [eRdi, eRsi, eRdx, eR8] at hres2 hs2

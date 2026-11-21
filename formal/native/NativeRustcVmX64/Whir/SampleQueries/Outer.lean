@@ -77,12 +77,6 @@ theorem ofBitVec_eq {x : BitVec 64} {n : Nat} (h : x.toNat = n) : UInt64.ofBitVe
 
 theorem ofBitVec_ofNat (n : Nat) : UInt64.ofBitVec (BitVec.ofNat 64 n) = n.toUInt64 := rfl
 
-/-- A doubling without overflow. -/
-theorem dbl2 {a : BitVec 64} {n : Nat} (h : a.toNat = n) (hn : 2 * n < 2 ^ 64) :
-    (a + a).toNat = 2 * n := by
-  rw [BitVec.toNat_add, h, ← Nat.two_mul]
-  exact Nat.mod_eq_of_lt hn
-
 /-- `b13`'s word `48`: `8 len - 1840`. -/
 theorem f48_eval [Labels] (env : Env) {n : Nat} (h : (env.regs .rbp).toNat = n) (hn : n ≤ 230) :
     f48S.eval env = BitVec.ofNat 64 (8 * n) - BitVec.ofNat 64 1840 := by
@@ -96,14 +90,10 @@ theorem f48_eval [Labels] (env : Env) {n : Nat} (h : (env.regs .rbp).toNat = n) 
       simp only [toNat_ext, toNat_low, BitVec.toNat_ofNat, Width.bits] at hc ⊢
       omega
   simp only [f48S, Sym.eval, BinOp.apply, low_W64, ext_W64, hm]
-  have h2 := dbl2 (a := BitVec.ofNat 64 n) (n := n) (by simp; omega) (by omega)
-  have h4 := dbl2 h2 (by omega)
-  have h8 := dbl2 h4 (by omega)
-  apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_add, h8, BitVec.toNat_sub, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
-    BitVec.toNat_ofNat]
-  simp only [Width.bits]
-  omega
+  change BitVec.ofNat 64 n * BitVec.ofNat 64 8 + BitVec.ofNat 64 18446744073709549776 = _
+  rw [← BitVec.ofNat_mul, Nat.mul_comm n 8,
+    show BitVec.ofNat 64 18446744073709549776 = -BitVec.ofNat 64 1840 by decide,
+    BitVec.sub_eq_add_neg]
 
 /-- `b13`'s word `40`: `8 n` for `n ≥ 1`. -/
 theorem f40_eval [Labels] (env : Env) {n : Nat} (h : (env.regs .rcx).toNat = n) (h1 : 1 ≤ n)

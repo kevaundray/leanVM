@@ -54,7 +54,7 @@ theorem eval_cap [Labels] (env : Env) (c v : Sym) {n : Nat} (h : env.regs .r14 =
     Bool.false_eq_true, ↓reduceIte]
 
 /-- The closure's words, in a body. -/
-theorem env_word (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m) (i : Nat)
+theorem env_word [Labels] (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m) (i : Nat)
     (hi : i < 6) :
     NativeRustcVm.wordOf m.dmem (stackArg m0 1 + BitVec.ofNat 64 (8 * i)) =
       UInt64.ofBitVec (nextEnv m0 i) := by

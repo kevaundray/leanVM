@@ -188,8 +188,16 @@ theorem claimsA_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   · unfold ReadScalarPre
     rw [show reg st1.data .rsi = _ from (hm1.regs .rsi _ hrsi1).trans A.xbx,
       show reg st1.data .rdi = _ from (hm1.regs .rdi _ hrdi1).trans (eval_ptr0 672)]
-    exact ⟨cal_stack h fr1 (by omega) hle, cal_rc h fr1 (by omega) hle, hts1,
-      cal_tok h fr1 (by omega) hle, cal_local h fr1 (by omega) hle (by omega) (by omega)⟩
+    refine ⟨cal_stack h fr1 (by omega) hle, cal_rc h fr1 (by omega) hle, hts1,
+      cal_tok h fr1 (by omega) hle, cal_local h fr1 (by omega) hle (by omega) (by omega),
+      cal_got h fr1 (by omega) hle (by decide) ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   · rw [show reg st1.data .rsi = _ from (hm1.regs .rsi _ hrsi1).trans A.xbx,
       show reg st1.data .rdi = _ from (hm1.regs .rdi _ hrdi1).trans (eval_ptr0 672)] at hq'
     rcases hq' with hq' | hq' | hq'

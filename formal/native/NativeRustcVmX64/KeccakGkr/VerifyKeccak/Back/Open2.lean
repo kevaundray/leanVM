@@ -13,7 +13,7 @@ namespace NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back
 
 open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Ring NativeRustcVmX64.KeccakGkr.SeqZ
 open NativeRustcVmX64.Vm.VerifyKeccak NativeVm.Model NativeRustcVmX64.Transcript
-open NativeRustcVm.Transcript (DecArea TStateAt)
+open NativeRustcVm.Transcript (DecArea TStateAt tstateBytes)
 open NativeRustcVm.KeccakGkr (off ClaimAt WeightsAt)
 
 public section
@@ -23,6 +23,37 @@ public section
 
 variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
+
+/-- The second opening's GOT footprint without symbolic execution state. -/
+private theorem open2_got (c : Ctx a inst m0) {mc : MachineData}
+    (ca : CallAt m0 wrB 0 mc) {n : Nat} (hn : n ≤ 30) :
+    GotAt mc keccakOpenStack
+      [(off (fb m0) 96, 24), (reg m0 .rdi, tstateBytes),
+        (off (fb m0) 232, 96), (off (reg m0 .r9) 140288, NativeRustcVm.KeccakGkr.rowsBytes),
+        (a.region.addr, a.region.size), (off (fb m0) 1280, 16 * n),
+        (off (reg m0 .r9) 25600, NativeRustcVm.KeccakGkr.weightsBytes),
+        (rcAddr, 192), (rspOf mc + 8#64, 48)] ["memcpy"] := by
+  rw [args_eq ca]
+  apply ca.got c ko_le
+  simp only [List.forall_mem_cons]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by decide)⟩
+  · exact ⟨(reg m0 .rdi, 760), by simp, le_rfl, le_rfl⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by decide)⟩
+  · exact ⟨(reg m0 .r9, 205824), by simp,
+      open_scratch_cover c (by decide) (by decide)⟩
+  · exact ⟨(a.region.addr, a.region.size), by simp, le_rfl, le_rfl⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by omega)⟩
+  · exact ⟨(reg m0 .r9, 205824), by simp,
+      open_scratch_cover c (by decide) (by decide)⟩
+  · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
+  · exact ⟨(stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8), by simp,
+      open_frame_cover c (by decide) (by decide)⟩
+  · intro p hp
+    exact (List.not_mem_nil hp).elim
 
 theorem open2Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
     (hko : ∀ s c, Spec (Labels.label NativeRustcVmX64.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c)
@@ -97,14 +128,15 @@ theorem open2Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
     unfold KeccakOpenPre
     dsimp only
     rw [rdi, rsi, rdx, rcx, r8, r9, a0, a1, a4, a5]
-    exact ⟨hsk, argsOk c h ca (by decide), ca.rc c hrc ko_le,
+    refine ⟨hsk, argsOk c h ca (by decide), ca.rc c hrc ko_le,
       Chg.ts c hch (by decide) rfl (by decide) hkk hts, rfl,
       NativeRustcVm.Tables.EWsAt.of_same hpt
         (Chg.frame c hch (by decide) rfl (o := 1280) (n := 480) (by decide) (by decide))
         (by simp; omega),
       Chg.wtsR c hch (by decide) rfl (by decide) (by decide) hcw, hfit, by decide, by decide,
       areas_ko c h ca (by decide) (by decide) (by decide) (by decide) hsz (by decide)
-        (by decide) (by decide) (by decide)⟩
+        (by decide) (by decide) (by decide), ?_⟩
+    exact open2_got c ca hsz
   · have rdi : reg mc .rdi = off (fb m0) 96 := (hmc.regs .rdi _ rfl).trans (ev_frame 96)
     have rsi : reg mc .rsi = off (ob m0 1) 0 := (hmc.regs .rsi _ rfl).trans (off0 _).symm
     have a4 : openSlot mc = off (fb m0) 232 :=

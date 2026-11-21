@@ -81,8 +81,8 @@ theorem commitStack_spec (hp : Placed code k)
       (ReadCommitmentPost a s))
     (a : DecArea) (s : TState) :
     Spec (Labels.label NativeRustcVmX64.Vm.CommitStack.entryLabel) (CommitStackPre a s) (CommitStackPost a s) := by
-  rintro m0 ⟨hst, hrc, hro, hts, htok, hroots⟩
-  rw [stack_eq] at hst hrc hro htok
+  rintro m0 ⟨hst, hrc, hro, hts, htok, hroots, hgot⟩
+  rw [stack_eq] at hst hrc hro htok hgot
   set t := reg m0 .rdi with htdef
   set fb := stackBelow m0 192 with hfb
   have hn : 704 ≤ (rspOf m0).toNat := hst.1
@@ -260,9 +260,15 @@ theorem commitStack_spec (hp : Placed code k)
       show StackOk _ 704 ∧ RcAt _ 704 ∧ TStateAt _ (reg st4.data .rdi) a s ∧
         TStateOk _ (reg st4.data .rdi) a 704 ∧ _
       rw [hy7]
-      exact ⟨stackOk_callee hst hsv4.2 hsp4' (by decide),
+      refine ⟨stackOk_callee hst hsv4.2 hsp4' (by decide),
         RcAt.callee hrc (rc_keep hso4 hrcOut) hsp4' hn (by decide),
-        hts.frame hsv4.2 hRS hso4, TStateOk.callee htok hsp4' hn (by decide), hroots⟩
+        hts.frame hsv4.2 hRS hso4, TStateOk.callee htok hsp4' hn (by decide), hroots, ?_⟩
+      apply got_callee hgot
+        (got_keep hgot hst (writes := []) (by simp) (by simp)
+          (hso4.mono (by intro q hq; exact Or.inr hq)))
+        hsp4' hn (by decide)
+      intro l hl a' ha
+      exact (hgot.1 l hl).2.2.2 a' ha
     have hret4 : retOf st4.data = retOf m0 := retOf_eq hf1 hd4 hsp4
     have hsb4 : stackBelow st4.data 704 = stackBelow m0 704 := by
       unfold stackBelow; rw [hsp4]

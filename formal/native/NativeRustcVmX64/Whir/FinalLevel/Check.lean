@@ -137,6 +137,8 @@ theorem check (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (hq : NativeRustcVm.BufWordsAt st.data.dmem (qA m0) queryCap qs.toList)
     (hrows : RowsAt st.data.dmem (loc m0 144) op rws)
     (hop : WhirIn m0 op (8 * openingsWords) finalLevelStack)
+    (hopBounds : a.words.toNat ≤ op.toNat ∧
+      op.toNat + 8 * openingsWords ≤ a.words.toNat + 8 * a.len)
     (hts : TStateAt st.data.dmem (tA m0) a s4)
     (hrun : runF level b w rounds m0 s = (C4 (reg m0 .rsi).toNat (mu m0) (reg m0 .r8).toNat b w
       rounds folded qs rws).run s4)
@@ -259,7 +261,7 @@ theorem check (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     unfold whirBytes roundBytes; omega
   have hpre : EachRowFinalPre rws op st1.data := by
     refine ⟨⟨(c.sctx (by decide)).stackOk hat hle, c.argsOk (by omega) hf1, ?_, ?_,
-      c.whirIn hat hle hop, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
+      c.whirIn hat hle hop, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩
     · show RowsAt st1.data.dmem (reg st1.data .rcx) op rws
       rw [hcx1]; exact hrw1
     · show WhirIn st1.data (reg st1.data .rcx) 32 eachRowFinalStack
@@ -277,6 +279,31 @@ theorem check (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     · rw [a2n]; exact hfo
     · rw [a1]
       exact c.sliceLoc (o := 0) (by omega) hf1 hle (by omega) (by rw [a2n]; omega)
+    · have hargs : rspOf st1.data + 8#64 = loc m0 8 := by
+        rw [hsp1, show (8#64 : BitVec 64) = BitVec.ofNat 64 8 from rfl, loc_add]
+      rw [hcx1, hsi1, hdxn, h91, a0n, a1, a2n, hargs]
+      apply c.got_call hf1 (by omega) hle (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl | rfl | rfl
+      · exact c.got_loc (by omega) (by omega)
+      · exact ⟨(a.words, 8 * a.len), by simp, hopBounds⟩
+      · refine ⟨(pA m0, whirBytes), by simp, ?_, ?_⟩
+        · change (pA m0).toNat ≤ (pA m0 + BitVec.ofNat 64 61360).toNat
+          rw [NativeRustcVm.toNat_add_ofNat (by have := g.pW; omega)]
+          omega
+        · change (pA m0 + BitVec.ofNat 64 61360).toNat + 8 * qs.size ≤ (pA m0).toNat + 63200
+          rw [NativeRustcVm.toNat_add_ofNat (by have := g.pW; omega)]
+          omega
+      · refine ⟨(pA m0, whirBytes), by simp, ?_, ?_⟩
+        · change (pA m0).toNat ≤ (pA m0 + BitVec.ofNat 64 61160).toNat
+          rw [NativeRustcVm.toNat_add_ofNat (by have := g.pW; omega)]
+          omega
+        · change (pA m0 + BitVec.ofNat 64 61160).toNat + 32 * rounds.size ≤ (pA m0).toNat + 63200
+          rw [NativeRustcVm.toNat_add_ofNat (by have := g.pW; omega)]
+          omega
+      · exact c.got_loc (by omega) (by omega)
+      · exact c.got_loc (by omega) (by omega)
   refine call_then hpc1 (hrow rws op) hpre fun st2 hpc2 hrsp2 hq2 ↦ ?_
   obtain ⟨hok, hch, hsv⟩ := hq2
   have hch' : NativeRustcVm.SameOutside st1.data.dmem st2.data.dmem (fun q ↦

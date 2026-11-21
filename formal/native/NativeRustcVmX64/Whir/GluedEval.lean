@@ -72,7 +72,7 @@ theorem eq_branch (hp : Placed code k)
     {g : GluedClaimW} {m0 : MachineData} (hpre : GluedEvalPre g m0) {z : Array EW}
     (hgw : g.weight = .eq z) :
     Eventually (step1 Host.exe) (Post g m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b0Offset)⟩ := by
-  obtain ⟨hS, ⟨-, -, -, hw⟩, hgin, hx, hout⟩ := hpre
+  obtain ⟨hS, ⟨-, -, -, hw⟩, hgin, hx, hout, _⟩ := hpre
   rw [hgw] at hw
   obtain ⟨hkind, hzlen, hzw, hzs⟩ := hw
   obtain ⟨hsle1, -, hF⟩ := stack_le
@@ -227,7 +227,7 @@ theorem induced_branch (hp : Placed code k)
     {g : GluedClaimW} {m0 : MachineData} (hpre : GluedEvalPre g m0) {mu : Nat}
     {queries : Array UInt64} {weights : Array EW} (hgw : g.weight = .induced mu queries weights) :
     Eventually (step1 Host.exe) (Post g m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b0Offset)⟩ := by
-  obtain ⟨hS, ⟨-, -, -, hw⟩, hgin, hx, hout⟩ := hpre
+  obtain ⟨hS, ⟨-, -, -, hw⟩, hgin, hx, hout, hgot⟩ := hpre
   rw [hgw] at hw
   obtain ⟨hkind, hmu, hmuw, ⟨hql, hqw, hqs⟩, ⟨hwl, hww, hws⟩⟩ := hw
   obtain ⟨-, hsle2, hF⟩ := stack_le
@@ -331,7 +331,7 @@ theorem induced_branch (hp : Placed code k)
   have h8 : (stackBelow m0 32 + 8#64).toNat = (rspOf m0).toNat - 32 + 8 := by
     rw [eight, toNat_add_ofNat _ _ (by rw [hfe]; omega), hfe]
   have hpre2 : InducedWeightPre st2.data := by
-    refine ⟨stackOk_callee hS hkept2 hrsp2 hsle2, ⟨fun i hi ↦ ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨stackOk_callee hS hkept2 hrsp2 hsle2, ⟨fun i hi ↦ ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [hrsp2, eight, addr_add]
       exact hkept2 _ (hfmap _ (by omega))
     · rw [hrsp2, hfe]; omega
@@ -351,6 +351,38 @@ theorem induced_branch (hp : Placed code k)
       unfold Apart
       rw [hx0, hrsp2, h8]
       omega
+    · have hs : SameOutside m0.dmem st2.data.dmem (InRange (stackBelow m0 gluedEvalStack) gluedEvalStack) :=
+        fun p hp => hm2.get?_mem0 hwf (fun h => hp (inRange_frame hS hF le_rfl
+          (written_region0 rfl hwf (by omega)
+            (fun w hw => ⟨(hw1 w hw).1, by have := (hw1 w hw).2; omega⟩) h)))
+      have hb := stackBelow_toNat hS.1
+      have hd : (stackBelow st2.data inducedWeightStack).toNat =
+          (rspOf m0).toNat - 32 - inducedWeightStack := by
+        rw [stackBelow_toNat (by rw [hrsp2, hfe]; omega), hrsp2, hfe]
+      apply NativeRustcVmX64.GotAt.callee hgot
+        (NativeRustcVmX64.GotAt.unchanged_stack hgot hS hs)
+      · rw [hb, hd]; omega
+      · rw [hb, hd]; omega
+      · intro a ha
+        simp only [hx0, hx2, hx3, hx4, hx5, hqn, hwn, hsa0, hsa1, hrsp2,
+          List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with (rfl | rfl | rfl | rfl) | ha
+        · refine ⟨(reg m0 .rsi, gluedBytes), by simp, ?_, ?_⟩
+          all_goals dsimp only [Prod.fst, Prod.snd]
+          all_goals rw [toNat_add_ofNat _ _ (by have := hgin.1.2; unfold NoWrap at this; omega)]
+          all_goals omega
+        · refine ⟨(reg m0 .rsi, gluedBytes), by simp, ?_, ?_⟩
+          all_goals dsimp only [Prod.fst, Prod.snd]
+          all_goals rw [toNat_add_ofNat _ _ (by have := hgin.1.2; unfold NoWrap at this; omega)]
+          all_goals omega
+        · exact ⟨(reg m0 .rdi, 24), by simp, le_rfl, le_rfl⟩
+        · refine ⟨(stackBelow m0 gluedEvalStack, gluedEvalStack + 8), by simp, ?_, ?_⟩ <;>
+            rw [hb, h8] <;> omega
+        · by_cases hn : 0 < (reg m0 .rcx).toNat
+          · simp only [ite_eq_left hn, List.mem_singleton] at ha
+            subst a
+            exact ⟨(reg m0 .rdx, 16 * (reg m0 .rcx).toNat), by simp [hn], le_rfl, le_rfl⟩
+          · simp [hn] at ha
   refine call_then hpc2 hind hpre2 fun st3 hpc3 hrsp3 ⟨hval, hch, hsv⟩ ↦ ?_
   -- the body of the 32 bytes below RSP
   have hfr3 : Frame m0 32 gluedEvalStack slots32 [⟨reg m0 .rdi, 24⟩] st3.data := by

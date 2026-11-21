@@ -86,8 +86,17 @@ theorem readAnnouncedSizes_spec (hp : Placed code k)
   have hpre : ReadScalarsPre a s st1.data := by
     simp only [ReadScalarsPre]
     rw [hx0, hx1, hx2]
-    exact ⟨c.stackOk hat le_rs, c.rcAt hat le_rs, hts1, c.tstateOk hat le_rs,
-      c.outOk_frame hat le_rs (o := 8) (n := 16 * 8) (by omega) (by omega)⟩
+    refine ⟨c.stackOk hat le_rs, c.rcAt hat le_rs, hts1, c.tstateOk hat le_rs,
+      c.outOk_frame hat le_rs (o := 8) (n := 16 * 8) (by omega) (by omega), ?_⟩
+    apply got_callee ((pre_got h).symbols (by decide : ["memcpy"].Sublist ["memcpy", "memset"]))
+      (fun l hl => got_bytes h hb1 l (by simp_all)) hat.sp c.spN le_rs
+    intro l hl a' ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l (by simp_all)).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l (by simp_all)).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) c.stack (by simp_all) F_le (by dsimp only; decide)
+    · exact ((pre_got h).1 l (by simp_all)).2.2.2 _ (by simp)
   refine call_then hpc1 (hrs a s) hpre fun st2 hpc2 hrsp2 hq2 ↦ ?_
   simp only [ReadScalarsPost] at hq2
   rw [hx0, hx1, hx2] at hq2

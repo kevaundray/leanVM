@@ -45,14 +45,18 @@ def argAliases (r : Nat) : List (Sym × Nat × Int) :=
     (.ptr 0 2248, r, 32), (.ptr 0 2256, r, 40)]
 
 /-- The fold's aliases: the arguments, the slot point's address (argument `4`). -/
-def alsF : List (Sym × Nat × Int) := argAliases 3 ++ [(.load 3 32 8, 1, 0)]
+def alsF : List (Sym × Nat × Int) :=
+  argAliases 3 ++ [(.load 3 32 8, 1, 0), (.gotSlot "memcpy", 4, 0)]
 
 /-- Around the fold, the registers `ks` known. -/
 def pS (ks : List (Reg64 × Sym)) : SState :=
-  init [2216, 96, 65536, 48] ((.rsp, .ptr 0 8) :: ks) [] [] alsF
+  (init [2216, 96, 65536, 48, 8] ((.rsp, .ptr 0 8) :: ks) [] [] alsF).withKnownBytes
+    4 0 8 (.label "memcpy")
 
 /-- The entry. -/
-def e0S : SState := init [2216, 96, 65536, 48] [(.rsp, .ptr 0 2208)] [] [] alsF
+def e0S : SState :=
+  (init [2216, 96, 65536, 48, 8] [(.rsp, .ptr 0 2208)] [] [] alsF).withKnownBytes
+    4 0 8 (.label "memcpy")
 
 /-- An inner loop's loads: region 0 the call's return address slot, region 1 the buffers' bytes
 from the first buffer's entry (`1040` bytes), the counter `ib` from `s0`. -/
@@ -79,7 +83,7 @@ def resS : SState := init [2216, 24] [(.rsp, .ptr 0 8), (.rbx, .ptr 1 0)]
 
 /-- A value that reads no register, flag or memory. -/
 def stable : Sym → Bool
-  | .lit _ | .ptr _ _ | .var _ => true
+  | .lit _ | .ptr _ _ | .var _ | .label _ => true
   | .bin _ _ a b => stable a && stable b
   | .un _ _ a => stable a
   | _ => false
@@ -170,7 +174,8 @@ def srcB0 : Sym := .bin .add .W64 (.lit 1024) (.bin .add .W64 P sh2)
 
 /-- Round 0's head. -/
 def kR0 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbx, .var 2), (.r14, P3)]
-def k5 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbx, sh2), (.r14, P3), (.r15, P)]
+def k5 : List (Reg64 × Sym) :=
+  [(.r12, V0), (.r13, V1), (.rbx, sh2), (.r14, P3), (.r15, P), (.rbp, .label "memcpy")]
 def k7 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.r14, P3), (.rbx, .lit 8)]
 def kI0 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.r14, P3)]
 def k10 : List (Reg64 × Sym) :=
@@ -179,7 +184,8 @@ def k10 : List (Reg64 × Sym) :=
 /-- Round 1's start and head. -/
 def k11 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbp, .lit 0), (.rbx, P)]
 def kR1 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbp, .var 2), (.rbx, P3)]
-def k12 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbp, sh2), (.rbx, P3), (.r14, P)]
+def k12 : List (Reg64 × Sym) :=
+  [(.r12, V0), (.r13, V1), (.rbp, sh2), (.rbx, P3), (.r14, P), (.r15, .label "memcpy")]
 def k14 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbx, P3), (.rbp, .lit 8)]
 def kI1 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbx, P3)]
 def k17 : List (Reg64 × Sym) :=
@@ -192,6 +198,9 @@ def k78 : List (Reg64 × Sym) := [(.r12, V0), (.r13, V1), (.rbp, P)]
 def k88 : List (Reg64 × Sym) := [(.r14, V0), (.r15, V1), (.rbp, P)]
 /-- A counter set. -/
 def kc (ks : List (Reg64 × Sym)) (s0 : Nat) : List (Reg64 × Sym) := ks ++ [(.rbx, .lit s0)]
+
+/-- A paired row copy retains the loaded target in callee-saved RBX. -/
+def kCopy (ks : List (Reg64 × Sym)) : List (Reg64 × Sym) := ks ++ [(.rbx, .label "memcpy")]
 
 /-- A row's address in the rows. -/
 def p2 (o : Nat) : Sym := .ptr 2 (o : Int)

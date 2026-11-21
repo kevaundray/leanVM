@@ -68,7 +68,7 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) 
       some (novelEval (slice m0 (reg m0 .rsi) (reg m0 .rdx))
         (wordSlice m0 (reg m0 .rcx) (reg m0 .r8).toNat)) else none) :
     Eventually (step1 Host.exe) (Post m0) st := by
-  obtain ⟨hS, hcs, hwh, hout⟩ := hpre
+  obtain ⟨hS, hcs, hwh, hout, _⟩ := hpre
   have hF : 1104 ≤ novelEvalStack := by decide
   have hrd : Readable st.data (reg m0 .rdi) 8 := Readable.keep (Readable.mono hout.1 (by omega)) hfr.kept
   have hwf : (Env.ofMachine st.data [(reg m0 .rdi, 8)]).WF :=
@@ -124,7 +124,7 @@ theorem store (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) (
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b16Offset)) (hD : Done m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
-  obtain ⟨hS, hcs, hwh, hout⟩ := hpre'
+  obtain ⟨hS, hcs, hwh, hout, _⟩ := hpre'
   have hF : 1104 ≤ novelEvalStack := by decide
   have hfr : OFrame m0 st.data := frame_mono hD.fr
   have hwf : (Env.ofMachine st.data [(stackBelow m0 1104, 1104 + 8), (reg m0 .rdi, 24)]).WF :=
@@ -175,7 +175,7 @@ theorem novelEval_spec (hp : Placed code k)
     Spec (Labels.label NativeRustcVmX64.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost := by
   intro m0 hpre
   have hpre' := hpre
-  obtain ⟨hS, hcs, hwh, hout⟩ := hpre'
+  obtain ⟨hS, hcs, hwh, hout, hgot⟩ := hpre'
   obtain ⟨hF, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1
@@ -194,8 +194,19 @@ theorem novelEval_spec (hp : Placed code k)
   have harg : ∀ r ∈ [Reg64.rdi, .rsi, .rdx, .rcx, .r8], reg st1.data r = reg m0 r := fun r hr ↦
     hm1.regs r (.reg r) (hargs0 r hr)
   -- `b0b`: the arguments, `memset`
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b1Offset)).toBitVec) hS hF
-  refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hfr1.mid_match fun st2 hm2 hpc2 ↦ ?_
+  have hwf2 := hfr1.got_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b1Offset)).toBitVec) hS hF hgot (by simp : "memset" ∈ _)
+  have hm2start := hfr1.got_match (l := "memset") (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b1Offset)).toBitVec)
+    (fun i hi => hfr1.got_byte hS hgot
+    (by
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact hcs.1.2
+      · exact hwh.1.2
+      · exact hout.1.2)
+    (by intro r hr; cases hr) (by simp) hi)
+  refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hm2start fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_b0b ▸ b0b_call
   have hrsp2 := rsp_call hm2 hsp2
   have hkept2 : Kept m0.dmem st2.data.dmem := fun p h ↦ hm2.kept hwf2 p (hfr1.kept p h)
@@ -212,7 +223,7 @@ theorem novelEval_spec (hp : Placed code k)
     · unfold NoWrap; rw [h40]; omega
     · unfold Apart; rw [hrsp2, hfe, h40]; omega
   refine Frame.call hmemset hfr1 hS (by decide : 1104 + 0 ≤ novelEvalStack) (L := 1056)
-    (by decide) hsl out_nil hwf2 hfr1.mid_match hm2 hpc2 hk2 hsp2
+    (by decide) hsl out_nil hwf2 hm2start hm2 hpc2 hk2 hsp2
     (fun w hw ↦ ⟨(hw2 w hw).1, by have := (hw2 w hw).2; omega⟩) hpre2
     (fun m' ⟨_, _, hso, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hso p fun h ↦ hp (.inr (.inl (by
       simp only [hrdi2, hrdx2] at h

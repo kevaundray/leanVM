@@ -52,7 +52,7 @@ theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) {
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b4Offset)) (hI : OInv m0 j st.data) :
     Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b9Offset) ∧ Mid m0 s.data) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b6Offset) ∧ IInv m0 j 0 s.data)) st := by
-  obtain ⟨hS, hcs, hwh, hout⟩ := hpre
+  obtain ⟨hS, hcs, hwh, hout, _⟩ := hpre
   have hF : 1104 ≤ novelEvalStack := by decide
   have hS1 := hS.1
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF

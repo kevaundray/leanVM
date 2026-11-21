@@ -165,8 +165,12 @@ theorem none_b14 (hp : Placed code k)
     unfold GrindPre
     rw [hrdi7', hbits7, show cnt m0 - 1 = cnt m0 - 2 + 1 by omega, grindingBits_succ,
       show bitLenNat (cnt m0 - 2) = LeanVM.Protocol.Verifier.bitLength (cnt m0 - 2) from rfl]
-    exact ⟨c.stackOk hat7 (by decide), c.rcAt hat7 (by decide), ts7,
-      c.tstateOk hat7 (by decide), by omega⟩
+    refine ⟨c.stackOk hat7 (by decide), c.rcAt hat7 (by decide), ts7,
+      c.tstateOk hat7 (by decide), by omega, ?_⟩
+    apply hf7.gotAt h (by decide)
+    intro l hl x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl <;> exact got_area h hl (by simp)
   simp only [GrindPost, hrdi7', hbits7] at hpost8
   obtain ⟨hok8, hnext8, hs8, hsv8⟩ := hpost8
   have hRt : ∀ q, NativeRustcVm.InRange (tAt m0) tstateBytes q → Chg m0 q ∧ NotHigh m0 q :=

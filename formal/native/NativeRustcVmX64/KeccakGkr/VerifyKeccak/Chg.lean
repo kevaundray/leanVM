@@ -289,9 +289,9 @@ theorem ChgR.wt (c : Ctx a inst m0) {L : List (Nat × Nat)} {O : List (Nat × Na
 
 /-- **A block's change**: the frame ranges it writes. -/
 theorem chg_block (c : Ctx a inst m0) {m m' : MachineData} {vals : Nat → BitVec 64}
-    {ret : BitVec 64} {S : SState}
-    (hm : Match (envZ m0 m 3344 3368 (rsOf m0) vals ret) S m')
-    (hwf : (envZ m0 m 3344 3368 (rsOf m0) vals ret).WF) {wr : Nat → Bool}
+    {ret : BitVec 64} {S : SState} {srcRs : List (BitVec 64 × Nat)}
+    (hm : Match (envZ m0 m 3344 3368 srcRs vals ret) S m')
+    (hwf : (envZ m0 m 3344 3368 srcRs vals ret).WF) {wr : Nat → Bool}
     (hw : S.mem.all (writeOk 3344 (3368 :: (rsOf m0).map Prod.snd) wr) = true)
     (h0 : S.mem.all (fun w ↦ w.r == 0) = true) :
     Chg m0 m.dmem m'.dmem (wsL S) [] := by

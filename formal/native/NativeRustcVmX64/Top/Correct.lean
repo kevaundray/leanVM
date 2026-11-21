@@ -63,7 +63,10 @@ theorem verify_correct_of_specs (hP : Host.prog = Vm.code)
     (hapS : ApartFrom (entryRegions (ctxOf m) a bytes.length bytecode.length)
       (stackBelow m leanvmVerifyStack) (leanvmVerifyStack + 8))
     (hapR : ∀ r ∈ entryRegions (ctxOf m) a bytes.length bytecode.length, 0 < r.size →
-      RodataApart r.addr r.size) :
+      RodataApart r.addr r.size)
+    (hgot : GotAt m leanvmVerifyStack
+      ((entryRegions (ctxOf m) a bytes.length bytecode.length).map (fun r => (r.addr, r.size)) ++
+        rodataAreas) ["memcpy", "memset"]) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧ rspOf st.data = rspOf m + 8#64 ∧
       reg st.data .rax = (if (Id.run (Proof.fromBytes (m := Id) keccakF1600 bytes)).elim false
           (fun π ↦ Id.run (verifyWith (m := Id) keccakF1600 (bytecode.map K.ofLane) pub π))
@@ -72,7 +75,7 @@ theorem verify_correct_of_specs (hP : Host.prog = Vm.code)
         [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
           ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmX64.frameR m leanvmVerifyStack]) ∧
       Saved m st.data) ⟨m, label NativeRustcVmX64.Vm.LeanvmVerify.entryLabel⟩ :=
-  verify_correct_of (leanvmVerify_spec_of hP hdec hve) hin hal hstack hrod hapS hapR
+  verify_correct_of (leanvmVerify_spec_of hP hdec hve) hin hal hstack hrod hapS hapR hgot
 
 end
 

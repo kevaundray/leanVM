@@ -41,7 +41,7 @@ theorem rootSym_eval [Labels] {env : Env} {t : BitVec 64} {i : Nat}
   simp only [rootSym, Sym.eval, BinOp.apply, low_W64, ext_W64, hb]
   rw [show shiftCount .W64 (BitVec.ofNat 64 4) = 4 from rfl]
   apply BitVec.eq_of_toNat_eq
-  simp only [off, BitVec.toNat_add, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, hp,
+  simp only [off, BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, hp,
     BitVec.toNat_ofNat, show (2 : Nat) ^ Width.W64.bits = 2 ^ 64 from rfl]
   omega
 
@@ -63,7 +63,7 @@ theorem open_pre {a : DecArea} {s : TState} {Q : Array UInt64} {m0 : MachineData
   have hAt : At m0 96 d := At.of_frame hf (rc_keep hs fun q hq ↦ c.not_rc_stack hq)
   simp only [OpenPhasePre]
   rw [hdi, hsi, hr8, hr9, hsa]
-  obtain ⟨hst, hrc, -, htok, hQn, hQw, hpnw, hpS, hpA, hout, hop⟩ := hpre
+  obtain ⟨hst, hrc, -, htok, hQn, hQw, hpnw, hpS, hpA, hout, hop, hg⟩ := hpre
   set t := reg m0 .rsi
   set i := (reg m0 .rdx).toNat
   set fb := stackBelow m0 96
@@ -109,12 +109,37 @@ theorem open_pre {a : DecArea} {s : TState} {Q : Array UInt64} {m0 : MachineData
   have hroot := hts.roots i hi
   have hfm : NativeRustcVm.Mapped d.dmem fb (96 + 8) :=
     Mapped.keeps (frame_mapped hst (by decide)) hf.kept
+  have hgot : GotAt d openPhaseStack
+      [(ph, 8 * phaseWords), (rb, 32), (pos, 8 * n), (off fb 16, 32), (rcAddr, 192)]
+      ["memcpy", "memset"] := by
+    refine c.gotAt hAt (by decide) hg hs (fun _ hq ↦ Or.inl hq) ?_
+    intro l hl x hx
+    have ht := (hg.1 l hl).2.2.2 (t, tstateBytes) (by simp [t])
+    have ha := (hg.1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+    have hstk := (hg.1 l hl).2.2.1
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl | rfl | rfl
+    · change (gotAddr l).toNat + 8 ≤ ph.toNat ∨
+        ph.toNat + 8 * phaseWords ≤ (gotAddr l).toNat
+      change (gotAddr l).toNat + 8 ≤ a.words.toNat ∨
+        a.words.toNat + 8 * a.len ≤ (gotAddr l).toNat at ha
+      rw [hph]
+      omega
+    · change (gotAddr l).toNat + 8 ≤ rb.toNat ∨
+        rb.toNat + 32 ≤ (gotAddr l).toNat
+      change (gotAddr l).toNat + 8 ≤ t.toNat ∨
+        t.toNat + tstateBytes ≤ (gotAddr l).toNat at ht
+      rw [hrb]
+      omega
+    · exact (hg.1 l hl).2.2.2 _ (by simp [pos, n])
+    · exact c.apart_of_stack hstk (by omega)
+    · exact (hg.1 l hl).2.2.2 _ (by simp)
   refine ⟨c.stackOk hAt (by decide), c.rcAt hAt (by decide), ⟨?_, ?_⟩,
     hts.decoded.phases s.phase hlt, hroot.2.2.1, hQn,
     wordsAt_stk (ws := Q.toList) hst hs (by rw [Array.length_toList, hQn]; exact hpnw)
       (by rw [Array.length_toList, hQn]; exact hpS) hQw,
     mapped_off hAm (by show 8 * phaseBase a.l s.phase + 8 * phaseWords ≤ 8 * a.len; omega),
-    ?_, ?_, ?_, mapped_off hfm (by omega), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, ?_, mapped_off hfm (by omega), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hgot⟩
   · rw [hsp]
     exact mapped_off (o := 8) hfm (by omega)
   all_goals first

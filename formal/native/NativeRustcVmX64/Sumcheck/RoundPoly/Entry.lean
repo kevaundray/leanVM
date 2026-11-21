@@ -141,8 +141,16 @@ theorem some_entry (hp : Placed code k)
   case pre =>
     unfold ReadScalarsPre
     rw [hrdi1, hrsi1, hrdx1]
-    exact ⟨c.stackOk hat1 (by decide), c.rcAt hat1 (by decide), ts1,
-      c.tstateOk hat1 (by decide), msgOut h hat1 (by decide) (by omega) (by omega)⟩
+    refine ⟨c.stackOk hat1 (by decide), c.rcAt hat1 (by decide), ts1,
+      c.tstateOk hat1 (by decide), msgOut h hat1 (by decide) (by omega) (by omega), ?_⟩
+    apply hf1.gotAt h (by decide)
+    intro l hl x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl | rfl
+    · exact got_area h hl (by simp)
+    · exact got_area h hl (by simp)
+    · exact got_msg h hl (by omega) (by omega)
+    · exact got_area h hl (by simp)
   simp only [ReadScalarsPost, hrdi1, hrsi1, hrdx1] at hpost2
   obtain ⟨hok2, hxs2, hnext2, hs2, hsv2⟩ := hpost2
   have hR2 : ∀ q, (NativeRustcVm.InRange (off (msgAt m0) 16) (16 * (cnt m0 - 1)) q ∨
@@ -220,9 +228,17 @@ theorem none_entry (hp : Placed code k)
   case pre =>
     unfold ReadScalarPre
     rw [hrdi1, hrsi1]
-    exact ⟨c.stackOk hat1 (by decide), c.rcAt hat1 (by decide), ts1,
+    refine ⟨c.stackOk hat1 (by decide), c.rcAt hat1 (by decide), ts1,
       c.tstateOk hat1 (by decide), c.outOk_frame hat1 (by decide) (o := 40) (n := 24) (by omega)
-        (by omega)⟩
+        (by omega), ?_⟩
+    apply hf1.gotAt h (by decide)
+    intro l hl x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl | rfl
+    · exact got_area h hl (by simp)
+    · exact got_area h hl (by simp)
+    · exact got_frame h hl (by omega)
+    · exact got_area h hl (by simp)
   simp only [ReadScalarPost, hrdi1, hrsi1] at hpost2
   obtain ⟨hopt2, hnext2, hs2, hsv2⟩ := hpost2
   have hfnw := c.noWrap_frame

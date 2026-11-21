@@ -107,12 +107,16 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     rw [show reg st1.data .rdx = _ from hm1.regs .rdx _ hrdx1]; rfl
   have hle : 5520 - 96 + busLayoutStack ≤ NN := le_bl
   simp only [PcOk] at hpc1
-  refine bl_call h hbl fr1 hpc1 (side := 0) (it := .pushBlocks) side0_bytes
+  refine bl_call h hbl fr1 hpc1 (side := 0) (it := .pushBlocks) side0_bytes (by simp)
     (by rw [side0_len]; omega) (by rw [side0_len, maxBlocks_eq]) side0_own hrows
     (fw := fwRows L) (fw_nats x1si x1dx w328 w336 w344 hlm hlb)
     (by omega) (fun s hs ↦ by simp [fwRows] at hs; rcases hs with rfl | rfl | rfl <;> omega)
     (by rw [x1si, x1dx]; exact cal_localIn h fr1 (by omega) hle (by omega) (by omega))
     (by rw [x1si, x1dx]; exact loc_apart hS (by omega) (by omega) (by omega))
+    (by
+      intro l hl _
+      rw [x1si, x1dx]
+      exact got_apart_frame (pre_got h) hS hl N_ge (by omega))
     ((hm1.regs .rdi _ hrdi1).trans (eval_ptr0 672)) (hm1.regs .rcx _ hrcx1)
     (by rw [show reg st1.data .r8 = _ from hm1.regs .r8 _ hr81, side0_len]; rfl)
     (by
@@ -154,10 +158,10 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (hk3 r (clRegs_cs r hr').2.2).trans (c2 r hr')
   -- `b2`: the bus at `112`; `memcpy(2816, 688, 880)`.
   rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b1Offset + b1.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b1_next]]
-  have hwf4 := wf0 h fr3.frame.kept (vars := fun _ ↦ 0)
+  have hwf4 := wf_copy h fr3.frame.kept (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b2Offset + b2.length)).toBitVec)
   refine exec_then (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf4 (fun _ _ ↦ rfl)
-    (match_fS fr3) fun st4 hm4 hpc4 ↦ ?_
+    (match_copy h fr3) fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hw4, wr4, hrdi4, hrsi4, hrdx4, hr124, hk4⟩ := ok_b2
   have fr4 : St m0 96 st4.data := St.blk fr3 hS hwf4 hm4 hmid4 fun q hq ↦ wr0 hS hw4 (by omega) hq
   have hin4 := writesIn_of_mid hmid4
@@ -175,7 +179,7 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have w112 : NativeRustcVm.WordAt st4.data.dmem (loc m0 112) (UInt64.ofBitVec (reg m0 .r8)) := by
     have := wordAt_write hm4 (r := 0) (b := fb m0) (sz := 5520 + 8) (o := 112) (v := .reg .r12) rfl
       (by omega) (wr4.find (List.Mem.head _))
-    rwa [show (Sym.reg .r12).eval (frameEnv m0 d3 5520 [] (fun _ ↦ 0)
+    rwa [show (Sym.reg .r12).eval (frameEnv m0 d3 5520 [(gotAddr "memcpy", 8)] (fun _ ↦ 0)
       (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b2Offset + b2.length)).toBitVec) = reg m0 .r8 from
         (c3 .r12 (by simp)).trans x112] at this
   have x412 : reg st4.data .r12 = (pushL L).depth.toUInt64.toBitVec :=
@@ -243,13 +247,17 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have x6dx : (reg st6.data .rdx).toNat = 3 := by
     rw [show reg st6.data .rdx = _ from hm6.regs .rdx _ hrdx6]; rfl
   simp only [PcOk] at hpc6
-  refine bl_call h hbl fr6 hpc6 (side := 1) (it := .pullBlocks) side1_bytes
+  refine bl_call h hbl fr6 hpc6 (side := 1) (it := .pullBlocks) side1_bytes (by simp)
     (by rw [side1_len]; omega) (by rw [side1_len, maxBlocks_eq]) side1_own hrows
     (fw := fwRows L) (fw_nats x6si x6dx (fw6 (by omega) (by omega) w328)
       (fw6 (by omega) (by omega) w336) (fw6 (by omega) (by omega) w344) hlm hlb)
     (by omega) (fun s hs ↦ by simp [fwRows] at hs; rcases hs with rfl | rfl | rfl <;> omega)
     (by rw [x6si, x6dx]; exact cal_localIn h fr6 (by omega) hle (by omega) (by omega))
     (by rw [x6si, x6dx]; exact loc_apart hS (by omega) (by omega) (by omega))
+    (by
+      intro l hl _
+      rw [x6si, x6dx]
+      exact got_apart_frame (pre_got h) hS hl N_ge (by omega))
     ((hm6.regs .rdi _ hrdi6).trans (eval_ptr0 672)) (hm6.regs .rcx _ hrcx6)
     (by rw [show reg st6.data .r8 = _ from hm6.regs .r8 _ hr86, side1_len]; rfl)
     ((hm6.regs .r9 _ hr96).trans ((c5 .r14 (by simp)).trans ((c4 .r14 (by simp)).trans x114)))
@@ -270,10 +278,10 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (hk8 r (clRegs_cs r hr').2.2).trans (c7 r hr')
   -- `b5`: `memcpy(3696, 680, 888)`.
   rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b4Offset + b4.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b4_next]]
-  have hwf9 := wf0 h fr8.frame.kept (vars := fun _ ↦ 0)
+  have hwf9 := wf_copy h fr8.frame.kept (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b5Offset + b5.length)).toBitVec)
   refine exec_then (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf9 (fun _ _ ↦ rfl)
-    (match_fS fr8) fun st9 hm9 hpc9 ↦ ?_
+    (match_copy h fr8) fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hmid9, hw9, hrdi9, hrsi9, hrdx9, hk9⟩ := ok_b5
   have fr9 : St m0 96 st9.data := St.blk fr8 hS hwf9 hm9 hmid9 fun q hq ↦ wr0 hS hw9 (by omega) hq
   have hin9 := writesIn_of_mid hmid9
@@ -328,7 +336,7 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     rw [show reg st11.data .rdx = _ from hm11.regs .rdx _ hrdx11]; rfl
   have hb8 : 5424 + busLayoutStack + 8 ≤ NN := by decide
   simp only [PcOk] at hpc11
-  refine bl_call h hbl fr11 hpc11 (side := 2) (it := .countBlocks) side2_bytes
+  refine bl_call h hbl fr11 hpc11 (side := 2) (it := .countBlocks) side2_bytes (by simp)
     (by rw [side2_len]; omega) (by rw [side2_len, maxBlocks_eq]; omega) side2_own hrows
     (fw := #[]) (by rw [x11dx]; rfl) (by omega) (by simp)
     (by
@@ -350,6 +358,7 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       rw [loc_toNat hS (by omega)]
       simp only [BitVec.toNat_ofNat]
       omega)
+    (by intro _ _ hn; rw [x11dx] at hn; omega)
     ((hm11.regs .rdi _ hrdi11).trans (eval_ptr0 672)) (hm11.regs .rcx _ hrcx11)
     (by rw [show reg st11.data .r8 = _ from hm11.regs .r8 _ hr811, side2_len]; rfl)
     ((hm11.regs .r9 _ hr911).trans ((c10 .r14 (by simp)).trans ((c4 .r14 (by simp)).trans x114)))
@@ -373,10 +382,10 @@ theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (hk13 r (clRegs_cs r hr').2.2).trans (c12 r hr')
   -- `b8`: `memcpy(4584, 680, 888)`.
   rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b7Offset + b7.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b8Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b7_next]]
-  have hwf14 := wf0 h fr13.frame.kept (vars := fun _ ↦ 0)
+  have hwf14 := wf_copy h fr13.frame.kept (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b8Offset + b8.length)).toBitVec)
   refine exec_then (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf14 (fun _ _ ↦ rfl)
-    (match_fS fr13) fun st14 hm14 hpc14 ↦ ?_
+    (match_copy h fr13) fun st14 hm14 hpc14 ↦ ?_
   obtain ⟨hmid14, hw14, hrdi14, hrsi14, hrdx14, hk14⟩ := ok_b8
   have fr14 : St m0 96 st14.data :=
     St.blk fr13 hS hwf14 hm14 hmid14 fun q hq ↦ wr0 hS hw14 (by omega) hq

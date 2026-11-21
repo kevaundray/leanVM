@@ -42,6 +42,11 @@ def pairS (r : Reg64) : SState := fr 24 [32] [] [] [(.reg r, 1, 24)]
 /-- The claim at `x`. -/
 def claimS (x : Sym) : SState := fr 24 [768] [] [] [(x, 1, 0)]
 
+/-- The claim copy additionally reads the loader's `memcpy` slot. -/
+def claimCopyS : SState :=
+  (fr 24 [768, 8] [] [] [(.load 0 96 8, 1, 0), (.gotSlot "memcpy", 2, 0)]).withKnownBytes
+    2 0 8 (.label "memcpy")
+
 /-- `8 (11 - step)`, the step the frame's word at `56`. -/
 def i11 : Sym := .bin .shl .W32 (.bin .sub .W32 (.lit 11) (.load 0 56 4)) (.lit 3)
 /-- `8 (23 - step)`. -/
@@ -138,7 +143,7 @@ sym_block e78 := exec b78 (fr 24)
 sym_block e79 := exec b79 (fr 24)
 sym_block e80 := exec b80 (fr 24)
 sym_block e81 := exec b81 (fr 24)
-sym_block e82 := exec b82 (claimS (.load 0 96 8))
+sym_block e82 := exec b82 claimCopyS
 sym_block e83 := exec b83 (claimS (.reg .rbx))
 sym_block e84 := exec b84 (fr 24)
 sym_block e85 := exec b85 (fr 24)

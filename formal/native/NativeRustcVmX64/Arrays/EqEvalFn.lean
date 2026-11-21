@@ -14,8 +14,7 @@ value is `eqEval (selectorPoint selector n) right`. The prologue (`b0`) pushes R
 RAX and takes `min n |right|`; at `0` it returns `1` (`b5`, `b6`); else (`b1`) the loop (`b2` in
 three parts, `EW::mul`, `b3`) multiplies the accumulator (RAX, RDX) by
 `1 + bit_e(selector, i) + right[i]` (`Inv`: RSI is `i`, RBX `right[i]`'s address plus 8). The
-bit is the carry of the post-pass's expansion of `bt %rsi, %r14` (`p2`: two pushes and pops
-around `shr %cl`, `shr $1`, in the 16 bytes around the frame's base), read by `setb`. The epilogue
+bit is the carry of raw `bt %rsi, %r14` (`p2`), read by `setb`. The epilogue
 (`b4`, `b6`) returns the product.
 -/
 
@@ -96,7 +95,7 @@ theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.
 theorem hb2 (hp : Placed code k) : p1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b2Offset) ∧
     p2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b2Offset + p1.length) ∧ p3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b2Offset + p1.length + p2.length) := by
   have h := b2_in_code.trans hp.1 (by simp [b2])
-  rw [← List.take_append_drop 4 b2, ← List.take_append_drop 7 (b2.drop 4)] at h
+  rw [← List.take_append_drop 4 b2, ← List.take_append_drop 1 (b2.drop 4)] at h
   have h1 := h.append
   have h2 := h1.2.append
   exact ⟨h1.1, h2.1, by simpa [p1, p2, p3, List.drop_drop, NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b2_length] using h2.2⟩
@@ -144,26 +143,6 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : EqEvalFnOfEqAbove
   rw [h0, h1]
 
 omit [Host] in
-/-- The expanded `bt`'s region is well formed. -/
-theorem bt_wf {m0 st : MachineData} (hS : StackOk m0 (48 + 8)) (hk : Kept m0.dmem st.dmem) :
-    (Env.ofMachine st [(stackBelow m0 (48 + 8), 16)] (fun _ ↦ 0) 0).WF :=
-  Env.wf_of ⟨⟨fun j hj ↦ hk _ (hS.2.2 j (by omega)), by
-      have := frame_noWrap hS
-      show (stackBelow m0 (48 + 8)).toNat + 16 ≤ 2 ^ 64
-      omega⟩, trivial⟩ (List.pairwise_singleton _ _)
-
-omit [Host] in
-/-- RSP at the expanded `bt`: the top of its 16 bytes. -/
-theorem bt_rsp {m0 st : MachineData} (hS : StackOk m0 (48 + 8))
-    (h : rspOf st = stackBelow m0 48 + BitVec.ofInt 64 8) :
-    rspOf st = stackBelow m0 (48 + 8) + BitVec.ofInt 64 16 := by
-  rw [h, show BitVec.ofInt 64 16 = BitVec.ofNat 64 16 from rfl,
-    show BitVec.ofInt 64 8 = BitVec.ofNat 64 8 from rfl]
-  have := hS.1
-  unfold stackBelow
-  bv_omega
-
-omit [Host] in
 theorem sixteen_add (a : BitVec 64) (i : Nat) :
     BitVec.ofNat 64 16 + (a + BitVec.ofNat 64 (16 * i) + BitVec.ofNat 64 8) =
       a + BitVec.ofNat 64 (16 * (i + 1)) + BitVec.ofNat 64 8 := by
@@ -202,22 +181,17 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm
     intro r hr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> exact Match.reg_eq hm1 hm1' rfl rfl
-  -- `p2`: the expanded `bt`, its carry bit `i` of the selector
-  have hS56 : StackOk m0 (48 + 8) := stackOk_mono hS (by decide)
-  have hwf2 := bt_wf hS56 hb1.kept
-  have hm2 : Match (Env.ofMachine st1.data [(stackBelow m0 (48 + 8), 16)] (fun _ ↦ 0) 0) btS
-      st1.data :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨bt_rsp hS56 hb1.rsp, trivial⟩ trivial trivial trivial
-  refine exec_at (hb2 hp).2.1 run_p2 hwf2 (by intro l h; cases h) hpc1 hm2 fun st2 hm2' hpc2 ↦ ?_
-  simp only [PcOk, show p2.length = 7 from rfl] at hpc2
-  obtain ⟨hk2, hw2, hr2, hcf2⟩ := after_eq run_p2 ▸ p2_scratch
-  have hb2' := hb1.of_scratch hS (by decide) hwf2 hm2 hm2' hk2 hw2 slots_ok (by decide)
+  -- `p2`: raw `bt`, its carry bit `i` of the selector
+  refine exec_at (hb2 hp).2.1 run_p2 (Env.wf_nil _) (by intro l h; cases h)
+    hpc1 (match_nil _) fun st2 hm2' hpc2 ↦ ?_
+  simp only [PcOk, show p2.length = 1 from rfl] at hpc2
+  obtain ⟨hk2, hr2, hcf2⟩ := after_eq run_p2 ▸ p2_keeps
+  have hb2' := hb1.of_block (match_nil _) hm2' (Env.wf_nil _) rfl hk2
   have e2 : ∀ r ∈ [Reg64.rax, .rcx, .rdx, .rbx, .rsi, .r8, .r12, .r14, .r15],
       reg st2.data r = reg st1.data r := fun r hr ↦ hm2'.regs r _ (hr2 r hr)
   have hcf : st2.data.status.cf = decide (((reg m0 .rsi).toNat >>> i) % 2 = 1) := by
     rw [hm2'.flags.1 _ hcf2]
-    show (low .W64 (BinOp.apply .shl .W64 (BinOp.apply .shr .W64 (reg st1.data .r14)
-      (UnOp.apply .trunc .W32 (reg st1.data .rsi))) (BitVec.ofNat 64 63))).msb = _
+    show CmpOp.apply .bit .W64 (reg st1.data .r14) (reg st1.data .rsi) = _
     have hsi : reg st1.data .rsi = BitVec.ofNat 64 i := (e1 .rsi (by simp)).trans hI.rsi
     have hit : (BitVec.ofNat 64 i).toNat = i := by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]

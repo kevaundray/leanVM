@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Wire.Decode.Exec
 public import NativeRustcVmX64.Wire.PhaseM.Num
 public import NativeVm.Code.Data
+public import NativeRustcX64.Got
 
 /-!
 # `decode`'s places, states and model (x86-64)
@@ -76,6 +77,8 @@ structure Geo [Labels] (m0 : MachineData) : Prop where
   bW : 0 < LN m0 → (BP m0).toNat + LN m0 ≤ (WK m0).toNat ∨
     (WK m0).toNat + 483584 ≤ (BP m0).toNat
   cB : 0 < LN m0 → rcAddr.toNat + 192 ≤ (BP m0).toNat ∨ (BP m0).toNat + LN m0 ≤ rcAddr.toNat
+  got : GotAt m0 1296
+    [(rcAddr, 192), (DEC m0, 8 * LEN m0), (WK m0, 483584)] ["memcpy", "memset"]
 
 /-- **What the body keeps**, RSP at the frame's offset `o`. -/
 structure Bod [Labels] (m0 : MachineData) (o : Nat) (m : MachineData) : Prop where
@@ -151,7 +154,7 @@ section
 variable [Labels]
 
 theorem geo_of (h : DecodePre m0) : Geo m0 := by
-  obtain ⟨hst, hrc, hL, hlen, hbOk, hdOk, hwOk, hd, hd'⟩ := h
+  obtain ⟨hst, hrc, hL, hlen, hbOk, hdOk, hwOk, hd, hd', hgot⟩ := h
   have hst' : StackOk m0 1296 := hst
   have hS := stackBelow_toNat (m := m0) (n := 1296) hst'.1
   have h8 := hst'.2.1
@@ -162,7 +165,7 @@ theorem geo_of (h : DecodePre m0) : Geo m0 := by
   unfold NativeRustcVm.Apart at h2 h3 h4 h5 h6
   rw [hS] at h2 h3
   refine ⟨hst', hrc, hL, hlen, hbOk, hdOk, hwOk, by omega, by omega,
-    by omega, by omega, by omega, fun hp ↦ ?_, fun hp ↦ ?_, fun hp ↦ ?_, fun hp ↦ ?_⟩
+    by omega, by omega, by omega, fun hp ↦ ?_, fun hp ↦ ?_, fun hp ↦ ?_, fun hp ↦ ?_, hgot⟩
   all_goals
     obtain ⟨⟨-, g2, -, -⟩, ⟨g4, -, -⟩, ⟨g5, g6⟩, -⟩ := hd' hp
     unfold NativeRustcVm.Apart at g2 g4 g5 g6
@@ -191,6 +194,26 @@ theorem Geo.wd (G : Geo m0) {i : Nat} (hi : i < LEN m0) :
     (wd m0 i).toNat = (DEC m0).toNat + 8 * i := by
   have := G.dNw
   exact toNat_off (by omega)
+
+/-- The loader slots survive the decoder's stack, decoded-area and work writes. -/
+theorem Geo.got_keep (G : Geo m0) {d : Mem 64}
+    (h : NativeRustcVm.SameOutside m0.dmem d (Chg m0)) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      d.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  intro l hl i hi
+  obtain ⟨_, hn, hs, ha⟩ := G.got.1 l hl
+  have hd := ha (DEC m0, 8 * LEN m0) (by simp)
+  have hw := ha (WK m0, 483584) (by simp)
+  change Apart (gotAddr l) 8 (stackBelow m0 1296) 1304 at hs
+  unfold Apart at hs hd hw
+  dsimp only at hd hw
+  change (gotAddr l).toNat + 8 ≤ 2 ^ 64 at hn
+  rw [stackBelow_toNat G.sp] at hs
+  refine h _ fun hq => ?_
+  unfold Chg at hq
+  rw [NativeRustcVm.toNat_add_ofNat (by omega)] at hq
+  omega
 
 /-- The bytes, as at the entry. -/
 theorem bytes_entry (G : Geo m0) : NativeRustcVm.BytesAt m0.dmem (BP m0) (Bs m0) :=

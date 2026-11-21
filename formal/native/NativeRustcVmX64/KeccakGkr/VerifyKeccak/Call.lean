@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Keep
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeVm.Equiv.KeccakRmfe
+public import NativeRustcVmX64.Got
 
 /-!
 # `verify_keccak`'s calls: their preconditions' common parts (x86-64)
@@ -74,6 +75,29 @@ theorem CallAt.ro (c : Ctx a inst m0) (h : CallAt m0 wr oc mc) {A : BitVec 64} {
     (h4 : Sep A.toNat n (keccakOutArg m0).toNat 1608) :
     NativeRustcVm.Layout.Same m0.dmem mc.dmem A n :=
   same_ro c h.same hA hst (fun _ ↦ h1) (fun _ ↦ h2) (fun _ ↦ h3) (fun _ ↦ h4)
+
+/-- A call preserves the sole loader slot used by the GKR verifier. -/
+theorem CallAt.got (c : Ctx a inst m0) (h : CallAt m0 wr oc mc) {N : Nat}
+    (hN : 3344 - oc + N ≤ verifyKeccakStack) {areas : List (BitVec 64 × Nat)}
+    (hcover : ∀ p ∈ areas,
+      ∃ b ∈ (stackBelow m0 verifyKeccakStack, verifyKeccakStack + 8) ::
+        [(reg m0 .rdi, 760), (reg m0 .r9, 205824), (keccakClaims m0, 97288),
+          (keccakOutArg m0, 1608), (a.region.addr, a.region.size),
+          (reg m0 .rdx, 16 * inst.size), (reg m0 .r8, 400), (rcAddr, 192),
+          (projectAddr, 128), (rhoAddr, 100), (rspOf m0 + 8#64, 16)],
+        b.1.toNat ≤ p.1.toNat ∧ p.1.toNat + p.2 ≤ b.1.toNat + b.2) :
+    GotAt mc N areas ["memcpy"] := by
+  apply NativeRustcVmX64.GotAt.callee c.got _ _ _ hcover
+  · intro l hl i hi
+    have hg := c.got.1 l hl
+    exact h.ro c hg.2.1 hg.2.2.1
+      (hg.2.2.2 (reg m0 .rdi, 760) (by simp)) (hg.2.2.2 (reg m0 .r9, 205824) (by simp))
+      (hg.2.2.2 (keccakClaims m0, 97288) (by simp))
+      (hg.2.2.2 (keccakOutArg m0, 1608) (by simp)) i hi
+  · rw [c.K, h.sb c hN]
+    have := c.sp; have := h.oc8; omega
+  · rw [c.K, h.sb c hN]
+    have := c.sp; have := h.oc8; have := vk_eq; omega
 
 /-- **The round constants** for a callee using `N` bytes of stack. -/
 theorem CallAt.rc (c : Ctx a inst m0) (h : CallAt m0 wr oc mc)

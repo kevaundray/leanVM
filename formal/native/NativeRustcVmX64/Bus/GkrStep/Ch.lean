@@ -70,8 +70,15 @@ theorem rs_round (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     (hrs s) fr hpc ?_ (fun m' hq ↦ ⟨?_, hq.2.2.2.2⟩) fun m2 fr2 hq2 hs2 hcs2 ↦ ?_
   · unfold ReadScalarsPre
     rw [hdi, hsi, hdx]
-    exact ⟨c32.stackOk hat hle, c32.rcAt hat hle, hts, c32.tstateOk hat hle,
-      outFb h fr hle (by omega) (by omega)⟩
+    refine ⟨c32.stackOk hat hle, c32.rcAt hat hle, hts, c32.tstateOk hat hle,
+      outFb h fr hle (by omega) (by omega), got_atC h (by omega) fr hle ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   · have := hq.2.2.2.1
     rw [hdi, hsi, hdx] at this
     exact NativeRustcVm.SameOutside.mono this fun q hq ↦ by
@@ -222,7 +229,7 @@ theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     rw [hpc3.2, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b11_next
   have h12 : (reg d .r12).toNat = n := at9.r12
   have hb12 : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GkrStep.b12Offset) := infix_of b12_in_code (by simp [b12]) hp
-  refine rs_round hp h hrs (j := 116) (b12_eq ▸ hb12)
+  refine rs_round hp h hrs (j := NativeRustcVmX64.Vm.GkrStep.b12Offset) (b12_eq ▸ hb12)
     fr3 ⟨hpc3.1, hret3⟩ (o := 176) (by omega) (by omega)
     ((rv hm3 hsi3).trans (eval_ptr0 176)) ((rv hm3 hdi3).trans ((k2 .r15 (by simp)).trans at9.r15))
     (by rw [rv hm3 hdx3]; show (reg d2 .r12).toNat = _; rw [k2 .r12 (by simp)]; exact h12) ts3 gs3
@@ -247,7 +254,7 @@ theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have hret5 : retOf st5.data = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b14Offset) := by
     rw [hpc5.2, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b13_next
   have hb14 : b14.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GkrStep.b14Offset) := infix_of b14_in_code (by simp [b14]) hp
-  refine rs_round hp h hrs (j := 122) (b14_eq ▸ hb14)
+  refine rs_round hp h hrs (j := NativeRustcVmX64.Vm.GkrStep.b14Offset) (b14_eq ▸ hb14)
     fr5 ⟨hpc5.1, hret5⟩ (o := 240) (by omega) (by omega)
     ((rv hm5 hsi5).trans (eval_ptr0 240)) ((rv hm5 hdi5).trans ((k4 .r15 (by simp)).trans at9.r15))
     (by rw [rv hm5 hdx5]; show (reg d4 .r12).toNat = _; rw [k4 .r12 (by simp)]; exact h12) ts5 gs5

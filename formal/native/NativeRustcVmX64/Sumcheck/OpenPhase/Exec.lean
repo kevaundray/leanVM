@@ -71,11 +71,7 @@ def cw (i : Nat) : SBool :=
 def c20 : SBool := (SBool.cmp .eq .W64 (.reg .r13) (.bin .add .W64 (.reg .r12) (.lit 1))).not
 
 /-- `8 w` as `b14` computes it. -/
-def eightW : Sym :=
-  .bin .add .W64 (.bin .add .W64 (.bin .add .W64 (.reg .r14) (.reg .r14))
-      (.bin .add .W64 (.reg .r14) (.reg .r14)))
-    (.bin .add .W64 (.bin .add .W64 (.reg .r14) (.reg .r14))
-      (.bin .add .W64 (.reg .r14) (.reg .r14)))
+def eightW : Sym := .bin .mul .W64 (.reg .r14) (.lit 8)
 
 end
 

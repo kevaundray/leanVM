@@ -44,11 +44,8 @@ def rAddr : Sym :=
   .bin .add .W64 (.bin .add .W64 (.ptr 0 8) (.bin .mul .W64 (.load 0 40 8) (.lit 8))) (.lit 544)
 /-- The pushed pair's address in `b20`. -/
 def pAddr : Sym := .bin .add .W64 (.ptr 0 56) (.bin .shl .W64 (.load 0 32 8) (.lit 4))
-/-- `8μ` in `b13`: RSI's `μ` (in R14) doubled three times by `lea`. -/
-def mu8S : Sym :=
-  .bin .add .W64
-    (.bin .add .W64 (.bin .add .W64 (.reg .r14) (.reg .r14)) (.bin .add .W64 (.reg .r14) (.reg .r14)))
-    (.bin .add .W64 (.bin .add .W64 (.reg .r14) (.reg .r14)) (.bin .add .W64 (.reg .r14) (.reg .r14)))
+/-- `8μ` in `b13`: the base-less scaled-index `lea`. -/
+def mu8S : Sym := .bin .mul .W64 (.reg .r14) (.lit 8)
 
 /-- At the entry. -/
 abbrev entryS : SState := frameS 848
@@ -101,7 +98,7 @@ end
 set_option Elab.async false
 
 sym_block run_b0a := exec b0a entryS
-sym_block run_b0b := exec b0b (midS 848)
+sym_block run_b0b := exec b0b (gotMidS 848 "memset")
 sym_block run_b1 := exec b1 regsS
 sym_block run_b2 := exec b2 (midS 848)
 sym_block run_b3 := exec b3 regsS
@@ -124,7 +121,7 @@ sym_block run_b18a := exec b18a rootS
 sym_block run_b18b := exec b18b (midS 848)
 sym_block run_b19 := exec b19 regsS
 sym_block run_b20 := exec b20 pushS
-sym_block run_b21 := exec b21 (midS 848)
+sym_block run_b21 := exec b21 (gotMidS 848 "memcpy")
 sym_block run_b22 := exec b22 outS
 sym_block run_b23 := exec b23 noneS
 sym_block run_b24 := exec b24 (midS 848)
@@ -137,7 +134,7 @@ public theorem b0a_entry : (∀ p ∈ slots, p.1 + 8 ≤ 848 ∧
     (∀ r ∈ [Reg64.rdi, .rsi], (after b0a entryS).reg r = some (.reg r)) := by
   decide +kernel
 
-public theorem b0b_call : CallsBelow (midS 848) (after b0b (midS 848)) 8 := by decide +kernel
+public theorem b0b_call : CallsBelow (gotMidS 848 "memset") (after b0b (gotMidS 848 "memset")) 8 := by decide +kernel
 public theorem b1_keeps : keepsAll regsS (after b1 regsS) (freeRegs slots) = true := by
   decide +kernel
 public theorem b2_write : WritesBelow (midS 848) (after b2 (midS 848)) 0 16 ∧
@@ -201,9 +198,9 @@ public theorem b20_write : WritesBelow pushS (after b20 pushS) 1 16 ∧
     (∀ i < 8, findWrite 1 (0 + i) (after b20 pushS).mem = some (.reg .r15, i)) ∧
     (∀ i < 8, findWrite 1 (8 + i) (after b20 pushS).mem = some (.reg .rax, i)) := by
   decide +kernel
-public theorem b21_call : CallsBelow (midS 848) (after b21 (midS 848)) 56 ∧
-    (∀ w ∈ (after b21 (midS 848)).mem, w.off + w.n ≤ 8 ∨ 48 ≤ w.off) ∧
-    (∀ i < 8, findWrite 0 (48 + i) (after b21 (midS 848)).mem = some (.reg .r12, i)) := by
+public theorem b21_call : CallsBelow (gotMidS 848 "memcpy") (after b21 (gotMidS 848 "memcpy")) 56 ∧
+    (∀ w ∈ (after b21 (gotMidS 848 "memcpy")).mem, w.off + w.n ≤ 8 ∨ 48 ≤ w.off) ∧
+    (∀ i < 8, findWrite 0 (48 + i) (after b21 (gotMidS 848 "memcpy")).mem = some (.reg .r12, i)) := by
   decide +kernel
 public theorem b22_write : WritesBelow outS (after b22 outS) 0 8 ∧
     (∀ i < 8, findWrite 0 (0 + i) (after b22 outS).mem = some (.lit 1, i)) := by

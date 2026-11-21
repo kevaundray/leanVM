@@ -94,7 +94,7 @@ theorem outer_a (hp : Placed code k)
     {m0 : MachineData} (hpre : InducedWeightPre m0) {j : Nat} {st : MachineState}
     (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset)) (hI : OInv m0 j st.data) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b8Offset) ∧ AtB8 m0 j s.data) st := by
-  obtain ⟨hS, -, hqin, hwin, -, -, -⟩ := hpre
+  obtain ⟨hS, -, hqin, hwin, -, -, -, hgot⟩ := hpre
   obtain ⟨hF, -, hle_a, -, -, -⟩ := stack_le
   have hsl := slots_ok
   have hS1 := hS.1
@@ -231,10 +231,20 @@ theorem outer_a (hp : Placed code k)
     unfold SubspaceAtTablePre
     rw [f0, f1, f2]
     refine ⟨stackOk_callee hS hkept2 hrsp2 hle_a, hts, whirIn_fr hS hkept2 hrsp2 hle_a
-      (by omega) (by omega), whirIn_fr hS hkept2 hrsp2 hle_a (by omega) (by decide), Or.inl ?_⟩
-    rw [h104, h624]
-    unfold whatBytes rootCap
-    omega
+      (by omega) (by omega), whirIn_fr hS hkept2 hrsp2 hle_a (by omega) (by decide), Or.inl ?_, ?_⟩
+    · rw [h104, h624]
+      unfold whatBytes rootCap
+      omega
+    · apply hfr1.got_after hS hle_a hgot hwf2 hm2' (hw_of hsig2 (by decide)) hrsp2
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      have hb := (frame_ok hS hF).2.2
+      rcases ha with rfl | rfl
+      · rw [h624, hb]
+        omega
+      · rw [h104, hb]
+        unfold whatBytes rootCap
+        omega
   refine Frame.call hsat hfr1 hS hle_a (L := 1120) (by omega) hsl out_nil hwf2 hm2 hm2' hpc2 hk2
     rfl (hw_of hsig2 (by decide)) hP
     (fun m' ⟨_, hch, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hch p fun h ↦ hp (h.elim (fun ⟨r, hr, hin⟩ ↦ by

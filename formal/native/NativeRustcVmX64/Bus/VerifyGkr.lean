@@ -6,6 +6,7 @@ public import NativeRustcVmX64.Bus.GkrModel
 public import NativeRustcVmX64.Code.Vm.GkrLayers.Names
 public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmX64.Code.Vm.VerifyGkrGrandProducts.Names
+public import NativeRustcX64.Got
 
 /-!
 # `verify_gkr_grand_products` on x86-64
@@ -51,6 +52,35 @@ theorem pre_out (h : VerifyGkrPre a s0 m0) :
     OutOk m0 (reg m0 .rsi) a (reg m0 .rdi) 24 verifyGkrStack := h.2.2.2.2.2.1
 theorem pre_gk (h : VerifyGkrPre a s0 m0) :
     OutOk m0 (reg m0 .rsi) a (reg m0 .rcx) gkrStateBytes verifyGkrStack := h.2.2.2.2.2.2.1
+
+theorem pre_got (h : VerifyGkrPre a s0 m0) :
+    GotAt m0 verifyGkrStack [(reg m0 .rsi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rdi, 24), (reg m0 .rcx, gkrStateBytes), (rcAddr, 192)] ["memcpy"] :=
+  h.2.2.2.2.2.2.2.2
+
+theorem got_pass (h : VerifyGkrPre a s0 m0) {d : MachineData}
+    (fr : Fr m0 80 verifyGkrStack slots (outs m0) 0 d) {n : Nat}
+    (hn : 80 + n ≤ verifyGkrStack) {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ ["memcpy"], ∀ b ∈ areas, Apart (gotAddr l) 8 b.1 b.2) :
+    GotAt d n areas ["memcpy"] := by
+  refine got_callee (pre_got h) ?_ (by rw [fr.frame.sp, off_zero]) h.1.1 hn ha
+  refine got_keep (pre_got h) h.1
+    (writes := [(reg m0 .rdi, 24), (reg m0 .rsi, tstateBytes), (reg m0 .rcx, gkrStateBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb; rcases hb with rfl | rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl
+      · exact (pre_out h).2.1
+      · exact h.2.2.1.footprint.1.2
+      · exact (pre_gk h).2.1)
+    (NativeRustcVm.SameOutside.mono fr.same ?_)
+  intro q hq
+  rcases hq with hq | hq | hq | hq
+  · exact .inr hq
+  · exact .inl ⟨(reg m0 .rdi, 24), by simp, hq⟩
+  · exact .inl ⟨(reg m0 .rsi, tstateBytes), by simp, hq⟩
+  · exact .inl ⟨(reg m0 .rcx, gkrStateBytes), by simp, hq⟩
 
 /-- The entry's context. -/
 theorem ctx (h : VerifyGkrPre a s0 m0) : Ctx m0 (reg m0 .rsi) a verifyGkrStack 80 :=
@@ -273,7 +303,7 @@ theorem tail_spec (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {d : MachineDa
       rw [← hd5] at hts hgs
       exact ⟨ts_keep h (hm'.kept hwf6) hso' (fun q hq ↦ .inr (.inl hq)) hts,
         gkrStateWAt_keep hgs hso' fun q hq ↦
-          not_inRange_of_apart h.2.2.2.2.2.2.2 (pre_out h).2.1 (pre_gk h).2.1 hq⟩
+          not_inRange_of_apart h.2.2.2.2.2.2.2.1 (pre_out h).2.1 (pre_gk h).2.1 hq⟩
     · exact NativeRustcVm.SameOutside.mono hsame fun q hq ↦ by
         rcases hq with hq | hq | hq | hq
         · exact .inr (.inr (.inr hq))
@@ -283,13 +313,21 @@ theorem tail_spec (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {d : MachineDa
 
 /-- `read_scalar(frame + 8, t)`'s precondition, at a call from the frame. -/
 theorem rs_pre (h : VerifyGkrPre a s0 m0) {d : MachineData} (hat : At m0 80 d)
+    (fr : Fr m0 80 verifyGkrStack slots (outs m0) 0 d)
     (hsi : reg d .rsi = reg m0 .rsi) (hdi : reg d .rdi = off (stackBelow m0 80) 8) {s : TState}
     (hts : TStateAt d.dmem (reg m0 .rsi) a s) : ReadScalarPre a s d := by
   have c := ctx h
   unfold ReadScalarPre
   rw [hsi, hdi]
-  exact ⟨c.stackOk hat le_rs, c.rcAt hat le_rs, hts, c.tstateOk hat le_rs,
-    c.outOk_frame hat le_rs (o := 8) (n := 24) (by omega) (by omega)⟩
+  refine ⟨c.stackOk hat le_rs, c.rcAt hat le_rs, hts, c.tstateOk hat le_rs,
+    c.outOk_frame hat le_rs (o := 8) (n := 24) (by omega) (by omega), got_pass h fr le_rs ?_⟩
+  intro l hl b hb
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+  rcases hb with rfl | rfl | rfl | rfl
+  · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+  · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+  · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+  · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
 
 /-- **`read_scalar(frame + 8, t)`** from the frame at a call. -/
 theorem rs_call (h : VerifyGkrPre a s0 m0)
@@ -312,7 +350,7 @@ theorem rs_call (h : VerifyGkrPre a s0 m0)
       NativeRustcVm.InRange (reg m0 .rsi) tstateBytes q)
     h.1 N_ge (by omega) le_rs slots_call (by omega) (outs_not_frame h)
     (fun q hq ↦ hq.elim .inr fun hq ↦ .inl (.inr (.inl hq))) (hrs s) hpc
-    (rs_pre h hat hsi hdi hts) (fun m' hq ↦ ⟨?_, hq.2.2.2⟩) fun m2 fr2 hq _ hcs ↦ ?_
+    (rs_pre h hat fr hsi hdi hts) (fun m' hq ↦ ⟨?_, hq.2.2.2⟩) fun m2 fr2 hq _ hcs ↦ ?_
   · have := hq.2.2.1
     rw [hsi, hdi] at this
     exact NativeRustcVm.SameOutside.mono this fun q hq ↦ by
@@ -524,8 +562,16 @@ theorem verifyGkr_spec (hp : Placed code k)
   have hpre7 : GkrLayersPre a s2 ⟨#[sh, sh, cnt], #[]⟩ st7.data := by
     unfold GkrLayersPre GkrOk
     rw [edi7, esi7, edx7]
-    exact ⟨c.stackOk hat7 le_gl, c.rcAt hat7 le_gl, hts7, c.tstateOk hat7 le_gl,
-      by simpa using h.2.2.2.2.1, c.outOk hat7 le_gl (pre_gk h), hgs7⟩
+    refine ⟨c.stackOk hat7 le_gl, c.rcAt hat7 le_gl, hts7, c.tstateOk hat7 le_gl,
+      by simpa using h.2.2.2.2.1, c.outOk hat7 le_gl (pre_gk h), hgs7, got_pass h fr7 le_gl ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · rw [ht]
+      exact ((pre_got h).1 l hl).2.2.2 (reg m0 .rsi, tstateBytes) (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 (reg m0 .rcx, gkrStateBytes) (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
   simp only [PcOk] at hpc7
   refine fr7.call (c := 0) (Nc := gkrLayersStack) (lo := 8) (len := 0)
     (X := fun q ↦ NativeRustcVm.InRange t tstateBytes q ∨

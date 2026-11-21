@@ -43,7 +43,7 @@ theorem hb20 (hp : Placed code k) : b20.IsInfixAt Host.prog (k + NativeRustcVmX6
 theorem head (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0) {t : Nat}
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b14Offset)) (hI : OInv m0 t st.data) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b15Offset) ∧ IInv m0 t 0 s.data) st := by
-  obtain ⟨hS, hout⟩ := hpre
+  obtain ⟨hS, hout, _⟩ := hpre
   obtain ⟨hF, -, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hsl := slots_ok

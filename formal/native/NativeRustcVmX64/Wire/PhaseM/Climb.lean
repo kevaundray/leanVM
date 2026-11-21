@@ -548,8 +548,41 @@ theorem climb_pre [Labels] (G : Geo m0 bp B.length) {d : MachineData} (hb : Bod 
     wa_ok G hb.fr.kept (by omega) (by omega),
     wa_ok G hb.fr.kept (by omega) (by unfold nodesBytes; omega),
     wa_ok G hb.fr.kept (by omega) (by unfold nodesBytes; omega),
-    bp, B, cl, hrd, ?_⟩
-  exact climb_disj G (by rw [hcs2, hCS]) (by omega) hnsl
+    bp, B, cl, hrd, ?_, ?_⟩
+  · exact climb_disj G (by rw [hcs2, hCS]) (by omega) hnsl
+  · refine G.got.transport (G.got_keep hb.chg) ?_ ?_
+    · intro s hs
+      have hgs := (G.got.1 s hs).2.2.1
+      change Apart (gotAddr s) 8 (stackBelow m0 1216) 1224 at hgs
+      change Apart (gotAddr s) 8 (stackBelow d climbLevelStack) (climbLevelStack + 8)
+      unfold NativeRustcX64.Apart at hgs ⊢
+      rw [stackBelow_toNat G.sp] at hgs
+      rw [hcs2, hCS, Nat.sub_sub]
+      rcases hgs with hgs | hgs
+      · exact Or.inl hgs
+      · exact Or.inr (Nat.le_trans
+          (Nat.add_le_add_left (by decide : 1056 + 8 ≤ 1224) _) hgs)
+    · intro s hs a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl | rfl | rfl
+      · exact (G.got.1 s hs).2.2.2 (rcAddr, 192) (by simp)
+      · exact (G.got.1 s hs).2.2.2 (RD m0, 24) (by simp)
+      · have hw := (G.got.1 s hs).2.2.2 (WK m0, 483584) (by simp)
+        change Apart (gotAddr s) 8 (wa m0 (24832 + 10240 * l)) nodesBytes
+        unfold NativeRustcX64.Apart at hw ⊢
+        dsimp only at hw
+        rw [G.wa (by omega)]
+        change (gotAddr s).toNat + 8 ≤ (WK m0).toNat + (24832 + 10240 * l) ∨
+          (WK m0).toNat + (24832 + 10240 * l) + 10240 ≤ (gotAddr s).toNat
+        omega
+      · have hw := (G.got.1 s hs).2.2.2 (WK m0, 483584) (by simp)
+        change Apart (gotAddr s) 8 (wa m0 (4096 + 10240 * ((l + 1) % 2))) nodesBytes
+        unfold NativeRustcX64.Apart at hw ⊢
+        dsimp only at hw
+        rw [G.wa (by omega)]
+        change (gotAddr s).toNat + 8 ≤ (WK m0).toNat + (4096 + 10240 * ((l + 1) % 2)) ∨
+          (WK m0).toNat + (4096 + 10240 * ((l + 1) % 2)) + 10240 ≤ (gotAddr s).toNat
+        omega
 
 omit [Host] in
 theorem climb_far [Labels] (G : Geo m0 bp B.length) {l : Nat} (hl : l < 32) :

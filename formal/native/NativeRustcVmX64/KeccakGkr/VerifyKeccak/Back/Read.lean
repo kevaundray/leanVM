@@ -13,7 +13,7 @@ namespace NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back
 
 open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Ring NativeRustcVmX64.KeccakGkr.SeqZ
 open NativeRustcVmX64.Vm.VerifyKeccak NativeVm.Model NativeRustcVmX64.Transcript
-open NativeRustcVm.Transcript (DecArea TStateAt)
+open NativeRustcVm.Transcript (DecArea TStateAt tstateBytes)
 open NativeRustcVm.KeccakGkr (off)
 
 public section
@@ -64,10 +64,26 @@ theorem readStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
     have rdx : reg mc .rdx = 64#64 := hmc.regs .rdx _ rfl
     unfold ReadScalarsPre
     rw [rdi, rsi, rdx]
-    exact ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
+    refine ⟨hsk, ca.rc c hrc (by rw [vk_eq]; decide),
       Chg.ts c hch (by decide) rfl (by decide) hkk hts,
       ca.tok c (by rw [vk_eq]; decide),
-      ca.outR c h (i := 4) (by rw [vk_eq]; decide) (by decide) (by decide) (by decide) (by decide)⟩
+      ca.outR c h (i := 4) (by rw [vk_eq]; decide) (by decide) (by decide) (by decide) (by decide), ?_⟩
+    apply ca.got c (by rw [vk_eq]; decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region, tstateBytes, show (64#64).toNat = 64 from rfl]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl
+    · exact ⟨(reg m0 .rdi, 760), by simp, le_rfl, le_rfl⟩
+    · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+    · have hoff : (off (keccakOutArg m0) 584).toNat = (keccakOutArg m0).toNat + 584 :=
+        offR c (i := 4) (o := 584) (by decide) (by decide) (by decide)
+      refine ⟨(keccakOutArg m0, 1608), by simp, ?_, ?_⟩
+      · dsimp only [Prod.fst, Prod.snd]
+        rw [hoff]
+        omega
+      · dsimp only [Prod.fst, Prod.snd]
+        rw [hoff]
+    · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   · have rdi : reg mc .rdi = off (ob m0 1) 0 := (hmc.regs .rdi _ rfl).trans (off0 _).symm
     have rsi : reg mc .rsi = off (ob m0 4) 584 := by
       change mc.regs.get64 .rsi = _

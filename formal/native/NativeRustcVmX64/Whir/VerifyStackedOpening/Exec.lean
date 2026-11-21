@@ -48,6 +48,11 @@ def argAl : List (Sym × Nat × Int) := [(.ptr 0 520, 1, 0), (.ptr 0 528, 1, 8),
 def entryS : SState := init [520, 8] [(.rsp, .ptr 0 512)] [] [] [(.reg .r9, 1, 0)]
 /-- The frame alone. -/
 def regS : SState := init [520] [(.rsp, .ptr 0 8)]
+
+/-- At the copy, the frame and its read-only `memcpy` loader slot. -/
+def copyS : SState :=
+  (init [520, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot "memcpy", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memcpy")
 /-- The counting loop: the layout from `RAX − 120`, the pair of claims at RSI. -/
 def cntS : SState :=
   init [520, 3912, 1216] [(.rsp, .ptr 0 8)] [] [] [(.reg .rax, 1, 120), (.reg .rsi, 2, 0)]
@@ -134,7 +139,7 @@ sym_block run_b40 := exec b40 regS
 sym_block run_b41 := exec b41 oodS
 sym_block run_b42 := exec b42 layS
 sym_block run_b43 := exec b43 regS
-sym_block run_b44 := exec b44 regS
+sym_block run_b44 := exec b44 copyS
 sym_block run_b45 := exec b45 regS
 sym_block run_b46 := exec b46 argS
 sym_block run_b47 := exec b47 regS

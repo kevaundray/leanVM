@@ -205,7 +205,7 @@ theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hqo : WhirOut m0 (tA m0) a (qA m0) queryBufBytes nextLevelStack :=
     WL.whirOut_sub c.pout (o := 61352) (k := queryBufBytes) (by decide)
   have hpre : SampleQueriesPre a s6 st2.data := by
-    refine ⟨?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
     · show WhirT st2.data (reg st2.data .rdi) a sampleQueriesStack
       rw [ht2]; exact hwt
     · show TStateAt st2.data.dmem (reg st2.data .rdi) a s6
@@ -215,6 +215,21 @@ theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
     · show WhirOut st2.data (reg st2.data .rdi) a (reg st2.data .rcx) queryBufBytes
         sampleQueriesStack
       rw [ht2, hcx2]; exact c.whirOut hat hle hqo
+    · rw [ht2, hcx2]
+      apply c.got_call hK2.fr (by omega) hle (by decide)
+      intro ar har
+      rcases List.mem_append.mp har with har | har
+      · simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+        rcases har with rfl | rfl | rfl
+        · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+        · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+        · refine ⟨(pA m0, whirBytes), by simp, ?_, ?_⟩
+          · change (pA m0).toNat ≤ (qA m0).toNat
+            rw [c.qA_toNat]
+            omega
+          · change (qA m0).toNat + 1848 ≤ (pA m0).toNat + 63200
+            rw [c.qA_toNat]
+      · exact ⟨ar, by simp [har], le_rfl, le_rfl⟩
   refine call_then hpc2 (hsq a s6) hpre fun st3 hpc3 hrsp3 hq ↦ ?_
   obtain ⟨hok, ⟨qs, s7, hres7, hbuf, hts7⟩, hch, hsv⟩ := hq
   rw [hsi2, c.depth_toNat, hdx2] at hres7
@@ -269,14 +284,20 @@ theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
       (stackBelow st5.data squeezeStack).toNat + (squeezeStack + 8) ≤ (tA m0).toNat := htok.1
   have h2' : (tA m0).toNat + 760 ≤ rcAddr.toNat ∨ rcAddr.toNat + 192 ≤ (tA m0).toNat := htok.2.2
   have hpre5 : SqueezePre s7.sponge st5.data := by
-    show StackOk _ _ ∧ RcAt _ _ ∧ SpongeOk _ (reg st5.data .rdi) _ ∧
-      SpongeAt _ (reg st5.data .rdi) s7.sponge
+    unfold SqueezePre
     rw [ht5]
     refine ⟨hwt5.1, hwt5.2.1, ⟨fun j hj ↦ hts5.footprint.1.1 j (by
-      simp only [spongeBytes] at hj; show j < 760; omega), ?_, ?_, ?_⟩, hts5.sponge⟩
+      simp only [spongeBytes] at hj; show j < 760; omega), ?_, ?_, ?_⟩, hts5.sponge, ?_⟩
     · show (tA m0).toNat + 328 ≤ 2 ^ 64; omega
     · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
     · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
+    · apply c.got_call hK5.fr (by omega) hle5 (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, by
+          change (tA m0).toNat + 328 ≤ (tA m0).toNat + 760; omega⟩
+      · exact c.got_rc
   refine call_then hpc5 (hsqz s7.sponge) hpre5 fun st6 hpc6 hrsp6 hq ↦ ?_
   obtain ⟨hc0, hc1, hsp6, hs6, hsv6⟩ := hq
   have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b16Offset) := hpc6

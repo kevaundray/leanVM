@@ -37,7 +37,7 @@ theorem keccakPhase_spec (hp : Placed code k)
       (KeccakPhasePost a s cs layout evals) := by
   intro m0 hpre
   rw [show Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b0Offset) from hp.label NativeRustcVmX64.Vm.KeccakPhase.entry_at]
-  obtain ⟨hS, hrc, hpj, hrh, hts, hcls, hcs, hev, hlog, hpt, h40, hA⟩ := hpre
+  obtain ⟨hS, hrc, hpj, hrh, hts, hcls, hcs, hev, hlog, hpt, h40, hA, hgot⟩ := hpre
   have hn := nums_of hS hA
   have g := geo1 hS
   have g2 := geo2 hS hn
@@ -64,7 +64,13 @@ theorem keccakPhase_spec (hp : Placed code k)
     fun j hj ↦ toNat_off (by omega)
   have hoffE : ∀ j, j < 11808 → (off (reg m0 .rdx) j).toNat = (reg m0 .rdx).toNat + j :=
     fun j hj ↦ toNat_off (by omega)
-  refine Eventually.bind (front hp hmemcpy hS hn hevm h40 hv92 hv0) fun st hst ↦ ?_
+  refine Eventually.bind (front hp hmemcpy hS hn hevm
+    (hgot.areas (by
+      intro p hp
+      simp only [List.mem_singleton] at hp
+      subst p
+      simp [show NativeRustcVm.Tables.tableEvalsBytes = 11808 from rfl]))
+    h40 hv92 hv0) fun st hst ↦ ?_
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hat⟩ := hst
   dsimp only at hpc hat
@@ -153,7 +159,7 @@ theorem keccakPhase_spec (hp : Placed code k)
       ts_keep hts hke hsame hn.tW hn.wW fun q ⟨h1, h2⟩ ↦ by
         have := hn.tS; have := hn.wS; unfold Sep at *; constructor <;> omega,
       cls_keep hcls hsame hn.cW fun q ⟨h1, h2⟩ ↦ by have := hn.cS; unfold Sep at *; omega,
-      hcs, rcx.symm, hpt, hp30, hinstE, lanes_size _, hlanes, ?_⟩
+      hcs, rcx.symm, hpt, hp30, hinstE, lanes_size _, hlanes, ?_, ?_⟩
     · rw [hspe]
       exact mapped_off (b := stackBelow m0 480) (o := 8) (Mapped.keeps g.map hke) (by omega)
     · rw [hspe]; omega
@@ -164,6 +170,53 @@ theorem keccakPhase_spec (hp : Placed code k)
         (mapped_off (Mapped.keeps hevm hke) (by omega)) (hoffB 32 (by omega))
         (mapped_off (Mapped.keeps g.map hke) (by omega)) (hoffB 8 (by omega))
         (mapped_off (b := stackBelow m0 480) (o := 8) (Mapped.keeps g.map hke) (by omega))
+    · have hbytes : ∀ l ∈ ["memcpy"], ∀ i < 8,
+          e.data.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+            m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+        intro l hl i hi
+        have hg := hgot.1 l hl
+        apply hsame
+        have ha : Apart (gotAddr l) 8 (stackBelow m0 keccakPhaseStack)
+            (keccakPhaseStack + 8) := hg.2.2.1
+        have hp := NativeRustcX64.Sym.toNat_add_ofNat (gotAddr l) i
+          (by have := hg.2.1; unfold NoWrap at this; omega)
+        unfold W1
+        rw [hp]
+        unfold Apart at ha
+        omega
+      apply NativeRustcVmX64.GotAt.callee hgot hbytes
+      · rw [hsbe]
+      · rw [hsbe]
+        have : verifyKeccakStack ≤ keccakPhaseStack := by omega
+        omega
+      · intro p hp
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+        rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · refine ⟨(reg m0 .rdx, NativeRustcVm.Tables.tableEvalsBytes), by simp, ?_, ?_⟩
+          all_goals
+            dsimp only [Prod.fst, Prod.snd]
+            rw [hoffE 9848 (by omega)]
+            have : NativeRustcVm.Tables.tableEvalsBytes = 11808 := rfl
+            omega
+        · refine ⟨(stackBelow m0 keccakPhaseStack, keccakPhaseStack + 8), by simp, ?_, ?_⟩
+          all_goals
+            dsimp only [Prod.fst, Prod.snd]
+            rw [hoffB 32 (by omega)]
+            omega
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · exact ⟨_, by simp, le_rfl, le_rfl⟩
+        · refine ⟨(stackBelow m0 keccakPhaseStack, keccakPhaseStack + 8), by simp, ?_, ?_⟩
+          all_goals
+            dsimp only [Prod.fst, Prod.snd]
+            rw [hspe, show stackBelow m0 480 + 8#64 = off (stackBelow m0 480) 8 from rfl,
+              hoffB 8 (by omega)]
+            omega
   -- The call.
   refine call_then hpce (hvk a s cs evals[5].1 (lanes evals[5].2)) hpre fun e' hpc' hrsp' hpost ↦ ?_
   obtain ⟨hok, hres, hwr, hsv⟩ := hpost

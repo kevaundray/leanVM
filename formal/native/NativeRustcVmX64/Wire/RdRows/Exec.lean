@@ -57,10 +57,7 @@ def Keeps (xs : List Reg64) (S : SState) : Bool := xs.all fun x ↦ S.reg x == s
 def lwS : Sym := .load 0 8 8
 
 /-- `8 lw`, as `b12` computes it. -/
-def e8 : Sym :=
-  let d := Sym.bin .add .W64 lwS lwS
-  let q := Sym.bin .add .W64 d d
-  .bin .add .W64 q q
+def e8 : Sym := .bin .mul .W64 lwS (.lit 8)
 
 /-- `8 lw - 8`. -/
 def e8m : Sym := .bin .add .W64 e8 (.lit 18446744073709551608)

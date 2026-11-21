@@ -121,11 +121,11 @@ theorem slots_le : ∀ p ∈ slots, 1328 ≤ p.1 ∧ p.1 + 8 ≤ 1376 := by deci
 
 theorem slots_le' : ∀ p ∈ slots, p.1 + 8 ≤ 1376 := fun p hp ↦ (slots_le p hp).2
 
-theorem preOk (h : FirstClaimPre inst segment lanePoint output m0) :
+theorem preOk [Labels] (h : FirstClaimPre inst segment lanePoint output m0) :
     PreOk inst segment lanePoint output m0 :=
   ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
     h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2.1,
-    h.2.2.2.2.2.2.2.2.2.2.2⟩
+    h.2.2.2.2.2.2.2.2.2.2.2.1⟩
 
 /-- **The addresses as numbers.** -/
 theorem nums (h : PreOk inst segment lanePoint output m0) :
@@ -318,8 +318,8 @@ theorem arg_keep (h : PreOk inst segment lanePoint output m0)
 /-- **A stack argument word**, loaded. -/
 theorem load_arg [Labels] (h : PreOk inst segment lanePoint output m0)
     (hs : NativeRustcVm.SameOutside m0.dmem d.dmem (Out m0)) {vars : Nat → BitVec 64}
-    {ret : BitVec 64} {i : Nat} (hi : i < 3) :
-    (frameEnv m0 d 1376 [(argA m0, 24)] vars ret).load 1 (8 * i) 8 = stackArg m0 i := by
+    {ret : BitVec 64} {i : Nat} (hi : i < 3) (extra : List (BitVec 64 × Nat) := []) :
+    (frameEnv m0 d 1376 ((argA m0, 24) :: extra) vars ret).load 1 (8 * i) 8 = stackArg m0 i := by
   have hm : NativeRustcVm.Mapped m0.dmem (off (argA m0) (8 * i)) 8 :=
     mapped_off h.args.1 (by omega)
   have hw : NativeRustcVm.WordAt m0.dmem (off (argA m0) (8 * i))

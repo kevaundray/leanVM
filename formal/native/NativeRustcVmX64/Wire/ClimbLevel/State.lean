@@ -151,7 +151,7 @@ variable [Labels]
 /-- **The places** from the precondition. -/
 theorem geo_of (h : ClimbLevelPre m0) (hR : ReaderAt m0.dmem (rdr m0) bp B c) :
     Geo m0 bp B.length := by
-  obtain ⟨hst, hrc, hn, ⟨hnm, hnnw⟩, ⟨hsm, hsnw⟩, ⟨hxm, hxnw⟩, bp', B', c', hR', hd⟩ := h
+  obtain ⟨hst, hrc, hn, ⟨hnm, hnnw⟩, ⟨hsm, hsnw⟩, ⟨hxm, hxnw⟩, bp', B', c', hR', hd, hgot⟩ := h
   obtain ⟨h1, h2, h3⟩ := hR'.unique hR
   subst h1 h2 h3
   have hS0 := hst
@@ -184,7 +184,7 @@ theorem geo_of (h : ClimbLevelPre m0) (hR : ReaderAt m0.dmem (rdr m0) bp B c) :
   refine ⟨⟨hst, hrNw, hbNw, NativeRustcVmX64.Transcript.Apart.symm' a02,
     NativeRustcVmX64.Transcript.Apart.symm' a03, a23, fun q hq hq' ↦ ?_, fun q hq hq' ↦ ?_,
     fun q hq hq' ↦ ?_⟩, hrc, hn, hnm, hsm, hxm, hnnw', hsnw', hxnw', stack_apart_num hst a04,
-    b5, b6, b2, Or.symm a24, Or.symm a25, Or.symm a26, Or.symm a34, a45, a46, a56, a12, a15, a16⟩
+    b5, b6, b2, Or.symm a24, Or.symm a25, Or.symm a26, Or.symm a34, a45, a46, a56, a12, a15, a16, hgot⟩
   · have := hsS q hq'; have := hW q hq; omega
   · rw [inRange_num hrNw] at hq'; have := hW q hq; unfold NativeRustcVm.Apart at a25 a26; omega
   · rw [inRange_num hbNw] at hq'; have := hW q hq; unfold NativeRustcVm.Apart at a35 a36; omega

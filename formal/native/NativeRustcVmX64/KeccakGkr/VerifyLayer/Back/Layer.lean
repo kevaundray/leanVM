@@ -182,7 +182,7 @@ theorem layer (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     rw [hrsi, hrdi, hr8, hr9, ha0, ha1, hszN, hr8sp]
     refine ⟨⟨?_, ?_⟩, ⟨cx.stackOk hat hle, cx.rcAt hat hle, hts1, cx.tstateOk hat hle,
       by decide, by decide, cx.outOk_frame hat hle (by decide) (by decide),
-      cx.outOk_frame hat hle (by decide) (by omega), ?_⟩, rfl, (claimPt hpre (fun _ h ↦ h) hb1).2,
+      cx.outOk_frame hat hle (by decide) (by omega), ?_, ?_⟩, rfl, (claimPt hpre (fun _ h ↦ h) hb1).2,
       ?_, ?_, ?_, ?_, ?_, ?_⟩
     · show NativeRustcVm.Mapped _ (rspOf st.data + 8#64) _
       rw [hr8sp]
@@ -190,6 +190,18 @@ theorem layer (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
         (by decide)) hb1.fr.kept) (by decide)
     · rw [hsp1, hfb]; omega
     · unfold NativeRustcX64.Apart; rw [f296, f1224]; omega
+    · apply hb1.got hpre hWo (by decide) (by decide)
+      simp only [NativeRustcVm.Transcript.DecArea.region]
+      intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(stackBelow m0 verifyLayerStack, verifyLayerStack + 8), by simp, ?_, ?_⟩
+        all_goals simp only [stack_eq, g.sbN, f296]; omega
+      · refine ⟨(stackBelow m0 verifyLayerStack, verifyLayerStack + 8), by simp, ?_, ?_⟩
+        all_goals simp only [stack_eq, g.sbN, f1224]; omega
+      · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
     · unfold NativeRustcX64.NoWrap; rw [c288]; omega
     · unfold NativeRustcX64.Apart; rw [c288, hstk]; omega
     · unfold NativeRustcX64.Apart tstateBytes; rw [c288]; omega

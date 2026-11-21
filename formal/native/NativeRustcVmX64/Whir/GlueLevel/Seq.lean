@@ -519,7 +519,7 @@ theorem callStepA (h : LayA m0 F A N rs) {T T' S' : SState} {vals vals' : Nat �
         rfl
       · have hcs' : calleeSaved r = true := hcs.resolve_left (by decide)
         rw [hsv.1 r hcs', hm.regs r v hs]
-        rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩ <;> rfl
+        rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩ | ⟨l, rfl⟩ <;> rfl
     · intro r b sz j v t hb hj hf
       obtain ⟨w, hwm, hwr', h1, h2, hv, ht⟩ := findWrite_spec hf
       obtain ⟨p, hpL, hpw⟩ := wlinks_spec hLW w hwm

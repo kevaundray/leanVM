@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Bus.BusLayout.Exec
 public import NativeRustcVmX64.Bus.BusLayout.Model
 public import NativeRustcVmX64.Bus.Common
+public import NativeRustcX64.Got
 
 /-!
 # `bus_layout`'s proof: what its parts share (x86-64)
@@ -98,7 +99,53 @@ theorem S_getD_bl {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : Machi
   simp [fws_size, List.getElem?_eq_getElem hi]
 
 section
-variable {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : MachineData}
+variable [Labels] {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : MachineData}
+
+/-- The two loader slots used by the layout and its offsets callee. -/
+theorem pre_got (h : BusLayoutPre L bl m0) :
+    GotAt m0 busLayoutStack
+      ([(reg m0 .rdi, optBusLayoutBytes), (reg m0 .rcx, 16 * bl.length),
+        (reg m0 .r9, layoutBytes)] ++
+        (if 8 * nf m0 = 0 then [] else [(reg m0 .rsi, 8 * nf m0)])) ["memcpy", "memset"] :=
+  h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+
+/-- Only stack bytes change before the final layout copy. -/
+theorem got_byte (h : BusLayoutPre L bl m0) {d : MachineData}
+    (hs : NativeRustcVm.SameOutside m0.dmem d.dmem
+      (NativeRustcVm.InRange (stackBelow m0 busLayoutStack) busLayoutStack))
+    {l : Label} (hl : l ∈ ["memcpy", "memset"]) {i : Nat} (hi : i < 8) :
+    d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      some (byteOf (Labels.label l).toBitVec i) := by
+  rw [get_keep h.1 hs ((pre_got h).1 l hl).2.2.1 ((pre_got h).1 l hl).2.1 hi]
+  exact (pre_got h).byte hl hi
+
+/-- The ordinary frame plus the particular slot read by this block. -/
+theorem wf_got (h : BusLayoutPre L bl m0) {d : MachineData}
+    (hk : Kept m0.dmem d.dmem) {l : Label} (hl : l ∈ ["memcpy", "memset"])
+    {vars : Nat → BitVec 64} {ret : BitVec 64} :
+    (frameEnv m0 d 1808 [(gotAddr l, 8)] vars ret).WF :=
+  wf1 h.1 (by decide) hk ⟨(pre_got h).mapped hl, ((pre_got h).1 l hl).2.1⟩
+    ((pre_got h).1 l hl).2.2.1
+
+/-- Seed a GOT call from its actual loader bytes. -/
+theorem match_got (h : BusLayoutPre L bl m0) {d : MachineData}
+    (hs : NativeRustcVm.SameOutside m0.dmem d.dmem
+      (NativeRustcVm.InRange (stackBelow m0 busLayoutStack) busLayoutStack))
+    {l : Label} (hl : l ∈ ["memcpy", "memset"]) {o : Nat}
+    (hsp : reg d .rsp = off (fb m0) o)
+    {vars : Nat → BitVec 64} {ret : BitVec 64} :
+    Match (frameEnv m0 d 1808 [(gotAddr l, 8)] vars ret) (gotS o l) d := by
+  have hm := match_ofMachine (m := d)
+    (regions := [(fb m0, 1816), (gotAddr l, 8)]) (vars := vars) (ret := ret)
+    (sregions := [1816, 8]) (known := [(.rsp, .ptr 0 o)])
+    (labels := []) (bounds := []) (aliases := [(.gotSlot l, 1, 0)])
+    ⟨rfl, rfl, trivial⟩ ⟨hsp, trivial⟩ trivial trivial
+    ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes (r := 1) (off := 0) (n := 8) (v := .label l)
+  intro i hi
+  simpa only [Env.ofMachine_mem0, Env.base_ofMachine_eq, List.getElem?_cons_succ,
+    List.getElem?_cons_zero, Option.map_some, Option.getD_some, Nat.zero_add, Sym.eval]
+    using got_byte h hs hl hi
 
 theorem pre_S_le (hpre : BusLayoutPre L bl m0) : ∀ s ∈ S L bl m0, s ≤ 30 :=
   szs_le hpre.2.2.1 hpre.2.2.2.2.2.2.2.2.2.2.1.heights_le

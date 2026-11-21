@@ -72,7 +72,7 @@ theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.
     Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b15Offset) ∧ IInv m0 t (j + 1) s.data) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b18Offset) ∧ PInv m0 t s.data)) st := by
   have hpre' := hpre
-  obtain ⟨hS, hout⟩ := hpre'
+  obtain ⟨hS, hout, _⟩ := hpre'
   obtain ⟨hF, -, hlek, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1

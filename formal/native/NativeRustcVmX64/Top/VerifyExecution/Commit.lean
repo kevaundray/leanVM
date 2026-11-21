@@ -105,8 +105,13 @@ theorem callOod (hp : Placed code k)
     unfold ReadOodPre
     simp only [eRdi, eRdx]
     rw [hN]
-    exact ⟨hC.stackOk g hc hN', hC.rcAt g hc hN', hts1, hC.tstateOk g hc hN',
-      by rw [eRsi]; exact hsl, hC.outOk g hc (o := 3912) (n := 504) (by omega) (by omega) hN'⟩
+    refine ⟨hC.stackOk g hc hN', hC.rcAt g hc hN', hts1, hC.tstateOk g hc hN',
+      by rw [eRsi]; exact hsl, hC.outOk g hc (o := 3912) (n := 504) (by omega) (by omega) hN', ?_⟩
+    apply GotAt.symbols (symbols := ["memcpy", "memset"]) (hs := by decide)
+    apply hC.got g hc hN'
+    intro l hl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq]
+    exact ⟨g.gotT hl, g.gotA hl, g.gotW hl (by omega) (by decide), g.gotRc hl⟩
   refine call_then hpc1 (hro a s) hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hres, hch, hsv⟩ := hpost
   simp only [eRdi, eRdx, eRsi, hN, show NativeRustcVm.Layout.eqClaimBytes = 504 from rfl]
@@ -274,7 +279,13 @@ theorem callCommit (hp : Placed code k)
     unfold CommitStackPre
     simp only [eRdi]
     rw [hN]
-    exact ⟨hC.stackOk g hc hN', hRo.rcAt, hRo, hts1, hC.tstateOk g hc hN', by rw [hroots]; decide⟩
+    refine ⟨hC.stackOk g hc hN', hRo.rcAt, hRo, hts1, hC.tstateOk g hc hN',
+      by rw [hroots]; decide, ?_⟩
+    apply GotAt.symbols (symbols := ["memcpy", "memset"]) (hs := by decide)
+    apply hC.got g hc hN'
+    intro l hl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq]
+    exact ⟨g.gotT hl, g.gotA hl, g.gotRc hl⟩
   refine call_then hpc1 (hcs a s) hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hnext, hch, hsv⟩ := hpost
   simp only [eRdi, eRsi, eRdx, hN] at hok hnext hch

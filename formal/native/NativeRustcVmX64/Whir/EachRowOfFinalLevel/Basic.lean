@@ -107,8 +107,29 @@ theorem slots_cs : ∀ r, calleeSaved r = true → ∃ p ∈ slots, p.2 = r := b
 variable {rows : Array (Array UInt64)} {op : BitVec 64} {m0 : MachineData}
 
 /-- The layout. -/
-theorem lay (hpre : EachRowFinalPre rows op m0) : EachRow.Lay m0 1936 24 eachRowFinalStack :=
+theorem lay [Labels] (hpre : EachRowFinalPre rows op m0) : EachRow.Lay m0 1936 24 eachRowFinalStack :=
   ⟨hpre.1.1, by decide, by decide, hpre.1.2.1.1, hpre.1.2.1.2⟩
+
+/-- The loader's protected row inputs do not wrap. -/
+theorem got_nw [Labels] (hpre : EachRowFinalPre rows op m0) :
+    ∀ a ∈ [(reg m0 .rcx, 32), (op, 8 * NativeRustcVm.Sumcheck.openingsWords),
+      (reg m0 .rsi, 8 * (reg m0 .rdx).toNat),
+      (reg m0 .r9, roundBytes * (stackArg m0 0).toNat),
+      (stackArg m0 1, 16 * (stackArg m0 2).toNat), (rspOf m0 + 8#64, 24)],
+      NoWrap a.1 a.2 := by
+  have ht := (lay hpre).top
+  obtain ⟨⟨_, _, _, hr, ho, hq, _, _, hround⟩, _, hc, _⟩ := hpre
+  intro a ha
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+  rcases ha with rfl | rfl | rfl | rfl | rfl | rfl
+  · exact hr.1.2
+  · exact ho.1.2
+  · exact hq.1.2
+  · exact hround.1.2
+  · exact hc.1.2
+  · unfold NoWrap
+    rw [toNat_add_ofNat _ _ (by omega)]
+    omega
 
 /-- The frame alone, as an environment. -/
 theorem frame_env [Labels] (hpre : EachRowFinalPre rows op m0) {m : MachineData}
@@ -154,7 +175,7 @@ theorem Low.keep {lo hi : Nat} {d d' : DataMem} (hl : EachRow.Lay m0 1936 24 eac
   omega
 
 /-- **A stack argument** loaded through region 0 in a body. -/
-theorem argW (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m)
+theorem argW [Labels] (hpre : EachRowFinalPre rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m)
     {rest : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64} {ret : BitVec 64} (i : Nat)
     (hi : i < 3) :
     (EachRow.envE m0 m 1936 24 rest vars ret).load 0 (1936 + 8 + 8 * i) 8 = stackArg m0 i :=

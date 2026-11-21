@@ -29,10 +29,7 @@ open NativeRustcVmX64.Transcript (Slots after after_eq ProOk MidOk EpiOk)
 def slots : Slots := [(40, .r15), (32, .r14), (24, .r12), (16, .rbx)]
 
 /-- `8 n`, as `b0` computes it from RDX. -/
-def eightN : Sym :=
-  let d := Sym.bin .add .W64 (.reg .rdx) (.reg .rdx)
-  let q := Sym.bin .add .W64 d d
-  .bin .add .W64 q q
+def eightN : Sym := .bin .mul .W64 (.reg .rdx) (.lit 8)
 
 /-- At the entry: the frame, RSP at its offset 48; the reader. -/
 def entryS : SState := init [56, 24] [(.rsp, .ptr 0 48), (.rdi, .ptr 1 0)]

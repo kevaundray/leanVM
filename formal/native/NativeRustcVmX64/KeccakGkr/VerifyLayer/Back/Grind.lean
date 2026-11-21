@@ -91,10 +91,19 @@ theorem sqPre (hpre : VerifyLayerPre a s c m0) {W : BitVec 64 → Prop}
   have hnw : (tA m0).toNat + 760 ≤ 2 ^ 64 := hfp.1.2
   refine ⟨cx.stackOk hat hle, cx.rcAt hat hle,
     ⟨fun j hj ↦ hfp.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_, ?_, ?_⟩,
-    hts.sponge⟩
+    hts.sponge, ?_⟩
   · show (tA m0).toNat + 328 ≤ 2 ^ 64; omega
   · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
   · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
+  · apply hb.got hpre hWo (by decide) (by decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl
+    · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, by
+        change (tA m0).toNat + 328 ≤ (tA m0).toNat + 760
+        omega⟩
+    · exact ⟨_, by simp, le_rfl, le_rfl⟩
 
 /-- **After `squeeze`** from the frame's `16`: the body at `24`, the frame's bytes from `24`
 kept, the challenge in RAX, RDX, the `TState` with the sponge squeezed. -/
@@ -198,9 +207,17 @@ theorem grindSq (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     exact grind3 _ h6
   have hrbx4 : reg st3.data .rbx = 0#64 := hm4.regs .rbx _ rfl
   have hat4 := hb4.at_ hpre hWo (by decide)
+  have hgot4 : GotAt st3.data grindStack
+      [(reg st3.data .rdi, tstateBytes), (a.words, 8 * a.len), (rcAddr, 192)] ["memcpy"] := by
+    rw [hrdi4]
+    apply hb4.got hpre hWo (by decide) (by decide)
+    simp only [NativeRustcVm.Transcript.DecArea.region]
+    intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl <;> exact ⟨_, by simp, le_rfl, le_rfl⟩
   refine call_then hpc4 (hgr s1) ⟨cx.stackOk hat4 (by decide), cx.rcAt hat4 (by decide),
     by rw [hrdi4]; exact hts4, by rw [hrdi4]; exact cx.tstateOk hat4 (by decide),
-    by rw [hgb]; decide⟩ fun st5 hpc5 hrsp5 hq5 ↦ ?_
+    by rw [hgb]; decide, hgot4⟩ fun st5 hpc5 hrsp5 hq5 ↦ ?_
   obtain ⟨hok, hnext, hso, hsv⟩ := hq5
   rw [hgb] at hok hnext
   rw [hrdi4] at hnext hso

@@ -107,6 +107,14 @@ structure Pre (L : LayoutW) (rows : Array Nat) (bl : List NativeRustcVm.Data.Blo
   fArgs : Apart (reg m0 .rsi) formsBytes (rspOf m0 + 8#64) 88
   slArgs : Apart (stackArg m0 0) busLayoutBytes (rspOf m0 + 8#64) 88
   slFp : 0 < nA m0 → Apart (stackArg m0 0) busLayoutBytes (stackArg m0 1) (16 * nA m0)
+  got : GotAt m0 N ([(reg m0 .rdi, 24), (reg m0 .rsi, formsBytes),
+    (reg m0 .rcx, 16 * bl.length), (reg m0 .r9, layoutBytes),
+    (stackArg m0 0, busLayoutBytes),
+    (stackArg m0 3, 16 * (stackArg m0 4).toNat),
+    (stackArg m0 7, 16 * (stackArg m0 8).toNat), (rspOf m0 + 8#64, 88)] ++
+    (if nA m0 = 0 then [] else [(stackArg m0 1, 16 * nA m0)]) ++
+    ([.tuples, .tables, .padding, .one] : List NativeRustcVm.Data.Item).map
+      (fun i => (rodataAddr i, i.bytes.length))) ["memcpy"]
 
 /-- **The body's state**: the frame (RSP at offset `o`), memory changed only in the outputs `O`
 and the stack, the description `D` of the table `V`. -/
@@ -127,9 +135,9 @@ theorem pre_of [Labels] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcV
     {Fm : Array (Array FormW)} {SL : BusLayoutW} {m0 : MachineData}
     (h : AccumulateSidePre L rows bl Fm SL m0) : Pre L rows bl Fm SL m0 := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, h19,
-    h20, h21, h22, h23, h24, h25, h26, h27, h28, h29, h30, h31, h32, h33, h34, h35, h36⟩ := h
+    h20, h21, h22, h23, h24, h25, h26, h27, h28, h29, h30, h31, h32, h33, h34, h35, h36, hg⟩ := h
   exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, h19,
-    h20, h21, h22, h23, h24, h25, h26, h27, h28, h29, h30, h31, h32, h33, h34, h35, h36⟩
+    h20, h21, h22, h23, h24, h25, h26, h27, h28, h29, h30, h31, h32, h33, h34, h35, h36, hg⟩
 
 theorem le_F : F ≤ N := by decide
 theorem le_ee : F + eqEvalFnStack ≤ N := by decide

@@ -99,7 +99,12 @@ theorem hts : HeightsAt m0.dmem (hA m0) heights := h.2.2.2.2.2.2.2.2.2.2.2.2.1
 theorem bs : ReadIn m0 (bA m0) busBytes N (wsL m0) := h.2.2.2.2.2.2.2.2.2.2.2.2.2.1
 theorem bw : BusWAt m0.dmem (bA m0) bus := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
 theorem cp : ReadIn m0 (cpA m0) 32 N (wsL m0) := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-theorem fp : ReadIn m0 (fpA m0) 48 N (wsL m0) := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+theorem fp : ReadIn m0 (fpA m0) 48 N (wsL m0) := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
+
+theorem got : GotAt m0 N [(tA m0, tstateBytes), (a.words, 8 * a.len), (ev m0, tableEvalsBytes),
+    (argA m0, 16), (hA m0, 48), (bA m0, busBytes), (cpA m0, 32), (fpA m0, 48),
+    (rcAddr, 192), (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length)] ["memcpy"] :=
+  h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 
 end
 
@@ -335,6 +340,24 @@ theorem Bd.atO (h : TableSumcheckPre a s heights bus m0) {d : MachineData} {o : 
     rcases hq with hq | hq
     · exact outs_not_rc h hq hin
     · exact (ctx h).not_rc_stack hq hin⟩
+
+theorem got_call (h : TableSumcheckPre a s heights bus m0) {d : MachineData} {o Nc : Nat}
+    (hb : Bd m0 736 N slots (outs m0) o d) (ho : o ≤ 736) (hle : 736 - o + Nc ≤ N)
+    {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ ["memcpy"], ∀ b ∈ areas, Apart (gotAddr l) 8 b.1 b.2) :
+    GotAt d Nc areas ["memcpy"] := by
+  refine got_callee (Pre.got h) (got_keep (Pre.got h) (Pre.stack h)
+    (writes := [(tA m0, tstateBytes), (ev m0, tableEvalsBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact (Pre.ts h).footprint.1.2
+      · exact (Pre.evs h).2.1)
+    (by simpa [outs, or_assoc] using hb.same))
+    (Bd.atO h ho hb).sp (spN h) hle ha
 
 /-- The frame's bytes `lo` to `lo + len` are in the stack. -/
 theorem loc_stack (h : TableSumcheckPre a s heights bus m0) {lo len : Nat} (hl : lo + len ≤ 736)

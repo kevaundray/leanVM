@@ -83,7 +83,7 @@ theorem decodeCall (hdec : Spec (Labels.label NativeRustcVmX64.Vm.Decode.entryLa
           ⟨a.decoded.toBitVec, decodedWords bytes.length, bytes.length⟩ (streamW r.1) (openingsW r.2)
       | none => boolRet st'.data = 0) st := by
   have g := geo_of hpre
-  obtain ⟨hst, hrod, hin, -, -, hapR⟩ := hpre
+  obtain ⟨hst, hrod, hin, -, -, hapR, hgot⟩ := hpre
   have hS := leanvmVerifyStack_eq
   have hR := g.R
   have h8 := g.e8
@@ -150,7 +150,7 @@ theorem decodeCall (hdec : Spec (Labels.label NativeRustcVmX64.Vm.Decode.entryLa
       ⟨Mapped.keeps hdM hf.kept, gdecN⟩,
       ⟨Mapped.keeps (NativeRustcVm.Mapped.mono hwM hwb) hf.kept, by
         show a.work.toBitVec.toNat + NativeRustcVm.Wire.workBytes ≤ 2 ^ 64; simp; omega⟩,
-      ?_, fun hL0 ↦ ?_⟩
+      ?_, (fun hL0 ↦ ?_), ?_⟩
     · rcases hbp with ⟨h0, rfl⟩ | ⟨h0, rfl⟩
       · rw [h0]
         exact ⟨fun i hi ↦ absurd hi (Nat.not_lt_zero _), by unfold NativeRustcVm.NoWrap; simp⟩
@@ -171,6 +171,28 @@ theorem decodeCall (hdec : Spec (Labels.label NativeRustcVmX64.Vm.Decode.entryLa
         false_implies, implies_true, NativeRustcVm.disjoint_nil, and_true, NativeRustcVm.Apart,
         stackR, rcR, show decodeStack = 1296 from rfl, hstk, UInt64.toNat_toBitVec]
       refine ⟨⟨?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_⟩, ⟨?_, ?_⟩, ?_⟩ <;> omega
+    · apply NativeRustcVmX64.GotAt.callee hgot
+      · apply NativeRustcVmX64.GotAt.unchanged_stack hgot hst
+        intro q hq
+        exact hs q fun h => hq (by
+          have hh := hfr q h
+          change NativeRustcVm.InRange (stackBelow m0 leanvmVerifyStack) leanvmVerifyStack q
+          rw [hS, inR (by unfold NativeRustcVm.NoWrap; rw [lsb_eq]; omega), lsb_eq]
+          omega)
+      · rw [hS, lsb_eq, show decodeStack = 1296 from rfl, hstk]
+        omega
+      · rw [hS, lsb_eq, show decodeStack = 1296 from rfl, hstk]
+        omega
+      · intro p hp
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+        rcases hp with rfl | rfl | rfl
+        · exact ⟨(rcAddr, 192), by simp [rc_mem_rodataAreas], Nat.le_refl _, Nat.le_refl _⟩
+        · exact ⟨(a.decoded.toBitVec, 8 * decodedWords bytes.length),
+            by simp [entryRegions], Nat.le_refl _, Nat.le_refl _⟩
+        · refine ⟨(a.work.toBitVec, 8 * Code.workWords bytecode.length),
+            by simp [entryRegions], Nat.le_refl _, ?_⟩
+          dsimp only
+          omega
   refine call_then hpc hdec hpre' fun st' hpc' hrsp' hpost ↦ ?_
   obtain ⟨hres, hs', hsv'⟩ := hpost
   simp only [hrdi, hrsi, hrdx, hrcx, hr8] at hres hs'

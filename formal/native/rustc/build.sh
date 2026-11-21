@@ -21,7 +21,7 @@
 # code a verification runs uses general-purpose registers only, which Kraken models. rustc warns that the target's ABI
 # wants those features: no floating-point value crosses any function boundary here, so the ABI is not affected. The
 # entry crates define `memcpy` and `memset` themselves (`mem.rs`), so the assembly holds every instruction a
-# verification runs. The assembly is the artifact (`run/check.sh` assembles it): rustc's own object is not emitted, as
+# verification runs. The raw assembly is the artifact (`run/check.sh` assembles it): rustc's own object is not emitted, as
 # rustc 1.99.1's object and assembly code generation differ under fat LTO.
 set -euo pipefail
 

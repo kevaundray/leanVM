@@ -194,10 +194,10 @@ theorem sizes_run (hp : Placed code k)
   have htop := hst.2.1
   have hbase : (fb m0).toNat = (rspOf m0).toNat - 1808 := stackBelow_toNat (by omega)
   -- `b0`: the prologue, `memset` of the sizes.
-  have hwf0 := wf0 (d := m0) hst hN (fun _ h ↦ h) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b0Offset + b0.length)).toBitVec)
+  have hwf0 := wf_got hpre (d := m0) (fun _ h ↦ h) (l := "memset") (by simp)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b0Offset + b0.length)).toBitVec)
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
-    (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
+    (match_got hpre (fun _ _ ↦ rfl) (by simp) (BitVec.sub_add_cancel _ _).symm)
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hpro1, hw1, hdi1, hdx1, hsi1, hbx1, hbp1, h12_1, h13_1, h14_1, h15_1⟩ :=
     after_eq run_b0 ▸ ok_b0

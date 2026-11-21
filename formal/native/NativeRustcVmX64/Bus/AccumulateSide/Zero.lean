@@ -252,11 +252,11 @@ theorem toTables (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   subst hpc2
   -- `b14`: `memcpy`.
   obtain ⟨hmid14, hw14, htr14, hdi14, hsi14, hdx14⟩ := ok_b14
-  refine St.run h (rest := []) (vs := fun _ ↦ 0)
+  refine St.run h (rest := [(gotAddr "memcpy", 8)]) (vs := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b14Offset + b14.length)).toBitVec) rfl
     (infix_of b14_in_code (by simp [b14]) hp) exit_b14 (fun _ _ ↦ rfl) hst2.fr hst2.same
-    (hst2.hd.reg0 (by decide) rfl) (by decide) (wf0 h hst2.fr.kept)
-    (St.mt hst2 ⟨rfl, trivial⟩ trivial trivial trivial) hmid14 hw14 (by decide) htr14
+    (hst2.hd.reg0 (by decide) rfl) (by decide) (wf1 h hst2.fr.kept h.gotIn)
+    (St.mt_copy h hst2 (fun _ hq ↦ hq.elim)) hmid14 hw14 (by decide) htr14
     fun st3 hm3 hpc3 hst3 _ ↦ ?_
   have e_di : reg st3.data .rdi = off (fb m0) 6064 := (hm3.regs .rdi _ hdi14).trans (eval_ptr0 6064)
   have e_si : reg st3.data .rsi = off (fb m0) 136 := (hm3.regs .rsi _ hsi14).trans (eval_ptr0 136)

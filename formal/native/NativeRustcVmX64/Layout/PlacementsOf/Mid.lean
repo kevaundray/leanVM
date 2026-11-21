@@ -116,11 +116,12 @@ theorem mid (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset.e
     have := h q (by omega); simp only [h158] at this; exact this
   -- `b9`: `memset(block_offsets)`
   obtain ⟨hok9, h97, h96, h92, hw9, hK9⟩ := ok_b9
-  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b9Offset + b9.length)).toBitVec) hF
+  refine runGot (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b9Offset + b9.length)).toBitVec) hF
     (b9_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b9 (fun _ _ ↦ rfl) hpc hI.b hok9
+    (fun w hw => ⟨(hw9 w hw).1, by have := (hw9 w hw).2; omega⟩)
     fun st1 hm1 hpc1 hb1 ↦ ?_
-  have hwf1 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b9Offset + b9.length)).toBitVec)
-    hI.b hF.stack (by decide)
+  have hwf1 := hF.got_wf (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b9Offset + b9.length)).toBitVec)
+    hI.b
   have hs1 := sameOutside_low hwf1 hm1 (r := 0) rfl (by decide) hw9
   have hrdi1 : reg st1.data .rdi = off (fb m0) 3808 := (hm1.regs .rdi _ h97).trans (eval_ptr0 3808)
   have hrdx1 : (reg st1.data .rdx).toNat = 1264 := by
@@ -187,7 +188,12 @@ theorem mid (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset.e
     have p2 := hF.part (o := 3808) (l := 8 * 158) hb4 (by omega)
     exact ⟨hb4.stackOk hF.stack (by decide), by decide, p1, part_offStack hF hb4 (by omega)
       (by omega) (by decide), p2, part_offStack hF hb4 (by omega) (by omega) (by decide),
-      hF.part_apart (by omega) (by omega) (by omega)⟩
+      hF.part_apart (by omega) (by omega) (by omega),
+      got_callee hF.got (hF.got_bytes hb4) hb4.rsp0 hF.stack.1 (by decide) (by
+        intro l hl a ha
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl <;>
+          exact got_apart_frame hF.got hF.stack hl (by decide) (by dsimp only; decide))⟩
   refine call_then hpc4 hso hpre4 fun st5 hpc5 hrsp5 hpost5 ↦ ?_
   obtain ⟨hres, hch5, hsv5⟩ := hpost5
   rw [x6, x1, hsz, x2, ite_eq_left_of_eq_true _ _ (eq_true (show 94 ≤ 158 ∧ OffsetsFit (sizesOf (κ m0))
@@ -241,11 +247,13 @@ theorem mid (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset.e
     rw [e]; rfl)
   -- `b13`: the stack's log-size kept, `memset(offsets)`
   obtain ⟨hok13, h137, h136, h132, hw13, hv13, hK13⟩ := ok_b13
-  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b13Offset + b13.length)).toBitVec) hF
+  refine runGot (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b13Offset + b13.length)).toBitVec) hF
     (b13_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b13 (fun _ _ ↦ rfl)
-    ((hno6 (by omega)).trans rfl) hb6 hok13 fun st7 hm7 hpc7 hb7 ↦ ?_
-  have hwf7 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b13Offset + b13.length)).toBitVec)
-    hb6 hF.stack (by decide)
+    ((hno6 (by omega)).trans rfl) hb6 hok13
+    (fun w hw => ⟨(hw13 w hw).1, by have := (hw13 w hw).2; omega⟩)
+    fun st7 hm7 hpc7 hb7 ↦ ?_
+  have hwf7 := hF.got_wf (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b13Offset + b13.length)).toBitVec)
+    hb6
   have hs7 := sameOutside_low hwf7 hm7 (r := 0) rfl (by decide) hw13
   have htot7 : WordAt st7.data.dmem (off (fb m0) 8) (log2Ceil (sumF (κ m0) 0)).toUInt64 := by
     have := wordAt_write hm7 (r := 0) (o := 8) rfl (by decide) hv13

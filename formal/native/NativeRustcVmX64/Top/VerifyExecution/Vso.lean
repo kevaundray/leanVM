@@ -170,7 +170,7 @@ theorem callVso (hp : Placed code k)
         hin (o := 221280) (n := 1608) (by omega) (by omega),
         hin (o := 123992) (n := 97288) (by omega) (by omega),
         hin (o := 3912) (n := 504) (by omega) (by omega)⟩,
-      ⟨ap (o := 0) (n := 3912) (o' := 222888) (n' := 1040) (by omega) (by omega) (by omega),
+      ⟨⟨ap (o := 0) (n := 3912) (o' := 222888) (n' := 1040) (by omega) (by omega) (by omega),
         ap (o := 0) (n := 3912) (o' := 221280) (n' := 1608) (by omega) (by omega) (by omega),
         ap (o := 0) (n := 3912) (o' := 123992) (n' := 97288) (by omega) (by omega) (by omega),
         ap (o := 0) (n := 3912) (o' := 3912) (n' := 504) (by omega) (by omega) (by omega)⟩,
@@ -180,12 +180,28 @@ theorem callVso (hp : Placed code k)
       ⟨ap (o := 221280) (n := 1608) (o' := 123992) (n' := 97288) (by omega) (by omega) (by omega),
         ap (o := 221280) (n := 1608) (o' := 3912) (n' := 504) (by omega) (by omega) (by omega)⟩,
       ap (o := 123992) (n := 97288) (o' := 3912) (n' := 504) (by omega) (by omega) (by omega),
-      fun _ h ↦ h.elim⟩
-    rw [hsp1]
-    show _ ∨ _
-    unfold tstateBytes
-    rw [show stackBelow m0 96 + 8#64 = off (stackBelow m0 96) 8 from rfl, toNat_off (by omega), hF]
-    omega
+      (fun _ h ↦ h.elim)⟩, ?_⟩
+    · rw [hsp1]
+      show _ ∨ _
+      unfold tstateBytes
+      rw [show stackBelow m0 96 + 8#64 = off (stackBelow m0 96) 8 from rfl, toNat_off (by omega), hF]
+      omega
+    · apply hC.got g hc hN'
+      intro l hl
+      simp only [List.append_assoc]
+      intro r hr
+      rcases List.mem_append.mp hr with hr | hr
+      · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr
+        rcases hr with rfl | rfl | rfl | rfl
+        · exact g.gotT hl
+        · exact g.gotA hl
+        · exact g.gotW hl (by omega) (by dsimp only; decide)
+        · exact g.gotW hl (by omega) (by dsimp only; decide)
+      · rcases List.mem_append.mp hr with hr | hr
+        · simp only [List.map_cons, List.map_nil, List.mem_cons, List.mem_nil_iff, or_false] at hr
+          rcases hr with rfl | rfl | rfl | rfl | rfl <;>
+            exact g.gotW hl (by omega) (by dsimp only; decide)
+        · exact g.gotRodata hl r hr
   refine call_then hpc1 (hvso a s L target coeffs kp ks cs z ood.value) hpre
     fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hnext, hch, hsv⟩ := hpost

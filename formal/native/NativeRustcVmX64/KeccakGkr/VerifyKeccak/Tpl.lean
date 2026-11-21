@@ -67,21 +67,28 @@ def t9 : SState :=
   tpl sizes [(.rsp, .ptr 0 56), (.rbx, .var 12), (.rbp, .var 6), (.r12, .var 13), (.r13, .var 16)]
     ([sp 56 11, sp 72 7, sp 80 8, sp 88 17, sp 136 15, sp 144 14] ++ pushW)
 
+/-- Only the first copy reads the loader slot; subsequent copies retain its value in R13. -/
+def t9R : SState :=
+  { t9 with regions := sizes ++ [8], aliases := [(.gotSlot "memcpy", 5, 0)] }
+
+def t9G : SState := t9R.withKnownBytes 5 0 8 (.label "memcpy")
+
 /-- After the first copy. -/
 def t10 : SState :=
-  tpl sizes [(.rsp, .ptr 0 56), (.rbx, .var 12), (.r12, .var 13), (.r14, .ptr 0 2536)]
+  tpl sizes [(.rsp, .ptr 0 56), (.rbx, .var 12), (.r12, .var 13), (.r14, .ptr 0 2536),
+    (.r13, .label "memcpy")]
     ([sp 56 11, sp 64 6, sp 72 7, sp 80 8, sp 88 17, sp 128 16, sp 136 15, sp 144 14] ++ pushW)
 
 /-- The copies of the first claim. -/
 def t11 : SState :=
   tpl sizes [(.rsp, .ptr 0 56), (.rbx, .var 12), (.rbp, .var 18), (.r12, .var 13),
-    (.r14, .ptr 0 2536), (.r15, .ptr 0 2816)]
+    (.r14, .ptr 0 2536), (.r15, .ptr 0 2816), (.r13, .label "memcpy")]
     ([sp 56 11, sp 64 6, sp 72 7, sp 80 8, sp 88 17, sp 128 16, sp 136 15, sp 144 14] ++ pushW)
 
 /-- After the claim's copy: the first point's size at `120`. -/
 def t15 : SState :=
   tpl sizes [(.rsp, .ptr 0 56), (.rbx, .var 12), (.rbp, .var 18), (.r12, .var 13),
-    (.r14, .ptr 0 2536), (.r15, .ptr 0 2816)]
+    (.r14, .ptr 0 2536), (.r15, .ptr 0 2816), (.r13, .label "memcpy")]
     ([sp 56 11, sp 64 6, sp 72 7, sp 80 8, sp 88 17, sp 120 18, sp 128 16, sp 136 15,
       sp 144 14] ++ pushW)
 

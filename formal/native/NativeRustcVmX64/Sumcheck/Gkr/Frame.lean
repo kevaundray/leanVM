@@ -230,7 +230,7 @@ theorem exit_post (hpre : SumcheckGkrPre a s pt n m0) {m : MachineData} (hf : Fr
     sameOutside_region hwf hm' (r := 1) rfl fun w hw ↦ ⟨(hW w hw).1, Nat.zero_le _, (hW w hw).2⟩
   have hosl : ∀ q, NativeRustcVm.InRange (outG m0) 24 q →
       ¬ NativeRustcVm.InRange (slG m0) (16 * n) q := fun q hq ↦
-    not_inRange_of_apart g.ok.2.2.2.2.2.2.2.2 g.outOk.2.1 g.slOk.2.1 hq
+    not_inRange_of_apart g.ok.2.2.2.2.2.2.2.2.1 g.outOk.2.1 g.slOk.2.1 hq
   refine ⟨hpc.trans (hf.frame.load_ret g.ok.1 (by unfold sumcheckGkrStack; omega)), hrsp, ?_⟩
   unfold SumcheckGkrPost
   dsimp only

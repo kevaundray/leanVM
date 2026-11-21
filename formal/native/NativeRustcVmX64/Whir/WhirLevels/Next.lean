@@ -131,7 +131,7 @@ theorem next_step (hp : Placed code k0)
   have hlv := level_le (show k < levels.length by omega)
   have hpre : NextLevelPre a s (lvl (logN m0) rate k) w rs st2.data := by
     refine ⟨?_, hargs, ?_, by have := hm.roots; omega, ?_, ?_, ?_, ?_, qAt_le _ _ _, ?_, ?_, ?_,
-      ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [ht]; exact c.whirT hat hsm2 hle
     · rw [ht]; exact c.ts_frame (by omega) (hm2.kept hwf) hs2 hm.ts
     · rw [hpa]
@@ -151,6 +151,17 @@ theorem next_step (hp : Placed code k0)
     · rw [hdx, ht]; exact apart_sub c.lt c.lin.1.2 hlv
     · rw [ht]; exact hargT
     · rw [hpa]; exact hargP
+    · rw [ht, hpa, hdx, hrsp2]
+      apply c.got_call hat hsm2 hle (by decide)
+      intro ar har
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with (rfl | rfl | rfl | rfl | rfl) | har
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(pA m0, whirBytes), by simp, le_rfl, le_rfl⟩
+      · exact c.got_level (by omega)
+      · exact c.got_loc (j := 8) (n := 8) (by omega)
+      · exact ⟨ar, by simp [har], le_rfl, le_rfl⟩
   rw [show k0 + NativeRustcVmX64.Vm.WhirLevels.b5Offset + b5.length = k0 + NativeRustcVmX64.Vm.WhirLevels.b6Offset from rfl] at hpc2
   refine call_then hpc2 (hnl a s _ w rs) hpre fun st3 hpc3 hrsp3 hq ↦ ?_
   obtain ⟨hok, hnext, hwa', hch, hsv⟩ := hq

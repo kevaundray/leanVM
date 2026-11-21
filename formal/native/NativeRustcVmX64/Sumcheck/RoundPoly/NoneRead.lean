@@ -153,8 +153,16 @@ theorem none_b10 (hp : Placed code k)
   case pre =>
     unfold ReadScalarsPre
     rw [hrdi4', hrsi4', hrdx4']
-    exact ⟨c.stackOk hat4 (by decide), c.rcAt hat4 (by decide), ts4,
-      c.tstateOk hat4 (by decide), msgOut h hat4 (by decide) (by omega) (by omega)⟩
+    refine ⟨c.stackOk hat4 (by decide), c.rcAt hat4 (by decide), ts4,
+      c.tstateOk hat4 (by decide), msgOut h hat4 (by decide) (by omega) (by omega), ?_⟩
+    apply hf4.gotAt h (by decide)
+    intro l hl x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl | rfl
+    · exact got_area h hl (by simp)
+    · exact got_area h hl (by simp)
+    · exact got_msg h hl (by omega) (by omega)
+    · exact got_area h hl (by simp)
   simp only [ReadScalarsPost, hrdi4', hrsi4', hrdx4'] at hpost5
   obtain ⟨hok5, hxs5, hnext5, hs5, hsv5⟩ := hpost5
   have hR5 : ∀ q, (NativeRustcVm.InRange (off (msgAt m0) 32) (16 * (cnt m0 - 2)) q ∨

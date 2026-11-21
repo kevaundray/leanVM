@@ -85,7 +85,7 @@ end
 set_option Elab.async false
 
 sym_block run_b0a := exec b0a entryS
-sym_block run_b0b := exec b0b (midS 1104)
+sym_block run_b0b := exec b0b (gotMidS 1104 "memset")
 sym_block run_b1 := exec b1 regsS
 sym_block run_b2 := exec b2 (midS 1104)
 sym_block run_b3 := exec b3 (midS 1104)
@@ -115,9 +115,9 @@ public theorem b0a_entry : (∀ p ∈ slots, p.1 + 8 ≤ 1104 ∧
     (∀ r ∈ [Reg64.rdi, .rsi, .rdx, .rcx, .r8], (after b0a entryS).reg r = some (.reg r)) := by
   decide +kernel
 
-public theorem b0b_call : keepsRegs (midS 1104) (after b0b (midS 1104)) (freeRegs slots) = true ∧
-    (after b0b (midS 1104)).reg .rsp = some (.ptr 0 0) ∧
-    (∀ w ∈ (after b0b (midS 1104)).mem, w.r = 0 ∧ w.off + w.n ≤ 8) := by
+public theorem b0b_call : keepsRegs (gotMidS 1104 "memset") (after b0b (gotMidS 1104 "memset")) (freeRegs slots) = true ∧
+    (after b0b (gotMidS 1104 "memset")).reg .rsp = some (.ptr 0 0) ∧
+    (∀ w ∈ (after b0b (gotMidS 1104 "memset")).mem, w.r = 0 ∧ w.off + w.n ≤ 8) := by
   decide +kernel
 
 public theorem b1_keeps : keepsAll regsS (after b1 regsS) (freeRegs slots) = true := by

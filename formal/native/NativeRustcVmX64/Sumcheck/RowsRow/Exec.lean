@@ -46,12 +46,9 @@ def clS : Sym :=
 /-- The row fits: CL zero. -/
 def condS : SBool := .cmp .eq .W8 (.bin .and .W8 clS clS) (.lit 0)
 
-/-- `2 x`. -/
-def dbl (x : Sym) : Sym := .bin .add .W64 x x
-
 /-- The row's address: the openings plus `8 (193 j + 1)`. -/
 def raxS : Sym :=
-  .bin .add .W64 (.load 1 0 8) (.bin .add .W64 (dbl (dbl (dbl mS))) (.lit 8))
+  .bin .add .W64 (.load 1 0 8) (.bin .add .W64 (.bin .mul .W64 mS (.lit 8)) (.lit 8))
 
 end
 

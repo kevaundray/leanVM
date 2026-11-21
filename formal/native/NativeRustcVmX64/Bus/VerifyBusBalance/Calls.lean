@@ -147,6 +147,16 @@ theorem cal_rc : RcAt d Nc := (ctxF h (by omega)).rcAt (cal_at h fr hc) hle
 theorem cal_tok : TStateOk d (reg m0 .rdi) a Nc :=
   (ctxF h (by omega)).tstateOk (cal_at h fr hc) hle
 
+/-- Pass just the slots reached by a callee, with the caller's preserved bytes. -/
+theorem cal_got {symbols : List Label} (hs : symbols.Sublist ["memcpy", "memset"])
+    {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ ["memcpy", "memset"], ∀ b ∈ areas, Apart (gotAddr l) 8 b.1 b.2) :
+    GotAt d Nc areas symbols :=
+  got_callee ((pre_got h).symbols hs)
+    (fun l hl => got_same h fr l (hs.subset hl))
+    (cal_at h fr hc).sp (pre_stack h).1 hle
+    (fun l hl => ha l (hs.subset hl))
+
 theorem cal_out {o : BitVec 64} {n : Nat} (ho : OutOk m0 (reg m0 .rdi) a o n NN) :
     OutOk d (reg m0 .rdi) a o n Nc :=
   (ctxF h (by omega)).outOk (cal_at h fr hc) hle ho

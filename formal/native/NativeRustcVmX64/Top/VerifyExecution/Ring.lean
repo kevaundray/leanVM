@@ -125,13 +125,19 @@ theorem callRing (hp : Placed code k)
     unfold RingSwitchPre ArrOk
     simp only [eRdi, eRsi, eRdx, hN, show NativeRustcVm.Ring.ringWBytes = 1040 from rfl,
       show NativeRustcVm.Ring.coeffCount = 64 from rfl]
-    exact ⟨hC.stackOk g hc hN', hC.rcAt g hc hN', hts1, hC.tstateOk g hc hN',
+    refine ⟨hC.stackOk g hc hN', hC.rcAt g hc hN', hts1, hC.tstateOk g hc hN',
       hC.outOk g hc (o := 222888) (n := 1040) (by omega) (by omega) hN',
       ⟨hC.readable g (o := 221864) (n := 1024) (by omega) (by omega),
         hC.offStack g hc (o := 221864) (n := 1024) (by omega) (by omega) hN'⟩,
       g.apartWT (o := 221864) (n := 1024) (by omega) (by omega),
       g.apartW (o := 221864) (n := 1024) (o' := 222888) (n' := 1040) (by omega) (by omega)
-        (by omega)⟩
+        (by omega), ?_⟩
+    apply GotAt.symbols (symbols := ["memcpy", "memset"]) (hs := by decide)
+    apply hC.got g hc hN'
+    intro l hl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq]
+    exact ⟨g.gotT hl, g.gotA hl, g.gotW hl (by omega) (by decide),
+      g.gotW hl (by omega) (by decide), g.gotRc hl⟩
   refine call_then hpc1 (hrs a s kp) hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hres, hch, hsv⟩ := hpost
   rw [harr] at hok hres

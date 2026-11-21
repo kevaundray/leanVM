@@ -3,7 +3,7 @@
 # (IngestCore.lean says what is generated): the signature verifiers' AArch64 (rustc/out/{xmss,sphincs}-aarch64.s) as
 # NativeRustcArm/Code.lean and everything under NativeRustcArm/Code/ but Infix.lean (the lemmas the generated proofs
 # use), their x86-64 (rustc/out/{xmss,sphincs}-x86_64.s) as NativeRustcX64/Code.lean and NativeRustcX64/Code/;
-# the leanVM verifier's (rustc/vm/out/vm-aarch64.s, rustc/vm/out/vm-x86_64.post.s) as NativeRustcVmArm/Code.lean,
+# the leanVM verifier's (rustc/vm/out/vm-aarch64.s, rustc/vm/out/vm-x86_64.s) as NativeRustcVmArm/Code.lean,
 # NativeRustcVmArm/Code/, NativeRustcVmX64/Code.lean and NativeRustcVmX64/Code/, its functions named by vm-names.txt, without the Labels modules (`--no-labels`: the VM proofs
 # place functions by NativeRustcVmArm/Placed/Nodup.lean instead).
 # rustc/build.sh and rustc/vm/build.sh build rustc/out and rustc/vm/out when they are missing.
@@ -29,7 +29,7 @@ for f in xmss-aarch64.s sphincs-aarch64.s xmss-x86_64.s sphincs-x86_64.s; do
   [ -f "$out/$f" ] || { "$native/rustc/build.sh" >&2; break; }
 done
 vmout=$native/rustc/vm/out
-for f in vm-aarch64.s vm-x86_64.post.s; do
+for f in vm-aarch64.s vm-x86_64.s; do
   [ -f "$vmout/$f" ] || { "$native/rustc/vm/build.sh" >&2; break; }
 done
 
@@ -43,7 +43,7 @@ trap 'rm -rf "$gen"' EXIT
 (cd "$here" && lake env .lake/build/bin/ingest-arm "$gen" --ns NativeRustcVmArm --names "$here/vm-names.txt" --no-labels \
   vm="$vmout/vm-aarch64.s")
 (cd "$here" && lake env .lake/build/bin/ingest-x64 "$gen" --ns NativeRustcVmX64 --names "$here/vm-names.txt" --no-labels \
-  vm="$vmout/vm-x86_64.post.s")
+  vm="$vmout/vm-x86_64.s")
 
 status=0
 for lib in NativeRustcArm NativeRustcX64 NativeRustcVmArm NativeRustcVmX64; do

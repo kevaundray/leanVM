@@ -135,13 +135,25 @@ theorem plain (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     rw [hrsi, hrdi, hr9, hr8, ha0]
     refine ⟨⟨?_, ?_⟩, cx.stackOk hat hle, cx.rcAt hat hle, hts1, cx.tstateOk hat hle,
       by decide, by decide, cx.outOk_frame hat hle (by decide) (by decide),
-      cx.outOk_frame hat hle (by decide) (by decide), ?_⟩
+      cx.outOk_frame hat hle (by decide) (by decide), ?_, ?_⟩
     · show NativeRustcVm.Mapped _ (rspOf st.data + 8#64) _
       rw [hsp1]
       exact mapped_off (o := 8) (NativeRustcVm.Transcript.Mapped.keeps (frame_mapped (F := 2016) hS
         (by decide)) hb1.fr.kept) (by decide)
     · rw [hsp1, hfb]; omega
     · unfold NativeRustcX64.Apart; rw [f136, f296]; omega
+    · apply hb1.got hpre hWo (by decide) (by decide)
+      simp only [NativeRustcVm.Transcript.DecArea.region, show (11#64).toNat = 11 from rfl]
+      intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(stackBelow m0 verifyLayerStack, verifyLayerStack + 8), by simp, ?_, ?_⟩
+        all_goals simp only [stack_eq, g.sbN, f136]; omega
+      · refine ⟨(stackBelow m0 verifyLayerStack, verifyLayerStack + 8), by simp, ?_, ?_⟩
+        all_goals simp only [stack_eq, g.sbN, f296]; omega
+      · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
   refine call_then hpc1 (hspl s3) hpre1 fun st2 hpc2 hrsp2 hq2 ↦ ?_
   obtain ⟨hout, hso, hsv⟩ := hq2
   have h11 : (BitVec.ofNat 64 11).toNat = 11 := rfl
@@ -268,9 +280,22 @@ theorem plain (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     have cx2 := ctx hpre (F := 2000) (by decide)
     have hA6 := frArea hpre hWo hb6 (Sk := readScalarsStack) (by decide) (o := 136) (n := 48)
       (by decide) (by decide)
+    have hgot6 : GotAt st6.data readScalarsStack
+        [(tA m0, tstateBytes), (a.words, 8 * a.len),
+          (off (stackBelow m0 2016) 136, 48), (rcAddr, 192)] ["memcpy"] := by
+      apply hb6.got hpre hWo (by decide) (by decide)
+      simp only [NativeRustcVm.Transcript.DecArea.region]
+      intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(stackBelow m0 verifyLayerStack, verifyLayerStack + 8), by simp, ?_, ?_⟩
+        all_goals simp only [stack_eq, g.sbN, f136]; omega
+      · exact ⟨(rcAddr, 192), by simp, le_rfl, le_rfl⟩
     refine call_then hpc6 (hrs s4) ⟨cx2.stackOk hat6 (by decide), cx2.rcAt hat6 (by decide),
       by rw [hrdi6]; exact hts6, by rw [hrdi6]; exact cx2.tstateOk hat6 (by decide),
-      by rw [hrdi6, hrsi6, hrdx6]; exact hA6⟩ fun st7 hpc7 hrsp7 hq7 ↦ ?_
+      by rw [hrdi6, hrsi6, hrdx6]; exact ⟨hA6, hgot6⟩⟩ fun st7 hpc7 hrsp7 hq7 ↦ ?_
     obtain ⟨hok, hxs, hnext, hso7, hsv7⟩ := hq7
     rw [hrdx6, show (BitVec.ofNat 64 3).toNat = 3 from rfl] at hok hxs hnext hso7
     rw [hrsi6] at hxs hso7

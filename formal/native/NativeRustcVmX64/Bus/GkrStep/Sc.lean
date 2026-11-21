@@ -35,9 +35,7 @@ theorem ult64 {n : Nat} (hn : n < 64) :
 
 theorem pow_step (x : BitVec 64) (h : x.toNat = 1 ∨ x.toNat = 2) :
     (BinOp.apply .shl .W64 (BitVec.ofNat 64 1) (UnOp.apply .trunc .W32 x)).toNat = 2 ^ x.toNat ∧
-      (BinOp.apply .or .W64 (BitVec.ofNat 64 1)
-        (BinOp.apply .shl .W64 (BitVec.ofNat 64 1) (UnOp.apply .trunc .W32 x))).toNat =
-          2 ^ x.toNat + 1 := by
+      (BinOp.apply .bts .W64 (BitVec.ofNat 64 1) x).toNat = 2 ^ x.toNat + 1 := by
   rcases h with h | h
   · obtain rfl : x = 1#64 := BitVec.eq_of_toNat_eq h
     decide
@@ -261,7 +259,7 @@ theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     have := (pow_step (reg m0 .rsi) hstep).1
     rw [← ebx6] at this ⊢
     exact this
-  have hcnt : ((Sym.bin .or .W64 (.lit 1) powS).eval E7).toNat = 2 ^ (reg m0 .rsi).toNat + 1 := by
+  have hcnt : ((Sym.bin .bts .W64 (.lit 1) (.reg .rbx)).eval E7).toNat = 2 ^ (reg m0 .rsi).toNat + 1 := by
     have := (pow_step (reg m0 .rsi) hstep).2
     rw [← ebx6] at this ⊢
     exact this
@@ -328,9 +326,19 @@ theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     refine ⟨⟨by rw [hra]; exact mapped_off (cx.mapped_frame fr7.frame.kept) (by omega), ?_⟩,
       ⟨c0.stackOk hat7 hle7, c0.rcAt hat7 hle7, hts7,
       c0.tstateOk hat7 hle7, hpow2.1, hpow2.2, outFb h fr7 hle7 (by omega) (by omega),
-      outFb h fr7 hle7 (by omega) (by omega), ?_⟩, rfl, hptw, ?_, ?_, ?_, ?_, rfl, ?_, ?_⟩
+      outFb h fr7 hle7 (by omega) (by omega), ?_, got_atC h (by omega) fr7 hle7 ?_⟩,
+      rfl, hptw, ?_, ?_, ?_, ?_, rfl, ?_, ?_⟩
     · rw [hsp7, off_zero]; omega
     · unfold NativeRustcX64.Apart; rw [h112, h352]; omega
+    · intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl | rfl | rfl
+      · rw [ht]
+        exact ((pre_got h).1 l hl).2.2.2 (reg m0 .rdi, tstateBytes) (by simp)
+      · exact ((pre_got h).1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+      · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+      · exact got_apart_frame (pre_got h) h.1 hl N_ge (by omega)
+      · exact ((pre_got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
     · unfold NativeRustcX64.NoWrap; rw [h56]; omega
     · unfold NativeRustcX64.Apart; rw [h56]; omega
     · unfold NativeRustcX64.Apart; rw [h56]; omega

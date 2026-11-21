@@ -105,7 +105,7 @@ theorem stackBelow_sb {m0 : MachineData} (h : 18704 ≤ (rspOf m0).toNat) {n c :
 theorem geo_of [Labels] {a : DecArea} {stream : Array EW} {openings : Array (Array OpeningW)}
     {m0 : MachineData} (hpre : VerifyPre a stream openings m0) : Geo a m0 := by
   obtain ⟨hst, -, hn32, -, hdec, ⟨-, hbcN⟩, ⟨-, hpubN⟩, ⟨-, hdecN⟩, ⟨-, haN⟩,
-    ⟨-, hwN⟩, hdis, -, hbcD⟩ := hpre
+    ⟨-, hwN⟩, hdis, -, hbcD, -⟩ := hpre
   have hS := verifyStack_eq
   have hs : 18704 ≤ (rspOf m0).toNat := by have := hst.1; omega
   have h8 := hst.2.1

@@ -82,11 +82,35 @@ theorem pre_parts (h : ReadAnnouncedSizesPre bc a s m0) :
       Readable m0 (lA m0) layoutBytes ∧ OffStack m0 (lA m0) layoutBytes NS ∧
       RodataApart (lA m0) layoutBytes ∧ Apart (lA m0) layoutBytes rcAddr 192 ∧
       Apart (lA m0) layoutBytes (tA m0) tstateBytes ∧
-      Apart (lA m0) layoutBytes a.words (8 * a.len) := h
+      Apart (lA m0) layoutBytes a.words (8 * a.len) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, -⟩ := h
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13⟩
 
 theorem ctx (h : ReadAnnouncedSizesPre bc a s m0) : Ctx m0 (tA m0) a NS 208 :=
   let p := pre_parts h
   ⟨p.1, p.2.1, p.2.2.2.2.1, p.2.2.2.1.footprint, F_le⟩
+
+/-- The precise loader slots used by the transcript and layout callees. -/
+theorem pre_got (h : ReadAnnouncedSizesPre bc a s m0) :
+    GotAt m0 NS [(tA m0, tstateBytes), (a.words, 8 * a.len), (lA m0, layoutBytes), (rcAddr, 192)]
+      ["memcpy", "memset"] := by
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, hg⟩ := h
+  exact hg
+
+/-- Body writes preserve both slots. -/
+theorem got_bytes (h : ReadAnnouncedSizesPre bc a s m0) {d : MachineData} {o : Nat}
+    (hb : Bod m0 o d) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) = m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  obtain ⟨hst, -, -, hts, -, -, -, hlr, -⟩ := pre_parts h
+  exact got_keep (pre_got h) hst (writes := [(lA m0, layoutBytes), (tA m0, tstateBytes)])
+    (by simp) (by
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · exact hlr.2
+      · exact hts.footprint.1.2)
+    (hb.same.mono (by intro q hq; simpa [outs] using hq))
 
 /-- The outputs are apart from the frame and the return address. -/
 theorem outs_not_frame (h : ReadAnnouncedSizesPre bc a s m0) {q : BitVec 64} (hq : outs m0 q) :

@@ -53,7 +53,7 @@ its slices are mapped, do not wrap and are apart from that stack and the return 
 - `padding_weight(point, n)` (RDI, RSI; RDX): `paddingWeight point n` in RAX, RDX. The shifts
   are `shr` by CL (modulo 64): `|point| < 64`.
 - `selector_point(selector, out)` (RDI; RSI, RDX): `out` holds `selectorPoint selector |out|`.
-  Its `bt`s, expanded by the post-pass, push 16 bytes.
+  Its raw `bt`s select register bits without accessing memory.
 - `eq_eval_fn(n, |k| bit_e(selector, k), right)` (RDI, RSI, RDX, RCX; `eq_above`'s closure):
   `eqEval (selectorPoint selector n) right` in RAX, RDX. The `bt`s take the bit index modulo 64:
   `min n |right| ≤ 64`.
@@ -97,10 +97,9 @@ def indexMleFromStack : Nat := 64 + ewMulStack
 /-- The stack `padding_weight` uses: 6 pushes, its 56-byte frame, `EW::mul`'s return address and
 stack (its tail call's stack is within). -/
 def paddingWeightStack : Nat := 112 + ewMulStack
-/-- The stack `selector_point` uses: the two pushes of an expanded `bt`. -/
+/-- The existing `selector_point` contract reserves 16 bytes; raw `bt` uses no stack. -/
 def selectorPointStack : Nat := 16
-/-- The stack `eq_eval_fn` uses: 5 pushes, `EW::mul`'s return address and stack (the expanded
-`bt`'s two pushes within). -/
+/-- The stack `eq_eval_fn` uses: 5 pushes, `EW::mul`'s return address and stack. -/
 def eqEvalFnStack : Nat := 48 + ewMulStack
 /-- The stack `multilinear_eval_by` uses: 6 pushes, its 1160-byte frame (the pending entries and
 the `full` flags), `EW::mul`'s return address and stack. -/

@@ -423,10 +423,7 @@ def b29 : List Directive := [
 /-- Block 30, at `.LVerifyLayer_21`. -/
 def b30 : List Directive := [
   @Kraken.Directive.label Instr ConstExpr ".LVerifyLayer_21",  -- .LVerifyLayer_21:
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r9 Width.W64))))),  -- pushq %r9
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r9 Width.W64)) ShiftCountExpr.cl)),  -- shrq %cl, %r9
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r9 Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (1 : Int64))))),  -- shrq $1, %r9
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r9 Width.W64)))),  -- popq %r9
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.bt Width.W64 (Reg.low Reg64.r9 Width.W64) (@BitOffset.reg Width.W64 (Reg.low Reg64.rcx Width.W64)))),  -- btq %rcx, %r9
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.jcc Width.W64 CondCode.c ".LVerifyLayer_19"))  -- jb .LVerifyLayer_19
 ]
 
@@ -492,10 +489,7 @@ def b35 : List Directive := [
 /-- Block 36, at `.LVerifyLayer_26`. -/
 def b36 : List Directive := [
   @Kraken.Directive.label Instr ConstExpr ".LVerifyLayer_26",  -- .LVerifyLayer_26:
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.push Width.W64 (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64))))),  -- pushq %r8
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64)) ShiftCountExpr.cl)),  -- shrq %cl, %r8
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.shr Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64)) (ShiftCountExpr.imm8 (ConstExpr.int64 (1 : Int64))))),  -- shrq $1, %r8
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.pop Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.r8 Width.W64)))),  -- popq %r8
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.bt Width.W64 (Reg.low Reg64.r8 Width.W64) (@BitOffset.reg Width.W64 (Reg.low Reg64.rcx Width.W64)))),  -- btq %rcx, %r8
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.jcc Width.W64 CondCode.c ".LVerifyLayer_24"))  -- jb .LVerifyLayer_24
 ]
 

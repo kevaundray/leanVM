@@ -226,7 +226,13 @@ theorem publicInputPhase_spec (hp : Placed code k)
           have h1 : NativeRustcVm.Apart (reg m0 .rdi) 760 rcAddr 192 := htok1.2.2
           unfold NativeRustcVm.Apart at h1
           show (reg m0 .rdi).toNat + 328 ≤ _ ∨ _ ≤ (reg m0 .rdi).toNat
-          omega⟩, hts1.sponge⟩
+          omega⟩, hts1.sponge, got_call h fr1 hle_q ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl
+    · exact Apart.sub (((got h).1 l hl).2.2.2 (reg m0 .rdi, tstateBytes) (by simp))
+        (Nat.le_refl _) (by simp only [spongeBytes, tstateBytes]; omega)
+    · exact ((got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
   refine Fr.call hS N_ge (c := 0) (lo := 0) (len := 0) (by omega) (by simpa using hle_q)
     (fun p hp ↦ by have := slots_le p hp; have := slots_hi p hp; omega) (by omega)
     (fun q hq ↦ outs_not_frame h hq) (X := NativeRustcVm.InRange (reg m0 .rdi) spongeBytes)

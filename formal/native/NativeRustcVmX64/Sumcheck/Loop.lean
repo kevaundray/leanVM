@@ -342,6 +342,28 @@ theorem rounds_keep {d d' : Mem 64} {R : BitVec 64 → Prop} (hs : NativeRustcVm
 
 /-! ## The calls of a round -/
 
+
+/-- The loop's changes preserve the caller's loader slots. -/
+theorem gotAt (hf : SF m0 t sl n N F slots 0 d) {Nc : Nat} (hle : F + Nc ≤ N)
+    {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ (["memcpy"] : List Label), ∀ x ∈ areas, Apart (gotAddr l) 8 x.1 x.2) :
+    GotAt d Nc areas ["memcpy"] := by
+  refine g.ctx.gotAt (g.at_ hf) hle g.ok.2.2.2.2.2.2.2.2.2 hf.same ?_ ha
+  intro q hq
+  rcases hq with hq | hq | hq
+  · exact Or.inl hq
+  · exact Or.inr ⟨(t, tstateBytes), by simp, g.ctx.fp.1.2, hq⟩
+  · exact Or.inr ⟨(sl, 16 * n), by simp, g.slOk.2.1, hq⟩
+
+theorem got_area {l : Label} (hl : l ∈ (["memcpy"] : List Label)) {x : BitVec 64 × Nat}
+    (hx : x ∈ [(t, tstateBytes), (a.words, 8 * a.len), (out, 24), (sl, 16 * n),
+      (rcAddr, 192)]) : Apart (gotAddr l) 8 x.1 x.2 :=
+  (g.ok.2.2.2.2.2.2.2.2.2.1 l hl).2.2.2 x hx
+
+theorem got_frame {l : Label} (hl : l ∈ (["memcpy"] : List Label))
+    {o w : Nat} (how : o + w ≤ F) : Apart (gotAddr l) 8 (off (stackBelow m0 F) o) w :=
+  g.ctx.apart_of_stack (g.ok.2.2.2.2.2.2.2.2.2.1 l hl).2.2.1 how
+
 /-- `sumcheck_round_poly`'s precondition from the frame: `eq` at `Eo`, the message at `Mo`. -/
 theorem roundPolyPre (hf : SF m0 t sl n N F slots 0 d) {si : TState} {e : Option EW}
     {Mo Eo : Nat} (hE : 8 ≤ Eo) (hE' : Eo + 24 ≤ F) (hM : 8 ≤ Mo) (hM' : Mo + 80 ≤ F)
@@ -354,9 +376,18 @@ theorem roundPolyPre (hf : SF m0 t sl n N F slots 0 d) {si : TState} {e : Option
   have hle : F + roundPolyStack ≤ N := by have := g.le; have := rp_le; omega
   unfold RoundPolyPre
   rw [hrdi, hrsi, hr8, hr9]
-  exact ⟨c.stackOk hat hle, c.rcAt hat hle, hts, c.tstateOk hat hle, g.cnt2, g.cnt5, he,
+  refine ⟨c.stackOk hat hle, c.rcAt hat hle, hts, c.tstateOk hat hle, g.cnt2, g.cnt5, he,
     g.noWrap_local (by omega), c.apart_frame_callee hat hle hE hE',
-    c.outOk_frame hat hle hM (by unfold maxCount; omega)⟩
+    c.outOk_frame hat hle hM (by unfold maxCount; omega), ?_⟩
+  apply g.gotAt hf hle
+  intro l hl x hx
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+  rcases hx with rfl | rfl | rfl | rfl | rfl
+  · exact g.got_area hl (by simp)
+  · exact g.got_area hl (by simp)
+  · exact g.got_frame hl hE'
+  · exact g.got_frame hl hM'
+  · exact g.got_area hl (by simp)
 
 /-- **After `sumcheck_round_poly`**: the frame, the message and the next state on `some`, the
 slots and the frame's bytes apart from the message kept. -/
@@ -420,10 +451,21 @@ theorem squeezePre (hf : SF m0 t sl n N F slots 0 d) {si : TState}
   have hnw : t.toNat + 760 ≤ 2 ^ 64 := hfp.1.2
   refine ⟨c.stackOk hat hle, c.rcAt hat hle,
     ⟨fun j hj ↦ hfp.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_, ?_, ?_⟩,
-    hts.sponge⟩
+    hts.sponge, ?_⟩
   · show t.toNat + 328 ≤ 2 ^ 64; omega
   · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
   · show t.toNat + 328 ≤ _ ∨ _ ≤ t.toNat; omega
+  · apply g.gotAt hf hle
+    intro l hl x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl
+    · have ha := g.got_area hl (x := (t, tstateBytes)) (by simp)
+      change (gotAddr l).toNat + 8 ≤ t.toNat ∨
+        t.toNat + 328 ≤ (gotAddr l).toNat
+      change (gotAddr l).toNat + 8 ≤ t.toNat ∨
+        t.toNat + 760 ≤ (gotAddr l).toNat at ha
+      omega
+    · exact g.got_area hl (by simp)
 
 /-- **After `squeeze`**: the frame and its bytes from `8`, the challenge in RAX, RDX, the
 `TState` with the sponge squeezed, the slots kept. -/

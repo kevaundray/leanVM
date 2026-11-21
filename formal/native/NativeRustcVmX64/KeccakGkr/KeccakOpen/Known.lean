@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.Defs
 public import NativeRustcX64.Hasher.Bytes
+public import NativeRustcX64.Got
 
 /-!
 # `keccak_open`: the registers and saved words known around the fold (x86-64)
@@ -86,7 +87,8 @@ theorem eval_stable : ∀ (v : Sym), stable v = true → ∀ {e e' : Env}, e.reg
     simp only [Sym.eval]
     rw [eval_stable a h hr hv]
   | .reg _, h, _, _, _, _ => nomatch h
-  | .label _, h, _, _, _, _ => nomatch h
+  | .label _, _, _, _, _, _ => rfl
+  | .gotSlot _, h, _, _, _, _ => nomatch h
   | .load _ _ _, h, _, _, _, _ => nomatch h
   | .loadx _ _ _ _, h, _, _, _, _ => nomatch h
   | .retAddr, h, _, _, _, _ => nomatch h
@@ -149,6 +151,28 @@ theorem Words.keep (h : PreOk a s c m0) (hw : Words m0 vars ws st)
     rw [off_add, fb_off h (by omega)] at h1
     omega
 
+/-- The fold and its callees cannot overwrite the loader slot. -/
+theorem got_byte (h : PreOk a s c m0)
+    (hs : NativeRustcVm.SameOutside m0.dmem st.dmem (Out m0)) {i : Nat} (hi : i < 8) :
+    st.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+      some (byteOf (Labels.label "memcpy").toBitVec i) := by
+  have hg := h.got.1 "memcpy" (by simp)
+  have hn := nums h
+  rw [hs _ ?_]
+  · exact h.got.byte (by simp) hi
+  rintro ⟨r, hr, hq⟩
+  simp only [wsOf, List.mem_cons, List.not_mem_nil, or_false] at hr
+  rcases hr with rfl | rfl | rfl | rfl | rfl
+  · change NativeRustcVm.InRange (stackBelow m0 keccakOpenStack) keccakOpenStack _ at hq
+    exact hg.2.2.1.not_inRange hg.2.1 (noWrap_stackBelow h.st) hi
+      (inRange_mono hq (show keccakOpenStack ≤ keccakOpenStack + 8 by omega))
+  · exact (hg.2.2.2 (oA m0, 24) (by simp)).not_inRange hg.2.1 hn.o hi hq
+  · exact (hg.2.2.2 (tA m0, tstateBytes) (by simp)).not_inRange hg.2.1 hn.t hi hq
+  · change NativeRustcVm.InRange (slA m0) 96 _ at hq
+    exact (hg.2.2.2 (slA m0, 96) (by simp)).not_inRange hg.2.1 hn.s hi hq
+  · exact (hg.2.2.2 (rwA m0, 65536) (by simp [NativeRustcVm.KeccakGkr.rowsBytes])).not_inRange
+      hg.2.1 hn.w hi hq
+
 /-- The fold's regions are data memory, do not wrap and are apart. -/
 theorem wf_fold (h : PreOk a s c m0) (hk : Kept m0.dmem st.dmem) {ret : BitVec 64} :
     (E m0 st vars ret).WF := by
@@ -168,28 +192,41 @@ theorem wf_fold (h : PreOk a s c m0) (hk : Kept m0.dmem st.dmem) {ret : BitVec 6
   refine frame_wf ⟨Mapped.keeps (frame_mapped h.st (by rw [stack_eq]; decide)) hk,
     frame_noWrap h.st (by rw [stack_eq]; decide)⟩ (fun x hx ↦ ?_) ?_
   · simp only [RF, List.mem_cons, List.not_mem_nil, or_false] at hx
-    rcases hx with rfl | rfl | rfl
+    rcases hx with rfl | rfl | rfl | rfl
     · have := (Areas.ok hA ms).1
       dsimp only [ewsRegion] at this
       rw [e6] at this
       exact ⟨Mapped.keeps this hk, by show _ + 96 ≤ _; omega⟩
     · exact ⟨Mapped.keeps (Areas.ok hA mw).1 hk, by show _ + 65536 ≤ _; omega⟩
     · exact ⟨Mapped.keeps (Areas.ok hA mg).1 hk, by show _ + 48 ≤ _; rw [ha]; omega⟩
-  · simp only [RF]
+    · exact ⟨Mapped.keeps (h.got.mapped (by simp)) hk, (h.got.1 "memcpy" (by simp)).2.1⟩
+  · have hg := h.got.1 "memcpy" (by simp)
+    have hgf : NativeRustcVm.Apart (gotAddr "memcpy") 8 (fbA m0) 2216 :=
+      apart_frame hg.2.2.1 h.st.1 (by rw [stack_eq]; decide)
+    have hgs : NativeRustcVm.Apart (gotAddr "memcpy") 8 (slA m0) 96 :=
+      (apart_iff.mp (hg.2.2.2 (slA m0, 96) (by simp)))
+    have hgw : NativeRustcVm.Apart (gotAddr "memcpy") 8 (rwA m0) 65536 :=
+      (apart_iff.mp (hg.2.2.2 (rwA m0, 65536) (by simp [NativeRustcVm.KeccakGkr.rowsBytes])))
+    have hga : NativeRustcVm.Apart (gotAddr "memcpy") 8 (argA m0) 48 :=
+      (apart_iff.mp (hg.2.2.2 (argA m0, 48) (by simp)))
+    simp only [RF]
     refine List.pairwise_cons.mpr ⟨fun y hy ↦ ?_, List.pairwise_cons.mpr ⟨fun y hy ↦ ?_,
-      List.pairwise_cons.mpr ⟨fun y hy ↦ ?_, List.pairwise_singleton _ _⟩⟩⟩
+      List.pairwise_cons.mpr ⟨fun y hy ↦ ?_, List.pairwise_pair.mpr (Apart.symm' hga)⟩⟩⟩
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
-      show NativeRustcVm.Apart _ _ _ _
-      unfold NativeRustcVm.Apart
-      rcases hy with rfl | rfl | rfl <;> dsimp only <;> omega
+      rcases hy with rfl | rfl | rfl | rfl
+      · unfold NativeRustcVm.Apart; dsimp only; omega
+      · unfold NativeRustcVm.Apart; dsimp only; omega
+      · unfold NativeRustcVm.Apart; dsimp only; omega
+      · exact Apart.symm' hgf
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
-      show NativeRustcVm.Apart _ _ _ _
-      unfold NativeRustcVm.Apart
-      rcases hy with rfl | rfl <;> dsimp only <;> omega
+      rcases hy with rfl | rfl | rfl
+      · unfold NativeRustcVm.Apart; dsimp only; omega
+      · unfold NativeRustcVm.Apart; dsimp only; omega
+      · exact Apart.symm' hgs
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
-      show NativeRustcVm.Apart _ _ _ _
-      unfold NativeRustcVm.Apart
-      subst hy; dsimp only; omega
+      rcases hy with rfl | rfl
+      · unfold NativeRustcVm.Apart; dsimp only; omega
+      · exact Apart.symm' hgw
 
 /-- The stack arguments are kept where memory changed only in `Out`. -/
 theorem arg_keep (h : PreOk a s c m0) (hs : NativeRustcVm.SameOutside m0.dmem st.dmem (Out m0)) :
@@ -282,15 +319,21 @@ theorem kl_ok (h : PreOk a s c m0) {o : Nat} (hm : Mid cx m0 o st) {t : Nat} (hv
 /-- **The fold's symbolic state describes the machine.** -/
 theorem match_pS (h : PreOk a s c m0) (hm : Mid cx m0 8 st) (hk : KAt m0 vars ks st)
     (hwk : wfK ks = true) {ret : BitVec 64} : Match (E m0 st vars ret) (pS ks) st := by
-  refine match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩ ⟨hm.fr.rsp_eval, ?_⟩ trivial trivial
-    ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5, ?_, trivial⟩
-  · exact allOf_imp hk fun p hp hr ↦ by
-      have := List.all_eq_true.mp hwk p hp
-      simp only [Bool.and_eq_true] at this
-      exact hr.trans (eval_K st vars ret this.2)
-  · show (E m0 st vars ret).load 3 32 8 = (E m0 st vars ret).base 1 + BitVec.ofInt 64 0
-    rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h hm.same (by decide), ofInt0, BitVec.add_zero]
-    rfl
+  apply Match.withKnownBytes
+  · refine match_ofMachine ⟨rfl, rfl, rfl, rfl, rfl, trivial⟩ ⟨hm.fr.rsp_eval, ?_⟩ trivial trivial
+      ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5, ?_,
+        by simp [Sym.eval, RF, Env.base, gotAddr], trivial⟩
+    · exact allOf_imp hk fun p hp hr ↦ by
+        have := List.all_eq_true.mp hwk p hp
+        simp only [Bool.and_eq_true] at this
+        exact hr.trans (eval_K st vars ret this.2)
+    · show (E m0 st vars ret).load 3 32 8 = (E m0 st vars ret).base 1 + BitVec.ofInt 64 0
+      rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h hm.same (by decide), ofInt0, BitVec.add_zero]
+      rfl
+  · intro i hi
+    simpa only [RF, Nat.zero_add, Sym.eval, Env.base_ofMachine_eq, Env.ofMachine_mem0,
+      List.getElem?_cons_succ, List.getElem?_cons_zero, Option.map_some, Option.getD_some] using
+      got_byte h hm.same hi
 
 /-- **The known registers after a block.** -/
 theorem KAt.after {env : Env} {S : SState} (hm' : Match env S st') {kl : List (Sym × Sym)}

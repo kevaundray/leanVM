@@ -133,9 +133,20 @@ theorem call_level (hhp : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryL
       mapped_off hfm (by omega), g.noWrap (by omega) (by omega),
       g.apart_callee hsp (by omega) (by omega), g.apart_callee hsp (by omega) (by omega),
       g.apart_callee hsp (by omega) (by omega),
-      Apart.symm' (g.apart_of_stack hrcap (o := 80) (k := 32) (by omega) (by omega))⟩
-    exact not_inRange_of_apart hrcap hrc.2.1 (noWrap_stackBelow hst) h
-      (inRange_mono hq (Nat.le_succ_of_le (by omega)))
+      Apart.symm' (g.apart_of_stack hrcap (o := 80) (k := 32) (by omega) (by omega)), ?_⟩
+    · exact not_inRange_of_apart hrcap hrc.2.1 (noWrap_stackBelow hst) h
+        (inRange_mono hq (Nat.le_succ_of_le (by omega)))
+    · obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, hg⟩ := hpre
+      refine hg.transport (fun l hl i hi ↦ hsame _ ?_)
+        (fun l hl ↦ apart_callee (hg.1 l hl).2.2.1 hsp hst.1 hn') ?_
+      · exact not_inRange_of_apart (hg.1 l hl).2.2.1 (hg.1 l hl).2.1
+          (noWrap_stackBelow hst) (inRange_off_self hi (by decide)) ∘
+          (fun hq ↦ inRange_mono hq (by omega))
+      · intro l hl x hx
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+        rcases hx with rfl | rfl
+        · exact g.apart_of_stack (hg.1 l hl).2.2.1 (by omega) (by omega)
+        · exact (hg.1 l hl).2.2.2 _ (by simp)
   refine call_then hpc hhp hpre' fun st' hpc' hrsp' ⟨hpost, hso, hsv⟩ ↦ ?_
   rw [hdi] at hpost hso
   rw [hsi, hdx] at hpost

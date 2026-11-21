@@ -80,11 +80,24 @@ theorem setup_run (hms : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) Mems
   have hs := stack_facts hstk
   have h40 : (frame m0 + BitVec.ofNat 64 40).toNat = (frame m0).toNat + 40 :=
     frame_add_toNat hstk (by decide)
-  let env0 := Env.ofMachine m0 [(frame m0, 296)] (fun _ => 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b1Offset)).toBitVec
-  have hwf0 : env0.WF := frame_wf hstk fun _ h => h
-  have hm0 : Match env0 startEntry m0 :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨rsp_eval (frame_add m0).symm rfl, trivial⟩ trivial trivial
-      trivial
+  let env0 := Env.ofMachine m0 [(frame m0, 296), (gotAddr "memset", 8)] (fun _ => 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b1Offset)).toBitVec
+  obtain ⟨_, hgnw, hgs, _⟩ := g.got.1 "memset" (by simp)
+  have hgf : Apart (frame m0) 296 (gotAddr "memset") 8 := by
+    change Apart (gotAddr "memset") 8
+      (stackBelow m0 NativeRustcVmX64.keccak256WordsStack) _ at hgs
+    rw [WordsHash.stk_eq] at hgs
+    unfold Apart at hgs ⊢
+    omega
+  have hwf0 : env0.WF :=
+    Env.wf_of ⟨⟨frame_mapped hstk (fun _ h => h), frame_noWrap hstk⟩,
+      ⟨g.got.mapped (by simp), hgnw⟩, trivial⟩ (List.pairwise_pair.mpr hgf)
+  have hm0 : Match env0 startEntry m0 := by
+    refine Match.withKnownBytes ?_ ?_
+    · exact match_ofMachine ⟨rfl, rfl, trivial⟩
+        ⟨rsp_eval (frame_add m0).symm rfl, trivial⟩ trivial trivial
+        ⟨(BitVec.add_zero _).symm, trivial⟩
+    · intro i hi
+      simpa [env0, Env.base, Sym.eval] using g.got.byte (l := "memset") (by simp) hi
   have hb0 : env0.regions[0]? = some (frame m0, 296) := rfl
   refine exec_then (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) entry hwf0 (fun _ _ => rfl) hm0
     fun st1 hm1 hpc1 => ?_

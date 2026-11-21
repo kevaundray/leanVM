@@ -81,9 +81,23 @@ theorem entry_a (hp : Placed code k)
       (by decide)
   -- `subspace_table(μ)`
   have hP1 : SubspaceTablePre st1.data := by
-    refine ⟨hfr1.stackOk hl (by decide), ?_⟩
-    rw [e1rdi]
-    exact hfr1.whirIn_frame hl (by decide) (by decide) (by decide)
+    refine ⟨hfr1.stackOk hl (by decide), ?_, ?_⟩
+    · rw [e1rdi]
+      exact hfr1.whirIn_frame hl (by decide) (by decide) (by decide)
+    · apply hfr1.got_callee hl hpre.2.2.2 (got_nw hpre) (by intro q h; cases h) (by decide)
+      intro a ha
+      simp only [List.mem_singleton] at ha
+      subst a
+      have hsp : 3088 ≤ (rspOf m0).toNat := hl.sp
+      have hb : (stackBelow m0 eachRowFinalStack).toNat = (rspOf m0).toNat - 3088 := by
+        rw [hl.baseN, stack_eq]
+      refine ⟨(stackBelow m0 eachRowFinalStack, eachRowFinalStack + 8), by simp, ?_, ?_⟩
+      · change (stackBelow m0 eachRowFinalStack).toNat ≤ (reg st1.data .rdi).toNat
+        rw [e1rdi, hl.addr (o := 104) (by decide), hb]
+        omega
+      · change (reg st1.data .rdi).toNat + 512 ≤ (stackBelow m0 eachRowFinalStack).toNat + 3096
+        rw [e1rdi, hl.addr (o := 104) (by decide), hb]
+        omega
   refine call_then hpc1 htab hP1 fun st2 hpc2 hrsp2 hq ↦ ?_
   simp only [SubspaceTablePost] at hq
   obtain ⟨hval, hch, hsv⟩ := hq
@@ -100,14 +114,16 @@ theorem entry_a (hp : Placed code k)
   simp only at hpc2 hfr2 hs2 hsv htag htabb
   subst hpc2
   -- `b1`, `b2`
-  obtain ⟨hwf, hm⟩ := frame_env hpre hfr2 (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length)).toBitVec
+  obtain ⟨hwf, hm⟩ := hfr2.got_env hl hpre.2.2.2 (got_nw hpre) (by intro q h; cases h)
+    (by simp) (by simp : "memcpy" ∈ ["memcpy", "memset"])
+    (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length)).toBitVec
   have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hl104 : (EachRow.envE m0 d2 1936 24 [] (fun _ ↦ 0)
+  have hl104 : (EachRow.envE m0 d2 1936 24 [(gotAddr "memcpy", 8)] (fun _ ↦ 0)
       (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length)).toBitVec).load 0 104 4 = BitVec.ofNat 64 (1 : UInt64).toNat :=
     NativeRustcVmX64.Transcript.load4_of_tag (.inr rfl) htag
   have hlen : (tableOf m0).toList.length = (tableOf m0).size := Array.length_toList
-  have hl112 : (EachRow.envE m0 d2 1936 24 [] (fun _ ↦ 0)
+  have hl112 : (EachRow.envE m0 d2 1936 24 [(gotAddr "memcpy", 8)] (fun _ ↦ 0)
       (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length)).toBitVec).load 0 112 8 =
         BitVec.ofNat 64 (tableOf m0).size := by
     have := htabb.2.1
@@ -181,7 +197,7 @@ theorem entry_a (hp : Placed code k)
     rw [hlen] at this
     have : rootCap = 31 := rfl
     omega
-  have k1 : ∀ r, calleeSaved r = true → (after b2 (after b1 frameS)).reg r = some (.reg r) →
+  have k1 : ∀ r, calleeSaved r = true → (after b2 (after b1 (EachRow.gotFrameS 1936 24 "memcpy"))).reg r = some (.reg r) →
       reg d5 r = reg st1.data r := fun r hc hr ↦ by
     rw [sv hsv5 r hc, rv hm4 (by rw [← after_eq (exec_after run_b1 run_b2)]; exact hr)]
     exact sv hsv r hc

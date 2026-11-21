@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.FirstClaim.Tail
 public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcX64.Got
 
 /-!
 # `first_claim`: the result (x86-64)
@@ -86,22 +87,82 @@ theorem finish (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint
   have hom : NativeRustcVm.Mapped m0.dmem (outA m0) 776 :=
     (Areas.ok h.areas (List.mem_append_left _ List.mem_cons_self)).1
   -- `b15`: the value, `memcpy` of the instance weights.
-  have hwf := wf_body h hI.body.frame.kept (d := st.data) (vars := fun _ ↦ 0)
+  have hgot := hpre.2.2.2.2.2.2.2.2.2.2.2.2
+  have hg := hgot.1 "memcpy" (by simp)
+  have hgf : NativeRustcVm.Apart (gotAddr "memcpy") 8 (fbA m0) 1384 :=
+    apart_frame hg.2.2.1 h.st.1 (by rw [stack_eq]; decide)
+  have hga : NativeRustcVm.Apart (gotAddr "memcpy") 8 (argA m0) 24 :=
+    apart_iff.mp (hg.2.2.2 (argA m0, 24) (by simp))
+  have hgw := hgot.areas (areas' := [(outA m0, 776), (wA m0, 25600)])
+    (by
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl <;>
+        simp [NativeRustcVm.KeccakGkr.claimBytes, NativeRustcVm.KeccakGkr.weightsBytes])
+  have hkeep := hgw.unchanged h.st
+    (by
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · exact hn.o
+      · exact hn.w)
+    (hI.body.same.mono (by
+      intro q hq
+      rcases hq with ho | hw | hs
+      · exact .inr ⟨(outA m0, 776), by simp, inRange_iff.mpr ho⟩
+      · exact .inr ⟨(wA m0, 25600), by simp, inRange_iff.mpr hw⟩
+      · exact .inl hs))
+  have hfnw := frame_noWrap h.st (F := 1376) (by rw [stack_eq]; decide)
+  have hargn : NativeRustcVm.NoWrap (argA m0) 24 := by
+    change (argA m0).toNat + 24 ≤ 2 ^ 64
+    rw [argA_toNat h]; omega
+  have hfa : NativeRustcVm.Apart (fbA m0) 1384 (argA m0) 24 := by
+    unfold NativeRustcVm.Apart
+    rw [fbA_toNat h, argA_toNat h]
+    omega
+  have hwf : (frameEnv m0 st.data 1376 [(argA m0, 24), (gotAddr "memcpy", 8)]
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b15Offset + b15.length)).toBitVec).WF := by
+    apply frame_wf ⟨Mapped.keeps hfmap hI.body.frame.kept, hfnw⟩
+    · intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · exact ⟨Mapped.keeps h.args.1 hI.body.frame.kept, hargn⟩
+      · exact ⟨Mapped.keeps (hgot.mapped (by simp)) hI.body.frame.kept, hg.2.1⟩
+    · refine List.pairwise_cons.mpr ⟨?_, List.pairwise_pair.mpr (Apart.symm' hga)⟩
+      intro a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · exact hfa
+      · exact Apart.symm' hgf
+  have halias := arg_alias (m0 := m0) (d := st.data) (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b15Offset + b15.length)).toBitVec)
+  have hm : Match
+      (frameEnv m0 st.data 1376 [(argA m0, 24), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
+        (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b15Offset + b15.length)).toBitVec)
+      copyS st.data := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hI.body.frame.rsp_eval, trivial⟩
+        trivial trivial ⟨halias 0, halias 1, halias 2,
+          by simp [Sym.eval, Env.base, gotAddr], trivial⟩
+    · intro i hi
+      simp only [Nat.zero_add, Sym.eval, Env.base_ofMachine_eq, Env.ofMachine_mem0]
+      change st.data.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) = _
+      rw [hkeep "memcpy" (by simp) i hi]
+      exact hgot.byte (by simp) hi
   refine exec_at (infix_of b15_in_code (by simp [b15]) hp) exit_b15 hwf (fun _ _ ↦ rfl) hpc
-    (match_callS hI.body.frame) fun st1 hm1 hpc1 ↦ ?_
-  obtain ⟨hmid1, hwi1, hrdi, hrsi, hrdx, hr13, hrbp, hat1⟩ := ok_b15
+    hm fun st1 hm1 hpc1 ↦ ?_
+  obtain ⟨hmid1, hwi1, hrdi, hrsi, hrdx, hr13, hrbp, hat1, hr14⟩ := ok_b15
   have hf1 : Frame m0 1376 slots 0 st1.data := Frame.of_block hI.body.frame hwf hm1 hmid1 slots_le'
   have hs1 := sameOutside_touch hwf hm1 (r := 0) rfl (by decide) (within_spec hwi1)
   have hsp1 : rspOf st1.data = fbA m0 := by rw [hf1.sp, off_zero]
   have hso1 : NativeRustcVm.SameOutside m0.dmem st1.data.dmem (Out m0) := fun q hq ↦
     (hs1 q fun ht ↦ hq (touch_out h (fun _ hj ↦ by omega) ht)).trans (hI.body.same q hq)
-  have a0 : (frameEnv m0 st.data 1376 [(argA m0, 24)] (fun _ ↦ 0)
+  have a0 : (frameEnv m0 st.data 1376 [(argA m0, 24), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
       (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b15Offset + b15.length)).toBitVec).load 1 0 8 = stackArg m0 0 :=
-    load_arg h hI.body.same (i := 0) (by decide)
-  have a1 : (frameEnv m0 st.data 1376 [(argA m0, 24)] (fun _ ↦ 0)
+    load_arg h hI.body.same (i := 0) (by decide) [(gotAddr "memcpy", 8)]
+  have a1 : (frameEnv m0 st.data 1376 [(argA m0, 24), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
       (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b15Offset + b15.length)).toBitVec).load 1 8 8 = stackArg m0 1 :=
-    load_arg h hI.body.same (i := 1) (by decide)
+    load_arg h hI.body.same (i := 1) (by decide) [(gotAddr "memcpy", 8)]
   have v13 : UInt64.ofBitVec (reg st1.data .r13) =
       UInt64.ofBitVec (stackArg m0 0) ^^^ (lastOf segment lanePoint output).c0 := by
     rw [show reg st1.data .r13 = _ from hm1.regs .r13 _ hr13]
@@ -155,8 +216,14 @@ theorem finish (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint
   -- `b16`: `memcpy` of the point.
   have hwf2 := wf_body h hb2.frame.kept (d := st2.data) (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b16Offset + b16.length)).toBitVec)
+  have hm2 : Match (frameEnv m0 st2.data 1376 [(argA m0, 24)] (fun _ ↦ 0)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b16Offset + b16.length)).toBitVec)
+      copyRetS st2.data :=
+    match_ofMachine ⟨rfl, rfl, trivial⟩
+      ⟨hb2.frame.rsp_eval, (hsv2.1 .r14 rfl).trans (hm1.regs .r14 _ hr14), trivial⟩
+      trivial trivial ⟨arg_alias 0, arg_alias 1, arg_alias 2, trivial⟩
   refine exec_at (infix_of b16_in_code (by simp [b16]) hp) exit_b16 hwf2 (fun _ _ ↦ rfl)
-    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b15_next)) (match_callS hb2.frame)
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b15_next)) hm2
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hwi3, hrdi3, hrsi3, hrdx3, hat3⟩ := ok_b16
   have hf3 : Frame m0 1376 slots 0 st3.data := Frame.of_block hb2.frame hwf2 hm3 hmid3 slots_le'

@@ -4,6 +4,8 @@ public import NativeRustcVmX64.Whir.Common
 public import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel
 public meta import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel
 public meta import NativeRustcVmX64.Whir.Common
+public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.Frame
+public meta import NativeRustcVmX64.Whir.EachRowOfFinalLevel.Frame
 
 /-!
 # `each_row` with `next_level`'s closure: its blocks, run by the symbolic executor (x86-64)
@@ -54,8 +56,8 @@ end
 set_option Elab.async false
 
 sym_block run_b0 := exec b0 entryS
-sym_block run_b1 := exec b1 frameS
-sym_block run_b2 := exec b2 (after b1 frameS)
+sym_block run_b1 := exec b1 (EachRow.gotFrameS 1984 16 "memcpy")
+sym_block run_b2 := exec b2 (after b1 (EachRow.gotFrameS 1984 16 "memcpy"))
 sym_block run_b3 := exec b3 rowsS
 sym_block run_b4a := exec (b4.take 2) frameS
 sym_block run_b4b := exec (b4.drop 2) argS

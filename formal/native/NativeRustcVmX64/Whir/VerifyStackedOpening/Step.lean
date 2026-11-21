@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.Basic
 public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Got
 
 /-!
 # `verify_stacked_opening`: blocks and calls in its frame (x86-64)
@@ -64,6 +65,68 @@ theorem Ok.wf1 {st : MachineData} {o : Nat} (hok : Ok m0 st o) {x : BitVec 64} {
       subst hy
       exact ⟨Mapped.keeps hm hok.fr.kept, hnw⟩)
     (List.pairwise_pair.mpr (h.apart_fr hx))
+
+/-- All allowed writes remain apart from the actual loader-slot bytes. -/
+theorem Ok.got_bytes {st : MachineData} {o : Nat} (hok : Ok m0 st o) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      st.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  have hg := h.got.areas
+    (areas' := [(tA m0, tstateBytes), (scA m0, scalesBytes), (pA m0, whirBytes)])
+    (by intro ar har; simp only [List.mem_cons, List.not_mem_nil, or_false] at har; rcases har with rfl | rfl | rfl <;> simp)
+  apply NativeRustcVmX64.GotAt.unchanged_vm hg h.wt.1
+  · intro ar har
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with rfl | rfl | rfl
+    · exact h.ts.footprint.1.2
+    · exact h.so.1.2.1
+    · exact h.po.1.2.1
+  · intro q hq
+    apply hok.so q
+    rintro ((hp | hsc | ht) | hs)
+    · exact hq (.inr ⟨(pA m0, whirBytes), by simp, hp⟩)
+    · exact hq (.inr ⟨(scA m0, scalesBytes), by simp, hsc⟩)
+    · exact hq (.inr ⟨(tA m0, tstateBytes), by simp, ht⟩)
+    · exact hq (.inl hs)
+
+/-- The copy's GOT region is read-only and disjoint from the symbolic stack frame. -/
+theorem Ok.got_wf {st : MachineData} {o : Nat} (hok : Ok m0 st o)
+    {vars : Nat → BitVec 64} {ret : BitVec 64} :
+    (frameEnv m0 st 512 [(gotAddr "memcpy", 8)] vars ret).WF :=
+  hok.wf1 h (h.got.mapped (by simp)) (h.got.1 "memcpy" (by simp)).2.1
+    (h.got.1 "memcpy" (by simp)).2.2.1
+
+/-- The copy reads a label only after matching its loader bytes. -/
+theorem Ok.m_copy {st : MachineData} (hok : Ok m0 st 8)
+    {vars : Nat → BitVec 64} {ret : BitVec 64} :
+    Match (frameEnv m0 st 512 [(gotAddr "memcpy", 8)] vars ret) copyS st := by
+  have hm : Match (frameEnv m0 st 512 [(gotAddr "memcpy", 8)] vars ret)
+      (init [520, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot "memcpy", 1, 0)]) st :=
+    match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hok.fr.rsp_eval, trivial⟩ trivial trivial
+      ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes
+  intro i hi
+  simpa [Env.base, Sym.eval] using
+    (hok.got_bytes h "memcpy" (by simp) i hi).trans (h.got.byte (by simp) hi)
+
+/-- Transport the exact reached slots to a callee's contained stack and data areas. -/
+theorem Ok.got_callee {st : MachineData} (hok : Ok m0 st 0) {N : Nat}
+    {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hN : 512 + N ≤ verifyStackedOpeningStack)
+    (hlabels : symbols.Sublist ["memcpy", "memset"])
+    (hcover : ∀ ar ∈ areas, ∃ b ∈
+      (stackBelow m0 verifyStackedOpeningStack, verifyStackedOpeningStack + 8) ::
+        ([(tA m0, tstateBytes), (a.words, 8 * a.len), (scA m0, scalesBytes), (pA m0, whirBytes)] ++
+          (vsoInputs m0).map (fun r => (r.addr, r.size)) ++ rodataAreas),
+      b.1.toNat ≤ ar.1.toNat ∧ ar.1.toNat + ar.2 ≤ b.1.toNat + b.2) :
+    GotAt st N areas symbols := by
+  have hsp : rspOf st = stackBelow m0 512 := by simpa [off] using hok.fr.sp
+  have hd : (stackBelow st N).toNat = (rspOf m0).toNat - 512 - N := by
+    rw [stackBelow_toNat (by rw [hsp, h.fbn]; have := h.rsp.1; rw [stack_eq] at hN; omega),
+      hsp, h.fbn]
+  apply NativeRustcVmX64.GotAt.callee (h.got.symbols hlabels)
+    (fun l hl i hi => hok.got_bytes h l (hlabels.subset hl) i hi) _ _ hcover <;>
+    rw [hd, h.sb] <;> have := h.rsp.1 <;> rw [stack_eq] at * <;> omega
 
 /-- The frame and two more areas, apart from the stack and each other, as an environment. -/
 theorem Ok.wf2 {st : MachineData} {o : Nat} (hok : Ok m0 st o) {x y : BitVec 64} {n l : Nat}

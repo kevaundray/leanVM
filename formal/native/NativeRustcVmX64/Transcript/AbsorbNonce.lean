@@ -39,7 +39,7 @@ theorem absorbNonce_spec (hp : Placed code k)
     (habs : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorb.entryLabel) (AbsorbPre sp) (AbsorbPost sp))
     (hdup : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
     Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorbNonce.entryLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp) := by
-  rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
+  rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp, hgot⟩
   set p := reg m0 .rdi with hpdef
   have hn : absorbNonceStack ≤ (rspOf m0).toNat := hst.1
   have h8 : (rspOf m0).toNat + 8 ≤ 2 ^ 64 := hst.2.1
@@ -99,7 +99,11 @@ theorem absorbNonce_spec (hp : Placed code k)
     rw [hX7]
     exact ⟨stackOk_callee hst hf1.kept hsp1r (by decide),
       RcAt.callee hrc (rc_keep hso1 hrcOut) hsp1r hn (by decide),
-      ⟨Mapped.keeps hmap hf1.kept, hnw, apart_callee hapS hsp1r hn (by decide), hapR⟩, hsp1⟩
+      ⟨Mapped.keeps hmap hf1.kept, hnw, apart_callee hapS hsp1r hn (by decide), hapR⟩, hsp1,
+      got_callee hgot (got_keep hgot hst (writes := [(p, spongeBytes)])
+        (by simp [p]) (by intro b hb; obtain rfl := List.mem_singleton.mp hb; exact hnw)
+        (by simpa [spongeBytes] using hso1))
+        hsp1r hn (by decide) (fun l hl => (hgot.1 l hl).2.2.2)⟩
   refine call_then hpc1 (habs sp) hpre1 fun st2 hpc2 hrsp2 ⟨hsp2, hs2, hsv2⟩ => ?_
   simp only [hX7, hX4, hX2, hX1] at hsp2 hs2
   have hcal2 : ∀ q, NativeRustcVm.InRange (stackBelow st1.data absorbStack) absorbStack q →
@@ -154,7 +158,11 @@ theorem absorbNonce_spec (hp : Placed code k)
     rw [hX7']
     exact ⟨stackOk_callee hst hf3.kept hsp3r (by decide),
       RcAt.callee hrc (rc_keep hso3 hrcOut) hsp3r hn (by decide),
-      ⟨Mapped.keeps hmap hf3.kept, hnw, apart_callee hapS hsp3r hn (by decide), hapR⟩, hsp3⟩
+      ⟨Mapped.keeps hmap hf3.kept, hnw, apart_callee hapS hsp3r hn (by decide), hapR⟩, hsp3,
+      got_callee hgot (got_keep hgot hst (writes := [(p, spongeBytes)])
+        (by simp [p]) (by intro b hb; obtain rfl := List.mem_singleton.mp hb; exact hnw)
+        (by simpa [spongeBytes] using hso3))
+        hsp3r hn (by decide) (fun l hl => (hgot.1 l hl).2.2.2)⟩
   refine call_then hpc3 (hdup _) hpre3 fun st4 hpc4 hrsp4 ⟨hsp4, hs4, hsv4⟩ => ?_
   rw [hX7'] at hsp4 hs4
   have hcal4 : ∀ q, NativeRustcVm.InRange (stackBelow st3.data duplexStack) duplexStack q →

@@ -91,6 +91,10 @@ structure Ctx (a : DecArea) (s0 : TState) (levels : List Whir.Level) (ba : Basis
   bap : BasisApart (bA m0) ba
   at' : NativeRustcVm.Apart (rspOf m0 + 8#64) 8 (tA m0) tstateBytes
   ap : NativeRustcVm.Apart (rspOf m0 + 8#64) 8 (pA m0) whirBytes
+  got : GotAt m0 whirLevelsStack
+    ([(tA m0, tstateBytes), (a.words, 8 * a.len), (pA m0, whirBytes),
+      (lvA m0, levelBytes * levels.length), (rspOf m0 + 8#64, 8)] ++ rodataAreas)
+    ["memcpy", "memset"]
 
 /-- **The loop's registers and the frame's words** at level `k`, RSP at offset `o`: RBX the level,
 R12 `24` times the levels left, R13 `k - 1`, R15 the `TState`, RBP the state; the words `24` (the
@@ -177,11 +181,11 @@ variable [Labels] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : B
 theorem Ctx.of_pre (h : WhirLevelsPre a s0 levels ba b claim m0) :
     ∃ rate, Ctx a s0 levels ba b claim m0 rate := by
   obtain ⟨hwt, hargs, hts, hroots, ⟨rate, hlad⟩, hlen, hlvs, hbw, hws, hpo, hlin, hlp, hlt, hbp,
-    hbt, hbap, hat, hap⟩ := h
+    hbt, hbap, hat, hap, hgot⟩ := h
   by_cases hadm : Whir.Admissible (reg m0 .rsi).toNat rate
   · rw [ladder_eq hadm, Option.some.injEq] at hlad
     exact ⟨rate, hwt, hargs, hts, hroots, hadm, hlad.symm, hlen, hlvs, hbw, hws, hpo, hlin, hlp,
-      hlt, hbp, hbt, hbap, hat, hap⟩
+      hlt, hbp, hbt, hbap, hat, hap, hgot⟩
   · rw [ladder_none hadm] at hlad
     cases hlad
 

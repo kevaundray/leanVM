@@ -28,7 +28,7 @@ theorem row2_0 (hp : Placed code k) (h : PreOk a s c m0)
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b23Offset) ∧
       Row cx m0 rows 2 1 (varsOf cx.sl 2 0) k18 w19 st'.data) st := by
   refine (row_run (t := 2) (i := 0) (vars := varsOf cx.sl 2 0) (dst := 0)
-    (ks0 := []) (ks1 := k18) (ks2 := k18) (ks := k18)
+    (ks0 := []) (ks1 := kCopy k18) (ks2 := k18) (ks := k18)
     (ws0 := []) (ws1 := []) (ws2 := w19) (ws := w19)
     (ib := .rbx) (cx0 := .rbp) (cx1 := .r12) (lo0 := .r14) (lo1 := .r15)
     (dr := .r13) (s0 := 8) (so := 8)

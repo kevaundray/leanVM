@@ -214,7 +214,7 @@ public theorem ok_b7 : MidOk 1408 0 slots (after b7 sS) = true ∧
     WordW 0 24 lenS (after b7 sS) ∧ WordW 0 96 (.ptr 1 56) (after b7 sS) ∧
     (after b7 sS).reg .rdi = some (.ptr 0 112) ∧ (after b7 sS).reg .rsi = some (.reg .r15) ∧
     (after b7 sS).reg .rdx = some (.reg .rax) ∧ (after b7 sS).reg .rcx = some (.reg .r10) ∧
-    (after b7 sS).reg .r8 = some (.bin .or .W64 (.lit 1) powS) ∧
+    (after b7 sS).reg .r8 = some (.bin .bts .W64 (.lit 1) (.reg .rbx)) ∧
     (after b7 sS).reg .r9 = some (.ite (.cmp .ult .W64 (.load 1 48 8) (.lit 64)) (.ptr 1 56) (.lit 8)) ∧
     (after b7 sS).reg .r12 = some powS ∧ (after b7 sS).reg .r13 = some lenS ∧
     (after b7 sS).reg .r14 = some (.ptr 1 0) ∧

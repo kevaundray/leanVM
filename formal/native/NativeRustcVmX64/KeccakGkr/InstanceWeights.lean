@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.KeccakGkr.Common
 public import NativeRustcVmX64.KeccakGkr.InstanceWeights.Exec
 public import NativeRustcVmX64.KeccakGkr.InstanceWeights.Items
+public import NativeRustcX64.Got
 public import NativeRustcVmX64.Code.Vm.InstanceWeights.Names
 public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 public import NativeRustcVmX64.Code.Vm.Powers.Names
@@ -15,7 +16,7 @@ result's address at `512` and calls `powers` into the frame's buffer at `112`. T
 environment, `b1`, the fourteen turns of the loop and the tail (`b3`) sum the powers into the
 frame's `Buf` at `736` (`buf_bytes`), which `memcpy` copies to the result; the epilogue (`b4`)
 returns. Region 0 is the 1048 bytes below the entry's RSP and the return address: the body's RSP
-at offset `16`, its calls' return address at `8`, the post-pass's expanded `bt`s pushing at `0`.
+at offset `16`, its calls' return address at `8`, and eight unused bytes at `0`.
 -/
 
 namespace NativeRustcVmX64.KeccakGkr.InstanceWeights
@@ -39,7 +40,7 @@ theorem instanceWeights_spec (hp : Placed code k)
     (hpow : Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost)
     (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
     Spec (Labels.label NativeRustcVmX64.Vm.InstanceWeights.entryLabel) InstanceWeightsPre InstanceWeightsPost := by
-  rintro m0 ⟨hst, hA⟩
+  rintro m0 ⟨hst, hA, hgot⟩
   set out := reg m0 .rdi with hout
   set fb := stackBelow m0 1048 with hfb
   have hn : instanceWeightsStack ≤ (rspOf m0).toNat := hst.1
@@ -138,19 +139,48 @@ theorem instanceWeights_spec (hp : Placed code k)
       rw [off_add]
       exact hch' _ (hslot _ (by omega) (by omega))
   -- `b1`, the loop and the tail, in one environment.
-  have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 1048) (rest := []) (vars := fun _ ↦ 0)
+  have hg := hgot.1 "memcpy" (by simp)
+  have hgF : NativeRustcVm.Apart (gotAddr "memcpy") 8 fb 1056 :=
+    apart_frame hg.2.2.1 hn hN
+  have hgot2 := hgot.unchanged hst
+    (by
+      intro a ha
+      simp only [List.mem_singleton] at ha
+      subst a
+      exact hok.2)
+    (hso2.mono fun _ h ↦ Or.inl h)
+  have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 1048)
+    (rest := [(gotAddr "memcpy", 8)]) (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
-    ⟨Mapped.keeps hfmap hf2.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
+    ⟨Mapped.keeps hfmap hf2.kept, hfnw⟩
+    (by
+      intro r hr
+      simp only [List.mem_singleton] at hr
+      subst r
+      exact ⟨Mapped.keeps (hgot.mapped (by simp)) hf2.kept, hg.2.1⟩)
+    (List.pairwise_pair.mpr (Apart.symm' hgF))
+  have hm2 : Match
+      (frameEnv m0 st2.data 1048 [(gotAddr "memcpy", 8)] (fun _ ↦ 0)
+        (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
+      bodyS st2.data := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial
+        ⟨by simp [Sym.eval, Env.base, gotAddr], trivial⟩
+    · intro i hi
+      simp only [Nat.zero_add, Sym.eval, Env.base_ofMachine_eq, Env.ofMachine_mem0]
+      change st2.data.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) = _
+      rw [hgot2 "memcpy" (by simp) i hi]
+      exact hgot.byte (by simp) hi
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
     (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.InstanceWeights.b0_next))
-    (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
+    hm2
     fun st3 hm3 hpc3 => ?_
   simp only [PcOk] at hpc3
   refine (loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset) ∧
-      Match (frameEnv m0 st2.data 1048 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
+      Match (frameEnv m0 st2.data 1048 [(gotAddr "memcpy", 8)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
         (it 14) s'.data)
     (fun n s ↦ ∃ j, n = 14 - j ∧ j < 14 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b2Offset) ∧
-      Match (frameEnv m0 st2.data 1048 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
+      Match (frameEnv m0 st2.data 1048 [(gotAddr "memcpy", 8)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
         (it j) s.data)
     (fun _ s ⟨j, hn, hj, hpc, hm⟩ ↦ exec_at (infix_of b2_in_code b2_ne hp) (loop_exec hj)
       hwf2 nofun hpc hm fun s' hm' hpc' ↦ by

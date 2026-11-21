@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Spec.Sumcheck
 public import NativeRustcVmX64.Spec.Layout
+public import NativeRustcX64.Spec.Got
 public import NativeRustcVm.KeccakGkr.Rep
 public import NativeRustcVm.Layout.Rep
 public import NativeRustcVm.Tables.Rep
@@ -28,6 +29,10 @@ call, its callees' return addresses and stacks; `StackOk` also maps its return a
 and returns with the callee-saved registers kept (and RSP 8 above, `Spec`), no byte changed
 outside the regions it writes and that stack (`Writes`). The regions it writes and the stack with
 the return address are data memory, pairwise apart and apart from the regions it reads (`Areas`).
+Functions that call `memcpy`, directly or through transcript and sumcheck callees, additionally
+require its actual loader slot bytes (`GotAt`). That read-only slot is protected from the same
+caller areas, stack arguments and read-only tables; it is never a writable region. The GKR call
+graph does not reach `memset`. Pure arithmetic and permutation helpers have no loader premise.
 The transcript's state is `TStateAt` (`NativeRustcVm.Transcript`), a claim but its bit weights
 `ClaimAt`, the bit weights `WeightsAt`, `KeccakOutW` `KeccakOutAt` (`NativeRustcVm.KeccakGkr`),
 the column claims `ClaimsWAt` (`NativeRustcVm.Layout`), the tables' evaluations `TableEvalsAt`
@@ -82,8 +87,8 @@ open NativeRustcVm (Region Disjoint InAny)
 def keccakPiStack : Nat := 0
 /-- The stack `linear_transpose` uses: 7 pushes, `keccak_pi`'s return address and stack. -/
 def linearTransposeStack : Nat := 56 + 8 + keccakPiStack
-/-- The stack `instance_weights` uses: 6 pushes, its 984-byte frame, `powers`'s return address
-and stack (above `memcpy`'s and the two pushes of an expanded `bt`). -/
+/-- The stack `instance_weights` uses: 6 pushes, its 984-byte frame, `powers`' return address
+and stack (above `memcpy`'s). -/
 def instanceWeightsStack : Nat := 48 + 984 + 8 + powersStack
 /-- The stack `slot_weights` uses: 6 pushes, its 104-byte frame, the return address and the larger
 stack of `eq_kernel`'s and `EW::mul`'s. -/
@@ -99,7 +104,7 @@ def firstClaimStack : Nat :=
   48 + 1320 + 8 + max eqKernelStack (max ewMulStack (max dotStack bufEWExtendStack))
 /-- The stack `verify_layer` uses: 6 pushes, its 1944-byte frame, then the 16 bytes of stack
 arguments (and padding) it pushes for the two `sumcheck`s, or none for the other callees, a
-return address and the callee's stack (`memcpy` uses none; an expanded `bt` pushes 8 bytes). -/
+return address and the callee's stack (`memcpy` uses none). -/
 def verifyLayerStack : Nat :=
   48 + 1944 + 8 + max (16 + max sumcheckPlainStack sumcheckLayerStack)
     (max (max (max readScalarsStack grindStack) (max squeezeStack instanceWeightsStack))
@@ -204,7 +209,8 @@ def LinearTransposePost (ws : Array EW) (m m' : MachineData) : Prop :=
 
 /-- `instance_weights`'s precondition: the result's `Buf<EW, 16>` (264 bytes) at RDI. -/
 def InstanceWeightsPre (m : MachineData) : Prop :=
-  StackOk m instanceWeightsStack ∧ Areas m instanceWeightsStack [⟨reg m .rdi, 264⟩] []
+  StackOk m instanceWeightsStack ∧ Areas m instanceWeightsStack [⟨reg m .rdi, 264⟩] [] ∧
+    GotAt m instanceWeightsStack [(reg m .rdi, 264)] ["memcpy"]
 
 /-- `instance_weights`'s postcondition. -/
 def InstanceWeightsPost (m m' : MachineData) : Prop :=
@@ -261,7 +267,11 @@ def KeccakOpenPre (a : DecArea) (s : TState) (c : KeccakClaimW) (m : MachineData
     (openFirst m).toNat + (openCount m).toNat ≤ keccakSegments ∧
     Areas m keccakOpenStack
       [⟨out, 24⟩, ⟨t, tstateBytes⟩, ewsRegion (openSlot m) qkeccakSlotBits, ⟨openRows m, rowsBytes⟩]
-      [a.region, ewsRegion pt c.point.size, ⟨w, weightsBytes⟩, rcRegion, argsRegion m 6]
+      [a.region, ewsRegion pt c.point.size, ⟨w, weightsBytes⟩, rcRegion, argsRegion m 6] ∧
+    GotAt m keccakOpenStack
+      [(out, 24), (t, tstateBytes), (openSlot m, 16 * qkeccakSlotBits), (openRows m, rowsBytes),
+        (a.region.addr, a.region.size), (pt, 16 * c.point.size), (w, weightsBytes),
+        (rcAddr, 192), (rspOf m + 8#64, 48)] ["memcpy"]
 
 /-- `keccak_open`'s postcondition. -/
 def KeccakOpenPost (a : DecArea) (s : TState) (c : KeccakClaimW) (m m' : MachineData) : Prop :=
@@ -295,7 +305,10 @@ def FirstClaimPre (inst segment lanePoint output : Array EW) (m : MachineData) :
     output.size = 25 ∧ NativeRustcVm.EWsAt m.dmem (reg m .r9) output.toList ∧
     Areas m firstClaimStack [⟨out, 8 + claimBytes⟩, ⟨firstWeights m, weightsBytes⟩]
       [ewsRegion ip inst.size, ewsRegion (reg m .rcx) 1, ewsRegion (reg m .r8) 5,
-        ewsRegion (reg m .r9) 25, argsRegion m 3]
+        ewsRegion (reg m .r9) 25, argsRegion m 3] ∧
+    GotAt m firstClaimStack
+      [(out, 8 + claimBytes), (firstWeights m, weightsBytes), (ip, 16 * inst.size),
+        (reg m .rcx, 16), (reg m .r8, 80), (reg m .r9, 400), (rspOf m + 8#64, 24)] ["memcpy"]
 
 /-- `first_claim`'s postcondition. -/
 def FirstClaimPost (inst segment lanePoint output : Array EW) (m m' : MachineData) : Prop :=
@@ -320,7 +333,10 @@ def VerifyLayerPre (a : DecArea) (s : TState) (c : KeccakClaimW) (m : MachineDat
     TStateAt m.dmem t a s ∧ ClaimAt m.dmem cp c ∧ WeightsAt m.dmem (off sc weightsOff) c ∧
     (reg m .rdx).toNat < keccakDepth ∧ SegmentsFit (reg m .rsi).toNat c ∧
     Areas m verifyLayerStack [⟨t, tstateBytes⟩, ⟨cp, claimBytes⟩, ⟨sc, scratchBytes⟩]
-      [a.region, rcRegion, projectRegion, rhoRegion]
+      [a.region, rcRegion, projectRegion, rhoRegion] ∧
+    GotAt m verifyLayerStack
+      [(t, tstateBytes), (cp, claimBytes), (sc, scratchBytes), (a.region.addr, a.region.size),
+        (rcAddr, 192), (projectAddr, 128), (rhoAddr, 100)] ["memcpy"]
 
 /-- `verify_layer`'s postcondition. -/
 def VerifyLayerPost (a : DecArea) (s : TState) (c : KeccakClaimW) (m m' : MachineData) : Prop :=
@@ -354,7 +370,11 @@ def VerifyKeccakPre (a : DecArea) (s : TState) (cs : Array ColumnClaimW) (inst o
     Areas m verifyKeccakStack
       [⟨t, tstateBytes⟩, ⟨sc, scratchBytes⟩, ⟨cl, NativeRustcVm.Layout.claimsBytes⟩, ⟨out, outBytes⟩]
       [a.region, ewsRegion ip inst.size, ewsRegion op 25, rcRegion, projectRegion, rhoRegion,
-        argsRegion m 2]
+        argsRegion m 2] ∧
+    GotAt m verifyKeccakStack
+      [(t, tstateBytes), (sc, scratchBytes), (cl, NativeRustcVm.Layout.claimsBytes), (out, outBytes),
+        (a.region.addr, a.region.size), (ip, 16 * inst.size), (op, 400),
+        (rcAddr, 192), (projectAddr, 128), (rhoAddr, 100), (rspOf m + 8#64, 16)] ["memcpy"]
 
 /-- `verify_keccak`'s postcondition. -/
 def VerifyKeccakPost (a : DecArea) (s : TState) (cs : Array ColumnClaimW) (inst output : Array EW)
@@ -386,7 +406,11 @@ def KeccakPhasePre (a : DecArea) (s : TState) (cs : Array ColumnClaimW) (layout 
     keccakOut ≤ (evals.getD opKeccak (#[], #[])).2.size ∧
     Areas m keccakPhaseStack
       [⟨t, tstateBytes⟩, ⟨sc, scratchBytes⟩, ⟨cl, NativeRustcVm.Layout.claimsBytes⟩, ⟨out, outBytes⟩]
-      [a.region, ⟨ev, NativeRustcVm.Tables.tableEvalsBytes⟩, rcRegion, projectRegion, rhoRegion]
+      [a.region, ⟨ev, NativeRustcVm.Tables.tableEvalsBytes⟩, rcRegion, projectRegion, rhoRegion] ∧
+    GotAt m keccakPhaseStack
+      [(t, tstateBytes), (sc, scratchBytes), (cl, NativeRustcVm.Layout.claimsBytes), (out, outBytes),
+        (a.region.addr, a.region.size), (ev, NativeRustcVm.Tables.tableEvalsBytes),
+        (rcAddr, 192), (projectAddr, 128), (rhoAddr, 100)] ["memcpy"]
 
 /-- `keccak_phase`'s postcondition. -/
 def KeccakPhasePost (a : DecArea) (s : TState) (cs : Array ColumnClaimW) (layout : LayoutW)

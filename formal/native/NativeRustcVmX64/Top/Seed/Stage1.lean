@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Top.Seed.Exec
 public import NativeRustcVmX64.Top.Basic
 public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfFiatShamirIv.Names
 public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Got
 
 /-!
 # `seed` up to `memset` (x86-64)
@@ -43,9 +44,91 @@ structure S1 [Labels] (m0 d : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
+/-- Loader slots are outside the whole local frame, including the return address. -/
+theorem got_frame_apart {m0 : MachineData} {areas : List (BitVec 64 × Nat)}
+    {symbols : List Label} (hst : StackOk m0 seedStack)
+    (hg : GotAt m0 seedStack areas symbols) {l : Label} (hl : l ∈ symbols) :
+    NativeRustcVm.Apart (gotAddr l) 8 (fb m0) 248 := by
+  have hs := (hg.1 l hl).2.2.1
+  change NativeRustcVm.Apart (gotAddr l) 8 (stackBelow m0 seedStack) (seedStack + 8) at hs
+  have hn := hst.1
+  have hb := stackBelow_toNat (m := m0) (n := 240) (by change 1008 ≤ _ at hn; omega)
+  have hsb := stackBelow_toNat hn
+  unfold NativeRustcVm.Apart at hs ⊢
+  change 1008 ≤ _ at hn
+  have hss : seedStack = 1008 := rfl
+  rw [hss] at hsb hs
+  change (gotAddr l).toNat + 8 ≤ (stackBelow m0 240).toNat ∨
+    (stackBelow m0 240).toNat + 248 ≤ (gotAddr l).toNat
+  omega
+
+/-- Every intermediate seed write is below the entry stack pointer. -/
+theorem got_keep {m0 d d' : MachineData} {areas : List (BitVec 64 × Nat)}
+    {symbols : List Label} {writes : BitVec 64 → Prop}
+    (hst : StackOk m0 seedStack) (hg : GotAt m0 seedStack areas symbols)
+    (hs : NativeRustcVm.SameOutside d.dmem d'.dmem writes)
+    (hw : ∀ q, writes q →
+      (stackBelow m0 seedStack).toNat ≤ q.toNat ∧ q.toNat < (rspOf m0).toNat) :
+    ∀ l ∈ symbols, ∀ i < 8,
+      d'.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  intro l hl i hi
+  apply hs
+  intro h
+  have hq := hw _ h
+  obtain ⟨_, hgn, hgs, _⟩ := hg.1 l hl
+  change NativeRustcVm.Apart (gotAddr l) 8 (stackBelow m0 seedStack) (seedStack + 8) at hgs
+  have hb := stackBelow_toNat hst.1
+  have hgn' : (gotAddr l).toNat + 8 ≤ 2 ^ 64 := hgn
+  rw [NativeRustcVm.toNat_add_ofNat (by omega)] at hq
+  unfold NativeRustcVm.Apart at hgs
+  omega
+
+/-- Both Keccak leaves use a subframe and a state inside seed's protected stack. -/
+theorem got_leaf {m0 d : MachineData} {areas : List (BitVec 64 × Nat)}
+    {symbols : List Label} {n bytes : Nat}
+    (hst : StackOk m0 seedStack) (hg : GotAt m0 seedStack areas symbols)
+    (hrc : (rcAddr, 192) ∈ areas) (hsp : rspOf d = fb m0)
+    (hn : n ≤ 768) (hbytes : bytes ≤ 200)
+    (hkeep : ∀ l ∈ symbols, ∀ i < 8,
+      d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i)) :
+    GotAt d n [(off (fb m0) 16, bytes), (rcAddr, 192)] symbols := by
+  have hstn := hst.1
+  have hst8 := hst.2.1
+  have hsb := stackBelow_toNat hstn
+  have hfb : (fb m0).toNat = (rspOf m0).toNat - 240 :=
+    stackBelow_toNat (m := m0) (n := 240) (by change 1008 ≤ _ at hstn; omega)
+  have hdn := stackBelow_callee hsp (show 240 + n ≤ (rspOf m0).toNat by
+    change 1008 ≤ _ at hstn; omega)
+  have hdb := stackBelow_toNat (m := m0) (n := 240 + n) (by
+    change 1008 ≤ _ at hstn; omega)
+  have ha : (off (fb m0) 16).toNat = (fb m0).toNat + 16 :=
+    toNat_off (by change 1008 ≤ _ at hstn; omega)
+  apply hg.transport hkeep
+  · intro l hl
+    have hs := (hg.1 l hl).2.2.1
+    change NativeRustcVm.Apart (gotAddr l) 8 (stackBelow m0 seedStack) (seedStack + 8) at hs
+    change NativeRustcVm.Apart (gotAddr l) 8 (stackBelow d n) (n + 8)
+    rw [hdn]
+    unfold NativeRustcVm.Apart at hs ⊢
+    have hss : seedStack = 1008 := rfl
+    rw [hss] at hsb hs
+    omega
+  · intro l hl a ha'
+    rcases List.mem_cons.mp ha' with rfl | ha'
+    · have hs := got_frame_apart hst hg hl
+      change NativeRustcVm.Apart (gotAddr l) 8 (off (fb m0) 16) bytes
+      unfold NativeRustcVm.Apart at hs ⊢
+      omega
+    · have he := List.mem_singleton.mp ha'
+      subst a
+      exact (hg.1 l hl).2.2.2 _ hrc
+
 theorem lenSym_eval {env : Env} (h : 9 + 8 * (env.regs .rdx).toNat < 2 ^ 32) :
     (lenSym.eval env).toNat = 9 + 8 * (env.regs .rdx).toNat := by
-  simp only [lenSym, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add, BitVec.toNat_ofNat]
+  simp only [lenSym, Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add,
+    BitVec.toNat_mul, BitVec.toNat_ofNat]
   omega
 
 /-- **`seed` up to `memset`.** -/
@@ -55,7 +138,7 @@ theorem stage1 (hp : Placed code k)
     (hpre : SeedPre m0) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b2Offset) ∧ S1 m0 st.data)
       ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b0Offset)⟩ := by
-  obtain ⟨hst, hrc, hn32, ⟨hbcM, hbcN⟩, -, -, -, -, hbcA⟩ := hpre
+  obtain ⟨hst, hrc, hn32, ⟨hbcM, hbcN⟩, -, -, -, -, hbcA, hgot⟩ := hpre
   have hbcN' : (reg m0 .rsi).toNat + 8 * (reg m0 .rdx).toNat ≤ 2 ^ 64 := hbcN
   have hss : seedStack = 1008 := rfl
   have hks : keccak256WordsStack = 768 := rfl
@@ -111,6 +194,10 @@ theorem stage1 (hp : Placed code k)
   have hFm : ∀ d : MachineData, Kept m0.dmem d.dmem →
       NativeRustcVm.Mapped d.dmem (fb m0) (240 + 8) :=
     fun d hk ↦ Mapped.keeps (frame_mapped hst (by decide)) hk
+  have hg1 := got_keep hst hgot hs1 (fun q h ↦ by
+    rw [inR (by unfold NativeRustcVm.NoWrap; omega), hBn] at h
+    rw [hsbn]
+    omega)
   have hpre1 : Keccak256WordsIvPre st1.data := by
     unfold Keccak256WordsIvPre
     simp only [eRdi, eRcx, eR8]
@@ -118,7 +205,7 @@ theorem stage1 (hp : Placed code k)
       RcAt.callee hrc hrc1 hsp1 hn (by omega),
       by rw [eRsi], eRdx, hn32, Mapped.keeps hbcM hf1.kept, hbcN,
       mapped_off (hFm _ hf1.kept) (by decide), by unfold NativeRustcX64.NoWrap; rw [hoff 16 (by decide)]; omega,
-      fun h ↦ apart_callee (hbcA h) hsp1 hn (by omega), ?_, ?_⟩
+      fun h ↦ apart_callee (hbcA h) hsp1 hn (by omega), ?_, ?_, ?_⟩
     · rw [stackBelow_callee hsp1 (by omega)]
       unfold NativeRustcX64.Apart
       rw [hoff 16 (by decide), stackBelow_toNat (by omega)]
@@ -126,6 +213,7 @@ theorem stage1 (hp : Placed code k)
     · unfold NativeRustcX64.Apart
       rw [hoff 16 (by decide)]
       omega
+    · exact got_leaf hst hgot (by simp) hsp1 (by decide) (by decide) hg1
   refine call_then hpc1 hkiv hpre1 fun st2 hpc2 hrsp2 hpost2 ↦ ?_
   obtain ⟨hiv2, hs2, hsv2⟩ := hpost2
   simp only [eRdi, eRcx, eR8] at hiv2 hs2
@@ -142,12 +230,33 @@ theorem stage1 (hp : Placed code k)
     Frame.call_low hf1 hsv2 hrsp2 hs2 (fun q h ↦ Or.inl (hR2 q h).2) (by decide) (by decide) hfnw
       slots_le
   -- `b1`: `call memset`.
-  have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 240) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b1Offset + b1.length)).toBitVec) ⟨hFm _ hf2.kept, hfnw⟩ (by simp)
-    (List.pairwise_singleton _ _)
+  have hg2 := got_keep hst hgot hs2 (fun q h ↦ by
+    have hh := hR2 q h
+    rw [hsbn]
+    omega)
+  have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 240)
+    (rest := [(gotAddr "memset", 8)]) (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b1Offset + b1.length)).toBitVec)
+    ⟨hFm _ hf2.kept, hfnw⟩
+    (by
+      intro x hx
+      obtain rfl := List.mem_singleton.mp hx
+      exact ⟨Mapped.keeps (hgot.mapped (by simp)) hf2.kept, (hgot.1 "memset" (by simp)).2.1⟩)
+    (List.pairwise_pair.mpr (got_frame_apart hst hgot (by simp)).symm)
+  have hm2 : Match
+      (frameEnv m0 st2.data 240 [(gotAddr "memset", 8)] (fun _ ↦ 0)
+        (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b1Offset + b1.length)).toBitVec)
+      (gotS "memset") st2.data := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial
+        ⟨(BitVec.add_zero _).symm, trivial⟩
+    · intro i hi
+      have hb := (hg2 "memset" (by simp) i hi).trans
+        ((hg1 "memset" (by simp) i hi).trans (hgot.byte (by simp) hi))
+      simpa [frameEnv, Env.base, Sym.eval] using hb
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 (fun _ _ ↦ rfl)
     (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Seed.b0_next))
-    (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
+    hm2
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hw3, hrdi3, hrdx3, hrsi3, hrbx3, hr143, hr153⟩ := after_eq run_b1 ▸ ok_b1
   have hf3 : Frame m0 240 slots 0 st3.data := Frame.of_block hf2 hwf2 hm3 hmid3 slots_le

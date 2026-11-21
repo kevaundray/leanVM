@@ -133,7 +133,7 @@ theorem pre_o (h : FoldRoundPre a s w m0) : OutOk m0 (tA m0) a (oA m0) 40 foldRo
 theorem pre_p (h : FoldRoundPre a s w m0) :
     OutOk m0 (tA m0) a (pA m0) stateBytes foldRoundStack := h.2.2.2.2.1.1
 theorem pre_op (h : FoldRoundPre a s w m0) : Apart (oA m0) 40 (pA m0) stateBytes :=
-  h.2.2.2.2.2.2
+  h.2.2.2.2.2.2.1
 
 theorem ctx (h : FoldRoundPre a s w m0) :
     TCtx m0 176 foldRoundStack (tA m0) a (outs m0) := by
@@ -145,7 +145,8 @@ theorem ctx (h : FoldRoundPre a s w m0) :
   have hp := pre_p h
   have hfnw := Transcript.frame_noWrap hS F_le
   have hn : foldRoundStack ≤ (rspOf m0).toNat := hS.1
-  refine ⟨hS, hrc, htok, hfp, F_le, fun q hq ↦ .inr (.inr hq), ?_, ?_, ?_⟩
+  have hg := h.2.2.2.2.2.2.2
+  refine ⟨hS, hrc, htok, hfp, F_le, fun q hq ↦ .inr (.inr hq), ?_, ?_, ?_, ?_, ?_⟩
   · rintro q (hq | hq | hq) hr
     · exact not_inRange_of_apart (Transcript.Apart.symm' ho.2.2.2.2.2) hrc.2.1 ho.2.1 hr hq
     · exact not_inRange_of_apart (Transcript.Apart.symm' hp.2.2.2.2.2) hrc.2.1 hp.2.1 hr hq
@@ -161,6 +162,34 @@ theorem ctx (h : FoldRoundPre a s w m0) :
         F_le)) hfnw hp.2.1 hr hq
     · exact not_inRange_of_apart (Transcript.Apart.symm' (Transcript.apart_frame htok.1 hn F_le))
         hfnw hfp.1.2 hr hq
+  · apply hg.areas
+    intro ar har
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with rfl | rfl | rfl
+    · simp
+    · simp
+    · exact List.mem_append_right _ rc_mem_rodata
+  · intro d hs
+    have hg' := hg.areas (areas' := [(oA m0, 40), (pA m0, stateBytes), (tA m0, tstateBytes)])
+      (by intro ar har; simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+          rcases har with rfl | rfl | rfl <;> simp [oA, pA, tA])
+    apply hg'.unchanged hS ?_ ?_ "memcpy" (by simp)
+    · intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl
+      · exact noWrap_iff.mpr ho.2.1
+      · exact noWrap_iff.mpr hp.2.1
+      · exact noWrap_iff.mpr hfp.1.2
+    · intro q hnot
+      apply hs q
+      intro hq
+      apply hnot
+      rcases hq with (hq | hq | hq) | hq
+      · exact .inr ⟨(oA m0, 40), List.mem_cons_self, hq⟩
+      · exact .inr ⟨(pA m0, stateBytes), List.mem_cons_of_mem _ List.mem_cons_self, hq⟩
+      · exact .inr ⟨(tA m0, tstateBytes),
+          List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self), hq⟩
+      · exact .inl hq
 
 /-- What changes before `b18` misses the state and the output. -/
 theorem pre18_not (h : FoldRoundPre a s w m0) {q : BitVec 64} (hq : Pre18 m0 q) :

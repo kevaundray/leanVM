@@ -138,9 +138,7 @@ def b13 : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.mov Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rax Width.W32)) (@Operand.imm Width.W32 (ConstExpr.int64 (230 : Int64))))),  -- movl $230, %eax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.cmovcc Width.W64 CondCode.c (Reg.low Reg64.rax Width.W64) (@RegOrMem.reg Width.W64 (Reg.low Reg64.rbp Width.W64)))),  -- cmovbq %rbp, %rax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.mov Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rax Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.rax Width.W32))))),  -- movl %eax, %eax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rax)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rax,%rax), %rax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rax)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W8)) (ConstExpr.int64 (0 : Int64))))),  -- leaq (%rax,%rax), %rax
-  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rax)) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W8)) (ConstExpr.int64 (-1840 : Int64))))),  -- leaq -1840(%rax,%rax), %rax
+  @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.lea Width.W64 (Reg.low Reg64.rax Width.W64) (AddrExpr.mk (@Option.none RegOrRip) (@Option.some AddrIndex (AddrIndex.mk Reg64.rax Width.W64)) (ConstExpr.int64 (-1840 : Int64))))),  -- leaq -1840(,%rax,8), %rax
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.mov Width.W64 (@RegOrMem.mem Width.W64 (AddrExpr.mk (@Option.some RegOrRip (RegOrRip.reg Reg64.rsp)) (@Option.none AddrIndex) (ConstExpr.int64 (40 : Int64)))) (@Operand.regOrMem Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rax Width.W64))))),  -- movq %rax, 40(%rsp)
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W64 (@Operation.inc Width.W64 (@RegOrMem.reg Width.W64 (Reg.low Reg64.rbp Width.W64)))),  -- incq %rbp
   @Kraken.Directive.instr Instr ConstExpr (Instr.regular Width.W64 Width.W32 (@Operation.xor Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r15 Width.W32)) (@Operand.regOrMem Width.W32 (@RegOrMem.reg Width.W32 (Reg.low Reg64.r15 Width.W32))))),  -- xorl %r15d, %r15d
@@ -206,7 +204,7 @@ def b19 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19]
 
-def codeLength : Nat := 108
+def codeLength : Nat := 106
 
 def b0Offset : Nat := 0
 
@@ -288,45 +286,45 @@ def b12End : Nat := 59
 
 def b13Offset : Nat := 59
 
-def b13Length : Nat := 18
+def b13Length : Nat := 16
 
-def b13End : Nat := 77
+def b13End : Nat := 75
 
-def b14Offset : Nat := 77
+def b14Offset : Nat := 75
 
 def b14Length : Nat := 3
 
-def b14End : Nat := 80
+def b14End : Nat := 78
 
-def b15Offset : Nat := 80
+def b15Offset : Nat := 78
 
 def b15Length : Nat := 6
 
-def b15End : Nat := 86
+def b15End : Nat := 84
 
-def b16Offset : Nat := 86
+def b16Offset : Nat := 84
 
 def b16Length : Nat := 10
 
-def b16End : Nat := 96
+def b16End : Nat := 94
 
-def b17Offset : Nat := 96
+def b17Offset : Nat := 94
 
 def b17Length : Nat := 1
 
-def b17End : Nat := 97
+def b17End : Nat := 95
 
-def b18Offset : Nat := 97
+def b18Offset : Nat := 95
 
 def b18Length : Nat := 2
 
-def b18End : Nat := 99
+def b18End : Nat := 97
 
-def b19Offset : Nat := 99
+def b19Offset : Nat := 97
 
 def b19Length : Nat := 9
 
-def b19End : Nat := 108
+def b19End : Nat := 106
 
 def entryOffset : Nat := 0
 
@@ -340,11 +338,11 @@ def label_10Offset : Nat := 40
 
 def label_3Offset : Nat := 45
 
-def label_6Offset : Nat := 77
+def label_6Offset : Nat := 75
 
-def label_7Offset : Nat := 97
+def label_7Offset : Nat := 95
 
-def label_13Offset : Nat := 99
+def label_13Offset : Nat := 97
 
 end
 

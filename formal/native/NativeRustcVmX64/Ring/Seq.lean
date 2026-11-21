@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Field.Call
+public import NativeRustcVmX64.Got
 public import NativeRustcVm.Arrays.ReadLemmas
 public import NativeRustcVmX64.Code.Vm.EWMul.Names
 public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
@@ -89,7 +90,7 @@ def regLink (call : Bool) (S' : SState) (r : Reg64) (v : Sym) : Option (List (Na
     | .var i =>
       if call = true ∧ (r = .rax ∨ r = .rdx) then some []
       else if call = false ∨ calleeSaved r = true then (S'.reg r).map fun s ↦ [(i, s)] else none
-    | .ptr _ _ | .lit _ =>
+    | .ptr _ _ | .lit _ | .label _ =>
       if (call = false ∨ calleeSaved r = true) ∧ S'.reg r = some v then some [] else none
     | _ => none
 
@@ -133,7 +134,7 @@ def tplOk (T : SState) : Bool :=
     | some (.reg r') => r' == r
     | some (.var _) => true
     | some (.ptr 0 _) => true
-    | some (.lit _) => true
+    | some (.lit _) | some (.label _) => true
     | _ => false) &&
   T.mem.all fun w ↦ w.r == 0 && match w.v with
     | .var _ => true
@@ -355,6 +356,32 @@ theorem Lay.wf (h : Lay m0 F N rs) {m : MachineData} (hk : Kept m0.dmem m.dmem)
   · show List.Pairwise _ ((stackBelow m0 F, F + 8) :: rs)
     exact List.Pairwise.cons (fun e he ↦ h.frame_apart he) h.disj
 
+/-- A read-only GOT region extends a layout without adding a writable area. -/
+theorem Lay.withGot [Labels] {l : Label} (h : Lay m0 F N rs)
+    (hg : GotAt m0 N rs [l]) : Lay m0 F N (rs ++ [(gotAddr l, 8)]) := by
+  refine ⟨h.ok, h.le, h.f8, ?_, ?_⟩
+  · have hall : ∀ a ∈ rs ++ [(gotAddr l, 8)],
+        Mapped m0.dmem a.1 a.2 ∧ NoWrap a.1 a.2 ∧
+          Apart a.1 a.2 (stackBelow m0 N) (N + 8) := by
+      intro a ha
+      rcases List.mem_append.mp ha with ha | ha
+      · exact mem_of_allOf h.arr ha
+      · simp only [List.mem_singleton] at ha
+        subst a
+        exact ⟨hg.mapped (by simp), (hg.1 l (by simp)).2.1,
+          (hg.1 l (by simp)).2.2.1⟩
+    generalize rs ++ [(gotAddr l, 8)] = xs at hall ⊢
+    induction xs with
+    | nil => trivial
+    | cons a xs ih =>
+      exact ⟨hall a (by simp), ih (fun b hb => hall b (by simp [hb]))⟩
+  · rw [List.pairwise_append]
+    refine ⟨h.disj, List.pairwise_singleton _ _, ?_⟩
+    intro a ha b hb
+    simp only [List.mem_singleton] at hb
+    subst b
+    exact ((hg.1 l (by simp)).2.2.2 a ha).symm
+
 /-- An address of the stack below the frame's base is in the `N` bytes of stack. -/
 theorem Lay.stack_in (h : Lay m0 F N rs) {p : BitVec 64} {S : Nat} (hS : F + S ≤ N)
     {m : MachineData} (hrsp : rspOf m = stackBelow m0 F)
@@ -364,7 +391,7 @@ theorem Lay.stack_in (h : Lay m0 F N rs) {p : BitVec 64} {S : Nat} (hS : F + S �
   have hb := g.base
   have hmb : (stackBelow m S).toNat = (rspOf m0).toNat - F - S := by
     rw [stackBelow_toNat' (by rw [hrsp, hb]; omega), hrsp, hb]
-  rw [inRange_iff (by rw [hmb]; have := g.top; omega), hmb] at hp
+  rw [NativeRustcX64.Sym.inRange_iff (by rw [hmb]; have := g.top; omega), hmb] at hp
   rw [inRange_N g]
   omega
 
@@ -379,7 +406,7 @@ theorem Lay.region_not_stack (h : Lay m0 F N rs) {S : Nat} (hS : F + S ≤ N) {m
   have hbase := g.base
   have hmb : (stackBelow m S).toNat = (rspOf m0).toNat - F - S := by
     rw [stackBelow_toNat' (by rw [hrsp, hbase]; omega), hrsp, hbase]
-  rw [inRange_iff (by rw [hmb]; have := g.top; omega), hmb] at hp
+  rw [NativeRustcX64.Sym.inRange_iff (by rw [hmb]; have := g.top; omega), hmb] at hp
   cases r with
   | zero =>
     simp only [Env.ofMachine_regions, List.getElem?_cons_zero, Option.some.injEq,
@@ -425,7 +452,7 @@ theorem Lay.written (h : Lay m0 F N rs) {m : MachineData} {vals : Nat → BitVec
     have hsz : ((F + 8) :: rs.map Prod.snd).getD (i + 1) 0 = sz := by
       simp [List.getD_eq_getElem?_getD, hb]
     exact ⟨i, (b, sz), hwr, hb, by
-      rw [inRange_iff hnw]
+      rw [NativeRustcX64.Sym.inRange_iff hnw]
       omega⟩
 
 /-- The return address is neither in the stack below RSP nor in an array. -/
@@ -443,7 +470,7 @@ theorem Lay.ret_same (h : Lay m0 F N rs) {m : MachineData}
   · rw [inRange_N g, hq] at h1
     omega
   · obtain ⟨-, hnw, hap⟩ := mem_of_allOf h.arr (List.mem_of_getElem? he)
-    rw [inRange_iff hnw, hq] at h2
+    rw [NativeRustcX64.Sym.inRange_iff hnw, hq] at h2
     unfold Apart at hap
     rw [g.below] at hap
     omega
@@ -469,8 +496,8 @@ theorem regLink_spec {call : Bool} {S' : SState} {r : Reg64} {v : Sym} {a : List
       (v = .reg r ∨ (∃ i, v = .var i ∧ call = true ∧ (r = .rax ∨ r = .rdx)) ∨
       (∃ i s, v = .var i ∧ (call = false ∨ calleeSaved r = true) ∧ S'.reg r = some s ∧
         a = [(i, s)]) ∨
-      ((∃ x o, v = .ptr x o) ∨ (∃ n, v = .lit n)) ∧ (call = false ∨ calleeSaved r = true) ∧
-        S'.reg r = some v)) := by
+      ((∃ x o, v = .ptr x o) ∨ (∃ n, v = .lit n) ∨ (∃ l, v = .label l)) ∧
+        (call = false ∨ calleeSaved r = true) ∧ S'.reg r = some v)) := by
   unfold regLink at h
   by_cases hc : call = true ∧ r = .rsp
   · rw [ite_pos hc] at h
@@ -503,7 +530,12 @@ theorem regLink_spec {call : Bool} {S' : SState} {r : Reg64} {v : Sym} {a : List
         cases h
     · rename_i n
       by_cases h1 : (call = false ∨ calleeSaved r = true) ∧ S'.reg r = some (.lit n)
-      · exact .inr (.inr (.inr ⟨.inr ⟨n, rfl⟩, h1.1, h1.2⟩))
+      · exact .inr (.inr (.inr ⟨.inr (.inl ⟨n, rfl⟩), h1.1, h1.2⟩))
+      · rw [ite_neg h1] at h
+        cases h
+    · rename_i l
+      by_cases h1 : (call = false ∨ calleeSaved r = true) ∧ S'.reg r = some (.label l)
+      · exact .inr (.inr (.inr ⟨.inr (.inr ⟨l, rfl⟩), h1.1, h1.2⟩))
       · rw [ite_neg h1] at h
         cases h
     · cases h
@@ -525,8 +557,9 @@ theorem reg_link_jump [Labels] {env env' : Env} {S' T' : SState} {m : MachineDat
   · rw [hm.regs r s hs, hvals (i, s) (haL _ List.mem_cons_self)]
     rfl
   · rw [hm.regs r v hs]
-    rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩
+    rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩ | ⟨l, rfl⟩
     · simp only [Sym.eval, hbase]
+    · rfl
     · rfl
 
 /-- **A template in another environment**: the machine state a block's result `S'` describes in
@@ -561,10 +594,11 @@ theorem match_links [Labels] {env env' : Env} {S' T' : SState} {m : MachineData}
     · rw [hm.regs r s hs, hvals (i, s) (List.mem_append_left _ (haL _ List.mem_cons_self))]
       rfl
     · rw [hm.regs r v hs]
-      rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩
+      rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩ | ⟨l, rfl⟩
       · cases x with
         | zero => exact (hb0 o).symm
         | succ x => simp at hk
+      · rfl
       · rfl
   · intro r b sz j v t hb hj hf
     obtain ⟨w, hwm, hwr, h1, h2, hv, ht⟩ := findWrite_spec hf
@@ -580,6 +614,39 @@ theorem match_links [Labels] {env env' : Env} {S' T' : SState} {m : MachineData}
     rw [hm.mem 0 b sz hbe j hj, memByte, hf', ← hv, hwv]
     simp only [Sym.eval]
     exact congrArg (fun x ↦ some (byteOf x t)) (hvals p (List.mem_append_right _ hpL))
+
+/-- Change only the symbolic layout between blocks, retaining the original write footprint. -/
+theorem Bnd.relayout [Labels] {m : MachineData} {T T' : SState}
+    {vals vals' : Nat → BitVec 64} {rs' : List (BitVec 64 × Nat)} {wr' : Nat → Bool}
+    (hB : Bnd m0 F N rs wr T vals m)
+    (hok : tplOk T' = true) {L LW : List (Nat × Sym)}
+    (hL : rlinks false T T' = some L) (hLW : wlinks T T'.mem = some LW)
+    (hvals : ∀ ret, ∀ p ∈ L ++ LW,
+      p.2.eval (envS m0 m F rs vals ret) = vals' p.1)
+    (hflags : T'.flags = atomFlags)
+    (hsizes : T'.regions = (F + 8) :: rs'.map Prod.snd)
+    (hlab : T'.labels = [])
+    (hbd : ∀ ret, ∀ x n, (x, n) ∈ T'.bounds →
+      (x.eval (envS m0 m F rs' vals' ret)).toNat < n)
+    (hal : ∀ ret, AliasesOk T' (envS m0 m F rs' vals' ret))
+    (houts : ∀ q, outsOf rs wr q → outsOf rs' wr' q)
+    (hknown : T'.known = [] := by rfl) :
+    Bnd m0 F N rs' wr' T' vals' m :=
+  ⟨fun ret => match_links (hB.mt ret) hok hL hLW (fun _ => rfl) rfl rfl rfl
+      (hvals ret) hflags (regions_envS hsizes) hlab (hbd ret) (hal ret) hknown,
+    fun q hq => hB.same q (fun h => hq (h.elim Or.inl (fun h => Or.inr (houts q h)))),
+    hB.kept⟩
+
+/-- Seed a slot's bytes in a template after proving them from the loader and frame. -/
+theorem Bnd.withKnownBytes [Labels] {m : MachineData} {T : SState}
+    {vals : Nat → BitVec 64} {r off n : Nat} {v : Sym}
+    (hB : Bnd m0 F N rs wr T vals m)
+    (hb : ∀ ret, ∀ i < n,
+      (envS m0 m F rs vals ret).mem0.get?
+        ((envS m0 m F rs vals ret).base r + BitVec.ofNat 64 (off + i)) =
+        some (byteOf (v.eval (envS m0 m F rs vals ret)) i)) :
+    Bnd m0 F N rs wr (T.withKnownBytes r off n v) vals m :=
+  ⟨fun ret => (hB.mt ret).withKnownBytes (hb ret), hB.same, hB.kept⟩
 
 variable [Host]
 
@@ -714,7 +781,7 @@ theorem callStep (h : Lay m0 F N rs) {T T' S' : SState} {vals vals' : Nat → Bi
         rfl
       · have hcs' : calleeSaved r = true := hcs.resolve_left (by decide)
         rw [hsv.1 r hcs', hm.regs r v hs]
-        rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩ <;> rfl
+        rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩ | ⟨l, rfl⟩ <;> rfl
     · intro r b sz j v t hb hj hf
       obtain ⟨w, hwm, hwr', h1, h2, hv, ht⟩ := findWrite_spec hf
       obtain ⟨p, hpL, hpw⟩ := wlinks_spec hLW w hwm

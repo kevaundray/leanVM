@@ -57,8 +57,8 @@ theorem finalLevel_spec (hp : Placed code k)
   refine queries hp c hgr hsq hpc1 hl1 hbx1 hbp1 hts1 hr1
     fun st2 qs s3 hpc2 hl2 hbp2 hq2 hts2 hr2 ↦ ?_
   refine openings hp c hqo hpc2 hl2 hbp2 hq2 hts2 hr2
-    fun st3 rows s4 hpc3 hl3 hbp3 hbx3 hq3 hrows3 hop3 hts3 hr3 ↦ ?_
-  refine check hp c hrow hpc3 hl3 hbp3 hbx3 hq3 hrows3 hop3 hts3 hr3
+    fun st3 rows s4 hpc3 hl3 hbp3 hbx3 hq3 hrows3 hop3 hopBounds3 hts3 hr3 ↦ ?_
+  refine check hp c hrow hpc3 hl3 hbp3 hbx3 hq3 hrows3 hop3 hopBounds3 hts3 hr3
     fun st4 hpc4 hl4 hts4 hr4 ↦ ?_
   refine sum hp c hsc hpc4 hl4 hts4 hr4
     fun st5 tail claim s5 hpc5 hc5 hbx5 h48 h56 htn htail5 hcl5 hts5 hr5 ↦ ?_

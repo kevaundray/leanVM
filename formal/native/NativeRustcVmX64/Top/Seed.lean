@@ -15,7 +15,8 @@ public import NativeRustcVmX64.Code.Vm.Seed.Names
 `keccak_f` and `memcpy`. Its 240-byte frame (R15, R14, RBX pushed at its bytes 216 to 239) holds the
 state from its byte 16: the IV (`keccak256_words`), zeros (`memset`; `stage1`), the public input
 (`b2`); `keccak_f` permutes it in place and `memcpy` copies it to the output, `b4` restores the
-registers (`stage2`).
+registers (`stage2`). The raw base-less scaled `lea` computes the IV length; the indirect
+`memset` and `memcpy` calls read loader-supplied GOT bytes preserved by the stack frame.
 -/
 
 namespace NativeRustcVmX64.Top.Seed

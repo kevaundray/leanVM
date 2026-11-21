@@ -129,7 +129,7 @@ theorem fold_step (hp : Placed code k0)
   have hle := fold_le
   have hro := roundsOff_le
   have hpre : FoldRoundsPre a s w st2.data := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [hdi]; exact c.whirT hat hsm2 hle
     · rw [hdi]; exact ht2
     · rw [hdx]; exact hw2
@@ -143,13 +143,30 @@ theorem fold_step (hp : Placed code k0)
       exact c.whirOut hat hle (whirOut_sub c.pout hro)
     · rw [hcx, hdx]
       have hnw : (pA m0).toNat + whirBytes ≤ 2 ^ 64 := c.pout.1.2.1
-      unfold NativeRustcX64.Apart
-      have : whirBytes = 63200 := rfl
-      have : roundsOff = 61152 := rfl
-      have : stateBytes = 61152 := rfl
-      have : roundBytes * roundCap = 192 := rfl
-      rw [NativeRustcVm.toNat_add_ofNat (by omega)]
-      omega
+      have haddr := NativeRustcVm.toNat_add_ofNat (a := pA m0) (i := roundsOff)
+        (by have : roundsOff < whirBytes := by decide
+            omega)
+      apply Or.inr
+      rw [haddr]
+      exact le_rfl
+    · rw [hdi, hdx, hcx]
+      apply c.got_call hat hsm2 hle (by decide)
+      intro ar har
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with (rfl | rfl | rfl | rfl) | har
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(pA m0, whirBytes), by simp, le_rfl,
+          Nat.add_le_add_left (by decide : stateBytes ≤ whirBytes) _⟩
+      · have hnw : (pA m0).toNat + whirBytes ≤ 2 ^ 64 := c.pout.1.2.1
+        have hadd := NativeRustcVm.toNat_add_ofNat (a := pA m0) (i := roundsOff) (by omega)
+        refine ⟨(pA m0, whirBytes), by simp, ?_⟩
+        change (pA m0).toNat ≤ (pA m0 + BitVec.ofNat 64 roundsOff).toNat ∧
+          (pA m0 + BitVec.ofNat 64 roundsOff).toNat + (8 + roundBytes * roundCap) ≤
+            (pA m0).toNat + whirBytes
+        rw [hadd]
+        constructor <;> omega
+      · exact ⟨ar, by simp [har], le_rfl, le_rfl⟩
   refine call_then hpc2 (hfr a s w) hpre fun st3 hpc3 hrsp3 hq ↦ ?_
   obtain ⟨hok, hsome, hch, hsv⟩ := hq
   have hrs : ∀ q, NativeRustcVm.InAny [⟨reg st2.data .rcx, 8 + roundBytes * roundCap⟩,

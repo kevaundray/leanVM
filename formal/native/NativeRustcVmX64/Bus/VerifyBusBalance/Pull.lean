@@ -270,7 +270,7 @@ theorem pull_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have hap : ∀ {j n : Nat}, j + n ≤ 5520 → NativeRustcVm.Apart (reg m0 .r8) formsBytes (loc m0 j) n :=
     fun hjn ↦ bus_loc h hfb hjn
   simp only [PcOk] at hpc4
-  refine accCall h hacc fr4 hpc4 (side := 1) (by omega) (it := .pullBlocks) rfl
+  refine accCall h hacc fr4 hpc4 (side := 1) (by omega) (it := .pullBlocks) rfl (by simp)
     (fps := fingerprints w mem (pt.extract 0 L.logMemory) (pt.extract 0 L.logBytecode) share
       (gpow (2 ^ L.logBytecode - 1)) mf bf) (w := w) (pt := pt) (beta := beta)
     (tree := tv.getD 1 0) (o := 192) (ol := 3696) (by omega) (by omega) (by omega) (by omega) hpull4 hcs4 hF4 hfits
@@ -294,7 +294,15 @@ theorem pull_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (by rw [e3, e4]; exact (Bus.slice_of_ewsAt hl4.hw (by rw [Array.length_toList, hl4.wsz]; rfl)))
     (by rw [e5, e6]; rfl)
     (by rw [e7, e8]; exact Bus.slice_of_ewsAt hl4.tail.hpt (by rw [Array.length_toList, hnsz]))
-    (by rw [e9, e10]; rfl) fun m5 fr5 hopt5 hF5 hfits5 hs5 hk5 hcs5 ↦ ?_
+    (by rw [e9, e10]; rfl) (by
+      intro l hl
+      constructor
+      · intro _
+        rw [e1, e2]
+        exact got_apart_frame (pre_got h) hS hl N_ge (by simp only [BitVec.toNat_ofNat]; omega)
+      · rw [e3, e4]
+        exact got_apart_frame (pre_got h) hS hl N_ge (by simp only [BitVec.toNat_ofNat]; omega))
+    fun m5 fr5 hopt5 hF5 hfits5 hs5 hk5 hcs5 ↦ ?_
   have hle5 : 5520 - 0 + accumulateSideStack ≤ NN := le_acc
   have hl5 : SideMem m0 L w pt tv mem beta mf bf share m5.dmem :=
     hl4.of_keep (keepIv_call hS hsp4 (by omega) hle5 hs5 (by decide) (by decide) fun j hj hq ↦ by

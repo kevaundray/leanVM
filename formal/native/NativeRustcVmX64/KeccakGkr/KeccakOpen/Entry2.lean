@@ -39,15 +39,21 @@ theorem fold_start (hp : Placed code k) (h : PreOk a s c m0) {s1 : TState}
   have hfb := fbA_toNat h
   have hwf := wf_fold h hs.body.fr.kept (vars := varsOf sl 0 0) (ret := 0)
   have hmatch : Match (E m0 st.data (varsOf sl 0 0) 0) (pS [(.r15, P)]) st.data := by
-    refine match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩ ⟨hs.body.fr.rsp_eval, ?_, trivial⟩
-      trivial trivial ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5,
-        ?_, trivial⟩
-    · change reg st.data .r15 = rwA m0 + BitVec.ofInt 64 0
-      rw [hs.r15, ofInt0, BitVec.add_zero]
-    · show (E m0 st.data (varsOf sl 0 0) 0).load 3 32 8 = slA m0 + BitVec.ofInt 64 0
-      rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h hs.body.same (i := 4) (by decide), ofInt0,
-        BitVec.add_zero]
-      rfl
+    apply Match.withKnownBytes
+    · refine match_ofMachine ⟨rfl, rfl, rfl, rfl, rfl, trivial⟩ ⟨hs.body.fr.rsp_eval, ?_, trivial⟩
+        trivial trivial ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5,
+          ?_, by simp [Sym.eval, RF, Env.base, gotAddr], trivial⟩
+      · change reg st.data .r15 = rwA m0 + BitVec.ofInt 64 0
+        rw [hs.r15, ofInt0, BitVec.add_zero]
+      · show (E m0 st.data (varsOf sl 0 0) 0).load 3 32 8 = slA m0 + BitVec.ofInt 64 0
+        rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h hs.body.same (i := 4) (by decide), ofInt0,
+          BitVec.add_zero]
+        rfl
+    · intro i hi
+      simp only [Nat.zero_add]
+      change st.data.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+        some (byteOf (Labels.label "memcpy").toBitVec i)
+      exact got_byte h hs.body.same hi
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) x4 hwf nofun hpc hmatch
     fun st1 hm1 hpc1 ↦ ?_
   have hb1 := body_block h hs.body hm1 f4.2.1 (by

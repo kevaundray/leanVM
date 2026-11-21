@@ -75,7 +75,7 @@ theorem turn_res [Labels] (hpre : RingTargetPre m0) {T S' : SState} {vals : Nat 
     (h2 : reg mc .rdx = gA m0) (hq : RingPsiPost mc m') :
     reg m' .rax = c0 (img m0 i) ∧ reg m' .rdx = c1 (img m0 i) := by
   have hs := hpre.2.1
-  have hg := hpre.2.2.2
+  have hg := hpre.2.2.2.1
   have hword : ∀ o, o + 8 ≤ 1024 → (Sym.load 1 o 8).eval (envS m0 m 2352 (rsL m0) vals ret) =
       (NativeRustcVm.wordOf m0.dmem (sA m0 + BitVec.ofNat 64 o)).toBitVec := by
     intro o ho
@@ -146,7 +146,7 @@ theorem turn (hp : Placed code k) (hpre : RingTargetPre m0)
     (fun m mc m' hB hI hm hsp hq ↦ bytes_callee g
       (bytes_block g ((layL hpre).wf hB.kept) hmiss (by decide) hm hI (by decide) ?_) ?_ hsp
       (by decide) (changes0 hq.2.1)) rfl rfl rfl (fun _ _ ↦ noKeys rfl) rfl h) fun st2 h2 ↦ ?_
-  · have hg := hpre.2.2.2
+  · have hg := hpre.2.2.2.1
     rw [show RingPsiPre mc = (StackOk mc ringPsiStack ∧ ArrOk mc (reg mc .rdx) ringWidth ringPsiStack)
       from rfl, regv hm r_dx rfl]
     have hsp : rspOf mc = stackBelow m0 2352 := by

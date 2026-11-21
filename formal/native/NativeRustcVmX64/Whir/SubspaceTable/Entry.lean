@@ -63,7 +63,7 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label NativeRustcVmX6
       WordAt s.data.dmem (reg m0 .rdi) 0 ∧ 32 ≤ muOf m0) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b11Offset) ∧ Init m0 (muOf m0) s.data)) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b0Offset)⟩ := by
   have hpre' := hpre
-  obtain ⟨hS, hout⟩ := hpre'
+  obtain ⟨hS, hout, _⟩ := hpre'
   obtain ⟨hF, -, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1

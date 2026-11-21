@@ -88,7 +88,15 @@ theorem pre_parts (h : PublicInputPhasePre a s L pub cs m0) :
       ClaimsWAt m0.dmem (reg m0 .rcx) cs ∧
       ReadIn m0 (reg m0 .rsi) layoutBytes N (wsOf m0) ∧ LayoutWAt m0.dmem (reg m0 .rsi) L ∧
       vcOf L ≤ 31 ∧ ReadIn m0 (reg m0 .rdx) 32 N (wsOf m0) ∧
-      NativeRustcVm.WordsAt m0.dmem (reg m0 .rdx) pub.toList := h
+      NativeRustcVm.WordsAt m0.dmem (reg m0 .rdx) pub.toList := by
+  rcases h with ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, _⟩
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
+
+theorem got (h : PublicInputPhasePre a s L pub cs m0) :
+    GotAt m0 N [(reg m0 .rdi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rcx, claimsBytes), (reg m0 .rsi, layoutBytes), (reg m0 .rdx, 32),
+      (rcAddr, 192)] ["memcpy"] :=
+  h.2.2.2.2.2.2.2.2.2.2.2
 
 theorem ctx (h : PublicInputPhasePre a s L pub cs m0) {F : Nat} (hF : F ≤ N) :
     Ctx m0 (reg m0 .rdi) a N F :=
@@ -133,6 +141,30 @@ theorem at_call (h : PublicInputPhasePre a s L pub cs m0) {d : MachineData} (fr 
     At m0 608 d := by
   have := fr.at_ (ctx h N_ge) (Nat.zero_le _) (fun _ hq ↦ outs_not_rc h hq)
   rwa [Nat.sub_zero] at this
+
+theorem got_call (h : PublicInputPhasePre a s L pub cs m0) {Nc : Nat} {d : MachineData}
+    (fr : St m0 0 d) (hle : 608 + Nc ≤ N) {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ ["memcpy"], ∀ b ∈ areas, Apart (gotAddr l) 8 b.1 b.2) :
+    GotAt d Nc areas ["memcpy"] := by
+  have p := pre_parts h
+  refine got_callee (got h) (got_keep (got h) p.1
+    (writes := [(reg m0 .rdi, tstateBytes), (reg m0 .rcx, claimsBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact p.2.2.1.footprint.1.2
+      · exact p.2.2.2.2.1.2.1)
+    (by
+      intro q hq
+      apply fr.same q
+      rintro (hs | ht | hc)
+      · exact hq (Or.inr hs)
+      · exact hq (Or.inl ⟨(reg m0 .rdi, tstateBytes), by simp, ht⟩)
+      · exact hq (Or.inl ⟨(reg m0 .rcx, claimsBytes), by simp, hc⟩)))
+    (at_call h fr).sp p.1.1 hle ha
 
 /-- **An input for a callee** at the frame's base. -/
 theorem readIn_call (h : PublicInputPhasePre a s L pub cs m0) {d : MachineData} (fr : St m0 0 d)

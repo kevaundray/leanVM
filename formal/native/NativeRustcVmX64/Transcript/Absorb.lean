@@ -38,7 +38,7 @@ variable [Host] {k : Nat}
 theorem absorb_spec (hp : Placed code k)
     (hdup : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
     Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorb.entryLabel) (AbsorbPre sp) (AbsorbPost sp) := by
-  rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
+  rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp, hgot⟩
   set p := reg m0 .rdi with hpdef
   have hn : absorbStack ≤ (rspOf m0).toNat := hst.1
   have h8 : (rspOf m0).toNat + 8 ≤ 2 ^ 64 := hst.2.1
@@ -132,12 +132,22 @@ theorem absorb_spec (hp : Placed code k)
       exact (hs2 _ (hnF (by decide))).trans (hs1 _ (hnF (by decide)))
     have hsp2 : SpongeAt st2.data.dmem p sp :=
       hsp1.frame hnw (fun q hq h ↦ hpF q h (inRange_mono hq (by decide))) hs2
+    have hgot2 := got_keep hgot hst (writes := [(p, spongeBytes)])
+      (by simp [p]) (by intro b hb; obtain rfl := List.mem_singleton.mp hb; exact hnw)
+      (d := st2.data) (by
+        intro q hq
+        have hs : ¬ NativeRustcVm.InRange (stackBelow m0 absorbStack) absorbStack q :=
+          fun h => hq (Or.inr h)
+        exact (hs2 q fun h => hs (inRange_frame_stack h8 hn (by decide)
+          (inRange_mono h (by decide)))).trans
+          (hs1 q fun h => hs (inRange_frame_stack h8 hn (by decide) h)))
     have hpre2 : DuplexPre sp st2.data := by
       unfold DuplexPre
       rw [hX7']
       exact ⟨stackOk_callee hst hf2.kept hsp2r (by decide),
         RcAt.callee hrc hrc2 hsp2r hn (by decide),
-        ⟨Mapped.keeps hmap hf2.kept, hnw, apart_callee hapS hsp2r hn (by decide), hapR⟩, hsp2⟩
+        ⟨Mapped.keeps hmap hf2.kept, hnw, apart_callee hapS hsp2r hn (by decide), hapR⟩, hsp2,
+        got_callee hgot hgot2 hsp2r hn (by decide) (fun l hl => (hgot.1 l hl).2.2.2)⟩
     refine call_then hpc2 (hdup sp) hpre2 fun st3 hpc3 hrsp3 ⟨hsp3, hs3, hsv3⟩ => ?_
     rw [hX7'] at hsp3 hs3
     have hcal : ∀ q, NativeRustcVm.InRange (stackBelow st2.data duplexStack) duplexStack q →

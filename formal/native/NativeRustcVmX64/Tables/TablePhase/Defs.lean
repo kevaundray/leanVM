@@ -57,7 +57,15 @@ theorem pre_parts (h : TablePhasePre a s L bus m0) :
       TStateOk m0 (reg m0 .rdi) a N ∧ OutOk m0 (reg m0 .rdi) a (reg m0 .rcx) tableEvalsBytes N ∧
       RodataApart (reg m0 .rdi) tstateBytes ∧ RodataApart (reg m0 .rcx) tableEvalsBytes ∧
       ReadIn m0 (reg m0 .rsi) layoutBytes N (wsOf m0) ∧ LayoutWAt m0.dmem (reg m0 .rsi) L ∧
-      ReadIn m0 (reg m0 .rdx) busBytes N (wsOf m0) ∧ BusWAt m0.dmem (reg m0 .rdx) bus := h
+      ReadIn m0 (reg m0 .rdx) busBytes N (wsOf m0) ∧ BusWAt m0.dmem (reg m0 .rdx) bus := by
+  rcases h with ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, _⟩
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩
+
+theorem got (h : TablePhasePre a s L bus m0) :
+    GotAt m0 N [(reg m0 .rdi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rcx, tableEvalsBytes), (reg m0 .rsi, layoutBytes), (reg m0 .rdx, busBytes),
+      (rcAddr, 192), (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length)] ["memcpy"] :=
+  h.2.2.2.2.2.2.2.2.2.2.2.2
 
 theorem ctx (h : TablePhasePre a s L bus m0) {F : Nat} (hF : F ≤ N) : Ctx m0 (reg m0 .rdi) a N F :=
   let p := pre_parts h
@@ -100,6 +108,31 @@ theorem same_in (h : TablePhasePre a s L bus m0) {o : Nat} {d : MachineData} (fr
 theorem at_call (h : TablePhasePre a s L bus m0) {o : Nat} {d : MachineData} (fr : St m0 o d)
     (ho : o ≤ 160) : At m0 (160 - o) d :=
   fr.at_ (ctx h N_ge) ho (fun _ hq ↦ outs_not_rc h hq)
+
+theorem got_call (h : TablePhasePre a s L bus m0) {o Nc : Nat} {d : MachineData}
+    (fr : St m0 o d) (ho : o ≤ 160) (hle : 160 - o + Nc ≤ N)
+    {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ ["memcpy"], ∀ b ∈ areas, Apart (gotAddr l) 8 b.1 b.2) :
+    GotAt d Nc areas ["memcpy"] := by
+  have p := pre_parts h
+  refine got_callee (got h) (got_keep (got h) p.1
+    (writes := [(reg m0 .rdi, tstateBytes), (reg m0 .rcx, tableEvalsBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact p.2.2.2.1.footprint.1.2
+      · exact p.2.2.2.2.2.1.2.1)
+    (by
+      intro q hq
+      apply fr.same q
+      rintro (hs | ht | he)
+      · exact hq (Or.inr hs)
+      · exact hq (Or.inl ⟨(reg m0 .rdi, tstateBytes), by simp, ht⟩)
+      · exact hq (Or.inl ⟨(reg m0 .rcx, tableEvalsBytes), by simp, he⟩)))
+    (at_call h fr ho).sp p.1.1 hle ha
 
 /-- **An input for a callee** at the frame's offset `c`. -/
 theorem readIn_call (h : TablePhasePre a s L bus m0) {o : Nat} {d : MachineData} (fr : St m0 o d)

@@ -51,6 +51,14 @@ def A (i : Nat) : SState :=
 /-- After `memcpy`. -/
 def t4L : SState := tpl sizesL [(.rsp, .ptr 0 8), (.r12, .var 10), (.r15, .ptr 0 1280)] pushW
 
+/-- The copy alone reads the `memcpy` slot, as a third ordinary-memory region. -/
+def copyBase : SState :=
+  tpl [2360, 1024, 8] [(.rsp, .ptr 0 8), (.r12, .var 10)] pushW []
+    [(.gotSlot "memcpy", 2, 0)]
+def copyS : SState := copyBase.withKnownBytes 2 0 8 (.label "memcpy")
+def copiedS : SState :=
+  tpl [2360, 1024, 8] [(.rsp, .ptr 0 8), (.r12, .var 10), (.r15, .ptr 0 1280)] pushW
+
 /-- A register's variable. -/
 def regVar : Reg64 → Nat
   | .rax => 6 | .rdx => 7 | .rbx => 8 | .rbp => 9 | .r12 => 10 | .r13 => 11 | .r14 => 12
@@ -108,7 +116,7 @@ end
 set_option Elab.async false
 
 sym_block run_b0 := exec b0 t0L
-sym_block run_b3 := exec b3 (H 64)
+sym_block run_b3 := exec b3 copyS
 sym_block run_b4 := exec b4 t4
 sym_block run_b5 := exec b5 t5
 sym_block run_b6 := exec b6 t6

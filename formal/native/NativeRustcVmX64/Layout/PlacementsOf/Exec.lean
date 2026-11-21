@@ -38,8 +38,16 @@ def cs : List Reg64 := [.rbx, .rbp, .r12, .r13, .r14, .r15]
 /-- `p + 8 i`. -/
 def idx (p i : Reg64) : Sym := .bin .add .W64 (.reg p) (.bin .mul .W64 (.reg i) (.lit 8))
 
-def entryS : SState := init [5128] [(.rsp, .ptr 0 5120)]
+def entryS : SState :=
+  (init [5128, 8] [(.rsp, .ptr 0 5120)] [] [] [(.gotSlot "memset", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memset")
 def bodyS : SState := init [5128] [(.rsp, .ptr 0 8)]
+/-- The cached `memset` address, preserved in R12 across the first call. -/
+def cachedS : SState := init [5128] [(.rsp, .ptr 0 8), (.r12, .label "memset")]
+/-- The frame and the ordinary-memory GOT slot read by a call. -/
+def gotS : SState :=
+  (init [5128, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot "memset", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memset")
 def tabS (r : Reg64) : SState :=
   init [158] (aliases := [(.reg r, (0, 0))]) (bounds := [(.reg .rax, 158)])
 def colS : SState :=
@@ -60,18 +68,18 @@ end
 set_option Elab.async false
 
 sym_block run_b0 := exec b0 entryS
-sym_block run_b1 := exec b1 bodyS
+sym_block run_b1 := exec b1 cachedS
 sym_block run_b2 := exec b2 bodyS
 sym_block run_b4 := exec b4 bodyS
 sym_block run_b5 := exec b5 (tabS .rbp)
 sym_block run_b6 := exec b6 (tabS .r12)
 sym_block run_b7 := exec b7 bodyS
 sym_block run_b8 := exec b8 colS
-sym_block run_b9 := exec b9 bodyS
+sym_block run_b9 := exec b9 gotS
 sym_block run_b10 := exec b10 bodyS
 sym_block run_b11 := exec b11 bodyS
 sym_block run_b12 := exec b12 bodyS
-sym_block run_b13 := exec b13 bodyS
+sym_block run_b13 := exec b13 gotS
 sym_block run_b14 := exec b14 bodyS
 sym_block run_b15 := exec b15 bodyS
 sym_block run_b16 := exec b16 (rdS (-1272))
@@ -97,12 +105,19 @@ public theorem ok_b0 : ProOk 5120 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .r14 = some (.reg .rdi) ∧ (after b0 entryS).reg .r15 = some (.lit 1264) := by
   decide +kernel
 
-public theorem exit_b1 : exec b1 bodyS = some (after b1 bodyS, .call NativeRustcVmX64.Vm.Memset.entryLabel) :=
+public theorem b0_mem : ∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ w.off + w.n ≤ 5120 := by
+  decide +kernel
+
+public theorem b0_target : (after b0 entryS).reg .r12 = some (.label "memset") := by
+  decide +kernel
+
+public theorem exit_b1 : exec b1 cachedS = some (after b1 cachedS, .call "memset") :=
   run_b1.trans (by rw [after_eq run_b1])
-public theorem ok_b1 : MidOk 5120 0 slots (after b1 bodyS) = true ∧
-    (after b1 bodyS).reg .rdi = some (.ptr 0 2544) ∧ (after b1 bodyS).reg .rsi = some (.lit 0) ∧
-    (after b1 bodyS).reg .rdx = some (.lit 1264) ∧
-    (∀ w ∈ (after b1 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧ Keeps (after b1 bodyS) cs = true := by
+public theorem ok_b1 : MidOk 5120 0 slots (after b1 cachedS) = true ∧
+    (after b1 cachedS).reg .rdi = some (.ptr 0 2544) ∧ (after b1 cachedS).reg .rsi = some (.lit 0) ∧
+    (after b1 cachedS).reg .rdx = some (.lit 1264) ∧
+    (∀ w ∈ (after b1 cachedS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
+    Keeps (after b1 cachedS) [.rbx, .rbp, .r13, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .jump NativeRustcVmX64.Vm.PlacementsOf.label_2) :=
@@ -156,13 +171,13 @@ public theorem ok_b8 : AOk slots (after b8 colS) = true ∧
     Keeps (after b8 colS) [.rax, .rbx, .rbp, .r12, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b9 : exec b9 bodyS = some (after b9 bodyS, .call NativeRustcVmX64.Vm.Memset.entryLabel) :=
+public theorem exit_b9 : exec b9 gotS = some (after b9 gotS, .call "memset") :=
   run_b9.trans (by rw [after_eq run_b9])
-public theorem ok_b9 : MidOk 5120 0 slots (after b9 bodyS) = true ∧
-    (after b9 bodyS).reg .rdi = some (.ptr 0 3808) ∧ (after b9 bodyS).reg .rsi = some (.lit 0) ∧
-    (after b9 bodyS).reg .rdx = some (.lit 1264) ∧
-    (∀ w ∈ (after b9 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
-    Keeps (after b9 bodyS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
+public theorem ok_b9 : MidOk 5120 0 slots (after b9 gotS) = true ∧
+    (after b9 gotS).reg .rdi = some (.ptr 0 3808) ∧ (after b9 gotS).reg .rsi = some (.lit 0) ∧
+    (after b9 gotS).reg .rdx = some (.lit 1264) ∧
+    (∀ w ∈ (after b9 gotS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
+    Keeps (after b9 gotS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
 
 public theorem exit_b10 : exec b10 bodyS = some (after b10 bodyS,
@@ -190,14 +205,14 @@ public theorem ok_b12 : MidOk 5120 8 slots (after b12 bodyS) = true ∧ (after b
     Keeps (after b12 bodyS) (.rdx :: cs) = true := by
   decide +kernel
 
-public theorem exit_b13 : exec b13 bodyS = some (after b13 bodyS, .call NativeRustcVmX64.Vm.Memset.entryLabel) :=
+public theorem exit_b13 : exec b13 gotS = some (after b13 gotS, .call "memset") :=
   run_b13.trans (by rw [after_eq run_b13])
-public theorem ok_b13 : MidOk 5120 0 slots (after b13 bodyS) = true ∧
-    (after b13 bodyS).reg .rdi = some (.ptr 0 16) ∧ (after b13 bodyS).reg .rsi = some (.lit 0) ∧
-    (after b13 bodyS).reg .rdx = some (.lit 1264) ∧
-    (∀ w ∈ (after b13 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 16) ∧
-    (∀ t < 8, findWrite 0 (8 + t) (after b13 bodyS).mem = some (.reg .rdx, t)) ∧
-    Keeps (after b13 bodyS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
+public theorem ok_b13 : MidOk 5120 0 slots (after b13 gotS) = true ∧
+    (after b13 gotS).reg .rdi = some (.ptr 0 16) ∧ (after b13 gotS).reg .rsi = some (.lit 0) ∧
+    (after b13 gotS).reg .rdx = some (.lit 1264) ∧
+    (∀ w ∈ (after b13 gotS).mem, w.r = 0 ∧ w.off + w.n ≤ 16) ∧
+    (∀ t < 8, findWrite 0 (8 + t) (after b13 gotS).mem = some (.reg .rdx, t)) ∧
+    Keeps (after b13 gotS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
 
 public theorem exit_b14 : exec b14 bodyS = some (after b14 bodyS,

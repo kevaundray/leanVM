@@ -3,6 +3,7 @@ module
 public import NativeRustcX64.KeccakF.Inv
 public import NativeRustcX64.Hasher.Bytes
 public import NativeRustcVmX64.Spec.Keccak
+public import NativeRustcX64.Got
 
 /-!
 # Memory lemmas for the Keccak proofs (x86-64)

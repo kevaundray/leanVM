@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Wire.PhaseM.Exec
 public import NativeRustcVmX64.Wire.PhaseM.Num
 public import NativeRustcVmX64.Wire.PhaseM.Model
 public import NativeRustcVmX64.Wire.Decode.Steps
+public import NativeRustcX64.Got
 
 /-!
 # `phase_m`'s places and states (x86-64)
@@ -78,6 +79,8 @@ structure Geo [Labels] (m0 : MachineData) (bp : BitVec 64) (L : Nat) : Prop wher
   bO : bp.toNat + L ≤ (OUT m0).toNat ∨ (OUT m0).toNat + 395288 ≤ bp.toNat
   bW : bp.toNat + L ≤ (WK m0).toNat ∨ (WK m0).toNat + 483584 ≤ bp.toNat
   oW : (OUT m0).toNat + 395288 ≤ (WK m0).toNat ∨ (WK m0).toNat + 483584 ≤ (OUT m0).toNat
+  got : GotAt m0 1216
+    [(rcAddr, 192), (RD m0, 24), (OUT m0, 395288), (WK m0, 483584)] ["memcpy", "memset"]
 
 /-- **What the body keeps**, RSP at the frame's offset `o`. -/
 structure Bod [Labels] (m0 : MachineData) (o : Nat) (m : MachineData) : Prop where
@@ -116,7 +119,7 @@ section
 variable [Labels]
 
 theorem geo_of (h : PhaseMPre m0) (hR : ReaderAt m0.dmem (RD m0) bp B c) : Geo m0 bp B.length := by
-  obtain ⟨hst, hrc, hoOk, hwOk, bp', B', c', hR', hd⟩ := h
+  obtain ⟨hst, hrc, hoOk, hwOk, bp', B', c', hR', hd, hgot⟩ := h
   obtain ⟨rfl, rfl, rfl⟩ := hR'.unique hR
   have hst' : StackOk m0 1216 := hst
   have hS := stackBelow_toNat (m := m0) (n := 1216) hst'.1
@@ -126,7 +129,7 @@ theorem geo_of (h : PhaseMPre m0) (hR : ReaderAt m0.dmem (RD m0) bp B c) : Geo m
   obtain ⟨⟨h1, h2, h3, h4, h5⟩, ⟨h6, h7, h8, h9⟩, ⟨h10, h11, h12⟩, ⟨h13, h14⟩, h15⟩ := hd
   rw [hS] at h1 h2 h3 h4 h5
   exact ⟨hst', hrc, hR.ok.2, hR.noWrap, hoOk, hwOk, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11,
-    h12, h13, h14, h15.1⟩
+    h12, h13, h14, h15.1, hgot⟩
 
 theorem Geo.sp (G : Geo m0 bp L) : 1216 ≤ SP0 m0 := G.st.1
 theorem Geo.top (G : Geo m0 bp L) : SP0 m0 + 8 ≤ 2 ^ 64 := G.st.2.1
@@ -165,6 +168,27 @@ theorem Geo.rc_keep (G : Geo m0 bp L) {d : Mem 64}
     unfold Chg at hq
     rw [NativeRustcVm.toNat_add_ofNat (by omega)] at hq
     omega
+
+/-- The loader slots survive the body's stack, reader, phase and work writes. -/
+theorem Geo.got_keep (G : Geo m0 bp L) {d : Mem 64}
+    (h : NativeRustcVm.SameOutside m0.dmem d (Chg m0)) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      d.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  intro l hl i hi
+  obtain ⟨_, hn, hs, ha⟩ := G.got.1 l hl
+  have hr := ha (RD m0, 24) (by simp)
+  have ho := ha (OUT m0, 395288) (by simp)
+  have hw := ha (WK m0, 483584) (by simp)
+  change Apart (gotAddr l) 8 (stackBelow m0 1216) 1224 at hs
+  unfold NativeRustcX64.Apart at hs hr ho hw
+  dsimp only at hr ho hw
+  change (gotAddr l).toNat + 8 ≤ 2 ^ 64 at hn
+  rw [stackBelow_toNat G.sp] at hs
+  refine h _ fun hq => ?_
+  unfold Chg at hq
+  rw [NativeRustcVm.toNat_add_ofNat (by omega)] at hq
+  omega
 
 /-- **A call** keeps the body's state where the callee changes only what the body may and none of
 the slots, the return address and `out`'s word. -/

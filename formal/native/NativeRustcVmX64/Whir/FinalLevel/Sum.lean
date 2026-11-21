@@ -191,7 +191,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hle : 2672 - 16 + sumcheckPlainStack ≤ finalLevelStack := by decide
   have hwt := c.whirT hat hf2.same hle
   have hpre : SumcheckPlainPre a s4 st2.data := by
-    refine ⟨c.argsOk (by omega) hf2, hwt.1, hwt.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨c.argsOk (by omega) hf2, hwt.1, hwt.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · show TStateAt st2.data.dmem (reg st2.data .rsi) a s4
       rw [hsi2]; exact hts2
     · show TStateOk st2.data (reg st2.data .rsi) a sumcheckPlainStack
@@ -209,6 +209,16 @@ theorem sum (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
       unfold NativeRustcVm.Apart
       rw [c.loc_toNat (by omega), c.loc_toNat (by omega)]
       omega
+    · rw [hsi2, hdi2, h92, a0]
+      apply c.got_call hf2 (by omega) hle (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · exact c.got_loc (by omega) (by omega)
+      · exact c.got_loc (by omega) (by omega)
+      · exact c.got_rc
   refine call_then hpc2 (hsc a s4) hpre fun st3 hpc3 hrsp3 hq ↦ ?_
   have hopt := sumcheckOut_cases hq.1
   have hch := hq.2.1

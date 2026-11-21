@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Spec.Transcript
 public import NativeRustcVmX64.Spec.Arrays
+public import NativeRustcX64.Spec.Got
 public import NativeRustcVm.Ring.Rep
 public import NativeVm.Model.Claims
 public import NativeRustcVmX64.Code.Vm.ColumnWeight.Names
@@ -133,10 +134,13 @@ def RingCoefficientsPost (m m' : MachineData) : Prop :=
       (ringCoefficients (arr m (reg m .rdi) ringWidth) (arr m (reg m .rsi) ringWidth)).toList ∧
     Changes m m' ringCoefficientsStack (reg m .rdx) (16 * coeffCount) ∧ Saved m m'
 
-/-- `ring_target`'s precondition: `s` (RDI, 64 elements), `f` (RSI) and `g` (RDX), 8 each. -/
-def RingTargetPre (m : MachineData) : Prop :=
+/-- `ring_target`'s precondition: `s` (RDI, 64 elements), `f` (RSI) and `g` (RDX), 8 each,
+and the read-only `memcpy` GOT slot. -/
+def RingTargetPre [Labels] (m : MachineData) : Prop :=
   StackOk m ringTargetStack ∧ ArrOk m (reg m .rdi) coeffCount ringTargetStack ∧
-    ArrOk m (reg m .rsi) ringWidth ringTargetStack ∧ ArrOk m (reg m .rdx) ringWidth ringTargetStack
+    ArrOk m (reg m .rsi) ringWidth ringTargetStack ∧ ArrOk m (reg m .rdx) ringWidth ringTargetStack ∧
+    GotAt m ringTargetStack [(reg m .rdi, 16 * coeffCount),
+      (reg m .rsi, 16 * ringWidth), (reg m .rdx, 16 * ringWidth)] ["memcpy"]
 
 /-- `ring_target`'s postcondition. -/
 def RingTargetPost (m m' : MachineData) : Prop :=
@@ -154,7 +158,9 @@ def RingSwitchPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   StackOk m ringSwitchStack ∧ RcAt m ringSwitchStack ∧ TStateAt m.dmem t a s ∧
     TStateOk m t a ringSwitchStack ∧ OutOk m t a o ringWBytes ringSwitchStack ∧
     ArrOk m sl coeffCount ringSwitchStack ∧ Apart sl (16 * coeffCount) t tstateBytes ∧
-    Apart sl (16 * coeffCount) o ringWBytes
+    Apart sl (16 * coeffCount) o ringWBytes ∧
+    GotAt m ringSwitchStack [(t, tstateBytes), (a.words, 8 * a.len), (o, ringWBytes),
+      (sl, 16 * coeffCount), (rcAddr, 192)] ["memcpy"]
 
 /-- `ring_switch`'s postcondition, for any point the model passes through. -/
 def RingSwitchPost (a : DecArea) (s : TState) (point : Array EW) (m m' : MachineData) : Prop :=

@@ -33,8 +33,8 @@ theorem keccak256WordsIv_spec {k : Nat} (hp : Placed Vm.Keccak256WordsOfFiatSham
     (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost) :
     Spec (label NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.entryLabel) Keccak256WordsIvPre Keccak256WordsIvPost := by
   intro m0 hpre
-  obtain ⟨hstk, hrc, hcnt, hlen, hsmall, hmap, hnw, hmo, hno, hap, hapo, -⟩ := hpre
-  have g : WordsIv.Geo m0 := ⟨hstk, hrc, hcnt, hlen, hsmall, hmap, hnw, hap⟩
+  obtain ⟨hstk, hrc, hcnt, hlen, hsmall, hmap, hnw, hmo, hno, hap, hapo, -, hgot⟩ := hpre
+  have g : WordsIv.Geo m0 := ⟨hstk, hrc, hcnt, hlen, hsmall, hmap, hnw, hap, hgot⟩
   rw [show label NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b0Offset) from hp.label NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.entry_at]
   refine Eventually.bind (WordsIv.entry_run hmemset hp g) fun st h => ?_
   have hts : Eventually (step1 Host.exe) (WordsIv.TailStart m0 k) st := by

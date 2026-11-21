@@ -7,7 +7,7 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.B26
 
 `b32` (from `IX`, the first segment's bits in RDX, RAX) spills the second segment's weight to the
 frame's `24` and `72`, loads `KECCAK_RC[23 - step]` into R8 and enters `NativeRustcVmX64.Vm.VerifyLayer.label_26` with no
-bit summed (`JA 0`): `b32Run`. The loop (`b36`, the expanded `bt` of bit `2 i`; `b34` or `b37`
+bit summed (`JA 0`): `b32Run`. The loop (`b36`, the raw `bt` of bit `2 i`; `b34` or `b37`
 the term; `b35` the next bit and the sum) sums the bit weights it selects in R15, RBX: `iotaLoop2`,
 to `NativeRustcVmX64.Vm.VerifyLayer.label_28` (`JX`).
 -/
@@ -183,7 +183,7 @@ theorem jaStep (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machin
   have hja1 := h.keep hk1 (keepR_regs hm1 (by decide +kernel) fun _ ↦ rfl)
   simp only [PcOk] at hpc1
   have e : ∀ r, (envB m0 d [] (fun _ ↦ 0) 0).regs r = reg d r := fun _ ↦ rfl
-  rw [show (SBool.msb .W64 (.bin .shl .W64 (.bin .shr .W64 (.reg .r8) (.reg .rcx)) (.lit 63))).eval
+  rw [show (SBool.cmp .bit .W64 (.reg .r8) (.reg .rcx)).eval
       (envB m0 d [] (fun _ ↦ 0) 0) = testBitW (rcW (23 - stepN m0)) (2 * i) by
     simp only [SBool.eval, Sym.eval, e, h.r8, h.rcx]
     exact rcBit _ (by omega) _ (by have := h.lt; omega)] at hpc1

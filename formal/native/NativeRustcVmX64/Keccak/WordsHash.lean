@@ -32,8 +32,8 @@ theorem keccak256WordsHash_spec {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWo
     (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost) :
     Spec (label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre Keccak256WordsHashPost := by
   intro m0 hpre
-  obtain ⟨hstk, hrc, hcnt, hlen, hmap, hnw, hmo, hno, hap, hapo, -⟩ := hpre
-  have g : WordsHash.Geo m0 := ⟨hstk, hrc, hcnt, hlen, hmap, hnw, hap⟩
+  obtain ⟨hstk, hrc, hcnt, hlen, hmap, hnw, hmo, hno, hap, hapo, -, hgot⟩ := hpre
+  have g : WordsHash.Geo m0 := ⟨hstk, hrc, hcnt, hlen, hmap, hnw, hap, hgot⟩
   rw [show label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b0Offset) from hp.label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entry_at]
   refine Eventually.bind (WordsHash.entry_run hmemset hp g) fun st h => ?_
   have hts : Eventually (step1 Host.exe) (WordsHash.TailStart m0 k) st := by

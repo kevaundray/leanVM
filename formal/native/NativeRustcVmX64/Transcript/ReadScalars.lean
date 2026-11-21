@@ -80,7 +80,7 @@ theorem step (hp : Placed code k)
       (st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧ ReadScalarsPost a s m0 st'.data) ∨
       (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadScalars.b2Offset) ∧ i + 1 < (reg m0 .rdx).toNat ∧
         Inv m0 a s (i + 1) st'.data)) st := by
-  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := hpre
+  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩, hgot⟩ := hpre
   set t := reg m0 .rdi with htdef
   set o := reg m0 .rsi with hodef
   set n := (reg m0 .rdx).toNat with hndef
@@ -140,10 +140,30 @@ theorem step (hp : Placed code k)
   have hpre3 : ReadScalarPre a s' st3.data := by
     unfold ReadScalarPre
     rw [hX6₃, hX7₃]
-    exact ⟨stackOk_callee hst hf3.kept hsp3 (by decide),
+    refine ⟨stackOk_callee hst hf3.kept hsp3 (by decide),
       RcAt.callee hrc (rc_keep hso3 hrcOut) hsp3 hn (by decide), hts3,
       TStateOk.callee htok hsp3 hn (by decide),
-      OutOk.frame hst (by decide) hsp3 hf3.kept (by decide) (by decide) htok hrc⟩
+      OutOk.frame hst (by decide) hsp3 hf3.kept (by decide) (by decide) htok hrc, ?_⟩
+    refine got_callee hgot (got_keep hgot hst (writes := [(o, 16 * n), (t, tstateBytes)])
+      (by
+        intro b hb
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl <;> simp [o, n, t])
+      (by
+        intro b hb
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl
+        · exact hon
+        · exact hTn)
+      (by simpa [or_assoc] using hso3))
+      hsp3 hn (by decide) ?_
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact (hgot.1 l hl).2.2.2 (t, tstateBytes) (by simp [t])
+    · exact (hgot.1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+    · exact got_apart_frame hgot hst hl (ob := 16) (len := 24) (by decide) (by decide)
+    · exact (hgot.1 l hl).2.2.2 (rcAddr, 192) (by simp)
   refine call_then hpc3 (hrs a s') hpre3 fun st4 hpc4 hrsp4 ⟨hout4, hnext4, hs4, hsv4⟩ => ?_
   rw [hX7₃] at hout4
   rw [hX6₃] at hnext4
@@ -372,7 +392,7 @@ theorem readScalars_spec (hp : Placed code k)
     (a : DecArea) (s : TState) :
     Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s) := by
   intro m0 hpre
-  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := id hpre
+  obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩, -⟩ := id hpre
   set t := reg m0 .rdi with htdef
   set o := reg m0 .rsi with hodef
   set n := (reg m0 .rdx).toNat with hndef

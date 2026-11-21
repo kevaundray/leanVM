@@ -124,6 +124,33 @@ theorem LayZ.wf (h : LayZ m0 F Z N rs) {m : MachineData} (hk : Kept m0.dmem m.dm
   · show List.Pairwise _ ((stackBelow m0 F, Z) :: rs)
     exact List.Pairwise.cons (fun e he ↦ h.frame_apart he) h.disj
 
+/-- A read-only source region, including separation from incoming stack arguments. -/
+theorem LayZ.withGot [Labels] (h : LayZ m0 F Z N rs) {l : Label}
+    (hg : GotAt m0 N rs [l])
+    (hspan : Apart (gotAddr l) 8 (stackBelow m0 N) (N - F + Z)) :
+    LayZ m0 F Z N (rs ++ [(gotAddr l, 8)]) := by
+  refine ⟨h.ok, h.le, h.f8, h.fz, h.map, h.nw, ?_, ?_⟩
+  · have hall : ∀ a ∈ rs ++ [(gotAddr l, 8)],
+        Mapped m0.dmem a.1 a.2 ∧ NoWrap a.1 a.2 ∧
+          Apart a.1 a.2 (stackBelow m0 N) (N - F + Z) := by
+      intro a ha
+      rcases List.mem_append.mp ha with ha | ha
+      · exact mem_of_allOf h.arr ha
+      · simp only [List.mem_singleton] at ha
+        subst a
+        exact ⟨hg.mapped (by simp), (hg.1 l (by simp)).2.1, hspan⟩
+    generalize rs ++ [(gotAddr l, 8)] = xs at hall ⊢
+    induction xs with
+    | nil => trivial
+    | cons a xs ih =>
+      exact ⟨hall a (by simp), ih (fun b hb ↦ hall b (by simp [hb]))⟩
+  · rw [List.pairwise_append]
+    refine ⟨h.disj, List.pairwise_singleton _ _, ?_⟩
+    intro a ha b hb
+    simp only [List.mem_singleton] at hb
+    subst b
+    exact ((hg.1 l (by simp)).2.2.2 a ha).symm
+
 /-- The layout of the frame below RSP at the frame's offset `oc` (a callee's view). -/
 theorem LayZ.lay (h : LayZ m0 F Z N rs) {oc : Nat} (hoc : oc + 8 ≤ F) : Lay m0 (F - oc) N rs := by
   refine ⟨h.ok, by have := h.le; omega, by omega, ?_, h.disj⟩
@@ -169,7 +196,7 @@ theorem LayZ.written (h : LayZ m0 F Z N rs) {m : MachineData} {vals : Nat → Bi
     have hsz : (Z :: rs.map Prod.snd).getD (i + 1) 0 = sz := by
       simp [List.getD_eq_getElem?_getD, hb]
     exact ⟨i, (b, sz), hwr, hb, by
-      rw [inRange_iff hnw]
+      rw [NativeRustcX64.Sym.inRange_iff hnw]
       omega⟩
 
 /-- Region `0` from the frame's offset `oc` is not in the stack below RSP there. -/
@@ -185,7 +212,7 @@ theorem LayZ.not_callee (h : LayZ m0 F Z N rs) {oc S : Nat} (hoc : oc + 8 ≤ F)
     stackBelow_toNat' (by omega)
   have hmb : (stackBelow mc S).toNat = (rspOf m0).toNat - (F - oc) - S := by
     rw [stackBelow_toNat' (by rw [hrsp, hb']; omega), hrsp, hb']
-  rw [inRange_iff (by rw [hmb]; have := g.top; omega), hmb, h.addr hjZ] at hp
+  rw [NativeRustcX64.Sym.inRange_iff (by rw [hmb]; have := g.top; omega), hmb, h.addr hjZ] at hp
   omega
 
 /-- **A template with more facts**: aliases, bounds that hold. -/
@@ -257,35 +284,35 @@ state `mc` at the call) in the stack or the writable arrays, not in the template
 continuation also gets the state at the call, the callee's postcondition and the block's changes. -/
 theorem callZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → BitVec 64}
     {m : MachineData} (hB : BndZ m0 F Z N rs wr T vals m) {ds : List Directive} {k : Nat}
+    {srcRs : List (BitVec 64 × Nat)}
     {l : Label} (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds S = some (S', .call l))
-    (hm : Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S m)
-    (hwr : S'.mem.all (writeOk F (Z :: rs.map Prod.snd) wr) = true)
+    (hm : Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S m)
     {oc : Nat} (hoc : oc + 8 ≤ F) (hsp : S'.reg .rsp = some (.ptr 0 (oc : Int)))
     {P : MachineData → Prop} {Q : MachineData → MachineData → Prop}
     (hspec : Spec (Labels.label l) P Q) {Sk : Nat} (hS : F - oc + Sk ≤ N)
-    (hP : ∀ mc, Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
+    (hP : ∀ mc, Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
       Kept m0.dmem mc.dmem → StackOk mc Sk →
       SameOutside m0.dmem mc.dmem (fun q ↦ InRange (stackBelow m0 N) N q ∨ outsOf rs wr q) →
       rspOf mc = stackBelow m0 (F - oc) → P mc)
     {W : MachineData → BitVec 64 → Prop}
-    (hQ : ∀ mc m', Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
+    (hQ : ∀ mc m', Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
       Q mc m' →
       SameOutside mc.dmem m'.dmem (fun q ↦ InRange (stackBelow mc Sk) Sk q ∨ W mc q) ∧
         Saved mc m')
-    (hWo : ∀ mc, Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
+    (hWo : ∀ mc, Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
       ∀ q, W mc q → InRange (stackBelow m0 N) N q ∨ outsOf rs wr q)
     (hok : tplOk T' = true) (hrspT : T'.reg .rsp = some (.ptr 0 ((oc + 8 : Nat) : Int)))
     {L LW : List (Nat × Sym)} (hL : rlinksOf true S' T' noRsp = some L)
     (hLW : wlinks S' T'.mem = some LW)
     (hvals : ∀ p ∈ L ++ LW,
-      p.2.eval (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) = vals' p.1)
+      p.2.eval (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) = vals' p.1)
     (hrax : ∀ i, T'.reg .rax = some (.var i) → ∀ mc m' : MachineData,
-      Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc → Q mc m' →
+      Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc → Q mc m' →
       reg m' .rax = vals' i)
     (hrdx : ∀ i, T'.reg .rdx = some (.var i) → ∀ mc m' : MachineData,
-      Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc → Q mc m' →
+      Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc → Q mc m' →
       reg m' .rdx = vals' i)
-    (hWT : ∀ mc, Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
+    (hWT : ∀ mc, Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc →
       ∀ j v t, j < Z → findWrite 0 j T'.mem = some (v, t) →
         oc ≤ j ∧ ¬W mc (stackBelow m0 F + BitVec.ofNat 64 j))
     (hsz : T'.regions = Z :: rs.map Prod.snd) (hfl : T'.flags = atomFlags)
@@ -294,15 +321,20 @@ theorem callZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → 
       (x.eval (envZ m0 m' F Z rs vals' ret)).toNat < n)
     {R : MachineState → Prop}
     (cont : ∀ st, st.pc = Host.addrOf (k + ds.length) → BndZ m0 F Z N rs wr T' vals' st.data →
-      (∃ mc, Match (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc ∧
+      (∃ mc, Match (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S' mc ∧
         rspOf mc = stackBelow m0 (F - oc) ∧ Q mc st.data ∧
         SameOutside m.dmem mc.dmem
-          (Written (envZ m0 m F Z rs vals (Host.addrOf (k + ds.length)).toBitVec) S')) →
-      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl) :
+          (Written (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec) S')) →
+      Eventually (step1 Host.exe) R st) (hknown : T'.known = [] := by rfl)
+    (hwfS : (envZ m0 m F Z srcRs vals (Host.addrOf (k + ds.length)).toBitVec).WF := by
+      exact h.wf hB.kept)
+    (hwrites : ∀ {q}, Written (envZ m0 m F Z srcRs vals
+        (Host.addrOf (k + ds.length)).toBitVec) S' q →
+      InRange (stackBelow m0 N) N q ∨ outsOf rs wr q) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf k⟩ := by
   let ra := (Host.addrOf (k + ds.length)).toBitVec
   have h' : Lay m0 (F - oc) N rs := h.lay hoc
-  have hwf := h.wf hB.kept (vals := vals) (ret := ra)
+  have hwf := hwfS
   refine exec_then hk hrun hwf (fun _ _ ↦ rfl) hm fun st hm' hpc ↦ ?_
   have hkept : Kept m0.dmem st.data.dmem := fun p hp ↦ hm'.kept hwf p (hB.kept p hp)
   have hrsp : rspOf st.data = stackBelow m0 (F - oc) := by
@@ -311,16 +343,16 @@ theorem callZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → 
     exact stackBelow_add (by omega)
   have hsame : SameOutside m0.dmem st.data.dmem
       (fun q ↦ InRange (stackBelow m0 N) N q ∨ outsOf rs wr q) := fun q hq ↦ by
-    rw [hm'.get?_mem0 hwf fun hW ↦ hq (h.written hwr hW)]
+    rw [hm'.get?_mem0 hwf fun hW ↦ hq (hwrites hW)]
     exact hB.same q hq
   simp only [tplOk, Bool.and_eq_true, List.all_eq_true] at hok
   obtain ⟨hokr, hokw⟩ := hok
-  refine call_then (env := envZ m0 m F Z rs vals ra) hpc hspec
+  refine call_then (env := envZ m0 m F Z srcRs vals ra) hpc hspec
     (hP st.data hm' hkept (h'.stackOk hkept hrsp hS) hsame hrsp) fun st' hpc' hrsp2 hqc ↦
       cont st' hpc' ⟨fun ret ↦ ?_, ?_, fun p hp ↦ (hQ _ _ hm' hqc).2.2 p (hkept p hp)⟩
         ⟨st.data, hm', hrsp, hqc, fun q hq ↦ hm'.get?_mem0 hwf hq⟩
   · obtain ⟨hso, hsv⟩ := hQ _ _ hm' hqc
-    have hR : ∀ r v, S'.reg r = some v → reg st.data r = v.eval (envZ m0 m F Z rs vals ra) :=
+    have hR : ∀ r v, S'.reg r = some v → reg st.data r = v.eval (envZ m0 m F Z srcRs vals ra) :=
       fun r v hv ↦ hm'.regs r v hv
     refine match_tpl (hknown := hknown) rfl rfl ?_ hfl (regions_envZ hsz) hlab (hbd st'.data ret)
       (hal st'.data ret) ?_
@@ -351,10 +383,11 @@ theorem callZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → 
         rfl
       · have hcs' : calleeSaved r = true := hcs.resolve_left (by decide)
         rw [hsv.1 r hcs', hm'.regs r v hs]
-        rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩
+        rcases hpl with ⟨x, o, rfl⟩ | ⟨n, rfl⟩ | ⟨l, rfl⟩
         · cases x with
           | zero => rfl
           | succ x => simp at hk'
+        · rfl
         · rfl
     · intro r b sz j v t hb hj hf
       obtain ⟨w, hwm, hwr', h1, h2, hv, ht⟩ := findWrite_spec hf
@@ -371,7 +404,7 @@ theorem callZ (h : LayZ m0 F Z N rs) {T S T' S' : SState} {vals vals' : Nat → 
       obtain ⟨rfl, rfl⟩ := hb'
       have hf' := hall t (by omega)
       rw [hwr', show w.off + t = j by omega] at hf'
-      have hb0 : (envZ m0 m F Z rs vals ra).regions[0]? = some (stackBelow m0 F, Z) := rfl
+      have hb0 : (envZ m0 m F Z srcRs vals ra).regions[0]? = some (stackBelow m0 F, Z) := rfl
       obtain ⟨hjo, hjW⟩ := hWT st.data hm' j v t hj hf
       have hnot : ¬(InRange (stackBelow st.data Sk) Sk (stackBelow m0 F + BitVec.ofNat 64 j) ∨
           W st.data (stackBelow m0 F + BitVec.ofNat 64 j)) := fun hin ↦ hin.elim

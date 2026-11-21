@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Spec.Wire
 public import NativeRustcVmX64.Spec.Transcript
 public import NativeRustcVmX64.Rodata
+public import NativeRustcVmX64.Got
 public import NativeRustcVm.Top.Entry
 public import NativeRustcVmX64.Code.Vm.LeanvmVerify.Names
 public import NativeRustcVmX64.Code.Vm.Seed.Names
@@ -77,7 +78,10 @@ def SeedPre (m : MachineData) : Prop :=
   StackOk m seedStack ∧ RcAt m seedStack ∧ 9 + 8 * n < 2 ^ 32 ∧
     Region.Ok m.dmem ⟨bc, 8 * n⟩ ∧ Region.Ok m.dmem ⟨pub, 32⟩ ∧ Region.Ok m.dmem ⟨out, 200⟩ ∧
     Disjoint [stackR m seedStack, ⟨pub, 32⟩] ∧ Disjoint [stackR m seedStack, ⟨out, 200⟩] ∧
-    (0 < n → Apart bc (8 * n) (stackBelow m seedStack) (seedStack + 8))
+    (0 < n → Apart bc (8 * n) (stackBelow m seedStack) (seedStack + 8)) ∧
+    NativeRustcX64.GotAt m seedStack
+      ([(out, 200), (pub, 32), (rcAddr, 192)] ++ if n = 0 then [] else [(bc, 8 * n)])
+      ["memcpy", "memset"]
 
 /-- `seed`'s postcondition. -/
 def SeedPost (m m' : MachineData) : Prop :=
@@ -107,7 +111,10 @@ def VerifyExecutionPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
       ⟨w, workAreaBytes⟩] ∧
     ApartRodata [⟨t, tstateBytes⟩, a.region, ⟨pub, 32⟩, ⟨w, workAreaBytes⟩] ∧
     (0 < n → Disjoint [stackR m verifyExecutionStack, ⟨bc, 8 * n⟩, ⟨t, tstateBytes⟩, a.region,
-      ⟨w, workAreaBytes⟩] ∧ RodataApart bc (8 * n))
+      ⟨w, workAreaBytes⟩] ∧ RodataApart bc (8 * n)) ∧
+    NativeRustcX64.GotAt m verifyExecutionStack
+      ([(t, tstateBytes), (a.words, 8 * a.len), (pub, 32), (w, workAreaBytes)] ++
+        rodataAreas ++ if n = 0 then [] else [(bc, 8 * n)]) ["memcpy", "memset"]
 
 /-- `verify_execution`'s postcondition. -/
 def VerifyExecutionPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
@@ -135,7 +142,10 @@ def VerifyPre (a : DecArea) (stream : Array EW) (openings : Array (Array Opening
     Disjoint [stackR m verifyStack, ⟨pub, 32⟩, ⟨dec, 24⟩, a.region, ⟨w, workAreaBytes⟩] ∧
     ApartRodata [⟨pub, 32⟩, ⟨dec, 24⟩, a.region, ⟨w, workAreaBytes⟩] ∧
     (0 < n → Disjoint [stackR m verifyStack, ⟨bc, 8 * n⟩, a.region, ⟨w, workAreaBytes⟩] ∧
-      RodataApart bc (8 * n))
+      RodataApart bc (8 * n)) ∧
+    NativeRustcX64.GotAt m verifyStack
+      ([(pub, 32), (dec, 24), (a.words, 8 * a.len), (w, workAreaBytes)] ++
+        rodataAreas ++ if n = 0 then [] else [(bc, 8 * n)]) ["memcpy", "memset"]
 
 /-- `verify`'s postcondition. -/
 def VerifyPost (stream : Array EW) (openings : Array (Array OpeningW)) (m m' : MachineData) :
@@ -163,7 +173,10 @@ def LeanvmVerifyPre (a : Code.Areas) (bytes : List UInt8) (bytecode : List UInt6
     Aligned a bytes.length bytecode.length ∧
     ApartFrom (entryRegions ctx a bytes.length bytecode.length) (stackBelow m leanvmVerifyStack)
       (leanvmVerifyStack + 8) ∧
-    ∀ r ∈ entryRegions ctx a bytes.length bytecode.length, 0 < r.size → RodataApart r.addr r.size
+    (∀ r ∈ entryRegions ctx a bytes.length bytecode.length, 0 < r.size → RodataApart r.addr r.size) ∧
+    NativeRustcX64.GotAt m leanvmVerifyStack
+      ((entryRegions ctx a bytes.length bytecode.length).map (fun r => (r.addr, r.size)) ++
+        rodataAreas) ["memcpy", "memset"]
 
 /-- The verdict: `1` when the wire bytes decode (`Proof.fromBytes`) to a proof `verifyWith`
 accepts, else `0`. -/

@@ -46,13 +46,23 @@ theorem Parts.squeeze (h : Parts a s layout target coefficients point slices cs 
     have h2 : (tA m0).toNat + 760 ≤ rcAddr.toNat ∨ rcAddr.toNat + 192 ≤ (tA m0).toNat := htok.2.2
     refine ⟨hok.stackOk h hN, hok.rcAt h hN,
       ⟨fun j hj ↦ hfp.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_, ?_, ?_⟩,
-      hts.sponge⟩
+      hts.sponge, ?_⟩
     · show (tA m0).toNat + 328 ≤ 2 ^ 64; omega
     · unfold NativeRustcVm.Apart at h1
       have : tstateBytes = 760 := rfl
       show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat
       omega
     · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
+    · apply hok.got_callee h hN (by simp)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, by
+          dsimp only [Prod.fst, Prod.snd, spongeBytes, tstateBytes]; omega⟩
+      · have hrc : (rcAddr, 192) ∈ rodataAreas := by
+          change (rodataAddr .keccakRC, NativeRustcVm.Data.Item.bytes .keccakRC |>.length) ∈ rodataAreas
+          exact List.mem_map.mpr ⟨.keccakRC, by decide, rfl⟩
+        exact ⟨(rcAddr, 192), by simp [hrc], le_rfl, le_rfl⟩
   refine call_then (P := SqueezePre s'.sponge) (Q := SqueezePost s'.sponge) hpc (hsq s'.sponge) hpre
     fun st2 hpc2 hrsp2 ⟨hc0, hc1, hsp2, hs2, hsv2⟩ ↦ ?_
   rw [hdi] at hsp2 hs2

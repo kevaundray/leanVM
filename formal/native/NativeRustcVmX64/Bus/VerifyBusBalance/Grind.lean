@@ -263,8 +263,12 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun m5 fr5 hq5 hs5 hcs5 ↦ ?_
   · unfold GrindPre
     rw [x4di, g4]
-    exact ⟨cal_stack h fr4 (by omega) hle4, cal_rc h fr4 (by omega) hle4, ts4,
-      cal_tok h fr4 (by omega) hle4, by omega⟩
+    refine ⟨cal_stack h fr4 (by omega) hle4, cal_rc h fr4 (by omega) hle4, ts4,
+      cal_tok h fr4 (by omega) hle4, by omega, cal_got h fr4 (by omega) hle4 (by decide) ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl <;>
+      exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   obtain ⟨hal5, hnx5, -, hsv5⟩ := hq5
   rw [g4] at hal5 hnx5
   rw [x4di] at hnx5
@@ -327,8 +331,16 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun m8 fr8 hq8 hs8 hcs8 ↦ ?_
   · unfold SampleChallengesPre
     rw [x7di, x7si, x7dx]
-    exact ⟨cal_stack h fr7 (by omega) hle7, cal_rc h fr7 (by omega) hle7, ts7,
-      cal_tok h fr7 (by omega) hle7, cal_local h fr7 (by omega) hle7 (by omega) (by omega)⟩
+    refine ⟨cal_stack h fr7 (by omega) hle7, cal_rc h fr7 (by omega) hle7, ts7,
+      cal_tok h fr7 (by omega) hle7, cal_local h fr7 (by omega) hle7 (by omega) (by omega),
+      cal_got h fr7 (by omega) hle7 (by decide) ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   obtain ⟨⟨w, s2, hr2, hw8, ts8⟩, -, hsv8⟩ := hq8
   rw [x7si] at hw8
   rw [x7di] at ts8
@@ -377,10 +389,18 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     have hnw : (reg m0 .rdi).toNat + 760 ≤ 2 ^ 64 := hfp.1.2
     refine ⟨cal_stack h fr9 (by omega) hle9, cal_rc h fr9 (by omega) hle9,
       ⟨fun j hj ↦ hfp.1.1 j (by simp only [spongeBytes] at hj; show j < 760; omega), ?_, ?_, ?_⟩,
-      ts9.sponge⟩
+      ts9.sponge, ?_⟩
     · show (reg m0 .rdi).toNat + 328 ≤ 2 ^ 64; omega
     · show (reg m0 .rdi).toNat + 328 ≤ _ ∨ _ ≤ (reg m0 .rdi).toNat; omega
     · show (reg m0 .rdi).toNat + 328 ≤ _ ∨ _ ≤ (reg m0 .rdi).toNat; omega
+    · apply cal_got h fr9 (by omega) hle9 (by decide)
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact NativeRustcVm.Apart.mono_right
+          (((pre_got h).1 l hl).2.2.2 (reg m0 .rdi, tstateBytes) (by simp))
+          (Nat.le_refl _) (by dsimp only [Prod.fst, Prod.snd, spongeBytes, tstateBytes]; omega)
+      · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   have hR : ∀ q, NativeRustcVm.InRange (reg m0 .rdi) spongeBytes q →
       NativeRustcVm.InRange (reg m0 .rdi) tstateBytes q := fun q hq ↦ inRange_mono hq (by decide)
   simp only [PcOk] at hpc9
@@ -446,10 +466,10 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       ?_ 20 0 rfl st11.data fr11 kG11 r11 ts11 (hm11.regs .rax _ hrax11))
   intro d12 fr12 kG12 r12 ts12
   -- `b17`: `memcpy(1800, 672, 1008)`.
-  have hwf13 := wf0 h fr12.frame.kept (vars := fun _ ↦ 0)
+  have hwf13 := wf_copy h fr12.frame.kept (vars := fun _ ↦ 0)
     (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b17Offset + b17.length)).toBitVec)
   refine exec_then (infix_of b17_in_code (by simp [b17]) hp) exit_b17 hwf13 (fun _ _ ↦ rfl)
-    (match_fS fr12) fun st13 hm13 hpc13 ↦ ?_
+    (match_copy h fr12) fun st13 hm13 hpc13 ↦ ?_
   obtain ⟨hmid13, hw13, hrdi13, hrsi13, hrdx13, hk13⟩ := ok_b17
   have fr13 : St m0 96 st13.data :=
     St.blk fr12 hS hwf13 hm13 hmid13 fun q hq ↦ wr0 hS hw13 (by omega) hq
@@ -540,11 +560,19 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun m16 fr16 hq16 hs16 hcs16 ↦ ?_
   · unfold VerifyGkrPre GkrOk
     rw [x15di, x15si, x15cx, x15dx, hgb]
-    exact ⟨cal_stack h fr15 (by omega) hle15, cal_rc h fr15 (by omega) hle15, ts15,
+    refine ⟨cal_stack h fr15 (by omega) hle15, cal_rc h fr15 (by omega) hle15, ts15,
       cal_tok h fr15 (by omega) hle15, by unfold busPointCap; omega,
       cal_local h fr15 (by omega) hle15 (by omega) (by omega),
       cal_local h fr15 (by omega) hle15 (by omega) (by omega),
-      loc_apart hS (by omega) (by omega) (by omega)⟩
+      loc_apart hS (by omega) (by omega) (by omega), cal_got h fr15 (by omega) hle15 (by decide) ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   obtain ⟨hopt16, hsome16, -, -⟩ := hq16
   rw [x15di, x15dx] at hopt16
   rw [x15si, x15cx, x15dx] at hsome16

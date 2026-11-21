@@ -336,6 +336,34 @@ theorem fa_rc (hrc : RcAt m0 openPhaseStack) (hst : StackOk m0 openPhaseStack) {
     (hon : o + n ≤ 184) (ho : o < 184) : NativeRustcVm.Apart (off (fa m0) o) n rcAddr 192 :=
   Apart.symm' (apart_fa hst hrc.2.2 hon ho)
 
+theorem got_of {P : Array OpeningW} {R : Digest} {Q : Array UInt64}
+    (h : OpenPhasePre P R Q m0) :
+    GotAt m0 openPhaseStack
+      [(phO m0, 8 * phaseWords), (reg m0 .rsi, 32), (reg m0 .r8, 8 * (reg m0 .r9).toNat),
+        (outO m0, 32), (rcAddr, 192)] ["memcpy", "memset"] := by
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, hg⟩ := h
+  exact hg
+
+/-- The opening loop only writes its stack, so it preserves every loader slot. -/
+theorem FrO.gotAt {P : Array OpeningW} {R : Digest} {Q : Array UInt64}
+    (hf : FrO m0 0 d) (h : OpenPhasePre P R Q m0) {Nc : Nat}
+    (hle : 176 + Nc ≤ openPhaseStack) {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ (["memcpy", "memset"] : List Label), ∀ x ∈ areas,
+      Apart (gotAddr l) 8 x.1 x.2) : GotAt d Nc areas ["memcpy", "memset"] := by
+  have hg := got_of h
+  refine hg.transport (fun l hl i hi ↦ hf.same _ ?_)
+    (fun l hl ↦ apart_callee' h.1 (by rw [hf.frame.sp, off_zero]) hle
+      (hg.1 l hl).2.2.1) ha
+  intro hq
+  exact not_inRange_of_apart (hg.1 l hl).2.2.1 (hg.1 l hl).2.1
+    (noWrap_stackBelow h.1) (inRange_off_self hi (by decide))
+    (inRange_mono hq (by omega))
+
+theorem got_frame {P : Array OpeningW} {R : Digest} {Q : Array UInt64}
+    (h : OpenPhasePre P R Q m0) {l : Label} (hl : l ∈ (["memcpy", "memset"] : List Label))
+    {o n : Nat} (hon : o + n ≤ 176) : Apart (gotAddr l) 8 (off (fa m0) o) n :=
+  apart_fa h.1 ((got_of h).1 l hl).2.2.1 (by omega) (by omega)
+
 /-- The return, after `b9` from `S` with the output (region 1) written by `S`'s blocks. -/
 theorem retPost {P : Array OpeningW} {R : Digest} {Q : Array UInt64}
     (hpre : OpenPhasePre P R Q m0) (hf : FrO m0 8 m) {S : SState}

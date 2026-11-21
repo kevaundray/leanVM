@@ -153,6 +153,7 @@ theorem accCall (h : VerifyBusBalancePre a s0 L m0)
     (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel ∧ retOf st.data = next)
     {side : Nat} (hside : side < 3) {it : NativeRustcVm.Data.Item}
     (hit : it.bytes = (sideBlocks side).flatMap NativeRustcVm.Data.Block.bytes)
+    (hitgot : it ∈ [.pushBlocks, .pullBlocks, .countBlocks])
     {o ol : Nat} (ho8 : 96 ≤ o) (ho : o + 24 ≤ 5472) (hol8 : 96 ≤ ol) (hol : ol + 888 ≤ 5472)
     {SL : BusLayoutW} (hSL : BusLayoutWAt st.data.dmem (loc m0 ol) SL)
     (hSLs : SL.tables.size = (sideBlocks side).length)
@@ -179,6 +180,10 @@ theorem accCall (h : VerifyBusBalancePre a s0 L m0)
     (hbeta : ewArg (stackArg st.data 5) (stackArg st.data 6) = beta)
     (hptv : slice st.data (stackArg st.data 7) (stackArg st.data 8) = pt)
     (htree : ewArg (stackArg st.data 9) (stackArg st.data 10) = tree)
+    (harggot : ∀ l ∈ ["memcpy", "memset"],
+      (0 < (stackArg st.data 2).toNat →
+        Apart (gotAddr l) 8 (stackArg st.data 1) (16 * (stackArg st.data 2).toNat)) ∧
+      Apart (gotAddr l) 8 (stackArg st.data 3) (16 * (stackArg st.data 4).toNat))
     (cont : ∀ m2, St m0 8 m2 →
       OptEWAt m2.dmem (loc m0 o)
         (some (accumulateSide F side (sideOf L side) SL fps w beta pt tree).2) →
@@ -246,7 +251,7 @@ theorem accCall (h : VerifyBusBalancePre a s0 L m0)
       bus_loc h hfb (by rw [busLayoutBytes_eq]; omega), fun hn ↦ (hfp hn).2.1, hw.2,
       bus_loc h hfb hpt, bus_loc h hfb (by omega),
       loc_apart hS (by rw [busLayoutBytes_eq]; omega) (by omega) (.inr (by omega)),
-      fun hn ↦ (hfp hn).2.2⟩
+      fun hn ↦ (hfp hn).2.2, cal_got h fr (by omega) hle' (by decide) ?_⟩
     · rw [hsp8]
       exact mapped_off (Mapped.keeps (frame_mapped hS N_ge) fr.frame.kept) (by omega)
     · rw [hsp0, loc_toNat hS (by omega)]
@@ -261,6 +266,34 @@ theorem accCall (h : VerifyBusBalancePre a s0 L m0)
         (Nat.le_refl _)
     · exact NativeRustcVm.Apart.mono (pre_busL h) (Nat.le_refl _) (by omega) (Nat.le_refl _)
         (Nat.le_refl _)
+    · intro l hl b hb
+      simp only [List.mem_append] at hb
+      rcases hb with (hb | hb) | hb
+      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+        · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+        · exact NativeRustcVm.Apart.mono_right
+            (((pre_got h).1 l hl).2.2.2 (reg m0 .r8, busBytes) (by simp))
+            (Nat.le_refl _) (by dsimp only; omega)
+        · rw [← length_blocks, ← hit]
+          apply ((pre_got h).1 l hl).2.2.2
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at hitgot
+          rcases hitgot with rfl | rfl | rfl <;> simp
+        · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+        · exact got_apart_frame (pre_got h) hS hl N_ge
+            (by rw [busLayoutBytes_eq]; omega)
+        · exact (harggot l hl).2
+        · exact got_apart_frame (pre_got h) hS hl N_ge hpt
+        · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+      · by_cases hn : (stackArg st.data 2).toNat = 0
+        · simp only [hn, ↓reduceIte, List.not_mem_nil] at hb
+        · simp only [hn, ↓reduceIte, List.mem_singleton] at hb
+          subst b
+          exact (harggot l hl).1 (by omega)
+      · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hb
+        apply ((pre_got h).1 l hl).2.2.2
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+        rcases hi with rfl | rfl | rfl | rfl <;> simp
   · rw [x0, x1] at hq'
     rcases hq' with hq' | hq' | hq'
     · exact .inr (.inl hq')

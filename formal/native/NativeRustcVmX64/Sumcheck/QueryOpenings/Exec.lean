@@ -37,10 +37,10 @@ open NativeRustcVmX64.Transcript NativeRustcVmX64.Sumcheck
 /-- The frame's slots: the pushed registers. -/
 def slots : Slots := [(88, .rbp), (80, .r15), (72, .r14), (64, .r13), (56, .r12), (48, .rbx)]
 
-/-- Root `i`'s address minus `368`, as `b3` computes it: `RBX + (RBP + (RBP + RBP)) << 4`. -/
+/-- Root `i`'s address minus `368`, as `b3` computes it: `RBX + ((RBP + 2 * RBP) << 4)`. -/
 def rootSym : Sym :=
   .bin .add .W64 (.reg .rbx)
-    (.bin .shl .W64 (.bin .add .W64 (.reg .rbp) (.bin .add .W64 (.reg .rbp) (.reg .rbp))) (.lit 4))
+    (.bin .shl .W64 (.bin .add .W64 (.reg .rbp) (.bin .mul .W64 (.reg .rbp) (.lit 2))) (.lit 4))
 
 /-- The roots' count. -/
 abbrev cntSym : Sym := .load 1 752 8

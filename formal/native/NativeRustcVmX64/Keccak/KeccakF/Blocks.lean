@@ -35,7 +35,9 @@ set_option Elab.async false
 
 /-- The entry's start: region 0 the frame, RSP at its offset 480, region 1 the state RDI points
 to. -/
-def startEntry : SState := init [488, 200] [(.rsp, .ptr 0 480), (.rdi, .ptr 1 0)]
+def startEntry : SState :=
+  (init [488, 200, 8] [(.rsp, .ptr 0 480), (.rdi, .ptr 1 0)] [] []
+    [(.gotSlot "memcpy", 2, 0)]).withKnownBytes 2 0 8 (.label "memcpy")
 
 /-- After `memcpy`: RSP at the frame's offset 8, region 1 the state RBX points to. -/
 def startLoad : SState := init [488, 200] [(.rsp, .ptr 0 8), (.rbx, .ptr 1 0)]

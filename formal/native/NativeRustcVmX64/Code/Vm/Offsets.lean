@@ -325,7 +325,7 @@ public theorem EqEvalFnOfEqAbove.b5_at : NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b
 public theorem EqEvalFnOfEqAbove.b6_at : NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b6.IsInfixAt NativeRustcVmX64.Vm.code (EqEvalFnOfEqAbove.programOffset + NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b6Offset) :=
   NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.b6_in_code.trans EqEvalFnOfEqAbove.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def MultilinearEvalByOfMultilinearEval.programOffset : Nat := 615
+@[expose] public def MultilinearEvalByOfMultilinearEval.programOffset : Nat := 609
 
 public theorem MultilinearEvalByOfMultilinearEval.code_at : NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.code.IsInfixAt NativeRustcVmX64.Vm.code MultilinearEvalByOfMultilinearEval.programOffset :=
   List.isInfixAt_flatten_of (i := 6) rfl (by decide +kernel)
@@ -396,7 +396,7 @@ public theorem MultilinearEvalByOfMultilinearEval.b20_at : NativeRustcVmX64.Vm.M
 public theorem MultilinearEvalByOfMultilinearEval.b21_at : NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b21.IsInfixAt NativeRustcVmX64.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b21Offset) :=
   NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b21_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def MultilinearEvalByOfComputedBytecodeValue.programOffset : Nat := 737
+@[expose] public def MultilinearEvalByOfComputedBytecodeValue.programOffset : Nat := 731
 
 public theorem MultilinearEvalByOfComputedBytecodeValue.code_at : NativeRustcVmX64.Vm.MultilinearEvalByOfComputedBytecodeValue.code.IsInfixAt NativeRustcVmX64.Vm.code MultilinearEvalByOfComputedBytecodeValue.programOffset :=
   List.isInfixAt_flatten_of (i := 7) rfl (by decide +kernel)
@@ -464,7 +464,7 @@ public theorem MultilinearEvalByOfComputedBytecodeValue.b19_at : NativeRustcVmX6
 public theorem MultilinearEvalByOfComputedBytecodeValue.b20_at : NativeRustcVmX64.Vm.MultilinearEvalByOfComputedBytecodeValue.b20.IsInfixAt NativeRustcVmX64.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmX64.Vm.MultilinearEvalByOfComputedBytecodeValue.b20Offset) :=
   NativeRustcVmX64.Vm.MultilinearEvalByOfComputedBytecodeValue.b20_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Keccak256WordsOfHashWords.programOffset : Nat := 856
+@[expose] public def Keccak256WordsOfHashWords.programOffset : Nat := 850
 
 public theorem Keccak256WordsOfHashWords.code_at : NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.code.IsInfixAt NativeRustcVmX64.Vm.code Keccak256WordsOfHashWords.programOffset :=
   List.isInfixAt_flatten_of (i := 8) rfl (by decide +kernel)
@@ -721,7 +721,7 @@ public theorem Keccak256WordsOfHashWords.b82_at : NativeRustcVmX64.Vm.Keccak256W
 public theorem Keccak256WordsOfHashWords.b83_at : NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b83.IsInfixAt NativeRustcVmX64.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b83Offset) :=
   NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b83_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Keccak256WordsOfFiatShamirIv.programOffset : Nat := 1324
+@[expose] public def Keccak256WordsOfFiatShamirIv.programOffset : Nat := 1316
 
 public theorem Keccak256WordsOfFiatShamirIv.code_at : NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.code.IsInfixAt NativeRustcVmX64.Vm.code Keccak256WordsOfFiatShamirIv.programOffset :=
   List.isInfixAt_flatten_of (i := 9) rfl (by decide +kernel)
@@ -1062,7 +1062,7 @@ public theorem Keccak256WordsOfFiatShamirIv.b110_at : NativeRustcVmX64.Vm.Keccak
 public theorem Keccak256WordsOfFiatShamirIv.b111_at : NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b111.IsInfixAt NativeRustcVmX64.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b111Offset) :=
   NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b111_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def InsertionSortOfStackOffsets.programOffset : Nat := 1878
+@[expose] public def InsertionSortOfStackOffsets.programOffset : Nat := 1868
 
 public theorem InsertionSortOfStackOffsets.code_at : NativeRustcVmX64.Vm.InsertionSortOfStackOffsets.code.IsInfixAt NativeRustcVmX64.Vm.code InsertionSortOfStackOffsets.programOffset :=
   List.isInfixAt_flatten_of (i := 10) rfl (by decide +kernel)
@@ -1136,7 +1136,7 @@ public theorem InsertionSortOfStackOffsets.b21_at : NativeRustcVmX64.Vm.Insertio
 public theorem InsertionSortOfStackOffsets.b22_at : NativeRustcVmX64.Vm.InsertionSortOfStackOffsets.b22.IsInfixAt NativeRustcVmX64.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmX64.Vm.InsertionSortOfStackOffsets.b22Offset) :=
   NativeRustcVmX64.Vm.InsertionSortOfStackOffsets.b22_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def VerifyBusBalanceClosure0.programOffset : Nat := 1947
+@[expose] public def VerifyBusBalanceClosure0.programOffset : Nat := 1937
 
 public theorem VerifyBusBalanceClosure0.code_at : NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.code.IsInfixAt NativeRustcVmX64.Vm.code VerifyBusBalanceClosure0.programOffset :=
   List.isInfixAt_flatten_of (i := 11) rfl (by decide +kernel)
@@ -1147,7 +1147,7 @@ public theorem VerifyBusBalanceClosure0.b0_at : NativeRustcVmX64.Vm.VerifyBusBal
 public theorem VerifyBusBalanceClosure0.b1_at : NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b1.IsInfixAt NativeRustcVmX64.Vm.code (VerifyBusBalanceClosure0.programOffset + NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b1Offset) :=
   NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b1_in_code.trans VerifyBusBalanceClosure0.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SpongeWAbsorbNonce.programOffset : Nat := 1976
+@[expose] public def SpongeWAbsorbNonce.programOffset : Nat := 1966
 
 public theorem SpongeWAbsorbNonce.code_at : NativeRustcVmX64.Vm.SpongeWAbsorbNonce.code.IsInfixAt NativeRustcVmX64.Vm.code SpongeWAbsorbNonce.programOffset :=
   List.isInfixAt_flatten_of (i := 12) rfl (by decide +kernel)
@@ -1161,7 +1161,7 @@ public theorem SpongeWAbsorbNonce.b1_at : NativeRustcVmX64.Vm.SpongeWAbsorbNonce
 public theorem SpongeWAbsorbNonce.b2_at : NativeRustcVmX64.Vm.SpongeWAbsorbNonce.b2.IsInfixAt NativeRustcVmX64.Vm.code (SpongeWAbsorbNonce.programOffset + NativeRustcVmX64.Vm.SpongeWAbsorbNonce.b2Offset) :=
   NativeRustcVmX64.Vm.SpongeWAbsorbNonce.b2_in_code.trans SpongeWAbsorbNonce.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SpongeWDuplexInput.programOffset : Nat := 1991
+@[expose] public def SpongeWDuplexInput.programOffset : Nat := 1981
 
 public theorem SpongeWDuplexInput.code_at : NativeRustcVmX64.Vm.SpongeWDuplexInput.code.IsInfixAt NativeRustcVmX64.Vm.code SpongeWDuplexInput.programOffset :=
   List.isInfixAt_flatten_of (i := 13) rfl (by decide +kernel)
@@ -1196,7 +1196,7 @@ public theorem SpongeWDuplexInput.b8_at : NativeRustcVmX64.Vm.SpongeWDuplexInput
 public theorem SpongeWDuplexInput.b9_at : NativeRustcVmX64.Vm.SpongeWDuplexInput.b9.IsInfixAt NativeRustcVmX64.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmX64.Vm.SpongeWDuplexInput.b9Offset) :=
   NativeRustcVmX64.Vm.SpongeWDuplexInput.b9_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SpongeWAbsorb.programOffset : Nat := 2051
+@[expose] public def SpongeWAbsorb.programOffset : Nat := 2041
 
 public theorem SpongeWAbsorb.code_at : NativeRustcVmX64.Vm.SpongeWAbsorb.code.IsInfixAt NativeRustcVmX64.Vm.code SpongeWAbsorb.programOffset :=
   List.isInfixAt_flatten_of (i := 14) rfl (by decide +kernel)
@@ -1216,7 +1216,7 @@ public theorem SpongeWAbsorb.b3_at : NativeRustcVmX64.Vm.SpongeWAbsorb.b3.IsInfi
 public theorem SpongeWAbsorb.b4_at : NativeRustcVmX64.Vm.SpongeWAbsorb.b4.IsInfixAt NativeRustcVmX64.Vm.code (SpongeWAbsorb.programOffset + NativeRustcVmX64.Vm.SpongeWAbsorb.b4Offset) :=
   NativeRustcVmX64.Vm.SpongeWAbsorb.b4_in_code.trans SpongeWAbsorb.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SpongeWDuplex.programOffset : Nat := 2083
+@[expose] public def SpongeWDuplex.programOffset : Nat := 2073
 
 public theorem SpongeWDuplex.code_at : NativeRustcVmX64.Vm.SpongeWDuplex.code.IsInfixAt NativeRustcVmX64.Vm.code SpongeWDuplex.programOffset :=
   List.isInfixAt_flatten_of (i := 15) rfl (by decide +kernel)
@@ -1230,7 +1230,7 @@ public theorem SpongeWDuplex.b1_at : NativeRustcVmX64.Vm.SpongeWDuplex.b1.IsInfi
 public theorem SpongeWDuplex.b2_at : NativeRustcVmX64.Vm.SpongeWDuplex.b2.IsInfixAt NativeRustcVmX64.Vm.code (SpongeWDuplex.programOffset + NativeRustcVmX64.Vm.SpongeWDuplex.b2Offset) :=
   NativeRustcVmX64.Vm.SpongeWDuplex.b2_in_code.trans SpongeWDuplex.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SpongeWSqueeze.programOffset : Nat := 2092
+@[expose] public def SpongeWSqueeze.programOffset : Nat := 2082
 
 public theorem SpongeWSqueeze.code_at : NativeRustcVmX64.Vm.SpongeWSqueeze.code.IsInfixAt NativeRustcVmX64.Vm.code SpongeWSqueeze.programOffset :=
   List.isInfixAt_flatten_of (i := 16) rfl (by decide +kernel)
@@ -1247,7 +1247,7 @@ public theorem SpongeWSqueeze.b2_at : NativeRustcVmX64.Vm.SpongeWSqueeze.b2.IsIn
 public theorem SpongeWSqueeze.b3_at : NativeRustcVmX64.Vm.SpongeWSqueeze.b3.IsInfixAt NativeRustcVmX64.Vm.code (SpongeWSqueeze.programOffset + NativeRustcVmX64.Vm.SpongeWSqueeze.b3Offset) :=
   NativeRustcVmX64.Vm.SpongeWSqueeze.b3_in_code.trans SpongeWSqueeze.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BufEW30Extend.programOffset : Nat := 2106
+@[expose] public def BufEW30Extend.programOffset : Nat := 2096
 
 public theorem BufEW30Extend.code_at : NativeRustcVmX64.Vm.BufEW30Extend.code.IsInfixAt NativeRustcVmX64.Vm.code BufEW30Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 17) rfl (by decide +kernel)
@@ -1276,7 +1276,7 @@ public theorem BufEW30Extend.b6_at : NativeRustcVmX64.Vm.BufEW30Extend.b6.IsInfi
 public theorem BufEW30Extend.b7_at : NativeRustcVmX64.Vm.BufEW30Extend.b7.IsInfixAt NativeRustcVmX64.Vm.code (BufEW30Extend.programOffset + NativeRustcVmX64.Vm.BufEW30Extend.b7Offset) :=
   NativeRustcVmX64.Vm.BufEW30Extend.b7_in_code.trans BufEW30Extend.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BufEW36Extend.programOffset : Nat := 2143
+@[expose] public def BufEW36Extend.programOffset : Nat := 2133
 
 public theorem BufEW36Extend.code_at : NativeRustcVmX64.Vm.BufEW36Extend.code.IsInfixAt NativeRustcVmX64.Vm.code BufEW36Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 18) rfl (by decide +kernel)
@@ -1305,7 +1305,7 @@ public theorem BufEW36Extend.b6_at : NativeRustcVmX64.Vm.BufEW36Extend.b6.IsInfi
 public theorem BufEW36Extend.b7_at : NativeRustcVmX64.Vm.BufEW36Extend.b7.IsInfixAt NativeRustcVmX64.Vm.code (BufEW36Extend.programOffset + NativeRustcVmX64.Vm.BufEW36Extend.b7Offset) :=
   NativeRustcVmX64.Vm.BufEW36Extend.b7_in_code.trans BufEW36Extend.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BufEW63Extend.programOffset : Nat := 2180
+@[expose] public def BufEW63Extend.programOffset : Nat := 2170
 
 public theorem BufEW63Extend.code_at : NativeRustcVmX64.Vm.BufEW63Extend.code.IsInfixAt NativeRustcVmX64.Vm.code BufEW63Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 19) rfl (by decide +kernel)
@@ -1334,7 +1334,7 @@ public theorem BufEW63Extend.b6_at : NativeRustcVmX64.Vm.BufEW63Extend.b6.IsInfi
 public theorem BufEW63Extend.b7_at : NativeRustcVmX64.Vm.BufEW63Extend.b7.IsInfixAt NativeRustcVmX64.Vm.code (BufEW63Extend.programOffset + NativeRustcVmX64.Vm.BufEW63Extend.b7Offset) :=
   NativeRustcVmX64.Vm.BufEW63Extend.b7_in_code.trans BufEW63Extend.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BufEW230Extend.programOffset : Nat := 2217
+@[expose] public def BufEW230Extend.programOffset : Nat := 2207
 
 public theorem BufEW230Extend.code_at : NativeRustcVmX64.Vm.BufEW230Extend.code.IsInfixAt NativeRustcVmX64.Vm.code BufEW230Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 20) rfl (by decide +kernel)
@@ -1363,7 +1363,7 @@ public theorem BufEW230Extend.b6_at : NativeRustcVmX64.Vm.BufEW230Extend.b6.IsIn
 public theorem BufEW230Extend.b7_at : NativeRustcVmX64.Vm.BufEW230Extend.b7.IsInfixAt NativeRustcVmX64.Vm.code (BufEW230Extend.programOffset + NativeRustcVmX64.Vm.BufEW230Extend.b7Offset) :=
   NativeRustcVmX64.Vm.BufEW230Extend.b7_in_code.trans BufEW230Extend.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BufU64x230Extend.programOffset : Nat := 2254
+@[expose] public def BufU64x230Extend.programOffset : Nat := 2244
 
 public theorem BufU64x230Extend.code_at : NativeRustcVmX64.Vm.BufU64x230Extend.code.IsInfixAt NativeRustcVmX64.Vm.code BufU64x230Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 21) rfl (by decide +kernel)
@@ -1386,7 +1386,7 @@ public theorem BufU64x230Extend.b4_at : NativeRustcVmX64.Vm.BufU64x230Extend.b4.
 public theorem BufU64x230Extend.b5_at : NativeRustcVmX64.Vm.BufU64x230Extend.b5.IsInfixAt NativeRustcVmX64.Vm.code (BufU64x230Extend.programOffset + NativeRustcVmX64.Vm.BufU64x230Extend.b5Offset) :=
   NativeRustcVmX64.Vm.BufU64x230Extend.b5_in_code.trans BufU64x230Extend.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BasisWEval.programOffset : Nat := 2282
+@[expose] public def BasisWEval.programOffset : Nat := 2272
 
 public theorem BasisWEval.code_at : NativeRustcVmX64.Vm.BasisWEval.code.IsInfixAt NativeRustcVmX64.Vm.code BasisWEval.programOffset :=
   List.isInfixAt_flatten_of (i := 22) rfl (by decide +kernel)
@@ -1475,7 +1475,7 @@ public theorem BasisWEval.b26_at : NativeRustcVmX64.Vm.BasisWEval.b26.IsInfixAt 
 public theorem BasisWEval.b27_at : NativeRustcVmX64.Vm.BasisWEval.b27.IsInfixAt NativeRustcVmX64.Vm.code (BasisWEval.programOffset + NativeRustcVmX64.Vm.BasisWEval.b27Offset) :=
   NativeRustcVmX64.Vm.BasisWEval.b27_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ReaderLe.programOffset : Nat := 2452
+@[expose] public def ReaderLe.programOffset : Nat := 2442
 
 public theorem ReaderLe.code_at : NativeRustcVmX64.Vm.ReaderLe.code.IsInfixAt NativeRustcVmX64.Vm.code ReaderLe.programOffset :=
   List.isInfixAt_flatten_of (i := 23) rfl (by decide +kernel)
@@ -1504,7 +1504,7 @@ public theorem ReaderLe.b6_at : NativeRustcVmX64.Vm.ReaderLe.b6.IsInfixAt Native
 public theorem ReaderLe.b7_at : NativeRustcVmX64.Vm.ReaderLe.b7.IsInfixAt NativeRustcVmX64.Vm.code (ReaderLe.programOffset + NativeRustcVmX64.Vm.ReaderLe.b7Offset) :=
   NativeRustcVmX64.Vm.ReaderLe.b7_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ReaderWords.programOffset : Nat := 2486
+@[expose] public def ReaderWords.programOffset : Nat := 2476
 
 public theorem ReaderWords.code_at : NativeRustcVmX64.Vm.ReaderWords.code.IsInfixAt NativeRustcVmX64.Vm.code ReaderWords.programOffset :=
   List.isInfixAt_flatten_of (i := 24) rfl (by decide +kernel)
@@ -1539,7 +1539,7 @@ public theorem ReaderWords.b8_at : NativeRustcVmX64.Vm.ReaderWords.b8.IsInfixAt 
 public theorem ReaderWords.b9_at : NativeRustcVmX64.Vm.ReaderWords.b9.IsInfixAt NativeRustcVmX64.Vm.code (ReaderWords.programOffset + NativeRustcVmX64.Vm.ReaderWords.b9Offset) :=
   NativeRustcVmX64.Vm.ReaderWords.b9_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ReaderDigest.programOffset : Nat := 2529
+@[expose] public def ReaderDigest.programOffset : Nat := 2517
 
 public theorem ReaderDigest.code_at : NativeRustcVmX64.Vm.ReaderDigest.code.IsInfixAt NativeRustcVmX64.Vm.code ReaderDigest.programOffset :=
   List.isInfixAt_flatten_of (i := 25) rfl (by decide +kernel)
@@ -1577,7 +1577,7 @@ public theorem ReaderDigest.b9_at : NativeRustcVmX64.Vm.ReaderDigest.b9.IsInfixA
 public theorem ReaderDigest.b10_at : NativeRustcVmX64.Vm.ReaderDigest.b10.IsInfixAt NativeRustcVmX64.Vm.code (ReaderDigest.programOffset + NativeRustcVmX64.Vm.ReaderDigest.b10Offset) :=
   NativeRustcVmX64.Vm.ReaderDigest.b10_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def EWMul.programOffset : Nat := 2576
+@[expose] public def EWMul.programOffset : Nat := 2564
 
 public theorem EWMul.code_at : NativeRustcVmX64.Vm.EWMul.code.IsInfixAt NativeRustcVmX64.Vm.code EWMul.programOffset :=
   List.isInfixAt_flatten_of (i := 26) rfl (by decide +kernel)
@@ -1585,7 +1585,7 @@ public theorem EWMul.code_at : NativeRustcVmX64.Vm.EWMul.code.IsInfixAt NativeRu
 public theorem EWMul.b0_at : NativeRustcVmX64.Vm.EWMul.b0.IsInfixAt NativeRustcVmX64.Vm.code (EWMul.programOffset + NativeRustcVmX64.Vm.EWMul.b0Offset) :=
   NativeRustcVmX64.Vm.EWMul.b0_in_code.trans EWMul.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def EWSqIter.programOffset : Nat := 3260
+@[expose] public def EWSqIter.programOffset : Nat := 3243
 
 public theorem EWSqIter.code_at : NativeRustcVmX64.Vm.EWSqIter.code.IsInfixAt NativeRustcVmX64.Vm.code EWSqIter.programOffset :=
   List.isInfixAt_flatten_of (i := 27) rfl (by decide +kernel)
@@ -1608,7 +1608,7 @@ public theorem EWSqIter.b4_at : NativeRustcVmX64.Vm.EWSqIter.b4.IsInfixAt Native
 public theorem EWSqIter.b5_at : NativeRustcVmX64.Vm.EWSqIter.b5.IsInfixAt NativeRustcVmX64.Vm.code (EWSqIter.programOffset + NativeRustcVmX64.Vm.EWSqIter.b5Offset) :=
   NativeRustcVmX64.Vm.EWSqIter.b5_in_code.trans EWSqIter.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def DecodedPhaseCount.programOffset : Nat := 3280
+@[expose] public def DecodedPhaseCount.programOffset : Nat := 3263
 
 public theorem DecodedPhaseCount.code_at : NativeRustcVmX64.Vm.DecodedPhaseCount.code.IsInfixAt NativeRustcVmX64.Vm.code DecodedPhaseCount.programOffset :=
   List.isInfixAt_flatten_of (i := 28) rfl (by decide +kernel)
@@ -1622,7 +1622,7 @@ public theorem DecodedPhaseCount.b1_at : NativeRustcVmX64.Vm.DecodedPhaseCount.b
 public theorem DecodedPhaseCount.b2_at : NativeRustcVmX64.Vm.DecodedPhaseCount.b2.IsInfixAt NativeRustcVmX64.Vm.code (DecodedPhaseCount.programOffset + NativeRustcVmX64.Vm.DecodedPhaseCount.b2Offset) :=
   NativeRustcVmX64.Vm.DecodedPhaseCount.b2_in_code.trans DecodedPhaseCount.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def DecodedStreamElement.programOffset : Nat := 3292
+@[expose] public def DecodedStreamElement.programOffset : Nat := 3275
 
 public theorem DecodedStreamElement.code_at : NativeRustcVmX64.Vm.DecodedStreamElement.code.IsInfixAt NativeRustcVmX64.Vm.code DecodedStreamElement.programOffset :=
   List.isInfixAt_flatten_of (i := 29) rfl (by decide +kernel)
@@ -1642,7 +1642,7 @@ public theorem DecodedStreamElement.b3_at : NativeRustcVmX64.Vm.DecodedStreamEle
 public theorem DecodedStreamElement.b4_at : NativeRustcVmX64.Vm.DecodedStreamElement.b4.IsInfixAt NativeRustcVmX64.Vm.code (DecodedStreamElement.programOffset + NativeRustcVmX64.Vm.DecodedStreamElement.b4Offset) :=
   NativeRustcVmX64.Vm.DecodedStreamElement.b4_in_code.trans DecodedStreamElement.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def DecodedPhase.programOffset : Nat := 3317
+@[expose] public def DecodedPhase.programOffset : Nat := 3300
 
 public theorem DecodedPhase.code_at : NativeRustcVmX64.Vm.DecodedPhase.code.IsInfixAt NativeRustcVmX64.Vm.code DecodedPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 30) rfl (by decide +kernel)
@@ -1668,7 +1668,7 @@ public theorem DecodedPhase.b5_at : NativeRustcVmX64.Vm.DecodedPhase.b5.IsInfixA
 public theorem DecodedPhase.b6_at : NativeRustcVmX64.Vm.DecodedPhase.b6.IsInfixAt NativeRustcVmX64.Vm.code (DecodedPhase.programOffset + NativeRustcVmX64.Vm.DecodedPhase.b6Offset) :=
   NativeRustcVmX64.Vm.DecodedPhase.b6_in_code.trans DecodedPhase.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateNextScalar.programOffset : Nat := 3353
+@[expose] public def TStateNextScalar.programOffset : Nat := 3336
 
 public theorem TStateNextScalar.code_at : NativeRustcVmX64.Vm.TStateNextScalar.code.IsInfixAt NativeRustcVmX64.Vm.code TStateNextScalar.programOffset :=
   List.isInfixAt_flatten_of (i := 31) rfl (by decide +kernel)
@@ -1691,7 +1691,7 @@ public theorem TStateNextScalar.b4_at : NativeRustcVmX64.Vm.TStateNextScalar.b4.
 public theorem TStateNextScalar.b5_at : NativeRustcVmX64.Vm.TStateNextScalar.b5.IsInfixAt NativeRustcVmX64.Vm.code (TStateNextScalar.programOffset + NativeRustcVmX64.Vm.TStateNextScalar.b5Offset) :=
   NativeRustcVmX64.Vm.TStateNextScalar.b5_in_code.trans TStateNextScalar.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateReadScalar.programOffset : Nat := 3388
+@[expose] public def TStateReadScalar.programOffset : Nat := 3371
 
 public theorem TStateReadScalar.code_at : NativeRustcVmX64.Vm.TStateReadScalar.code.IsInfixAt NativeRustcVmX64.Vm.code TStateReadScalar.programOffset :=
   List.isInfixAt_flatten_of (i := 32) rfl (by decide +kernel)
@@ -1714,7 +1714,7 @@ public theorem TStateReadScalar.b4_at : NativeRustcVmX64.Vm.TStateReadScalar.b4.
 public theorem TStateReadScalar.b5_at : NativeRustcVmX64.Vm.TStateReadScalar.b5.IsInfixAt NativeRustcVmX64.Vm.code (TStateReadScalar.programOffset + NativeRustcVmX64.Vm.TStateReadScalar.b5Offset) :=
   NativeRustcVmX64.Vm.TStateReadScalar.b5_in_code.trans TStateReadScalar.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateReadScalars.programOffset : Nat := 3423
+@[expose] public def TStateReadScalars.programOffset : Nat := 3406
 
 public theorem TStateReadScalars.code_at : NativeRustcVmX64.Vm.TStateReadScalars.code.IsInfixAt NativeRustcVmX64.Vm.code TStateReadScalars.programOffset :=
   List.isInfixAt_flatten_of (i := 33) rfl (by decide +kernel)
@@ -1743,7 +1743,7 @@ public theorem TStateReadScalars.b6_at : NativeRustcVmX64.Vm.TStateReadScalars.b
 public theorem TStateReadScalars.b7_at : NativeRustcVmX64.Vm.TStateReadScalars.b7.IsInfixAt NativeRustcVmX64.Vm.code (TStateReadScalars.programOffset + NativeRustcVmX64.Vm.TStateReadScalars.b7Offset) :=
   NativeRustcVmX64.Vm.TStateReadScalars.b7_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateQueryOpenings.programOffset : Nat := 3465
+@[expose] public def TStateQueryOpenings.programOffset : Nat := 3448
 
 public theorem TStateQueryOpenings.code_at : NativeRustcVmX64.Vm.TStateQueryOpenings.code.IsInfixAt NativeRustcVmX64.Vm.code TStateQueryOpenings.programOffset :=
   List.isInfixAt_flatten_of (i := 34) rfl (by decide +kernel)
@@ -1772,7 +1772,7 @@ public theorem TStateQueryOpenings.b6_at : NativeRustcVmX64.Vm.TStateQueryOpenin
 public theorem TStateQueryOpenings.b7_at : NativeRustcVmX64.Vm.TStateQueryOpenings.b7.IsInfixAt NativeRustcVmX64.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmX64.Vm.TStateQueryOpenings.b7Offset) :=
   NativeRustcVmX64.Vm.TStateQueryOpenings.b7_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateReadCommitment.programOffset : Nat := 3527
+@[expose] public def TStateReadCommitment.programOffset : Nat := 3510
 
 public theorem TStateReadCommitment.code_at : NativeRustcVmX64.Vm.TStateReadCommitment.code.IsInfixAt NativeRustcVmX64.Vm.code TStateReadCommitment.programOffset :=
   List.isInfixAt_flatten_of (i := 35) rfl (by decide +kernel)
@@ -1801,7 +1801,7 @@ public theorem TStateReadCommitment.b6_at : NativeRustcVmX64.Vm.TStateReadCommit
 public theorem TStateReadCommitment.b7_at : NativeRustcVmX64.Vm.TStateReadCommitment.b7.IsInfixAt NativeRustcVmX64.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmX64.Vm.TStateReadCommitment.b7Offset) :=
   NativeRustcVmX64.Vm.TStateReadCommitment.b7_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateSampleChallenges.programOffset : Nat := 3575
+@[expose] public def TStateSampleChallenges.programOffset : Nat := 3558
 
 public theorem TStateSampleChallenges.code_at : NativeRustcVmX64.Vm.TStateSampleChallenges.code.IsInfixAt NativeRustcVmX64.Vm.code TStateSampleChallenges.programOffset :=
   List.isInfixAt_flatten_of (i := 36) rfl (by decide +kernel)
@@ -1824,7 +1824,7 @@ public theorem TStateSampleChallenges.b4_at : NativeRustcVmX64.Vm.TStateSampleCh
 public theorem TStateSampleChallenges.b5_at : NativeRustcVmX64.Vm.TStateSampleChallenges.b5.IsInfixAt NativeRustcVmX64.Vm.code (TStateSampleChallenges.programOffset + NativeRustcVmX64.Vm.TStateSampleChallenges.b5Offset) :=
   NativeRustcVmX64.Vm.TStateSampleChallenges.b5_in_code.trans TStateSampleChallenges.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateSumcheckRoundPoly.programOffset : Nat := 3600
+@[expose] public def TStateSumcheckRoundPoly.programOffset : Nat := 3583
 
 public theorem TStateSumcheckRoundPoly.code_at : NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.code.IsInfixAt NativeRustcVmX64.Vm.code TStateSumcheckRoundPoly.programOffset :=
   List.isInfixAt_flatten_of (i := 37) rfl (by decide +kernel)
@@ -1889,7 +1889,7 @@ public theorem TStateSumcheckRoundPoly.b18_at : NativeRustcVmX64.Vm.TStateSumche
 public theorem TStateSumcheckRoundPoly.b19_at : NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19.IsInfixAt NativeRustcVmX64.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19Offset) :=
   NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TStateGrind.programOffset : Nat := 3707
+@[expose] public def TStateGrind.programOffset : Nat := 3690
 
 public theorem TStateGrind.code_at : NativeRustcVmX64.Vm.TStateGrind.code.IsInfixAt NativeRustcVmX64.Vm.code TStateGrind.programOffset :=
   List.isInfixAt_flatten_of (i := 38) rfl (by decide +kernel)
@@ -1915,7 +1915,7 @@ public theorem TStateGrind.b5_at : NativeRustcVmX64.Vm.TStateGrind.b5.IsInfixAt 
 public theorem TStateGrind.b6_at : NativeRustcVmX64.Vm.TStateGrind.b6.IsInfixAt NativeRustcVmX64.Vm.code (TStateGrind.programOffset + NativeRustcVmX64.Vm.TStateGrind.b6Offset) :=
   NativeRustcVmX64.Vm.TStateGrind.b6_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FormBufAddScaled.programOffset : Nat := 3743
+@[expose] public def FormBufAddScaled.programOffset : Nat := 3726
 
 public theorem FormBufAddScaled.code_at : NativeRustcVmX64.Vm.FormBufAddScaled.code.IsInfixAt NativeRustcVmX64.Vm.code FormBufAddScaled.programOffset :=
   List.isInfixAt_flatten_of (i := 39) rfl (by decide +kernel)
@@ -1944,7 +1944,7 @@ public theorem FormBufAddScaled.b6_at : NativeRustcVmX64.Vm.FormBufAddScaled.b6.
 public theorem FormBufAddScaled.b7_at : NativeRustcVmX64.Vm.FormBufAddScaled.b7.IsInfixAt NativeRustcVmX64.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmX64.Vm.FormBufAddScaled.b7Offset) :=
   NativeRustcVmX64.Vm.FormBufAddScaled.b7_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FormBufAddTerm.programOffset : Nat := 3786
+@[expose] public def FormBufAddTerm.programOffset : Nat := 3769
 
 public theorem FormBufAddTerm.code_at : NativeRustcVmX64.Vm.FormBufAddTerm.code.IsInfixAt NativeRustcVmX64.Vm.code FormBufAddTerm.programOffset :=
   List.isInfixAt_flatten_of (i := 40) rfl (by decide +kernel)
@@ -2000,7 +2000,7 @@ public theorem FormBufAddTerm.b15_at : NativeRustcVmX64.Vm.FormBufAddTerm.b15.Is
 public theorem FormBufAddTerm.b16_at : NativeRustcVmX64.Vm.FormBufAddTerm.b16.IsInfixAt NativeRustcVmX64.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmX64.Vm.FormBufAddTerm.b16Offset) :=
   NativeRustcVmX64.Vm.FormBufAddTerm.b16_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def LayoutWPlacement.programOffset : Nat := 3861
+@[expose] public def LayoutWPlacement.programOffset : Nat := 3844
 
 public theorem LayoutWPlacement.code_at : NativeRustcVmX64.Vm.LayoutWPlacement.code.IsInfixAt NativeRustcVmX64.Vm.code LayoutWPlacement.programOffset :=
   List.isInfixAt_flatten_of (i := 41) rfl (by decide +kernel)
@@ -2014,7 +2014,7 @@ public theorem LayoutWPlacement.b1_at : NativeRustcVmX64.Vm.LayoutWPlacement.b1.
 public theorem LayoutWPlacement.b2_at : NativeRustcVmX64.Vm.LayoutWPlacement.b2.IsInfixAt NativeRustcVmX64.Vm.code (LayoutWPlacement.programOffset + NativeRustcVmX64.Vm.LayoutWPlacement.b2Offset) :=
   NativeRustcVmX64.Vm.LayoutWPlacement.b2_in_code.trans LayoutWPlacement.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RowsRow.programOffset : Nat := 3874
+@[expose] public def RowsRow.programOffset : Nat := 3857
 
 public theorem RowsRow.code_at : NativeRustcVmX64.Vm.RowsRow.code.IsInfixAt NativeRustcVmX64.Vm.code RowsRow.programOffset :=
   List.isInfixAt_flatten_of (i := 42) rfl (by decide +kernel)
@@ -2022,7 +2022,7 @@ public theorem RowsRow.code_at : NativeRustcVmX64.Vm.RowsRow.code.IsInfixAt Nati
 public theorem RowsRow.b0_at : NativeRustcVmX64.Vm.RowsRow.b0.IsInfixAt NativeRustcVmX64.Vm.code (RowsRow.programOffset + NativeRustcVmX64.Vm.RowsRow.b0Offset) :=
   NativeRustcVmX64.Vm.RowsRow.b0_in_code.trans RowsRow.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FirstClaim.programOffset : Nat := 3893
+@[expose] public def FirstClaim.programOffset : Nat := 3874
 
 public theorem FirstClaim.code_at : NativeRustcVmX64.Vm.FirstClaim.code.IsInfixAt NativeRustcVmX64.Vm.code FirstClaim.programOffset :=
   List.isInfixAt_flatten_of (i := 43) rfl (by decide +kernel)
@@ -2090,7 +2090,7 @@ public theorem FirstClaim.b19_at : NativeRustcVmX64.Vm.FirstClaim.b19.IsInfixAt 
 public theorem FirstClaim.b20_at : NativeRustcVmX64.Vm.FirstClaim.b20.IsInfixAt NativeRustcVmX64.Vm.code (FirstClaim.programOffset + NativeRustcVmX64.Vm.FirstClaim.b20Offset) :=
   NativeRustcVmX64.Vm.FirstClaim.b20_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def KeccakOpen.programOffset : Nat := 4179
+@[expose] public def KeccakOpen.programOffset : Nat := 4160
 
 public theorem KeccakOpen.code_at : NativeRustcVmX64.Vm.KeccakOpen.code.IsInfixAt NativeRustcVmX64.Vm.code KeccakOpen.programOffset :=
   List.isInfixAt_flatten_of (i := 44) rfl (by decide +kernel)
@@ -2383,7 +2383,7 @@ public theorem KeccakOpen.b94_at : NativeRustcVmX64.Vm.KeccakOpen.b94.IsInfixAt 
 public theorem KeccakOpen.b95_at : NativeRustcVmX64.Vm.KeccakOpen.b95.IsInfixAt NativeRustcVmX64.Vm.code (KeccakOpen.programOffset + NativeRustcVmX64.Vm.KeccakOpen.b95Offset) :=
   NativeRustcVmX64.Vm.KeccakOpen.b95_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def KeccakPhase.programOffset : Nat := 4766
+@[expose] public def KeccakPhase.programOffset : Nat := 4747
 
 public theorem KeccakPhase.code_at : NativeRustcVmX64.Vm.KeccakPhase.code.IsInfixAt NativeRustcVmX64.Vm.code KeccakPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 45) rfl (by decide +kernel)
@@ -2403,7 +2403,7 @@ public theorem KeccakPhase.b3_at : NativeRustcVmX64.Vm.KeccakPhase.b3.IsInfixAt 
 public theorem KeccakPhase.b4_at : NativeRustcVmX64.Vm.KeccakPhase.b4.IsInfixAt NativeRustcVmX64.Vm.code (KeccakPhase.programOffset + NativeRustcVmX64.Vm.KeccakPhase.b4Offset) :=
   NativeRustcVmX64.Vm.KeccakPhase.b4_in_code.trans KeccakPhase.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SlotWeights.programOffset : Nat := 4880
+@[expose] public def SlotWeights.programOffset : Nat := 4861
 
 public theorem SlotWeights.code_at : NativeRustcVmX64.Vm.SlotWeights.code.IsInfixAt NativeRustcVmX64.Vm.code SlotWeights.programOffset :=
   List.isInfixAt_flatten_of (i := 46) rfl (by decide +kernel)
@@ -2456,7 +2456,7 @@ public theorem SlotWeights.b14_at : NativeRustcVmX64.Vm.SlotWeights.b14.IsInfixA
 public theorem SlotWeights.b15_at : NativeRustcVmX64.Vm.SlotWeights.b15.IsInfixAt NativeRustcVmX64.Vm.code (SlotWeights.programOffset + NativeRustcVmX64.Vm.SlotWeights.b15Offset) :=
   NativeRustcVmX64.Vm.SlotWeights.b15_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def VerifyLayer.programOffset : Nat := 4997
+@[expose] public def VerifyLayer.programOffset : Nat := 4978
 
 public theorem VerifyLayer.code_at : NativeRustcVmX64.Vm.VerifyLayer.code.IsInfixAt NativeRustcVmX64.Vm.code VerifyLayer.programOffset :=
   List.isInfixAt_flatten_of (i := 47) rfl (by decide +kernel)
@@ -2725,7 +2725,7 @@ public theorem VerifyLayer.b86_at : NativeRustcVmX64.Vm.VerifyLayer.b86.IsInfixA
 public theorem VerifyLayer.b87_at : NativeRustcVmX64.Vm.VerifyLayer.b87.IsInfixAt NativeRustcVmX64.Vm.code (VerifyLayer.programOffset + NativeRustcVmX64.Vm.VerifyLayer.b87Offset) :=
   NativeRustcVmX64.Vm.VerifyLayer.b87_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def VerifyKeccak.programOffset : Nat := 5738
+@[expose] public def VerifyKeccak.programOffset : Nat := 5713
 
 public theorem VerifyKeccak.code_at : NativeRustcVmX64.Vm.VerifyKeccak.code.IsInfixAt NativeRustcVmX64.Vm.code VerifyKeccak.programOffset :=
   List.isInfixAt_flatten_of (i := 48) rfl (by decide +kernel)
@@ -2952,7 +2952,7 @@ public theorem VerifyKeccak.b72_at : NativeRustcVmX64.Vm.VerifyKeccak.b72.IsInfi
 public theorem VerifyKeccak.b73_at : NativeRustcVmX64.Vm.VerifyKeccak.b73.IsInfixAt NativeRustcVmX64.Vm.code (VerifyKeccak.programOffset + NativeRustcVmX64.Vm.VerifyKeccak.b73Offset) :=
   NativeRustcVmX64.Vm.VerifyKeccak.b73_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def InstanceWeights.programOffset : Nat := 6231
+@[expose] public def InstanceWeights.programOffset : Nat := 6206
 
 public theorem InstanceWeights.code_at : NativeRustcVmX64.Vm.InstanceWeights.code.IsInfixAt NativeRustcVmX64.Vm.code InstanceWeights.programOffset :=
   List.isInfixAt_flatten_of (i := 49) rfl (by decide +kernel)
@@ -2972,7 +2972,7 @@ public theorem InstanceWeights.b3_at : NativeRustcVmX64.Vm.InstanceWeights.b3.Is
 public theorem InstanceWeights.b4_at : NativeRustcVmX64.Vm.InstanceWeights.b4.IsInfixAt NativeRustcVmX64.Vm.code (InstanceWeights.programOffset + NativeRustcVmX64.Vm.InstanceWeights.b4Offset) :=
   NativeRustcVmX64.Vm.InstanceWeights.b4_in_code.trans InstanceWeights.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def LinearTranspose.programOffset : Nat := 6786
+@[expose] public def LinearTranspose.programOffset : Nat := 6623
 
 public theorem LinearTranspose.code_at : NativeRustcVmX64.Vm.LinearTranspose.code.IsInfixAt NativeRustcVmX64.Vm.code LinearTranspose.programOffset :=
   List.isInfixAt_flatten_of (i := 50) rfl (by decide +kernel)
@@ -3037,7 +3037,7 @@ public theorem LinearTranspose.b18_at : NativeRustcVmX64.Vm.LinearTranspose.b18.
 public theorem LinearTranspose.b19_at : NativeRustcVmX64.Vm.LinearTranspose.b19.IsInfixAt NativeRustcVmX64.Vm.code (LinearTranspose.programOffset + NativeRustcVmX64.Vm.LinearTranspose.b19Offset) :=
   NativeRustcVmX64.Vm.LinearTranspose.b19_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def KeccakPi.programOffset : Nat := 6985
+@[expose] public def KeccakPi.programOffset : Nat := 6822
 
 public theorem KeccakPi.code_at : NativeRustcVmX64.Vm.KeccakPi.code.IsInfixAt NativeRustcVmX64.Vm.code KeccakPi.programOffset :=
   List.isInfixAt_flatten_of (i := 51) rfl (by decide +kernel)
@@ -3045,7 +3045,7 @@ public theorem KeccakPi.code_at : NativeRustcVmX64.Vm.KeccakPi.code.IsInfixAt Na
 public theorem KeccakPi.b0_at : NativeRustcVmX64.Vm.KeccakPi.b0.IsInfixAt NativeRustcVmX64.Vm.code (KeccakPi.programOffset + NativeRustcVmX64.Vm.KeccakPi.b0Offset) :=
   NativeRustcVmX64.Vm.KeccakPi.b0_in_code.trans KeccakPi.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def OpenPhase.programOffset : Nat := 7003
+@[expose] public def OpenPhase.programOffset : Nat := 6840
 
 public theorem OpenPhase.code_at : NativeRustcVmX64.Vm.OpenPhase.code.IsInfixAt NativeRustcVmX64.Vm.code OpenPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 52) rfl (by decide +kernel)
@@ -3119,7 +3119,7 @@ public theorem OpenPhase.b21_at : NativeRustcVmX64.Vm.OpenPhase.b21.IsInfixAt Na
 public theorem OpenPhase.b22_at : NativeRustcVmX64.Vm.OpenPhase.b22.IsInfixAt NativeRustcVmX64.Vm.code (OpenPhase.programOffset + NativeRustcVmX64.Vm.OpenPhase.b22Offset) :=
   NativeRustcVmX64.Vm.OpenPhase.b22_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Climb.programOffset : Nat := 7115
+@[expose] public def Climb.programOffset : Nat := 6950
 
 public theorem Climb.code_at : NativeRustcVmX64.Vm.Climb.code.IsInfixAt NativeRustcVmX64.Vm.code Climb.programOffset :=
   List.isInfixAt_flatten_of (i := 53) rfl (by decide +kernel)
@@ -3163,7 +3163,7 @@ public theorem Climb.b11_at : NativeRustcVmX64.Vm.Climb.b11.IsInfixAt NativeRust
 public theorem Climb.b12_at : NativeRustcVmX64.Vm.Climb.b12.IsInfixAt NativeRustcVmX64.Vm.code (Climb.programOffset + NativeRustcVmX64.Vm.Climb.b12Offset) :=
   NativeRustcVmX64.Vm.Climb.b12_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RingSwitch.programOffset : Nat := 7205
+@[expose] public def RingSwitch.programOffset : Nat := 7040
 
 public theorem RingSwitch.code_at : NativeRustcVmX64.Vm.RingSwitch.code.IsInfixAt NativeRustcVmX64.Vm.code RingSwitch.programOffset :=
   List.isInfixAt_flatten_of (i := 54) rfl (by decide +kernel)
@@ -3189,7 +3189,7 @@ public theorem RingSwitch.b5_at : NativeRustcVmX64.Vm.RingSwitch.b5.IsInfixAt Na
 public theorem RingSwitch.b6_at : NativeRustcVmX64.Vm.RingSwitch.b6.IsInfixAt NativeRustcVmX64.Vm.code (RingSwitch.programOffset + NativeRustcVmX64.Vm.RingSwitch.b6Offset) :=
   NativeRustcVmX64.Vm.RingSwitch.b6_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RingTarget.programOffset : Nat := 7310
+@[expose] public def RingTarget.programOffset : Nat := 7145
 
 public theorem RingTarget.code_at : NativeRustcVmX64.Vm.RingTarget.code.IsInfixAt NativeRustcVmX64.Vm.code RingTarget.programOffset :=
   List.isInfixAt_flatten_of (i := 55) rfl (by decide +kernel)
@@ -3305,7 +3305,7 @@ public theorem RingTarget.b35_at : NativeRustcVmX64.Vm.RingTarget.b35.IsInfixAt 
 public theorem RingTarget.b36_at : NativeRustcVmX64.Vm.RingTarget.b36.IsInfixAt NativeRustcVmX64.Vm.code (RingTarget.programOffset + NativeRustcVmX64.Vm.RingTarget.b36Offset) :=
   NativeRustcVmX64.Vm.RingTarget.b36_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RingCoefficients.programOffset : Nat := 7571
+@[expose] public def RingCoefficients.programOffset : Nat := 7406
 
 public theorem RingCoefficients.code_at : NativeRustcVmX64.Vm.RingCoefficients.code.IsInfixAt NativeRustcVmX64.Vm.code RingCoefficients.programOffset :=
   List.isInfixAt_flatten_of (i := 56) rfl (by decide +kernel)
@@ -3367,7 +3367,7 @@ public theorem RingCoefficients.b17_at : NativeRustcVmX64.Vm.RingCoefficients.b1
 public theorem RingCoefficients.b18_at : NativeRustcVmX64.Vm.RingCoefficients.b18.IsInfixAt NativeRustcVmX64.Vm.code (RingCoefficients.programOffset + NativeRustcVmX64.Vm.RingCoefficients.b18Offset) :=
   NativeRustcVmX64.Vm.RingCoefficients.b18_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RingPsi.programOffset : Nat := 7730
+@[expose] public def RingPsi.programOffset : Nat := 7565
 
 public theorem RingPsi.code_at : NativeRustcVmX64.Vm.RingPsi.code.IsInfixAt NativeRustcVmX64.Vm.code RingPsi.programOffset :=
   List.isInfixAt_flatten_of (i := 57) rfl (by decide +kernel)
@@ -3420,7 +3420,7 @@ public theorem RingPsi.b14_at : NativeRustcVmX64.Vm.RingPsi.b14.IsInfixAt Native
 public theorem RingPsi.b15_at : NativeRustcVmX64.Vm.RingPsi.b15.IsInfixAt NativeRustcVmX64.Vm.code (RingPsi.programOffset + NativeRustcVmX64.Vm.RingPsi.b15Offset) :=
   NativeRustcVmX64.Vm.RingPsi.b15_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BlockForm.programOffset : Nat := 7864
+@[expose] public def BlockForm.programOffset : Nat := 7699
 
 public theorem BlockForm.code_at : NativeRustcVmX64.Vm.BlockForm.code.IsInfixAt NativeRustcVmX64.Vm.code BlockForm.programOffset :=
   List.isInfixAt_flatten_of (i := 58) rfl (by decide +kernel)
@@ -3464,7 +3464,7 @@ public theorem BlockForm.b11_at : NativeRustcVmX64.Vm.BlockForm.b11.IsInfixAt Na
 public theorem BlockForm.b12_at : NativeRustcVmX64.Vm.BlockForm.b12.IsInfixAt NativeRustcVmX64.Vm.code (BlockForm.programOffset + NativeRustcVmX64.Vm.BlockForm.b12Offset) :=
   NativeRustcVmX64.Vm.BlockForm.b12_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BusLayout.programOffset : Nat := 7934
+@[expose] public def BusLayout.programOffset : Nat := 7769
 
 public theorem BusLayout.code_at : NativeRustcVmX64.Vm.BusLayout.code.IsInfixAt NativeRustcVmX64.Vm.code BusLayout.programOffset :=
   List.isInfixAt_flatten_of (i := 59) rfl (by decide +kernel)
@@ -3577,7 +3577,7 @@ public theorem BusLayout.b34_at : NativeRustcVmX64.Vm.BusLayout.b34.IsInfixAt Na
 public theorem BusLayout.b35_at : NativeRustcVmX64.Vm.BusLayout.b35.IsInfixAt NativeRustcVmX64.Vm.code (BusLayout.programOffset + NativeRustcVmX64.Vm.BusLayout.b35Offset) :=
   NativeRustcVmX64.Vm.BusLayout.b35_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Fingerprints.programOffset : Nat := 8193
+@[expose] public def Fingerprints.programOffset : Nat := 8028
 
 public theorem Fingerprints.code_at : NativeRustcVmX64.Vm.Fingerprints.code.IsInfixAt NativeRustcVmX64.Vm.code Fingerprints.programOffset :=
   List.isInfixAt_flatten_of (i := 60) rfl (by decide +kernel)
@@ -3606,7 +3606,7 @@ public theorem Fingerprints.b6_at : NativeRustcVmX64.Vm.Fingerprints.b6.IsInfixA
 public theorem Fingerprints.b7_at : NativeRustcVmX64.Vm.Fingerprints.b7.IsInfixAt NativeRustcVmX64.Vm.code (Fingerprints.programOffset + NativeRustcVmX64.Vm.Fingerprints.b7Offset) :=
   NativeRustcVmX64.Vm.Fingerprints.b7_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BytecodeShare.programOffset : Nat := 8285
+@[expose] public def BytecodeShare.programOffset : Nat := 8120
 
 public theorem BytecodeShare.code_at : NativeRustcVmX64.Vm.BytecodeShare.code.IsInfixAt NativeRustcVmX64.Vm.code BytecodeShare.programOffset :=
   List.isInfixAt_flatten_of (i := 61) rfl (by decide +kernel)
@@ -3677,7 +3677,7 @@ public theorem BytecodeShare.b20_at : NativeRustcVmX64.Vm.BytecodeShare.b20.IsIn
 public theorem BytecodeShare.b21_at : NativeRustcVmX64.Vm.BytecodeShare.b21.IsInfixAt NativeRustcVmX64.Vm.code (BytecodeShare.programOffset + NativeRustcVmX64.Vm.BytecodeShare.b21Offset) :=
   NativeRustcVmX64.Vm.BytecodeShare.b21_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def AccumulateSide.programOffset : Nat := 8463
+@[expose] public def AccumulateSide.programOffset : Nat := 8298
 
 public theorem AccumulateSide.code_at : NativeRustcVmX64.Vm.AccumulateSide.code.IsInfixAt NativeRustcVmX64.Vm.code AccumulateSide.programOffset :=
   List.isInfixAt_flatten_of (i := 62) rfl (by decide +kernel)
@@ -3781,7 +3781,7 @@ public theorem AccumulateSide.b31_at : NativeRustcVmX64.Vm.AccumulateSide.b31.Is
 public theorem AccumulateSide.b32_at : NativeRustcVmX64.Vm.AccumulateSide.b32.IsInfixAt NativeRustcVmX64.Vm.code (AccumulateSide.programOffset + NativeRustcVmX64.Vm.AccumulateSide.b32Offset) :=
   NativeRustcVmX64.Vm.AccumulateSide.b32_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def VerifyBusBalance.programOffset : Nat := 8776
+@[expose] public def VerifyBusBalance.programOffset : Nat := 8611
 
 public theorem VerifyBusBalance.code_at : NativeRustcVmX64.Vm.VerifyBusBalance.code.IsInfixAt NativeRustcVmX64.Vm.code VerifyBusBalance.programOffset :=
   List.isInfixAt_flatten_of (i := 63) rfl (by decide +kernel)
@@ -3960,7 +3960,7 @@ public theorem VerifyBusBalance.b56_at : NativeRustcVmX64.Vm.VerifyBusBalance.b5
 public theorem VerifyBusBalance.b57_at : NativeRustcVmX64.Vm.VerifyBusBalance.b57.IsInfixAt NativeRustcVmX64.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmX64.Vm.VerifyBusBalance.b57Offset) :=
   NativeRustcVmX64.Vm.VerifyBusBalance.b57_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ComputedBytecodeValue.programOffset : Nat := 9215
+@[expose] public def ComputedBytecodeValue.programOffset : Nat := 9050
 
 public theorem ComputedBytecodeValue.code_at : NativeRustcVmX64.Vm.ComputedBytecodeValue.code.IsInfixAt NativeRustcVmX64.Vm.code ComputedBytecodeValue.programOffset :=
   List.isInfixAt_flatten_of (i := 64) rfl (by decide +kernel)
@@ -3971,7 +3971,7 @@ public theorem ComputedBytecodeValue.b0_at : NativeRustcVmX64.Vm.ComputedBytecod
 public theorem ComputedBytecodeValue.b1_at : NativeRustcVmX64.Vm.ComputedBytecodeValue.b1.IsInfixAt NativeRustcVmX64.Vm.code (ComputedBytecodeValue.programOffset + NativeRustcVmX64.Vm.ComputedBytecodeValue.b1Offset) :=
   NativeRustcVmX64.Vm.ComputedBytecodeValue.b1_in_code.trans ComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def GkrLayers.programOffset : Nat := 9235
+@[expose] public def GkrLayers.programOffset : Nat := 9070
 
 public theorem GkrLayers.code_at : NativeRustcVmX64.Vm.GkrLayers.code.IsInfixAt NativeRustcVmX64.Vm.code GkrLayers.programOffset :=
   List.isInfixAt_flatten_of (i := 65) rfl (by decide +kernel)
@@ -4021,7 +4021,7 @@ public theorem GkrLayers.b13_at : NativeRustcVmX64.Vm.GkrLayers.b13.IsInfixAt Na
 public theorem GkrLayers.b14_at : NativeRustcVmX64.Vm.GkrLayers.b14.IsInfixAt NativeRustcVmX64.Vm.code (GkrLayers.programOffset + NativeRustcVmX64.Vm.GkrLayers.b14Offset) :=
   NativeRustcVmX64.Vm.GkrLayers.b14_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def VerifyGkrGrandProducts.programOffset : Nat := 9298
+@[expose] public def VerifyGkrGrandProducts.programOffset : Nat := 9133
 
 public theorem VerifyGkrGrandProducts.code_at : NativeRustcVmX64.Vm.VerifyGkrGrandProducts.code.IsInfixAt NativeRustcVmX64.Vm.code VerifyGkrGrandProducts.programOffset :=
   List.isInfixAt_flatten_of (i := 66) rfl (by decide +kernel)
@@ -4053,7 +4053,7 @@ public theorem VerifyGkrGrandProducts.b7_at : NativeRustcVmX64.Vm.VerifyGkrGrand
 public theorem VerifyGkrGrandProducts.b8_at : NativeRustcVmX64.Vm.VerifyGkrGrandProducts.b8.IsInfixAt NativeRustcVmX64.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmX64.Vm.VerifyGkrGrandProducts.b8Offset) :=
   NativeRustcVmX64.Vm.VerifyGkrGrandProducts.b8_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def GkrStep.programOffset : Nat := 9354
+@[expose] public def GkrStep.programOffset : Nat := 9189
 
 public theorem GkrStep.code_at : NativeRustcVmX64.Vm.GkrStep.code.IsInfixAt NativeRustcVmX64.Vm.code GkrStep.programOffset :=
   List.isInfixAt_flatten_of (i := 67) rfl (by decide +kernel)
@@ -4181,7 +4181,7 @@ public theorem GkrStep.b39_at : NativeRustcVmX64.Vm.GkrStep.b39.IsInfixAt Native
 public theorem GkrStep.b40_at : NativeRustcVmX64.Vm.GkrStep.b40.IsInfixAt NativeRustcVmX64.Vm.code (GkrStep.programOffset + NativeRustcVmX64.Vm.GkrStep.b40Offset) :=
   NativeRustcVmX64.Vm.GkrStep.b40_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FoldRound.programOffset : Nat := 9613
+@[expose] public def FoldRound.programOffset : Nat := 9441
 
 public theorem FoldRound.code_at : NativeRustcVmX64.Vm.FoldRound.code.IsInfixAt NativeRustcVmX64.Vm.code FoldRound.programOffset :=
   List.isInfixAt_flatten_of (i := 68) rfl (by decide +kernel)
@@ -4252,7 +4252,7 @@ public theorem FoldRound.b20_at : NativeRustcVmX64.Vm.FoldRound.b20.IsInfixAt Na
 public theorem FoldRound.b21_at : NativeRustcVmX64.Vm.FoldRound.b21.IsInfixAt NativeRustcVmX64.Vm.code (FoldRound.programOffset + NativeRustcVmX64.Vm.FoldRound.b21Offset) :=
   NativeRustcVmX64.Vm.FoldRound.b21_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def GlueLevel.programOffset : Nat := 9752
+@[expose] public def GlueLevel.programOffset : Nat := 9580
 
 public theorem GlueLevel.code_at : NativeRustcVmX64.Vm.GlueLevel.code.IsInfixAt NativeRustcVmX64.Vm.code GlueLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 69) rfl (by decide +kernel)
@@ -4299,7 +4299,7 @@ public theorem GlueLevel.b12_at : NativeRustcVmX64.Vm.GlueLevel.b12.IsInfixAt Na
 public theorem GlueLevel.b13_at : NativeRustcVmX64.Vm.GlueLevel.b13.IsInfixAt NativeRustcVmX64.Vm.code (GlueLevel.programOffset + NativeRustcVmX64.Vm.GlueLevel.b13Offset) :=
   NativeRustcVmX64.Vm.GlueLevel.b13_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def GluedEval.programOffset : Nat := 9855
+@[expose] public def GluedEval.programOffset : Nat := 9683
 
 public theorem GluedEval.code_at : NativeRustcVmX64.Vm.GluedEval.code.IsInfixAt NativeRustcVmX64.Vm.code GluedEval.programOffset :=
   List.isInfixAt_flatten_of (i := 70) rfl (by decide +kernel)
@@ -4319,7 +4319,7 @@ public theorem GluedEval.b3_at : NativeRustcVmX64.Vm.GluedEval.b3.IsInfixAt Nati
 public theorem GluedEval.b4_at : NativeRustcVmX64.Vm.GluedEval.b4.IsInfixAt NativeRustcVmX64.Vm.code (GluedEval.programOffset + NativeRustcVmX64.Vm.GluedEval.b4Offset) :=
   NativeRustcVmX64.Vm.GluedEval.b4_in_code.trans GluedEval.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def NextLevel.programOffset : Nat := 9899
+@[expose] public def NextLevel.programOffset : Nat := 9727
 
 public theorem NextLevel.code_at : NativeRustcVmX64.Vm.NextLevel.code.IsInfixAt NativeRustcVmX64.Vm.code NextLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 71) rfl (by decide +kernel)
@@ -4408,7 +4408,7 @@ public theorem NextLevel.b26_at : NativeRustcVmX64.Vm.NextLevel.b26.IsInfixAt Na
 public theorem NextLevel.b27_at : NativeRustcVmX64.Vm.NextLevel.b27.IsInfixAt NativeRustcVmX64.Vm.code (NextLevel.programOffset + NativeRustcVmX64.Vm.NextLevel.b27Offset) :=
   NativeRustcVmX64.Vm.NextLevel.b27_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def NovelEval.programOffset : Nat := 10169
+@[expose] public def NovelEval.programOffset : Nat := 9997
 
 public theorem NovelEval.code_at : NativeRustcVmX64.Vm.NovelEval.code.IsInfixAt NativeRustcVmX64.Vm.code NovelEval.programOffset :=
   List.isInfixAt_flatten_of (i := 72) rfl (by decide +kernel)
@@ -4467,7 +4467,7 @@ public theorem NovelEval.b16_at : NativeRustcVmX64.Vm.NovelEval.b16.IsInfixAt Na
 public theorem NovelEval.b17_at : NativeRustcVmX64.Vm.NovelEval.b17.IsInfixAt NativeRustcVmX64.Vm.code (NovelEval.programOffset + NativeRustcVmX64.Vm.NovelEval.b17Offset) :=
   NativeRustcVmX64.Vm.NovelEval.b17_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def QueryBits.programOffset : Nat := 10265
+@[expose] public def QueryBits.programOffset : Nat := 10093
 
 public theorem QueryBits.code_at : NativeRustcVmX64.Vm.QueryBits.code.IsInfixAt NativeRustcVmX64.Vm.code QueryBits.programOffset :=
   List.isInfixAt_flatten_of (i := 73) rfl (by decide +kernel)
@@ -4493,7 +4493,7 @@ public theorem QueryBits.b5_at : NativeRustcVmX64.Vm.QueryBits.b5.IsInfixAt Nati
 public theorem QueryBits.b6_at : NativeRustcVmX64.Vm.QueryBits.b6.IsInfixAt NativeRustcVmX64.Vm.code (QueryBits.programOffset + NativeRustcVmX64.Vm.QueryBits.b6Offset) :=
   NativeRustcVmX64.Vm.QueryBits.b6_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FinalLevel.programOffset : Nat := 10293
+@[expose] public def FinalLevel.programOffset : Nat := 10121
 
 public theorem FinalLevel.code_at : NativeRustcVmX64.Vm.FinalLevel.code.IsInfixAt NativeRustcVmX64.Vm.code FinalLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 74) rfl (by decide +kernel)
@@ -4612,7 +4612,7 @@ public theorem FinalLevel.b36_at : NativeRustcVmX64.Vm.FinalLevel.b36.IsInfixAt 
 public theorem FinalLevel.b37_at : NativeRustcVmX64.Vm.FinalLevel.b37.IsInfixAt NativeRustcVmX64.Vm.code (FinalLevel.programOffset + NativeRustcVmX64.Vm.FinalLevel.b37Offset) :=
   NativeRustcVmX64.Vm.FinalLevel.b37_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FoldRounds.programOffset : Nat := 10730
+@[expose] public def FoldRounds.programOffset : Nat := 10558
 
 public theorem FoldRounds.code_at : NativeRustcVmX64.Vm.FoldRounds.code.IsInfixAt NativeRustcVmX64.Vm.code FoldRounds.programOffset :=
   List.isInfixAt_flatten_of (i := 75) rfl (by decide +kernel)
@@ -4683,7 +4683,7 @@ public theorem FoldRounds.b20_at : NativeRustcVmX64.Vm.FoldRounds.b20.IsInfixAt 
 public theorem FoldRounds.b21_at : NativeRustcVmX64.Vm.FoldRounds.b21.IsInfixAt NativeRustcVmX64.Vm.code (FoldRounds.programOffset + NativeRustcVmX64.Vm.FoldRounds.b21Offset) :=
   NativeRustcVmX64.Vm.FoldRounds.b21_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def WhirLevels.programOffset : Nat := 10888
+@[expose] public def WhirLevels.programOffset : Nat := 10716
 
 public theorem WhirLevels.code_at : NativeRustcVmX64.Vm.WhirLevels.code.IsInfixAt NativeRustcVmX64.Vm.code WhirLevels.programOffset :=
   List.isInfixAt_flatten_of (i := 76) rfl (by decide +kernel)
@@ -4715,7 +4715,7 @@ public theorem WhirLevels.b7_at : NativeRustcVmX64.Vm.WhirLevels.b7.IsInfixAt Na
 public theorem WhirLevels.b8_at : NativeRustcVmX64.Vm.WhirLevels.b8.IsInfixAt NativeRustcVmX64.Vm.code (WhirLevels.programOffset + NativeRustcVmX64.Vm.WhirLevels.b8Offset) :=
   NativeRustcVmX64.Vm.WhirLevels.b8_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def InducedWeight.programOffset : Nat := 10971
+@[expose] public def InducedWeight.programOffset : Nat := 10799
 
 public theorem InducedWeight.code_at : NativeRustcVmX64.Vm.InducedWeight.code.IsInfixAt NativeRustcVmX64.Vm.code InducedWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 77) rfl (by decide +kernel)
@@ -4777,7 +4777,7 @@ public theorem InducedWeight.b17_at : NativeRustcVmX64.Vm.InducedWeight.b17.IsIn
 public theorem InducedWeight.b18_at : NativeRustcVmX64.Vm.InducedWeight.b18.IsInfixAt NativeRustcVmX64.Vm.code (InducedWeight.programOffset + NativeRustcVmX64.Vm.InducedWeight.b18Offset) :=
   NativeRustcVmX64.Vm.InducedWeight.b18_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SampleQueries.programOffset : Nat := 11099
+@[expose] public def SampleQueries.programOffset : Nat := 10927
 
 public theorem SampleQueries.code_at : NativeRustcVmX64.Vm.SampleQueries.code.IsInfixAt NativeRustcVmX64.Vm.code SampleQueries.programOffset :=
   List.isInfixAt_flatten_of (i := 78) rfl (by decide +kernel)
@@ -4842,7 +4842,7 @@ public theorem SampleQueries.b18_at : NativeRustcVmX64.Vm.SampleQueries.b18.IsIn
 public theorem SampleQueries.b19_at : NativeRustcVmX64.Vm.SampleQueries.b19.IsInfixAt NativeRustcVmX64.Vm.code (SampleQueries.programOffset + NativeRustcVmX64.Vm.SampleQueries.b19Offset) :=
   NativeRustcVmX64.Vm.SampleQueries.b19_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SubspaceTable.programOffset : Nat := 11207
+@[expose] public def SubspaceTable.programOffset : Nat := 11033
 
 public theorem SubspaceTable.code_at : NativeRustcVmX64.Vm.SubspaceTable.code.IsInfixAt NativeRustcVmX64.Vm.code SubspaceTable.programOffset :=
   List.isInfixAt_flatten_of (i := 79) rfl (by decide +kernel)
@@ -4922,7 +4922,7 @@ public theorem SubspaceTable.b23_at : NativeRustcVmX64.Vm.SubspaceTable.b23.IsIn
 public theorem SubspaceTable.b24_at : NativeRustcVmX64.Vm.SubspaceTable.b24.IsInfixAt NativeRustcVmX64.Vm.code (SubspaceTable.programOffset + NativeRustcVmX64.Vm.SubspaceTable.b24Offset) :=
   NativeRustcVmX64.Vm.SubspaceTable.b24_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SubspaceAtTable.programOffset : Nat := 11431
+@[expose] public def SubspaceAtTable.programOffset : Nat := 11255
 
 public theorem SubspaceAtTable.code_at : NativeRustcVmX64.Vm.SubspaceAtTable.code.IsInfixAt NativeRustcVmX64.Vm.code SubspaceAtTable.programOffset :=
   List.isInfixAt_flatten_of (i := 80) rfl (by decide +kernel)
@@ -4954,7 +4954,7 @@ public theorem SubspaceAtTable.b7_at : NativeRustcVmX64.Vm.SubspaceAtTable.b7.Is
 public theorem SubspaceAtTable.b8_at : NativeRustcVmX64.Vm.SubspaceAtTable.b8.IsInfixAt NativeRustcVmX64.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmX64.Vm.SubspaceAtTable.b8Offset) :=
   NativeRustcVmX64.Vm.SubspaceAtTable.b8_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def VerifyStackedOpening.programOffset : Nat := 11489
+@[expose] public def VerifyStackedOpening.programOffset : Nat := 11311
 
 public theorem VerifyStackedOpening.code_at : NativeRustcVmX64.Vm.VerifyStackedOpening.code.IsInfixAt NativeRustcVmX64.Vm.code VerifyStackedOpening.programOffset :=
   List.isInfixAt_flatten_of (i := 81) rfl (by decide +kernel)
@@ -5115,7 +5115,7 @@ public theorem VerifyStackedOpening.b50_at : NativeRustcVmX64.Vm.VerifyStackedOp
 public theorem VerifyStackedOpening.b51_at : NativeRustcVmX64.Vm.VerifyStackedOpening.b51.IsInfixAt NativeRustcVmX64.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmX64.Vm.VerifyStackedOpening.b51Offset) :=
   NativeRustcVmX64.Vm.VerifyStackedOpening.b51_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Ladder.programOffset : Nat := 11735
+@[expose] public def Ladder.programOffset : Nat := 11557
 
 public theorem Ladder.code_at : NativeRustcVmX64.Vm.Ladder.code.IsInfixAt NativeRustcVmX64.Vm.code Ladder.programOffset :=
   List.isInfixAt_flatten_of (i := 82) rfl (by decide +kernel)
@@ -5177,7 +5177,7 @@ public theorem Ladder.b17_at : NativeRustcVmX64.Vm.Ladder.b17.IsInfixAt NativeRu
 public theorem Ladder.b18_at : NativeRustcVmX64.Vm.Ladder.b18.IsInfixAt NativeRustcVmX64.Vm.code (Ladder.programOffset + NativeRustcVmX64.Vm.Ladder.b18Offset) :=
   NativeRustcVmX64.Vm.Ladder.b18_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FoldRow.programOffset : Nat := 11865
+@[expose] public def FoldRow.programOffset : Nat := 11687
 
 public theorem FoldRow.code_at : NativeRustcVmX64.Vm.FoldRow.code.IsInfixAt NativeRustcVmX64.Vm.code FoldRow.programOffset :=
   List.isInfixAt_flatten_of (i := 83) rfl (by decide +kernel)
@@ -5230,7 +5230,7 @@ public theorem FoldRow.b14_at : NativeRustcVmX64.Vm.FoldRow.b14.IsInfixAt Native
 public theorem FoldRow.b15_at : NativeRustcVmX64.Vm.FoldRow.b15.IsInfixAt NativeRustcVmX64.Vm.code (FoldRow.programOffset + NativeRustcVmX64.Vm.FoldRow.b15Offset) :=
   NativeRustcVmX64.Vm.FoldRow.b15_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def LanesOf.programOffset : Nat := 11947
+@[expose] public def LanesOf.programOffset : Nat := 11769
 
 public theorem LanesOf.code_at : NativeRustcVmX64.Vm.LanesOf.code.IsInfixAt NativeRustcVmX64.Vm.code LanesOf.programOffset :=
   List.isInfixAt_flatten_of (i := 84) rfl (by decide +kernel)
@@ -5286,7 +5286,7 @@ public theorem LanesOf.b15_at : NativeRustcVmX64.Vm.LanesOf.b15.IsInfixAt Native
 public theorem LanesOf.b16_at : NativeRustcVmX64.Vm.LanesOf.b16.IsInfixAt NativeRustcVmX64.Vm.code (LanesOf.programOffset + NativeRustcVmX64.Vm.LanesOf.b16Offset) :=
   NativeRustcVmX64.Vm.LanesOf.b16_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ClimbLevel.programOffset : Nat := 12024
+@[expose] public def ClimbLevel.programOffset : Nat := 11844
 
 public theorem ClimbLevel.code_at : NativeRustcVmX64.Vm.ClimbLevel.code.IsInfixAt NativeRustcVmX64.Vm.code ClimbLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 85) rfl (by decide +kernel)
@@ -5366,7 +5366,7 @@ public theorem ClimbLevel.b23_at : NativeRustcVmX64.Vm.ClimbLevel.b23.IsInfixAt 
 public theorem ClimbLevel.b24_at : NativeRustcVmX64.Vm.ClimbLevel.b24.IsInfixAt NativeRustcVmX64.Vm.code (ClimbLevel.programOffset + NativeRustcVmX64.Vm.ClimbLevel.b24Offset) :=
   NativeRustcVmX64.Vm.ClimbLevel.b24_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def WriteOpenings.programOffset : Nat := 12176
+@[expose] public def WriteOpenings.programOffset : Nat := 11996
 
 public theorem WriteOpenings.code_at : NativeRustcVmX64.Vm.WriteOpenings.code.IsInfixAt NativeRustcVmX64.Vm.code WriteOpenings.programOffset :=
   List.isInfixAt_flatten_of (i := 86) rfl (by decide +kernel)
@@ -5536,7 +5536,7 @@ public theorem WriteOpenings.b53_at : NativeRustcVmX64.Vm.WriteOpenings.b53.IsIn
 public theorem WriteOpenings.b54_at : NativeRustcVmX64.Vm.WriteOpenings.b54.IsInfixAt NativeRustcVmX64.Vm.code (WriteOpenings.programOffset + NativeRustcVmX64.Vm.WriteOpenings.b54Offset) :=
   NativeRustcVmX64.Vm.WriteOpenings.b54_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Find.programOffset : Nat := 12465
+@[expose] public def Find.programOffset : Nat := 12285
 
 public theorem Find.code_at : NativeRustcVmX64.Vm.Find.code.IsInfixAt NativeRustcVmX64.Vm.code Find.programOffset :=
   List.isInfixAt_flatten_of (i := 87) rfl (by decide +kernel)
@@ -5562,7 +5562,7 @@ public theorem Find.b5_at : NativeRustcVmX64.Vm.Find.b5.IsInfixAt NativeRustcVmX
 public theorem Find.b6_at : NativeRustcVmX64.Vm.Find.b6.IsInfixAt NativeRustcVmX64.Vm.code (Find.programOffset + NativeRustcVmX64.Vm.Find.b6Offset) :=
   NativeRustcVmX64.Vm.Find.b6_in_code.trans Find.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def InsD.programOffset : Nat := 12489
+@[expose] public def InsD.programOffset : Nat := 12309
 
 public theorem InsD.code_at : NativeRustcVmX64.Vm.InsD.code.IsInfixAt NativeRustcVmX64.Vm.code InsD.programOffset :=
   List.isInfixAt_flatten_of (i := 88) rfl (by decide +kernel)
@@ -5612,7 +5612,7 @@ public theorem InsD.b13_at : NativeRustcVmX64.Vm.InsD.b13.IsInfixAt NativeRustcV
 public theorem InsD.b14_at : NativeRustcVmX64.Vm.InsD.b14.IsInfixAt NativeRustcVmX64.Vm.code (InsD.programOffset + NativeRustcVmX64.Vm.InsD.b14Offset) :=
   NativeRustcVmX64.Vm.InsD.b14_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Decode.programOffset : Nat := 12563
+@[expose] public def Decode.programOffset : Nat := 12383
 
 public theorem Decode.code_at : NativeRustcVmX64.Vm.Decode.code.IsInfixAt NativeRustcVmX64.Vm.code Decode.programOffset :=
   List.isInfixAt_flatten_of (i := 89) rfl (by decide +kernel)
@@ -5668,7 +5668,7 @@ public theorem Decode.b15_at : NativeRustcVmX64.Vm.Decode.b15.IsInfixAt NativeRu
 public theorem Decode.b16_at : NativeRustcVmX64.Vm.Decode.b16.IsInfixAt NativeRustcVmX64.Vm.code (Decode.programOffset + NativeRustcVmX64.Vm.Decode.b16Offset) :=
   NativeRustcVmX64.Vm.Decode.b16_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def PhaseM.programOffset : Nat := 12653
+@[expose] public def PhaseM.programOffset : Nat := 12473
 
 public theorem PhaseM.code_at : NativeRustcVmX64.Vm.PhaseM.code.IsInfixAt NativeRustcVmX64.Vm.code PhaseM.programOffset :=
   List.isInfixAt_flatten_of (i := 90) rfl (by decide +kernel)
@@ -5787,7 +5787,7 @@ public theorem PhaseM.b36_at : NativeRustcVmX64.Vm.PhaseM.b36.IsInfixAt NativeRu
 public theorem PhaseM.b37_at : NativeRustcVmX64.Vm.PhaseM.b37.IsInfixAt NativeRustcVmX64.Vm.code (PhaseM.programOffset + NativeRustcVmX64.Vm.PhaseM.b37Offset) :=
   NativeRustcVmX64.Vm.PhaseM.b37_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RdRows.programOffset : Nat := 12854
+@[expose] public def RdRows.programOffset : Nat := 12672
 
 public theorem RdRows.code_at : NativeRustcVmX64.Vm.RdRows.code.IsInfixAt NativeRustcVmX64.Vm.code RdRows.programOffset :=
   List.isInfixAt_flatten_of (i := 91) rfl (by decide +kernel)
@@ -5867,7 +5867,7 @@ public theorem RdRows.b23_at : NativeRustcVmX64.Vm.RdRows.b23.IsInfixAt NativeRu
 public theorem RdRows.b24_at : NativeRustcVmX64.Vm.RdRows.b24.IsInfixAt NativeRustcVmX64.Vm.code (RdRows.programOffset + NativeRustcVmX64.Vm.RdRows.b24Offset) :=
   NativeRustcVmX64.Vm.RdRows.b24_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BitLength.programOffset : Nat := 12976
+@[expose] public def BitLength.programOffset : Nat := 12790
 
 public theorem BitLength.code_at : NativeRustcVmX64.Vm.BitLength.code.IsInfixAt NativeRustcVmX64.Vm.code BitLength.programOffset :=
   List.isInfixAt_flatten_of (i := 92) rfl (by decide +kernel)
@@ -5875,7 +5875,7 @@ public theorem BitLength.code_at : NativeRustcVmX64.Vm.BitLength.code.IsInfixAt 
 public theorem BitLength.b0_at : NativeRustcVmX64.Vm.BitLength.b0.IsInfixAt NativeRustcVmX64.Vm.code (BitLength.programOffset + NativeRustcVmX64.Vm.BitLength.b0Offset) :=
   NativeRustcVmX64.Vm.BitLength.b0_in_code.trans BitLength.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def IndexMleFrom.programOffset : Nat := 13015
+@[expose] public def IndexMleFrom.programOffset : Nat := 12829
 
 public theorem IndexMleFrom.code_at : NativeRustcVmX64.Vm.IndexMleFrom.code.IsInfixAt NativeRustcVmX64.Vm.code IndexMleFrom.programOffset :=
   List.isInfixAt_flatten_of (i := 93) rfl (by decide +kernel)
@@ -5907,7 +5907,7 @@ public theorem IndexMleFrom.b7_at : NativeRustcVmX64.Vm.IndexMleFrom.b7.IsInfixA
 public theorem IndexMleFrom.b8_at : NativeRustcVmX64.Vm.IndexMleFrom.b8.IsInfixAt NativeRustcVmX64.Vm.code (IndexMleFrom.programOffset + NativeRustcVmX64.Vm.IndexMleFrom.b8Offset) :=
   NativeRustcVmX64.Vm.IndexMleFrom.b8_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def PaddingWeight.programOffset : Nat := 13074
+@[expose] public def PaddingWeight.programOffset : Nat := 12888
 
 public theorem PaddingWeight.code_at : NativeRustcVmX64.Vm.PaddingWeight.code.IsInfixAt NativeRustcVmX64.Vm.code PaddingWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 94) rfl (by decide +kernel)
@@ -5936,7 +5936,7 @@ public theorem PaddingWeight.b6_at : NativeRustcVmX64.Vm.PaddingWeight.b6.IsInfi
 public theorem PaddingWeight.b7_at : NativeRustcVmX64.Vm.PaddingWeight.b7.IsInfixAt NativeRustcVmX64.Vm.code (PaddingWeight.programOffset + NativeRustcVmX64.Vm.PaddingWeight.b7Offset) :=
   NativeRustcVmX64.Vm.PaddingWeight.b7_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SelectorPoint.programOffset : Nat := 13146
+@[expose] public def SelectorPoint.programOffset : Nat := 12960
 
 public theorem SelectorPoint.code_at : NativeRustcVmX64.Vm.SelectorPoint.code.IsInfixAt NativeRustcVmX64.Vm.code SelectorPoint.programOffset :=
   List.isInfixAt_flatten_of (i := 95) rfl (by decide +kernel)
@@ -5968,7 +5968,7 @@ public theorem SelectorPoint.b7_at : NativeRustcVmX64.Vm.SelectorPoint.b7.IsInfi
 public theorem SelectorPoint.b8_at : NativeRustcVmX64.Vm.SelectorPoint.b8.IsInfixAt NativeRustcVmX64.Vm.code (SelectorPoint.programOffset + NativeRustcVmX64.Vm.SelectorPoint.b8Offset) :=
   NativeRustcVmX64.Vm.SelectorPoint.b8_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Dot.programOffset : Nat := 13212
+@[expose] public def Dot.programOffset : Nat := 13008
 
 public theorem Dot.code_at : NativeRustcVmX64.Vm.Dot.code.IsInfixAt NativeRustcVmX64.Vm.code Dot.programOffset :=
   List.isInfixAt_flatten_of (i := 96) rfl (by decide +kernel)
@@ -5994,7 +5994,7 @@ public theorem Dot.b5_at : NativeRustcVmX64.Vm.Dot.b5.IsInfixAt NativeRustcVmX64
 public theorem Dot.b6_at : NativeRustcVmX64.Vm.Dot.b6.IsInfixAt NativeRustcVmX64.Vm.code (Dot.programOffset + NativeRustcVmX64.Vm.Dot.b6Offset) :=
   NativeRustcVmX64.Vm.Dot.b6_in_code.trans Dot.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Kinv.programOffset : Nat := 13258
+@[expose] public def Kinv.programOffset : Nat := 13054
 
 public theorem Kinv.code_at : NativeRustcVmX64.Vm.Kinv.code.IsInfixAt NativeRustcVmX64.Vm.code Kinv.programOffset :=
   List.isInfixAt_flatten_of (i := 97) rfl (by decide +kernel)
@@ -6050,7 +6050,7 @@ public theorem Kinv.b15_at : NativeRustcVmX64.Vm.Kinv.b15.IsInfixAt NativeRustcV
 public theorem Kinv.b16_at : NativeRustcVmX64.Vm.Kinv.b16.IsInfixAt NativeRustcVmX64.Vm.code (Kinv.programOffset + NativeRustcVmX64.Vm.Kinv.b16Offset) :=
   NativeRustcVmX64.Vm.Kinv.b16_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Kmul.programOffset : Nat := 13320
+@[expose] public def Kmul.programOffset : Nat := 13116
 
 public theorem Kmul.code_at : NativeRustcVmX64.Vm.Kmul.code.IsInfixAt NativeRustcVmX64.Vm.code Kmul.programOffset :=
   List.isInfixAt_flatten_of (i := 98) rfl (by decide +kernel)
@@ -6058,7 +6058,7 @@ public theorem Kmul.code_at : NativeRustcVmX64.Vm.Kmul.code.IsInfixAt NativeRust
 public theorem Kmul.b0_at : NativeRustcVmX64.Vm.Kmul.b0.IsInfixAt NativeRustcVmX64.Vm.code (Kmul.programOffset + NativeRustcVmX64.Vm.Kmul.b0Offset) :=
   NativeRustcVmX64.Vm.Kmul.b0_in_code.trans Kmul.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Kpow.programOffset : Nat := 13545
+@[expose] public def Kpow.programOffset : Nat := 13339
 
 public theorem Kpow.code_at : NativeRustcVmX64.Vm.Kpow.code.IsInfixAt NativeRustcVmX64.Vm.code Kpow.programOffset :=
   List.isInfixAt_flatten_of (i := 99) rfl (by decide +kernel)
@@ -6093,7 +6093,7 @@ public theorem Kpow.b8_at : NativeRustcVmX64.Vm.Kpow.b8.IsInfixAt NativeRustcVmX
 public theorem Kpow.b9_at : NativeRustcVmX64.Vm.Kpow.b9.IsInfixAt NativeRustcVmX64.Vm.code (Kpow.programOffset + NativeRustcVmX64.Vm.Kpow.b9Offset) :=
   NativeRustcVmX64.Vm.Kpow.b9_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def SumE.programOffset : Nat := 13579
+@[expose] public def SumE.programOffset : Nat := 13373
 
 public theorem SumE.code_at : NativeRustcVmX64.Vm.SumE.code.IsInfixAt NativeRustcVmX64.Vm.code SumE.programOffset :=
   List.isInfixAt_flatten_of (i := 100) rfl (by decide +kernel)
@@ -6128,7 +6128,7 @@ public theorem SumE.b8_at : NativeRustcVmX64.Vm.SumE.b8.IsInfixAt NativeRustcVmX
 public theorem SumE.b9_at : NativeRustcVmX64.Vm.SumE.b9.IsInfixAt NativeRustcVmX64.Vm.code (SumE.programOffset + NativeRustcVmX64.Vm.SumE.b9Offset) :=
   NativeRustcVmX64.Vm.SumE.b9_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Powers.programOffset : Nat := 13631
+@[expose] public def Powers.programOffset : Nat := 13425
 
 public theorem Powers.code_at : NativeRustcVmX64.Vm.Powers.code.IsInfixAt NativeRustcVmX64.Vm.code Powers.programOffset :=
   List.isInfixAt_flatten_of (i := 101) rfl (by decide +kernel)
@@ -6151,7 +6151,7 @@ public theorem Powers.b4_at : NativeRustcVmX64.Vm.Powers.b4.IsInfixAt NativeRust
 public theorem Powers.b5_at : NativeRustcVmX64.Vm.Powers.b5.IsInfixAt NativeRustcVmX64.Vm.code (Powers.programOffset + NativeRustcVmX64.Vm.Powers.b5Offset) :=
   NativeRustcVmX64.Vm.Powers.b5_in_code.trans Powers.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ProdE.programOffset : Nat := 13666
+@[expose] public def ProdE.programOffset : Nat := 13460
 
 public theorem ProdE.code_at : NativeRustcVmX64.Vm.ProdE.code.IsInfixAt NativeRustcVmX64.Vm.code ProdE.programOffset :=
   List.isInfixAt_flatten_of (i := 102) rfl (by decide +kernel)
@@ -6168,7 +6168,7 @@ public theorem ProdE.b2_at : NativeRustcVmX64.Vm.ProdE.b2.IsInfixAt NativeRustcV
 public theorem ProdE.b3_at : NativeRustcVmX64.Vm.ProdE.b3.IsInfixAt NativeRustcVmX64.Vm.code (ProdE.programOffset + NativeRustcVmX64.Vm.ProdE.b3Offset) :=
   NativeRustcVmX64.Vm.ProdE.b3_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def EqEval.programOffset : Nat := 13691
+@[expose] public def EqEval.programOffset : Nat := 13485
 
 public theorem EqEval.code_at : NativeRustcVmX64.Vm.EqEval.code.IsInfixAt NativeRustcVmX64.Vm.code EqEval.programOffset :=
   List.isInfixAt_flatten_of (i := 103) rfl (by decide +kernel)
@@ -6194,7 +6194,7 @@ public theorem EqEval.b5_at : NativeRustcVmX64.Vm.EqEval.b5.IsInfixAt NativeRust
 public theorem EqEval.b6_at : NativeRustcVmX64.Vm.EqEval.b6.IsInfixAt NativeRustcVmX64.Vm.code (EqEval.programOffset + NativeRustcVmX64.Vm.EqEval.b6Offset) :=
   NativeRustcVmX64.Vm.EqEval.b6_in_code.trans EqEval.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def EqKernel.programOffset : Nat := 13733
+@[expose] public def EqKernel.programOffset : Nat := 13527
 
 public theorem EqKernel.code_at : NativeRustcVmX64.Vm.EqKernel.code.IsInfixAt NativeRustcVmX64.Vm.code EqKernel.programOffset :=
   List.isInfixAt_flatten_of (i := 104) rfl (by decide +kernel)
@@ -6244,7 +6244,7 @@ public theorem EqKernel.b13_at : NativeRustcVmX64.Vm.EqKernel.b13.IsInfixAt Nati
 public theorem EqKernel.b14_at : NativeRustcVmX64.Vm.EqKernel.b14.IsInfixAt NativeRustcVmX64.Vm.code (EqKernel.programOffset + NativeRustcVmX64.Vm.EqKernel.b14Offset) :=
   NativeRustcVmX64.Vm.EqKernel.b14_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def PolyEval.programOffset : Nat := 13830
+@[expose] public def PolyEval.programOffset : Nat := 13624
 
 public theorem PolyEval.code_at : NativeRustcVmX64.Vm.PolyEval.code.IsInfixAt NativeRustcVmX64.Vm.code PolyEval.programOffset :=
   List.isInfixAt_flatten_of (i := 105) rfl (by decide +kernel)
@@ -6261,7 +6261,7 @@ public theorem PolyEval.b2_at : NativeRustcVmX64.Vm.PolyEval.b2.IsInfixAt Native
 public theorem PolyEval.b3_at : NativeRustcVmX64.Vm.PolyEval.b3.IsInfixAt NativeRustcVmX64.Vm.code (PolyEval.programOffset + NativeRustcVmX64.Vm.PolyEval.b3Offset) :=
   NativeRustcVmX64.Vm.PolyEval.b3_in_code.trans PolyEval.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def PushClaim.programOffset : Nat := 13866
+@[expose] public def PushClaim.programOffset : Nat := 13660
 
 public theorem PushClaim.code_at : NativeRustcVmX64.Vm.PushClaim.code.IsInfixAt NativeRustcVmX64.Vm.code PushClaim.programOffset :=
   List.isInfixAt_flatten_of (i := 106) rfl (by decide +kernel)
@@ -6287,7 +6287,7 @@ public theorem PushClaim.b5_at : NativeRustcVmX64.Vm.PushClaim.b5.IsInfixAt Nati
 public theorem PushClaim.b6_at : NativeRustcVmX64.Vm.PushClaim.b6.IsInfixAt NativeRustcVmX64.Vm.code (PushClaim.programOffset + NativeRustcVmX64.Vm.PushClaim.b6Offset) :=
   NativeRustcVmX64.Vm.PushClaim.b6_in_code.trans PushClaim.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RingWeight.programOffset : Nat := 13907
+@[expose] public def RingWeight.programOffset : Nat := 13701
 
 public theorem RingWeight.code_at : NativeRustcVmX64.Vm.RingWeight.code.IsInfixAt NativeRustcVmX64.Vm.code RingWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 107) rfl (by decide +kernel)
@@ -6370,7 +6370,7 @@ public theorem RingWeight.b24_at : NativeRustcVmX64.Vm.RingWeight.b24.IsInfixAt 
 public theorem RingWeight.b25_at : NativeRustcVmX64.Vm.RingWeight.b25.IsInfixAt NativeRustcVmX64.Vm.code (RingWeight.programOffset + NativeRustcVmX64.Vm.RingWeight.b25Offset) :=
   NativeRustcVmX64.Vm.RingWeight.b25_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def CommitStack.programOffset : Nat := 14139
+@[expose] public def CommitStack.programOffset : Nat := 13933
 
 public theorem CommitStack.code_at : NativeRustcVmX64.Vm.CommitStack.code.IsInfixAt NativeRustcVmX64.Vm.code CommitStack.programOffset :=
   List.isInfixAt_flatten_of (i := 108) rfl (by decide +kernel)
@@ -6390,7 +6390,7 @@ public theorem CommitStack.b3_at : NativeRustcVmX64.Vm.CommitStack.b3.IsInfixAt 
 public theorem CommitStack.b4_at : NativeRustcVmX64.Vm.CommitStack.b4.IsInfixAt NativeRustcVmX64.Vm.code (CommitStack.programOffset + NativeRustcVmX64.Vm.CommitStack.b4Offset) :=
   NativeRustcVmX64.Vm.CommitStack.b4_in_code.trans CommitStack.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ColumnWeight.programOffset : Nat := 14172
+@[expose] public def ColumnWeight.programOffset : Nat := 13966
 
 public theorem ColumnWeight.code_at : NativeRustcVmX64.Vm.ColumnWeight.code.IsInfixAt NativeRustcVmX64.Vm.code ColumnWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 109) rfl (by decide +kernel)
@@ -6419,7 +6419,7 @@ public theorem ColumnWeight.b6_at : NativeRustcVmX64.Vm.ColumnWeight.b6.IsInfixA
 public theorem ColumnWeight.b7_at : NativeRustcVmX64.Vm.ColumnWeight.b7.IsInfixAt NativeRustcVmX64.Vm.code (ColumnWeight.programOffset + NativeRustcVmX64.Vm.ColumnWeight.b7Offset) :=
   NativeRustcVmX64.Vm.ColumnWeight.b7_in_code.trans ColumnWeight.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def RingClaimWeight.programOffset : Nat := 14220
+@[expose] public def RingClaimWeight.programOffset : Nat := 14014
 
 public theorem RingClaimWeight.code_at : NativeRustcVmX64.Vm.RingClaimWeight.code.IsInfixAt NativeRustcVmX64.Vm.code RingClaimWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 110) rfl (by decide +kernel)
@@ -6445,7 +6445,7 @@ public theorem RingClaimWeight.b5_at : NativeRustcVmX64.Vm.RingClaimWeight.b5.Is
 public theorem RingClaimWeight.b6_at : NativeRustcVmX64.Vm.RingClaimWeight.b6.IsInfixAt NativeRustcVmX64.Vm.code (RingClaimWeight.programOffset + NativeRustcVmX64.Vm.RingClaimWeight.b6Offset) :=
   NativeRustcVmX64.Vm.RingClaimWeight.b6_in_code.trans RingClaimWeight.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ReadOod.programOffset : Nat := 14283
+@[expose] public def ReadOod.programOffset : Nat := 14077
 
 public theorem ReadOod.code_at : NativeRustcVmX64.Vm.ReadOod.code.IsInfixAt NativeRustcVmX64.Vm.code ReadOod.programOffset :=
   List.isInfixAt_flatten_of (i := 111) rfl (by decide +kernel)
@@ -6477,7 +6477,7 @@ public theorem ReadOod.b7_at : NativeRustcVmX64.Vm.ReadOod.b7.IsInfixAt NativeRu
 public theorem ReadOod.b8_at : NativeRustcVmX64.Vm.ReadOod.b8.IsInfixAt NativeRustcVmX64.Vm.code (ReadOod.programOffset + NativeRustcVmX64.Vm.ReadOod.b8Offset) :=
   NativeRustcVmX64.Vm.ReadOod.b8_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def KeccakF.programOffset : Nat := 14323
+@[expose] public def KeccakF.programOffset : Nat := 14117
 
 public theorem KeccakF.code_at : NativeRustcVmX64.Vm.KeccakF.code.IsInfixAt NativeRustcVmX64.Vm.code KeccakF.programOffset :=
   List.isInfixAt_flatten_of (i := 112) rfl (by decide +kernel)
@@ -6494,7 +6494,7 @@ public theorem KeccakF.b2_at : NativeRustcVmX64.Vm.KeccakF.b2.IsInfixAt NativeRu
 public theorem KeccakF.b3_at : NativeRustcVmX64.Vm.KeccakF.b3.IsInfixAt NativeRustcVmX64.Vm.code (KeccakF.programOffset + NativeRustcVmX64.Vm.KeccakF.b3Offset) :=
   NativeRustcVmX64.Vm.KeccakF.b3_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def HashPair.programOffset : Nat := 14685
+@[expose] public def HashPair.programOffset : Nat := 14479
 
 public theorem HashPair.code_at : NativeRustcVmX64.Vm.HashPair.code.IsInfixAt NativeRustcVmX64.Vm.code HashPair.programOffset :=
   List.isInfixAt_flatten_of (i := 113) rfl (by decide +kernel)
@@ -6505,7 +6505,7 @@ public theorem HashPair.b0_at : NativeRustcVmX64.Vm.HashPair.b0.IsInfixAt Native
 public theorem HashPair.b1_at : NativeRustcVmX64.Vm.HashPair.b1.IsInfixAt NativeRustcVmX64.Vm.code (HashPair.programOffset + NativeRustcVmX64.Vm.HashPair.b1Offset) :=
   NativeRustcVmX64.Vm.HashPair.b1_in_code.trans HashPair.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def FormTerms.programOffset : Nat := 14710
+@[expose] public def FormTerms.programOffset : Nat := 14504
 
 public theorem FormTerms.code_at : NativeRustcVmX64.Vm.FormTerms.code.IsInfixAt NativeRustcVmX64.Vm.code FormTerms.programOffset :=
   List.isInfixAt_flatten_of (i := 114) rfl (by decide +kernel)
@@ -6519,7 +6519,7 @@ public theorem FormTerms.b1_at : NativeRustcVmX64.Vm.FormTerms.b1.IsInfixAt Nati
 public theorem FormTerms.b2_at : NativeRustcVmX64.Vm.FormTerms.b2.IsInfixAt NativeRustcVmX64.Vm.code (FormTerms.programOffset + NativeRustcVmX64.Vm.FormTerms.b2Offset) :=
   NativeRustcVmX64.Vm.FormTerms.b2_in_code.trans FormTerms.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def StackPoint.programOffset : Nat := 14735
+@[expose] public def StackPoint.programOffset : Nat := 14529
 
 public theorem StackPoint.code_at : NativeRustcVmX64.Vm.StackPoint.code.IsInfixAt NativeRustcVmX64.Vm.code StackPoint.programOffset :=
   List.isInfixAt_flatten_of (i := 115) rfl (by decide +kernel)
@@ -6557,7 +6557,7 @@ public theorem StackPoint.b9_at : NativeRustcVmX64.Vm.StackPoint.b9.IsInfixAt Na
 public theorem StackPoint.b10_at : NativeRustcVmX64.Vm.StackPoint.b10.IsInfixAt NativeRustcVmX64.Vm.code (StackPoint.programOffset + NativeRustcVmX64.Vm.StackPoint.b10Offset) :=
   NativeRustcVmX64.Vm.StackPoint.b10_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def BuildLayout.programOffset : Nat := 14806
+@[expose] public def BuildLayout.programOffset : Nat := 14600
 
 public theorem BuildLayout.code_at : NativeRustcVmX64.Vm.BuildLayout.code.IsInfixAt NativeRustcVmX64.Vm.code BuildLayout.programOffset :=
   List.isInfixAt_flatten_of (i := 116) rfl (by decide +kernel)
@@ -6625,7 +6625,7 @@ public theorem BuildLayout.b19_at : NativeRustcVmX64.Vm.BuildLayout.b19.IsInfixA
 public theorem BuildLayout.b20_at : NativeRustcVmX64.Vm.BuildLayout.b20.IsInfixAt NativeRustcVmX64.Vm.code (BuildLayout.programOffset + NativeRustcVmX64.Vm.BuildLayout.b20Offset) :=
   NativeRustcVmX64.Vm.BuildLayout.b20_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ColumnKappas.programOffset : Nat := 14930
+@[expose] public def ColumnKappas.programOffset : Nat := 14724
 
 public theorem ColumnKappas.code_at : NativeRustcVmX64.Vm.ColumnKappas.code.IsInfixAt NativeRustcVmX64.Vm.code ColumnKappas.programOffset :=
   List.isInfixAt_flatten_of (i := 117) rfl (by decide +kernel)
@@ -6633,7 +6633,7 @@ public theorem ColumnKappas.code_at : NativeRustcVmX64.Vm.ColumnKappas.code.IsIn
 public theorem ColumnKappas.b0_at : NativeRustcVmX64.Vm.ColumnKappas.b0.IsInfixAt NativeRustcVmX64.Vm.code (ColumnKappas.programOffset + NativeRustcVmX64.Vm.ColumnKappas.b0Offset) :=
   NativeRustcVmX64.Vm.ColumnKappas.b0_in_code.trans ColumnKappas.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ConstraintsW.programOffset : Nat := 15099
+@[expose] public def ConstraintsW.programOffset : Nat := 14893
 
 public theorem ConstraintsW.code_at : NativeRustcVmX64.Vm.ConstraintsW.code.IsInfixAt NativeRustcVmX64.Vm.code ConstraintsW.programOffset :=
   List.isInfixAt_flatten_of (i := 118) rfl (by decide +kernel)
@@ -6674,7 +6674,7 @@ public theorem ConstraintsW.b10_at : NativeRustcVmX64.Vm.ConstraintsW.b10.IsInfi
 public theorem ConstraintsW.b11_at : NativeRustcVmX64.Vm.ConstraintsW.b11.IsInfixAt NativeRustcVmX64.Vm.code (ConstraintsW.programOffset + NativeRustcVmX64.Vm.ConstraintsW.b11Offset) :=
   NativeRustcVmX64.Vm.ConstraintsW.b11_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def PlacementsOf.programOffset : Nat := 15158
+@[expose] public def PlacementsOf.programOffset : Nat := 14952
 
 public theorem PlacementsOf.code_at : NativeRustcVmX64.Vm.PlacementsOf.code.IsInfixAt NativeRustcVmX64.Vm.code PlacementsOf.programOffset :=
   List.isInfixAt_flatten_of (i := 119) rfl (by decide +kernel)
@@ -6778,7 +6778,7 @@ public theorem PlacementsOf.b31_at : NativeRustcVmX64.Vm.PlacementsOf.b31.IsInfi
 public theorem PlacementsOf.b32_at : NativeRustcVmX64.Vm.PlacementsOf.b32.IsInfixAt NativeRustcVmX64.Vm.code (PlacementsOf.programOffset + NativeRustcVmX64.Vm.PlacementsOf.b32Offset) :=
   NativeRustcVmX64.Vm.PlacementsOf.b32_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def StackOffsets.programOffset : Nat := 15297
+@[expose] public def StackOffsets.programOffset : Nat := 15091
 
 public theorem StackOffsets.code_at : NativeRustcVmX64.Vm.StackOffsets.code.IsInfixAt NativeRustcVmX64.Vm.code StackOffsets.programOffset :=
   List.isInfixAt_flatten_of (i := 120) rfl (by decide +kernel)
@@ -6861,7 +6861,7 @@ public theorem StackOffsets.b24_at : NativeRustcVmX64.Vm.StackOffsets.b24.IsInfi
 public theorem StackOffsets.b25_at : NativeRustcVmX64.Vm.StackOffsets.b25.IsInfixAt NativeRustcVmX64.Vm.code (StackOffsets.programOffset + NativeRustcVmX64.Vm.StackOffsets.b25Offset) :=
   NativeRustcVmX64.Vm.StackOffsets.b25_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def ReadAnnouncedSizes.programOffset : Nat := 15427
+@[expose] public def ReadAnnouncedSizes.programOffset : Nat := 15219
 
 public theorem ReadAnnouncedSizes.code_at : NativeRustcVmX64.Vm.ReadAnnouncedSizes.code.IsInfixAt NativeRustcVmX64.Vm.code ReadAnnouncedSizes.programOffset :=
   List.isInfixAt_flatten_of (i := 121) rfl (by decide +kernel)
@@ -6914,7 +6914,7 @@ public theorem ReadAnnouncedSizes.b14_at : NativeRustcVmX64.Vm.ReadAnnouncedSize
 public theorem ReadAnnouncedSizes.b15_at : NativeRustcVmX64.Vm.ReadAnnouncedSizes.b15.IsInfixAt NativeRustcVmX64.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b15Offset) :=
   NativeRustcVmX64.Vm.ReadAnnouncedSizes.b15_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Evaluate.programOffset : Nat := 15513
+@[expose] public def Evaluate.programOffset : Nat := 15305
 
 public theorem Evaluate.code_at : NativeRustcVmX64.Vm.Evaluate.code.IsInfixAt NativeRustcVmX64.Vm.code Evaluate.programOffset :=
   List.isInfixAt_flatten_of (i := 122) rfl (by decide +kernel)
@@ -6961,7 +6961,7 @@ public theorem Evaluate.b12_at : NativeRustcVmX64.Vm.Evaluate.b12.IsInfixAt Nati
 public theorem Evaluate.b13_at : NativeRustcVmX64.Vm.Evaluate.b13.IsInfixAt NativeRustcVmX64.Vm.code (Evaluate.programOffset + NativeRustcVmX64.Vm.Evaluate.b13Offset) :=
   NativeRustcVmX64.Vm.Evaluate.b13_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TablePhase.programOffset : Nat := 15591
+@[expose] public def TablePhase.programOffset : Nat := 15383
 
 public theorem TablePhase.code_at : NativeRustcVmX64.Vm.TablePhase.code.IsInfixAt NativeRustcVmX64.Vm.code TablePhase.programOffset :=
   List.isInfixAt_flatten_of (i := 123) rfl (by decide +kernel)
@@ -6993,7 +6993,7 @@ public theorem TablePhase.b7_at : NativeRustcVmX64.Vm.TablePhase.b7.IsInfixAt Na
 public theorem TablePhase.b8_at : NativeRustcVmX64.Vm.TablePhase.b8.IsInfixAt NativeRustcVmX64.Vm.code (TablePhase.programOffset + NativeRustcVmX64.Vm.TablePhase.b8Offset) :=
   NativeRustcVmX64.Vm.TablePhase.b8_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TableTerms.programOffset : Nat := 15660
+@[expose] public def TableTerms.programOffset : Nat := 15452
 
 public theorem TableTerms.code_at : NativeRustcVmX64.Vm.TableTerms.code.IsInfixAt NativeRustcVmX64.Vm.code TableTerms.programOffset :=
   List.isInfixAt_flatten_of (i := 124) rfl (by decide +kernel)
@@ -7049,7 +7049,7 @@ public theorem TableTerms.b15_at : NativeRustcVmX64.Vm.TableTerms.b15.IsInfixAt 
 public theorem TableTerms.b16_at : NativeRustcVmX64.Vm.TableTerms.b16.IsInfixAt NativeRustcVmX64.Vm.code (TableTerms.programOffset + NativeRustcVmX64.Vm.TableTerms.b16Offset) :=
   NativeRustcVmX64.Vm.TableTerms.b16_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TableWeights.programOffset : Nat := 15832
+@[expose] public def TableWeights.programOffset : Nat := 15624
 
 public theorem TableWeights.code_at : NativeRustcVmX64.Vm.TableWeights.code.IsInfixAt NativeRustcVmX64.Vm.code TableWeights.programOffset :=
   List.isInfixAt_flatten_of (i := 125) rfl (by decide +kernel)
@@ -7096,7 +7096,7 @@ public theorem TableWeights.b12_at : NativeRustcVmX64.Vm.TableWeights.b12.IsInfi
 public theorem TableWeights.b13_at : NativeRustcVmX64.Vm.TableWeights.b13.IsInfixAt NativeRustcVmX64.Vm.code (TableWeights.programOffset + NativeRustcVmX64.Vm.TableWeights.b13Offset) :=
   NativeRustcVmX64.Vm.TableWeights.b13_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TableSumcheck.programOffset : Nat := 16015
+@[expose] public def TableSumcheck.programOffset : Nat := 15807
 
 public theorem TableSumcheck.code_at : NativeRustcVmX64.Vm.TableSumcheck.code.IsInfixAt NativeRustcVmX64.Vm.code TableSumcheck.programOffset :=
   List.isInfixAt_flatten_of (i := 126) rfl (by decide +kernel)
@@ -7149,7 +7149,7 @@ public theorem TableSumcheck.b14_at : NativeRustcVmX64.Vm.TableSumcheck.b14.IsIn
 public theorem TableSumcheck.b15_at : NativeRustcVmX64.Vm.TableSumcheck.b15.IsInfixAt NativeRustcVmX64.Vm.code (TableSumcheck.programOffset + NativeRustcVmX64.Vm.TableSumcheck.b15Offset) :=
   NativeRustcVmX64.Vm.TableSumcheck.b15_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def PublicInputPhase.programOffset : Nat := 16231
+@[expose] public def PublicInputPhase.programOffset : Nat := 16023
 
 public theorem PublicInputPhase.code_at : NativeRustcVmX64.Vm.PublicInputPhase.code.IsInfixAt NativeRustcVmX64.Vm.code PublicInputPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 127) rfl (by decide +kernel)
@@ -7184,7 +7184,7 @@ public theorem PublicInputPhase.b8_at : NativeRustcVmX64.Vm.PublicInputPhase.b8.
 public theorem PublicInputPhase.b9_at : NativeRustcVmX64.Vm.PublicInputPhase.b9.IsInfixAt NativeRustcVmX64.Vm.code (PublicInputPhase.programOffset + NativeRustcVmX64.Vm.PublicInputPhase.b9Offset) :=
   NativeRustcVmX64.Vm.PublicInputPhase.b9_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def TableColumnClaims.programOffset : Nat := 16374
+@[expose] public def TableColumnClaims.programOffset : Nat := 16166
 
 public theorem TableColumnClaims.code_at : NativeRustcVmX64.Vm.TableColumnClaims.code.IsInfixAt NativeRustcVmX64.Vm.code TableColumnClaims.programOffset :=
   List.isInfixAt_flatten_of (i := 128) rfl (by decide +kernel)
@@ -7285,7 +7285,7 @@ public theorem TableColumnClaims.b30_at : NativeRustcVmX64.Vm.TableColumnClaims.
 public theorem TableColumnClaims.b31_at : NativeRustcVmX64.Vm.TableColumnClaims.b31.IsInfixAt NativeRustcVmX64.Vm.code (TableColumnClaims.programOffset + NativeRustcVmX64.Vm.TableColumnClaims.b31Offset) :=
   NativeRustcVmX64.Vm.TableColumnClaims.b31_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def VerifyExecution.programOffset : Nat := 16601
+@[expose] public def VerifyExecution.programOffset : Nat := 16393
 
 public theorem VerifyExecution.code_at : NativeRustcVmX64.Vm.VerifyExecution.code.IsInfixAt NativeRustcVmX64.Vm.code VerifyExecution.programOffset :=
   List.isInfixAt_flatten_of (i := 129) rfl (by decide +kernel)
@@ -7356,7 +7356,7 @@ public theorem VerifyExecution.b20_at : NativeRustcVmX64.Vm.VerifyExecution.b20.
 public theorem VerifyExecution.b21_at : NativeRustcVmX64.Vm.VerifyExecution.b21.IsInfixAt NativeRustcVmX64.Vm.code (VerifyExecution.programOffset + NativeRustcVmX64.Vm.VerifyExecution.b21Offset) :=
   NativeRustcVmX64.Vm.VerifyExecution.b21_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Seed.programOffset : Nat := 16709
+@[expose] public def Seed.programOffset : Nat := 16501
 
 public theorem Seed.code_at : NativeRustcVmX64.Vm.Seed.code.IsInfixAt NativeRustcVmX64.Vm.code Seed.programOffset :=
   List.isInfixAt_flatten_of (i := 130) rfl (by decide +kernel)
@@ -7376,7 +7376,7 @@ public theorem Seed.b3_at : NativeRustcVmX64.Vm.Seed.b3.IsInfixAt NativeRustcVmX
 public theorem Seed.b4_at : NativeRustcVmX64.Vm.Seed.b4.IsInfixAt NativeRustcVmX64.Vm.code (Seed.programOffset + NativeRustcVmX64.Vm.Seed.b4Offset) :=
   NativeRustcVmX64.Vm.Seed.b4_in_code.trans Seed.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Verify.programOffset : Nat := 16748
+@[expose] public def Verify.programOffset : Nat := 16538
 
 public theorem Verify.code_at : NativeRustcVmX64.Vm.Verify.code.IsInfixAt NativeRustcVmX64.Vm.code Verify.programOffset :=
   List.isInfixAt_flatten_of (i := 131) rfl (by decide +kernel)
@@ -7411,7 +7411,7 @@ public theorem Verify.b8_at : NativeRustcVmX64.Vm.Verify.b8.IsInfixAt NativeRust
 public theorem Verify.b9_at : NativeRustcVmX64.Vm.Verify.b9.IsInfixAt NativeRustcVmX64.Vm.code (Verify.programOffset + NativeRustcVmX64.Vm.Verify.b9Offset) :=
   NativeRustcVmX64.Vm.Verify.b9_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def IvWord.programOffset : Nat := 16875
+@[expose] public def IvWord.programOffset : Nat := 16665
 
 public theorem IvWord.code_at : NativeRustcVmX64.Vm.IvWord.code.IsInfixAt NativeRustcVmX64.Vm.code IvWord.programOffset :=
   List.isInfixAt_flatten_of (i := 132) rfl (by decide +kernel)
@@ -7449,7 +7449,7 @@ public theorem IvWord.b9_at : NativeRustcVmX64.Vm.IvWord.b9.IsInfixAt NativeRust
 public theorem IvWord.b10_at : NativeRustcVmX64.Vm.IvWord.b10.IsInfixAt NativeRustcVmX64.Vm.code (IvWord.programOffset + NativeRustcVmX64.Vm.IvWord.b10Offset) :=
   NativeRustcVmX64.Vm.IvWord.b10_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def KinvSq.programOffset : Nat := 16906
+@[expose] public def KinvSq.programOffset : Nat := 16696
 
 public theorem KinvSq.code_at : NativeRustcVmX64.Vm.KinvSq.code.IsInfixAt NativeRustcVmX64.Vm.code KinvSq.programOffset :=
   List.isInfixAt_flatten_of (i := 133) rfl (by decide +kernel)
@@ -7466,7 +7466,7 @@ public theorem KinvSq.b2_at : NativeRustcVmX64.Vm.KinvSq.b2.IsInfixAt NativeRust
 public theorem KinvSq.b3_at : NativeRustcVmX64.Vm.KinvSq.b3.IsInfixAt NativeRustcVmX64.Vm.code (KinvSq.programOffset + NativeRustcVmX64.Vm.KinvSq.b3Offset) :=
   NativeRustcVmX64.Vm.KinvSq.b3_in_code.trans KinvSq.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def LeanvmVerify.programOffset : Nat := 16919
+@[expose] public def LeanvmVerify.programOffset : Nat := 16709
 
 public theorem LeanvmVerify.code_at : NativeRustcVmX64.Vm.LeanvmVerify.code.IsInfixAt NativeRustcVmX64.Vm.code LeanvmVerify.programOffset :=
   List.isInfixAt_flatten_of (i := 134) rfl (by decide +kernel)
@@ -7525,7 +7525,7 @@ public theorem LeanvmVerify.b16_at : NativeRustcVmX64.Vm.LeanvmVerify.b16.IsInfi
 public theorem LeanvmVerify.b17_at : NativeRustcVmX64.Vm.LeanvmVerify.b17.IsInfixAt NativeRustcVmX64.Vm.code (LeanvmVerify.programOffset + NativeRustcVmX64.Vm.LeanvmVerify.b17Offset) :=
   NativeRustcVmX64.Vm.LeanvmVerify.b17_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Memcpy.programOffset : Nat := 17029
+@[expose] public def Memcpy.programOffset : Nat := 16819
 
 public theorem Memcpy.code_at : NativeRustcVmX64.Vm.Memcpy.code.IsInfixAt NativeRustcVmX64.Vm.code Memcpy.programOffset :=
   List.isInfixAt_flatten_of (i := 135) rfl (by decide +kernel)
@@ -7557,7 +7557,7 @@ public theorem Memcpy.b7_at : NativeRustcVmX64.Vm.Memcpy.b7.IsInfixAt NativeRust
 public theorem Memcpy.b8_at : NativeRustcVmX64.Vm.Memcpy.b8.IsInfixAt NativeRustcVmX64.Vm.code (Memcpy.programOffset + NativeRustcVmX64.Vm.Memcpy.b8Offset) :=
   NativeRustcVmX64.Vm.Memcpy.b8_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def Memset.programOffset : Nat := 17061
+@[expose] public def Memset.programOffset : Nat := 16851
 
 public theorem Memset.code_at : NativeRustcVmX64.Vm.Memset.code.IsInfixAt NativeRustcVmX64.Vm.code Memset.programOffset :=
   List.isInfixAt_flatten_of (i := 136) rfl (by decide +kernel)
@@ -7589,11 +7589,11 @@ public theorem Memset.b7_at : NativeRustcVmX64.Vm.Memset.b7.IsInfixAt NativeRust
 public theorem Memset.b8_at : NativeRustcVmX64.Vm.Memset.b8.IsInfixAt NativeRustcVmX64.Vm.code (Memset.programOffset + NativeRustcVmX64.Vm.Memset.b8Offset) :=
   NativeRustcVmX64.Vm.Memset.b8_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-@[expose] public def trapsOffset : Nat := 17092
+@[expose] public def trapsOffset : Nat := 16882
 
-@[expose] public def rodataOffset : Nat := 17092
+@[expose] public def rodataOffset : Nat := 16882
 
-@[expose] public def programLength : Nat := 17321
+@[expose] public def programLength : Nat := 17111
 
 public theorem traps_at : NativeRustcVmX64.Vm.traps.IsInfixAt NativeRustcVmX64.Vm.code trapsOffset :=
   List.isInfixAt_flatten_of (i := 137) rfl (by decide +kernel)

@@ -65,9 +65,7 @@ def kept (S : SState) (rs : List Reg64) : Bool := rs.all fun r ↦ S.reg r == so
 /-- `min(RBP, 230)`, 32 bits. -/
 def m23S : Sym := .un .trunc .W32 (.ite (.cmp .ult .W64 (.reg .rbp) (.lit 230)) (.reg .rbp) (.lit 230))
 /-- `8 min(RBP, 230) - 1840`, the frame's word `48`. -/
-def f48S : Sym := .bin .add .W64 (.bin .add .W64
-  (.bin .add .W64 (.bin .add .W64 m23S m23S) (.bin .add .W64 m23S m23S))
-  (.bin .add .W64 (.bin .add .W64 m23S m23S) (.bin .add .W64 m23S m23S))) (.lit 18446744073709549776)
+def f48S : Sym := .bin .add .W64 (.bin .mul .W64 m23S (.lit 8)) (.lit 18446744073709549776)
 /-- `8 max(RCX, 1)`, the frame's word `40`. -/
 def f40S : Sym := .bin .shl .W64 (.bin .add .W64 (.reg .rcx)
   (.ite (.cmp .ult .W64 (.reg .rcx) (.lit 1)) (.lit 1) (.lit 0))) (.lit 3)

@@ -299,23 +299,20 @@ theorem toNat_shr1 (x : BitVec 64) : (BinOp.apply .shr .W64 x (BitVec.ofNat 64 1
   show (x >>> 1).toNat = _
   rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
 
-/-- A doubling without overflow. (Each step on its own: `omega` over nested `toNat_add`s builds a
-proof the kernel recurses too deep on.) -/
-theorem dbl {a : BitVec 64} {n : Nat} (h : a.toNat = n) (hn : 2 * n < 2 ^ 64) :
-    (a + a).toNat = 2 * n := by
-  rw [BitVec.toNat_add, h, ← Nat.two_mul]
-  exact Nat.mod_eq_of_lt hn
-
 /-- `b7`'s R8: `8 len - 8`, the last word's byte offset. -/
 theorem r8_eq (x : BitVec 64) (h : x.toNat < 65) (h0 : 0 < x.toNat) :
-    x + x + (x + x) + (x + x + (x + x)) + BitVec.ofNat 64 18446744073709551608 =
+    x * BitVec.ofNat 64 8 + BitVec.ofNat 64 18446744073709551608 =
       BitVec.ofNat 64 (8 * (x.toNat - 1)) := by
-  have h2 := dbl (a := x) rfl (by omega)
-  have h4 := dbl h2 (by omega)
-  have h8 := dbl h4 (by omega)
-  apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_add, h8, toNat_ofNat_lt (by omega), toNat_ofNat_lt (by omega)]
-  omega
+  have hx : x * BitVec.ofNat 64 8 =
+      BitVec.ofNat 64 (8 * (x.toNat - 1)) + BitVec.ofNat 64 8 := by
+    conv_lhs =>
+      rw [← show BitVec.ofNat 64 x.toNat = x by rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]]
+    rw [← BitVec.ofNat_mul, ← BitVec.ofNat_add]
+    congr 1
+    omega
+  rw [hx, BitVec.add_assoc,
+    show BitVec.ofNat 64 8 + BitVec.ofNat 64 18446744073709551608 = 0#64 by decide,
+    BitVec.add_zero]
 
 theorem shl4_ofNat (e : Nat) :
     BinOp.apply .shl .W64 (BitVec.ofNat 64 e) (BitVec.ofNat 64 4) = BitVec.ofNat 64 (16 * e) := by

@@ -41,7 +41,7 @@ theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.
     Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b6Offset) ∧ IInv m0 j (t + 1) s.data) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b4Offset) ∧ OInv m0 (j + 1) s.data) ∨
       (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b9Offset) ∧ Mid m0 s.data)) st := by
-  obtain ⟨hS, hcs, hwh, hout⟩ := hpre
+  obtain ⟨hS, hcs, hwh, hout, _⟩ := hpre
   have hF : 1104 ≤ novelEvalStack := by decide
   have hle : 1104 + kmulStack ≤ novelEvalStack := by decide
   have hS1 := hS.1

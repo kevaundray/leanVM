@@ -19,7 +19,7 @@ namespace NativeRustcVmX64.Vm.VerifyLayer
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32, b33, b34, b35, b36, b37, b38, b39, b40, b41, b42, b43, b44, b45, b46, b47, b48, b49, b50, b51, b52, b53, b54, b55, b56, b57, b58, b59, b60, b61, b62, b63, b64, b65, b66, b67, b68, b69, b70, b71, b72, b73, b74, b75, b76, b77, b78, b79, b80, b81, b82, b83, b84, b85, b86, b87]
 
-def codeLength : Nat := 741
+def codeLength : Nat := 735
 
 def b0Offset : Nat := 0
 
@@ -203,351 +203,351 @@ def b29End : Nat := 288
 
 def b30Offset : Nat := 288
 
-def b30Length : Nat := 6
+def b30Length : Nat := 3
 
-def b30End : Nat := 294
+def b30End : Nat := 291
 
-def b31Offset : Nat := 294
+def b31Offset : Nat := 291
 
 def b31Length : Nat := 3
 
-def b31End : Nat := 297
+def b31End : Nat := 294
 
-def b32Offset : Nat := 297
+def b32Offset : Nat := 294
 
 def b32Length : Nat := 14
 
-def b32End : Nat := 311
+def b32End : Nat := 308
 
-def b33Offset : Nat := 311
+def b33Offset : Nat := 308
 
 def b33Length : Nat := 1
 
-def b33End : Nat := 312
+def b33End : Nat := 309
 
-def b34Offset : Nat := 312
+def b34Offset : Nat := 309
 
 def b34Length : Nat := 3
 
-def b34End : Nat := 315
+def b34End : Nat := 312
 
-def b35Offset : Nat := 315
+def b35Offset : Nat := 312
 
 def b35Length : Nat := 18
 
-def b35End : Nat := 333
+def b35End : Nat := 330
 
-def b36Offset : Nat := 333
+def b36Offset : Nat := 330
 
-def b36Length : Nat := 6
+def b36Length : Nat := 3
 
-def b36End : Nat := 339
+def b36End : Nat := 333
 
-def b37Offset : Nat := 339
+def b37Offset : Nat := 333
 
 def b37Length : Nat := 3
 
-def b37End : Nat := 342
+def b37End : Nat := 336
 
-def b38Offset : Nat := 342
+def b38Offset : Nat := 336
 
 def b38Length : Nat := 3
 
-def b38End : Nat := 345
+def b38End : Nat := 339
 
-def b39Offset : Nat := 345
+def b39Offset : Nat := 339
 
 def b39Length : Nat := 7
 
-def b39End : Nat := 352
+def b39End : Nat := 346
 
-def b40Offset : Nat := 352
+def b40Offset : Nat := 346
 
 def b40Length : Nat := 5
 
-def b40End : Nat := 357
+def b40End : Nat := 351
 
-def b41Offset : Nat := 357
+def b41Offset : Nat := 351
 
 def b41Length : Nat := 5
 
-def b41End : Nat := 362
+def b41End : Nat := 356
 
-def b42Offset : Nat := 362
+def b42Offset : Nat := 356
 
 def b42Length : Nat := 5
 
-def b42End : Nat := 367
+def b42End : Nat := 361
 
-def b43Offset : Nat := 367
+def b43Offset : Nat := 361
 
 def b43Length : Nat := 3
 
-def b43End : Nat := 370
+def b43End : Nat := 364
 
-def b44Offset : Nat := 370
+def b44Offset : Nat := 364
 
 def b44Length : Nat := 2
 
-def b44End : Nat := 372
+def b44End : Nat := 366
 
-def b45Offset : Nat := 372
+def b45Offset : Nat := 366
 
 def b45Length : Nat := 6
 
-def b45End : Nat := 378
+def b45End : Nat := 372
 
-def b46Offset : Nat := 378
+def b46Offset : Nat := 372
 
 def b46Length : Nat := 2
 
-def b46End : Nat := 380
+def b46End : Nat := 374
 
-def b47Offset : Nat := 380
+def b47Offset : Nat := 374
 
 def b47Length : Nat := 3
 
-def b47End : Nat := 383
+def b47End : Nat := 377
 
-def b48Offset : Nat := 383
+def b48Offset : Nat := 377
 
 def b48Length : Nat := 5
 
-def b48End : Nat := 388
+def b48End : Nat := 382
 
-def b49Offset : Nat := 388
+def b49Offset : Nat := 382
 
 def b49Length : Nat := 8
 
-def b49End : Nat := 396
+def b49End : Nat := 390
 
-def b50Offset : Nat := 396
+def b50Offset : Nat := 390
 
 def b50Length : Nat := 74
 
-def b50End : Nat := 470
+def b50End : Nat := 464
 
-def b51Offset : Nat := 470
+def b51Offset : Nat := 464
 
 def b51Length : Nat := 11
 
-def b51End : Nat := 481
+def b51End : Nat := 475
 
-def b52Offset : Nat := 481
+def b52Offset : Nat := 475
 
 def b52Length : Nat := 4
 
-def b52End : Nat := 485
+def b52End : Nat := 479
 
-def b53Offset : Nat := 485
+def b53Offset : Nat := 479
 
 def b53Length : Nat := 31
 
-def b53End : Nat := 516
+def b53End : Nat := 510
 
-def b54Offset : Nat := 516
+def b54Offset : Nat := 510
 
 def b54Length : Nat := 3
 
-def b54End : Nat := 519
+def b54End : Nat := 513
 
-def b55Offset : Nat := 519
+def b55Offset : Nat := 513
 
 def b55Length : Nat := 12
 
-def b55End : Nat := 531
+def b55End : Nat := 525
 
-def b56Offset : Nat := 531
+def b56Offset : Nat := 525
 
 def b56Length : Nat := 2
 
-def b56End : Nat := 533
+def b56End : Nat := 527
 
-def b57Offset : Nat := 533
+def b57Offset : Nat := 527
 
 def b57Length : Nat := 6
 
-def b57End : Nat := 539
+def b57End : Nat := 533
 
-def b58Offset : Nat := 539
+def b58Offset : Nat := 533
 
 def b58Length : Nat := 2
 
-def b58End : Nat := 541
+def b58End : Nat := 535
 
-def b59Offset : Nat := 541
+def b59Offset : Nat := 535
 
 def b59Length : Nat := 14
 
-def b59End : Nat := 555
+def b59End : Nat := 549
 
-def b60Offset : Nat := 555
+def b60Offset : Nat := 549
 
 def b60Length : Nat := 13
 
-def b60End : Nat := 568
+def b60End : Nat := 562
 
-def b61Offset : Nat := 568
+def b61Offset : Nat := 562
 
 def b61Length : Nat := 11
 
-def b61End : Nat := 579
+def b61End : Nat := 573
 
-def b62Offset : Nat := 579
+def b62Offset : Nat := 573
 
 def b62Length : Nat := 8
 
-def b62End : Nat := 587
+def b62End : Nat := 581
 
-def b63Offset : Nat := 587
+def b63Offset : Nat := 581
 
 def b63Length : Nat := 2
 
-def b63End : Nat := 589
+def b63End : Nat := 583
 
-def b64Offset : Nat := 589
+def b64Offset : Nat := 583
 
 def b64Length : Nat := 2
 
-def b64End : Nat := 591
+def b64End : Nat := 585
 
-def b65Offset : Nat := 591
+def b65Offset : Nat := 585
 
 def b65Length : Nat := 2
 
-def b65End : Nat := 593
+def b65End : Nat := 587
 
-def b66Offset : Nat := 593
+def b66Offset : Nat := 587
 
 def b66Length : Nat := 5
 
-def b66End : Nat := 598
+def b66End : Nat := 592
 
-def b67Offset : Nat := 598
+def b67Offset : Nat := 592
 
 def b67Length : Nat := 2
 
-def b67End : Nat := 600
+def b67End : Nat := 594
 
-def b68Offset : Nat := 600
+def b68Offset : Nat := 594
 
 def b68Length : Nat := 3
 
-def b68End : Nat := 603
+def b68End : Nat := 597
 
-def b69Offset : Nat := 603
+def b69Offset : Nat := 597
 
 def b69Length : Nat := 7
 
-def b69End : Nat := 610
+def b69End : Nat := 604
 
-def b70Offset : Nat := 610
+def b70Offset : Nat := 604
 
 def b70Length : Nat := 6
 
-def b70End : Nat := 616
+def b70End : Nat := 610
 
-def b71Offset : Nat := 616
+def b71Offset : Nat := 610
 
 def b71Length : Nat := 11
 
-def b71End : Nat := 627
+def b71End : Nat := 621
 
-def b72Offset : Nat := 627
+def b72Offset : Nat := 621
 
 def b72Length : Nat := 7
 
-def b72End : Nat := 634
+def b72End : Nat := 628
 
-def b73Offset : Nat := 634
+def b73Offset : Nat := 628
 
 def b73Length : Nat := 10
 
-def b73End : Nat := 644
+def b73End : Nat := 638
 
-def b74Offset : Nat := 644
+def b74Offset : Nat := 638
 
 def b74Length : Nat := 22
 
-def b74End : Nat := 666
+def b74End : Nat := 660
 
-def b75Offset : Nat := 666
+def b75Offset : Nat := 660
 
 def b75Length : Nat := 7
 
-def b75End : Nat := 673
+def b75End : Nat := 667
 
-def b76Offset : Nat := 673
+def b76Offset : Nat := 667
 
 def b76Length : Nat := 3
 
-def b76End : Nat := 676
+def b76End : Nat := 670
 
-def b77Offset : Nat := 676
+def b77Offset : Nat := 670
 
 def b77Length : Nat := 10
 
-def b77End : Nat := 686
+def b77End : Nat := 680
 
-def b78Offset : Nat := 686
+def b78Offset : Nat := 680
 
 def b78Length : Nat := 3
 
-def b78End : Nat := 689
+def b78End : Nat := 683
 
-def b79Offset : Nat := 689
+def b79Offset : Nat := 683
 
 def b79Length : Nat := 7
 
-def b79End : Nat := 696
+def b79End : Nat := 690
 
-def b80Offset : Nat := 696
+def b80Offset : Nat := 690
 
 def b80Length : Nat := 7
 
-def b80End : Nat := 703
+def b80End : Nat := 697
 
-def b81Offset : Nat := 703
+def b81Offset : Nat := 697
 
 def b81Length : Nat := 8
 
-def b81End : Nat := 711
+def b81End : Nat := 705
 
-def b82Offset : Nat := 711
+def b82Offset : Nat := 705
 
 def b82Length : Nat := 9
 
-def b82End : Nat := 720
+def b82End : Nat := 714
 
-def b83Offset : Nat := 720
+def b83Offset : Nat := 714
 
 def b83Length : Nat := 5
 
-def b83End : Nat := 725
+def b83End : Nat := 719
 
-def b84Offset : Nat := 725
+def b84Offset : Nat := 719
 
 def b84Length : Nat := 2
 
-def b84End : Nat := 727
+def b84End : Nat := 721
 
-def b85Offset : Nat := 727
+def b85Offset : Nat := 721
 
 def b85Length : Nat := 2
 
-def b85End : Nat := 729
+def b85End : Nat := 723
 
-def b86Offset : Nat := 729
+def b86Offset : Nat := 723
 
 def b86Length : Nat := 2
 
-def b86End : Nat := 731
+def b86End : Nat := 725
 
-def b87Offset : Nat := 731
+def b87Offset : Nat := 725
 
 def b87Length : Nat := 10
 
-def b87End : Nat := 741
+def b87End : Nat := 735
 
 def entryOffset : Nat := 0
 
@@ -579,31 +579,31 @@ def label_20Offset : Nat := 270
 
 def label_21Offset : Nat := 288
 
-def label_23Offset : Nat := 297
+def label_23Offset : Nat := 294
 
-def label_24Offset : Nat := 312
+def label_24Offset : Nat := 309
 
-def label_25Offset : Nat := 315
+def label_25Offset : Nat := 312
 
-def label_26Offset : Nat := 333
+def label_26Offset : Nat := 330
 
-def label_28Offset : Nat := 342
+def label_28Offset : Nat := 336
 
-def label_40Offset : Nat := 610
+def label_40Offset : Nat := 604
 
-def label_41Offset : Nat := 616
+def label_41Offset : Nat := 610
 
-def label_42Offset : Nat := 644
+def label_42Offset : Nat := 638
 
-def label_44Offset : Nat := 673
+def label_44Offset : Nat := 667
 
-def label_45Offset : Nat := 676
+def label_45Offset : Nat := 670
 
-def label_47Offset : Nat := 689
+def label_47Offset : Nat := 683
 
-def label_49Offset : Nat := 729
+def label_49Offset : Nat := 723
 
-def label_50Offset : Nat := 731
+def label_50Offset : Nat := 725
 
 end
 

@@ -206,14 +206,24 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       show reg st1.data .r9 = _ from (hm1.regs .r9 _ hr91).trans (eval_ptr0 672), n8]
     have hsh : sharePointSlots = 67 := rfl
     rw [hsh]
-    exact ⟨cal_stack h fr1 (by omega) hle, cal_rc h fr1 (by omega) hle, hts1, hT,
+    refine ⟨cal_stack h fr1 (by omega) hle, cal_rc h fr1 (by omega) hle, hts1, hT,
       cal_localIn h fr1 (by omega) hle (by omega) (by omega), by unfold busPointCap; omega,
       cal_localIn h fr1 (by omega) hle (by omega) (by omega),
       cal_local h fr1 (by omega) hle (by omega) (by omega),
       cal_local h fr1 (by omega) hle (by omega) (by omega),
       loc_apart hS (by omega) (by omega) (.inl (by omega)),
       loc_apart hS (by omega) (by omega) (.inl (by omega)),
-      hTo (by omega), hTo (by omega)⟩
+      hTo (by omega), hTo (by omega), cal_got h fr1 (by omega) hle (by decide) ?_⟩
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact got_apart_frame (pre_got h) hS hl N_ge (by omega)
+    · exact ((pre_got h).1 l hl).2.2.2 _ (by simp)
   · intro m' hq
     simp only [BytecodeSharePost] at hq
     refine ⟨NativeRustcVm.SameOutside.mono hq.2.2.1 fun q hq' ↦ ?_, hq.2.2.2⟩

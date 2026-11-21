@@ -144,7 +144,7 @@ theorem finish (hp : Placed code k)
     Mapped.keeps hF.lr.1 hb1.fr.kept
   have hpre : PlacementsOfPre st1.data := by
     refine ⟨hb1.stackOk hF.stack (by decide), fun t ↦ ⟨?_, hF.rod.noWrap t, ?_⟩, ?_, ?_, ?_, ?_,
-      ?_, ?_, ?_⟩
+      ?_, ?_, ?_, ?_⟩
     · refine (hF.rod.bytesAt t).of_sameOutside hb1.same fun i hi hq ↦ hq.elim (fun h ↦ ?_) fun h ↦ ?_
       · exact (hF.lrod t).symm.not_inRange_add (hF.rod.noWrap t) hF.lr.2 hi h
       · exact (hF.rod.apart t).not_inRange_add (hF.rod.noWrap t) (noWrap_stackBelow hF.stack) hi
@@ -185,6 +185,20 @@ theorem finish (hp : Placed code k)
         (off (ll m0) 120).toNat + 3792 ≤ (off (fb m0) 48).toNat by
         rw [hk48, hl120]; exact rng8 hLA hA1)
     · rw [hn]; exact cols_lt hrs hlm30 hlb30 hr
+    · have hgbytes := got_keep hF.got hF.stack (writes := [(ll m0, layoutBytes)])
+        (by simp) (by simpa using (noWrap_iff.mp hF.lr.2))
+        (hb1.same.mono (by intro q h; simpa [R, SS_eq] using h))
+      apply got_callee hF.got hgbytes hb1.rsp0 hF.stack.1 (by decide)
+      intro l hl a ha
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+      rcases ha with rfl | rfl
+      · rw [hdi1]
+        exact got_apart_frame hF.got hF.stack hl (by decide) (by dsimp only; decide)
+      · rw [hsi1]
+        exact Transcript.Apart.sub ((hF.got.1 l hl).2.2.2 (ll m0, layoutBytes) (by simp))
+          (by dsimp only; rw [hl120]; omega)
+          (by change (off (ll m0) 120).toNat + 3792 ≤ (ll m0).toNat + 3912
+              rw [hl120])
   refine call_then hpc1 hpl hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨h0', h1, hsz, hpw, hch, hsv⟩ := hpost
   rw [hn] at h1 hsz hpw

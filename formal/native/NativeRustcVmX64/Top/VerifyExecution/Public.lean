@@ -165,10 +165,16 @@ theorem callPublic (hp : Placed code k)
     unfold PublicInputPhasePre
     simp only [eRdi, eRsi, eRdx, eRcx]
     rw [hN]
-    exact ⟨hC.stackOk g hc hN', hC.rcAt g hc hN', hts1, hC.tstateOk g hc hN',
+    refine ⟨hC.stackOk g hc hN', hC.rcAt g hc hN', hts1, hC.tstateOk g hc hN',
       hC.outOk g hc (o := 123992) (n := 97288) (by omega) (by omega) hN', hcl1,
       hC.layoutIn g (by decide) (o := 123992) (n := 97288) (by omega) (by omega), hL1,
-      hvc, hC.pubIn g (by decide), hP1⟩
+      hvc, hC.pubIn g (by decide), hP1, ?_⟩
+    apply GotAt.symbols (symbols := ["memcpy", "memset"]) (hs := by decide)
+    apply hC.got g hc hN'
+    intro l hl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq]
+    exact ⟨g.gotT hl, g.gotA hl, g.gotW hl (by omega) (by decide),
+      g.gotW hl (by omega) (by decide), g.gotP hl, g.gotRc hl⟩
   refine call_then hpc1 (hpi a s L P cs) hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hres, hnext, hch, hsv⟩ := hpost
   simp only [eRdi, eRcx, hN, show NativeRustcVm.Layout.claimsBytes = 97288 from rfl] at hres hnext hch

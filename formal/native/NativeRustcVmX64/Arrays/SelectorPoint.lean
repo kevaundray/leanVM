@@ -8,11 +8,11 @@ public import NativeRustcVmX64.Code.Vm.SelectorPoint.Names
 
 **`selectorPoint_spec`**: rustc's `selector_point(selector, out)`, placed anywhere in the
 program, meets `SelectorPointPre`/`SelectorPointPost`: `out` holds `selectorPoint selector |out|`.
-No callee-saved register touched, memory changed only in `out` and the 16 bytes below RSP where
-the post-pass's expansions of `bt` push (`Frame`). At `|out| = 0` it returns (`b8`); at
+No callee-saved register touched, memory changed only in `out` (within the existing `Frame`
+contract). At `|out| = 0` it returns (`b8`); at
 `|out| = 1` it stores bit `0` (`b6`-`b8`); else the pair loop (`b3`: `Inv`) stores entries `2t`
 and `2t + 1` for `2t + 2 ≤ |out|`, then (`b4`) it returns for an even `|out|` (`b8`) or stores the
-last entry (`b5`, `b7`, `b8`). Entry `k` is bit `k` of the selector (the carry of the expanded
+last entry (`b5`, `b7`, `b8`). Entry `k` is bit `k` of the selector (the carry of raw
 `bt`, `setb`), zero from `k = 64` on (`bitSym_entry`).
 -/
 
@@ -46,33 +46,19 @@ theorem take_pt_succ (m : MachineData) {j : Nat} (h : j < len m) :
 
 /-! ## The entries' values -/
 
-theorem shiftCount_of_lt (y : BitVec 64) (h : y.toNat < 64) : shiftCount .W64 y = y.toNat := by
-  unfold shiftCount shiftMask
-  rw [toNat_low, show Width.W8.bits = 8 from rfl, Nat.mod_eq_of_lt (by omega)]
-  exact Nat.and_two_pow_sub_one_of_lt_two_pow (n := 6) (by omega)
-
-/-- **The carry of an expanded `bt`** (`shr`, `shr $1`) by a count `t < 64`: bit `t`. -/
-theorem bt_msb (x y : BitVec 64) {t : Nat} (hs : shiftCount .W64 y = t) :
-    (low .W64 (BinOp.apply .shl .W64 (BinOp.apply .shr .W64 x y) (BitVec.ofNat 64 63))).msb =
-      decide ((x.toNat >>> t) % 2 = 1) := by
-  have h63 : shiftCount .W64 (BitVec.ofNat 64 63) = 63 := by decide
-  simp only [BinOp.apply, hs, h63, low_W64, ext_W64]
-  rw [BitVec.msb_eq_decide, BitVec.toNat_shiftLeft,
-    show (x.ushiftRight t).toNat = x.toNat >>> t from BitVec.toNat_ushiftRight x _,
-    Nat.shiftLeft_eq, show Width.W64.bits = 64 from rfl]
-  generalize x.toNat >>> t = u
-  have e : u * 2 ^ 63 % 2 ^ 64 = u % 2 * 2 ^ 63 := by
-    rw [show (2 : Nat) ^ 64 = 2 * 2 ^ 63 by norm_num, Nat.mul_mod_mul_right]
-  rw [e]
-  rcases Nat.mod_two_eq_zero_or_one u with h | h <;> rw [h] <;> decide
+/-- The carry of raw `bt` uses the register index modulo 64. -/
+theorem bt_bit (x y : BitVec 64) {t : Nat} (hs : y.toNat % 64 = t) :
+    CmpOp.apply .bit .W64 x y = decide ((x.toNat >>> t) % 2 = 1) := by
+  simp only [CmpOp.apply, low_W64, show Width.W64.bits = 64 from rfl, hs,
+    BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq, Nat.shiftRight_eq_div_pow]
 
 theorem setb_entry [Labels] (env : Env) (z : Sym) {idx : Nat}
-    (hs : shiftCount .W64 (z.eval env) = idx) :
+    (hs : (z.eval env).toNat % 64 = idx) :
     ewArg ((setbSym z).eval env) 0#64 = EW.ofNat (((env.regs .rdi).toNat >>> idx) % 2) := by
   show ewArg (BinOp.apply .merge .W8 (BitVec.ofNat 64 0)
-    (if (low .W64 (BinOp.apply .shl .W64 (BinOp.apply .shr .W64 (env.regs .rdi) (z.eval env))
-      (BitVec.ofNat 64 63))).msb = true then BitVec.ofNat 64 1 else BitVec.ofNat 64 0)) 0#64 = _
-  rw [bt_msb _ _ hs, setb_eval, ewArg_bit]
+    (if CmpOp.apply .bit .W64 (env.regs .rdi) (z.eval env) = true
+      then BitVec.ofNat 64 1 else BitVec.ofNat 64 0)) 0#64 = _
+  rw [bt_bit _ _ hs, setb_eval, ewArg_bit]
 
 theorem zero_entry (x : BitVec 64) {idx : Nat} (h : 64 ≤ idx) :
     ewArg 0#64 0#64 = EW.ofNat ((x.toNat >>> idx) % 2) := by
@@ -81,19 +67,14 @@ theorem zero_entry (x : BitVec 64) {idx : Nat} (h : 64 ≤ idx) :
     (Nat.pow_le_pow_right (by decide) h))]
   rfl
 
-theorem trunc32_toNat (v : BitVec 64) : (UnOp.apply .trunc .W32 v).toNat = v.toNat % 2 ^ 32 := by
-  simp only [UnOp.apply, toNat_ext, toNat_low]
-
 /-- The first entry's count: R8. -/
 theorem z9_shift [Labels] (env : Env) (h : (env.regs .r8).toNat < 64) :
-    shiftCount .W64 (z9.eval env) = (env.regs .r8).toNat := by
-  show shiftCount .W64 (UnOp.apply .trunc .W32 (env.regs .r8)) = _
-  rw [shiftCount_of_lt _ (by rw [trunc32_toNat]; omega), trunc32_toNat]
-  omega
+    (z9.eval env).toNat % 64 = (env.regs .r8).toNat :=
+  Nat.mod_eq_of_lt h
 
 /-- The second entry's count: R8 + 1. -/
 theorem z11_shift [Labels] (env : Env) (h : (env.regs .r8).toNat < 63) :
-    shiftCount .W64 (z11.eval env) = (env.regs .r8).toNat + 1 := by
+    (z11.eval env).toNat % 64 = (env.regs .r8).toNat + 1 := by
   have hz : (UnOp.apply (.zext .W8) .W32 (UnOp.apply .trunc .W32
       (BinOp.apply .add .W64 (env.regs .r8) (BitVec.ofNat 64 1)))).toNat =
       (env.regs .r8).toNat + 1 := by
@@ -101,9 +82,9 @@ theorem z11_shift [Labels] (env : Env) (h : (env.regs .r8).toNat < 63) :
       BitVec.toNat_setWidth, BitVec.toNat_add, BitVec.toNat_ofNat,
       show Width.W32.bits = 32 from rfl, show Width.W8.bits = 8 from rfl]
     omega
-  show shiftCount .W64 (UnOp.apply (.zext .W8) .W32 (UnOp.apply .trunc .W32
-    (BinOp.apply .add .W64 (env.regs .r8) (BitVec.ofNat 64 1)))) = _
-  rw [shiftCount_of_lt _ (by rw [hz]; omega), hz]
+  change (UnOp.apply (.zext .W8) .W32 (UnOp.apply .trunc .W32
+    (BinOp.apply .add .W64 (env.regs .r8) (BitVec.ofNat 64 1)))).toNat % 64 = _
+  rw [hz, Nat.mod_eq_of_lt (by omega)]
 
 theorem ult64 (v : BitVec 64) : CmpOp.apply .ult .W64 v (BitVec.ofNat 64 64) = decide (v.toNat < 64) := by
   simp only [CmpOp.apply, low_W64]
@@ -113,7 +94,7 @@ theorem ult64 (v : BitVec 64) : CmpOp.apply .ult .W64 v (BitVec.ofNat 64 64) = d
 /-- **An entry of the pair loop**: bit `idx` of RDI, `idx` the count where R8 < 64; zero (RCX)
 where R8 ≥ 64 and `idx ≥ 64`. -/
 theorem bitSym_entry [Labels] (env : Env) (z : Sym) {idx : Nat} (hcx : env.regs .rcx = 0#64)
-    (h1 : (env.regs .r8).toNat < 64 → shiftCount .W64 (z.eval env) = idx ∧ idx < 64)
+    (h1 : (env.regs .r8).toNat < 64 → (z.eval env).toNat % 64 = idx ∧ idx < 64)
     (h2 : 64 ≤ (env.regs .r8).toNat → 64 ≤ idx) :
     ewArg ((bitSym z).eval env) 0#64 = EW.ofNat (((env.regs .rdi).toNat >>> idx) % 2) := by
   show ewArg (if (!(CmpOp.apply .ult .W64 (env.regs .r8) (BitVec.ofNat 64 64))) = true then

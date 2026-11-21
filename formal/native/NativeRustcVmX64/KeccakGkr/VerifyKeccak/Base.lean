@@ -193,6 +193,11 @@ structure Ctx [Labels] (a : DecArea) (inst : Array EW) (m0 : MachineData) : Prop
   rcM : NativeRustcVm.Mapped m0.dmem rcAddr 192
   pjM : NativeRustcVm.Mapped m0.dmem projectAddr 128
   rhM : NativeRustcVm.Mapped m0.dmem rhoAddr 100
+  got : GotAt m0 verifyKeccakStack
+    [(reg m0 .rdi, 760), (reg m0 .r9, 205824), (keccakClaims m0, 97288),
+      (keccakOutArg m0, 1608), (a.region.addr, a.region.size),
+      (reg m0 .rdx, 16 * inst.size), (reg m0 .r8, 400), (rcAddr, 192),
+      (projectAddr, 128), (rhoAddr, 100), (rspOf m0 + 8#64, 16)] ["memcpy"]
 
 end
 
@@ -215,7 +220,7 @@ variable [Labels] {m0 : MachineData} {a : DecArea} {s : TState} {cs : Array Colu
 
 /-- **The footprint as numbers**, from the precondition. -/
 theorem ctx_of (h : VerifyKeccakPre a s cs inst output m0) : Ctx a inst m0 := by
-  obtain ⟨hS, hargs, -, -, -, -, -, -, -, -, -, -, -, -, hA⟩ := h
+  obtain ⟨hS, hargs, -, -, -, -, -, -, -, -, -, -, -, -, hA, hgot⟩ := h
   have h3 := hS.1
   have h4 := hargs.2
   have hK : (stackBelow m0 verifyKeccakStack).toNat = (rspOf m0).toNat - verifyKeccakStack :=
@@ -247,13 +252,13 @@ theorem ctx_of (h : VerifyKeccakPre a s cs inst output m0) : Ctx a inst m0 := by
     hm _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
       (List.mem_cons_of_mem _ List.mem_cons_self)))),
     hm _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-      (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self)))))⟩
+      (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self))))), hgot⟩
 
 /-- **The layout** of the precondition. -/
 theorem lay_of (h : VerifyKeccakPre a s cs inst output m0) :
     LayZ m0 3344 3368 verifyKeccakStack (rsOf m0) := by
   have c := ctx_of h
-  obtain ⟨hS, hargs, -, -, -, -, -, -, -, -, -, -, -, -, hA⟩ := h
+  obtain ⟨hS, hargs, -, -, -, -, -, -, -, -, -, -, -, -, hA, -⟩ := h
   have hvk := vk_eq
   have h3 := hS.1
   have hb : (stackBelow m0 3344).toNat = (rspOf m0).toNat - 3344 := stackBelow_toNat (by omega)

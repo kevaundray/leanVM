@@ -5,6 +5,7 @@ public import NativeRustcVmX64.Bus.GkrCommon
 public import NativeRustcVmX64.Bus.GkrModel
 public import NativeRustcVmX64.Code.Vm.GkrLayers.Names
 public import NativeRustcVmX64.Code.Vm.GkrStep.Names
+public import NativeRustcX64.Got
 
 /-!
 # `gkr_layers` on x86-64
@@ -115,6 +116,33 @@ variable [Labels] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData
 
 theorem pre_gk (h : GkrLayersPre a s0 g0 m0) :
     OutOk m0 (reg m0 .rdi) a (reg m0 .rdx) gkrStateBytes gkrLayersStack := h.2.2.2.2.2.1
+
+theorem pre_got (h : GkrLayersPre a s0 g0 m0) :
+    GotAt m0 gkrLayersStack [(reg m0 .rdi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rdx, gkrStateBytes), (rcAddr, 192)] ["memcpy"] := h.2.2.2.2.2.2.2
+
+theorem got_pass (h : GkrLayersPre a s0 g0 m0) {d : MachineData} {F : Nat}
+    (hs : NativeRustcVm.SameOutside m0.dmem d.dmem
+      (fun q => NativeRustcVm.InRange (stackBelow m0 gkrLayersStack) gkrLayersStack q ∨ outs m0 q))
+    (hsp : rspOf d = stackBelow m0 F) (hn : F + gkrStepStack ≤ gkrLayersStack) :
+    GotAt d gkrStepStack [(reg m0 .rdi, tstateBytes), (a.words, 8 * a.len),
+      (reg m0 .rdx, gkrStateBytes), (rcAddr, 192)] ["memcpy"] := by
+  refine got_callee (pre_got h) ?_ hsp h.1.1 hn (fun l hl => ((pre_got h).1 l hl).2.2.2)
+  refine got_keep (pre_got h) h.1
+    (writes := [(reg m0 .rdi, tstateBytes), (reg m0 .rdx, gkrStateBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb; rcases hb with rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl
+      · exact h.2.2.1.footprint.1.2
+      · exact (pre_gk h).2.1)
+    (NativeRustcVm.SameOutside.mono hs ?_)
+  intro q hq
+  rcases hq with hq | hq | hq
+  · exact .inr hq
+  · exact .inl ⟨(reg m0 .rdi, tstateBytes), by simp, hq⟩
+  · exact .inl ⟨(reg m0 .rdx, gkrStateBytes), by simp, hq⟩
 
 /-- The entry's context. -/
 theorem ctx (h : GkrLayersPre a s0 g0 m0) : Ctx m0 (reg m0 .rdi) a gkrLayersStack 48 :=
@@ -264,7 +292,8 @@ theorem tail_spec (hp : Placed code k) (h : GkrLayersPre a s0 g0 m0)
     unfold GkrStepPre GkrOk
     rw [edi, ecx, esi, edx]
     exact ⟨c0.stackOk hat hle, c0.rcAt hat hle, by rw [hd]; exact hts, c0.tstateOk hat hle,
-      .inl rfl, Nat.le_refl _, by omega, c0.outOk hat hle (pre_gk h), by rw [hd]; exact hgs⟩
+      .inl rfl, Nat.le_refl _, by omega, c0.outOk hat hle (pre_gk h),
+      by rw [hd]; exact hgs, got_pass h hsame0 hat.sp hle⟩
   refine Eventually.mono (Spec.apply (hstep s g) hpc hpre) fun st' ⟨hpc', hrsp', hq⟩ ↦ ?_
   obtain ⟨hal, hok, hso, hsv'⟩ := hq
   rw [esi, edx] at hal hok
@@ -308,7 +337,8 @@ theorem step_call (h : GkrLayersPre a s0 g0 m0)
   · unfold GkrStepPre GkrOk
     rw [hdi, hcx, hsi, hdx]
     exact ⟨c.stackOk hat le_step, c.rcAt hat le_step, hts, c.tstateOk hat le_step, hj,
-      by split <;> omega, hsz, c.outOk hat le_step (pre_gk h), hgs⟩
+      by split <;> omega, hsz, c.outOk hat le_step (pre_gk h), hgs,
+      got_pass h fr.same hat.sp le_step⟩
   · have := hq.2.2.1
     rw [hdi, hcx] at this
     exact NativeRustcVm.SameOutside.mono this fun q hq ↦ by
@@ -614,7 +644,7 @@ theorem gkrLayers_spec (hp : Placed code k)
       (NativeRustcVm.InRange (stackBelow m0 48) 48) :=
     fun q hq ↦ hm1.get?_mem0 hwf0 fun hw ↦ hq (written_fb hS N_ge (fun w hw ↦ ⟨hw0' w hw,
       belowRet_spec (belowRet_of_pro hpro) w hw (hw0' w hw)⟩) hw)
-  obtain ⟨hts1, hgs1⟩ := keep_ts_gs h (hm1.kept hwf0) hs1 h.2.2.1 h.2.2.2.2.2.2
+  obtain ⟨hts1, hgs1⟩ := keep_ts_gs h (hm1.kept hwf0) hs1 h.2.2.1 h.2.2.2.2.2.2.1
   have hbx1 : (reg st1.data .rbx).toNat % 256 = 1 := by
     rw [reg_val hm1 hbx0]; exact merge_one_mod _
   simp only [Keeps, List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true,

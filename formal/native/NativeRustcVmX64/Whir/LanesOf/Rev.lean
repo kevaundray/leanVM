@@ -172,7 +172,7 @@ theorem rv_init {m0 : MachineData} (hpre : LanesOfPre m0) (h65 : lenOf m0 < 65)
     omega
   · show d.regs.get64 .r8 = _
     rw [hm3.regs .r8 _ rfl]
-    simp only [eval_add, eval_reg, eval_lit, hx]
+    simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, hx]
     exact r8_eq _ h65 (Nat.pos_of_ne_zero hz)
 
 /-- No lane (`b16`): `Some(0)`. -/

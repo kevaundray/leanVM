@@ -48,6 +48,39 @@ theorem apartN {a a' : BitVec 64} {n n' : Nat}
 
 theorem noWrapN {a : BitVec 64} {n : Nat} (h : a.toNat + n ≤ 2 ^ 64) : NativeRustcX64.NoWrap a n := h
 
+/-- Numerical GOT separation for the hash call, independent of its symbolic machine state. -/
+private theorem got_hash_apart {p s : Nat} (hsp : 1216 ≤ s)
+    (h : p + 8 ≤ s - 1216 ∨ s - 1216 + 1224 ≤ p) :
+    (p + 8 ≤ s - 160 - 768 ∨ s - 160 - 768 + (768 + 8) ≤ p) ∧
+    (p + 8 ≤ s - 160 + 80 ∨ s - 160 + 80 + 32 ≤ p) := by
+  have h928 : 928 ≤ s := Nat.le_trans (by decide) hsp
+  have h160 : 160 ≤ s := Nat.le_trans (by decide) hsp
+  rw [Nat.sub_sub]
+  rcases h with h | h
+  · constructor
+    · exact Or.inl (Nat.le_trans h (Nat.sub_le_sub_left (by decide) s))
+    · exact Or.inl (Nat.le_trans h (Nat.le_trans
+        (Nat.sub_le_sub_left (by decide : 160 ≤ 1216) s) (Nat.le_add_right _ _)))
+  · have hp : s + 8 ≤ p := by
+      have he : s - 1216 + 1224 = s + 8 := by
+        change s - 1216 + (1216 + 8) = s + 8
+        rw [← Nat.add_assoc, Nat.sub_add_cancel hsp]
+      exact he ▸ h
+    constructor
+    · apply Or.inr
+      apply Nat.le_trans _ hp
+      calc
+        s - 928 + (768 + 8) ≤ s - 928 + 928 := Nat.add_le_add_left (by decide) _
+        _ = s := Nat.sub_add_cancel h928
+        _ ≤ s + 8 := Nat.le_add_right _ _
+    · apply Or.inr
+      apply Nat.le_trans _ hp
+      calc
+        s - 160 + 80 + 32 = s - 160 + 112 := Nat.add_assoc _ _ _
+        _ ≤ s - 160 + 160 := Nat.add_le_add_left (by decide) _
+        _ = s := Nat.sub_add_cancel h160
+        _ ≤ s + 8 := Nat.le_add_right _ _
+
 theorem length_nodes0 {qs : List Nat} {lw : Nat} {rows : List (List K)}
     (h : rows.length = (sortD qs).length) : (nodes0 qs lw rows).length = (sortD qs).length := by
   simp [h]
@@ -168,10 +201,31 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
         (Mapped.keeps G.wOk.1 hb1.fr.kept) (by omega), noWrapN (by rw [hwl]; omega),
       mapped_off (N := 168) (o := 80) (k := 32)
         (Mapped.keeps (frame_mapped G.st (by omega)) hb1.fr.kept) (by omega),
-      noWrapN (by rw [hfr80]; omega), fun _ ↦ apartN ?_, apartN ?_, apartN ?_⟩
+      noWrapN (by rw [hfr80]; omega), fun _ ↦ apartN ?_, apartN ?_, apartN ?_, ?_⟩
     · rw [hwl, hcs1, hKS]; omega
     · rw [hfr80, hcs1, hKS]; omega
     · rw [hfr80]; omega
+    · refine G.got.transport (G.got_keep hb1.chg) ?_ ?_
+      · intro l hl
+        have hs := (G.got.1 l hl).2.2.1
+        change Apart (gotAddr l) 8 (stackBelow m0 1216) 1224 at hs
+        change Apart (gotAddr l) 8 (stackBelow s1.data keccak256WordsStack)
+          (keccak256WordsStack + 8)
+        unfold NativeRustcX64.Apart at hs ⊢
+        rw [stackBelow_toNat G.sp] at hs
+        rw [hcs1, hKS]
+        exact (got_hash_apart hsp hs).1
+      · intro l hl a ha
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl
+        · have hs := (G.got.1 l hl).2.2.1
+          change Apart (gotAddr l) 8 (stackBelow m0 1216) 1224 at hs
+          change Apart (gotAddr l) 8 (off (stackBelow m0 160) 80) 32
+          unfold NativeRustcX64.Apart at hs ⊢
+          rw [stackBelow_toNat G.sp] at hs
+          rw [hfr80]
+          exact (got_hash_apart hsp hs).2
+        · exact (G.got.1 l hl).2.2.2 (rcAddr, 192) (by simp)
   have hlv1 : NativeRustcVm.WordsAt s1.data.dmem (wa m0 (352512 + 512 * i))
       (((leavesOf lw rows)[i]'(by simp [hl]; omega)).map K.lane) := by
     have := hM.lvW i (by simp [hl]; omega)

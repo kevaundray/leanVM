@@ -28,7 +28,10 @@ its outputs and that stack (`frameR`). Regions are `NativeRustcVm.Region`s, data
 wrapping (`Region.Ok`), pairwise apart where listed (`Disjoint`), the stack with the return address
 (`stackR`, `n + 8` bytes: unlike AArch64's, x86-64's return address is in memory, so even a leaf's
 outputs are apart from it). The reader at `r` is `NativeRustcVm.Wire.ReaderAt`; a read moves only
-its cursor word (`curRegion r`). Results follow the model `NativeVm.Wire.decodeM`:
+its cursor word (`curRegion r`). The hashing callers require loader GOT slots for `memcpy` and
+`memset`, kept apart from their existing writable areas, stack and round constants. Reader
+operations and `write_openings` reach no GOT-reading callee. Results follow the model
+`NativeVm.Wire.decodeM`:
 
 - `Reader::le(r, n)` (RDI, RSI; rustc reads at least four bytes: `n` is `4` or `8`): `rdLe B c n`,
   the tag in RAX, the word in RDX.
@@ -216,7 +219,9 @@ def ClimbLevelPre (m : MachineData) : Prop :=
     Region.Ok m.dmem ⟨next, nodesBytes⟩ ∧
     ∃ bp B c, ReaderAt m.dmem r bp B c ∧
       Disjoint [stackR m climbLevelStack, rcR, ⟨r, 24⟩, ⟨bp, B.length⟩, ⟨nodes, 40 * n⟩,
-        ⟨sibs, nodesBytes⟩, ⟨next, nodesBytes⟩]
+        ⟨sibs, nodesBytes⟩, ⟨next, nodesBytes⟩] ∧
+      NativeRustcX64.GotAt m climbLevelStack
+        [(rcAddr, 192), (r, 24), (sibs, nodesBytes), (next, nodesBytes)] ["memcpy", "memset"]
 
 /-- `climb_level`'s postcondition. -/
 def ClimbLevelPost (m m' : MachineData) : Prop :=
@@ -279,7 +284,9 @@ def PhaseMPre (m : MachineData) : Prop :=
     Region.Ok m.dmem ⟨out, phaseBytes⟩ ∧ Region.Ok m.dmem ⟨w, workBytes⟩ ∧
     ∃ bp B c, ReaderAt m.dmem r bp B c ∧
       Disjoint [stackR m phaseMStack, rcR, ⟨r, 24⟩, ⟨bp, B.length⟩, ⟨out, phaseBytes⟩,
-        ⟨w, workBytes⟩]
+        ⟨w, workBytes⟩] ∧
+      NativeRustcX64.GotAt m phaseMStack
+        [(rcAddr, 192), (r, 24), (out, phaseBytes), (w, workBytes)] ["memcpy", "memset"]
 
 /-- `phase_m`'s postcondition. -/
 def PhaseMPost (m m' : MachineData) : Prop :=
@@ -301,7 +308,9 @@ def DecodePre (m : MachineData) : Prop :=
     decodedWords L ≤ len ∧ Region.Ok m.dmem ⟨bp, L⟩ ∧ Region.Ok m.dmem ⟨dec, 8 * len⟩ ∧
     Region.Ok m.dmem ⟨w, workBytes⟩ ∧
     Disjoint [stackR m decodeStack, rcR, ⟨dec, 8 * len⟩, ⟨w, workBytes⟩] ∧
-    (0 < L → Disjoint [stackR m decodeStack, rcR, ⟨bp, L⟩, ⟨dec, 8 * len⟩, ⟨w, workBytes⟩])
+    (0 < L → Disjoint [stackR m decodeStack, rcR, ⟨bp, L⟩, ⟨dec, 8 * len⟩, ⟨w, workBytes⟩]) ∧
+    NativeRustcX64.GotAt m decodeStack
+      [(rcAddr, 192), (dec, 8 * len), (w, workBytes)] ["memcpy", "memset"]
 
 /-- `decode`'s postcondition: for the wire bytes `B`, `Some` exactly when `decodeM B` decodes,
 the area then holding the decoded proof. -/

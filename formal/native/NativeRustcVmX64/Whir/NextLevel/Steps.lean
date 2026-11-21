@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.NextLevel.Frame
+public import NativeRustcVmX64.Got
 
 /-!
 # `next_level`: blocks' bytes, the exits (x86-64)
@@ -46,6 +47,18 @@ theorem cAl_eval [Labels] (env : Env) :
 theorem okWord_toNat (b : Bool) : (okWord b).toNat = if b then 1 else 0 := by
   cases b <;> rfl
 
+private theorem got_frame_gap {sp slot : Nat} (hn : 11312 ≤ sp)
+    (hs : slot + 8 ≤ sp - 11312 ∨ sp - 11312 + (11312 + 8) ≤ slot)
+    (ha : slot + 8 ≤ sp + 8 ∨ sp + 16 ≤ slot) :
+    slot + 8 ≤ sp - 8176 ∨ sp + 16 ≤ slot := by
+  rcases hs with hs | hs
+  · exact Or.inl (hs.trans (Nat.sub_le_sub_left (by decide : 8176 ≤ 11312) sp))
+  · rw [← Nat.add_assoc, Nat.sub_add_cancel hn] at hs
+    rcases ha with ha | ha
+    · exact False.elim ((Nat.not_le_of_gt
+        (Nat.lt_add_of_pos_right (by decide : 0 < 8))) (ha.trans hs))
+    · exact Or.inr ha
+
 section
 variable [Labels] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
   {rounds : Array FoldRoundW} {m0 : MachineData}
@@ -71,6 +84,103 @@ theorem wf1 {d : MachineData} (hk : Kept m0.dmem d.dmem) {x : BitVec 64} {n : Na
   · rw [List.mem_singleton] at hy; subst hy; exact ⟨hx, hnw⟩
   · show (fa m0).toNat + (8176 + 8 + 8) ≤ x.toNat ∨ x.toNat + n ≤ (fa m0).toNat
     rw [hf]; omega
+
+/-- Only the state and transcript, besides the stack, may change loader-slot neighbours. -/
+theorem got_bytes {d : MachineData} {o : Nat} (hf : Fr m0 o d) :
+    ∀ l ∈ ["memcpy", "memset"], ∀ i < 8,
+      d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+        m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  have hg := c.got.areas (areas' := [(tA m0, tstateBytes), (pA m0, whirBytes)])
+    (by intro ar har; simp only [List.mem_cons, List.not_mem_nil, or_false] at har; rcases har with rfl | rfl <;> simp)
+  apply NativeRustcVmX64.GotAt.unchanged_vm hg c.stack
+  · intro ar har
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+    rcases har with rfl | rfl
+    · exact c.ts.footprint.1.2
+    · exact c.pout.1.2.1
+  · intro q hq
+    apply hf.same q
+    rintro (hs | hp | ht)
+    · exact hq (.inl hs)
+    · exact hq (.inr ⟨(pA m0, whirBytes), by simp, hp⟩)
+    · exact hq (.inr ⟨(tA m0, tstateBytes), by simp, ht⟩)
+
+/-- The `memcpy` slot is a separate read-only region, including from the argument word. -/
+theorem got_wf {d : MachineData} {o : Nat} (hf : Fr m0 o d) {ret : BitVec 64} :
+    (argEnv m0 d 8176 8 [(gotAddr "memcpy", 8)] (fun _ => 0) ret).WF := by
+  have hg := c.got.1 "memcpy" (by simp)
+  have hs : Apart (gotAddr "memcpy") 8 (stackBelow m0 nextLevelStack)
+      (nextLevelStack + 8) := hg.2.2.1
+  have ha : Apart (gotAddr "memcpy") 8 (rspOf m0 + 8#64) 8 :=
+    hg.2.2.2 (rspOf m0 + 8#64, 8) (by simp)
+  have g := c.geo
+  have hsb := stackBelow_toNat c.stack.1
+  have harg : (rspOf m0 + 8#64).toNat = (rspOf m0).toNat + 8 :=
+    toNat_add_ofNat _ _ (by have := g.hA; omega)
+  apply c.wf1 hf.frame.kept
+    (fun i hi => hf.frame.kept _ (c.got.mapped (by simp) i hi)) hg.2.1
+  unfold Apart at hs ha
+  rw [hsb, stack_eq] at hs
+  rw [harg] at ha
+  exact got_frame_gap g.hN hs ha
+
+/-- Seed the copy's register target from the actual loader bytes. -/
+theorem m_copy {d : MachineData} (hf : Fr m0 72 d) {ret : BitVec 64} :
+    Match (argEnv m0 d 8176 8 [(gotAddr "memcpy", 8)] (fun _ => 0) ret) copyS d := by
+  have hm : Match (argEnv m0 d 8176 8 [(gotAddr "memcpy", 8)] (fun _ => 0) ret)
+      (init [8192, 8] [(.rsp, .ptr 0 72)] [] [] [(.gotSlot "memcpy", 1, 0)]) d :=
+    match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨Frame.rsp_evalA hf.frame, trivial⟩ trivial trivial
+      ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes
+  intro i hi
+  simpa [Env.base, Sym.eval] using
+    (c.got_bytes hf "memcpy" (by simp) i hi).trans (c.got.byte (by simp) hi)
+
+/-- Every callee sees only a contained portion of the caller's stack and protected areas. -/
+theorem got_call {d : MachineData} {o N : Nat} (hf : Fr m0 o d) (ho : o ≤ 8176)
+    (hle : 8176 - o + N ≤ nextLevelStack) {areas : List (BitVec 64 × Nat)}
+    {symbols : List Label} (hlabels : symbols.Sublist ["memcpy", "memset"])
+    (hcover : ∀ ar ∈ areas, ∃ b ∈ (stackBelow m0 nextLevelStack, nextLevelStack + 8) ::
+      ([(tA m0, tstateBytes), (a.words, 8 * a.len), (pA m0, whirBytes),
+        (lA m0, levelBytes), (rspOf m0 + 8#64, 8)] ++ rodataAreas),
+      b.1.toNat ≤ ar.1.toNat ∧ ar.1.toNat + ar.2 ≤ b.1.toNat + b.2) :
+    GotAt d N areas symbols := by
+  have g := c.geo
+  have hsp : (rspOf d).toNat = (rspOf m0).toNat - 8176 + o := by
+    rw [hf.frame.sp]
+    exact c.loc_toNat (by omega)
+  have hd : (stackBelow d N).toNat = (rspOf m0).toNat - 8176 + o - N := by
+    rw [stackBelow_toNat (by rw [hsp]; rw [stack_eq] at hle; have := g.hN; omega), hsp]
+  apply NativeRustcVmX64.GotAt.callee (c.got.symbols hlabels)
+    (fun l hl i hi => c.got_bytes hf l (hlabels.subset hl) i hi) _ _ hcover <;>
+    rw [hd, c.stk_toNat] <;> have := g.hN <;> simp only [stack_eq] at * <;> omega
+
+/-- A local input/output buffer is protected by the caller's existing stack separation. -/
+theorem got_loc {areas : List (BitVec 64 × Nat)} {j n : Nat} (hj : j < 8192)
+    (hn : j + n ≤ 8184) :
+    ∃ b ∈ (stackBelow m0 nextLevelStack, nextLevelStack + 8) :: areas,
+      b.1.toNat ≤ (loc m0 j).toNat ∧ (loc m0 j).toNat + n ≤ b.1.toNat + b.2 := by
+  refine ⟨(stackBelow m0 nextLevelStack, nextLevelStack + 8), by simp, ?_, ?_⟩
+  · change (stackBelow m0 nextLevelStack).toNat ≤ (loc m0 j).toNat
+    rw [c.stk_toNat, c.loc_toNat hj]
+    have := c.geo.hN
+    omega
+  · change (loc m0 j).toNat + n ≤ (stackBelow m0 nextLevelStack).toNat + (nextLevelStack + 8)
+    rw [c.stk_toNat, c.loc_toNat hj, stack_eq]
+    have := c.geo.hN
+    omega
+
+omit c in
+/-- The round constants are already among the caller's read-only inputs. -/
+theorem got_rc (_c : Ctx a s level w rounds m0) :
+    ∃ b ∈ (stackBelow m0 nextLevelStack, nextLevelStack + 8) ::
+      ([(tA m0, tstateBytes), (a.words, 8 * a.len), (pA m0, whirBytes),
+        (lA m0, levelBytes), (rspOf m0 + 8#64, 8)] ++ rodataAreas),
+      b.1.toNat ≤ rcAddr.toNat ∧ rcAddr.toNat + 192 ≤ b.1.toNat + b.2 := by
+  have hrc : (rcAddr, 192) ∈ rodataAreas := by
+    change (rodataAddr .keccakRC, NativeRustcVm.Data.Item.bytes .keccakRC |>.length) ∈ rodataAreas
+    exact List.mem_map.mpr ⟨.keccakRC, by decide, rfl⟩
+  exact ⟨(rcAddr, 192), by simp [hrc], le_rfl, le_rfl⟩
 
 omit c in
 /-- **Bytes of the frame a block does not write.** -/

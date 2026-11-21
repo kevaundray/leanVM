@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Whir.Common
 public import NativeRustcVmX64.Spec.Whir
 public import NativeRustcVmX64.Arrays.Common
 public import NativeRustcVmX64.Transcript.Frame
+public import NativeRustcVmX64.Got
 
 /-!
 # Frames, calls and outputs of `whir.rs`'s leaf functions (x86-64)
@@ -223,6 +224,112 @@ theorem Frame.wf {vars : Nat → BitVec 64} {ret : BitVec 64} (hb : Frame m0 F S
 theorem Frame.mid_match [Labels] {vars : Nat → BitVec 64} {ret : BitVec 64}
     (hb : Frame m0 F S slots outs st) : Match (frameEnv m0 st F vars ret) (midS F) st :=
   match_ofMachine ⟨rfl, trivial⟩ ⟨hb.rsp, trivial⟩ trivial trivial trivial
+
+/-- A GOT call uses the existing frame plus one read-only loader slot. -/
+@[expose] def gotMidS (F : Nat) (l : Label) : SState :=
+  (init [F + 8, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot l, 1, 0)]).withKnownBytes
+    1 0 8 (.label l)
+
+@[expose] def gotEnv [Labels] (m0 st : MachineData) (F : Nat) (l : Label)
+    (vars : Nat → BitVec 64 := fun _ => 0) (ret : BitVec 64 := 0) : Env :=
+  Env.ofMachine st [(stackBelow m0 F, F + 8), (gotAddr l, 8)] vars ret
+
+/-- GOT environments expose the same frame address, registers and backing memory. -/
+theorem gotEnv_ptr [Labels] {m0 st : MachineData} {F : Nat} {l : Label}
+    {vars : Nat → BitVec 64} {ret : BitVec 64} (o : Nat) :
+    (Sym.ptr 0 (o : Int)).eval (gotEnv m0 st F l vars ret) =
+      stackBelow m0 F + BitVec.ofNat 64 o := by
+  change stackBelow m0 F + BitVec.ofInt 64 (o : Int) = _
+  rw [BitVec.ofInt_natCast]
+
+theorem gotEnv_regs [Labels] {m0 st : MachineData} {F : Nat} {l : Label}
+    {vars : Nat → BitVec 64} {ret : BitVec 64} (r : Reg64) :
+    (gotEnv m0 st F l vars ret).regs r = reg st r := by
+  rfl
+
+theorem gotEnv_mem0 [Labels] {m0 st : MachineData} {F : Nat} {l : Label}
+    {vars : Nat → BitVec 64} {ret : BitVec 64} :
+    (gotEnv m0 st F l vars ret).mem0 = st.dmem := by
+  rfl
+
+/-- The original stack separation also separates a slot from the smaller symbolic frame. -/
+theorem Frame.got_wf [Labels] {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    {l : Label} {vars : Nat → BitVec 64} {ret : BitVec 64}
+    (hb : Frame m0 F S slots outs st) (hS : StackOk m0 S) (hF : F ≤ S)
+    (hg : GotAt m0 S areas symbols) (hl : l ∈ symbols) :
+    (gotEnv m0 st F l vars ret).WF := by
+  obtain ⟨hmap, hnw, hbase⟩ := frame_ok hS hF
+  have hsbase := stackBelow_toNat hS.1
+  have hgap : Apart (gotAddr l) 8 (stackBelow m0 F) (F + 8) :=
+    NativeRustcVm.Apart.mono_right
+      (show Apart (gotAddr l) 8 (stackBelow m0 S) (S + 8) from (hg.1 l hl).2.2.1)
+      (by rw [hsbase, hbase]; omega) (by rw [hsbase, hbase]; have := hS.1; omega)
+  exact Env.wf_of
+    ⟨⟨fun i hi => hb.kept _ (hmap i hi), hnw⟩,
+      ⟨fun i hi => hb.kept _ (hg.mapped hl i hi), (hg.1 l hl).2.1⟩, trivial⟩
+    (List.pairwise_pair.mpr hgap.symm)
+
+/-- The frame preserves loader bytes whenever its outputs are among the protected areas. -/
+theorem Frame.got_byte [Labels] {areas : List (BitVec 64 × Nat)} {symbols : List Label}
+    (hb : Frame m0 F S slots outs st) (hS : StackOk m0 S)
+    (hg : GotAt m0 S areas symbols) (hnw : ∀ a ∈ areas, NoWrap a.1 a.2)
+    (hout : ∀ r ∈ outs, (r.addr, r.size) ∈ areas) {l : Label} (hl : l ∈ symbols)
+    {i : Nat} (hi : i < 8) :
+    st.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      some (byteOf (Labels.label l).toBitVec i) := by
+  have heq := hg.unchanged hS hnw (fun p hp => hb.same p (fun h => hp (h.elim
+    (fun ⟨r, hr, hin⟩ => Or.inr ⟨(r.addr, r.size), hout r hr, hin⟩) Or.inl)))
+  exact (heq l hl i hi).trans (hg.byte hl hi)
+
+/-- A slot's actual bytes seed the symbolic memory used by an indirect call. -/
+theorem Frame.got_match [Labels] {l : Label} {vars : Nat → BitVec 64} {ret : BitVec 64}
+    (hb : Frame m0 F S slots outs st)
+    (hbytes : ∀ i < 8, st.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      some (byteOf (Labels.label l).toBitVec i)) :
+    Match (gotEnv m0 st F l vars ret) (gotMidS F l) st := by
+  have hm : Match (gotEnv m0 st F l vars ret)
+      (init [F + 8, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot l, 1, 0)]) st :=
+    match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb.rsp, trivial⟩ trivial trivial
+      ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes
+  intro i hi
+  simpa [gotEnv, Env.base, Sym.eval] using hbytes i hi
+
+/-- A stack-only body passes its loader slots to a callee whose data lies in that frame. -/
+theorem Frame.got_after [Labels] {areas areas' : List (BitVec 64 × Nat)}
+    {symbols : List Label} {rs : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64}
+    {ret : BitVec 64} {T : SState} {d : MachineData} {N : Nat}
+    (hb : Frame m0 F S slots [] st) (hS : StackOk m0 S) (hle : F + N ≤ S)
+    (hg : GotAt m0 S areas symbols)
+    (hwf : (Env.ofMachine st ((stackBelow m0 F, F + 8) :: rs) vars ret).WF)
+    (hm : Match (Env.ofMachine st ((stackBelow m0 F, F + 8) :: rs) vars ret) T d)
+    (hw : ∀ w ∈ T.mem, w.r = 0 ∧ w.off + w.n ≤ F)
+    (hsp : rspOf d = stackBelow m0 F)
+    (hcover : ∀ a ∈ areas', (stackBelow m0 F).toNat ≤ a.1.toNat ∧
+      a.1.toNat + a.2 ≤ (stackBelow m0 F).toNat + F) :
+    GotAt d N areas' symbols := by
+  have hF : F ≤ S := by omega
+  have hbase := (frame_ok hS hF).2.2
+  have hsbase := stackBelow_toNat hS.1
+  have hd : (stackBelow d N).toNat = (rspOf m0).toNat - F - N := by
+    rw [stackBelow_toNat (by rw [hsp, hbase]; have := hS.1; omega), hsp, hbase]
+  have hbytes := (hg.areas (areas' := []) (by simp)).unchanged hS (by simp)
+    (fun p hp => by
+      rw [hm.get?_mem0 hwf (fun h => hp (Or.inl
+        (inRange_frame hS hF le_rfl (written_region0 rfl hwf (by omega) hw h))))]
+      exact hb.same p (fun h => h.elim (fun ⟨_, hr, _⟩ => by cases hr)
+        (fun h => hp (Or.inl h))))
+  apply NativeRustcVmX64.GotAt.callee hg hbytes
+  · rw [hsbase, hd]
+    have := hS.1
+    omega
+  · rw [hsbase, hd]
+    have := hS.1
+    omega
+  · intro a ha
+    obtain ⟨hlo, hhi⟩ := hcover a ha
+    refine ⟨(stackBelow m0 S, S + 8), List.mem_cons_self, ?_, ?_⟩ <;>
+      rw [hsbase] <;> rw [hbase] at hlo hhi <;> have := hS.1 <;> omega
 
 /-- **Bytes a body did not change**: outside the outputs and the stack. -/
 theorem Frame.get?_eq (hb : Frame m0 F S slots outs st) {p : BitVec 64}

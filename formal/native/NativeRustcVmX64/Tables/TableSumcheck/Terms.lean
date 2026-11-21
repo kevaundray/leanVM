@@ -211,7 +211,7 @@ theorem terms (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
       Pre.re h, hn30,
       rinT h hb1 (Pre.cp h), rinT h hb1 (Pre.fp h), rfrT h hb1 (by omega) (by omega),
       rinT h hb1 (Pre.hs h), heights_bd h hb1, ?_, (bus_bd h hb1).formsAt,
-      rfrT h hb1 (by omega) (by omega)⟩
+      rfrT h hb1 (by omega) (by omega), ?_⟩
     · refine ⟨?_, ?_⟩
       · rw [rsp8 hsp]
         exact mapped_off (Mapped.keeps (frame_mapped hS (by unfold N tableSumcheckStack; omega))
@@ -229,6 +229,31 @@ theorem terms (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
       exact (ctx h).apart_of_stack (o := 8) (k := 32) (Pre.evs h).2.2.2.2.1 (by omega)
     · have := rinT h hb1 (rin_sub (Pre.bs h) (o := 0) (k := formsBytes) (by decide))
       rwa [NativeRustcVm.addr_add_zero] at this
+    · rw [rsp8 hsp]
+      refine got_call h hb1 (by omega) hle ?_
+      intro l hl b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      · exact got_apart_frame (Pre.got h) hS hl (ob := 88) (len := 24) (by omega) (by decide)
+      · exact ((Pre.got h).1 l hl).2.2.2 (tA m0, tstateBytes) (by simp)
+      · exact ((Pre.got h).1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+      · exact ((Pre.got h).1 l hl).2.2.2 (ev m0, tableEvalsBytes) (by simp)
+      · exact got_apart_frame (Pre.got h) hS hl (ob := 8) (len := 32) (by omega) (by decide)
+      · exact ((Pre.got h).1 l hl).2.2.2 (cpA m0, 32) (by simp)
+      · exact ((Pre.got h).1 l hl).2.2.2 (fpA m0, 48) (by simp)
+      · exact got_apart_frame (Pre.got h) hS hl (ob := 112) (len := 16 * nR heights)
+          (by omega) (by omega)
+      · exact ((Pre.got h).1 l hl).2.2.2 (hA m0, 48) (by simp)
+      · change Apart (gotAddr l) 8 (bA m0) formsBytes
+        have hg : Apart (gotAddr l) 8 (bA m0) busBytes :=
+          ((Pre.got h).1 l hl).2.2.2 (bA m0, busBytes) (by simp)
+        exact Apart.sub hg (Nat.le_refl _) (by
+          have hsize : formsBytes ≤ busBytes := by decide
+          omega)
+      · exact got_apart_frame (Pre.got h) hS hl (ob := 592) (len := 96) (by omega) (by decide)
+      · exact ((Pre.got h).1 l hl).2.2.2 (rcAddr, 192) (by simp)
+      · exact ((Pre.got h).1 l hl).2.2.2
+          (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length) (by simp)
   -- The model's terms.
   have hcp : arrE st.data (cpA m0) 2 = arrE m0 (cpA m0) 2 := by
     unfold arrE

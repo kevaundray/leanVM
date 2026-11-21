@@ -181,7 +181,14 @@ theorem hts : HeightsAt m0.dmem (hA m0) heights := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 theorem fs : ReadIn m0 (fA m0) formsBytes N (wsL m0) :=
   h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
 theorem fms : FormsAt m0.dmem (fA m0) forms := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-theorem ws : ReadIn m0 (wA m0) 96 N (wsL m0) := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+theorem ws : ReadIn m0 (wA m0) 96 N (wsL m0) := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
+
+theorem got : GotAt m0 N [(oA m0, 24), (tA m0, tstateBytes), (a.words, 8 * a.len),
+    (ev m0, tableEvalsBytes), (argA m0, 32), (reg m0 .rdx, 32), (reg m0 .rcx, 48),
+    (reg m0 .r8, 16 * (reg m0 .r9).toNat), (hA m0, 48), (fA m0, formsBytes),
+    (wA m0, 96), (rcAddr, 192),
+    (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length)] ["memcpy"] :=
+  h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 
 end
 

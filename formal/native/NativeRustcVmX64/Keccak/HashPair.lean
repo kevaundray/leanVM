@@ -73,7 +73,7 @@ theorem hashPair_spec {k : Nat} (hp : Placed Vm.HashPair.code k)
       Keccak256WordsHashPost) :
     Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost := by
   intro m0 hpre
-  obtain ⟨hstk, hrc, hml, hnl, hmr, hnr, hmo, hno, hapl, hapr, hapo, hapor⟩ := hpre
+  obtain ⟨hstk, hrc, hml, hnl, hmr, hnr, hmo, hno, hapl, hapr, hapo, hapor, hgot⟩ := hpre
   rw [show Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.HashPair.b0Offset) from hp.label NativeRustcVmX64.Vm.HashPair.entry_at]
   have hK : hashPairStack = 848 := rfl
   have hK' : keccak256WordsStack = 768 := rfl
@@ -187,7 +187,7 @@ theorem hashPair_spec {k : Nat} (hp : Placed Vm.HashPair.code k)
           Keccak.length_rcBytes
         omega)
   have hpre : Keccak256WordsHashPre st3.data := by
-    refine ⟨⟨?_, ?_, ?_⟩, ⟨hrc3, hrcnw, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨⟨?_, ?_, ?_⟩, ⟨hrc3, hrcnw, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · show 768 ≤ (rspOf st3.data).toNat
       rw [hrsp3, hF]; omega
     · rw [hrsp3, hF]; omega
@@ -234,6 +234,28 @@ theorem hashPair_spec {k : Nat} (hp : Placed Vm.HashPair.code k)
     · show Apart (st3.data.regs.get64 .rdi) 32 rcAddr 192
       rw [hrdi]
       exact hapor
+    · refine hgot.transport ?_ ?_ ?_
+      · intro l hl i hi
+        apply hsame3
+        have hs := (hgot.1 l hl).2.2.1
+        change Apart (gotAddr l) 8 (stackBelow m0 848) 856 at hs
+        have hg : Apart (gotAddr l) 8 (frame m0) 80 := by
+          unfold Apart at hs ⊢
+          rw [hB] at hs
+          omega
+        exact hg.not_inRange ((hgot.1 l hl).2.1)
+          (by unfold NoWrap at hfnw ⊢; omega) hi
+      · intro l hl
+        have hs := (hgot.1 l hl).2.2.1
+        change Apart (gotAddr l) 8 (stackBelow m0 848) 856 at hs
+        change Apart (gotAddr l) 8 (stackBelow st3.data keccak256WordsStack)
+          (keccak256WordsStack + 8)
+        rw [hsb, hK']
+        unfold Apart at hs ⊢
+        omega
+      · intro l hl a ha
+        simp only [NativeRustcX64.reg, hrdi] at ha
+        exact (hgot.1 l hl).2.2.2 a ha
   refine call_then hpc3 hkw hpre fun st4 hpc4 hrsp4 hpost => ?_
   obtain ⟨hw4, hsame4, hsaved4⟩ := hpost
   have hsb' : stackBelow st3.data 768 = stackBelow m0 848 := hsb

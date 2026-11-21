@@ -104,7 +104,7 @@ theorem eN_def : eN.eval env = BinOp.apply .add .W64
 theorem e8n_eval {n : Nat} (h : (env.regs .r15).toNat = n) :
     e8n.eval env = BitVec.ofNat 64 (8 * n) := by
   apply BitVec.eq_of_toNat_eq
-  simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_add, h, BitVec.toNat_ofNat]
+  simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_mul, h, BitVec.toNat_ofNat]
   omega
 
 theorem eM8_eval {n : Nat} (h : env.regs .rbp = BitVec.ofNat 64 (8 * n)) (h1 : 1 ≤ n)
@@ -228,12 +228,22 @@ theorem entry (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset
   have hs1 := hst.1
   have hs2 := hst.2.1
   rw [show Labels.label NativeRustcVmX64.Vm.StackOffsets.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b0Offset) from hp.label NativeRustcVmX64.Vm.StackOffsets.entry_at]
-  have hwf0 : (frameEnv m0 m0 1328 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset)).toBitVec).WF :=
-    frame_wf ⟨frame_mapped hst (by decide), frame_noWrap hst (by decide)⟩ (by simp)
-      (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 1328 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset)).toBitVec)
-      entryS m0 :=
-    match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
+  have hg := hpre.2.2.2.2.2.2.2
+  have hslot := hg.1 "memset" (by simp)
+  have hap := apart_frame hslot.2.2.1 hst.1 (show 1328 ≤ stackOffsetsStack by decide)
+  have hwf0 : (frameEnv m0 m0 1328 [(gotAddr "memset", 8)] (fun _ ↦ 0)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset)).toBitVec).WF :=
+    frame_wf ⟨frame_mapped hst (by decide), frame_noWrap hst (by decide)⟩
+      (by intro x hx; simp only [List.mem_singleton] at hx; subst x
+          exact ⟨hg.mapped (by simp), hslot.2.1⟩)
+      (List.pairwise_pair.mpr hap.symm)
+  have hm0 : Match (frameEnv m0 m0 1328 [(gotAddr "memset", 8)] (fun _ ↦ 0)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset)).toBitVec) entryS m0 := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial
+        ⟨by simp [Sym.eval, Env.base, gotAddr], trivial⟩
+    · intro i hi
+      simpa [Sym.eval, Env.base, frameEnv] using hg.byte (by simp : "memset" ∈ ["memset"]) hi
   refine exec_then (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
@@ -245,7 +255,7 @@ theorem entry (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset
       ((hy (by omega)).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_3_at)) hm1 fun st2 hm2 hpc2 ↦ ?_
     obtain ⟨hpro, hx7, hx6, hx2, hx3, hx12, hx13, hx14, hx15, -⟩ := ok_b2
     have hb2 : B m0 0 st2.data :=
-      Bd.entry hst (by decide) hwf0 hm2 hpro slots_le slots_cs (by simp)
+      Bd.entry_frame hst (by decide) hwf0 hm2 hpro slots_le slots_cs (by decide +kernel)
     have hrdi : reg st2.data .rdi = ob m0 := (hm2.regs .rdi _ hx7).trans (eval_ptr0 16)
     have hrdx : (reg st2.data .rdx).toNat = 1264 := by
       show (st2.data.regs.get64 .rdx).toNat = _

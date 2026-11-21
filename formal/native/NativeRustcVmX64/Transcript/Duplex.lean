@@ -34,7 +34,7 @@ theorem duplex_spec (hp : Placed code k)
     (hdi : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplexInput.entryLabel) (DuplexInputPre sp) (DuplexInputPost sp))
     (hkf : Spec (Labels.label NativeRustcVmX64.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost) (sp : SpongeW) :
     Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp) := by
-  rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
+  rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp, hgot⟩
   set p := reg m0 .rdi with hpdef
   have hn : duplexStack ≤ (rspOf m0).toNat := hst.1
   have h8 : (rspOf m0).toNat + 8 ≤ 2 ^ 64 := hst.2.1
@@ -120,12 +120,30 @@ theorem duplex_spec (hp : Placed code k)
   have hapR200 : NativeRustcVm.Apart p 200 rcAddr 192 := by
     have h : NativeRustcVm.Apart p 328 rcAddr 192 := hapR
     unfold NativeRustcVm.Apart at h ⊢; omega
+  have hgot3 := got_keep hgot hst (writes := [(p, spongeBytes)])
+    (by simp [p]) (by intro b hb; obtain rfl := List.mem_singleton.mp hb; exact hnw)
+    (d := st3.data) (by
+      intro q hq
+      have hpq : ¬ NativeRustcVm.InRange p spongeBytes q :=
+        fun h => hq (Or.inl ⟨(p, spongeBytes), by simp, h⟩)
+      have hsq : ¬ NativeRustcVm.InRange (stackBelow m0 duplexStack) duplexStack q :=
+        fun h => hq (Or.inr h)
+      have hfq : ¬ NativeRustcVm.InRange (stackBelow m0 16) 16 q :=
+        fun h => hsq (inRange_frame_stack h8 hn (by decide) h)
+      exact (hs3 q hfq).trans ((hs2 q hpq).trans (hs1 q hfq)))
   have hpre3 : KeccakFPre st3.data := by
     unfold KeccakFPre
     rw [hX3]
     exact ⟨stackOk_callee hst hf3.kept hsp3 (by decide), RcAt.callee hrc hrc3 hsp3 hn (by decide),
       fun i hi ↦ Mapped.keeps hmap hf3.kept i (by unfold spongeBytes; omega), show p.toNat + 200 ≤ 2 ^ 64 by omega,
-      apart_callee hap200 hsp3 hn (by decide), hapR200⟩
+      apart_callee hap200 hsp3 hn (by decide), hapR200,
+      got_callee hgot hgot3 hsp3 hn (by decide) (by
+        intro l hl b hb
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl
+        · exact Apart.sub ((hgot.1 l hl).2.2.2 (p, spongeBytes) (by simp [p]))
+            (Nat.le_refl _) (by simp only [spongeBytes]; omega)
+        · exact (hgot.1 l hl).2.2.2 (rcAddr, 192) (by simp))⟩
   refine call_then hpc3 hkf hpre3 fun st4 hpc4 hrsp4 ⟨hkw, hs4, hsv4⟩ => ?_
   rw [hX3] at hkw hs4
   have hcal : ∀ q, NativeRustcVm.InRange (stackBelow st3.data keccakFStack) keccakFStack q →

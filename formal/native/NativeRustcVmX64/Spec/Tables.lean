@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Spec.Sumcheck
 public import NativeRustcVmX64.Spec.Layout
+public import NativeRustcX64.Spec.Got
 public import NativeRustcVmX64.Rodata
 public import NativeRustcVm.Tables.Rep
 public import NativeVm.Model.PublicInput
@@ -23,8 +24,8 @@ addresses and stacks; `StackOk` also maps its return address at RSP) and returns
 callee-saved registers kept (and RSP 8 above, `Spec`), no byte changed outside its outputs and that
 stack. The transcript's functions take the `TState` at `t` representing the model's `s` with the
 decoded area `a` (`TStateAt`) and leave it representing the next state (`NextAt`); they read the
-round constants (`RcAt`). The inputs they only read are readable and apart from what they write
-(`ReadIn`). rustc fixed the lengths of the arrays of constant length (the six log-heights, the two
+round constants (`RcAt`) and, through the transcript permutation, the `memcpy` GOT slot (`GotAt`).
+The inputs they only read are readable and apart from what they write (`ReadIn`). rustc fixed the lengths of the arrays of constant length (the six log-heights, the two
 constraint powers, the three form powers, the six weights) and passes only their pointers. The
 results are the model's (`NativeVm.Model`):
 
@@ -158,7 +159,12 @@ def TableTermsPre (a : DecArea) (s : TState) (heights : Array Nat) (forms : Arra
     ReadIn m (reg m .r8) (16 * (reg m .r9).toNat) N ws ∧
     ReadIn m (stackArg m 0) 48 N ws ∧ HeightsAt m.dmem (stackArg m 0) heights ∧
     ReadIn m (stackArg m 1) formsBytes N ws ∧ FormsAt m.dmem (stackArg m 1) forms ∧
-    ReadIn m w 96 N ws
+    ReadIn m w 96 N ws ∧
+    GotAt m N [(o, 24), (t, tstateBytes), (a.words, 8 * a.len), (e, tableEvalsBytes),
+      (rspOf m + 8#64, 32), (reg m .rdx, 32), (reg m .rcx, 48),
+      (reg m .r8, 16 * (reg m .r9).toNat), (stackArg m 0, 48),
+      (stackArg m 1, formsBytes), (w, 96), (rcAddr, 192),
+      (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length)] ["memcpy"]
 
 /-- `table_terms`'s postcondition. -/
 def TableTermsPost (a : DecArea) (s : TState) (heights : Array Nat) (forms : Array (Array FormW))
@@ -189,7 +195,11 @@ def TableSumcheckPre (a : DecArea) (s : TState) (heights : Array Nat) (bus : Bus
     RodataApart t tstateBytes ∧ RodataApart e tableEvalsBytes ∧
     ReadIn m (reg m .rsi) 48 N ws ∧ HeightsAt m.dmem (reg m .rsi) heights ∧
     ReadIn m (reg m .rdx) busBytes N ws ∧ BusWAt m.dmem (reg m .rdx) bus ∧
-    ReadIn m (reg m .rcx) 32 N ws ∧ ReadIn m (reg m .r8) 48 N ws
+    ReadIn m (reg m .rcx) 32 N ws ∧ ReadIn m (reg m .r8) 48 N ws ∧
+    GotAt m N [(t, tstateBytes), (a.words, 8 * a.len), (e, tableEvalsBytes),
+      (rspOf m + 8#64, 16), (reg m .rsi, 48), (reg m .rdx, busBytes),
+      (reg m .rcx, 32), (reg m .r8, 48), (rcAddr, 192),
+      (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length)] ["memcpy"]
 
 /-- `table_sumcheck`'s postcondition. -/
 def TableSumcheckPost (a : DecArea) (s : TState) (heights : Array Nat) (bus : BusResultW)
@@ -215,7 +225,10 @@ def TablePhasePre (a : DecArea) (s : TState) (layout : LayoutW) (bus : BusResult
   StackOk m N ∧ RcAt m N ∧ TablesAt m N ∧ TStateAt m.dmem t a s ∧ TStateOk m t a N ∧
     OutOk m t a e tableEvalsBytes N ∧ RodataApart t tstateBytes ∧ RodataApart e tableEvalsBytes ∧
     ReadIn m (reg m .rsi) layoutBytes N ws ∧ LayoutWAt m.dmem (reg m .rsi) layout ∧
-    ReadIn m (reg m .rdx) busBytes N ws ∧ BusWAt m.dmem (reg m .rdx) bus
+    ReadIn m (reg m .rdx) busBytes N ws ∧ BusWAt m.dmem (reg m .rdx) bus ∧
+    GotAt m N [(t, tstateBytes), (a.words, 8 * a.len), (e, tableEvalsBytes),
+      (reg m .rsi, layoutBytes), (reg m .rdx, busBytes), (rcAddr, 192),
+      (rodataAddr .tables, NativeRustcVm.Data.Item.tables.bytes.length)] ["memcpy"]
 
 /-- `table_phase`'s postcondition. -/
 def TablePhasePost (a : DecArea) (s : TState) (layout : LayoutW) (bus : BusResultW)
@@ -260,7 +273,9 @@ def PublicInputPhasePre (a : DecArea) (s : TState) (layout : LayoutW) (pub : Vec
     OutOk m t a c claimsBytes N ∧ ClaimsWAt m.dmem c cs ∧
     ReadIn m (reg m .rsi) layoutBytes N ws ∧ LayoutWAt m.dmem (reg m .rsi) layout ∧
     (layout.placement memory0).variableCount ≤ 31 ∧
-    ReadIn m (reg m .rdx) 32 N ws ∧ NativeRustcVm.WordsAt m.dmem (reg m .rdx) pub.toList
+    ReadIn m (reg m .rdx) 32 N ws ∧ NativeRustcVm.WordsAt m.dmem (reg m .rdx) pub.toList ∧
+    GotAt m N [(t, tstateBytes), (a.words, 8 * a.len), (c, claimsBytes),
+      (reg m .rsi, layoutBytes), (reg m .rdx, 32), (rcAddr, 192)] ["memcpy"]
 
 /-- `public_input_phase`'s postcondition: the claims appended when they fit. -/
 def PublicInputPhasePost (a : DecArea) (s : TState) (layout : LayoutW) (pub : Vector UInt64 4)

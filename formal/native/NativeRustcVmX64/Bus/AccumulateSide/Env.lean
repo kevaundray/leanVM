@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.Vals
 public import NativeRustcVmX64.Ring.Stack
+public import NativeRustcX64.Got
 
 /-!
 # `accumulate_side`: the blocks' environments (x86-64)
@@ -134,6 +135,36 @@ theorem St.mt {O : BitVec 64 → Prop} {V : Nat → UInt64} {D : List (Sym × Na
       (frameEnv m0 m F rest vs ret).base p.2.1 + BitVec.ofInt 64 p.2.2) aliases) :
     Match (frameEnv m0 m F rest vs ret) (init sizes [(.rsp, .ptr 0 8)] labels bounds aliases) m :=
   match_ofMachine hr ⟨hst.fr.rsp_eval, trivial⟩ hl hb ha
+
+/-- The copy slot is readable and protected by the existing forms/stack frame. -/
+theorem Pre.gotIn (h : Pre L rows bl Fm SL m0) : In m0 (gotAddr "memcpy") 8 := by
+  have hg := h.got.1 "memcpy" (by simp)
+  exact ⟨h.got.mapped (by simp), hg.2.1,
+    hg.2.2.2 (reg m0 .rsi, formsBytes) (by simp), hg.2.2.1⟩
+
+/-- Match the raw copy call using preserved loader bytes, not a direct-call rewrite. -/
+theorem St.mt_copy (h : Pre L rows bl Fm SL m0)
+    {O : BitVec 64 → Prop} {V : Nat → UInt64} {D : List (Sym × Nat)} {m : MachineData}
+    (hst : St m0 O V D 8 m) (hO : ∀ q, O q → outs m0 q)
+    {vs : Nat → BitVec 64} {ret : BitVec 64} :
+    Match (frameEnv m0 m F [(gotAddr "memcpy", 8)] vs ret) copyS m := by
+  have hm := St.mt hst (rest := [(gotAddr "memcpy", 8)])
+    (vs := vs) (ret := ret) (sizes := [12040, 8])
+    (labels := []) (bounds := []) (aliases := [(.gotSlot "memcpy", 1, 0)])
+    ⟨rfl, rfl, trivial⟩ trivial trivial ⟨(BitVec.add_zero _).symm, trivial⟩
+  apply hm.withKnownBytes (r := 1) (off := 0) (n := 8) (v := .label "memcpy")
+  intro i hi
+  simp only [Env.ofMachine_mem0, Env.base_ofMachine_eq,
+    List.getElem?_cons_succ, List.getElem?_cons_zero, Option.map_some,
+    Option.getD_some, Nat.zero_add, Sym.eval]
+  have hs := got_keep h.got h.stack
+    (writes := [(reg m0 .rsi, formsBytes)])
+    (by intro a ha; rcases List.mem_singleton.mp ha with rfl; simp)
+    (by intro a ha; rcases List.mem_singleton.mp ha with rfl; exact h.forms_nw)
+    (NativeRustcVm.SameOutside.mono hst.same (fun q hq => hq.elim
+      (fun ho => Or.inl ⟨_, List.mem_singleton_self _, hO q ho⟩) Or.inr))
+  rw [hs "memcpy" (by simp) i hi]
+  exact h.got.byte (by simp) hi
 
 /-- The stack arguments' aliases hold. -/
 theorem argAliases_ok {m : MachineData} {rest : List (BitVec 64 × Nat)} {vs : Nat → BitVec 64}

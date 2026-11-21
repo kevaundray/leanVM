@@ -62,6 +62,10 @@ def b23b : List Directive := b23.drop 22
 def entryS : SState :=
   init [12040, 88, 888] [(.rsp, .ptr 0 12032)] [] [] (argAliases ++ [(slA, 2, 0)])
 def fS : SState := init [12040] [(.rsp, .ptr 0 8)]
+/-- The frame and ordinary loader slot at the raw indirect copy call. -/
+def copyS : SState :=
+  (init [12040, 8] [(.rsp, .ptr 0 8)] [] [] [(.gotSlot "memcpy", 1, 0)]).withKnownBytes
+    1 0 8 (.label "memcpy")
 def aS : SState := init [12040, 88] [(.rsp, .ptr 0 8)] [] [] argAliases
 def slS : SState := init [12040, 88, 888] [(.rsp, .ptr 0 8)] [] [] (argAliases ++ [(slA, 2, 0)])
 def kAS : SState :=

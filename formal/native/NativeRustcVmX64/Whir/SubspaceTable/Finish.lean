@@ -47,10 +47,10 @@ theorem res_none {m0 : MachineData} {d : DataMem} (h : 30 < muOf m0) (hw : WordA
   exact hw
 
 /-- The output's slot `i` of its first `8` is not a slot of the frame. -/
-theorem slot_not_out {m0 : MachineData} (hpre : SubspaceTablePre m0) :
+theorem slot_not_out [Labels] {m0 : MachineData} (hpre : SubspaceTablePre m0) :
     ∀ q ∈ slots, ∀ i < 8, ¬InRange (reg m0 .rdi) 8
       (stackBelow m0 848 + BitVec.ofNat 64 q.1 + BitVec.ofNat 64 i) := by
-  obtain ⟨hS, hout⟩ := hpre
+  obtain ⟨hS, hout, _⟩ := hpre
   obtain ⟨hF, -, -, -⟩ := stack_le
   have hsl := slots_ok
   intro q hq i hi
@@ -60,11 +60,11 @@ theorem slot_not_out {m0 : MachineData} (hpre : SubspaceTablePre m0) :
     (NativeRustcVm.NoWrap.mono hout.1.2 (by omega)) (by have := hsl q hq; omega)
 
 /-- The output's first `8` bytes are the output's. -/
-theorem out_tag {m0 : MachineData} (hpre : SubspaceTablePre m0) :
+theorem out_tag [Labels] {m0 : MachineData} (hpre : SubspaceTablePre m0) :
     ∀ p, InRange (reg m0 .rdi) 8 p →
       NativeRustcVm.InAny (outsOf m0) p ∨ InRange (stackBelow m0 subspaceTableStack)
         subspaceTableStack p :=
-  fun _ h ↦ .inl (inAny_one (Arrays.inRange_sub hpre.2.1.2 (c := 0) (m := 8) (by decide)
+  fun _ h ↦ .inl (inAny_one (Arrays.inRange_sub hpre.2.1.1.2 (c := 0) (m := 8) (by decide)
     (by rwa [NativeRustcVm.addr_add_zero])))
 
 variable [Host] {k : Nat}
@@ -80,7 +80,7 @@ theorem hb24 (hp : Placed code k) : b24.IsInfixAt Host.prog (k + NativeRustcVmX6
 theorem epi (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0)
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b24Offset)) (hfr : Fr m0 st.data)
     (hv : Res m0 st.data.dmem) : Eventually (step1 Host.exe) (Post m0) st := by
-  obtain ⟨hS, hout⟩ := hpre
+  obtain ⟨hS, hout, _⟩ := hpre
   obtain ⟨hF, -, -, -⟩ := stack_le
   have hwf := hfr.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb24 hp) run_b24 hwf (by intro l h; cases h) hpc hfr.mid_match
@@ -101,7 +101,7 @@ theorem finish_none (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTabl
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b23Offset)) (hN : NoneAt m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
-  obtain ⟨hS, hout⟩ := hpre'
+  obtain ⟨hS, hout, _⟩ := hpre'
   obtain ⟨hF, -, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hfr := hN.fr
@@ -138,7 +138,7 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRus
     (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b21Offset)) (hD : Done m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
-  obtain ⟨hS, hout⟩ := hpre'
+  obtain ⟨hS, hout, hgot⟩ := hpre'
   obtain ⟨hF, -, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1
@@ -154,17 +154,23 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRus
   have hpl := pairWords_len (tableAt (muOf m0) (muOf m0))
   rw [tableAt_len' le_rfl] at hpl
   -- `b21`: the length, `memcpy`
-  have hwf := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset)).toBitVec) hS hF
-  refine exec_at (hb21 hp) run_b21 hwf (fun _ _ ↦ rfl) hpc hfr.mid_match fun st1 hm1 hpc1 ↦ ?_
+  have hwf := hfr.got_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset)).toBitVec) hS hF hgot (by simp : "memcpy" ∈ _)
+  have hmcopy := hfr.got_match (l := "memcpy") (vars := fun _ ↦ 0)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset)).toBitVec)
+    (fun i hi => hfr.got_byte hS hgot
+    (by intro ar har; simp only [List.mem_singleton] at har; subst ar; exact hout.1.2)
+    (by intro r hr; simp only [outsOf, List.mem_singleton] at hr; subst r; simp)
+    (by simp) hi)
+  refine exec_at (hb21 hp) run_b21 hwf (fun _ _ ↦ rfl) hpc hmcopy fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨⟨hk1, hsp1, hw1⟩, hw1', hv48⟩ := after_eq run_b21 ▸ b21_call
   have hrsp1 := rsp_call hm1 hsp1
   have hkept1 : Kept m0.dmem st1.data.dmem := fun p h ↦ hm1.kept hwf p (hfr.kept p h)
-  have hl8 : (frameEnv m0 st.data 848 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset)).toBitVec).load 0 8 8 =
+  have hl8 : (gotEnv m0 st.data 848 "memcpy" (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset)).toBitVec).load 0 8 8 =
       reg m0 .rdi :=
     load_word (show WordAt st.data.dmem (stackBelow m0 848 + BitVec.ofNat 64 8) _ from hD.out)
   have hcnt : WordAt st1.data.dmem (fbOf m0 + BitVec.ofNat 64 48) (muOf m0 + 1).toUInt64 := by
     have := wordAt_of_write hm1 (r := 0) (o := 48) rfl (by decide) hv48
-    rw [eval_reg, Env.ofMachine_regs, show st.data.regs.get64 .r12 = _ from hD.r12] at this
+    rw [eval_reg, gotEnv_regs, hD.r12] at this
     exact this
   have htab1 : WordsAt st1.data.dmem (fbOf m0 + BitVec.ofNat 64 56)
       (pairWords (tableAt (muOf m0) (muOf m0))) :=
@@ -177,7 +183,7 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRus
     refine (hm1.regs .rdi _ rfl).trans ?_
     rw [eval_add, eval_load, eval_lit, hl8]
   have hrsi : reg st1.data .rsi = fbOf m0 + BitVec.ofNat 64 48 :=
-    (hm1.regs .rsi _ rfl).trans (ptr0_eval 48)
+    (hm1.regs .rsi _ rfl).trans (gotEnv_ptr 48)
   have hrdx : (reg st1.data .rdx).toNat = 504 := by
     rw [show reg st1.data .rdx = _ from hm1.regs .rdx _ rfl]; rfl
   have hrbx : reg st1.data .rbx = reg m0 .rdi := (hm1.regs .rbx _ rfl).trans hl8
@@ -199,7 +205,7 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRus
     · unfold Apart; rw [h8, hrsp1, hfb]; omega
   refine Frame.call hmemcpy hfr hS (by decide : 848 + 0 ≤ subspaceTableStack) (L := 56)
     (by decide) (fun p hp ↦ ⟨by have := (hsl p hp).1; omega, (hsl p hp).2⟩) (out_one hout) hwf
-    hfr.mid_match hm1 hpc1 hk1 hsp1 hw1 hpre1
+    hmcopy hm1 hpc1 hk1 hsp1 hw1 hpre1
     (fun m' ⟨_, _, hso, hsv⟩ ↦ ⟨hsv, fun p hp ↦ hso p fun h ↦ hp (.inl (by
       simp only [hrdi, hrdx] at h
       exact inAny_one (Arrays.inRange_sub hout.1.2 (c := 8) (m := 504) (by omega) h)))⟩)

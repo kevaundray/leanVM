@@ -49,7 +49,7 @@ theorem kmul_spec_rust (hp : Placed code k) : Spec (Labels.label NativeRustcVmX6
   rw [show Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel = Host.addrOf k from hp.label NativeRustcVmX64.Vm.Kmul.entry_at]
   let env := frameEnv m m 48 (vars (reg m .rdi) (reg m .rsi))
   have hwf : env.WF := frame_wf hpre fun _ h ↦ h
-  -- Phase 2: these semantic b0-interior slices follow the Exec certificates, not generated block boundaries.
+  -- These semantic slices use raw instruction positions, not generated block boundaries.
   refine exec_then (hk.slice 0 100 (by omega)) r1.run hwf (by rw [r1_exit]; nofun) match_frame
     fun st1 hm1 hpc1 ↦ ?_
   rw [r1_exit, l1] at hpc1
@@ -62,7 +62,7 @@ theorem kmul_spec_rust (hp : Placed code k) : Spec (Labels.label NativeRustcVmX6
   refine exec_at (hk.slice 182 19 (by omega)) r4.run hwf (by rw [r4_exit]; nofun) hpc3
     (hm3.abs c3 ((eval_clmulLowS env _ _).trans rfl)) fun st4 hm4 hpc4 ↦ ?_
   rw [r4_exit, l4] at hpc4
-  refine exec_at (hk.slice 201 24 (by omega)) r5.run hwf (by rw [r5_exit]; nofun) hpc4
+  refine exec_at (hk.slice 201 22 (by omega)) r5.run hwf (by rw [r5_exit]; nofun) hpc4
     (hm4.absRev c4 rfl) fun st5 hm5 hpc5 ↦ ?_
   rw [r5_exit] at hpc5
   obtain ⟨hpc, hsp, hso, hsv⟩ := leaf_done hpre hm5 hpc5 r5_rsp r5_keeps r5_mem

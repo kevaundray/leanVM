@@ -102,17 +102,27 @@ theorem inst (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     (by decide) (by decide)
   have hat1 := hb1.at_ hpre hWo (by decide)
   have hiwP : InstanceWeightsPre st.data := by
-    refine ⟨cx.stackOk hat1 (by decide), ?_⟩
-    show Areas st.data instanceWeightsStack [⟨reg st.data .rdi, 264⟩] []
-    rw [hrdi1]
-    refine ⟨fun r hr ↦ ?_, NativeRustcVm.disjoint_cons_iff.mpr ⟨fun r hr ↦ ?_,
-      List.pairwise_singleton _ _⟩, fun _ _ _ hr ↦ by simp at hr⟩
-    · simp only [List.append_nil, List.mem_singleton] at hr
-      subst hr
-      exact ⟨hA.1, hA.2.1⟩
-    · simp only [List.mem_singleton] at hr
-      subst hr
-      exact Apart.symm' hA.2.2.2.2.1
+    refine ⟨cx.stackOk hat1 (by decide), ?_, ?_⟩
+    · show Areas st.data instanceWeightsStack [⟨reg st.data .rdi, 264⟩] []
+      rw [hrdi1]
+      refine ⟨fun r hr ↦ ?_, NativeRustcVm.disjoint_cons_iff.mpr ⟨fun r hr ↦ ?_,
+        List.pairwise_singleton _ _⟩, fun _ _ _ hr ↦ by simp at hr⟩
+      · simp only [List.append_nil, List.mem_singleton] at hr
+        subst hr
+        exact ⟨hA.1, hA.2.1⟩
+      · simp only [List.mem_singleton] at hr
+        subst hr
+        exact Apart.symm' hA.2.2.2.2.1
+    · rw [hrdi1]
+      apply hb1.got hpre hWo (by decide) (by decide)
+      intro p hp
+      simp only [List.mem_singleton] at hp
+      subst p
+      refine ⟨(stackBelow m0 verifyLayerStack, verifyLayerStack + 8), by simp, ?_, ?_⟩
+      all_goals
+        rw [stack_eq, g.sbN, g.fa (by decide)]
+        have := g.hN
+        omega
   refine call_then hpc1 hiw hiwP fun st2 hpc2 hrsp2 hq2 ↦ ?_
   obtain ⟨hbuf, hwr, hsv⟩ := hq2
   rw [hrdi1, hrsi1, hrdx1, ewArg_ew] at hbuf

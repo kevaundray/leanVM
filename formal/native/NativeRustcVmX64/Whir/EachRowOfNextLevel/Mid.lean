@@ -52,7 +52,7 @@ public section
 
 variable {rows : Array (Array UInt64)} {op : BitVec 64} {m0 : MachineData} {j : Nat}
 
-theorem MidN.keep (c : Ctx rows op m0) {lo hi : Nat} {d d' : DataMem} (hlh : lo ≤ hi)
+theorem MidN.keep [Labels] (c : Ctx rows op m0) {lo hi : Nat} {d d' : DataMem} (hlh : lo ≤ hi)
     (hlo : 104 ≤ lo) (hhi : hi ≤ 1432) (h120 : 128 ≤ lo ∨ hi ≤ 120) (h : MidN rows m0 j d)
     (hs : SameOutside d d' (EachRow.Hit m0 1984 eachRowNextStack lo hi)) : MidN rows m0 j d' :=
   ⟨h.low.keepR hs (hitR c hlh hlo hhi), bat_hit c hlh (by omega) hs h.bat,
@@ -62,7 +62,7 @@ theorem MidN.keep (c : Ctx rows op m0) {lo hi : Nat} {d d' : DataMem} (hlh : lo 
 theorem qs_size : (qsOf m0).size = (reg m0 .rdx).toNat := size_wordSlice _ _ _
 
 /-- Query `j`, as the entry's memory holds it. -/
-theorem query_word (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m)
+theorem query_word [Labels] (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m)
     (hj : j < (qsOf m0).size) :
     NativeRustcVm.wordOf m.dmem (reg m0 .rsi + BitVec.ofNat 64 (8 * j)) = (qsOf m0)[j]'hj := by
   have hsz := qs_size (m0 := m0)
@@ -72,7 +72,7 @@ theorem query_word (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0
   simp [qsOf, eachRowArgs, wordSlice]
 
 /-- **The rows**, unchanged in a body. -/
-theorem rowsAt_of_fr (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m) :
+theorem rowsAt_of_fr [Labels] (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR m0 o m) :
     NativeRustcVm.Sumcheck.RowsAt m.dmem (reg m0 .rcx) op rows := by
   obtain ⟨hp0, hsz, w, hw, hhdr, hrow⟩ := c.rowsAt
   have hr := hfr.input_same (lay c) c.rin (notB_in c c.rin c.brows)
@@ -94,7 +94,7 @@ theorem rowsAt_of_fr (c : Ctx rows op m0) {o : Nat} {m : MachineData} (hfr : FR 
     omega
 
 /-- The queries' bytes, as numbers. -/
-theorem qs_bound (c : Ctx rows op m0) :
+theorem qs_bound [Labels] (c : Ctx rows op m0) :
     (reg m0 .rsi).toNat + 8 * (qsOf m0).size ≤ 2 ^ 64 ∧
       ((reg m0 .rsi).toNat + 8 * (qsOf m0).size ≤ (rspOf m0).toNat - eachRowNextStack ∨
         (rspOf m0).toNat + 8 ≤ (reg m0 .rsi).toNat) := by

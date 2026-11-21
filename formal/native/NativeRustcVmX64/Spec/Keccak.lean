@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcX64.Spec.Keccak
+public import NativeRustcX64.Spec.Got
 public import NativeRustcVmX64.Rodata.Keccak
 public import NativeVm.Model.Verify
 public import NativeRustcVmX64.Code.Vm.HashPair.Names
@@ -20,8 +21,10 @@ precondition also maps the return address at RSP, which `iv_word`, a leaf, only 
 with the callee-saved registers kept (and RSP 8 above, `Spec`), no byte changed outside its output
 and that stack (`stackBelow`). Those that permute read the round constants, 192 bytes at `NativeRustcVmX64.Vm.Symbols.rodata1Label`
 (`RcAt`, `NativeRustcVmX64/Rodata/Keccak.lean`). A state, a digest and a slice of `u64` are their
-words end to end, little-endian (`NativeRustcVm.WordsAt`). Results are the model's
-(`NativeVm.Model`):
+words end to end, little-endian (`NativeRustcVm.WordsAt`). The raw indirect calls read ordinary
+loader-provided GOT slots (`GotAt`): `memcpy` for `keccak_f`, and `memcpy` and `memset` for its
+sponge callers. The slots are disjoint from the stack, output and read-only round constants;
+`iv_word` reads no GOT slot. Results are the model's (`NativeVm.Model`):
 
 - `keccak_f(a)` (RDI): the 25 words at `a` become `keccakF1600` of them.
 - `keccak256_words::<hash_words's closure>(out, count, len, ws, n)` (RDI, RSI, RDX, and the slice
@@ -61,7 +64,8 @@ variable [Labels]
 def KeccakFPre (m : MachineData) : Prop :=
   let a := reg m .rdi
   StackOk m keccakFStack ∧ RcAt m keccakFStack ∧ Mapped m.dmem a 200 ∧ NoWrap a 200 ∧
-    Apart a 200 (stackBelow m keccakFStack) (keccakFStack + 8) ∧ Apart a 200 rcAddr 192
+    Apart a 200 (stackBelow m keccakFStack) (keccakFStack + 8) ∧ Apart a 200 rcAddr 192 ∧
+    GotAt m keccakFStack [(a, 200), (rcAddr, 192)] ["memcpy"]
 
 /-- `keccak_f`'s postcondition. -/
 def KeccakFPost (m m' : MachineData) : Prop :=
@@ -81,7 +85,8 @@ def Keccak256WordsHashPre (m : MachineData) : Prop :=
     Mapped m.dmem ws (8 * n) ∧ NoWrap ws (8 * n) ∧ Mapped m.dmem out 32 ∧ NoWrap out 32 ∧
     (0 < n → Apart ws (8 * n) (stackBelow m keccak256WordsStack) (keccak256WordsStack + 8)) ∧
     Apart out 32 (stackBelow m keccak256WordsStack) (keccak256WordsStack + 8) ∧
-    Apart out 32 rcAddr 192
+    Apart out 32 rcAddr 192 ∧
+    GotAt m keccak256WordsStack [(out, 32), (rcAddr, 192)] ["memcpy", "memset"]
 
 /-- `keccak256_words::<hash_words's closure>`'s postcondition. -/
 def Keccak256WordsHashPost (m m' : MachineData) : Prop :=
@@ -99,7 +104,8 @@ def Keccak256WordsIvPre (m : MachineData) : Prop :=
     Mapped m.dmem bc (8 * n) ∧ NoWrap bc (8 * n) ∧ Mapped m.dmem out 32 ∧ NoWrap out 32 ∧
     (0 < n → Apart bc (8 * n) (stackBelow m keccak256WordsStack) (keccak256WordsStack + 8)) ∧
     Apart out 32 (stackBelow m keccak256WordsStack) (keccak256WordsStack + 8) ∧
-    Apart out 32 rcAddr 192
+    Apart out 32 rcAddr 192 ∧
+    GotAt m keccak256WordsStack [(out, 32), (rcAddr, 192)] ["memcpy", "memset"]
 
 /-- `keccak256_words::<fiat_shamir_iv's closure>`'s postcondition. -/
 def Keccak256WordsIvPost (m m' : MachineData) : Prop :=
@@ -131,7 +137,8 @@ def HashPairPre (m : MachineData) : Prop :=
     Mapped m.dmem out 32 ∧ NoWrap out 32 ∧
     Apart l 32 (stackBelow m hashPairStack) (hashPairStack + 8) ∧
     Apart r 32 (stackBelow m hashPairStack) (hashPairStack + 8) ∧
-    Apart out 32 (stackBelow m hashPairStack) (hashPairStack + 8) ∧ Apart out 32 rcAddr 192
+    Apart out 32 (stackBelow m hashPairStack) (hashPairStack + 8) ∧ Apart out 32 rcAddr 192 ∧
+    GotAt m hashPairStack [(out, 32), (rcAddr, 192)] ["memcpy", "memset"]
 
 /-- `hash_pair`'s postcondition. -/
 def HashPairPost (m m' : MachineData) : Prop :=

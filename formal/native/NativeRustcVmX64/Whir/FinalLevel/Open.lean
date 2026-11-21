@@ -170,6 +170,9 @@ theorem openings (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
       NativeRustcVm.BufWordsAt st'.data.dmem (qA m0) queryCap qs.toList →
       RowsAt st'.data.dmem (loc m0 144) (off (a.word (phaseBase a.l s3.phase)) 24) rws →
       WhirIn m0 (off (a.word (phaseBase a.l s3.phase)) 24) (8 * openingsWords) finalLevelStack →
+      (a.words.toNat ≤ (off (a.word (phaseBase a.l s3.phase)) 24).toNat ∧
+        (off (a.word (phaseBase a.l s3.phase)) 24).toNat + 8 * openingsWords ≤
+          a.words.toNat + 8 * a.len) →
       TStateAt st'.data.dmem (tA m0) a s4 →
       runF level b w rounds m0 s = (C4 (reg m0 .rsi).toNat (mu m0) (reg m0 .r8).toNat b w rounds
         folded qs rws).run s4 →
@@ -227,8 +230,23 @@ theorem openings (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     simp only [QueryOpeningsPre, hdi1, hsi1, hcx1, hnq]
     refine ⟨hwt.1, hwt.2.1, hts1, hwt.2.2.2.1, trivial, ?_, hpos.1.2.1, hpos.1.2.2.2.2.1,
       hpos.1.2.2.2.1, c.outLoc (o := 32) (by omega) hf1 hle (by omega) (by omega),
-      c.apart_lp (by omega) (by omega) (by omega) (by omega)⟩
-    rw [← e8]; exact hq1.2.2
+      c.apart_lp (by omega) (by omega) (by omega) (by omega), ?_⟩
+    · rw [← e8]; exact hq1.2.2
+    · apply c.got_call hf1 (by omega) hle (by decide)
+      intro ar har
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at har
+      rcases har with rfl | rfl | rfl | rfl | rfl
+      · exact ⟨(tA m0, tstateBytes), by simp, le_rfl, le_rfl⟩
+      · exact ⟨(a.words, 8 * a.len), by simp, le_rfl, le_rfl⟩
+      · refine ⟨(pA m0, whirBytes), by simp, ?_, ?_⟩
+        · change (pA m0).toNat ≤ (pA m0 + BitVec.ofNat 64 61360).toNat
+          rw [NativeRustcVm.toNat_add_ofNat (by have := c.geo.pW; omega)]
+          omega
+        · change (pA m0 + BitVec.ofNat 64 61360).toNat + 8 * qs.size ≤ (pA m0).toNat + 63200
+          rw [NativeRustcVm.toNat_add_ofNat (by have := c.geo.pW; omega)]
+          omega
+      · exact c.got_loc (by omega) (by omega)
+      · exact c.got_rc
   refine call_then hpc1 (hqo a s3 qs) hpre fun st2 hpc2 hrsp2 hq2 ↦ ?_
   obtain ⟨hrw, hnext, hch2, hsv2⟩ := hq2
   rw [hdi1, hdx1] at hrw
@@ -286,9 +304,18 @@ theorem openings (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (k := 8 * openingsWords) (by omega)
   rw [← show off (a.word (phaseBase a.l s3.phase)) 24 =
     a.words + BitVec.ofNat 64 (8 * phaseBase a.l s3.phase + 24) from off_off _ _ _] at hop
+  have hopBounds : a.words.toNat ≤ (off (a.word (phaseBase a.l s3.phase)) 24).toNat ∧
+      (off (a.word (phaseBase a.l s3.phase)) 24).toNat + 8 * openingsWords ≤
+        a.words.toNat + 8 * a.len := by
+    have hopenings : 0 < openingsWords := by decide
+    rw [show off (a.word (phaseBase a.l s3.phase)) 24 =
+      a.words + BitVec.ofNat 64 (8 * phaseBase a.l s3.phase + 24) from off_off _ _ _,
+      NativeRustcVm.toNat_add_ofNat (by have := c.geo.aW; omega)]
+    omega
   refine cont st3 rws s4 hpc3' (hl2.keep hf3 (fun r _ ↦ hr3 r) (fun j _ ↦ by rw [hd3]) hfo)
     ((hr3 .rbp).trans ((hcs2 .rbp rfl).trans hbp1)) ((hr3 .rbx).trans ((hcs2 .rbx rfl).trans hbx1))
-    (by rw [hd3]; exact hq2) (by rw [hd3]; exact hrw) hop (by rw [hd3]; exact hnext rws s4 hr) ?_
+    (by rw [hd3]; exact hq2) (by rw [hd3]; exact hrw) hop hopBounds
+    (by rw [hd3]; exact hnext rws s4 hr) ?_
   rw [hrun, C3]; exact run_bind_some hr
 
 end

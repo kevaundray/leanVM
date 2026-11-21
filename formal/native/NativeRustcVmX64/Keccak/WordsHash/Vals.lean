@@ -9,7 +9,7 @@ The whole blocks' count `len / 136` as rustc computes it, the high word of `len`
 `⌈2 ^ 71 / 136⌉` shifted right by 7 (`nb_val`); `17 nb` as `nb + (nb << 4)` (`nb17_val`); the high
 word with its low 7 bits cleared, `128 nb` (`and128_val`). The padding, from the bytes past the
 whole blocks `r = len - 136 nb < 136`: the padded lane's offset `r & !7` (`and8_val`) and the
-padding word `1 << 8 r` (`padWord_val`, `8 r` by three doublings at 32 bits), both checked for
+padding word `1 << 8 r` (`padWord_val`, `8 r` by a scaled LEA truncated to 32 bits), both checked for
 each `r` by the kernel.
 -/
 
@@ -105,11 +105,9 @@ theorem and8_val : ∀ r < 136,
       BitVec.ofNat 64 (8 * (r / 8)) := by
   decide +kernel
 
-/-- `8 r` at 32 bits, by three doublings. -/
+/-- `8 r` from the raw scaled LEA, truncated to 32 bits. -/
 @[expose] def oct32 (x : BitVec 64) : BitVec 64 :=
-  let a := UnOp.apply .trunc .W32 (BinOp.apply .add .W64 x x)
-  let b := UnOp.apply .trunc .W32 (BinOp.apply .add .W64 a a)
-  UnOp.apply .trunc .W32 (BinOp.apply .add .W64 b b)
+  UnOp.apply .trunc .W32 (BinOp.apply .mul .W64 x (BitVec.ofNat 64 8))
 
 /-- The padding word, `1 << 8 r`. -/
 theorem padWord_val : ∀ r < 136,

@@ -120,14 +120,21 @@ theorem callTables (hp : Placed code k)
     unfold TablePhasePre TablesAt
     simp only [eRdi, eRsi, eRdx, eRcx]
     rw [hN]
-    exact ⟨hC.stackOk g hc hN', hRd.rcAt, hRd, hts1, hC.tstateOk g hc hN',
+    refine ⟨hC.stackOk g hc hN', hRd.rcAt, hRd, hts1, hC.tstateOk g hc hN',
       hC.outOk g hc (o := 112184) (n := 11808) (by omega) (by omega) hN', g.rt,
       g.wRod (o := 112184) (n := 11808) (by omega) (by omega),
       ⟨hC.readable g (o := 0) (n := 3912) (by omega) (by omega),
         hC.offStack g hc (o := 0) (n := 3912) (by omega) (by omega) hN', hws (n := 3912) (by omega)⟩, hL1,
       ⟨hC.readable g (o := 4416) (n := 107768) (by omega) (by omega),
         hC.offStack g hc (o := 4416) (n := 107768) (by omega) (by omega) hN', hws (n := 107768) (by omega)⟩,
-      hbus1⟩
+      hbus1, ?_⟩
+    apply GotAt.symbols (symbols := ["memcpy", "memset"]) (hs := by decide)
+    apply hC.got g hc hN'
+    intro l hl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq]
+    exact ⟨g.gotT hl, g.gotA hl, g.gotW hl (by omega) (by decide),
+      g.gotW hl (by omega) (by decide), g.gotW hl (by omega) (by decide),
+      g.gotRc hl, g.gotRod hl .tables⟩
   refine call_then hpc1 (htp a s L bus) hpre fun st2 hpc2 hrsp2 hpost ↦ ?_
   obtain ⟨hok, hres, hnext, hch, hsv⟩ := hpost
   simp only [eRdi, eRcx, hN, show NativeRustcVm.Tables.tableEvalsBytes = 11808 from rfl]

@@ -131,13 +131,32 @@ theorem hash_call (hp : Placed code k)
     refine ⟨stackOk_callee g.g.st hf1.kept hsp (by rw [stack_eq, hps_eq]),
       RcAt.callee g.rc (g.rc_keep hchg1) hsp g.g.st.1 (by rw [stack_eq, hps_eq]),
       hlm, hln, hrm, hrn, fun i hi ↦ ?_, by unfold NativeRustcX64.NoWrap; rw [ho88]; omega,
-      ?_, ?_, ?_, ?_⟩
+      ?_, ?_, ?_, ?_, ?_⟩
     · rw [off_add]
       exact hf1.kept _ (NativeRustcVmX64.Transcript.frame_mapped g.g.st (by decide) _ (by omega))
     · unfold NativeRustcX64.Apart; rw [hcb, hcbn, hps_eq]; omega
     · unfold NativeRustcX64.Apart; rw [hcb, hcbn, hps_eq]; omega
     · unfold NativeRustcX64.Apart; rw [hcb, hcbn, hps_eq, ho88]; omega
     · unfold NativeRustcX64.Apart; rw [ho88]; omega
+    · refine g.got.transport (g.got_keep hchg1) ?_ ?_
+      · intro l hl
+        have hs := (g.got.1 l hl).2.2.1
+        change Apart (gotAddr l) 8 (stackBelow m0 1056) 1064 at hs
+        change Apart (gotAddr l) 8 (stackBelow st1.data hashPairStack) (hashPairStack + 8)
+        rw [hcb, hps_eq]
+        unfold Apart at hs ⊢
+        omega
+      · intro l hl a ha
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl
+        · have hs := (g.got.1 l hl).2.2.1
+          change Apart (gotAddr l) 8 (stackBelow m0 1056) 1064 at hs
+          change Apart (gotAddr l) 8 (off (fb m0) 88) 32
+          unfold Apart at hs ⊢
+          rw [hcbn] at hs
+          rw [ho88]
+          omega
+        · exact (g.got.1 l hl).2.2.2 (rcAddr, 192) (by simp)
   refine NativeRustcX64.Sym.call_then hpc1 hh hP fun st' hpc' hrsp' ⟨hpost, hso, hsv⟩ ↦ ?_
   rw [hdi] at hpost hso
   rw [hsi', hdx'] at hpost

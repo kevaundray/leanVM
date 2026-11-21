@@ -45,13 +45,13 @@ public theorem ok_b13 :
       = true := by
   rw [after_eq run_b13]; decide +kernel
 
-public theorem exit_b14 : exec b14 fS = some (after b14 fS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
+public theorem exit_b14 : exec b14 copyS = some (after b14 copyS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b14.trans (by rw [after_eq run_b14])
-public theorem ok_b14 : MidOk F 0 slots (after b14 fS) = true ∧
-    (after b14 fS).mem.all (fun w ↦ w.r == 0) = true ∧
-    trackOk [12040] (after b14 fS) D12 D14 = true ∧
-    (after b14 fS).reg .rdi = some (.ptr 0 6064) ∧ (after b14 fS).reg .rsi = some (.ptr 0 136) ∧
-    (after b14 fS).reg .rdx = some (.lit 5920) := by
+public theorem ok_b14 : MidOk F 0 slots (after b14 copyS) = true ∧
+    (after b14 copyS).mem.all (fun w ↦ w.r == 0) = true ∧
+    trackOk [12040, 8] (after b14 copyS) D12 D14 = true ∧
+    (after b14 copyS).reg .rdi = some (.ptr 0 6064) ∧ (after b14 copyS).reg .rsi = some (.ptr 0 136) ∧
+    (after b14 copyS).reg .rdx = some (.lit 5920) := by
   rw [after_eq run_b14]; decide +kernel
 
 public theorem exit_b15 : exec b15 slS = some (after b15 slS, .cond c15 NativeRustcVmX64.Vm.AccumulateSide.label_11) :=

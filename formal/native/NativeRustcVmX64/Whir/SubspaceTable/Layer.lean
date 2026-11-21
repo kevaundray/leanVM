@@ -52,7 +52,7 @@ theorem vturn (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m
         reg s.data .r15 = fbOf m0 + BitVec.ofNat 64 (552 + 8 * (muOf m0 / 8 * 8)) ∧
         reg s.data .rdx = BitVec.ofNat 64 (muOf m0 / 8 * 8) ∧
         reg s.data .rax = BitVec.ofNat 64 (muOf m0 % 8))) st := by
-  obtain ⟨hS, hout⟩ := hpre
+  obtain ⟨hS, hout, _⟩ := hpre
   obtain ⟨hF, -, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1
@@ -140,7 +140,7 @@ theorem tturn (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b10Offset)) (hI : TInv m0 s st.data) :
     Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b10Offset) ∧ TInv m0 (s + 1) s'.data) ∨
       (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b11Offset) ∧ Init m0 (muOf m0) s'.data)) st := by
-  obtain ⟨hS, hout⟩ := hpre
+  obtain ⟨hS, hout, _⟩ := hpre
   obtain ⟨hF, -, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hS1 := hS.1

@@ -7,7 +7,7 @@ public import NativeRustcVmX64.Sumcheck.Ctx
 # `keccak_open`: the frame before the fold
 
 The body invariant tracks the saved registers and exact caller-visible write footprint.
-Its read regions, including the incoming stack arguments and round constants, are preserved.
+Its read regions, including the incoming stack arguments, round constants and raw GOT bytes, are preserved.
 -/
 
 namespace NativeRustcVmX64.KeccakGkr.KeccakOpen
@@ -72,11 +72,18 @@ theorem Body.at (h : PreOk a s c m0) (hb : Body m0 0 d) : Sumcheck.At m0 2208 d 
 
 theorem body_match (h : PreOk a s c m0) (hb : Body m0 8 d) {ret : BitVec 64} :
     Match (E m0 d (fun _ ↦ 0) ret) (pS []) d := by
-  refine match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩ ⟨hb.fr.rsp_eval, trivial⟩ trivial trivial
-    ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5, ?_, trivial⟩
-  show (E m0 d (fun _ ↦ 0) ret).load 3 32 8 = (E m0 d (fun _ ↦ 0) ret).base 1 + BitVec.ofInt 64 0
-  rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h hb.same (by decide), ofInt0, BitVec.add_zero]
-  rfl
+  apply Match.withKnownBytes
+  · refine match_ofMachine ⟨rfl, rfl, rfl, rfl, rfl, trivial⟩ ⟨hb.fr.rsp_eval, trivial⟩ trivial trivial
+      ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5, ?_,
+        by simp [Sym.eval, RF, Env.base, gotAddr], trivial⟩
+    show (E m0 d (fun _ ↦ 0) ret).load 3 32 8 = (E m0 d (fun _ ↦ 0) ret).base 1 + BitVec.ofInt 64 0
+    rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h hb.same (by decide), ofInt0, BitVec.add_zero]
+    rfl
+  · intro i hi
+    simp only [Nat.zero_add]
+    change d.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) =
+      some (byteOf (Labels.label "memcpy").toBitVec i)
+    exact got_byte h hb.same hi
 
 theorem touch_frame_out (h : PreOk a s c m0) {q : BitVec 64} {W : Nat → Prop}
     (hW : ∀ j, W j → j < 2208) (hq : NativeRustcVm.Transcript.Touch (fbA m0) 2216 W q) :

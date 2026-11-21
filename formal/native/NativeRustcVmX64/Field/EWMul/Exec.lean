@@ -16,8 +16,9 @@ public meta import NativeRustcVmX64.Code.Vm.EWMul
 where rustc has computed a bit reversal or a product of reversed words, which becomes a variable
 of the environment: `0`, `1` the reversed `x0`, `y0`, `2` their product, `3` its reversal; `4`,
 `5` the reversed `x1`, `y1`, `6` their product; `7`, `8` the reversed `x0 ^ x1`, `y0 ^ y1`, `9`
-their product. Each variable is checked against its definition (`c1` to `c10`), the results
-against `ewMulS`, Karatsuba over the carry-less products (`c11`).
+their product. The slices retain rustc's base-less scaled `lea`s in the reversals and reductions.
+Each variable is checked against its definition (`c1` to `c10`), the results against `ewMulS`,
+Karatsuba over the carry-less products (`c11`, `c12`).
 -/
 
 namespace NativeRustcVmX64.Field.EWMul
@@ -49,12 +50,12 @@ sym_part r2 := exec (slice b0 125 16) (r1.out.setReg .r11 (some (.var 0)))
 sym_part r3 := exec (slice b0 141 66) (r2.out.setReg .rdx (some (.var 1)))
 sym_part r4 := exec (slice b0 207 20) (r3.out.setReg .rax (some (.var 2)))
 sym_part r5 := exec (slice b0 227 95) (r4.out.setReg .rax (some (.var 3)))
-sym_part r6 := exec (slice b0 322 19) (r5.out.setReg .rsi (some (.var 4)))
-sym_part r7 := exec (slice b0 341 68) (r6.out.setReg .rax (some (.var 5)))
-sym_part r8 := exec (slice b0 409 107) (r7.out.setReg .rcx (some (.var 6)))
-sym_part r9 := exec (slice b0 516 16) (r8.out.setReg .r11 (some (.var 7)))
-sym_part r10 := exec (slice b0 532 67) (r9.out.setReg .r10 (some (.var 8)))
-sym_part r11 := exec (slice b0 599 85) (r10.out.setReg .r8 (some (.var 9)))
+sym_part r6 := exec (slice b0 322 18) (r5.out.setReg .rsi (some (.var 4)))
+sym_part r7 := exec (slice b0 340 68) (r6.out.setReg .rax (some (.var 5)))
+sym_part r8 := exec (slice b0 408 107) (r7.out.setReg .rcx (some (.var 6)))
+sym_part r9 := exec (slice b0 515 16) (r8.out.setReg .r11 (some (.var 7)))
+sym_part r10 := exec (slice b0 531 67) (r9.out.setReg .r10 (some (.var 8)))
+sym_part r11 := exec (slice b0 598 81) (r10.out.setReg .r8 (some (.var 9)))
 
 public theorem c1 : (r1.out.reg .r11).map (fun v ↦ Lin.checkRev 64 v (.reg .rdi)) = some true := by
   decide +kernel
@@ -104,9 +105,9 @@ public theorem exits : r1.exit = .fall ∧ r2.exit = .fall ∧ r3.exit = .fall �
 
 public theorem lens : (slice b0 0 125).length = 125 ∧ (slice b0 125 16).length = 16 ∧
     (slice b0 141 66).length = 66 ∧ (slice b0 207 20).length = 20 ∧
-    (slice b0 227 95).length = 95 ∧ (slice b0 322 19).length = 19 ∧
-    (slice b0 341 68).length = 68 ∧ (slice b0 409 107).length = 107 ∧
-    (slice b0 516 16).length = 16 ∧ (slice b0 532 67).length = 67 ∧ 599 ≤ b0.length := by
+    (slice b0 227 95).length = 95 ∧ (slice b0 322 18).length = 18 ∧
+    (slice b0 340 68).length = 68 ∧ (slice b0 408 107).length = 107 ∧
+    (slice b0 515 16).length = 16 ∧ (slice b0 531 67).length = 67 ∧ 598 ≤ b0.length := by
   decide +kernel
 
 public theorem r11_rsp : r11.out.reg .rsp = some (.ptr 0 ((144 + 8 : Nat) : Int)) := by

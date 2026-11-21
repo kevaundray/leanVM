@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Spec.Keccak
 public import NativeRustcVmX64.Basic
+public import NativeRustcX64.Spec.Got
 public import NativeRustcVm.Transcript.Rep
 public import NativeRustcVmX64.Code.Vm.DecodedPhase.Names
 public import NativeRustcVmX64.Code.Vm.DecodedPhaseCount.Names
@@ -26,8 +27,8 @@ in RDI, RSI, RDX, RCX, the result in RAX (and RDX). Each function uses the stack
 (`<fn>Stack` bytes: its pushes, its frame, its callees' return addresses and stacks; `StackOk` in
 its precondition also maps the return address at RSP) and returns with the callee-saved registers
 kept (and RSP 8 above, `Spec`), no byte changed outside its outputs and that stack. Those that
-permute (`duplex` and its callers) read the round constants (`RcAt`); the state they permute is
-apart from them.
+permute (`duplex` and its callers) read the round constants (`RcAt`) and the `memcpy` GOT slot
+(`GotAt`), protected from their existing data areas and stack. Other functions need no GOT premise.
 
 The sponge's functions take it at `p` (RDI) representing the model's `sp`
 (`NativeRustcVm.Transcript.SpongeAt`); the transcript's take the `TState` at `t` representing the
@@ -147,7 +148,8 @@ def DuplexInputPost (sp : SpongeW) (m m' : MachineData) : Prop :=
 /-- `duplex`'s precondition. -/
 def DuplexPre (sp : SpongeW) (m : MachineData) : Prop :=
   StackOk m duplexStack ∧ RcAt m duplexStack ∧ SpongeOk m (reg m .rdi) duplexStack ∧
-    SpongeAt m.dmem (reg m .rdi) sp
+    SpongeAt m.dmem (reg m .rdi) sp ∧
+    GotAt m duplexStack [(reg m .rdi, spongeBytes), (rcAddr, 192)] ["memcpy"]
 
 /-- `duplex`'s postcondition. -/
 def DuplexPost (sp : SpongeW) (m m' : MachineData) : Prop :=
@@ -159,7 +161,8 @@ def DuplexPost (sp : SpongeW) (m m' : MachineData) : Prop :=
 /-- `absorb`'s precondition. -/
 def AbsorbPre (sp : SpongeW) (m : MachineData) : Prop :=
   StackOk m absorbStack ∧ RcAt m absorbStack ∧ SpongeOk m (reg m .rdi) absorbStack ∧
-    SpongeAt m.dmem (reg m .rdi) sp
+    SpongeAt m.dmem (reg m .rdi) sp ∧
+    GotAt m absorbStack [(reg m .rdi, spongeBytes), (rcAddr, 192)] ["memcpy"]
 
 /-- `absorb`'s postcondition. -/
 def AbsorbPost (sp : SpongeW) (m m' : MachineData) : Prop :=
@@ -172,7 +175,8 @@ def AbsorbPost (sp : SpongeW) (m m' : MachineData) : Prop :=
 /-- `squeeze`'s precondition. -/
 def SqueezePre (sp : SpongeW) (m : MachineData) : Prop :=
   StackOk m squeezeStack ∧ RcAt m squeezeStack ∧ SpongeOk m (reg m .rdi) squeezeStack ∧
-    SpongeAt m.dmem (reg m .rdi) sp
+    SpongeAt m.dmem (reg m .rdi) sp ∧
+    GotAt m squeezeStack [(reg m .rdi, spongeBytes), (rcAddr, 192)] ["memcpy"]
 
 /-- `squeeze`'s postcondition. -/
 def SqueezePost (sp : SpongeW) (m m' : MachineData) : Prop :=
@@ -185,7 +189,8 @@ def SqueezePost (sp : SpongeW) (m m' : MachineData) : Prop :=
 /-- `absorb_nonce`'s precondition. -/
 def AbsorbNoncePre (sp : SpongeW) (m : MachineData) : Prop :=
   StackOk m absorbNonceStack ∧ RcAt m absorbNonceStack ∧
-    SpongeOk m (reg m .rdi) absorbNonceStack ∧ SpongeAt m.dmem (reg m .rdi) sp
+    SpongeOk m (reg m .rdi) absorbNonceStack ∧ SpongeAt m.dmem (reg m .rdi) sp ∧
+    GotAt m absorbNonceStack [(reg m .rdi, spongeBytes), (rcAddr, 192)] ["memcpy"]
 
 /-- `absorb_nonce`'s postcondition. -/
 def AbsorbNoncePost (sp : SpongeW) (m m' : MachineData) : Prop :=
@@ -269,7 +274,9 @@ def NextScalarPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
 def ReadScalarPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rsi
   StackOk m readScalarStack ∧ RcAt m readScalarStack ∧ TStateAt m.dmem t a s ∧
-    TStateOk m t a readScalarStack ∧ OutOk m t a (reg m .rdi) 24 readScalarStack
+    TStateOk m t a readScalarStack ∧ OutOk m t a (reg m .rdi) 24 readScalarStack ∧
+    GotAt m readScalarStack [(t, tstateBytes), (a.words, 8 * a.len), (reg m .rdi, 24),
+      (rcAddr, 192)] ["memcpy"]
 
 /-- `read_scalar`'s postcondition. -/
 def ReadScalarPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
@@ -283,7 +290,9 @@ def ReadScalarsPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rdi
   StackOk m readScalarsStack ∧ RcAt m readScalarsStack ∧ TStateAt m.dmem t a s ∧
     TStateOk m t a readScalarsStack ∧
-    OutOk m t a (reg m .rsi) (16 * (reg m .rdx).toNat) readScalarsStack
+    OutOk m t a (reg m .rsi) (16 * (reg m .rdx).toNat) readScalarsStack ∧
+    GotAt m readScalarsStack [(t, tstateBytes), (a.words, 8 * a.len),
+      (reg m .rsi, 16 * (reg m .rdx).toNat), (rcAddr, 192)] ["memcpy"]
 
 /-- `read_scalars`'s postcondition. -/
 def ReadScalarsPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
@@ -300,7 +309,9 @@ def SampleChallengesPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rdi
   StackOk m sampleChallengesStack ∧ RcAt m sampleChallengesStack ∧ TStateAt m.dmem t a s ∧
     TStateOk m t a sampleChallengesStack ∧
-    OutOk m t a (reg m .rsi) (16 * (reg m .rdx).toNat) sampleChallengesStack
+    OutOk m t a (reg m .rsi) (16 * (reg m .rdx).toNat) sampleChallengesStack ∧
+    GotAt m sampleChallengesStack [(t, tstateBytes), (a.words, 8 * a.len),
+      (reg m .rsi, 16 * (reg m .rdx).toNat), (rcAddr, 192)] ["memcpy"]
 
 /-- `sample_challenges`'s postcondition. -/
 def SampleChallengesPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
@@ -317,7 +328,8 @@ def grindBits (m : MachineData) : Nat := (reg m .rsi).toNat % 2 ^ 32
 def GrindPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rdi
   StackOk m grindStack ∧ RcAt m grindStack ∧ TStateAt m.dmem t a s ∧ TStateOk m t a grindStack ∧
-    grindBits m < 64
+    grindBits m < 64 ∧
+    GotAt m grindStack [(t, tstateBytes), (a.words, 8 * a.len), (rcAddr, 192)] ["memcpy"]
 
 /-- `grind`'s postcondition. -/
 def GrindPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
@@ -331,7 +343,9 @@ def GrindPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=
 def ReadCommitmentPre (a : DecArea) (s : TState) (m : MachineData) : Prop :=
   let t := reg m .rdi
   StackOk m readCommitmentStack ∧ RcAt m readCommitmentStack ∧ TStateAt m.dmem t a s ∧
-    TStateOk m t a readCommitmentStack ∧ s.roots.size < maxRoots
+    TStateOk m t a readCommitmentStack ∧ s.roots.size < maxRoots ∧
+    GotAt m readCommitmentStack [(t, tstateBytes), (a.words, 8 * a.len),
+      (rcAddr, 192)] ["memcpy"]
 
 /-- `read_commitment`'s postcondition. -/
 def ReadCommitmentPost (a : DecArea) (s : TState) (m m' : MachineData) : Prop :=

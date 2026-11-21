@@ -105,9 +105,16 @@ theorem from10 (hp : Placed code k)
   have hpre : BuildLayoutPre bc st2.data := by
     simp only [BuildLayoutPre]
     rw [edx, ecx, edi]
-    exact ⟨c.stackOk hat le_bl, rodata_call h hb2 le_bl, hsize, ⟨hout.1, hout.2.1⟩,
+    refine ⟨c.stackOk hat le_bl, rodata_call h hb2 le_bl, hsize, ⟨hout.1, hout.2.1⟩,
       hout.2.2.2.2.1, ⟨Mapped.keeps hlr.1 hat.kept, hlr.2⟩, c.apart hat le_bl hlo, hlrod,
-      Apart.symm' (c.apart_of_stack hlo (o := 136) (k := 8 * nTables) (by decide))⟩
+      Apart.symm' (c.apart_of_stack hlo (o := 136) (k := 8 * nTables) (by decide)), ?_⟩
+    apply got_callee ((pre_got h).symbols (by decide : ["memset"].Sublist ["memcpy", "memset"]))
+      (fun l hl => got_bytes h hb2 l (by simp_all)) hat.sp c.spN le_bl
+    intro l hl a' ha
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl
+    · exact got_apart_frame (pre_got h) c.stack (by simp_all) F_le (by dsimp only; decide)
+    · exact ((pre_got h).1 l (by simp_all)).2.2.2 _ (by simp)
   refine call_then hpc2 (hbl bc) hpre fun st3 hpc3 hrsp3 hq3 ↦ ?_
   simp only [BuildLayoutPost] at hq3
   rw [edx, ecx, esi] at hq3

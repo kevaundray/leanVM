@@ -92,10 +92,42 @@ theorem ringTarget_spec (hp : Placed code k)
   obtain ⟨d, pc⟩ := st
   simp only at hpc1 hB1 hLI
   subst hpc1
+  let rsG := rsL m0 ++ [(gotAddr "memcpy", 8)]
+  have hgot := hpre.2.2.2.2
+  have hgotL : GotAt m0 NT (rsL m0) ["memcpy"] :=
+    hgot.areas (by
+      intro a ha
+      simp only [rsL, List.mem_singleton] at ha
+      subst a
+      exact List.mem_cons_self)
+  have hlayG : Lay m0 2352 NT rsG := (layL hpre).withGot hgotL
+  have hcopyBase : Bnd m0 2352 NT rsG noWr copyBase (vL m0) d :=
+    hB1.relayout (by decide) rfl rfl (fun ret => by ltac) rfl rfl rfl
+      (fun _ _ _ h => by cases h)
+      (fun _ x r o hx => by
+        change [(.gotSlot "memcpy", 2, (0 : Int))].lookup x = some (r, o) at hx
+        simp only [List.lookup] at hx
+        split at hx
+        · rename_i heq
+          rw [beq_iff_eq] at heq
+          subst heq
+          cases hx
+          simp [Sym.eval, Env.base, envS, rsG, gotAddr]
+        · cases hx)
+      (fun _ ⟨_, _, hw, _⟩ => by cases hw)
+  have hcopy : Bnd m0 2352 NT rsG noWr copyS (vL m0) d := by
+    apply hcopyBase.withKnownBytes
+    intro ret i hi
+    have hsame := hgotL.unchanged hpre.1
+      (by intro a ha; simp only [rsL, List.mem_singleton] at ha; subst a; exact hpre.2.1.1.2)
+      (fun q hq => hB1.same q (fun h => hq (h.elim Or.inl
+        (fun ⟨_, _, hw, _⟩ => by cases hw))))
+    simpa [envS, rsG, rsL, Env.base, Sym.eval, Nat.zero_add] using
+      (hsame "memcpy" (by simp) i hi).trans (hgotL.byte (by simp) hi)
   -- `b3`: their copy.
   let R : MachineData → Prop := fun m ↦ reg m .rdi = fb + BitVec.ofNat 64 1280 ∧
     reg m .rsi = fb + BitVec.ofNat 64 256 ∧ reg m .rdx = BitVec.ofNat 64 1024
-  have hmiss3 : missOk 8 2304 (after b3 (H 64)) = true := by
+  have hmiss3 : missOk 8 2304 (after b3 copyS) = true := by
     rw [NativeRustcVmX64.Transcript.after_eq run_b3]; decide
   have hW : ∀ q, NativeRustcVm.InRange (fb + BitVec.ofNat 64 1280) 1024 q →
       NativeRustcVm.InRange fb 2352 q := fun q h ↦ by
@@ -104,12 +136,12 @@ theorem ringTarget_spec (hp : Placed code k)
     rw [NativeRustcVm.Transcript.inRange_iff' (by unfold NativeRustcVm.NoWrap; rw [hq]; omega), hq] at h
     rw [NativeRustcVm.Transcript.inRange_iff' (by unfold NativeRustcVm.NoWrap; rw [hb]; omega), hb]
     omega
-  refine callStep (layL hpre) hB1 (b3_in_code.trans hp.1 (by simp [b3])) run_b3 rfl rfl
+  refine callStep hlayG hcopy (b3_in_code.trans hp.1 (by simp [b3])) run_b3 rfl rfl
     (spec_and hmemcpy R) (S := 0) (by decide) (fun mc hm hk hst ↦ ?_)
     (W := NativeRustcVm.InRange (fb + BitVec.ofNat 64 1280) 1024)
     (fun m m' ⟨hq, hr⟩ ↦ ⟨fun q hq' ↦ hq.2.2.1 q fun h ↦ hq' (.inr (by
       rw [hr.1, hr.2.2] at h; exact h)), hq.2.2.2⟩)
-    (fun q h ↦ .inl (frame_in hpre.1 (by decide) (hW q h))) (T' := t4L) (vals' := vL m0) rfl rfl
+    (fun q h ↦ .inl (frame_in hpre.1 (by decide) (hW q h))) (T' := copiedS) (vals' := vL m0) rfl rfl
     (fun ret ↦ by ltac) (fun _ hi ↦ by cases hi) (fun _ hi ↦ by cases hi)
     (fun mc ret r b sz j v t hb' hj hf h' ↦ ?_) rfl rfl rfl (fun _ _ ↦ noKeys rfl)
     (fun _ _ _ _ h ↦ by cases h) fun st hpc hB2 ⟨mc, hm, hsp, hq, hr⟩ ↦ ?_
@@ -135,7 +167,7 @@ theorem ringTarget_spec (hp : Placed code k)
     · unfold Apart; rw [hq1, hsp, hb]; omega
   · -- The pushes are not in the copy.
     obtain ⟨w, hwm, hwr, h1, h2, -, -⟩ := findWrite_spec hf
-    simp only [t4L, tpl, pushW, List.mem_cons, List.not_mem_nil, or_false] at hwm
+    simp only [copiedS, tpl, pushW, List.mem_cons, List.not_mem_nil, or_false] at hwm
     have hr0 : r = 0 := by
       rcases hwm with rfl | rfl | rfl | rfl | rfl | rfl <;> exact hwr.symm
     subst hr0
@@ -151,7 +183,7 @@ theorem ringTarget_spec (hp : Placed code k)
   simp only at hpc hB2
   subst hpc
   have hmc : NativeRustcVm.EWsAt mc.dmem (fb + BitVec.ofNat 64 256) (imgs m0).toList := by
-    have := bytes_block g ((layL hpre).wf hB1.kept) hmiss3 (by decide) hm hLI (a := 256) (by decide)
+    have := bytes_block g (hlayG.wf hB1.kept) hmiss3 (by decide) hm hLI (a := 256) (by decide)
       (by rw [NativeRustcVm.length_ewsBytes, List.length_take, Array.length_toList, imgs_size]; omega)
     rwa [List.take_of_length_le (by rw [Array.length_toList, imgs_size])] at this
   have hC : CAt m0 d' := by
@@ -161,8 +193,12 @@ theorem ringTarget_spec (hp : Placed code k)
         rw [NativeRustcVm.length_ewsBytes, Array.length_toList, imgs_size]; rfl,
       bytesOf_eq hmc] at h
     exact h
+  have hB2' : Bnd m0 2352 NT (rsL m0) noWr t4L (vL m0) d' :=
+    hB2.relayout (by decide) rfl rfl (fun ret => by ltac) rfl rfl rfl
+      (fun _ _ _ h => by cases h) (fun _ => noKeys rfl)
+      (fun _ ⟨_, _, hw, _⟩ => by cases hw)
   have h4 : At m0 k NativeRustcVmX64.Vm.RingTarget.b4Offset (rsC m0) t4 (v4 m0 (tab m0)) (CAt m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.RingTarget.b4Offset)⟩ :=
-    ⟨rfl, switch hB2, hC⟩
+    ⟨rfl, switch hB2', hC⟩
   -- The turns.
   refine Eventually.bind (chainA hp hpre hsq hpoly hmul tab_good h4) fun st h ↦ ?_
   refine Eventually.bind (chainB hp hpre hsq hpoly hmul tab_good h) fun st h ↦ ?_

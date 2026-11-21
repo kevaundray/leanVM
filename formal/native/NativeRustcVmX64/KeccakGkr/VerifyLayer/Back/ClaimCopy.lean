@@ -36,13 +36,39 @@ theorem claim_copy (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     (by apply List.mem_append_left; fw_mem)
   have h192 := h.fw (192, (t.getD 0 0).c0) (by apply List.mem_append_right; fw_mem)
   have h200 := h.fw (200, (t.getD 0 0).c1) (by apply List.mem_append_right; fw_mem)
-  have hwf := wfC hpre hb (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset + b82.length)).toBitVec)
-  have hm : Match (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset + b82.length)).toBitVec) (claimS (.load 0 96 8)) d :=
-    match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb.rsp, trivial⟩ trivial trivial
-      ⟨by show Env.load _ 0 96 8 = cA m0 + BitVec.ofInt 64 0
-          rw [fload8 h96]; simp, trivial⟩
+  have hgot := pre_got hpre
+  have hg := hgot.1 "memcpy" (by simp)
+  have hgf : Apart (gotAddr "memcpy") 8 (stackBelow m0 2016) 2024 :=
+    apart_frame hg.2.2.1 hpre.1.1 (by rw [stack_eq]; decide)
+  have hgc : Apart (gotAddr "memcpy") 8 (cA m0) 768 := hg.2.2.2 (cA m0, 768) (by simp)
+  have hf := frame_ok (pre_stack hpre) hb.fr.kept
+  have hc := areas_ok (pre_areas hpre) (r := ⟨cA m0, 768⟩) (.inl (by simp))
+  have hwf : (envB m0 d [(cA m0, 768), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset + b82.length)).toBitVec).WF := by
+    apply frame_wf hf
+    · intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl
+      · exact ⟨NativeRustcVm.Transcript.Mapped.keeps hc.1 hb.fr.kept, hc.2⟩
+      · exact ⟨NativeRustcVm.Transcript.Mapped.keeps (hgot.mapped (by simp)) hb.fr.kept, hg.2.1⟩
+    · refine List.pairwise_cons.mpr ⟨?_, List.pairwise_pair.mpr (Apart.symm' hgc)⟩
+      intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl
+      · exact claim_apart g
+      · exact Apart.symm' hgf
+  have hm : Match (envB m0 d [(cA m0, 768), (gotAddr "memcpy", 8)] (fun _ ↦ 0)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset + b82.length)).toBitVec) claimCopyS d := by
+    apply Match.withKnownBytes
+    · exact match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hb.rsp, trivial⟩ trivial trivial
+        ⟨by show Env.load _ 0 96 8 = cA m0 + BitVec.ofInt 64 0
+            rw [fload8 h96]; simp,
+          by simp [Sym.eval, Env.base, gotAddr], trivial⟩
+    · intro i hi
+      simp only [Nat.zero_add, Sym.eval, Env.base_ofMachine_eq, Env.ofMachine_mem0]
+      change d.dmem.get? (gotAddr "memcpy" + BitVec.ofNat 64 i) = _
+      rw [hb.got_bytes hpre (fun _ h ↦ h) "memcpy" (by simp) i hi]
+      exact hgot.byte (by simp) hi
   refine Body.blk (o' := 16) g hb hwf (blk hp b82_in_code (by simp [b82])) e82
     (fun _ _ ↦ rfl) hm (by decide +kernel)
     (fun w hw hr p n he q h1 h2 ↦ Or.inr (Or.inl

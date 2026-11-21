@@ -82,6 +82,8 @@ theorem call_read
     (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {a : DecArea} {m0 : MachineData} (hst : StackOk m0 readCommitmentStack)
     (hrc : RcAt m0 readCommitmentStack) (htok : TStateOk m0 (reg m0 .rdi) a readCommitmentStack)
+    (hgot : GotAt m0 readCommitmentStack [(reg m0 .rdi, tstateBytes),
+      (a.words, 8 * a.len), (rcAddr, 192)] ["memcpy"])
     {s' : TState} {st : MachineState} {env : Env} {next : Int64}
     (hpc : PcOk env (.call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) next st) (hf : Frame m0 80 slots 0 st.data)
     (hX7 : reg st.data .rdi = off (stackBelow m0 80) 16) (hX6 : reg st.data .rsi = reg m0 .rdi)
@@ -110,10 +112,20 @@ theorem call_read
   have hpre : ReadScalarPre a s' st.data := by
     unfold ReadScalarPre
     rw [hX6, hX7]
-    exact ⟨stackOk_callee hst hf.kept hsp (by decide),
+    refine ⟨stackOk_callee hst hf.kept hsp (by decide),
       RcAt.callee hrc (rc_keep hso hrcOut) hsp hn (by decide), hts,
       TStateOk.callee htok hsp hn (by decide),
-      OutOk.frame hst (by decide) hsp hf.kept (by decide) (by decide) htok hrc⟩
+      OutOk.frame hst (by decide) hsp hf.kept (by decide) (by decide) htok hrc, ?_⟩
+    refine got_callee hgot (got_keep hgot hst (writes := [(t, tstateBytes)])
+      (by simp [t]) (by simpa using hTn) (by simpa using hso))
+      hsp hn (by decide) ?_
+    intro l hl b hb
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · exact (hgot.1 l hl).2.2.2 (t, tstateBytes) (by simp [t])
+    · exact (hgot.1 l hl).2.2.2 (a.words, 8 * a.len) (by simp)
+    · exact got_apart_frame hgot hst hl (ob := 16) (len := 24) (by decide) (by decide)
+    · exact (hgot.1 l hl).2.2.2 (rcAddr, 192) (by simp)
   refine call_then hpc (hrs a s') hpre fun st' hpc' hrsp' ⟨hout, hnext, hs, hsv⟩ => ?_
   rw [hX7] at hout
   rw [hX6] at hnext
@@ -328,7 +340,7 @@ theorem readCommitment_spec (hp : Placed code k)
     (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (a : DecArea) (s : TState) :
     Spec (Labels.label NativeRustcVmX64.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s) (ReadCommitmentPost a s) := by
-  rintro m0 ⟨hst, hrc, hts, htok, hroots⟩
+  rintro m0 ⟨hst, hrc, hts, htok, hroots, hgot⟩
   set t := reg m0 .rdi
   set fb := stackBelow m0 80
   have hn : readCommitmentStack ≤ (rspOf m0).toNat := hst.1
@@ -364,7 +376,7 @@ theorem readCommitment_spec (hp : Placed code k)
   have hX3 : reg st1.data .rbx = reg m0 .rdx := hm1.regs .rbx _ hx3
   have hX14 : reg st1.data .r14 = t := hm1.regs .r14 _ hx14
   have hX15 : reg st1.data .r15 = reg m0 .rsi := hm1.regs .r15 _ hx15
-  refine call_read hrs hst hrc htok hpc1 hf1 ((hm1.regs .rdi _ hx7).trans (eval_ptr0 16))
+  refine call_read hrs hst hrc htok hgot hpc1 hf1 ((hm1.regs .rdi _ hx7).trans (eval_ptr0 16))
     (hm1.regs .rsi _ hx6) (hts.frame hf1.kept (fun q hq ↦ hRF q (inRange_mono hq (by omega))) hs1)
     hso1 fun st2 hpc2 hf2 hout2 hnext2 hso2 hsv2 => ?_
   have h3₂ : reg st2.data .rbx = reg m0 .rdx := (hsv2.1 .rbx rfl).trans hX3
@@ -432,7 +444,7 @@ theorem readCommitment_spec (hp : Placed code k)
     exact hso2 q hq
   have hts4 : TStateAt st4.data.dmem t a s1 :=
     hts1.frame (hm4.kept hwf2) (fun q hq ↦ hRF q (inRange_mono hq (by decide))) hs4
-  refine call_read hrs hst hrc htok hpc4 hf4 ((hm4.regs .rdi _ hx7₄).trans (eval_ptr0 16))
+  refine call_read hrs hst hrc htok hgot hpc4 hf4 ((hm4.regs .rdi _ hx7₄).trans (eval_ptr0 16))
     ((hm4.regs .rsi _ hx6₄).trans h14₂) hts4 hso4
     fun st5 hpc5 hf5 hout5 hnext5 hso5 hsv5 => ?_
   have h12₅ : reg st5.data .r12 = x0.c0.toBitVec := (hsv5.1 .r12 rfl).trans hX12₄

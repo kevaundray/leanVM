@@ -111,11 +111,7 @@ def c24 : SBool :=
 def gtC (x y : Sym) : SBool := (SBool.cmp .ult .W64 x y).not.and (SBool.cmp .eq .W64 x y).not
 
 /-- `8 count`, as `b2` computes it. -/
-def eightC : Sym :=
-  let a := Sym.load 0 40 8
-  let d := Sym.bin .add .W64 a a
-  let q := Sym.bin .add .W64 d d
-  .bin .add .W64 q q
+def eightC : Sym := .bin .mul .W64 (.load 0 40 8) (.lit 8)
 
 /-- A block from `frS` calling `Reader::le` for four bytes. -/
 def LeOk (S : SState) : Prop :=

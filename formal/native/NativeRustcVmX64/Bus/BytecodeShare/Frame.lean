@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Bus.BytecodeShare.Exec
 public import NativeRustcVmX64.Bus.BytecodeShare.Model
 public import NativeRustcVmX64.Sumcheck.Ctx
+public import NativeRustcX64.Got
 public import NativeRustcVmX64.Spec.Bus
 
 /-!
@@ -135,7 +136,9 @@ theorem pre_parts (h : BytecodeSharePre a s0 m0) :
       OutOk m0 (tAt m0) a (pAt m0) ptBytes bytecodeShareStack ∧
       Apart (oAt m0) 48 (pAt m0) ptBytes ∧ Apart (pAt m0) ptBytes (bAt m0) (16 * nB m0) ∧
       Apart (wAt m0) (16 * 16) (tAt m0) tstateBytes ∧
-      Apart (bAt m0) (16 * nB m0) (tAt m0) tstateBytes := h
+      Apart (bAt m0) (16 * nB m0) (tAt m0) tstateBytes := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, _⟩ := h
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13⟩
 
 /-- The context of `bytecode_share`. -/
 theorem ctx_of (h : BytecodeSharePre a s0 m0) : Ctx m0 (tAt m0) a bytecodeShareStack 432 :=
@@ -146,6 +149,45 @@ theorem oOk (h : BytecodeSharePre a s0 m0) :
 
 theorem pOk (h : BytecodeSharePre a s0 m0) :
     OutOk m0 (tAt m0) a (pAt m0) ptBytes bytecodeShareStack := (pre_parts h).2.2.2.2.2.2.2.2.1
+
+theorem pre_got (h : BytecodeSharePre a s0 m0) :
+    GotAt m0 bytecodeShareStack [(tAt m0, tstateBytes), (a.words, 8 * a.len),
+      (oAt m0, 48), (pAt m0, ptBytes), (wAt m0, 16 * 16), (bAt m0, 16 * nB m0),
+      (rcAddr, 192)] ["memcpy"] := h.2.2.2.2.2.2.2.2.2.2.2.2.2
+
+/-- Preserve the loader slots across the complete output/stack frame. -/
+theorem BF.got_same (h : BytecodeSharePre a s0 m0)
+    {O : BitVec 64 → Prop} {o : Nat} {d : MachineData} (hf : BF m0 O o d)
+    (hO : ∀ q, O q → OA m0 q) :
+    ∀ l ∈ ["memcpy"], ∀ i < 8, d.dmem.get? (gotAddr l + BitVec.ofNat 64 i) =
+      m0.dmem.get? (gotAddr l + BitVec.ofNat 64 i) := by
+  refine got_keep (pre_got h) h.1
+    (writes := [(oAt m0, 48), (tAt m0, tstateBytes), (pAt m0, ptBytes)])
+    (by intro b hb; simp only [List.mem_cons, List.not_mem_nil, or_false] at hb; rcases hb with rfl | rfl | rfl <;> simp)
+    (by
+      intro b hb
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl
+      · exact (oOk h).2.1
+      · exact (ctx_of h).fp.1.2
+      · exact (pOk h).2.1)
+    (NativeRustcVm.SameOutside.mono hf.same ?_)
+  intro q hq
+  rcases hq with hq | hq
+  · rcases hO q hq with hq | hq | hq
+    · exact .inl ⟨(oAt m0, 48), by simp, hq⟩
+    · exact .inl ⟨(tAt m0, tstateBytes), by simp, hq⟩
+    · exact .inl ⟨(pAt m0, ptBytes), by simp, hq⟩
+  · exact .inr hq
+
+theorem BF.got_callee (h : BytecodeSharePre a s0 m0)
+    {O : BitVec 64 → Prop} {d : MachineData} (hf : BF m0 O 0 d)
+    (hO : ∀ q, O q → OA m0 q) {n : Nat} (hn : 432 + n ≤ bytecodeShareStack)
+    {areas : List (BitVec 64 × Nat)}
+    (ha : ∀ l ∈ ["memcpy"], ∀ b ∈ areas, Apart (gotAddr l) 8 b.1 b.2) :
+    GotAt d n areas ["memcpy"] :=
+  NativeRustcVmX64.Transcript.got_callee (pre_got h) (hf.got_same h hO)
+    (by rw [hf.frame.sp, off_zero]) h.1.1 hn ha
 
 /-- The outputs and the stack are apart from the round constants. -/
 theorem not_rc (h : BytecodeSharePre a s0 m0) {q : BitVec 64} (hq : OA m0 q ∨ Stk m0 q) :

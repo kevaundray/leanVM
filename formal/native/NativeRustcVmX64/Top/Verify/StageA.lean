@@ -26,7 +26,7 @@ theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label NativeRustcVmX64
     Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b1Offset) ∧ SA m0 st.data)
       ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b0Offset)⟩ := by
   have g := geo_of hpre
-  obtain ⟨hst, hrod, -, -, -, ⟨hbcM, -⟩, ⟨hpubM, -⟩, -, -, -, -, -, -⟩ := hpre
+  obtain ⟨hst, hrod, -, -, -, ⟨hbcM, -⟩, ⟨hpubM, -⟩, -, -, -, -, -, -, hgot⟩ := hpre
   have hS := verifyStack_eq
   have hss : seedStack = 1008 := rfl
   have hn : verifyStack ≤ (rspOf m0).toNat := hst.1
@@ -109,7 +109,7 @@ theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label NativeRustcVmX64
     refine ⟨stackOk_callee hst hf1.kept hsp1 (by omega), RcAt.callee hrc hrc1 hsp1 hn (by omega),
       g.n32, ⟨Mapped.keeps hbcM hf1.kept, g.bcN⟩, ⟨Mapped.keeps hpubM hf1.kept, g.pubN⟩,
       ⟨mapped_off (hFm _ hf1.kept) (by dsimp only; omega), ?_⟩,
-      List.pairwise_pair.mpr ?_, List.pairwise_pair.mpr ?_, fun h0 ↦ ?_⟩
+      List.pairwise_pair.mpr ?_, List.pairwise_pair.mpr ?_, (fun h0 ↦ ?_), ?_⟩
     · show (tOf m0).toNat + 200 ≤ 2 ^ 64
       omega
     · show NativeRustcVm.Apart _ _ _ _
@@ -125,6 +125,29 @@ theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label NativeRustcVmX64
       rw [hss, hsb1]
       have := (g.bc h0).1
       omega
+    · apply NativeRustcVmX64.GotAt.callee hgot
+      · apply NativeRustcVmX64.GotAt.unchanged_stack hgot hst
+        intro q hq
+        exact hs1 q fun h => hq (by
+          have hh := hs1' q h
+          rw [hS]
+          exact hstk q (by omega) (by omega))
+      · rw [hS, sb_eq, hss, hsb1]
+        omega
+      · rw [hS, sb_eq, hss, hsb1]
+        omega
+      · intro p hp
+        rcases List.mem_append.mp hp with hp | hp
+        · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+          rcases hp with rfl | rfl | rfl
+          · refine ⟨(stackBelow m0 verifyStack, verifyStack + 8), by simp, ?_, ?_⟩
+            · simp only [hS, sb_eq, hT]
+              omega
+            · simp only [hS, sb_eq, hT]
+              omega
+          · exact ⟨(reg m0 .rdx, 32), by simp, Nat.le_refl _, Nat.le_refl _⟩
+          · exact ⟨(rcAddr, 192), by simp [rc_mem_rodataAreas], Nat.le_refl _, Nat.le_refl _⟩
+        · exact ⟨p, by simp [hp], Nat.le_refl _, Nat.le_refl _⟩
   refine call_then hpc1 hseed hpre1 fun st2 hpc2 hrsp2 hpost2 ↦ ?_
   obtain ⟨hout2, hs2, hsv2⟩ := hpost2
   simp only [eRdi, eRsi, eRdx, eRcx] at hout2 hs2

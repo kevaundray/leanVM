@@ -322,48 +322,6 @@ theorem not_inRange_below {b : BitVec 64} {n j : Nat} (hn : n ≤ b.toNat)
   rw [Sym.inRange_iff (by rw [e]; omega), e, toNat_add_ofNat _ _ hj]
   omega
 
-/-- **A block writing the 16 bytes around the frame's base** (region 0 of its environment: the
-call slot and the 8 bytes below, where an expanded `bt` pushes), keeping RSP and the free
-callee-saved registers, keeps a body. -/
-theorem Body.of_scratch [Labels] {m0 st st' : MachineData} {F S : Nat}
-    {slots : List (Nat × Reg64)} {oa : BitVec 64} {on : Nat} {vars : Nat → BitVec 64}
-    {ret : BitVec 64} {S₀ S₁ : SState} (hb : Body m0 F S slots oa on st) (hS : StackOk m0 S)
-    (hF : F + 8 ≤ S) (hwf : (Env.ofMachine st [(stackBelow m0 (F + 8), 16)] vars ret).WF)
-    (hm₀ : Match (Env.ofMachine st [(stackBelow m0 (F + 8), 16)] vars ret) S₀ st)
-    (hm : Match (Env.ofMachine st [(stackBelow m0 (F + 8), 16)] vars ret) S₁ st')
-    (hk : keepsRegs S₀ S₁ (.rsp :: freeRegs slots) = true)
-    (hw : ∀ w ∈ S₁.mem, w.r = 0 ∧ w.off + w.n ≤ 16)
-    (hslots : ∀ p ∈ slots, 8 ≤ p.1 ∧ p.1 + 8 ≤ F) (hF8 : 8 ≤ F) :
-    Body m0 F S slots oa on st' := by
-  have he := regs_eq_of hm₀ hm hk
-  have hS1 := hS.1
-  have hS2 := hS.2.1
-  have hr0 := (rspOf m0).isLt
-  have hb8 : (stackBelow m0 (F + 8)).toNat = (rspOf m0).toNat - (F + 8) :=
-    stackBelow_toNat (by omega)
-  have hfb : (stackBelow m0 F).toNat = (rspOf m0).toNat - F := stackBelow_toNat (by omega)
-  have hwr : ∀ p, Written (Env.ofMachine st [(stackBelow m0 (F + 8), 16)] vars ret) S₁ p →
-      InRange (stackBelow m0 (F + 8)) 16 p := fun p h ↦ written_region0 rfl hwf le_rfl hw h
-  refine ⟨?_, fun p hp i hi ↦ ?_, fun r hr hn ↦ ?_, fun p hp ↦ ?_,
-    fun p h ↦ hm.kept hwf p (hb.kept p h)⟩
-  · show reg st' .rsp = _
-    rw [he .rsp (by simp)]; exact hb.rsp
-  · simp only [List.length_map, List.length_range] at hi
-    obtain ⟨h8, hpF⟩ := hslots p hp
-    show st'.dmem.get? (stackBelow m0 F + BitVec.ofNat 64 p.1 + BitVec.ofNat 64 i) = _
-    rw [hm.get?_mem0 hwf fun h ↦ ?_]
-    · exact hb.frame p hp i hi
-    · have h1 := hwr _ h
-      rw [Sym.inRange_iff (by rw [hb8]; omega), hb8, addr_add, toNat_add_ofNat _ _ (by omega)] at h1
-      omega
-  · rw [he r (List.mem_cons_of_mem _ (free_mem hr hn))]; exact hb.regs r hr hn
-  · rw [hm.get?_mem0 hwf fun h ↦ hp (Or.inr ?_)]
-    · exact hb.same p hp
-    · have h1 := hwr p h
-      rw [Sym.inRange_iff (by rw [hb8]; omega), hb8] at h1
-      rw [Sym.inRange_iff (by rw [stackBelow_toNat hS1]; omega), stackBelow_toNat hS1]
-      omega
-
 /-- **The entry block**: from the entry (`Field.frameS F`), the prologue's pushes in their slots,
 the other callee-saved registers untouched, RSP at offset `8` make a body. -/
 theorem Body.of_entry [Labels] {m0 st : MachineData} {F S : Nat} {slots : List (Nat × Reg64)}
@@ -899,26 +857,12 @@ theorem one_add_bit (b : Nat) (hb : b < 2) :
     ewArg (BitVec.ofNat 64 (1 - b)) (BitVec.ofNat 64 0) = 1 + EW.ofNat b := by
   rcases (show b = 0 ∨ b = 1 by omega) with rfl | rfl <;> rfl
 
-/-- **The carry of an expanded `bt`** (`shr %cl`, `shr $1`): bit `y` of `x`, for `y < 64`. -/
+/-- The carry of raw `bt`: bit `y` of `x`, for `y < 64`. -/
 theorem bt_cf (x y : BitVec 64) (hy : y.toNat < 64) :
-    (low .W64 (BinOp.apply .shl .W64 (BinOp.apply .shr .W64 x (UnOp.apply .trunc .W32 y))
-      (BitVec.ofNat 64 63))).msb = decide ((x.toNat >>> y.toNat) % 2 = 1) := by
-  have hc : shiftCount .W64 (UnOp.apply .trunc .W32 y) = y.toNat := by
-    unfold shiftCount shiftMask
-    simp only [UnOp.apply, toNat_low, toNat_ext]
-    rw [show Width.W8.bits = 8 from rfl, show Width.W32.bits = 32 from rfl,
-      Nat.mod_eq_of_lt (show y.toNat < 2 ^ 32 by omega), Nat.mod_eq_of_lt (by omega)]
-    exact Nat.and_two_pow_sub_one_of_lt_two_pow (n := 6) (by omega)
-  have h63 : shiftCount .W64 (BitVec.ofNat 64 63) = 63 := by decide
-  simp only [BinOp.apply, hc, h63, low_W64, ext_W64]
-  rw [BitVec.msb_eq_decide, BitVec.toNat_shiftLeft,
-    show (x.ushiftRight y.toNat).toNat = x.toNat >>> y.toNat from BitVec.toNat_ushiftRight x _,
-    Nat.shiftLeft_eq, show Width.W64.bits = 64 from rfl]
-  generalize x.toNat >>> y.toNat = t
-  have e : t * 2 ^ 63 % 2 ^ 64 = t % 2 * 2 ^ 63 := by
-    rw [show (2 : Nat) ^ 64 = 2 * 2 ^ 63 by norm_num, Nat.mul_mod_mul_right]
-  rw [e]
-  rcases Nat.mod_two_eq_zero_or_one t with h | h <;> rw [h] <;> decide
+    CmpOp.apply .bit .W64 x y = decide ((x.toNat >>> y.toNat) % 2 = 1) := by
+  simp only [CmpOp.apply, low_W64, show Width.W64.bits = 64 from rfl,
+    Nat.mod_eq_of_lt hy, BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq,
+    Nat.shiftRight_eq_div_pow]
 
 /-- `setb` into a zeroed register: the carry as `0` or `1`. -/
 theorem setb_eval (c : Bool) :
