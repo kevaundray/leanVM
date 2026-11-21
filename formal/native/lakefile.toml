@@ -22,11 +22,12 @@ path = "../lean_vm"
 # Kraken's x86-64 semantics (AeneasVerif/kraken), which the machine code is proved in. Only
 # `Kraken.X64.Semantics`, `Kraken.X64.OmniSemantics`, `Kraken.X64.WP`, `Kraken.Mem` and
 # `Kraken.X64.PrintATT` are imported: they build on this toolchain, while Kraken's parser targets a
-# newer nightly.
+# newer nightly. Pinned to kevaundray/kraken's `leanvm-pin`: upstream bf9a5e3 plus bt/bts, base-less
+# indexed addresses and GOT slots (upstream PR AeneasVerif/kraken#274, on its newer API).
 [[require]]
 name = "Kraken"
-git = "https://github.com/AeneasVerif/kraken"
-rev = "bf9a5e33ac33cd40cd379121e658fce6f90f18e3"
+git = "https://github.com/kevaundray/kraken"
+rev = "93ef4310decd3be96a76ac00fbd943738f73111f"
 
 # Pinned as the statement pins them.
 [[require]]

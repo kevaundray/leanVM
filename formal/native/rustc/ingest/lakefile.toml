@@ -2,11 +2,12 @@ name = "ingest"
 version = "0.1.0"
 defaultTargets = ["ingest-arm", "ingest-x64"]
 
-# Kraken's assembly parsers, which need this toolchain (formal/native's Lean does not build them).
+# Kraken's assembly parsers, which need this toolchain (formal/native's Lean does not build them). The same
+# pin as formal/native's (kevaundray/kraken `leanvm-pin`).
 [[require]]
 name = "Kraken"
-git = "https://github.com/AeneasVerif/kraken"
-rev = "bf9a5e33ac33cd40cd379121e658fce6f90f18e3"
+git = "https://github.com/kevaundray/kraken"
+rev = "93ef4310decd3be96a76ac00fbd943738f73111f"
 
 # The ingestion, generic in the architecture (IngestCore.lean).
 [[lean_lib]]
