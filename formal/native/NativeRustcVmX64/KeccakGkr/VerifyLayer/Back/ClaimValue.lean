@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.Transpose
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-! # Computing the new claim's value -/
 
@@ -16,13 +17,13 @@ variable [Host] {m0 : MachineData} {a : DecArea} {s s6 : TState} {c : KeccakClai
   {ch b : EW} {pt lp t : Array EW} {k : Nat}
 
 theorem claim_value (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hpt : pt.size ≤ 30)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hpt : pt.size ≤ 30)
     {d : MachineData} (hb : Body m0 (outs m0) 24 d) (h : TailLive m0 a c ch b pt lp t s6 d.dmem)
     {R : MachineState → Prop}
     (cont : ∀ d', Body m0 (outs m0) 24 d' → TailLive m0 a c ch b pt lp t s6 d'.dmem →
       ewArg (reg d' .rax) (reg d' .rdx) = b * (t.getD 1 0 + b * t.getD 2 0) →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 711)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 696)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b80Offset)⟩ := by
   have g := geo_of hpre
   have cx := ctx hpre (F := 2000) (by decide)
   have hw24 := h.fw (24, b.c0) (by apply List.mem_append_left; fw_mem)
@@ -30,8 +31,8 @@ theorem claim_value (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   have hw104 := h.fw (104, (t.getD 2 0).c1) (by apply List.mem_append_right; fw_mem)
   have hw112 := h.fw (112, (t.getD 2 0).c0) (by apply List.mem_append_right; fw_mem)
   have hwf := wf0 (pre_stack hpre) hb (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 696 + b80.length)).toBitVec)
-  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + 696 + b80.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b80Offset + b80.length)).toBitVec)
+  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b80Offset + b80.length)).toBitVec)
       (fr 24) d :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g hb hwf (blk hp b80_in_code (by simp [b80])) e80
@@ -59,10 +60,10 @@ theorem claim_value (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   rw [hA1, hB1] at hm2
   have hbx2 := (hc2 .rbx rfl).trans hbx1
   have h14_2 := (hc2 .r14 rfl).trans h14_1
-  rw [show k + 696 + b80.length = k + 703 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b80Offset + b80.length = k + NativeRustcVmX64.Vm.VerifyLayer.b81Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b80_next]]
   have hwf3 := wf0 (pre_stack hpre) hb2 (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 703 + b81.length)).toBitVec)
-  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + 703 + b81.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b81Offset + b81.length)).toBitVec)
+  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b81Offset + b81.length)).toBitVec)
       (fr 24) d2 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb2.rsp, trivial⟩ trivial trivial trivial
   have hw184 := h2.fw (184, (t.getD 1 0).c0) (by apply List.mem_append_right; fw_mem)

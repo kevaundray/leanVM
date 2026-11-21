@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldR4
 
 /-!
@@ -53,14 +55,14 @@ theorem adv16 (b : BitVec 64) (x : Nat) :
 variable [NativeArm.Host] {k : Nat} {c : Cx} {m0 : MachineData}
 
 /-- **A turn of round 5's loop**: entry `j` of row 0 folded. -/
-theorem step5 (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step5 (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (ok : Ok c.a m0) {fa fb : Nat → EW} {G : Nat → Nat → EW}
     (hG : ∀ j < 64, G (j + 1) = fun n ↦ if n = j then foldE (c.sl.getD 5 0) fa fb j else G j n)
-    (j : Nat) (s : MachineState) (hj : j < 64) (hpc : s.pc = Host.addrOf (k + 560))
+    (j : Nat) (s : MachineState) (hj : j < 64) (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b91Offset))
     (hI : I5 c m0 fa fb (G j) j s.data) :
     Eventually (step1 Host.exe) (fun s' ↦
-      (j + 1 < 64 ∧ s'.pc = Host.addrOf (k + 560) ∧ I5 c m0 fa fb (G (j + 1)) (j + 1) s'.data) ∨
-      (j + 1 = 64 ∧ s'.pc = Host.addrOf (k + 576) ∧
+      (j + 1 < 64 ∧ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b91Offset) ∧ I5 c m0 fa fb (G (j + 1)) (j + 1) s'.data) ∨
+      (j + 1 = 64 ∧ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b93Offset) ∧
         I5 c m0 fa fb (G (j + 1)) (j + 1) s'.data)) s := by
   have hn := ok.nums
   have hN := hn.hN
@@ -161,14 +163,14 @@ theorem step5 (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulP
 
 /-- **Round 5**: row 0 from rows 0 and 1, `b88` to `b93`. -/
 theorem round5 (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     {rows : Array (Array EW)} (hsz : rows.size = 64)
     (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 545)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b88Offset)) (hmid : Mid c m0 s.data)
     (hk : KAt m0 (varsOf c.sl 5 0) k88 s.data)
     (hrw : ElemsAt s.data.dmem (rwA m0) (Fr c.sl rows 5) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 576) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b93Offset) ∧ Mid c m0 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (Fr c.sl rows 6) 4096) s := by
   have hsl : 5 < c.sl.size := by rw [hmid.sl_size]; decide
   rw [← F_zero] at hrw
@@ -184,7 +186,7 @@ theorem round5 (hp : Placed code k)
   refine (zeroBlock hp ok (ks' := k91) (by decide) hsl rfl rfl b90_in_code (List.cons_ne_nil _ _)
     run_b90 rfl (by decide) (hpc2.trans (by rw [Nat.add_assoc]; rfl)) hmid2 hk2).bind
     fun s3 ⟨hpc3, hmid3, hk3, hd3⟩ ↦ ?_
-  have hpc3' : s3.pc = Host.addrOf (k + 560) := hpc3.trans (by rw [Nat.add_assoc]; rfl)
+  have hpc3' : s3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b91Offset) := hpc3.trans (by rw [Nat.add_assoc]; rfl)
   have hI : I5 c m0 (fun z ↦ F c.sl rows 5 0 0 (64 * (2 * 0) + z))
       (fun z ↦ F c.sl rows 5 0 0 (64 * (2 * 0 + 1) + z)) (F c.sl rows 5 0 0) 0 s3.data := by
     refine ⟨hmid3, ?_, ?_, ?_, ?_, ?_, ?_, by rw [hd3]; exact hbA2, by rw [hd3]; exact hbB2,

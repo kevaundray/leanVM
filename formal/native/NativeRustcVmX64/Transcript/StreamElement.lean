@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.StreamElement.Exec
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.DecodedStreamElement.Names
 
 /-!
 # `Decoded::stream_element` on x86-64
@@ -105,7 +106,7 @@ theorem finish_ret (hp : Placed code k) {m0 : MachineData} {stream : Array EW} {
 
 /-- The tag `0` stored at the output: `None`. -/
 theorem finish_none (hp : Placed code k) {m0 : MachineData} {stream : Array EW} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 13)) (hst : StackOk m0 0)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.DecodedStreamElement.b3Offset)) (hst : StackOk m0 0)
     (hon : NativeRustcVm.NoWrap (reg m0 .rdi) 24) (hom : NativeRustcVm.Mapped m0.dmem (reg m0 .rdi) 24)
     (hap : NativeRustcVm.Apart (reg m0 .rdi) 24 (stackBelow m0 0) (0 + 8))
     (hK : Kept m0 st.data) (hi : stream.size ≤ (reg m0 .rcx).toNat) :
@@ -123,7 +124,7 @@ theorem finish_none (hp : Placed code k) {m0 : MachineData} {stream : Array EW} 
   have hsame : NativeRustcVm.SameOutside st.data.dmem st'.data.dmem (NativeRustcVm.InRange o 24) :=
     sameOutside_region hwf hm' rfl hws
   refine finish_ret hp ((infix_drop b3 3).trans b3_in_code (by simp [b3])) (by simp [b3])
-    (hpc'.trans (congrArg Host.addrOf (by simp [b3]))) run_b3r
+    (hpc'.trans (congrArg Host.addrOf (by simp [b3, Nat.add_assoc]))) run_b3r
     (after_eq run_b3r ▸ ⟨ok_ret.1, ok_ret.2.1⟩) hst
     (hK.saved.trans (Match.saved hm hm' hwf rfl hkeeps))
     (((hm'.regs .rsp _ hsp)).trans hK.rsp) hon hap
@@ -136,7 +137,7 @@ theorem finish_none (hp : Placed code k) {m0 : MachineData} {stream : Array EW} 
 /-- **`Decoded::stream_element` meets its contract.** -/
 theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     (openings : Array (Array OpeningW)) :
-    Spec (Labels.label streamElementLabel) (StreamElementPre a stream openings)
+    Spec (Labels.label NativeRustcVmX64.Vm.DecodedStreamElement.entryLabel) (StreamElementPre a stream openings)
       (StreamElementPost stream) := by
   rintro m0 ⟨hst, hx1, hx2, ⟨hrm, hrn⟩, hdec, hom, hon, hap, hapS⟩
   have hl64 := hdec.l_lt
@@ -148,8 +149,8 @@ theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW
   simp only [NativeVm.streamEnd, NativeVm.maxStream] at hse hsl
   have hlen64 : a.len < 2 ^ 64 := by omega
   -- `b0`: the slice is not empty.
-  unfold streamElementLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.DecodedStreamElement.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.DecodedStreamElement.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 (Env.wf_nil m0) nofun
     (match_nil m0) fun st1 hm1 hpc1 => ?_
   obtain ⟨hk1, hmem1, hr1⟩ := after_eq run_b0 ▸ ok_b0
@@ -196,7 +197,7 @@ theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW
   simp only [PcOk] at hpc2
   split at hpc2
   · rename_i hc
-    refine finish_none hp (hpc2.trans (hp.label (j := 13) rfl)) hst hon hom hapS hK2 ?_
+    refine finish_none hp (hpc2.trans (hp.label NativeRustcVmX64.Vm.DecodedStreamElement.label_4_at)) hst hon hom hapS hK2 ?_
     sym_simp_at hc
     rw [hcnt] at hc
     simp only [Env.ofMachine_regs, Bool.not_eq_true', BitVec.ult] at hc
@@ -260,7 +261,7 @@ theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW
     simp only [BitVec.toNat_ofInt, BitVec.toNat_ofNat, show (2 : Nat) ^ Width.W64.bits = 2 ^ 64 from rfl]
     omega
   refine exec_at (infix_of ((infix_take b4 7).trans b4_in_code (by simp [b4])) (by simp [b4]) hp)
-    run_b4 hwf4 nofun (hpc3.trans (hp.label (j := 17) rfl)) hm4 fun st4 hm4' hpc4 => ?_
+    run_b4 hwf4 nofun (hpc3.trans (hp.label NativeRustcVmX64.Vm.DecodedStreamElement.label_6_at)) hm4 fun st4 hm4' hpc4 => ?_
   obtain ⟨hw0, hw1, hw2, hws, hkeeps, hsp4⟩ := after_eq run_b4 ▸ some_b4
   have hsame : NativeRustcVm.SameOutside st3.data.dmem st4.data.dmem (NativeRustcVm.InRange o 24) :=
     sameOutside_region hwf4 hm4' rfl hws
@@ -273,7 +274,7 @@ theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW
       stream[(reg m0 .rcx).toNat].c1.toBitVec :=
     load_ofMachine (o := 8) rfl (by rw [hK3.dmem]; exact hel.2)
   refine finish_ret hp ((infix_drop b4 7).trans b4_in_code (by simp [b4])) (by simp [b4])
-    (hpc4.trans (congrArg Host.addrOf (by simp [b4]))) run_b4r
+    (hpc4.trans (congrArg Host.addrOf (by simp [b4, Nat.add_assoc]))) run_b4r
     (after_eq run_b4r ▸ ⟨ok_ret.2.2.1, ok_ret.2.2.2⟩) hst
     (hK3.saved.trans (Match.saved hm4 hm4' hwf4 rfl hkeeps))
     ((hm4'.regs .rsp _ hsp4).trans hK3.rsp) hon hapS

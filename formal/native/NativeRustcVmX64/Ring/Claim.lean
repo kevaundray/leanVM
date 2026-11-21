@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Ring.Claim.Exec
 public import NativeRustcVmX64.Ring.Stack
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
+public import NativeRustcVmX64.Code.Vm.RingClaimWeight.Names
+public import NativeRustcVmX64.Code.Vm.RingWeight.Names
 
 /-!
 # `ring_claim_weight` on x86-64
@@ -124,11 +128,11 @@ variable [Host] {k : Nat}
 
 /-- **`ring_claim_weight` meets its contract.** -/
 theorem ringClaimWeight_spec (hp : Placed code k)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
-    (hrw : Spec (Labels.label ringWeightLabel) RingWeightPre RingWeightPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ringClaimWeightLabel) RingClaimWeightPre RingClaimWeightPost := by
+    (hrw : Spec (Labels.label NativeRustcVmX64.Vm.RingWeight.entryLabel) RingWeightPre RingWeightPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.RingClaimWeight.entryLabel) RingClaimWeightPre RingClaimWeightPost := by
   rintro m0 ⟨hst, hargs, hr36, hx64, hpt, hco, hx, ⟨⟨hom, hon⟩, hoS, hoA⟩⟩
   set o := reg m0 .rdi with hodef
   set xa := rspOf m0 + 8#64 with hxadef
@@ -171,13 +175,13 @@ theorem ringClaimWeight_spec (hp : Placed code k)
     fun d ret hs ↦ ⟨argWord hst hargs (by decide) hs rfl rfl (i := 0) (by decide),
       argWord hst hargs (by decide) hs rfl rfl (i := 1) (by decide)⟩
   -- `b0`: the prologue, `eq_above`'s arguments, `call eq_eval_fn`.
-  have hwf0 := hwfE m0 (Host.addrOf (k + 0 + b0.length)).toBitVec fun _ h ↦ h
+  have hwf0 := hwfE m0 (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b0Offset + b0.length)).toBitVec fun _ h ↦ h
   have hm0 : Match (frameEnv m0 m0 96 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 0 + b0.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b0Offset + b0.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial
       trivial ⟨hal _ _ 0 (by decide), hal _ _ 8 (by decide), trivial⟩
-  unfold ringClaimWeightLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.RingClaimWeight.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.RingClaimWeight.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl) hm0
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hpro, hws1, hrdi, hrcx, hrsi, hrdx, hrbx, hrbp, hr12, hr15, hsp16⟩ :=
@@ -188,11 +192,11 @@ theorem ringClaimWeight_spec (hp : Placed code k)
       (InRange (stackBelow m0 ringClaimWeightStack) ringClaimWeightStack) :=
     fun q hq ↦ sameOutside_low hwf0 hm1 (r := 0) rfl (by decide) hws1 q fun h ↦ hq (hstack q h)
   have hsp1 : rspOf st1.data = fb := by rw [hf1.sp, off_zero]
-  obtain ⟨hx0, hx1⟩ := hxs m0 (Host.addrOf (k + 0 + b0.length)).toBitVec fun _ _ ↦ rfl
+  obtain ⟨hx0, hx1⟩ := hxs m0 (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b0Offset + b0.length)).toBitVec fun _ _ ↦ rfl
   have hrsi0 : (frameEnv m0 m0 96 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 0 + b0.length)).toBitVec).regs .rsi = reg m0 .rsi := rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b0Offset + b0.length)).toBitVec).regs .rsi = reg m0 .rsi := rfl
   have hrdx0 : (frameEnv m0 m0 96 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 0 + b0.length)).toBitVec).regs .rdx = reg m0 .rdx := rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b0Offset + b0.length)).toBitVec).regs .rdx = reg m0 .rdx := rfl
   have e1di : (reg st1.data .rdi).toNat = (stackArg m0 1).toNat - (reg m0 .rsi).toNat := by
     rw [show reg st1.data .rdi = _ from hm1.regs .rdi _ hrdi, eval_sat, hx1, hrsi0]
   have e1cx : (reg st1.data .rcx).toNat = (stackArg m0 1).toNat - (reg m0 .rsi).toNat := by
@@ -262,13 +266,13 @@ theorem ringClaimWeight_spec (hp : Placed code k)
       exact hs2 _ (hR2 _ (by omega))
   have e2b : reg st2.data .rbx = o := (hsv2.1 .rbx rfl).trans e1b
   -- `b1`: `call ring_weight` into the frame.
-  have hwf2 := hwfE st2.data (Host.addrOf (k + 31 + b1.length)).toBitVec hf2.kept
+  have hwf2 := hwfE st2.data (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b1Offset + b1.length)).toBitVec hf2.kept
   have hm2 : Match (frameEnv m0 st2.data 96 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 31 + b1.length)).toBitVec) midS st2.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b1Offset + b1.length)).toBitVec) midS st2.data :=
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hf2.rsp_eval, known_ptr rfl e2b, trivial⟩ trivial
       trivial ⟨hal _ _ 0 (by decide), hal _ _ 8 (by decide), trivial⟩
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 (fun _ _ ↦ rfl)
-    (hpc2.trans (by rw [show b0.length = 31 from rfl])) hm2 fun st3 hm3 hpc3 ↦ ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingClaimWeight.b0_next)) hm2 fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hws3, h3di, h3si, h3dx, h3cx, h3r8, h3r9, h3r13, h3r14, h3bx⟩ :=
     after_eq run_b1 ▸ ok_b1
   have hf3 : Frame m0 96 slots 0 st3.data := Frame.of_block hf2 hwf2 hm3 hmid3 slots_le
@@ -278,7 +282,7 @@ theorem ringClaimWeight_spec (hp : Placed code k)
   have hs3' : SameOutside m0.dmem st3.data.dmem
       (InRange (stackBelow m0 ringClaimWeightStack) ringClaimWeightStack) :=
     same_trans hs2' hs3 fun q h ↦ hstack q (inRange_le h (by decide))
-  obtain ⟨hy0, -⟩ := hxs st2.data (Host.addrOf (k + 31 + b1.length)).toBitVec hs2'
+  obtain ⟨hy0, -⟩ := hxs st2.data (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b1Offset + b1.length)).toBitVec hs2'
   have f3di : reg st3.data .rdi = off fb 24 := (hm3.regs .rdi _ h3di).trans (eval_ptr0 24)
   have f3si : reg st3.data .rsi = reg m0 .rcx :=
     (hm3.regs .rsi _ h3si).trans ((hsv2.1 .r12 rfl).trans e112)
@@ -356,15 +360,15 @@ theorem ringClaimWeight_spec (hp : Placed code k)
   rw [off_off] at hwc0 hwc1
   rw [off_off] at hwc1
   -- `b2`: the tag, `1`.
-  have hwf4 := hwfE st4.data (Host.addrOf (k + 42 + b3.length)).toBitVec hf4.kept
+  have hwf4 := hwfE st4.data (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b3Offset + b3.length)).toBitVec hf4.kept
   have hm4 : Match (frameEnv m0 st4.data 96 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 42 + b3.length)).toBitVec) midS st4.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b3Offset + b3.length)).toBitVec) midS st4.data :=
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hf4.rsp_eval, known_ptr rfl e4b, trivial⟩ trivial
       trivial ⟨hal _ _ 0 (by decide), hal _ _ 8 (by decide), trivial⟩
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf4 nofun
-    (hpc4.trans (by rw [show b1.length = 9 from rfl])) hm4 fun st5 hm5 hpc5 ↦ ?_
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingClaimWeight.b1_next)) hm4 fun st5 hm5 hpc5 ↦ ?_
   have htag : (frameEnv m0 st4.data 96 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 42 + b3.length)).toBitVec).load 0 24 4 = BitVec.ofNat 64 1 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingClaimWeight.b3Offset + b3.length)).toBitVec).load 0 24 4 = BitVec.ofNat 64 1 :=
     load4_of_tag (Or.inr rfl) hwt
   simp only [PcOk] at hpc5
   sym_simp_at hpc5
@@ -372,7 +376,7 @@ theorem ringClaimWeight_spec (hp : Placed code k)
   simp (config := { decide := true }) only [↓reduceIte] at hpc5
   -- `b3`: `call EW::mul`.
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf4 (fun _ _ ↦ rfl)
-    (hpc5.trans (by rw [show b2.length = 2 from rfl])) hm5 fun st6 hm6 hpc6 ↦ ?_
+    (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingClaimWeight.b2_next)) hm5 fun st6 hm6 hpc6 ↦ ?_
   obtain ⟨hmid6, hws6, h6di, h6si, h6dx, h6cx, h6bx⟩ := after_eq run_b3 ▸ ok_b3
   have hf6 : Frame m0 96 slots 0 st6.data := Frame.of_block hf4 hwf4 hm6 hmid6 slots_le
   have hsp6 : rspOf st6.data = fb := by rw [hf6.sp, off_zero]
@@ -422,10 +426,10 @@ theorem ringClaimWeight_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hf7.rsp_eval, known_ptr rfl e7b, trivial⟩ trivial
       trivial ⟨hal _ _ 0 (by decide), hal _ _ 8 (by decide), trivial⟩
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf7 nofun
-    (hpc7.trans (by rw [show b3.length = 5 from rfl])) hm7 fun st8 hm8 hpc8 ↦ ?_
+    (hpc7.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingClaimWeight.b3_next)) hm7 fun st8 hm8 hpc8 ↦ ?_
   simp only [PcOk] at hpc8
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) (exec_after run_b4 run_b6) hwf7 nofun
-    (hpc8.trans (hp.label (j := 53) rfl)) hm8 fun st9 hm9 hpc9 ↦ ?_
+    (hpc8.trans (hp.label NativeRustcVmX64.Vm.RingClaimWeight.label_3_at)) hm8 fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hepi, hw0, hw1, hw2, hws9⟩ := after_eq run_b6 ▸ ok_s
   obtain ⟨hsv9, hrsp9⟩ := Frame.epilogue hf7 hwf7 hm9 hepi
   have hs9 := sameOutside_region hwf7 hm9 (r := 2) rfl hws9

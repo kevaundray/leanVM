@@ -105,14 +105,14 @@ theorem stepD_ok {d : Directive} {p : Program} {k : Nat} (hdp : (d :: p).IsInfix
     {S S' : SState} {x : Exit} {m : MachineData} (hwf : env.WF) (hm : Match env S m)
     (h : stepD d S = some (S', x)) :
     Eventually (step1 Host.exe) (fun st => Match env S' st.data ∧
-      PcOk env x (Host.addrOf (k + 1)) st) ⟨m, Host.addrOf k⟩ := by
+      PcOk env x (Host.addrOf k.succ) st) ⟨m, Host.addrOf k⟩ := by
   apply Host.eventually_of_interp hdp
   cases d with
   | label l =>
     cases h
-    exact done_fall (p := ⟨Host.addrOf k, Host.addrOf (k + 1)⟩) hm
+    exact done_fall (p := ⟨Host.addrOf k, Host.addrOf k.succ⟩) hm
   | instr i =>
-    exact stepOp_ok i.operation S S' x m ⟨Host.addrOf k, Host.addrOf (k + 1)⟩ hwf hm h
+    exact stepOp_ok i.operation S S' x m ⟨Host.addrOf k, Host.addrOf k.succ⟩ hwf hm h
   | byteArray _ => cases h
   | word _ _ => cases h
 

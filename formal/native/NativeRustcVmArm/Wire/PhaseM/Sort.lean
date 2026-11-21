@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.InsD.Names
 public import NativeRustcVmArm.Wire.PhaseM.Reads2
 
 /-!
@@ -23,7 +24,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 /-- **At the size checks** (`b20`): the distinct positions `ps` at the working area's byte 2048. -/
 structure Chk [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw rw c5 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 75)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b20Offset)
   base : Base m0 st.data
   model : phaseM B c = tail B qs height lw rw c5
   len : qs.length = count
@@ -90,7 +91,7 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 
 /-- **The sort.** -/
 theorem sort_run (hp : Placed code k) (G : Geo m0 bp B)
-    (hins : Spec (Labels.label insDLabel) InsDPre InsDPost) {count : Nat} {qs : List Nat}
+    (hins : Spec (Labels.label NativeRustcVmArm.Vm.InsD.entryLabel) InsDPre InsDPost) {count : Nat} {qs : List Nat}
     {height lw rw c5 : Nat} {st : MachineState}
     (h : SortSt m0 bp B c k count qs height lw rw c5 0 st) :
     Eventually (step1 Host.exe) (fun st' ↦ AtNone m0 B c k st' ∨
@@ -262,7 +263,7 @@ theorem sort_run (hp : Placed code k) (G : Geo m0 bp B)
       rw [addC_apply, show (s3.data.regs.getXReg .X26).toBitVec.toNat = _ from x26']
       simp only [decide_eq_true_eq]; omega
     simp only [PcOk, hc, ↓reduceIte] at hpc4
-    refine ⟨hpc4.trans (hp.label (j := 75) rfl), hb3.of_regs hfr4 fun x hx ↦ r4 x (by
+    refine ⟨hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b20Offset) NativeRustcVmArm.Vm.PhaseM.label_14_at), hb3.of_regs hfr4 fun x hx ↦ r4 x (by
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hx ⊢
       rcases hx with rfl | rfl | rfl <;> simp), hmod, hql, hc0, hcnt, hqlt, hhl, hlwl, hrwl,
       hps0, hps256, ?_, ?_, ?_, ?_, by rw [hd4]; exact f56', by rw [hd4]; exact f48',
@@ -273,7 +274,7 @@ theorem sort_run (hp : Placed code k) (G : Geo m0 bp B)
     · rw [r4 .X26 (by simp)]; exact x26'
   · simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc3
     refine .done _ (.inr ⟨count - (i + 1), by omega, i + 1, rfl, ⟨hpc3.trans
-      (hp.label (j := 52) rfl), hb3, hmod, hql, hc0, hcnt, hqlt, hhl, hlwl, hrwl, ?_, ?_, ?_, ?_,
+      (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b15Offset) NativeRustcVmArm.Vm.PhaseM.label_10_at), hb3, hmod, hql, hc0, hcnt, hqlt, hhl, hlwl, hrwl, ?_, ?_, ?_, ?_,
       x23', x26', by omega, f56', f48', hqW', by rw [hd3]; exact hpW2, hrd'⟩⟩)
     · rw [rr .X21 (by simp)]; exact x21
     · rw [rr .X24 (by simp)]; exact x24

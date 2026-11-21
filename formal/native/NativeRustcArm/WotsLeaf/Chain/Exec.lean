@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.WotsLeaf.Steps
 public import NativeRustcArm.Code.Xmss.WotsLeaf
 public meta import NativeRustcArm.Code.Xmss.WotsLeaf
@@ -73,7 +75,7 @@ def ok13 (i : Nat) : Bool :=
       S.reg .X20 == some (.reg .X20) && S.reg .X21 == some (.ptr 0 1976) &&
       S.reg .X23 == some (.ptr 0 1632) && S.reg .X28 == some (.lit (i + 1)) &&
       S.reg .X22 == some (.load 0 8 8) && S.reg .X9 == some (.ptr 0 380) &&
-      x == .cond (.lit (i + 1 == 58)) ".LWotsLeaf_27"
+      x == .cond (.lit (i + 1 == 58)) NativeRustcArm.Xmss.WotsLeaf.label_27
   | none => false
 
 end

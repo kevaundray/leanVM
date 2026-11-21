@@ -3,6 +3,8 @@ module
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Layout.Stack.Common
 public import NativeRustcVmX64.Code.Vm.PushClaim
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 public meta import NativeRustcVmX64.Code.Vm.PushClaim
 public meta import NativeRustcVmX64.Layout.Stack.Common
 
@@ -72,18 +74,18 @@ sym_block run_b5 := exec b5 R2
 sym_block run_b6a := exec b6 R3
 sym_block run_b6b := exec b6 R5
 
-public theorem exit_full : exec b0 fullS = some (F0, .cond fullSym ".LPushClaim_1") :=
+public theorem exit_full : exec b0 fullS = some (F0, .cond fullSym NativeRustcVmX64.Vm.PushClaim.label_1) :=
   run_full.trans (by rw [show F0 = _ from after_eq run_full]; rfl)
 public theorem exit_b4 : exec b4 F0 = some (after b4 F0, .ret (.load 0 0 8)) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : EpiOk 0 [] (after b4 F0) = true ∧ (after b4 F0).mem = [] ∧
     (after b4 F0).reg .rax = some (.lit 0) := by
   decide +kernel
-public theorem exit_b0 : exec b0 entryS = some (E0, .cond fullSym ".LPushClaim_1") :=
+public theorem exit_b0 : exec b0 entryS = some (E0, .cond fullSym NativeRustcVmX64.Vm.PushClaim.label_1) :=
   run_b0.trans (by rw [show E0 = _ from after_eq run_b0]; rfl)
 public theorem ok_b0 : E0.mem = [] ∧ E0.reg .rsp = some (.ptr 0 48) := by decide +kernel
 public theorem exit_b1 : exec b1 E0 = some (after b1 E0,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj24_E6extendB4_") :=
+    .call NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : ProOk 48 0 slots (after b1 E0) = true ∧
     (∀ w ∈ (after b1 E0).mem, (w.r = 0 ∧ w.off + w.n ≤ 48) ∨ (w.r = 2 ∧ w.off + w.n ≤ 16)) ∧
@@ -95,10 +97,10 @@ public theorem ok_b1 : ProOk 48 0 slots (after b1 E0) = true ∧
     (after b1 E0).reg .r12 = some (.bin .mul .W64 (.load 1 0 8) (.lit 608)) ∧
     (after b1 E0).reg .r14 = some (.reg .r8) ∧ (after b1 E0).reg .rbx = some (.reg .r9) := by
   decide +kernel
-public theorem exit_b2 : exec b2 retS = some (R2, .cond failSym ".LPushClaim_4") :=
+public theorem exit_b2 : exec b2 retS = some (R2, .cond failSym NativeRustcVmX64.Vm.PushClaim.label_4) :=
   run_b2.trans (by rw [show R2 = _ from after_eq run_b2]; rfl)
 public theorem ok_b2 : MidOk 48 8 slots R2 = true ∧ R2.mem = [] := by decide +kernel
-public theorem exit_b3 : exec b3 R2 = some (R3, .jump ".LPushClaim_6") :=
+public theorem exit_b3 : exec b3 R2 = some (R3, .jump NativeRustcVmX64.Vm.PushClaim.label_6) :=
   run_b3.trans (by rw [show R3 = _ from after_eq run_b3])
 public theorem exit_b5 : exec b5 R2 = some (R5, .fall) :=
   run_b5.trans (by rw [show R5 = _ from after_eq run_b5])

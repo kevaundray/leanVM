@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import Kraken.AArch64.Syntax
 public import NativeRustcArm.Code.Infix
 
@@ -77,36 +78,166 @@ def b8 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8]
 
+def codeLength : Nat := 24
+
+def b0Offset : Nat := 0
+
+def b0Length : Nat := 4
+
+def b0End : Nat := 4
+
+def b1Offset : Nat := 4
+
+def b1Length : Nat := 1
+
+def b1End : Nat := 5
+
+def b2Offset : Nat := 5
+
+def b2Length : Nat := 1
+
+def b2End : Nat := 6
+
+def b3Offset : Nat := 6
+
+def b3Length : Nat := 4
+
+def b3End : Nat := 10
+
+def b4Offset : Nat := 10
+
+def b4Length : Nat := 1
+
+def b4End : Nat := 11
+
+def b5Offset : Nat := 11
+
+def b5Length : Nat := 2
+
+def b5End : Nat := 13
+
+def b6Offset : Nat := 13
+
+def b6Length : Nat := 4
+
+def b6End : Nat := 17
+
+def b7Offset : Nat := 17
+
+def b7Length : Nat := 5
+
+def b7End : Nat := 22
+
+def b8Offset : Nat := 22
+
+def b8Length : Nat := 2
+
+def b8End : Nat := 24
+
+def entryOffset : Nat := 0
+
+def label_3Offset : Nat := 6
+
+def label_4Offset : Nat := 11
+
+def label_6Offset : Nat := 17
+
+def label_7Offset : Nat := 22
+
 end
 
 -- One lemma at a time: many kernel checks at once exceed a 60 GB address-space limit.
 set_option Elab.async false
 
-public theorem b0_in_code : b0.IsInfixAt code 0 :=
+public theorem code_length : code.length = codeLength := by decide +kernel
+
+public theorem b0_in_code : b0.IsInfixAt code b0Offset :=
   List.isInfixAt_flatten_of (i := 0) rfl (by decide +kernel)
 
-public theorem b1_in_code : b1.IsInfixAt code 4 :=
+public theorem b0_length : b0.length = b0Length := by decide +kernel
+
+public theorem b0_end : b0Offset + b0.length = b0End := by decide +kernel
+
+public theorem b0_next : b0Offset + b0.length = b1Offset := by decide +kernel
+
+public theorem b1_in_code : b1.IsInfixAt code b1Offset :=
   List.isInfixAt_flatten_of (i := 1) rfl (by decide +kernel)
 
-public theorem b2_in_code : b2.IsInfixAt code 5 :=
+public theorem b1_length : b1.length = b1Length := by decide +kernel
+
+public theorem b1_end : b1Offset + b1.length = b1End := by decide +kernel
+
+public theorem b1_next : b1Offset + b1.length = b2Offset := by decide +kernel
+
+public theorem b2_in_code : b2.IsInfixAt code b2Offset :=
   List.isInfixAt_flatten_of (i := 2) rfl (by decide +kernel)
 
-public theorem b3_in_code : b3.IsInfixAt code 6 :=
+public theorem b2_length : b2.length = b2Length := by decide +kernel
+
+public theorem b2_end : b2Offset + b2.length = b2End := by decide +kernel
+
+public theorem b2_next : b2Offset + b2.length = b3Offset := by decide +kernel
+
+public theorem b3_in_code : b3.IsInfixAt code b3Offset :=
   List.isInfixAt_flatten_of (i := 3) rfl (by decide +kernel)
 
-public theorem b4_in_code : b4.IsInfixAt code 10 :=
+public theorem b3_length : b3.length = b3Length := by decide +kernel
+
+public theorem b3_end : b3Offset + b3.length = b3End := by decide +kernel
+
+public theorem b3_next : b3Offset + b3.length = b4Offset := by decide +kernel
+
+public theorem b4_in_code : b4.IsInfixAt code b4Offset :=
   List.isInfixAt_flatten_of (i := 4) rfl (by decide +kernel)
 
-public theorem b5_in_code : b5.IsInfixAt code 11 :=
+public theorem b4_length : b4.length = b4Length := by decide +kernel
+
+public theorem b4_end : b4Offset + b4.length = b4End := by decide +kernel
+
+public theorem b4_next : b4Offset + b4.length = b5Offset := by decide +kernel
+
+public theorem b5_in_code : b5.IsInfixAt code b5Offset :=
   List.isInfixAt_flatten_of (i := 5) rfl (by decide +kernel)
 
-public theorem b6_in_code : b6.IsInfixAt code 13 :=
+public theorem b5_length : b5.length = b5Length := by decide +kernel
+
+public theorem b5_end : b5Offset + b5.length = b5End := by decide +kernel
+
+public theorem b5_next : b5Offset + b5.length = b6Offset := by decide +kernel
+
+public theorem b6_in_code : b6.IsInfixAt code b6Offset :=
   List.isInfixAt_flatten_of (i := 6) rfl (by decide +kernel)
 
-public theorem b7_in_code : b7.IsInfixAt code 17 :=
+public theorem b6_length : b6.length = b6Length := by decide +kernel
+
+public theorem b6_end : b6Offset + b6.length = b6End := by decide +kernel
+
+public theorem b6_next : b6Offset + b6.length = b7Offset := by decide +kernel
+
+public theorem b7_in_code : b7.IsInfixAt code b7Offset :=
   List.isInfixAt_flatten_of (i := 7) rfl (by decide +kernel)
 
-public theorem b8_in_code : b8.IsInfixAt code 22 :=
+public theorem b7_length : b7.length = b7Length := by decide +kernel
+
+public theorem b7_end : b7Offset + b7.length = b7End := by decide +kernel
+
+public theorem b7_next : b7Offset + b7.length = b8Offset := by decide +kernel
+
+public theorem b8_in_code : b8.IsInfixAt code b8Offset :=
   List.isInfixAt_flatten_of (i := 8) rfl (by decide +kernel)
+
+public theorem b8_length : b8.length = b8Length := by decide +kernel
+
+public theorem b8_end : b8Offset + b8.length = b8End := by decide +kernel
+
+public theorem entry_at : code[entryOffset]? = some (.label entryLabel) := by decide +kernel
+
+public theorem label_3_at : code[label_3Offset]? = some (.label label_3) := by decide +kernel
+
+public theorem label_4_at : code[label_4Offset]? = some (.label label_4) := by decide +kernel
+
+public theorem label_6_at : code[label_6Offset]? = some (.label label_6) := by decide +kernel
+
+public theorem label_7_at : code[label_7Offset]? = some (.label label_7) := by decide +kernel
 
 end NativeRustcVmArm.Vm.Memset

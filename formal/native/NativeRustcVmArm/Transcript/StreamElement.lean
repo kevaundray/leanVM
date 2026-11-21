@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.DecodedStreamElement.Names
 public import NativeRustcVmArm.Spec.Transcript
 public import NativeRustcVmArm.Transcript.StreamElement.Exec
 public import NativeRustcVmArm.Transcript.Arith
@@ -67,7 +68,7 @@ variable [Host] {k : Nat}
 
 /-- The tag `0` stored at the output: `None`. -/
 theorem finish_none {m0 : MachineData} {stream : Array EW} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 10)) (hp : Placed code k)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.DecodedStreamElement.b3Offset)) (hp : Placed code k)
     (hon : NativeRustcVm.NoWrap m0.regs.X0.toBitVec 24) (hom : Mapped m0.dmem m0.regs.X0.toBitVec 24)
     (hK : Kept m0 st.data) (hi : stream.size ≤ m0.regs.X3.toNat) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ StreamElementPost stream m0 st'.data)
@@ -97,7 +98,7 @@ theorem finish_none {m0 : MachineData} {stream : Array EW} {st : MachineState}
 /-- **`Decoded::stream_element` meets its contract.** -/
 theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     (openings : Array (Array OpeningW)) :
-    Spec (Labels.label streamElementLabel) (StreamElementPre a stream openings)
+    Spec (Labels.label NativeRustcVmArm.Vm.DecodedStreamElement.entryLabel) (StreamElementPre a stream openings)
       (StreamElementPost stream) := by
   rintro m0 ⟨-, hx1, hx2, ⟨hrm, hrn⟩, hdec, hom, hon, hap⟩
   have hl64 := hdec.l_lt
@@ -109,8 +110,8 @@ theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW
   simp only [NativeVm.streamEnd, NativeVm.maxStream] at hse hsl
   have hlen64 : a.len < 2 ^ 64 := by omega
   -- `b0`: the slice is not empty.
-  unfold streamElementLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.DecodedStreamElement.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.DecodedStreamElement.entryOffset) NativeRustcVmArm.Vm.DecodedStreamElement.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 (Env.wf_nil m0) (match_nil m0)
     fun st1 hm1 hpc1 => ?_
   have hK1 : Kept m0 st1.data :=
@@ -158,7 +159,7 @@ theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW
   simp only [PcOk] at hpc2
   split at hpc2
   · rename_i hc
-    refine finish_none (hpc2.trans (hp.label (j := 10) rfl)) hp hon hom hK2 ?_
+    refine finish_none (hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.DecodedStreamElement.b3Offset) NativeRustcVmArm.Vm.DecodedStreamElement.label_3_at)) hp hon hom hK2 ?_
     sym_simp at hc
     rw [hcnt] at hc
     simp only [Env.ofMachine_regs, Bool.not_eq_true', BitVec.ult] at hc
@@ -240,7 +241,7 @@ theorem streamElement_spec (hp : Placed code k) (a : DecArea) (stream : Array EW
     simp only [BitVec.toNat_ofInt, MemWidth.bits]
     omega
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf4
-    (hpc3.trans (hp.label (j := 13) rfl)) hm4
+    (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.DecodedStreamElement.b4Offset) NativeRustcVmArm.Vm.DecodedStreamElement.label_4_at)) hm4
     fun st4 hm4' hpc4 => ?_
   obtain ⟨hw0, hw1, hw2, hws, hkeeps, h30⟩ := after_eq run_b4 ▸ some_b4
   have hx30 : st4.data.regs.X30 = m0.regs.X30 := (Match.reg_eq hm4 hm4' rfl h30).trans hK3.x30

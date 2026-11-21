@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Rodata
+public import NativeRustcVmX64.Code.Vm.Names
 
 /-!
 # The round constants from the read-only data
 
-The round constants `KECCAK_RC` the permuting functions read: 192 bytes at `rcLabel`, the item
+The round constants `KECCAK_RC` the permuting functions read: 192 bytes at `NativeRustcVmX64.Vm.Symbols.rodata1Label`, the item
 `keccakRC` (`RcAt`, apart from the `n` bytes below RSP and the return address at RSP, as
 `RodataAt`). `RodataAt m n` gives `RcAt m n` (`RodataAt.rcAt`).
 -/
@@ -16,14 +17,12 @@ open NativeRustcX64 NativeRustcVm.Data
 
 @[expose] public section
 
-/-- The label of the round constants `KECCAK_RC` (192 bytes). -/
-def rcLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.1"
 
 section
 variable [Labels]
 
 /-- The address of the round constants. -/
-def rcAddr : BitVec 64 := (label rcLabel).toBitVec
+def rcAddr : BitVec 64 := (label NativeRustcVmX64.Vm.Symbols.rodata1Label).toBitVec
 
 /-- The round constants are at their label, apart from the `n` bytes below RSP and the return
 address at RSP. -/

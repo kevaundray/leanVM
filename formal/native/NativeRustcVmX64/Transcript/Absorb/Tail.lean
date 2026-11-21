@@ -5,7 +5,7 @@ public import NativeRustcVmX64.Transcript.Absorb.Exec
 /-!
 # `SpongeW::absorb`'s push and epilogue (x86-64)
 
-**`tail`**: from `.LSpongeWAbsorb_2` with a queue of `n < 4` scalars at the sponge (RBX, RAX =
+**`tail`**: from `NativeRustcVmX64.Vm.SpongeWAbsorb.label_2` with a queue of `n < 4` scalars at the sponge (RBX, RAX =
 `n`) and the scalar and tag in R12, R15, R14, `b3` stores them in slot `n` and the count `n + 1`;
 `b4` pops the registers and returns.
 -/
@@ -31,7 +31,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 absorbSta
     (hmap : NativeRustcVm.Mapped m0.dmem (reg m0 .rdi) 328)
     (hnw : NativeRustcVm.NoWrap (reg m0 .rdi) 328)
     (hapF : NativeRustcVm.Apart (reg m0 .rdi) 328 (stackBelow m0 48) (48 + 8)) {sp0 : SpongeW}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 18)) (hf : Frame m0 48 slots 8 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SpongeWAbsorb.b3Offset)) (hf : Frame m0 48 slots 8 st.data)
     (hlt : sp0.pending.size < 4) (hrax : reg st.data .rax = BitVec.ofNat 64 sp0.pending.size)
     (hr14 : reg st.data .r14 = reg m0 .rcx) (hrbx : reg st.data .rbx = reg m0 .rdi)
     (hr15 : reg st.data .r15 = reg m0 .rdx) (hr12 : reg st.data .r12 = reg m0 .rsi)
@@ -101,7 +101,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 absorbSta
     (ret := 0) ⟨Mapped.keeps (frame_mapped hst (by decide)) hf4.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf4 nofun
-    (hpc4.trans (by rw [show b3.length = 7 from rfl]))
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWAbsorb.b3_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf4.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st5 hm5 hpc5 => ?_
   obtain ⟨hepi, hmem5⟩ := after_eq run_b4 ▸ ok_b4

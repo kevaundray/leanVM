@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
 public import Kraken.AArch64.Syntax
 public import NativeRustcArm.Code.Infix
 
@@ -56,12 +57,30 @@ def b0 : List Directive := [
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0]
 
+def codeLength : Nat := 35
+
+def b0Offset : Nat := 0
+
+def b0Length : Nat := 35
+
+def b0End : Nat := 35
+
+def entryOffset : Nat := 0
+
 end
 
 -- One lemma at a time: many kernel checks at once exceed a 60 GB address-space limit.
 set_option Elab.async false
 
-public theorem b0_in_code : b0.IsInfixAt code 0 :=
+public theorem code_length : code.length = codeLength := by decide +kernel
+
+public theorem b0_in_code : b0.IsInfixAt code b0Offset :=
   List.isInfixAt_flatten_of (i := 0) rfl (by decide +kernel)
+
+public theorem b0_length : b0.length = b0Length := by decide +kernel
+
+public theorem b0_end : b0Offset + b0.length = b0End := by decide +kernel
+
+public theorem entry_at : code[entryOffset]? = some (.label entryLabel) := by decide +kernel
 
 end NativeRustcVmArm.Vm.BitLength

@@ -1,6 +1,11 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRound.Tail
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.FoldRound.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
 # `fold_round` on x86-64
@@ -24,14 +29,14 @@ variable [Host] {k : Nat}
 
 /-- **`fold_round` meets its contract.** -/
 theorem foldRound_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (a : DecArea) (s : TState)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (a : DecArea) (s : TState)
     (w : WhirStateW) :
-    Spec (Labels.label foldRoundLabel) (FoldRoundPre a s w) (FoldRoundPost a s w) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.FoldRound.entryLabel) (FoldRoundPre a s w) (FoldRoundPost a s w) := by
   intro m0 h
-  rw [show Labels.label foldRoundLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.FoldRound.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b0Offset) from hp.label NativeRustcVmX64.Vm.FoldRound.entry_at]
   exact reads hp h (hrs a) (hgr a) fun _ _ _ _ _ _ hpc hA ↦
     s1 hp h hsq hpc hA fun _ hpc hP h15 h13 hax hdx ↦
     s2 hp h hsq hpc hP h15 h13 hax hdx fun _ hpc hP h15 _ hax hdx ↦

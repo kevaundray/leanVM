@@ -1,14 +1,19 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.SumE.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontRC
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontG
 
 /-!
 # `verify_layer`'s front: the first check, the grind, `s`
 
-From `b21` (`k + 335`, `AtJ`): ι's two terms (`EW::mul`), the instance weights' sum (`sum_e`),
+From `b21` (`k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset`, `AtJ`): ι's two terms (`EW::mul`), the instance weights' sum (`sum_e`),
 ι times it, the comparison with the claim's value (`b25`, `b26`); the grind of
-`grindingBits 46` bits (`bit_length`, `grind`), `s` (`squeeze`), to `b31` (`k + 381`, `AtH`,
+`grindingBits 46` bits (`bit_length`, `grind`), `s` (`squeeze`), to `b31` (`k + NativeRustcVmArm.Vm.VerifyLayer.b31Offset`, `AtH`,
 `check_run`).
 -/
 
@@ -28,7 +33,7 @@ structure CM (m0 : MachineData) (p : Array EW) (d : DataMem) : Prop where
   prod : NativeRustcVm.EWsAt d (loc m0 152) p.toList
   psz : p.size = 47
 
-/-- **After `s`** (`b31`, `k + 381`): the challenge `ch` in X0, X1, the state `s2`. -/
+/-- **After `s`** (`b31`, `k + NativeRustcVmArm.Vm.VerifyLayer.b31Offset`): the challenge `ch` in X0, X1, the state `s2`. -/
 structure AtH [Labels] (m0 : MachineData) (a : DecArea) (p : Array EW) (ch : EW) (s2 : TState)
     (st : MachineData) : Prop where
   fb : FB m0 st
@@ -107,15 +112,15 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The first check, the grind and `s`**, from `b21` to `b31`. -/
 theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
-    (hsum : Spec (label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    {p : Array EW} {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 335))
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hsum : Spec (label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    {p : Array EW} {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset))
     (hj : AtJ m0 a c p s1 st.data)
     (hrun : runL s c m0 = rest1 m0.regs.X1.toNat m0.regs.X2.toNat c p s1)
-    (cont : ∀ (st' : MachineState) (ch : EW) (s2 : TState), st'.pc = Host.addrOf (k + 381) →
+    (cont : ∀ (st' : MachineState) (ch : EW) (s2 : TState), st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b31Offset) →
       AtH m0 a p ch s2 st'.data → runL s c m0 = rest3 c p ch s2 →
       Eventually (step1 Host.exe) (Goal a s c m0) st') :
     Eventually (step1 Host.exe) (Goal a s c m0) st := by
@@ -126,7 +131,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b21`: the first segment's term.
   refine at_pc hpc (Fr.runBlock hS N_ge rfl hj.fb (blk hp b21_in_code (by simp [b21])) e21 rfl
     rfl (by decide) (by decide) fun st1 hfb1 hd1 hm1 hpc1 ↦ ?_)
-  rw [show k + 335 + b21.length = k + 345 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset + b21.length = k + NativeRustcVmArm.Vm.VerifyLayer.b22Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b21_next]] at hpc1
   have a1 : (⟨st1.data.regs.X0, st1.data.regs.X1⟩ : EW) = (segK m0 c).getD 0 0 := by
     rw [show st1.data.regs.X0 = _ from reg_val (r := .X0) hm1 rfl (ldF hj.s0a),
       show st1.data.regs.X1 = _ from reg_val (r := .X1) hm1 rfl (ldF hj.s0b), ew_eta]
@@ -171,7 +176,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b22`: the second segment's term.
   refine Fr.runBlock hS N_ge rfl hfb2 (blk hp b22_in_code (by simp [b22])) e22 rfl rfl
     (by decide) (by decide) fun st3 hfb3 hd3 hm3 hpc3 ↦ ?_
-  rw [show k + 345 + b22.length = k + 351 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b22Offset + b22.length = k + NativeRustcVmArm.Vm.VerifyLayer.b23Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b22_next]] at hpc3
   have a3 : (⟨st3.data.regs.X0, st3.data.regs.X1⟩ : EW) = (segK m0 c).getD 1 0 := by
     rw [show st3.data.regs.X0 = _ from
         reg_val (r := .X0) hm3 rfl (ldF (keep2 (by omega) hj.s1a)),
@@ -197,7 +202,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b23`: the instance weights' sum.
   refine Fr.runBlock hS N_ge rfl hfb4 (blk hp b23_in_code (by simp [b23])) e23 rfl rfl
     (by decide) (by decide) fun st5 hfb5 hd5 hm5 hpc5 ↦ ?_
-  rw [show k + 351 + b23.length = k + 356 from rfl] at hpc5
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b23Offset + b23.length = k + NativeRustcVmArm.Vm.VerifyLayer.b24Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b23_next]] at hpc5
   have hc5 := claimAt_fb h hfb5
   obtain ⟨-, hmu16⟩ := mu_len hc5
   have hmuw : NativeRustcVm.EWsAt st5.data.dmem (cA m0 + BitVec.ofNat 64 24) c.mu.toList := by
@@ -229,7 +234,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b24`: ι times the sum.
   refine Fr.runBlock hS N_ge rfl hfb6 (blk hp b24_in_code (by simp [b24])) e24 rfl rfl
     (by decide) (by decide) fun st7 hfb7 hd7 hm7 hpc7 ↦ ?_
-  rw [show k + 356 + b24.length = k + 361 from rfl] at hpc7
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b24Offset + b24.length = k + NativeRustcVmArm.Vm.VerifyLayer.b25Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b24_next]] at hpc7
   have a7 : (⟨st7.data.regs.X0, st7.data.regs.X1⟩ : EW) = iotaOf m0.regs.X1.toNat
       m0.regs.X2.toNat c := by
     rw [show st7.data.regs.X0 = _ from
@@ -301,7 +306,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     exact x90
   have e0' : (V.c0 == c.value.c0) = true := by simpa using e0
   have hpc9' := pc_false hpc9 (by rw [hc9, e0']; rfl)
-  rw [show k + 361 + b25.length = k + 367 from rfl] at hpc9'
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b25Offset + b25.length = k + NativeRustcVmArm.Vm.VerifyLayer.b26Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b25_next]] at hpc9'
   -- `b26`: the high words.
   have hwf10 : (Env.ofMachine st9.data [(cA m0, 16)]).WF := by
     have pg := pgeo_of h
@@ -336,7 +341,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   have e1' : (V.c1 == c.value.c1) = true := by simpa using e1
   have hAt : checkA m0.regs.X1.toNat m0.regs.X2.toNat c p = true := by rw [hA, e0', e1']; rfl
   have hpc10' := pc_false hpc10 (by rw [hc10, e1']; rfl)
-  rw [show k + 367 + b26.length = k + 371 from rfl] at hpc10'
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b26Offset + b26.length = k + NativeRustcVmArm.Vm.VerifyLayer.b27Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b26_next]] at hpc10'
   have x20 : (st10.data.regs.getXReg .X20).toBitVec = cA m0 := by
     rw [hm10'.regs .X20 _ rfl, ev_ptr, show BitVec.ofInt 64 0 = BitVec.ofNat 64 0 from rfl,
       NativeRustcVm.addr_add_zero]
@@ -346,7 +351,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b27`: `bit_length(45)`.
   refine at_pc hpc10' (Fr.runBlock hS N_ge rfl hfb10 (blk hp b27_in_code (by simp [b27])) e27
     rfl rfl (by decide) (by decide) fun st11 hfb11 hd11 hm11 hpc11 ↦ ?_)
-  rw [show k + 371 + b27.length = k + 373 from rfl] at hpc11
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b27Offset + b27.length = k + NativeRustcVmArm.Vm.VerifyLayer.b28Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b27_next]] at hpc11
   have k11 : Bus.KeepRegs [.X20] st10.data st11.data := Bus.KeepRegs.of_block hm11 rfl
   refine fleaf h le_bl hbl (fun _ _ hq ↦ ⟨hq.2.1, hq.2.2⟩) hfb11 hpc11 trivial
     fun m12 hfb12 hq12 hcs12 hs12 hk12 ↦ ?_
@@ -360,7 +365,7 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b28`: `grind(t, 3)`.
   refine Fr.runBlock hS N_ge rfl hfb12 (blk hp b28_in_code (by simp [b28])) e28 rfl rfl
     (by decide) (by decide) fun st13 hfb13 hd13 hm13 hpc13 ↦ ?_
-  rw [show k + 373 + b28.length = k + 378 from rfl] at hpc13
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b28Offset + b28.length = k + NativeRustcVmArm.Vm.VerifyLayer.b29Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b28_next]] at hpc13
   have w104 : NativeRustcVm.WordAt m12.dmem (base m0 2032 + BitVec.ofNat 64 104) m0.regs.X0 :=
     FrameWords.get cm12.fw (by simp [iWords, pWords])
   have g0 : st13.data.regs.X0 = m0.regs.X0 := reg_val (r := .X0) hm13 rfl (ldF w104)
@@ -400,12 +405,12 @@ theorem check_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     rfl
   | some w =>
     have hpc15' := pc_false hpc15 (by rw [hc15, hr]; rfl)
-    rw [show k + 378 + b29.length = k + 379 from rfl] at hpc15'
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b29Offset + b29.length = k + NativeRustcVmArm.Vm.VerifyLayer.b30Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b29_next]] at hpc15'
     have ts14 : TStateAt m14.dmem (tA m0) a w.2 := hnext14 w.1 w.2 (by rw [hr])
     -- `b30`: `s`.
     refine at_pc hpc15' (Fr.runBlock hS N_ge rfl hfb15 (blk hp b30_in_code (by simp [b30])) e30
       rfl rfl (by decide) (by decide) fun st16 hfb16 hd16 hm16 hpc16 ↦ ?_)
-    rw [show k + 379 + b30.length = k + 381 from rfl] at hpc16
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b30Offset + b30.length = k + NativeRustcVmArm.Vm.VerifyLayer.b31Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b30_next]] at hpc16
     have k16 : Bus.KeepRegs [.X20, .X22] st15.data st16.data := Bus.KeepRegs.of_block hm16 rfl
     have r22 : st15.data.regs.getXReg .X22 = m0.regs.X0 := by
       rw [kg k15 .X22, hcs14 .X22 rfl]; exact g22

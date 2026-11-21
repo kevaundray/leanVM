@@ -88,13 +88,13 @@ variable [Host] {k : Nat}
 /-- **The epilogue** at `.LLeanvmVerify_2`: X0 is X8. -/
 theorem exit2 (hp : Placed code k) {m0 : MachineData} {R : BitVec 64 → Prop}
     (hs : 128 ≤ m0.regs.SP.toBitVec.toNat) (hal : m0.regs.SP.toBitVec.toNat % 16 = 0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 24)) (hB : Body m0 128 slots R st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b2Offset)) (hB : Body m0 128 slots R st.data)
     (hFm : Mapped st.data.dmem (frameOf m0) 128) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       st'.data.regs.X0 = st.data.regs.X8 ∧ SameOutside m0.dmem st'.data.dmem R ∧
       Saved m0 st'.data) st := by
   obtain ⟨hwf, hm⟩ := frameEnv hB hs hal hFm
-  refine exec_at (hb 24 hp b2_in_code (by simp [b2])) run_b2 hwf hpc hm fun st' hm' hpc' ↦ ?_
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b2Offset hp b2_in_code (by simp [b2])) run_b2 hwf hpc hm fun st' hm' hpc' ↦ ?_
   have hr := b2_restores
   rw [after_eq run_b2] at hr
   obtain ⟨hsv, hret, hdm⟩ := hB.ret hm' hwf (by simp [slots]) hr.1 hr.2
@@ -104,18 +104,18 @@ theorem exit2 (hp : Placed code k) {m0 : MachineData} {R : BitVec 64 → Prop}
 /-- **A refusal** at `.LLeanvmVerify_1`: `0`. -/
 theorem failExit (hp : Placed code k) {m0 : MachineData} {R : BitVec 64 → Prop}
     (hs : 128 ≤ m0.regs.SP.toBitVec.toNat) (hal : m0.regs.SP.toBitVec.toNat % 16 = 0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 22)) (hB : Body m0 128 slots R st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b1Offset)) (hB : Body m0 128 slots R st.data)
     (hFm : Mapped st.data.dmem (frameOf m0) 128) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.regs.X0 = 0 ∧
       SameOutside m0.dmem st'.data.dmem R ∧ Saved m0 st'.data) st := by
-  refine exec_at (hb 22 hp b1_in_code (by simp [b1])) run_b1 (Env.wf_nil _) hpc (match_nil _)
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b1Offset hp b1_in_code (by simp [b1])) run_b1 (Env.wf_nil _) hpc (match_nil _)
     fun st1 hm1 hpc1 ↦ ?_
   have hk := none_keeps b1 (by simp)
   rw [after_eq run_b1] at hk
   have hB1 := bodyNo hB hs (match_nil _) hm1 (Env.wf_nil _) rfl hk.1 hk.2
   have hd1 : st1.data.dmem = st.data.dmem := hm1.dmem_eq (Env.wf_nil _) hk.2
   have hX8 : st1.data.regs.X8 = 0 := UInt64.toBitVec_inj.mp (hm1.regs .X8 _ rfl)
-  simp only [PcOk, show k + 22 + b1.length = k + 24 from rfl] at hpc1
+  simp only [PcOk, show k + NativeRustcVmArm.Vm.LeanvmVerify.b1Offset + b1.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b1_next]] at hpc1
   exact Eventually.mono (exit2 hp hs hal hpc1 hB1 (by rw [hd1]; exact hFm))
     fun st' h ↦ ⟨h.1, h.2.1.trans hX8, h.2.2⟩
 

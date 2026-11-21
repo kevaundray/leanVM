@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.XmssVerify.Tree0
 
 /-!
@@ -85,15 +90,15 @@ set_option linter.unusedSimpArgs false in
 /-- **A turn over the bottom layer's path**: from `TreeAt0` at level `z < 16` at block 9 to
 `TreeAt0` at `z + 1`, at block 9 again or, at `z + 1 = 16`, at block 16. -/
 public theorem turn0 {k : Nat} (hp : Placed code k)
-    (hset : Spec (label "memset") MemsetPre MemsetPost)
-    (hupd : Spec (label updateLabel) UpdatePre UpdatePost)
-    (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hfin : Spec (label finalizeLabel) FinalizePre FinalizePost) (P : Pre w m₀)
+    (hset : Spec (label NativeRustcX64.Common.Memset.entryLabel) MemsetPre MemsetPost)
+    (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost)
+    (hcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hfin : Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost) (P : Pre w m₀)
     {leaf : List UInt8} (hleaf : leaf.length = 16) {z : Nat} (hz : z < 16)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 90)) (h : TreeAt0 w m₀ leaf st.data z)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b9Offset)) (h : TreeAt0 w m₀ leaf st.data z)
     {R : MachineState → Prop}
     (cont : ∀ st' : MachineState,
-      st'.pc = (if z + 1 = 16 then Host.addrOf (k + 155) else Host.addrOf (k + 90)) →
+      st'.pc = (if z + 1 = 16 then Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b16Offset) else Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b9Offset)) →
       TreeAt0 w m₀ leaf st'.data (z + 1) → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have C := h.common
@@ -108,7 +113,7 @@ public theorem turn0 {k : Nat} (hp : Placed code k)
   have hlen1 : (topL w).memBytes.length = 1200 := length_memBytes (by simp [length_sigB])
   -- Block 9.
   let env := Env.ofMachine st.data (nodeR m₀ (3356 + 16 * z)) (fun _ => 0)
-    (Host.addrOf (k + 90 + b9.length)).toBitVec
+    (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b9Offset + b9.length)).toBitVec
   have hwf : env.WF := node_wf P C.kept (by omega) (by omega)
   have hm : Match env st9 st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨h.rsp.trans (eval_ptr0 24).symm,
@@ -189,7 +194,7 @@ public theorem turn0 {k : Nat} (hp : Placed code k)
     exact Keccak.holds_new
   have hr15₂ : reg st₂.data .r15 = ad m₀ (fr + 184) := (hs₂.1 .r15 rfl).trans (hx g15)
   -- Blocks 10 to 14: the node's hash.
-  refine hashNode hupd hcpy hfin P (X := .r13) (H := .r13) (j := k + 128)
+  refine hashNode hupd hcpy hfin P (X := .r13) (H := .r13) (j := k + NativeRustcX64.Xmss.XmssVerify.b10Offset)
     (b10_in_code.trans hp.1 (List.cons_ne_nil _ _)) (b11_in_code.trans hp.1 (List.cons_ne_nil _ _))
     (b12_in_code.trans hp.1 (List.cons_ne_nil _ _)) (b13_in_code.trans hp.1 (List.cons_ne_nil _ _))
     (b14_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b10' f10 run_b11' f11 run_b12' f12
@@ -231,7 +236,7 @@ public theorem turn0 {k : Nat} (hp : Placed code k)
     · simp only [h16, decide_true, Bool.not_true, Bool.false_eq_true, ite_false, ite_true]
       rfl
     · simp only [h16, decide_false, Bool.not_false, ite_true, ite_false]
-      exact hp.label (j := 90) (by decide +kernel)
+      exact hp.label NativeRustcX64.Xmss.XmssVerify.label_4_at
   have hreg : ∀ r ∈ [Reg64.rbx, .rbp, .r15], reg st₄.data r = reg st₃.data r :=
     fun r hr => hm₄.regs _ _ (ekeep r hr)
   have hk₄ : ∀ {x : Nat} {bs : List UInt8}, BytesAt st₃.data.dmem (ad m₀ (fr + x)) bs →
@@ -268,15 +273,15 @@ public theorem turn0 {k : Nat} (hp : Placed code k)
 /-- **The loop over the bottom layer's path**: its 16 turns, from `TreeAt0` at level `0` at
 block 9 to `TreeAt0` at level `16` at block 16. -/
 public theorem loop0 {k : Nat} (hp : Placed code k)
-    (hset : Spec (label "memset") MemsetPre MemsetPost)
-    (hupd : Spec (label updateLabel) UpdatePre UpdatePost)
-    (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hfin : Spec (label finalizeLabel) FinalizePre FinalizePost) (P : Pre w m₀)
+    (hset : Spec (label NativeRustcX64.Common.Memset.entryLabel) MemsetPre MemsetPost)
+    (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost)
+    (hcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hfin : Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost) (P : Pre w m₀)
     {leaf : List UInt8} (hleaf : leaf.length = 16) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 90)) (h : TreeAt0 w m₀ leaf st.data 0) :
-    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + 155) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b9Offset)) (h : TreeAt0 w m₀ leaf st.data 0) :
+    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b16Offset) ∧
       TreeAt0 w m₀ leaf st'.data 16) st :=
-  Sym.loop (I := fun n s => ∃ z, z + n = 16 ∧ 0 < n ∧ s.pc = Host.addrOf (k + 90) ∧
+  Sym.loop (I := fun n s => ∃ z, z + n = 16 ∧ 0 < n ∧ s.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b9Offset) ∧
       TreeAt0 w m₀ leaf s.data z)
     (fun n _ ⟨z, hn, hn0, hpc, h⟩ => turn0 hp hset hupd hcpy hfin P hleaf (by omega) hpc h
       fun st' hpc' h' => .done _ (by

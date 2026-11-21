@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EWSqIter.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
 public import NativeRustcVmArm.Ring.Target.Env
 
 /-!
@@ -44,10 +47,10 @@ theorem holds_ret [Labels] {D : List (Sym × Nat)} {m : MachineData}
 variable [Host]
 
 /-- **A block calling `EW::sq_iter`**. -/
-theorem sqStep (h : P m0) (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+theorem sqStep (h : P m0) (hsq : Spec (Labels.label NativeRustcVmArm.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     {D D' : List (Sym × Nat)} {S0 S' : SState} {ds : List Directive} {i c a b r0 r1 : Nat}
     {R : MachineState → Prop} {m : MachineData}
-    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds S0 = some (S', .call ewSqIterLabel))
+    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds S0 = some (S', .call NativeRustcVmArm.Vm.EWSqIter.entryLabel))
     (hst : St m0 D m) (hm : Match (Env.ofMachine m (rsT m0)) S0 m) (hsp : S'.sp = S0.sp)
     (hwr : wr208 S' = true) (htr : trackOk szT S' D D' = true)
     (hsafe : D'.all (fun p ↦ callSafe szT p.1) = true) (h0 : S'.reg .X0 = some (.lit c))
@@ -72,10 +75,10 @@ theorem sqStep (h : P m0) (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre E
       exact holds_ret hst2.hd q0 q1, hst2.copy⟩
 
 /-- **A block calling `EW::mul`**. -/
-theorem mulStep (h : P m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem mulStep (h : P m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {D D' : List (Sym × Nat)} {S0 S' : SState} {ds : List Directive} {i a0 a1 b0 b1 r0 r1 : Nat}
     {R : MachineState → Prop} {m : MachineData}
-    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds S0 = some (S', .call ewMulLabel))
+    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds S0 = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     (hst : St m0 D m) (hm : Match (Env.ofMachine m (rsT m0)) S0 m) (hsp : S'.sp = S0.sp)
     (hwr : wr208 S' = true) (htr : trackOk szT S' D D' = true)
     (hsafe : D'.all (fun p ↦ callSafe szT p.1) = true)
@@ -101,10 +104,10 @@ theorem mulStep (h : P m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMul
 
 /-- **A block calling `poly_eval`** on the images' copy; the callee-saved registers `E` the block
 computed (`hE`) kept across the call. -/
-theorem polyStep (h : P m0) (hpoly : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+theorem polyStep (h : P m0) (hpoly : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     {D D' E : List (Sym × Nat)} {S0 S' : SState} {ds : List Directive} {i a b r0 r1 : Nat}
     {R : MachineState → Prop} {m : MachineData}
-    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds S0 = some (S', .call polyEvalLabel))
+    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds S0 = some (S', .call NativeRustcVmArm.Vm.PolyEval.entryLabel))
     (hst : St m0 D m) (hm : Match (Env.ofMachine m (rsT m0)) S0 m) (hsp : S'.sp = S0.sp)
     (hwr : wr208 S' = true) (htr : trackOk szT S' D D' = true)
     (hsafe : D'.all (fun p ↦ callSafe szT p.1) = true)

@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Sumcheck.QueryOpenings.Open
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.DecodedPhase.Names
+public import NativeRustcVmX64.Code.Vm.OpenPhase.Names
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
 
 /-!
 # `TState::query_openings` on x86-64
@@ -55,11 +58,11 @@ variable [Host] {k : Nat}
 
 /-- **`TState::query_openings` meets its contract.** -/
 theorem queryOpenings_spec (hp : Placed code k)
-    (hph : ∀ a stream openings, Spec (Labels.label phaseLabel) (PhasePre a stream openings)
+    (hph : ∀ a stream openings, Spec (Labels.label NativeRustcVmX64.Vm.DecodedPhase.entryLabel) (PhasePre a stream openings)
       (PhasePost a openings))
-    (hop : ∀ P R Q, Spec (Labels.label openPhaseLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q))
+    (hop : ∀ P R Q, Spec (Labels.label NativeRustcVmX64.Vm.OpenPhase.entryLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q))
     (a : DecArea) (s : TState) (Q : Array UInt64) :
-    Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q) (QueryOpeningsPost a s Q) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q) (QueryOpeningsPost a s Q) := by
   intro m0 hpre
   have c := ctx hpre
   have hst := hpre.1
@@ -88,7 +91,7 @@ theorem queryOpenings_spec (hp : Placed code k)
     exact Nat.mod_eq_of_lt (by omega)
   -- `b0`, `b1`: the prologue, the tests, `call phase`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 96) (rest := [(t, 760)]) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 17 + b1.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TStateQueryOpenings.b1Offset + b1.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
     (by
       intro x hx
       rw [List.mem_singleton] at hx
@@ -96,22 +99,22 @@ theorem queryOpenings_spec (hp : Placed code k)
       exact ⟨hTm, hTn⟩)
     (List.pairwise_pair.mpr (Apart.symm' hTF))
   have hm0 : Match (frameEnv m0 m0 96 [(t, 760)] (fun _ ↦ 0)
-      (Host.addrOf (k + 17 + b1.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateQueryOpenings.b1Offset + b1.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial
   have hcnt : (frameEnv m0 m0 96 [(t, 760)] (fun _ ↦ 0)
-      (Host.addrOf (k + 17 + b1.length)).toBitVec).load 1 752 8 = nr.toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateQueryOpenings.b1Offset + b1.length)).toBitVec).load 1 752 8 = nr.toUInt64.toBitVec :=
     load_ofMachine (o := 752) rfl hts0.n_roots
   have hphase : (frameEnv m0 m0 96 [(t, 760)] (fun _ ↦ 0)
-      (Host.addrOf (k + 17 + b1.length)).toBitVec).load 1 360 8 = s.phase.toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateQueryOpenings.b1Offset + b1.length)).toBitVec).load 1 360 8 = s.phase.toUInt64.toBitVec :=
     load_ofMachine (o := 360) rfl hts0.phase
-  unfold queryOpeningsLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.TStateQueryOpenings.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.TStateQueryOpenings.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro1, hws1, hr14₁⟩ := ok_b0
   have hc0 : c0.eval (frameEnv m0 m0 96 [(t, 760)] (fun _ ↦ 0)
-      (Host.addrOf (k + 17 + b1.length)).toBitVec) = !decide (i < nr) := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateQueryOpenings.b1Offset + b1.length)).toBitVec) = !decide (i < nr) := by
     refine c0_eval _ _ ?_ ?_
     · rw [hcnt, Env.ofMachine_regs]
       simp only [BitVec.ult, hnr64]
@@ -126,12 +129,12 @@ theorem queryOpenings_spec (hp : Placed code k)
     have hf1 : Frame m0 96 slots 8 st1.data :=
       Frame.of_prologue Frame.entry hwf0 hm1 hpro1 slots_le slots_cs
     have hs1 := sameOutside_low hwf0 hm1 (r := 0) rfl (hi := 96) (by omega) hws1
-    exact finish_fail hp hpre (run_no_root (by omega)) (hpc1.trans (hp.label (j := 51) rfl)) hf1
+    exact finish_fail hp hpre (run_no_root (by omega)) (hpc1.trans (hp.label NativeRustcVmX64.Vm.TStateQueryOpenings.label_4_at)) hf1
       (hm1.regs .r14 _ hr14₁)
       (NativeRustcVm.SameOutside.mono hs1 fun _ hq ↦ Or.inr (Or.inr (frame_stk hst hq)))
   simp only [hi, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc1
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf0 (fun _ _ ↦ rfl)
-    (hpc1.trans (by rw [show b0.length = 17 from rfl])) hm1 fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateQueryOpenings.b0_next)) hm1 fun st2 hm2 hpc2 => ?_
   obtain ⟨hpro2, hws2, hdi2, hsi2, hr15₂, hbx2, hbp2, hr12₂, hr13₂, hr14₂⟩ := ok_b1
   have hf2 : Frame m0 96 slots 0 st2.data :=
     Frame.of_prologue Frame.entry hwf0 hm2 hpro2 slots_le slots_cs
@@ -196,7 +199,7 @@ theorem queryOpenings_spec (hp : Placed code k)
     (ret := 0) ⟨Mapped.keeps (frame_mapped hst (by decide)) hf3.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf3 nofun
-    (hpc3.trans (by rw [show b1.length = 7 from rfl]))
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateQueryOpenings.b1_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf3.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hmem4, hka4⟩ := ok_b2
@@ -213,7 +216,7 @@ theorem queryOpenings_spec (hp : Placed code k)
   · simp only [hlt, ↓reduceIte] at hx0
     rw [show st3.data.regs.get64 .rax = 0#64 from hx0] at hpc4
     simp only [beq_self_eq_true, ↓reduceIte] at hpc4
-    exact finish_fail hp hpre (run_no_phase (by omega)) (hpc4.trans (hp.label (j := 51) rfl)) hf4
+    exact finish_fail hp hpre (run_no_phase (by omega)) (hpc4.trans (hp.label NativeRustcVmX64.Vm.TStateQueryOpenings.label_4_at)) hf4
       ((hk4 .r14 rfl (by decide)).trans h14)
       (NativeRustcVm.SameOutside.mono hs4 fun _ hq ↦ Or.inr (Or.inr hq))
   simp only [hlt, ↓reduceIte] at hx0
@@ -232,7 +235,7 @@ theorem queryOpenings_spec (hp : Placed code k)
     omega
   rw [show st3.data.regs.get64 .rax = a.word (phaseBase a.l s.phase) from hx0, hne] at hpc4
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc4
-  exact open_spec hp hop hpre hi hlt (hpc4.trans (by rw [show b2.length = 2 from rfl])) hf4 hs4
+  exact open_spec hp hop hpre hi hlt (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateQueryOpenings.b2_next)) hf4 hs4
     (hax.trans hx0) ((hk4 .rbx rfl (by decide)).trans hbx)
     ((hk4 .rbp rfl (by decide)).trans hbp) ((hk4 .r12 rfl (by decide)).trans h12)
     ((hk4 .r13 rfl (by decide)).trans h13) ((hk4 .r14 rfl (by decide)).trans h14)

@@ -3,6 +3,10 @@ module
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.WhirLevels
+public import NativeRustcVmX64.Code.Vm.FinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.FoldRounds.Names
+public import NativeRustcVmX64.Code.Vm.NextLevel.Names
+public import NativeRustcVmX64.Code.Vm.WhirLevels.Names
 public meta import NativeRustcVmX64.Code.Vm.WhirLevels
 public meta import NativeRustcVmX64.Transcript.Frame
 public meta import NativeRustcVmX64.Sumcheck.Common
@@ -17,7 +21,7 @@ index), `32` (`laneFolds`), `40` (the basis), `48` (`1 - n`), `56` (`logN`); the
 registers from `64`; the return address at `112`, `w` at `120`.
 
 - `entryS` at the entry (`b0`: the prologue, the loop's registers, the frame's words);
-- `lvS` at the loop head `.LWhirLevels_1` (`b1`, then `b2`, `fold_rounds`' call), region 1 the
+- `lvS` at the loop head `NativeRustcVmX64.Vm.WhirLevels.label_1` (`b1`, then `b2`, `fold_rounds`' call), region 1 the
   level at RBX;
 - `wS` after `fold_rounds` (`b3`, its test) and at `b4` (`μ`, the last level's test; `b3` changes
   no register), region 1 the state's first 24 bytes at RBP;
@@ -169,27 +173,27 @@ public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .fall) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : EntryOk (after b0 entryS) := by decide +kernel
 
-public theorem exit_b1 : exec b1 lvS = some (after b1 lvS, .cond c1 ".LWhirLevels_5") :=
+public theorem exit_b1 : exec b1 lvS = some (after b1 lvS, .cond c1 NativeRustcVmX64.Vm.WhirLevels.label_5) :=
   run_b1.trans (by rw [after_eq run_b1]; rfl)
 public theorem exit_b2 : exec b2 (after b1 lvS) = some (after b2 (after b1 lvS),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm4whir11fold_rounds") :=
+    .call NativeRustcVmX64.Vm.FoldRounds.entryLabel) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : FoldOk (after b2 (after b1 lvS)) := by decide +kernel
 
-public theorem exit_b3 : exec b3 wS = some (after b3 wS, .cond c3 ".LWhirLevels_5") :=
+public theorem exit_b3 : exec b3 wS = some (after b3 wS, .cond c3 NativeRustcVmX64.Vm.WhirLevels.label_5) :=
   run_b3.trans (by rw [after_eq run_b3]; rfl)
 public theorem ok_b3 : MidOk 112 8 slots (after b3 wS) = true ∧ (after b3 wS).mem = [] ∧
     (after b3 wS).regs = wS.regs := by decide +kernel
-public theorem exit_b4 : exec b4 wS = some (after b4 wS, .cond c4 ".LWhirLevels_6") :=
+public theorem exit_b4 : exec b4 wS = some (after b4 wS, .cond c4 NativeRustcVmX64.Vm.WhirLevels.label_6) :=
   run_b4.trans (by rw [after_eq run_b4]; rfl)
 public theorem ok_b4 : MuOk (after b4 wS) := by decide +kernel
 
 public theorem exit_b5 : exec b5 nxS =
-    some (after b5 nxS, .call "_RNvNtCsemcRClSg8DH_9native_vm4whir10next_level") :=
+    some (after b5 nxS, .call NativeRustcVmX64.Vm.NextLevel.entryLabel) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : NextOk (after b5 nxS) := by decide +kernel
 
-public theorem exit_b6 : exec b6 retS = some (after b6 retS, .cond c6 ".LWhirLevels_1") :=
+public theorem exit_b6 : exec b6 retS = some (after b6 retS, .cond c6 NativeRustcVmX64.Vm.WhirLevels.label_1) :=
   run_b6.trans (by rw [after_eq run_b6]; rfl)
 public theorem ok_b6 : BackOk (after b6 retS) := by decide +kernel
 
@@ -198,7 +202,7 @@ public theorem exit_b7 : exec b7 retS = some (after b7 retS, .ret (.load 0 112 8
 public theorem ok_b7 : NoneOk (after b7 retS) := by decide +kernel
 
 public theorem exit_b8 : exec b8 retS = some (after b8 retS,
-    .jump "_RNvNtCsemcRClSg8DH_9native_vm4whir11final_level") :=
+    .jump NativeRustcVmX64.Vm.FinalLevel.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : TailOk (after b8 retS) := by decide +kernel
 

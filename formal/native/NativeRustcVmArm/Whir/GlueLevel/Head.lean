@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.GlueLevel.Basic
 
 /-!
@@ -44,10 +45,10 @@ theorem ew_add_comm (a b : EW) : (⟨b.c0 ^^^ a.c0, b.c1 ^^^ a.c1⟩ : EW) = a +
 variable [Host] {k : Nat} {s : WhirStateW} {m0 : MachineData}
 
 /-- **From the entry to `b3`.** -/
-theorem head_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem head_step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hpre : GlueLevelPre s m0) {R : MachineState → Prop}
-    (cont : ∀ m, AtB3 s m0 m → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 33)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (cont : ∀ m, AtB3 s m0 m → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b3Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b0Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hstk, hst, -, -, -, -, -, hargs, hpin, -, -, -, hapA, -, -, -⟩ := hpre'
   have hSP : 704 ≤ m0.regs.SP.toNat := hstk.2.1
@@ -85,7 +86,7 @@ theorem head_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
         by
           show base m0 112 + BitVec.ofInt 64 152 = m0.regs.SP.toBitVec + BitVec.ofInt 64 40
           simp only [base]; bv_omega, trivial⟩
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   -- the claim and the batched value, as `b0` loads them
   have hc0 : env.load 2 0 8 = s.claim.c0.toBitVec :=
     Ring.load_word (by
@@ -124,7 +125,7 @@ theorem head_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
   -- `λ · oodValue`
   refine mul_call hmul hpre hfr1 hso1 hpc1 fun m2 hfr2 hso2 hq2 ↦ ?_
   have hs2 := hq2.2.2.2.1
-  have hk1 : b1.IsInfixAt Host.prog (k + 21) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk1 run_b1 (Env.wf_nil m2) (match_nil m2) fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hfr3, hso3, -⟩ := reg_block hfr2 hso2 hm3 rfl rfl
   have e3x0 : st3.data.regs.X0 = m0.regs.X1 := by
@@ -158,7 +159,7 @@ theorem head_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
   -- `λ²`
   refine mul_call hmul hpre hfr3 hso3 hpc3 fun m4 hfr4 hso4 hq4 ↦ ?_
   have hs4 := hq4.2.2.2.1
-  have hk2 : b2.IsInfixAt Host.prog (k + 28) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk2 run_b2 (Env.wf_nil m4) (match_nil m4) fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hfr5, hso5, -⟩ := reg_block hfr4 hso4 hm5 rfl rfl
   have hl2 : (⟨m4.regs.X0, m4.regs.X1⟩ : EW) = lamOf m0 * lamOf m0 := by

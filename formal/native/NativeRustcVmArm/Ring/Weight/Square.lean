@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Ring.Weight.Step
 
 /-!
@@ -119,11 +120,11 @@ end
 variable [Host]
 
 /-- **A turn of the squares' loop.** -/
-theorem sqTurn (h : RingWeightPre m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem sqTurn (h : RingWeightPre m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {p : XReg} (hpc : calleeSaved p = true) {P : Array EW} {ref : MachineData}
     (href : (ref.regs.getXReg .X22).toBitVec = slotA m0 (nR m0)) (hp22 : p ≠ .X22)
     {iA iB : Nat} {dA dB : List Directive} {SA SB : SState} {L : Label}
-    (hkA : dA.IsInfixAt Host.prog iA) (hrA : exec dA (sqS p) = some (SA, .call ewMulLabel))
+    (hkA : dA.IsInfixAt Host.prog iA) (hrA : exec dA (sqS p) = some (SA, .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     (hA : sqA p SA = true) (hiB : iA + dA.length = iB) (hkB : dB.IsInfixAt Host.prog iB)
     (hrB : exec dB (sqS p) = some (SB, .cond (.not (.cmp .eq .W64 (.ptr 0 16) (.reg .X22))) L))
     (hB : sqB p SB = true) (hL : Labels.label L = Host.addrOf iA) {j : Nat} {m : MachineData}
@@ -216,11 +217,11 @@ theorem sqTurn (h : RingWeightPre m0) (hmul : Spec (Labels.label ewMulLabel) EWM
     · exact keep l (by omega) hlj _ (hI.done l (by omega))
 
 /-- **The squares' loop.** -/
-theorem sqLoop (h : RingWeightPre m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem sqLoop (h : RingWeightPre m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {p : XReg} (hpc : calleeSaved p = true) {P : Array EW} {ref : MachineData}
     (href : (ref.regs.getXReg .X22).toBitVec = slotA m0 (nR m0)) (hp22 : p ≠ .X22)
     {iA iB : Nat} {dA dB : List Directive} {SA SB : SState} {L : Label}
-    (hkA : dA.IsInfixAt Host.prog iA) (hrA : exec dA (sqS p) = some (SA, .call ewMulLabel))
+    (hkA : dA.IsInfixAt Host.prog iA) (hrA : exec dA (sqS p) = some (SA, .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     (hA : sqA p SA = true) (hiB : iA + dA.length = iB) (hkB : dB.IsInfixAt Host.prog iB)
     (hrB : exec dB (sqS p) = some (SB, .cond (.not (.cmp .eq .W64 (.ptr 0 16) (.reg .X22))) L))
     (hB : sqB p SB = true) (hL : Labels.label L = Host.addrOf iA) {m : MachineData}

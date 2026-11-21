@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+
 public import NativeRustcX64.FromBytes.Mid
 public import NativeRustcX64.FromBytes.PathExec
 
@@ -132,15 +134,15 @@ theorem pathCall [Labels] {m₀ m m' : MachineData} {ret : BitVec 64} (P : Pre m
 
 /-- **The path**: from block 6 to the call `memcpy(out, stack + 24, 256)`. -/
 public theorem path [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (P : Pre m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 56)) (h : MidAt m₀ st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b6Offset)) (h : MidAt m₀ st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Labels.label "memcpy" →
-      retOf st'.data = Host.addrOf (k + 189) → PathCall m₀ st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Labels.label NativeRustcX64.Common.Memcpy.entryLabel →
+      retOf st'.data = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset) → PathCall m₀ st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
-  have hwf := envP_wf (ret := (Host.addrOf (k + 189)).toBitVec) P h.common
+  have hwf := envP_wf (ret := (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset)).toBitVec) P h.common
   have := P.pos
-  have hx : (envP m₀ st.data (Host.addrOf (k + 189)).toBitVec).regs .r13 =
+  have hx : (envP m₀ st.data (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset)).toBitVec).regs .r13 =
     BitVec.ofNat 64 (pos m₀ + 912) := h.r13
   refine cond_step (b6_in_code.trans hp.1 (List.cons_ne_nil _ _)) b6_execP hwf hpc
     (match_envP h) (hs_false hx (by omega) (by decide)) fun s1 hpc1 hm1 => ?_

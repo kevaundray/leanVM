@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.ClimbLevel.Scan
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
 
 /-!
 # `climb_level`'s calls of `hash_pair` (x86-64)
@@ -62,11 +63,11 @@ frame's `88`, its arguments `al`, `ar` holding `L`, `R`: back after the call in 
 callee-saved registers the block's, memory changed at most in the output, the callee's stack and
 the return address's slot; the output `hashPair L R`. -/
 theorem hash_call (hp : Placed code k)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hh : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (g : Geo m0 bp B.length) {bj : List Directive} {j : Nat}
     (hb : bj.IsInfixAt code j) (hne : bj ≠ [])
     (hrun : exec bj frS = some (after bj frS,
-      .call "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair"))
+      .call NativeRustcVmX64.Vm.HashPair.entryLabel))
     (hok : MidOk 208 0 slots (after bj frS) = true)
     (hlow : ∀ w ∈ (after bj frS).mem, w.r = 0 ∧ w.off + w.n ≤ 8)
     (hrdi : (after bj frS).reg .rdi = some (.ptr 0 88))

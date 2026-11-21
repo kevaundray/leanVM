@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontProj
 public import NativeRustcVm.Sumcheck.RoundPoly
 
@@ -117,12 +118,12 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The prologue**: the product read, the projection's head at coefficient `0`. -/
 theorem pro_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     (cont : ∀ (st : MachineState) (p : Array EW) (s1 : TState),
-      (readScalars 47).run s = some (p, s1) → st.pc = Host.addrOf (k + 132) →
+      (readScalars 47).run s = some (p, s1) → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset) →
       ProjI m0 c p 0 st.data → FM m0 a s1 p st.data.dmem →
       Eventually (step1 Host.exe) (Goal a s c m0) st) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b0Offset)⟩ := by
   have hS := pre_stack h
   have g := geo_of h
   have pg := pgeo_of h
@@ -139,7 +140,7 @@ theorem pro_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     (fun i hi ↦ by interval_cases i <;> rfl)
   have k1 : Bus.KeepRegs [.X0] m0 st1.data := Bus.KeepRegs.of_block hm1 rfl
   simp only [PcOk] at hpc1
-  rw [show k + 0 + b0.length = k + 90 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b0Offset + b0.length = k + NativeRustcVmArm.Vm.VerifyLayer.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b0_next]] at hpc1
   have x1v : st1.data.regs.X1.toBitVec = loc m0 152 := by
     show (st1.data.regs.getXReg .X1).toBitVec = _
     rw [hm1.regs .X1 _ rfl, ev_ptr]
@@ -178,7 +179,7 @@ theorem pro_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     obtain ⟨p, s1⟩ := ps
     simp only [PcOk, hc3, hr, Option.isSome_some, Bool.not_true, Bool.false_eq_true,
       ↓reduceIte] at hpc3
-    rw [show k + 90 + b1.length = k + 91 from rfl] at hpc3
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b1Offset + b1.length = k + NativeRustcVmArm.Vm.VerifyLayer.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b1_next]] at hpc3
     obtain ⟨hprod2, hts2⟩ := hok2 p s1 hr
     have hpsz : p.size = 47 := NativeRustcVm.Sumcheck.readScalars_size hr
     -- `b2`: the frame's words, the projection's registers.
@@ -190,7 +191,7 @@ theorem pro_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     refine exec_at (blk hp b2_in_code (by simp [b2])) e2 hwfc hpc3 hmc fun st3 hm4 hpc4 ↦ ?_
     have hfb4 := fb_blkW h hfb3 hm4 hwfc rfl (by decide)
     simp only [PcOk] at hpc4
-    have hpc4' : st3.pc = Host.addrOf (k + 132) := hpc4.trans (label4 hp)
+    have hpc4' : st3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset) := hpc4.trans (label4 hp)
     have hd23 : st2.data.dmem = m2.dmem := hd3
     -- the claim's instance weights' count.
     have hc2 := claimAt_fb h hfb3

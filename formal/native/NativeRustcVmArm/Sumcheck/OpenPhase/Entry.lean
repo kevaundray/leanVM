@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.OpenPhase.Names
 public import NativeRustcVmArm.Sumcheck.OpenPhase.Check
 
 /-!
@@ -42,21 +43,21 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Na
     (hph : PhaseHW m0.dmem (phO m0) P h w) :
     Eventually (step1 Host.exe)
       (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 34) ∧ Checked m0 P Q h w st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b0Offset)⟩ := by
   have hS := hpre.1
   have hN' := hN hpre
   obtain ⟨-, -, -, -, hqn, -, hmp, hnwp, -, -, -, -, haps, -⟩ := id hpre
   have hpw : phaseWords = 49411 := rfl
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk1 : b1.IsInfixAt Host.prog (k + 13) := b1_in_code.trans hp.1 (by simp [b1])
-  have hk2 : b2.IsInfixAt Host.prog (k + 15) := b2_in_code.trans hp.1 (by simp [b2])
-  have hk3 : b3.IsInfixAt Host.prog (k + 17) := b3_in_code.trans hp.1 (by simp [b3])
-  have hk4 : b4.IsInfixAt Host.prog (k + 19) := b4_in_code.trans hp.1 (by simp [b4])
-  have hk5 : b5.IsInfixAt Host.prog (k + 20) := b5_in_code.trans hp.1 (by simp [b5])
-  have hl4 : Labels.label ".LOpenPhase_4" = Host.addrOf (k + 20) := hp.label (j := 20) rfl
-  have hl5 : Labels.label ".LOpenPhase_5" = Host.addrOf (k + 22) := hp.label (j := 22) rfl
-  have hl18 : Labels.label ".LOpenPhase_18" = Host.addrOf (k + 83) := hp.label (j := 83) rfl
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b1Offset) := b1_in_code.trans hp.1 (by simp [b1])
+  have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b2Offset) := b2_in_code.trans hp.1 (by simp [b2])
+  have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b3Offset) := b3_in_code.trans hp.1 (by simp [b3])
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b4Offset) := b4_in_code.trans hp.1 (by simp [b4])
+  have hk5 : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b5Offset) := b5_in_code.trans hp.1 (by simp [b5])
+  have hl4 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b5Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b5Offset) NativeRustcVmArm.Vm.OpenPhase.label_4_at
+  have hl5 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b6Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b6Offset) NativeRustcVmArm.Vm.OpenPhase.label_5_at
+  have hl18 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_18 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b22Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b22Offset) NativeRustcVmArm.Vm.OpenPhase.label_18_at
   have hmq : wireMaxQueries = 256 := rfl
   have hml : wireMaxLeafWords = 64 := rfl
   have hmh : wireMaxHeight = 32 := rfl
@@ -108,22 +109,22 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Na
       (∀ r, m'.regs.getXReg r = m.regs.getXReg r) → Regs m0 P h w m' :=
     fun ⟨a1, a19, a20, a21, a22, a23⟩ he ↦ ⟨(he _).trans a1, (he _).trans a19, (he _).trans a20,
       (he _).trans a21, (he _).trans a22, (he _).trans a23⟩
-  have fail : ∀ st : MachineState, st.pc = Host.addrOf (k + 83) → FrO m0 st.data →
+  have fail : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b22Offset) → FrO m0 st.data →
       Regs m0 P h w st.data →
       openPhase R m0.regs.X2.toNat m0.regs.X3.toNat Q P = none →
       Eventually (step1 Host.exe) (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 34) ∧ Checked m0 P Q h w st.data)) st := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data)) st := by
     intro st hpc hf hr hn
     obtain ⟨d, pc⟩ := st
     simp only at hpc
     subst hpc
     exact Eventually.mono (exit_fail hp hpre hf hr.x19 hn) fun st h ↦ .inl h
-  have toL5 : ∀ st : MachineState, st.pc = Host.addrOf (k + 22) → FrO m0 st.data →
+  have toL5 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b6Offset) → FrO m0 st.data →
       Regs m0 P h w st.data → ShapeOk P Q h w m0.regs.X2.toNat m0.regs.X3.toNat →
       (∀ r, r = .X2 ∨ r = .X3 ∨ r = .X4 ∨ r = .X5 →
         st.data.regs.getXReg r = m0.regs.getXReg r) →
       Eventually (step1 Host.exe) (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 34) ∧ Checked m0 P Q h w st.data)) st := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data)) st := by
     intro st hpc hf hr hsh hk
     obtain ⟨d, pc⟩ := st
     simp only at hpc
@@ -136,7 +137,7 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Na
   by_cases h0 : P.size = 0
   · -- No opening: `.L4`, the positions must be none too.
     simp only [h0, beq_self_eq_true, ↓reduceIte] at hpc
-    have hpc4 : st.pc = Host.addrOf (k + 20) := hpc.trans hl4
+    have hpc4 : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b5Offset) := hpc.trans hl4
     obtain ⟨d, pc⟩ := st
     simp only at hpc4
     subst hpc4

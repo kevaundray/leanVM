@@ -29,9 +29,9 @@ variable [Host] {k : Nat}
 theorem cp_step (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0) {j : Nat}
     {st : MachineData} (hL : CpLoop m0 j st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (CpEnd m0 s.data ∧ s.pc = Host.addrOf (k + 81)) ∨
-        (CpLoop m0 (j + 1) s.data ∧ s.pc = Host.addrOf (k + 74)))
-      ⟨st, Host.addrOf (k + 74)⟩ := by
+      (fun s ↦ (CpEnd m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b18Offset)) ∨
+        (CpLoop m0 (j + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b17Offset)))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b17Offset)⟩ := by
   have hb := hL.body
   have hj := hL.hj
   have hn := hL.hn
@@ -113,7 +113,7 @@ theorem cp_step (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0) {
       rw [Env.ofMachine_regs, bv_beq_toNat, h11, toNat_ofNat_lt (by decide)]
       simp
       omega)
-    rw [hp.label (j := 74) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b17Offset) NativeRustcVmArm.Vm.LanesOf.label_17_at] at hpc'
     refine .done _ (.inr ⟨⟨by rw [show 2 * (j + 1) = 2 * j + 2 by omega]; exact hb',
       by rw [x2]; exact hL.x2, by rw [x8]; exact hL.x8, x11, x9, x10,
       by unfold nOf at hlast ⊢; omega, hn⟩,
@@ -123,9 +123,9 @@ theorem cp_step (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0) {
 theorem cp1_step (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0) {i : Nat}
     {st : MachineData} (hL : Cp1Loop m0 i st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (Done m0 (pairL m0) (nOf m0) s.data ∧ s.pc = Host.addrOf (k + 62)) ∨
-        (Cp1Loop m0 (i + 1) s.data ∧ s.pc = Host.addrOf (k + 94)))
-      ⟨st, Host.addrOf (k + 94)⟩ := by
+      (fun s ↦ (Done m0 (pairL m0) (nOf m0) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b14Offset)) ∨
+        (Cp1Loop m0 (i + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b21Offset)))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b21Offset)⟩ := by
   have hb := hL.body
   have hi := hL.hi
   have hn := hL.hn
@@ -181,9 +181,9 @@ theorem cp1_step (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0) 
     · rw [show s2.data.regs.X2 = s.data.regs.X2 from reg_kept hm2 (r := .X2) rfl, x2]
       exact hL.x2
     · simp only [PcOk] at hpc2
-      rw [hpc2, hp.label (j := 62) rfl]
+      rw [hpc2, hp.label (j := NativeRustcVmArm.Vm.LanesOf.b14Offset) NativeRustcVmArm.Vm.LanesOf.label_14_at]
   · have hpc' := pc_taken hpc (by rw [hc]; simp [hlast])
-    rw [hp.label (j := 94) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b21Offset) NativeRustcVmArm.Vm.LanesOf.label_21_at] at hpc'
     refine .done _ (.inr ⟨⟨hb', x0, by rw [x2]; exact hL.x2, ?_, ?_, ?_, by omega, hn⟩, hpc'⟩)
     · have h := hm'.regs .X8 _ rfl
       sym_simp at h
@@ -205,8 +205,8 @@ theorem cp1_step (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0) 
 /-- **The tail's head** (`b20`): from lane `e`. -/
 theorem cp_tail (hp : Placed code k) {m0 : MachineData} {e : Nat} {st : MachineData}
     (hT : CpTail m0 e st) :
-    Eventually (step1 Host.exe) (fun s ↦ Cp1Loop m0 e s.data ∧ s.pc = Host.addrOf (k + 94))
-      ⟨st, Host.addrOf (k + 87)⟩ := by
+    Eventually (step1 Host.exe) (fun s ↦ Cp1Loop m0 e s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b21Offset))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b20Offset)⟩ := by
   have he := hT.he
   have hn := hT.hn
   have hn64 : nOf m0 < 65 := by unfold nOf; omega

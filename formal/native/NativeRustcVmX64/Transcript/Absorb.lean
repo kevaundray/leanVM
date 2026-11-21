@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Transcript.Absorb.Tail
+public import NativeRustcVmX64.Code.Vm.SpongeWAbsorb.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWDuplex.Names
 
 /-!
 # `SpongeW::absorb` on x86-64
@@ -34,8 +36,8 @@ variable [Host] {k : Nat}
 
 /-- **`SpongeW::absorb` meets its contract.** -/
 theorem absorb_spec (hp : Placed code k)
-    (hdup : ∀ sp, Spec (Labels.label duplexLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
-    Spec (Labels.label absorbLabel) (AbsorbPre sp) (AbsorbPost sp) := by
+    (hdup : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
+    Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorb.entryLabel) (AbsorbPre sp) (AbsorbPost sp) := by
   rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
   set p := reg m0 .rdi with hpdef
   have hn : absorbStack ≤ (rspOf m0).toNat := hst.1
@@ -59,8 +61,8 @@ theorem absorb_spec (hp : Placed code k)
       exact ⟨hmap, hnw⟩)
     (List.pairwise_pair.mpr (Apart.symm' hapF))
   obtain ⟨x0, hrun0, hpro, hw0, hx0, hx3, hx12, hx15, hx14, rfl⟩ := ok_b0
-  unfold absorbLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.SpongeWAbsorb.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.SpongeWAbsorb.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) hrun0 hwf0 nofun
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial) fun st1 hm1 hpc1 => ?_
@@ -92,7 +94,7 @@ theorem absorb_spec (hp : Placed code k)
   by_cases h4 : sp.pending.size < 4
   · -- Below `4`: the push.
     simp only [h4, decide_true, ite_true] at hpc1
-    have := tail hp hst hmap hnw hapF (hpc1.trans (hp.label (j := 18) rfl)) hf1 h4 hX0 hX14 hX3
+    have := tail hp hst hmap hnw hapF (hpc1.trans (hp.label NativeRustcVmX64.Vm.SpongeWAbsorb.label_2_at)) hf1 h4 hX0 hX14 hX3
       hX15 hX12 hsp1 hso1
     refine Eventually.mono this fun st' ⟨hpc', hrsp', hsp', hso', hsv'⟩ ↦
       ⟨hpc', hrsp', ?_, hso', hsv'⟩
@@ -103,11 +105,11 @@ theorem absorb_spec (hp : Placed code k)
     have h4' : sp.pending.size = 4 := by omega
     -- `b1`: `call duplex`.
     have hwf1 := frame_wf (m0 := m0) (d := st1.data) (F := 48) (rest := []) (vars := fun _ ↦ 0)
-      (ret := (Host.addrOf (k + 13 + b1.length)).toBitVec)
+      (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SpongeWAbsorb.b1Offset + b1.length)).toBitVec)
       ⟨Mapped.keeps (frame_mapped hst (by decide)) hf1.kept, hfnw⟩ (by simp)
       (List.pairwise_singleton _ _)
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1 (fun _ _ ↦ rfl)
-      (hpc1.trans (by rw [show b0.length = 13 from rfl]))
+      (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWAbsorb.b0_next))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf1.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st2 hm2 hpc2 => ?_
     obtain ⟨hmid2, hw2, hx7', hx3', hx12', hx14', hx15'⟩ := after_eq run_b1 ▸ ok_b1
@@ -162,7 +164,7 @@ theorem absorb_spec (hp : Placed code k)
         exact ⟨Mapped.keeps hmap hf3.kept, hnw⟩)
       (List.pairwise_pair.mpr (Apart.symm' hapF))
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf3 nofun
-      (hpc3.trans (by rw [show b1.length = 2 from rfl]))
+      (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWAbsorb.b1_next))
       (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf3.rsp_eval, known_ptr rfl hX3'', trivial⟩ trivial
         trivial trivial) fun st4 hm4 hpc4 => ?_
     obtain ⟨hmid4, hmem4, hx0'', hx3''', hx12'', hx14'', hx15''⟩ := after_eq run_b2 ▸ ok_b2
@@ -177,7 +179,7 @@ theorem absorb_spec (hp : Placed code k)
     rw [hcnt3, hdz] at hpc4
     simp only [show (Nat.toUInt64 0).toBitVec = 0#64 from rfl] at hpc4
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
-    rw [show b2.length = 3 from rfl] at hpc4
+    rw [NativeRustcVmX64.Vm.SpongeWAbsorb.b2_length] at hpc4
     have hreg4 : ∀ r, calleeSaved r = true → (after b1 callS).reg r = some (.reg r) →
         (after b2 reloadS).reg r = some (.reg r) → reg st4.data r = reg st1.data r :=
       fun r hr h1 h2 ↦ (hm4.regs r _ h2).trans (hreg3 r hr h1)

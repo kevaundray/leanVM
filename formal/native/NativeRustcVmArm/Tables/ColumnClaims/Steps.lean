@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
 public import NativeRustcVmArm.Tables.ColumnClaims.Iter
 public import NativeRustcVmArm.Tables.ColumnClaims.Setup
 public import NativeRustcVmArm.Arrays.Common
@@ -143,8 +144,8 @@ theorem next (hpre : TableColumnClaimsPre ev cs m0) {i : Nat} (hi : i < 5) {R R'
 /-- **The entry**: the prologue and table `0`'s setup (`b0`), to table `0`'s head. -/
 theorem entry (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {Q : MachineState → Prop}
     (cont : ∀ m, LoopAt R04 ev cs m0 0 0 m →
-      Eventually (step1 Host.exe) Q ⟨m, Host.addrOf (k + 20)⟩) :
-    Eventually (step1 Host.exe) Q ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) Q ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b1Offset)⟩) :
+    Eventually (step1 Host.exe) Q ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b0Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, hin, hev, hcR, hcO, hcs⟩ := hpre'
   have hN := hS.2.1
@@ -167,7 +168,7 @@ theorem entry (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {Q : M
   have hfr := Bus.Fr.mono hfrF (outs' := outs m0) fun _ h ↦ h.elim
   obtain ⟨ea, en, ep, el, ec⟩ := shapes_eval hm1' hev (by decide) (by decide) hsh
   simp only [PcOk] at hpc
-  rw [show b0.length = 20 from rfl] at hpc
+  rw [NativeRustcVmArm.Vm.TableColumnClaims.b0_length, NativeRustcVmArm.Vm.TableColumnClaims.b0Length] at hpc
   refine Bus.Gkr.at_pc hpc (cont _ ⟨hfr, ?_, fun _ ↦ ?_, ?_, ?_, ?_, ep, el, Nat.zero_le _, ?_⟩)
   · exact Bus.Gkr.reg_of hm1' h19
   · apply UInt64.toBitVec_inj.mp
@@ -187,7 +188,7 @@ theorem exit25 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {m : 
     (h0 : m.regs.X0 = okWord (decide (cs.size + (tableColumnClaims ev).size ≤ claimCap)))
     (hc : cs.size + (tableColumnClaims ev).size ≤ claimCap →
       ClaimsWAt m.dmem m0.regs.X1.toBitVec (cs ++ tableColumnClaims ev)) :
-    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 152)⟩ := by
+    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b25Offset)⟩ := by
   have hS := hpre.1
   have hwf := Bus.wf_frame hS F_le hfr.kept
   have hm := Bus.match_frame hS F_le rfl hfr.sp
@@ -208,7 +209,7 @@ theorem exit25 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {m : 
 theorem exit31 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {m : MachineData}
     (hfr : Fr m0 64 tableColumnClaimsStack slots keep (outs m0) m)
     (hc : ClaimsWAt m.dmem m0.regs.X1.toBitVec (cs ++ tableColumnClaims ev)) :
-    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 190)⟩ := by
+    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b31Offset)⟩ := by
   have hS := hpre.1
   have hwf := Bus.wf_frame hS F_le hfr.kept
   have hm := Bus.match_frame hS F_le rfl hfr.sp
@@ -232,12 +233,12 @@ theorem exit31 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {m : 
 theorem fail24 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {m : MachineData}
     (hfr : Fr m0 64 tableColumnClaimsStack slots keep (outs m0) m)
     (hn : ¬cs.size + (tableColumnClaims ev).size ≤ claimCap) :
-    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 150)⟩ := by
+    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b24Offset)⟩ := by
   obtain ⟨hmem, hsp, hk, hx0⟩ := ok_b24
   refine Bus.Gkr.Fr.runBlock hpre.1 F_le rfl hfr (b24_in_code.trans hp.1 (by simp [b24])) run_b24
     hmem hsp hk (by decide) fun st hfr' _ hm hpc ↦ ?_
   simp only [PcOk] at hpc
-  rw [show b24.length = 2 from rfl] at hpc
+  rw [NativeRustcVmArm.Vm.TableColumnClaims.b24_length, NativeRustcVmArm.Vm.TableColumnClaims.b24Length] at hpc
   refine Bus.Gkr.at_pc hpc (exit25 hp hpre hfr' ?_ fun h ↦ absurd h hn)
   rw [decide_eq_false hn]
   exact UInt64.toBitVec_inj.mp (Bus.Gkr.reg_lit hm hx0)
@@ -245,7 +246,7 @@ theorem fail24 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {m : 
 /-- **A jump to the failure** (`b4`, `b9`, `b14`, `b19`). -/
 theorem failJ (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {b : List Directive}
     {j : Nat} (hb : b.IsInfixAt Host.prog (k + j))
-    (hx : exec b sF = some (Bus.after b sF, .jump ".LTableColumnClaims_15"))
+    (hx : exec b sF = some (Bus.after b sF, .jump NativeRustcVmArm.Vm.TableColumnClaims.label_15))
     (hok : JumpOk (Bus.after b sF)) {m : MachineData}
     (hfr : Fr m0 64 tableColumnClaimsStack slots keep (outs m0) m)
     (hn : ¬cs.size + (tableColumnClaims ev).size ≤ claimCap) :
@@ -254,19 +255,19 @@ theorem failJ (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {b : L
   refine Bus.Gkr.Fr.runBlock hpre.1 F_le rfl hfr hb hx hmem hsp hk (by decide)
     fun st hfr' _ _ hpc ↦ ?_
   simp only [PcOk] at hpc
-  rw [hp.label (j := 150) rfl] at hpc
+  rw [hp.label (j := NativeRustcVmArm.Vm.TableColumnClaims.b24Offset) NativeRustcVmArm.Vm.TableColumnClaims.label_15_at] at hpc
   exact Bus.Gkr.at_pc hpc (fail24 hp hpre hfr' hn)
 
 /-- **The jump to the epilogue** after table `5`'s failed push (`b30`). -/
 theorem fail30 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {m : MachineData}
     (hfr : Fr m0 64 tableColumnClaimsStack slots keep (outs m0) m) (h0 : m.regs.X0 = 0)
     (hn : ¬cs.size + (tableColumnClaims ev).size ≤ claimCap) :
-    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 189)⟩ := by
+    Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b30Offset)⟩ := by
   obtain ⟨hmem, hsp, hk, hx0⟩ := ok_b30
   refine Bus.Gkr.Fr.runBlock hpre.1 F_le rfl hfr (b30_in_code.trans hp.1 (by simp [b30])) run_b30
     hmem hsp hk (by decide) fun st hfr' _ hm hpc ↦ ?_
   simp only [PcOk] at hpc
-  rw [hp.label (j := 152) rfl] at hpc
+  rw [hp.label (j := NativeRustcVmArm.Vm.TableColumnClaims.b25Offset) NativeRustcVmArm.Vm.TableColumnClaims.label_16_at] at hpc
   refine Bus.Gkr.at_pc hpc (exit25 hp hpre hfr' ?_ fun h ↦ absurd h hn)
   rw [decide_eq_false hn]
   exact (Bus.Gkr.reg_of hm hx0).trans h0

@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Arrays.ProdE.Exec
 public import NativeRustcVm.Arrays.Folds
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.ProdE.Names
 
 /-!
 # `prod_e` on x86-64
@@ -41,7 +43,7 @@ theorem acc_succ (m : MachineData) {i : Nat} (h : i < len m) :
     acc m (i + 1) = acc m i * (xs m)[i]'(lt_len h) :=
   NativeRustcVm.foldl_take_succ _ _ _ _
 
-/-- **The loop head** `.LProdE_1`, `i` values multiplied. -/
+/-- **The loop head** `NativeRustcVmX64.Vm.ProdE.label_1`, `i` values multiplied. -/
 structure Inv (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
   body : Body m0 32 prodEStack slots 0 0 st
   lt : i < len m0
@@ -52,19 +54,19 @@ structure Inv (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.ProdE.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 11) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.ProdE.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 11 + 7) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.ProdE.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 11 + 7 + 3) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.ProdE.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label prodELabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LProdE_1" = Host.addrOf (k + 11) :=
-  hp.label (j := 11) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ProdE.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.ProdE.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.ProdE.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ProdE.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.ProdE.b1Offset) :=
+  hp.label NativeRustcVmX64.Vm.ProdE.label_1_at
 
 /-- `prod_e`'s postcondition, reached. -/
 abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
@@ -72,7 +74,7 @@ abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
 
 /-- **The epilogue** `b3`: from a body, the product returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : ProdEPre m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 11 + 7 + 3)) (hb : Body m0 32 prodEStack slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ProdE.b3Offset)) (hb : Body m0 32 prodEStack slots 0 0 st.data)
     (hacc : ewArg (reg st.data .rax) (reg st.data .rdx) = acc m0 (len m0)) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hS := hpre.1
@@ -96,11 +98,11 @@ theorem sixteen_add (i : Nat) :
 
 /-- **A turn of the loop**: the product multiplied by `values[i]`, back at the head or out of the
 loop and returned. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : ProdEPre m0) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 11)) (hI : Inv m0 i st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ProdE.b1Offset)) (hI : Inv m0 i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-      (st'.pc = Host.addrOf (k + 11) ∧ Inv m0 (i + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ProdE.b1Offset) ∧ Inv m0 (i + 1) st'.data)) st := by
   have hS := hpre.1
   have hV := SliceIn.of_ok hpre.2.2.2
   have h32 : 32 ≤ prodEStack := by decide
@@ -108,7 +110,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   have hlen := lt_of_offStack hpre.2.2.2.1.2 hpre.2.2.2.2
   have hL : len m0 = (reg m0 .rsi).toNat := rfl
   -- `b1`: `values[i]`, the call
-  obtain ⟨hwf1, hm1, hel1⟩ := hI.body.elem (ret := (Host.addrOf (k + 11 + 7)).toBitVec) hS h32
+  obtain ⟨hwf1, hm1, hel1⟩ := hI.body.elem (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ProdE.b2Offset)).toBitVec) hS h32
     hV hlt (x := .bin .add .W64 (.reg .r14) (.reg .r15)) (o := 0)
     (by rw [eval_add, eval_reg, eval_reg]; simp [hI.r14, hI.r15])
   refine exec_at (hb1 hp) run_b1 hwf1 (fun _ _ ↦ rfl) hpc hm1 fun st1 hm1' hpc1 ↦ ?_
@@ -155,7 +157,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   obtain ⟨hT, hF⟩ := pc_cond hpc3
   by_cases hlast : 16 * len m0 = 16 * (i + 1)
   · have hpc3' := hF (by simp [hlast])
-    simp only [show b2.length = 3 from rfl] at hpc3'
+    simp only [NativeRustcVmX64.Vm.ProdE.b2_length] at hpc3'
     refine Eventually.mono (finish hp hpre hpc3' hb3' ?_) fun _ h ↦ Or.inl h
     rw [hacc, show i + 1 = len m0 by omega]
   · exact .done _ (Or.inr ⟨(hT (by simp [hlast])).trans (lbl_1 hp),
@@ -163,8 +165,8 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`prod_e` meets its contract.** -/
 theorem prodE_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label prodELabel) ProdEPre ProdEPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.ProdE.entryLabel) ProdEPre ProdEPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hS := hpre.1
@@ -176,7 +178,7 @@ theorem prodE_spec (hp : Placed code k)
   have h2 := hpre.2.1
   have hm : Match (frameEnv m0 m0 32) entryS m0 := match_frame
   refine exec_then (hb0 hp) run_b0 hwf (by intro l h; cases h) hm fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 11 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.ProdE.b0_length] at hpc1
   obtain ⟨hw, hregs, hmem, hsp⟩ := after_eq run_b0 ▸ b0_entry
   have hI : Inv m0 0 st1.data := by
     have hbx := hm1.regs .rbx _ rfl
@@ -192,7 +194,7 @@ theorem prodE_spec (hp : Placed code k)
     · show ewArg (st1.data.regs.get64 .rax) (st1.data.regs.get64 .rdx) = _
       rw [hm1.regs .rax _ rfl, hm1.regs .rdx _ rfl]
       rfl
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 11) ∧ ∃ i, len m0 - i = n ∧
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ProdE.b1Offset) ∧ ∃ i, len m0 - i = n ∧
     Inv m0 i st.data) (fun n st ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc1.trans rfl, 0, rfl, hI⟩
   refine Eventually.mono (step hp hmul hpre hpc hI) fun st' h ↦ ?_
   rcases h with h | ⟨hpc', hI'⟩

@@ -67,9 +67,9 @@ theorem swap_loop (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack)
     (cx : Ctx m0 m0.regs.X0.toBitVec a tableSumcheckStack 720) (hn30 : n ≤ 30)
     (hxs : xs.length = n)
     (cont : ∀ m', Rev m0 a n xs c s1 (n / 2) m' →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m', Host.addrOf (k + 82)⟩) :
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b6Offset)⟩) :
     ∀ r j m, j + r = n / 2 → 0 < r → Rev m0 a n xs c s1 j m → Head m0 n j m →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 75)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b5Offset)⟩ := by
   intro r
   induction r with
   | zero => intro j m _ h; omega
@@ -150,11 +150,11 @@ theorem swap_loop (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack)
   · subst hr0
     have hz : (m.regs.getXReg .X8).toBitVec.toNat = 1 := by omega
     simp only [hz, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc
-    rw [show k + 75 + b5.length = k + 82 from rfl] at hpc
+    rw [show k + NativeRustcVmArm.Vm.TableSumcheck.b5Offset + b5.length = k + NativeRustcVmArm.Vm.TableSumcheck.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableSumcheck.b5_next]] at hpc
     exact Bus.Gkr.at_pc hpc (cont _ (by rw [show n / 2 = j + 1 by omega]; exact hR'))
   · have hz : (m.regs.getXReg .X8).toBitVec.toNat ≠ 1 := by omega
     simp only [hz, decide_false, Bool.not_false, ↓reduceIte] at hpc
-    refine Bus.Gkr.at_pc (hpc.trans (hp.label (j := 75) rfl))
+    refine Bus.Gkr.at_pc (hpc.trans (hp.label (j := NativeRustcVmArm.Vm.TableSumcheck.b5Offset) NativeRustcVmArm.Vm.TableSumcheck.label_4_at))
       (ih (j + 1) st.data (by omega) (by omega) hR' ⟨hx8, ?_, ?_⟩)
     · rw [hm'.regs .X9 _ h9]
       simp only [Sym.eval, envS, Env.base_ofMachine_eq,
@@ -173,9 +173,9 @@ theorem rev (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack)
     (cx : Ctx m0 m0.regs.X0.toBitVec a tableSumcheckStack 720) (hn30 : n ≤ 30)
     (hxs : xs.length = n)
     (cont : ∀ m', Rev m0 a n xs c s1 (n / 2) m' →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m', Host.addrOf (k + 82)⟩)
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b6Offset)⟩)
     {m : MachineData} (hR : Rev m0 a n xs c s1 0 m) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 70)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b3Offset)⟩ := by
   have hN := hS.2.1
   have h720 : 720 ≤ tableSumcheckStack := N_ge
   have hSP := m0.regs.SP.toNat_lt
@@ -195,14 +195,14 @@ theorem rev (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack)
   by_cases hz : n / 2 = 0
   · rw [hz] at hpc
     simp only [beq_self_eq_true, ↓reduceIte] at hpc
-    exact Bus.Gkr.at_pc (hpc.trans (hp.label (j := 82) rfl)) (cont _ (by rw [hz]; exact hR3))
+    exact Bus.Gkr.at_pc (hpc.trans (hp.label (j := NativeRustcVmArm.Vm.TableSumcheck.b6Offset) NativeRustcVmArm.Vm.TableSumcheck.label_5_at)) (cont _ (by rw [hz]; exact hR3))
   · have hne : (BitVec.ofNat 64 (n / 2) == BitVec.ofNat 64 0) = false :=
       beq_eq_false_iff_ne.mpr fun h ↦ by
         have := congrArg BitVec.toNat h
         simp only [BitVec.toNat_ofNat] at this
         omega
     simp only [hne, Bool.false_eq_true, ↓reduceIte] at hpc
-    rw [show k + 70 + b3.length = k + 72 from rfl] at hpc
+    rw [show k + NativeRustcVmArm.Vm.TableSumcheck.b3Offset + b3.length = k + NativeRustcVmArm.Vm.TableSumcheck.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableSumcheck.b3_next]] at hpc
     refine Bus.Gkr.at_pc hpc (Bus.Gkr.Fr.runBlock hS N_ge rfl hR3.fr
       (b4_in_code.trans hp.1 (by simp [b4])) run_b4 rfl rfl rfl rfl fun st4 hfr4 hd4 hm4 hpc4 ↦ ?_)
     have hm4' : Match (Env.ofMachine st.data [(base m0 720, 720)]) (Bus.after b4 sF) st4.data := by
@@ -216,7 +216,7 @@ theorem rev (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack)
     have hb24 : (base m0 720 + BitVec.ofInt 64 24).toNat = (fb m0).toNat + 24 :=
       fb_add hS N_ge (o := 24) (by omega)
     simp only [PcOk] at hpc4
-    rw [show k + 72 + b4.length = k + 75 from rfl] at hpc4
+    rw [show k + NativeRustcVmArm.Vm.TableSumcheck.b4Offset + b4.length = k + NativeRustcVmArm.Vm.TableSumcheck.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableSumcheck.b4_next]] at hpc4
     refine Bus.Gkr.at_pc hpc4 (swap_loop hp hS cx hn30 hxs cont (n / 2) 0 st4.data (by omega)
       (by omega) hR4 ⟨?_, ?_, ?_⟩)
     · rw [Bus.Gkr.reg_of hm4' g8]; exact h8

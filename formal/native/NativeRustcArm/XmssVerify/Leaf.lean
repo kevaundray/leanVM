@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.XmssVerify.Turn
 public import NativeRustcArm.XmssVerify.Fold
 
@@ -37,7 +39,7 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 /-- **A call of `wots_leaf`** with its output at `5408`, the public parameter at `2464`, the
 message's `n5` bytes at `o4`, the randomizer at `o6` and the chain values at `o7`. -/
 theorem wotsCall (Cs : Callees) (P : Pre w m₀) {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label wotsL) (hret : retOf st.data = next) (C : Common m₀ st.data)
+    (hpc : st.pc = Labels.label NativeRustcArm.Xmss.WotsLeaf.entryLabel) (hret : retOf st.data = next) (C : Common m₀ st.data)
     {o4 n5 o6 o7 layer : Nat} {e : UInt32}
     (h0 : st.data.regs.X0.toBitVec = ad m₀ (fb + 5408))
     (h1 : st.data.regs.X1.toBitVec = ad m₀ (fb + 2464)) (h2 : st.data.regs.X2.toNat = layer)

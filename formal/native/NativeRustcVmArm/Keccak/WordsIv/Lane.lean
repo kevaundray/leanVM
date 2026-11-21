@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.IvWord.Names
 public import NativeRustcVmArm.Keccak.WordsIv.Call
 public import NativeRustcVmArm.Keccak.WordsIv.Blocks
 public import NativeRustcVmArm.Keccak.WordsHash.Lane
@@ -138,14 +139,14 @@ theorem laneZ_step {k : Nat} {m0 m : MachineData} (g : Geo m0) {r : XReg} {A : K
     exact lane_pc g hc hB hBle (by omega) hlab hnext hpc
 
 /-- **A lane below the count**: `iv_word`'s call, and lane `j` XORed with its result. -/
-theorem laneL_step (hiv : Spec (label NativeRustcVmArm.ivWordLabel) NativeRustcVmArm.IvWordPre
+theorem laneL_step (hiv : Spec (label NativeRustcVmArm.Vm.IvWord.entryLabel) NativeRustcVmArm.IvWordPre
       NativeRustcVmArm.IvWordPost) {k : Nat} {m0 m : MachineData} (g : Geo m0) {r : XReg}
     {A : KeccakState} {B j : Nat} (hj : j < 16) (hBle : B ≤ 17 * nb m0)
     (hin : B + j < m0.regs.X1.toNat) (hc : Ctx m0 m) (hl : Lanes m0 m (pre A (wv m0) B j))
     (hB : (m.regs.getXReg r).toBitVec = BitVec.ofNat 64 B) (hrs : calleeSaved r = true)
     {blkC : List Directive} {sC : Nat} {SC : SState}
     (hkC : blkC.IsInfixAt Host.prog (k + sC))
-    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmArm.ivWordLabel))
+    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmArm.Vm.IvWord.entryLabel))
     (hC0 : SC.reg .X0 = some (.reg .X22)) (hC1 : SC.reg .X1 = some (.reg .X21))
     (hC2 : SC.reg .X2 = some (if j = 0 then .reg r else .bin .add .W64 (.reg r) (.lit j)))
     (hCmem : SC.mem = []) (hCsp : SC.sp = .ptr 0 0)
@@ -206,14 +207,14 @@ theorem laneL_step (hiv : Spec (label NativeRustcVmArm.ivWordLabel) NativeRustcV
     exact lane_pc g hc2 hB2 hBle (by omega) hlab hnext hpc
 
 /-- **Lane 16's word below the count**: `iv_word`'s call, to `s`. -/
-theorem lane16L_step (hiv : Spec (label NativeRustcVmArm.ivWordLabel) NativeRustcVmArm.IvWordPre
+theorem lane16L_step (hiv : Spec (label NativeRustcVmArm.Vm.IvWord.entryLabel) NativeRustcVmArm.IvWordPre
       NativeRustcVmArm.IvWordPost) {k : Nat} {m0 m : MachineData} (g : Geo m0) {r : XReg}
     {A : KeccakState} {B : Nat} (hin : B + 16 < m0.regs.X1.toNat) (hc : Ctx m0 m)
     (hl : Lanes m0 m (pre A (wv m0) B 16))
     (hB : (m.regs.getXReg r).toBitVec = BitVec.ofNat 64 B) (hrs : calleeSaved r = true)
     {blkC : List Directive} {sC : Nat} {SC : SState}
     (hkC : blkC.IsInfixAt Host.prog (k + sC))
-    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmArm.ivWordLabel))
+    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmArm.Vm.IvWord.entryLabel))
     (hC0 : SC.reg .X0 = some (.reg .X22)) (hC1 : SC.reg .X1 = some (.reg .X21)) {v2 : Sym}
     (hC2 : SC.reg .X2 = some v2)
     (hv2 : v2.eval (Env.ofMachine m [(frame m0, 288)]) = BitVec.ofNat 64 (B + 16))

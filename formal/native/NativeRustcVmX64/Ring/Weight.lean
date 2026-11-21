@@ -4,6 +4,8 @@ public import NativeRustcVmX64.Ring.Weight.Sum
 public import NativeRustcVmX64.Ring.Weight.Copy
 public import NativeRustcVmX64.Ring.Weight.Outer
 public import NativeRustcVmX64.Ring.Weight.Empty
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.RingWeight.Names
 
 /-!
 # `ring_weight` on x86-64
@@ -28,13 +30,13 @@ variable {m0 : MachineData} [Host] {k : Nat}
 
 /-- **`r` copied, `|r| ≥ 1`**: `b10` branches on `|r'|`, `b11` or `b20` start the turns. -/
 theorem turns (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hR0 : 0 < nR m0)
-    {st : MachineState} (hA : At m0 k 136 [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0)) st) :
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hR0 : 0 < nR m0)
+    {st : MachineState} (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b10Offset [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0)) st) :
     Eventually (step1 Host.exe) (Goal m0) st := by
   have hR : nR m0 ≤ 36 := h.2.1
   obtain ⟨hok, hmiss⟩ := f_b10
   refine (jcond hp (lay0 h.1) b10_in_code (by simp [b10]) (next := 144) rfl
-    (by exact hp.label (j := 191) rfl) hok (vals' := V0 m0) (I' := CopyI m0 (nR m0))
+    (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_9_at) hok (vals' := V0 m0) (I' := CopyI m0 (nR m0))
     (b := decide (nQ m0 = 0)) (fun _ _ _ ↦ cv_test _ _ rfl)
     (fun _ _ _ _ ↦ by
       wv
@@ -67,15 +69,15 @@ theorem turns (hp : Placed code k) (h : RingWeightPre m0)
 
 /-- **`ring_weight` meets its contract.** -/
 theorem ringWeight_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ringWeightLabel) RingWeightPre RingWeightPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.RingWeight.entryLabel) RingWeightPre RingWeightPost := by
   intro m0 h
-  rw [show Labels.label ringWeightLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
-  have hA : At m0 k 0 [] noWr t0 (V0 m0) (fun m ↦ m = m0) ⟨m0, Host.addrOf (k + 0)⟩ :=
+  rw [show Labels.label NativeRustcVmX64.Vm.RingWeight.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.RingWeight.b0Offset) from hp.label NativeRustcVmX64.Vm.RingWeight.entry_at]
+  have hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b0Offset [] noWr t0 (V0 m0) (fun m ↦ m = m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.RingWeight.b0Offset)⟩ :=
     ⟨rfl, start rfl fun ret ↦ ⟨((Field.frame_rsp 672 0).trans (BitVec.add_zero _)).symm, trivial⟩,
       rfl⟩
   refine (jcond hp (lay0 h.1) b0_in_code (by simp [b0]) (next := 83) rfl
-    (by exact hp.label (j := 91) rfl) f_b0 (vals' := V0 m0) (I' := fun _ ↦ True)
+    (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_1_at) f_b0 (vals' := V0 m0) (I' := fun _ ↦ True)
     (b := decide (nR m0 = 0)) (fun m _ hm ↦ by subst hm; exact cv_test _ _ rfl)
     (fun m _ hm ret ↦ by subst hm; wv) rfl rfl rfl (fun _ _ ↦ noAl rfl) rfl
     (fun _ _ _ _ _ ↦ trivial) hA).bind fun st h1 ↦ ?_

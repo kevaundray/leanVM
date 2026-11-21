@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop1
 public import NativeRustcVmArm.Tables.Common
 
@@ -143,7 +144,7 @@ theorem exit_spec (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {m : Machine
     (hG : FormsAt m.dmem m0.regs.X1.toBitVec (sta SL m0 (BA L rows bl) Fm bl.length).1) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ AccumulateSidePost L rows bl Fm SL m0 st.data)
-      ⟨m, Host.addrOf (k + 325)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b38Offset)⟩ := by
   -- `b38`: the jump to `b40`.
   have hwf0 := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
@@ -152,7 +153,7 @@ theorem exit_spec (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {m : Machine
     (fun _ _ ↦ holds_nil _ _ _) fun st1 hm1 hpc1 hst1 ↦ ?_
   have hG1 := forms_wrOk h (.inl rfl) hm1 hwf0 (by decide) hG
   simp only [PcOk] at hpc1
-  rw [hp.label (j := 329) (l := ".LAccumulateSide_22") rfl] at hpc1
+  rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b40Offset) NativeRustcVmArm.Vm.AccumulateSide.label_22_at] at hpc1
   refine Gkr.at_pc hpc1 ?_
   -- `b40`: the total's limbs at the output, X8 the tag.
   have hH1 : Holds (rsO m0) (TT SL m0 L rows bl Fm bl.length) DL st1.data :=
@@ -202,8 +203,8 @@ theorem exit_spec (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {m : Machine
     rfl
   have h10 : (st2.data.regs.getXReg .X10).toBitVec = m0.regs.X0.toBitVec :=
     (hm2.regs .X10 _ rfl).trans h16
-  have hpc2' : st2.pc = Host.addrOf (k + 344) := by
-    rw [← hp.label (j := 344) (l := ".LAccumulateSide_24") rfl]
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b42Offset) := by
+    rw [← hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b42Offset) NativeRustcVmArm.Vm.AccumulateSide.label_24_at]
     exact hpc2
   -- `b42`: the tag, the registers restored, `ret`.
   have hwf2 := wfO h hfr2.kept

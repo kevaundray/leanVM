@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfNextLevel.Names
 public import NativeRustcVmArm.Whir.NextLevel.RowsBase
 
 /-!
@@ -25,12 +26,12 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The rows batched**, to `b24`. -/
 theorem rows (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
-    (her : ∀ rows op, Spec (Labels.label eachRowNextLabel) (EachRowNextPre rows op)
+    (her : ∀ rows op, Spec (Labels.label NativeRustcVmArm.Vm.EachRowOfNextLevel.entryLabel) (EachRowNextPre rows op)
       (EachRowNextPost rows))
     {st : MachineState} {xs ood : Array EW} {v lam : EW} {qs : Array UInt64}
     {rws : Array (Array UInt64)} {op : BitVec 64} {s9 : TState}
-    (hpc : st.pc = Host.addrOf (k + 161)) (hI : H22 a level m0 xs ood v lam qs rws op s9 st.data)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 202) →
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b22Offset)) (hI : H22 a level m0 xs ood v lam qs rws op s9 st.data)
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b24Offset) →
       H24 a level m0 xs ood v lam qs (batchedOf m0.regs.X1.toNat m0.regs.X5.toNat rounds xs qs
         rws (powers lam qs.size)) s9 st'.data →
       Eventually (step1 Host.exe) (Goal a s level w rounds m0) st') :
@@ -65,7 +66,7 @@ theorem rows (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b22_in_code (by simp [b22]) run_b22 hwf hm (by decide) rfl hf hpc
     fun st1 hm1 hpc1 hf1 hs1 ↦ ?_
   simp only [PcOk] at hpc1
-  rw [show k + 161 + b22.length = k + 201 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b22Offset + b22.length = k + NativeRustcVmArm.Vm.NextLevel.b23Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b22_next]] at hpc1
   have e1 := sameRegs_ok hm hm1 (rs := [.X20, .X23, .X25, .X26, .X27, .X29]) (by decide)
   have x0 : st1.data.regs.X0 = m0.regs.X1 :=
     (reg_of hm1 (r := .X0) (v := .reg .X20) rfl rfl).trans hI.x20
@@ -266,12 +267,14 @@ theorem rows (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   have hqb2 := qbuf_keep h hso2 (fun q hq ↦ by
     have := hR2 q hq; have := g.pS; have := g.hN; omega) hqb1
   -- `b23`: `each_row`'s `Option<()>`.
-  refine chk13 hp h b23_in (st := ⟨m2, Host.addrOf (k + 201)⟩) hf2 rfl
+  refine chk13 hp h b23_in (st := ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b23Offset)⟩) hf2 rfl
     (ok := true) (by rw [hx0]; rfl) (fun e ↦ by cases e) (fun _ h ↦ h)
     fun _ st' hpc' hf' hd' hr' ↦ ?_
   have k2 : ∀ r, calleeSaved r = true → st'.data.regs.getXReg r = st1.data.regs.getXReg r :=
     fun r hc ↦ (hr' r).trans (hcs2 r hc)
-  refine cont st' (by rw [hpc']) ⟨hf', (k2 .X19 rfl).trans x19, (k2 .X21 rfl).trans x21, ?_, ?_,
+  refine cont st' (hpc'.trans (congrArg Host.addrOf (by
+    simpa only [Nat.add_assoc, b23_length, b23Length] using congrArg (k + ·) b23_next)))
+    ⟨hf', (k2 .X19 rfl).trans x19, (k2 .X21 rfl).trans x21, ?_, ?_,
     (k2 .X25 rfl).trans ((e1 .X25 (by simp)).trans hI.x25),
     (k2 .X27 rfl).trans ((e1 .X27 (by simp)).trans hI.x27), ?_,
     by rw [hd']; exact hF2, by rw [hd']; exact hp2, by rw [hd']; exact hbt, hI.size, hI.osize,

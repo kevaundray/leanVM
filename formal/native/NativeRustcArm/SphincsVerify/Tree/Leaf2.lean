@@ -44,8 +44,8 @@ variable {r}
 /-- **`b145`**: `update` of hasher A with the address. -/
 theorem stage3 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {m : MachineData} (h : AtL2 r l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2185 ∧ AtL3 r l e st.data)
-      ⟨m, r.pc 2179⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b146Offset ∧ AtL3 r l e st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b145Offset⟩ := by
   obtain ⟨hB, hE, hElen, hA, hH⟩ := h
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
   refine exec_then (hb145 hp) run_b145 hwf (match_base hpre hB) fun st hm hpc ↦ ?_
@@ -62,7 +62,7 @@ theorem stage3 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hadrs : bytesOf st.data.dmem (r.off 21648) 32 = (r.key l).adrs 1 := by
     rw [hmem]
     exact bytesOf_of_bytesAt hA
-  refine .done _ ⟨hpc'.trans (pc_after (n := 6) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b145_next),
     hB1.of_call hpre hS (by decide) (by decide) (by decide) hout, ?_, hElen, ?_⟩
   · exact r.bytesAt_of_call hpre hB1.2.1 (by decide) (by decide) hout (by omega) (by omega)
       (by rw [hmem]; exact hE)
@@ -72,8 +72,8 @@ theorem stage3 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
 /-- **`b146`**: hasher A cloned into hasher B (`memcpy`). -/
 theorem stage4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {m : MachineData} (h : AtL3 r l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2191 ∧ AtL4 r l e st.data)
-      ⟨m, r.pc 2185⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b147Offset ∧ AtL4 r l e st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b146Offset⟩ := by
   obtain ⟨hB, hE, hElen, hH⟩ := h
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
   refine exec_then (hb146 hp) run_b146 hwf (match_base hpre hB) fun st hm hpc ↦ ?_
@@ -85,7 +85,7 @@ theorem stage4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   refine call_then hpc hc.1 (r.memcpy_pre hpre hB1.2.1 h0 h1 h2 (by decide) (by decide)
     (by decide)) fun st' hpc' hpost ↦ ?_
   obtain ⟨hc', hout, hS⟩ := r.memcpy_out h0 h1 h2 hpost
-  refine .done _ ⟨hpc'.trans (pc_after (n := 6) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b146_next),
     hB1.of_call hpre hS (by decide) (by decide) (by decide) hout, ?_, hElen, ?_⟩
   · exact r.bytesAt_of_call hpre hB1.2.1 (by decide) (by decide) hout (by omega) (by omega)
       (by rw [hmem]; exact hE)
@@ -97,8 +97,8 @@ theorem stage4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
 /-- **`b147`**: `update` of hasher B with the chain ends. -/
 theorem stage5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {m : MachineData} (h : AtL4 r l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2197 ∧ AtL5 r l e st.data)
-      ⟨m, r.pc 2191⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b148Offset ∧ AtL5 r l e st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b147Offset⟩ := by
   obtain ⟨hB, hE, hElen, hH⟩ := h
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
   refine exec_then (hb147 hp) run_b147 hwf (match_base hpre hB) fun st hm hpc ↦ ?_
@@ -115,7 +115,7 @@ theorem stage5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hends : bytesOf st.data.dmem (r.off 28208) 1024 = e.flatten := by
     rw [hmem, ← hElen]
     exact bytesOf_of_bytesAt hE
-  refine .done _ ⟨hpc'.trans (pc_after (n := 6) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b147_next),
     hB1.of_call hpre hS (by decide) (by decide) (by decide) hout, ?_⟩
   have := hh _ hH1
   rwa [hends] at this
@@ -123,8 +123,8 @@ theorem stage5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
 /-- **`b148`**: `finalize` of hasher B into `20624`. -/
 theorem stage6 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {m : MachineData} (h : AtL5 r l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2202 ∧ AtL6 r l e st.data)
-      ⟨m, r.pc 2197⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b149Offset ∧ AtL6 r l e st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b148Offset⟩ := by
   obtain ⟨hB, hH⟩ := h
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
   refine exec_then (hb148 hp) run_b148 hwf (match_base hpre hB) fun st hm hpc ↦ ?_
@@ -138,7 +138,7 @@ theorem stage6 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   refine call_then hpc hc.2.2.2.1 (r.finalize_pre hpre hB1.2.1 h0 h1 (by decide) (by decide)
     (by decide) ⟨_, hH1⟩) fun st' hpc' hpost ↦ ?_
   obtain ⟨hf, hout, hS⟩ := r.finalize_out h0 h1 hpost
-  refine .done _ ⟨hpc'.trans (pc_after (n := 5) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b148_next),
     hB1.of_call hpre hS (by decide) (by decide) (by decide) hout, ?_⟩
   rw [finalize_eq hH1] at hf
   exact hf

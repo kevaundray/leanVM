@@ -20,9 +20,6 @@ open NativeRustc
 
 @[expose] public section
 
-/-- The closure's symbol. -/
-def fromBytesLabel : Label :=
-  "_RNCNvMs0_NtCs7Pyp4CbMBld_9lean_xmss6schemeNtB7_17LeanXmssSignature10from_bytess_0B9_"
 
 /-- The stack the closure uses: its frame. -/
 def fromBytesStack : Nat := 64 + 1872

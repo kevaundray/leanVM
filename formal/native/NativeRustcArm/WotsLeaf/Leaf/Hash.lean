@@ -67,8 +67,8 @@ theorem leaf_b44 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
     (h20 : Run.RegIs m .X20 r.m0.regs.X1.toBitVec)
     (cont : ∀ m', r.CK x E m' → Run.RegIs m' .X20 r.m0.regs.X1.toBitVec →
       BytesAt m'.dmem (r.off 1776) (r.addr 2 0) → HasherAt r m' 2160 [] →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 616⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 603⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Xmss.WotsLeaf.b45Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b44Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   have hm := match_frameS hpre hK.1.1 (k := []) trivial
   refine blk r hp b44_in_code (List.cons_ne_nil _ _) run_b44 hwf hm fun st hm1 hpc ↦ ?_
@@ -93,8 +93,8 @@ theorem leaf_b45 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
     (hK : r.CK x E m) (h20 : Run.RegIs m .X20 r.m0.regs.X1.toBitVec)
     (hadr : BytesAt m.dmem (r.off 1776) (r.addr 2 0)) (hH : HasherAt r m 2160 [])
     (cont : ∀ m', r.CK x E m' → BytesAt m'.dmem (r.off 2128) (hashBytes (r.pp ++ r.addr 2 0 ++ E)) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 631⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 616⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Xmss.WotsLeaf.b49Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b45Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   -- `update` with `P`.
   refine blk r hp b45_in_code (List.cons_ne_nil _ _) run_b45 hwf

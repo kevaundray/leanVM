@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Pre
 
 /-!
@@ -104,16 +106,16 @@ theorem wOk_nil {env : Env} {S : SState} (h : S.mem = []) :
 
 /-- **The prologue, `bit_length(5)`, the grind** (`b0`, `b1`). -/
 theorem stepEntry (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     {R : MachineState → Prop}
     (cont : ∀ m2, Mid m0 m2 → m2.regs.getXReg .X19 = m0.regs.X4 →
       m2.regs.getXReg .X28 = m0.regs.X3 → m2.regs.getXReg .X29 = m0.regs.X7 →
       m2.regs.X0 = okWord ((grind gBits).run s).isSome →
       NextAt m2.dmem (tA m0) a ((grind gBits).run s) →
       NativeRustcVm.Layout.ClaimsWAt m2.dmem (clA m0) cs →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 33)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b2Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b0Offset)⟩ := by
   have hN : verifyKeccakStack ≤ m0.regs.SP.toNat := by rw [stack_eq]; exact hn.hN
   have hN' := hn.hN
   have hSP := m0.regs.SP.toNat_lt
@@ -184,7 +186,7 @@ theorem stepEntry (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
     slots_le (outs_frame hn) hbl hpc trivial
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun q h ↦ .inl h, hq.2.2⟩)
     fun m2 hfr2 hq hcs ↦ ?_
-  rw [show k + 0 + b0.length = k + 29 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b0Offset + b0.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b0_next]]
   obtain ⟨hbl2, hs2, hsv2⟩ := hq
   have hvac : ∀ q, InRange (stackBelow st.data bitLengthStack) bitLengthStack q → False :=
     fun q hq ↦ by unfold InRange at hq; simp [bitLengthStack] at hq
@@ -229,7 +231,7 @@ theorem stepEntry (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
     rcases hq with hq | hq
     · exact .inr (.inr (.inl (by rw [e0] at hq; exact hq)))
     · exact .inl hq
-  · rw [show k + 29 + b1.length = k + 33 from rfl]
+  · rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b1Offset + b1.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b1_next]]
     have e0 : st2.regs.X0 = m0.regs.X0 :=
       (reg_of hm2 (r := .X0) (v := .reg .X20) rfl rfl).trans hmid2.regs.x20
     have hd : st2.dmem = m2.dmem := hm2.dmem_eq hwf2 rfl

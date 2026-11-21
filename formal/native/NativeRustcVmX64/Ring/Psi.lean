@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Ring.Psi.Basic
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.RingPsi.Names
 
 /-!
 # `ring_psi` on x86-64
@@ -42,10 +44,10 @@ public section
 variable [Host] {k : Nat} {m0 : MachineData}
 
 /-- **A block and its call of `EW::mul`.** -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hpre : RingPsiPre m0) {ds : List Directive} {off off' : Nat} (hds : ds.IsInfixAt code off)
     (hne : ds ≠ []) (hoff : off + ds.length = off') {T T' S' : SState}
-    {vals vals' : Nat → BitVec 64} (hrun : exec ds T = some (S', .call ewMulLabel))
+    {vals vals' : Nat → BitVec 64} (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hwr : S'.mem.all (writeOk 80 [88, 128] noWr) = true) (hsp : S'.reg .rsp = some (.ptr 0 0))
     {L LW : List (Nat × Sym)} (hL : rlinks true S' T' = some L) (hLW : wlinks S' T'.mem = some LW)
     (hvals : ∀ m ret, ∀ p ∈ L ++ LW, p.2.eval (envS m0 m 80 (rsOf m0) vals ret) = vals' p.1)
@@ -87,10 +89,10 @@ theorem sum_c1 : c1 (0 + P m0 0 + P m0 1 + P m0 2 + P m0 3 + P m0 4 + P m0 5 + P
 
 /-- **`ring_psi`'s contract.** -/
 theorem ringPsi_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost := by
   intro m0 hpre
-  rw [show Labels.label ringPsiLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.RingPsi.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.RingPsi.b0Offset) from hp.label NativeRustcVmX64.Vm.RingPsi.entry_at]
   have h0 : Bnd m0 80 ringPsiStack (rsOf m0) noWr t0 (fun _ ↦ 0) m0 :=
     start rfl fun ret ↦ ⟨(Field.frame_rsp 80 0).trans (BitVec.add_zero _) |>.symm, by
       show reg m0 .rdx = gA m0 + BitVec.ofInt 64 0
@@ -105,7 +107,7 @@ theorem ringPsi_spec (hp : Placed code k)
   · cases hi
     exact congrArg Prod.snd (mulRes_of (x := gE m0 0) (y := W m0 0) hR rfl rfl rfl rfl
       (gl0 hpre h0 (j := 0) (by decide) _) (gl1 hpre h0 (j := 0) (by decide) _) rfl rfl)
-  have h : At m0 k 16 t1 (v1 m0) st := ⟨hpc, hB⟩
+  have h : At m0 k NativeRustcVmX64.Vm.RingPsi.b1Offset t1 (v1 m0) st := ⟨hpc, hB⟩
   clear hpc hB
   refine Eventually.bind (step hp hmul hpre b1_in_code (by simp [b1]) rfl (T' := t2)
     (vals' := v2 m0) run_b1 rfl rfl rfl rfl (by vtac)

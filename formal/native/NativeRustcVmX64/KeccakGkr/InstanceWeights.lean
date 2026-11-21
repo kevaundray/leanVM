@@ -3,6 +3,9 @@ module
 public import NativeRustcVmX64.KeccakGkr.Common
 public import NativeRustcVmX64.KeccakGkr.InstanceWeights.Exec
 public import NativeRustcVmX64.KeccakGkr.InstanceWeights.Items
+public import NativeRustcVmX64.Code.Vm.InstanceWeights.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.Powers.Names
 
 /-!
 # `instance_weights` on x86-64
@@ -33,9 +36,9 @@ variable [Host] {k : Nat}
 
 /-- **`instance_weights` meets its contract**, given `powers`' and `memcpy`'s. -/
 theorem instanceWeights_spec (hp : Placed code k)
-    (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) :
-    Spec (Labels.label instanceWeightsLabel) InstanceWeightsPre InstanceWeightsPost := by
+    (hpow : Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.InstanceWeights.entryLabel) InstanceWeightsPre InstanceWeightsPost := by
   rintro m0 ⟨hst, hA⟩
   set out := reg m0 .rdi with hout
   set fb := stackBelow m0 1048 with hfb
@@ -59,10 +62,10 @@ theorem instanceWeights_spec (hp : Placed code k)
     not_inRange_of_apart (Apart.symm' hoF) hfnw hok.2 (inRange_off_self hj (by omega))
   -- `b0`: the prologue, `call powers`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 1048) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) ⟨hfmap, hfnw⟩ (by simp)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b0Offset + b0.length)).toBitVec) ⟨hfmap, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
-  unfold instanceWeightsLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.InstanceWeights.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.InstanceWeights.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 => ?_
@@ -75,7 +78,7 @@ theorem instanceWeights_spec (hp : Placed code k)
     rw [hf1.sp, off_stackBelow (by decide)]
   have hsv1 := wordAt_write hm1 (r := 0) (o := 512) rfl (by decide) hsave
   rw [show UInt64.ofBitVec ((Sym.reg .rdi).eval
-    (frameEnv m0 m0 1048 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)) =
+    (frameEnv m0 m0 1048 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b0Offset + b0.length)).toBitVec)) =
       UInt64.ofBitVec out from rfl] at hsv1
   have hX7 : reg st1.data .rdi = reg m0 .rsi := hm1.regs .rdi _ hx7
   have hX6 : reg st1.data .rsi = reg m0 .rdx := hm1.regs .rsi _ hx6
@@ -136,30 +139,30 @@ theorem instanceWeights_spec (hp : Placed code k)
       exact hch' _ (hslot _ (by omega) (by omega))
   -- `b1`, the loop and the tail, in one environment.
   have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 1048) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 527 + b3.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
     ⟨Mapped.keeps hfmap hf2.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
-    (hpc2.trans (by rw [b0_length]))
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.InstanceWeights.b0_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 => ?_
   simp only [PcOk] at hpc3
-  refine (loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + 527) ∧
-      Match (frameEnv m0 st2.data 1048 [] (fun _ ↦ 0) (Host.addrOf (k + 527 + b3.length)).toBitVec)
+  refine (loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset) ∧
+      Match (frameEnv m0 st2.data 1048 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
         (it 14) s'.data)
-    (fun n s ↦ ∃ j, n = 14 - j ∧ j < 14 ∧ s.pc = Host.addrOf (k + 208) ∧
-      Match (frameEnv m0 st2.data 1048 [] (fun _ ↦ 0) (Host.addrOf (k + 527 + b3.length)).toBitVec)
+    (fun n s ↦ ∃ j, n = 14 - j ∧ j < 14 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b2Offset) ∧
+      Match (frameEnv m0 st2.data 1048 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.InstanceWeights.b3Offset + b3.length)).toBitVec)
         (it j) s.data)
     (fun _ s ⟨j, hn, hj, hpc, hm⟩ ↦ exec_at (infix_of b2_in_code b2_ne hp) (loop_exec hj)
       hwf2 nofun hpc hm fun s' hm' hpc' ↦ by
-        simp only [PcOk, SBool.eval, b2_length] at hpc'
+        simp only [PcOk, SBool.eval] at hpc'
         by_cases hlast : j = 13
         · subst hlast
-          exact .done _ (Or.inl ⟨by simpa using hpc', hm'⟩)
+          exact .done _ (Or.inl ⟨by simpa [Nat.add_assoc, NativeRustcVmX64.Vm.InstanceWeights.b2_next] using hpc', hm'⟩)
         · have hc : (j != 13) = true := by simpa using hlast
           simp only [hc, ite_true] at hpc'
           exact .done _ (Or.inr ⟨14 - (j + 1), by omega, j + 1, rfl, by omega,
             hpc'.trans (label_of_infix hp b2_in_code rfl), hm'⟩))
-    ⟨0, rfl, by decide, hpc3.trans (by rw [b1_length]), hm3⟩).bind
+    ⟨0, rfl, by decide, hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.InstanceWeights.b1_next), hm3⟩).bind
     fun s4 ⟨hpc4, hm4⟩ ↦ ?_
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf2 (fun _ _ ↦ rfl) hpc4 hm4
     fun st5 hm5 hpc5 => ?_
@@ -203,7 +206,7 @@ theorem instanceWeights_spec (hp : Placed code k)
   have hwf6 := frame_wf (m0 := m0) (d := st6.data) (F := 1048) (rest := []) (vars := fun _ ↦ 0)
     (ret := 0) ⟨Mapped.keeps hfmap hf6.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf6 nofun
-    (hpc6.trans (by rw [b3_length]))
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.InstanceWeights.b3_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st7 hm7 hpc7 => ?_
   obtain ⟨hepi, hmem7⟩ := ok_b4

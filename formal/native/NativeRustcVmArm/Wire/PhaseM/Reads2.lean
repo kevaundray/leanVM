@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PhaseM.Names
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
 public import NativeRustcVmArm.Wire.PhaseM.Reads
 
 /-!
@@ -129,11 +131,11 @@ variable [Host] {k : Nat}
 
 /-- **The prologue and the count.** -/
 theorem first_run (hp : Placed code k) (G : Geo m0 bp B)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (hR0 : ReaderAt m0.dmem (rdr m0) bp B c) :
     Eventually (step1 Host.exe) (fun st ↦ AtNone m0 B c k st ∨
       (∃ count, AtQ m0 bp B c k count 0 st) ∨ ∃ count qs c2, At30 m0 bp B c k count qs c2 st)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b0Offset)⟩ := by
   have hst := G.st
   have hN := hst.2.1
   let env0 := Env.ofMachine m0 [(base m0 192, 192)]
@@ -173,7 +175,7 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B)
   · have hc := c1_zero (env := frEnv m0 m2) (by simp only [Env.ofMachine_regs]; rw [x0_bv h0]; rfl)
     unfold c1 at hc
     rw [hc] at hpc3
-    refine .done _ (.inl ⟨hpc3.trans (hp.label (j := 64) rfl), hb3, ?_⟩)
+    refine .done _ (.inl ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb3, ?_⟩)
     rw [phaseM_eq, hn]
   have hc := c1_one (env := frEnv m0 m2) (by simp only [Env.ofMachine_regs]; rw [x0_bv h0]; rfl)
   unfold c1 at hc
@@ -182,7 +184,7 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B)
   simp only [Env.ofMachine_regs, hx1b] at hpc3
   by_cases hbig : 257 ≤ count
   · simp only [hbig, decide_true, ↓reduceIte] at hpc3
-    refine .done _ (.inl ⟨hpc3.trans (hp.label (j := 64) rfl), hb3, ?_⟩)
+    refine .done _ (.inl ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb3, ?_⟩)
     rw [phaseM_eq, hv]
     simp only [show wireMaxQueries < count by unfold wireMaxQueries; omega, ↓reduceIte]
   simp only [hbig, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc3
@@ -211,7 +213,7 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B)
   by_cases hz : count = 0
   · simp only [hz, decide_true, ↓reduceIte] at hpc4
     subst hz
-    refine .done _ (.inr (.inr ⟨0, [], c + 4, hpc4.trans (hp.label (j := 30) rfl), hb4, x21, x27,
+    refine .done _ (.inr (.inr ⟨0, [], c + 4, hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b7Offset) NativeRustcVmArm.Vm.PhaseM.label_5_at), hb4, x21, x27,
       hv, hcnt, rfl, NativeRustcVm.wordsAt_nil _ _, hrd4⟩))
   simp only [hz, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc4
   -- `b3`
@@ -236,9 +238,9 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B)
 /-- A call of `Reader::le` for four bytes, from a block `b` (`frS`, no writes) ending in it with
 X0 the reader and X1 four. -/
 theorem call4 (hp : Placed code k) (G : Geo m0 bp B)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {b : List Directive}
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {b : List Directive}
     {j : Nat} (hb : b.IsInfixAt code j) (hne : b ≠ []) {S' : SState}
-    (hx : exec b frS = some (S', .call readerLeLabel)) (hmem : S'.mem = []) (hsp : S'.sp = .ptr 0 0)
+    (hx : exec b frS = some (S', .call NativeRustcVmArm.Vm.ReaderLe.entryLabel)) (hmem : S'.mem = []) (hsp : S'.sp = .ptr 0 0)
     (h0 : S'.reg .X0 = some (.reg .X22)) (h1 : S'.reg .X1 = some (.lit 4))
     (h19 : S'.reg .X19 = some (.reg .X19)) (h20 : S'.reg .X20 = some (.reg .X20))
     (h22 : S'.reg .X22 = some (.reg .X22))
@@ -270,13 +272,13 @@ theorem call4 (hp : Placed code k) (G : Geo m0 bp B)
 /-- The flag test `tbz w0, #0` after a read (`b`, `frS`, nothing changed). -/
 theorem tbz_step (hp : Placed code k) (G : Geo m0 bp B) {b : List Directive} {j : Nat}
     (hb : b.IsInfixAt code j) (hne : b ≠ [])
-    (hx : exec b frS = some (frS, .cond (SBool.bit .W32 (.reg .X0) 0).not ".LPhaseM_12"))
+    (hx : exec b frS = some (frS, .cond (SBool.bit .W32 (.reg .X0) 0).not NativeRustcVmArm.Vm.PhaseM.label_12))
     {st : MachineState} {R : MachineState → Prop} (hb0 : Base m0 st.data)
     (hpc : st.pc = Host.addrOf (k + j)) {v : UInt64} (h0 : st.data.regs.X0 = v)
     (hv : v = 0 ∨ v = 1)
     (cont : ∀ st', Base m0 st'.data → st'.data.dmem = st.data.dmem →
       (∀ x, st'.data.regs.getXReg x = st.data.regs.getXReg x) →
-      st'.pc = (if v = 0 then Host.addrOf (k + 64) else Host.addrOf (k + j + b.length)) →
+      st'.pc = (if v = 0 then Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b18Offset) else Host.addrOf (k + j + b.length)) →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   refine blk hp hb hne hx rfl rfl G.st hb0.fr hpc fun s1 hfr1 hd1 hm1 hpc1 ↦ ?_
@@ -289,13 +291,13 @@ theorem tbz_step (hp : Placed code k) (G : Geo m0 bp B) {b : List Directive} {j 
   rcases hv with rfl | rfl
   · rw [tbz_zero (by simp only [Env.ofMachine_regs]; rw [x0_bv h0]; rfl)]
     simp only [↓reduceIte]
-    exact hp.label (j := 64) rfl
+    exact hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at
   · rw [tbz_one (by simp only [Env.ofMachine_regs]; rw [x0_bv h0]; rfl)]
     simp
 
 /-- **The three sizes**: the height, the leaf width, the row width. -/
 theorem rest_run (hp : Placed code k) (G : Geo m0 bp B)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {count : Nat}
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {count : Nat}
     {qs : List Nat} {c2 : Nat} {st : MachineState} (h : At30 m0 bp B c k count qs c2 st) :
     Eventually (step1 Host.exe) (fun st' ↦ AtNone m0 B c k st' ∨
       ∃ height lw rw c5, SortSt m0 bp B c k count qs height lw rw c5 0 st') st := by
@@ -348,7 +350,7 @@ theorem rest_run (hp : Placed code k) (G : Geo m0 bp B)
         (by simp only [Env.ofMachine_regs]; rw [x0_bv h0]; rfl)]
       rfl
     simp only [PcOk, hc, ↓reduceIte] at hpc5
-    refine .done _ (.inl ⟨hpc5.trans (hp.label (j := 64) rfl), hb5, ?_⟩)
+    refine .done _ (.inl ⟨hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb5, ?_⟩)
     rw [hpm, hv3]
     simp only [hn]
   have hc : (SBool.cmp .eq .W64 (.reg .X0) (.lit 1)).not.eval (frEnv m0 m4) = false := by
@@ -403,7 +405,7 @@ theorem rest_run (hp : Placed code k) (G : Geo m0 bp B)
   simp only [PcOk, cmp_eq_lit (env := frEnv m0 m6) (r := .X21) (n := 0) (by decide) e21'] at hpc7
   by_cases hz : count = 0
   · simp only [hz, decide_true, ↓reduceIte] at hpc7
-    refine .done _ (.inl ⟨hpc7.trans (hp.label (j := 64) rfl), hb7, ?_⟩)
+    refine .done _ (.inl ⟨hpc7.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb7, ?_⟩)
     have : qs = [] := List.eq_nil_of_length_eq_zero (by omega)
     subst this
     simp only [hpm, hv3, hv4]

@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcX64.Code.Common.KeccakF.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+
 public import NativeRustcX64.Hasher.UpdateAbsorb
 
 /-!
@@ -45,8 +48,8 @@ set_option linter.unusedSimpArgs false in
 theorem empty_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m0) {c : Nat}
     {Hc : List UInt8} (hab : Absorbed m0 c Hc m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 16) ∧ Mid m0 c (takeN m0 c Hc) st.data)
-      ⟨m, Host.addrOf (k + 92)⟩ := by
+      (fun st => st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b2Offset) ∧ Mid m0 c (takeN m0 c Hc) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b8Offset)⟩ := by
   have g := geo_of hpre
   let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)]
   have hwf : env.WF := wf_head hpre hab.frame
@@ -104,9 +107,9 @@ theorem empty_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m
 else to the loop's exit with all of it. -/
 theorem next_spec (hp : Placed code k) {m0 m : MachineData} {c t : Nat} (hmid : Mid m0 c t m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 21) ∧ Inv m0 (c + t) st.data ∧ 0 < t) ∨
-        (st.pc = Host.addrOf (k + 95) ∧ Inv m0 (nOf m0) st.data))
-      ⟨m, Host.addrOf (k + 16)⟩ := by
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset) ∧ Inv m0 (c + t) st.data ∧ 0 < t) ∨
+        (st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b9Offset) ∧ Inv m0 (nOf m0) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b2Offset)⟩ := by
   let env := Env.ofMachine m []
   have hwf : env.WF := Env.wf_of trivial List.Pairwise.nil
   have hm : Match env regsS m := match_ofMachine trivial trivial trivial trivial trivial
@@ -143,7 +146,7 @@ theorem next_spec (hp : Placed code k) {m0 m : MachineData} {c t : Nat} (hmid : 
     exact hmid.rdi
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply, low_W64, ext_W64, henv,
     BitVec.and_self] at hpc
-  rw [hmid.rbx, hmid.r12, show b2.length = 5 from rfl, sub_ofNat_ofNat (by have := hmid.le; omega) hn, ofNat_beq_zero (by omega)] at hpc
+  rw [hmid.rbx, hmid.r12, Nat.add_assoc, NativeRustcX64.Common.Update.b2_next, sub_ofNat_ofNat (by have := hmid.le; omega) hn, ofNat_beq_zero (by omega)] at hpc
   refine Eventually.done _ ?_
   by_cases hend : c + t = nOf m0
   · right
@@ -162,19 +165,19 @@ theorem next_spec (hp : Placed code k) {m0 m : MachineData} {c t : Nat} (hmid : 
 
 /-- **A turn of the loop.** -/
 theorem turn_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hmemcpy : Spec (Labels.label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hkf : Spec (Labels.label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m : MachineData} (hpre : UpdatePre m0) {c : Nat} (hinv : Inv m0 c m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 95) ∧ Inv m0 (nOf m0) st.data) ∨
-        ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + 21) ∧
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b9Offset) ∧ Inv m0 (nOf m0) st.data) ∨
+        ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset) ∧
           ∃ c', nOf m0 - c' = n' ∧ Inv m0 c' st.data)
-      ⟨m, Host.addrOf (k + 21)⟩ := by
-  have fin : ∀ (t : Nat) (st : MachineState), st.pc = Host.addrOf (k + 16) →
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset)⟩ := by
+  have fin : ∀ (t : Nat) (st : MachineState), st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b2Offset) →
       Mid m0 c t st.data →
       Eventually (step1 Host.exe)
-        (fun st => (st.pc = Host.addrOf (k + 95) ∧ Inv m0 (nOf m0) st.data) ∨
-          ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + 21) ∧
+        (fun st => (st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b9Offset) ∧ Inv m0 (nOf m0) st.data) ∨
+          ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset) ∧
             ∃ c', nOf m0 - c' = n' ∧ Inv m0 c' st.data) st := by
     intro t st hpc hmid
     obtain ⟨d, pc⟩ := st
@@ -203,13 +206,13 @@ theorem turn_spec (hp : Placed code k)
 
 /-- **The loop**: out of it with the whole input absorbed. -/
 theorem loop_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hmemcpy : Spec (Labels.label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hkf : Spec (Labels.label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m : MachineData} (hpre : UpdatePre m0) {c : Nat} (hinv : Inv m0 c m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 95) ∧ Inv m0 (nOf m0) st.data)
-      ⟨m, Host.addrOf (k + 21)⟩ := by
-  refine Sym.loop (fun n st => st.pc = Host.addrOf (k + 21) ∧
+      (fun st => st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b9Offset) ∧ Inv m0 (nOf m0) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset)⟩ := by
+  refine Sym.loop (fun n st => st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset) ∧
       ∃ c', nOf m0 - c' = n ∧ Inv m0 c' st.data) (fun n st ⟨hpc, c', hn, hi⟩ => ?_)
     ⟨rfl, c, rfl, hinv⟩
   obtain ⟨d, pc⟩ := st

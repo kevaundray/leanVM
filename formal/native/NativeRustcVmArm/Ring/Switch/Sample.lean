@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
 public import NativeRustcVmArm.Ring.Switch.Entry
 
 /-!
@@ -114,12 +115,12 @@ variable [Host] {k : Nat}
 
 /-- **The challenges** (`b2`). -/
 theorem stepSample (hp : Placed code k) (h : RingSwitchPre a s m0)
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s)) {s1 : TState} {m : MachineData} (hG : G1 a s1 m0 m)
     (hx0 : m.regs.X0 = okWord true) {R : MachineState → Prop}
     (cont : ∀ m' xs s2, (sampleChallenges 16).run s1 = some (xs, s2) → G2 a s2 xs m0 m' →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 32)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 11)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b3Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b2Offset)⟩ := by
   have hwf := envM_wf h hG.fr
   refine exec_then (hb b2_in_code (by simp [b2]) hp) run_b2 hwf (matchM h hG.fr)
     fun st hm1 hpc ↦ ?_
@@ -167,7 +168,7 @@ theorem stepSample (hp : Placed code k) (h : RingSwitchPre a s m0)
       · rw [e0] at hq; exact .inr (.inr (.inr hq))
       · exact .inl hq, hq.2.2⟩)
     fun m2 hfr2 hq hcs ↦ ?_
-  rw [show k + 11 + b2.length = k + 32 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingSwitch.b2Offset + b2.length = k + NativeRustcVmArm.Vm.RingSwitch.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingSwitch.b2_next]]
   obtain ⟨⟨xs, s2, hrun, hch, hts2⟩, -, -⟩ := hq
   rw [e1] at hch
   rw [e2] at hrun

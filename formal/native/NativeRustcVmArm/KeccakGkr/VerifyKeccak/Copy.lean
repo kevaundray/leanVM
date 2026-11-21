@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Front
 
 /-!
@@ -36,10 +37,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **A block, then `memcpy` within the frame.** -/
 theorem cpStep (hn : Nums a inst m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {ds : List Directive} {i : Nat} {S' : SState} {m : MachineData} {L : List (Nat × Nat)}
     {dst src n : Nat} {R : MachineState → Prop}
-    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S', .call "memcpy"))
+    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.Memcpy.entryLabel))
     (hmid : Mid m0 m) (hsp : S'.sp = .ptr 0 0)
     (hw : S'.mem.all (fun w ↦ w.r == 0 &&
       L.any (fun p ↦ decide (p.1 ≤ w.off) && decide (w.off + w.n ≤ p.2))) = true)

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Open2
 public import NativeRustcVm.Sumcheck.RoundPoly
 
@@ -57,13 +58,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The slices** (`b59`, `b60`). -/
 theorem stepFin1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s)
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s)
       (ReadScalarsPost a s))
     {m : MachineData} {s1 : TState} {cj : KeccakClaimW} {outs : Array ColumnClaimW}
     {low sl ws : Array EW} {v : EW} (hv : AtV a s cs inst output m0 m s1 cj outs low sl ws v)
     (cont : ∀ m' s3 xs, AtY a s cs inst output m0 m' s1 s3 cj outs low sl ws v xs →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 398)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 390)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b61Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b59Offset)⟩ := by
   have hwf := envM_wf hn hv.fr
   have hN := hn.hN
   have ev := hv.val.2
@@ -125,7 +126,7 @@ theorem stepFin1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
     have x24 : (m2.regs.getXReg .X24).toNat = cj.point.size := by
       rw [hk .X24 (by simp [f1L]), Match.reg_eq (matchM hn hv.fr) hm1 (r := .X24) rfl rfl]
       exact hv.x24
-    rw [show k + 390 + b59.length = k + 397 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b59Offset + b59.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b60Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b59_next]]
     refine failBranchF hp hn (b60_in_code.trans hp.1 (by simp [b60])) run_b60 hfr2 rfl rfl
       (L := f1L) (by decide) (b := ((readScalars 64).run s1).isSome)
       (condX0 (by rw [Env.ofMachine_regs, gx0, hx])) (fun hf ↦ ?_) fun ht m3 hfr3 hd3 hk3 ↦ ?_
@@ -137,7 +138,7 @@ theorem stepFin1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
         | none => rw [hq] at ht; cases ht
         | some q => exact ⟨q, rfl⟩
       have hxsz : xs.size = 64 := NativeRustcVm.Sumcheck.readScalars_size hr
-      rw [show k + 397 + b60.length = k + 398 from rfl]
+      rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b60Offset + b60.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b61Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b60_next]]
       refine cont m3 s3 xs ⟨hfr3, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hv.psz, hv.lowsz, ?_,
         hv.slsz, ?_, hv.wsz, ?_, hxsz, ?_, hr, hv.run⟩
       · rw [hk3 .X21 (by simp [f1L])]; exact x21

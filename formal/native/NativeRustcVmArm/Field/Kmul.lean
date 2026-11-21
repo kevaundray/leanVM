@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
 public import NativeRustcVmArm.Field.Kmul.Exec
 public import NativeRustcVmArm.Field.Leaf
 public import NativeRustcVmArm.Field.Norm
@@ -44,10 +45,10 @@ theorem kmul_val [Labels] {env : Env} {m : MachineData} {S' : SState} {x : Exit}
 
 /-- **`kmul` computes `Field.kmul`.** -/
 theorem kmul_spec_rust [Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label kmulLabel) KmulPre RustPost := by
-  have hk : b0.IsInfixAt Host.prog (k + 0) :=
+    Spec (Labels.label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre RustPost := by
+  have hk : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kmul.b0Offset) :=
     b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _)
-  have hl : Labels.label kmulLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hl : Labels.label NativeRustcVmArm.Vm.Kmul.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Kmul.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.Kmul.entryOffset) NativeRustcVmArm.Vm.Kmul.entry_at
   refine leaf_spec (Q := fun m m' ↦ m'.regs.X0.toBitVec =
     NativeRustcVm.Field.kmul m.regs.X0.toBitVec m.regs.X1.toBitVec) hk hl (by decide) run_b0
     ?_ ?_ ?_ ?_
@@ -61,7 +62,7 @@ theorem kmul_spec_rust [Host] {k : Nat} (hp : Placed code k) :
 
 /-- **`kmul` computes the model's product.** -/
 theorem kmul_spec [Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label kmulLabel) KmulPre KmulPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost := by
   intro m hpre
   refine Eventually.mono (kmul_spec_rust hp m hpre) fun st ⟨hpc, h0, hso, hsv⟩ ↦
     ⟨hpc, ?_, hso, hsv⟩

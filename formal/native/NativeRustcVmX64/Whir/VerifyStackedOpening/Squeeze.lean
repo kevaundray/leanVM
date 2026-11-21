@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.Step
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
 # `verify_stacked_opening`: the batching challenge's squeeze (x86-64)
@@ -22,10 +23,10 @@ variable [Host] {a : DecArea} {s : TState} {layout : LayoutW} {target : EW}
 
 /-- **`squeeze`** on the `TState`'s sponge from a state of the frame at its call. -/
 theorem Parts.squeeze (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {env : Env} {st : MachineState} (hok : Ok m0 st.data 0) {s' : TState}
     (hts : TStateAt st.data.dmem (tA m0) a s') (hdi : reg st.data .rdi = tA m0) {next : Int64}
-    (hpc : PcOk env (.call squeezeLabel) next st) {R : MachineState → Prop}
+    (hpc : PcOk env (.call NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) next st) {R : MachineState → Prop}
     (cont : ∀ st2 : MachineState, st2.pc = next → Ok m0 st2.data 8 →
       FrameSame m0 st.data.dmem st2.data.dmem →
       TStateAt st2.data.dmem (tA m0) a (sq s').2 →

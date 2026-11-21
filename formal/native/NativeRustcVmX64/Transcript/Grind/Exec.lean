@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.TStateGrind
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
 public meta import NativeRustcVmX64.Code.Vm.TStateGrind
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -55,7 +56,7 @@ sym_block run_b3 := exec b3 D2
 sym_block run_b4 := exec b4 doneS
 
 public theorem exit_b0 : exec b0 entryS = some (S0, .cond
-    (SBool.cmp .eq .W32 (.bin .and .W32 (.reg .rsi) (.reg .rsi)) (.lit 0)) ".LTStateGrind_3") :=
+    (SBool.cmp .eq .W32 (.bin .and .W32 (.reg .rsi) (.reg .rsi)) (.lit 0)) NativeRustcVmX64.Vm.TStateGrind.label_3) :=
   run_b0.trans (by rw [show S0 = _ from after_eq run_b0])
 public theorem exit_b5 : exec b5 S0 = some (after b5 S0, .ret (.load 0 48 8)) :=
   run_b5.trans (by rw [after_eq run_b5])
@@ -70,7 +71,7 @@ public theorem ok_b1 : ProOk 48 0 slots (after b1 S0) = true ∧
     (after b1 S0).reg .r14 = some (.reg .rdi) := by
   decide +kernel
 public theorem exit_b2 : exec b2 doneS = some (D2, .cond
-    (SBool.cmp .eq .W8 (.load 0 8 1) (.lit 0)) ".LTStateGrind_4") :=
+    (SBool.cmp .eq .W8 (.load 0 8 1) (.lit 0)) NativeRustcVmX64.Vm.TStateGrind.label_4) :=
   run_b2.trans (by rw [show D2 = _ from after_eq run_b2])
 public theorem ok_b2 : MidOk 48 8 slots D2 = true ∧ D2.mem = [] ∧
     D2.reg .rbx = some (.reg .rbx) ∧ D2.reg .r14 = some (.reg .r14) := by

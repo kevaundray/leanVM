@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakOpen.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Sum
 
 /-!
@@ -26,13 +27,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The second opening** (`b57`, `b58`). -/
 theorem stepOpen2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hko : ∀ a s c, Spec (Labels.label keccakOpenLabel) (KeccakOpenPre a s c)
+    (hko : ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c)
       (KeccakOpenPost a s c))
     {m : MachineData} {s1 : TState} {cj : KeccakClaimW} {outs : Array ColumnClaimW}
     {low : Array EW} {v : EW} (hu : AtU a s cs inst output m0 m s1 cj outs low v)
     (cont : ∀ m' s' sl ws v', AtV a s cs inst output m0 m' s' cj outs low sl ws v' →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 390)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 366)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b59Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b57Offset)⟩ := by
   have hwf := envM_wf hn hu.mid.fr
   have hN := hn.hN
   have n30 := h.n30
@@ -136,7 +137,7 @@ theorem stepOpen2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
       rw [hk .X23 (by simp [o2L]), hm1.regs .X23 _ rfl]; exact e3v
     have x24 : (m2.regs.getXReg .X24).toNat = cj.point.size := by
       rw [hk .X24 (by simp [o2L]), ← UInt64.toNat_toBitVec, hm1.regs .X24 _ rfl]; exact e4v
-    rw [show k + 366 + b57.length = k + 388 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b57Offset + b57.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b58Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b57_next]]
     refine failBranchF hp hn (b58_in_code.trans hp.1 (by simp [b58])) run_b58 hfr2 rfl rfl
       (L := o2L) (by decide)
       (b := ((keccakOpen m0.regs.X1.toNat cj 0 2 v).run s1 |>.map (·.1.2.2)).isSome)
@@ -153,7 +154,7 @@ theorem stepOpen2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
       obtain ⟨hslv, hrowv, hts'⟩ := hsome sl ws v' s2 hr
       rw [hr] at hout
       obtain ⟨hsl6, hws64⟩ := open_weights_size hr
-      rw [show k + 388 + b58.length = k + 390 from rfl]
+      rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b58Offset + b58.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b59Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b58_next]]
       refine cont m3 s2 sl ws v' ⟨hfr3, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hpsz, hu.lowsz, ?_,
         hsl6, ?_, hws64, ?_, ?_, by rw [hu.run, afterSum_some hr]⟩
       · rw [hk3 .X20 (by simp [o2L])]; exact x20

@@ -34,8 +34,8 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B) {count : Nat} {qs : List Nat}
     {height lw rw c5 : Nat} {st : MachineState} (h : Chk m0 bp B c k count qs height lw rw c5 st) :
     Eventually (step1 Host.exe) (fun st' ↦ AtNone m0 B c k st' ∨
-      (Chk m0 bp B c k count qs height lw rw c5 ⟨st'.data, Host.addrOf (k + 75)⟩ ∧
-        st'.pc = Host.addrOf (k + 89) ∧ height ≤ 32 ∧ lw ≤ 64 ∧ rw ≤ lw ∧
+      (Chk m0 bp B c k count qs height lw rw c5 ⟨st'.data, Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b20Offset)⟩ ∧
+        st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b24Offset) ∧ height ≤ 32 ∧ lw ≤ 64 ∧ rw ≤ lw ∧
         (sortD qs).getLastD 0 < 2 ^ height)) st := by
   have hc := h
   obtain ⟨hpc, hb, hmod, hql, hc0, hcnt, hqlt, hhl, hlwl, hrwl, hps0, hps256, x21, x24, x28, x26,
@@ -137,7 +137,7 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B) {count : Nat} {qs : Lis
     · rw [r4 .X28 (by simp), hr .X28 (by decide)]; exact x28
     · rw [r4 .X26 (by simp), hr .X26 (by decide)]; exact x26
   · simp only [h4, decide_false, Bool.not_false, ↓reduceIte] at hpc4
-    exact .done _ (.inl ⟨hpc4.trans (hp.label (j := 64) rfl), hb4, by
+    exact .done _ (.inl ⟨hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb4, by
       rw [hmod]; exact tail_none_of (by tauto)⟩)
 
 end

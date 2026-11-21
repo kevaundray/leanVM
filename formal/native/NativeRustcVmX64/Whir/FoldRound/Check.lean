@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRound.Exit
+public import NativeRustcVmX64.Code.Vm.FoldRound.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
 # `fold_round` on x86-64: a read and its check
@@ -43,15 +45,15 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : Mac
 
 /-- **`read_scalar` and the tag's test.** -/
 theorem readCheck (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {s : TState} {st1 : MachineState}
     (h1 : AtCall m0 176 foldRoundStack slots (outs m0) (tA m0) a s st1.data)
     (hmem1 : SameOutside m0.dmem st1.data.dmem (Pre18 m0))
     (hrdi : reg st1.data .rdi = off (fb m0) 8) (hrsi : reg st1.data .rsi = tA m0)
     (hbx : reg st1.data .rbx = oA m0) (h14 : reg st1.data .r14 = pA m0) {j : Nat}
-    (hpc : st1.pc = Labels.label readScalarLabel ∧ retOf st1.data = Host.addrOf (k + j))
+    (hpc : st1.pc = Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel ∧ retOf st1.data = Host.addrOf (k + j))
     {b : List Directive} (hb : b.IsInfixAt code j) (hne : b ≠ []) {S : SState} {c : SBool}
-    (hrun : exec b midS = some (S, .cond c ".LFoldRound_7"))
+    (hrun : exec b midS = some (S, .cond c NativeRustcVmX64.Vm.FoldRound.label_7))
     (hok : MidOk 176 8 slots S = true ∧ S.mem = [] ∧ kept S cs = true)
     (hc : ∀ (e : Env) (v : UInt64), (v = 0 ∨ v = 1) → e.load 0 8 4 = BitVec.ofNat 64 v.toNat →
       e.load 0 8 1 = BitVec.ofNat 64 v.toNat → c.eval e = (v == 0))
@@ -102,7 +104,7 @@ theorem readCheck (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
       (load4_of_tag (.inl rfl) h0) (load1_of_tag (.inl rfl) h0)
     rw [hce] at hpc3
     simp only [show ((0 : UInt64) == 0) = true from rfl, ↓reduceIte] at hpc3
-    rw [hp.label (j := 127) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.FoldRound.label_7_at] at hpc3
     exact none20 hp h hpc3 hw3 ((hcs3 .rbx rfl).trans hbx) (hnone hr)
   | some y =>
     obtain ⟨x, s'⟩ := y

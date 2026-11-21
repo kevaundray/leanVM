@@ -229,9 +229,9 @@ theorem fblk (hp : Placed code k) (G : Geo m0) {bj : List Directive} {j : Nat}
     (hm'.regs .rbx _ hbx).trans hbod.rbx, (hm'.regs .r15 _ h15).trans hbod.r15⟩ hd hm' hpc'
   rw [hd]; exact hbod.chg
 
-/-- **The epilogue** (`b15`, at `.LDecode_10`): the result as it is. -/
+/-- **The epilogue** (`b15`, at `NativeRustcVmX64.Vm.Decode.label_10`): the result as it is. -/
 theorem fin (hp : Placed code k) (G : Geo m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 77)) (hbod : Bod m0 8 st.data) (hres : Res m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b15Offset)) (hbod : Bod m0 8 st.data) (hres : Res m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hepi, hmem, hrax⟩ := ok_b15
   have hst : StackOk m0 1296 := G.st

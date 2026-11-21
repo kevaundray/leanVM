@@ -98,7 +98,7 @@ theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf r.m0 ∧
       rspOf st.data = rspOf r.m0 + 8#64 ∧ reg st.data .rax = reg m .rax ∧
       SameOutside r.m0.dmem st.data.dmem r.StackArea ∧ Saved r.m0 st.data)
-      ⟨m, r.pc 2370⟩ := by
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b197Offset⟩ := by
   have hk := Sphincs.SphincsVerify.b197_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
   have hm : Sym.Match (r.env m (fun _ ↦ 0) 0) (Sym.init [frameRegion, 16] [(.rsp, .ptr 0 0)]) m :=
@@ -133,14 +133,14 @@ theorem epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
 /-- **Returning `v`**: from a state of the frame at `b197` with RAX the boolean `v`, `Done v`. -/
 theorem done_of_epilogue (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (m : MachineData) (hF : r.Frame m) {v : Bool} (hx : reg m .rax = if v then 1 else 0) :
-    Eventually (step1 Host.exe) (r.Done v) ⟨m, r.pc 2370⟩ :=
+    Eventually (step1 Host.exe) (r.Done v) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b197Offset⟩ :=
   Eventually.mono (epilogue r hp hpre m hF) fun _ ⟨h1, h2, h3, h4, h5⟩ ↦
     ⟨h1, h2, h3.trans hx, h4, h5⟩
 
 /-- **Returning `0`** from `b196`, where a layer has no codeword. -/
 theorem fail_return (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (m : MachineData) (hF : r.Frame m) :
-    Eventually (step1 Host.exe) (r.Done false) ⟨m, r.pc 2368⟩ := by
+    Eventually (step1 Host.exe) (r.Done false) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b196Offset⟩ := by
   have hk := Sphincs.SphincsVerify.b196_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
   have hm : Sym.Match (r.env m (fun _ ↦ 0) 0) (Sym.init [frameRegion, 16] [(.rsp, .ptr 0 0)]) m :=

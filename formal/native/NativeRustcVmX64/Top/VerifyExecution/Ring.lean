@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Vso
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
 
 /-!
 # `verify_execution`: ring switching (x86-64)
@@ -50,14 +52,14 @@ variable [Host] {k : Nat}
 
 /-- **Ring switching**, from `b16`: the function returns the walk's rest. -/
 theorem callRing (hp : Placed code k)
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 75)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b16Offset)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
     (h13 : reg st.data .r13 = off (reg m0 .r8) 123992)
     (hbp : reg st.data .rbp = off (reg m0 .r8) 3912)
     (h40 : NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 96) 40)
@@ -73,7 +75,7 @@ theorem callRing (hp : Placed code k)
   have hF := g.F
   have hwN := g.wN
   have hN : ringSwitchStack = 3008 := rfl
-  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + 75 + b16.length)).toBitVec)
+  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b16Offset + b16.length)).toBitVec)
   refine exec_at (infix_of b16_in_code (by simp [b16]) hp) run_b16 hwf (fun _ _ ↦ rfl) hpc hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hw1, hrdi, hrsi, hrdx, hr12, hk⟩ := after_eq run_b16 ▸ ok_b16
@@ -184,7 +186,7 @@ theorem callRing (hp : Placed code k)
   rw [walkRing, run_bind_eq]
   generalize hr : (ringSwitch kp ks).run s = r at hok hres
   refine branch hp g b17_in_code (by simp [b17]) (by rw [after_eq run_b17]; exact run_b17)
-    (ok_test b17 (by simp)) h2 (hpc2.trans (by rw [show k + 75 + b16.length = k + 80 from rfl]))
+    (ok_test b17 (by simp)) h2 (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b16Offset + b16.length = k + NativeRustcVmX64.Vm.VerifyExecution.b17Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b16_next]]))
     hok (fun hb ↦ by cases r with | none => rfl | some _ => cases hb)
     fun st3 hb h3 hd3 hk3 hpc3 ↦ ?_
   obtain ⟨⟨⟨target, rp, coeffs⟩, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
@@ -207,7 +209,7 @@ theorem callRing (hp : Placed code k)
     rw [hd3]; exact NativeRustcVm.Tables.ClaimsWAt.of_same hcl (hsC (n := 97288) (by omega) (by omega) (by omega))
   have hood3 : OodAt st3.data.dmem (off (reg m0 .r8) 3912) ood := by
     rw [hd3]; exact NativeRustcVm.Top.OodAt.of_same hood (hsC (n := 504) (by omega) (by omega) (by omega))
-  exact callVso hp hvso g h3 (hpc3.trans (by rw [show k + 80 + b17.length = k + 82 from rfl]))
+  exact callVso hp hvso g h3 (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b17Offset + b17.length = k + NativeRustcVmX64.Vm.VerifyExecution.b18Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b17_next]]))
     (by rw [k15, kr _ (by simp)]; exact h15) (by rw [k12]; exact eR12)
     (by rw [k13, kr _ (by simp)]; exact h13) (by rw [kbp, kr _ (by simp)]; exact hbp)
     (by rw [hd3]; exact h40') (by rw [hd3]; exact hts') (by rw [hroots']; exact hroots) hL3

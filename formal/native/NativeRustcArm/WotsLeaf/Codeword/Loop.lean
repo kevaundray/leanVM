@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.WotsLeaf.Codeword.Checks
 
 /-!
@@ -54,11 +56,10 @@ theorem digitsPre_succ4 (r : Run) (n : Nat) :
 theorem length_digitsPre (r : Run) (n : Nat) : (r.digitsPre n).length = n := by
   simp [Run.digitsPre]
 
-theorem length_b9 : b9.length = 44 := rfl
 
 /-- What a turn of the loop does, from `ok9`. -/
 theorem ok9_spec {j : Nat} (h : ok9 j = true) : ∃ S, exec b9 (s9 j) =
-      some (S, .cond (.lit (j != 13)) ".LWotsLeaf_3") ∧ coversDigits S.mem j = true ∧
+      some (S, .cond (.lit (j != 13)) NativeRustcArm.Xmss.WotsLeaf.label_3) ∧ coversDigits S.mem j = true ∧
     blockOK S = true ∧ Run.noWriteIn S 0 (380 + 4 * j) = true ∧ Run.noWriteIn S 1776 32 = true ∧
     S.reg .X11 = some (.ptr 0 (381 + 4 * (j + 1))) ∧ S.reg .X12 = some (.lit (6 + 8 * (j + 1))) ∧
     S.reg .X8 = some (.reg .X8) ∧ S.reg .X9 = some (.reg .X9) ∧ S.reg .X10 = some (.reg .X10) ∧
@@ -110,8 +111,8 @@ variable [NativeArm.Host]
 with the 56 digits of the 14 turns stored. -/
 theorem digits_loop (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) :
     ∀ n j, j + n = 14 → 0 < n → ∀ m, r.AtDigits j m →
-      Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 146 ∧ r.AtDigits 14 st.data)
-        ⟨m, r.pc 102⟩ := by
+      Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b10Offset ∧ r.AtDigits 14 st.data)
+        ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b9Offset⟩ := by
   intro n
   induction n with
   | zero => intro j _ h; omega
@@ -142,9 +143,10 @@ theorem digits_loop (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre
         regIs_lit hm s12, regIs_reg hm s19 h19, regIs_reg hm s20 h20, regIs_reg hm s22 h22⟩
     by_cases hj : j = 13
     · subst hj
-      have : st.pc = r.pc 146 := by simpa [PcOk, SBool.eval, length_b9] using hpc
+      have : st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b10Offset := by
+        simpa [PcOk, SBool.eval, NativeRustcArm.Xmss.WotsLeaf.b9_next] using hpc
       exact .done _ ⟨this, hA'⟩
-    · have : st.pc = r.pc 102 := by
+    · have : st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b9Offset := by
         have h1 := hpc
         simp only [PcOk, SBool.eval, bne_iff_ne, ne_eq, hj, not_false_eq_true,
           ite_true] at h1

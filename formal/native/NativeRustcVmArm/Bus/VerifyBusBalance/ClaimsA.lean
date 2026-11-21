@@ -1,11 +1,20 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmArm.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmArm.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmArm.Code.Vm.Kpow.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.ClaimsB
 
 /-!
 # `verify_bus_balance`'s scalars and first claim
 
-From `b18` (`k + 271`), after the GKR walk: `b18` computes `memory_low`'s and `bytecode_low`'s
+From `b18` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b18Offset`), after the GKR walk: `b18` computes `memory_low`'s and `bytecode_low`'s
 lengths and calls `read_scalars` for the memory's two scalars; `b19` to `b23` check it and read
 the two final counters; `b24` empties the claims and pushes the first; then the other three
 (`claims_spec`).
@@ -42,24 +51,24 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The scalars and the claims** (`b18`, `k + 271`). -/
+/-- **The scalars and the claims** (`b18`, `k + NativeRustcVmArm.Vm.VerifyBusBalance.b18Offset`). -/
 theorem claims_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s)
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s)
       (ReadScalarsPost a s))
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hpcl : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
-    (hbs : ∀ a s, Spec (Labels.label bytecodeShareLabel) (BytecodeSharePre a s)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hpcl : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hbs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.BytecodeShare.entryLabel) (BytecodeSharePre a s)
       (BytecodeSharePost a s))
-    (hcbv : Spec (Labels.label computedBytecodeValueLabel) ComputedBytecodeValuePre
+    (hcbv : Spec (Labels.label NativeRustcVmArm.Vm.ComputedBytecodeValue.entryLabel) ComputedBytecodeValuePre
       ComputedBytecodeValuePost)
-    (hkp : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hkp : Spec (Labels.label NativeRustcVmArm.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hfc : Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
     {w pt tv : Array EW} {beta : EW} {s : TState} {m : MachineData}
     (A : AtClaims a s0 L m0 w pt tv beta s m) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 271)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b18Offset)⟩ := by
   have hS := pre_stack h
   have hN := hS.2.1
   have c := ctx h

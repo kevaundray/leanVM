@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPi.Names
+public import NativeRustcVmArm.Code.Vm.LinearTranspose.Names
 public import NativeRustcVmArm.KeccakGkr.LinearTranspose.Outs
 
 /-!
@@ -23,8 +25,8 @@ variable [NativeArm.Host] {ws : Array EW} {m0 : MachineData} {k : Nat}
 
 /-- **The prologue** (`b0`): lane `0`'s head. -/
 theorem entry (hp : Placed code k) (hpre : LinearTransposePre ws m0) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 22) ∧ Head m0 ws 0 s'.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b2Offset) ∧ Head m0 ws 0 s'.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b0Offset)⟩ := by
   have hS := hpre.1
   have h80 : 80 ≤ linearTransposeStack := by decide
   obtain ⟨hmap, hnw, -⟩ := frame_ok hS h80
@@ -38,7 +40,7 @@ theorem entry (hp : Placed code k) (hpre : LinearTransposePre ws m0) :
   refine exec_then (b0_in_code.trans hp.1 (by simp [b0])) e0 hwf hm fun s1 hm1 hpc1 ↦
     .done _ ⟨?_, ?_⟩
   · simp only [PcOk] at hpc1
-    exact hpc1.trans (hp.label (j := 22) rfl)
+    exact hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b2Offset) NativeRustcVmArm.Vm.LinearTranspose.label_2_at)
   have hb : Body m0 s1.data := by
     refine Frame.of_entry hS h80 hm1 rfl (by decide +kernel) (fun r hr hn ↦ ?_) (by decide +kernel)
     simp only [calleeRegs, List.mem_cons, List.not_mem_nil, or_false] at hr
@@ -84,7 +86,7 @@ theorem out_list [Labels] {d : DataMem} (h : ElemsAt d (oA m0) (oF ws) 1600) :
 
 /-- **The epilogue** (`b24`): the registers restored, the output returned. -/
 theorem finish (hp : Placed code k) (hpre : LinearTransposePre ws m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 240)) (hI : OutDone m0 ws s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b24Offset)) (hI : OutDone m0 ws s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ s'.pc = retOf m0 ∧ LinearTransposePost ws m0 s'.data)
       s := by
   have hS := hpre.1
@@ -109,10 +111,10 @@ theorem finish (hp : Placed code k) (hpre : LinearTransposePre ws m0) {s : Machi
 
 /-- **`linear_transpose` meets its contract**, given `keccak_pi`'s. -/
 theorem linearTranspose_spec (hp : Placed code k)
-    (hpi : Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost) (ws : Array EW) :
-    Spec (Labels.label linearTransposeLabel) (LinearTransposePre ws) (LinearTransposePost ws) := by
+    (hpi : Spec (Labels.label NativeRustcVmArm.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost) (ws : Array EW) :
+    Spec (Labels.label NativeRustcVmArm.Vm.LinearTranspose.entryLabel) (LinearTransposePre ws) (LinearTransposePost ws) := by
   intro m0 hpre
-  have hl : Labels.label linearTransposeLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hl : Labels.label NativeRustcVmArm.Vm.LinearTranspose.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.entryOffset) NativeRustcVmArm.Vm.LinearTranspose.entry_at
   rw [hl]
   exact (entry hp hpre).bind fun s1 ⟨hpc1, hI1⟩ ↦
     (lanes_loop hp hpre hpi hpc1 hI1).bind fun s2 ⟨hpc2, hI2⟩ ↦

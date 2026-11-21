@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.StackOffsets.Names
 public import NativeRustcVmArm.Layout.StackOffsets.Exec
 public import NativeRustcVmArm.Layout.Frame
 public import NativeRustcVmArm.Layout.InsertionSort
@@ -410,34 +411,34 @@ variable {k : Nat}
 
 open NativeRustcVmArm.Vm.StackOffsets (code)
 
-theorem lbl_entry (hp : Placed code k) : Labels.label stackOffsetsLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LStackOffsets_2" = Host.addrOf (k + 5) :=
-  hp.label (j := 5) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LStackOffsets_5" = Host.addrOf (k + 30) :=
-  hp.label (j := 30) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LStackOffsets_6" = Host.addrOf (k + 36) :=
-  hp.label (j := 36) rfl
-theorem lbl_7 (hp : Placed code k) : Labels.label ".LStackOffsets_7" = Host.addrOf (k + 43) :=
-  hp.label (j := 43) rfl
-theorem lbl_9 (hp : Placed code k) : Labels.label ".LStackOffsets_9" = Host.addrOf (k + 55) :=
-  hp.label (j := 55) rfl
-theorem lbl_10 (hp : Placed code k) : Labels.label ".LStackOffsets_10" = Host.addrOf (k + 57) :=
-  hp.label (j := 57) rfl
-theorem lbl_11 (hp : Placed code k) : Labels.label ".LStackOffsets_11" = Host.addrOf (k + 62) :=
-  hp.label (j := 62) rfl
-theorem lbl_12 (hp : Placed code k) : Labels.label ".LStackOffsets_12" = Host.addrOf (k + 67) :=
-  hp.label (j := 67) rfl
-theorem lbl_13 (hp : Placed code k) : Labels.label ".LStackOffsets_13" = Host.addrOf (k + 73) :=
-  hp.label (j := 73) rfl
-theorem lbl_14 (hp : Placed code k) : Labels.label ".LStackOffsets_14" = Host.addrOf (k + 75) :=
-  hp.label (j := 75) rfl
-theorem lbl_15 (hp : Placed code k) : Labels.label ".LStackOffsets_15" = Host.addrOf (k + 80) :=
-  hp.label (j := 80) rfl
-theorem lbl_19 (hp : Placed code k) : Labels.label ".LStackOffsets_19" = Host.addrOf (k + 91) :=
-  hp.label (j := 91) rfl
-theorem lbl_20 (hp : Placed code k) : Labels.label ".LStackOffsets_20" = Host.addrOf (k + 99) :=
-  hp.label (j := 99) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.entryOffset) NativeRustcVmArm.Vm.StackOffsets.entry_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b2Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b2Offset) NativeRustcVmArm.Vm.StackOffsets.label_2_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b6Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b6Offset) NativeRustcVmArm.Vm.StackOffsets.label_5_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b7Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b7Offset) NativeRustcVmArm.Vm.StackOffsets.label_6_at
+theorem lbl_7 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b8Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b8Offset) NativeRustcVmArm.Vm.StackOffsets.label_7_at
+theorem lbl_9 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b10Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b10Offset) NativeRustcVmArm.Vm.StackOffsets.label_9_at
+theorem lbl_10 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b11Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b11Offset) NativeRustcVmArm.Vm.StackOffsets.label_10_at
+theorem lbl_11 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_11 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b12Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b12Offset) NativeRustcVmArm.Vm.StackOffsets.label_11_at
+theorem lbl_12 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_12 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b13Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b13Offset) NativeRustcVmArm.Vm.StackOffsets.label_12_at
+theorem lbl_13 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b15Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b15Offset) NativeRustcVmArm.Vm.StackOffsets.label_13_at
+theorem lbl_14 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_14 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b16Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b16Offset) NativeRustcVmArm.Vm.StackOffsets.label_14_at
+theorem lbl_15 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_15 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b17Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b17Offset) NativeRustcVmArm.Vm.StackOffsets.label_15_at
+theorem lbl_19 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_19 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b21Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b21Offset) NativeRustcVmArm.Vm.StackOffsets.label_19_at
+theorem lbl_20 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackOffsets.label_20 = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b22Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackOffsets.b22Offset) NativeRustcVmArm.Vm.StackOffsets.label_20_at
 
 /-- **A block of registers only** from a fresh state keeps the frame and memory. -/
 theorem run_regs {m0 : MachineData} (hS : StackOk m0 1328) {ds : List Directive} {kk : Nat}

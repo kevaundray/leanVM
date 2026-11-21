@@ -41,7 +41,7 @@ theorem encode_spec [NativeArm.Host] : EncodeSpec := by
   obtain ⟨-, -, -, hI3, hL3, -, h21, -, h25, h26, -, -⟩ := hB3
   refine Eventually.mono (sum_spec r hp hpre hl hF3 hI3 hL3 h21 h25 h26 hd3) fun st h' ↦ ?_
   show (encode r.seed (r.key l) s (r.layerSig l).counter = none ∧ r.Done false st) ∨
-    ∃ x, encode r.seed (r.key l) s (r.layerSig l).counter = some x ∧ st.pc = r.pc 1715 ∧
+    ∃ x, encode r.seed (r.key l) s (r.layerSig l).counter = some x ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b114Offset ∧
       r.AtChains l x st.data
   rw [encode_eq]
   simp only [hVdef]

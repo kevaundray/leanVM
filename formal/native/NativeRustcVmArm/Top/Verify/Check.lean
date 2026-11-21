@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.DecodedPhaseCount.Names
 public import NativeRustcVmArm.Top.Verify.Exit
 public import NativeRustcVmArm.Top.Verify.Init
 
@@ -46,10 +47,10 @@ variable [Host] {k : Nat}
 
 /-- **The phase check**, from `b6` with the walk's last state `s` in the `TState`. -/
 theorem checkPhase (hp : Placed code k)
-    (hpcnt : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hpcnt : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {R : BitVec 64 → Prop} {s : TState}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 83)) (hB : Body m0 832 slots R st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b6Offset)) (hB : Body m0 832 slots R st.data)
     (hx19 : st.data.regs.X19 = m0.regs.X3) (hts : TStateAt st.data.dmem (tOf m0) a s)
     (hdec : DecFieldsAt st.data.dmem m0.regs.X3.toBitVec a)
     (hdecM : Mapped st.data.dmem m0.regs.X3.toBitVec 24)
@@ -107,7 +108,7 @@ theorem checkPhase (hp : Placed code k)
     rw [← Std.ExtHashMap.get?_eq_getElem?, ← Std.ExtHashMap.get?_eq_getElem?]
     exact hsame7 p id
   have hX20' : st7.data.regs.X20 = s.phase.toUInt64 := (hsaved7.1 .X20 rfl).trans hX20
-  rw [show k + 83 + b6.length = k + 86 from rfl] at hpc7
+  rw [show k + NativeRustcVmArm.Vm.Verify.b6Offset + b6.length = k + NativeRustcVmArm.Vm.Verify.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b6_next]] at hpc7
   refine exec_at (hb7 hp) run_b7 (Env.wf_nil _) hpc7 (match_nil _) fun st8 hm8 hpc8 ↦ ?_
   have hk8 := b7_keeps
   rw [after_eq run_b7] at hk8
@@ -123,16 +124,16 @@ theorem checkPhase (hp : Placed code k)
       show (st7.data.regs.getXReg .X0) = s.openings.size.toUInt64 from hx0',
       beq_toUInt64 hsz.2.2.1 hsz.2.2.2]
     by_cases h : s.phase = s.openings.size <;> simp [h]
-  rw [show k + 86 + b7.length = k + 88 from rfl] at hpc8
+  rw [show k + NativeRustcVmArm.Vm.Verify.b7Offset + b7.length = k + NativeRustcVmArm.Vm.Verify.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b7_next]] at hpc8
   refine Eventually.mono (exit8 hp hs832 hal hpc8 hB8 (by rw [hd8, hd7, hd6]; exact hFm))
     fun st' ⟨h1, h2, h3, h4⟩ ↦ ⟨h1, h2.trans hX0_8, h3, h4⟩
 
 /-- **The end check**, from `b3` with the walk's last state `s` in the `TState`. -/
 theorem check (hp : Placed code k)
-    (hpcnt : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hpcnt : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {R : BitVec 64 → Prop} {s : TState}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 75)) (hB : Body m0 832 slots R st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b3Offset)) (hB : Body m0 832 slots R st.data)
     (hx19 : st.data.regs.X19 = m0.regs.X3) (hts : TStateAt st.data.dmem (tOf m0) a s)
     (hdec : DecFieldsAt st.data.dmem m0.regs.X3.toBitVec a)
     (hdecM : Mapped st.data.dmem m0.regs.X3.toBitVec 24)
@@ -195,7 +196,7 @@ theorem check (hp : Placed code k)
     simp only [decide_eq_false_iff_not]
     omega
   simp only [PcOk, hc3, Bool.false_eq_true, ite_false,
-    show k + 75 + b3.length = k + 78 from rfl] at hpc3
+    show k + NativeRustcVmArm.Vm.Verify.b3Offset + b3.length = k + NativeRustcVmArm.Vm.Verify.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b3_next]] at hpc3
   -- `b4`: the stream's count.
   have hFp := hts.footprint
   have haM : Mapped st3.data.dmem a.words 8 := by
@@ -241,7 +242,7 @@ theorem check (hp : Placed code k)
     rw [hm4'.regs .X19 _ rfl]
     show m0.regs.X3.toBitVec + BitVec.ofInt 64 0 = _
     simp
-  simp only [PcOk, show k + 78 + b4.length = k + 80 from rfl] at hpc4
+  simp only [PcOk, show k + NativeRustcVmArm.Vm.Verify.b4Offset + b4.length = k + NativeRustcVmArm.Vm.Verify.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b4_next]] at hpc4
   -- `b5`: cursor against count.
   refine exec_at (hb5 hp) run_b5 (Env.wf_nil _) hpc4 (match_nil _) fun st5 hm5 hpc5 ↦ ?_
   have hk5 := b5_keeps
@@ -258,7 +259,7 @@ theorem check (hp : Placed code k)
   have hdm : st5.data.dmem = st.data.dmem := by rw [hd5, hd4, hd3]
   by_cases hcs : s.cursor = s.stream.size
   · simp only [hcs, decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
-      show k + 80 + b5.length = k + 83 from rfl] at hpc5
+      show k + NativeRustcVmArm.Vm.Verify.b5Offset + b5.length = k + NativeRustcVmArm.Vm.Verify.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b5_next]] at hpc5
     have hX19'' : st5.data.regs.X19 = m0.regs.X3 :=
       (UInt64.toBitVec_inj.mp (hm5.regs .X19 _ rfl)).trans hX19'
     refine Eventually.mono (checkPhase (s := s) hp hpcnt g hpc5 hB5 hX19''

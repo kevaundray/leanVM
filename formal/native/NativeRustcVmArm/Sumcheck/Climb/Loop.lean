@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Climb.Names
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
 public import NativeRustcVmArm.Sumcheck.Climb.Call
 
 /-!
@@ -24,18 +26,18 @@ variable [Host] {N : Digest} {P : Array Digest} {m0 : MachineData} {k : Nat}
 theorem b4_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {l : Nat} {m : MachineData}
     (hc : Called m0 N P l m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 49) ∧ l + 1 = P.size ∧
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b10Offset) ∧ l + 1 = P.size ∧
           Frame m0 (climbTo N m0.regs.X2 P (l + 1)).1 st.data) ∨
-        (st.pc = Host.addrOf (k + 30) ∧ Inv m0 N P (l + 1) st.data))
-      ⟨m, Host.addrOf (k + 21)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b5Offset) ∧ Inv m0 N P (l + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b4Offset)⟩ := by
   have ⟨gfr, gstk, gle, glt, gal⟩ := fr_geo hpre
   have hl := hc.lt
   have h32 : P.size ≤ 32 := by
     have h1 : P.size = m0.regs.X4.toNat := hpre.2.2.2.1
     have h2 : m0.regs.X4.toNat ≤ 32 := hpre.2.2.1
     omega
-  have hk4 : b4.IsInfixAt Host.prog (k + 21) := b4_in_code.trans hp.1 (by simp [b4])
-  have hl8 : Labels.label ".LClimb_8" = Host.addrOf (k + 49) := hp.label (j := 49) rfl
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Climb.b4Offset) := b4_in_code.trans hp.1 (by simp [b4])
+  have hl8 : Labels.label NativeRustcVmArm.Vm.Climb.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b10Offset) := hp.label (j := NativeRustcVmArm.Vm.Climb.b10Offset) NativeRustcVmArm.Vm.Climb.label_8_at
   let env := Env.ofMachine m [(fr m0, 144)]
   have hwf : env.WF :=
     Env.wf_of ⟨⟨mapped_fr hpre hc.kept, by show _ + 144 ≤ _; rw [gfr]; omega⟩, trivial⟩
@@ -154,12 +156,12 @@ theorem b4_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {l : Nat} {m : Mac
 
 /-- **The loop**: from the head, at `.LClimb_8` with `climb N q P` in the frame. -/
 theorem loop_spec (hp : Placed code k)
-    (hhp : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hhp : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hpre : ClimbPre N P m0) {l : Nat} {m : MachineData} (hinv : Inv m0 N P l m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ st.pc = Host.addrOf (k + 49) ∧ Frame m0 (climb N m0.regs.X2 P) st.data)
-      ⟨m, Host.addrOf (k + 30)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 30) ∧
+      (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b10Offset) ∧ Frame m0 (climb N m0.regs.X2 P) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b5Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b5Offset) ∧
       ∃ l, P.size - l = n ∧ Inv m0 N P l st.data) (fun n st ⟨hpc, l, hn, hi⟩ ↦ ?_)
     ⟨rfl, l, rfl, hinv⟩
   obtain ⟨d, pc⟩ := st

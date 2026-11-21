@@ -172,9 +172,9 @@ variable [NativeArm.Host] {ws : Array EW} {m0 : MachineData} {k : Nat}
 
 /-- **One element of the output loop**. -/
 theorem out_step (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 218)) (hI : Out m0 ws l z s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 218) ∧ Out m0 ws l (z + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 235) ∧ OutRegs m0 s'.data l ∧
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b22Offset)) (hI : Out m0 ws l z s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b22Offset) ∧ Out m0 ws l (z + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b23Offset) ∧ OutRegs m0 s'.data l ∧
         OutMem m0 ws (64 * l + 64) s'.data)) s := by
   have hS := hpre.1
   have hA := pre_areas hpre
@@ -280,13 +280,13 @@ theorem out_step (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : N
   by_cases hlast : z = 63
   · subst hlast
     simp only [show (BitVec.ofNat 64 (63 + 2) == 65#64) = true from rfl, Bool.not_true,
-      Bool.false_eq_true, ite_false, show b22.length = 17 from rfl] at hpc'
+      Bool.false_eq_true, ite_false, NativeRustcVmArm.Vm.LinearTranspose.b22_length, NativeRustcVmArm.Vm.LinearTranspose.b22Length] at hpc'
     exact .done _ (Or.inr ⟨hpc', hregs, hmem⟩)
   · have hc : (BitVec.ofNat 64 (z + 2) == 65#64) = false := by
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h
       simp at this; omega
     simp only [hc, Bool.not_false, ite_true] at hpc'
-    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := 218) rfl), hregs,
+    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b22Offset) NativeRustcVmArm.Vm.LinearTranspose.label_19_at), hregs,
       by rw [show 64 * l + (z + 1) = 64 * l + z + 1 by omega]; exact hmem, by omega, ?_, ?_, ?_, ?_,
       ?_⟩)
     · show (s'.data.regs.getXReg .X14).toBitVec = _

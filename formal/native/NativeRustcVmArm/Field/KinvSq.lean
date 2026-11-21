@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KinvSq.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
 public import NativeRustcVmArm.Field.KinvSq.Exec
 public import NativeRustcVmArm.Field.Prologue
 public import NativeRustcVmArm.Field.W32
@@ -30,18 +32,18 @@ public section
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KinvSq.b0Offset) :=
   b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _)
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 3) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KinvSq.b1Offset) :=
   b1_in_code.trans hp.1 (by rw [b1]; exact List.cons_ne_nil _ _)
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 6) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KinvSq.b2Offset) :=
   b2_in_code.trans hp.1 (by rw [b2]; exact List.cons_ne_nil _ _)
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 8) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KinvSq.b3Offset) :=
   b3_in_code.trans hp.1 (by rw [b3]; exact List.cons_ne_nil _ _)
 
 /-- **The loop's head** `.LKinvSq_1`, after `i` squarings. -/
 structure Inv (m0 m1 : MachineData) (k i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 3)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KinvSq.b1Offset)
   lt : i < kinvSqCount m0
   fr : Fr m0 m1 16 kinvSqStack used st.data
   x0 : st.data.regs.X0 = ksqIter i m0.regs.X0
@@ -64,7 +66,7 @@ theorem ksqIter_succ (i : Nat) (v : UInt64) :
 
 /-- **One squaring**: from the loop's head, back to it or returned. -/
 theorem step (hp : Placed code k)
-    (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
+    (hkmul : Spec (Labels.label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 m1 : MachineData} (hpre : KinvSqPre m0) (hsl : Slots m0 m1 16 slots) {i : Nat}
     {st : MachineState} (hI : Inv m0 m1 k i st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨ Inv m0 m1 k (i + 1) st') st := by
@@ -84,7 +86,7 @@ theorem step (hp : Placed code k)
     rw [hq.1, h10, h11, hx0]; rfl
   have h219 : st2.data.regs.X19 = d.regs.X19 := (hq.2.2.1 .X19 rfl).trans h119
   obtain ⟨d2, pc2⟩ := st2
-  simp only [show k + 3 + b1.length = k + 6 from rfl] at hpc2
+  simp only [show k + NativeRustcVmArm.Vm.KinvSq.b1Offset + b1.length = k + NativeRustcVmArm.Vm.KinvSq.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.KinvSq.b1_next]] at hpc2
   subst hpc2
   simp only at hq hF2 h20 h219
   refine block hF2 (hb2 hp) run_b2 rfl rfl (by decide +kernel) fun st3 hm3 hpc3 hF3 ↦ ?_
@@ -105,7 +107,7 @@ theorem step (hp : Placed code k)
   · rw [hlast] at hpc3
     simp only [decide_true, Bool.not_true, Bool.false_eq_true, ite_false] at hpc3
     obtain ⟨d3, pc3⟩ := st3
-    simp only [show k + 6 + b2.length = k + 8 from rfl] at hpc3
+    simp only [show k + NativeRustcVmArm.Vm.KinvSq.b2Offset + b2.length = k + NativeRustcVmArm.Vm.KinvSq.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.KinvSq.b2_next]] at hpc3
     subst hpc3
     simp only at hF3 h30
     refine Eventually.mono (epilogue g hF3 hsl (hb3 hp) run_b3 (by decide +kernel) rfl rfl)
@@ -117,16 +119,16 @@ theorem step (hp : Placed code k)
     congr 1
     omega
   · simp only [hlast, decide_false, Bool.not_false, ite_true] at hpc3
-    refine .done _ (Or.inr ⟨hpc3.trans (hp.label (j := 3) rfl), by omega, hF3, h30.trans h20,
+    refine .done _ (Or.inr ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.KinvSq.b1Offset) NativeRustcVmArm.Vm.KinvSq.label_1_at), by omega, hF3, h30.trans h20,
       h319⟩)
 
 /-- **`kinv::sq` squares `n` times.** -/
-theorem kinvSq_spec (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost) :
-    Spec (Labels.label kinvSqLabel) KinvSqPre KinvSqPost := by
+theorem kinvSq_spec (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.KinvSq.entryLabel) KinvSqPre KinvSqPost := by
   intro m0 hpre
   have g := geo hpre
   have hlt := count_lt m0
-  rw [show Labels.label kinvSqLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.KinvSq.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.KinvSq.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.KinvSq.entryOffset) NativeRustcVmArm.Vm.KinvSq.entry_at]
   refine prologue (used := used) (slots := slots) g (hb0 hp) run_b0 rfl (by decide +kernel)
     (by decide +kernel) (by decide +kernel) fun st1 hm1 hpc1 hF1 hsl ↦ ?_
   have hI : Inv m0 st1.data k 0 st1 := by

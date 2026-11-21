@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BuildLayout.Names
+public import NativeRustcVmArm.Code.Vm.ReadAnnouncedSizes.Names
 public import NativeRustcVmArm.Layout.ReadAnnouncedSizes.Model
 
 /-!
@@ -23,7 +25,7 @@ public section
 variable [Host] {k : Nat}
 
 theorem lbl_13' (hp : Placed code k) :
-    Labels.label ".LReadAnnouncedSizes_13" = Host.addrOf (k + 65) := lbl_13 hp
+    Labels.label NativeRustcVmArm.Vm.ReadAnnouncedSizes.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b15Offset) := lbl_13 hp
 
 omit [Host] in
 theorem rateA_get {xs : Array EW} (hsz : xs.size = 8) :
@@ -36,7 +38,7 @@ theorem from12 (hp : Placed code k) {bc : Array UInt64} {a : DecArea} {s s1 : TS
     {m0 : MachineData} (hpre : ReadAnnouncedSizesPre bc a s m0) {xs : Array EW}
     (hrs : (readScalars 8).run s = some (xs, s1)) (hsz : xs.size = 8)
     (hall : (xs.all fun x ↦ x.c1 == 0) = true) (hrate : 1 ≤ rateA xs ∧ rateA xs ≤ 4)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 54)) (hb : Fr m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b12Offset)) (hb : Fr m0 st.data)
     (h19 : st.data.regs.X19 = m0.regs.X2) (h21 : st.data.regs.X21 = (xs[7]'(by omega)).c0)
     (h0 : st.data.regs.X0 = okWord (buildLayout bc (lmA xs) (rowsA xs)).isSome)
     (hL : ∀ L, buildLayout bc (lmA xs) (rowsA xs) = some L → LayoutWAt st.data.dmem (ll m0) L)
@@ -135,11 +137,11 @@ theorem from12 (hp : Placed code k) {bc : Array UInt64} {a : DecArea} {s s1 : TS
 
 /-- **After the checks** (`b10`, `b11`, the call of `build_layout`). -/
 theorem from10 (hp : Placed code k)
-    (hbl : ∀ bc, Spec (Labels.label buildLayoutLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
+    (hbl : ∀ bc, Spec (Labels.label NativeRustcVmArm.Vm.BuildLayout.entryLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
     {bc : Array UInt64} {a : DecArea} {s s1 : TState} {m0 : MachineData}
     (hpre : ReadAnnouncedSizesPre bc a s m0) {xs : Array EW}
     (hrs : (readScalars 8).run s = some (xs, s1)) {D : Mem 64} (hts : TStateAt D (tt m0) a s1)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 36)) (hM : Mid m0 xs D st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b10Offset)) (hM : Mid m0 xs D st.data)
     (hc1 : ∀ i (hi : i < xs.size), xs[i].c1 = 0) :
     Eventually (step1 Host.exe) (Post bc a s m0) st := by
   obtain ⟨hst, -, hrod, hts0, htok, -, hX1, hlr, hlo, hlrod, -, hlt, hla⟩ := id hpre
@@ -194,7 +196,7 @@ theorem from10 (hp : Placed code k)
   · refine fail15 hp hst ((hy ((rate_cond _).mpr (by rw [hrA] at hr; exact hr))).trans
       (lbl_13 hp)) hfr1 ?_
     rw [hrun, ite_false_of hr]; rfl
-  have hpc50 : st1.pc = Host.addrOf (k + 50) :=
+  have hpc50 : st1.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b11Offset) :=
     hn fun h ↦ (rate_cond _).mp h (by rw [hrA] at hr; exact hr)
   -- `b11`: `build_layout(bytecode_len, log_memory, rows, layout)`.
   obtain ⟨hwf1, hm1'⟩ := fr_match hst hfr1

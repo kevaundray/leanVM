@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Sphincs.SphincsVerify.Names
+
 public import NativeRustcX64.SphincsVerify.Chains.Ends
 
 /-!
@@ -68,8 +70,8 @@ theorem seg_b117 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (cont : ∀ m', r.Frame m' → KeepRest r l x E m' → r.WordAt m' 80 i.toUInt64 →
       r.WordAt m' 168 (16 * i).toUInt64 → Run.RegIs m' .r12 (r.off 4096) →
       BytesAt m'.dmem (r.off 184) (chainEnd r l x i) →
-      Eventually (step1 Host.exe) R ⟨m', r.pc 1538⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1548⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset⟩ := by
   have hv := SigMem.length_wots_getD r.w hl hi
   have hval : BytesAt m.dmem (r.off (25196 + 1028 * l + 16 * i)) ((r.layerSig l).wots.getD i []) := by
     have := BytesAt.slice hK.1.2 (4656 + 1028 * l + 16 * i) 16
@@ -172,12 +174,12 @@ theorem seg_b117 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     simp only [CmpOp.apply, low_W64]
     rw [ult_ofNat (by omega) (by decide), beq_ofNat (by omega) (by decide)]
     exact digit_cond _
-  have hpc' : st.pc = if decide (2 < (x.getD i 0).toNat) = true then Labels.label ".LSphincsVerify_60"
-      else r.pc (1548 + b117.length) := by
+  have hpc' : st.pc = if decide (2 < (x.getD i 0).toNat) = true then Labels.label NativeRustcX64.Sphincs.SphincsVerify.label_60
+      else r.pc (NativeRustcX64.Sphincs.SphincsVerify.b117Offset + b117.length) := by
     rw [← hcond]
     exact pc_cond hpc
   by_cases hd : (x.getD i 0).toNat ≤ 2
-  · have hp' : st.pc = r.pc 1561 := by
+  · have hp' : st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b118Offset := by
       rw [hpc']
       split
       next h =>
@@ -193,7 +195,7 @@ theorem seg_b117 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
           unfold chainEnd
           rw [hk]
           exact c3)
-  · have hp' : st.pc = r.pc 1538 := by
+  · have hp' : st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset := by
       rw [hpc']
       split
       next => exact labelAt r hp b116_in_code rfl
@@ -212,7 +214,7 @@ theorem chains_loop (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) 
       KeepRest r l x ((List.range i).map (chainEnd r l x)).flatten m →
       Run.RegIs m .rax (BitVec.ofNat 64 i) → Run.RegIs m .r12 (r.off 4096) →
       Eventually (step1 Host.exe)
-        (fun st ↦ st.pc = r.pc 1893 ∧ r.AtWotsPk l (r.chainEnds l x) st.data) ⟨m, r.pc 1548⟩
+        (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b151Offset ∧ r.AtWotsPk l (r.chainEnds l x) st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset⟩
   | 0, _, _, _, hn, _, _, _, _ => absurd hn (by decide)
   | n + 1, i, m, hin, _, hF, hK, h0, h12 => by
     have hi : i < 64 := by omega

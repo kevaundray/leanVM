@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Common.Update.Names
+
 public import NativeRustcArm.SphincsVerify.Digest.Keep
 public import NativeRustcArm.SphincsVerify.Digest.Exec
 
@@ -147,7 +152,7 @@ theorem kc_of_call {r : Run} [Labels] (hpre : r.Pre) {m₁ m₂ : MachineData} (
 theorem Run.memsetCall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (hc : Callees) {ds : List Directive} {j j' : Nat}
     (hb : ds.IsInfixAt Sphincs.SphincsVerify.code j) (hj : j + ds.length = j')
-    {k : List (XReg × Sym)} {S' : SState} (hx : exec ds (frameS k) = some (S', .call "memset"))
+    {k : List (XReg × Sym)} {S' : SState} (hx : exec ds (frameS k) = some (S', .call NativeRustcArm.Common.Memset.entryLabel))
     (hok : keepOK S' = true) {m : MachineData} (hK : Keep r m) (hk : KnownOK r m k) {a n : Nat}
     (h0 : S'.reg .X0 = some (.ptr 0 a)) (h1 : S'.reg .X1 = some (.lit 0))
     (h2 : S'.reg .X2 = some (.lit n)) (ha : Scratch a n) {R : MachineState → Prop}
@@ -173,7 +178,7 @@ theorem Run.memsetCall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (h
 theorem Run.memcpyCall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (hc : Callees) {ds : List Directive} {j j' : Nat}
     (hb : ds.IsInfixAt Sphincs.SphincsVerify.code j) (hj : j + ds.length = j')
-    {k : List (XReg × Sym)} {S' : SState} (hx : exec ds (frameS k) = some (S', .call "memcpy"))
+    {k : List (XReg × Sym)} {S' : SState} (hx : exec ds (frameS k) = some (S', .call NativeRustcArm.Common.Memcpy.entryLabel))
     (hok : keepOK S' = true) {m : MachineData} (hK : Keep r m) (hk : KnownOK r m k) {a b n : Nat}
     (h0 : S'.reg .X0 = some (.ptr 0 a)) (h1 : S'.reg .X1 = some (.ptr 0 b))
     (h2 : S'.reg .X2 = some (.lit n)) (ha : Scratch a n) (hbn : b + n ≤ 29376)
@@ -199,7 +204,7 @@ theorem Run.memcpyCall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (h
 theorem Run.updateCall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     (hc : Callees) {ds : List Directive} {j j' : Nat}
     (hb : ds.IsInfixAt Sphincs.SphincsVerify.code j) (hj : j + ds.length = j')
-    {k : List (XReg × Sym)} {S' : SState} (hx : exec ds (frameS k) = some (S', .call updateLabel))
+    {k : List (XReg × Sym)} {S' : SState} (hx : exec ds (frameS k) = some (S', .call NativeRustcArm.Common.Update.entryLabel))
     (hok : keepOK S' = true) {m : MachineData} (hK : Keep r m) (hk : KnownOK r m k) {a b n : Nat}
     (h0 : S'.reg .X0 = some (.ptr 0 a)) (h1 : S'.reg .X1 = some (.ptr 0 b))
     (h2 : S'.reg .X2 = some (.lit n)) (ha : Scratch a 344) (hbn : b + n ≤ 29376)
@@ -229,7 +234,7 @@ theorem Run.finalizeCall (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) 
     (hc : Callees) {ds : List Directive} {j j' : Nat}
     (hb : ds.IsInfixAt Sphincs.SphincsVerify.code j) (hj : j + ds.length = j')
     {k : List (XReg × Sym)} {S' : SState}
-    (hx : exec ds (frameS k) = some (S', .call finalizeLabel))
+    (hx : exec ds (frameS k) = some (S', .call NativeRustcArm.Common.Finalize.entryLabel))
     (hok : keepOK S' = true) {m : MachineData} (hK : Keep r m) (hk : KnownOK r m k) {o a : Nat}
     (h0 : S'.reg .X0 = some (.ptr 0 o)) (h1 : S'.reg .X1 = some (.ptr 0 a))
     (ho : Scratch o 32) (ha : a + 344 ≤ 29376) (hd : o + 32 ≤ a ∨ a + 344 ≤ o) {x : List UInt8}

@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Whir.SampleQueries.Steps
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
 # `sample_queries` on x86-64: the outer loop's head
 
-`outer_step` (`.LSampleQueries_3`, `b10`): no position left returns (`fin`); else `b11` squeezes
+`outer_step` (`NativeRustcVmX64.Vm.SampleQueries.label_3`, `b10`): no position left returns (`fin`); else `b11` squeezes
 the challenge (`AtB12`), `b12` reads `PER_CHALLENGE[depth]`, the chunk's size `n` (a depth `0`
 asks for none: `AtB9`), `b13` starts the inner loop (`Inner` at `0`).
 -/
@@ -146,11 +147,11 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {m0 : MachineData}
 
 /-- **`b10`, `b11` and the squeeze**: no position left returns; else the challenge squeezed. -/
 theorem outer_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {j r : Nat} {s : TState} {qs : List UInt64} {st : MachineData}
     (hO : Outer a s0 m0 j r s qs st) :
-    Eventually (step1 Host.exe) (fun st' ↦ Post a s0 m0 st' ∨ (st'.pc = Host.addrOf (k + 51) ∧
-      AtB12 a s0 m0 j r s qs st'.data)) ⟨st, Host.addrOf (k + 45)⟩ := by
+    Eventually (step1 Host.exe) (fun st' ↦ Post a s0 m0 st' ∨ (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b12Offset) ∧
+      AtB12 a s0 m0 j r s qs st'.data)) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b10Offset)⟩ := by
   have hcnt := pre_cnt h
   have hwf := mid_wf (vars := fun _ ↦ 0) (ret := 0) h hO.ctx.fr.kept
   refine exec_then (inf hp b10_in_code (by simp [b10])) run_b10 hwf (by intro l h; cases h)
@@ -171,14 +172,14 @@ theorem outer_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0)
   rw [hc] at hpc1
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hr0 : r = 0
-  · have hpc := (hT (decide_eq_true hr0)).trans (hp.label (j := 30) rfl)
+  · have hpc := (hT (decide_eq_true hr0)).trans (hp.label NativeRustcVmX64.Vm.SampleQueries.label_12_at)
     refine Eventually.mono (at_pc (fin hp h (qs := qs) (s' := s)
       ⟨hc1, hd1 ▸ hO.ts, hd1 ▸ hO.buf, ?_⟩) rfl hpc) fun _ h ↦ .inl h
     rw [hO.model, hr0, auxP_zero_right]
     simp
   have hpc := hF fun h ↦ hr0 (of_decide_eq_true h)
   -- `b11`: `r` saved, the squeeze.
-  have hwf1 := mid_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 48 + b11.length)).toBitVec) h
+  have hwf1 := mid_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b11Offset + b11.length)).toBitVec) h
     hc1.fr.kept
   refine exec_at (inf hp b11_in_code (by simp [b11])) run_b11 hwf1 (fun _ _ ↦ rfl) (hpc.trans rfl)
     (mid_match hc1.fr) fun st2 hm2 hpc2 ↦ ?_
@@ -189,7 +190,7 @@ theorem outer_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0)
   have hl16 : WordAt st2.data.dmem (off (fb m0) 16) r.toUInt64 := by
     have := loc_write hm2 (by omega) h16
     rwa [show (Sym.reg .rax).eval (frameEnv m0 st1.data 128 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 48 + b11.length)).toBitVec) = reg st1.data .rax from rfl,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b11Offset + b11.length)).toBitVec) = reg st1.data .rax from rfl,
       ofBitVec_eq ((congrArg BitVec.toNat (hk1 .rax (by simp))).trans hO.rax)] at this
   have htw2 : WordAt st2.data.dmem (off (fb m0) 24) (UInt64.ofBitVec (tA m0)) :=
     loc_keep hwf1 hm2 (midOk_writesIn hmid2) (by omega) (miss_of_wr0 hw2 le_rfl) (hd1 ▸ hO.tw)

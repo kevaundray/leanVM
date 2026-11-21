@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcX64.WotsLeaf.Codeword.Region
 public import NativeRustcX64.WotsLeaf.Chain.Outer
 public import NativeRustcX64.WotsLeaf.Leaf.Out
@@ -21,12 +23,12 @@ open WotsLeafProof
 
 /-- **`wots_leaf` meets its contract.** -/
 public theorem wotsLeaf_spec [Host] {k : Nat} (hp : Placed Xmss.WotsLeaf.code k)
-    (hc : WotsLeafCallees) : Spec (label wotsLeafLabel) WotsLeafPre WotsLeafPost := by
+    (hc : WotsLeafCallees) : Spec (label NativeRustcX64.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost := by
   intro m hpre
   let r : Run := ⟨m, k⟩
   have hp' : Placed Xmss.WotsLeaf.code r.k := hp
   have hpre' : r.Pre := hpre
-  rw [hp.label (j := 0) (by decide +kernel)]
+  rw [hp.label NativeRustcX64.Xmss.WotsLeaf.entry_at]
   refine Eventually.bind (digest_region r hp' hc hpre' m rfl) fun st ⟨hpc, hA⟩ ↦ pc_at hpc ?_
   refine Eventually.bind (codeword_region r hp' hc hpre' _ hA) fun st₂ h₂ ↦ ?_
   rcases h₂ with hd | ⟨hpc₂, hA₂, hcw⟩

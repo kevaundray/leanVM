@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Verify.Names
 public import NativeRustcVmArm.Top.Leanvm.VPre
 public import NativeRustcVmArm.Top.Leanvm.Model
 public import NativeRustcVm.Transcript.Update
@@ -45,11 +46,11 @@ variable [Host] {k : Nat}
 
 /-- **The verifier's call**, from `.LLeanvmVerify_14`. -/
 theorem stage3 (hp : Placed code k)
-    (hver : ∀ a stream openings, Spec (Labels.label verifyLabel) (VerifyPre a stream openings)
+    (hver : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.Verify.entryLabel) (VerifyPre a stream openings)
       (VerifyPost stream openings))
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0)
-    {r : List E × List PhaseOut} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 75))
+    {r : List E × List PhaseOut} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b17Offset))
     (h2 : C2 a bytes bytecode pub m0 st.data r) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       st'.data.regs.X0 = (if NativeVm.Model.verify bytecode.toArray pub (streamW r.1)
@@ -70,7 +71,7 @@ theorem stage3 (hp : Placed code k)
   have hFm0 : Mapped m0.dmem (frameOf m0) 128 :=
     Mapped.within hmap (by rw [hsb]; omega) (by rw [hsb, hF]; omega) (by rw [hsb, hF]; omega)
   obtain ⟨hwf, hm⟩ := frameEnv h2.body hs128 hal16 (Mapped.kept hFm0 h2.body.kept)
-  refine exec_at (hb 75 hp b17_in_code (by simp [b17])) run_b17 hwf hpc hm
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b17Offset hp b17_in_code (by simp [b17])) run_b17 hwf hpc hm
     fun st17 hm17 hpc17 ↦ ?_
   have hk := b17_keeps
   rw [after_eq run_b17] at hk
@@ -180,9 +181,9 @@ theorem stage3 (hp : Placed code k)
         verifyStack ≤ 2 ^ 64 by rw [hsbV, hV]; omega)).mp hq
       rw [hsbV, hV] at hq'
       exact ⟨Or.inl (by unfold InStack; omega), by omega⟩
-  rw [show k + 75 + b17.length = k + 86 from rfl] at hpc18
+  rw [show k + NativeRustcVmArm.Vm.LeanvmVerify.b17Offset + b17.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b17_next]] at hpc18
   -- `b18` and the epilogue.
-  refine exec_at (hb 86 hp b18_in_code (by simp [b18])) run_b18 (Env.wf_nil _) hpc18
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b18Offset hp b18_in_code (by simp [b18])) run_b18 (Env.wf_nil _) hpc18
     (match_nil _) fun st19 hm19 hpc19 ↦ ?_
   have hk19 := none_keeps b18 (by simp)
   rw [after_eq run_b18] at hk19

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Wire.Decode.Steps
 public import NativeRustcVmX64.Wire.Decode.Model
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `decode`: the prologue and the stream's count (x86-64)
@@ -27,7 +28,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 
 /-- **At `Reader::words`' call** (`b3`): the count `n` read, `2 n` below the area's words. -/
 structure At3 [Labels] [Host] (m0 : MachineData) (k n : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 24)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b3Offset)
   bod : Bod m0 8 st.data
   rd : ReaderAt st.data.dmem (rdA m0) (BP m0) (Bs m0) 4
   h1 : rdU32 (Bs m0) 0 = some (n, 4)
@@ -92,19 +93,19 @@ variable [Host] {k : Nat}
 
 /-- **From the entry** to `Reader::words`' call, or out with `None`. -/
 theorem entry_run (hp : Placed code k) (G : Geo m0)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) :
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) :
     Eventually (step1 Host.exe) (fun st ↦ Post m0 st ∨ ∃ n, At3 m0 k n st)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b0Offset)⟩ := by
   have hst := G.st
   have hsp := G.sp
   have htop := G.top
   have hS := stackBelow_toNat (m := m0) (n := 80) (by omega)
   have hr := G.fr (j := 8) (by omega)
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 80) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b0Offset + b0.length)).toBitVec)
     ⟨frame_mapped hst (by omega), frame_noWrap hst (by omega)⟩ (by simp)
     (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 80 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 80 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b0Offset + b0.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl) hm0
@@ -155,7 +156,7 @@ theorem entry_run (hp : Placed code k) (G : Geo m0)
   · -- No count: `None`.
     rw [show m2.regs.get64 .rax = 0 from h0] at hpc3
     simp only [BitVec.toNat_ofNat, show (0 : BitVec 64).toNat = 0 from rfl] at hpc3
-    rw [hp.label (j := 75) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.Decode.label_9_at] at hpc3
     exact Eventually.mono (none_run hp G hpc3 hb3 (by rw [decodeM_eq, hn])) fun _ h ↦ .inl h
   rw [show m2.regs.get64 .rax = 1 from h0] at hpc3
   simp only [show (1 : BitVec 64).toNat = 1 from rfl, BitVec.toNat_ofNat,
@@ -163,7 +164,7 @@ theorem entry_run (hp : Placed code k) (G : Geo m0)
   simp only [Nat.zero_add] at hv hR4
   -- `b2`: `2 n` against the words.
   refine fblk hp G b2_in_code (by simp [b2]) exit_b2 nofun ok_b2.1 (ok_b2.2.2.2 .rbx (by simp))
-    (ok_b2.2.2.2 .r15 (by simp)) (hpc3.trans (by rw [show b1.length = 2 from rfl])) hb3 fun st4 hb4 hd4 hm4 hpc4 ↦ ?_
+    (ok_b2.2.2.2 .r15 (by simp)) (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b1_next)) hb3 fun st4 hb4 hd4 hm4 hpc4 ↦ ?_
   have hdx3 : (reg st3.data .rdx).toNat = n := by rw [r3 .rdx (by simp)]; exact hdx
   have h2n : (BinOp.apply .add .W64 (reg st3.data .rdx) (reg st3.data .rdx)).toNat = 2 * n := by
     simp only [BinOp.apply, low_W64, ext_W64, BitVec.toNat_add, hdx3]
@@ -180,7 +181,7 @@ theorem entry_run (hp : Placed code k) (G : Geo m0)
     simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc4
     have r4 : ∀ x ∈ [Reg64.rbx, .r13, .r14, .r15], reg st4.data x = reg st3.data x :=
       fun x hx ↦ hm4.regs x _ (ok_b2.2.2.2 x hx)
-    refine .done _ (.inr ⟨n, hpc4.trans (by rw [show b2.length = 4 from rfl]), hb4, ?_, ?_, hnl, ?_, ?_, hroom, ?_, ?_,
+    refine .done _ (.inr ⟨n, hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b2_next), hb4, ?_, ?_, hnl, ?_, ?_, hroom, ?_, ?_,
       ?_⟩)
     · rw [hd4, hd3]; exact hR4
     · rw [hv]
@@ -192,7 +193,7 @@ theorem entry_run (hp : Placed code k) (G : Geo m0)
   · -- No room for the stream: the model reads past the wire.
     rw [decide_eq_false hroom] at hpc4
     simp only [Bool.not_false, ↓reduceIte] at hpc4
-    rw [hp.label (j := 75) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.Decode.label_9_at] at hpc4
     refine Eventually.mono (none_run hp G hpc4 hb4 ?_) fun _ h ↦ .inl h
     rw [decodeM_eq, hv]
     simp only

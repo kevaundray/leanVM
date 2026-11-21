@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Whir.NextLevel.Ops
 public import NativeRustcVmX64.Whir.NextLevel.Exec2
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel.Names
 
 /-!
 # `next_level`: the rows batched (x86-64)
@@ -170,13 +171,13 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The rows batched**: `b22`, `each_row`, `b23`, to `b24` with `H24`. -/
 theorem rows (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (her : ∀ rows op, Spec (Labels.label eachRowNextLabel) (EachRowNextPre rows op)
+    (her : ∀ rows op, Spec (Labels.label NativeRustcVmX64.Vm.EachRowOfNextLevel.entryLabel) (EachRowNextPre rows op)
       (EachRowNextPost rows))
     {xs ood : Array EW} {v lam : EW} {qs : Array UInt64} {rws : Array (Array UInt64)}
-    {op : BitVec 64} {s9 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 190))
+    {op : BitVec 64} {s9 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b22Offset))
     (hH : H22 a level w rounds m0 xs ood v lam qs rws op s9 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s level w rounds m0 st' ∨
-      (st'.pc = Host.addrOf (k + 235) ∧
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b24Offset) ∧
         H24 a level w rounds m0 xs ood v lam qs (batchedOf (reg m0 .rsi).toNat (reg m0 .r9).toNat
           rounds xs qs rws (powers lam qs.size)) s9 st'.data)) st := by
   have g := c.geo
@@ -189,7 +190,7 @@ theorem rows (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hbr := hK.wa.2
   have hrl : rounds.size ≤ 6 := by have := hbr.1; rwa [Array.length_toList] at this
   -- `b22`
-  let ret := (Host.addrOf (k + 232)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b23Offset)).toBitVec
   have hwf : (argEnv m0 st.data 8176 8 [(pA m0, 63200)] (fun _ ↦ 0) ret).WF :=
     c.wf1 hK.fr.frame.kept (show NativeRustcVm.Mapped st.data.dmem (pA m0) 63200 from
       Mapped.keeps c.pout.1.1 hK.fr.frame.kept) g.pW
@@ -427,7 +428,7 @@ theorem rows (hp : Placed code k) (c : Ctx a s level w rounds m0)
     rw [Array.length_toList, powers_size'] at this
     rw [n4, n5n, this, Array.toArray_toList]
   rw [n3, hdi1, h81, eR, eQ, eX, eP] at hbt
-  have hpc2' : st2.pc = Host.addrOf (k + 232) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b23Offset) := hpc2
   -- `b23`: `each_row`'s `bool`
   have hwf3 := c.wf0 hK2.fr.frame.kept (ret := 0)
   have hm3 : Match (argEnv m0 st2.data 8176 8 []) s56S st2.data :=
@@ -445,7 +446,7 @@ theorem rows (hp : Placed code k) (c : Ctx a s level w rounds m0)
       by rw [hd3]; exact hK2.w80, by rw [hd3]; exact hK2.lv, by rw [hd3]; exact hK2.wa⟩
   simp only [PcOk, cAl_eval] at hpc3
   have hal : ((argEnv m0 st2.data 8176 8 [] (fun _ ↦ 0) 0).regs .rax).toNat % 256 = 1 := hok
-  have hpc3' : st3.pc = Host.addrOf (k + 235) := by rw [hpc3, hal]; rfl
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b24Offset) := by rw [hpc3, hal]; rfl
   have hcs : ∀ r, calleeSaved r = true → reg st3.data r = reg st1.data r := fun r hr ↦
     (hr3 r (by rintro rfl; cases hr)).trans (hsv2.1 r hr)
   exact .done _ (Or.inr ⟨hpc3', hK3, (hcs .rbx rfl).trans hbx1, (hcs .rbp rfl).trans hbp1,

@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmArm.Code.Vm.TablePhase.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Call6
 
 /-!
@@ -25,22 +31,22 @@ variable [Host] {k : Nat}
 
 /-- **The table sumcheck**, from `b8`: the function returns the walk's rest. -/
 theorem call5 (hp : Placed code k)
-    (htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+    (htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmArm.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
       (TablePhasePost a s layout bus))
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmArm.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmArm.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 40)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b8Offset)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
     (h22 : st.data.regs.X22 = m0.regs.X3) (h25 : st.data.regs.X25 = 123992)
     (h26 : st.data.regs.X26 = 4416) {P : Vector UInt64 4}
     (hP : NativeRustcVm.WordsAt m0.dmem m0.regs.X3.toBitVec P.toList) {s : TState}
@@ -115,7 +121,7 @@ theorem call5 (hp : Placed code k)
       · have := g.inT hq; have := g.tw; omega
       · have := g.inW (o := 112184) (n := 11808) (by omega) (by omega) hq; omega
       · have := h1.inStk g hN hq; have := g.wS; omega
-  rw [show k + 40 + b8.length = k + 47 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b8Offset + b8.length = k + NativeRustcVmArm.Vm.VerifyExecution.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b8_next]] at hpc2
   rw [walkTables, run_bind_eq]
   generalize hr : (tablePhase L bus).run s = r at hx0 hres hnext
   have bk := branch_keeps b9 (by simp)
@@ -131,7 +137,7 @@ theorem call5 (hp : Placed code k)
   have hts' := hnext _ _ rfl
   have hsh := NativeRustcVm.Top.tablePhase_shape hL.heights_size hbus.forms_size hr
   have hroots' : s'.roots = s.roots := (tablePhase_roots L bus).keeps _ _ _ hr
-  rw [show k + 47 + b9.length = k + 48 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b9Offset + b9.length = k + NativeRustcVmArm.Vm.VerifyExecution.b10Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b9_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)

@@ -86,8 +86,8 @@ variable [Host] {k : Nat}
 
 /-- `b15`: lane `0`'s output head. -/
 theorem out_start (hp : Placed code k) (h : PreOk m0 ws) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 137)) (hI : CDone m0 ws st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 145) ∧ OutLane m0 ws 0 s'.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b15Offset)) (hI : CDone m0 ws st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b16Offset) ∧ OutLane m0 ws 0 s'.data)
       st := by
   refine exec_at (infix_of b15_in_code (by simp [b15]) hp) exit_b15 (Env.wf_nil _) nofun hpc
     (match_nil _) fun st' hm' hpc' ↦ ?_
@@ -96,7 +96,7 @@ theorem out_start (hp : Placed code k) (h : PreOk m0 ws) {st : MachineState}
   have hc := OCtx.of_regs ⟨hI.ctx.frame, hI.ctx.same, hI.ctx.r14⟩ h hm' hreg
     (atoms_eq hm' hat (by simp))
   simp only [PcOk] at hpc'
-  refine .done _ ⟨hpc'.trans (by rw [lengths.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1]),
+  refine .done _ ⟨hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b15_next),
     ⟨⟨hc, by decide, hm'.regs .rcx _ hrcx, hm'.regs .r8 _ hr8, hm'.regs .r9 _ hr9,
       hm'.regs .rdi _ hrdi, ?_, ?_, ?_⟩, hd ▸ hI.g, hd ▸ hI.c, fun i hi ↦ absurd hi (by omega)⟩⟩
   · rw [show reg st'.data .rsi = _ from hm'.regs .rsi _ hrsi]
@@ -127,8 +127,8 @@ theorem b16_exec {l : Nat} (hl : l < 25) : ∃ S, exec b16 (s16 l) = some (S, .f
 
 /-- **A lane's columns** (`b16`). -/
 theorem lane_cols (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 145)) (hI : OutLane m0 ws l st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 170) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b16Offset)) (hI : OutLane m0 ws l st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b17Offset) ∧
       OutHead m0 ws l 0 s'.data) st := by
   have hl := hI.regs.l_lt
   obtain ⟨S, hS, hok⟩ := b16_exec hl
@@ -142,7 +142,7 @@ theorem lane_cols (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : Machine
   have hd : st'.data.dmem = st.data.dmem := hm'.dmem_eq (Env.wf_nil _) (regOk_mem hreg)
   have hc := hI.regs.ctx.of_regs h hm' hreg (atoms_eq hm' hat (by simp))
   simp only [PcOk] at hpc'
-  refine .done _ ⟨hpc'.trans (by rw [lengths.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1]),
+  refine .done _ ⟨hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b16_next),
     ⟨⟨hI.regs.keep hc fun r hr ↦ ?_, hd ▸ hI.g, hd ▸ hI.c, hd ▸ hI.o⟩, by decide,
       hm'.regs .r10 _ hr10, hm'.regs .r11 _ hr11, ?_, ?_, by rw [hd]; exact hI.o⟩⟩
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hr

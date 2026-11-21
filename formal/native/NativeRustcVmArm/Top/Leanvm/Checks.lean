@@ -56,12 +56,12 @@ variable [Host] {k : Nat}
 theorem stage0 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
     {bytecode : List UInt64} {pub : Vector UInt64 4} {m0 : MachineData}
     (hpre : LeanvmVerifyPre a bytes bytecode pub m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 32) ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b3Offset) ∧
       Body m0 128 slots (InStack m0 leanvmVerifyStack) st.data ∧
       Mapped st.data.dmem m0.regs.X0.toBitVec 96 ∧
       st.data.regs.X0 = m0.regs.X0 ∧ st.data.regs.X19 = bytes.length.toUInt64 ∧
       st.data.regs.X20 = bytecode.length.toUInt64 ∧
-      st.data.regs.X21 = (decodedWords bytes.length).toUInt64) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      st.data.regs.X21 = (decodedWords bytes.length).toUInt64) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b0Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨⟨-, -, hmap⟩, -, hin, -, -, -⟩ := hpre
   have hs := g.s
@@ -104,7 +104,7 @@ theorem stage0 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
     have := NativeRustcVm.Top.workAreaWords_le bytecode.length
     unfold NativeRustcVm.Top.workAreaWords at this; omega
   have hn : bytecode.length ≤ 536870910 := by have := hin.bcSmall; omega
-  refine exec_then (hb 0 hp b0_in_code (by simp [b0])) run_b0 hwf hm fun st1 hm1 hpc1 ↦ ?_
+  refine exec_then (hb NativeRustcVmArm.Vm.LeanvmVerify.b0Offset hp b0_in_code (by simp [b0])) run_b0 hwf hm fun st1 hm1 hpc1 ↦ ?_
   have hB1 : Body m0 128 slots (InStack m0 leanvmVerifyStack) st1.data := by
     refine ⟨?_, fun p hp' ↦ ?_, fun r hr hn' ↦ ?_, fun q hq ↦ ?_, hm1.kept hwf⟩
     · rw [hm1.sp]; show frameOf m0 + BitVec.ofInt 64 0 = _; simp [frameOf]
@@ -233,13 +233,13 @@ theorem ctxEnv [Labels] {a : Code.Areas} {L n : Nat} {m0 st : MachineData}
 theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
     {bytecode : List UInt64} {pub : Vector UInt64 4} {m0 : MachineData}
     (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 32))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b3Offset))
     (hB : Body m0 128 slots (InStack m0 leanvmVerifyStack) st.data)
     (hcM : Mapped st.data.dmem m0.regs.X0.toBitVec 96) (hx0 : st.data.regs.X0 = m0.regs.X0)
     (hx19 : st.data.regs.X19 = bytes.length.toUInt64)
     (hx20 : st.data.regs.X20 = bytecode.length.toUInt64)
     (hx21 : st.data.regs.X21 = (decodedWords bytes.length).toUInt64) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 52) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b10Offset) ∧
       C1 a bytes bytecode pub m0 st'.data) st := by
   have g := geo_of hpre
   obtain ⟨⟨-, -, hmap⟩, -, hin, hal, -, -⟩ := hpre
@@ -267,7 +267,7 @@ theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
       unfold InStack at hq; rw [hS] at hq; omega
   -- `b3`: the decoded area's address.
   obtain ⟨hwf3, hm3⟩ := ctxEnv g hB hcM hx0 hFm
-  refine exec_at (hb 32 hp b3_in_code (by simp [b3])) run_b3 hwf3 hpc hm3 fun st3 hm3' hpc3 ↦ ?_
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b3Offset hp b3_in_code (by simp [b3])) run_b3 hwf3 hpc hm3 fun st3 hm3' hpc3 ↦ ?_
   have hk3 := ctx_keeps.1
   rw [after_eq run_b3] at hk3
   have hB3 := bodyNo hB hs128 hm3 hm3' hwf3 rfl hk3.1 hk3.2
@@ -277,9 +277,9 @@ theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   have hX23 : st3.data.regs.X23 = a.decoded :=
     UInt64.toBitVec_inj.mp ((hm3'.regs .X23 _ rfl).trans l64)
   simp only [PcOk, evalLoad0 _ l64, hal.dec.1, decide_false, Bool.false_eq_true,
-    ite_false, show k + 32 + b3.length = k + 36 from rfl] at hpc3
+    ite_false, show k + NativeRustcVmArm.Vm.LeanvmVerify.b3Offset + b3.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b3_next]] at hpc3
   -- `b4`: its alignment.
-  refine exec_at (hb 36 hp b4_in_code (by simp [b4])) run_b4 (Env.wf_nil _) hpc3 (match_nil _)
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b4Offset hp b4_in_code (by simp [b4])) run_b4 (Env.wf_nil _) hpc3 (match_nil _)
     fun st4 hm4 hpc4 ↦ ?_
   have hk4 := none_keeps b4 (by simp)
   rw [after_eq run_b4] at hk4
@@ -288,12 +288,12 @@ theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   simp only [PcOk, evalAnd7 (Env.ofMachine st3.data []) (r := .X23) (x := a.decoded)
     (congrArg UInt64.toBitVec hX23), hal.dec.2,
     decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
-    show k + 36 + b4.length = k + 38 from rfl] at hpc4
+    show k + NativeRustcVmArm.Vm.LeanvmVerify.b4Offset + b4.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b4_next]] at hpc4
   -- `b5`: the working area's address.
   obtain ⟨hwf5, hm5⟩ := ctxEnv g hB4 (by rw [hd4, hd3]; exact hcM)
     ((keepReg' .X0 hm4 rfl).trans (x0_ctx hm3' rfl))
     (by rw [hd4, hd3]; exact hFm)
-  refine exec_at (hb 38 hp b5_in_code (by simp [b5])) run_b5 hwf5 hpc4 hm5 fun st5 hm5' hpc5 ↦ ?_
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b5Offset hp b5_in_code (by simp [b5])) run_b5 hwf5 hpc4 hm5 fun st5 hm5' hpc5 ↦ ?_
   have hk5 := ctx_keeps.2.1
   rw [after_eq run_b5] at hk5
   have hB5 := bodyNo hB4 hs128 hm5 hm5' hwf5 rfl hk5.1 hk5.2
@@ -305,9 +305,9 @@ theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   have hX22 : st5.data.regs.X22 = a.work :=
     UInt64.toBitVec_inj.mp ((hm5'.regs .X22 _ rfl).trans l80)
   simp only [PcOk, evalLoad0 _ l80, hal.work.1, decide_false,
-    Bool.false_eq_true, ite_false, show k + 38 + b5.length = k + 41 from rfl] at hpc5
+    Bool.false_eq_true, ite_false, show k + NativeRustcVmArm.Vm.LeanvmVerify.b5Offset + b5.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b5_next]] at hpc5
   -- `b6`: its alignment.
-  refine exec_at (hb 41 hp b6_in_code (by simp [b6])) run_b6 (Env.wf_nil _) hpc5 (match_nil _)
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b6Offset hp b6_in_code (by simp [b6])) run_b6 (Env.wf_nil _) hpc5 (match_nil _)
     fun st6 hm6 hpc6 ↦ ?_
   have hk6 := none_keeps b6 (by simp)
   rw [after_eq run_b6] at hk6
@@ -316,12 +316,12 @@ theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   simp only [PcOk, evalAnd7 (Env.ofMachine st5.data []) (r := .X22) (x := a.work)
     (congrArg UInt64.toBitVec hX22), hal.work.2,
     decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
-    show k + 41 + b6.length = k + 43 from rfl] at hpc6
+    show k + NativeRustcVmArm.Vm.LeanvmVerify.b6Offset + b6.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b6_next]] at hpc6
   -- `b7`: the wire's and the bytecode's addresses, the public input.
   have hd60 : st6.data.dmem = st.data.dmem := by rw [hd6, hd5, hd4, hd3]
   obtain ⟨hwf7, hm7⟩ := ctxEnv g hB6 (by rw [hd60]; exact hcM)
     ((keepReg' .X0 hm6 rfl).trans (x0_ctx hm5' rfl)) (by rw [hd60]; exact hFm)
-  refine exec_at (hb 43 hp b7_in_code (by simp [b7])) run_b7 hwf7 hpc6 hm7 fun st7 hm7' hpc7 ↦ ?_
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b7Offset hp b7_in_code (by simp [b7])) run_b7 hwf7 hpc6 hm7 fun st7 hm7' hpc7 ↦ ?_
   have hk7 := ctx_keeps.2.2
   rw [after_eq run_b7] at hk7
   have hB7 := bodyNo hB6 hs128 hm7 hm7' hwf7 rfl hk7.1 hk7.2
@@ -366,18 +366,18 @@ theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
     rw [lbl_10 hp] at hpc7
     exact Eventually.done _ ⟨hpc7, h7⟩
   simp only [hn0, decide_false, Bool.false_eq_true, ite_false,
-    show k + 43 + b7.length = k + 48 from rfl] at hpc7
+    show k + NativeRustcVmArm.Vm.LeanvmVerify.b7Offset + b7.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b7_next]] at hpc7
   have hbc := hal.bytecode (by omega)
   -- `b8`, `b9`: the bytecode's address nonzero and aligned.
-  refine exec_at (hb 48 hp b8_in_code (by simp [b8])) run_b8 (Env.wf_nil _) hpc7 (match_nil _)
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b8Offset hp b8_in_code (by simp [b8])) run_b8 (Env.wf_nil _) hpc7 (match_nil _)
     fun st8 hm8 hpc8 ↦ ?_
   have hk8 := none_keeps b8 (by simp)
   rw [after_eq run_b8] at hk8
   have h8 := h7.step hs128 hm8 hk8.1 hk8.2 rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
   simp only [PcOk, evalReg0 (Env.ofMachine st7.data []) (r := .X24) (x := a.bytecode)
     (congrArg UInt64.toBitVec h7.x24), hbc.1,
-    decide_false, Bool.false_eq_true, ite_false, show k + 48 + b8.length = k + 50 from rfl] at hpc8
-  refine exec_at (hb 50 hp b9_in_code (by simp [b9])) run_b9 (Env.wf_nil _) hpc8 (match_nil _)
+    decide_false, Bool.false_eq_true, ite_false, show k + NativeRustcVmArm.Vm.LeanvmVerify.b8Offset + b8.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b8_next]] at hpc8
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b9Offset hp b9_in_code (by simp [b9])) run_b9 (Env.wf_nil _) hpc8 (match_nil _)
     fun st9 hm9 hpc9 ↦ ?_
   have hk9 := none_keeps b9 (by simp)
   rw [after_eq run_b9] at hk9
@@ -385,7 +385,7 @@ theorem stage1 (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   simp only [PcOk, evalAnd7 (Env.ofMachine st8.data []) (r := .X24) (x := a.bytecode)
     (congrArg UInt64.toBitVec h8.x24), hbc.2,
     decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
-    show k + 50 + b9.length = k + 52 from rfl] at hpc9
+    show k + NativeRustcVmArm.Vm.LeanvmVerify.b9Offset + b9.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b10Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b9_next]] at hpc9
   exact Eventually.done _ ⟨hpc9, h9⟩
 
 end

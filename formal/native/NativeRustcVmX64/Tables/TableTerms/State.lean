@@ -119,7 +119,7 @@ structure It (a : DecArea) (m0 : MachineData) (i : Nat) (o : Array (Array EW × 
   evs : ∀ j (h : j < o.size), TableEvalAt d.dmem (evi m0 j) o[j]
   osz : o.size = i
 
-/-- **The loop head** before table `i` (`.LTableTerms_1`): the body, the frame's words, the
+/-- **The loop head** before table `i` (`NativeRustcVmX64.Vm.TableTerms.label_1`): the body, the frame's words, the
 registers walking the tables, the forms, the heights, the running sum (RDX, RCX) and the cursor
 (R15); the model's fold over the first `i` rows at `acc`, `si`; the `TState` at `si`; the first
 `i` entries hold their tables' points and evaluations. -/

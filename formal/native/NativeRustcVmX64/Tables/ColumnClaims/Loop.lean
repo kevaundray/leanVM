@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.ColumnClaims.Exit
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 
 /-!
 # `table_column_claims`: a table's loop (x86-64)
@@ -71,7 +72,7 @@ variable [Host]
 
 /-- **Table `t`'s loop.** -/
 theorem loop
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     (hpre : TableColumnClaimsPre ev cs m0) {R : Regs} {t : Nat} (ht : t < 6)
     (hR : ([R.n, R.p, R.l, R.c, .rbx, .r14].all fun r ↦
       calleeSaved r && !([R.a, .rax, .rcx].contains r)) = true)
@@ -81,7 +82,7 @@ theorem loop
     (hTx : exec T regsS = some (after T regsS, .cond (testN R) lN))
     (hTm : (after T regsS).mem = []) (hTk' : KeptBut (after T regsS) [])
     (hPk : P.IsInfixAt Host.prog (kT + 3)) (hPlen : P.length = 10)
-    (hPx : exec P (pushS R) = some (after P (pushS R), .call pushClaimLabel))
+    (hPx : exec P (pushS R) = some (after P (pushS R), .call NativeRustcVmX64.Vm.PushClaim.entryLabel))
     (hPok : PushOk R (after P (pushS R)))
     (hAk : A.IsInfixAt Host.prog (kT + 3 + 10)) (hAlen : A.length = lenA)
     (hAx : exec A regsS = some (after A regsS, .cond (alNZ x) lT))

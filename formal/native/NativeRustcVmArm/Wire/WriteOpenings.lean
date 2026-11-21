@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Find.Names
+public import NativeRustcVmArm.Code.Vm.WriteOpenings.Names
 public import NativeRustcVmArm.Wire.WriteOpenings.Start
 
 /-!
@@ -57,11 +59,11 @@ variable [Host] {k : Nat}
 
 /-- **`write_openings` meets its contract**, given `find`'s. -/
 theorem writeOpenings_spec (hp : Placed code k)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) :
-    Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost := by
+    (hfind : Spec (Labels.label NativeRustcVmArm.Vm.Find.entryLabel) FindPre FindPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost := by
   intro m0 hpre
   obtain ⟨-, -, -, -, -, -, -, cnt, out, hc, ho, -, -⟩ := id hpre
-  rw [hp.label (j := 0) (l := writeOpeningsLabel) rfl]
+  rw [hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.entryOffset) NativeRustcVmArm.Vm.WriteOpenings.entry_at]
   exact entry_spec (R := ⟨m0, k, cnt, out⟩) hp (geo_of hpre hc ho) hfind
 
 end

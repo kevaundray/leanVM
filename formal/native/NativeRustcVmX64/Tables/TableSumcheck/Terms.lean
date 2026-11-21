@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Tables.TableSumcheck.Wts
 public import NativeRustcVmX64.Bus.Common
 public import NativeVm.Code.Phase4.Weights
+public import NativeRustcVmX64.Code.Vm.TableTerms.Names
 
 /-!
 # `table_sumcheck`: the terms and the final check (x86-64)
@@ -120,14 +121,14 @@ theorem beq_symm (x y : EW) : (x == y) = (y == x) := by
 
 /-- **The terms and the check** (`b11` to `b13`). -/
 theorem terms (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
-    (htt : ∀ a s heights forms, Spec (Labels.label tableTermsLabel)
+    (htt : ∀ a s heights forms, Spec (Labels.label NativeRustcVmX64.Vm.TableTerms.entryLabel)
       (TableTermsPre a s heights forms) (TableTermsPost a s heights forms))
     (hsz : xs.size = nR heights)
     (hres : res s heights bus m0 = ((tableTerms (arrE m0 (cpA m0) 2) (arrE m0 (fpA m0) 3)
         xs.reverse (tableRows heights bus.forms (tableWeights heights bus.point xs.reverse))).run
           s1).bind fun q ↦ if q.1.1 == c then some (q.1.2, q.2) else none)
     {d : MachineData} (W : Wt a s1 heights bus m0 xs c d) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 185)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b11Offset)⟩ := by
   have hS := Pre.stack h
   have hH := Pre.hts h
   have hn30 : nR heights ≤ 30 := foldl_max_le heights hH.1 hH.2.1
@@ -135,7 +136,7 @@ theorem terms (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
     frame_noWrap (F := 736) hS (by unfold N tableSumcheckStack; omega)
   have hNle := N_ge
   -- `b11`: the stack arguments.
-  let ra := (Host.addrOf (k + 185 + b11.length)).toBitVec
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b11Offset + b11.length)).toBitVec
   have hwf : (E m0 d [(argA m0, 16)] ra).WF :=
     frame_wf' hS (by unfold N tableSumcheckStack; omega) W.bd.fr.kept (fun x hx ↦ by
       rw [List.mem_singleton] at hx; subst hx; exact ⟨(Pre.args h).1, args_noWrap h⟩)
@@ -278,7 +279,7 @@ theorem terms (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
   -- `b12`: the `Option`'s tag.
   have hwf2 : (E m0 st2.data [] 0).WF := wf_nil h hb2.fr.kept
   have hm2 : Match (E m0 st2.data [] 0) tS st2.data := match_body hb2 ⟨rfl, trivial⟩ trivial
-  refine at_pc (hpc2.trans (addr_eq (by rw [show b11.length = 11 from rfl])))
+  refine at_pc (hpc2.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b11_next)))
     (exec_then (infix_of b12_in_code (by simp [b12]) hp) exit_b12 hwf2 nofun hm2
       fun st3 hm3 hpc3 ↦ ?_)
   obtain ⟨mid3, mem3, k3⟩ := ok_b12
@@ -308,7 +309,7 @@ theorem terms (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
     -- `b13`: the comparison.
     have hwf3 : (E m0 st3.data [] 0).WF := wf_nil h hb3.fr.kept
     have hm3' : Match (E m0 st3.data [] 0) sF st3.data := match_body hb3 ⟨rfl, trivial⟩ trivial
-    refine at_pc (hpc3.trans (addr_eq (by rw [show b12.length = 3 from rfl])))
+    refine at_pc (hpc3.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b12_next)))
       (exec_then (infix_of b13_in_code (by simp [b13]) hp) exit_b13 hwf3 nofun hm3'
         fun st4 hm4 hpc4 ↦ ?_)
     obtain ⟨mid4, mem4, rax4⟩ := ok_b13

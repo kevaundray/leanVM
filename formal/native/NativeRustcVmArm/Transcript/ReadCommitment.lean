@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadCommitment.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Transcript.Callee
 public import NativeRustcVmArm.Transcript.ReadCommitment.Exec
 public import NativeVm.Equiv.Transcript
@@ -75,11 +77,11 @@ abbrev Out (m0 : MachineData) (q : BitVec 64) : Prop :=
 
 /-- **A call of `read_scalar`** from the frame, its output at `fb + 8`. -/
 theorem call_read
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {a : DecArea} {m0 : MachineData} (hst : StackOk m0 readCommitmentStack)
     (hrc : RcAt m0 readCommitmentStack) (htok : TStateOk m0 m0.regs.X0.toBitVec a readCommitmentStack)
     {s' : TState} {st : MachineState} {env : Env} {next : Int64}
-    (hpc : PcOk env (.call readScalarLabel) next st) (hf : Frame m0 80 slots st.data)
+    (hpc : PcOk env (.call NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) next st) (hf : Frame m0 80 slots st.data)
     (hX0 : st.data.regs.X0.toBitVec = off (frameBase m0 80) 8)
     (hX1 : st.data.regs.X1.toBitVec = m0.regs.X0.toBitVec)
     (hts : TStateAt st.data.dmem m0.regs.X0.toBitVec a s')
@@ -142,7 +144,7 @@ theorem call_read
 
 /-- `b6`: `0`, the epilogue. -/
 theorem finish_fail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 readCommitmentStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 37)) (hf : Frame m0 80 slots st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateReadCommitment.b6Offset)) (hf : Frame m0 80 slots st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.regs.X0 = 0 ∧
       st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
   have hfnw := frame_noWrap (m := m0) (F := 80) (by
@@ -163,9 +165,9 @@ theorem finish_fail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 re
 
 /-- **`TState::read_commitment` meets its contract.** -/
 theorem readCommitment_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label readCommitmentLabel) (ReadCommitmentPre a s) (ReadCommitmentPost a s) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s) (ReadCommitmentPost a s) := by
   rintro m0 ⟨hst, hrc, hts, htok, hroots⟩
   set t := m0.regs.X0.toBitVec with htdef
   set fb := frameBase m0 80 with hfb
@@ -190,8 +192,8 @@ theorem readCommitment_spec (hp : Placed code k)
   have hwf0 : (frameEnv m0 m0 80 []).WF :=
     Env.wf_of ⟨⟨frame_mapped (F := 80) hst (by decide), hfnw⟩, trivial⟩
       (List.pairwise_singleton _ _)
-  unfold readCommitmentLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.TStateReadCommitment.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.TStateReadCommitment.entryOffset) NativeRustcVmArm.Vm.TStateReadCommitment.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro, hws1, hx0, hx1, hx19, hx20, hx21⟩ := after_eq run_b0 ▸ ok_b0
   have hf1 : Frame m0 80 slots st1.data := Frame.of_prologue hwf0 hm1 hpro slots_le
@@ -214,7 +216,7 @@ theorem readCommitment_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf2.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 (hfr hf2)
-    (hpc2.trans (by rw [show b0.length = 11 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.TStateReadCommitment.b0Offset + NativeRustcVmArm.Vm.TStateReadCommitment.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.TStateReadCommitment.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadCommitment.b0_next])) hm2 fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hmem3, hcs3⟩ := after_eq run_b1 ▸ ok_b1
   have hf3 : Frame m0 80 slots st3.data := Frame.of_block hf2 (hfr hf2) hm3 hmid3 slots_le
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq (hfr hf2) hmem3
@@ -231,7 +233,7 @@ theorem readCommitment_spec (hp : Placed code k)
     simp (config := { decide := true }) only [↓reduceIte] at hpc3
     have hnone : (readCommitment m0.regs.X1.toNat m0.regs.X2.toNat).run s = none := by
       rw [run_eq, hr1]; rfl
-    refine Eventually.mono (finish_fail hp hst (hpc3.trans (hp.label (j := 37) rfl)) hf3)
+    refine Eventually.mono (finish_fail hp hst (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.TStateReadCommitment.b6Offset) NativeRustcVmArm.Vm.TStateReadCommitment.label_4_at)) hf3)
       fun st' ⟨hpc', hx0', hd', hsv'⟩ ↦ ⟨hpc', ?_, ?_, ?_, hsv'⟩
     · rw [hnone, hx0']; rfl
     · intro u s' h; rw [hnone] at h; cases h
@@ -249,7 +251,7 @@ theorem readCommitment_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf3.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 (hfr hf3)
-    (hpc3.trans (by rw [show b1.length = 2 from rfl])) hm3' fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadCommitment.b1_next])) hm3' fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hmem4, hx0₄, hx1₄, hx23₄, hx22₄, hcs4⟩ := after_eq run_b2 ▸ ok_b2
   have hf4 : Frame m0 80 slots st4.data := Frame.of_block hf3 (hfr hf3) hm4 hmid4 slots_le
   have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq (hfr hf3) hmem4
@@ -285,7 +287,7 @@ theorem readCommitment_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf5.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 (hfr hf5)
-    (hpc5.trans (by rw [show b2.length = 4 from rfl])) hm5 fun st6 hm6 hpc6 => ?_
+    (hpc5.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadCommitment.b2_next])) hm5 fun st6 hm6 hpc6 => ?_
   obtain ⟨hmid6, hmem6, hcs6⟩ := after_eq run_b3 ▸ ok_b3
   have hf6 : Frame m0 80 slots st6.data := Frame.of_block hf5 (hfr hf5) hm6 hmid6 slots_le
   have hd6 : st6.data.dmem = st5.data.dmem := hm6.dmem_eq (hfr hf5) hmem6
@@ -302,7 +304,7 @@ theorem readCommitment_spec (hp : Placed code k)
     simp (config := { decide := true }) only [↓reduceIte] at hpc6
     have hnone : (readCommitment m0.regs.X1.toNat m0.regs.X2.toNat).run s = none := by
       rw [run_eq, hr1]; show (readScalar.run s1).bind _ = none; rw [hr2]; rfl
-    refine Eventually.mono (finish_fail hp hst (hpc6.trans (hp.label (j := 37) rfl)) hf6)
+    refine Eventually.mono (finish_fail hp hst (hpc6.trans (hp.label (j := NativeRustcVmArm.Vm.TStateReadCommitment.b6Offset) NativeRustcVmArm.Vm.TStateReadCommitment.label_4_at)) hf6)
       fun st' ⟨hpc', hx0', hd', hsv'⟩ ↦ ⟨hpc', ?_, ?_, ?_, hsv'⟩
     · rw [hnone, hx0']; rfl
     · intro u s' h; rw [hnone] at h; cases h
@@ -330,7 +332,7 @@ theorem readCommitment_spec (hp : Placed code k)
       ⟨known_ptr rfl (by show st6.data.regs.X19.toBitVec = _; rw [h19₆]), trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf6
-    (hpc6.trans (by rw [show b3.length = 2 from rfl])) hm6' fun st7 hm7 hpc7 => ?_
+    (hpc6.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadCommitment.b3_next])) hm6' fun st7 hm7 hpc7 => ?_
   obtain ⟨hmid7, hmem7, hx8₇, hx19₇, hcs7⟩ := after_eq run_b4 ▸ ok_b4
   have hf7 : Frame m0 80 slots st7.data := Frame.of_block hf6 hwf6 hm7 hmid7 slots_le
   have hd7 : st7.data.dmem = st6.data.dmem := hm7.dmem_eq hwf6 hmem7
@@ -390,7 +392,7 @@ theorem readCommitment_spec (hp : Placed code k)
       rw [BitVec.toNat_add, hcw, ofInt_neg752]
       omega
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 hwf7
-    (hpc7.trans (by rw [show b4.length = 3 from rfl])) hm7' fun st8 hm8 hpc8 => ?_
+    (hpc7.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadCommitment.b4_next])) hm7' fun st8 hm8 hpc8 => ?_
   obtain ⟨hepi, hx0₈, hw0, hw1, hw2, hw3, hw4, hw5, hwc, hws8⟩ := after_eq run_b5 ▸ ok_b5
   obtain ⟨hsv8, hsl8⟩ := Frame.epilogue hf7 hwf7 hm8 hepi
   have hx30 : st8.data.regs.X30 = m0.regs.X30 := hsl8 (32, .X30) (List.mem_cons_self ..)

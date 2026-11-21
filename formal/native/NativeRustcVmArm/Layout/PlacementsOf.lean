@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
+public import NativeRustcVmArm.Code.Vm.PlacementsOf.Names
+public import NativeRustcVmArm.Code.Vm.StackOffsets.Names
 public import NativeRustcVmArm.Layout.PlacementsOf.Turn3
 
 /-!
@@ -26,9 +29,9 @@ variable [Host] {k : Nat}
 
 /-- **The third loop**, from `.L17` at column `c` to `.L22` with every placement written. -/
 theorem loop3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 94)) (hI : I3 m0 c st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 113) ∧ I3 m0 158 s.data) st := by
-  refine Sym.loop (fun n s ↦ ∃ c, c < 158 ∧ 158 - c = n ∧ s.pc = Host.addrOf (k + 94) ∧
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b22Offset)) (hI : I3 m0 c st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b28Offset) ∧ I3 m0 158 s.data) st := by
+  refine Sym.loop (fun n s ↦ ∃ c, c < 158 ∧ 158 - c = n ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b22Offset) ∧
       I3 m0 c s.data) (fun n s ⟨c, hc, hn, hpc, hI⟩ ↦ ?_) ⟨c, hc, rfl, hpc, hI⟩
   refine Eventually.mono (turn3 hp hF hc hpc hI) fun s h ↦ ?_
   rcases h with ⟨hlt, hpc', hI'⟩ | ⟨_, hpc', hI'⟩
@@ -37,7 +40,7 @@ theorem loop3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} 
 
 /-- **`b28` and the epilogue**: `Some(max(16, total_log))`, the placements the model's. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 113)) (hI : I3 m0 158 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b28Offset)) (hI : I3 m0 158 st.data) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ PlacementsOfPost m0 s.data) st := by
   refine regs_step (infix_of b28_in_code (by simp [b28]) hp) run_b28 (rk run_b28) hI.body hpc
     fun st1 hm1 hpc1 hb1 hd1 hr1 ↦ ?_
@@ -63,7 +66,7 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : Mac
         omega
   have x0 : st1.data.regs.X0 = 1 := UInt64.toBitVec_inj.mp g0
   simp only [PcOk] at hpc1
-  refine Eventually.mono (epi hp hF (hpc1.trans (hp.label (j := 121) rfl)) hb1)
+  refine Eventually.mono (epi hp hF (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b30Offset) NativeRustcVmArm.Vm.PlacementsOf.label_24_at)) hb1)
     fun s ⟨hs1, hs0, hsx1, hch, hsv, hsd⟩ ↦ ⟨hs1, ?_⟩
   have hsz : (natsOf m0 m0.regs.X0 columnCountW).size = 158 := by simp [natsOf, columnCountW]
   obtain ⟨r2, r1s, r1⟩ := NativeVm.Code.Phase1.placementsOf_spec _ hsz
@@ -77,12 +80,12 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : Mac
 
 /-- **`placements_of` meets its contract.** -/
 theorem placementsOf_spec (hp : Placed code k)
-    (hms : Spec (Labels.label "memset") MemsetPre MemsetPost)
-    (hso : Spec (Labels.label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost) :
-    Spec (Labels.label placementsOfLabel) PlacementsOfPre PlacementsOfPost := by
+    (hms : Spec (Labels.label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hso : Spec (Labels.label NativeRustcVmArm.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.PlacementsOf.entryLabel) PlacementsOfPre PlacementsOfPost := by
   intro m0 hpre
   have hF := Facts.of_pre hpre
-  rw [show Labels.label placementsOfLabel = Host.addrOf k from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.PlacementsOf.entryLabel = Host.addrOf k from hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.entryOffset) NativeRustcVmArm.Vm.PlacementsOf.entry_at]
   refine Eventually.bind (entry hp hms hF) fun s1 ⟨hpc1, hI1⟩ ↦ ?_
   refine Eventually.bind (loop1 hp hF (by decide) hpc1 hI1) fun s2 ⟨hpc2, hI2⟩ ↦ ?_
   refine Eventually.bind (mid hp hms hso hF hpc2 hI2) fun s3 ⟨hpc3, hI3⟩ ↦ ?_

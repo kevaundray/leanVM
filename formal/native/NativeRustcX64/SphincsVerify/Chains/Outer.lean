@@ -70,8 +70,8 @@ theorem seg_b150 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (he : e.length = 16) {R : MachineState → Prop} {m : MachineData} (hK : Keep r l x E i m)
     (h12 : Run.RegIs m .r12 (r.off 4096)) (hcell : BytesAt m.dmem (r.off 184) e)
     (cont : ∀ m', Keep r l x E i m' → Run.RegIs m' .r12 (r.off 4096) →
-      BytesAt m'.dmem (r.off 184) e → Eventually (step1 Host.exe) R ⟨m', r.pc 1538⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1892⟩ := by
+      BytesAt m'.dmem (r.off 184) e → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b150Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) 0
   have hm := match_frameS hK.1 hK.2.1 (ret := 0) (k := []) trivial
   refine blk r hp b150_in_code (List.cons_ne_nil _ _) run_b150 hwf (fun _ h ↦ nomatch h) hm
@@ -88,8 +88,8 @@ theorem seg_b118 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (h168 : r.WordAt m 168 (16 * i).toUInt64) (hsi : Run.RegIs m .rsi (BitVec.ofNat 64 d))
     (h12 : Run.RegIs m .r12 (r.off 4096)) (hcell : BytesAt m.dmem (r.off 184) v)
     (cont : ∀ m', Keep r l x E i m' → Regs r m' d → BytesAt m'.dmem (r.off 184) v →
-      Eventually (step1 Host.exe) R ⟨m', r.pc 1565⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1561⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b119Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b118Offset⟩ := by
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
   have hm := match_frameS hF hK (ret := 0) (k := []) trivial
   refine blk r hp b118_in_code (List.cons_ne_nil _ _) run_b118 hwf (fun _ h ↦ nomatch h) hm
@@ -109,7 +109,7 @@ theorem seg_b118 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
         (by rw [NativeRustc.length_wordBytes]; decide +kernel),
       r.bytesAt_kept hpre hm1 hwf (by simp [NativeRustc.length_wordBytes]) h168
         (by rw [NativeRustc.length_wordBytes]; decide +kernel), hw⟩
-  exact pc_at (a := r.pc 1565) (hpc.trans rfl) (cont _ hK1
+  exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b119Offset) (hpc.trans rfl) (cont _ hK1
     ⟨regIs_reg hm1 rfl hsi, regIs_reg hm1 rfl h12⟩
     (r.bytesAt_kept hpre hm1 hwf (by omega) hcell (by rw [hv]; decide +kernel)))
 

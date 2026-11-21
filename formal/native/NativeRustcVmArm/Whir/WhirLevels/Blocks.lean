@@ -96,7 +96,7 @@ theorem readBlock {st : MachineState} (hf : WFr m0 st.data) {ds : List Directive
 theorem cbz_step (hp : Placed code k) {j : Nat} (hj : b2.IsInfixAt code j) {st : MachineState}
     (hf : WFr m0 st.data) (hpc : st.pc = Host.addrOf (k + j)) {R : MachineState → Prop}
     (hx : st.data.regs.X0 = 0 ∨ st.data.regs.X0 = 1)
-    (c0 : st.data.regs.X0 = 0 → ∀ st', st'.pc = Host.addrOf (k + 163) → WFr m0 st'.data →
+    (c0 : st.data.regs.X0 = 0 → ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.WhirLevels.b38Offset) → WFr m0 st'.data →
       st'.data.dmem = st.data.dmem →
       (∀ r, st'.data.regs.getXReg r = st.data.regs.getXReg r) → Eventually (step1 Host.exe) R st')
     (c1 : st.data.regs.X0 = 1 → ∀ st', st'.pc = Host.addrOf (k + (j + 1)) → WFr m0 st'.data →
@@ -115,7 +115,7 @@ theorem cbz_step (hp : Placed code k) {j : Nat} (hj : b2.IsInfixAt code j) {st :
       rw [show st.data.regs.getXReg .X0 = st.data.regs.X0 from rfl, hx]
       rfl
     simp only [hc, ↓reduceIte] at hpc1
-    rw [hp.label (j := 163) rfl] at hpc1
+    rw [hp.label (j := NativeRustcVmArm.Vm.WhirLevels.b38Offset) NativeRustcVmArm.Vm.WhirLevels.label_27_at] at hpc1
     exact c0 hx st1 hpc1 hf1 hd1 hk1
   · have hc : (SBool.cmp CmpOp.eq RegWidth.W32 (Sym.reg XReg.X0) (Sym.lit 0)).eval
         (Env.ofMachine st.data []) = false := by
@@ -128,7 +128,7 @@ theorem cbz_step (hp : Placed code k) {j : Nat} (hj : b2.IsInfixAt code j) {st :
 
 /-- **The epilogue returning `None`** (`b38`, `.LWhirLevels_27`), the model's run rejected. -/
 theorem exit_none (hp : Placed code k) (c : Ctx a s0 levels ba b claim m0 rate)
-    {st : MachineState} (hf : WFr m0 st.data) (hpc : st.pc = Host.addrOf (k + 163))
+    {st : MachineState} (hf : WFr m0 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.WhirLevels.b38Offset))
     (hR : runAll s0 levels b claim m0 = none) :
     Eventually (step1 Host.exe) (Goal a s0 levels b claim m0) st := by
   have hwf := frame_wf c hf

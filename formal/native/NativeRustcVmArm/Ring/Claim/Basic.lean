@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
 public import NativeRustcVmArm.Ring.OptOut
 public import NativeRustcVmArm.Ring.Claim.Exec
 public import NativeRustcVmArm.Ring.Column.Basic
@@ -261,11 +262,11 @@ theorem hb {ds : List Directive} {j : Nat} (h : ds.IsInfixAt code j) (hne : ds �
 
 /-- **The prologue and `eq_eval_fn`** (`b0`). -/
 theorem stepEntry (hp : Placed code k) (h : RingClaimWeightPre m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     {R : MachineState → Prop}
-    (cont : ∀ m1, Mid1 m0 m1 → Eventually (step1 Host.exe) R ⟨m1, Host.addrOf (k + 25)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (cont : ∀ m1, Mid1 m0 m1 → Eventually (step1 Host.exe) R ⟨m1, Host.addrOf (k + NativeRustcVmArm.Vm.RingClaimWeight.b1Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.RingClaimWeight.b0Offset)⟩ := by
   have hfw := fbw h
   have hfN := fbN h
   have hN' := hN h
@@ -342,7 +343,7 @@ theorem stepEntry (hp : Placed code k) (h : RingClaimWeightPre m0)
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun q hq ↦ hq.elim
       (fun hq ↦ absurd hq (hnil q)) .inl, hq.2.2⟩)
     fun m1 hfr2 hq hcs ↦ ?_
-  rw [show k + 0 + b0.length = k + 25 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingClaimWeight.b0Offset + b0.length = k + NativeRustcVmArm.Vm.RingClaimWeight.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingClaimWeight.b0_next]]
   refine cont m1 ⟨hfr2, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [hq.1, hsl, e1, show st.data.regs.X0.toNat = (xOf m0).size - m0.regs.X1.toNat by
       rw [xOf_size, e0]]

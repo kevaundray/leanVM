@@ -35,7 +35,7 @@ theorem at_pc {R : MachineState → Prop} {pc : Int64} {d : MachineData}
 
 /-- **From `b18` to the return.** -/
 theorem tail (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 98))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b18Offset))
     (hP : Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
       [(88, (p3 s5 x2).c0), (64, (p3 s5 x2).c1), (96, (p1 w s5 x1).c0),
         (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1), (56, (alA s5).c0),
@@ -114,7 +114,7 @@ theorem tail (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {st : MachineStat
     after_eq run_b19 ▸ ok_b19
   have hmid2 : MidOk 176 8 slots (after b19 pushS) = true := (after_eq run_b19 ▸ ok_b19).1
   simp only [PcOk] at hpc2
-  rw [hp.label (j := 129) rfl] at hpc2
+  rw [hp.label NativeRustcVmX64.Vm.FoldRound.label_8_at] at hpc2
   have hsl : (off (pA m0) (24 + 16 * w.alphas.size)).toNat = (pA m0).toNat + (24 + 16 * w.alphas.size) :=
     NativeRustcVm.toNat_add_ofNat (by omega)
   have hs2 : SameOutside st1.data.dmem st2.data.dmem (fun q ↦ InRange (off (pA m0) 16) 8 q ∨

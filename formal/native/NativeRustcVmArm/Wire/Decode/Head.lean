@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
+public import NativeRustcVmArm.Code.Vm.ReaderWords.Names
 public import NativeRustcVmArm.Wire.Decode.Iter
 
 /-!
@@ -25,7 +27,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 `c1`. -/
 structure Mid [Host] (k0 : Nat) (m0 : MachineData) (B : List UInt8) (n : Nat) (ws : List K)
     (c1 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k0 + 24)
+  pc : st.pc = Host.addrOf (k0 + NativeRustcVmArm.Vm.Decode.b5Offset)
   fr : Frm m0 st.data
   x19 : st.data.regs.getXReg .X19 = m0.regs.X4
   x20 : st.data.regs.getXReg .X20 = m0.regs.X1
@@ -98,10 +100,10 @@ variable [Host] {k0 : Nat}
 
 /-- **The first reads.** -/
 theorem head_spec (hp : Placed code k0) (G : Geo m0 B)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
-    (hwd : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) :
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
+    (hwd : Spec (Labels.label NativeRustcVmArm.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) :
     Eventually (step1 Host.exe) (fun st ↦ Res m0 B st ∨ ∃ n ws c1, Mid k0 m0 B n ws c1 st)
-      ⟨m0, Host.addrOf (k0 + 0)⟩ := by
+      ⟨m0, Host.addrOf (k0 + NativeRustcVmArm.Vm.Decode.b0Offset)⟩ := by
   have hst := G.st
   have hN := hst.2.1
   have hSP := m0.regs.SP.toNat_lt
@@ -196,7 +198,7 @@ theorem head_spec (hp : Placed code k0) (G : Geo m0 B)
       simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
       rw [show m2.regs.getXReg .X0 = 0 from hr2]
       rfl
-    simp only [hc, ↓reduceIte, hp.label (j := 68) rfl] at hpc3
+    simp only [hc, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Decode.b14Offset) NativeRustcVmArm.Vm.Decode.label_9_at] at hpc3
     exact Eventually.mono (exit14 hp G hpc3 hfr3 (decode_none_1 h1)) fun _ h ↦ .inl h
   rw [h1] at hr2
   obtain ⟨h0, hn, hR2⟩ := hr2
@@ -235,7 +237,7 @@ theorem head_spec (hp : Placed code k0) (G : Geo m0 B)
   have hdLe := G.dLe
   by_cases hlt : 2 * n < lenW m0
   swap
-  · simp only [hlt, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 68) rfl] at hpc4
+  · simp only [hlt, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Decode.b14Offset) NativeRustcVmArm.Vm.Decode.label_9_at] at hpc4
     refine Eventually.mono (exit14 hp G hpc4 hfr4 (decode_none_2 h1 ?_)) fun _ h ↦ .inl h
     rcases h2 : rdWords B (2 * n) 4 with _ | ⟨ws, c1⟩
     · rfl
@@ -335,7 +337,7 @@ theorem head_spec (hp : Placed code k0) (G : Geo m0 B)
       simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
       rw [show m6.regs.getXReg .X0 = 0 from hpost']
       rfl
-    simp only [hc7, ↓reduceIte, hp.label (j := 70) rfl] at hpc7
+    simp only [hc7, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Decode.b15Offset) NativeRustcVmArm.Vm.Decode.label_10_at] at hpc7
     refine Eventually.mono (exit15 hp G hpc7 hfr7 ?_) fun _ h ↦ .inl h
     rw [decode_none_2 h1 h2, e70]
     exact hpost'

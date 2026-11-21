@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Copy
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.First
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `verify_keccak`: the copies before the layers (x86-64)
@@ -74,13 +75,13 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 /-- **The copies** (`b9` to `b15`): at `b16` (`t16`), the first claim at `992` and `1768`, its
 bit weights at the scratch's start and its `weights`. -/
 theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {st : MachineState} {s4 : TState} {first : KeccakClaimW} {cm : EW}
-    (hat : At m0 k 79 wrA t9 (vv m0 (V1 cm)) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b9Offset wrA t9 (vv m0 (V1 cm)) st)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s4)
     (hcl : ClaimAt st.data.dmem (off (fb m0) 1000) first)
     (hw : WeightsAt st.data.dmem (off (reg m0 .r9) 0) first) {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 118 wrA t16 (vv m0 (V2 cm first.point.size)) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b16Offset wrA t16 (vv m0 (V2 cm first.point.size)) st' →
       TStateAt st'.data.dmem (reg m0 .rdi) a s4 →
       ClaimAt st'.data.dmem (off (fb m0) 992) first →
       ClaimAt st'.data.dmem (off (fb m0) 1768) first →
@@ -105,7 +106,7 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     (fun q hq ↦ chgR_frame List.mem_cons_self hq) (by decide) (by decide) (by decide)
     (by decide) (by decide) rfl rfl rfl (by vtacC) rfl rfl rfl rfl rfl rfl rfl
     fun st10 mc9 hat10 _ hi9 hb9 _ hc9 hk9 ↦ ?_
-  rw [show 79 + b9.length = 87 from rfl] at hat10
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b9_next] at hat10
   have A10 : Img st.data.dmem (off (fb m0) 1000) st10.data.dmem (off (fb m0) 2536) 280 :=
     (imgF c hb9 (by decide) (by decide) (by decide) (by decide)).trans hi9
   have C10 : Img st.data.dmem (off (fb m0) 1288) st10.data.dmem (off (fb m0) 1288) 480 :=
@@ -128,7 +129,7 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
   · intro ret
     simp only [List.cons_append, List.nil_append, List.forall_mem_cons, Sym.eval, hl10]
     and_intros <;> first | rfl | exact fun _ h ↦ nomatch h
-  rw [show 87 + b10.length = 93 from rfl] at hat11
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b10_next] at hat11
   have A11 : Img st.data.dmem (off (fb m0) 1000) st11.data.dmem (off (fb m0) 2536) 280 :=
     A10.trans (imgF c hc10 (by decide) (by decide) (by decide) (by decide))
   have C11 : Img st.data.dmem (off (fb m0) 1288) st11.data.dmem (off (fb m0) 2816) 480 :=
@@ -145,7 +146,7 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     (fun q hq ↦ chgR_frame List.mem_cons_self hq) (by decide) (by decide) (by decide)
     (by decide) (by decide) rfl rfl rfl (by vtacC) rfl rfl rfl rfl rfl rfl rfl
     fun st12 mc11 hat12 _ hi11 hb11 _ hc11 hk11 ↦ ?_
-  rw [show 93 + b11.length = 97 from rfl] at hat12
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b11_next] at hat12
   have A12 : Img st.data.dmem (off (fb m0) 1000) st12.data.dmem (off (fb m0) 1768) 280 :=
     A11.trans ((imgF c hb11 (by decide) (by decide) (by decide) (by decide)).trans hi11)
   have B12 : Img st.data.dmem (off (fb m0) 1000) st12.data.dmem (off (fb m0) 2536) 280 :=
@@ -164,7 +165,7 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     (fun q hq ↦ chgR_frame List.mem_cons_self hq) (by decide) (by decide) (by decide)
     (by decide) (by decide) rfl rfl rfl (by vtacC) rfl rfl rfl rfl rfl rfl rfl
     fun st13 mc12 hat13 hm12 hi12 hb12 hl12 hc12 hk12 ↦ ?_
-  rw [show 97 + b12.length = 102 from rfl] at hat13
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b12_next] at hat13
   have W13 : NativeRustcVm.WordAt st13.data.dmem (off (fb m0) 2048)
       first.point.toList.length.toUInt64 :=
     Chg.wordF c hl12 (by decide) (by decide) (by decide) (by decide)
@@ -190,7 +191,7 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     (fun q hq ↦ chgR_frame List.mem_cons_self hq) (by decide) (by decide) (by decide)
     (by decide) (by decide) rfl rfl rfl (by vtacC) rfl rfl rfl rfl rfl rfl rfl
     fun st14 mc13 hat14 _ hi13 hb13 _ hc13 hk13 ↦ ?_
-  rw [show 102 + b13.length = 106 from rfl] at hat14
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b13_next] at hat14
   have A14 : Img st.data.dmem (off (fb m0) 1000) st14.data.dmem (off (fb m0) 1768) 280 :=
     A13.trans (imgF c hc13 (by decide) (by decide) (by decide) (by decide))
   have E14 : Img st.data.dmem (off (fb m0) 1000) st14.data.dmem (off (fb m0) 992) 280 :=
@@ -212,7 +213,7 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     (fun q hq ↦ chgR_frame List.mem_cons_self hq) (by decide) (by decide) (by decide)
     (by decide) (by decide) rfl rfl rfl (by vtacC) rfl rfl rfl rfl rfl rfl rfl
     fun st15 mc14 hat15 hm14 hi14 hb14 hl14 hc14 hk14 ↦ ?_
-  rw [show 106 + b14.length = 112 from rfl] at hat15
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b14_next] at hat15
   have W15 : NativeRustcVm.WordAt st15.data.dmem (off (fb m0) 1272)
       first.point.toList.length.toUInt64 :=
     Chg.wordF c hl14 (by decide) (by decide) (by decide) (by decide)
@@ -249,7 +250,7 @@ theorem copiesStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
     (Lc := []) (Oc := [(2, 25600, 25600)]) (fun q hq ↦ chgR_reg List.mem_cons_self hq)
     (by decide) (by decide) (by decide) (by decide) (by decide) rfl rfl rfl (by vtacC) rfl rfl rfl
     rfl rfl rfl rfl fun st16 _ hat16 _ hi15 hb15 _ hc15 hk15' ↦ ?_
-  rw [show 112 + b15.length = 118 from rfl] at hat16
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b15_next] at hat16
   have hall := hch.trans hc15
   have hk := NativeRustcVmX64.Transcript.kept_trans hk15 hk15'
   have hwm := Chg.wtsR c hb15 (by decide) (by decide) (o := 0) (by decide) (by decide) hw15

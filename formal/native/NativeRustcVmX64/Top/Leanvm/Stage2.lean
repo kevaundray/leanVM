@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Top.Leanvm.Exit
+public import NativeRustcVmX64.Code.Vm.Decode.Names
 
 /-!
 # `leanvm_verify`: the decoder (x86-64)
@@ -9,7 +10,7 @@ public import NativeRustcVmX64.Top.Leanvm.Exit
 with a dangling pointer (`1`) and `b15` returns `0` when it refuses; else `b9` tests the wire's
 address (nonzero, `Aligned`), `b10` stores the public input and calls `decode` on the wire, and
 `b11` returns `0` (`b12`) when it refuses. Either way, when the decoder accepts, the machine
-reaches `.LLeanvmVerify_16` in `AD`.
+reaches `NativeRustcVmX64.Vm.LeanvmVerify.label_16` in `AD`.
 -/
 
 namespace NativeRustcVmX64.Top.Leanvm
@@ -72,23 +73,23 @@ theorem pub_stored {m0 d d' : MachineData} {S : SState} {pub : Vector UInt64 4} 
   · exact w 24 .rdx _ (by decide) h2 (by simpa using e2)
   · exact w 32 .rcx _ (by decide) h3 (by simpa using e3)
 
-/-- The stage's end: refused (RAX `0`, returned) or accepted at `.LLeanvmVerify_16`. -/
+/-- The stage's end: refused (RAX `0`, returned) or accepted at `NativeRustcVmX64.Vm.LeanvmVerify.label_16`. -/
 @[expose] def Stage2End [Host] (a : Code.Areas) (bytes : List UInt8) (bytecode : List UInt64)
     (pub : Vector UInt64 4) (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   (decodeM bytes = none ∧ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
     reg st.data .rax = 0#64 ∧ NativeRustcVm.SameOutside m0.dmem st.data.dmem (Out m0 a bytes.length) ∧
     Saved m0 st.data) ∨
-  (∃ r, decodeM bytes = some r ∧ st.pc = Host.addrOf (k + 95) ∧ AD a bytes bytecode pub m0 st.data ∧
+  (∃ r, decodeM bytes = some r ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b16Offset) ∧ AD a bytes bytecode pub m0 st.data ∧
     DecodedAt st.data.dmem ⟨a.decoded.toBitVec, decodedWords bytes.length, bytes.length⟩
       (streamW r.1) (openingsW r.2))
 
 variable [Host] {k : Nat}
 
 /-- **The decoder.** -/
-theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) DecodePre DecodePost)
+theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label NativeRustcVmX64.Vm.Decode.entryLabel) DecodePre DecodePost)
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 52)) (hC : C1 a bytes bytecode pub m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b8Offset)) (hC : C1 a bytes bytecode pub m0 st.data) :
     Eventually (step1 Host.exe) (Stage2End a bytes bytecode pub m0 k) st := by
   have g := geo_of hpre
   have hpre' := hpre
@@ -135,7 +136,7 @@ theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) Deco
   · -- `L = 0`: `b14`, `decode` on a dangling pointer, `b15`.
     rw [hL0] at hpc9
     simp only [show (BitVec.ofNat 64 0 == 0) = true from rfl, ↓reduceIte] at hpc9
-    obtain ⟨hwf14, hm14⟩ := envOk _ (ret := (Host.addrOf (k + 80 + b14.length)).toBitVec) hC9.frame
+    obtain ⟨hwf14, hm14⟩ := envOk _ (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b14Offset + b14.length)).toBitVec) hC9.frame
     refine exec_at (infix_of b14_in_code (by simp [b14]) hp) run_b14 hwf14 (fun _ _ ↦ rfl)
       (hpc9.trans (lbl_15 hp)) hm14 fun st15 hm15 hpc15 ↦ ?_
     obtain ⟨hmid15, hw15, h0, h1, h2, h3, hrdi, hrsi, hrdx, hrcx, hr8, hk15⟩ :=
@@ -161,7 +162,7 @@ theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) Deco
       (pub_stored hm15 h0 h1 h2 h3 hC9.r8 hC9.rsi hC9.rdx hC9.rcx)) fun st16 ⟨hpc16, hA16, hres⟩ ↦ ?_
     obtain ⟨hwf16, hm16⟩ := envOk _ (ret := 0) hA16.frame
     refine exec_at (infix_of b15_in_code (by simp [b15]) hp) run_b15 hwf16 nofun
-      (hpc16.trans (by rw [show k + 80 + b14.length = k + 91 from rfl])) hm16
+      (hpc16.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b14Offset + b14.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b15Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b14_next]])) hm16
       fun st17 hm17 hpc17 ↦ ?_
     obtain ⟨hmid17, hmem17, hrax17, hk17⟩ := after_eq run_b15 ▸ ok_b15
     obtain ⟨hA17, hd17⟩ := adBlock hA16 hm17 hmid17 hmem17 hk17
@@ -185,7 +186,7 @@ theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) Deco
       rintro ⟨hb, hD⟩
       simp only [hb, show ((1 : Nat) = 0) = False from by decide, decide_false,
         Bool.false_eq_true, ↓reduceIte] at hpc17
-      exact .done _ (Or.inr ⟨r, hdm, hpc17.trans (by rw [show k + 91 + b15.length = k + 95 from rfl]),
+      exact .done _ (Or.inr ⟨r, hdm, hpc17.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b15Offset + b15.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b16Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b15_next]]),
         hA17, by rw [hd17]; exact hD⟩)
   · -- `L > 0`: `b9` (the wire nonzero), `b10`, `decode` on the wire, `b11`.
     have hne : (BitVec.ofNat 64 bytes.length == 0) = false := by
@@ -195,7 +196,7 @@ theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) Deco
     simp only [hne, Bool.false_eq_true, ↓reduceIte] at hpc9
     obtain ⟨hwf10, hm10⟩ := envOk _ (ret := 0) hC9.frame
     refine exec_at (infix_of b9_in_code (by simp [b9]) hp) run_b9 hwf10 nofun
-      (hpc9.trans (by rw [show k + 52 + b8.length = k + 55 from rfl])) hm10 fun st11 hm11 hpc11 ↦ ?_
+      (hpc9.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b8Offset + b8.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b9Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b8_next]])) hm10 fun st11 hm11 hpc11 ↦ ?_
     obtain ⟨hmid11, hmem11, hk11⟩ := after_eq run_b9 ▸ ok_b9
     have hC11 := C1.block hC9 hwf10 hm11 hmid11 hmem11 hk11
     simp only [PcOk] at hpc11
@@ -205,9 +206,9 @@ theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) Deco
       intro h
       exact hal.wire hL0 (UInt64.toBitVec_inj.mp (by simpa using h))
     simp only [hw0, Bool.false_eq_true, ↓reduceIte] at hpc11
-    obtain ⟨hwf12, hm12⟩ := envOk _ (ret := (Host.addrOf (k + 57 + b10.length)).toBitVec) hC11.frame
+    obtain ⟨hwf12, hm12⟩ := envOk _ (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b10Offset + b10.length)).toBitVec) hC11.frame
     refine exec_at (infix_of b10_in_code (by simp [b10]) hp) run_b10 hwf12 (fun _ _ ↦ rfl)
-      (hpc11.trans (by rw [show k + 55 + b9.length = k + 57 from rfl])) hm12
+      (hpc11.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b9Offset + b9.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b10Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b9_next]])) hm12
       fun st13 hm13 hpc13 ↦ ?_
     obtain ⟨hmid13, hw13, h0, h1, h2, h3, hrdi, hrsi, hrdx, hrcx, hr8, hk13⟩ :=
       after_eq run_b10 ▸ ok_b10
@@ -236,7 +237,7 @@ theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) Deco
       fun st14 ⟨hpc14, hA14, hres⟩ ↦ ?_
     obtain ⟨hwf14, hm14⟩ := envOk _ (ret := 0) hA14.frame
     refine exec_at (infix_of b11_in_code (by simp [b11]) hp) run_b11 hwf14 nofun
-      (hpc14.trans (by rw [show k + 57 + b10.length = k + 67 from rfl])) hm14
+      (hpc14.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b10Offset + b10.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b11Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b10_next]])) hm14
       fun st15 hm15 hpc15 ↦ ?_
     obtain ⟨hmid15, hmem15, hk15⟩ := after_eq run_b11 ▸ ok_b11
     obtain ⟨hA15, hd15⟩ := adBlock hA14 hm15 hmid15 hmem15 (hk6 hk15)
@@ -253,7 +254,7 @@ theorem stage2 (hp : Placed code k) (hdec : Spec (Labels.label decodeLabel) Deco
       intro hres
       simp only [hres, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc15
       refine Eventually.mono (exit12 hp hst (hpc15.trans (by
-          rw [show k + 67 + b11.length = k + 69 from rfl])) hA15.frame)
+          rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b11Offset + b11.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b12Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b11_next]])) hA15.frame)
         fun s ⟨h1, h2, h3, h4, h5⟩ ↦ Or.inl ⟨hdm, h1, h2, h3, ?_, h5⟩
       rw [h4]; exact hA15.same
     | some r =>

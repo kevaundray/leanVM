@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.GkrLayers
+public import NativeRustcVmX64.Code.Vm.GkrLayers.Names
+public import NativeRustcVmX64.Code.Vm.GkrStep.Names
 public meta import NativeRustcVmX64.Code.Vm.GkrLayers
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -72,7 +74,7 @@ sym_block run_b13 := exec b13 headS
 sym_block run_b14 := exec b14 headS
 
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rsi) (.reg .rsi)) (.lit 0)) ".LGkrLayers_11") :=
+    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rsi) (.reg .rsi)) (.lit 0)) NativeRustcVmX64.Vm.GkrLayers.label_11) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 48 8 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ w.off + w.n ≤ 48) ∧
@@ -80,7 +82,7 @@ public theorem ok_b0 : ProOk 48 8 slots (after b0 entryS) = true ∧
     Keeps (after b0 entryS) [.rsi, .rdx, .rdi] = true := by
   decide +kernel
 
-public theorem exit_b1 : exec b1 headS = some (after b1 headS, .jump ".LGkrLayers_4") :=
+public theorem exit_b1 : exec b1 headS = some (after b1 headS, .jump NativeRustcVmX64.Vm.GkrLayers.label_4) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : BodyOk 8 (after b1 headS) = true ∧ (after b1 headS).mem = [] ∧
     (after b1 headS).reg .r12 = some (.reg .rsi) ∧ (after b1 headS).reg .r14 = some (.reg .rdx) ∧
@@ -88,7 +90,7 @@ public theorem ok_b1 : BodyOk 8 (after b1 headS) = true ∧ (after b1 headS).mem
   decide +kernel
 
 public theorem exit_b3 : exec b3 headS = some (after b3 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3gkr8gkr_step") :=
+    .call NativeRustcVmX64.Vm.GkrStep.entryLabel) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : BodyOk 0 (after b3 headS) = true ∧
     (after b3 headS).reg .rdi = some (.reg .r15) ∧ (after b3 headS).reg .rsi = some (.lit 2) ∧
@@ -96,35 +98,35 @@ public theorem ok_b3 : BodyOk 0 (after b3 headS) = true ∧
     (after b3 headS).reg .r12 = some subTwo ∧ Keeps (after b3 headS) [.rbx, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b4 : exec b4 headS = some (after b4 headS, .cond cAl ".LGkrLayers_10") :=
+public theorem exit_b4 : exec b4 headS = some (after b4 headS, .cond cAl NativeRustcVmX64.Vm.GkrLayers.label_10) :=
   run_b4.trans (by rw [after_eq run_b4]; rfl)
 public theorem ok_b4 : BodyOk 8 (after b4 headS) = true ∧ (after b4 headS).mem = [] ∧
     Keeps (after b4 headS) [.rbx, .r12, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b5 : exec b5 headS = some (after b5 headS,
-    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .r12) (.reg .r12)) (.lit 0)) ".LGkrLayers_11") :=
+    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .r12) (.reg .r12)) (.lit 0)) NativeRustcVmX64.Vm.GkrLayers.label_11) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : BodyOk 8 (after b5 headS) = true ∧ (after b5 headS).mem = [] ∧
     Keeps (after b5 headS) [.rbx, .r12, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b6 : exec b6 headS = some (after b6 headS,
-    .cond (.cmp .eq .W64 (.reg .r12) (.lit 1)) ".LGkrLayers_8") :=
+    .cond (.cmp .eq .W64 (.reg .r12) (.lit 1)) NativeRustcVmX64.Vm.GkrLayers.label_8) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : BodyOk 8 (after b6 headS) = true ∧ (after b6 headS).mem = [] ∧
     Keeps (after b6 headS) [.rbx, .r12, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b7 : exec b7 headS = some (after b7 headS,
-    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .r12) (.lit 1)) (.lit 0)) ".LGkrLayers_2") :=
+    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .r12) (.lit 1)) (.lit 0)) NativeRustcVmX64.Vm.GkrLayers.label_2) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 : BodyOk 8 (after b7 headS) = true ∧ (after b7 headS).mem = [] ∧
     Keeps (after b7 headS) [.rbx, .r12, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b8 : exec b8 headS = some (after b8 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3gkr8gkr_step") :=
+    .call NativeRustcVmX64.Vm.GkrStep.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : BodyOk 0 (after b8 headS) = true ∧
     (after b8 headS).reg .rdi = some (.reg .r15) ∧ (after b8 headS).reg .rsi = some (.lit 1) ∧
@@ -132,28 +134,28 @@ public theorem ok_b8 : BodyOk 0 (after b8 headS) = true ∧
     Keeps (after b8 headS) [.rbx, .r12, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b9 : exec b9 headS = some (after b9 headS, .cond cAl ".LGkrLayers_10") :=
+public theorem exit_b9 : exec b9 headS = some (after b9 headS, .cond cAl NativeRustcVmX64.Vm.GkrLayers.label_10) :=
   run_b9.trans (by rw [after_eq run_b9]; rfl)
 public theorem ok_b9 : BodyOk 8 (after b9 headS) = true ∧ (after b9 headS).mem = [] ∧
     Keeps (after b9 headS) [.rbx, .r12, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b10 : exec b10 headS = some (after b10 headS,
-    .cond (SBool.cmp .eq .W64 (.bin .and .W64 subOne subOne) (.lit 0)).not ".LGkrLayers_4") :=
+    .cond (SBool.cmp .eq .W64 (.bin .and .W64 subOne subOne) (.lit 0)).not NativeRustcVmX64.Vm.GkrLayers.label_4) :=
   run_b10.trans (by rw [after_eq run_b10]; rfl)
 public theorem ok_b10 : BodyOk 8 (after b10 headS) = true ∧ (after b10 headS).mem = [] ∧
     (after b10 headS).reg .r12 = some subOne ∧
     Keeps (after b10 headS) [.rbx, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b11 : exec b11 headS = some (after b11 headS, .jump ".LGkrLayers_11") :=
+public theorem exit_b11 : exec b11 headS = some (after b11 headS, .jump NativeRustcVmX64.Vm.GkrLayers.label_11) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : BodyOk 8 (after b11 headS) = true ∧ (after b11 headS).mem = [] ∧
     Keeps (after b11 headS) [.rbx] = true := by
   decide +kernel
 
 public theorem exit_b12 : exec b12 headS = some (after b12 headS,
-    .jump "_RNvNtCsemcRClSg8DH_9native_vm3gkr8gkr_step") :=
+    .jump NativeRustcVmX64.Vm.GkrStep.entryLabel) :=
   run_b12.trans (by rw [after_eq run_b12])
 public theorem ok_b12 : slotsLoaded slots (after b12 headS) = true ∧
     keepsOthers slots (after b12 headS) = true ∧

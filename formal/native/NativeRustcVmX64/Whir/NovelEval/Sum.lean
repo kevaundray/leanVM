@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.NovelEval.Inner
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
 
 /-!
 # `novel_eval`'s loops to the result (x86-64)
@@ -32,13 +33,13 @@ theorem acc_zero (m0 : MachineData) : accOf m0 0 = 0 := novelAcc_zero _ _
 variable [Host] {k : Nat}
 
 /-- **The doubling loops**, from no value read to the complete basis. -/
-theorem doubling (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
+theorem doubling (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hpre : NovelEvalPre m0) (hc : cnt m0 ≤ 64) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 29)) (hI : OInv m0 0 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 50) ∧ Mid m0 s.data) st := by
-  refine Sym.loop (fun n s ↦ (∃ j, n = (wn m0 - j) * 65 + 64 ∧ s.pc = Host.addrOf (k + 29) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b4Offset)) (hI : OInv m0 0 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b9Offset) ∧ Mid m0 s.data) st := by
+  refine Sym.loop (fun n s ↦ (∃ j, n = (wn m0 - j) * 65 + 64 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b4Offset) ∧
       OInv m0 j s.data) ∨ (∃ j t, n = (wn m0 - j) * 65 + (63 - t) ∧ t < 64 ∧
-      s.pc = Host.addrOf (k + 37) ∧ IInv m0 j t s.data)) (fun n s h ↦ ?_) (.inl ⟨0, rfl, hpc, hI⟩)
+      s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b6Offset) ∧ IInv m0 j t s.data)) (fun n s h ↦ ?_) (.inl ⟨0, rfl, hpc, hI⟩)
   rcases h with ⟨j, rfl, hpc, hI⟩ | ⟨j, t, rfl, ht64, hpc, hI⟩
   · refine (outer hp hpre hpc hI).mono fun s' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩
@@ -55,24 +56,24 @@ theorem doubling (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmu
     · exact .inr ⟨(wn m0 - (j + 1)) * 65 + 64, by omega, .inl ⟨j + 1, rfl, hpc', hI'⟩⟩
     · exact .inl h
 
-theorem hb11 (hp : Placed code k) : b11a.IsInfixAt Host.prog (k + 61) ∧
-    b11b.IsInfixAt Host.prog (k + 61 + 6) := by
+theorem hb11 (hp : Placed code k) : b11a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b11Offset) ∧
+    b11b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b11Offset + b11a.length) := by
   have h := b11_in_code.trans hp.1 (by simp [b11])
   rw [← List.take_append_drop 6 b11] at h
   exact h.append
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 61 + 6 + 1) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b12Offset) :=
   b12_in_code.trans hp.1 (by simp [b12])
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 61 + 6 + 1 + 4) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b13Offset) :=
   b13_in_code.trans hp.1 (by simp [b13])
-theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + 61 + 6 + 1 + 4 + 5) :=
+theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b14Offset) :=
   b14_in_code.trans hp.1 (by simp [b14])
 
 /-- **A turn of the sum.** -/
-theorem sumTurn (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
+theorem sumTurn (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hpre : NovelEvalPre m0) (hc : cnt m0 ≤ 64) {t : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 61)) (hI : SInv m0 t st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 61) ∧ SInv m0 (t + 1) s.data) ∨
-      (s.pc = Host.addrOf (k + 81) ∧ Done m0 s.data)) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b11Offset)) (hI : SInv m0 t st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b11Offset) ∧ SInv m0 (t + 1) s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b16Offset) ∧ Done m0 s.data)) st := by
   obtain ⟨hS, hcs, hwh, hout⟩ := hpre
   have hF : 1104 ≤ novelEvalStack := by decide
   have hle : 1104 + kmulStack ≤ novelEvalStack := by decide
@@ -190,8 +191,8 @@ theorem sumTurn (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmul
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl <;> exact Match.reg_eq hm hm1 rfl rfl
   -- `b11b`: `kmul(b, c0)`
-  have hpc1' : st1.pc = Host.addrOf (k + 61 + 6) := hpc1
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 61 + 6 + 1)).toBitVec) hS hF
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b11Offset + b11a.length) := hpc1
+  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b12Offset)).toBitVec) hS hF
   refine exec_at (hb11 hp).2 run_b11b hwf2 (fun _ _ ↦ rfl) hpc1' hfr1.mid_match
     fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_b11b ▸ b11b_call
@@ -216,8 +217,8 @@ theorem sumTurn (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmul
       show reg st2.data .rsi = reg st1.data .rsi from Match.reg_eq hfr1.mid_match hm2 rfl rfl,
       hrdi1, hbt, hcoef, UInt64.ofBitVec_toBitVec]
   -- `b12`: `kmul(b, c1)`
-  have hpc3' : st3.pc = Host.addrOf (k + 61 + 6 + 1) := hpc3
-  have hwf4 := hfr3.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 61 + 6 + 1 + 4)).toBitVec) hS hF
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b12Offset) := hpc3
+  have hwf4 := hfr3.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b13Offset)).toBitVec) hS hF
   refine exec_at (hb12 hp) run_b12 hwf4 (fun _ _ ↦ rfl) hpc3' hfr3.mid_match fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hk4, hsp4, hw4⟩ := after_eq run_b12 ▸ b12_call
   have hrsp4 := rsp_call hm4 hsp4
@@ -243,7 +244,7 @@ theorem sumTurn (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmul
       exact (hsv5.1 _ rfl).trans ((Match.reg_eq hfr3.mid_match hm4 rfl rfl).trans
         ((e3 _ (by simp)).trans (e1 _ (by simp))))
   -- `b13`: the sum, the count
-  have hpc5' : st5.pc = Host.addrOf (k + 61 + 6 + 1 + 4) := hpc5
+  have hpc5' : st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b13Offset) := hpc5
   have hwf6 := hfr5.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb13 hp) run_b13 hwf6 (by intro l h; cases h) hpc5' hfr5.mid_match
     fun st6 hm6 hpc6 ↦ ?_
@@ -286,19 +287,19 @@ theorem sumTurn (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmul
     ofNat_beq (by omega) (by omega)] at hpc6
   obtain ⟨hT, hF6⟩ := Arrays.pc_cond hpc6
   by_cases hlast : t + 1 = lenOf m0
-  · have hpc6' : st6.pc = Host.addrOf (k + 61 + 6 + 1 + 4 + 5) :=
+  · have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b14Offset) :=
       hF6 (by rw [Bool.not_eq_true, Bool.not_eq_false', decide_eq_true_eq]; omega)
     refine exec_at (hb14 hp) run_b14 (Env.wf_nil _) (by intro l h; cases h) hpc6' (match_nil _)
       fun st7 hm7 hpc7 ↦ .done _ (.inr ⟨?_, ?_⟩)
     · simp only [PcOk] at hpc7
-      exact hpc7.trans (hp.label (j := 81) rfl)
+      exact hpc7.trans (hp.label NativeRustcVmX64.Vm.NovelEval.label_11_at)
     have hd7 : st7.data.dmem = st6.data.dmem := hm7.dmem_eq (Env.wf_nil _) rfl
     refine ⟨hfr6.of_block (match_nil _) hm7 (Env.wf_nil _) rfl (after_eq run_b14 ▸ b14_keeps),
       ⟨hd7 ▸ hsp6.out, hd7 ▸ hsp6.cs⟩, ?_, ?_⟩
     · rw [← hlast]; exact (Match.reg_eq (match_nil _) hm7 rfl rfl).trans hr14
     · rw [← hlast]; exact (Match.reg_eq (match_nil _) hm7 rfl rfl).trans hrbx
   · exact .done _ (.inl ⟨(hT (by rw [Bool.not_eq_true', decide_eq_false_iff_not]; omega)).trans
-      (hp.label (j := 61) rfl), hfr6, hsp6, hlen6, by omega, hr15, hr14, hrbx, hbas6⟩)
+      (hp.label NativeRustcVmX64.Vm.NovelEval.label_10_at), hfr6, hsp6, hlen6, by omega, hr15, hr14, hrbx, hbas6⟩)
 
 end
 

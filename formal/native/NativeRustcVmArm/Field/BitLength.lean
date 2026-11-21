@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
 public import NativeRustcVmArm.Field.BitLength.Exec
 public import NativeRustcVmArm.Field.W32
 public import NativeRustcVmArm.Spec.Field
@@ -153,9 +154,9 @@ theorem x0_eq : (match exec b0 regS with
 
 /-- **`bit_length` returns the bit length.** -/
 theorem bitLength_spec [Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost := by
   intro m _
-  rw [show Labels.label bitLengthLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.BitLength.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.BitLength.entryOffset) NativeRustcVmArm.Vm.BitLength.entry_at]
   have hx := x0_eq
   rw [run_b0] at hx
   refine exec_then (b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _)) run_b0

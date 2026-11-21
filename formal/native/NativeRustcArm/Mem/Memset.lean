@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memset.Names
+
 public import NativeRustcArm.Mem.MemsetBlocks
 
 /-!
@@ -79,7 +81,7 @@ variable [Host] {k : Nat} (m : MachineData)
 
 /-- `memset` done, at `.LMemset_7`. -/
 structure Done (k : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 22)
+  pc : st.pc = Host.addrOf (k + NativeRustcArm.Common.Memset.b8Offset)
   x0 : st.data.regs.X0 = m.regs.X0
   x30 : st.data.regs.X30 = m.regs.X30
   saved : Saved m st.data
@@ -88,7 +90,7 @@ structure Done (k : Nat) (st : MachineState) : Prop where
 
 /-- The word loop's head after `i` bytes. -/
 structure WInv (k i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 17)
+  pc : st.pc = Host.addrOf (k + NativeRustcArm.Common.Memset.b7Offset)
   i8 : i % 8 = 0
   lt : i < m.regs.X2.toNat
   x0 : st.data.regs.X0 = m.regs.X0
@@ -102,7 +104,7 @@ structure WInv (k i : Nat) (st : MachineState) : Prop where
 
 /-- The byte loop's head after `i` bytes. -/
 structure BInv (k i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 6)
+  pc : st.pc = Host.addrOf (k + NativeRustcArm.Common.Memset.b3Offset)
   lt : i < m.regs.X2.toNat
   x0 : st.data.regs.X0 = m.regs.X0
   x1 : st.data.regs.X1 = m.regs.X1
@@ -219,7 +221,7 @@ theorem word_step (hp : Placed code k) (hpre : MemsetPre m) (h8 : m.regs.X2.toNa
     refine .done _ (Or.inr ⟨?_, by have := hI.i8; omega, hlt, hx0, hx2, by rw [hx8]; exact hI.x8,
       hx9, hx30, hsaved, hc', hs'⟩)
     rw [hpc']
-    exact hp.label (j := 17) rfl
+    exact hp.label NativeRustcArm.Common.Memset.label_6_at
   · rename_i hc
     have hn : i + 8 = m.regs.X2.toNat := by
       sym_simp at hc
@@ -319,7 +321,7 @@ theorem byte_step (hp : Placed code k) (hpre : MemsetPre m) {i : Nat} {st : Mach
       omega
     refine .done _ (Or.inr ⟨?_, hlt, hx0, hx1, by rw [hx2]; omega, hx8, hx30, hsaved, hc', hs'⟩)
     rw [hpc']
-    exact hp.label (j := 6) rfl
+    exact hp.label NativeRustcArm.Common.Memset.label_3_at
   · rename_i hc
     have hn : i + 1 = m.regs.X2.toNat := by
       rw [hce] at hc
@@ -333,7 +335,7 @@ theorem byte_step (hp : Placed code k) (hpre : MemsetPre m) {i : Nat} {st : Mach
     refine Eventually.mono (finish hp ⟨?_, ?_, ?_, ?_, ?_, ?_⟩) fun _ h => Or.inl h
     · simp only [PcOk] at hpc''
       rw [hpc'']
-      exact hp.label (j := 22) rfl
+      exact hp.label NativeRustcArm.Common.Memset.label_7_at
     · exact (Match.reg_eq (r := .X0) (match_nil _) hm'' rfl rfl).trans hx0
     · exact (Match.reg_eq (r := .X30) (match_nil _) hm'' rfl rfl).trans hx30
     · exact hsaved.trans (Match.saved (match_nil _) hm'' (Env.wf_nil _) rfl rfl)
@@ -360,9 +362,9 @@ theorem byte_loop (hp : Placed code k) (hpre : MemsetPre m) {i : Nat} {st : Mach
     ⟨i, rfl, hI⟩
 
 /-- **`memset` meets its contract.** -/
-theorem memset_spec (hp : Placed code k) : Spec (label "memset") MemsetPre MemsetPost := by
+theorem memset_spec (hp : Placed code k) : Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost := by
   intro m hpre
-  rw [hp.label (j := 0) rfl]
+  rw [hp.label NativeRustcArm.Common.Memset.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) e0 (Env.wf_nil m) (match_nil m)
     fun st0 hm0 hpc0 => ?_
   have hd0 : st0.data.dmem = m.dmem := hm0.dmem_eq (Env.wf_nil _) rfl
@@ -377,7 +379,7 @@ theorem memset_spec (hp : Placed code k) : Spec (label "memset") MemsetPre Memse
     rename_i hal
     have h8 : m.regs.X2.toNat % 8 = 0 := align_or2 hal
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) e5 (Env.wf_nil _)
-      (hpc0.trans (hp.label (j := 11) rfl)) (match_nil _) fun st5 hm5 hpc5 => ?_
+      (hpc0.trans (hp.label NativeRustcArm.Common.Memset.label_4_at)) (match_nil _) fun st5 hm5 hpc5 => ?_
     have hd5 : st5.data.dmem = m.dmem := (hm5.dmem_eq (Env.wf_nil _) rfl).trans hd0
     have hy0 : st5.data.regs.X0 = m.regs.X0 :=
       (Match.reg_eq (r := .X0) (match_nil _) hm5 rfl rfl).trans hx0
@@ -396,7 +398,7 @@ theorem memset_spec (hp : Placed code k) : Spec (label "memset") MemsetPre Memse
         simp only [Env.ofMachine_regs, Reg64s.getXReg, beq_iff_eq] at hz
         rw [← hx2, ← UInt64.toNat_toBitVec, hz]
         rfl
-      refine finish hp ⟨hpc5.trans (hp.label (j := 22) rfl), hy0, hy30, hs5, ?_, ?_⟩
+      refine finish hp ⟨hpc5.trans (hp.label NativeRustcArm.Common.Memset.label_7_at), hy0, hy30, hs5, ?_, ?_⟩
       · rw [hn]
         exact bytesAt_nil _ _
       · exact sameOutside_of_eq hd5 _
@@ -453,7 +455,7 @@ theorem memset_spec (hp : Placed code k) : Spec (label "memset") MemsetPre Memse
         simp only [Env.ofMachine_regs, Reg64s.getXReg, beq_iff_eq] at hz
         rw [← hx2, ← UInt64.toNat_toBitVec, hz]
         rfl
-      refine finish hp ⟨hpc1.trans (hp.label (j := 22) rfl), hy0, hy30, hs1, ?_, ?_⟩
+      refine finish hp ⟨hpc1.trans (hp.label NativeRustcArm.Common.Memset.label_7_at), hy0, hy30, hs1, ?_, ?_⟩
       · rw [hn]
         exact bytesAt_nil _ _
       · exact sameOutside_of_eq hd1 _

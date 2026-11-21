@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Arrays.PaddingWeight.Exec
 public import NativeRustcVm.Arrays.Folds
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.PaddingWeight.Names
 
 /-!
 # `padding_weight` on x86-64
@@ -61,7 +63,7 @@ structure Locals (m0 : MachineData) (d : DataMem) : Prop where
     (UInt64.ofBitVec (reg m0 .rdi + BitVec.ofNat 64 (16 * len m0)))
   n : WordAt d (fb m0 + BitVec.ofNat 64 32) (UInt64.ofBitVec (reg m0 .rdx))
 
-/-- **The loop head** `.LPaddingWeight_3`, `i` coordinates folded. -/
+/-- **The loop head** `NativeRustcVmX64.Vm.PaddingWeight.label_3`, `i` coordinates folded. -/
 structure Inv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
   body : Body m0 112 paddingWeightStack slots 0 0 s
   lt : i < len m0
@@ -74,41 +76,41 @@ structure Inv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 12) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 21) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 21 + 13) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 21 + 13 + 8) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 21 + 13 + 8 + 9) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 52) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 52 + 3) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PaddingWeight.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label paddingWeightLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LPaddingWeight_1" = Host.addrOf (k + 52) :=
-  hp.label (j := 52) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LPaddingWeight_3" = Host.addrOf (k + 21) :=
-  hp.label (j := 21) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.PaddingWeight.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.PaddingWeight.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.PaddingWeight.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b6Offset) :=
+  hp.label NativeRustcVmX64.Vm.PaddingWeight.label_1_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.PaddingWeight.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b2Offset) :=
+  hp.label NativeRustcVmX64.Vm.PaddingWeight.label_3_at
 theorem lbl_4 (hp : Placed code k) :
-    Labels.label ".LPaddingWeight_4" = Host.addrOf (k + 52 + 3) :=
-  hp.label (j := 55) rfl
+    Labels.label NativeRustcVmX64.Vm.PaddingWeight.label_4 = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b7Offset) :=
+  hp.label NativeRustcVmX64.Vm.PaddingWeight.label_4_at
 
 /-- `padding_weight`'s postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
   s.pc = retOf m0 ∧ rspOf s.data = rspOf m0 + 8#64 ∧ PaddingWeightPost m0 s.data
 
-/-- **`.LPaddingWeight_4`** (`b7`): `1 + bit_e(n, |point|)`, the epilogue, the tail call. -/
-theorem finish (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+/-- **`NativeRustcVmX64.Vm.PaddingWeight.label_4`** (`b7`): `1 + bit_e(n, |point|)`, the epilogue, the tail call. -/
+theorem finish (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : PaddingWeightPre m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 52 + 3)) (hb : Body m0 112 paddingWeightStack slots 0 0 s.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b7Offset)) (hb : Body m0 112 paddingWeightStack slots 0 0 s.data)
     (hrbp : reg s.data .rbp = reg m0 .rdx)
     (hlenw : WordAt s.data.dmem (fb m0 + BitVec.ofNat 64 16) (UInt64.ofBitVec (reg m0 .rsi)))
     (hpad : ewArg (reg s.data .r15) (reg s.data .r12) = pad m0 (len m0)) :
@@ -141,11 +143,11 @@ theorem finish (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMul
 
 /-- **A turn of the loop**: coordinate `i` folded in, back at the head or out of the loop and
 returned. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : PaddingWeightPre m0) {i : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 21)) (hI : Inv m0 i s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b2Offset)) (hI : Inv m0 i s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 21) ∧ Inv m0 (i + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b2Offset) ∧ Inv m0 (i + 1) s'.data)) s := by
   have hS := hpre.1
   have hA := SliceIn.of_ok hpre.2.2
   have h112 : 112 ≤ paddingWeightStack := by decide
@@ -154,7 +156,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   have h64 := hpre.2.1
   have hlen := lt_of_offStack hpre.2.2.1.2 hpre.2.2.2
   -- `b2`: the coordinate, `(1 + b)·r`
-  obtain ⟨hwf1, hm1, hel⟩ := hI.body.elem (ret := (Host.addrOf (k + 21 + 13)).toBitVec) hS h112
+  obtain ⟨hwf1, hm1, hel⟩ := hI.body.elem (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b3Offset)).toBitVec) hS h112
     hA hlt (x := .reg .r13) (o := 0) (by rw [eval_reg, add_ofNat_zero]; exact hI.r13)
   refine exec_at (hb2 hp) run_b2 hwf1 (fun _ _ ↦ rfl) hpc hm1 fun s1 hm1' hpc1 ↦ ?_
   obtain ⟨hk1, hsp1, hw1, h56, ho16, ho24, ho32⟩ := after_eq run_b2 ▸ b2_call
@@ -184,7 +186,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       (UInt64.ofBitVec (BitVec.ofNat 64 (i + 1))) := by
     have := wordAt_of_write hm1' (r := 0) (o := 56) rfl (by omega) h56
     rwa [eval_add, eval_reg, eval_lit, show (elemEnv m0 s.data 112 (reg m0 .rdi) i
-      (Host.addrOf (k + 21 + 13)).toBitVec).regs .rcx = reg s.data .rcx from rfl, hI.rcx,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b3Offset)).toBitVec).regs .rcx = reg s.data .rcx from rfl, hI.rcx,
       ← BitVec.ofNat_add] at this
   have hlenw1 := wordAt_keep hm1' (r := 0) (o := 16) rfl (by omega) ho16 hI.lenw
   have hloc1 : Locals m0 s1.data.dmem :=
@@ -202,7 +204,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
         s1.data.dmem.get? (fb m0 + BitVec.ofNat 64 o + BitVec.ofNat 64 j) := fun o ho j hj ↦ by
     rw [addr_add]; exact hfr1 _ (by omega)
   -- `b3`: `(1 + b + r)·pad`, the first product kept
-  have hwf3 := hb2'.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 21 + 13 + 8)).toBitVec) hS
+  have hwf3 := hb2'.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b4Offset)).toBitVec) hS
     h112
   refine exec_at (hb3 hp) run_b3 hwf3 (fun _ _ ↦ rfl) hpc2 hb2'.mid_match fun s3 hm3 hpc3 ↦ ?_
   obtain ⟨hk3, hsp3, hw3, h40, h48, ho16', ho24', ho32', ho56'⟩ := after_eq run_b3 ▸ b3_call
@@ -284,7 +286,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   obtain ⟨hT, hF⟩ := pc_cond hpc5
   by_cases hlast : 16 * (i + 1) = 16 * len m0
   · have hpc5' := hF (by simp [hlast])
-    simp only [show b4.length = 9 from rfl] at hpc5'
+    simp only [NativeRustcVmX64.Vm.PaddingWeight.b4_length] at hpc5'
     refine exec_at (hb5 hp) run_b5 (Env.wf_nil _) (by intro l h; cases h) hpc5' (match_nil _)
       fun s6 hm6 hpc6 ↦ ?_
     have hb6' := hb5'.of_block (match_nil _) hm6 (Env.wf_nil _) rfl (after_eq run_b5 ▸ b5_keeps)
@@ -303,8 +305,8 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`padding_weight` meets its contract.** -/
 theorem paddingWeight_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label paddingWeightLabel) PaddingWeightPre PaddingWeightPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.PaddingWeight.entryLabel) PaddingWeightPre PaddingWeightPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hS := hpre.1
@@ -316,7 +318,7 @@ theorem paddingWeight_spec (hp : Placed code k)
   have hx : BitVec.ofNat 64 (len m0) = m0.regs.get64 .rsi := by
     rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
   refine exec_then (hb0 hp) run_b0 hwf (by intro l h; cases h) match_frame fun s1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 12 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.PaddingWeight.b0_length] at hpc1
   rw [eval_test, eval_reg, Env.ofMachine_regs, ← hx, ofNat_beq (by omega) (by decide)] at hpc1
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hz : len m0 = 0
@@ -324,7 +326,7 @@ theorem paddingWeight_spec (hp : Placed code k)
     have hpc1 := hT (decide_eq_true hz)
     refine exec_at (hb6 hp) (exec_after run_b0 run_b6) hwf (by intro l h; cases h)
       (hpc1.trans (lbl_1 hp)) hm1 fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b6.length = 3 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmX64.Vm.PaddingWeight.b6_length] at hpc2
     obtain ⟨hw, hregs, hmem, hsp, h16⟩ := after_eq run_b6 ▸ b6_entry
     have hb2 := Body.of_entry (oa := 0) (on := 0) hS h112 hm2 hsp hw hregs hmem
     have h16w : WordAt s2.data.dmem (fb m0 + BitVec.ofNat 64 16) (UInt64.ofBitVec (reg m0 .rsi)) := by
@@ -342,7 +344,7 @@ theorem paddingWeight_spec (hp : Placed code k)
     have hpc1 := hF (fun h ↦ hz (of_decide_eq_true h))
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf (by intro l h; cases h) hpc1 hm1
       fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b1.length = 9 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmX64.Vm.PaddingWeight.b1_length] at hpc2
     obtain ⟨hw, hregs, hmem, hsp, h16, h24, h32⟩ := after_eq run_b1 ▸ b1_entry
     have hfin : reg m0 .rdi + reg m0 .rsi <<< 4 = reg m0 .rdi + BitVec.ofNat 64 (16 * len m0) := by
       congr 1
@@ -370,7 +372,7 @@ theorem paddingWeight_spec (hp : Placed code k)
       · have := wordAt_of_write hm2 (r := 0) (o := 32) rfl (by omega) h32
         rw [eval_reg] at this
         exact this
-    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 21) ∧ ∃ i, len m0 - i = n ∧
+    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PaddingWeight.b2Offset) ∧ ∃ i, len m0 - i = n ∧
       Inv m0 i s.data) (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc2, 0, rfl, hI⟩
     refine Eventually.mono (step hp hmul hpre hpc hI) fun s' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩

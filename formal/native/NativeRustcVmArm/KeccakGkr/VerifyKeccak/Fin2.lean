@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Fin1
 
 /-!
@@ -40,16 +43,16 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The final check** (`b61` to `b65`). -/
 theorem stepFin2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m : MachineData} {s1 s3 : TState} {cj : KeccakClaimW} {outs : Array ColumnClaimW}
     {low sl ws xs : Array EW} {v : EW}
     (hy : AtY a s cs inst output m0 m s1 s3 cj outs low sl ws v xs)
     (cont : ∀ m', AtX a s cs inst output m0 m' s3 cj outs low sl xs →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 425)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 398)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b66Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b61Offset)⟩ := by
   have hN := hn.hN
   have hSP := m0.regs.SP.toNat_lt
   have hwf := envM_wf hn hy.fr
@@ -112,7 +115,7 @@ theorem stepFin2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
   rw [hsl1, hsl2] at hret
   have T1 := hb.trans hc
   have k1 := regs_keptL f2L (by decide) (matchM hn hy.fr) hm1 (by decide) hcs
-  rw [show k + 398 + b61.length = k + 409 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b61Offset + b61.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b62Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b61_next]]
   -- `b62`
   have hwf2 := envM_wf hn hfr2
   have l64 : (Sym.load 0 64 8).eval (envM m0 m2) = scA m0 + BitVec.ofNat 64 140288 :=
@@ -172,7 +175,7 @@ theorem stepFin2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
   have x20 : m3.regs.getXReg .X20 = (multilinearEval cj.mu low).c1 := by
     rw [hcs3 .X20 rfl]
     exact (reg_of hm3 (r := .X20) (v := .reg .X1) rfl rfl).trans (congrArg EW.c1 hret)
-  rw [show k + 409 + b62.length = k + 416 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b62Offset + b62.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b63Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b62_next]]
   -- `b63`
   have hwf3 := envM_wf hn hfr3
   refine callC hn (b63_in_code.trans hp.1 (by simp [b63])) run_b63 hfr3 (matchM hn hfr3) hwf3
@@ -198,7 +201,7 @@ theorem stepFin2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
     (k3 r hr).trans ((k2 r hr).trans (k1 r hr))
   simp only [f2L, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] at g
   obtain ⟨g21, g22, g23, g24⟩ := g
-  rw [show k + 416 + b63.length = k + 421 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b63Offset + b63.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b64Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b63_next]]
   -- `b64`, `b65`
   refine failBranchF hp hn (b64_in_code.trans hp.1 (by simp [b64])) run_b64 hfr4 rfl rfl
     (L := f3L) (by decide) (b := ((multilinearEval cj.mu low * dot ws xs).c0 == v.c0))
@@ -208,7 +211,7 @@ theorem stepFin2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
   have g5 : ∀ r ∈ f3L, m5.regs.getXReg r = m4.regs.getXReg r := hk5
   simp only [f3L, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] at g5
   obtain ⟨h1, h21, h22, h23, h24⟩ := g5
-  rw [show k + 421 + b64.length = k + 423 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b64Offset + b64.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b65Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b64_next]]
   refine failBranchF hp hn (b65_in_code.trans hp.1 (by simp [b65])) run_b65 hfr5 rfl rfl
     (L := f2L) (by decide) (b := ((multilinearEval cj.mu low * dot ws xs).c1 == v.c1))
     (by rw [condNe, Env.ofMachine_regs, Env.ofMachine_regs, bv_beq, h1, gx1, hx1, h21, g21,
@@ -220,7 +223,7 @@ theorem stepFin2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
   obtain ⟨-, -, i23, i24⟩ := g6
   have T := T1.trans (T2.trans T3)
   have hd : m6.dmem = m4.dmem := hd6.trans hd5
-  rw [show k + 423 + b65.length = k + 425 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b65Offset + b65.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b66Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b65_next]]
   refine cont m6 ⟨hfr6, by rw [i23, h23, g23]; exact hy.x23, by rw [i24, h24, g24]; exact hy.x24,
     ?_, ?_, ?_, ?_, ?_, hy.psz, hy.lowsz, ?_, hy.slsz, ?_, hy.xsz, ?_, ?_⟩
   all_goals try rw [hd]

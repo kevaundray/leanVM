@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.FormBufAddScaled.Names
+public import NativeRustcVmArm.Code.Vm.FormBufAddTerm.Names
 public import NativeRustcVmArm.Layout.FormBufAddScaled.Exec
 public import NativeRustcVmArm.Layout.FormBufAddTerm.Lemmas
 
@@ -167,7 +170,7 @@ theorem pc_of {pc : Int64} {a b : Nat} (h : pc = Host.addrOf a) (e : a = b) : pc
 
 /-- **The epilogue** `b6`: X0 as the loop left it. -/
 theorem finish (hp : Placed code k) {f other : FormW} {m0 : MachineData} (hF : Facts f other m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 27))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddScaled.b6Offset))
     (hb : Body m0 48 SS slots (bb m0) formBufBytes st.data)
     (hres : if (f.addScaled other (ww m0)).size ≤ formCap then
         st.data.regs.X0 = 1 ∧ FormBufAt st.data.dmem (bb m0) (f.addScaled other (ww m0))
@@ -219,13 +222,13 @@ theorem Facts.not_stack {f other : FormW} {m0 : MachineData} (hF : Facts f other
 
 /-- **A turn of the loop**: term `i` scaled and added; back at the head, or out with the
 result. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hadd : ∀ f t, Spec (Labels.label formBufAddTermLabel) (FormBufAddTermPre f t)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hadd : ∀ f t, Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddTerm.entryLabel) (FormBufAddTermPre f t)
       (FormBufAddTermPost f t))
     {f other : FormW} {m0 : MachineData} (hF : Facts f other m0) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 12)) (hI : Inv f other m0 i st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddScaled.b2Offset)) (hI : Inv f other m0 i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Post f other m0 st' ∨
-      (st'.pc = Host.addrOf (k + 12) ∧ Inv f other m0 (i + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddScaled.b2Offset) ∧ Inv f other m0 (i + 1) st'.data)) st := by
   have hS := hF.stack
   have hlt := hI.lt
   have hpn := hF.pn
@@ -370,7 +373,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       rw [← acc_size, ← hlast]
       simp only [hsz, ↓reduceIte]
       exact ⟨k0'.trans (k0.trans hres.1), by rw [hd6, hd5]; exact hres.2⟩
-    · have hpc8 := ((Arrays.pc_cond hpc7).1 (by simp; omega)).trans (hp.label (j := 12) rfl)
+    · have hpc8 := ((Arrays.pc_cond hpc7).1 (by simp; omega)).trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddScaled.b2Offset) NativeRustcVmArm.Vm.FormBufAddScaled.label_2_at)
       have h21 := hm6.regs .X21 _ rfl
       have h8 := hm6.regs .X8 _ rfl
       sym_simp at h21 h8
@@ -389,7 +392,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   · simp only [hsz, ↓reduceIte] at hres
     have e0 : (Env.ofMachine st4.data []).regs .X0 = 0#64 := congrArg UInt64.toBitVec hres
     rw [e0] at hpc5
-    have hpc6 := ((Arrays.pc_cond hpc5).1 (by decide)).trans (hp.label (j := 27) rfl)
+    have hpc6 := ((Arrays.pc_cond hpc5).1 (by decide)).trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddScaled.b6Offset) NativeRustcVmArm.Vm.FormBufAddScaled.label_4_at)
     refine Eventually.mono (finish hp hF hpc6 hb5 ?_) fun _ h ↦ Or.inl h
     have hgt : ¬(f.addScaled other (ww m0)).size ≤ formCap := fun h ↦
       hsz (Nat.le_trans (le_size_addScaled _ _ _ _) h)
@@ -412,10 +415,10 @@ theorem frame_in_stack {f other : FormW} {m0 : MachineData} (hF : Facts f other 
 
 /-- **`FormBuf::add_scaled`'s contract.** -/
 theorem formBufAddScaled_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hadd : ∀ f t, Spec (Labels.label formBufAddTermLabel) (FormBufAddTermPre f t)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hadd : ∀ f t, Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddTerm.entryLabel) (FormBufAddTermPre f t)
       (FormBufAddTermPost f t)) {f other : FormW} :
-    Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f other)
+    Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f other)
       (FormBufAddScaledPost f other) := by
   intro m0 hpre
   have hF := Facts.of_pre hpre
@@ -423,7 +426,7 @@ theorem formBufAddScaled_spec (hp : Placed code k)
   have hpn := hF.pn
   unfold NativeRustcVm.NoWrap at hpn
   obtain ⟨hwf, hm⟩ := Arrays.entry_match hS (F := 48) (by decide) (by decide)
-  rw [show Labels.label formBufAddScaledLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.FormBufAddScaled.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddScaled.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.FormBufAddScaled.entryOffset) NativeRustcVmArm.Vm.FormBufAddScaled.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st0 hm0 hpc0 ↦ ?_
   simp only [PcOk] at hpc0
   sym_simp at hpc0
@@ -435,7 +438,7 @@ theorem formBufAddScaled_spec (hp : Placed code k)
   obtain ⟨hpa, hpb⟩ := Arrays.pc_cond hpc0
   by_cases hz : other.size = 0
   · -- no terms: `b7` returns `1`
-    have hpc1 := (hpa (by simpa using hz)).trans (hp.label (j := 32) rfl)
+    have hpc1 := (hpa (by simpa using hz)).trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddScaled.b7Offset) NativeRustcVmArm.Vm.FormBufAddScaled.label_5_at)
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) (Arrays.exec_after run_b0 run_b7) hwf
       hpc1 hm0 fun st1 hm1 hpc2 ↦ .done _ ?_
     have hdm : st1.data.dmem = m0.dmem :=
@@ -475,7 +478,7 @@ theorem formBufAddScaled_spec (hp : Placed code k)
       · rw [acc_zero]
         exact FormBufAt.of_same hF.form fun j hj ↦ Arrays.same_of_region0 hm1 hwf hmem _
           fun h ↦ hF.not_stack hj (frame_in_stack hF h)
-    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 12) ∧ ∃ i, other.size - i = n ∧
+    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddScaled.b2Offset) ∧ ∃ i, other.size - i = n ∧
       Inv f other m0 i st.data) (fun n st ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨pc_of hpc2 rfl, 0, rfl, hI⟩
     refine Eventually.mono (step hp hmul hadd hF hpc hI) fun st' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩

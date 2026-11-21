@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakPhase.Call
+public import NativeRustcVmX64.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.VerifyKeccak.Names
 
 /-!
 # `keccak_phase` on x86-64
@@ -25,15 +28,15 @@ variable [Host] {k : Nat}
 
 /-- **`keccak_phase`'s contract.** -/
 theorem keccakPhase_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hvk : ∀ a s cs inst output, Spec (Labels.label verifyKeccakLabel)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hvk : ∀ a s cs inst output, Spec (Labels.label NativeRustcVmX64.Vm.VerifyKeccak.entryLabel)
       (VerifyKeccakPre a s cs inst output) (VerifyKeccakPost a s cs inst output))
     (a : DecArea) (s : TState) (cs : Array ColumnClaimW) (layout : LayoutW)
     (evals : Array (Array EW × Array EW)) :
-    Spec (Labels.label keccakPhaseLabel) (KeccakPhasePre a s cs layout evals)
+    Spec (Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel) (KeccakPhasePre a s cs layout evals)
       (KeccakPhasePost a s cs layout evals) := by
   intro m0 hpre
-  rw [show Labels.label keccakPhaseLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b0Offset) from hp.label NativeRustcVmX64.Vm.KeccakPhase.entry_at]
   obtain ⟨hS, hrc, hpj, hrh, hts, hcls, hcs, hev, hlog, hpt, h40, hA⟩ := hpre
   have hn := nums_of hS hA
   have g := geo1 hS
@@ -68,11 +71,11 @@ theorem keccakPhase_spec (hp : Placed code k)
   subst hpc
   -- `b2`.
   have hwf2 : (fenv m0 d 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + 89 + b2.length)).toBitVec).WF :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b2Offset + b2.length)).toBitVec).WF :=
     fenv_wf1 g hat.body.kept (NativeRustcVm.Transcript.Mapped.keeps hevm hat.body.kept) heW
       (by unfold Sep at heS; omega)
   have hm2 : Match (fenv m0 d 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + 89 + b2.length)).toBitVec) retS d :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b2Offset + b2.length)).toBitVec) retS d :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨hat.body.sp.trans (eval_ptr0' 24).symm, hat.rbx.trans (eval_ptr (i := 1) (n := 11808) rfl).symm, trivial⟩
       trivial trivial trivial
@@ -91,7 +94,7 @@ theorem keccakPhase_spec (hp : Placed code k)
     buf_keep hpt0 hat.body.same (by rw [hoffE 9840 (by omega)]; omega) fun q ⟨h1, h2⟩ ↦ by
       rw [hoffE 9840 (by omega)]; unfold Sep at heS; omega
   have hlenp : (ptS.eval (fenv m0 d 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + 89 + b2.length)).toBitVec)).toNat = evals[5].1.size := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b2Offset + b2.length)).toBitVec)).toNat = evals[5].1.size := by
     show (Env.load _ 1 9840 8).toNat = _
     rw [load_ofMachine (b := reg m0 .rdx) rfl hptd.2.1]
     simp only [Array.length_toList, Nat.toUInt64_eq]
@@ -201,10 +204,10 @@ theorem keccakPhase_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb'.sp.trans (eval_ptr0' 8).symm, trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf3 nofun
-    (hpc'.trans (by rw [show b2.length = 15 from rfl])) hm3 fun st3 hm3' hpc3 ↦ ?_
+    (hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakPhase.b2_next)) hm3 fun st3 hm3' hpc3 ↦ ?_
   simp only [PcOk] at hpc3
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf3 nofun
-    (hpc3.trans (by rw [show b3.length = 1 from rfl])) hm3' fun st4 hm4 hpc4 ↦ ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakPhase.b3_next)) hm3' fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hld, hsp4, hrax, hmem4⟩ := ok_s4
   obtain ⟨hsv4, hrsp4⟩ := Body.epilogue g2 hb' hwf3 hm4 hld hsp4
   have hd4 : st4.data.dmem = e'.data.dmem := hm4.dmem_eq hwf3 hmem4

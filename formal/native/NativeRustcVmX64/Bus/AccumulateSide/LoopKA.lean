@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.Calls
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
 
 /-!
 # `accumulate_side`: the known part's turn, to `eq_above` (x86-64)
@@ -24,12 +25,12 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
 
 /-- **The known part's turn `i`, to `eq_above`'s return.** -/
 theorem turnKA (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
     {i : Nat} (hi : i < cA SL m0) {st : MachineData}
     (hst : St m0 Z (Vt SL m0 (lpK SL m0 i)) DK 8 st) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 67) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b3Offset) ∧
       St m0 Z (Vt SL m0 (lpK SL m0 i)) DKc 8 st'.data ∧ ewRet st'.data = fsel SL (ptA m0) i)
-      ⟨st, Host.addrOf (k + 46)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b2Offset)⟩ := by
   have hfw := h.fw
   have hiF : i < SL.framework.size := Nat.lt_of_lt_of_le hi (Nat.min_le_right _ _)
   have hiA : i < nA m0 := Nat.lt_of_lt_of_le hi (Nat.min_le_left _ _)
@@ -96,7 +97,7 @@ theorem turnKA (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   let fpi := off (stackArg m0 1) (16 * i)
   have hfpAll : In m0 (stackArg m0 1) (16 * nA m0) := In.of_inOk (h.fp hnA) (Apart.symm' (h.fFp hnA))
   have hfpIn : In m0 fpi 16 := hfpAll.sub (by omega) (by decide)
-  let env2 := frameEnv m0 st2.data F [(fpi, 16)] (fun _ ↦ 0) (Host.addrOf (k + 61 + b2b.length)).toBitVec
+  let env2 := frameEnv m0 st2.data F [(fpi, 16)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b2Offset + b2a.length + b2b.length)).toBitVec
   have hwf2 : env2.WF := wf1 h hst2.fr.kept hfpIn
   have hrcx := hst2.hd.reg (r := .rcx) (i := 7) (by decide)
   have hrbp2 := hst2.hd.reg (r := .rbp) (i := 32) (by decide)
@@ -107,12 +108,12 @@ theorem turnKA (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       rw [add64, hrcx, hrbp2, show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]
       rfl, trivial⟩
   obtain ⟨hmidb, hwb, htrb, hbx, h14⟩ := ok_b2b
-  have hpc2' : st2.pc = Host.addrOf (k + 61) := by
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b2Offset + b2a.length) := by
     rw [hpc2, show b2a.length = 15 from rfl]
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2' hst2' hm2' hwf2 e_di e_dx
   subst hpc2'
-  refine St.run h (rest := [(fpi, 16)]) rfl (infix_of b2b_in_code (by simp [b2b, b2]) hp)
+  refine St.run h (rest := [(fpi, 16)]) rfl (infix_of (F := code) (k := k) (j := NativeRustcVmX64.Vm.AccumulateSide.b2Offset + b2a.length) b2b_in_code (by simp [b2b, b2]) hp)
     exit_b2b (fun _ _ ↦ rfl) hst2'.fr hst2'.same
     (hst2'.hd.reg0 (by decide) rfl) (by decide) hwf2 hm2' hmidb hwb (by decide) htrb
     fun st3 hm3 hpc3 hst3 _ ↦ ?_

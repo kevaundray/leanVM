@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.DecodedPhase
+public import NativeRustcVmX64.Code.Vm.DecodedPhase.Names
 public meta import NativeRustcVmX64.Code.Vm.DecodedPhase
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -65,14 +66,14 @@ public theorem ok_b0 : ProOk 32 0 slots (after b0 entryS) = true ∧
   decide +kernel
 public theorem exit_b1 : exec b1 cmpS = some (S1, .cond
     ((SBool.cmp .ult .W64 (.reg .r14) (.lit 7)).not.and (SBool.cmp .eq .W64 (.reg .r14) (.lit 7)).not)
-    ".LDecodedPhase_5") :=
+    NativeRustcVmX64.Vm.DecodedPhase.label_5) :=
   run_b1.trans (by rw [show S1 = _ from after_eq run_b1])
 public theorem exit_b2 : exec b2 S1 = some (S2, .cond
-    (SBool.cmp .ult .W64 (.reg .r14) (.reg .rax)).not ".LDecodedPhase_5") :=
+    (SBool.cmp .ult .W64 (.reg .r14) (.reg .rax)).not NativeRustcVmX64.Vm.DecodedPhase.label_5) :=
   run_b2.trans (by rw [show S2 = _ from after_eq run_b2])
 public theorem exit_b3 : exec b3 S2 = some (S3, .cond
     ((SBool.cmp .ult .W64 endSym (.load 1 8 8)).or (SBool.cmp .eq .W64 endSym (.load 1 8 8)))
-    ".LDecodedPhase_4") :=
+    NativeRustcVmX64.Vm.DecodedPhase.label_4) :=
   run_b3.trans (by rw [show S3 = _ from after_eq run_b3]; rfl)
 public theorem ok_b1 : S1.mem = [] ∧ S2.mem = [] ∧ S3.mem = [] ∧ S3.reg .rbx = some (.ptr 1 0) := by
   decide +kernel

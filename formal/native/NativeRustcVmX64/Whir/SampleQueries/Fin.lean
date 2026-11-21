@@ -5,7 +5,7 @@ public import NativeRustcVmX64.Whir.SampleQueries.Basic
 /-!
 # `sample_queries` on x86-64: the return, the outer loop's end
 
-`fin`: from `.LSampleQueries_12` (`b6`, AL `1`, then `b19`) with the model's positions in the
+`fin`: from `NativeRustcVmX64.Vm.SampleQueries.label_12` (`b6`, AL `1`, then `b19`) with the model's positions in the
 buffer and its state in the `TState` (`Done`), the postcondition. `b9_step`: after a challenge's
 positions (`AtB9`), back at the outer loop's head (`Outer`) or, after the last challenge, `fin`.
 -/
@@ -62,10 +62,10 @@ theorem post_of (h : SampleQueriesPre a s0 m0) {st : MachineData} (hd : Done a s
     · exact .inl ⟨_, List.mem_cons_of_mem _ (List.mem_singleton_self _), ho⟩
     · exact .inr ho
 
-/-- **The return** from `.LSampleQueries_12`: AL `1`, `b19`. -/
+/-- **The return** from `NativeRustcVmX64.Vm.SampleQueries.label_12`: AL `1`, `b19`. -/
 theorem fin (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {st : MachineData}
     (hd : Done a s0 m0 qs s' st) :
-    Eventually (step1 Host.exe) (Post a s0 m0) ⟨st, Host.addrOf (k + 30)⟩ := by
+    Eventually (step1 Host.exe) (Post a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b6Offset)⟩ := by
   have hwf := mid_wf (vars := fun _ ↦ 0) (ret := 0) h hd.ctx.fr.kept
   refine exec_then (inf hp b6_in_code (by simp [b6])) run_b6 hwf (by intro l h; cases h)
     (mid_match hd.ctx.fr) fun st1 hm1 hpc1 ↦ ?_
@@ -75,7 +75,7 @@ theorem fin (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {st : MachineDat
   simp only [PcOk] at hpc1
   have hwf1 := mid_wf (vars := fun _ ↦ 0) (ret := 0) h hc1.fr.kept
   refine exec_at (inf hp b19_in_code (by simp [b19])) run_b19 hwf1 (by intro l h; cases h)
-    (hpc1.trans (hp.label (j := 99) rfl)) (mid_match hc1.fr) fun st2 hm2 hpc2 ↦ .done _ ?_
+    (hpc1.trans (hp.label NativeRustcVmX64.Vm.SampleQueries.label_13_at)) (mid_match hc1.fr) fun st2 hm2 hpc2 ↦ .done _ ?_
   obtain ⟨he, hmem2, hk2⟩ := after_eq run_b19 ▸ ok_b19
   obtain ⟨hsv, hrsp⟩ := Frame.epilogue hc1.fr hwf1 hm2 he
   have hd2 : st2.data.dmem = st1.data.dmem := hm2.dmem_eq hwf1 hmem2

@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
+public import NativeRustcVmArm.Code.Vm.VerifyGkrGrandProducts.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Head
 public import NativeRustcVmArm.Bus.VerifyBusBalance.ClaimsA
 public import NativeRustcVmArm.Tables.Frame
@@ -7,7 +12,7 @@ public import NativeRustcVmArm.Tables.Frame
 /-!
 # `verify_bus_balance`'s grind, challenges and GKR walk
 
-From `b10` (`k + 76`), the layouts built: `b10` calls `bit_length` of the push side's mask;
+From `b10` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b10Offset`), the layouts built: `b10` calls `bit_length` of the push side's mask;
 `b11` grinds; `b12` checks it; `b13` samples the `16` weights; `b14` squeezes `β`; `b15` keeps
 `β`, empties the `GkrStateW` and calls `verify_gkr_grand_products`; `b16`, `b17` check its count
 root (`grind_spec`, then `AtClaims`).
@@ -89,16 +94,16 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k 
 /-- **The grind, the challenges, the GKR walk** (`b10` to `b17`): the state at `b18`, or the
 failure. -/
 theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hbit : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hbit : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hgkr : ∀ a s, Spec (Labels.label verifyGkrLabel) (VerifyGkrPre a s) (VerifyGkrPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hgkr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.VerifyGkrGrandProducts.entryLabel) (VerifyGkrPre a s) (VerifyGkrPost a s))
     (hcl : ∀ w pt tv beta s m, AtClaims a s0 L m0 w pt tv beta s m →
-      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 271)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b18Offset)⟩)
     {mG : MachineData} (A : AtGrind a s0 L m0 mG) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨mG, Host.addrOf (k + 76)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨mG, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b10Offset)⟩ := by
   have hS := pre_stack h
   have hN : verifyBusBalanceStack ≤ m0.regs.SP.toNat := hS.2.1
   have c := ctx h
@@ -275,7 +280,7 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have z3 : st10.data.regs.X3.toBitVec = loc m0 3080 := reg_ptr (x := .X3) 3080 hm10 rfl
   have hgb : gkrStateBytes = 1064 := rfl
   have hat10 := Fr.at_ c hfr10 (outs_not_rc h)
-  simp only [PcOk, show b15.length = 142 from rfl] at hpc10
+  simp only [PcOk, NativeRustcVmArm.Vm.VerifyBusBalance.b15_length, NativeRustcVmArm.Vm.VerifyBusBalance.b15Length] at hpc10
   refine Fr.callLocal (o := 3080) (n := 1120)
     (X := fun q ↦ InRange (loc m0 3080) 1120 q ∨ InRange m0.regs.X0.toBitVec tstateBytes q)
     hfr10 hN le_gkr keep_callee (slots_lo (by omega)) (by omega) (outs_not_frame h)

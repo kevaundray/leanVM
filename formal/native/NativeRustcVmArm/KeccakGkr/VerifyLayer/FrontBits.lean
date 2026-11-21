@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontProj
 
 /-!
@@ -124,23 +125,23 @@ end
 
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
-theorem label14 (hp : Placed code k) : Labels.label ".LVerifyLayer_14" = Host.addrOf (k + 241) :=
-  hp.label (j := 241) (by rw [getElem?_of_infix (i := 0) b18_in_code (by decide)]; rfl)
+theorem label14 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_14 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b18Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b18Offset) NativeRustcVmArm.Vm.VerifyLayer.label_14_at
 
-theorem label16 (hp : Placed code k) : Labels.label ".LVerifyLayer_16" = Host.addrOf (k + 302) :=
-  hp.label (j := 302) (by rw [getElem?_of_infix (i := 0) b20_in_code (by decide)]; rfl)
+theorem label16 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_16 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b20Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b20Offset) NativeRustcVmArm.Vm.VerifyLayer.label_16_at
 
 /-- **The first bit weights' loop**, to `b19`. -/
 theorem bitsA_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {w : UInt64}
     {st0 : MachineData} {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 274) → FB m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b19Offset) → FB m0 st'.data →
       st'.data.dmem = st0.dmem → Bus.KeepRegs [.X0, .X1, .X21, .X22, .X25] st0 st'.data →
       (⟨st'.data.regs.X12, st'.data.regs.X8⟩ : EW) = bAcc c w 0 16 →
       (⟨st'.data.regs.X13, st'.data.regs.X9⟩ : EW) = bAcc c w 1 16 →
       (⟨st'.data.regs.X14, st'.data.regs.X10⟩ : EW) = bAcc c w 2 16 →
       (⟨st'.data.regs.X16, st'.data.regs.X11⟩ : EW) = bAcc c w 3 16 →
       Eventually (step1 Host.exe) R st') :
-    ∀ r i (st : MachineState), 16 - i = r → st.pc = Host.addrOf (k + 241) →
+    ∀ r i (st : MachineState), 16 - i = r → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b18Offset) →
       BitsA m0 c w i st0 st.data → Eventually (step1 Host.exe) R st := by
   have g := geo_of h
   intro r
@@ -221,7 +222,7 @@ theorem bitsA_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {w : UInt6
       · rw [decide_eq_false he, decide_eq_false (by omega)]
     by_cases he : i + 1 = 16
     · have hpc1' := pc_false hpc1 (by rw [hc, decide_eq_true he]; rfl)
-      rw [show k + 241 + b18.length = k + 274 from rfl] at hpc1'
+      rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b18Offset + b18.length = k + NativeRustcVmArm.Vm.VerifyLayer.b19Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b18_next]] at hpc1'
       rw [he] at a0 a1 a2 a3
       exact cont st1 hpc1' hb1 (hd1.trans hi.dm) keep' a0 a1 a2 a3
     · have hpc1' := (pc_true hpc1 (by rw [hc, decide_eq_false he]; rfl)).trans (label14 hp)
@@ -243,14 +244,14 @@ theorem bitsA_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {w : UInt6
 /-- **The second bit weights' loop**, to `b21`. -/
 theorem bitsB_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {w : UInt64}
     {st0 : MachineData} {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 335) → FB m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset) → FB m0 st'.data →
       st'.data.dmem = st0.dmem → Bus.KeepRegs [.X10, .X11, .X21, .X22, .X25] st0 st'.data →
       (⟨st'.data.regs.X5, st'.data.regs.X17⟩ : EW) = bAcc c w 0 16 →
       (⟨st'.data.regs.X6, st'.data.regs.X18⟩ : EW) = bAcc c w 1 16 →
       (⟨st'.data.regs.X7, st'.data.regs.X2⟩ : EW) = bAcc c w 2 16 →
       (⟨st'.data.regs.X19, st'.data.regs.X3⟩ : EW) = bAcc c w 3 16 →
       Eventually (step1 Host.exe) R st') :
-    ∀ r i (st : MachineState), 16 - i = r → st.pc = Host.addrOf (k + 302) →
+    ∀ r i (st : MachineState), 16 - i = r → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b20Offset) →
       BitsB m0 c w i st0 st.data → Eventually (step1 Host.exe) R st := by
   have g := geo_of h
   intro r
@@ -331,7 +332,7 @@ theorem bitsB_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {w : UInt6
       · rw [decide_eq_false he, decide_eq_false (by omega)]
     by_cases he : i + 1 = 16
     · have hpc1' := pc_false hpc1 (by rw [hc, decide_eq_true he]; rfl)
-      rw [show k + 302 + b20.length = k + 335 from rfl] at hpc1'
+      rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b20Offset + b20.length = k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b20_next]] at hpc1'
       rw [he] at a0 a1 a2 a3
       exact cont st1 hpc1' hb1 (hd1.trans hi.dm) keep' a0 a1 a2 a3
     · have hpc1' := (pc_true hpc1 (by rw [hc, decide_eq_false he]; rfl)).trans (label16 hp)

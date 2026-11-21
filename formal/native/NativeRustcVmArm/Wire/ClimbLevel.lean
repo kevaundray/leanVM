@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
+public import NativeRustcVmArm.Code.Vm.ReaderDigest.Names
 public import NativeRustcVmArm.Wire.ClimbLevel.Loop
 public import NativeRustcVmArm.Wire.Find
 
@@ -48,11 +51,11 @@ variable [Host] {k : Nat} {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {
 
 /-- **From the entry.** -/
 theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-    (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+    (hd : Spec (Labels.label NativeRustcVmArm.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
     (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) :
-    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b0Offset)⟩ := by
   have hst := G.g.st
   have hN := hst.2.1
   have hn := G.n256
@@ -90,7 +93,7 @@ theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B)
     rfl
   simp only [PcOk, hc] at hpc1
   by_cases h0 : cnt m0 = 0
-  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := 94) rfl] at hpc1
+  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b17Offset) NativeRustcVmArm.Vm.ClimbLevel.label_13_at] at hpc1
     have hwf2 := G.frEnv_wf hfr1
     have hm2 := G.frEnv_match hfr1
     refine exec_at (infix_of b17_in_code (by simp [b17]) hp) run_b17 hwf2 hpc1 hm2
@@ -111,7 +114,7 @@ theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B)
   have hfr2 : Frm m0 s2.data := Fr.ofBlock hfr1 hm2 hm2' hwf2 rfl rfl rfl
     fun x hx ↦ absurd hx (by simp)
   have hd2 : s2.data.dmem = s1.data.dmem := hm2'.dmem_eq hwf2 rfl
-  simp only [PcOk, hp.label (j := 41) rfl] at hpc2
+  simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b6Offset) NativeRustcVmArm.Vm.ClimbLevel.label_5_at] at hpc2
   have hnw := G.ndNw
   have h40 : (UnOp.apply (.ubfm 61 60) .W64 (BinOp.apply .add .W64
       (s1.data.regs.getXReg .X2).toBitVec
@@ -161,13 +164,13 @@ theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B)
 
 /-- **`climb_level` meets its contract.** -/
 theorem climbLevel_spec (hp : Placed code k)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-    (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost) :
-    Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost := by
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+    (hd : Spec (Labels.label NativeRustcVmArm.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost := by
   intro m0 hpre
   obtain ⟨-, -, -, ⟨hnm, -⟩, -, -, bp, B, c, hR, -⟩ := id hpre
   obtain ⟨ns, hlen, hns⟩ := exists_nodesAt (d := m0.dmem) (a := nodes m0) (cnt m0) hnm
-  rw [hp.label (j := 0) (l := climbLevelLabel) rfl]
+  rw [hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.entryOffset) NativeRustcVmArm.Vm.ClimbLevel.entry_at]
   exact entry_spec hp (geo_of hpre hR) hh hd hR hns hlen
 
 end

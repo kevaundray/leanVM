@@ -2,12 +2,13 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Front
 public import NativeRustcVm.Sumcheck.RoundPoly
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `verify_layer` on x86-64: from the entry to the projection's loop
 
 `front`: the prologue (`b0`), `read_scalars` of the product, the exit on `None` (`b1`), the
-spills (`b2`), then `.LVerifyLayer_4` with `PHead` (no term summed).
+spills (`b2`), then `NativeRustcVmX64.Vm.VerifyLayer.label_4` with `PHead` (no term summed).
 -/
 
 namespace NativeRustcVmX64.KeccakGkr.VerifyLayer
@@ -127,19 +128,19 @@ variable [Host] {k : Nat}
 
 /-- **From the entry to the projection's loop.** -/
 theorem front (hp : Placed code k)
-    (hrs : Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     (hpre : VerifyLayerPre a s c m0)
     (hcont : ∀ p s1 d, (readScalars productBits).run s = some (p, s1) →
       PHead m0 a c p s1 0 d →
-      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + 156)⟩) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b7Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b0Offset)⟩ := by
   have g := geo_of hpre
   have hS := pre_stack hpre
   have hWo := wFront_outs hpre
   -- the prologue and the product's read
-  have hwf : (envB m0 m0 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec).WF :=
+  have hwf : (envB m0 m0 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b0Offset + b0.length)).toBitVec).WF :=
     frame_wf (frame_ok hS fun _ h ↦ h) (fun _ h ↦ by cases h) (List.pairwise_singleton _ _)
-  have hm : Match (envB m0 m0 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm : Match (envB m0 m0 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b0Offset + b0.length)).toBitVec)
       (fr 2016) m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp (F := 2016), trivial⟩ trivial trivial trivial
   refine exec_then (blk hp b0_in_code (by simp [b0])) e0 hwf (fun _ _ ↦ rfl) hm
@@ -261,7 +262,7 @@ theorem front (hp : Placed code k)
     obtain ⟨d3, pc3⟩ := st3
     simp only at hpc3 hb3 hb3' hts3 hp3' hd3 hcs hrbp hr12 hr13 hr14 hr15 hm3' hwf3 hl16
     subst hpc3
-    rw [show k + 113 + b1.length = k + 115 from rfl]
+    rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b1Offset + b1.length = k + NativeRustcVmX64.Vm.VerifyLayer.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b1_next]]
     refine Body.blk (o' := 24) g hb3' hwf3 (blk hp b2_in_code (by simp [b2])) e2 nofun hm3'
       (by decide +kernel) (hex0 (by decide +kernel)) fun st4 hm4 hpc4 hb4 hs4 ↦ ?_
     simp only [PcOk] at hpc4

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyExecution.Names
 public import NativeRustcVmArm.Top.Verify.PreB
 
 /-!
@@ -22,12 +23,12 @@ public section
 variable [Host] {k : Nat}
 
 theorem stageB (hp : Placed code k)
-    (hve : ∀ a s, Spec (Labels.label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hve : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s))
     {a : DecArea} {stream : Array EW} {openings : Array (Array OpeningW)} {m0 : MachineData}
     (hpre : VerifyPre a stream openings m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 16)) (hSA : SA m0 st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 74) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b1Offset)) (hSA : SA m0 st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b2Offset) ∧
       SB a stream openings m0 st'.data) st := by
   have g := geo_of hpre
   have hpre' := hpre
@@ -161,7 +162,7 @@ theorem stageB (hp : Placed code k)
     (by show WordsAt st1.data.dmem st1.data.regs.X1.toBitVec _; rw [hX1]; exact hbc)
     (pubOf m0) (by show WordsAt st1.data.dmem st1.data.regs.X3.toBitVec _; rw [hX3]; exact hpub)
   rw [hX0] at hr
-  rw [show k + 16 + b1.length = k + 74 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.Verify.b1Offset + b1.length = k + NativeRustcVmArm.Vm.Verify.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b1_next]] at hpc2
   refine Eventually.done _ ⟨hpc2, ?_, (hsaved2.1 .X19 rfl).trans hX19, hr.1, hr.2⟩
   refine (hB1.mono fun q h ↦ Or.inl h).call slotsIn
     (by show 832 ≤ m0.regs.SP.toBitVec.toNat; omega) hsame2 hsaved2 fun q hq ↦ ?_

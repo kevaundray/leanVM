@@ -1,13 +1,15 @@
 module
 
 public import NativeRustcVmX64.Bus.GkrStep.Ch
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.ProdE.Names
 
 /-!
 # `gkr_step`'s products and check (x86-64)
 
 From `AtPr` (`b15`): the three children's products (`prod_e`, `b15` to `b17`, at `304`, `320`,
 `336`), their evaluation at the combiner (`poly_eval`, `b18`), the check against the claim (`b19`,
-`b20`) (`pr_spec`, to `AtTl`; else `.LGkrStep_17`).
+`b20`) (`pr_spec`, to `AtTl`; else `NativeRustcVmX64.Vm.GkrStep.label_17`).
 -/
 
 namespace NativeRustcVmX64.Bus.GkrStep
@@ -113,13 +115,13 @@ theorem changesQ {X : Nat} {m m' : MachineData} (hc : Changes m m' X 0 0) :
 
 /-- **The products and the check** (`b15` to `b20`), from `AtPr`. -/
 theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hpr : Spec (Labels.label prodELabel) ProdEPre ProdEPost)
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+    (hpr : Spec (Labels.label NativeRustcVmX64.Vm.ProdE.entryLabel) ProdEPre ProdEPost)
+    (hpe : Spec (Labels.label NativeRustcVmX64.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     (htl : ∀ xs h0 h1 h2 s3 d, AtTl a s0 g0 m0 xs h0 h1 h2 s3 d →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 148)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b21Offset)⟩)
     {c cl : EW} {xs h0 h1 h2 : Array EW} {s3 : TState} {d : MachineData}
     (at0 : AtPr a s0 g0 m0 c cl xs h0 h1 h2 s3 d) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 124)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b15Offset)⟩ := by
   have hn := two_pow_le h
   have hxl : xs.toList.length ≤ 63 := by
     rw [Array.length_toList]; have := at0.size; unfold busPointCap at this; omega
@@ -134,7 +136,7 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have E1 := lE h1.toList
   have E2 := lE h2.toList
   -- `b15`: `prod_e(frame + 112, 2^step)`.
-  have hwf1 := wf0 h at0.fr.frame.kept (Host.addrOf (k + 124 + b15.length)).toBitVec
+  have hwf1 := wf0 h at0.fr.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b15Offset + b15.length)).toBitVec
   obtain ⟨hmid1, hw1, hdi1, hsi1, hk1⟩ := ok_b15
   refine exec_then (infix_of b15_in_code (by simp [b15]) hp) exit_b15 hwf1 (fun _ _ ↦ rfl)
     (match_head at0.fr _) fun st1 hm1 hpc1 ↦ ?_
@@ -158,10 +160,10 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have hP0 : ewRet m2 = prodE h0 := by
     rw [hq2.1, edi1, slice_fb k01 (by rw [esi1, at0.z0])]
   -- `b16`: the product at `304`; `prod_e(frame + 176, 2^step)`.
-  have hwf3 := wf0 h fr2.frame.kept (Host.addrOf (k + 127 + b16.length)).toBitVec
+  have hwf3 := wf0 h fr2.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b16Offset + b16.length)).toBitVec
   obtain ⟨hmid3, hw3, w304, w312, hdi3, hsi3, hk3⟩ := ok_b16
   refine exec_at (st := ⟨m2, _⟩) (infix_of b16_in_code (by simp [b16]) hp) exit_b16 hwf3
-    (fun _ _ ↦ rfl) (by show Host.addrOf (k + 124 + b15.length) = _; rw [show b15.length = 3 from rfl])
+    (fun _ _ ↦ rfl) (by show Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b15Offset + b15.length) = _; rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b15_next)
     (match_head fr2 _) fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨fr3, hs3⟩ := FR.block h fr2 hwf3 hm3 hmid3 (.inl rfl) (W01_of_W0 hw3) (by decide)
     (by omega)
@@ -189,10 +191,10 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have hP1 : ewRet m4 = prodE h1 := by
     rw [hq4.1, edi3, slice_fb k13 (by rw [esi3, at0.z1])]
   -- `b17`: the product at `320`; `prod_e(frame + 240, 2^step)`.
-  have hwf5 := wf0 h fr4.frame.kept (Host.addrOf (k + 132 + b17.length)).toBitVec
+  have hwf5 := wf0 h fr4.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b17Offset + b17.length)).toBitVec
   obtain ⟨hmid5, hw5, w320, w328, hdi5, hsi5, hk5⟩ := ok_b17
   refine exec_at (st := ⟨m4, _⟩) (infix_of b17_in_code (by simp [b17]) hp) exit_b17 hwf5
-    (fun _ _ ↦ rfl) (by show Host.addrOf (k + 127 + b16.length) = _; rw [show b16.length = 5 from rfl])
+    (fun _ _ ↦ rfl) (by show Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b16Offset + b16.length) = _; rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b16_next)
     (match_head fr4 _) fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨fr5, hs5⟩ := FR.block h fr4 hwf5 hm5 hmid5 (.inl rfl) (W01_of_W0 hw5) (by decide)
     (by omega)
@@ -237,10 +239,10 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have V328 : NativeRustcVm.WordAt st5.data.dmem (off (fb m0) 328) (prodE h1).c1 := by
     rw [← e1']; exact W328
   -- `b18`: the third product at `336`; `poly_eval(frame + 304, 3, c)`.
-  have hwf7 := wf0 h fr6.frame.kept (Host.addrOf (k + 137 + b18.length)).toBitVec
+  have hwf7 := wf0 h fr6.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b18Offset + b18.length)).toBitVec
   obtain ⟨hmid7, hw7, w336, w344, hdi7, hsi7, hdx7, hcx7, hk7⟩ := ok_b18
   refine exec_at (st := ⟨m6, _⟩) (infix_of b18_in_code (by simp [b18]) hp) exit_b18 hwf7
-    (fun _ _ ↦ rfl) (by show Host.addrOf (k + 132 + b17.length) = _; rw [show b17.length = 5 from rfl])
+    (fun _ _ ↦ rfl) (by show Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b17Offset + b17.length) = _; rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b17_next)
     (match_head fr6 _) fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨fr7, hs7⟩ := FR.block h fr6 hwf7 hm7 hmid7 (.inl rfl) (W01_of_W0 hw7) (by decide)
     (by omega)
@@ -337,7 +339,7 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have hwf9 := wf0 h fr8.frame.kept 0
   obtain ⟨hmid9, hmem9, hk9⟩ := ok_b19
   refine exec_at (st := ⟨m8, _⟩) (infix_of b19_in_code (by simp [b19]) hp) exit_b19 hwf9 nofun
-    (by show Host.addrOf (k + 137 + b18.length) = _; rw [show b18.length = 7 from rfl])
+    (by show Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b18Offset + b18.length) = _; rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b18_next)
     (match_head fr8 0) fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨fr9, hd9⟩ := FR.block_nil h fr8 hwf9 hm9 hmid9 hmem9
   have hc9 : SBool.eval (frameEnv m0 m8 1408 [] (fun _ ↦ 0) 0)
@@ -352,7 +354,7 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     have hwf10 := wf0 h fr9.frame.kept 0
     obtain ⟨hmid10, hmem10, hk10⟩ := ok_b20
     refine exec_at (infix_of b20_in_code (by simp [b20]) hp) exit_b20 hwf10 nofun
-      (hpc9.trans (by rw [show b19.length = 2 from rfl])) (match_head fr9 0)
+      (hpc9.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b19_next)) (match_head fr9 0)
       fun st10 hm10 hpc10 ↦ ?_
     obtain ⟨fr10, hd10⟩ := FR.block_nil h fr9 hwf10 hm10 hmid10 hmem10
     have hc10 : SBool.eval (frameEnv m0 st9.data 1408 [] (fun _ ↦ 0) 0)
@@ -369,7 +371,7 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       have k10 : ∀ r ∈ cs6, reg st10.data r = reg d r := fun r hr ↦
         (kr hm10 hk10 hr).trans ((kr hm9 hk9 (List.mem_cons_of_mem _ hr)).trans (k8 r hr))
       have hd : st10.data.dmem = m8.dmem := hd10.trans hd9
-      refine at_pc (hpc10.trans (by rw [show b20.length = 2 from rfl])) (htl xs h0 h1 h2 s3 st10.data
+      refine at_pc (hpc10.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b20_next)) (htl xs h0 h1 h2 s3 st10.data
         ⟨fr10, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, at0.size, ?_, ?_, ?_, at0.z0, at0.z1, at0.z2, ?_, ?_, ?_⟩)
       · exact (k10 .rbx (by simp)).trans at0.rbx
       · rw [k10 .r12 (by simp)]; exact at0.r12
@@ -386,10 +388,10 @@ theorem pr_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       · rw [hd]; exact gs8
       · rw [hfin, hq]; rfl
     · simp only [q1, Bool.not_false, ↓reduceIte] at hpc10
-      exact at_pc (hpc10.trans (hp.label (j := 215) rfl)) (fail_spec hp h fr10 (by
+      exact at_pc (hpc10.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_17_at)) (fail_spec hp h fr10 (by
         rw [hfin, show (cl == PE) = false by rw [ew_beq, q0]; simpa using q1]; rfl))
   · simp only [q0, Bool.not_false, ↓reduceIte] at hpc9
-    exact at_pc (hpc9.trans (hp.label (j := 215) rfl)) (fail_spec hp h fr9 (by
+    exact at_pc (hpc9.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_17_at)) (fail_spec hp h fr9 (by
       rw [hfin, show (cl == PE) = false by rw [ew_beq]; simp [q0]]; rfl))
 
 end

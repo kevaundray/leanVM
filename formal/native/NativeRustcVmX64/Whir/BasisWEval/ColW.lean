@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.BasisWEval.Col
+public import NativeRustcVmX64.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `BasisW::eval`: a column claim's weight (x86-64)
@@ -51,11 +53,11 @@ variable [Host] {k : Nat}
 
 /-- **Column claim `i`'s weight**, from `b16` to `b10`. -/
 theorem col_weight (hp : Placed code k) (h : In m0 ba b v)
-    (hcw : Spec (Labels.label columnWeightLabel) ColumnWeightPre ColumnWeightPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat} {pl : Placement}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 98)) (ha : A16 m0 ba b v i pl st.data)
+    (hcw : Spec (Labels.label NativeRustcVmX64.Vm.ColumnWeight.entryLabel) ColumnWeightPre ColumnWeightPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat} {pl : Placement}
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b16Offset)) (ha : A16 m0 ba b v i pl st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 74) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b10Offset) →
       Mid m0 ba b v i (i + 1) st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hS := h.stackOk
@@ -65,7 +67,7 @@ theorem col_weight (hp : Placed code k) (h : In m0 ba b v)
   have hcl := h.claimAt hf hi
   have hLa := h.layoutAt hf
   have hL24 : WhirIn m0 ba.layout 24 basisWEvalStack := WhirIn.mono' h.layoutIn (by decide)
-  let ret := (Host.addrOf (k + 98 + b16.length)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b16Offset + b16.length)).toBitVec
   have hwf : (envB m0 st.data [(cA ba i, 608), (ba.layout, 24)] ret).WF :=
     h.wf2 hf.frame.kept hcin hL24 (h.apart16 hi)
   have hm : Match (envB m0 st.data [(cA ba i, 608), (ba.layout, 24)] ret) cwS st.data :=
@@ -165,14 +167,14 @@ theorem col_weight (hp : Placed code k) (h : In m0 ba b v)
         · exact keeps_reg hm1 hk (by simp)
         · exact keeps_reg hm1 hk (by simp)
         · exact keeps_reg hm1 hk (by simp))
-  rw [show k + 98 + b16.length = k + 111 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b16Offset + b16.length = k + NativeRustcVmX64.Vm.BasisWEval.b17Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b16_next]]
   -- b17
   obtain ⟨hmid7, hmem7, hk7⟩ := ok_b17
   have hwf7 := h.wf0 hf2 (ret := 0)
   refine h.block hf2 hwf7 (inf hp b17_in_code (by simp [b17])) exit_b17 nofun
     (match_body hf2 ⟨rfl, trivial⟩) hmid7 (h0_of_nil hmem7) fun st3 hm3 hpc3 hf3 ↦ ?_
   simp only [PcOk, tag_false t80, Bool.false_eq_true, ↓reduceIte] at hpc3
-  rw [show k + 111 + b17.length = k + 114 from rfl] at hpc3
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b17Offset + b17.length = k + NativeRustcVmX64.Vm.BasisWEval.b18Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b17_next]] at hpc3
   have hb3 := hb2.nil hf3 hwf7 hm3 hmem7
   have g24 := f24.nil hwf7 hm3 hmem7
   have g64 := f64.nil hwf7 hm3 hmem7
@@ -184,7 +186,7 @@ theorem col_weight (hp : Placed code k) (h : In m0 ba b v)
     fun r hr ↦ (keeps_reg hm3 hk7 hr).trans (k2 r hr)
   -- b18
   obtain ⟨hmid8, h08, hmiss8, hrcx8, hrdx8, hrsi8, hrdi8, hk8⟩ := ok_b18
-  let ret8 := (Host.addrOf (k + 114 + b18.length)).toBitVec
+  let ret8 := (Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b18Offset + b18.length)).toBitVec
   have hwf8 := h.wf0 hf3 (ret := ret8)
   refine at_pc hpc3 (h.block hf3 hwf8 (inf hp b18_in_code (by simp [b18])) exit_b18
     (fun _ _ ↦ rfl) (match_body hf3 ⟨rfl, trivial⟩) hmid8 h08 fun st4 hm4 hpc4 hf4 ↦ ?_)
@@ -218,14 +220,14 @@ theorem col_weight (hp : Placed code k) (h : In m0 ba b v)
   have k5 : ∀ r ∈ [Reg64.rbx, .rbp, .r12, .r13], reg m5 r = reg st.data r :=
     fun r hr ↦ (hcs5 r (by simp at hr; rcases hr with rfl | rfl | rfl | rfl <;> rfl)).trans
       (k4 r hr)
-  rw [show k + 114 + b18.length = k + 119 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b18Offset + b18.length = k + NativeRustcVmX64.Vm.BasisWEval.b19Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b18_next]]
   -- b19
   obtain ⟨hmid9, h09, w64', w24', hmiss9, hrcx9, hk9⟩ := ok_b19
   have hwf9 := h.wf0 hf5 (ret := 0)
   refine h.block hf5 hwf9 (inf hp b19_in_code (by simp [b19])) exit_b19 nofun
     (match_body hf5 ⟨rfl, trivial⟩) hmid9 h09 fun st6 hm6 hpc6 hf6 ↦ ?_
   simp only [PcOk] at hpc6
-  rw [hp.label (j := 74) rfl] at hpc6
+  rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_15_at] at hpc6
   have hw9 := missWs_spec hmiss9
   have hws : ws v (xpt m0) (i + 1) = (ws v (xpt m0) i).push w := by
     rw [ws_succ _ _ hi, ha.hpl]

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqEval.Names
 public import NativeRustcVmArm.Whir.BasisWEval.Loop
 
 /-!
@@ -50,8 +52,8 @@ theorem eval_eq (h : In m0 ba b v) :
 
 /-- **The out-of-domain claim's scale**, from `End` at `b19` to `b22`. -/
 theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 104)) (he : End m0 ba b v st.data) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 112) → AtB22 m0 b v st'.data →
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b19Offset)) (he : End m0 ba b v st.data) {R : MachineState → Prop}
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b22Offset) → AtB22 m0 b v st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hf := he.keep.fr
@@ -68,7 +70,7 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
   have hsz := h.pre.2.1.scales_size
   by_cases hj : ba.count ≤ (ws v (xpt m0) v.cs.size).size
   · simp only [hj, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 109) rfl] at hpc1
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b21Offset) NativeRustcVmArm.Vm.BasisWEval.label_16_at] at hpc1
     refine hf1.regsBlock (inf hp b21_in_code (by simp [b21])) run_b21 hpc1 rfl rfl (by rfl)
       fun st2 hf2 hd2 hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
@@ -84,7 +86,7 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
     · exact (hk2 .X24 (by decide) (by decide)).trans he.acc.x24
     · exact (hk2 .X25 (by decide) (by decide)).trans he.acc.x25
   · simp only [hj, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    rw [show k + 104 + b19.length = k + 107 from rfl] at hpc1
+    rw [show k + NativeRustcVmArm.Vm.BasisWEval.b19Offset + b19.length = k + NativeRustcVmArm.Vm.BasisWEval.b20Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b19_next]] at hpc1
     have hj' : (ws v (xpt m0) v.cs.size).size < ba.count := by omega
     have hsin := h.scaleIn hj'
     let env := Env.ofMachine st1.data
@@ -101,7 +103,7 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
         trivial trivial trivial
     refine exec_at (inf hp b20_in_code (by simp [b20])) run_b20 hwf hpc1 hm fun st2 hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
-    rw [hp.label (j := 112) rfl] at hpc2
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b22Offset) NativeRustcVmArm.Vm.BasisWEval.label_17_at] at hpc2
     have hf2 : Fr1 m0 st2.data :=
       Fr.ofBlock hf1 hm hm2 hwf rfl rfl rfl (fun _ h ↦ absurd h (by simp))
     have hk2 : ∀ r : XReg, r ≠ .X23 → r ≠ .X26 → r ≠ .X28 →
@@ -118,9 +120,9 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
 
 /-- **The out-of-domain claim and the result**, from `b22` to the return. -/
 theorem finish (hp : Placed code k) (h : In m0 ba b v)
-    (heq : Spec (Labels.label eqEvalLabel) EqEvalPre EqEvalPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 112)) (ha : AtB22 m0 b v st.data) :
+    (heq : Spec (Labels.label NativeRustcVmArm.Vm.EqEval.entryLabel) EqEvalPre EqEvalPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b22Offset)) (ha : AtB22 m0 b v st.data) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ BasisWEvalPost b m0 s.data) st := by
   have hS := h.stackOk
   have hN := h.hN
@@ -212,7 +214,7 @@ theorem finish (hp : Placed code k) (h : In m0 ba b v)
   have hw0 : m3.regs.X0 = (eqEval v.z (xpt m0)).c0 := congrArg EW.c0 hw
   have hw1 : m3.regs.X1 = (eqEval v.z (xpt m0)).c1 := congrArg EW.c1 hw
   -- b23
-  refine hf3.regsBlock (st := ⟨m3, _⟩) (k := k + 122) (inf hp b23_in_code (by simp [b23]))
+  refine hf3.regsBlock (st := ⟨m3, _⟩) (k := k + NativeRustcVmArm.Vm.BasisWEval.b23Offset) (inf hp b23_in_code (by simp [b23]))
     run_b23 rfl rfl rfl (by rfl) fun st4 hf4 hd4 hm4 hpc4 ↦ ?_
   simp only [PcOk] at hpc4
   have g0 : st4.data.regs.X0 = (sAt b.scales (ws v (xpt m0) v.cs.size).size).c0 :=

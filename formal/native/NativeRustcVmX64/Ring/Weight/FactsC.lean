@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Ring.Weight.Exec
+public import NativeRustcVmX64.Code.Vm.RingWeight.Names
 
 /-!
 # `ring_weight`'s squaring loops, checked by the kernel at each power (x86-64)
@@ -27,7 +28,7 @@ public theorem f_b16 : ∀ j < 36,
 
 public theorem f_b17 : ∀ j < 36,
     JOk b17 (tSA sz0 j) (tS sz0 (j + 1))
-      (.cond (.not (.cmp .eq .W64 (.ptr 0 ((64 + 16 * j : Nat) : Int)) (.var 15))) ".LRingWeight_20")
+      (.cond (.not (.cmp .eq .W64 (.ptr 0 ((64 + 16 * j : Nat) : Int)) (.var 15))) NativeRustcVmX64.Vm.RingWeight.label_20)
       sz0 (fun _ ↦ false) qkL sL = true ∧
     storeOk (after b17 (tSA sz0 j)) (48 + 16 * j) (.var 6) (.var 7) = true ∧
     missR 48 (48 + 16 * j) (after b17 (tSA sz0 j)) = true ∧
@@ -36,7 +37,7 @@ public theorem f_b17 : ∀ j < 36,
 
 public theorem f_b18 : ∀ j < 37,
     JOk b18 (tS sz0 j) (tO sz0 [])
-      (.cond (.not (.cmp .eq .W64 k16 (.lit 1024))) ".LRingWeight_17") sz0 (fun _ ↦ false)
+      (.cond (.not (.cmp .eq .W64 k16 (.lit 1024))) NativeRustcVmX64.Vm.RingWeight.label_17) sz0 (fun _ ↦ false)
       [(15, .var 15), (19, k16), (20, t20), (9, .var 9), (17, .var 17), (21, t21), (12, .var 12)]
       ocL = true ∧
     missR 48 624 (after b18 (tS sz0 j)) = true := by
@@ -53,7 +54,7 @@ public theorem f_b22 : ∀ j < 36,
 
 public theorem f_b23 : ∀ j < 36,
     JOk b23 (tSA2 sz0 j) (tS2 sz0 (j + 1))
-      (.cond (.not (.cmp .eq .W64 (.ptr 0 ((64 + 16 * j : Nat) : Int)) (.var 15))) ".LRingWeight_11")
+      (.cond (.not (.cmp .eq .W64 (.ptr 0 ((64 + 16 * j : Nat) : Int)) (.var 15))) NativeRustcVmX64.Vm.RingWeight.label_11)
       sz0 (fun _ ↦ false) q2L s2L = true ∧
     storeOk (after b23 (tSA2 sz0 j)) (48 + 16 * j) (.var 6) (.var 7) = true ∧
     missR 48 (48 + 16 * j) (after b23 (tSA2 sz0 j)) = true ∧
@@ -62,7 +63,7 @@ public theorem f_b23 : ∀ j < 36,
 
 public theorem f_b24 : ∀ j < 37,
     JOk b24 (tS2 sz0 j) (tO2 sz0 [])
-      (.cond (.not (.cmp .eq .W64 k16 (.lit 1024))) ".LRingWeight_10") sz0 (fun _ ↦ false)
+      (.cond (.not (.cmp .eq .W64 k16 (.lit 1024))) NativeRustcVmX64.Vm.RingWeight.label_10) sz0 (fun _ ↦ false)
       [(15, .var 15), (20, t20), (9, .var 9), (21, t21), (19, k16)] ocL = true ∧
     missR 48 624 (after b24 (tS2 sz0 j)) = true := by
   decide +kernel

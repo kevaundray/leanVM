@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Arrays.IndexMleFrom.Exec
 public import NativeRustcVm.Arrays.Folds
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.IndexMleFrom.Names
 
 /-!
 # `index_mle_from` on x86-64
@@ -46,7 +48,7 @@ theorem st_succ (m : MachineData) {i : Nat} (h : i < len m) :
     st m (i + 1) = f (st m i) ((pts m)[i]'(lt_len h)) :=
   NativeRustcVm.foldl_take_succ _ _ _ _
 
-/-- **The loop head** `.LIndexMleFrom_3`, `i` coordinates folded. -/
+/-- **The loop head** `NativeRustcVmX64.Vm.IndexMleFrom.label_3`, `i` coordinates folded. -/
 structure Inv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
   body : Body m0 64 indexMleFromStack slots 0 0 s
   lt : i < len m0
@@ -57,33 +59,33 @@ structure Inv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 10) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 19) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 19 + 7) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 19 + 7 + 6) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 19 + 7 + 6 + 7) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 19 + 7 + 6 + 7 + 5) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 45) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 45 + 3) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.IndexMleFrom.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label indexMleFromLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LIndexMleFrom_1" = Host.addrOf (k + 45) :=
-  hp.label (j := 45) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LIndexMleFrom_3" = Host.addrOf (k + 19) :=
-  hp.label (j := 19) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LIndexMleFrom_4" = Host.addrOf (k + 45 + 3) :=
-  hp.label (j := 48) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.IndexMleFrom.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.IndexMleFrom.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.IndexMleFrom.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b7Offset) :=
+  hp.label NativeRustcVmX64.Vm.IndexMleFrom.label_1_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.IndexMleFrom.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b2Offset) :=
+  hp.label NativeRustcVmX64.Vm.IndexMleFrom.label_3_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.IndexMleFrom.label_4 = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b8Offset) :=
+  hp.label NativeRustcVmX64.Vm.IndexMleFrom.label_4_at
 
 /-- `index_mle_from`'s postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
@@ -91,7 +93,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
 
 /-- **The epilogue** `b8`: the accumulator returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : IndexMleFromPre m0)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 45 + 3))
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b8Offset))
     (hb : Body m0 64 indexMleFromStack slots 0 0 s.data)
     (hacc : ewArg (reg s.data .r15) (reg s.data .r12) = (st m0 (len m0)).1) :
     Eventually (step1 Host.exe) (Post m0) s := by
@@ -109,11 +111,11 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : IndexMleFromPre m
 
 /-- **A turn of the loop**: coordinate `i` folded in, back at the head or out of the loop and
 returned. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : IndexMleFromPre m0) {i : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 19)) (hI : Inv m0 i s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b2Offset)) (hI : Inv m0 i s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 19) ∧ Inv m0 (i + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b2Offset) ∧ Inv m0 (i + 1) s'.data)) s := by
   have hS := hpre.1
   have hA := SliceIn.of_ok hpre.2
   have h64 : 64 ≤ indexMleFromStack := by decide
@@ -121,7 +123,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   have hl : len m0 = (reg m0 .rsi).toNat := rfl
   have hlen := lt_of_offStack hpre.2.1.2 hpre.2.2
   -- `b2`: the coordinate, `r·(1 + pw)`
-  obtain ⟨hwf1, hm1, hel⟩ := hI.body.elem (ret := (Host.addrOf (k + 19 + 7)).toBitVec) hS h64
+  obtain ⟨hwf1, hm1, hel⟩ := hI.body.elem (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b3Offset)).toBitVec) hS h64
     hA hlt (x := .reg .r14) (o := 0) (by rw [eval_reg, add_ofNat_zero]; exact hI.r14)
   refine exec_at (hb2 hp) run_b2 hwf1 (fun _ _ ↦ rfl) hpc hm1 fun s1 hm1' hpc1 ↦ ?_
   obtain ⟨hk1, hsp1, hw1⟩ := after_eq run_b2 ▸ b2_call
@@ -147,7 +149,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> exact hsv1 _ rfl
   -- `b3`: `acc·(1 + r·(1 + pw))`
-  have hwf2 := hb2'.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 19 + 7 + 6)).toBitVec) hS h64
+  have hwf2 := hb2'.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b4Offset)).toBitVec) hS h64
   refine exec_at (hb3 hp) run_b3 hwf2 (fun _ _ ↦ rfl) hpc2 hb2'.mid_match fun s3 hm3 hpc3 ↦ ?_
   obtain ⟨hk3, hsp3, hw3⟩ := after_eq run_b3 ▸ b3_call
   have hargs3 : EW.mul (ewArg (reg s3.data .rdi) (reg s3.data .rsi))
@@ -173,7 +175,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     rcases hr with rfl | rfl | rfl | rfl <;>
       exact (hsv3 _ rfl).trans (Match.reg_eq hb2'.mid_match hm3 rfl rfl)
   -- `b4`: `pw·pw`, the accumulator kept
-  have hwf4 := hb4'.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 19 + 7 + 6 + 7)).toBitVec)
+  have hwf4 := hb4'.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b5Offset)).toBitVec)
     hS h64
   refine exec_at (hb4 hp) run_b4 hwf4 (fun _ _ ↦ rfl) hpc4 hb4'.mid_match fun s5 hm5 hpc5 ↦ ?_
   obtain ⟨hk5, hsp5, hw5⟩ := after_eq run_b4 ▸ b4_call
@@ -231,7 +233,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   obtain ⟨hT, hF⟩ := pc_cond hpc7
   by_cases hlast : 16 * (i + 1) = 16 * len m0
   · have hpc7' := hF (by simp [hlast])
-    simp only [show b5.length = 5 from rfl] at hpc7'
+    simp only [NativeRustcVmX64.Vm.IndexMleFrom.b5_length] at hpc7'
     refine exec_at (hb6 hp) run_b6 (Env.wf_nil _) (by intro l h; cases h) hpc7' (match_nil _)
       fun s8 hm8 hpc8 ↦ ?_
     have hb8' := hb7'.of_block (match_nil _) hm8 (Env.wf_nil _) rfl (after_eq run_b6 ▸ b6_keeps)
@@ -245,8 +247,8 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`index_mle_from` meets its contract.** -/
 theorem indexMleFrom_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label indexMleFromLabel) IndexMleFromPre IndexMleFromPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.IndexMleFrom.entryLabel) IndexMleFromPre IndexMleFromPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hS := hpre.1
@@ -258,7 +260,7 @@ theorem indexMleFrom_spec (hp : Placed code k)
   have hx : BitVec.ofNat 64 (len m0) = m0.regs.get64 .rsi := by
     rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
   refine exec_then (hb0 hp) run_b0 hwf (by intro l h; cases h) match_frame fun s1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 10 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.IndexMleFrom.b0_length] at hpc1
   rw [eval_test, eval_reg, Env.ofMachine_regs, ← hx, ofNat_beq (by omega) (by decide)] at hpc1
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hz : len m0 = 0
@@ -266,7 +268,7 @@ theorem indexMleFrom_spec (hp : Placed code k)
     have hpc1 := hT (decide_eq_true hz)
     refine exec_at (hb7 hp) (exec_after run_b0 run_b7) hwf (by intro l h; cases h)
       (hpc1.trans (lbl_1 hp)) hm1 fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b7.length = 3 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmX64.Vm.IndexMleFrom.b7_length] at hpc2
     obtain ⟨hw, hregs, hmem, hsp⟩ := after_eq run_b7 ▸ b7_entry
     refine finish hp hpre hpc2 (Body.of_entry hS h64 hm2 hsp hw hregs hmem) ?_
     rw [show reg s2.data .r15 = 1#64 from hm2.regs .r15 _ rfl,
@@ -276,7 +278,7 @@ theorem indexMleFrom_spec (hp : Placed code k)
     have hpc1 := hF (fun h ↦ hz (of_decide_eq_true h))
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf (by intro l h; cases h) hpc1 hm1
       fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b1.length = 9 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmX64.Vm.IndexMleFrom.b1_length] at hpc2
     obtain ⟨hw, hregs, hmem, hsp⟩ := after_eq run_b1 ▸ b1_entry
     have hI : Inv m0 0 s2.data := by
       have hbx := hm2.regs .rbx _ rfl
@@ -299,7 +301,7 @@ theorem indexMleFrom_spec (hp : Placed code k)
       · show ewArg (s2.data.regs.get64 .r13) (s2.data.regs.get64 .rbp) = _
         rw [hm2.regs .r13 _ rfl, hm2.regs .rbp _ rfl]
         rfl
-    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 19) ∧ ∃ i, len m0 - i = n ∧
+    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.IndexMleFrom.b2Offset) ∧ ∃ i, len m0 - i = n ∧
       Inv m0 i s.data) (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc2, 0, rfl, hI⟩
     refine Eventually.mono (step hp hmul hpre hpc hI) fun s' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩

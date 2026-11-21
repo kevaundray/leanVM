@@ -64,11 +64,11 @@ theorem keyRegs_of_saved {m m' : MachineData} (hS : Saved m m') (h : KeyRegs r m
 
 /-- **`b0` and the raw signature's `memset`, then `b1`**. -/
 theorem prologue_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 41 ∧ AtW r st.data) ⟨r.m0, r.pc 0⟩ := by
-  have hk : b0.IsInfixAt Host.prog (r.k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hwf := wf3 r hpre (m := r.m0) (fun _ h ↦ h) (fun _ _ ↦ rfl) (fun _ ↦ 0) (r.pc 40).toBitVec
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b2Offset ∧ AtW r st.data) ⟨r.m0, r.pc NativeRustcX64.Sphincs.SphincsVerify.b0Offset⟩ := by
+  have hk : b0.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hwf := wf3 r hpre (m := r.m0) (fun _ h ↦ h) (fun _ _ ↦ rfl) (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b1Offset).toBitVec
   have hS0 : SameOutside r.m0.dmem r.m0.dmem r.StackArea := fun _ _ ↦ rfl
-  have hm : Match (Env.ofMachine r.m0 (regs3 r) (fun _ ↦ 0) (r.pc 40).toBitVec) entryS r.m0 :=
+  have hm : Match (Env.ofMachine r.m0 (regs3 r) (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b1Offset).toBitVec) entryS r.m0 :=
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
       ⟨by
         show rspOf r.m0 = r.base + BitVec.ofInt 64 ((29384 : Nat) : Int)
@@ -104,7 +104,7 @@ theorem prologue_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) :
     exact copy hm' (r := 0) (o := 1600) (r' := 2) (o' := 32) (n := 32) h0 (by decide) (by decide)
       (length_msg r) (input_words r hpre hS0 (s := 4) (n := 4) (by decide))
   have hE : ∀ o k, o = 8 * k → k < 977 →
-      (Env.ofMachine r.m0 (regs3 r) (fun _ ↦ 0) (r.pc 40).toBitVec).load 2 o 8 = (r.w k).toBitVec :=
+      (Env.ofMachine r.m0 (regs3 r) (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b1Offset).toBitVec).load 2 o 8 = (r.w k).toBitVec :=
     fun o k ho hk ↦ load_word (input_word r hpre hS0 ho hk)
   have hkey : KeyRegs r st.data :=
     ⟨(hm'.regs .r14 _ rfl).trans (hE 0 0 rfl (by decide)),
@@ -122,7 +122,7 @@ theorem prologue_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) :
   obtain ⟨-, hout, hS⟩ := r.memset_out h12 h2 hQ
   have hF2 := r.frame_of_call hpre hcall hS hsp2 (by decide) (Nat.zero_le _) hout
   have hmsg2 := Facts.of_call r hpre hcall (by decide) (Nat.zero_le _) hout hmsg rfl
-  have hk1 : b1.IsInfixAt Host.prog (r.k + 40) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk1 : b1.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk1 run_b1 (Env.wf_nil st2.data) (fun _ h ↦ nomatch h) hpc2 (match_nil _)
     fun st3 hm3 hpc3 ↦ .done _ ⟨hpc3, ?_⟩
   have hd : st3.data.dmem = st2.data.dmem := hm3.dmem_eq (Env.wf_nil _) rfl

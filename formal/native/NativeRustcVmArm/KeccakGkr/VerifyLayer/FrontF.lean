@@ -1,13 +1,15 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontE
 
 /-!
 # `verify_layer`'s front: the second check
 
-From `b42` (`k + 532`, `AtL`): the kernel's first `1600` entries against the claim's bit weights
+From `b42` (`k + NativeRustcVmArm.Vm.VerifyLayer.b42Offset`, `AtL`): the kernel's first `1600` entries against the claim's bit weights
 (`dot`), `κ t0 + (κ + t1) t2` (`EW::mul` twice), its product with the dot, the comparison with
-the plain sumcheck's claim (`b46`, `b47`), to `b48` (`k + 572`, `AtG`, `check2_run`).
+the plain sumcheck's claim (`b46`, `b47`), to `b48` (`k + NativeRustcVmArm.Vm.VerifyLayer.b48Offset`, `AtG`, `check2_run`).
 -/
 
 namespace NativeRustcVmArm.KeccakGkr.VerifyLayer
@@ -56,13 +58,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The second check**, from `b42` to `b48`. -/
 theorem check2_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hdot : Spec (label dotLabel) DotPre DotPost)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+    (hdot : Spec (label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {ch : EW} {pt lp tv : Array EW} {val : EW} {s5 : TState} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 532)) (hl : AtL m0 a ch pt lp tv val s5 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b42Offset)) (hl : AtL m0 a ch pt lp tv val s5 st.data)
     (hrun : runL s c m0 = (if checkB c (sumE (keccakInstanceWeights ch)) lp tv val then
         rest6 ch pt lp tv s5 else none))
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 572) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b48Offset) →
       AtG m0 a s c ch pt lp tv s5 st'.data → Eventually (step1 Host.exe) (Goal a s c m0) st') :
     Eventually (step1 Host.exe) (Goal a s c m0) st := by
   have hS := pre_stack h
@@ -86,7 +88,7 @@ theorem check2_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   refine exec_at (blk hp b42_in_code (by simp [b42])) e42 hwf1 hpc (match_fr h hb0)
     fun st1 hm1 hpc1 ↦ ?_
   have hfb1 := fb_blkW h hl.fb hm1 hwf1 rfl (by decide)
-  rw [show k + 532 + b42.length = k + 546 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b42Offset + b42.length = k + NativeRustcVmArm.Vm.VerifyLayer.b43Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b42_next]] at hpc1
   have u0 : st1.data.regs.X0.toBitVec = sA m0 + BitVec.ofNat 64 107520 := by
     show (st1.data.regs.getXReg .X0).toBitVec = _
     rw [hm1.regs .X0 _ rfl, ldF hl.f144]
@@ -160,7 +162,7 @@ theorem check2_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   refine exec_at (blk hp b43_in_code (by simp [b43])) e43 hwf3 rfl (match_fr h hb2)
     fun st3 hm3 hpc3 ↦ ?_
   have hfb3 := fb_blkW h hfb2 hm3 hwf3 rfl (by decide)
-  rw [show k + 546 + b43.length = k + 553 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b43Offset + b43.length = k + NativeRustcVmArm.Vm.VerifyLayer.b44Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b43_next]] at hpc3
   have kap3 : (⟨st3.data.regs.X0, st3.data.regs.X1⟩ : EW) = κ := by
     rw [show st3.data.regs.X0 = _ from reg_of (r := .X0) hm3 (r' := .X25) rfl,
       show st3.data.regs.X1 = _ from reg_of (r := .X1) hm3 (r' := .X26) rfl, hcs2 .X25 rfl,
@@ -228,7 +230,7 @@ theorem check2_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   refine exec_at (blk hp b44_in_code (by simp [b44])) e44 hwf5 rfl (match_fr h hb4)
     fun st5 hm5 hpc5 ↦ ?_
   have hfb5 := fb_blkW h hfb4 hm5 hwf5 rfl (by decide)
-  rw [show k + 553 + b44.length = k + 563 from rfl] at hpc5
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b44Offset + b44.length = k + NativeRustcVmArm.Vm.VerifyLayer.b45Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b44_next]] at hpc5
   have s5a : (⟨st5.data.regs.X0, st5.data.regs.X1⟩ : EW) = κ + tv.getD 1 0 := by
     rw [show st5.data.regs.X0 = _ from
         reg_val (r := .X0) hm5 rfl (eorSym (ev_regU _ _ _) (ev_regU _ _ _)),
@@ -287,7 +289,7 @@ theorem check2_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b45`: the dot times the sum.
   refine Fr.runBlock hS N_ge rfl hfb6 (blk hp b45_in_code (by simp [b45])) e45 rfl rfl
     (by decide) (by decide) fun st7 hfb7 hd7 hm7 hpc7 ↦ ?_
-  rw [show k + 563 + b45.length = k + 567 from rfl] at hpc7
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b45Offset + b45.length = k + NativeRustcVmArm.Vm.VerifyLayer.b46Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b45_next]] at hpc7
   have d7 : (⟨st7.data.regs.X0, st7.data.regs.X1⟩ : EW) =
       dot ((eqKernel lp).extract 0 LeanVM.Protocol.Verifier.keccakBits) c.weights := by
     rw [show st7.data.regs.X0 = _ from
@@ -341,7 +343,7 @@ theorem check2_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     rfl
   have e0' : (R.c0 == val.c0) = true := by simpa using e0
   have hpc9' := pc_false hpc9 (by rw [hc9, e0']; rfl)
-  rw [show k + 567 + b46.length = k + 570 from rfl] at hpc9'
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b46Offset + b46.length = k + NativeRustcVmArm.Vm.VerifyLayer.b47Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b46_next]] at hpc9'
   have k9 : Bus.KeepRegs [.X19, .X22, .X24] m8 st9.data := Bus.KeepRegs.of_block hm9 rfl
   -- `b47`: the high words.
   refine at_pc hpc9' (Fr.runBlock hS N_ge rfl hfb9 (blk hp b47_in_code (by simp [b47])) e47 rfl
@@ -358,7 +360,7 @@ theorem check2_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     rfl
   have e1' : (R.c1 == val.c1) = true := by simpa using e1
   have hpc10' := pc_false hpc10 (by rw [hc10, e1']; rfl)
-  rw [show k + 570 + b47.length = k + 572 from rfl] at hpc10'
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b47Offset + b47.length = k + NativeRustcVmArm.Vm.VerifyLayer.b48Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b47_next]] at hpc10'
   have k10 : Bus.KeepRegs [.X22, .X24] st9.data st10.data := Bus.KeepRegs.of_block hm10 rfl
   have hd : st10.data.dmem = m8.dmem := hd10.trans hd9
   refine cont st10 hpc10' ⟨hfb10, ?_, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, hl.hps, hl.hlp, ?_⟩

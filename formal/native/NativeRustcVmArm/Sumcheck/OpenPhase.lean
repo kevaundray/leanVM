@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Climb.Names
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmArm.Code.Vm.OpenPhase.Names
 public import NativeRustcVmArm.Sumcheck.OpenPhase.Round
 
 /-!
@@ -21,15 +24,15 @@ variable [Host] {k : Nat}
 
 /-- **The climbs' loop**: from `.L11`, the exit. -/
 theorem climbs_spec (hp : Placed code k)
-    (hkh : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hkh : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
-    (hcl : ∀ N P, Spec (Labels.label climbLabel) (ClimbPre N P) (ClimbPost N P))
+    (hcl : ∀ N P, Spec (Labels.label NativeRustcVmArm.Vm.Climb.entryLabel) (ClimbPre N P) (ClimbPost N P))
     {P : Array OpeningW} {R : Digest} {Q : Array UInt64} {m0 : MachineData}
     (hpre : OpenPhasePre P R Q m0) {h w : Nat} (hph : PhaseHW m0.dmem (phO m0) P h w) {j : Nat}
     {m : MachineData} (hi : CInv m0 P Q R h w j m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data)
-      ⟨m, Host.addrOf (k + 47)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 47) ∧
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b13Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b13Offset) ∧
       ∃ j, P.size - j = n ∧ CInv m0 P Q R h w j st.data) (fun n st ⟨hpc, j, hn, hi⟩ ↦ ?_)
     ⟨rfl, j, rfl, hi⟩
   obtain ⟨d, pc⟩ := st
@@ -51,13 +54,13 @@ theorem climbs_spec (hp : Placed code k)
 
 /-- **`open_phase`: its contract.** -/
 theorem openPhase_spec (hp : Placed code k)
-    (hkh : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hkh : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
-    (hcl : ∀ N P, Spec (Labels.label climbLabel) (ClimbPre N P) (ClimbPost N P))
+    (hcl : ∀ N P, Spec (Labels.label NativeRustcVmArm.Vm.Climb.entryLabel) (ClimbPre N P) (ClimbPost N P))
     (P : Array OpeningW) (R : Digest) (Q : Array UInt64) :
-    Spec (Labels.label openPhaseLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.OpenPhase.entryLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q) := by
   intro m0 hpre
-  rw [show Labels.label openPhaseLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.OpenPhase.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.OpenPhase.entryOffset) NativeRustcVmArm.Vm.OpenPhase.entry_at]
   obtain ⟨h, w, hph⟩ : ∃ h w, PhaseHW m0.dmem (phO m0) P h w := hpre.2.2.1
   refine Eventually.bind (check_spec hp hpre hph) fun st hst ↦ ?_
   rcases hst with hst | ⟨hpc, hc⟩

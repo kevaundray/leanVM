@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Top.Correct
 public import NativeRustcVmX64.Top.Assembly.VerifyExecution
 public import NativeRustcVmX64.Top.Assembly.Wire
+public import NativeRustcVmX64.Code.Vm.LeanvmVerify.Names
 
 /-!
 # The end-to-end x86-64 verifier theorem
@@ -37,7 +38,7 @@ theorem verify_correct (hP : Host.prog = Vm.code)
       NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
         [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
           ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmX64.frameR m leanvmVerifyStack]) ∧
-      Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
+      Saved m st.data) ⟨m, label NativeRustcVmX64.Vm.LeanvmVerify.entryLabel⟩ :=
   verify_correct_of_specs hP (Assembly.decode hP) (Assembly.verifyExecution hP)
     hin hal hstack hrod hapS hapR
 

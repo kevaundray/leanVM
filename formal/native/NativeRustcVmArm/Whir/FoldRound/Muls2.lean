@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.FoldRound.Muls
 
 /-!
@@ -40,10 +41,10 @@ theorem reg_eval {env : Env} {r : XReg} {u : UInt64} (h : env.regs r = u.toBitVe
 
 /-- **The six products.** -/
 theorem muls (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    {st : MachineState} {s5 : TState} {u0 v c0 c1 : EW} (hpc : st.pc = Host.addrOf (k + 46))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    {st : MachineState} {s5 : TState} {u0 v c0 c1 : EW} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b12Offset))
     (hb : AtB12 a s0 w m0 s5 u0 v c0 c1 st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 82) → AtB18 a s0 w m0 s5 u0 v c0 c1 st'.data →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b18Offset) → AtB18 a s0 w m0 s5 u0 v c0 c1 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   -- `b12`: `P1`
@@ -52,7 +53,7 @@ theorem muls (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
     ⟨hb.base.fr, hb.base.x19, hb.base.x20, hb.base.ws, hb.ts⟩
   have hm := state_match h htb
   refine exec_at (inf hp b12_in_code (by simp [b12])) run_b12 hwf hpc hm fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show k + 46 + b12.length = k + 54 from rfl] at hpc1
+  simp only [PcOk, show k + NativeRustcVmArm.Vm.FoldRound.b12Offset + b12.length = k + NativeRustcVmArm.Vm.FoldRound.b13Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FoldRound.b12_next]] at hpc1
   have hf1 : FFr m0 st1.data :=
     Fr.ofBlock hb.base.fr hm hm1 hwf rfl rfl rfl (fun _ h ↦ by cases h)
   have hd1 : st1.data.dmem = st.data.dmem := hm1.dmem_eq hwf rfl

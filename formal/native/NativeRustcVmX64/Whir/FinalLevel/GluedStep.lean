@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Rotate
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.GluedEval.Names
 
 /-!
 # `final_level`: one glued claim (x86-64)
@@ -136,15 +138,15 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **One glued claim**: `b29` to `b32`, to the next claim's head or to `b33`. -/
 theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hge : ∀ g, Spec (Labels.label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hge : ∀ g, Spec (Labels.label NativeRustcVmX64.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState} {i : Nat}
-    (hpc : st.pc = Host.addrOf (k + 381)) (htn : tail.size = mu m0)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b29Offset)) (htn : tail.size = mu m0)
     (hI : GInv a level b w m0 folded tail claim s5 i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
-      (i + 1 < w.glued.size ∧ st'.pc = Host.addrOf (k + 381) ∧
+      (i + 1 < w.glued.size ∧ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b29Offset) ∧
         GInv a level b w m0 folded tail claim s5 (i + 1) st'.data) ∨
-      (i + 1 = w.glued.size ∧ st'.pc = Host.addrOf (k + 409) ∧
+      (i + 1 = w.glued.size ∧ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b33Offset) ∧
         GB a level m0 folded tail claim (weightAt (reg m0 .r8).toNat b w tail (i + 1)) s5
           st'.data)) st := by
   have g := c.geo
@@ -167,7 +169,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   obtain ⟨hsc, hfs, hfsw, -⟩ := hga
   obtain ⟨hsc0, hsc1⟩ := ewAt_iff'.mp hsc
   -- `b29`: `glued_eval(&out, &glued[i], point[fs..])`.
-  let ret1 := (Host.addrOf (k + 397)).toBitVec
+  let ret1 := (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b30Offset)).toBitVec
   let env1 := argEnv m0 st.data 2672 8 [(gp, 24)] (fun _ ↦ 0) ret1
   have hwf1 : env1.WF :=
     c.wf1 hf.frame.kept (fun j hj ↦ by
@@ -254,7 +256,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hts2 := c.ts_call (o := 32) (by omega) hf1 hle1 hsv
     (fun q hq ↦ c.loc_not_t (by omega) hq) hch'
     (c.ts_frame (hi := 40) (by omega) (hm1'.kept hwf1) hs1 hI.gb.ts)
-  have hpc2' : st2.pc = Host.addrOf (k + 397) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b30Offset) := hpc2
   -- `b30`: the tag.
   refine Eventually.bind (cond_spec hp c b30_in_code (by simp [b30]) (b_eq.2.2.2.2.2.2 ▸ exit_b26)
     (b_eq.2.2.2.2.2.2 ▸ ok_b26) hf2 hpc2') fun st3 ⟨hr3, hd3, hpc3⟩ ↦ ?_
@@ -264,7 +266,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     ((argEnv m0 st2.data 2672 8 [] (fun _ ↦ 0) 0).base 0 + BitVec.ofNat 64 64) 1 from hopt1)
   rw [cTag64_eval _ (Or.inr rfl) h1] at hpc3
   simp only [bne_self_eq_false, Bool.false_eq_true, ite_false] at hpc3
-  have hpc3' : st3.pc = Host.addrOf (k + 399) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b31Offset) := hpc3
   have hf3 := hf2.congr hr3 hd3
   set ev := w.glued[i].weight.eval (P.extract fs P.size) with hev
   have hev72 : NativeRustcVm.EWAt st3.data.dmem (loc m0 72) ev := by
@@ -272,7 +274,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   obtain ⟨hev0, hev1⟩ := ewAt_iff'.mp hev72
   rw [show off (loc m0 72) 8 = loc m0 80 from off_off _ _ _] at hev1
   -- `b31`: `EW::mul(scalar, ev)`.
-  let env4 := argEnv m0 st3.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 404)).toBitVec
+  let env4 := argEnv m0 st3.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b32Offset)).toBitVec
   have hwf4 : env4.WF := c.wf0 hf3.frame.kept
   refine exec_at (infix_of b31_in_code (by simp [b31]) hp) exit_b31 hwf4 (fun _ _ ↦ rfl) hpc3'
     (match_retS hf3) fun st4 hm4 hpc4 ↦ ?_
@@ -310,7 +312,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (fun q hq ↦ c.loc_not_t (by omega) hq) hch5'
     (c.ts_frame (hi := 40) (by omega) (hm4.kept hwf4) hs4
       (show TStateAt st3.data.dmem (tA m0) a s5 by rw [hd3]; exact hts2))
-  have hpc5' : st5.pc = Host.addrOf (k + 404) := hpc5
+  have hpc5' : st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b32Offset) := hpc5
   -- `b32`: the sum, the next claim.
   let env6 := argEnv m0 st5.data 2672 8 [] (fun _ ↦ 0) 0
   have hwf6 : env6.WF := c.wf0 hf5.frame.kept

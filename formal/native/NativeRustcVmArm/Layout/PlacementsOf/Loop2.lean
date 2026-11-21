@@ -50,9 +50,9 @@ variable [Host] {k : Nat}
 
 /-- **A turn** of the second loop: the `i`th stacked column's offset into `offsets`. -/
 theorem turn2 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {i : Nat} (hi : i < 94)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 69)) (hI : I2 m0 i st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (i + 1 < 94 ∧ s.pc = Host.addrOf (k + 69) ∧
-      I2 m0 (i + 1) s.data) ∨ (i + 1 = 94 ∧ s.pc = Host.addrOf (k + 77) ∧ I2 m0 94 s.data)) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b15Offset)) (hI : I2 m0 i st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (i + 1 < 94 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b15Offset) ∧
+      I2 m0 (i + 1) s.data) ∨ (i + 1 = 94 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b17Offset) ∧ I2 m0 94 s.data)) st := by
   have hb := hI.body
   have hn : blockList.length = 94 := blockList_length
   have hil : i < blockList.length := by omega
@@ -82,7 +82,7 @@ theorem turn2 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {i : Nat} 
   sym_simp at hpc1
   rw [hw10, ofNat_ult' (by omega) (by decide)] at hpc1
   have hpc2 := pc_of ((Arrays.pc_cond hpc1).2 (by simp; omega))
-    (show k + 69 + b15.length = k + 73 from rfl)
+    (show k + NativeRustcVmArm.Vm.PlacementsOf.b15Offset + b15.length = k + NativeRustcVmArm.Vm.PlacementsOf.b16Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b15_next])
   -- `b16`: its offset
   have hb1' := hb1
   have f1 := frame_readable hF hb1 (o := 2528 + 8 * i) (n := 8) (by omega)
@@ -201,13 +201,13 @@ theorem turn2 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {i : Nat} 
   by_cases hlast : i + 1 = 94
   · refine .done _ (.inr ⟨hlast, pc_of (t3 (by simp; omega)) rfl, ?_⟩)
     rw [← hlast]; exact hI'
-  · exact .done _ (.inl ⟨by omega, (f3 (by simp; omega)).trans (hp.label (j := 69) rfl), hI'⟩)
+  · exact .done _ (.inl ⟨by omega, (f3 (by simp; omega)).trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b15Offset) NativeRustcVmArm.Vm.PlacementsOf.label_10_at), hI'⟩)
 
 /-- **The second loop**, from `.L10` to `b17` with every stacked column's offset placed. -/
 theorem loop2 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {i : Nat} (hi : i < 94)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 69)) (hI : I2 m0 i st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 77) ∧ I2 m0 94 s.data) st := by
-  refine Sym.loop (fun n s ↦ ∃ i, i < 94 ∧ 94 - i = n ∧ s.pc = Host.addrOf (k + 69) ∧
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b15Offset)) (hI : I2 m0 i st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b17Offset) ∧ I2 m0 94 s.data) st := by
+  refine Sym.loop (fun n s ↦ ∃ i, i < 94 ∧ 94 - i = n ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b15Offset) ∧
       I2 m0 i s.data) (fun n s ⟨i, hi, hn, hpc, hI⟩ ↦ ?_) ⟨i, hi, rfl, hpc, hI⟩
   refine Eventually.mono (turn2 hp hF hi hpc hI) fun s h ↦ ?_
   rcases h with ⟨hlt, hpc', hI'⟩ | ⟨_, hpc', hI'⟩
@@ -216,8 +216,8 @@ theorem loop2 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {i : Nat} 
 
 /-- **`b17`, `b19`**: `offsets[4]` loaded; the third loop's head. -/
 theorem to3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 77)) (hI : I2 m0 94 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 94) ∧ I3 m0 0 s.data) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b17Offset)) (hI : I2 m0 94 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b22Offset) ∧ I3 m0 0 s.data) st := by
   have hb := hI.body
   have hn : blockList.length = 94 := blockList_length
   obtain ⟨hwf, hm⟩ := hb.exit_match hF.stack (by decide) (by decide)
@@ -239,12 +239,12 @@ theorem to3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : Machin
       simp only [Arrays.frameEnv, Env.ofMachine_mem0, Arrays.base0]; exact w4)
   simp only [PcOk] at hpc1
   refine regs_step (infix_of b19_in_code (by simp [b19]) hp) run_b19 (rk run_b19) hb1
-    (hpc1.trans (hp.label (j := 81) rfl)) fun st2 hm2 hpc2 hb2 hd2 hr2 ↦ ?_
+    (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b19Offset) NativeRustcVmArm.Vm.PlacementsOf.label_14_at)) fun st2 hm2 hpc2 hb2 hd2 hr2 ↦ ?_
   have g9 := hm2.regs .X9 _ rfl
   have g10 := hm2.regs .X10 _ rfl
   sym_simp at g9 g10
   simp only [PcOk] at hpc2
-  refine .done _ ⟨hpc2.trans (hp.label (j := 94) rfl), hb2, by omega, ?_, ?_, ?_, ?_, ?_, ?_,
+  refine .done _ ⟨hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b22Offset) NativeRustcVmArm.Vm.PlacementsOf.label_17_at), hb2, by omega, ?_, ?_, ?_, ?_, ?_, ?_,
     fun c hc ↦ ?_, fun c hc ↦ absurd hc (Nat.not_lt_zero _)⟩
   · show (st2.data.regs.getXReg .X9).toBitVec.toNat = _; rw [g9]; rfl
   · show (st2.data.regs.getXReg .X10).toBitVec = _

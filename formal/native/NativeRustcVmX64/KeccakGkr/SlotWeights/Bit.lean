@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.SlotWeights.Seg
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `slot_weights`: one bit's product (x86-64)
 
-From the bit loop's head (`Inner`, at `.LSlotWeights_8`): `b12` computes the row (below `63`: it
+From the bit loop's head (`Inner`, at `NativeRustcVmX64.Vm.SlotWeights.label_8`): `b12` computes the row (below `63`: it
 falls through), `b13` loads the weight and calls `EW::mul` (`bit_mul`, to `AfterMul`); `p1`, `p2`
 store the product at the row's element, `b11` counts (`bit_store`).
 -/
@@ -67,9 +68,9 @@ variable [Host] {k : Nat}
 
 /-- **The product of bit `j`**: `b12`, `b13`, `EW::mul`. -/
 theorem bit_mul (hp : Placed code k) (h : PreOk m0 c)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {s j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 86)) (hI : Inner m0 c s j st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 98) ∧ AfterMul m0 c s j s'.data)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {s j : Nat} {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b12Offset)) (hI : Inner m0 c s j st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b14Offset) ∧ AfterMul m0 c s j s'.data)
       st := by
   have hs := hI.s_lt
   have hj := hI.j_lt
@@ -109,7 +110,7 @@ theorem bit_mul (hp : Placed code k) (h : PreOk m0 c)
   have hwjn : (off (wA m0) (16 * j)).toNat = (wA m0).toNat + 16 * j := toNat_off (by omega)
   have hst := h.st.2.1
   have hwf1 : (frameEnv m0 st1.data 160 [(off (wA m0) (16 * j), 16)] (fun _ ↦ 0)
-      (Host.addrOf (k + 92 + b13.length)).toBitVec).WF :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b13Offset + b13.length)).toBitVec).WF :=
     frame_wf ⟨Mapped.keeps (frame_mapped h.st (by rw [stack_eq]; decide)) hctx1.frame.kept, hfnw⟩
       (fun x hx ↦ by
         rw [List.mem_singleton] at hx
@@ -118,20 +119,20 @@ theorem bit_mul (hp : Placed code k) (h : PreOk m0 c)
           hctx1.frame.kept, by show _ + 16 ≤ 2 ^ 64; rw [hwjn]; omega⟩)
       (List.pairwise_pair.mpr (by show _ ∨ _; rw [hwjn, hfb]; omega))
   have hld40 : (frameEnv m0 st1.data 160 [(off (wA m0) (16 * j), 16)] (fun _ ↦ 0)
-      (Host.addrOf (k + 92 + b13.length)).toBitVec).load 0 40 8 = wA m0 := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b13Offset + b13.length)).toBitVec).load 0 40 8 = wA m0 := by
     rw [load_of_wordAt hctx1.loc.wts]
   have hm1' : Match (frameEnv m0 st1.data 160 [(off (wA m0) (16 * j), 16)] (fun _ ↦ 0)
-      (Host.addrOf (k + 92 + b13.length)).toBitVec) mulS st1.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b13Offset + b13.length)).toBitVec) mulS st1.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hctx1.frame.rsp_eval, trivial⟩ trivial trivial
       ⟨by
         simp only [Sym.eval, BinOp.apply, low_W64, ext_W64]
         rw [hld40, show (frameEnv m0 st1.data 160 [(off (wA m0) (16 * j), 16)] (fun _ ↦ 0)
-          (Host.addrOf (k + 92 + b13.length)).toBitVec).regs .rbx = _ from
+          (Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b13Offset + b13.length)).toBitVec).regs .rbx = _ from
             (hm1.regs .rbx _ hrbx).trans hI.rbx,
           show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]
         rfl, trivial⟩
   refine exec_at (infix_of b13_in_code (by simp [b13]) hp) exit_b13 hwf1 (fun _ _ ↦ rfl)
-    (hpc1.trans (by rw [b12_length])) hm1' fun st2 hm2 hpc2 ↦ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b12_next)) hm1' fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hws2, hx7, hx6, hx2, hx1, hr12', hr13', hrbp', hr14', hr15', hrbx'⟩ := ok_b13
   have hf2 : Frame m0 160 slots 0 st2.data := Frame.of_block hctx1.frame hwf1 hm2 hmid2 slots_le
   have hs2 : NativeRustcVm.SameOutside st1.data.dmem st2.data.dmem
@@ -186,7 +187,7 @@ theorem bit_mul (hp : Placed code k) (h : PreOk m0 c)
       rw [inRange_iff' (hfnw.mono (by omega)), e] at hq
       omega
     · exact (hcal _ hq).2 (inRange_off_self hj2 (by unfold NativeRustcVm.NoWrap at hfnw; omega))
-  refine .done _ ⟨hpc3.trans (by rw [b13_length]), ⟨hctx3, hs, hj, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+  refine .done _ ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b13_next), ⟨hctx3, hs, hj, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     hc0, hc1, ?_⟩⟩
   · exact bytesAt_congr (hd1 ▸ hI.segw) fun i hi ↦ by
       rw [NativeRustcVm.Transcript.off_add]

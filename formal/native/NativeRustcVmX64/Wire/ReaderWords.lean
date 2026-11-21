@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Wire.ReaderWords.Loop
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `Reader::words` meets its contract (x86-64)
@@ -32,8 +34,8 @@ variable [Host] {k : Nat}
 
 /-- **`Reader::words` meets its contract.** -/
 theorem readerWords_spec (hp : Placed code k)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) :
-    Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost := by
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost := by
   intro m0 ⟨hst', hout, bp, B, c, hR, hd⟩
   have g := geo_of hst' hout hR hd
   have hst : StackOk m0 48 := hst'
@@ -44,7 +46,7 @@ theorem readerWords_spec (hp : Placed code k)
     unfold NativeRustcVm.Apart at *; unfold NativeRustcVm.NoWrap at *
     have := NativeRustcVmX64.stackBelow_toNat (m := m0) (n := 48) hst.1
     omega
-  rw [show Labels.label readerWordsLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderWords.b0Offset) from hp.label NativeRustcVmX64.Vm.ReaderWords.entry_at]
   -- `b0`: the prologue, the carry.
   have hrS := g.g.sr
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 48) (rest := [(reg m0 .rdi, 24)]) (vars := fun _ ↦ 0)
@@ -70,7 +72,7 @@ theorem readerWords_spec (hp : Placed code k)
     exact Nat.mod_eq_of_lt h8n
   have hax1 : reg st1.data .rax = 0 := hm1.regs .rax _ hrax
   simp only [PcOk, SBool.eval, carry_apply, Sym.eval, h8, hcur, toNat_toUInt64 hc,
-    hp.label (j := 36) rfl, show k + 0 + b0.length = k + 13 from rfl] at hpc1
+    hp.label NativeRustcVmX64.Vm.ReaderWords.label_8_at, show k + NativeRustcVmX64.Vm.ReaderWords.b0Offset + b0.length = k + NativeRustcVmX64.Vm.ReaderWords.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderWords.b0_next]] at hpc1
   by_cases hcy : 2 ^ 64 ≤ 8 * (reg m0 .rdx).toNat + c
   · rw [decide_eq_true hcy] at hpc1
     simp only [↓reduceIte] at hpc1
@@ -106,7 +108,7 @@ theorem readerWords_spec (hp : Placed code k)
   have hlen1 : (frameEnv m0 st1.data 48 [(reg m0 .rdi, 24)]).load 1 8 8 = B.length.toUInt64.toBitVec :=
     load_word (by rw [show (frameEnv m0 st1.data 48 [(reg m0 .rdi, 24)]).base 1 = (reg m0 .rdi) from rfl]; exact hR1.len)
   simp only [PcOk, SBool.eval, Sym.eval, above_apply, hlen1, toNat_toUInt64 hL,
-    hp.label (j := 36) rfl, show k + 13 + b1.length = k + 16 from rfl] at hpc2
+    hp.label NativeRustcVmX64.Vm.ReaderWords.label_8_at, show k + NativeRustcVmX64.Vm.ReaderWords.b1Offset + b1.length = k + NativeRustcVmX64.Vm.ReaderWords.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderWords.b1_next]] at hpc2
   change st2.pc = if decide (B.length < (reg st1.data .rcx).toNat) = true then _ else _ at hpc2
   rw [hrcx1] at hpc2
   have hax2 : reg st2.data .rax = 0 := (hm2.regs .rax _ hrax2).trans hax1
@@ -133,7 +135,7 @@ theorem readerWords_spec (hp : Placed code k)
   have hrsi2' : reg st2.data .rsi = reg m0 .rsi :=
     (hm2.regs .rsi _ hrsi2).trans (hm1.regs .rsi _ hrsi)
   -- `b2`: no word.
-  refine fr_step hp hst (j := 16) b2_in_code (by simp [b2]) exit_b2 nofun ok_b2.1 hpc2 hf2
+  refine fr_step hp hst (j := NativeRustcVmX64.Vm.ReaderWords.b2Offset) b2_in_code (by simp [b2]) exit_b2 nofun ok_b2.1 hpc2 hf2
     fun st3 hf3 hd3 hm3 hpc3 ↦ ?_
   have hk3 : ∀ x ∈ [Reg64.rsi, .rdx, .r14, .r15], reg st3.data x = reg st2.data x :=
     fun x hx ↦ hm3.regs x _ (ok_b2.2.2 x hx)
@@ -142,8 +144,8 @@ theorem readerWords_spec (hp : Placed code k)
     rw [show reg st3.data .rax = _ from hm3.regs .rax _ ok_b2.2.1]
     exact merge_one _
   have hc3 : Chg m0 st3.data := fun q hq ↦ by rw [hd3]; exact hc2 q hq
-  simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64, hp.label (j := 36) rfl,
-    show k + 16 + b2.length = k + 19 from rfl] at hpc3
+  simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64, hp.label NativeRustcVmX64.Vm.ReaderWords.label_8_at,
+    show k + NativeRustcVmX64.Vm.ReaderWords.b2Offset + b2.length = k + NativeRustcVmX64.Vm.ReaderWords.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderWords.b2_next]] at hpc3
   change st3.pc = if (BinOp.apply .and .W64 (reg st2.data .rdx) (reg st2.data .rdx) ==
     BitVec.ofNat 64 0) = true then _ else _ at hpc3
   have hand : BinOp.apply .and .W64 (reg st2.data .rdx) (reg st2.data .rdx) = reg m0 .rdx := by
@@ -163,10 +165,10 @@ theorem readerWords_spec (hp : Placed code k)
   rw [he] at hpc3
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc3
   -- `b3`: the loop's set-up.
-  refine fr_step hp hst (j := 19) b3_in_code (by simp [b3]) exit_b3 nofun ok_b3.1 hpc3 hf3
+  refine fr_step hp hst (j := NativeRustcVmX64.Vm.ReaderWords.b3Offset) b3_in_code (by simp [b3]) exit_b3 nofun ok_b3.1 hpc3 hf3
     fun st4 hf4 hd4 hm4 hpc4 ↦ ?_
   obtain ⟨-, hrbx4, hr12_4, hk4⟩ := ok_b3
-  simp only [PcOk, show k + 19 + b3.length = k + 22 from rfl] at hpc4
+  simp only [PcOk, show k + NativeRustcVmX64.Vm.ReaderWords.b3Offset + b3.length = k + NativeRustcVmX64.Vm.ReaderWords.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderWords.b3_next]] at hpc4
   have hI0 : LInv (k := k) m0 bp B c 0 st4 := by
     refine ⟨hpc4, hf4, by omega, hfit, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · exact (hm4.regs .r14 _ (hk4 .r14 (by simp))).trans ((hk3 .r14 (by simp)).trans hr14)
@@ -181,9 +183,9 @@ theorem readerWords_spec (hp : Placed code k)
     (fun j st ⟨i, hj, hI⟩ ↦ Eventually.bind (step hp hle g hI) fun st' h ↦ ?_) ⟨0, rfl, hI0⟩
   rcases h with hD | hI'
   · -- `b7`, `b9`: `Some`.
-    refine Eventually.mono (fr_step hp hst (j := 32) b7_in_code (by simp [b7]) exit_b7 nofun
+    refine Eventually.mono (fr_step hp hst (j := NativeRustcVmX64.Vm.ReaderWords.b7Offset) b7_in_code (by simp [b7]) exit_b7 nofun
       ok_b7.1 hD.pc hD.fr fun st5 hf5 hd5 hm5 hpc5 ↦ ?_) fun _ h ↦ .inl h
-    simp only [PcOk, hp.label (j := 36) rfl] at hpc5
+    simp only [PcOk, hp.label NativeRustcVmX64.Vm.ReaderWords.label_8_at] at hpc5
     refine fin hp hst hR hpc5 hf5 ?_ fun q hq ↦ by rw [hd5]; exact hD.chg q hq
     simp only [rdWords, hfit, ↓reduceIte]
     refine ⟨?_, ?_, by rw [hd5]; exact hD.rd⟩

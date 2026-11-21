@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Wire.ReaderLe
 public import NativeRustcVmX64.Transcript.Frame
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # Frames of the functions that read (x86-64)
@@ -116,13 +117,13 @@ variable [Host]
 /-- **A call of `Reader::le` for eight bytes** from a reading function's frame, RSP at its base:
 back at the return address in the frame (RSP at offset `8`), the callee-saved registers kept, the
 cursor word changed at most, the read's outcome. -/
-theorem le_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+theorem le_call (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     {slots : Slots} {B : List UInt8} {c : Nat} (g : RGeo m0 N r bp B.length W) (hFN : F ≤ N)
     (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F) {st : MachineState} {next : Int64}
     {R : MachineState → Prop} (hfr : Frame m0 F slots 0 st.data)
     (hR : ReaderAt st.data.dmem r bp B c) (hrdi : reg st.data .rdi = r)
     (hrsi : (reg st.data .rsi).toNat = 8)
-    (hpc : st.pc = Labels.label readerLeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, Frame m0 F slots 8 m2 →
       (∀ x, calleeSaved x = true → reg m2 x = reg st.data x) →
       NativeRustcVm.SameOutside st.data.dmem m2.dmem

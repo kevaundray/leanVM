@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.RdRows.LoopB
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `rd_rows`' calls for leaves without a row (`rw = 0`) (x86-64)
@@ -27,7 +28,7 @@ variable [Host] {k : Nat}
 
 section
 variable (hp : Placed code k) (g : Geo m0 bp B.length)
-  (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost)
+  (hw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost)
   (hR0 : ReaderAt m0.dmem (rdr m0) bp B c)
 include hp g hw hR0
 
@@ -47,7 +48,7 @@ theorem callB_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
   have h0 := g.s0
   obtain ⟨hmid21, hlow21, hrdi21, hrdx21, hK21⟩ := ok_b21
   have hin : 512 * i + 8 * lw m0 + 8 * 0 ≤ 512 * nr m0 := by omega
-  refine call_block hp hw g (j := 111) b21_in_code (by simp [b21]) exit_b21 hmid21 hlow21 hrdi21
+  refine call_block hp hw g (j := NativeRustcVmX64.Vm.RdRows.b21Offset) b21_in_code (by simp [b21]) exit_b21 hmid21 hlow21 hrdi21
     (keeps_of hK21 .rsi (by simp)) hrdx21 hI.pc hI.rb.fr hI.kp.hloc hI.kp.hrd hin hI.rsi rfl
     fun m2 hf2 hreg2 hs2 hres2 ↦ ?_
   have hci := hI.kp.hrd.c_le
@@ -78,7 +79,7 @@ theorem callB_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
   have hchg2 : Chg m0 m2.dmem := hkp.hchg
   -- `b22`: the tag (`Some`).
   obtain ⟨hok22, hK22⟩ := ok_b22
-  refine fr_step hp g (j := 115) b22_in_code (by simp [b22]) exit_b22 nofun hok22 rfl hf2
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b22Offset) b22_in_code (by simp [b22]) exit_b22 nofun hok22 rfl hf2
     fun s22 hf22 hd22 hr22 hpc22 ↦ ?_
   have hk22 := regs_kept hK22 hr22
   have hpc22' := pc_cond hpc22 (P := boolRet m2 = 0) (by
@@ -90,7 +91,7 @@ theorem callB_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
     hrb2.keepEq g hf22 (fun x hx ↦ hk22 x (mem_of_all (by decide) hx)) hd22
   -- `b23`: the next leaf.
   obtain ⟨hok23, hr14_23, hK23⟩ := ok_b23
-  refine fr_step hp g (j := 117) b23_in_code (by simp [b23]) exit_b23 nofun hok23
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b23Offset) b23_in_code (by simp [b23]) exit_b23 nofun hok23
     (hpc22'.trans (congrArg Host.addrOf rfl)) hf22 fun s23 hf23 hd23 hr23 hpc23 ↦ ?_
   have hk23 := regs_kept hK23 hr23
   have hr14 : reg s23.data .r14 = off (lv m0) (512 * (i + 1)) := by
@@ -106,7 +107,7 @@ theorem callB_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
     rw [g.off_eq (by omega) (by omega)]
     omega)
   by_cases hlast : i + 1 ≠ nr m0
-  · rw [ite_t hlast, hp.label (j := 79) rfl] at hpc24
+  · rw [ite_t hlast, hp.label NativeRustcVmX64.Vm.RdRows.label_10_at] at hpc24
     refine .done _ (.inr ⟨_, _, hpc24, ⟨hf23, hr14,
       (hk23 .r12 (by simp)).trans hrb22.r12,
       fun h ↦ (hk23 .r13 (by simp)).trans (hrb22.r13 h),
@@ -116,11 +117,11 @@ theorem callB_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
   · rw [ite_f hlast] at hpc24
     have hn : i + 1 = nr m0 := by omega
     obtain ⟨hok24, hrbx24⟩ := ok_b24
-    refine Eventually.mono (fr_step hp g (j := 120) b24_in_code (by simp [b24]) exit_b24 nofun
+    refine Eventually.mono (fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b24Offset) b24_in_code (by simp [b24]) exit_b24 nofun
       hok24 (hpc24.trans (congrArg Host.addrOf rfl)) hf23 fun s24 hf24 hd24 hr24 hpc25 ↦ ?_)
       fun _ h ↦ .inl h
     simp only [PcOk] at hpc25
-    rw [hp.label (j := 16) rfl] at hpc25
+    rw [hp.label NativeRustcVmX64.Vm.RdRows.label_21_at] at hpc25
     rw [hn] at hkp
     refine fin hp g hR0 hpc25 hf24 (res_some (by rw [hd24, hd]; exact hkp) ?_)
       (by rw [hd24, hd]; exact hchg2)

@@ -57,7 +57,7 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 /-- **The epilogue**: from block 27 with `Common`, the return to the entry's return address, X0
 kept, the contract's frame facts. -/
 public theorem epilogue {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 270)) (C : Common m₀ st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b27Offset)) (C : Common m₀ st.data) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧ st'.data.regs.X0 = st.data.regs.X0 ∧
       SameOutside m₀.dmem st'.data.dmem (InRange (stackBelow m₀ xmssVerifyStack) xmssVerifyStack) ∧
       Saved m₀ st'.data) st := by
@@ -114,7 +114,7 @@ theorem Common.nil {m m' : MachineData} (C : Common m₀ m) {S : SState}
 
 /-- **The rejection**: from block 26, X0 `0` and the return. -/
 public theorem fail {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 268)) (C : Common m₀ st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b26Offset)) (C : Common m₀ st.data) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧ st'.data.regs.X0 = 0 ∧
       SameOutside m₀.dmem st'.data.dmem (InRange (stackBelow m₀ xmssVerifyStack) xmssVerifyStack) ∧
       Saved m₀ st'.data) st := by

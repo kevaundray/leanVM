@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfComputedBytecodeValue.Names
 public import NativeRustcVmArm.Bus.ComputedBytecodeValue.Exec
 public import NativeRustcVmArm.Bus.Common
 
@@ -33,9 +35,9 @@ variable [Host] {k : Nat}
 
 /-- **`computed_bytecode_value`'s contract.** -/
 theorem computedBytecodeValue_spec (hp : Placed code k)
-    (hmle : Spec (Labels.label mleOfComputedBytecodeValueLabel) MleOfComputedBytecodeValuePre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.entryLabel) MleOfComputedBytecodeValuePre
       MleOfComputedBytecodeValuePost) :
-    Spec (Labels.label computedBytecodeValueLabel) ComputedBytecodeValuePre
+    Spec (Labels.label NativeRustcVmArm.Vm.ComputedBytecodeValue.entryLabel) ComputedBytecodeValuePre
       ComputedBytecodeValuePost := by
   rintro m0 ⟨hS, hwr, hwo, hpt⟩
   have hN : computedBytecodeValueStack ≤ m0.regs.SP.toNat := hS.2.1
@@ -43,7 +45,7 @@ theorem computedBytecodeValue_spec (hp : Placed code k)
   have hwf := Bus.wf_env0 hS (F := 32) (by rw [hNval]; omega)
   have hm : Match (Bus.env0 m0 32) entryS m0 :=
     Bus.match_entry hS (by rw [hNval]; omega) rfl
-  rw [show Labels.label computedBytecodeValueLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.ComputedBytecodeValue.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.ComputedBytecodeValue.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.ComputedBytecodeValue.entryOffset) NativeRustcVmArm.Vm.ComputedBytecodeValue.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st hm1 hpc ↦ ?_
   have hfr : Fr m0 32 computedBytecodeValueStack slots keep (fun _ ↦ False) st.data :=
     Fr.ofPrologue hN (by rw [hNval]; omega) hm1 hwf rfl (by decide) slots_le

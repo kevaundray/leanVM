@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.BasisWEval.Ring
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `BasisW::eval`: the first product (x86-64)
@@ -39,12 +40,12 @@ variable {m0 : MachineData} {ba : BasisAddrs} {b : BasisW} {v : Vals} [Host] {k 
 
 /-- **The first product**, from `b5` to `Mid 0 0` at `b11` or `End` at `b21`. -/
 theorem first (hp : Placed code k) (h : In m0 ba b v)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 45)) (ha : A5 m0 ba b v st.data)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b5Offset)) (ha : A5 m0 ba b v st.data)
     {R : MachineState → Prop}
-    (hloop : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 78) → Mid m0 ba b v 0 0 st'.data →
+    (hloop : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b11Offset) → Mid m0 ba b v 0 0 st'.data →
       Eventually (step1 Host.exe) R st')
-    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 127) → End m0 ba b v st'.data →
+    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b21Offset) → End m0 ba b v st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hS := h.stackOk
@@ -57,7 +58,7 @@ theorem first (hp : Placed code k) (h : In m0 ba b v)
   refine at_pc hpc (h.block hf hwf5 (inf hp b5_in_code (by simp [b5])) exit_b5 nofun
     (match_body hf ⟨rfl, trivial⟩) hmid5 (h0_of_nil hmem5) fun st1 hm1 hpc1 hf1 ↦ ?_)
   simp only [PcOk, tag_false t80, Bool.false_eq_true, ↓reduceIte] at hpc1
-  rw [show k + 45 + b5.length = k + 48 from rfl] at hpc1
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b5Offset + b5.length = k + NativeRustcVmX64.Vm.BasisWEval.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b5_next]] at hpc1
   have base1 := ha.base.nil hf1 hwf5 hm1 hmem5
   have k1 : ∀ r ∈ [Reg64.rbx, .rbp, .r12, .r13, .r14, .r15], reg st1.data r = reg st.data r :=
     fun r hr ↦ keeps_reg hm1 hk5 hr
@@ -66,7 +67,7 @@ theorem first (hp : Placed code k) (h : In m0 ba b v)
   have u96 := t96.nil hwf5 hm1 hmem5
   -- b6
   obtain ⟨hmid6, h06, hmiss6, hrcx, hrdx, hrsi, hrdi, hrbp, hk6⟩ := ok_b6
-  let ret6 := (Host.addrOf (k + 48 + b6.length)).toBitVec
+  let ret6 := (Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b6Offset + b6.length)).toBitVec
   have hwf6 := h.wf0 hf1 (ret := ret6)
   refine at_pc hpc1 (h.block hf1 hwf6 (inf hp b6_in_code (by simp [b6])) exit_b6
     (fun _ _ ↦ rfl) (match_body hf1 ⟨rfl, trivial⟩) hmid6 h06 fun st2 hm2 hpc2 hf2 ↦ ?_)
@@ -100,7 +101,7 @@ theorem first (hp : Placed code k) (h : In m0 ba b v)
   have r133 : reg m3 .r13 = sA ba (min 1 ba.count) :=
     (hcs3 .r13 rfl).trans ((k2 .r13 (by simp)).trans ((k1 .r13 (by simp)).trans ha.r13))
   -- b7
-  rw [show k + 48 + b6.length = k + 55 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b6Offset + b6.length = k + NativeRustcVmX64.Vm.BasisWEval.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b6_next]]
   have hcin := h.claimsIn
   have hc8 : WhirIn m0 ba.claims 8 basisWEvalStack := WhirIn.mono' hcin (by decide)
   have hbc : NativeRustcVm.Apart (reg m0 .rsi) 56 ba.claims 8 :=
@@ -133,17 +134,17 @@ theorem first (hp : Placed code k) (h : In m0 ba b v)
   have f56 : FW m0 st4.data 56 (reg m0 .rsi) := FW.wrote hm4 (by omega) w56 (eval_ptr rfl)
   by_cases hc0 : v.cs.size = 0
   · simp only [hc0, decide_true, ↓reduceIte] at hpc4
-    rw [hp.label (j := 127) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_10_at] at hpc4
     exact hend st4 hpc4 ⟨base4, f56, by rw [hc0]; exact acc4⟩
   · simp only [hc0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc4
-    rw [show k + 55 + b7.length = k + 68 from rfl] at hpc4
+    rw [show k + NativeRustcVmX64.Vm.BasisWEval.b7Offset + b7.length = k + NativeRustcVmX64.Vm.BasisWEval.b8Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b7_next]] at hpc4
     -- b8
     obtain ⟨hmid8, h08, w104, hmiss8, hrcx8, hr128, hk8⟩ := ok_b8
     have hwf8 := h.wf0 hf4 (ret := 0)
     refine at_pc hpc4 (h.block hf4 hwf8 (inf hp b8_in_code (by simp [b8])) exit_b8 nofun
       (match_body hf4 ⟨rfl, trivial⟩) hmid8 h08 fun st5 hm5 hpc5 hf5 ↦ ?_)
     simp only [PcOk] at hpc5
-    rw [hp.label (j := 78) rfl] at hpc5
+    rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_6_at] at hpc5
     have hw8 := missWs_spec hmiss8
     have l72 : (envB m0 st4.data [] 0).load 0 72 8 = ba.layout := base4.w72.load
     have k5 : ∀ r ∈ [Reg64.rbx, .rbp, .r13], reg st5.data r = reg st4.data r :=

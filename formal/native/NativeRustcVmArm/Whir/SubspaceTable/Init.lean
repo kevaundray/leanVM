@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SubspaceTable.Names
 public import NativeRustcVmArm.Whir.SubspaceTable.Inv
 
 /-!
@@ -45,9 +46,9 @@ variable [Host] {k : Nat}
 theorem vec_step (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subspaceTableStack)
     {j : Nat} {st : MachineData} (hV : VInv m0 j st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (VInv m0 (j + 1) s.data ∧ s.pc = Host.addrOf (k + 41)) ∨
-        (VDone m0 s.data ∧ s.pc = Host.addrOf (k + 52)))
-      ⟨st, Host.addrOf (k + 41)⟩ := by
+      (fun s ↦ (VInv m0 (j + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b7Offset)) ∨
+        (VDone m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b8Offset)))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b7Offset)⟩ := by
   have hF : 864 ≤ subspaceTableStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hfb : (fbOf m0).toNat + 864 ≤ 2 ^ 64 := hfnw
@@ -57,7 +58,7 @@ theorem vec_step (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subspa
   have hn4 := n4Of_le m0
   have hn4m : n4Of m0 % 4 = 0 := by unfold n4Of; omega
   let ba := fbOf m0 + BitVec.ofNat 64 (16 + 32 * j)
-  have hk7 : b7.IsInfixAt Host.prog (k + 41) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hrd : Readable st ba 32 := hI.fr.readable (Readable.sub ⟨hfmap, hfnw⟩ (by omega))
   let env := Env.ofMachine st [(ba, 32)]
   have hwf : env.WF := wf_one hrd.1 hrd.2
@@ -152,7 +153,7 @@ theorem vec_step (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subspa
       rw [decide_eq_false_iff_not, BitVec.toNat_ofNat]
       omega
     simp only [hne, Bool.not_false, ↓reduceIte] at hpc1
-    have hl : Labels.label ".LSubspaceTable_6" = Host.addrOf (k + 41) := hp.label rfl
+    have hl : Labels.label NativeRustcVmArm.Vm.SubspaceTable.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b7Offset) := hp.label (j := NativeRustcVmArm.Vm.SubspaceTable.b7Offset) NativeRustcVmArm.Vm.SubspaceTable.label_6_at
     refine .done _ (.inl ⟨⟨hI1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, by omega⟩, hpc1.trans hl⟩)
     · rw [show s1.data.regs.X8 = st.regs.X8 from e .X8 (by simp)]; exact hV.x8
     · rw [show s1.data.regs.X9 = st.regs.X9 from e .X9 (by simp)]; exact hV.x9
@@ -188,9 +189,9 @@ theorem vec_step (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subspa
 theorem tail_step (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subspaceTableStack)
     {i : Nat} {st : MachineData} (hT : TInv m0 i st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (TInv m0 (i + 1) s.data ∧ s.pc = Host.addrOf (k + 57)) ∨
-        (Init m0 (muOf m0) s.data ∧ s.pc = Host.addrOf (k + 63)))
-      ⟨st, Host.addrOf (k + 57)⟩ := by
+      (fun s ↦ (TInv m0 (i + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b10Offset)) ∨
+        (Init m0 (muOf m0) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b11Offset)))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b10Offset)⟩ := by
   have hF : 864 ≤ subspaceTableStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hfb : (fbOf m0).toNat + 864 ≤ 2 ^ 64 := hfnw
@@ -198,7 +199,7 @@ theorem tail_step (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subsp
   have hmu := hI.hmu
   have hi := hT.hi
   let ba := fbOf m0 + BitVec.ofNat 64 (16 + 8 * i)
-  have hk10 : b10.IsInfixAt Host.prog (k + 57) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b10Offset) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hrd : Readable st ba 8 := hI.fr.readable (Readable.sub ⟨hfmap, hfnw⟩ (by omega))
   let env := Env.ofMachine st [(ba, 8)]
   have hwf : env.WF := wf_one hrd.1 hrd.2
@@ -266,7 +267,7 @@ theorem tail_step (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subsp
       rw [decide_eq_false_iff_not]
       omega
     simp only [hne, Bool.not_false, ↓reduceIte] at hpc1
-    have hl : Labels.label ".LSubspaceTable_9" = Host.addrOf (k + 57) := hp.label rfl
+    have hl : Labels.label NativeRustcVmArm.Vm.SubspaceTable.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b10Offset) := hp.label (j := NativeRustcVmArm.Vm.SubspaceTable.b10Offset) NativeRustcVmArm.Vm.SubspaceTable.label_9_at
     refine .done _ (.inl ⟨⟨hI1, ?_, h9, ?_, ?_, by omega⟩, hpc1.trans hl⟩)
     · show (s1.data.regs.getXReg .X8).toBitVec.toNat = _
       rw [hm1.regs .X8 _ rfl]

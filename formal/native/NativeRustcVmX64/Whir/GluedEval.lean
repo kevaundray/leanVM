@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Whir.GluedEval.Exec
 public import NativeRustcVmX64.Whir.SubspaceAtTable.Leaf
+public import NativeRustcVmX64.Code.Vm.EqEval.Names
+public import NativeRustcVmX64.Code.Vm.GluedEval.Names
+public import NativeRustcVmX64.Code.Vm.InducedWeight.Names
 
 /-!
 # `glued_eval` on x86-64
@@ -65,10 +68,10 @@ abbrev Post (g : GluedClaimW) (m0 : MachineData) (s : MachineState) : Prop :=
 
 /-- **The `eq` branch.** -/
 theorem eq_branch (hp : Placed code k)
-    (heq : Spec (Labels.label eqEvalLabel) EqEvalPre EqEvalPost)
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqEval.entryLabel) EqEvalPre EqEvalPost)
     {g : GluedClaimW} {m0 : MachineData} (hpre : GluedEvalPre g m0) {z : Array EW}
     (hgw : g.weight = .eq z) :
-    Eventually (step1 Host.exe) (Post g m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post g m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b0Offset)⟩ := by
   obtain ⟨hS, ⟨-, -, -, hw⟩, hgin, hx, hout⟩ := hpre
   rw [hgw] at hw
   obtain ⟨hkind, hzlen, hzw, hzs⟩ := hw
@@ -78,19 +81,19 @@ theorem eq_branch (hp : Placed code k)
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   have hz30 : z.toList.length ≤ 30 := hzlen
   have hgb : gluedBytes = 6064 := rfl
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk3 : b3.IsInfixAt Host.prog (k + 26) := b3_in_code.trans hp.1 (by simp [b3])
-  have hk4 : b4a.IsInfixAt Host.prog (k + 39) ∧ b4b.IsInfixAt Host.prog (k + 39 + 3) := by
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GluedEval.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GluedEval.b3Offset) := b3_in_code.trans hp.1 (by simp [b3])
+  have hk4 : b4a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GluedEval.b4Offset) ∧ b4b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GluedEval.b4Offset + b4a.length) := by
     have h := b4_in_code.trans hp.1 (by simp [b4])
     rw [← List.take_append_drop 3 b4] at h
     exact h.append
   have hap1 : Apart (stackBelow m0 32) (32 + 8) (reg m0 .rsi) 6064 :=
     apart_symm (apart_frame' hS hF hgin.2)
   have hwf : (Env.ofMachine m0 [(stackBelow m0 32, 32 + 8), (reg m0 .rsi, 6064)] (fun _ ↦ 0)
-      (Host.addrOf (k + 26 + 13)).toBitVec).WF :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b4Offset)).toBitVec).WF :=
     wf_two (stackOk_mono hS hF) (fun _ h ↦ h) hgin.1 hap1
   have hm : Match (Env.ofMachine m0 [(stackBelow m0 32, 32 + 8), (reg m0 .rsi, 6064)] (fun _ ↦ 0)
-      (Host.addrOf (k + 26 + 13)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b4Offset)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨show rspOf m0 = stackBelow m0 32 + BitVec.ofInt 64 32 by
           rw [show BitVec.ofInt 64 32 = BitVec.ofNat 64 (32 + 0) from rfl,
@@ -101,7 +104,7 @@ theorem eq_branch (hp : Placed code k)
       trivial trivial trivial
   have hload : ∀ {o : Nat} {w : UInt64}, NativeRustcVm.WordAt m0.dmem (off (reg m0 .rsi) o) w →
       (Env.ofMachine m0 [(stackBelow m0 32, 32 + 8), (reg m0 .rsi, 6064)] (fun _ ↦ 0)
-        (Host.addrOf (k + 26 + 13)).toBitVec).load 1 o 8 = w.toBitVec := fun h ↦ by
+        (Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b4Offset)).toBitVec).load 1 o 8 = w.toBitVec := fun h ↦ by
     rw [load8_eq]
     exact congrArg UInt64.toBitVec (NativeRustcVm.wordOf_of_wordAt h)
   refine exec_then hk0 run_b0 hwf (by intro l h; cases h) hm fun st1 hm1 hpc1 ↦ ?_
@@ -109,7 +112,7 @@ theorem eq_branch (hp : Placed code k)
   rw [eval_cmp_eq, eval_load, eval_lit, hload hkind,
     show ((0 : UInt64).toBitVec == BitVec.ofNat 64 0) = true from rfl] at hpc1
   simp only [↓reduceIte] at hpc1
-  rw [show Labels.label ".LGluedEval_1" = Host.addrOf (k + 26) from hp.label (j := 26) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.GluedEval.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b3Offset) from hp.label NativeRustcVmX64.Vm.GluedEval.label_1_at]
     at hpc1
   refine exec_at hk3 (exec_after run_b0 run_b3) hwf (fun _ _ ↦ rfl) hpc1 hm1
     fun st2 hm2 hpc2 ↦ ?_
@@ -180,7 +183,7 @@ theorem eq_branch (hp : Placed code k)
       exact hm2.get?_mem0 hwf fun h ↦ hp (.inr (inRange_frame hS hF le_rfl
         (written_region0 rfl hwf (k := 32) (by omega) hw3 h)))
   -- `b4a`: `Some`
-  have hpc3' : st3.pc = Host.addrOf (k + 39) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b4Offset) := hpc3
   have hrd : Readable st3.data (reg m0 .rdi) 24 := Readable.keep hout.1 hfr3.kept
   have hwf4 : (Env.ofMachine st3.data [(reg m0 .rdi, 24)]).WF :=
     Env.wf_of ⟨⟨hrd.1, hrd.2⟩, trivial⟩ (List.pairwise_singleton _ _)
@@ -210,7 +213,7 @@ theorem eq_branch (hp : Placed code k)
       rw [← hval]
       exact this
   -- `b4b`: the epilogue
-  have hpc4' : st4.pc = Host.addrOf (k + 39 + 3) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b4Offset + b4a.length) := hpc4
   have hwf6 := hfr4.wf (vars := fun _ ↦ 0) (ret := 0) hS (by omega)
   refine exec_at hk4.2 run_b4b hwf6 (by intro l h; cases h) hpc4' hfr4.mid_match
     fun st5 hm6 hpc5 ↦ .done _ ?_
@@ -220,10 +223,10 @@ theorem eq_branch (hp : Placed code k)
 
 /-- **The `induced` branch.** -/
 theorem induced_branch (hp : Placed code k)
-    (hind : Spec (Labels.label inducedWeightLabel) InducedWeightPre InducedWeightPost)
+    (hind : Spec (Labels.label NativeRustcVmX64.Vm.InducedWeight.entryLabel) InducedWeightPre InducedWeightPost)
     {g : GluedClaimW} {m0 : MachineData} (hpre : GluedEvalPre g m0) {mu : Nat}
     {queries : Array UInt64} {weights : Array EW} (hgw : g.weight = .induced mu queries weights) :
-    Eventually (step1 Host.exe) (Post g m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post g m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b0Offset)⟩ := by
   obtain ⟨hS, ⟨-, -, -, hw⟩, hgin, hx, hout⟩ := hpre
   rw [hgw] at hw
   obtain ⟨hkind, hmu, hmuw, ⟨hql, hqw, hqs⟩, ⟨hwl, hww, hws⟩⟩ := hw
@@ -235,16 +238,16 @@ theorem induced_branch (hp : Placed code k)
   have hw230 : weights.toList.length ≤ 230 := hwl
   have hmu30 : mu ≤ 30 := hmu
   have hgb : gluedBytes = 6064 := rfl
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk1 : b1.IsInfixAt Host.prog (k + 7) := b1_in_code.trans hp.1 (by simp [b1])
-  have hk2 : b2.IsInfixAt Host.prog (k + 7 + 16) := b2_in_code.trans hp.1 (by simp [b2])
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GluedEval.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GluedEval.b1Offset) := b1_in_code.trans hp.1 (by simp [b1])
+  have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GluedEval.b2Offset) := b2_in_code.trans hp.1 (by simp [b2])
   have hap1 : Apart (stackBelow m0 32) (32 + 8) (reg m0 .rsi) 6064 :=
     apart_symm (apart_frame' hS hF hgin.2)
   have hwf : (Env.ofMachine m0 [(stackBelow m0 32, 32 + 8), (reg m0 .rsi, 6064)] (fun _ ↦ 0)
-      (Host.addrOf (k + 7 + 16)).toBitVec).WF :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b2Offset)).toBitVec).WF :=
     wf_two (stackOk_mono hS hF) (fun _ h ↦ h) hgin.1 hap1
   have hm : Match (Env.ofMachine m0 [(stackBelow m0 32, 32 + 8), (reg m0 .rsi, 6064)] (fun _ ↦ 0)
-      (Host.addrOf (k + 7 + 16)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b2Offset)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨show rspOf m0 = stackBelow m0 32 + BitVec.ofInt 64 32 by
           rw [show BitVec.ofInt 64 32 = BitVec.ofNat 64 (32 + 0) from rfl,
@@ -255,14 +258,14 @@ theorem induced_branch (hp : Placed code k)
       trivial trivial trivial
   have hload : ∀ {o : Nat} {w : UInt64}, NativeRustcVm.WordAt m0.dmem (off (reg m0 .rsi) o) w →
       (Env.ofMachine m0 [(stackBelow m0 32, 32 + 8), (reg m0 .rsi, 6064)] (fun _ ↦ 0)
-        (Host.addrOf (k + 7 + 16)).toBitVec).load 1 o 8 = w.toBitVec := fun h ↦ by
+        (Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b2Offset)).toBitVec).load 1 o 8 = w.toBitVec := fun h ↦ by
     rw [load8_eq]
     exact congrArg UInt64.toBitVec (NativeRustcVm.wordOf_of_wordAt h)
   refine exec_then hk0 run_b0 hwf (by intro l h; cases h) hm fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
   rw [eval_cmp_eq, eval_load, eval_lit, hload hkind,
     show ((1 : UInt64).toBitVec == BitVec.ofNat 64 0) = false from rfl] at hpc1
-  simp only [Bool.false_eq_true, ↓reduceIte, show b0.length = 7 from rfl] at hpc1
+  simp only [Bool.false_eq_true, ↓reduceIte, NativeRustcVmX64.Vm.GluedEval.b0_length] at hpc1
   refine exec_at hk1 (exec_after run_b0 run_b1) hwf (fun _ _ ↦ rfl) hpc1 hm1
     fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hw1, hslot1, harg0, harg1, hoth1, hrdi1, hsp1⟩ := after_eq run_b1 ▸ b1_facts
@@ -367,7 +370,7 @@ theorem induced_branch (hp : Placed code k)
       exact hm2.get?_mem0 hwf fun h ↦ hp (.inr (inRange_frame hS hF le_rfl
         (written_region0 rfl hwf (k := 32) (by omega) hw1 h)))
   -- `b2`: the epilogue
-  have hpc3' : st3.pc = Host.addrOf (k + 7 + 16) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b2Offset) := hpc3
   have hwf3 := hfr3.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at hk2 run_b2 hwf3 (by intro l h; cases h) hpc3' hfr3.mid_match
     fun st4 hm4 hpc4 ↦ .done _ ?_
@@ -399,11 +402,11 @@ theorem induced_branch (hp : Placed code k)
 
 /-- **`glued_eval` meets its contract.** -/
 theorem gluedEval_spec (hp : Placed code k)
-    (heq : Spec (Labels.label eqEvalLabel) EqEvalPre EqEvalPost)
-    (hind : Spec (Labels.label inducedWeightLabel) InducedWeightPre InducedWeightPost)
-    (g : GluedClaimW) : Spec (Labels.label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g) := by
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqEval.entryLabel) EqEvalPre EqEvalPost)
+    (hind : Spec (Labels.label NativeRustcVmX64.Vm.InducedWeight.entryLabel) InducedWeightPre InducedWeightPost)
+    (g : GluedClaimW) : Spec (Labels.label NativeRustcVmX64.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g) := by
   intro m0 hpre
-  rw [show Labels.label gluedEvalLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.GluedEval.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.GluedEval.b0Offset) from hp.label NativeRustcVmX64.Vm.GluedEval.entry_at]
   cases hgw : g.weight with
   | eq z => exact eq_branch hp heq hpre hgw
   | induced mu queries weights => exact induced_branch hp hind hpre hgw

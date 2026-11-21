@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ColumnKappas.Names
 public import NativeRustcVmArm.Layout.BuildLayout.Stores
 
 /-!
@@ -122,17 +123,17 @@ theorem ite9 (x : BitVec 64) {inst : Decidable (((!x.ult (BitVec.ofNat 64 9)) &&
 
 /-- **`b15` and `column_kappas`.** -/
 theorem kappas (hp : Placed code k)
-    (hck : Spec (Labels.label columnKappasLabel) ColumnKappasPre ColumnKappasPost)
+    (hck : Spec (Labels.label NativeRustcVmArm.Vm.ColumnKappas.entryLabel) ColumnKappasPre ColumnKappasPost)
     {bc : Array UInt64} {m0 : MachineData} (hF : Facts bc m0) {lm lb : Nat} {rows : Array Nat}
     (hrs : rows.size = 6) (hr : ∀ t < 6, rows.getD t 0 ≤ 2 ^ 30)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 74)) (hbd : Bd m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b15Offset)) (hbd : Bd m0 st.data)
     (h22 : st.data.regs.getXReg .X22 = m0.regs.X3)
     (h21 : (st.data.regs.getXReg .X21).toBitVec = ll m0 + BitVec.ofInt 64 24)
     (h19 : (st.data.regs.getXReg .X19).toNat = lm) (h20 : (st.data.regs.getXReg .X20).toNat = lb)
     (h23 : st.data.regs.getXReg .X23 = (rows.getD 5 0).toUInt64)
     (hx0 : st.data.regs.X0.toNat = bitLength (rows.getD 5 0 - 1))
     (hW : Ws st.data.dmem (ll m0) (wsL lm lb rows)) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 84) → Bd m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b16Offset) → Bd m0 st'.data →
       st'.data.regs.getXReg .X22 = m0.regs.X3 →
       (st'.data.regs.getXReg .X21).toBitVec = ll m0 + BitVec.ofInt 64 24 →
       Ws st'.data.dmem (ll m0) (wsK lm lb rows) →

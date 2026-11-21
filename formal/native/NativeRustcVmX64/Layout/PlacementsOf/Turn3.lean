@@ -57,9 +57,9 @@ variable [Host] {k : Nat} {m0 : MachineData}
 
 /-- **A turn of the third loop**: column `c`'s placement written. -/
 theorem turn3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 96)) (hI : I3 m0 c st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + 96) ∧
-      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + 132) ∧ I3 m0 158 s.data))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b22Offset)) (hI : I3 m0 c st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b22Offset) ∧
+      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b32Offset) ∧ I3 m0 158 s.data))
       st := by
   have hκ := hF.κ_le hc
   have hsum := hF.sumF_le' (keyF (κ m0) 4)
@@ -80,9 +80,9 @@ theorem turn3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st 
     show reg st.data .r14 + BitVec.ofNat 64 (8 * (reg st.data .rax).toNat) =
       kk m0 + BitVec.ofNat 64 (8 * c) + BitVec.ofInt 64 0
     rw [hI.r14, hI.rax, ofInt_zero64, BitVec.add_zero]
-  have hk22a : b22a.IsInfixAt Host.prog (k + 96) :=
+  have hk22a : b22a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PlacementsOf.b22Offset) :=
     ((infix_take b22 2).trans b22_in_code (by simp [b22])).trans hp.1 (by simp [b22])
-  have hk22b : b22b.IsInfixAt Host.prog (k + 98) :=
+  have hk22b : b22b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.PlacementsOf.b22Offset + b22a.length) :=
     ((infix_drop b22 2).trans b22_in_code (by simp [b22])).trans hp.1 (by simp [b22])
   obtain ⟨hok1, hmem1, hcx1, hK1⟩ := ok_b22a
   refine stepR hk22a exit_b22a nofun hpc hI.b hwfk hmk hok1 hmem1 fun st1 hm1 hpc1 hb1 hd1 ↦ ?_
@@ -156,7 +156,7 @@ theorem turn3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st 
       (by rw [SBool.eval, addC_eval, h15, hshl, decide_not])
     have hI4 : I3 m0 c st4.data := (hI2.of hb3 hd3 fun r hr ↦ hK3' r (m_axd r hr)).of hb4 hd4
       fun r hr ↦ kreg hm4 hK4 (m_ax r hr)
-    refine store hp hF ((hy4 (by omega)).trans (hp.label (j := 88) rfl)) ⟨hI4, hc, ?_, ?_, ?_⟩
+    refine store hp hF ((hy4 (by omega)).trans (hp.label NativeRustcVmX64.Vm.PlacementsOf.label_15_at)) ⟨hI4, hc, ?_, ?_, ?_⟩
     · rw [plF_slot hs]
       show (st4.data.regs.get64 .rsi).toNat = _
       rw [hm4.regs .rsi _ hsx4]; rfl
@@ -179,7 +179,7 @@ theorem turn3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st 
     rw [out_get hc] at hvo
     obtain ⟨hok5, hmem5, hK5⟩ := ok_b27
     refine stepR (b27_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b27 nofun
-      ((hy2 (by rw [hs]; rfl)).trans (hp.label (j := 109) rfl)) hb2 hwfo hmo hok5 hmem5
+      ((hy2 (by rw [hs]; rfl)).trans (hp.label NativeRustcVmX64.Vm.PlacementsOf.label_19_at)) hb2 hwfo hmo hok5 hmem5
       fun st3 hm3 hpc3 hb3 hd3 ↦ ?_
     have hK3' := fun r (hr : r ∈ Reg64.rax :: .rcx :: cs) ↦ kreg hm3 hK5 hr
     have hI3 : I3 m0 c st3.data := hI2.of hb3 hd3 fun r hr ↦ hK3' r (m_ax r hr)
@@ -191,7 +191,7 @@ theorem turn3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st 
       obtain ⟨hok6, hmem6, hsx6, hcx6, hdx6, hK6⟩ := ok_b28
       refine step0 hF (b28_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b28 nofun
         (hno3 (by simp [ho])) hb3 hok6 hmem6 fun st4 hm4 hpc4 hb4 hd4 ↦
-          store hp hF (hpc4.trans (hp.label (j := 88) rfl))
+          store hp hF (hpc4.trans (hp.label NativeRustcVmX64.Vm.PlacementsOf.label_15_at))
             ⟨hI3.of hb4 hd4 fun r hr ↦ kreg hm4 hK6 hr, hc, ?_, ?_, ?_⟩
       · rw [plF_out hs ho]
         show (st4.data.regs.get64 .rsi).toNat = _
@@ -216,7 +216,7 @@ theorem turn3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st 
           show 16 + 8 * c - 8 = 8 + 8 * c by omega]
       obtain ⟨hok7, hmem7, hdx7, hsx7, hK7⟩ := ok_b20
       refine stepR (b20_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b20 nofun
-        ((hy3 (by simp [ho'])).trans (hp.label (j := 84) rfl)) hb3 hwf0 hm0 hok7 hmem7
+        ((hy3 (by simp [ho'])).trans (hp.label NativeRustcVmX64.Vm.PlacementsOf.label_14_at)) hb3 hwf0 hm0 hok7 hmem7
         fun st4 hm4 hpc4 hb4 hd4 ↦ ?_
       have hld : (Sym.load 0 0 8).eval (Env.ofMachine st3.data [(off (fb m0) (16 + 8 * c), 8)]
           (fun _ ↦ 0) 0) = (sumF (κ m0) (keyF (κ m0) c)).toUInt64.toBitVec :=
@@ -239,9 +239,9 @@ theorem turn3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st 
 
 /-- **The third loop**, from `.L16` at column `c` to `.L24` with every placement written. -/
 theorem loop3 (hp : Placed code k) (hF : Facts m0) {c : Nat} (hc : c < 158) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 96)) (hI : I3 m0 c st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 132) ∧ I3 m0 158 s.data) st :=
-  Sym.loop (fun n s ↦ ∃ c, c < 158 ∧ 158 - c = n ∧ s.pc = Host.addrOf (k + 96) ∧ I3 m0 c s.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b22Offset)) (hI : I3 m0 c st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b32Offset) ∧ I3 m0 158 s.data) st :=
+  Sym.loop (fun n s ↦ ∃ c, c < 158 ∧ 158 - c = n ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b22Offset) ∧ I3 m0 c s.data)
     (fun n s ⟨c, hc, hn, hpc, hI⟩ ↦ Eventually.mono (turn3 hp hF hc hpc hI) fun s' h ↦ by
       rcases h with ⟨hlt, hpc', hI'⟩ | ⟨-, hpc', hI'⟩
       · exact Or.inr ⟨158 - (c + 1), by omega, c + 1, hlt, rfl, hpc', hI'⟩

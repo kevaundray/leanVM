@@ -95,11 +95,11 @@ variable [Host] {k : Nat}
 
 /-- At `b12`: the order array written. -/
 abbrev At12 (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 62) ∧ Init m0 (n m0) s.data
+  s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b12Offset) ∧ Init m0 (n m0) s.data
 
 /-- At `b13`. -/
 abbrev At13 (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 67) ∧ Ready m0 s.data
+  s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b13Offset) ∧ Ready m0 s.data
 
 /-- `b12`: the sort's arguments. -/
 theorem l12 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) {st : MachineState}
@@ -121,10 +121,10 @@ theorem l12 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) {st :
 
 /-- **A turn of the single loop** `b11`: word `j` written. -/
 theorem step11 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
-    (hn : n m0 ≤ 158) {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 57))
+    (hn : n m0 ≤ 158) {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b11Offset))
     (hI : Inv11 m0 j st.data) :
     Eventually (step1 Host.exe) (fun s ↦ At12 k m0 s ∨
-      (s.pc = Host.addrOf (k + 57) ∧ Inv11 m0 (j + 1) s.data)) st := by
+      (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b11Offset) ∧ Inv11 m0 (j + 1) s.data)) st := by
   have hj := hI.lt
   have hrd : Readable st.data (fb m0 + BitVec.ofNat 64 (8 * j)) 8 :=
     frame_readable hS (Nat.le_refl _) hI.init.fr (by omega)
@@ -163,7 +163,7 @@ theorem step11 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
     rw [show BitVec.ofInt 64 8 = BitVec.ofNat 64 8 from rfl, NativeRustcVm.addr_add,
       fb_add hS (by omega)]
     omega
-  simp only [PcOk, show b11.length = 5 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.StackOffsets.b11_length, NativeRustcVmArm.Vm.StackOffsets.b11Length] at hpc'
   obtain ⟨hy, hno⟩ := pc_of (P := (fb m0).toNat + 8 * (j + 1) ≠ (fb m0).toNat + 8 * n m0) hpc'
     (by sym_simp; exact nbeq_dec hx h10)
   by_cases hlast : j + 1 = n m0
@@ -178,9 +178,9 @@ theorem step11 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
 
 /-- **The single loop**, to `b12`. -/
 theorem loop11 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
-    (hn : n m0 ≤ 158) {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 57))
+    (hn : n m0 ≤ 158) {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b11Offset))
     (hI : Inv11 m0 j st.data) : Eventually (step1 Host.exe) (At12 k m0) st := by
-  refine Sym.loop (fun r s ↦ s.pc = Host.addrOf (k + 57) ∧ ∃ j, n m0 - j = r ∧ Inv11 m0 j s.data)
+  refine Sym.loop (fun r s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b11Offset) ∧ ∃ j, n m0 - j = r ∧ Inv11 m0 j s.data)
     (fun r s ⟨hpc, j, hr, hI⟩ ↦ ?_) ⟨hpc, j, rfl, hI⟩
   refine Eventually.mono (step11 hp hS hn hpc hI) fun s' h ↦ ?_
   rcases h with h | ⟨hpc', hI'⟩
@@ -189,7 +189,7 @@ theorem loop11 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
 
 /-- `b10`: the single loop's end address. -/
 theorem l10 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : n m0 ≤ 158)
-    {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 55)) (hI : Init m0 j st.data)
+    {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b10Offset)) (hI : Init m0 j st.data)
     (hj : j < n m0) (h8 : st.data.regs.X8.toNat = j)
     (h9 : st.data.regs.X9.toBitVec = fb m0 + BitVec.ofNat 64 (8 * j)) :
     Eventually (step1 Host.exe) (At12 k m0) st :=
@@ -211,13 +211,13 @@ theorem l10 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn :
 
 /-- **A turn of the quadruple loop** `b8`: words `4q` to `4q + 3` written. -/
 theorem step8 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
-    (hn : n m0 ≤ 158) {q : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 43))
+    (hn : n m0 ≤ 158) {q : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b8Offset))
     (hI : Inv8 m0 q st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 53) ∧
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b9Offset) ∧
         Init m0 (n m0 / 4 * 4) s.data ∧ s.data.regs.X8.toNat = n m0 / 4 * 4 ∧
         s.data.regs.X9.toBitVec = fb m0 + BitVec.ofNat 64 (8 * (n m0 / 4 * 4)) ∧
         s.data.regs.X10.toNat = n m0) ∨
-      (s.pc = Host.addrOf (k + 43) ∧ Inv8 m0 (q + 1) s.data)) st := by
+      (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b8Offset) ∧ Inv8 m0 (q + 1) s.data)) st := by
   have hlt := hI.lt
   have hN : n m0 / 4 * 4 ≤ n m0 := Nat.div_mul_le_self _ _
   have hrd : Readable st.data (fb m0 + BitVec.ofNat 64 (32 * q)) 32 :=
@@ -273,7 +273,7 @@ theorem step8 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
     rw [show st'.data.regs.X9 = st.data.regs.X9 from he .X9 (by simp)]; exact hI.x9
   have h10 : st'.data.regs.X10.toNat = n m0 := by
     rw [show st'.data.regs.X10 = st.data.regs.X10 from he .X10 (by simp)]; exact hI.x10
-  simp only [PcOk, show b8.length = 10 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.StackOffsets.b8_length, NativeRustcVmArm.Vm.StackOffsets.b8Length] at hpc'
   obtain ⟨hy, hno⟩ := pc_of (P := 4 * q + 1 + 3 ≠ n m0 / 4 * 4) hpc'
     (by sym_simp; exact nbeq_dec (add_lit (c := 3) h12 (by omega)) hI.x8)
   by_cases hlast : 4 * q + 4 = n m0 / 4 * 4
@@ -293,7 +293,7 @@ theorem step8 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
 
 /-- `b9`: the rest one by one, or the sort. -/
 theorem l9 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : n m0 ≤ 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 53)) (hI : Init m0 (n m0 / 4 * 4) st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b9Offset)) (hI : Init m0 (n m0 / 4 * 4) st.data)
     (h8 : st.data.regs.X8.toNat = n m0 / 4 * 4)
     (h9 : st.data.regs.X9.toBitVec = fb m0 + BitVec.ofNat 64 (8 * (n m0 / 4 * 4)))
     (h10 : st.data.regs.X10.toNat = n m0) : Eventually (step1 Host.exe) (At12 k m0) st :=
@@ -302,7 +302,7 @@ theorem l9 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : 
       have he := regs_eq_of (match_nil _) hm (.X8 :: .X9 :: initRegs) rfl
       have hI' := hI.of hfr (fun r hr ↦ he r (by simp [hr])) hd
       have hN : n m0 / 4 * 4 ≤ n m0 := Nat.div_mul_le_self _ _
-      simp only [PcOk, show b9.length = 2 from rfl] at hpc'
+      simp only [PcOk, NativeRustcVmArm.Vm.StackOffsets.b9_length, NativeRustcVmArm.Vm.StackOffsets.b9Length] at hpc'
       obtain ⟨hy, hno⟩ := pc_of (P := n m0 = n m0 / 4 * 4) hpc' (by
         sym_simp
         simp only [Env.ofMachine_regs]
@@ -315,13 +315,13 @@ theorem l9 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : 
 
 /-- **The quadruple loop**, to `b9`. -/
 theorem loop8 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : n m0 ≤ 158)
-    {q : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 43)) (hI : Inv8 m0 q st.data) :
+    {q : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b8Offset)) (hI : Inv8 m0 q st.data) :
     Eventually (step1 Host.exe) (At12 k m0) st := by
-  refine Eventually.bind (Sym.loop (Q := fun s ↦ s.pc = Host.addrOf (k + 53) ∧
+  refine Eventually.bind (Sym.loop (Q := fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b9Offset) ∧
         Init m0 (n m0 / 4 * 4) s.data ∧ s.data.regs.X8.toNat = n m0 / 4 * 4 ∧
         s.data.regs.X9.toBitVec = fb m0 + BitVec.ofNat 64 (8 * (n m0 / 4 * 4)) ∧
         s.data.regs.X10.toNat = n m0)
-      (fun r s ↦ s.pc = Host.addrOf (k + 43) ∧ ∃ q, n m0 - 4 * q = r ∧ Inv8 m0 q s.data)
+      (fun r s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b8Offset) ∧ ∃ q, n m0 - 4 * q = r ∧ Inv8 m0 q s.data)
       (fun r s ⟨hpc, q, hr, hI⟩ ↦ ?_) ⟨hpc, q, rfl, hI⟩)
     fun s ⟨hpc, hI, h8, h9, h10⟩ ↦ l9 hp hS hn hpc hI h8 h9 h10
   refine Eventually.mono (step8 hp hS hn hpc hI) fun s' h ↦ ?_
@@ -331,7 +331,7 @@ theorem loop8 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn
 
 /-- `b7`: the quadruple loop's set-up. -/
 theorem l7 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : n m0 ≤ 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 36)) (hI : Init m0 0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b7Offset)) (hI : Init m0 0 st.data)
     (h4 : 3 < n m0) (h8 : st.data.regs.X8.toNat = 8 * n m0 - 8)
     (h11 : st.data.regs.X11.toBitVec = fb m0) : Eventually (step1 Host.exe) (At12 k m0) st :=
   run_regs hS (infix_of b7_in_code (by simp [b7]) hp) run_b7 (after_eq run_b7 ▸ b7_keeps)
@@ -375,7 +375,7 @@ theorem l7 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : 
 
 /-- `b5`: below four blocks, the single loop from `0`. -/
 theorem l5 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : n m0 ≤ 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 27)) (hI : Init m0 0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b5Offset)) (hI : Init m0 0 st.data)
     (h0 : 0 < n m0) : Eventually (step1 Host.exe) (At12 k m0) st :=
   run_regs hS (infix_of b5_in_code (by simp [b5]) hp) run_b5 (after_eq run_b5 ▸ b5_keeps)
     hpc hI.fr fun st' hm hpc' hfr hd ↦ by
@@ -391,7 +391,7 @@ theorem l5 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : 
 
 /-- `b4`: four blocks or more? -/
 theorem l4 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : n m0 ≤ 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 23)) (hI : Init m0 0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b4Offset)) (hI : Init m0 0 st.data)
     (h0 : 0 < n m0) : Eventually (step1 Host.exe) (At12 k m0) st :=
   run_regs hS (infix_of b4_in_code (by simp [b4]) hp) run_b4 (after_eq run_b4 ▸ b4_keeps)
     hpc hI.fr fun st' hm hpc' hfr hd ↦ by
@@ -402,7 +402,7 @@ theorem l4 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : 
           (BitVec.ofNat 64 8)).toNat = 8 * n m0 - 8 := by
         simp only [BinOp.apply, Sym.low_W64, Sym.ext_W64]
         exact sub_lit h23 (by omega)
-      simp only [PcOk, show b4.length = 4 from rfl] at hpc'
+      simp only [PcOk, NativeRustcVmArm.Vm.StackOffsets.b4_length, NativeRustcVmArm.Vm.StackOffsets.b4Length] at hpc'
       obtain ⟨hy, hno⟩ := pc_of (P := 3 < n m0) hpc' (by
         sym_simp
         simp only [Env.ofMachine_regs]
@@ -421,7 +421,7 @@ theorem l4 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) (hn : 
 
 /-- `b6`: no block, straight to the sort. -/
 theorem l6 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 30)) (hI : Init m0 0 st.data) (h0 : n m0 = 0) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b6Offset)) (hI : Init m0 0 st.data) (h0 : n m0 = 0) :
     Eventually (step1 Host.exe) (At13 k m0) st :=
   run_regs hS (infix_of b6_in_code (by simp [b6]) hp) run_b6 (after_eq run_b6 ▸ b6_keeps)
     hpc hI.fr fun st' hm hpc' hfr hd ↦ by
@@ -440,7 +440,7 @@ theorem l6 (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328) {st : 
 
 /-- **`b3`-`b12`**: from `memset`'s return, the order array written, at the sort's call. -/
 theorem init_spec (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
-    (hn : n m0 ≤ 158) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 21))
+    (hn : n m0 ≤ 158) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b3Offset))
     (hfr : Fr m0 st.data) (hR : Regs m0 st.data) : Eventually (step1 Host.exe) (At13 k m0) st :=
   run_regs hS (infix_of b3_in_code (by simp [b3]) hp) run_b3 (after_eq run_b3 ▸ b3_keeps)
     hpc hfr fun st' hm hpc' hfr' hd ↦ by
@@ -451,7 +451,7 @@ theorem init_spec (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 1328)
         rw [hm.regs .X23 _ rfl]
         show (UnOp.apply (.ubfm 61 60) .W64 (st.data.regs.getXReg .X21).toBitVec).toNat = _
         rw [lsl3, h21, lit_toNat (by omega)], fun t ht ↦ absurd ht (by omega), Nat.zero_le _⟩
-      simp only [PcOk, show b3.length = 2 from rfl] at hpc'
+      simp only [PcOk, NativeRustcVmArm.Vm.StackOffsets.b3_length, NativeRustcVmArm.Vm.StackOffsets.b3Length] at hpc'
       obtain ⟨hy, hno⟩ := pc_of (P := n m0 = 0) hpc' (by
         sym_simp
         simp only [Env.ofMachine_regs]

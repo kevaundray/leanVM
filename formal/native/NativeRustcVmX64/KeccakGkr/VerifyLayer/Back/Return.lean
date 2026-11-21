@@ -18,7 +18,7 @@ theorem return_success (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     {d : MachineData} (hb : Body m0 (outs m0) 24 d)
     (hal : OkAl d true) (hrun : (runL s c m0).isSome = true)
     (hdone : Done a m0 (runL s c m0) d.dmem) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + 725)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b84Offset)⟩ := by
   have g := geo_of hpre
   have hwf := wf0 (pre_stack hpre) hb (vars := fun _ ↦ 0) (ret := 0)
   have hm : Match (envB m0 d [] (fun _ ↦ 0) 0) (fr 24) d :=
@@ -33,7 +33,7 @@ theorem return_success (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   obtain ⟨d1, pc1⟩ := st
   simp only at hpc1 hb1 hd1
   subst hpc1
-  rw [show k + 725 + b84.length = k + 727 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b84Offset + b84.length = k + NativeRustcVmX64.Vm.VerifyLayer.b85Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b84_next]]
   have hwf2 := wf0 (pre_stack hpre) hb1 (vars := fun _ ↦ 0) (ret := 0)
   have hm2 : Match (envB m0 d1 [] (fun _ ↦ 0) 0) (fr 24) d1 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb1.rsp, trivial⟩ trivial trivial trivial

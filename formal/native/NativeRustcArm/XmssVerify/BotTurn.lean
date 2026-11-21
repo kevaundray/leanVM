@@ -69,11 +69,11 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 
 /-- **A turn of the bottom path loop.** -/
 theorem botTurn {k : Nat} (hp : Placed code k) (Cs : Callees) (P : Pre w m₀) {z : Nat}
-    (hz : z < 16) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 113)) {cur : List UInt8}
+    (hz : z < 16) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b8Offset)) {cur : List UInt8}
     (hl : cur.length = 16) (h : BotAt w m₀ st.data z cur) :
     Eventually (step1 Host.exe) (fun st' =>
-      (z + 1 < 16 ∧ st'.pc = Host.addrOf (k + 113) ∧ BotAt w m₀ st'.data (z + 1) (botStep w cur z)) ∨
-      (z + 1 = 16 ∧ st'.pc = Host.addrOf (k + 176) ∧ BotAt w m₀ st'.data 16 (botStep w cur z))) st := by
+      (z + 1 < 16 ∧ st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b8Offset) ∧ BotAt w m₀ st'.data (z + 1) (botStep w cur z)) ∨
+      (z + 1 = 16 ∧ st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b15Offset) ∧ BotAt w m₀ st'.data 16 (botStep w cur z))) st := by
   have C := h.common
   -- Block 8.
   have hwf := frame_wf P C (fun _ => BitVec.ofNat 64 (16 * z))
@@ -159,7 +159,7 @@ theorem botTurn {k : Nat} (hp : Placed code k) (Cs : Callees) (P : Pre w m₀) {
     fun ho hc hb => frameKeep hm1 ho hc hb
   have hpk1 := k1 (by rw [length_pkB]; decide) (by rw [length_pkB]; exact gk1) h.pk
   -- The node's hash.
-  refine hashNode Cs P (j9 := k + 140) (j := k + 146) (ds9 := b9)
+  refine hashNode Cs P (j9 := k + NativeRustcArm.Xmss.XmssVerify.b9Offset) (j := k + NativeRustcArm.Xmss.XmssVerify.b10Offset) (ds9 := b9)
     (b9_in_code.trans hp.1 (List.cons_ne_nil _ _)) rfl b9_exec' st9_facts (hashPos_bottom hp)
     (hpc2.trans rfl) C2 trivial (length_pp w) (length_address _ _)
     hChl hb2 (k2 (by rw [length_pp]; decide) (pp_at hpk1))
@@ -270,7 +270,7 @@ theorem botTurn {k : Nat} (hp : Placed code k) (Cs : Callees) (P : Pre w m₀) {
   · simp only [h16, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ite_false] at hpc4
     exact Or.inr ⟨h16, hpc4.trans rfl, h16 ▸ B⟩
   · simp only [h16, ne_eq, not_false_eq_true, decide_true, ite_true] at hpc4
-    exact Or.inl ⟨by omega, hpc4.trans (hp.label (j := 113) (by decide +kernel)), B⟩
+    exact Or.inl ⟨by omega, hpc4.trans (hp.label NativeRustcArm.Xmss.XmssVerify.label_4_at), B⟩
 
 end
 

@@ -90,8 +90,8 @@ theorem seg_b48 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} {e
     (he : e.length = 16) {R : MachineState → Prop} {m : MachineData} (hA : r.AtStep i 3 e m)
     (cont : ∀ m', Keep r (r.endSlots i) m' → BytesAt m'.dmem (r.off 80) e →
       Run.RegIs m' .rdx (BitVec.ofNat 64 i) → Run.RegIs m' .r12 (r.off 112) →
-      Eventually (step1 Host.exe) R ⟨m', r.pc 168⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 515⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Xmss.WotsLeaf.b14Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b48Offset⟩ := by
   obtain ⟨hK, h80, -, hdx, h12⟩ := hA
   refine frameStep r hp hpre b48_in_code (List.cons_ne_nil _ _) run_b48 (by decide) rfl hK
     trivial extraOK_nil trivial trivial trivial fun st hm hK1 hkb hpc ↦ ?_
@@ -105,8 +105,8 @@ theorem chain_one (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.
     (hi : i < 58) {R : MachineState → Prop} {m : MachineData} (hA : r.AtChain i m)
     (cont : ∀ m', Keep r (r.outerSlots (i + 1)) m' →
       Run.RegIs m' .rdx (BitVec.ofNat 64 (i + 1)) → Run.RegIs m' .r12 (r.off 112) →
-      Eventually (step1 Host.exe) R ⟨m', if i + 1 = 58 then r.pc 525 else r.pc 177⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 177⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', if i + 1 = 58 then r.pc NativeRustcX64.Xmss.WotsLeaf.b51Offset else r.pc NativeRustcX64.Xmss.WotsLeaf.b15Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b15Offset⟩ := by
   obtain ⟨hK, hdx, h12⟩ := hA
   have hin : WotsLeafPre.Input r.m0 (WotsLeafPre.valuesPtr r.m0 + BitVec.ofNat 64 (16 * i)) 16 :=
     Run.Input.sub r (r.pre_values hpre) (by omega) (by omega)
@@ -149,10 +149,10 @@ theorem chain_one (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.
     exact this
   have hx14 : (Sym.un (.zext .W8) .W32 (.loadx 0 614 (.reg .rdx) 1)).eval
       (r.envR m [(WotsLeafPre.valuesPtr r.m0 + BitVec.ofNat 64 (16 * i), 16)]
-        (r.pc (177 + b15.length)).toBitVec) = BitVec.ofNat 64 (r.digit i) := by
+        (r.pc (NativeRustcX64.Xmss.WotsLeaf.b15Offset + b15.length)).toBitVec) = BitVec.ofNat 64 (r.digit i) := by
     show UnOp.apply (.zext .W8) .W32 ((r.envR m _ _).load 0 (614 + (m.regs.get64 .rdx).toNat) 1) = _
     rw [hti, Env.load_of_bytesAt (env := r.envR m [(WotsLeafPre.valuesPtr r.m0 +
-      BitVec.ofNat 64 (16 * i), 16)] (r.pc (177 + b15.length)).toBitVec) (r := 0) (off := 614 + i)
+      BitVec.ofNat 64 (16 * i), 16)] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b15Offset + b15.length)).toBitVec) (r := 0) (off := 614 + i)
       (n := 1) (bs := [(r.digitsPre 58).getD i 0]) rfl hbyte, ofInt_ofBytes_one,
       zext8 (by have := hd3; unfold Run.digit at this; omega)]
     rfl
@@ -172,7 +172,7 @@ theorem chain_one (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.
   -- The end stored.
   have fin : ∀ m', Keep r (r.endSlots i) m' → BytesAt m'.dmem (r.off 80) (r.endOf i) →
       Run.RegIs m' .rdx (BitVec.ofNat 64 i) → Run.RegIs m' .r12 (r.off 112) →
-      Eventually (step1 Host.exe) R ⟨m', r.pc 168⟩ := fun m' g1 g2 g3 g4 ↦
+      Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Xmss.WotsLeaf.b14Offset⟩ := fun m' g1 g2 g3 g4 ↦
     seg_b14 hp hpre hi (length_endOf r hi) g1 g2 g3 g4 fun m'' k1 k2 k3 ↦
       cont m'' (by rw [Run.outerSlots, endsPre_succ]; exact k1) k2 k3
   by_cases h3 : r.digit i = 3
@@ -200,8 +200,8 @@ theorem chain_one (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.
 theorem chains_loop (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre)
     {R : MachineState → Prop} :
     ∀ (n i : Nat) {m : MachineData}, i + (n + 1) = 58 → r.AtChain i m →
-      (∀ m', Keep r (r.outerSlots 58) m' → Eventually (step1 Host.exe) R ⟨m', r.pc 525⟩) →
-      Eventually (step1 Host.exe) R ⟨m, r.pc 177⟩
+      (∀ m', Keep r (r.outerSlots 58) m' → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Xmss.WotsLeaf.b51Offset⟩) →
+      Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b15Offset⟩
   | 0, i, m, h, hA, cont =>
     chain_one hp hc hpre (by omega) hA fun m' hK _ _ ↦ by
       obtain rfl : i = 57 := by omega
@@ -214,8 +214,8 @@ theorem chains_loop (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : 
 /-- **Region 3, the chains**: from `b15` with chain 0, the 58 ends at `1080` at `b51`. -/
 theorem chains_region (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre)
     {R : MachineState → Prop} {m : MachineData} (hA : r.AtChains0 m)
-    (cont : ∀ m', Keep r (r.outerSlots 58) m' → Eventually (step1 Host.exe) R ⟨m', r.pc 525⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 177⟩ :=
+    (cont : ∀ m', Keep r (r.outerSlots 58) m' → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Xmss.WotsLeaf.b51Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b15Offset⟩ :=
   chains_loop hp hc hpre 57 0 rfl
     ⟨hA.1.add ⟨⟨rfl, by norm_num, fun _ h ↦ absurd h (Nat.not_lt_zero _)⟩, trivial⟩, hA.2.1,
       hA.2.2⟩ cont

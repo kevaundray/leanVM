@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
 public import NativeRustcVmArm.Sumcheck.Plain.Exec
 public import NativeRustcVmArm.Sumcheck.Loop
 
@@ -127,9 +128,9 @@ theorem exit_done (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) {m : Mac
     (hd : Done a s m0 m) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ SumcheckPlainPost a s m0 st.data)
-      ⟨m, Host.addrOf (k + 36)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7Offset)⟩ := by
   obtain ⟨xs, sn, hrun, hsz, hxs, hts⟩ := hd.run
-  have hk7 : b7.IsInfixAt Host.prog (k + 36) := b7_in_code.trans hp.1 (by simp [b7])
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7Offset) := b7_in_code.trans hp.1 (by simp [b7])
   have hr : (sumcheckPlain (claimP m0) (cntP m0) (nP m0)).run s =
       some ((xs, ⟨m.regs.X2, m.regs.X3⟩), sn) := by
     rw [← sumcheckFn_none]; exact hrun
@@ -155,8 +156,8 @@ theorem exit_fail (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) {m : Mac
     (hnone : (sumcheckFn (claimP m0) (cntP m0) (fun _ ↦ none) (nP m0)).run s = none) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ SumcheckPlainPost a s m0 st.data)
-      ⟨m, Host.addrOf (k + 45)⟩ := by
-  have hk8 : b8.IsInfixAt Host.prog (k + 45) := b8_in_code.trans hp.1 (by simp [b8])
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8Offset)⟩ := by
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8Offset) := b8_in_code.trans hp.1 (by simp [b8])
   refine exit_of hpre hf hx19 hk8 run_b8 (by decide) (by decide) (r := none)
     (by rw [← sumcheckFn_none]; exact hnone.symm) (fun _ _ _ h ↦ (nomatch h))
     (fun _ _ h ↦ (nomatch h)) fun st hm' ↦ ?_
@@ -178,17 +179,17 @@ theorem shl4 (x : BitVec 64) : x <<< 4 = BitVec.ofNat 64 (16 * x.toNat) := by
 head with no round done. -/
 theorem entry_spec (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 36) ∧ Done a s m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 16) ∧ Inv a s m0 0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7Offset) ∧ Done a s m0 st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b2Offset) ∧ Inv a s m0 0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b0Offset)⟩ := by
   have g := geo hpre
   have hS := hpre.1
   have hwf : (Bus.env0 m0 160).WF := Bus.wf_env0 hS (by decide)
   have hm : Match (Bus.env0 m0 160) entryS m0 := Bus.match_entry hS (by decide) (by decide)
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk1 : b1.IsInfixAt Host.prog (k + 12) := b1_in_code.trans hp.1 (by simp [b1])
-  have hl4 : Labels.label ".LSumcheckOfSumcheckPlain_4" = Host.addrOf (k + 36) :=
-    hp.label (j := 36) rfl
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b1Offset) := b1_in_code.trans hp.1 (by simp [b1])
+  have hl4 : Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7Offset) NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.label_4_at
   have hts0 := g.ok.2.2.1
   -- The frame and the `TState` after the prologue's writes.
   have hpro : ∀ {S : SState} {st : MachineState}, Match (Bus.env0 m0 160) S st.data →

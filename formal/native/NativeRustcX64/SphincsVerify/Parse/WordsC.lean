@@ -26,8 +26,8 @@ variable (r : Run) [Host]
 
 /-- **The raw signature**: from `b2` to `b9`. -/
 theorem words_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : AtW r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 106 ∧ WS r (sigBytes r.w) st.data)
-      ⟨m, r.pc 41⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b9Offset ∧ WS r (sigBytes r.w) st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b2Offset⟩ := by
   have l1 : (P1 r.w).length = 4244 := length_P1 r.w
   have l2 : (P1 r.w ++ wb r.w 539 (4 * 36)).length = 5396 := by
     rw [List.length_append, l1, length_wb]
@@ -45,7 +45,7 @@ theorem words_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : 
   refine Eventually.bind (b3_spec r hp hpre h) fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ ?_
   simp only at hpc
   subst hpc
-  refine Eventually.bind (rax_loop r hp hpre b4_in_code rfl (hp.label (j := 60) rfl) 539 4244 36
+  refine Eventually.bind (rax_loop r hp hpre b4_in_code rfl (hp.label NativeRustcX64.Sphincs.SphincsVerify.label_3_at) 539 4244 36
     run_b4 rfl (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) l1 h) fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ ?_
   simp only at hpc
@@ -55,7 +55,7 @@ theorem words_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : 
     fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ ?_
   simp only at hpc
   subst hpc
-  refine Eventually.bind (rax_loop r hp hpre b6_in_code rfl (hp.label (j := 77) rfl) 684 5400 36
+  refine Eventually.bind (rax_loop r hp hpre b6_in_code rfl (hp.label NativeRustcX64.Sphincs.SphincsVerify.label_5_at) 684 5400 36
     run_b6 rfl (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) l3 h) fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ ?_
   simp only at hpc
@@ -65,7 +65,7 @@ theorem words_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : 
     fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ ?_
   simp only at hpc
   subst hpc
-  refine Eventually.mono (rax_loop r hp hpre b8_in_code rfl (hp.label (j := 94) rfl) 829 6556 37
+  refine Eventually.mono (rax_loop r hp hpre b8_in_code rfl (hp.label NativeRustcX64.Sphincs.SphincsVerify.label_7_at) 829 6556 37
     run_b8 rfl (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) l5 h) fun st ⟨hpc, h⟩ ↦ ⟨hpc, ?_⟩
   rwa [sigBytes_words] at h

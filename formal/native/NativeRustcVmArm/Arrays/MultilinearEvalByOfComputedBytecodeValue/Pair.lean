@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Arrays.MultilinearEvalByOfComputedBytecodeValue.Loop
 
 /-!
@@ -22,13 +23,13 @@ public section
 variable [Host] {k : Nat}
 
 /-- **An entry waits at level `kk`** (`b9`-`b11`): paired with `v`, carried to level `kk + 1`. -/
-theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem pair (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : LPre m0) {i kk : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 144)) (hI : Inner m0 i kk s.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9Offset)) (hI : Inner m0 i kk s.data)
     (hsome : pendOf s.data.dmem (fbOf m0) kk =
       some (ewOf s.data.dmem (fbOf m0 + BitVec.ofNat 64 (48 + 16 * kk)))) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 141) ∧ Inner m0 i (kk + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8Offset) ∧ Inner m0 i (kk + 1) s'.data)) s := by
   obtain ⟨hS, h02, h64, -, hrP, hoP⟩ := hpre
   obtain ⟨fr, hi, hk, h19, h20, h21, h22, h29, hval⟩ := hI
   obtain ⟨st, pc⟩ := s
@@ -127,7 +128,7 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       rw [h3, h26]
   have k2 := regs_eq_of hm hm2 [.X21, .X19, .X22, .X23, .X29] (by decide)
   -- `a·(1 + r)`
-  simp only [show b9.length = 6 from rfl] at hpc2
+  simp only [NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9Length] at hpc2
   refine call_then hpc2 hmul (bd2.ewMulPre hS (by decide) (by decide)) fun s3 hpc3 hpost3 ↦ ?_
   obtain ⟨fr3, hP3⟩ := fr2.call hS hpost3
   have k3 : ∀ r, calleeSaved r = true → s3.data.regs.getXReg r = s2.data.regs.getXReg r :=
@@ -139,7 +140,7 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   -- `v·r`
   refine exec_at (hb10 hp) run_b10 (Env.wf_nil _) hpc3 (match_nil _) fun s4 hm4 hpc4 ↦ ?_
   obtain ⟨fr4, hd4⟩ := fr3.block (match_nil _) hm4 (Env.wf_nil _) rfl (after_eq run_b10 ▸ keeps.2.2.2.2.2.1)
-  simp only [show b10.length = 7 from rfl] at hpc4
+  simp only [NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b10_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b10Length] at hpc4
   refine call_then hpc4 hmul (fr4.body.ewMulPre hS (by decide) (by decide)) fun s5 hpc5 hpost5 ↦ ?_
   obtain ⟨fr5, hP5⟩ := fr4.call hS hpost5
   have k5 : ∀ r, calleeSaved r = true → s5.data.regs.getXReg r = s4.data.regs.getXReg r :=
@@ -205,7 +206,7 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     · intro h; apply BitVec.eq_of_toNat_eq; rw [hx22]; simp; omega
   by_cases hlast : kk + 1 = m0.regs.X4.toNat
   · have hpc7 := hpc6'.2 (heq.mpr hlast)
-    simp only [show b11.length = 5 from rfl] at hpc7
+    simp only [NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b11_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b11Length] at hpc7
     refine exec_at (hb12 hp) run_b12 (Env.wf_nil _) hpc7 (match_nil _) fun s7 hm7 hpc7' ↦ ?_
     obtain ⟨fr7, -⟩ := fr6.block (match_nil _) hm7 (Env.wf_nil _) rfl
       (after_eq run_b12 ▸ keeps.2.2.2.2.2.2.2.1)

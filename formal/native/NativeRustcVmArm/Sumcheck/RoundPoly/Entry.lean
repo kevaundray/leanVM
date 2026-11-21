@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.SumE.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmArm.Code.Vm.TStateSumcheckRoundPoly.Names
 public import NativeRustcVmArm.Sumcheck.RoundPoly.SomeRead
 public import NativeRustcVmArm.Sumcheck.RoundPoly.NoneRead
 public import NativeRustcVmArm.Transcript.Glue
@@ -106,15 +113,15 @@ theorem toNat_sub_one (h : 2 ≤ m0.regs.X1.toNat) :
 /-- **Equality mode**: `b0`, `b1` loads the factor and calls `read_scalars` for
 `msg[1..count]`, then `some_b2`. -/
 theorem some_entry (hp : Placed code k)
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hsum : Spec (Labels.label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {ev : EW} (hpre : RoundPolyPre a s (some ev) m0) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ RoundPolyPost a s (some ev) m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0Offset)⟩ := by
   have c := ctx_of hpre
   have hc2 : 2 ≤ cnt m0 := hpre.2.2.2.2.1
   have hc5 : cnt m0 ≤ maxCount := hpre.2.2.2.2.2.1
@@ -124,8 +131,8 @@ theorem some_entry (hp : Placed code k)
     NativeRustcVm.mapped_append_iff (n := 8) (m := 16) |>.2 ⟨htag.mapped, hev.mapped⟩
   have hwf := wf_env0 hpre (Nat.le_refl _) hmap
   have hm : Match (env0 m0 24) entryS m0 := match_env0 hpre
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk1 : b1.IsInfixAt Host.prog (k + 14) := b1_in_code.trans hp.1 (by simp [b1])
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b1Offset) := b1_in_code.trans hp.1 (by simp [b1])
   have hb1 : (env0 m0 24).base 1 = m0.regs.X4.toBitVec := rfl
   refine exec_then hk0 run_b0 hwf hm fun st hm' hpc ↦ ?_
   have htag4 : (env0 m0 24).load 1 0 4 = BitVec.ofNat 64 1 :=
@@ -201,23 +208,23 @@ theorem some_entry (hp : Placed code k)
 /-- **Plain mode**: `b0`, `b9` calls `read_scalar` into the frame's `Option<EW>` at `8`, then
 `none_b10`. -/
 theorem none_entry (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hsum : Spec (Labels.label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     (hpre : RoundPolyPre a s none m0) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ RoundPolyPost a s none m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0Offset)⟩ := by
   have c := ctx_of hpre
   have htag : NativeRustcVm.WordAt m0.dmem m0.regs.X4.toBitVec 0 := hpre.2.2.2.2.2.2.1
   have hwf := wf_env0 hpre (n := 8) (by omega) htag.mapped
   have hm : Match (env0 m0 8) entryN m0 := match_env0 hpre
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk9 : b9.IsInfixAt Host.prog (k + 44) := b9_in_code.trans hp.1 (by simp [b9])
-  have hl4 : Labels.label ".LTStateSumcheckRoundPoly_4" = Host.addrOf (k + 44) :=
-    hp.label (j := 44) rfl
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk9 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b9Offset) := b9_in_code.trans hp.1 (by simp [b9])
+  have hl4 : Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b9Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b9Offset) NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_4_at
   have hb1 : (env0 m0 8).base 1 = m0.regs.X4.toBitVec := rfl
   refine exec_then hk0 run_b0n hwf hm fun st hm' hpc ↦ ?_
   have htag4 : (env0 m0 8).load 1 0 4 = BitVec.ofNat 64 0 :=

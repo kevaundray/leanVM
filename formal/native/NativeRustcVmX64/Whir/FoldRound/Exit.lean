@@ -34,7 +34,7 @@ theorem exit21 (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {d : MachineDat
     {Q : Mem 64 → Prop}
     (hQ : ∀ d' : Mem 64, Kept d.dmem d' → SameOutside d.dmem d' (InRange (oA m0) 8) → Q d')
     (hfin : ∀ d' : Mem 64, WordAt d' (oA m0) v → Q d' → Res a s0 w m0 d') :
-    Eventually (step1 Host.exe) (Goal a s0 w m0) ⟨d, Host.addrOf (k + 129)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 w m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b21Offset)⟩ := by
   have c := ctx h
   have ho := pre_o h
   have hon : (oA m0).toNat + 40 ≤ 2 ^ 64 := ho.2.1
@@ -68,7 +68,7 @@ theorem exit21 (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {d : MachineDat
 
 /-- **The `None` exit**: `b20`, `b21`. -/
 theorem none20 (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 127)) (hw : Fr m0 st.data) (hbx : reg st.data .rbx = oA m0)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b20Offset)) (hw : Fr m0 st.data) (hbx : reg st.data .rbx = oA m0)
     (hnone : (foldRound w).run s0 = none) :
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   have c := ctx h

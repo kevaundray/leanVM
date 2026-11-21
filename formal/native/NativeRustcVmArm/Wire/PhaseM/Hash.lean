@@ -48,7 +48,7 @@ structure Mid (m0 : MachineData) (B : List UInt8) (c : Nat) (count : Nat)
 structure HashSt [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k count : Nat)
     (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 i : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 113)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b27Offset)
   base : Base m0 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   rd : ReaderAt st.data.dmem (rdr m0) bp B c6
@@ -67,7 +67,7 @@ structure HashSt [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c 
 structure Climb0 [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k count : Nat)
     (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 131)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b29Offset)
   base : Base m0 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   rd : ReaderAt st.data.dmem (rdr m0) bp B c6

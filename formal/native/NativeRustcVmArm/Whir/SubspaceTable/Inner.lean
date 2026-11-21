@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceTable.Names
 public import NativeRustcVmArm.Whir.SubspaceTable.Inv
 
 /-!
@@ -21,13 +23,13 @@ public section
 variable [Host] {k : Nat}
 
 /-- **A word of the layer's loop.** -/
-theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
+theorem inner_step (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hS : StackOk m0 subspaceTableStack) {t j : Nat} {st : MachineData}
     (hI : IInv m0 t j st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (IInv m0 t (j + 1) s.data ∧ s.pc = Host.addrOf (k + 127)) ∨
-        (Turned m0 t s.data ∧ s.pc = Host.addrOf (k + 140)))
-      ⟨st, Host.addrOf (k + 127)⟩ := by
+      (fun s ↦ (IInv m0 t (j + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b15Offset)) ∨
+        (Turned m0 t s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b18Offset)))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b15Offset)⟩ := by
   have hF : 864 ≤ subspaceTableStack := by decide
   have hkle : 864 + kmulStack ≤ subspaceTableStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
@@ -51,7 +53,7 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
     rw [innerL_getElem hjL, addr_add] at this
     exact this
   -- `b15`: load the word, call `kmul`
-  have hk15 : b15.IsInfixAt Host.prog (k + 127) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk15 : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b15Offset) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hrd : Readable st a 8 := hfr.readable (Readable.sub ⟨hfmap, hfnw⟩ (by omega))
   let env1 := Env.ofMachine st [(a, 8)]
   have hwf1 : env1.WF := wf_one hrd.1 hrd.2
@@ -79,8 +81,8 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   have hlay2 : WordsAt s2.data.dmem (fbOf m0 + BitVec.ofNat 64 16) (innerL L t j) :=
     hfr1.bytes_call hS hkle hsame2 (o := 16) (by rw [hlb]; omega) (hd1 ▸ hlay0)
   -- `b16`: call `kmul` for `last·v`
-  have hk16 : b16.IsInfixAt Host.prog (k + 132) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc2' : s2.pc = Host.addrOf (k + 132) := hpc2
+  have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b16Offset) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc2' : s2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b16Offset) := hpc2
   refine exec_at hk16 run_b16 (Env.wf_nil _) hpc2' (match_nil _) fun s3 hm3 hpc3 ↦ ?_
   have hb16 := after_eq run_b16 ▸ b16_keeps
   have hfr3 := hT2.fr.of_regs (match_nil _) hm3 (Env.wf_nil _) rfl hb16.1 hb16.2
@@ -117,8 +119,8 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   have e21s4 : s4.data.regs.X21 = st.regs.X21 :=
     (hsv4.1 .X21 rfl).trans ((Match.reg_eq (match_nil _) hm3 rfl rfl).trans e21)
   -- `b17`: store `v² + last·v`, count
-  have hk17 : b17.IsInfixAt Host.prog (k + 136) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc4' : s4.pc = Host.addrOf (k + 136) := hpc4
+  have hk17 : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b17Offset) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc4' : s4.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b17Offset) := hpc4
   have hrd4 : Readable s4.data a 8 := hT4.fr.readable (Readable.sub ⟨hfmap, hfnw⟩ (by omega))
   let env5 := Env.ofMachine s4.data [(a, 8)]
   have hwf5 : env5.WF := wf_one hrd4.1 hrd4.2
@@ -195,7 +197,7 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
       rw [decide_eq_false_iff_not, BitVec.toNat_ofNat]
       omega
     simp only [hne, Bool.not_false, ↓reduceIte] at hpc5
-    have hl : Labels.label ".LSubspaceTable_13" = Host.addrOf (k + 127) := hp.label rfl
+    have hl : Labels.label NativeRustcVmArm.Vm.SubspaceTable.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b15Offset) := hp.label (j := NativeRustcVmArm.Vm.SubspaceTable.b15Offset) NativeRustcVmArm.Vm.SubspaceTable.label_13_at
     exact .done _ (.inl ⟨⟨hT5, x21', hLd ▸ hlay5, e19', e29', by omega, by omega⟩,
       hpc5.trans hl⟩)
 

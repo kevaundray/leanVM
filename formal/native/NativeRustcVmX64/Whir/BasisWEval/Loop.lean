@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.BasisWEval.ColW
+public import NativeRustcVmX64.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `BasisW::eval`: the column claims' loop (x86-64)
@@ -23,11 +25,11 @@ variable {m0 : MachineData} {ba : BasisAddrs} {b : BasisW} {v : Vals} [Host] {k 
 
 /-- **`b10`**: the next claim, or the loop's end. -/
 theorem b10_step (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 74)) (hm : Mid m0 ba b v i (i + 1) st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b10Offset)) (hm : Mid m0 ba b v i (i + 1) st.data)
     {R : MachineState → Prop}
-    (hloop : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 78) →
+    (hloop : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b11Offset) →
       Mid m0 ba b v (i + 1) (i + 1) st'.data → Eventually (step1 Host.exe) R st')
-    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 127) → End m0 ba b v st'.data →
+    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b21Offset) → End m0 ba b v st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hf := hm.base.fr
@@ -49,10 +51,10 @@ theorem b10_step (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machine
   have w56 := hm.w56.nil hwf hm1 hmem
   by_cases he : i + 1 = v.cs.size
   · simp only [he, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 127) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_10_at] at hpc1
     exact hend st1 hpc1 ⟨base1, w56, he ▸ acc1⟩
   · simp only [he, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    rw [show k + 74 + b10.length = k + 78 from rfl] at hpc1
+    rw [show k + NativeRustcVmX64.Vm.BasisWEval.b10Offset + b10.length = k + NativeRustcVmX64.Vm.BasisWEval.b11Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b10_next]] at hpc1
     refine hloop st1 hpc1 {
       base := base1
       w56 := w56
@@ -71,18 +73,18 @@ theorem b10_step (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machine
 
 /-- **The loop**, from `Mid i i` at `b11` to `End` at `b21`. -/
 theorem loop_run (hp : Placed code k) (h : In m0 ba b v)
-    (hcw : Spec (Labels.label columnWeightLabel) ColumnWeightPre ColumnWeightPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
-    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 127) → End m0 ba b v st'.data →
+    (hcw : Spec (Labels.label NativeRustcVmX64.Vm.ColumnWeight.entryLabel) ColumnWeightPre ColumnWeightPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
+    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b21Offset) → End m0 ba b v st'.data →
       Eventually (step1 Host.exe) R st') :
-    ∀ {n i : Nat} {st : MachineState}, n = v.cs.size - i → st.pc = Host.addrOf (k + 78) →
+    ∀ {n i : Nat} {st : MachineState}, n = v.cs.size - i → st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b11Offset) →
       Mid m0 ba b v i i st.data → Eventually (step1 Host.exe) R st := by
   intro n
   induction n using Nat.strongRecOn with
   | ind n ih =>
     intro i st hn hpc hm
     have hi := hm.ilt
-    have next : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 74) →
+    have next : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b10Offset) →
         Mid m0 ba b v i (i + 1) st'.data → Eventually (step1 Host.exe) R st' := fun st' hpc' hm' ↦
       b10_step hp h hpc' hm'
         (fun st'' hpc'' hm'' ↦ ih (v.cs.size - (i + 1)) (by omega) rfl hpc'' hm'') hend

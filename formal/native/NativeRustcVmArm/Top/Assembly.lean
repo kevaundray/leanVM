@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LeanvmVerify.Names
 public import NativeRustcVmArm.Top.Correct
 public import NativeRustcVmArm.Top.Assembly.VerifyExecution
 public import NativeRustcVmArm.Top.Assembly.Bus
@@ -39,7 +40,7 @@ theorem verify_correct (hP : NativeArm.Host.prog = Vm.code)
       NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
         [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
           ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmArm.stackR m leanvmVerifyStack]) ∧
-      Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
+      Saved m st.data) ⟨m, label NativeRustcVmArm.Vm.LeanvmVerify.entryLabel⟩ :=
   verify_correct_of_specs hP (Assembly.decode hP)
     (Assembly.verifyExecution hP (Assembly.verifyBusBalance hP) (Assembly.keccakPhase hP)
       (Assembly.nextLevel hP) (Assembly.finalLevel hP))

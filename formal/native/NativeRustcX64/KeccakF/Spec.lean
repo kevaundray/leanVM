@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.KeccakF.Names
+
 public import NativeRustcX64.KeccakF.Prologue
 public import NativeRustcX64.KeccakF.Round
 public import NativeRustcX64.KeccakF.Epilogue
@@ -27,13 +29,13 @@ variable [Host]
 
 /-- **`keccak_f` meets its contract.** -/
 theorem keccakF_spec {k : Nat} (hp : Placed Common.KeccakF.code k) :
-    Spec (label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost := by
+    Spec (label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost := by
   intro m0 hpre
-  rw [hp.label (j := 0) rfl, Nat.add_zero]
+  rw [hp.label NativeRustcX64.Common.KeccakF.entry_at, NativeRustcX64.Common.KeccakF.entryOffset, Nat.add_zero]
   refine Eventually.bind (prologue_step hp hpre) fun st₁ ⟨hA₁, hpc₁⟩ => ?_
   have hloop := Sym.loop (tr := step1 Host.exe)
-    (Q := fun st => At m0 24 st.data ∧ st.pc = Host.addrOf (k + 329))
-    (fun n st => ∃ i, n = 24 - i ∧ i < 24 ∧ st.pc = Host.addrOf (k + 79) ∧ At m0 i st.data)
+    (Q := fun st => At m0 24 st.data ∧ st.pc = Host.addrOf (k + NativeRustcX64.Common.KeccakF.b2Offset))
+    (fun n st => ∃ i, n = 24 - i ∧ i < 24 ∧ st.pc = Host.addrOf (k + NativeRustcX64.Common.KeccakF.b1Offset) ∧ At m0 i st.data)
     (fun n st ⟨i, hn, hi, hpc, hA⟩ => by
       obtain ⟨m, pc⟩ := st
       simp only at hpc

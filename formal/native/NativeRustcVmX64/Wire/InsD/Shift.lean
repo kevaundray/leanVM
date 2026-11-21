@@ -5,7 +5,7 @@ public import NativeRustcVmX64.Wire.InsD.Fin
 /-!
 # `ins_d`'s shift (x86-64)
 
-From `.LInsD_1` (`b7`, `SixInv`), `x` to go in at `i`, the count `n`: `x` stored at once when
+From `NativeRustcVmX64.Vm.InsD.label_1` (`b7`, `SixInv`), `x` to go in at `i`, the count `n`: `x` stored at once when
 `i = n`; else the elements from `i` moved up one: first `(n - i) % 4` of them one by one (`b8`,
 `b9`, then `b10`, `RInv`), then four at a time (`b11`, `FInv`; `b13`, `UInv`), then `x` stored at
 `i` (`b14`). The array holds `hl L j g` at a shift's position `j` (`hl_step`).
@@ -76,9 +76,9 @@ theorem pos_sub1 (hok : NativeRustcVm.Region.Ok m.dmem ⟨arr m, 2048⟩) {p : N
 
 variable [Host] (k : Nat) (m L)
 
-/-- At `.LInsD_1` (`b7`): `x` goes in at `i`, memory as at entry. -/
+/-- At `NativeRustcVmX64.Vm.InsD.label_1` (`b7`): `x` goes in at `i`, memory as at entry. -/
 structure SixInv (i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 21)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b7Offset)
   kp : Kp m st.data
   d : st.data.dmem = m.dmem
   rcx : (reg st.data .rcx).toNat = i
@@ -87,9 +87,9 @@ structure SixInv (i : Nat) (st : MachineState) : Prop where
   below : Below m L i
   above : Above m L i
 
-/-- At `.LInsD_4` (`b10`): the one-by-one moves, at `j`, `c` (R9) of them left. -/
+/-- At `NativeRustcVmX64.Vm.InsD.label_4` (`b10`): the one-by-one moves, at `j`, `c` (R9) of them left. -/
 structure RInv (i j : Nat) (g : UInt64) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 34)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b10Offset)
   kp : Kp m st.data
   rcx : (reg st.data .rcx).toNat = i
   rax : (reg st.data .rax).toNat = L.length
@@ -103,9 +103,9 @@ structure RInv (i j : Nat) (g : UInt64) (st : MachineState) : Prop where
   above : Above m L i
   w : WordsAt st.data.dmem (arr m) (hl L j g)
 
-/-- At `.LInsD_5` (`b11`): the one-by-one moves done, at `j`. -/
+/-- At `NativeRustcVmX64.Vm.InsD.label_5` (`b11`): the one-by-one moves done, at `j`. -/
 structure FInv (i j : Nat) (g : UInt64) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 43)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b11Offset)
   kp : Kp m st.data
   rcx : (reg st.data .rcx).toNat = i
   rax : (reg st.data .rax).toNat = L.length
@@ -118,9 +118,9 @@ structure FInv (i j : Nat) (g : UInt64) (st : MachineState) : Prop where
   above : Above m L i
   w : WordsAt st.data.dmem (arr m) (hl L j g)
 
-/-- At `.LInsD_6` (`b13`): four at a time, at `j`. -/
+/-- At `NativeRustcVmX64.Vm.InsD.label_6` (`b13`): four at a time, at `j`. -/
 structure UInv (i j : Nat) (g : UInt64) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 49)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b13Offset)
   kp : Kp m st.data
   rcx : (reg st.data .rcx).toNat = i
   rax : (reg st.data .rax).toNat = L.length
@@ -164,14 +164,14 @@ include hp g
 
 /-- **The store** (`b14`) of `x` at `i`. -/
 theorem store_spec {i : Nat} {gw : UInt64} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 69)) (hk : Kp m st.data) (hri : (reg st.data .rcx).toNat = i)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b14Offset)) (hk : Kp m st.data) (hri : (reg st.data .rcx).toNat = i)
     (hn : (reg st.data .rax).toNat = L.length) (hi : i ≤ L.length) (hbl : Below m L i)
     (hab : Above m L i) (hw : WordsAt st.data.dmem (arr m) (hl L i gw)) :
     Eventually (step1 Host.exe) (Post m) st :=
   store_fin hp g b14_in_code (by simp [b14]) (ri := .rcx) run_b14 rfl rfl rfl (by decide) hpc hk
     hri hn hi hbl hab hw
 
-/-- **Four moves** (`b13`): back at `.LInsD_6` at `j - 4`, or the store at `i`. -/
+/-- **Four moves** (`b13`): back at `NativeRustcVmX64.Vm.InsD.label_6` at `j - 4`, or the store at `i`. -/
 theorem unr_step {i j : Nat} {gj : UInt64} {st : MachineState} (hI : UInv m L k i j gj st) :
     Eventually (step1 Host.exe)
       (fun st' ↦ Post m st' ∨ UInv m L k i (j - 4) (L.getD (j - 4) 0) st') st := by
@@ -256,7 +256,7 @@ theorem unr_step {i j : Nat} {gj : UInt64} {st : MachineState} (hI : UInv m L k 
     simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
     omega)
   by_cases hij : i < j - 4
-  · rw [ite_t hij, hp.label (j := 49) rfl] at hpc2
+  · rw [ite_t hij, hp.label NativeRustcVmX64.Vm.InsD.label_6_at] at hpc2
     exact .done _ (.inr ⟨hpc2, hkp, by rw [hrcx]; exact hI.rcx, by rw [hrax]; exact hI.rax, hrsi,
       by have := hI.mod; omega, by have := hI.mod; omega, by omega, hI.below, hI.above, hws⟩)
   · rw [ite_f hij] at hpc2

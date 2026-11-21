@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PaddingWeight.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.LoopEnv
 
 /-!
@@ -35,14 +36,14 @@ private theorem eval_min (env : Env) (a b : Sym) :
 
 /-- **`b33`**: read the owner's height and rows, update the running ones, and call `padding_weight`. -/
 theorem turn33 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hpw : Spec (Labels.label paddingWeightLabel) PaddingWeightPre PaddingWeightPost)
+    (hpw : Spec (Labels.label NativeRustcVmArm.Vm.PaddingWeight.entryLabel) PaddingWeightPre PaddingWeightPost)
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) L32 m) {g : FormW}
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) g) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L34 m2 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) g → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 302)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 276)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b34Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b33Offset)⟩ := by
   have hh := St.lift (D := L32) hst (by decide) 0 [(m0.regs.X5.toBitVec, 120)]
   have hwf := wf1 h hst.fr.kept (layout_ok h)
   have hol : (blk (BA L rows bl) j).owner < 6 := by
@@ -149,7 +150,7 @@ theorem turn33 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       have hs : (ptA m0).size = (stackArg m0 48).toNat := by simp [ptA, slice, NativeRustcVm.ewsOf]
       simp only [Array.size_extract, hs]
       omega
-    rw [show k + 276 + b33.length = k + 302 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b33Offset + b33.length = k + NativeRustcVmArm.Vm.AccumulateSide.b34Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b33_next]]
     exact cont m2 ⟨hst2.fr, holds_ewRet (r0 := 106) (Holds.sub hst2.hd
       (D' := (Sym.reg .X23, 94) :: (Sym.reg .X24, 95) :: L34c) (by decide)) hr rfl rfl⟩
       (NativeRustcVm.Tables.FormBufAt.of_same hg (hB 152 5928 (by decide) (by decide))) hF

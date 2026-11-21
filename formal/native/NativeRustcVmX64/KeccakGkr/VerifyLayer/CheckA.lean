@@ -1,13 +1,15 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.CheckAMul
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.SumE.Names
 
 /-!
 # `verify_layer` on x86-64: the first check
 
 From `b40` (`CB`, ι's two terms): `b40` adds them and calls `sum_e` on the instance weights, `b41`
 multiplies, `b42` and `b43` compare the projection plus the product with the claim's value, limb
-by limb (`checkA`): on a mismatch `.LVerifyLayer_50` with BL cleared (`exit50`, the layer's run
+by limb (`checkA`): on a mismatch `NativeRustcVmX64.Vm.VerifyLayer.label_50` with BL cleared (`exit50`, the layer's run
 `None`), else `b44` (code index `370`) with ι's state: `checkARun`.
 -/
 
@@ -66,12 +68,12 @@ variable [Host] {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
   {p : Array EW} {s1 : TState}
 
 /-- **ι times the instance weights' sum**: `b40`, `sum_e`, `b41`, `EW::mul`, to `b42`. -/
-theorem iotaMu (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
+theorem iotaMu (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hsum : Spec (Labels.label NativeRustcVmX64.Vm.SumE.entryLabel) SumEPre SumEPost)
     (hpre : VerifyLayerPre a s c m0) {d : MachineData} (h : CB m0 a c p s1 d)
     {R : MachineState → Prop}
-    (cont : ∀ d', CC m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 362)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 352)⟩ := by
+    (cont : ∀ d', CC m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b42Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b40Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hk := h.k0
@@ -81,13 +83,13 @@ theorem iotaMu (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMul
     fun o w hq _ hf ↦ hf (o, w) (List.mem_append_left _ hq)
   -- `b40`: ι, `sum_e`'s arguments
   have hwf := wf0 (pre_stack hpre) hk.body (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 352 + b40.length)).toBitVec)
-  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + 352 + b40.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b40Offset + b40.length)).toBitVec)
+  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b40Offset + b40.length)).toBitVec)
       (fr 24) d :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hk.body.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g hk.body hwf (blk hp b40_in_code (by simp [b40])) e40 (fun _ _ ↦ rfl)
     hm (by decide +kernel) (hex0 (by decide +kernel)) fun st hm1 hpc1 hb1 _ ↦ ?_
-  have e1 : ∀ r, (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + 352 + b40.length)).toBitVec).regs r =
+  have e1 : ∀ r, (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b40Offset + b40.length)).toBitVec).regs r =
       reg d r := fun _ ↦ rfl
   have hiota : ewArg (reg st.data .r14) (reg st.data .rbp) =
       iotaOf (reg m0 .rsi).toNat (stepN m0) c := by
@@ -146,8 +148,8 @@ theorem iotaMu (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMul
   subst hpc2
   -- `b41`: the product
   have hwf3 := wf0 (pre_stack hpre) hk2.body (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 357 + b41.length)).toBitVec)
-  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + 357 + b41.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b41Offset + b41.length)).toBitVec)
+  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b41Offset + b41.length)).toBitVec)
       (fr 24) d2 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hk2.body.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g hk2.body hwf3 (blk hp b41_in_code (by simp [b41])) e41
@@ -180,8 +182,8 @@ theorem checkARun (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d5 : Ma
     (hrun : runL s c m0 = rest1 (reg m0 .rsi).toNat (stepN m0) c p s1)
     (cont : ∀ d', K0 m0 a c p s1 (spillsJ m0 c) d' →
       checkA (reg m0 .rsi).toNat (stepN m0) c p = true →
-      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d', Host.addrOf (k + 370)⟩) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d5, Host.addrOf (k + 362)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b44Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d5, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b42Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hk5 := h.k0
@@ -230,7 +232,7 @@ theorem checkARun (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d5 : Ma
     rw [hv0, ofBitVec_beq]] at hpc7
   have hfail : ∀ dd : MachineData, Body m0 (wFront m0) 24 dd → reg dd .rbx = 0#64 →
       checkA (reg m0 .rsi).toNat (stepN m0) c p = false →
-      Eventually (step1 Host.exe) (Goal a s c m0) ⟨dd, Host.addrOf (k + 731)⟩ :=
+      Eventually (step1 Host.exe) (Goal a s c m0) ⟨dd, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b87Offset)⟩ :=
     fun dd hbd hrb hc ↦ by
       have hnone : runL s c m0 = none := by rw [hrun]; exact rest1_false hc
       exact exit50 hp hpre hWo hbd (by rw [hrb, hnone]; rfl)

@@ -46,7 +46,7 @@ structure WMem (m0 : MachineData) (a : DecArea) (s' : TState) (t0 t1 t2 beta : E
 structure WHead [Host] (k : Nat) (m0 : MachineData) (a : DecArea) (s' : TState)
     (t0 t1 t2 beta : EW) (mu point eq : Array EW) (j : Nat) (st : MachineState) : Prop where
   lt : j < 1600
-  pc : st.pc = Host.addrOf (k + 613)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b57Offset)
   body : Body m0 st.data
   x19 : st.data.regs.X19.toNat = j
   x26 : st.data.regs.X26.toNat = 25600 - 16 * j

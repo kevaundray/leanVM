@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfComputedBytecodeValue.Names
 public import NativeRustcVmArm.Arrays.MultilinearEvalByOfComputedBytecodeValue.Step
 
 /-!
@@ -59,11 +61,11 @@ theorem gt63_iff (x : BitVec 64) :
 variable [Host] {k : Nat}
 
 /-- **The outer loop**: from entry `0`, the postcondition. -/
-theorem outerLoop (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem outerLoop (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : LPre m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 125)) (hO : Outer m0 0 s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4Offset)) (hO : Outer m0 0 s.data) :
     Eventually (step1 Host.exe) (Post m0) s := by
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 125) ∧ ∃ i, nn m0 - i = n ∧ Outer m0 i s.data)
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4Offset) ∧ ∃ i, nn m0 - i = n ∧ Outer m0 i s.data)
     (fun n s ⟨hpc, i, hn, hO⟩ ↦ ?_) ⟨hpc, 0, rfl, hO⟩
   refine Eventually.bind (outer hp hpre hpc hO) fun s1 ⟨hpc1, hI⟩ ↦ ?_
   refine Eventually.mono (innerLoop hp hmul hpre hpc1 hI) fun s' h ↦ ?_
@@ -73,12 +75,12 @@ theorem outerLoop (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
 
 /-- **`0` returned** (`b17`, the epilogue) when the value is `0`. -/
 theorem zero (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 mleStack) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 178)) (hb : Body m0 1232 mleStack slots0 0 0 s.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17Offset)) (hb : Body m0 1232 mleStack slots0 0 0 s.data)
     (h0 : target m0 = 0) : Eventually (step1 Host.exe) (Post m0) s :=
   exec_at (hb17 hp) run_b17 (Env.wf_nil _) hpc (match_nil _) fun s2 hm2 hpc2 ↦ by
     have bd2 := hb.of_block (match_nil _) hm2 (Env.wf_nil _) rfl
       (by rw [kept_nil.2]; exact after_eq run_b17 ▸ keeps.2.2.2.2.2.2.2.2.2.2.1)
-    simp only [PcOk, show b17.length = 3 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17Length] at hpc2
     refine finish hp hS b18_restores.1 (by simp [slots0]) hpc2 bd2 ?_
     rw [h0]
     show (⟨s2.data.regs.getXReg .X22, s2.data.regs.getXReg .X23⟩ : EW) = 0
@@ -87,15 +89,15 @@ theorem zero (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 mleStack) 
 
 /-- **`multilinear_eval_by` (`computed_bytecode_value`'s closure) meets its contract.** -/
 theorem mleOfComputedBytecodeValue_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label mleOfComputedBytecodeValueLabel) MleOfComputedBytecodeValuePre
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.entryLabel) MleOfComputedBytecodeValuePre
       MleOfComputedBytecodeValuePost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hS, h02, hrW, hoW, hrP⟩ := hpre
   obtain ⟨hwf, hm⟩ := entry_match hS (show 1232 ≤ mleStack by decide) rfl
   refine exec_then (hb0 hp) run_b0 hwf hm fun s1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 11 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0Length] at hpc1
   have hpc1' := pc_cond hpc1
   have e02 : m0.regs.X0.toNat = m0.regs.X2.toNat := congrArg UInt64.toNat h02
   have e4 : (m0.regs.getXReg .X4).toBitVec.toNat = m0.regs.X4.toNat := rfl
@@ -116,7 +118,7 @@ theorem mleOfComputedBytecodeValue_spec (hp : Placed code k)
         !(low .W64 (m0.regs.getXReg .X4).toBitVec == low .W64 (BitVec.ofNat 64 63))) = true
       rw [gt63_iff, e4]; exact h64)
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf hpc2 hm1 fun s2 hm2 hpc3 ↦ ?_
-    simp only [PcOk, show b1.length = 108 from rfl] at hpc3
+    simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b1_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b1Length] at hpc3
     sym_simp at hpc3
     have hpc3' := pc_cond hpc3
     by_cases hz : m0.regs.X2.toNat = 0
@@ -141,7 +143,7 @@ theorem mleOfComputedBytecodeValue_spec (hp : Placed code k)
       simp only [BitVec.toNat_ofNat, Nat.zero_mod] at this
       exact hz (e02 ▸ this))
     refine exec_at (hb2 hp) (exec_after run_b1 run_b2) hwf hpc4 hm2 fun s3 hm3 hpc5 ↦ ?_
-    simp only [PcOk, show b2.length = 1 from rfl] at hpc5
+    simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b2_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b2Length] at hpc5
     sym_simp at hpc5
     have hpc5' := pc_cond hpc5
     by_cases hz4 : m0.regs.X4.toNat = 0
@@ -153,7 +155,7 @@ theorem mleOfComputedBytecodeValue_spec (hp : Placed code k)
       refine exec_at (hb15 hp) (exec_after run_b2 run_b15) hwf (hpc6.trans (lbl_11 hp)) hm3
         fun s4 hm4 hpc7 ↦ ?_
       have bd4 := body_of hS hm4 (after_eq run_b15 ▸ b15_frame) kept_nil.2
-      simp only [PcOk, show b15.length = 2 from rfl] at hpc7
+      simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15Length] at hpc7
       sym_simp at hpc7
       have hpc7' := (pc_cond hpc7).2 (by
         show ¬((m0.regs.getXReg .X2).toBitVec == 0#64) = true
@@ -194,7 +196,7 @@ theorem mleOfComputedBytecodeValue_spec (hp : Placed code k)
         intro h
         exact hz4 (congrArg BitVec.toNat h))
       refine exec_at (hb3 hp) (exec_after run_b2 run_b3) hwf hpc6 hm3 fun s4 hm4 hpc7 ↦ ?_
-      simp only [PcOk, show b3.length = 5 from rfl] at hpc7
+      simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b3_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b3Length] at hpc7
       have bd4 := body_of hS hm4 (after_eq run_b3 ▸ b3_frame) kept_nil.1
       have hw := after_eq run_b3 ▸ b3_words
       simp only [List.all_eq_true, List.mem_range, beq_iff_eq] at hw

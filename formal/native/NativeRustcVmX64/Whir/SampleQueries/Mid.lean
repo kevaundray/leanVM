@@ -50,10 +50,10 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {m0 : MachineData}
 theorem b12_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat} {s : TState}
     {qs : List UInt64} {st : MachineData} (hB : AtB12 a s0 m0 j r s qs st) :
     Eventually (step1 Host.exe) (fun st' ↦
-      (st'.pc = Host.addrOf (k + 40) ∧ AtB9 a s0 m0 j r (nOf m0 r) (sq s).2
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b9Offset) ∧ AtB9 a s0 m0 j r (nOf m0 r) (sq s).2
         (qs ++ (chunk (dep m0) (sq s).1 (nOf m0 r)).toList) st'.data) ∨
-      (st'.pc = Host.addrOf (k + 59) ∧ AtB13 a s0 m0 j r s qs st'.data))
-      ⟨st, Host.addrOf (k + 51)⟩ := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b13Offset) ∧ AtB13 a s0 m0 j r s qs st'.data))
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b12Offset)⟩ := by
   have hcnt := pre_cnt h
   have hdl := hB.dlt
   have hlen := hB.len
@@ -117,7 +117,7 @@ theorem b12_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat}
   rw [hc] at hpc1
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hd0 : dep m0 = 0
-  · have hpc := (hT (decide_eq_true hd0)).trans (hp.label (j := 40) rfl)
+  · have hpc := (hT (decide_eq_true hd0)).trans (hp.label NativeRustcVmX64.Vm.SampleQueries.label_10_at)
     have hn0 : nOf m0 r = 0 := by simp [nOf, hd0]
     have hch : (chunk (dep m0) (sq s).1 (nOf m0 r)).toList = [] := by rw [hn0]; simp [chunk]
     refine .done _ (.inl ⟨hpc, ⟨hc1, loc_keep hwf hm1 hin (by omega) hm24 hB.tw, hrax, hn,
@@ -147,8 +147,8 @@ theorem b12_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat}
 /-- **`b13`**: the inner loop's locals; its head. -/
 theorem b13_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat} {s : TState}
     {qs : List UInt64} {st : MachineData} (hB : AtB13 a s0 m0 j r s qs st) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 77) ∧
-      Inner a s0 m0 j r s qs 0 st'.data) ⟨st, Host.addrOf (k + 59)⟩ := by
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b14Offset) ∧
+      Inner a s0 m0 j r s qs 0 st'.data) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b13Offset)⟩ := by
   have hcnt := pre_cnt h
   have hdl := hB.dlt
   have hlen := hB.len

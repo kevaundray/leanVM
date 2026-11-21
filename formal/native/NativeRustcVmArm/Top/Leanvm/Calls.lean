@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Decode.Names
 public import NativeRustcVmArm.Top.Leanvm.Stage2
 
 /-!
@@ -26,7 +27,7 @@ open LeanVM.Parameters (E)
     Prop :=
   (decodeM bytes = none ∧ st.pc = retOf m0 ∧ st.data.regs.X0 = 0 ∧
       SameOutside m0.dmem st.data.dmem (R2 a bytes.length m0) ∧ Saved m0 st.data) ∨
-    (∃ r, decodeM bytes = some r ∧ st.pc = Host.addrOf (k + 75) ∧
+    (∃ r, decodeM bytes = some r ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b17Offset) ∧
       C2 a bytes bytecode pub m0 st.data r)
 
 public section
@@ -80,10 +81,10 @@ theorem preCall {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64}
   unfold InStack; omega
 
 /-- **`decode`'s call**, its return at `next`. -/
-theorem callDecode (hdec : Spec (Labels.label decodeLabel) DecodePre DecodePost)
+theorem callDecode (hdec : Spec (Labels.label NativeRustcVmArm.Vm.Decode.entryLabel) DecodePre DecodePost)
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    {next : Int64} (hpc : PcOk (Env.ofMachine st.data []) (.call decodeLabel) next st)
+    {next : Int64} (hpc : PcOk (Env.ofMachine st.data []) (.call NativeRustcVmArm.Vm.Decode.entryLabel) next st)
     (hP : PreCall a bytes bytecode pub m0 st.data) (hD : DecodePre st.data)
     (hBy : BytesAt st.data.dmem st.data.regs.X0.toBitVec bytes)
     (hX1 : st.data.regs.X1.toNat = bytes.length)

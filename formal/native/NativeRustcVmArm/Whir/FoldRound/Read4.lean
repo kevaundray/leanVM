@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Whir.FoldRound.Read3
 
 /-!
@@ -20,11 +22,11 @@ variable [Host] {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : MachineData} 
 
 /-- **The prologue, the four scalars, the grind.** -/
 theorem reads (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (cont : ∀ st s5 u0 v c0 c1, st.pc = Host.addrOf (k + 38) →
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (cont : ∀ st s5 u0 v c0 c1, st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b10Offset) →
       AtB10 a s0 w m0 s5 u0 v c0 c1 st.data → Eventually (step1 Host.exe) (Goal a s0 w m0) st) :
-    Eventually (step1 Host.exe) (Goal a s0 w m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 w m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b0Offset)⟩ := by
   refine stage1 hp h hrs fun st1 hpc1 hb1 haft1 ↦ ?_
   -- `b1`: the first tag
   refine frame_block h b1_in_code (by simp [b1]) run_b1 rfl rfl hpc1 hp hb1
@@ -46,7 +48,7 @@ theorem reads (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
   cases hr1 : readScalar.run s0 with
   | none =>
     simp only [hr1, Option.isSome_none, Bool.not_false, ↓reduceIte,
-      hp.label (j := 108) rfl] at hpc2
+      hp.label (j := NativeRustcVmArm.Vm.FoldRound.b21Offset) NativeRustcVmArm.Vm.FoldRound.label_8_at] at hpc2
     refine none0_exit hp h (by rw [foldRound_run, hr1]; rfl) hpc2 hb2 ?_
     refine reg_of hm2 (r := .X8) rfl ?_
     show (frameEnv m0 st1.data).load 0 88 8 = _
@@ -54,7 +56,7 @@ theorem reads (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
   | some p1 =>
     obtain ⟨u0, s1⟩ := p1
     simp only [hr1, Option.isSome_some, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-      show k + 13 + b1.length = k + 15 from rfl] at hpc2
+      show k + NativeRustcVmArm.Vm.FoldRound.b1Offset + b1.length = k + NativeRustcVmArm.Vm.FoldRound.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FoldRound.b1_next]] at hpc2
     have hopt1 := haft1.opt
     rw [hr1] at hopt1
     refine load_rs hp h hrs b2_in_code (by simp [b2]) run_b2 rfl rfl (rA := .X29) (rB := .X24)

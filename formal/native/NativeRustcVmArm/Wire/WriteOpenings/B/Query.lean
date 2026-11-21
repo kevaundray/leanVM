@@ -66,11 +66,11 @@ theorem b36_step (hp : Placed code R.k) (G : Geo R) (hlw0 : 0 < R.lw) {st : Mach
       rw [show s2.data.regs.X0 = s2.data.regs.getXReg .X0 from rfl,
         Match.reg_eq hm2 hm2' (v := .reg .X0) rfl rfl]
       exact hx0
-    simp only [PcOk, hp.label (j := 223) rfl] at hpc2
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b46Offset) NativeRustcVmArm.Vm.WriteOpenings.label_39_at] at hpc2
     refine Eventually.mono (end_spec hp G ⟨hpc2, hfr2, .inl ⟨hx0', ?_⟩⟩) fun _ h ↦ .inl h
     rw [hd2, ← hend]
     exact hdone
-  · simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 143) rfl]
+  · simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b25Offset) NativeRustcVmArm.Vm.WriteOpenings.label_22_at]
       at hpc1
     refine .done _ (.inr ⟨hpc1, hfr1, by rw [hk1 .X1 (by simp)]; exact C.rb.x1,
       by rw [hk1 .X2 (by simp)]; exact C.rb.x2, by rw [hk1 .X3 (by simp)]; exact C.rb.x3,

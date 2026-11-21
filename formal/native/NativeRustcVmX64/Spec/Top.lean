@@ -4,6 +4,10 @@ public import NativeRustcVmX64.Spec.Wire
 public import NativeRustcVmX64.Spec.Transcript
 public import NativeRustcVmX64.Rodata
 public import NativeRustcVm.Top.Entry
+public import NativeRustcVmX64.Code.Vm.LeanvmVerify.Names
+public import NativeRustcVmX64.Code.Vm.Seed.Names
+public import NativeRustcVmX64.Code.Vm.Verify.Names
+public import NativeRustcVmX64.Code.Vm.VerifyExecution.Names
 
 /-!
 # The contracts of `verify.rs`'s `seed`, `verify_execution`, `verify` and of `leanvm_verify` on
@@ -43,17 +47,6 @@ open NativeRustcX64 (Spec StackOk Saved stackBelow rspOf reg)
 open LeanVM.Parameters LeanVM.Semantics LeanVM.Protocol.Compile LeanVM.Protocol.Verifier
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `seed`'s symbol. -/
-def seedLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify4seed"
-/-- `verify_execution`'s symbol. -/
-def verifyExecutionLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify16verify_execution"
-/-- `verify`'s symbol. -/
-def verifyLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify6verify"
-/-- `leanvm_verify`'s symbol. -/
-def leanvmVerifyLabel : Label := "leanvm_verify"
 
 /-! ## Stacks -/
 

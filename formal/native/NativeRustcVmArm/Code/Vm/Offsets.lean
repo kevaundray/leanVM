@@ -13,7194 +13,7474 @@ namespace NativeRustcVmArm.Vm
 -- One lemma at a time: many kernel checks at once exceed a 60 GB address-space limit.
 set_option Elab.async false
 
-public theorem SumcheckOfSumcheckPlain.code_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.code.IsInfixAt NativeRustcVmArm.Vm.code 0 :=
+@[expose] public def SumcheckOfSumcheckPlain.programOffset : Nat := 0
+
+public theorem SumcheckOfSumcheckPlain.code_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.code.IsInfixAt NativeRustcVmArm.Vm.code SumcheckOfSumcheckPlain.programOffset :=
   List.isInfixAt_flatten_of (i := 0) rfl (by decide +kernel)
 
-public theorem SumcheckOfSumcheckPlain.b0_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b0.IsInfixAt NativeRustcVmArm.Vm.code 0 :=
+public theorem SumcheckOfSumcheckPlain.b0_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b0.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b0Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b0_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b1_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b1.IsInfixAt NativeRustcVmArm.Vm.code 12 :=
+public theorem SumcheckOfSumcheckPlain.b1_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b1.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b1Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b1_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b2_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b2.IsInfixAt NativeRustcVmArm.Vm.code 16 :=
+public theorem SumcheckOfSumcheckPlain.b2_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b2.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b2Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b2_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b3_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b3.IsInfixAt NativeRustcVmArm.Vm.code 23 :=
+public theorem SumcheckOfSumcheckPlain.b3_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b3.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b3Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b3_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b4_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b4.IsInfixAt NativeRustcVmArm.Vm.code 24 :=
+public theorem SumcheckOfSumcheckPlain.b4_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b4.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b4Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b4_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b5_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b5.IsInfixAt NativeRustcVmArm.Vm.code 26 :=
+public theorem SumcheckOfSumcheckPlain.b5_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b5.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b5Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b5_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b6_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b6.IsInfixAt NativeRustcVmArm.Vm.code 32 :=
+public theorem SumcheckOfSumcheckPlain.b6_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b6.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b6Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b6_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b7_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7.IsInfixAt NativeRustcVmArm.Vm.code 36 :=
+public theorem SumcheckOfSumcheckPlain.b7_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfSumcheckPlain.b8_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8.IsInfixAt NativeRustcVmArm.Vm.code 45 :=
+public theorem SumcheckOfSumcheckPlain.b8_at : NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfSumcheckPlain.programOffset + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8_in_code.trans SumcheckOfSumcheckPlain.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.code_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.code.IsInfixAt NativeRustcVmArm.Vm.code 52 :=
+@[expose] public def SumcheckOfVerifyLayer.programOffset : Nat := 52
+
+public theorem SumcheckOfVerifyLayer.code_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.code.IsInfixAt NativeRustcVmArm.Vm.code SumcheckOfVerifyLayer.programOffset :=
   List.isInfixAt_flatten_of (i := 1) rfl (by decide +kernel)
 
-public theorem SumcheckOfVerifyLayer.b0_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b0.IsInfixAt NativeRustcVmArm.Vm.code 52 :=
+public theorem SumcheckOfVerifyLayer.b0_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b0.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b0Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b0_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b1_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b1.IsInfixAt NativeRustcVmArm.Vm.code 65 :=
+public theorem SumcheckOfVerifyLayer.b1_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b1.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b1Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b1_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b2_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b2.IsInfixAt NativeRustcVmArm.Vm.code 71 :=
+public theorem SumcheckOfVerifyLayer.b2_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b2.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b2Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b2_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b3_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b3.IsInfixAt NativeRustcVmArm.Vm.code 74 :=
+public theorem SumcheckOfVerifyLayer.b3_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b3.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b3Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b3_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b4_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b4.IsInfixAt NativeRustcVmArm.Vm.code 78 :=
+public theorem SumcheckOfVerifyLayer.b4_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b4.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b4Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b4_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b5_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b5.IsInfixAt NativeRustcVmArm.Vm.code 80 :=
+public theorem SumcheckOfVerifyLayer.b5_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b5.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b5Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b5_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b6_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b6.IsInfixAt NativeRustcVmArm.Vm.code 87 :=
+public theorem SumcheckOfVerifyLayer.b6_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b6.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b6Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b6_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b7_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b7.IsInfixAt NativeRustcVmArm.Vm.code 88 :=
+public theorem SumcheckOfVerifyLayer.b7_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b7.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b7Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b7_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b8_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b8.IsInfixAt NativeRustcVmArm.Vm.code 90 :=
+public theorem SumcheckOfVerifyLayer.b8_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b8.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b8Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b8_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b9_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b9.IsInfixAt NativeRustcVmArm.Vm.code 96 :=
+public theorem SumcheckOfVerifyLayer.b9_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b9.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b9Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b9_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b10_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10.IsInfixAt NativeRustcVmArm.Vm.code 102 :=
+public theorem SumcheckOfVerifyLayer.b10_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b11_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b11.IsInfixAt NativeRustcVmArm.Vm.code 106 :=
+public theorem SumcheckOfVerifyLayer.b11_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b11.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b11Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b11_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfVerifyLayer.b12_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b12.IsInfixAt NativeRustcVmArm.Vm.code 108 :=
+public theorem SumcheckOfVerifyLayer.b12_at : NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b12.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfVerifyLayer.programOffset + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b12Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b12_in_code.trans SumcheckOfVerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.code_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.code.IsInfixAt NativeRustcVmArm.Vm.code 116 :=
+@[expose] public def SumcheckOfGkrStep.programOffset : Nat := 116
+
+public theorem SumcheckOfGkrStep.code_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.code.IsInfixAt NativeRustcVmArm.Vm.code SumcheckOfGkrStep.programOffset :=
   List.isInfixAt_flatten_of (i := 2) rfl (by decide +kernel)
 
-public theorem SumcheckOfGkrStep.b0_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b0.IsInfixAt NativeRustcVmArm.Vm.code 116 :=
+public theorem SumcheckOfGkrStep.b0_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b0.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b0Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b0_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b1_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b1.IsInfixAt NativeRustcVmArm.Vm.code 131 :=
+public theorem SumcheckOfGkrStep.b1_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b1.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b1Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b1_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b2_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2.IsInfixAt NativeRustcVmArm.Vm.code 138 :=
+public theorem SumcheckOfGkrStep.b2_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b3_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b3.IsInfixAt NativeRustcVmArm.Vm.code 141 :=
+public theorem SumcheckOfGkrStep.b3_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b3.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b3Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b3_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b4_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b4.IsInfixAt NativeRustcVmArm.Vm.code 145 :=
+public theorem SumcheckOfGkrStep.b4_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b4.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b4Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b4_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b5_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b5.IsInfixAt NativeRustcVmArm.Vm.code 147 :=
+public theorem SumcheckOfGkrStep.b5_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b5.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b5Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b5_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b6_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b6.IsInfixAt NativeRustcVmArm.Vm.code 154 :=
+public theorem SumcheckOfGkrStep.b6_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b6.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b6Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b6_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b7_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b7.IsInfixAt NativeRustcVmArm.Vm.code 155 :=
+public theorem SumcheckOfGkrStep.b7_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b7.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b7Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b7_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b8_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b8.IsInfixAt NativeRustcVmArm.Vm.code 157 :=
+public theorem SumcheckOfGkrStep.b8_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b8.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b8Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b8_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b9_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b9.IsInfixAt NativeRustcVmArm.Vm.code 163 :=
+public theorem SumcheckOfGkrStep.b9_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b9.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b9Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b9_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b10_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10.IsInfixAt NativeRustcVmArm.Vm.code 169 :=
+public theorem SumcheckOfGkrStep.b10_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b11_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b11.IsInfixAt NativeRustcVmArm.Vm.code 173 :=
+public theorem SumcheckOfGkrStep.b11_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b11.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b11Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b11_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem SumcheckOfGkrStep.b12_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b12.IsInfixAt NativeRustcVmArm.Vm.code 175 :=
+public theorem SumcheckOfGkrStep.b12_at : NativeRustcVmArm.Vm.SumcheckOfGkrStep.b12.IsInfixAt NativeRustcVmArm.Vm.code (SumcheckOfGkrStep.programOffset + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b12Offset) :=
   NativeRustcVmArm.Vm.SumcheckOfGkrStep.b12_in_code.trans SumcheckOfGkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.code_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.code.IsInfixAt NativeRustcVmArm.Vm.code 184 :=
+@[expose] public def EachRowOfNextLevel.programOffset : Nat := 184
+
+public theorem EachRowOfNextLevel.code_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.code.IsInfixAt NativeRustcVmArm.Vm.code EachRowOfNextLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 3) rfl (by decide +kernel)
 
-public theorem EachRowOfNextLevel.b0_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code 184 :=
+public theorem EachRowOfNextLevel.b0_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b0Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b0_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b1_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code 202 :=
+public theorem EachRowOfNextLevel.b1_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b1Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b1_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b2_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code 204 :=
+public theorem EachRowOfNextLevel.b2_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b2Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b2_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b3_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code 211 :=
+public theorem EachRowOfNextLevel.b3_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b3Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b3_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b4_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code 214 :=
+public theorem EachRowOfNextLevel.b4_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b4Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b4_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b5_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code 231 :=
+public theorem EachRowOfNextLevel.b5_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b5Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b5_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b6_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code 233 :=
+public theorem EachRowOfNextLevel.b6_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b6Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b6_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b7_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code 240 :=
+public theorem EachRowOfNextLevel.b7_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b7Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b7_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b8_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code 247 :=
+public theorem EachRowOfNextLevel.b8_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b8Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b8_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b9_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code 249 :=
+public theorem EachRowOfNextLevel.b9_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b9Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b9_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b10_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code 382 :=
+public theorem EachRowOfNextLevel.b10_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b10Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b10_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b11_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code 389 :=
+public theorem EachRowOfNextLevel.b11_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b11Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b11_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b12_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code 391 :=
+public theorem EachRowOfNextLevel.b12_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b12Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b12_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b13_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code 395 :=
+public theorem EachRowOfNextLevel.b13_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b13Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b13_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b14_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code 402 :=
+public theorem EachRowOfNextLevel.b14_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b14Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b14_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b15_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code 413 :=
+public theorem EachRowOfNextLevel.b15_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b15Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b15_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b16_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code 414 :=
+public theorem EachRowOfNextLevel.b16_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b16Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b16_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b17_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code 418 :=
+public theorem EachRowOfNextLevel.b17_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b17Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b17_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b18_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code 420 :=
+public theorem EachRowOfNextLevel.b18_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b18Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b18_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b19_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code 424 :=
+public theorem EachRowOfNextLevel.b19_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b19Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b19_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b20_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b20.IsInfixAt NativeRustcVmArm.Vm.code 428 :=
+public theorem EachRowOfNextLevel.b20_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b20.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b20Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b20_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b21_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b21.IsInfixAt NativeRustcVmArm.Vm.code 431 :=
+public theorem EachRowOfNextLevel.b21_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b21.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b21Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b21_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b22_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b22.IsInfixAt NativeRustcVmArm.Vm.code 434 :=
+public theorem EachRowOfNextLevel.b22_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b22.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b22Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b22_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b23_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b23.IsInfixAt NativeRustcVmArm.Vm.code 437 :=
+public theorem EachRowOfNextLevel.b23_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b23.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b23Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b23_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfNextLevel.b24_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b24.IsInfixAt NativeRustcVmArm.Vm.code 439 :=
+public theorem EachRowOfNextLevel.b24_at : NativeRustcVmArm.Vm.EachRowOfNextLevel.b24.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfNextLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfNextLevel.b24Offset) :=
   NativeRustcVmArm.Vm.EachRowOfNextLevel.b24_in_code.trans EachRowOfNextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.code_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.code.IsInfixAt NativeRustcVmArm.Vm.code 448 :=
+@[expose] public def EachRowOfFinalLevel.programOffset : Nat := 448
+
+public theorem EachRowOfFinalLevel.code_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.code.IsInfixAt NativeRustcVmArm.Vm.code EachRowOfFinalLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 4) rfl (by decide +kernel)
 
-public theorem EachRowOfFinalLevel.b0_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code 448 :=
+public theorem EachRowOfFinalLevel.b0_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b0Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b0_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b1_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code 468 :=
+public theorem EachRowOfFinalLevel.b1_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b1Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b1_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b2_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code 470 :=
+public theorem EachRowOfFinalLevel.b2_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b2Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b2_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b3_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code 477 :=
+public theorem EachRowOfFinalLevel.b3_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b3Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b3_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b4_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code 480 :=
+public theorem EachRowOfFinalLevel.b4_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b4Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b4_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b5_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code 491 :=
+public theorem EachRowOfFinalLevel.b5_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b6_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code 493 :=
+public theorem EachRowOfFinalLevel.b6_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b6Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b6_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b7_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code 625 :=
+public theorem EachRowOfFinalLevel.b7_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b7Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b7_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b8_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code 632 :=
+public theorem EachRowOfFinalLevel.b8_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b8Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b8_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b9_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code 634 :=
+public theorem EachRowOfFinalLevel.b9_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b9Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b9_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b10_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code 639 :=
+public theorem EachRowOfFinalLevel.b10_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b10Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b10_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b11_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code 645 :=
+public theorem EachRowOfFinalLevel.b11_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b11Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b11_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b12_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code 654 :=
+public theorem EachRowOfFinalLevel.b12_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b12Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b12_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b13_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code 656 :=
+public theorem EachRowOfFinalLevel.b13_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b13Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b13_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b14_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code 659 :=
+public theorem EachRowOfFinalLevel.b14_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b14Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b14_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b15_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code 662 :=
+public theorem EachRowOfFinalLevel.b15_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b15Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b15_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b16_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code 666 :=
+public theorem EachRowOfFinalLevel.b16_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b17_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code 669 :=
+public theorem EachRowOfFinalLevel.b17_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EachRowOfFinalLevel.b18_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code 671 :=
+public theorem EachRowOfFinalLevel.b18_at : NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code (EachRowOfFinalLevel.programOffset + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18Offset) :=
   NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18_in_code.trans EachRowOfFinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEvalFnOfEqAbove.code_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.code.IsInfixAt NativeRustcVmArm.Vm.code 680 :=
+@[expose] public def EqEvalFnOfEqAbove.programOffset : Nat := 680
+
+public theorem EqEvalFnOfEqAbove.code_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.code.IsInfixAt NativeRustcVmArm.Vm.code EqEvalFnOfEqAbove.programOffset :=
   List.isInfixAt_flatten_of (i := 5) rfl (by decide +kernel)
 
-public theorem EqEvalFnOfEqAbove.b0_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0.IsInfixAt NativeRustcVmArm.Vm.code 680 :=
+public theorem EqEvalFnOfEqAbove.b0_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0.IsInfixAt NativeRustcVmArm.Vm.code (EqEvalFnOfEqAbove.programOffset + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0Offset) :=
   NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0_in_code.trans EqEvalFnOfEqAbove.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEvalFnOfEqAbove.b1_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b1.IsInfixAt NativeRustcVmArm.Vm.code 687 :=
+public theorem EqEvalFnOfEqAbove.b1_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b1.IsInfixAt NativeRustcVmArm.Vm.code (EqEvalFnOfEqAbove.programOffset + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b1Offset) :=
   NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b1_in_code.trans EqEvalFnOfEqAbove.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEvalFnOfEqAbove.b2_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2.IsInfixAt NativeRustcVmArm.Vm.code 692 :=
+public theorem EqEvalFnOfEqAbove.b2_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2.IsInfixAt NativeRustcVmArm.Vm.code (EqEvalFnOfEqAbove.programOffset + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Offset) :=
   NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2_in_code.trans EqEvalFnOfEqAbove.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEvalFnOfEqAbove.b3_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b3.IsInfixAt NativeRustcVmArm.Vm.code 700 :=
+public theorem EqEvalFnOfEqAbove.b3_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b3.IsInfixAt NativeRustcVmArm.Vm.code (EqEvalFnOfEqAbove.programOffset + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b3Offset) :=
   NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b3_in_code.trans EqEvalFnOfEqAbove.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEvalFnOfEqAbove.b4_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b4.IsInfixAt NativeRustcVmArm.Vm.code 703 :=
+public theorem EqEvalFnOfEqAbove.b4_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b4.IsInfixAt NativeRustcVmArm.Vm.code (EqEvalFnOfEqAbove.programOffset + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b4Offset) :=
   NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b4_in_code.trans EqEvalFnOfEqAbove.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEvalFnOfEqAbove.b5_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b5.IsInfixAt NativeRustcVmArm.Vm.code 707 :=
+public theorem EqEvalFnOfEqAbove.b5_at : NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b5.IsInfixAt NativeRustcVmArm.Vm.code (EqEvalFnOfEqAbove.programOffset + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b5Offset) :=
   NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b5_in_code.trans EqEvalFnOfEqAbove.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.code_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.code.IsInfixAt NativeRustcVmArm.Vm.code 714 :=
+@[expose] public def MultilinearEvalByOfMultilinearEval.programOffset : Nat := 714
+
+public theorem MultilinearEvalByOfMultilinearEval.code_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.code.IsInfixAt NativeRustcVmArm.Vm.code MultilinearEvalByOfMultilinearEval.programOffset :=
   List.isInfixAt_flatten_of (i := 6) rfl (by decide +kernel)
 
-public theorem MultilinearEvalByOfMultilinearEval.b0_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b0.IsInfixAt NativeRustcVmArm.Vm.code 714 :=
+public theorem MultilinearEvalByOfMultilinearEval.b0_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b0.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b0Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b0_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b1_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b1.IsInfixAt NativeRustcVmArm.Vm.code 831 :=
+public theorem MultilinearEvalByOfMultilinearEval.b1_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b1.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b1Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b1_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b2_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b2.IsInfixAt NativeRustcVmArm.Vm.code 832 :=
+public theorem MultilinearEvalByOfMultilinearEval.b2_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b2.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b2Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b2_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b3_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3.IsInfixAt NativeRustcVmArm.Vm.code 837 :=
+public theorem MultilinearEvalByOfMultilinearEval.b3_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b4_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b4.IsInfixAt NativeRustcVmArm.Vm.code 841 :=
+public theorem MultilinearEvalByOfMultilinearEval.b4_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b4.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b4Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b4_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b5_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b5.IsInfixAt NativeRustcVmArm.Vm.code 845 :=
+public theorem MultilinearEvalByOfMultilinearEval.b5_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b5.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b5Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b5_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b6_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b6.IsInfixAt NativeRustcVmArm.Vm.code 848 :=
+public theorem MultilinearEvalByOfMultilinearEval.b6_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b6.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b6Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b6_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b7_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7.IsInfixAt NativeRustcVmArm.Vm.code 854 :=
+public theorem MultilinearEvalByOfMultilinearEval.b7_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b8_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b8.IsInfixAt NativeRustcVmArm.Vm.code 857 :=
+public theorem MultilinearEvalByOfMultilinearEval.b8_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b8.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b8Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b8_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b9_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b9.IsInfixAt NativeRustcVmArm.Vm.code 863 :=
+public theorem MultilinearEvalByOfMultilinearEval.b9_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b9.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b9Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b9_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b10_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b10.IsInfixAt NativeRustcVmArm.Vm.code 870 :=
+public theorem MultilinearEvalByOfMultilinearEval.b10_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b10.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b10Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b10_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b11_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b11.IsInfixAt NativeRustcVmArm.Vm.code 875 :=
+public theorem MultilinearEvalByOfMultilinearEval.b11_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b11.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b11Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b11_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b12_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b12.IsInfixAt NativeRustcVmArm.Vm.code 876 :=
+public theorem MultilinearEvalByOfMultilinearEval.b12_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b12.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b12Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b12_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b13_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b13.IsInfixAt NativeRustcVmArm.Vm.code 885 :=
+public theorem MultilinearEvalByOfMultilinearEval.b13_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b13.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b13Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b13_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b14_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b14.IsInfixAt NativeRustcVmArm.Vm.code 886 :=
+public theorem MultilinearEvalByOfMultilinearEval.b14_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b14.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b14Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b14_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b15_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b15.IsInfixAt NativeRustcVmArm.Vm.code 888 :=
+public theorem MultilinearEvalByOfMultilinearEval.b15_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b15.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b15Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b15_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b16_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b16.IsInfixAt NativeRustcVmArm.Vm.code 890 :=
+public theorem MultilinearEvalByOfMultilinearEval.b16_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b16.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b16Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b16_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfMultilinearEval.b17_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b17.IsInfixAt NativeRustcVmArm.Vm.code 893 :=
+public theorem MultilinearEvalByOfMultilinearEval.b17_at : NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b17.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfMultilinearEval.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b17Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b17_in_code.trans MultilinearEvalByOfMultilinearEval.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.code_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.code.IsInfixAt NativeRustcVmArm.Vm.code 904 :=
+@[expose] public def MultilinearEvalByOfComputedBytecodeValue.programOffset : Nat := 904
+
+public theorem MultilinearEvalByOfComputedBytecodeValue.code_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.code.IsInfixAt NativeRustcVmArm.Vm.code MultilinearEvalByOfComputedBytecodeValue.programOffset :=
   List.isInfixAt_flatten_of (i := 7) rfl (by decide +kernel)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b0_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0.IsInfixAt NativeRustcVmArm.Vm.code 904 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b0_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b1_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b1.IsInfixAt NativeRustcVmArm.Vm.code 915 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b1_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b1.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b1Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b1_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b2_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b2.IsInfixAt NativeRustcVmArm.Vm.code 1023 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b2_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b2.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b2Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b2_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b3_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b3.IsInfixAt NativeRustcVmArm.Vm.code 1024 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b3_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b3.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b3Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b3_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b4_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4.IsInfixAt NativeRustcVmArm.Vm.code 1029 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b4_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b5_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b5.IsInfixAt NativeRustcVmArm.Vm.code 1033 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b5_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b5.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b5Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b5_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b6_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b6.IsInfixAt NativeRustcVmArm.Vm.code 1036 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b6_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b6.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b6Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b6_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b7_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b7.IsInfixAt NativeRustcVmArm.Vm.code 1038 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b7_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b7.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b7Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b7_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b8_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8.IsInfixAt NativeRustcVmArm.Vm.code 1045 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b8_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b9_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9.IsInfixAt NativeRustcVmArm.Vm.code 1048 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b9_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b10_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b10.IsInfixAt NativeRustcVmArm.Vm.code 1054 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b10_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b10.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b10Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b10_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b11_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b11.IsInfixAt NativeRustcVmArm.Vm.code 1061 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b11_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b11.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b11Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b11_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b12_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b12.IsInfixAt NativeRustcVmArm.Vm.code 1066 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b12_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b12.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b12Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b12_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b13_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13.IsInfixAt NativeRustcVmArm.Vm.code 1067 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b13_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b14_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b14.IsInfixAt NativeRustcVmArm.Vm.code 1076 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b14_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b14.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b14Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b14_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b15_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15.IsInfixAt NativeRustcVmArm.Vm.code 1077 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b15_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b16_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b16.IsInfixAt NativeRustcVmArm.Vm.code 1079 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b16_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b16.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b16Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b16_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b17_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17.IsInfixAt NativeRustcVmArm.Vm.code 1082 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b17_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem MultilinearEvalByOfComputedBytecodeValue.b18_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18.IsInfixAt NativeRustcVmArm.Vm.code 1085 :=
+public theorem MultilinearEvalByOfComputedBytecodeValue.b18_at : NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18.IsInfixAt NativeRustcVmArm.Vm.code (MultilinearEvalByOfComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18Offset) :=
   NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18_in_code.trans MultilinearEvalByOfComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.code_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.code.IsInfixAt NativeRustcVmArm.Vm.code 1096 :=
+@[expose] public def Keccak256WordsOfHashWords.programOffset : Nat := 1096
+
+public theorem Keccak256WordsOfHashWords.code_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.code.IsInfixAt NativeRustcVmArm.Vm.code Keccak256WordsOfHashWords.programOffset :=
   List.isInfixAt_flatten_of (i := 8) rfl (by decide +kernel)
 
-public theorem Keccak256WordsOfHashWords.b0_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b0.IsInfixAt NativeRustcVmArm.Vm.code 1096 :=
+public theorem Keccak256WordsOfHashWords.b0_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b0.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b0Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b0_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b1_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b1.IsInfixAt NativeRustcVmArm.Vm.code 1112 :=
+public theorem Keccak256WordsOfHashWords.b1_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b1.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b1Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b1_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b2_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b2.IsInfixAt NativeRustcVmArm.Vm.code 1121 :=
+public theorem Keccak256WordsOfHashWords.b2_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b2.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b2Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b2_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b3_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b3.IsInfixAt NativeRustcVmArm.Vm.code 1124 :=
+public theorem Keccak256WordsOfHashWords.b3_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b3.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b3Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b3_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b4_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b4.IsInfixAt NativeRustcVmArm.Vm.code 1131 :=
+public theorem Keccak256WordsOfHashWords.b4_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b4.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b4Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b4_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b5_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b5.IsInfixAt NativeRustcVmArm.Vm.code 1138 :=
+public theorem Keccak256WordsOfHashWords.b5_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b5.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b5Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b5_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b6_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b6.IsInfixAt NativeRustcVmArm.Vm.code 1145 :=
+public theorem Keccak256WordsOfHashWords.b6_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b6.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b6Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b6_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b7_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b7.IsInfixAt NativeRustcVmArm.Vm.code 1152 :=
+public theorem Keccak256WordsOfHashWords.b7_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b7.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b7Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b7_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b8_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b8.IsInfixAt NativeRustcVmArm.Vm.code 1159 :=
+public theorem Keccak256WordsOfHashWords.b8_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b8.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b8Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b8_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b9_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b9.IsInfixAt NativeRustcVmArm.Vm.code 1166 :=
+public theorem Keccak256WordsOfHashWords.b9_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b9.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b9Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b9_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b10_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b10.IsInfixAt NativeRustcVmArm.Vm.code 1173 :=
+public theorem Keccak256WordsOfHashWords.b10_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b10.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b10Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b10_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b11_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b11.IsInfixAt NativeRustcVmArm.Vm.code 1180 :=
+public theorem Keccak256WordsOfHashWords.b11_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b11.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b11Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b11_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b12_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b12.IsInfixAt NativeRustcVmArm.Vm.code 1187 :=
+public theorem Keccak256WordsOfHashWords.b12_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b12.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b12Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b12_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b13_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b13.IsInfixAt NativeRustcVmArm.Vm.code 1194 :=
+public theorem Keccak256WordsOfHashWords.b13_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b13.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b13Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b13_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b14_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b14.IsInfixAt NativeRustcVmArm.Vm.code 1201 :=
+public theorem Keccak256WordsOfHashWords.b14_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b14.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b14Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b14_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b15_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b15.IsInfixAt NativeRustcVmArm.Vm.code 1208 :=
+public theorem Keccak256WordsOfHashWords.b15_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b15.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b15Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b15_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b16_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b16.IsInfixAt NativeRustcVmArm.Vm.code 1215 :=
+public theorem Keccak256WordsOfHashWords.b16_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b16.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b16Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b16_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b17_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b17.IsInfixAt NativeRustcVmArm.Vm.code 1222 :=
+public theorem Keccak256WordsOfHashWords.b17_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b17.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b17Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b17_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b18_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b18.IsInfixAt NativeRustcVmArm.Vm.code 1229 :=
+public theorem Keccak256WordsOfHashWords.b18_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b18.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b18Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b18_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b19_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b19.IsInfixAt NativeRustcVmArm.Vm.code 1236 :=
+public theorem Keccak256WordsOfHashWords.b19_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b19.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b19Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b19_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b20_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b20.IsInfixAt NativeRustcVmArm.Vm.code 1239 :=
+public theorem Keccak256WordsOfHashWords.b20_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b20.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b20Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b20_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b21_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b21.IsInfixAt NativeRustcVmArm.Vm.code 1243 :=
+public theorem Keccak256WordsOfHashWords.b21_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b21.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b21Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b21_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b22_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b22.IsInfixAt NativeRustcVmArm.Vm.code 1245 :=
+public theorem Keccak256WordsOfHashWords.b22_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b22.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b22Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b22_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b23_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b23.IsInfixAt NativeRustcVmArm.Vm.code 1251 :=
+public theorem Keccak256WordsOfHashWords.b23_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b23.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b23Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b23_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b24_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24.IsInfixAt NativeRustcVmArm.Vm.code 1255 :=
+public theorem Keccak256WordsOfHashWords.b24_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b25_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b25.IsInfixAt NativeRustcVmArm.Vm.code 1258 :=
+public theorem Keccak256WordsOfHashWords.b25_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b25.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b25Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b25_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b26_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b26.IsInfixAt NativeRustcVmArm.Vm.code 1265 :=
+public theorem Keccak256WordsOfHashWords.b26_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b26.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b26Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b26_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b27_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b27.IsInfixAt NativeRustcVmArm.Vm.code 1272 :=
+public theorem Keccak256WordsOfHashWords.b27_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b27.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b27Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b27_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b28_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b28.IsInfixAt NativeRustcVmArm.Vm.code 1279 :=
+public theorem Keccak256WordsOfHashWords.b28_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b28.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b28Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b28_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b29_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b29.IsInfixAt NativeRustcVmArm.Vm.code 1286 :=
+public theorem Keccak256WordsOfHashWords.b29_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b29.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b29Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b29_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b30_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b30.IsInfixAt NativeRustcVmArm.Vm.code 1293 :=
+public theorem Keccak256WordsOfHashWords.b30_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b30.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b30Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b30_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b31_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b31.IsInfixAt NativeRustcVmArm.Vm.code 1300 :=
+public theorem Keccak256WordsOfHashWords.b31_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b31.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b31Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b31_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b32_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b32.IsInfixAt NativeRustcVmArm.Vm.code 1307 :=
+public theorem Keccak256WordsOfHashWords.b32_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b32.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b32Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b32_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b33_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b33.IsInfixAt NativeRustcVmArm.Vm.code 1314 :=
+public theorem Keccak256WordsOfHashWords.b33_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b33.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b33Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b33_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b34_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b34.IsInfixAt NativeRustcVmArm.Vm.code 1321 :=
+public theorem Keccak256WordsOfHashWords.b34_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b34.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b34Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b34_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b35_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b35.IsInfixAt NativeRustcVmArm.Vm.code 1328 :=
+public theorem Keccak256WordsOfHashWords.b35_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b35.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b35Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b35_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b36_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b36.IsInfixAt NativeRustcVmArm.Vm.code 1335 :=
+public theorem Keccak256WordsOfHashWords.b36_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b36.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b36Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b36_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b37_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b37.IsInfixAt NativeRustcVmArm.Vm.code 1342 :=
+public theorem Keccak256WordsOfHashWords.b37_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b37.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b37Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b37_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b38_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b38.IsInfixAt NativeRustcVmArm.Vm.code 1349 :=
+public theorem Keccak256WordsOfHashWords.b38_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b38.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b38Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b38_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b39_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b39.IsInfixAt NativeRustcVmArm.Vm.code 1356 :=
+public theorem Keccak256WordsOfHashWords.b39_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b39.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b39Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b39_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b40_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b40.IsInfixAt NativeRustcVmArm.Vm.code 1363 :=
+public theorem Keccak256WordsOfHashWords.b40_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b40.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b40Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b40_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b41_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b41.IsInfixAt NativeRustcVmArm.Vm.code 1370 :=
+public theorem Keccak256WordsOfHashWords.b41_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b41.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b41Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b41_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b42_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b42.IsInfixAt NativeRustcVmArm.Vm.code 1371 :=
+public theorem Keccak256WordsOfHashWords.b42_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b42.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b42Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b42_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b43_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b43.IsInfixAt NativeRustcVmArm.Vm.code 1378 :=
+public theorem Keccak256WordsOfHashWords.b43_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b43.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b43Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b43_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b44_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b44.IsInfixAt NativeRustcVmArm.Vm.code 1386 :=
+public theorem Keccak256WordsOfHashWords.b44_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b44.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b44Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b44_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b45_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b45.IsInfixAt NativeRustcVmArm.Vm.code 1394 :=
+public theorem Keccak256WordsOfHashWords.b45_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b45.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b45Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b45_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b46_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b46.IsInfixAt NativeRustcVmArm.Vm.code 1402 :=
+public theorem Keccak256WordsOfHashWords.b46_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b46.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b46Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b46_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b47_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b47.IsInfixAt NativeRustcVmArm.Vm.code 1410 :=
+public theorem Keccak256WordsOfHashWords.b47_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b47.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b47Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b47_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b48_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b48.IsInfixAt NativeRustcVmArm.Vm.code 1418 :=
+public theorem Keccak256WordsOfHashWords.b48_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b48.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b48Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b48_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b49_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b49.IsInfixAt NativeRustcVmArm.Vm.code 1426 :=
+public theorem Keccak256WordsOfHashWords.b49_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b49.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b49Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b49_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b50_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b50.IsInfixAt NativeRustcVmArm.Vm.code 1434 :=
+public theorem Keccak256WordsOfHashWords.b50_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b50.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b50Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b50_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b51_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b51.IsInfixAt NativeRustcVmArm.Vm.code 1442 :=
+public theorem Keccak256WordsOfHashWords.b51_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b51.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b51Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b51_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b52_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b52.IsInfixAt NativeRustcVmArm.Vm.code 1450 :=
+public theorem Keccak256WordsOfHashWords.b52_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b52.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b52Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b52_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b53_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b53.IsInfixAt NativeRustcVmArm.Vm.code 1458 :=
+public theorem Keccak256WordsOfHashWords.b53_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b53.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b53Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b53_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b54_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b54.IsInfixAt NativeRustcVmArm.Vm.code 1466 :=
+public theorem Keccak256WordsOfHashWords.b54_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b54.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b54Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b54_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b55_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b55.IsInfixAt NativeRustcVmArm.Vm.code 1474 :=
+public theorem Keccak256WordsOfHashWords.b55_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b55.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b55Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b55_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b56_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b56.IsInfixAt NativeRustcVmArm.Vm.code 1482 :=
+public theorem Keccak256WordsOfHashWords.b56_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b56.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b56Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b56_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b57_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b57.IsInfixAt NativeRustcVmArm.Vm.code 1490 :=
+public theorem Keccak256WordsOfHashWords.b57_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b57.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b57Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b57_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b58_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b58.IsInfixAt NativeRustcVmArm.Vm.code 1498 :=
+public theorem Keccak256WordsOfHashWords.b58_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b58.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b58Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b58_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b59_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b59.IsInfixAt NativeRustcVmArm.Vm.code 1501 :=
+public theorem Keccak256WordsOfHashWords.b59_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b59.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b59Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b59_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b60_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b60.IsInfixAt NativeRustcVmArm.Vm.code 1508 :=
+public theorem Keccak256WordsOfHashWords.b60_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b60.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b60Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b60_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b61_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b61.IsInfixAt NativeRustcVmArm.Vm.code 1516 :=
+public theorem Keccak256WordsOfHashWords.b61_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b61.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b61Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b61_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b62_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b62.IsInfixAt NativeRustcVmArm.Vm.code 1524 :=
+public theorem Keccak256WordsOfHashWords.b62_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b62.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b62Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b62_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b63_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b63.IsInfixAt NativeRustcVmArm.Vm.code 1532 :=
+public theorem Keccak256WordsOfHashWords.b63_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b63.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b63Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b63_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b64_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b64.IsInfixAt NativeRustcVmArm.Vm.code 1540 :=
+public theorem Keccak256WordsOfHashWords.b64_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b64.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b64Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b64_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b65_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b65.IsInfixAt NativeRustcVmArm.Vm.code 1548 :=
+public theorem Keccak256WordsOfHashWords.b65_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b65.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b65Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b65_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b66_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b66.IsInfixAt NativeRustcVmArm.Vm.code 1556 :=
+public theorem Keccak256WordsOfHashWords.b66_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b66.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b66Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b66_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b67_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b67.IsInfixAt NativeRustcVmArm.Vm.code 1564 :=
+public theorem Keccak256WordsOfHashWords.b67_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b67.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b67Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b67_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b68_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b68.IsInfixAt NativeRustcVmArm.Vm.code 1572 :=
+public theorem Keccak256WordsOfHashWords.b68_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b68.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b68Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b68_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b69_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b69.IsInfixAt NativeRustcVmArm.Vm.code 1580 :=
+public theorem Keccak256WordsOfHashWords.b69_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b69.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b69Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b69_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b70_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b70.IsInfixAt NativeRustcVmArm.Vm.code 1588 :=
+public theorem Keccak256WordsOfHashWords.b70_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b70.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b70Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b70_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b71_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b71.IsInfixAt NativeRustcVmArm.Vm.code 1596 :=
+public theorem Keccak256WordsOfHashWords.b71_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b71.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b71Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b71_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b72_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b72.IsInfixAt NativeRustcVmArm.Vm.code 1604 :=
+public theorem Keccak256WordsOfHashWords.b72_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b72.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b72Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b72_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b73_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b73.IsInfixAt NativeRustcVmArm.Vm.code 1612 :=
+public theorem Keccak256WordsOfHashWords.b73_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b73.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b73Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b73_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b74_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b74.IsInfixAt NativeRustcVmArm.Vm.code 1620 :=
+public theorem Keccak256WordsOfHashWords.b74_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b74.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b74Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b74_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b75_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b75.IsInfixAt NativeRustcVmArm.Vm.code 1628 :=
+public theorem Keccak256WordsOfHashWords.b75_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b75.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b75Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b75_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b76_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b76.IsInfixAt NativeRustcVmArm.Vm.code 1630 :=
+public theorem Keccak256WordsOfHashWords.b76_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b76.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b76Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b76_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfHashWords.b77_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b77.IsInfixAt NativeRustcVmArm.Vm.code 1649 :=
+public theorem Keccak256WordsOfHashWords.b77_at : NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b77.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfHashWords.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b77Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b77_in_code.trans Keccak256WordsOfHashWords.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.code_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.code.IsInfixAt NativeRustcVmArm.Vm.code 1660 :=
+@[expose] public def Keccak256WordsOfFiatShamirIv.programOffset : Nat := 1660
+
+public theorem Keccak256WordsOfFiatShamirIv.code_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.code.IsInfixAt NativeRustcVmArm.Vm.code Keccak256WordsOfFiatShamirIv.programOffset :=
   List.isInfixAt_flatten_of (i := 9) rfl (by decide +kernel)
 
-public theorem Keccak256WordsOfFiatShamirIv.b0_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0.IsInfixAt NativeRustcVmArm.Vm.code 1660 :=
+public theorem Keccak256WordsOfFiatShamirIv.b0_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b1_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b1.IsInfixAt NativeRustcVmArm.Vm.code 1676 :=
+public theorem Keccak256WordsOfFiatShamirIv.b1_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b1.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b1Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b1_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b2_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b2.IsInfixAt NativeRustcVmArm.Vm.code 1683 :=
+public theorem Keccak256WordsOfFiatShamirIv.b2_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b2.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b2Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b2_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b3_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b3.IsInfixAt NativeRustcVmArm.Vm.code 1686 :=
+public theorem Keccak256WordsOfFiatShamirIv.b3_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b3.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b3Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b3_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b4_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b4.IsInfixAt NativeRustcVmArm.Vm.code 1690 :=
+public theorem Keccak256WordsOfFiatShamirIv.b4_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b4.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b4Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b4_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b5_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b5.IsInfixAt NativeRustcVmArm.Vm.code 1696 :=
+public theorem Keccak256WordsOfFiatShamirIv.b5_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b5.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b5Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b5_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b6_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b6.IsInfixAt NativeRustcVmArm.Vm.code 1703 :=
+public theorem Keccak256WordsOfFiatShamirIv.b6_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b6.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b6Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b6_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b7_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b7.IsInfixAt NativeRustcVmArm.Vm.code 1710 :=
+public theorem Keccak256WordsOfFiatShamirIv.b7_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b7.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b7Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b7_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b8_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b8.IsInfixAt NativeRustcVmArm.Vm.code 1717 :=
+public theorem Keccak256WordsOfFiatShamirIv.b8_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b8.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b8Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b8_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b9_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b9.IsInfixAt NativeRustcVmArm.Vm.code 1724 :=
+public theorem Keccak256WordsOfFiatShamirIv.b9_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b9.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b9Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b9_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b10_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b10.IsInfixAt NativeRustcVmArm.Vm.code 1731 :=
+public theorem Keccak256WordsOfFiatShamirIv.b10_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b10.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b10Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b10_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b11_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b11.IsInfixAt NativeRustcVmArm.Vm.code 1738 :=
+public theorem Keccak256WordsOfFiatShamirIv.b11_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b11.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b11Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b11_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b12_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b12.IsInfixAt NativeRustcVmArm.Vm.code 1745 :=
+public theorem Keccak256WordsOfFiatShamirIv.b12_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b12.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b12Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b12_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b13_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b13.IsInfixAt NativeRustcVmArm.Vm.code 1752 :=
+public theorem Keccak256WordsOfFiatShamirIv.b13_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b13.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b13Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b13_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b14_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b14.IsInfixAt NativeRustcVmArm.Vm.code 1759 :=
+public theorem Keccak256WordsOfFiatShamirIv.b14_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b14.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b14Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b14_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b15_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b15.IsInfixAt NativeRustcVmArm.Vm.code 1766 :=
+public theorem Keccak256WordsOfFiatShamirIv.b15_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b15.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b15Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b15_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b16_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b16.IsInfixAt NativeRustcVmArm.Vm.code 1773 :=
+public theorem Keccak256WordsOfFiatShamirIv.b16_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b16.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b16Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b16_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b17_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b17.IsInfixAt NativeRustcVmArm.Vm.code 1780 :=
+public theorem Keccak256WordsOfFiatShamirIv.b17_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b17.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b17Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b17_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b18_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b18.IsInfixAt NativeRustcVmArm.Vm.code 1787 :=
+public theorem Keccak256WordsOfFiatShamirIv.b18_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b18.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b18Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b18_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b19_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b19.IsInfixAt NativeRustcVmArm.Vm.code 1794 :=
+public theorem Keccak256WordsOfFiatShamirIv.b19_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b19.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b19Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b19_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b20_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b20.IsInfixAt NativeRustcVmArm.Vm.code 1801 :=
+public theorem Keccak256WordsOfFiatShamirIv.b20_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b20.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b20Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b20_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b21_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b21.IsInfixAt NativeRustcVmArm.Vm.code 1804 :=
+public theorem Keccak256WordsOfFiatShamirIv.b21_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b21.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b21Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b21_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b22_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b22.IsInfixAt NativeRustcVmArm.Vm.code 1807 :=
+public theorem Keccak256WordsOfFiatShamirIv.b22_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b22.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b22Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b22_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b23_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b23.IsInfixAt NativeRustcVmArm.Vm.code 1812 :=
+public theorem Keccak256WordsOfFiatShamirIv.b23_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b23.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b23Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b23_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b24_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b24.IsInfixAt NativeRustcVmArm.Vm.code 1818 :=
+public theorem Keccak256WordsOfFiatShamirIv.b24_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b24.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b24Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b24_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b25_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b25.IsInfixAt NativeRustcVmArm.Vm.code 1821 :=
+public theorem Keccak256WordsOfFiatShamirIv.b25_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b25.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b25Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b25_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b26_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b26.IsInfixAt NativeRustcVmArm.Vm.code 1824 :=
+public theorem Keccak256WordsOfFiatShamirIv.b26_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b26.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b26Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b26_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b27_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b27.IsInfixAt NativeRustcVmArm.Vm.code 1828 :=
+public theorem Keccak256WordsOfFiatShamirIv.b27_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b27.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b27Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b27_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b28_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b28.IsInfixAt NativeRustcVmArm.Vm.code 1834 :=
+public theorem Keccak256WordsOfFiatShamirIv.b28_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b28.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b28Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b28_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b29_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b29.IsInfixAt NativeRustcVmArm.Vm.code 1841 :=
+public theorem Keccak256WordsOfFiatShamirIv.b29_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b29.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b29Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b29_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b30_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b30.IsInfixAt NativeRustcVmArm.Vm.code 1848 :=
+public theorem Keccak256WordsOfFiatShamirIv.b30_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b30.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b30Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b30_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b31_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b31.IsInfixAt NativeRustcVmArm.Vm.code 1855 :=
+public theorem Keccak256WordsOfFiatShamirIv.b31_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b31.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b31Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b31_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b32_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b32.IsInfixAt NativeRustcVmArm.Vm.code 1862 :=
+public theorem Keccak256WordsOfFiatShamirIv.b32_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b32.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b32Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b32_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b33_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b33.IsInfixAt NativeRustcVmArm.Vm.code 1869 :=
+public theorem Keccak256WordsOfFiatShamirIv.b33_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b33.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b33Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b33_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b34_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b34.IsInfixAt NativeRustcVmArm.Vm.code 1876 :=
+public theorem Keccak256WordsOfFiatShamirIv.b34_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b34.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b34Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b34_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b35_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b35.IsInfixAt NativeRustcVmArm.Vm.code 1883 :=
+public theorem Keccak256WordsOfFiatShamirIv.b35_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b35.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b35Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b35_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b36_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b36.IsInfixAt NativeRustcVmArm.Vm.code 1890 :=
+public theorem Keccak256WordsOfFiatShamirIv.b36_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b36.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b36Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b36_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b37_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b37.IsInfixAt NativeRustcVmArm.Vm.code 1897 :=
+public theorem Keccak256WordsOfFiatShamirIv.b37_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b37.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b37Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b37_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b38_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b38.IsInfixAt NativeRustcVmArm.Vm.code 1904 :=
+public theorem Keccak256WordsOfFiatShamirIv.b38_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b38.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b38Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b38_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b39_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b39.IsInfixAt NativeRustcVmArm.Vm.code 1911 :=
+public theorem Keccak256WordsOfFiatShamirIv.b39_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b39.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b39Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b39_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b40_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b40.IsInfixAt NativeRustcVmArm.Vm.code 1918 :=
+public theorem Keccak256WordsOfFiatShamirIv.b40_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b40.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b40Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b40_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b41_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b41.IsInfixAt NativeRustcVmArm.Vm.code 1925 :=
+public theorem Keccak256WordsOfFiatShamirIv.b41_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b41.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b41Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b41_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b42_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b42.IsInfixAt NativeRustcVmArm.Vm.code 1932 :=
+public theorem Keccak256WordsOfFiatShamirIv.b42_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b42.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b42Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b42_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b43_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b43.IsInfixAt NativeRustcVmArm.Vm.code 1939 :=
+public theorem Keccak256WordsOfFiatShamirIv.b43_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b43.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b43Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b43_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b44_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b44.IsInfixAt NativeRustcVmArm.Vm.code 1940 :=
+public theorem Keccak256WordsOfFiatShamirIv.b44_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b44.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b44Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b44_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b45_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b45.IsInfixAt NativeRustcVmArm.Vm.code 1947 :=
+public theorem Keccak256WordsOfFiatShamirIv.b45_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b45.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b45Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b45_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b46_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b46.IsInfixAt NativeRustcVmArm.Vm.code 1952 :=
+public theorem Keccak256WordsOfFiatShamirIv.b46_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b46.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b46Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b46_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b47_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b47.IsInfixAt NativeRustcVmArm.Vm.code 1958 :=
+public theorem Keccak256WordsOfFiatShamirIv.b47_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b47.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b47Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b47_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b48_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b48.IsInfixAt NativeRustcVmArm.Vm.code 1963 :=
+public theorem Keccak256WordsOfFiatShamirIv.b48_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b48.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b48Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b48_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b49_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b49.IsInfixAt NativeRustcVmArm.Vm.code 1969 :=
+public theorem Keccak256WordsOfFiatShamirIv.b49_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b49.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b49Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b49_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b50_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b50.IsInfixAt NativeRustcVmArm.Vm.code 1974 :=
+public theorem Keccak256WordsOfFiatShamirIv.b50_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b50.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b50Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b50_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b51_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b51.IsInfixAt NativeRustcVmArm.Vm.code 1980 :=
+public theorem Keccak256WordsOfFiatShamirIv.b51_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b51.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b51Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b51_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b52_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b52.IsInfixAt NativeRustcVmArm.Vm.code 1985 :=
+public theorem Keccak256WordsOfFiatShamirIv.b52_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b52.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b52Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b52_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b53_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b53.IsInfixAt NativeRustcVmArm.Vm.code 1991 :=
+public theorem Keccak256WordsOfFiatShamirIv.b53_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b53.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b53Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b53_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b54_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b54.IsInfixAt NativeRustcVmArm.Vm.code 1996 :=
+public theorem Keccak256WordsOfFiatShamirIv.b54_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b54.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b54Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b54_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b55_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b55.IsInfixAt NativeRustcVmArm.Vm.code 2002 :=
+public theorem Keccak256WordsOfFiatShamirIv.b55_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b55.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b55Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b55_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b56_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b56.IsInfixAt NativeRustcVmArm.Vm.code 2007 :=
+public theorem Keccak256WordsOfFiatShamirIv.b56_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b56.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b56Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b56_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b57_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b57.IsInfixAt NativeRustcVmArm.Vm.code 2013 :=
+public theorem Keccak256WordsOfFiatShamirIv.b57_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b57.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b57Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b57_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b58_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b58.IsInfixAt NativeRustcVmArm.Vm.code 2018 :=
+public theorem Keccak256WordsOfFiatShamirIv.b58_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b58.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b58Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b58_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b59_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b59.IsInfixAt NativeRustcVmArm.Vm.code 2024 :=
+public theorem Keccak256WordsOfFiatShamirIv.b59_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b59.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b59Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b59_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b60_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b60.IsInfixAt NativeRustcVmArm.Vm.code 2029 :=
+public theorem Keccak256WordsOfFiatShamirIv.b60_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b60.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b60Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b60_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b61_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b61.IsInfixAt NativeRustcVmArm.Vm.code 2035 :=
+public theorem Keccak256WordsOfFiatShamirIv.b61_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b61.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b61Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b61_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b62_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b62.IsInfixAt NativeRustcVmArm.Vm.code 2040 :=
+public theorem Keccak256WordsOfFiatShamirIv.b62_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b62.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b62Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b62_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b63_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b63.IsInfixAt NativeRustcVmArm.Vm.code 2046 :=
+public theorem Keccak256WordsOfFiatShamirIv.b63_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b63.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b63Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b63_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b64_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b64.IsInfixAt NativeRustcVmArm.Vm.code 2051 :=
+public theorem Keccak256WordsOfFiatShamirIv.b64_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b64.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b64Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b64_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b65_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b65.IsInfixAt NativeRustcVmArm.Vm.code 2057 :=
+public theorem Keccak256WordsOfFiatShamirIv.b65_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b65.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b65Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b65_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b66_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b66.IsInfixAt NativeRustcVmArm.Vm.code 2062 :=
+public theorem Keccak256WordsOfFiatShamirIv.b66_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b66.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b66Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b66_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b67_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b67.IsInfixAt NativeRustcVmArm.Vm.code 2068 :=
+public theorem Keccak256WordsOfFiatShamirIv.b67_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b67.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b67Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b67_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b68_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b68.IsInfixAt NativeRustcVmArm.Vm.code 2073 :=
+public theorem Keccak256WordsOfFiatShamirIv.b68_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b68.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b68Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b68_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b69_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b69.IsInfixAt NativeRustcVmArm.Vm.code 2079 :=
+public theorem Keccak256WordsOfFiatShamirIv.b69_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b69.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b69Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b69_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b70_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b70.IsInfixAt NativeRustcVmArm.Vm.code 2084 :=
+public theorem Keccak256WordsOfFiatShamirIv.b70_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b70.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b70Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b70_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b71_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b71.IsInfixAt NativeRustcVmArm.Vm.code 2090 :=
+public theorem Keccak256WordsOfFiatShamirIv.b71_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b71.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b71Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b71_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b72_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b72.IsInfixAt NativeRustcVmArm.Vm.code 2095 :=
+public theorem Keccak256WordsOfFiatShamirIv.b72_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b72.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b72Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b72_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b73_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b73.IsInfixAt NativeRustcVmArm.Vm.code 2101 :=
+public theorem Keccak256WordsOfFiatShamirIv.b73_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b73.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b73Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b73_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b74_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b74.IsInfixAt NativeRustcVmArm.Vm.code 2106 :=
+public theorem Keccak256WordsOfFiatShamirIv.b74_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b74.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b74Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b74_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b75_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b75.IsInfixAt NativeRustcVmArm.Vm.code 2112 :=
+public theorem Keccak256WordsOfFiatShamirIv.b75_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b75.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b75Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b75_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b76_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b76.IsInfixAt NativeRustcVmArm.Vm.code 2115 :=
+public theorem Keccak256WordsOfFiatShamirIv.b76_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b76.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b76Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b76_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b77_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b77.IsInfixAt NativeRustcVmArm.Vm.code 2122 :=
+public theorem Keccak256WordsOfFiatShamirIv.b77_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b77.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b77Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b77_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b78_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b78.IsInfixAt NativeRustcVmArm.Vm.code 2127 :=
+public theorem Keccak256WordsOfFiatShamirIv.b78_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b78.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b78Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b78_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b79_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b79.IsInfixAt NativeRustcVmArm.Vm.code 2133 :=
+public theorem Keccak256WordsOfFiatShamirIv.b79_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b79.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b79Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b79_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b80_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b80.IsInfixAt NativeRustcVmArm.Vm.code 2138 :=
+public theorem Keccak256WordsOfFiatShamirIv.b80_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b80.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b80Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b80_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b81_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b81.IsInfixAt NativeRustcVmArm.Vm.code 2144 :=
+public theorem Keccak256WordsOfFiatShamirIv.b81_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b81.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b81Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b81_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b82_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b82.IsInfixAt NativeRustcVmArm.Vm.code 2149 :=
+public theorem Keccak256WordsOfFiatShamirIv.b82_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b82.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b82Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b82_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b83_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b83.IsInfixAt NativeRustcVmArm.Vm.code 2155 :=
+public theorem Keccak256WordsOfFiatShamirIv.b83_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b83.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b83Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b83_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b84_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b84.IsInfixAt NativeRustcVmArm.Vm.code 2160 :=
+public theorem Keccak256WordsOfFiatShamirIv.b84_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b84.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b84Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b84_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b85_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b85.IsInfixAt NativeRustcVmArm.Vm.code 2166 :=
+public theorem Keccak256WordsOfFiatShamirIv.b85_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b85.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b85Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b85_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b86_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b86.IsInfixAt NativeRustcVmArm.Vm.code 2171 :=
+public theorem Keccak256WordsOfFiatShamirIv.b86_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b86.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b86Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b86_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b87_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b87.IsInfixAt NativeRustcVmArm.Vm.code 2177 :=
+public theorem Keccak256WordsOfFiatShamirIv.b87_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b87.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b87Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b87_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b88_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b88.IsInfixAt NativeRustcVmArm.Vm.code 2182 :=
+public theorem Keccak256WordsOfFiatShamirIv.b88_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b88.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b88Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b88_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b89_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b89.IsInfixAt NativeRustcVmArm.Vm.code 2188 :=
+public theorem Keccak256WordsOfFiatShamirIv.b89_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b89.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b89Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b89_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b90_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b90.IsInfixAt NativeRustcVmArm.Vm.code 2193 :=
+public theorem Keccak256WordsOfFiatShamirIv.b90_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b90.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b90Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b90_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b91_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b91.IsInfixAt NativeRustcVmArm.Vm.code 2199 :=
+public theorem Keccak256WordsOfFiatShamirIv.b91_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b91.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b91Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b91_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b92_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b92.IsInfixAt NativeRustcVmArm.Vm.code 2204 :=
+public theorem Keccak256WordsOfFiatShamirIv.b92_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b92.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b92Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b92_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b93_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b93.IsInfixAt NativeRustcVmArm.Vm.code 2210 :=
+public theorem Keccak256WordsOfFiatShamirIv.b93_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b93.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b93Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b93_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b94_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b94.IsInfixAt NativeRustcVmArm.Vm.code 2215 :=
+public theorem Keccak256WordsOfFiatShamirIv.b94_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b94.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b94Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b94_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b95_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b95.IsInfixAt NativeRustcVmArm.Vm.code 2221 :=
+public theorem Keccak256WordsOfFiatShamirIv.b95_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b95.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b95Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b95_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b96_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b96.IsInfixAt NativeRustcVmArm.Vm.code 2226 :=
+public theorem Keccak256WordsOfFiatShamirIv.b96_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b96.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b96Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b96_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b97_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b97.IsInfixAt NativeRustcVmArm.Vm.code 2232 :=
+public theorem Keccak256WordsOfFiatShamirIv.b97_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b97.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b97Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b97_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b98_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b98.IsInfixAt NativeRustcVmArm.Vm.code 2237 :=
+public theorem Keccak256WordsOfFiatShamirIv.b98_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b98.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b98Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b98_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b99_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b99.IsInfixAt NativeRustcVmArm.Vm.code 2243 :=
+public theorem Keccak256WordsOfFiatShamirIv.b99_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b99.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b99Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b99_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b100_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b100.IsInfixAt NativeRustcVmArm.Vm.code 2248 :=
+public theorem Keccak256WordsOfFiatShamirIv.b100_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b100.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b100Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b100_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b101_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b101.IsInfixAt NativeRustcVmArm.Vm.code 2254 :=
+public theorem Keccak256WordsOfFiatShamirIv.b101_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b101.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b101Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b101_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b102_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b102.IsInfixAt NativeRustcVmArm.Vm.code 2259 :=
+public theorem Keccak256WordsOfFiatShamirIv.b102_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b102.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b102Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b102_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b103_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b103.IsInfixAt NativeRustcVmArm.Vm.code 2265 :=
+public theorem Keccak256WordsOfFiatShamirIv.b103_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b103.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b103Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b103_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b104_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b104.IsInfixAt NativeRustcVmArm.Vm.code 2270 :=
+public theorem Keccak256WordsOfFiatShamirIv.b104_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b104.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b104Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b104_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b105_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b105.IsInfixAt NativeRustcVmArm.Vm.code 2276 :=
+public theorem Keccak256WordsOfFiatShamirIv.b105_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b105.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b105Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b105_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b106_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b106.IsInfixAt NativeRustcVmArm.Vm.code 2281 :=
+public theorem Keccak256WordsOfFiatShamirIv.b106_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b106.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b106Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b106_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b107_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b107.IsInfixAt NativeRustcVmArm.Vm.code 2287 :=
+public theorem Keccak256WordsOfFiatShamirIv.b107_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b107.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b107Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b107_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b108_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b108.IsInfixAt NativeRustcVmArm.Vm.code 2291 :=
+public theorem Keccak256WordsOfFiatShamirIv.b108_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b108.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b108Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b108_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem Keccak256WordsOfFiatShamirIv.b109_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b109.IsInfixAt NativeRustcVmArm.Vm.code 2314 :=
+public theorem Keccak256WordsOfFiatShamirIv.b109_at : NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b109.IsInfixAt NativeRustcVmArm.Vm.code (Keccak256WordsOfFiatShamirIv.programOffset + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b109Offset) :=
   NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b109_in_code.trans Keccak256WordsOfFiatShamirIv.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.code_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.code.IsInfixAt NativeRustcVmArm.Vm.code 2325 :=
+@[expose] public def InsertionSortOfStackOffsets.programOffset : Nat := 2325
+
+public theorem InsertionSortOfStackOffsets.code_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.code.IsInfixAt NativeRustcVmArm.Vm.code InsertionSortOfStackOffsets.programOffset :=
   List.isInfixAt_flatten_of (i := 10) rfl (by decide +kernel)
 
-public theorem InsertionSortOfStackOffsets.b0_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b0.IsInfixAt NativeRustcVmArm.Vm.code 2325 :=
+public theorem InsertionSortOfStackOffsets.b0_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b0.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b0Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b0_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b1_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b1.IsInfixAt NativeRustcVmArm.Vm.code 2327 :=
+public theorem InsertionSortOfStackOffsets.b1_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b1.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b1Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b1_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b2_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2.IsInfixAt NativeRustcVmArm.Vm.code 2329 :=
+public theorem InsertionSortOfStackOffsets.b2_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b3_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3.IsInfixAt NativeRustcVmArm.Vm.code 2333 :=
+public theorem InsertionSortOfStackOffsets.b3_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b4_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b4.IsInfixAt NativeRustcVmArm.Vm.code 2335 :=
+public theorem InsertionSortOfStackOffsets.b4_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b4.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b4Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b4_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b5_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5.IsInfixAt NativeRustcVmArm.Vm.code 2337 :=
+public theorem InsertionSortOfStackOffsets.b5_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b6_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b6.IsInfixAt NativeRustcVmArm.Vm.code 2342 :=
+public theorem InsertionSortOfStackOffsets.b6_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b6.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b6Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b6_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b7_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b7.IsInfixAt NativeRustcVmArm.Vm.code 2345 :=
+public theorem InsertionSortOfStackOffsets.b7_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b7.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b7Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b7_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b8_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8.IsInfixAt NativeRustcVmArm.Vm.code 2348 :=
+public theorem InsertionSortOfStackOffsets.b8_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b9_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9.IsInfixAt NativeRustcVmArm.Vm.code 2352 :=
+public theorem InsertionSortOfStackOffsets.b9_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b10_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10.IsInfixAt NativeRustcVmArm.Vm.code 2356 :=
+public theorem InsertionSortOfStackOffsets.b10_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b11_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b11.IsInfixAt NativeRustcVmArm.Vm.code 2359 :=
+public theorem InsertionSortOfStackOffsets.b11_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b11.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b11Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b11_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b12_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b12.IsInfixAt NativeRustcVmArm.Vm.code 2362 :=
+public theorem InsertionSortOfStackOffsets.b12_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b12.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b12Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b12_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b13_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13.IsInfixAt NativeRustcVmArm.Vm.code 2363 :=
+public theorem InsertionSortOfStackOffsets.b13_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b14_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14.IsInfixAt NativeRustcVmArm.Vm.code 2367 :=
+public theorem InsertionSortOfStackOffsets.b14_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b15_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15.IsInfixAt NativeRustcVmArm.Vm.code 2370 :=
+public theorem InsertionSortOfStackOffsets.b15_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b16_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b16.IsInfixAt NativeRustcVmArm.Vm.code 2375 :=
+public theorem InsertionSortOfStackOffsets.b16_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b16.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b16Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b16_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b17_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b17.IsInfixAt NativeRustcVmArm.Vm.code 2379 :=
+public theorem InsertionSortOfStackOffsets.b17_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b17.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b17Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b17_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem InsertionSortOfStackOffsets.b18_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b18.IsInfixAt NativeRustcVmArm.Vm.code 2380 :=
+public theorem InsertionSortOfStackOffsets.b18_at : NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b18.IsInfixAt NativeRustcVmArm.Vm.code (InsertionSortOfStackOffsets.programOffset + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b18Offset) :=
   NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b18_in_code.trans InsertionSortOfStackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalanceClosure0.code_at : NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.code.IsInfixAt NativeRustcVmArm.Vm.code 2382 :=
+@[expose] public def VerifyBusBalanceClosure0.programOffset : Nat := 2382
+
+public theorem VerifyBusBalanceClosure0.code_at : NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.code.IsInfixAt NativeRustcVmArm.Vm.code VerifyBusBalanceClosure0.programOffset :=
   List.isInfixAt_flatten_of (i := 11) rfl (by decide +kernel)
 
-public theorem VerifyBusBalanceClosure0.b0_at : NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b0.IsInfixAt NativeRustcVmArm.Vm.code 2382 :=
+public theorem VerifyBusBalanceClosure0.b0_at : NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b0.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalanceClosure0.programOffset + NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b0Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b0_in_code.trans VerifyBusBalanceClosure0.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalanceClosure0.b1_at : NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b1.IsInfixAt NativeRustcVmArm.Vm.code 2400 :=
+public theorem VerifyBusBalanceClosure0.b1_at : NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b1.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalanceClosure0.programOffset + NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b1Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b1_in_code.trans VerifyBusBalanceClosure0.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorbNonce.code_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.code.IsInfixAt NativeRustcVmArm.Vm.code 2403 :=
+@[expose] public def SpongeWAbsorbNonce.programOffset : Nat := 2403
+
+public theorem SpongeWAbsorbNonce.code_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.code.IsInfixAt NativeRustcVmArm.Vm.code SpongeWAbsorbNonce.programOffset :=
   List.isInfixAt_flatten_of (i := 12) rfl (by decide +kernel)
 
-public theorem SpongeWAbsorbNonce.b0_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b0.IsInfixAt NativeRustcVmArm.Vm.code 2403 :=
+public theorem SpongeWAbsorbNonce.b0_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b0.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorbNonce.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b0Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b0_in_code.trans SpongeWAbsorbNonce.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorbNonce.b1_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b1.IsInfixAt NativeRustcVmArm.Vm.code 2408 :=
+public theorem SpongeWAbsorbNonce.b1_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b1.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorbNonce.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b1Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b1_in_code.trans SpongeWAbsorbNonce.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorbNonce.b2_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b2.IsInfixAt NativeRustcVmArm.Vm.code 2410 :=
+public theorem SpongeWAbsorbNonce.b2_at : NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b2.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorbNonce.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b2Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorbNonce.b2_in_code.trans SpongeWAbsorbNonce.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.code_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.code.IsInfixAt NativeRustcVmArm.Vm.code 2417 :=
+@[expose] public def SpongeWDuplexInput.programOffset : Nat := 2417
+
+public theorem SpongeWDuplexInput.code_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.code.IsInfixAt NativeRustcVmArm.Vm.code SpongeWDuplexInput.programOffset :=
   List.isInfixAt_flatten_of (i := 13) rfl (by decide +kernel)
 
-public theorem SpongeWDuplexInput.b0_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b0.IsInfixAt NativeRustcVmArm.Vm.code 2417 :=
+public theorem SpongeWDuplexInput.b0_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b0.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b0Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b0_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b1_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b1.IsInfixAt NativeRustcVmArm.Vm.code 2420 :=
+public theorem SpongeWDuplexInput.b1_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b1.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b1Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b1_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b2_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b2.IsInfixAt NativeRustcVmArm.Vm.code 2426 :=
+public theorem SpongeWDuplexInput.b2_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b2.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b2Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b2_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b3_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b3.IsInfixAt NativeRustcVmArm.Vm.code 2432 :=
+public theorem SpongeWDuplexInput.b3_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b3.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b3Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b3_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b4_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b4.IsInfixAt NativeRustcVmArm.Vm.code 2441 :=
+public theorem SpongeWDuplexInput.b4_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b4.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b4Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b4_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b5_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b5.IsInfixAt NativeRustcVmArm.Vm.code 2443 :=
+public theorem SpongeWDuplexInput.b5_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b5.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b5Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b5_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b6_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b6.IsInfixAt NativeRustcVmArm.Vm.code 2447 :=
+public theorem SpongeWDuplexInput.b6_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b6.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b6Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b6_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b7_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b7.IsInfixAt NativeRustcVmArm.Vm.code 2450 :=
+public theorem SpongeWDuplexInput.b7_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b7.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b7Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b7_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplexInput.b8_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b8.IsInfixAt NativeRustcVmArm.Vm.code 2453 :=
+public theorem SpongeWDuplexInput.b8_at : NativeRustcVmArm.Vm.SpongeWDuplexInput.b8.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplexInput.programOffset + NativeRustcVmArm.Vm.SpongeWDuplexInput.b8Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplexInput.b8_in_code.trans SpongeWDuplexInput.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorb.code_at : NativeRustcVmArm.Vm.SpongeWAbsorb.code.IsInfixAt NativeRustcVmArm.Vm.code 2459 :=
+@[expose] public def SpongeWAbsorb.programOffset : Nat := 2459
+
+public theorem SpongeWAbsorb.code_at : NativeRustcVmArm.Vm.SpongeWAbsorb.code.IsInfixAt NativeRustcVmArm.Vm.code SpongeWAbsorb.programOffset :=
   List.isInfixAt_flatten_of (i := 14) rfl (by decide +kernel)
 
-public theorem SpongeWAbsorb.b0_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b0.IsInfixAt NativeRustcVmArm.Vm.code 2459 :=
+public theorem SpongeWAbsorb.b0_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b0.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorb.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorb.b0Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorb.b0_in_code.trans SpongeWAbsorb.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorb.b1_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b1.IsInfixAt NativeRustcVmArm.Vm.code 2470 :=
+public theorem SpongeWAbsorb.b1_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b1.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorb.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorb.b1Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorb.b1_in_code.trans SpongeWAbsorb.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorb.b2_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b2.IsInfixAt NativeRustcVmArm.Vm.code 2472 :=
+public theorem SpongeWAbsorb.b2_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b2.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorb.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorb.b2Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorb.b2_in_code.trans SpongeWAbsorb.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorb.b3_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b3.IsInfixAt NativeRustcVmArm.Vm.code 2475 :=
+public theorem SpongeWAbsorb.b3_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b3.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorb.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorb.b3Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorb.b3_in_code.trans SpongeWAbsorb.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWAbsorb.b4_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b4.IsInfixAt NativeRustcVmArm.Vm.code 2482 :=
+public theorem SpongeWAbsorb.b4_at : NativeRustcVmArm.Vm.SpongeWAbsorb.b4.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWAbsorb.programOffset + NativeRustcVmArm.Vm.SpongeWAbsorb.b4Offset) :=
   NativeRustcVmArm.Vm.SpongeWAbsorb.b4_in_code.trans SpongeWAbsorb.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplex.code_at : NativeRustcVmArm.Vm.SpongeWDuplex.code.IsInfixAt NativeRustcVmArm.Vm.code 2487 :=
+@[expose] public def SpongeWDuplex.programOffset : Nat := 2487
+
+public theorem SpongeWDuplex.code_at : NativeRustcVmArm.Vm.SpongeWDuplex.code.IsInfixAt NativeRustcVmArm.Vm.code SpongeWDuplex.programOffset :=
   List.isInfixAt_flatten_of (i := 15) rfl (by decide +kernel)
 
-public theorem SpongeWDuplex.b0_at : NativeRustcVmArm.Vm.SpongeWDuplex.b0.IsInfixAt NativeRustcVmArm.Vm.code 2487 :=
+public theorem SpongeWDuplex.b0_at : NativeRustcVmArm.Vm.SpongeWDuplex.b0.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplex.programOffset + NativeRustcVmArm.Vm.SpongeWDuplex.b0Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplex.b0_in_code.trans SpongeWDuplex.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplex.b1_at : NativeRustcVmArm.Vm.SpongeWDuplex.b1.IsInfixAt NativeRustcVmArm.Vm.code 2491 :=
+public theorem SpongeWDuplex.b1_at : NativeRustcVmArm.Vm.SpongeWDuplex.b1.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplex.programOffset + NativeRustcVmArm.Vm.SpongeWDuplex.b1Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplex.b1_in_code.trans SpongeWDuplex.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWDuplex.b2_at : NativeRustcVmArm.Vm.SpongeWDuplex.b2.IsInfixAt NativeRustcVmArm.Vm.code 2493 :=
+public theorem SpongeWDuplex.b2_at : NativeRustcVmArm.Vm.SpongeWDuplex.b2.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWDuplex.programOffset + NativeRustcVmArm.Vm.SpongeWDuplex.b2Offset) :=
   NativeRustcVmArm.Vm.SpongeWDuplex.b2_in_code.trans SpongeWDuplex.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWSqueeze.code_at : NativeRustcVmArm.Vm.SpongeWSqueeze.code.IsInfixAt NativeRustcVmArm.Vm.code 2496 :=
+@[expose] public def SpongeWSqueeze.programOffset : Nat := 2496
+
+public theorem SpongeWSqueeze.code_at : NativeRustcVmArm.Vm.SpongeWSqueeze.code.IsInfixAt NativeRustcVmArm.Vm.code SpongeWSqueeze.programOffset :=
   List.isInfixAt_flatten_of (i := 16) rfl (by decide +kernel)
 
-public theorem SpongeWSqueeze.b0_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b0.IsInfixAt NativeRustcVmArm.Vm.code 2496 :=
+public theorem SpongeWSqueeze.b0_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b0.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWSqueeze.programOffset + NativeRustcVmArm.Vm.SpongeWSqueeze.b0Offset) :=
   NativeRustcVmArm.Vm.SpongeWSqueeze.b0_in_code.trans SpongeWSqueeze.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWSqueeze.b1_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b1.IsInfixAt NativeRustcVmArm.Vm.code 2504 :=
+public theorem SpongeWSqueeze.b1_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b1.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWSqueeze.programOffset + NativeRustcVmArm.Vm.SpongeWSqueeze.b1Offset) :=
   NativeRustcVmArm.Vm.SpongeWSqueeze.b1_in_code.trans SpongeWSqueeze.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWSqueeze.b2_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b2.IsInfixAt NativeRustcVmArm.Vm.code 2506 :=
+public theorem SpongeWSqueeze.b2_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b2.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWSqueeze.programOffset + NativeRustcVmArm.Vm.SpongeWSqueeze.b2Offset) :=
   NativeRustcVmArm.Vm.SpongeWSqueeze.b2_in_code.trans SpongeWSqueeze.code_at (List.cons_ne_nil _ _)
 
-public theorem SpongeWSqueeze.b3_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b3.IsInfixAt NativeRustcVmArm.Vm.code 2507 :=
+public theorem SpongeWSqueeze.b3_at : NativeRustcVmArm.Vm.SpongeWSqueeze.b3.IsInfixAt NativeRustcVmArm.Vm.code (SpongeWSqueeze.programOffset + NativeRustcVmArm.Vm.SpongeWSqueeze.b3Offset) :=
   NativeRustcVmArm.Vm.SpongeWSqueeze.b3_in_code.trans SpongeWSqueeze.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW30Extend.code_at : NativeRustcVmArm.Vm.BufEW30Extend.code.IsInfixAt NativeRustcVmArm.Vm.code 2510 :=
+@[expose] public def BufEW30Extend.programOffset : Nat := 2510
+
+public theorem BufEW30Extend.code_at : NativeRustcVmArm.Vm.BufEW30Extend.code.IsInfixAt NativeRustcVmArm.Vm.code BufEW30Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 17) rfl (by decide +kernel)
 
-public theorem BufEW30Extend.b0_at : NativeRustcVmArm.Vm.BufEW30Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code 2510 :=
+public theorem BufEW30Extend.b0_at : NativeRustcVmArm.Vm.BufEW30Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code (BufEW30Extend.programOffset + NativeRustcVmArm.Vm.BufEW30Extend.b0Offset) :=
   NativeRustcVmArm.Vm.BufEW30Extend.b0_in_code.trans BufEW30Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW30Extend.b1_at : NativeRustcVmArm.Vm.BufEW30Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code 2512 :=
+public theorem BufEW30Extend.b1_at : NativeRustcVmArm.Vm.BufEW30Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code (BufEW30Extend.programOffset + NativeRustcVmArm.Vm.BufEW30Extend.b1Offset) :=
   NativeRustcVmArm.Vm.BufEW30Extend.b1_in_code.trans BufEW30Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW30Extend.b2_at : NativeRustcVmArm.Vm.BufEW30Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code 2522 :=
+public theorem BufEW30Extend.b2_at : NativeRustcVmArm.Vm.BufEW30Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code (BufEW30Extend.programOffset + NativeRustcVmArm.Vm.BufEW30Extend.b2Offset) :=
   NativeRustcVmArm.Vm.BufEW30Extend.b2_in_code.trans BufEW30Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW30Extend.b3_at : NativeRustcVmArm.Vm.BufEW30Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code 2526 :=
+public theorem BufEW30Extend.b3_at : NativeRustcVmArm.Vm.BufEW30Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code (BufEW30Extend.programOffset + NativeRustcVmArm.Vm.BufEW30Extend.b3Offset) :=
   NativeRustcVmArm.Vm.BufEW30Extend.b3_in_code.trans BufEW30Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW30Extend.b4_at : NativeRustcVmArm.Vm.BufEW30Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code 2534 :=
+public theorem BufEW30Extend.b4_at : NativeRustcVmArm.Vm.BufEW30Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code (BufEW30Extend.programOffset + NativeRustcVmArm.Vm.BufEW30Extend.b4Offset) :=
   NativeRustcVmArm.Vm.BufEW30Extend.b4_in_code.trans BufEW30Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW30Extend.b5_at : NativeRustcVmArm.Vm.BufEW30Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code 2537 :=
+public theorem BufEW30Extend.b5_at : NativeRustcVmArm.Vm.BufEW30Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code (BufEW30Extend.programOffset + NativeRustcVmArm.Vm.BufEW30Extend.b5Offset) :=
   NativeRustcVmArm.Vm.BufEW30Extend.b5_in_code.trans BufEW30Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW36Extend.code_at : NativeRustcVmArm.Vm.BufEW36Extend.code.IsInfixAt NativeRustcVmArm.Vm.code 2540 :=
+@[expose] public def BufEW36Extend.programOffset : Nat := 2540
+
+public theorem BufEW36Extend.code_at : NativeRustcVmArm.Vm.BufEW36Extend.code.IsInfixAt NativeRustcVmArm.Vm.code BufEW36Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 18) rfl (by decide +kernel)
 
-public theorem BufEW36Extend.b0_at : NativeRustcVmArm.Vm.BufEW36Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code 2540 :=
+public theorem BufEW36Extend.b0_at : NativeRustcVmArm.Vm.BufEW36Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code (BufEW36Extend.programOffset + NativeRustcVmArm.Vm.BufEW36Extend.b0Offset) :=
   NativeRustcVmArm.Vm.BufEW36Extend.b0_in_code.trans BufEW36Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW36Extend.b1_at : NativeRustcVmArm.Vm.BufEW36Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code 2542 :=
+public theorem BufEW36Extend.b1_at : NativeRustcVmArm.Vm.BufEW36Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code (BufEW36Extend.programOffset + NativeRustcVmArm.Vm.BufEW36Extend.b1Offset) :=
   NativeRustcVmArm.Vm.BufEW36Extend.b1_in_code.trans BufEW36Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW36Extend.b2_at : NativeRustcVmArm.Vm.BufEW36Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code 2552 :=
+public theorem BufEW36Extend.b2_at : NativeRustcVmArm.Vm.BufEW36Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code (BufEW36Extend.programOffset + NativeRustcVmArm.Vm.BufEW36Extend.b2Offset) :=
   NativeRustcVmArm.Vm.BufEW36Extend.b2_in_code.trans BufEW36Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW36Extend.b3_at : NativeRustcVmArm.Vm.BufEW36Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code 2556 :=
+public theorem BufEW36Extend.b3_at : NativeRustcVmArm.Vm.BufEW36Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code (BufEW36Extend.programOffset + NativeRustcVmArm.Vm.BufEW36Extend.b3Offset) :=
   NativeRustcVmArm.Vm.BufEW36Extend.b3_in_code.trans BufEW36Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW36Extend.b4_at : NativeRustcVmArm.Vm.BufEW36Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code 2564 :=
+public theorem BufEW36Extend.b4_at : NativeRustcVmArm.Vm.BufEW36Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code (BufEW36Extend.programOffset + NativeRustcVmArm.Vm.BufEW36Extend.b4Offset) :=
   NativeRustcVmArm.Vm.BufEW36Extend.b4_in_code.trans BufEW36Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW36Extend.b5_at : NativeRustcVmArm.Vm.BufEW36Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code 2567 :=
+public theorem BufEW36Extend.b5_at : NativeRustcVmArm.Vm.BufEW36Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code (BufEW36Extend.programOffset + NativeRustcVmArm.Vm.BufEW36Extend.b5Offset) :=
   NativeRustcVmArm.Vm.BufEW36Extend.b5_in_code.trans BufEW36Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW63Extend.code_at : NativeRustcVmArm.Vm.BufEW63Extend.code.IsInfixAt NativeRustcVmArm.Vm.code 2570 :=
+@[expose] public def BufEW63Extend.programOffset : Nat := 2570
+
+public theorem BufEW63Extend.code_at : NativeRustcVmArm.Vm.BufEW63Extend.code.IsInfixAt NativeRustcVmArm.Vm.code BufEW63Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 19) rfl (by decide +kernel)
 
-public theorem BufEW63Extend.b0_at : NativeRustcVmArm.Vm.BufEW63Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code 2570 :=
+public theorem BufEW63Extend.b0_at : NativeRustcVmArm.Vm.BufEW63Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code (BufEW63Extend.programOffset + NativeRustcVmArm.Vm.BufEW63Extend.b0Offset) :=
   NativeRustcVmArm.Vm.BufEW63Extend.b0_in_code.trans BufEW63Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW63Extend.b1_at : NativeRustcVmArm.Vm.BufEW63Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code 2572 :=
+public theorem BufEW63Extend.b1_at : NativeRustcVmArm.Vm.BufEW63Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code (BufEW63Extend.programOffset + NativeRustcVmArm.Vm.BufEW63Extend.b1Offset) :=
   NativeRustcVmArm.Vm.BufEW63Extend.b1_in_code.trans BufEW63Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW63Extend.b2_at : NativeRustcVmArm.Vm.BufEW63Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code 2582 :=
+public theorem BufEW63Extend.b2_at : NativeRustcVmArm.Vm.BufEW63Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code (BufEW63Extend.programOffset + NativeRustcVmArm.Vm.BufEW63Extend.b2Offset) :=
   NativeRustcVmArm.Vm.BufEW63Extend.b2_in_code.trans BufEW63Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW63Extend.b3_at : NativeRustcVmArm.Vm.BufEW63Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code 2586 :=
+public theorem BufEW63Extend.b3_at : NativeRustcVmArm.Vm.BufEW63Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code (BufEW63Extend.programOffset + NativeRustcVmArm.Vm.BufEW63Extend.b3Offset) :=
   NativeRustcVmArm.Vm.BufEW63Extend.b3_in_code.trans BufEW63Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW63Extend.b4_at : NativeRustcVmArm.Vm.BufEW63Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code 2594 :=
+public theorem BufEW63Extend.b4_at : NativeRustcVmArm.Vm.BufEW63Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code (BufEW63Extend.programOffset + NativeRustcVmArm.Vm.BufEW63Extend.b4Offset) :=
   NativeRustcVmArm.Vm.BufEW63Extend.b4_in_code.trans BufEW63Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW63Extend.b5_at : NativeRustcVmArm.Vm.BufEW63Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code 2597 :=
+public theorem BufEW63Extend.b5_at : NativeRustcVmArm.Vm.BufEW63Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code (BufEW63Extend.programOffset + NativeRustcVmArm.Vm.BufEW63Extend.b5Offset) :=
   NativeRustcVmArm.Vm.BufEW63Extend.b5_in_code.trans BufEW63Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW230Extend.code_at : NativeRustcVmArm.Vm.BufEW230Extend.code.IsInfixAt NativeRustcVmArm.Vm.code 2600 :=
+@[expose] public def BufEW230Extend.programOffset : Nat := 2600
+
+public theorem BufEW230Extend.code_at : NativeRustcVmArm.Vm.BufEW230Extend.code.IsInfixAt NativeRustcVmArm.Vm.code BufEW230Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 20) rfl (by decide +kernel)
 
-public theorem BufEW230Extend.b0_at : NativeRustcVmArm.Vm.BufEW230Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code 2600 :=
+public theorem BufEW230Extend.b0_at : NativeRustcVmArm.Vm.BufEW230Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code (BufEW230Extend.programOffset + NativeRustcVmArm.Vm.BufEW230Extend.b0Offset) :=
   NativeRustcVmArm.Vm.BufEW230Extend.b0_in_code.trans BufEW230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW230Extend.b1_at : NativeRustcVmArm.Vm.BufEW230Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code 2602 :=
+public theorem BufEW230Extend.b1_at : NativeRustcVmArm.Vm.BufEW230Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code (BufEW230Extend.programOffset + NativeRustcVmArm.Vm.BufEW230Extend.b1Offset) :=
   NativeRustcVmArm.Vm.BufEW230Extend.b1_in_code.trans BufEW230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW230Extend.b2_at : NativeRustcVmArm.Vm.BufEW230Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code 2612 :=
+public theorem BufEW230Extend.b2_at : NativeRustcVmArm.Vm.BufEW230Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code (BufEW230Extend.programOffset + NativeRustcVmArm.Vm.BufEW230Extend.b2Offset) :=
   NativeRustcVmArm.Vm.BufEW230Extend.b2_in_code.trans BufEW230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW230Extend.b3_at : NativeRustcVmArm.Vm.BufEW230Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code 2616 :=
+public theorem BufEW230Extend.b3_at : NativeRustcVmArm.Vm.BufEW230Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code (BufEW230Extend.programOffset + NativeRustcVmArm.Vm.BufEW230Extend.b3Offset) :=
   NativeRustcVmArm.Vm.BufEW230Extend.b3_in_code.trans BufEW230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW230Extend.b4_at : NativeRustcVmArm.Vm.BufEW230Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code 2624 :=
+public theorem BufEW230Extend.b4_at : NativeRustcVmArm.Vm.BufEW230Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code (BufEW230Extend.programOffset + NativeRustcVmArm.Vm.BufEW230Extend.b4Offset) :=
   NativeRustcVmArm.Vm.BufEW230Extend.b4_in_code.trans BufEW230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufEW230Extend.b5_at : NativeRustcVmArm.Vm.BufEW230Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code 2627 :=
+public theorem BufEW230Extend.b5_at : NativeRustcVmArm.Vm.BufEW230Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code (BufEW230Extend.programOffset + NativeRustcVmArm.Vm.BufEW230Extend.b5Offset) :=
   NativeRustcVmArm.Vm.BufEW230Extend.b5_in_code.trans BufEW230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufU64x230Extend.code_at : NativeRustcVmArm.Vm.BufU64x230Extend.code.IsInfixAt NativeRustcVmArm.Vm.code 2630 :=
+@[expose] public def BufU64x230Extend.programOffset : Nat := 2630
+
+public theorem BufU64x230Extend.code_at : NativeRustcVmArm.Vm.BufU64x230Extend.code.IsInfixAt NativeRustcVmArm.Vm.code BufU64x230Extend.programOffset :=
   List.isInfixAt_flatten_of (i := 21) rfl (by decide +kernel)
 
-public theorem BufU64x230Extend.b0_at : NativeRustcVmArm.Vm.BufU64x230Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code 2630 :=
+public theorem BufU64x230Extend.b0_at : NativeRustcVmArm.Vm.BufU64x230Extend.b0.IsInfixAt NativeRustcVmArm.Vm.code (BufU64x230Extend.programOffset + NativeRustcVmArm.Vm.BufU64x230Extend.b0Offset) :=
   NativeRustcVmArm.Vm.BufU64x230Extend.b0_in_code.trans BufU64x230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufU64x230Extend.b1_at : NativeRustcVmArm.Vm.BufU64x230Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code 2632 :=
+public theorem BufU64x230Extend.b1_at : NativeRustcVmArm.Vm.BufU64x230Extend.b1.IsInfixAt NativeRustcVmArm.Vm.code (BufU64x230Extend.programOffset + NativeRustcVmArm.Vm.BufU64x230Extend.b1Offset) :=
   NativeRustcVmArm.Vm.BufU64x230Extend.b1_in_code.trans BufU64x230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufU64x230Extend.b2_at : NativeRustcVmArm.Vm.BufU64x230Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code 2639 :=
+public theorem BufU64x230Extend.b2_at : NativeRustcVmArm.Vm.BufU64x230Extend.b2.IsInfixAt NativeRustcVmArm.Vm.code (BufU64x230Extend.programOffset + NativeRustcVmArm.Vm.BufU64x230Extend.b2Offset) :=
   NativeRustcVmArm.Vm.BufU64x230Extend.b2_in_code.trans BufU64x230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufU64x230Extend.b3_at : NativeRustcVmArm.Vm.BufU64x230Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code 2643 :=
+public theorem BufU64x230Extend.b3_at : NativeRustcVmArm.Vm.BufU64x230Extend.b3.IsInfixAt NativeRustcVmArm.Vm.code (BufU64x230Extend.programOffset + NativeRustcVmArm.Vm.BufU64x230Extend.b3Offset) :=
   NativeRustcVmArm.Vm.BufU64x230Extend.b3_in_code.trans BufU64x230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufU64x230Extend.b4_at : NativeRustcVmArm.Vm.BufU64x230Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code 2649 :=
+public theorem BufU64x230Extend.b4_at : NativeRustcVmArm.Vm.BufU64x230Extend.b4.IsInfixAt NativeRustcVmArm.Vm.code (BufU64x230Extend.programOffset + NativeRustcVmArm.Vm.BufU64x230Extend.b4Offset) :=
   NativeRustcVmArm.Vm.BufU64x230Extend.b4_in_code.trans BufU64x230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BufU64x230Extend.b5_at : NativeRustcVmArm.Vm.BufU64x230Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code 2652 :=
+public theorem BufU64x230Extend.b5_at : NativeRustcVmArm.Vm.BufU64x230Extend.b5.IsInfixAt NativeRustcVmArm.Vm.code (BufU64x230Extend.programOffset + NativeRustcVmArm.Vm.BufU64x230Extend.b5Offset) :=
   NativeRustcVmArm.Vm.BufU64x230Extend.b5_in_code.trans BufU64x230Extend.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.code_at : NativeRustcVmArm.Vm.BasisWEval.code.IsInfixAt NativeRustcVmArm.Vm.code 2655 :=
+@[expose] public def BasisWEval.programOffset : Nat := 2655
+
+public theorem BasisWEval.code_at : NativeRustcVmArm.Vm.BasisWEval.code.IsInfixAt NativeRustcVmArm.Vm.code BasisWEval.programOffset :=
   List.isInfixAt_flatten_of (i := 22) rfl (by decide +kernel)
 
-public theorem BasisWEval.b0_at : NativeRustcVmArm.Vm.BasisWEval.b0.IsInfixAt NativeRustcVmArm.Vm.code 2655 :=
+public theorem BasisWEval.b0_at : NativeRustcVmArm.Vm.BasisWEval.b0.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b0Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b0_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b1_at : NativeRustcVmArm.Vm.BasisWEval.b1.IsInfixAt NativeRustcVmArm.Vm.code 2672 :=
+public theorem BasisWEval.b1_at : NativeRustcVmArm.Vm.BasisWEval.b1.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b1Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b1_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b2_at : NativeRustcVmArm.Vm.BasisWEval.b2.IsInfixAt NativeRustcVmArm.Vm.code 2675 :=
+public theorem BasisWEval.b2_at : NativeRustcVmArm.Vm.BasisWEval.b2.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b2Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b2_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b3_at : NativeRustcVmArm.Vm.BasisWEval.b3.IsInfixAt NativeRustcVmArm.Vm.code 2678 :=
+public theorem BasisWEval.b3_at : NativeRustcVmArm.Vm.BasisWEval.b3.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b3Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b3_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b4_at : NativeRustcVmArm.Vm.BasisWEval.b4.IsInfixAt NativeRustcVmArm.Vm.code 2682 :=
+public theorem BasisWEval.b4_at : NativeRustcVmArm.Vm.BasisWEval.b4.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b4Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b4_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b5_at : NativeRustcVmArm.Vm.BasisWEval.b5.IsInfixAt NativeRustcVmArm.Vm.code 2696 :=
+public theorem BasisWEval.b5_at : NativeRustcVmArm.Vm.BasisWEval.b5.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b5Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b5_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b6_at : NativeRustcVmArm.Vm.BasisWEval.b6.IsInfixAt NativeRustcVmArm.Vm.code 2698 :=
+public theorem BasisWEval.b6_at : NativeRustcVmArm.Vm.BasisWEval.b6.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b6Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b6_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b7_at : NativeRustcVmArm.Vm.BasisWEval.b7.IsInfixAt NativeRustcVmArm.Vm.code 2704 :=
+public theorem BasisWEval.b7_at : NativeRustcVmArm.Vm.BasisWEval.b7.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b7Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b7_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b8_at : NativeRustcVmArm.Vm.BasisWEval.b8.IsInfixAt NativeRustcVmArm.Vm.code 2715 :=
+public theorem BasisWEval.b8_at : NativeRustcVmArm.Vm.BasisWEval.b8.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b8Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b8_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b9_at : NativeRustcVmArm.Vm.BasisWEval.b9.IsInfixAt NativeRustcVmArm.Vm.code 2717 :=
+public theorem BasisWEval.b9_at : NativeRustcVmArm.Vm.BasisWEval.b9.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b9Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b9_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b10_at : NativeRustcVmArm.Vm.BasisWEval.b10.IsInfixAt NativeRustcVmArm.Vm.code 2721 :=
+public theorem BasisWEval.b10_at : NativeRustcVmArm.Vm.BasisWEval.b10.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b10Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b10_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b11_at : NativeRustcVmArm.Vm.BasisWEval.b11.IsInfixAt NativeRustcVmArm.Vm.code 2725 :=
+public theorem BasisWEval.b11_at : NativeRustcVmArm.Vm.BasisWEval.b11.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b11Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b11_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b12_at : NativeRustcVmArm.Vm.BasisWEval.b12.IsInfixAt NativeRustcVmArm.Vm.code 2730 :=
+public theorem BasisWEval.b12_at : NativeRustcVmArm.Vm.BasisWEval.b12.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b12Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b12_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b13_at : NativeRustcVmArm.Vm.BasisWEval.b13.IsInfixAt NativeRustcVmArm.Vm.code 2732 :=
+public theorem BasisWEval.b13_at : NativeRustcVmArm.Vm.BasisWEval.b13.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b13Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b13_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b14_at : NativeRustcVmArm.Vm.BasisWEval.b14.IsInfixAt NativeRustcVmArm.Vm.code 2734 :=
+public theorem BasisWEval.b14_at : NativeRustcVmArm.Vm.BasisWEval.b14.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b14Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b14_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b15_at : NativeRustcVmArm.Vm.BasisWEval.b15.IsInfixAt NativeRustcVmArm.Vm.code 2738 :=
+public theorem BasisWEval.b15_at : NativeRustcVmArm.Vm.BasisWEval.b15.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b15Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b15_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b16_at : NativeRustcVmArm.Vm.BasisWEval.b16.IsInfixAt NativeRustcVmArm.Vm.code 2750 :=
+public theorem BasisWEval.b16_at : NativeRustcVmArm.Vm.BasisWEval.b16.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b16Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b16_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b17_at : NativeRustcVmArm.Vm.BasisWEval.b17.IsInfixAt NativeRustcVmArm.Vm.code 2752 :=
+public theorem BasisWEval.b17_at : NativeRustcVmArm.Vm.BasisWEval.b17.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b17Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b17_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b18_at : NativeRustcVmArm.Vm.BasisWEval.b18.IsInfixAt NativeRustcVmArm.Vm.code 2756 :=
+public theorem BasisWEval.b18_at : NativeRustcVmArm.Vm.BasisWEval.b18.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b18Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b18_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b19_at : NativeRustcVmArm.Vm.BasisWEval.b19.IsInfixAt NativeRustcVmArm.Vm.code 2759 :=
+public theorem BasisWEval.b19_at : NativeRustcVmArm.Vm.BasisWEval.b19.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b19Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b19_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b20_at : NativeRustcVmArm.Vm.BasisWEval.b20.IsInfixAt NativeRustcVmArm.Vm.code 2762 :=
+public theorem BasisWEval.b20_at : NativeRustcVmArm.Vm.BasisWEval.b20.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b20Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b20_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b21_at : NativeRustcVmArm.Vm.BasisWEval.b21.IsInfixAt NativeRustcVmArm.Vm.code 2764 :=
+public theorem BasisWEval.b21_at : NativeRustcVmArm.Vm.BasisWEval.b21.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b21Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b21_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b22_at : NativeRustcVmArm.Vm.BasisWEval.b22.IsInfixAt NativeRustcVmArm.Vm.code 2767 :=
+public theorem BasisWEval.b22_at : NativeRustcVmArm.Vm.BasisWEval.b22.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b22Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b22_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b23_at : NativeRustcVmArm.Vm.BasisWEval.b23.IsInfixAt NativeRustcVmArm.Vm.code 2777 :=
+public theorem BasisWEval.b23_at : NativeRustcVmArm.Vm.BasisWEval.b23.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b23Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b23_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b24_at : NativeRustcVmArm.Vm.BasisWEval.b24.IsInfixAt NativeRustcVmArm.Vm.code 2782 :=
+public theorem BasisWEval.b24_at : NativeRustcVmArm.Vm.BasisWEval.b24.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b24Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b24_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b25_at : NativeRustcVmArm.Vm.BasisWEval.b25.IsInfixAt NativeRustcVmArm.Vm.code 2786 :=
+public theorem BasisWEval.b25_at : NativeRustcVmArm.Vm.BasisWEval.b25.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b25Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b25_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem BasisWEval.b26_at : NativeRustcVmArm.Vm.BasisWEval.b26.IsInfixAt NativeRustcVmArm.Vm.code 2796 :=
+public theorem BasisWEval.b26_at : NativeRustcVmArm.Vm.BasisWEval.b26.IsInfixAt NativeRustcVmArm.Vm.code (BasisWEval.programOffset + NativeRustcVmArm.Vm.BasisWEval.b26Offset) :=
   NativeRustcVmArm.Vm.BasisWEval.b26_in_code.trans BasisWEval.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.code_at : NativeRustcVmArm.Vm.ReaderLe.code.IsInfixAt NativeRustcVmArm.Vm.code 2799 :=
+@[expose] public def ReaderLe.programOffset : Nat := 2799
+
+public theorem ReaderLe.code_at : NativeRustcVmArm.Vm.ReaderLe.code.IsInfixAt NativeRustcVmArm.Vm.code ReaderLe.programOffset :=
   List.isInfixAt_flatten_of (i := 23) rfl (by decide +kernel)
 
-public theorem ReaderLe.b0_at : NativeRustcVmArm.Vm.ReaderLe.b0.IsInfixAt NativeRustcVmArm.Vm.code 2799 :=
+public theorem ReaderLe.b0_at : NativeRustcVmArm.Vm.ReaderLe.b0.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b0Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b0_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b1_at : NativeRustcVmArm.Vm.ReaderLe.b1.IsInfixAt NativeRustcVmArm.Vm.code 2806 :=
+public theorem ReaderLe.b1_at : NativeRustcVmArm.Vm.ReaderLe.b1.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b1Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b1_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b2_at : NativeRustcVmArm.Vm.ReaderLe.b2.IsInfixAt NativeRustcVmArm.Vm.code 2808 :=
+public theorem ReaderLe.b2_at : NativeRustcVmArm.Vm.ReaderLe.b2.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b2Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b2_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b3_at : NativeRustcVmArm.Vm.ReaderLe.b3.IsInfixAt NativeRustcVmArm.Vm.code 2824 :=
+public theorem ReaderLe.b3_at : NativeRustcVmArm.Vm.ReaderLe.b3.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b3Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b3_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b4_at : NativeRustcVmArm.Vm.ReaderLe.b4.IsInfixAt NativeRustcVmArm.Vm.code 2826 :=
+public theorem ReaderLe.b4_at : NativeRustcVmArm.Vm.ReaderLe.b4.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b4Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b4_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b5_at : NativeRustcVmArm.Vm.ReaderLe.b5.IsInfixAt NativeRustcVmArm.Vm.code 2831 :=
+public theorem ReaderLe.b5_at : NativeRustcVmArm.Vm.ReaderLe.b5.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b5Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b5_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b6_at : NativeRustcVmArm.Vm.ReaderLe.b6.IsInfixAt NativeRustcVmArm.Vm.code 2833 :=
+public theorem ReaderLe.b6_at : NativeRustcVmArm.Vm.ReaderLe.b6.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b6Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b6_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b7_at : NativeRustcVmArm.Vm.ReaderLe.b7.IsInfixAt NativeRustcVmArm.Vm.code 2838 :=
+public theorem ReaderLe.b7_at : NativeRustcVmArm.Vm.ReaderLe.b7.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b7Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b7_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b8_at : NativeRustcVmArm.Vm.ReaderLe.b8.IsInfixAt NativeRustcVmArm.Vm.code 2840 :=
+public theorem ReaderLe.b8_at : NativeRustcVmArm.Vm.ReaderLe.b8.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b8Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b8_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b9_at : NativeRustcVmArm.Vm.ReaderLe.b9.IsInfixAt NativeRustcVmArm.Vm.code 2845 :=
+public theorem ReaderLe.b9_at : NativeRustcVmArm.Vm.ReaderLe.b9.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b9Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b9_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderLe.b10_at : NativeRustcVmArm.Vm.ReaderLe.b10.IsInfixAt NativeRustcVmArm.Vm.code 2847 :=
+public theorem ReaderLe.b10_at : NativeRustcVmArm.Vm.ReaderLe.b10.IsInfixAt NativeRustcVmArm.Vm.code (ReaderLe.programOffset + NativeRustcVmArm.Vm.ReaderLe.b10Offset) :=
   NativeRustcVmArm.Vm.ReaderLe.b10_in_code.trans ReaderLe.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.code_at : NativeRustcVmArm.Vm.ReaderWords.code.IsInfixAt NativeRustcVmArm.Vm.code 2852 :=
+@[expose] public def ReaderWords.programOffset : Nat := 2852
+
+public theorem ReaderWords.code_at : NativeRustcVmArm.Vm.ReaderWords.code.IsInfixAt NativeRustcVmArm.Vm.code ReaderWords.programOffset :=
   List.isInfixAt_flatten_of (i := 24) rfl (by decide +kernel)
 
-public theorem ReaderWords.b0_at : NativeRustcVmArm.Vm.ReaderWords.b0.IsInfixAt NativeRustcVmArm.Vm.code 2852 :=
+public theorem ReaderWords.b0_at : NativeRustcVmArm.Vm.ReaderWords.b0.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b0Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b0_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.b1_at : NativeRustcVmArm.Vm.ReaderWords.b1.IsInfixAt NativeRustcVmArm.Vm.code 2862 :=
+public theorem ReaderWords.b1_at : NativeRustcVmArm.Vm.ReaderWords.b1.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b1Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b1_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.b2_at : NativeRustcVmArm.Vm.ReaderWords.b2.IsInfixAt NativeRustcVmArm.Vm.code 2867 :=
+public theorem ReaderWords.b2_at : NativeRustcVmArm.Vm.ReaderWords.b2.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b2Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b2_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.b3_at : NativeRustcVmArm.Vm.ReaderWords.b3.IsInfixAt NativeRustcVmArm.Vm.code 2869 :=
+public theorem ReaderWords.b3_at : NativeRustcVmArm.Vm.ReaderWords.b3.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b3Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b3_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.b4_at : NativeRustcVmArm.Vm.ReaderWords.b4.IsInfixAt NativeRustcVmArm.Vm.code 2871 :=
+public theorem ReaderWords.b4_at : NativeRustcVmArm.Vm.ReaderWords.b4.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b4Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b4_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.b5_at : NativeRustcVmArm.Vm.ReaderWords.b5.IsInfixAt NativeRustcVmArm.Vm.code 2875 :=
+public theorem ReaderWords.b5_at : NativeRustcVmArm.Vm.ReaderWords.b5.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b5Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b5_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.b6_at : NativeRustcVmArm.Vm.ReaderWords.b6.IsInfixAt NativeRustcVmArm.Vm.code 2877 :=
+public theorem ReaderWords.b6_at : NativeRustcVmArm.Vm.ReaderWords.b6.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b6Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b6_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderWords.b7_at : NativeRustcVmArm.Vm.ReaderWords.b7.IsInfixAt NativeRustcVmArm.Vm.code 2880 :=
+public theorem ReaderWords.b7_at : NativeRustcVmArm.Vm.ReaderWords.b7.IsInfixAt NativeRustcVmArm.Vm.code (ReaderWords.programOffset + NativeRustcVmArm.Vm.ReaderWords.b7Offset) :=
   NativeRustcVmArm.Vm.ReaderWords.b7_in_code.trans ReaderWords.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.code_at : NativeRustcVmArm.Vm.ReaderDigest.code.IsInfixAt NativeRustcVmArm.Vm.code 2885 :=
+@[expose] public def ReaderDigest.programOffset : Nat := 2885
+
+public theorem ReaderDigest.code_at : NativeRustcVmArm.Vm.ReaderDigest.code.IsInfixAt NativeRustcVmArm.Vm.code ReaderDigest.programOffset :=
   List.isInfixAt_flatten_of (i := 25) rfl (by decide +kernel)
 
-public theorem ReaderDigest.b0_at : NativeRustcVmArm.Vm.ReaderDigest.b0.IsInfixAt NativeRustcVmArm.Vm.code 2885 :=
+public theorem ReaderDigest.b0_at : NativeRustcVmArm.Vm.ReaderDigest.b0.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b0Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b0_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b1_at : NativeRustcVmArm.Vm.ReaderDigest.b1.IsInfixAt NativeRustcVmArm.Vm.code 2894 :=
+public theorem ReaderDigest.b1_at : NativeRustcVmArm.Vm.ReaderDigest.b1.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b1Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b1_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b2_at : NativeRustcVmArm.Vm.ReaderDigest.b2.IsInfixAt NativeRustcVmArm.Vm.code 2896 :=
+public theorem ReaderDigest.b2_at : NativeRustcVmArm.Vm.ReaderDigest.b2.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b2Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b2_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b3_at : NativeRustcVmArm.Vm.ReaderDigest.b3.IsInfixAt NativeRustcVmArm.Vm.code 2900 :=
+public theorem ReaderDigest.b3_at : NativeRustcVmArm.Vm.ReaderDigest.b3.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b3Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b3_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b4_at : NativeRustcVmArm.Vm.ReaderDigest.b4.IsInfixAt NativeRustcVmArm.Vm.code 2902 :=
+public theorem ReaderDigest.b4_at : NativeRustcVmArm.Vm.ReaderDigest.b4.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b4Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b4_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b5_at : NativeRustcVmArm.Vm.ReaderDigest.b5.IsInfixAt NativeRustcVmArm.Vm.code 2906 :=
+public theorem ReaderDigest.b5_at : NativeRustcVmArm.Vm.ReaderDigest.b5.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b5Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b5_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b6_at : NativeRustcVmArm.Vm.ReaderDigest.b6.IsInfixAt NativeRustcVmArm.Vm.code 2908 :=
+public theorem ReaderDigest.b6_at : NativeRustcVmArm.Vm.ReaderDigest.b6.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b6Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b6_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b7_at : NativeRustcVmArm.Vm.ReaderDigest.b7.IsInfixAt NativeRustcVmArm.Vm.code 2912 :=
+public theorem ReaderDigest.b7_at : NativeRustcVmArm.Vm.ReaderDigest.b7.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b7Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b7_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b8_at : NativeRustcVmArm.Vm.ReaderDigest.b8.IsInfixAt NativeRustcVmArm.Vm.code 2914 :=
+public theorem ReaderDigest.b8_at : NativeRustcVmArm.Vm.ReaderDigest.b8.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b8Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b8_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem ReaderDigest.b9_at : NativeRustcVmArm.Vm.ReaderDigest.b9.IsInfixAt NativeRustcVmArm.Vm.code 2922 :=
+public theorem ReaderDigest.b9_at : NativeRustcVmArm.Vm.ReaderDigest.b9.IsInfixAt NativeRustcVmArm.Vm.code (ReaderDigest.programOffset + NativeRustcVmArm.Vm.ReaderDigest.b9Offset) :=
   NativeRustcVmArm.Vm.ReaderDigest.b9_in_code.trans ReaderDigest.code_at (List.cons_ne_nil _ _)
 
-public theorem EWMul.code_at : NativeRustcVmArm.Vm.EWMul.code.IsInfixAt NativeRustcVmArm.Vm.code 2928 :=
+@[expose] public def EWMul.programOffset : Nat := 2928
+
+public theorem EWMul.code_at : NativeRustcVmArm.Vm.EWMul.code.IsInfixAt NativeRustcVmArm.Vm.code EWMul.programOffset :=
   List.isInfixAt_flatten_of (i := 26) rfl (by decide +kernel)
 
-public theorem EWMul.b0_at : NativeRustcVmArm.Vm.EWMul.b0.IsInfixAt NativeRustcVmArm.Vm.code 2928 :=
+public theorem EWMul.b0_at : NativeRustcVmArm.Vm.EWMul.b0.IsInfixAt NativeRustcVmArm.Vm.code (EWMul.programOffset + NativeRustcVmArm.Vm.EWMul.b0Offset) :=
   NativeRustcVmArm.Vm.EWMul.b0_in_code.trans EWMul.code_at (List.cons_ne_nil _ _)
 
-public theorem EWSqIter.code_at : NativeRustcVmArm.Vm.EWSqIter.code.IsInfixAt NativeRustcVmArm.Vm.code 3339 :=
+@[expose] public def EWSqIter.programOffset : Nat := 3339
+
+public theorem EWSqIter.code_at : NativeRustcVmArm.Vm.EWSqIter.code.IsInfixAt NativeRustcVmArm.Vm.code EWSqIter.programOffset :=
   List.isInfixAt_flatten_of (i := 27) rfl (by decide +kernel)
 
-public theorem EWSqIter.b0_at : NativeRustcVmArm.Vm.EWSqIter.b0.IsInfixAt NativeRustcVmArm.Vm.code 3339 :=
+public theorem EWSqIter.b0_at : NativeRustcVmArm.Vm.EWSqIter.b0.IsInfixAt NativeRustcVmArm.Vm.code (EWSqIter.programOffset + NativeRustcVmArm.Vm.EWSqIter.b0Offset) :=
   NativeRustcVmArm.Vm.EWSqIter.b0_in_code.trans EWSqIter.code_at (List.cons_ne_nil _ _)
 
-public theorem EWSqIter.b1_at : NativeRustcVmArm.Vm.EWSqIter.b1.IsInfixAt NativeRustcVmArm.Vm.code 3345 :=
+public theorem EWSqIter.b1_at : NativeRustcVmArm.Vm.EWSqIter.b1.IsInfixAt NativeRustcVmArm.Vm.code (EWSqIter.programOffset + NativeRustcVmArm.Vm.EWSqIter.b1Offset) :=
   NativeRustcVmArm.Vm.EWSqIter.b1_in_code.trans EWSqIter.code_at (List.cons_ne_nil _ _)
 
-public theorem EWSqIter.b2_at : NativeRustcVmArm.Vm.EWSqIter.b2.IsInfixAt NativeRustcVmArm.Vm.code 3349 :=
+public theorem EWSqIter.b2_at : NativeRustcVmArm.Vm.EWSqIter.b2.IsInfixAt NativeRustcVmArm.Vm.code (EWSqIter.programOffset + NativeRustcVmArm.Vm.EWSqIter.b2Offset) :=
   NativeRustcVmArm.Vm.EWSqIter.b2_in_code.trans EWSqIter.code_at (List.cons_ne_nil _ _)
 
-public theorem EWSqIter.b3_at : NativeRustcVmArm.Vm.EWSqIter.b3.IsInfixAt NativeRustcVmArm.Vm.code 3352 :=
+public theorem EWSqIter.b3_at : NativeRustcVmArm.Vm.EWSqIter.b3.IsInfixAt NativeRustcVmArm.Vm.code (EWSqIter.programOffset + NativeRustcVmArm.Vm.EWSqIter.b3Offset) :=
   NativeRustcVmArm.Vm.EWSqIter.b3_in_code.trans EWSqIter.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhaseCount.code_at : NativeRustcVmArm.Vm.DecodedPhaseCount.code.IsInfixAt NativeRustcVmArm.Vm.code 3356 :=
+@[expose] public def DecodedPhaseCount.programOffset : Nat := 3356
+
+public theorem DecodedPhaseCount.code_at : NativeRustcVmArm.Vm.DecodedPhaseCount.code.IsInfixAt NativeRustcVmArm.Vm.code DecodedPhaseCount.programOffset :=
   List.isInfixAt_flatten_of (i := 28) rfl (by decide +kernel)
 
-public theorem DecodedPhaseCount.b0_at : NativeRustcVmArm.Vm.DecodedPhaseCount.b0.IsInfixAt NativeRustcVmArm.Vm.code 3356 :=
+public theorem DecodedPhaseCount.b0_at : NativeRustcVmArm.Vm.DecodedPhaseCount.b0.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhaseCount.programOffset + NativeRustcVmArm.Vm.DecodedPhaseCount.b0Offset) :=
   NativeRustcVmArm.Vm.DecodedPhaseCount.b0_in_code.trans DecodedPhaseCount.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhaseCount.b1_at : NativeRustcVmArm.Vm.DecodedPhaseCount.b1.IsInfixAt NativeRustcVmArm.Vm.code 3362 :=
+public theorem DecodedPhaseCount.b1_at : NativeRustcVmArm.Vm.DecodedPhaseCount.b1.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhaseCount.programOffset + NativeRustcVmArm.Vm.DecodedPhaseCount.b1Offset) :=
   NativeRustcVmArm.Vm.DecodedPhaseCount.b1_in_code.trans DecodedPhaseCount.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhaseCount.b2_at : NativeRustcVmArm.Vm.DecodedPhaseCount.b2.IsInfixAt NativeRustcVmArm.Vm.code 3365 :=
+public theorem DecodedPhaseCount.b2_at : NativeRustcVmArm.Vm.DecodedPhaseCount.b2.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhaseCount.programOffset + NativeRustcVmArm.Vm.DecodedPhaseCount.b2Offset) :=
   NativeRustcVmArm.Vm.DecodedPhaseCount.b2_in_code.trans DecodedPhaseCount.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedStreamElement.code_at : NativeRustcVmArm.Vm.DecodedStreamElement.code.IsInfixAt NativeRustcVmArm.Vm.code 3368 :=
+@[expose] public def DecodedStreamElement.programOffset : Nat := 3368
+
+public theorem DecodedStreamElement.code_at : NativeRustcVmArm.Vm.DecodedStreamElement.code.IsInfixAt NativeRustcVmArm.Vm.code DecodedStreamElement.programOffset :=
   List.isInfixAt_flatten_of (i := 29) rfl (by decide +kernel)
 
-public theorem DecodedStreamElement.b0_at : NativeRustcVmArm.Vm.DecodedStreamElement.b0.IsInfixAt NativeRustcVmArm.Vm.code 3368 :=
+public theorem DecodedStreamElement.b0_at : NativeRustcVmArm.Vm.DecodedStreamElement.b0.IsInfixAt NativeRustcVmArm.Vm.code (DecodedStreamElement.programOffset + NativeRustcVmArm.Vm.DecodedStreamElement.b0Offset) :=
   NativeRustcVmArm.Vm.DecodedStreamElement.b0_in_code.trans DecodedStreamElement.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedStreamElement.b1_at : NativeRustcVmArm.Vm.DecodedStreamElement.b1.IsInfixAt NativeRustcVmArm.Vm.code 3370 :=
+public theorem DecodedStreamElement.b1_at : NativeRustcVmArm.Vm.DecodedStreamElement.b1.IsInfixAt NativeRustcVmArm.Vm.code (DecodedStreamElement.programOffset + NativeRustcVmArm.Vm.DecodedStreamElement.b1Offset) :=
   NativeRustcVmArm.Vm.DecodedStreamElement.b1_in_code.trans DecodedStreamElement.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedStreamElement.b2_at : NativeRustcVmArm.Vm.DecodedStreamElement.b2.IsInfixAt NativeRustcVmArm.Vm.code 3373 :=
+public theorem DecodedStreamElement.b2_at : NativeRustcVmArm.Vm.DecodedStreamElement.b2.IsInfixAt NativeRustcVmArm.Vm.code (DecodedStreamElement.programOffset + NativeRustcVmArm.Vm.DecodedStreamElement.b2Offset) :=
   NativeRustcVmArm.Vm.DecodedStreamElement.b2_in_code.trans DecodedStreamElement.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedStreamElement.b3_at : NativeRustcVmArm.Vm.DecodedStreamElement.b3.IsInfixAt NativeRustcVmArm.Vm.code 3378 :=
+public theorem DecodedStreamElement.b3_at : NativeRustcVmArm.Vm.DecodedStreamElement.b3.IsInfixAt NativeRustcVmArm.Vm.code (DecodedStreamElement.programOffset + NativeRustcVmArm.Vm.DecodedStreamElement.b3Offset) :=
   NativeRustcVmArm.Vm.DecodedStreamElement.b3_in_code.trans DecodedStreamElement.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedStreamElement.b4_at : NativeRustcVmArm.Vm.DecodedStreamElement.b4.IsInfixAt NativeRustcVmArm.Vm.code 3381 :=
+public theorem DecodedStreamElement.b4_at : NativeRustcVmArm.Vm.DecodedStreamElement.b4.IsInfixAt NativeRustcVmArm.Vm.code (DecodedStreamElement.programOffset + NativeRustcVmArm.Vm.DecodedStreamElement.b4Offset) :=
   NativeRustcVmArm.Vm.DecodedStreamElement.b4_in_code.trans DecodedStreamElement.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhase.code_at : NativeRustcVmArm.Vm.DecodedPhase.code.IsInfixAt NativeRustcVmArm.Vm.code 3388 :=
+@[expose] public def DecodedPhase.programOffset : Nat := 3388
+
+public theorem DecodedPhase.code_at : NativeRustcVmArm.Vm.DecodedPhase.code.IsInfixAt NativeRustcVmArm.Vm.code DecodedPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 30) rfl (by decide +kernel)
 
-public theorem DecodedPhase.b0_at : NativeRustcVmArm.Vm.DecodedPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code 3388 :=
+public theorem DecodedPhase.b0_at : NativeRustcVmArm.Vm.DecodedPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhase.programOffset + NativeRustcVmArm.Vm.DecodedPhase.b0Offset) :=
   NativeRustcVmArm.Vm.DecodedPhase.b0_in_code.trans DecodedPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhase.b1_at : NativeRustcVmArm.Vm.DecodedPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code 3394 :=
+public theorem DecodedPhase.b1_at : NativeRustcVmArm.Vm.DecodedPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhase.programOffset + NativeRustcVmArm.Vm.DecodedPhase.b1Offset) :=
   NativeRustcVmArm.Vm.DecodedPhase.b1_in_code.trans DecodedPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhase.b2_at : NativeRustcVmArm.Vm.DecodedPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code 3397 :=
+public theorem DecodedPhase.b2_at : NativeRustcVmArm.Vm.DecodedPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhase.programOffset + NativeRustcVmArm.Vm.DecodedPhase.b2Offset) :=
   NativeRustcVmArm.Vm.DecodedPhase.b2_in_code.trans DecodedPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhase.b3_at : NativeRustcVmArm.Vm.DecodedPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code 3401 :=
+public theorem DecodedPhase.b3_at : NativeRustcVmArm.Vm.DecodedPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhase.programOffset + NativeRustcVmArm.Vm.DecodedPhase.b3Offset) :=
   NativeRustcVmArm.Vm.DecodedPhase.b3_in_code.trans DecodedPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhase.b4_at : NativeRustcVmArm.Vm.DecodedPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code 3411 :=
+public theorem DecodedPhase.b4_at : NativeRustcVmArm.Vm.DecodedPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhase.programOffset + NativeRustcVmArm.Vm.DecodedPhase.b4Offset) :=
   NativeRustcVmArm.Vm.DecodedPhase.b4_in_code.trans DecodedPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem DecodedPhase.b5_at : NativeRustcVmArm.Vm.DecodedPhase.b5.IsInfixAt NativeRustcVmArm.Vm.code 3415 :=
+public theorem DecodedPhase.b5_at : NativeRustcVmArm.Vm.DecodedPhase.b5.IsInfixAt NativeRustcVmArm.Vm.code (DecodedPhase.programOffset + NativeRustcVmArm.Vm.DecodedPhase.b5Offset) :=
   NativeRustcVmArm.Vm.DecodedPhase.b5_in_code.trans DecodedPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateNextScalar.code_at : NativeRustcVmArm.Vm.TStateNextScalar.code.IsInfixAt NativeRustcVmArm.Vm.code 3422 :=
+@[expose] public def TStateNextScalar.programOffset : Nat := 3422
+
+public theorem TStateNextScalar.code_at : NativeRustcVmArm.Vm.TStateNextScalar.code.IsInfixAt NativeRustcVmArm.Vm.code TStateNextScalar.programOffset :=
   List.isInfixAt_flatten_of (i := 31) rfl (by decide +kernel)
 
-public theorem TStateNextScalar.b0_at : NativeRustcVmArm.Vm.TStateNextScalar.b0.IsInfixAt NativeRustcVmArm.Vm.code 3422 :=
+public theorem TStateNextScalar.b0_at : NativeRustcVmArm.Vm.TStateNextScalar.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateNextScalar.programOffset + NativeRustcVmArm.Vm.TStateNextScalar.b0Offset) :=
   NativeRustcVmArm.Vm.TStateNextScalar.b0_in_code.trans TStateNextScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateNextScalar.b1_at : NativeRustcVmArm.Vm.TStateNextScalar.b1.IsInfixAt NativeRustcVmArm.Vm.code 3429 :=
+public theorem TStateNextScalar.b1_at : NativeRustcVmArm.Vm.TStateNextScalar.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateNextScalar.programOffset + NativeRustcVmArm.Vm.TStateNextScalar.b1Offset) :=
   NativeRustcVmArm.Vm.TStateNextScalar.b1_in_code.trans TStateNextScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateNextScalar.b2_at : NativeRustcVmArm.Vm.TStateNextScalar.b2.IsInfixAt NativeRustcVmArm.Vm.code 3430 :=
+public theorem TStateNextScalar.b2_at : NativeRustcVmArm.Vm.TStateNextScalar.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateNextScalar.programOffset + NativeRustcVmArm.Vm.TStateNextScalar.b2Offset) :=
   NativeRustcVmArm.Vm.TStateNextScalar.b2_in_code.trans TStateNextScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateNextScalar.b3_at : NativeRustcVmArm.Vm.TStateNextScalar.b3.IsInfixAt NativeRustcVmArm.Vm.code 3436 :=
+public theorem TStateNextScalar.b3_at : NativeRustcVmArm.Vm.TStateNextScalar.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateNextScalar.programOffset + NativeRustcVmArm.Vm.TStateNextScalar.b3Offset) :=
   NativeRustcVmArm.Vm.TStateNextScalar.b3_in_code.trans TStateNextScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateNextScalar.b4_at : NativeRustcVmArm.Vm.TStateNextScalar.b4.IsInfixAt NativeRustcVmArm.Vm.code 3444 :=
+public theorem TStateNextScalar.b4_at : NativeRustcVmArm.Vm.TStateNextScalar.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateNextScalar.programOffset + NativeRustcVmArm.Vm.TStateNextScalar.b4Offset) :=
   NativeRustcVmArm.Vm.TStateNextScalar.b4_in_code.trans TStateNextScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateNextScalar.b5_at : NativeRustcVmArm.Vm.TStateNextScalar.b5.IsInfixAt NativeRustcVmArm.Vm.code 3446 :=
+public theorem TStateNextScalar.b5_at : NativeRustcVmArm.Vm.TStateNextScalar.b5.IsInfixAt NativeRustcVmArm.Vm.code (TStateNextScalar.programOffset + NativeRustcVmArm.Vm.TStateNextScalar.b5Offset) :=
   NativeRustcVmArm.Vm.TStateNextScalar.b5_in_code.trans TStateNextScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalar.code_at : NativeRustcVmArm.Vm.TStateReadScalar.code.IsInfixAt NativeRustcVmArm.Vm.code 3456 :=
+@[expose] public def TStateReadScalar.programOffset : Nat := 3456
+
+public theorem TStateReadScalar.code_at : NativeRustcVmArm.Vm.TStateReadScalar.code.IsInfixAt NativeRustcVmArm.Vm.code TStateReadScalar.programOffset :=
   List.isInfixAt_flatten_of (i := 32) rfl (by decide +kernel)
 
-public theorem TStateReadScalar.b0_at : NativeRustcVmArm.Vm.TStateReadScalar.b0.IsInfixAt NativeRustcVmArm.Vm.code 3456 :=
+public theorem TStateReadScalar.b0_at : NativeRustcVmArm.Vm.TStateReadScalar.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalar.programOffset + NativeRustcVmArm.Vm.TStateReadScalar.b0Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalar.b0_in_code.trans TStateReadScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalar.b1_at : NativeRustcVmArm.Vm.TStateReadScalar.b1.IsInfixAt NativeRustcVmArm.Vm.code 3465 :=
+public theorem TStateReadScalar.b1_at : NativeRustcVmArm.Vm.TStateReadScalar.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalar.programOffset + NativeRustcVmArm.Vm.TStateReadScalar.b1Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalar.b1_in_code.trans TStateReadScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalar.b2_at : NativeRustcVmArm.Vm.TStateReadScalar.b2.IsInfixAt NativeRustcVmArm.Vm.code 3467 :=
+public theorem TStateReadScalar.b2_at : NativeRustcVmArm.Vm.TStateReadScalar.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalar.programOffset + NativeRustcVmArm.Vm.TStateReadScalar.b2Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalar.b2_in_code.trans TStateReadScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalar.b3_at : NativeRustcVmArm.Vm.TStateReadScalar.b3.IsInfixAt NativeRustcVmArm.Vm.code 3474 :=
+public theorem TStateReadScalar.b3_at : NativeRustcVmArm.Vm.TStateReadScalar.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalar.programOffset + NativeRustcVmArm.Vm.TStateReadScalar.b3Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalar.b3_in_code.trans TStateReadScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalar.b4_at : NativeRustcVmArm.Vm.TStateReadScalar.b4.IsInfixAt NativeRustcVmArm.Vm.code 3481 :=
+public theorem TStateReadScalar.b4_at : NativeRustcVmArm.Vm.TStateReadScalar.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalar.programOffset + NativeRustcVmArm.Vm.TStateReadScalar.b4Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalar.b4_in_code.trans TStateReadScalar.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.code_at : NativeRustcVmArm.Vm.TStateReadScalars.code.IsInfixAt NativeRustcVmArm.Vm.code 3488 :=
+@[expose] public def TStateReadScalars.programOffset : Nat := 3488
+
+public theorem TStateReadScalars.code_at : NativeRustcVmArm.Vm.TStateReadScalars.code.IsInfixAt NativeRustcVmArm.Vm.code TStateReadScalars.programOffset :=
   List.isInfixAt_flatten_of (i := 33) rfl (by decide +kernel)
 
-public theorem TStateReadScalars.b0_at : NativeRustcVmArm.Vm.TStateReadScalars.b0.IsInfixAt NativeRustcVmArm.Vm.code 3488 :=
+public theorem TStateReadScalars.b0_at : NativeRustcVmArm.Vm.TStateReadScalars.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b0Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b0_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.b1_at : NativeRustcVmArm.Vm.TStateReadScalars.b1.IsInfixAt NativeRustcVmArm.Vm.code 3490 :=
+public theorem TStateReadScalars.b1_at : NativeRustcVmArm.Vm.TStateReadScalars.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b1Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b1_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.b2_at : NativeRustcVmArm.Vm.TStateReadScalars.b2.IsInfixAt NativeRustcVmArm.Vm.code 3496 :=
+public theorem TStateReadScalars.b2_at : NativeRustcVmArm.Vm.TStateReadScalars.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b2Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b2_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.b3_at : NativeRustcVmArm.Vm.TStateReadScalars.b3.IsInfixAt NativeRustcVmArm.Vm.code 3500 :=
+public theorem TStateReadScalars.b3_at : NativeRustcVmArm.Vm.TStateReadScalars.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b3Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b3_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.b4_at : NativeRustcVmArm.Vm.TStateReadScalars.b4.IsInfixAt NativeRustcVmArm.Vm.code 3502 :=
+public theorem TStateReadScalars.b4_at : NativeRustcVmArm.Vm.TStateReadScalars.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b4Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b4_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.b5_at : NativeRustcVmArm.Vm.TStateReadScalars.b5.IsInfixAt NativeRustcVmArm.Vm.code 3506 :=
+public theorem TStateReadScalars.b5_at : NativeRustcVmArm.Vm.TStateReadScalars.b5.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b5Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b5_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.b6_at : NativeRustcVmArm.Vm.TStateReadScalars.b6.IsInfixAt NativeRustcVmArm.Vm.code 3511 :=
+public theorem TStateReadScalars.b6_at : NativeRustcVmArm.Vm.TStateReadScalars.b6.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b6Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b6_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadScalars.b7_at : NativeRustcVmArm.Vm.TStateReadScalars.b7.IsInfixAt NativeRustcVmArm.Vm.code 3514 :=
+public theorem TStateReadScalars.b7_at : NativeRustcVmArm.Vm.TStateReadScalars.b7.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadScalars.programOffset + NativeRustcVmArm.Vm.TStateReadScalars.b7Offset) :=
   NativeRustcVmArm.Vm.TStateReadScalars.b7_in_code.trans TStateReadScalars.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.code_at : NativeRustcVmArm.Vm.TStateQueryOpenings.code.IsInfixAt NativeRustcVmArm.Vm.code 3520 :=
+@[expose] public def TStateQueryOpenings.programOffset : Nat := 3520
+
+public theorem TStateQueryOpenings.code_at : NativeRustcVmArm.Vm.TStateQueryOpenings.code.IsInfixAt NativeRustcVmArm.Vm.code TStateQueryOpenings.programOffset :=
   List.isInfixAt_flatten_of (i := 34) rfl (by decide +kernel)
 
-public theorem TStateQueryOpenings.b0_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b0.IsInfixAt NativeRustcVmArm.Vm.code 3520 :=
+public theorem TStateQueryOpenings.b0_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b0Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b0_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.b1_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b1.IsInfixAt NativeRustcVmArm.Vm.code 3530 :=
+public theorem TStateQueryOpenings.b1_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b1Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b1_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.b2_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b2.IsInfixAt NativeRustcVmArm.Vm.code 3533 :=
+public theorem TStateQueryOpenings.b2_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b2Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b2_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.b3_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b3.IsInfixAt NativeRustcVmArm.Vm.code 3540 :=
+public theorem TStateQueryOpenings.b3_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b3Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b3_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.b4_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b4.IsInfixAt NativeRustcVmArm.Vm.code 3541 :=
+public theorem TStateQueryOpenings.b4_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b4Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b4_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.b5_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b5.IsInfixAt NativeRustcVmArm.Vm.code 3550 :=
+public theorem TStateQueryOpenings.b5_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b5.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b5Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b5_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.b6_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b6.IsInfixAt NativeRustcVmArm.Vm.code 3552 :=
+public theorem TStateQueryOpenings.b6_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b6.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b6Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b6_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateQueryOpenings.b7_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b7.IsInfixAt NativeRustcVmArm.Vm.code 3564 :=
+public theorem TStateQueryOpenings.b7_at : NativeRustcVmArm.Vm.TStateQueryOpenings.b7.IsInfixAt NativeRustcVmArm.Vm.code (TStateQueryOpenings.programOffset + NativeRustcVmArm.Vm.TStateQueryOpenings.b7Offset) :=
   NativeRustcVmArm.Vm.TStateQueryOpenings.b7_in_code.trans TStateQueryOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadCommitment.code_at : NativeRustcVmArm.Vm.TStateReadCommitment.code.IsInfixAt NativeRustcVmArm.Vm.code 3572 :=
+@[expose] public def TStateReadCommitment.programOffset : Nat := 3572
+
+public theorem TStateReadCommitment.code_at : NativeRustcVmArm.Vm.TStateReadCommitment.code.IsInfixAt NativeRustcVmArm.Vm.code TStateReadCommitment.programOffset :=
   List.isInfixAt_flatten_of (i := 35) rfl (by decide +kernel)
 
-public theorem TStateReadCommitment.b0_at : NativeRustcVmArm.Vm.TStateReadCommitment.b0.IsInfixAt NativeRustcVmArm.Vm.code 3572 :=
+public theorem TStateReadCommitment.b0_at : NativeRustcVmArm.Vm.TStateReadCommitment.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmArm.Vm.TStateReadCommitment.b0Offset) :=
   NativeRustcVmArm.Vm.TStateReadCommitment.b0_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadCommitment.b1_at : NativeRustcVmArm.Vm.TStateReadCommitment.b1.IsInfixAt NativeRustcVmArm.Vm.code 3583 :=
+public theorem TStateReadCommitment.b1_at : NativeRustcVmArm.Vm.TStateReadCommitment.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmArm.Vm.TStateReadCommitment.b1Offset) :=
   NativeRustcVmArm.Vm.TStateReadCommitment.b1_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadCommitment.b2_at : NativeRustcVmArm.Vm.TStateReadCommitment.b2.IsInfixAt NativeRustcVmArm.Vm.code 3585 :=
+public theorem TStateReadCommitment.b2_at : NativeRustcVmArm.Vm.TStateReadCommitment.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmArm.Vm.TStateReadCommitment.b2Offset) :=
   NativeRustcVmArm.Vm.TStateReadCommitment.b2_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadCommitment.b3_at : NativeRustcVmArm.Vm.TStateReadCommitment.b3.IsInfixAt NativeRustcVmArm.Vm.code 3589 :=
+public theorem TStateReadCommitment.b3_at : NativeRustcVmArm.Vm.TStateReadCommitment.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmArm.Vm.TStateReadCommitment.b3Offset) :=
   NativeRustcVmArm.Vm.TStateReadCommitment.b3_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadCommitment.b4_at : NativeRustcVmArm.Vm.TStateReadCommitment.b4.IsInfixAt NativeRustcVmArm.Vm.code 3591 :=
+public theorem TStateReadCommitment.b4_at : NativeRustcVmArm.Vm.TStateReadCommitment.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmArm.Vm.TStateReadCommitment.b4Offset) :=
   NativeRustcVmArm.Vm.TStateReadCommitment.b4_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadCommitment.b5_at : NativeRustcVmArm.Vm.TStateReadCommitment.b5.IsInfixAt NativeRustcVmArm.Vm.code 3594 :=
+public theorem TStateReadCommitment.b5_at : NativeRustcVmArm.Vm.TStateReadCommitment.b5.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmArm.Vm.TStateReadCommitment.b5Offset) :=
   NativeRustcVmArm.Vm.TStateReadCommitment.b5_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateReadCommitment.b6_at : NativeRustcVmArm.Vm.TStateReadCommitment.b6.IsInfixAt NativeRustcVmArm.Vm.code 3609 :=
+public theorem TStateReadCommitment.b6_at : NativeRustcVmArm.Vm.TStateReadCommitment.b6.IsInfixAt NativeRustcVmArm.Vm.code (TStateReadCommitment.programOffset + NativeRustcVmArm.Vm.TStateReadCommitment.b6Offset) :=
   NativeRustcVmArm.Vm.TStateReadCommitment.b6_in_code.trans TStateReadCommitment.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSampleChallenges.code_at : NativeRustcVmArm.Vm.TStateSampleChallenges.code.IsInfixAt NativeRustcVmArm.Vm.code 3616 :=
+@[expose] public def TStateSampleChallenges.programOffset : Nat := 3616
+
+public theorem TStateSampleChallenges.code_at : NativeRustcVmArm.Vm.TStateSampleChallenges.code.IsInfixAt NativeRustcVmArm.Vm.code TStateSampleChallenges.programOffset :=
   List.isInfixAt_flatten_of (i := 36) rfl (by decide +kernel)
 
-public theorem TStateSampleChallenges.b0_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b0.IsInfixAt NativeRustcVmArm.Vm.code 3616 :=
+public theorem TStateSampleChallenges.b0_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateSampleChallenges.programOffset + NativeRustcVmArm.Vm.TStateSampleChallenges.b0Offset) :=
   NativeRustcVmArm.Vm.TStateSampleChallenges.b0_in_code.trans TStateSampleChallenges.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSampleChallenges.b1_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b1.IsInfixAt NativeRustcVmArm.Vm.code 3618 :=
+public theorem TStateSampleChallenges.b1_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateSampleChallenges.programOffset + NativeRustcVmArm.Vm.TStateSampleChallenges.b1Offset) :=
   NativeRustcVmArm.Vm.TStateSampleChallenges.b1_in_code.trans TStateSampleChallenges.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSampleChallenges.b2_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b2.IsInfixAt NativeRustcVmArm.Vm.code 3623 :=
+public theorem TStateSampleChallenges.b2_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateSampleChallenges.programOffset + NativeRustcVmArm.Vm.TStateSampleChallenges.b2Offset) :=
   NativeRustcVmArm.Vm.TStateSampleChallenges.b2_in_code.trans TStateSampleChallenges.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSampleChallenges.b3_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b3.IsInfixAt NativeRustcVmArm.Vm.code 3626 :=
+public theorem TStateSampleChallenges.b3_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateSampleChallenges.programOffset + NativeRustcVmArm.Vm.TStateSampleChallenges.b3Offset) :=
   NativeRustcVmArm.Vm.TStateSampleChallenges.b3_in_code.trans TStateSampleChallenges.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSampleChallenges.b4_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b4.IsInfixAt NativeRustcVmArm.Vm.code 3629 :=
+public theorem TStateSampleChallenges.b4_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateSampleChallenges.programOffset + NativeRustcVmArm.Vm.TStateSampleChallenges.b4Offset) :=
   NativeRustcVmArm.Vm.TStateSampleChallenges.b4_in_code.trans TStateSampleChallenges.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSampleChallenges.b5_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b5.IsInfixAt NativeRustcVmArm.Vm.code 3631 :=
+public theorem TStateSampleChallenges.b5_at : NativeRustcVmArm.Vm.TStateSampleChallenges.b5.IsInfixAt NativeRustcVmArm.Vm.code (TStateSampleChallenges.programOffset + NativeRustcVmArm.Vm.TStateSampleChallenges.b5Offset) :=
   NativeRustcVmArm.Vm.TStateSampleChallenges.b5_in_code.trans TStateSampleChallenges.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.code_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.code.IsInfixAt NativeRustcVmArm.Vm.code 3633 :=
+@[expose] public def TStateSumcheckRoundPoly.programOffset : Nat := 3633
+
+public theorem TStateSumcheckRoundPoly.code_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.code.IsInfixAt NativeRustcVmArm.Vm.code TStateSumcheckRoundPoly.programOffset :=
   List.isInfixAt_flatten_of (i := 37) rfl (by decide +kernel)
 
-public theorem TStateSumcheckRoundPoly.b0_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0.IsInfixAt NativeRustcVmArm.Vm.code 3633 :=
+public theorem TStateSumcheckRoundPoly.b0_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b0_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b1_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b1.IsInfixAt NativeRustcVmArm.Vm.code 3647 :=
+public theorem TStateSumcheckRoundPoly.b1_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b1Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b1_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b2_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b2.IsInfixAt NativeRustcVmArm.Vm.code 3653 :=
+public theorem TStateSumcheckRoundPoly.b2_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b2Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b2_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b3_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b3.IsInfixAt NativeRustcVmArm.Vm.code 3654 :=
+public theorem TStateSumcheckRoundPoly.b3_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b3Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b3_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b4_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b4.IsInfixAt NativeRustcVmArm.Vm.code 3657 :=
+public theorem TStateSumcheckRoundPoly.b4_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b4Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b4_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b5_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b5.IsInfixAt NativeRustcVmArm.Vm.code 3661 :=
+public theorem TStateSumcheckRoundPoly.b5_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b5.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b5Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b5_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b6_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b6.IsInfixAt NativeRustcVmArm.Vm.code 3665 :=
+public theorem TStateSumcheckRoundPoly.b6_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b6.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b6Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b6_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b7_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b7.IsInfixAt NativeRustcVmArm.Vm.code 3666 :=
+public theorem TStateSumcheckRoundPoly.b7_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b7.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b7Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b7_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b8_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b8.IsInfixAt NativeRustcVmArm.Vm.code 3671 :=
+public theorem TStateSumcheckRoundPoly.b8_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b8.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b8Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b8_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b9_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b9.IsInfixAt NativeRustcVmArm.Vm.code 3677 :=
+public theorem TStateSumcheckRoundPoly.b9_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b9.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b9Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b9_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b10_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b10.IsInfixAt NativeRustcVmArm.Vm.code 3681 :=
+public theorem TStateSumcheckRoundPoly.b10_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b10.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b10Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b10_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b11_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b11.IsInfixAt NativeRustcVmArm.Vm.code 3683 :=
+public theorem TStateSumcheckRoundPoly.b11_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b11.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b11Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b11_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b12_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b12.IsInfixAt NativeRustcVmArm.Vm.code 3690 :=
+public theorem TStateSumcheckRoundPoly.b12_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b12.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b12Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b12_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b13_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b13.IsInfixAt NativeRustcVmArm.Vm.code 3691 :=
+public theorem TStateSumcheckRoundPoly.b13_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b13.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b13Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b13_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b14_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b14.IsInfixAt NativeRustcVmArm.Vm.code 3694 :=
+public theorem TStateSumcheckRoundPoly.b14_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b14.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b14Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b14_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b15_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b15.IsInfixAt NativeRustcVmArm.Vm.code 3698 :=
+public theorem TStateSumcheckRoundPoly.b15_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b15.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b15Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b15_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b16_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b16.IsInfixAt NativeRustcVmArm.Vm.code 3702 :=
+public theorem TStateSumcheckRoundPoly.b16_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b16.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b16Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b16_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b17_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b17.IsInfixAt NativeRustcVmArm.Vm.code 3703 :=
+public theorem TStateSumcheckRoundPoly.b17_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b17.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b17Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b17_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b18_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18.IsInfixAt NativeRustcVmArm.Vm.code 3708 :=
+public theorem TStateSumcheckRoundPoly.b18_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateSumcheckRoundPoly.b19_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19.IsInfixAt NativeRustcVmArm.Vm.code 3710 :=
+public theorem TStateSumcheckRoundPoly.b19_at : NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19.IsInfixAt NativeRustcVmArm.Vm.code (TStateSumcheckRoundPoly.programOffset + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) :=
   NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19_in_code.trans TStateSumcheckRoundPoly.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateGrind.code_at : NativeRustcVmArm.Vm.TStateGrind.code.IsInfixAt NativeRustcVmArm.Vm.code 3718 :=
+@[expose] public def TStateGrind.programOffset : Nat := 3718
+
+public theorem TStateGrind.code_at : NativeRustcVmArm.Vm.TStateGrind.code.IsInfixAt NativeRustcVmArm.Vm.code TStateGrind.programOffset :=
   List.isInfixAt_flatten_of (i := 38) rfl (by decide +kernel)
 
-public theorem TStateGrind.b0_at : NativeRustcVmArm.Vm.TStateGrind.b0.IsInfixAt NativeRustcVmArm.Vm.code 3718 :=
+public theorem TStateGrind.b0_at : NativeRustcVmArm.Vm.TStateGrind.b0.IsInfixAt NativeRustcVmArm.Vm.code (TStateGrind.programOffset + NativeRustcVmArm.Vm.TStateGrind.b0Offset) :=
   NativeRustcVmArm.Vm.TStateGrind.b0_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateGrind.b1_at : NativeRustcVmArm.Vm.TStateGrind.b1.IsInfixAt NativeRustcVmArm.Vm.code 3720 :=
+public theorem TStateGrind.b1_at : NativeRustcVmArm.Vm.TStateGrind.b1.IsInfixAt NativeRustcVmArm.Vm.code (TStateGrind.programOffset + NativeRustcVmArm.Vm.TStateGrind.b1Offset) :=
   NativeRustcVmArm.Vm.TStateGrind.b1_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateGrind.b2_at : NativeRustcVmArm.Vm.TStateGrind.b2.IsInfixAt NativeRustcVmArm.Vm.code 3728 :=
+public theorem TStateGrind.b2_at : NativeRustcVmArm.Vm.TStateGrind.b2.IsInfixAt NativeRustcVmArm.Vm.code (TStateGrind.programOffset + NativeRustcVmArm.Vm.TStateGrind.b2Offset) :=
   NativeRustcVmArm.Vm.TStateGrind.b2_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateGrind.b3_at : NativeRustcVmArm.Vm.TStateGrind.b3.IsInfixAt NativeRustcVmArm.Vm.code 3730 :=
+public theorem TStateGrind.b3_at : NativeRustcVmArm.Vm.TStateGrind.b3.IsInfixAt NativeRustcVmArm.Vm.code (TStateGrind.programOffset + NativeRustcVmArm.Vm.TStateGrind.b3Offset) :=
   NativeRustcVmArm.Vm.TStateGrind.b3_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateGrind.b4_at : NativeRustcVmArm.Vm.TStateGrind.b4.IsInfixAt NativeRustcVmArm.Vm.code 3733 :=
+public theorem TStateGrind.b4_at : NativeRustcVmArm.Vm.TStateGrind.b4.IsInfixAt NativeRustcVmArm.Vm.code (TStateGrind.programOffset + NativeRustcVmArm.Vm.TStateGrind.b4Offset) :=
   NativeRustcVmArm.Vm.TStateGrind.b4_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateGrind.b5_at : NativeRustcVmArm.Vm.TStateGrind.b5.IsInfixAt NativeRustcVmArm.Vm.code 3741 :=
+public theorem TStateGrind.b5_at : NativeRustcVmArm.Vm.TStateGrind.b5.IsInfixAt NativeRustcVmArm.Vm.code (TStateGrind.programOffset + NativeRustcVmArm.Vm.TStateGrind.b5Offset) :=
   NativeRustcVmArm.Vm.TStateGrind.b5_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-public theorem TStateGrind.b6_at : NativeRustcVmArm.Vm.TStateGrind.b6.IsInfixAt NativeRustcVmArm.Vm.code 3744 :=
+public theorem TStateGrind.b6_at : NativeRustcVmArm.Vm.TStateGrind.b6.IsInfixAt NativeRustcVmArm.Vm.code (TStateGrind.programOffset + NativeRustcVmArm.Vm.TStateGrind.b6Offset) :=
   NativeRustcVmArm.Vm.TStateGrind.b6_in_code.trans TStateGrind.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.code_at : NativeRustcVmArm.Vm.FormBufAddScaled.code.IsInfixAt NativeRustcVmArm.Vm.code 3750 :=
+@[expose] public def FormBufAddScaled.programOffset : Nat := 3750
+
+public theorem FormBufAddScaled.code_at : NativeRustcVmArm.Vm.FormBufAddScaled.code.IsInfixAt NativeRustcVmArm.Vm.code FormBufAddScaled.programOffset :=
   List.isInfixAt_flatten_of (i := 39) rfl (by decide +kernel)
 
-public theorem FormBufAddScaled.b0_at : NativeRustcVmArm.Vm.FormBufAddScaled.b0.IsInfixAt NativeRustcVmArm.Vm.code 3750 :=
+public theorem FormBufAddScaled.b0_at : NativeRustcVmArm.Vm.FormBufAddScaled.b0.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b0Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b0_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.b1_at : NativeRustcVmArm.Vm.FormBufAddScaled.b1.IsInfixAt NativeRustcVmArm.Vm.code 3752 :=
+public theorem FormBufAddScaled.b1_at : NativeRustcVmArm.Vm.FormBufAddScaled.b1.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b1Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b1_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.b2_at : NativeRustcVmArm.Vm.FormBufAddScaled.b2.IsInfixAt NativeRustcVmArm.Vm.code 3762 :=
+public theorem FormBufAddScaled.b2_at : NativeRustcVmArm.Vm.FormBufAddScaled.b2.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b2Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b2_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.b3_at : NativeRustcVmArm.Vm.FormBufAddScaled.b3.IsInfixAt NativeRustcVmArm.Vm.code 3768 :=
+public theorem FormBufAddScaled.b3_at : NativeRustcVmArm.Vm.FormBufAddScaled.b3.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b3Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b3_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.b4_at : NativeRustcVmArm.Vm.FormBufAddScaled.b4.IsInfixAt NativeRustcVmArm.Vm.code 3773 :=
+public theorem FormBufAddScaled.b4_at : NativeRustcVmArm.Vm.FormBufAddScaled.b4.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b4Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b4_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.b5_at : NativeRustcVmArm.Vm.FormBufAddScaled.b5.IsInfixAt NativeRustcVmArm.Vm.code 3774 :=
+public theorem FormBufAddScaled.b5_at : NativeRustcVmArm.Vm.FormBufAddScaled.b5.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b5Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b5_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.b6_at : NativeRustcVmArm.Vm.FormBufAddScaled.b6.IsInfixAt NativeRustcVmArm.Vm.code 3777 :=
+public theorem FormBufAddScaled.b6_at : NativeRustcVmArm.Vm.FormBufAddScaled.b6.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b6Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b6_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddScaled.b7_at : NativeRustcVmArm.Vm.FormBufAddScaled.b7.IsInfixAt NativeRustcVmArm.Vm.code 3782 :=
+public theorem FormBufAddScaled.b7_at : NativeRustcVmArm.Vm.FormBufAddScaled.b7.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddScaled.programOffset + NativeRustcVmArm.Vm.FormBufAddScaled.b7Offset) :=
   NativeRustcVmArm.Vm.FormBufAddScaled.b7_in_code.trans FormBufAddScaled.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.code_at : NativeRustcVmArm.Vm.FormBufAddTerm.code.IsInfixAt NativeRustcVmArm.Vm.code 3785 :=
+@[expose] public def FormBufAddTerm.programOffset : Nat := 3785
+
+public theorem FormBufAddTerm.code_at : NativeRustcVmArm.Vm.FormBufAddTerm.code.IsInfixAt NativeRustcVmArm.Vm.code FormBufAddTerm.programOffset :=
   List.isInfixAt_flatten_of (i := 40) rfl (by decide +kernel)
 
-public theorem FormBufAddTerm.b0_at : NativeRustcVmArm.Vm.FormBufAddTerm.b0.IsInfixAt NativeRustcVmArm.Vm.code 3785 :=
+public theorem FormBufAddTerm.b0_at : NativeRustcVmArm.Vm.FormBufAddTerm.b0.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b0Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b0_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b1_at : NativeRustcVmArm.Vm.FormBufAddTerm.b1.IsInfixAt NativeRustcVmArm.Vm.code 3789 :=
+public theorem FormBufAddTerm.b1_at : NativeRustcVmArm.Vm.FormBufAddTerm.b1.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b1Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b1_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b2_at : NativeRustcVmArm.Vm.FormBufAddTerm.b2.IsInfixAt NativeRustcVmArm.Vm.code 3794 :=
+public theorem FormBufAddTerm.b2_at : NativeRustcVmArm.Vm.FormBufAddTerm.b2.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b2Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b2_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b3_at : NativeRustcVmArm.Vm.FormBufAddTerm.b3.IsInfixAt NativeRustcVmArm.Vm.code 3801 :=
+public theorem FormBufAddTerm.b3_at : NativeRustcVmArm.Vm.FormBufAddTerm.b3.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b3Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b3_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b4_at : NativeRustcVmArm.Vm.FormBufAddTerm.b4.IsInfixAt NativeRustcVmArm.Vm.code 3805 :=
+public theorem FormBufAddTerm.b4_at : NativeRustcVmArm.Vm.FormBufAddTerm.b4.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b4Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b4_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b5_at : NativeRustcVmArm.Vm.FormBufAddTerm.b5.IsInfixAt NativeRustcVmArm.Vm.code 3809 :=
+public theorem FormBufAddTerm.b5_at : NativeRustcVmArm.Vm.FormBufAddTerm.b5.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b5Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b5_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b6_at : NativeRustcVmArm.Vm.FormBufAddTerm.b6.IsInfixAt NativeRustcVmArm.Vm.code 3814 :=
+public theorem FormBufAddTerm.b6_at : NativeRustcVmArm.Vm.FormBufAddTerm.b6.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b6Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b6_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b7_at : NativeRustcVmArm.Vm.FormBufAddTerm.b7.IsInfixAt NativeRustcVmArm.Vm.code 3816 :=
+public theorem FormBufAddTerm.b7_at : NativeRustcVmArm.Vm.FormBufAddTerm.b7.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b7Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b7_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b8_at : NativeRustcVmArm.Vm.FormBufAddTerm.b8.IsInfixAt NativeRustcVmArm.Vm.code 3821 :=
+public theorem FormBufAddTerm.b8_at : NativeRustcVmArm.Vm.FormBufAddTerm.b8.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b8Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b8_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b9_at : NativeRustcVmArm.Vm.FormBufAddTerm.b9.IsInfixAt NativeRustcVmArm.Vm.code 3822 :=
+public theorem FormBufAddTerm.b9_at : NativeRustcVmArm.Vm.FormBufAddTerm.b9.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b9Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b9_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b10_at : NativeRustcVmArm.Vm.FormBufAddTerm.b10.IsInfixAt NativeRustcVmArm.Vm.code 3829 :=
+public theorem FormBufAddTerm.b10_at : NativeRustcVmArm.Vm.FormBufAddTerm.b10.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b10Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b10_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b11_at : NativeRustcVmArm.Vm.FormBufAddTerm.b11.IsInfixAt NativeRustcVmArm.Vm.code 3832 :=
+public theorem FormBufAddTerm.b11_at : NativeRustcVmArm.Vm.FormBufAddTerm.b11.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b11Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b11_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem FormBufAddTerm.b12_at : NativeRustcVmArm.Vm.FormBufAddTerm.b12.IsInfixAt NativeRustcVmArm.Vm.code 3835 :=
+public theorem FormBufAddTerm.b12_at : NativeRustcVmArm.Vm.FormBufAddTerm.b12.IsInfixAt NativeRustcVmArm.Vm.code (FormBufAddTerm.programOffset + NativeRustcVmArm.Vm.FormBufAddTerm.b12Offset) :=
   NativeRustcVmArm.Vm.FormBufAddTerm.b12_in_code.trans FormBufAddTerm.code_at (List.cons_ne_nil _ _)
 
-public theorem LayoutWPlacement.code_at : NativeRustcVmArm.Vm.LayoutWPlacement.code.IsInfixAt NativeRustcVmArm.Vm.code 3844 :=
+@[expose] public def LayoutWPlacement.programOffset : Nat := 3844
+
+public theorem LayoutWPlacement.code_at : NativeRustcVmArm.Vm.LayoutWPlacement.code.IsInfixAt NativeRustcVmArm.Vm.code LayoutWPlacement.programOffset :=
   List.isInfixAt_flatten_of (i := 41) rfl (by decide +kernel)
 
-public theorem LayoutWPlacement.b0_at : NativeRustcVmArm.Vm.LayoutWPlacement.b0.IsInfixAt NativeRustcVmArm.Vm.code 3844 :=
+public theorem LayoutWPlacement.b0_at : NativeRustcVmArm.Vm.LayoutWPlacement.b0.IsInfixAt NativeRustcVmArm.Vm.code (LayoutWPlacement.programOffset + NativeRustcVmArm.Vm.LayoutWPlacement.b0Offset) :=
   NativeRustcVmArm.Vm.LayoutWPlacement.b0_in_code.trans LayoutWPlacement.code_at (List.cons_ne_nil _ _)
 
-public theorem LayoutWPlacement.b1_at : NativeRustcVmArm.Vm.LayoutWPlacement.b1.IsInfixAt NativeRustcVmArm.Vm.code 3849 :=
+public theorem LayoutWPlacement.b1_at : NativeRustcVmArm.Vm.LayoutWPlacement.b1.IsInfixAt NativeRustcVmArm.Vm.code (LayoutWPlacement.programOffset + NativeRustcVmArm.Vm.LayoutWPlacement.b1Offset) :=
   NativeRustcVmArm.Vm.LayoutWPlacement.b1_in_code.trans LayoutWPlacement.code_at (List.cons_ne_nil _ _)
 
-public theorem LayoutWPlacement.b2_at : NativeRustcVmArm.Vm.LayoutWPlacement.b2.IsInfixAt NativeRustcVmArm.Vm.code 3851 :=
+public theorem LayoutWPlacement.b2_at : NativeRustcVmArm.Vm.LayoutWPlacement.b2.IsInfixAt NativeRustcVmArm.Vm.code (LayoutWPlacement.programOffset + NativeRustcVmArm.Vm.LayoutWPlacement.b2Offset) :=
   NativeRustcVmArm.Vm.LayoutWPlacement.b2_in_code.trans LayoutWPlacement.code_at (List.cons_ne_nil _ _)
 
-public theorem RowsRow.code_at : NativeRustcVmArm.Vm.RowsRow.code.IsInfixAt NativeRustcVmArm.Vm.code 3855 :=
+@[expose] public def RowsRow.programOffset : Nat := 3855
+
+public theorem RowsRow.code_at : NativeRustcVmArm.Vm.RowsRow.code.IsInfixAt NativeRustcVmArm.Vm.code RowsRow.programOffset :=
   List.isInfixAt_flatten_of (i := 42) rfl (by decide +kernel)
 
-public theorem RowsRow.b0_at : NativeRustcVmArm.Vm.RowsRow.b0.IsInfixAt NativeRustcVmArm.Vm.code 3855 :=
+public theorem RowsRow.b0_at : NativeRustcVmArm.Vm.RowsRow.b0.IsInfixAt NativeRustcVmArm.Vm.code (RowsRow.programOffset + NativeRustcVmArm.Vm.RowsRow.b0Offset) :=
   NativeRustcVmArm.Vm.RowsRow.b0_in_code.trans RowsRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.code_at : NativeRustcVmArm.Vm.FirstClaim.code.IsInfixAt NativeRustcVmArm.Vm.code 3871 :=
+@[expose] public def FirstClaim.programOffset : Nat := 3871
+
+public theorem FirstClaim.code_at : NativeRustcVmArm.Vm.FirstClaim.code.IsInfixAt NativeRustcVmArm.Vm.code FirstClaim.programOffset :=
   List.isInfixAt_flatten_of (i := 43) rfl (by decide +kernel)
 
-public theorem FirstClaim.b0_at : NativeRustcVmArm.Vm.FirstClaim.b0.IsInfixAt NativeRustcVmArm.Vm.code 3871 :=
+public theorem FirstClaim.b0_at : NativeRustcVmArm.Vm.FirstClaim.b0.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b0Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b0_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b1_at : NativeRustcVmArm.Vm.FirstClaim.b1.IsInfixAt NativeRustcVmArm.Vm.code 3926 :=
+public theorem FirstClaim.b1_at : NativeRustcVmArm.Vm.FirstClaim.b1.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b1Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b1_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b2_at : NativeRustcVmArm.Vm.FirstClaim.b2.IsInfixAt NativeRustcVmArm.Vm.code 3928 :=
+public theorem FirstClaim.b2_at : NativeRustcVmArm.Vm.FirstClaim.b2.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b2Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b2_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b3_at : NativeRustcVmArm.Vm.FirstClaim.b3.IsInfixAt NativeRustcVmArm.Vm.code 3934 :=
+public theorem FirstClaim.b3_at : NativeRustcVmArm.Vm.FirstClaim.b3.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b3Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b3_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b4_at : NativeRustcVmArm.Vm.FirstClaim.b4.IsInfixAt NativeRustcVmArm.Vm.code 3942 :=
+public theorem FirstClaim.b4_at : NativeRustcVmArm.Vm.FirstClaim.b4.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b4Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b4_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b5_at : NativeRustcVmArm.Vm.FirstClaim.b5.IsInfixAt NativeRustcVmArm.Vm.code 3946 :=
+public theorem FirstClaim.b5_at : NativeRustcVmArm.Vm.FirstClaim.b5.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b5Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b5_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b6_at : NativeRustcVmArm.Vm.FirstClaim.b6.IsInfixAt NativeRustcVmArm.Vm.code 3955 :=
+public theorem FirstClaim.b6_at : NativeRustcVmArm.Vm.FirstClaim.b6.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b6Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b6_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b7_at : NativeRustcVmArm.Vm.FirstClaim.b7.IsInfixAt NativeRustcVmArm.Vm.code 3956 :=
+public theorem FirstClaim.b7_at : NativeRustcVmArm.Vm.FirstClaim.b7.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b7Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b7_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b8_at : NativeRustcVmArm.Vm.FirstClaim.b8.IsInfixAt NativeRustcVmArm.Vm.code 3963 :=
+public theorem FirstClaim.b8_at : NativeRustcVmArm.Vm.FirstClaim.b8.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b8Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b8_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b9_at : NativeRustcVmArm.Vm.FirstClaim.b9.IsInfixAt NativeRustcVmArm.Vm.code 3968 :=
+public theorem FirstClaim.b9_at : NativeRustcVmArm.Vm.FirstClaim.b9.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b9Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b9_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b10_at : NativeRustcVmArm.Vm.FirstClaim.b10.IsInfixAt NativeRustcVmArm.Vm.code 4011 :=
+public theorem FirstClaim.b10_at : NativeRustcVmArm.Vm.FirstClaim.b10.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b10Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b10_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b11_at : NativeRustcVmArm.Vm.FirstClaim.b11.IsInfixAt NativeRustcVmArm.Vm.code 4012 :=
+public theorem FirstClaim.b11_at : NativeRustcVmArm.Vm.FirstClaim.b11.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b11Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b11_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b12_at : NativeRustcVmArm.Vm.FirstClaim.b12.IsInfixAt NativeRustcVmArm.Vm.code 4081 :=
+public theorem FirstClaim.b12_at : NativeRustcVmArm.Vm.FirstClaim.b12.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b12Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b12_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b13_at : NativeRustcVmArm.Vm.FirstClaim.b13.IsInfixAt NativeRustcVmArm.Vm.code 4082 :=
+public theorem FirstClaim.b13_at : NativeRustcVmArm.Vm.FirstClaim.b13.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b13Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b13_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b14_at : NativeRustcVmArm.Vm.FirstClaim.b14.IsInfixAt NativeRustcVmArm.Vm.code 4086 :=
+public theorem FirstClaim.b14_at : NativeRustcVmArm.Vm.FirstClaim.b14.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b14Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b14_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b15_at : NativeRustcVmArm.Vm.FirstClaim.b15.IsInfixAt NativeRustcVmArm.Vm.code 4087 :=
+public theorem FirstClaim.b15_at : NativeRustcVmArm.Vm.FirstClaim.b15.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b15Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b15_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b16_at : NativeRustcVmArm.Vm.FirstClaim.b16.IsInfixAt NativeRustcVmArm.Vm.code 4094 :=
+public theorem FirstClaim.b16_at : NativeRustcVmArm.Vm.FirstClaim.b16.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b16Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b16_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b17_at : NativeRustcVmArm.Vm.FirstClaim.b17.IsInfixAt NativeRustcVmArm.Vm.code 4098 :=
+public theorem FirstClaim.b17_at : NativeRustcVmArm.Vm.FirstClaim.b17.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b17Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b17_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b18_at : NativeRustcVmArm.Vm.FirstClaim.b18.IsInfixAt NativeRustcVmArm.Vm.code 4102 :=
+public theorem FirstClaim.b18_at : NativeRustcVmArm.Vm.FirstClaim.b18.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b18Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b18_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem FirstClaim.b19_at : NativeRustcVmArm.Vm.FirstClaim.b19.IsInfixAt NativeRustcVmArm.Vm.code 4104 :=
+public theorem FirstClaim.b19_at : NativeRustcVmArm.Vm.FirstClaim.b19.IsInfixAt NativeRustcVmArm.Vm.code (FirstClaim.programOffset + NativeRustcVmArm.Vm.FirstClaim.b19Offset) :=
   NativeRustcVmArm.Vm.FirstClaim.b19_in_code.trans FirstClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.code_at : NativeRustcVmArm.Vm.KeccakOpen.code.IsInfixAt NativeRustcVmArm.Vm.code 4113 :=
+@[expose] public def KeccakOpen.programOffset : Nat := 4113
+
+public theorem KeccakOpen.code_at : NativeRustcVmArm.Vm.KeccakOpen.code.IsInfixAt NativeRustcVmArm.Vm.code KeccakOpen.programOffset :=
   List.isInfixAt_flatten_of (i := 44) rfl (by decide +kernel)
 
-public theorem KeccakOpen.b0_at : NativeRustcVmArm.Vm.KeccakOpen.b0.IsInfixAt NativeRustcVmArm.Vm.code 4113 :=
+public theorem KeccakOpen.b0_at : NativeRustcVmArm.Vm.KeccakOpen.b0.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b0Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b0_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b1_at : NativeRustcVmArm.Vm.KeccakOpen.b1.IsInfixAt NativeRustcVmArm.Vm.code 4137 :=
+public theorem KeccakOpen.b1_at : NativeRustcVmArm.Vm.KeccakOpen.b1.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b1Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b1_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b2_at : NativeRustcVmArm.Vm.KeccakOpen.b2.IsInfixAt NativeRustcVmArm.Vm.code 4139 :=
+public theorem KeccakOpen.b2_at : NativeRustcVmArm.Vm.KeccakOpen.b2.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b2Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b2_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b3_at : NativeRustcVmArm.Vm.KeccakOpen.b3.IsInfixAt NativeRustcVmArm.Vm.code 4149 :=
+public theorem KeccakOpen.b3_at : NativeRustcVmArm.Vm.KeccakOpen.b3.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b3Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b3_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b4_at : NativeRustcVmArm.Vm.KeccakOpen.b4.IsInfixAt NativeRustcVmArm.Vm.code 4150 :=
+public theorem KeccakOpen.b4_at : NativeRustcVmArm.Vm.KeccakOpen.b4.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b4Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b4_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b5_at : NativeRustcVmArm.Vm.KeccakOpen.b5.IsInfixAt NativeRustcVmArm.Vm.code 4158 :=
+public theorem KeccakOpen.b5_at : NativeRustcVmArm.Vm.KeccakOpen.b5.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b5Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b5_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b6_at : NativeRustcVmArm.Vm.KeccakOpen.b6.IsInfixAt NativeRustcVmArm.Vm.code 4164 :=
+public theorem KeccakOpen.b6_at : NativeRustcVmArm.Vm.KeccakOpen.b6.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b6Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b6_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b7_at : NativeRustcVmArm.Vm.KeccakOpen.b7.IsInfixAt NativeRustcVmArm.Vm.code 4168 :=
+public theorem KeccakOpen.b7_at : NativeRustcVmArm.Vm.KeccakOpen.b7.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b7Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b7_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b8_at : NativeRustcVmArm.Vm.KeccakOpen.b8.IsInfixAt NativeRustcVmArm.Vm.code 4171 :=
+public theorem KeccakOpen.b8_at : NativeRustcVmArm.Vm.KeccakOpen.b8.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b8Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b8_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b9_at : NativeRustcVmArm.Vm.KeccakOpen.b9.IsInfixAt NativeRustcVmArm.Vm.code 4183 :=
+public theorem KeccakOpen.b9_at : NativeRustcVmArm.Vm.KeccakOpen.b9.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b9Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b9_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b10_at : NativeRustcVmArm.Vm.KeccakOpen.b10.IsInfixAt NativeRustcVmArm.Vm.code 4190 :=
+public theorem KeccakOpen.b10_at : NativeRustcVmArm.Vm.KeccakOpen.b10.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b10Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b10_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b11_at : NativeRustcVmArm.Vm.KeccakOpen.b11.IsInfixAt NativeRustcVmArm.Vm.code 4195 :=
+public theorem KeccakOpen.b11_at : NativeRustcVmArm.Vm.KeccakOpen.b11.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b11Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b11_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b12_at : NativeRustcVmArm.Vm.KeccakOpen.b12.IsInfixAt NativeRustcVmArm.Vm.code 4201 :=
+public theorem KeccakOpen.b12_at : NativeRustcVmArm.Vm.KeccakOpen.b12.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b12Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b12_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b13_at : NativeRustcVmArm.Vm.KeccakOpen.b13.IsInfixAt NativeRustcVmArm.Vm.code 4207 :=
+public theorem KeccakOpen.b13_at : NativeRustcVmArm.Vm.KeccakOpen.b13.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b13Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b13_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b14_at : NativeRustcVmArm.Vm.KeccakOpen.b14.IsInfixAt NativeRustcVmArm.Vm.code 4211 :=
+public theorem KeccakOpen.b14_at : NativeRustcVmArm.Vm.KeccakOpen.b14.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b14Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b14_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b15_at : NativeRustcVmArm.Vm.KeccakOpen.b15.IsInfixAt NativeRustcVmArm.Vm.code 4213 :=
+public theorem KeccakOpen.b15_at : NativeRustcVmArm.Vm.KeccakOpen.b15.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b15Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b15_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b16_at : NativeRustcVmArm.Vm.KeccakOpen.b16.IsInfixAt NativeRustcVmArm.Vm.code 4225 :=
+public theorem KeccakOpen.b16_at : NativeRustcVmArm.Vm.KeccakOpen.b16.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b16Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b16_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b17_at : NativeRustcVmArm.Vm.KeccakOpen.b17.IsInfixAt NativeRustcVmArm.Vm.code 4232 :=
+public theorem KeccakOpen.b17_at : NativeRustcVmArm.Vm.KeccakOpen.b17.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b17Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b17_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b18_at : NativeRustcVmArm.Vm.KeccakOpen.b18.IsInfixAt NativeRustcVmArm.Vm.code 4237 :=
+public theorem KeccakOpen.b18_at : NativeRustcVmArm.Vm.KeccakOpen.b18.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b18Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b18_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b19_at : NativeRustcVmArm.Vm.KeccakOpen.b19.IsInfixAt NativeRustcVmArm.Vm.code 4244 :=
+public theorem KeccakOpen.b19_at : NativeRustcVmArm.Vm.KeccakOpen.b19.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b19Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b19_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b20_at : NativeRustcVmArm.Vm.KeccakOpen.b20.IsInfixAt NativeRustcVmArm.Vm.code 4249 :=
+public theorem KeccakOpen.b20_at : NativeRustcVmArm.Vm.KeccakOpen.b20.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b20Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b20_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b21_at : NativeRustcVmArm.Vm.KeccakOpen.b21.IsInfixAt NativeRustcVmArm.Vm.code 4250 :=
+public theorem KeccakOpen.b21_at : NativeRustcVmArm.Vm.KeccakOpen.b21.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b21Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b21_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b22_at : NativeRustcVmArm.Vm.KeccakOpen.b22.IsInfixAt NativeRustcVmArm.Vm.code 4262 :=
+public theorem KeccakOpen.b22_at : NativeRustcVmArm.Vm.KeccakOpen.b22.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b22Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b22_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b23_at : NativeRustcVmArm.Vm.KeccakOpen.b23.IsInfixAt NativeRustcVmArm.Vm.code 4267 :=
+public theorem KeccakOpen.b23_at : NativeRustcVmArm.Vm.KeccakOpen.b23.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b23Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b23_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b24_at : NativeRustcVmArm.Vm.KeccakOpen.b24.IsInfixAt NativeRustcVmArm.Vm.code 4272 :=
+public theorem KeccakOpen.b24_at : NativeRustcVmArm.Vm.KeccakOpen.b24.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b24Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b24_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b25_at : NativeRustcVmArm.Vm.KeccakOpen.b25.IsInfixAt NativeRustcVmArm.Vm.code 4277 :=
+public theorem KeccakOpen.b25_at : NativeRustcVmArm.Vm.KeccakOpen.b25.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b25Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b25_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b26_at : NativeRustcVmArm.Vm.KeccakOpen.b26.IsInfixAt NativeRustcVmArm.Vm.code 4278 :=
+public theorem KeccakOpen.b26_at : NativeRustcVmArm.Vm.KeccakOpen.b26.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b26Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b26_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b27_at : NativeRustcVmArm.Vm.KeccakOpen.b27.IsInfixAt NativeRustcVmArm.Vm.code 4290 :=
+public theorem KeccakOpen.b27_at : NativeRustcVmArm.Vm.KeccakOpen.b27.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b27Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b27_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b28_at : NativeRustcVmArm.Vm.KeccakOpen.b28.IsInfixAt NativeRustcVmArm.Vm.code 4296 :=
+public theorem KeccakOpen.b28_at : NativeRustcVmArm.Vm.KeccakOpen.b28.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b28Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b28_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b29_at : NativeRustcVmArm.Vm.KeccakOpen.b29.IsInfixAt NativeRustcVmArm.Vm.code 4301 :=
+public theorem KeccakOpen.b29_at : NativeRustcVmArm.Vm.KeccakOpen.b29.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b29Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b29_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b30_at : NativeRustcVmArm.Vm.KeccakOpen.b30.IsInfixAt NativeRustcVmArm.Vm.code 4307 :=
+public theorem KeccakOpen.b30_at : NativeRustcVmArm.Vm.KeccakOpen.b30.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b30Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b30_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b31_at : NativeRustcVmArm.Vm.KeccakOpen.b31.IsInfixAt NativeRustcVmArm.Vm.code 4308 :=
+public theorem KeccakOpen.b31_at : NativeRustcVmArm.Vm.KeccakOpen.b31.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b31Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b31_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b32_at : NativeRustcVmArm.Vm.KeccakOpen.b32.IsInfixAt NativeRustcVmArm.Vm.code 4320 :=
+public theorem KeccakOpen.b32_at : NativeRustcVmArm.Vm.KeccakOpen.b32.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b32Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b32_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b33_at : NativeRustcVmArm.Vm.KeccakOpen.b33.IsInfixAt NativeRustcVmArm.Vm.code 4326 :=
+public theorem KeccakOpen.b33_at : NativeRustcVmArm.Vm.KeccakOpen.b33.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b33Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b33_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b34_at : NativeRustcVmArm.Vm.KeccakOpen.b34.IsInfixAt NativeRustcVmArm.Vm.code 4332 :=
+public theorem KeccakOpen.b34_at : NativeRustcVmArm.Vm.KeccakOpen.b34.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b34Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b34_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b35_at : NativeRustcVmArm.Vm.KeccakOpen.b35.IsInfixAt NativeRustcVmArm.Vm.code 4338 :=
+public theorem KeccakOpen.b35_at : NativeRustcVmArm.Vm.KeccakOpen.b35.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b35Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b35_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b36_at : NativeRustcVmArm.Vm.KeccakOpen.b36.IsInfixAt NativeRustcVmArm.Vm.code 4340 :=
+public theorem KeccakOpen.b36_at : NativeRustcVmArm.Vm.KeccakOpen.b36.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b36Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b36_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b37_at : NativeRustcVmArm.Vm.KeccakOpen.b37.IsInfixAt NativeRustcVmArm.Vm.code 4352 :=
+public theorem KeccakOpen.b37_at : NativeRustcVmArm.Vm.KeccakOpen.b37.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b37Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b37_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b38_at : NativeRustcVmArm.Vm.KeccakOpen.b38.IsInfixAt NativeRustcVmArm.Vm.code 4358 :=
+public theorem KeccakOpen.b38_at : NativeRustcVmArm.Vm.KeccakOpen.b38.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b38Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b38_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b39_at : NativeRustcVmArm.Vm.KeccakOpen.b39.IsInfixAt NativeRustcVmArm.Vm.code 4363 :=
+public theorem KeccakOpen.b39_at : NativeRustcVmArm.Vm.KeccakOpen.b39.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b39Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b39_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b40_at : NativeRustcVmArm.Vm.KeccakOpen.b40.IsInfixAt NativeRustcVmArm.Vm.code 4369 :=
+public theorem KeccakOpen.b40_at : NativeRustcVmArm.Vm.KeccakOpen.b40.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b40Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b40_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b41_at : NativeRustcVmArm.Vm.KeccakOpen.b41.IsInfixAt NativeRustcVmArm.Vm.code 4370 :=
+public theorem KeccakOpen.b41_at : NativeRustcVmArm.Vm.KeccakOpen.b41.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b41Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b41_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b42_at : NativeRustcVmArm.Vm.KeccakOpen.b42.IsInfixAt NativeRustcVmArm.Vm.code 4382 :=
+public theorem KeccakOpen.b42_at : NativeRustcVmArm.Vm.KeccakOpen.b42.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b42Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b42_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b43_at : NativeRustcVmArm.Vm.KeccakOpen.b43.IsInfixAt NativeRustcVmArm.Vm.code 4388 :=
+public theorem KeccakOpen.b43_at : NativeRustcVmArm.Vm.KeccakOpen.b43.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b43Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b43_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b44_at : NativeRustcVmArm.Vm.KeccakOpen.b44.IsInfixAt NativeRustcVmArm.Vm.code 4394 :=
+public theorem KeccakOpen.b44_at : NativeRustcVmArm.Vm.KeccakOpen.b44.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b44Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b44_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b45_at : NativeRustcVmArm.Vm.KeccakOpen.b45.IsInfixAt NativeRustcVmArm.Vm.code 4400 :=
+public theorem KeccakOpen.b45_at : NativeRustcVmArm.Vm.KeccakOpen.b45.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b45Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b45_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b46_at : NativeRustcVmArm.Vm.KeccakOpen.b46.IsInfixAt NativeRustcVmArm.Vm.code 4401 :=
+public theorem KeccakOpen.b46_at : NativeRustcVmArm.Vm.KeccakOpen.b46.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b46Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b46_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b47_at : NativeRustcVmArm.Vm.KeccakOpen.b47.IsInfixAt NativeRustcVmArm.Vm.code 4413 :=
+public theorem KeccakOpen.b47_at : NativeRustcVmArm.Vm.KeccakOpen.b47.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b47Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b47_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b48_at : NativeRustcVmArm.Vm.KeccakOpen.b48.IsInfixAt NativeRustcVmArm.Vm.code 4419 :=
+public theorem KeccakOpen.b48_at : NativeRustcVmArm.Vm.KeccakOpen.b48.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b48Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b48_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b49_at : NativeRustcVmArm.Vm.KeccakOpen.b49.IsInfixAt NativeRustcVmArm.Vm.code 4424 :=
+public theorem KeccakOpen.b49_at : NativeRustcVmArm.Vm.KeccakOpen.b49.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b49Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b49_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b50_at : NativeRustcVmArm.Vm.KeccakOpen.b50.IsInfixAt NativeRustcVmArm.Vm.code 4430 :=
+public theorem KeccakOpen.b50_at : NativeRustcVmArm.Vm.KeccakOpen.b50.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b50Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b50_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b51_at : NativeRustcVmArm.Vm.KeccakOpen.b51.IsInfixAt NativeRustcVmArm.Vm.code 4431 :=
+public theorem KeccakOpen.b51_at : NativeRustcVmArm.Vm.KeccakOpen.b51.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b51Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b51_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b52_at : NativeRustcVmArm.Vm.KeccakOpen.b52.IsInfixAt NativeRustcVmArm.Vm.code 4443 :=
+public theorem KeccakOpen.b52_at : NativeRustcVmArm.Vm.KeccakOpen.b52.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b52Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b52_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b53_at : NativeRustcVmArm.Vm.KeccakOpen.b53.IsInfixAt NativeRustcVmArm.Vm.code 4449 :=
+public theorem KeccakOpen.b53_at : NativeRustcVmArm.Vm.KeccakOpen.b53.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b53Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b53_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b54_at : NativeRustcVmArm.Vm.KeccakOpen.b54.IsInfixAt NativeRustcVmArm.Vm.code 4455 :=
+public theorem KeccakOpen.b54_at : NativeRustcVmArm.Vm.KeccakOpen.b54.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b54Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b54_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b55_at : NativeRustcVmArm.Vm.KeccakOpen.b55.IsInfixAt NativeRustcVmArm.Vm.code 4461 :=
+public theorem KeccakOpen.b55_at : NativeRustcVmArm.Vm.KeccakOpen.b55.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b55Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b55_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b56_at : NativeRustcVmArm.Vm.KeccakOpen.b56.IsInfixAt NativeRustcVmArm.Vm.code 4462 :=
+public theorem KeccakOpen.b56_at : NativeRustcVmArm.Vm.KeccakOpen.b56.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b56Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b56_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b57_at : NativeRustcVmArm.Vm.KeccakOpen.b57.IsInfixAt NativeRustcVmArm.Vm.code 4474 :=
+public theorem KeccakOpen.b57_at : NativeRustcVmArm.Vm.KeccakOpen.b57.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b57Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b57_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b58_at : NativeRustcVmArm.Vm.KeccakOpen.b58.IsInfixAt NativeRustcVmArm.Vm.code 4480 :=
+public theorem KeccakOpen.b58_at : NativeRustcVmArm.Vm.KeccakOpen.b58.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b58Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b58_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b59_at : NativeRustcVmArm.Vm.KeccakOpen.b59.IsInfixAt NativeRustcVmArm.Vm.code 4487 :=
+public theorem KeccakOpen.b59_at : NativeRustcVmArm.Vm.KeccakOpen.b59.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b59Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b59_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b60_at : NativeRustcVmArm.Vm.KeccakOpen.b60.IsInfixAt NativeRustcVmArm.Vm.code 4492 :=
+public theorem KeccakOpen.b60_at : NativeRustcVmArm.Vm.KeccakOpen.b60.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b60Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b60_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b61_at : NativeRustcVmArm.Vm.KeccakOpen.b61.IsInfixAt NativeRustcVmArm.Vm.code 4493 :=
+public theorem KeccakOpen.b61_at : NativeRustcVmArm.Vm.KeccakOpen.b61.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b61Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b61_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b62_at : NativeRustcVmArm.Vm.KeccakOpen.b62.IsInfixAt NativeRustcVmArm.Vm.code 4505 :=
+public theorem KeccakOpen.b62_at : NativeRustcVmArm.Vm.KeccakOpen.b62.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b62Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b62_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b63_at : NativeRustcVmArm.Vm.KeccakOpen.b63.IsInfixAt NativeRustcVmArm.Vm.code 4510 :=
+public theorem KeccakOpen.b63_at : NativeRustcVmArm.Vm.KeccakOpen.b63.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b63Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b63_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b64_at : NativeRustcVmArm.Vm.KeccakOpen.b64.IsInfixAt NativeRustcVmArm.Vm.code 4515 :=
+public theorem KeccakOpen.b64_at : NativeRustcVmArm.Vm.KeccakOpen.b64.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b64Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b64_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b65_at : NativeRustcVmArm.Vm.KeccakOpen.b65.IsInfixAt NativeRustcVmArm.Vm.code 4520 :=
+public theorem KeccakOpen.b65_at : NativeRustcVmArm.Vm.KeccakOpen.b65.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b65Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b65_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b66_at : NativeRustcVmArm.Vm.KeccakOpen.b66.IsInfixAt NativeRustcVmArm.Vm.code 4521 :=
+public theorem KeccakOpen.b66_at : NativeRustcVmArm.Vm.KeccakOpen.b66.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b66Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b66_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b67_at : NativeRustcVmArm.Vm.KeccakOpen.b67.IsInfixAt NativeRustcVmArm.Vm.code 4533 :=
+public theorem KeccakOpen.b67_at : NativeRustcVmArm.Vm.KeccakOpen.b67.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b67Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b67_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b68_at : NativeRustcVmArm.Vm.KeccakOpen.b68.IsInfixAt NativeRustcVmArm.Vm.code 4539 :=
+public theorem KeccakOpen.b68_at : NativeRustcVmArm.Vm.KeccakOpen.b68.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b68Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b68_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b69_at : NativeRustcVmArm.Vm.KeccakOpen.b69.IsInfixAt NativeRustcVmArm.Vm.code 4544 :=
+public theorem KeccakOpen.b69_at : NativeRustcVmArm.Vm.KeccakOpen.b69.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b69Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b69_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b70_at : NativeRustcVmArm.Vm.KeccakOpen.b70.IsInfixAt NativeRustcVmArm.Vm.code 4549 :=
+public theorem KeccakOpen.b70_at : NativeRustcVmArm.Vm.KeccakOpen.b70.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b70Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b70_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b71_at : NativeRustcVmArm.Vm.KeccakOpen.b71.IsInfixAt NativeRustcVmArm.Vm.code 4551 :=
+public theorem KeccakOpen.b71_at : NativeRustcVmArm.Vm.KeccakOpen.b71.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b71Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b71_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b72_at : NativeRustcVmArm.Vm.KeccakOpen.b72.IsInfixAt NativeRustcVmArm.Vm.code 4563 :=
+public theorem KeccakOpen.b72_at : NativeRustcVmArm.Vm.KeccakOpen.b72.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b72Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b72_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b73_at : NativeRustcVmArm.Vm.KeccakOpen.b73.IsInfixAt NativeRustcVmArm.Vm.code 4569 :=
+public theorem KeccakOpen.b73_at : NativeRustcVmArm.Vm.KeccakOpen.b73.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b73Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b73_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b74_at : NativeRustcVmArm.Vm.KeccakOpen.b74.IsInfixAt NativeRustcVmArm.Vm.code 4575 :=
+public theorem KeccakOpen.b74_at : NativeRustcVmArm.Vm.KeccakOpen.b74.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b74Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b74_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b75_at : NativeRustcVmArm.Vm.KeccakOpen.b75.IsInfixAt NativeRustcVmArm.Vm.code 4580 :=
+public theorem KeccakOpen.b75_at : NativeRustcVmArm.Vm.KeccakOpen.b75.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b75Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b75_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b76_at : NativeRustcVmArm.Vm.KeccakOpen.b76.IsInfixAt NativeRustcVmArm.Vm.code 4581 :=
+public theorem KeccakOpen.b76_at : NativeRustcVmArm.Vm.KeccakOpen.b76.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b76Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b76_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b77_at : NativeRustcVmArm.Vm.KeccakOpen.b77.IsInfixAt NativeRustcVmArm.Vm.code 4593 :=
+public theorem KeccakOpen.b77_at : NativeRustcVmArm.Vm.KeccakOpen.b77.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b77Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b77_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b78_at : NativeRustcVmArm.Vm.KeccakOpen.b78.IsInfixAt NativeRustcVmArm.Vm.code 4599 :=
+public theorem KeccakOpen.b78_at : NativeRustcVmArm.Vm.KeccakOpen.b78.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b78Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b78_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b79_at : NativeRustcVmArm.Vm.KeccakOpen.b79.IsInfixAt NativeRustcVmArm.Vm.code 4606 :=
+public theorem KeccakOpen.b79_at : NativeRustcVmArm.Vm.KeccakOpen.b79.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b79Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b79_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b80_at : NativeRustcVmArm.Vm.KeccakOpen.b80.IsInfixAt NativeRustcVmArm.Vm.code 4611 :=
+public theorem KeccakOpen.b80_at : NativeRustcVmArm.Vm.KeccakOpen.b80.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b80Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b80_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b81_at : NativeRustcVmArm.Vm.KeccakOpen.b81.IsInfixAt NativeRustcVmArm.Vm.code 4612 :=
+public theorem KeccakOpen.b81_at : NativeRustcVmArm.Vm.KeccakOpen.b81.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b81Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b81_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b82_at : NativeRustcVmArm.Vm.KeccakOpen.b82.IsInfixAt NativeRustcVmArm.Vm.code 4624 :=
+public theorem KeccakOpen.b82_at : NativeRustcVmArm.Vm.KeccakOpen.b82.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b82Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b82_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b83_at : NativeRustcVmArm.Vm.KeccakOpen.b83.IsInfixAt NativeRustcVmArm.Vm.code 4629 :=
+public theorem KeccakOpen.b83_at : NativeRustcVmArm.Vm.KeccakOpen.b83.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b83Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b83_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b84_at : NativeRustcVmArm.Vm.KeccakOpen.b84.IsInfixAt NativeRustcVmArm.Vm.code 4634 :=
+public theorem KeccakOpen.b84_at : NativeRustcVmArm.Vm.KeccakOpen.b84.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b84Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b84_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b85_at : NativeRustcVmArm.Vm.KeccakOpen.b85.IsInfixAt NativeRustcVmArm.Vm.code 4639 :=
+public theorem KeccakOpen.b85_at : NativeRustcVmArm.Vm.KeccakOpen.b85.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b85Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b85_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b86_at : NativeRustcVmArm.Vm.KeccakOpen.b86.IsInfixAt NativeRustcVmArm.Vm.code 4640 :=
+public theorem KeccakOpen.b86_at : NativeRustcVmArm.Vm.KeccakOpen.b86.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b86Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b86_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b87_at : NativeRustcVmArm.Vm.KeccakOpen.b87.IsInfixAt NativeRustcVmArm.Vm.code 4652 :=
+public theorem KeccakOpen.b87_at : NativeRustcVmArm.Vm.KeccakOpen.b87.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b87Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b87_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b88_at : NativeRustcVmArm.Vm.KeccakOpen.b88.IsInfixAt NativeRustcVmArm.Vm.code 4658 :=
+public theorem KeccakOpen.b88_at : NativeRustcVmArm.Vm.KeccakOpen.b88.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b88Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b88_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b89_at : NativeRustcVmArm.Vm.KeccakOpen.b89.IsInfixAt NativeRustcVmArm.Vm.code 4665 :=
+public theorem KeccakOpen.b89_at : NativeRustcVmArm.Vm.KeccakOpen.b89.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b89Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b89_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b90_at : NativeRustcVmArm.Vm.KeccakOpen.b90.IsInfixAt NativeRustcVmArm.Vm.code 4670 :=
+public theorem KeccakOpen.b90_at : NativeRustcVmArm.Vm.KeccakOpen.b90.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b90Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b90_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b91_at : NativeRustcVmArm.Vm.KeccakOpen.b91.IsInfixAt NativeRustcVmArm.Vm.code 4673 :=
+public theorem KeccakOpen.b91_at : NativeRustcVmArm.Vm.KeccakOpen.b91.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b91Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b91_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b92_at : NativeRustcVmArm.Vm.KeccakOpen.b92.IsInfixAt NativeRustcVmArm.Vm.code 4681 :=
+public theorem KeccakOpen.b92_at : NativeRustcVmArm.Vm.KeccakOpen.b92.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b92Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b92_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b93_at : NativeRustcVmArm.Vm.KeccakOpen.b93.IsInfixAt NativeRustcVmArm.Vm.code 4689 :=
+public theorem KeccakOpen.b93_at : NativeRustcVmArm.Vm.KeccakOpen.b93.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b93Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b93_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b94_at : NativeRustcVmArm.Vm.KeccakOpen.b94.IsInfixAt NativeRustcVmArm.Vm.code 4694 :=
+public theorem KeccakOpen.b94_at : NativeRustcVmArm.Vm.KeccakOpen.b94.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b94Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b94_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakOpen.b95_at : NativeRustcVmArm.Vm.KeccakOpen.b95.IsInfixAt NativeRustcVmArm.Vm.code 4696 :=
+public theorem KeccakOpen.b95_at : NativeRustcVmArm.Vm.KeccakOpen.b95.IsInfixAt NativeRustcVmArm.Vm.code (KeccakOpen.programOffset + NativeRustcVmArm.Vm.KeccakOpen.b95Offset) :=
   NativeRustcVmArm.Vm.KeccakOpen.b95_in_code.trans KeccakOpen.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakPhase.code_at : NativeRustcVmArm.Vm.KeccakPhase.code.IsInfixAt NativeRustcVmArm.Vm.code 4706 :=
+@[expose] public def KeccakPhase.programOffset : Nat := 4706
+
+public theorem KeccakPhase.code_at : NativeRustcVmArm.Vm.KeccakPhase.code.IsInfixAt NativeRustcVmArm.Vm.code KeccakPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 45) rfl (by decide +kernel)
 
-public theorem KeccakPhase.b0_at : NativeRustcVmArm.Vm.KeccakPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code 4706 :=
+public theorem KeccakPhase.b0_at : NativeRustcVmArm.Vm.KeccakPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code (KeccakPhase.programOffset + NativeRustcVmArm.Vm.KeccakPhase.b0Offset) :=
   NativeRustcVmArm.Vm.KeccakPhase.b0_in_code.trans KeccakPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakPhase.b1_at : NativeRustcVmArm.Vm.KeccakPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code 4749 :=
+public theorem KeccakPhase.b1_at : NativeRustcVmArm.Vm.KeccakPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code (KeccakPhase.programOffset + NativeRustcVmArm.Vm.KeccakPhase.b1Offset) :=
   NativeRustcVmArm.Vm.KeccakPhase.b1_in_code.trans KeccakPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakPhase.b2_at : NativeRustcVmArm.Vm.KeccakPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code 4751 :=
+public theorem KeccakPhase.b2_at : NativeRustcVmArm.Vm.KeccakPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code (KeccakPhase.programOffset + NativeRustcVmArm.Vm.KeccakPhase.b2Offset) :=
   NativeRustcVmArm.Vm.KeccakPhase.b2_in_code.trans KeccakPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakPhase.b3_at : NativeRustcVmArm.Vm.KeccakPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code 4768 :=
+public theorem KeccakPhase.b3_at : NativeRustcVmArm.Vm.KeccakPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code (KeccakPhase.programOffset + NativeRustcVmArm.Vm.KeccakPhase.b3Offset) :=
   NativeRustcVmArm.Vm.KeccakPhase.b3_in_code.trans KeccakPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakPhase.b4_at : NativeRustcVmArm.Vm.KeccakPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code 4781 :=
+public theorem KeccakPhase.b4_at : NativeRustcVmArm.Vm.KeccakPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code (KeccakPhase.programOffset + NativeRustcVmArm.Vm.KeccakPhase.b4Offset) :=
   NativeRustcVmArm.Vm.KeccakPhase.b4_in_code.trans KeccakPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.code_at : NativeRustcVmArm.Vm.SlotWeights.code.IsInfixAt NativeRustcVmArm.Vm.code 4789 :=
+@[expose] public def SlotWeights.programOffset : Nat := 4789
+
+public theorem SlotWeights.code_at : NativeRustcVmArm.Vm.SlotWeights.code.IsInfixAt NativeRustcVmArm.Vm.code SlotWeights.programOffset :=
   List.isInfixAt_flatten_of (i := 46) rfl (by decide +kernel)
 
-public theorem SlotWeights.b0_at : NativeRustcVmArm.Vm.SlotWeights.b0.IsInfixAt NativeRustcVmArm.Vm.code 4789 :=
+public theorem SlotWeights.b0_at : NativeRustcVmArm.Vm.SlotWeights.b0.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b0Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b0_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b1_at : NativeRustcVmArm.Vm.SlotWeights.b1.IsInfixAt NativeRustcVmArm.Vm.code 4815 :=
+public theorem SlotWeights.b1_at : NativeRustcVmArm.Vm.SlotWeights.b1.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b1Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b1_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b2_at : NativeRustcVmArm.Vm.SlotWeights.b2.IsInfixAt NativeRustcVmArm.Vm.code 4818 :=
+public theorem SlotWeights.b2_at : NativeRustcVmArm.Vm.SlotWeights.b2.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b2Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b2_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b3_at : NativeRustcVmArm.Vm.SlotWeights.b3.IsInfixAt NativeRustcVmArm.Vm.code 4821 :=
+public theorem SlotWeights.b3_at : NativeRustcVmArm.Vm.SlotWeights.b3.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b3Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b3_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b4_at : NativeRustcVmArm.Vm.SlotWeights.b4.IsInfixAt NativeRustcVmArm.Vm.code 4921 :=
+public theorem SlotWeights.b4_at : NativeRustcVmArm.Vm.SlotWeights.b4.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b4Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b4_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b5_at : NativeRustcVmArm.Vm.SlotWeights.b5.IsInfixAt NativeRustcVmArm.Vm.code 4928 :=
+public theorem SlotWeights.b5_at : NativeRustcVmArm.Vm.SlotWeights.b5.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b5Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b5_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b6_at : NativeRustcVmArm.Vm.SlotWeights.b6.IsInfixAt NativeRustcVmArm.Vm.code 4933 :=
+public theorem SlotWeights.b6_at : NativeRustcVmArm.Vm.SlotWeights.b6.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b6Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b6_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b7_at : NativeRustcVmArm.Vm.SlotWeights.b7.IsInfixAt NativeRustcVmArm.Vm.code 4937 :=
+public theorem SlotWeights.b7_at : NativeRustcVmArm.Vm.SlotWeights.b7.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b7Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b7_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b8_at : NativeRustcVmArm.Vm.SlotWeights.b8.IsInfixAt NativeRustcVmArm.Vm.code 4941 :=
+public theorem SlotWeights.b8_at : NativeRustcVmArm.Vm.SlotWeights.b8.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b8Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b8_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b9_at : NativeRustcVmArm.Vm.SlotWeights.b9.IsInfixAt NativeRustcVmArm.Vm.code 4946 :=
+public theorem SlotWeights.b9_at : NativeRustcVmArm.Vm.SlotWeights.b9.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b9Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b9_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b10_at : NativeRustcVmArm.Vm.SlotWeights.b10.IsInfixAt NativeRustcVmArm.Vm.code 4950 :=
+public theorem SlotWeights.b10_at : NativeRustcVmArm.Vm.SlotWeights.b10.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b10Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b10_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b11_at : NativeRustcVmArm.Vm.SlotWeights.b11.IsInfixAt NativeRustcVmArm.Vm.code 4960 :=
+public theorem SlotWeights.b11_at : NativeRustcVmArm.Vm.SlotWeights.b11.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b11Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b11_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b12_at : NativeRustcVmArm.Vm.SlotWeights.b12.IsInfixAt NativeRustcVmArm.Vm.code 4969 :=
+public theorem SlotWeights.b12_at : NativeRustcVmArm.Vm.SlotWeights.b12.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b12Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b12_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b13_at : NativeRustcVmArm.Vm.SlotWeights.b13.IsInfixAt NativeRustcVmArm.Vm.code 4974 :=
+public theorem SlotWeights.b13_at : NativeRustcVmArm.Vm.SlotWeights.b13.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b13Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b13_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b14_at : NativeRustcVmArm.Vm.SlotWeights.b14.IsInfixAt NativeRustcVmArm.Vm.code 4978 :=
+public theorem SlotWeights.b14_at : NativeRustcVmArm.Vm.SlotWeights.b14.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b14Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b14_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem SlotWeights.b15_at : NativeRustcVmArm.Vm.SlotWeights.b15.IsInfixAt NativeRustcVmArm.Vm.code 4982 :=
+public theorem SlotWeights.b15_at : NativeRustcVmArm.Vm.SlotWeights.b15.IsInfixAt NativeRustcVmArm.Vm.code (SlotWeights.programOffset + NativeRustcVmArm.Vm.SlotWeights.b15Offset) :=
   NativeRustcVmArm.Vm.SlotWeights.b15_in_code.trans SlotWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.code_at : NativeRustcVmArm.Vm.VerifyLayer.code.IsInfixAt NativeRustcVmArm.Vm.code 4987 :=
+@[expose] public def VerifyLayer.programOffset : Nat := 4987
+
+public theorem VerifyLayer.code_at : NativeRustcVmArm.Vm.VerifyLayer.code.IsInfixAt NativeRustcVmArm.Vm.code VerifyLayer.programOffset :=
   List.isInfixAt_flatten_of (i := 47) rfl (by decide +kernel)
 
-public theorem VerifyLayer.b0_at : NativeRustcVmArm.Vm.VerifyLayer.b0.IsInfixAt NativeRustcVmArm.Vm.code 4987 :=
+public theorem VerifyLayer.b0_at : NativeRustcVmArm.Vm.VerifyLayer.b0.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b0Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b0_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b1_at : NativeRustcVmArm.Vm.VerifyLayer.b1.IsInfixAt NativeRustcVmArm.Vm.code 5077 :=
+public theorem VerifyLayer.b1_at : NativeRustcVmArm.Vm.VerifyLayer.b1.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b1Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b1_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b2_at : NativeRustcVmArm.Vm.VerifyLayer.b2.IsInfixAt NativeRustcVmArm.Vm.code 5078 :=
+public theorem VerifyLayer.b2_at : NativeRustcVmArm.Vm.VerifyLayer.b2.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b2Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b2_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b3_at : NativeRustcVmArm.Vm.VerifyLayer.b3.IsInfixAt NativeRustcVmArm.Vm.code 5106 :=
+public theorem VerifyLayer.b3_at : NativeRustcVmArm.Vm.VerifyLayer.b3.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b3Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b3_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b4_at : NativeRustcVmArm.Vm.VerifyLayer.b4.IsInfixAt NativeRustcVmArm.Vm.code 5109 :=
+public theorem VerifyLayer.b4_at : NativeRustcVmArm.Vm.VerifyLayer.b4.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b4Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b4_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b5_at : NativeRustcVmArm.Vm.VerifyLayer.b5.IsInfixAt NativeRustcVmArm.Vm.code 5115 :=
+public theorem VerifyLayer.b5_at : NativeRustcVmArm.Vm.VerifyLayer.b5.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b5Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b5_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b6_at : NativeRustcVmArm.Vm.VerifyLayer.b6.IsInfixAt NativeRustcVmArm.Vm.code 5119 :=
+public theorem VerifyLayer.b6_at : NativeRustcVmArm.Vm.VerifyLayer.b6.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b6Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b6_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b7_at : NativeRustcVmArm.Vm.VerifyLayer.b7.IsInfixAt NativeRustcVmArm.Vm.code 5121 :=
+public theorem VerifyLayer.b7_at : NativeRustcVmArm.Vm.VerifyLayer.b7.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b7Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b7_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b8_at : NativeRustcVmArm.Vm.VerifyLayer.b8.IsInfixAt NativeRustcVmArm.Vm.code 5124 :=
+public theorem VerifyLayer.b8_at : NativeRustcVmArm.Vm.VerifyLayer.b8.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b8Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b8_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b9_at : NativeRustcVmArm.Vm.VerifyLayer.b9.IsInfixAt NativeRustcVmArm.Vm.code 5128 :=
+public theorem VerifyLayer.b9_at : NativeRustcVmArm.Vm.VerifyLayer.b9.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b9Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b9_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b10_at : NativeRustcVmArm.Vm.VerifyLayer.b10.IsInfixAt NativeRustcVmArm.Vm.code 5137 :=
+public theorem VerifyLayer.b10_at : NativeRustcVmArm.Vm.VerifyLayer.b10.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b10Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b10_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b11_at : NativeRustcVmArm.Vm.VerifyLayer.b11.IsInfixAt NativeRustcVmArm.Vm.code 5154 :=
+public theorem VerifyLayer.b11_at : NativeRustcVmArm.Vm.VerifyLayer.b11.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b11Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b11_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b12_at : NativeRustcVmArm.Vm.VerifyLayer.b12.IsInfixAt NativeRustcVmArm.Vm.code 5159 :=
+public theorem VerifyLayer.b12_at : NativeRustcVmArm.Vm.VerifyLayer.b12.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b12Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b12_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b13_at : NativeRustcVmArm.Vm.VerifyLayer.b13.IsInfixAt NativeRustcVmArm.Vm.code 5163 :=
+public theorem VerifyLayer.b13_at : NativeRustcVmArm.Vm.VerifyLayer.b13.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b13Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b13_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b14_at : NativeRustcVmArm.Vm.VerifyLayer.b14.IsInfixAt NativeRustcVmArm.Vm.code 5174 :=
+public theorem VerifyLayer.b14_at : NativeRustcVmArm.Vm.VerifyLayer.b14.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b14Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b14_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b15_at : NativeRustcVmArm.Vm.VerifyLayer.b15.IsInfixAt NativeRustcVmArm.Vm.code 5175 :=
+public theorem VerifyLayer.b15_at : NativeRustcVmArm.Vm.VerifyLayer.b15.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b15Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b15_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b16_at : NativeRustcVmArm.Vm.VerifyLayer.b16.IsInfixAt NativeRustcVmArm.Vm.code 5199 :=
+public theorem VerifyLayer.b16_at : NativeRustcVmArm.Vm.VerifyLayer.b16.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b16Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b16_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b17_at : NativeRustcVmArm.Vm.VerifyLayer.b17.IsInfixAt NativeRustcVmArm.Vm.code 5201 :=
+public theorem VerifyLayer.b17_at : NativeRustcVmArm.Vm.VerifyLayer.b17.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b17Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b17_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b18_at : NativeRustcVmArm.Vm.VerifyLayer.b18.IsInfixAt NativeRustcVmArm.Vm.code 5228 :=
+public theorem VerifyLayer.b18_at : NativeRustcVmArm.Vm.VerifyLayer.b18.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b18Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b18_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b19_at : NativeRustcVmArm.Vm.VerifyLayer.b19.IsInfixAt NativeRustcVmArm.Vm.code 5261 :=
+public theorem VerifyLayer.b19_at : NativeRustcVmArm.Vm.VerifyLayer.b19.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b19Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b19_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b20_at : NativeRustcVmArm.Vm.VerifyLayer.b20.IsInfixAt NativeRustcVmArm.Vm.code 5289 :=
+public theorem VerifyLayer.b20_at : NativeRustcVmArm.Vm.VerifyLayer.b20.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b20Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b20_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b21_at : NativeRustcVmArm.Vm.VerifyLayer.b21.IsInfixAt NativeRustcVmArm.Vm.code 5322 :=
+public theorem VerifyLayer.b21_at : NativeRustcVmArm.Vm.VerifyLayer.b21.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b21Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b21_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b22_at : NativeRustcVmArm.Vm.VerifyLayer.b22.IsInfixAt NativeRustcVmArm.Vm.code 5332 :=
+public theorem VerifyLayer.b22_at : NativeRustcVmArm.Vm.VerifyLayer.b22.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b22Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b22_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b23_at : NativeRustcVmArm.Vm.VerifyLayer.b23.IsInfixAt NativeRustcVmArm.Vm.code 5338 :=
+public theorem VerifyLayer.b23_at : NativeRustcVmArm.Vm.VerifyLayer.b23.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b23Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b23_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b24_at : NativeRustcVmArm.Vm.VerifyLayer.b24.IsInfixAt NativeRustcVmArm.Vm.code 5343 :=
+public theorem VerifyLayer.b24_at : NativeRustcVmArm.Vm.VerifyLayer.b24.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b24Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b24_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b25_at : NativeRustcVmArm.Vm.VerifyLayer.b25.IsInfixAt NativeRustcVmArm.Vm.code 5348 :=
+public theorem VerifyLayer.b25_at : NativeRustcVmArm.Vm.VerifyLayer.b25.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b25Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b25_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b26_at : NativeRustcVmArm.Vm.VerifyLayer.b26.IsInfixAt NativeRustcVmArm.Vm.code 5354 :=
+public theorem VerifyLayer.b26_at : NativeRustcVmArm.Vm.VerifyLayer.b26.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b26Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b26_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b27_at : NativeRustcVmArm.Vm.VerifyLayer.b27.IsInfixAt NativeRustcVmArm.Vm.code 5358 :=
+public theorem VerifyLayer.b27_at : NativeRustcVmArm.Vm.VerifyLayer.b27.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b27Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b27_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b28_at : NativeRustcVmArm.Vm.VerifyLayer.b28.IsInfixAt NativeRustcVmArm.Vm.code 5360 :=
+public theorem VerifyLayer.b28_at : NativeRustcVmArm.Vm.VerifyLayer.b28.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b28Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b28_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b29_at : NativeRustcVmArm.Vm.VerifyLayer.b29.IsInfixAt NativeRustcVmArm.Vm.code 5365 :=
+public theorem VerifyLayer.b29_at : NativeRustcVmArm.Vm.VerifyLayer.b29.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b29Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b29_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b30_at : NativeRustcVmArm.Vm.VerifyLayer.b30.IsInfixAt NativeRustcVmArm.Vm.code 5366 :=
+public theorem VerifyLayer.b30_at : NativeRustcVmArm.Vm.VerifyLayer.b30.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b30Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b30_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b31_at : NativeRustcVmArm.Vm.VerifyLayer.b31.IsInfixAt NativeRustcVmArm.Vm.code 5368 :=
+public theorem VerifyLayer.b31_at : NativeRustcVmArm.Vm.VerifyLayer.b31.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b31Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b31_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b32_at : NativeRustcVmArm.Vm.VerifyLayer.b32.IsInfixAt NativeRustcVmArm.Vm.code 5375 :=
+public theorem VerifyLayer.b32_at : NativeRustcVmArm.Vm.VerifyLayer.b32.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b32Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b32_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b33_at : NativeRustcVmArm.Vm.VerifyLayer.b33.IsInfixAt NativeRustcVmArm.Vm.code 5382 :=
+public theorem VerifyLayer.b33_at : NativeRustcVmArm.Vm.VerifyLayer.b33.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b33Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b33_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b34_at : NativeRustcVmArm.Vm.VerifyLayer.b34.IsInfixAt NativeRustcVmArm.Vm.code 5454 :=
+public theorem VerifyLayer.b34_at : NativeRustcVmArm.Vm.VerifyLayer.b34.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b34Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b34_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b35_at : NativeRustcVmArm.Vm.VerifyLayer.b35.IsInfixAt NativeRustcVmArm.Vm.code 5463 :=
+public theorem VerifyLayer.b35_at : NativeRustcVmArm.Vm.VerifyLayer.b35.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b35Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b35_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b36_at : NativeRustcVmArm.Vm.VerifyLayer.b36.IsInfixAt NativeRustcVmArm.Vm.code 5465 :=
+public theorem VerifyLayer.b36_at : NativeRustcVmArm.Vm.VerifyLayer.b36.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b36Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b36_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b37_at : NativeRustcVmArm.Vm.VerifyLayer.b37.IsInfixAt NativeRustcVmArm.Vm.code 5495 :=
+public theorem VerifyLayer.b37_at : NativeRustcVmArm.Vm.VerifyLayer.b37.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b37Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b37_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b38_at : NativeRustcVmArm.Vm.VerifyLayer.b38.IsInfixAt NativeRustcVmArm.Vm.code 5497 :=
+public theorem VerifyLayer.b38_at : NativeRustcVmArm.Vm.VerifyLayer.b38.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b38Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b38_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b39_at : NativeRustcVmArm.Vm.VerifyLayer.b39.IsInfixAt NativeRustcVmArm.Vm.code 5509 :=
+public theorem VerifyLayer.b39_at : NativeRustcVmArm.Vm.VerifyLayer.b39.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b39Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b39_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b40_at : NativeRustcVmArm.Vm.VerifyLayer.b40.IsInfixAt NativeRustcVmArm.Vm.code 5511 :=
+public theorem VerifyLayer.b40_at : NativeRustcVmArm.Vm.VerifyLayer.b40.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b40Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b40_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b41_at : NativeRustcVmArm.Vm.VerifyLayer.b41.IsInfixAt NativeRustcVmArm.Vm.code 5518 :=
+public theorem VerifyLayer.b41_at : NativeRustcVmArm.Vm.VerifyLayer.b41.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b41Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b41_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b42_at : NativeRustcVmArm.Vm.VerifyLayer.b42.IsInfixAt NativeRustcVmArm.Vm.code 5519 :=
+public theorem VerifyLayer.b42_at : NativeRustcVmArm.Vm.VerifyLayer.b42.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b42Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b42_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b43_at : NativeRustcVmArm.Vm.VerifyLayer.b43.IsInfixAt NativeRustcVmArm.Vm.code 5533 :=
+public theorem VerifyLayer.b43_at : NativeRustcVmArm.Vm.VerifyLayer.b43.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b43Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b43_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b44_at : NativeRustcVmArm.Vm.VerifyLayer.b44.IsInfixAt NativeRustcVmArm.Vm.code 5540 :=
+public theorem VerifyLayer.b44_at : NativeRustcVmArm.Vm.VerifyLayer.b44.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b44Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b44_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b45_at : NativeRustcVmArm.Vm.VerifyLayer.b45.IsInfixAt NativeRustcVmArm.Vm.code 5550 :=
+public theorem VerifyLayer.b45_at : NativeRustcVmArm.Vm.VerifyLayer.b45.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b45Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b45_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b46_at : NativeRustcVmArm.Vm.VerifyLayer.b46.IsInfixAt NativeRustcVmArm.Vm.code 5554 :=
+public theorem VerifyLayer.b46_at : NativeRustcVmArm.Vm.VerifyLayer.b46.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b46Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b46_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b47_at : NativeRustcVmArm.Vm.VerifyLayer.b47.IsInfixAt NativeRustcVmArm.Vm.code 5557 :=
+public theorem VerifyLayer.b47_at : NativeRustcVmArm.Vm.VerifyLayer.b47.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b47Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b47_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b48_at : NativeRustcVmArm.Vm.VerifyLayer.b48.IsInfixAt NativeRustcVmArm.Vm.code 5559 :=
+public theorem VerifyLayer.b48_at : NativeRustcVmArm.Vm.VerifyLayer.b48.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b48Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b48_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b49_at : NativeRustcVmArm.Vm.VerifyLayer.b49.IsInfixAt NativeRustcVmArm.Vm.code 5561 :=
+public theorem VerifyLayer.b49_at : NativeRustcVmArm.Vm.VerifyLayer.b49.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b49Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b49_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b50_at : NativeRustcVmArm.Vm.VerifyLayer.b50.IsInfixAt NativeRustcVmArm.Vm.code 5565 :=
+public theorem VerifyLayer.b50_at : NativeRustcVmArm.Vm.VerifyLayer.b50.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b50Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b50_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b51_at : NativeRustcVmArm.Vm.VerifyLayer.b51.IsInfixAt NativeRustcVmArm.Vm.code 5566 :=
+public theorem VerifyLayer.b51_at : NativeRustcVmArm.Vm.VerifyLayer.b51.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b51Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b51_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b52_at : NativeRustcVmArm.Vm.VerifyLayer.b52.IsInfixAt NativeRustcVmArm.Vm.code 5568 :=
+public theorem VerifyLayer.b52_at : NativeRustcVmArm.Vm.VerifyLayer.b52.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b52Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b52_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b53_at : NativeRustcVmArm.Vm.VerifyLayer.b53.IsInfixAt NativeRustcVmArm.Vm.code 5575 :=
+public theorem VerifyLayer.b53_at : NativeRustcVmArm.Vm.VerifyLayer.b53.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b53Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b53_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b54_at : NativeRustcVmArm.Vm.VerifyLayer.b54.IsInfixAt NativeRustcVmArm.Vm.code 5580 :=
+public theorem VerifyLayer.b54_at : NativeRustcVmArm.Vm.VerifyLayer.b54.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b54Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b54_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b55_at : NativeRustcVmArm.Vm.VerifyLayer.b55.IsInfixAt NativeRustcVmArm.Vm.code 5588 :=
+public theorem VerifyLayer.b55_at : NativeRustcVmArm.Vm.VerifyLayer.b55.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b55Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b55_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b56_at : NativeRustcVmArm.Vm.VerifyLayer.b56.IsInfixAt NativeRustcVmArm.Vm.code 5593 :=
+public theorem VerifyLayer.b56_at : NativeRustcVmArm.Vm.VerifyLayer.b56.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b56Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b56_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b57_at : NativeRustcVmArm.Vm.VerifyLayer.b57.IsInfixAt NativeRustcVmArm.Vm.code 5600 :=
+public theorem VerifyLayer.b57_at : NativeRustcVmArm.Vm.VerifyLayer.b57.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b57Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b57_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b58_at : NativeRustcVmArm.Vm.VerifyLayer.b58.IsInfixAt NativeRustcVmArm.Vm.code 5620 :=
+public theorem VerifyLayer.b58_at : NativeRustcVmArm.Vm.VerifyLayer.b58.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b58Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b58_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b59_at : NativeRustcVmArm.Vm.VerifyLayer.b59.IsInfixAt NativeRustcVmArm.Vm.code 5625 :=
+public theorem VerifyLayer.b59_at : NativeRustcVmArm.Vm.VerifyLayer.b59.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b59Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b59_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b60_at : NativeRustcVmArm.Vm.VerifyLayer.b60.IsInfixAt NativeRustcVmArm.Vm.code 5628 :=
+public theorem VerifyLayer.b60_at : NativeRustcVmArm.Vm.VerifyLayer.b60.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b60Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b60_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b61_at : NativeRustcVmArm.Vm.VerifyLayer.b61.IsInfixAt NativeRustcVmArm.Vm.code 5638 :=
+public theorem VerifyLayer.b61_at : NativeRustcVmArm.Vm.VerifyLayer.b61.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b61Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b61_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b62_at : NativeRustcVmArm.Vm.VerifyLayer.b62.IsInfixAt NativeRustcVmArm.Vm.code 5641 :=
+public theorem VerifyLayer.b62_at : NativeRustcVmArm.Vm.VerifyLayer.b62.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b62Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b62_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b63_at : NativeRustcVmArm.Vm.VerifyLayer.b63.IsInfixAt NativeRustcVmArm.Vm.code 5650 :=
+public theorem VerifyLayer.b63_at : NativeRustcVmArm.Vm.VerifyLayer.b63.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b63Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b63_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b64_at : NativeRustcVmArm.Vm.VerifyLayer.b64.IsInfixAt NativeRustcVmArm.Vm.code 5654 :=
+public theorem VerifyLayer.b64_at : NativeRustcVmArm.Vm.VerifyLayer.b64.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b64Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b64_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b65_at : NativeRustcVmArm.Vm.VerifyLayer.b65.IsInfixAt NativeRustcVmArm.Vm.code 5660 :=
+public theorem VerifyLayer.b65_at : NativeRustcVmArm.Vm.VerifyLayer.b65.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b65Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b65_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b66_at : NativeRustcVmArm.Vm.VerifyLayer.b66.IsInfixAt NativeRustcVmArm.Vm.code 5669 :=
+public theorem VerifyLayer.b66_at : NativeRustcVmArm.Vm.VerifyLayer.b66.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b66Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b66_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b67_at : NativeRustcVmArm.Vm.VerifyLayer.b67.IsInfixAt NativeRustcVmArm.Vm.code 5674 :=
+public theorem VerifyLayer.b67_at : NativeRustcVmArm.Vm.VerifyLayer.b67.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b67Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b67_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b68_at : NativeRustcVmArm.Vm.VerifyLayer.b68.IsInfixAt NativeRustcVmArm.Vm.code 5675 :=
+public theorem VerifyLayer.b68_at : NativeRustcVmArm.Vm.VerifyLayer.b68.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b68Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b68_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b69_at : NativeRustcVmArm.Vm.VerifyLayer.b69.IsInfixAt NativeRustcVmArm.Vm.code 5677 :=
+public theorem VerifyLayer.b69_at : NativeRustcVmArm.Vm.VerifyLayer.b69.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b69Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b69_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyLayer.b70_at : NativeRustcVmArm.Vm.VerifyLayer.b70.IsInfixAt NativeRustcVmArm.Vm.code 5679 :=
+public theorem VerifyLayer.b70_at : NativeRustcVmArm.Vm.VerifyLayer.b70.IsInfixAt NativeRustcVmArm.Vm.code (VerifyLayer.programOffset + NativeRustcVmArm.Vm.VerifyLayer.b70Offset) :=
   NativeRustcVmArm.Vm.VerifyLayer.b70_in_code.trans VerifyLayer.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.code_at : NativeRustcVmArm.Vm.VerifyKeccak.code.IsInfixAt NativeRustcVmArm.Vm.code 5688 :=
+@[expose] public def VerifyKeccak.programOffset : Nat := 5688
+
+public theorem VerifyKeccak.code_at : NativeRustcVmArm.Vm.VerifyKeccak.code.IsInfixAt NativeRustcVmArm.Vm.code VerifyKeccak.programOffset :=
   List.isInfixAt_flatten_of (i := 48) rfl (by decide +kernel)
 
-public theorem VerifyKeccak.b0_at : NativeRustcVmArm.Vm.VerifyKeccak.b0.IsInfixAt NativeRustcVmArm.Vm.code 5688 :=
+public theorem VerifyKeccak.b0_at : NativeRustcVmArm.Vm.VerifyKeccak.b0.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b0Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b0_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b1_at : NativeRustcVmArm.Vm.VerifyKeccak.b1.IsInfixAt NativeRustcVmArm.Vm.code 5717 :=
+public theorem VerifyKeccak.b1_at : NativeRustcVmArm.Vm.VerifyKeccak.b1.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b1Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b1_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b2_at : NativeRustcVmArm.Vm.VerifyKeccak.b2.IsInfixAt NativeRustcVmArm.Vm.code 5721 :=
+public theorem VerifyKeccak.b2_at : NativeRustcVmArm.Vm.VerifyKeccak.b2.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b2Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b2_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b3_at : NativeRustcVmArm.Vm.VerifyKeccak.b3.IsInfixAt NativeRustcVmArm.Vm.code 5724 :=
+public theorem VerifyKeccak.b3_at : NativeRustcVmArm.Vm.VerifyKeccak.b3.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b3Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b3_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b4_at : NativeRustcVmArm.Vm.VerifyKeccak.b4.IsInfixAt NativeRustcVmArm.Vm.code 5729 :=
+public theorem VerifyKeccak.b4_at : NativeRustcVmArm.Vm.VerifyKeccak.b4.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b4Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b4_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b5_at : NativeRustcVmArm.Vm.VerifyKeccak.b5.IsInfixAt NativeRustcVmArm.Vm.code 5738 :=
+public theorem VerifyKeccak.b5_at : NativeRustcVmArm.Vm.VerifyKeccak.b5.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b5Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b5_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b6_at : NativeRustcVmArm.Vm.VerifyKeccak.b6.IsInfixAt NativeRustcVmArm.Vm.code 5741 :=
+public theorem VerifyKeccak.b6_at : NativeRustcVmArm.Vm.VerifyKeccak.b6.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b6Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b6_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b7_at : NativeRustcVmArm.Vm.VerifyKeccak.b7.IsInfixAt NativeRustcVmArm.Vm.code 5743 :=
+public theorem VerifyKeccak.b7_at : NativeRustcVmArm.Vm.VerifyKeccak.b7.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b7Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b7_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b8_at : NativeRustcVmArm.Vm.VerifyKeccak.b8.IsInfixAt NativeRustcVmArm.Vm.code 5757 :=
+public theorem VerifyKeccak.b8_at : NativeRustcVmArm.Vm.VerifyKeccak.b8.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b8Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b8_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b9_at : NativeRustcVmArm.Vm.VerifyKeccak.b9.IsInfixAt NativeRustcVmArm.Vm.code 5759 :=
+public theorem VerifyKeccak.b9_at : NativeRustcVmArm.Vm.VerifyKeccak.b9.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b9Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b9_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b10_at : NativeRustcVmArm.Vm.VerifyKeccak.b10.IsInfixAt NativeRustcVmArm.Vm.code 5764 :=
+public theorem VerifyKeccak.b10_at : NativeRustcVmArm.Vm.VerifyKeccak.b10.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b10Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b10_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b11_at : NativeRustcVmArm.Vm.VerifyKeccak.b11.IsInfixAt NativeRustcVmArm.Vm.code 5769 :=
+public theorem VerifyKeccak.b11_at : NativeRustcVmArm.Vm.VerifyKeccak.b11.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b11Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b11_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b12_at : NativeRustcVmArm.Vm.VerifyKeccak.b12.IsInfixAt NativeRustcVmArm.Vm.code 5774 :=
+public theorem VerifyKeccak.b12_at : NativeRustcVmArm.Vm.VerifyKeccak.b12.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b12Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b12_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b13_at : NativeRustcVmArm.Vm.VerifyKeccak.b13.IsInfixAt NativeRustcVmArm.Vm.code 5780 :=
+public theorem VerifyKeccak.b13_at : NativeRustcVmArm.Vm.VerifyKeccak.b13.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b13Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b13_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b14_at : NativeRustcVmArm.Vm.VerifyKeccak.b14.IsInfixAt NativeRustcVmArm.Vm.code 5784 :=
+public theorem VerifyKeccak.b14_at : NativeRustcVmArm.Vm.VerifyKeccak.b14.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b14Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b14_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b15_at : NativeRustcVmArm.Vm.VerifyKeccak.b15.IsInfixAt NativeRustcVmArm.Vm.code 5791 :=
+public theorem VerifyKeccak.b15_at : NativeRustcVmArm.Vm.VerifyKeccak.b15.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b15Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b15_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b16_at : NativeRustcVmArm.Vm.VerifyKeccak.b16.IsInfixAt NativeRustcVmArm.Vm.code 5796 :=
+public theorem VerifyKeccak.b16_at : NativeRustcVmArm.Vm.VerifyKeccak.b16.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b16Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b16_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b17_at : NativeRustcVmArm.Vm.VerifyKeccak.b17.IsInfixAt NativeRustcVmArm.Vm.code 5802 :=
+public theorem VerifyKeccak.b17_at : NativeRustcVmArm.Vm.VerifyKeccak.b17.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b17Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b17_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b18_at : NativeRustcVmArm.Vm.VerifyKeccak.b18.IsInfixAt NativeRustcVmArm.Vm.code 5803 :=
+public theorem VerifyKeccak.b18_at : NativeRustcVmArm.Vm.VerifyKeccak.b18.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b18Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b18_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b19_at : NativeRustcVmArm.Vm.VerifyKeccak.b19.IsInfixAt NativeRustcVmArm.Vm.code 5809 :=
+public theorem VerifyKeccak.b19_at : NativeRustcVmArm.Vm.VerifyKeccak.b19.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b19Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b19_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b20_at : NativeRustcVmArm.Vm.VerifyKeccak.b20.IsInfixAt NativeRustcVmArm.Vm.code 5810 :=
+public theorem VerifyKeccak.b20_at : NativeRustcVmArm.Vm.VerifyKeccak.b20.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b20Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b20_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b21_at : NativeRustcVmArm.Vm.VerifyKeccak.b21.IsInfixAt NativeRustcVmArm.Vm.code 5816 :=
+public theorem VerifyKeccak.b21_at : NativeRustcVmArm.Vm.VerifyKeccak.b21.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b21Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b21_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b22_at : NativeRustcVmArm.Vm.VerifyKeccak.b22.IsInfixAt NativeRustcVmArm.Vm.code 5817 :=
+public theorem VerifyKeccak.b22_at : NativeRustcVmArm.Vm.VerifyKeccak.b22.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b22Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b22_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b23_at : NativeRustcVmArm.Vm.VerifyKeccak.b23.IsInfixAt NativeRustcVmArm.Vm.code 5823 :=
+public theorem VerifyKeccak.b23_at : NativeRustcVmArm.Vm.VerifyKeccak.b23.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b23Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b23_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b24_at : NativeRustcVmArm.Vm.VerifyKeccak.b24.IsInfixAt NativeRustcVmArm.Vm.code 5824 :=
+public theorem VerifyKeccak.b24_at : NativeRustcVmArm.Vm.VerifyKeccak.b24.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b24Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b24_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b25_at : NativeRustcVmArm.Vm.VerifyKeccak.b25.IsInfixAt NativeRustcVmArm.Vm.code 5830 :=
+public theorem VerifyKeccak.b25_at : NativeRustcVmArm.Vm.VerifyKeccak.b25.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b25Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b25_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b26_at : NativeRustcVmArm.Vm.VerifyKeccak.b26.IsInfixAt NativeRustcVmArm.Vm.code 5831 :=
+public theorem VerifyKeccak.b26_at : NativeRustcVmArm.Vm.VerifyKeccak.b26.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b26Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b26_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b27_at : NativeRustcVmArm.Vm.VerifyKeccak.b27.IsInfixAt NativeRustcVmArm.Vm.code 5837 :=
+public theorem VerifyKeccak.b27_at : NativeRustcVmArm.Vm.VerifyKeccak.b27.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b27Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b27_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b28_at : NativeRustcVmArm.Vm.VerifyKeccak.b28.IsInfixAt NativeRustcVmArm.Vm.code 5838 :=
+public theorem VerifyKeccak.b28_at : NativeRustcVmArm.Vm.VerifyKeccak.b28.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b28Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b28_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b29_at : NativeRustcVmArm.Vm.VerifyKeccak.b29.IsInfixAt NativeRustcVmArm.Vm.code 5844 :=
+public theorem VerifyKeccak.b29_at : NativeRustcVmArm.Vm.VerifyKeccak.b29.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b29Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b29_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b30_at : NativeRustcVmArm.Vm.VerifyKeccak.b30.IsInfixAt NativeRustcVmArm.Vm.code 5845 :=
+public theorem VerifyKeccak.b30_at : NativeRustcVmArm.Vm.VerifyKeccak.b30.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b30Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b30_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b31_at : NativeRustcVmArm.Vm.VerifyKeccak.b31.IsInfixAt NativeRustcVmArm.Vm.code 5851 :=
+public theorem VerifyKeccak.b31_at : NativeRustcVmArm.Vm.VerifyKeccak.b31.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b31Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b31_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b32_at : NativeRustcVmArm.Vm.VerifyKeccak.b32.IsInfixAt NativeRustcVmArm.Vm.code 5852 :=
+public theorem VerifyKeccak.b32_at : NativeRustcVmArm.Vm.VerifyKeccak.b32.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b32Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b32_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b33_at : NativeRustcVmArm.Vm.VerifyKeccak.b33.IsInfixAt NativeRustcVmArm.Vm.code 5858 :=
+public theorem VerifyKeccak.b33_at : NativeRustcVmArm.Vm.VerifyKeccak.b33.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b33Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b33_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b34_at : NativeRustcVmArm.Vm.VerifyKeccak.b34.IsInfixAt NativeRustcVmArm.Vm.code 5859 :=
+public theorem VerifyKeccak.b34_at : NativeRustcVmArm.Vm.VerifyKeccak.b34.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b34Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b34_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b35_at : NativeRustcVmArm.Vm.VerifyKeccak.b35.IsInfixAt NativeRustcVmArm.Vm.code 5865 :=
+public theorem VerifyKeccak.b35_at : NativeRustcVmArm.Vm.VerifyKeccak.b35.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b35Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b35_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b36_at : NativeRustcVmArm.Vm.VerifyKeccak.b36.IsInfixAt NativeRustcVmArm.Vm.code 5866 :=
+public theorem VerifyKeccak.b36_at : NativeRustcVmArm.Vm.VerifyKeccak.b36.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b36Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b36_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b37_at : NativeRustcVmArm.Vm.VerifyKeccak.b37.IsInfixAt NativeRustcVmArm.Vm.code 5872 :=
+public theorem VerifyKeccak.b37_at : NativeRustcVmArm.Vm.VerifyKeccak.b37.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b37Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b37_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b38_at : NativeRustcVmArm.Vm.VerifyKeccak.b38.IsInfixAt NativeRustcVmArm.Vm.code 5873 :=
+public theorem VerifyKeccak.b38_at : NativeRustcVmArm.Vm.VerifyKeccak.b38.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b38Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b38_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b39_at : NativeRustcVmArm.Vm.VerifyKeccak.b39.IsInfixAt NativeRustcVmArm.Vm.code 5879 :=
+public theorem VerifyKeccak.b39_at : NativeRustcVmArm.Vm.VerifyKeccak.b39.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b39Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b39_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b40_at : NativeRustcVmArm.Vm.VerifyKeccak.b40.IsInfixAt NativeRustcVmArm.Vm.code 5880 :=
+public theorem VerifyKeccak.b40_at : NativeRustcVmArm.Vm.VerifyKeccak.b40.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b40Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b40_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b41_at : NativeRustcVmArm.Vm.VerifyKeccak.b41.IsInfixAt NativeRustcVmArm.Vm.code 5915 :=
+public theorem VerifyKeccak.b41_at : NativeRustcVmArm.Vm.VerifyKeccak.b41.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b41Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b41_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b42_at : NativeRustcVmArm.Vm.VerifyKeccak.b42.IsInfixAt NativeRustcVmArm.Vm.code 5917 :=
+public theorem VerifyKeccak.b42_at : NativeRustcVmArm.Vm.VerifyKeccak.b42.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b42Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b42_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b43_at : NativeRustcVmArm.Vm.VerifyKeccak.b43.IsInfixAt NativeRustcVmArm.Vm.code 5922 :=
+public theorem VerifyKeccak.b43_at : NativeRustcVmArm.Vm.VerifyKeccak.b43.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b43Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b43_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b44_at : NativeRustcVmArm.Vm.VerifyKeccak.b44.IsInfixAt NativeRustcVmArm.Vm.code 5924 :=
+public theorem VerifyKeccak.b44_at : NativeRustcVmArm.Vm.VerifyKeccak.b44.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b44Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b44_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b45_at : NativeRustcVmArm.Vm.VerifyKeccak.b45.IsInfixAt NativeRustcVmArm.Vm.code 5931 :=
+public theorem VerifyKeccak.b45_at : NativeRustcVmArm.Vm.VerifyKeccak.b45.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b45Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b45_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b46_at : NativeRustcVmArm.Vm.VerifyKeccak.b46.IsInfixAt NativeRustcVmArm.Vm.code 5933 :=
+public theorem VerifyKeccak.b46_at : NativeRustcVmArm.Vm.VerifyKeccak.b46.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b46Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b46_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b47_at : NativeRustcVmArm.Vm.VerifyKeccak.b47.IsInfixAt NativeRustcVmArm.Vm.code 5935 :=
+public theorem VerifyKeccak.b47_at : NativeRustcVmArm.Vm.VerifyKeccak.b47.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b47Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b47_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b48_at : NativeRustcVmArm.Vm.VerifyKeccak.b48.IsInfixAt NativeRustcVmArm.Vm.code 6013 :=
+public theorem VerifyKeccak.b48_at : NativeRustcVmArm.Vm.VerifyKeccak.b48.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b48Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b48_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b49_at : NativeRustcVmArm.Vm.VerifyKeccak.b49.IsInfixAt NativeRustcVmArm.Vm.code 6014 :=
+public theorem VerifyKeccak.b49_at : NativeRustcVmArm.Vm.VerifyKeccak.b49.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b49Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b49_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b50_at : NativeRustcVmArm.Vm.VerifyKeccak.b50.IsInfixAt NativeRustcVmArm.Vm.code 6018 :=
+public theorem VerifyKeccak.b50_at : NativeRustcVmArm.Vm.VerifyKeccak.b50.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b50Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b50_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b51_at : NativeRustcVmArm.Vm.VerifyKeccak.b51.IsInfixAt NativeRustcVmArm.Vm.code 6019 :=
+public theorem VerifyKeccak.b51_at : NativeRustcVmArm.Vm.VerifyKeccak.b51.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b51Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b51_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b52_at : NativeRustcVmArm.Vm.VerifyKeccak.b52.IsInfixAt NativeRustcVmArm.Vm.code 6023 :=
+public theorem VerifyKeccak.b52_at : NativeRustcVmArm.Vm.VerifyKeccak.b52.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b52Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b52_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b53_at : NativeRustcVmArm.Vm.VerifyKeccak.b53.IsInfixAt NativeRustcVmArm.Vm.code 6024 :=
+public theorem VerifyKeccak.b53_at : NativeRustcVmArm.Vm.VerifyKeccak.b53.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b53Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b53_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b54_at : NativeRustcVmArm.Vm.VerifyKeccak.b54.IsInfixAt NativeRustcVmArm.Vm.code 6035 :=
+public theorem VerifyKeccak.b54_at : NativeRustcVmArm.Vm.VerifyKeccak.b54.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b54Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b54_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b55_at : NativeRustcVmArm.Vm.VerifyKeccak.b55.IsInfixAt NativeRustcVmArm.Vm.code 6036 :=
+public theorem VerifyKeccak.b55_at : NativeRustcVmArm.Vm.VerifyKeccak.b55.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b55Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b55_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b56_at : NativeRustcVmArm.Vm.VerifyKeccak.b56.IsInfixAt NativeRustcVmArm.Vm.code 6052 :=
+public theorem VerifyKeccak.b56_at : NativeRustcVmArm.Vm.VerifyKeccak.b56.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b56Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b56_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b57_at : NativeRustcVmArm.Vm.VerifyKeccak.b57.IsInfixAt NativeRustcVmArm.Vm.code 6054 :=
+public theorem VerifyKeccak.b57_at : NativeRustcVmArm.Vm.VerifyKeccak.b57.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b57Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b57_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b58_at : NativeRustcVmArm.Vm.VerifyKeccak.b58.IsInfixAt NativeRustcVmArm.Vm.code 6076 :=
+public theorem VerifyKeccak.b58_at : NativeRustcVmArm.Vm.VerifyKeccak.b58.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b58Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b58_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b59_at : NativeRustcVmArm.Vm.VerifyKeccak.b59.IsInfixAt NativeRustcVmArm.Vm.code 6078 :=
+public theorem VerifyKeccak.b59_at : NativeRustcVmArm.Vm.VerifyKeccak.b59.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b59Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b59_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b60_at : NativeRustcVmArm.Vm.VerifyKeccak.b60.IsInfixAt NativeRustcVmArm.Vm.code 6085 :=
+public theorem VerifyKeccak.b60_at : NativeRustcVmArm.Vm.VerifyKeccak.b60.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b60Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b60_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b61_at : NativeRustcVmArm.Vm.VerifyKeccak.b61.IsInfixAt NativeRustcVmArm.Vm.code 6086 :=
+public theorem VerifyKeccak.b61_at : NativeRustcVmArm.Vm.VerifyKeccak.b61.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b61Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b61_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b62_at : NativeRustcVmArm.Vm.VerifyKeccak.b62.IsInfixAt NativeRustcVmArm.Vm.code 6097 :=
+public theorem VerifyKeccak.b62_at : NativeRustcVmArm.Vm.VerifyKeccak.b62.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b62Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b62_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b63_at : NativeRustcVmArm.Vm.VerifyKeccak.b63.IsInfixAt NativeRustcVmArm.Vm.code 6104 :=
+public theorem VerifyKeccak.b63_at : NativeRustcVmArm.Vm.VerifyKeccak.b63.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b63Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b63_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b64_at : NativeRustcVmArm.Vm.VerifyKeccak.b64.IsInfixAt NativeRustcVmArm.Vm.code 6109 :=
+public theorem VerifyKeccak.b64_at : NativeRustcVmArm.Vm.VerifyKeccak.b64.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b64Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b64_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b65_at : NativeRustcVmArm.Vm.VerifyKeccak.b65.IsInfixAt NativeRustcVmArm.Vm.code 6111 :=
+public theorem VerifyKeccak.b65_at : NativeRustcVmArm.Vm.VerifyKeccak.b65.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b65Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b65_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b66_at : NativeRustcVmArm.Vm.VerifyKeccak.b66.IsInfixAt NativeRustcVmArm.Vm.code 6113 :=
+public theorem VerifyKeccak.b66_at : NativeRustcVmArm.Vm.VerifyKeccak.b66.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b66Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b66_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b67_at : NativeRustcVmArm.Vm.VerifyKeccak.b67.IsInfixAt NativeRustcVmArm.Vm.code 6118 :=
+public theorem VerifyKeccak.b67_at : NativeRustcVmArm.Vm.VerifyKeccak.b67.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b67Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b67_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b68_at : NativeRustcVmArm.Vm.VerifyKeccak.b68.IsInfixAt NativeRustcVmArm.Vm.code 6119 :=
+public theorem VerifyKeccak.b68_at : NativeRustcVmArm.Vm.VerifyKeccak.b68.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b68Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b68_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b69_at : NativeRustcVmArm.Vm.VerifyKeccak.b69.IsInfixAt NativeRustcVmArm.Vm.code 6125 :=
+public theorem VerifyKeccak.b69_at : NativeRustcVmArm.Vm.VerifyKeccak.b69.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b69Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b69_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b70_at : NativeRustcVmArm.Vm.VerifyKeccak.b70.IsInfixAt NativeRustcVmArm.Vm.code 6126 :=
+public theorem VerifyKeccak.b70_at : NativeRustcVmArm.Vm.VerifyKeccak.b70.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b70Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b70_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b71_at : NativeRustcVmArm.Vm.VerifyKeccak.b71.IsInfixAt NativeRustcVmArm.Vm.code 6130 :=
+public theorem VerifyKeccak.b71_at : NativeRustcVmArm.Vm.VerifyKeccak.b71.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b71Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b71_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b72_at : NativeRustcVmArm.Vm.VerifyKeccak.b72.IsInfixAt NativeRustcVmArm.Vm.code 6131 :=
+public theorem VerifyKeccak.b72_at : NativeRustcVmArm.Vm.VerifyKeccak.b72.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b72Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b72_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyKeccak.b73_at : NativeRustcVmArm.Vm.VerifyKeccak.b73.IsInfixAt NativeRustcVmArm.Vm.code 6133 :=
+public theorem VerifyKeccak.b73_at : NativeRustcVmArm.Vm.VerifyKeccak.b73.IsInfixAt NativeRustcVmArm.Vm.code (VerifyKeccak.programOffset + NativeRustcVmArm.Vm.VerifyKeccak.b73Offset) :=
   NativeRustcVmArm.Vm.VerifyKeccak.b73_in_code.trans VerifyKeccak.code_at (List.cons_ne_nil _ _)
 
-public theorem InstanceWeights.code_at : NativeRustcVmArm.Vm.InstanceWeights.code.IsInfixAt NativeRustcVmArm.Vm.code 6142 :=
+@[expose] public def InstanceWeights.programOffset : Nat := 6142
+
+public theorem InstanceWeights.code_at : NativeRustcVmArm.Vm.InstanceWeights.code.IsInfixAt NativeRustcVmArm.Vm.code InstanceWeights.programOffset :=
   List.isInfixAt_flatten_of (i := 49) rfl (by decide +kernel)
 
-public theorem InstanceWeights.b0_at : NativeRustcVmArm.Vm.InstanceWeights.b0.IsInfixAt NativeRustcVmArm.Vm.code 6142 :=
+public theorem InstanceWeights.b0_at : NativeRustcVmArm.Vm.InstanceWeights.b0.IsInfixAt NativeRustcVmArm.Vm.code (InstanceWeights.programOffset + NativeRustcVmArm.Vm.InstanceWeights.b0Offset) :=
   NativeRustcVmArm.Vm.InstanceWeights.b0_in_code.trans InstanceWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem InstanceWeights.b1_at : NativeRustcVmArm.Vm.InstanceWeights.b1.IsInfixAt NativeRustcVmArm.Vm.code 6187 :=
+public theorem InstanceWeights.b1_at : NativeRustcVmArm.Vm.InstanceWeights.b1.IsInfixAt NativeRustcVmArm.Vm.code (InstanceWeights.programOffset + NativeRustcVmArm.Vm.InstanceWeights.b1Offset) :=
   NativeRustcVmArm.Vm.InstanceWeights.b1_in_code.trans InstanceWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem InstanceWeights.b2_at : NativeRustcVmArm.Vm.InstanceWeights.b2.IsInfixAt NativeRustcVmArm.Vm.code 6286 :=
+public theorem InstanceWeights.b2_at : NativeRustcVmArm.Vm.InstanceWeights.b2.IsInfixAt NativeRustcVmArm.Vm.code (InstanceWeights.programOffset + NativeRustcVmArm.Vm.InstanceWeights.b2Offset) :=
   NativeRustcVmArm.Vm.InstanceWeights.b2_in_code.trans InstanceWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem InstanceWeights.b3_at : NativeRustcVmArm.Vm.InstanceWeights.b3.IsInfixAt NativeRustcVmArm.Vm.code 6443 :=
+public theorem InstanceWeights.b3_at : NativeRustcVmArm.Vm.InstanceWeights.b3.IsInfixAt NativeRustcVmArm.Vm.code (InstanceWeights.programOffset + NativeRustcVmArm.Vm.InstanceWeights.b3Offset) :=
   NativeRustcVmArm.Vm.InstanceWeights.b3_in_code.trans InstanceWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem InstanceWeights.b4_at : NativeRustcVmArm.Vm.InstanceWeights.b4.IsInfixAt NativeRustcVmArm.Vm.code 6469 :=
+public theorem InstanceWeights.b4_at : NativeRustcVmArm.Vm.InstanceWeights.b4.IsInfixAt NativeRustcVmArm.Vm.code (InstanceWeights.programOffset + NativeRustcVmArm.Vm.InstanceWeights.b4Offset) :=
   NativeRustcVmArm.Vm.InstanceWeights.b4_in_code.trans InstanceWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.code_at : NativeRustcVmArm.Vm.LinearTranspose.code.IsInfixAt NativeRustcVmArm.Vm.code 6477 :=
+@[expose] public def LinearTranspose.programOffset : Nat := 6477
+
+public theorem LinearTranspose.code_at : NativeRustcVmArm.Vm.LinearTranspose.code.IsInfixAt NativeRustcVmArm.Vm.code LinearTranspose.programOffset :=
   List.isInfixAt_flatten_of (i := 50) rfl (by decide +kernel)
 
-public theorem LinearTranspose.b0_at : NativeRustcVmArm.Vm.LinearTranspose.b0.IsInfixAt NativeRustcVmArm.Vm.code 6477 :=
+public theorem LinearTranspose.b0_at : NativeRustcVmArm.Vm.LinearTranspose.b0.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b0Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b0_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b1_at : NativeRustcVmArm.Vm.LinearTranspose.b1.IsInfixAt NativeRustcVmArm.Vm.code 6493 :=
+public theorem LinearTranspose.b1_at : NativeRustcVmArm.Vm.LinearTranspose.b1.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b1Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b1_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b2_at : NativeRustcVmArm.Vm.LinearTranspose.b2.IsInfixAt NativeRustcVmArm.Vm.code 6499 :=
+public theorem LinearTranspose.b2_at : NativeRustcVmArm.Vm.LinearTranspose.b2.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b2Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b2_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b3_at : NativeRustcVmArm.Vm.LinearTranspose.b3.IsInfixAt NativeRustcVmArm.Vm.code 6502 :=
+public theorem LinearTranspose.b3_at : NativeRustcVmArm.Vm.LinearTranspose.b3.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b3Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b3_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b4_at : NativeRustcVmArm.Vm.LinearTranspose.b4.IsInfixAt NativeRustcVmArm.Vm.code 6505 :=
+public theorem LinearTranspose.b4_at : NativeRustcVmArm.Vm.LinearTranspose.b4.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b4Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b4_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b5_at : NativeRustcVmArm.Vm.LinearTranspose.b5.IsInfixAt NativeRustcVmArm.Vm.code 6507 :=
+public theorem LinearTranspose.b5_at : NativeRustcVmArm.Vm.LinearTranspose.b5.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b5Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b5_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b6_at : NativeRustcVmArm.Vm.LinearTranspose.b6.IsInfixAt NativeRustcVmArm.Vm.code 6516 :=
+public theorem LinearTranspose.b6_at : NativeRustcVmArm.Vm.LinearTranspose.b6.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b6Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b6_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b7_at : NativeRustcVmArm.Vm.LinearTranspose.b7.IsInfixAt NativeRustcVmArm.Vm.code 6517 :=
+public theorem LinearTranspose.b7_at : NativeRustcVmArm.Vm.LinearTranspose.b7.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b7Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b7_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b8_at : NativeRustcVmArm.Vm.LinearTranspose.b8.IsInfixAt NativeRustcVmArm.Vm.code 6520 :=
+public theorem LinearTranspose.b8_at : NativeRustcVmArm.Vm.LinearTranspose.b8.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b8Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b8_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b9_at : NativeRustcVmArm.Vm.LinearTranspose.b9.IsInfixAt NativeRustcVmArm.Vm.code 6533 :=
+public theorem LinearTranspose.b9_at : NativeRustcVmArm.Vm.LinearTranspose.b9.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b9Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b9_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b10_at : NativeRustcVmArm.Vm.LinearTranspose.b10.IsInfixAt NativeRustcVmArm.Vm.code 6534 :=
+public theorem LinearTranspose.b10_at : NativeRustcVmArm.Vm.LinearTranspose.b10.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b10Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b10_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b11_at : NativeRustcVmArm.Vm.LinearTranspose.b11.IsInfixAt NativeRustcVmArm.Vm.code 6538 :=
+public theorem LinearTranspose.b11_at : NativeRustcVmArm.Vm.LinearTranspose.b11.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b11Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b11_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b12_at : NativeRustcVmArm.Vm.LinearTranspose.b12.IsInfixAt NativeRustcVmArm.Vm.code 6561 :=
+public theorem LinearTranspose.b12_at : NativeRustcVmArm.Vm.LinearTranspose.b12.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b12Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b12_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b13_at : NativeRustcVmArm.Vm.LinearTranspose.b13.IsInfixAt NativeRustcVmArm.Vm.code 6564 :=
+public theorem LinearTranspose.b13_at : NativeRustcVmArm.Vm.LinearTranspose.b13.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b13Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b13_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b14_at : NativeRustcVmArm.Vm.LinearTranspose.b14.IsInfixAt NativeRustcVmArm.Vm.code 6588 :=
+public theorem LinearTranspose.b14_at : NativeRustcVmArm.Vm.LinearTranspose.b14.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b14Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b14_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b15_at : NativeRustcVmArm.Vm.LinearTranspose.b15.IsInfixAt NativeRustcVmArm.Vm.code 6590 :=
+public theorem LinearTranspose.b15_at : NativeRustcVmArm.Vm.LinearTranspose.b15.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b15Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b15_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b16_at : NativeRustcVmArm.Vm.LinearTranspose.b16.IsInfixAt NativeRustcVmArm.Vm.code 6615 :=
+public theorem LinearTranspose.b16_at : NativeRustcVmArm.Vm.LinearTranspose.b16.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b16Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b16_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b17_at : NativeRustcVmArm.Vm.LinearTranspose.b17.IsInfixAt NativeRustcVmArm.Vm.code 6618 :=
+public theorem LinearTranspose.b17_at : NativeRustcVmArm.Vm.LinearTranspose.b17.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b17Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b17_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b18_at : NativeRustcVmArm.Vm.LinearTranspose.b18.IsInfixAt NativeRustcVmArm.Vm.code 6642 :=
+public theorem LinearTranspose.b18_at : NativeRustcVmArm.Vm.LinearTranspose.b18.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b18Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b18_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b19_at : NativeRustcVmArm.Vm.LinearTranspose.b19.IsInfixAt NativeRustcVmArm.Vm.code 6646 :=
+public theorem LinearTranspose.b19_at : NativeRustcVmArm.Vm.LinearTranspose.b19.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b19Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b19_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b20_at : NativeRustcVmArm.Vm.LinearTranspose.b20.IsInfixAt NativeRustcVmArm.Vm.code 6670 :=
+public theorem LinearTranspose.b20_at : NativeRustcVmArm.Vm.LinearTranspose.b20.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b20Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b20_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b21_at : NativeRustcVmArm.Vm.LinearTranspose.b21.IsInfixAt NativeRustcVmArm.Vm.code 6677 :=
+public theorem LinearTranspose.b21_at : NativeRustcVmArm.Vm.LinearTranspose.b21.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b21Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b21_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b22_at : NativeRustcVmArm.Vm.LinearTranspose.b22.IsInfixAt NativeRustcVmArm.Vm.code 6695 :=
+public theorem LinearTranspose.b22_at : NativeRustcVmArm.Vm.LinearTranspose.b22.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b22Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b22_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b23_at : NativeRustcVmArm.Vm.LinearTranspose.b23.IsInfixAt NativeRustcVmArm.Vm.code 6712 :=
+public theorem LinearTranspose.b23_at : NativeRustcVmArm.Vm.LinearTranspose.b23.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b23Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b23_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem LinearTranspose.b24_at : NativeRustcVmArm.Vm.LinearTranspose.b24.IsInfixAt NativeRustcVmArm.Vm.code 6717 :=
+public theorem LinearTranspose.b24_at : NativeRustcVmArm.Vm.LinearTranspose.b24.IsInfixAt NativeRustcVmArm.Vm.code (LinearTranspose.programOffset + NativeRustcVmArm.Vm.LinearTranspose.b24Offset) :=
   NativeRustcVmArm.Vm.LinearTranspose.b24_in_code.trans LinearTranspose.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakPi.code_at : NativeRustcVmArm.Vm.KeccakPi.code.IsInfixAt NativeRustcVmArm.Vm.code 6723 :=
+@[expose] public def KeccakPi.programOffset : Nat := 6723
+
+public theorem KeccakPi.code_at : NativeRustcVmArm.Vm.KeccakPi.code.IsInfixAt NativeRustcVmArm.Vm.code KeccakPi.programOffset :=
   List.isInfixAt_flatten_of (i := 51) rfl (by decide +kernel)
 
-public theorem KeccakPi.b0_at : NativeRustcVmArm.Vm.KeccakPi.b0.IsInfixAt NativeRustcVmArm.Vm.code 6723 :=
+public theorem KeccakPi.b0_at : NativeRustcVmArm.Vm.KeccakPi.b0.IsInfixAt NativeRustcVmArm.Vm.code (KeccakPi.programOffset + NativeRustcVmArm.Vm.KeccakPi.b0Offset) :=
   NativeRustcVmArm.Vm.KeccakPi.b0_in_code.trans KeccakPi.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.code_at : NativeRustcVmArm.Vm.OpenPhase.code.IsInfixAt NativeRustcVmArm.Vm.code 6738 :=
+@[expose] public def OpenPhase.programOffset : Nat := 6738
+
+public theorem OpenPhase.code_at : NativeRustcVmArm.Vm.OpenPhase.code.IsInfixAt NativeRustcVmArm.Vm.code OpenPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 52) rfl (by decide +kernel)
 
-public theorem OpenPhase.b0_at : NativeRustcVmArm.Vm.OpenPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code 6738 :=
+public theorem OpenPhase.b0_at : NativeRustcVmArm.Vm.OpenPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b0Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b0_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b1_at : NativeRustcVmArm.Vm.OpenPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code 6751 :=
+public theorem OpenPhase.b1_at : NativeRustcVmArm.Vm.OpenPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b1Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b1_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b2_at : NativeRustcVmArm.Vm.OpenPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code 6753 :=
+public theorem OpenPhase.b2_at : NativeRustcVmArm.Vm.OpenPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b2Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b2_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b3_at : NativeRustcVmArm.Vm.OpenPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code 6755 :=
+public theorem OpenPhase.b3_at : NativeRustcVmArm.Vm.OpenPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b3Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b3_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b4_at : NativeRustcVmArm.Vm.OpenPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code 6757 :=
+public theorem OpenPhase.b4_at : NativeRustcVmArm.Vm.OpenPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b4Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b4_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b5_at : NativeRustcVmArm.Vm.OpenPhase.b5.IsInfixAt NativeRustcVmArm.Vm.code 6758 :=
+public theorem OpenPhase.b5_at : NativeRustcVmArm.Vm.OpenPhase.b5.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b5Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b5_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b6_at : NativeRustcVmArm.Vm.OpenPhase.b6.IsInfixAt NativeRustcVmArm.Vm.code 6760 :=
+public theorem OpenPhase.b6_at : NativeRustcVmArm.Vm.OpenPhase.b6.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b6Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b6_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b7_at : NativeRustcVmArm.Vm.OpenPhase.b7.IsInfixAt NativeRustcVmArm.Vm.code 6763 :=
+public theorem OpenPhase.b7_at : NativeRustcVmArm.Vm.OpenPhase.b7.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b7Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b7_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b8_at : NativeRustcVmArm.Vm.OpenPhase.b8.IsInfixAt NativeRustcVmArm.Vm.code 6765 :=
+public theorem OpenPhase.b8_at : NativeRustcVmArm.Vm.OpenPhase.b8.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b8Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b8_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b9_at : NativeRustcVmArm.Vm.OpenPhase.b9.IsInfixAt NativeRustcVmArm.Vm.code 6771 :=
+public theorem OpenPhase.b9_at : NativeRustcVmArm.Vm.OpenPhase.b9.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b9Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b9_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b10_at : NativeRustcVmArm.Vm.OpenPhase.b10.IsInfixAt NativeRustcVmArm.Vm.code 6772 :=
+public theorem OpenPhase.b10_at : NativeRustcVmArm.Vm.OpenPhase.b10.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b10Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b10_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b11_at : NativeRustcVmArm.Vm.OpenPhase.b11.IsInfixAt NativeRustcVmArm.Vm.code 6776 :=
+public theorem OpenPhase.b11_at : NativeRustcVmArm.Vm.OpenPhase.b11.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b11Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b11_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b12_at : NativeRustcVmArm.Vm.OpenPhase.b12.IsInfixAt NativeRustcVmArm.Vm.code 6778 :=
+public theorem OpenPhase.b12_at : NativeRustcVmArm.Vm.OpenPhase.b12.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b12Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b12_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b13_at : NativeRustcVmArm.Vm.OpenPhase.b13.IsInfixAt NativeRustcVmArm.Vm.code 6785 :=
+public theorem OpenPhase.b13_at : NativeRustcVmArm.Vm.OpenPhase.b13.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b13Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b13_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b14_at : NativeRustcVmArm.Vm.OpenPhase.b14.IsInfixAt NativeRustcVmArm.Vm.code 6787 :=
+public theorem OpenPhase.b14_at : NativeRustcVmArm.Vm.OpenPhase.b14.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b14Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b14_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b15_at : NativeRustcVmArm.Vm.OpenPhase.b15.IsInfixAt NativeRustcVmArm.Vm.code 6793 :=
+public theorem OpenPhase.b15_at : NativeRustcVmArm.Vm.OpenPhase.b15.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b15Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b15_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b16_at : NativeRustcVmArm.Vm.OpenPhase.b16.IsInfixAt NativeRustcVmArm.Vm.code 6799 :=
+public theorem OpenPhase.b16_at : NativeRustcVmArm.Vm.OpenPhase.b16.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b16Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b16_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b17_at : NativeRustcVmArm.Vm.OpenPhase.b17.IsInfixAt NativeRustcVmArm.Vm.code 6802 :=
+public theorem OpenPhase.b17_at : NativeRustcVmArm.Vm.OpenPhase.b17.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b17Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b17_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b18_at : NativeRustcVmArm.Vm.OpenPhase.b18.IsInfixAt NativeRustcVmArm.Vm.code 6805 :=
+public theorem OpenPhase.b18_at : NativeRustcVmArm.Vm.OpenPhase.b18.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b18Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b18_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b19_at : NativeRustcVmArm.Vm.OpenPhase.b19.IsInfixAt NativeRustcVmArm.Vm.code 6808 :=
+public theorem OpenPhase.b19_at : NativeRustcVmArm.Vm.OpenPhase.b19.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b19Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b19_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b20_at : NativeRustcVmArm.Vm.OpenPhase.b20.IsInfixAt NativeRustcVmArm.Vm.code 6811 :=
+public theorem OpenPhase.b20_at : NativeRustcVmArm.Vm.OpenPhase.b20.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b20Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b20_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b21_at : NativeRustcVmArm.Vm.OpenPhase.b21.IsInfixAt NativeRustcVmArm.Vm.code 6815 :=
+public theorem OpenPhase.b21_at : NativeRustcVmArm.Vm.OpenPhase.b21.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b21Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b21_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b22_at : NativeRustcVmArm.Vm.OpenPhase.b22.IsInfixAt NativeRustcVmArm.Vm.code 6821 :=
+public theorem OpenPhase.b22_at : NativeRustcVmArm.Vm.OpenPhase.b22.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b22Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b22_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem OpenPhase.b23_at : NativeRustcVmArm.Vm.OpenPhase.b23.IsInfixAt NativeRustcVmArm.Vm.code 6823 :=
+public theorem OpenPhase.b23_at : NativeRustcVmArm.Vm.OpenPhase.b23.IsInfixAt NativeRustcVmArm.Vm.code (OpenPhase.programOffset + NativeRustcVmArm.Vm.OpenPhase.b23Offset) :=
   NativeRustcVmArm.Vm.OpenPhase.b23_in_code.trans OpenPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.code_at : NativeRustcVmArm.Vm.Climb.code.IsInfixAt NativeRustcVmArm.Vm.code 6832 :=
+@[expose] public def Climb.programOffset : Nat := 6832
+
+public theorem Climb.code_at : NativeRustcVmArm.Vm.Climb.code.IsInfixAt NativeRustcVmArm.Vm.code Climb.programOffset :=
   List.isInfixAt_flatten_of (i := 53) rfl (by decide +kernel)
 
-public theorem Climb.b0_at : NativeRustcVmArm.Vm.Climb.b0.IsInfixAt NativeRustcVmArm.Vm.code 6832 :=
+public theorem Climb.b0_at : NativeRustcVmArm.Vm.Climb.b0.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b0Offset) :=
   NativeRustcVmArm.Vm.Climb.b0_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b1_at : NativeRustcVmArm.Vm.Climb.b1.IsInfixAt NativeRustcVmArm.Vm.code 6843 :=
+public theorem Climb.b1_at : NativeRustcVmArm.Vm.Climb.b1.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b1Offset) :=
   NativeRustcVmArm.Vm.Climb.b1_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b2_at : NativeRustcVmArm.Vm.Climb.b2.IsInfixAt NativeRustcVmArm.Vm.code 6848 :=
+public theorem Climb.b2_at : NativeRustcVmArm.Vm.Climb.b2.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b2Offset) :=
   NativeRustcVmArm.Vm.Climb.b2_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b3_at : NativeRustcVmArm.Vm.Climb.b3.IsInfixAt NativeRustcVmArm.Vm.code 6851 :=
+public theorem Climb.b3_at : NativeRustcVmArm.Vm.Climb.b3.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b3Offset) :=
   NativeRustcVmArm.Vm.Climb.b3_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b4_at : NativeRustcVmArm.Vm.Climb.b4.IsInfixAt NativeRustcVmArm.Vm.code 6853 :=
+public theorem Climb.b4_at : NativeRustcVmArm.Vm.Climb.b4.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b4Offset) :=
   NativeRustcVmArm.Vm.Climb.b4_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b5_at : NativeRustcVmArm.Vm.Climb.b5.IsInfixAt NativeRustcVmArm.Vm.code 6862 :=
+public theorem Climb.b5_at : NativeRustcVmArm.Vm.Climb.b5.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b5Offset) :=
   NativeRustcVmArm.Vm.Climb.b5_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b6_at : NativeRustcVmArm.Vm.Climb.b6.IsInfixAt NativeRustcVmArm.Vm.code 6865 :=
+public theorem Climb.b6_at : NativeRustcVmArm.Vm.Climb.b6.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b6Offset) :=
   NativeRustcVmArm.Vm.Climb.b6_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b7_at : NativeRustcVmArm.Vm.Climb.b7.IsInfixAt NativeRustcVmArm.Vm.code 6871 :=
+public theorem Climb.b7_at : NativeRustcVmArm.Vm.Climb.b7.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b7Offset) :=
   NativeRustcVmArm.Vm.Climb.b7_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b8_at : NativeRustcVmArm.Vm.Climb.b8.IsInfixAt NativeRustcVmArm.Vm.code 6872 :=
+public theorem Climb.b8_at : NativeRustcVmArm.Vm.Climb.b8.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b8Offset) :=
   NativeRustcVmArm.Vm.Climb.b8_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b9_at : NativeRustcVmArm.Vm.Climb.b9.IsInfixAt NativeRustcVmArm.Vm.code 6877 :=
+public theorem Climb.b9_at : NativeRustcVmArm.Vm.Climb.b9.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b9Offset) :=
   NativeRustcVmArm.Vm.Climb.b9_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem Climb.b10_at : NativeRustcVmArm.Vm.Climb.b10.IsInfixAt NativeRustcVmArm.Vm.code 6881 :=
+public theorem Climb.b10_at : NativeRustcVmArm.Vm.Climb.b10.IsInfixAt NativeRustcVmArm.Vm.code (Climb.programOffset + NativeRustcVmArm.Vm.Climb.b10Offset) :=
   NativeRustcVmArm.Vm.Climb.b10_in_code.trans Climb.code_at (List.cons_ne_nil _ _)
 
-public theorem RingSwitch.code_at : NativeRustcVmArm.Vm.RingSwitch.code.IsInfixAt NativeRustcVmArm.Vm.code 6891 :=
+@[expose] public def RingSwitch.programOffset : Nat := 6891
+
+public theorem RingSwitch.code_at : NativeRustcVmArm.Vm.RingSwitch.code.IsInfixAt NativeRustcVmArm.Vm.code RingSwitch.programOffset :=
   List.isInfixAt_flatten_of (i := 54) rfl (by decide +kernel)
 
-public theorem RingSwitch.b0_at : NativeRustcVmArm.Vm.RingSwitch.b0.IsInfixAt NativeRustcVmArm.Vm.code 6891 :=
+public theorem RingSwitch.b0_at : NativeRustcVmArm.Vm.RingSwitch.b0.IsInfixAt NativeRustcVmArm.Vm.code (RingSwitch.programOffset + NativeRustcVmArm.Vm.RingSwitch.b0Offset) :=
   NativeRustcVmArm.Vm.RingSwitch.b0_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-public theorem RingSwitch.b1_at : NativeRustcVmArm.Vm.RingSwitch.b1.IsInfixAt NativeRustcVmArm.Vm.code 6901 :=
+public theorem RingSwitch.b1_at : NativeRustcVmArm.Vm.RingSwitch.b1.IsInfixAt NativeRustcVmArm.Vm.code (RingSwitch.programOffset + NativeRustcVmArm.Vm.RingSwitch.b1Offset) :=
   NativeRustcVmArm.Vm.RingSwitch.b1_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-public theorem RingSwitch.b2_at : NativeRustcVmArm.Vm.RingSwitch.b2.IsInfixAt NativeRustcVmArm.Vm.code 6902 :=
+public theorem RingSwitch.b2_at : NativeRustcVmArm.Vm.RingSwitch.b2.IsInfixAt NativeRustcVmArm.Vm.code (RingSwitch.programOffset + NativeRustcVmArm.Vm.RingSwitch.b2Offset) :=
   NativeRustcVmArm.Vm.RingSwitch.b2_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-public theorem RingSwitch.b3_at : NativeRustcVmArm.Vm.RingSwitch.b3.IsInfixAt NativeRustcVmArm.Vm.code 6923 :=
+public theorem RingSwitch.b3_at : NativeRustcVmArm.Vm.RingSwitch.b3.IsInfixAt NativeRustcVmArm.Vm.code (RingSwitch.programOffset + NativeRustcVmArm.Vm.RingSwitch.b3Offset) :=
   NativeRustcVmArm.Vm.RingSwitch.b3_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-public theorem RingSwitch.b4_at : NativeRustcVmArm.Vm.RingSwitch.b4.IsInfixAt NativeRustcVmArm.Vm.code 6943 :=
+public theorem RingSwitch.b4_at : NativeRustcVmArm.Vm.RingSwitch.b4.IsInfixAt NativeRustcVmArm.Vm.code (RingSwitch.programOffset + NativeRustcVmArm.Vm.RingSwitch.b4Offset) :=
   NativeRustcVmArm.Vm.RingSwitch.b4_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-public theorem RingSwitch.b5_at : NativeRustcVmArm.Vm.RingSwitch.b5.IsInfixAt NativeRustcVmArm.Vm.code 6947 :=
+public theorem RingSwitch.b5_at : NativeRustcVmArm.Vm.RingSwitch.b5.IsInfixAt NativeRustcVmArm.Vm.code (RingSwitch.programOffset + NativeRustcVmArm.Vm.RingSwitch.b5Offset) :=
   NativeRustcVmArm.Vm.RingSwitch.b5_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-public theorem RingSwitch.b6_at : NativeRustcVmArm.Vm.RingSwitch.b6.IsInfixAt NativeRustcVmArm.Vm.code 6950 :=
+public theorem RingSwitch.b6_at : NativeRustcVmArm.Vm.RingSwitch.b6.IsInfixAt NativeRustcVmArm.Vm.code (RingSwitch.programOffset + NativeRustcVmArm.Vm.RingSwitch.b6Offset) :=
   NativeRustcVmArm.Vm.RingSwitch.b6_in_code.trans RingSwitch.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.code_at : NativeRustcVmArm.Vm.RingTarget.code.IsInfixAt NativeRustcVmArm.Vm.code 6956 :=
+@[expose] public def RingTarget.programOffset : Nat := 6956
+
+public theorem RingTarget.code_at : NativeRustcVmArm.Vm.RingTarget.code.IsInfixAt NativeRustcVmArm.Vm.code RingTarget.programOffset :=
   List.isInfixAt_flatten_of (i := 55) rfl (by decide +kernel)
 
-public theorem RingTarget.b0_at : NativeRustcVmArm.Vm.RingTarget.b0.IsInfixAt NativeRustcVmArm.Vm.code 6956 :=
+public theorem RingTarget.b0_at : NativeRustcVmArm.Vm.RingTarget.b0.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b0Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b0_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b1_at : NativeRustcVmArm.Vm.RingTarget.b1.IsInfixAt NativeRustcVmArm.Vm.code 6970 :=
+public theorem RingTarget.b1_at : NativeRustcVmArm.Vm.RingTarget.b1.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b1Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b1_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b2_at : NativeRustcVmArm.Vm.RingTarget.b2.IsInfixAt NativeRustcVmArm.Vm.code 6975 :=
+public theorem RingTarget.b2_at : NativeRustcVmArm.Vm.RingTarget.b2.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b2Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b2_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b3_at : NativeRustcVmArm.Vm.RingTarget.b3.IsInfixAt NativeRustcVmArm.Vm.code 6980 :=
+public theorem RingTarget.b3_at : NativeRustcVmArm.Vm.RingTarget.b3.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b3Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b3_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b4_at : NativeRustcVmArm.Vm.RingTarget.b4.IsInfixAt NativeRustcVmArm.Vm.code 6984 :=
+public theorem RingTarget.b4_at : NativeRustcVmArm.Vm.RingTarget.b4.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b4Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b4_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b5_at : NativeRustcVmArm.Vm.RingTarget.b5.IsInfixAt NativeRustcVmArm.Vm.code 6988 :=
+public theorem RingTarget.b5_at : NativeRustcVmArm.Vm.RingTarget.b5.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b5Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b5_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b6_at : NativeRustcVmArm.Vm.RingTarget.b6.IsInfixAt NativeRustcVmArm.Vm.code 6997 :=
+public theorem RingTarget.b6_at : NativeRustcVmArm.Vm.RingTarget.b6.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b6Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b6_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b7_at : NativeRustcVmArm.Vm.RingTarget.b7.IsInfixAt NativeRustcVmArm.Vm.code 7003 :=
+public theorem RingTarget.b7_at : NativeRustcVmArm.Vm.RingTarget.b7.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b7Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b7_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b8_at : NativeRustcVmArm.Vm.RingTarget.b8.IsInfixAt NativeRustcVmArm.Vm.code 7008 :=
+public theorem RingTarget.b8_at : NativeRustcVmArm.Vm.RingTarget.b8.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b8Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b8_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b9_at : NativeRustcVmArm.Vm.RingTarget.b9.IsInfixAt NativeRustcVmArm.Vm.code 7017 :=
+public theorem RingTarget.b9_at : NativeRustcVmArm.Vm.RingTarget.b9.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b9Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b9_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b10_at : NativeRustcVmArm.Vm.RingTarget.b10.IsInfixAt NativeRustcVmArm.Vm.code 7023 :=
+public theorem RingTarget.b10_at : NativeRustcVmArm.Vm.RingTarget.b10.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b10Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b10_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b11_at : NativeRustcVmArm.Vm.RingTarget.b11.IsInfixAt NativeRustcVmArm.Vm.code 7028 :=
+public theorem RingTarget.b11_at : NativeRustcVmArm.Vm.RingTarget.b11.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b11Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b11_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b12_at : NativeRustcVmArm.Vm.RingTarget.b12.IsInfixAt NativeRustcVmArm.Vm.code 7037 :=
+public theorem RingTarget.b12_at : NativeRustcVmArm.Vm.RingTarget.b12.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b12Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b12_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b13_at : NativeRustcVmArm.Vm.RingTarget.b13.IsInfixAt NativeRustcVmArm.Vm.code 7043 :=
+public theorem RingTarget.b13_at : NativeRustcVmArm.Vm.RingTarget.b13.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b13Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b13_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b14_at : NativeRustcVmArm.Vm.RingTarget.b14.IsInfixAt NativeRustcVmArm.Vm.code 7048 :=
+public theorem RingTarget.b14_at : NativeRustcVmArm.Vm.RingTarget.b14.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b14Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b14_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b15_at : NativeRustcVmArm.Vm.RingTarget.b15.IsInfixAt NativeRustcVmArm.Vm.code 7057 :=
+public theorem RingTarget.b15_at : NativeRustcVmArm.Vm.RingTarget.b15.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b15Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b15_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b16_at : NativeRustcVmArm.Vm.RingTarget.b16.IsInfixAt NativeRustcVmArm.Vm.code 7063 :=
+public theorem RingTarget.b16_at : NativeRustcVmArm.Vm.RingTarget.b16.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b16Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b16_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b17_at : NativeRustcVmArm.Vm.RingTarget.b17.IsInfixAt NativeRustcVmArm.Vm.code 7068 :=
+public theorem RingTarget.b17_at : NativeRustcVmArm.Vm.RingTarget.b17.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b17Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b17_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b18_at : NativeRustcVmArm.Vm.RingTarget.b18.IsInfixAt NativeRustcVmArm.Vm.code 7077 :=
+public theorem RingTarget.b18_at : NativeRustcVmArm.Vm.RingTarget.b18.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b18Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b18_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b19_at : NativeRustcVmArm.Vm.RingTarget.b19.IsInfixAt NativeRustcVmArm.Vm.code 7083 :=
+public theorem RingTarget.b19_at : NativeRustcVmArm.Vm.RingTarget.b19.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b19Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b19_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b20_at : NativeRustcVmArm.Vm.RingTarget.b20.IsInfixAt NativeRustcVmArm.Vm.code 7088 :=
+public theorem RingTarget.b20_at : NativeRustcVmArm.Vm.RingTarget.b20.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b20Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b20_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b21_at : NativeRustcVmArm.Vm.RingTarget.b21.IsInfixAt NativeRustcVmArm.Vm.code 7096 :=
+public theorem RingTarget.b21_at : NativeRustcVmArm.Vm.RingTarget.b21.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b21Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b21_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b22_at : NativeRustcVmArm.Vm.RingTarget.b22.IsInfixAt NativeRustcVmArm.Vm.code 7102 :=
+public theorem RingTarget.b22_at : NativeRustcVmArm.Vm.RingTarget.b22.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b22Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b22_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b23_at : NativeRustcVmArm.Vm.RingTarget.b23.IsInfixAt NativeRustcVmArm.Vm.code 7108 :=
+public theorem RingTarget.b23_at : NativeRustcVmArm.Vm.RingTarget.b23.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b23Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b23_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b24_at : NativeRustcVmArm.Vm.RingTarget.b24.IsInfixAt NativeRustcVmArm.Vm.code 7116 :=
+public theorem RingTarget.b24_at : NativeRustcVmArm.Vm.RingTarget.b24.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b24Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b24_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b25_at : NativeRustcVmArm.Vm.RingTarget.b25.IsInfixAt NativeRustcVmArm.Vm.code 7122 :=
+public theorem RingTarget.b25_at : NativeRustcVmArm.Vm.RingTarget.b25.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b25Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b25_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b26_at : NativeRustcVmArm.Vm.RingTarget.b26.IsInfixAt NativeRustcVmArm.Vm.code 7128 :=
+public theorem RingTarget.b26_at : NativeRustcVmArm.Vm.RingTarget.b26.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b26Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b26_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b27_at : NativeRustcVmArm.Vm.RingTarget.b27.IsInfixAt NativeRustcVmArm.Vm.code 7136 :=
+public theorem RingTarget.b27_at : NativeRustcVmArm.Vm.RingTarget.b27.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b27Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b27_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b28_at : NativeRustcVmArm.Vm.RingTarget.b28.IsInfixAt NativeRustcVmArm.Vm.code 7143 :=
+public theorem RingTarget.b28_at : NativeRustcVmArm.Vm.RingTarget.b28.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b28Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b28_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b29_at : NativeRustcVmArm.Vm.RingTarget.b29.IsInfixAt NativeRustcVmArm.Vm.code 7148 :=
+public theorem RingTarget.b29_at : NativeRustcVmArm.Vm.RingTarget.b29.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b29Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b29_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b30_at : NativeRustcVmArm.Vm.RingTarget.b30.IsInfixAt NativeRustcVmArm.Vm.code 7153 :=
+public theorem RingTarget.b30_at : NativeRustcVmArm.Vm.RingTarget.b30.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b30Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b30_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b31_at : NativeRustcVmArm.Vm.RingTarget.b31.IsInfixAt NativeRustcVmArm.Vm.code 7158 :=
+public theorem RingTarget.b31_at : NativeRustcVmArm.Vm.RingTarget.b31.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b31Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b31_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b32_at : NativeRustcVmArm.Vm.RingTarget.b32.IsInfixAt NativeRustcVmArm.Vm.code 7163 :=
+public theorem RingTarget.b32_at : NativeRustcVmArm.Vm.RingTarget.b32.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b32Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b32_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b33_at : NativeRustcVmArm.Vm.RingTarget.b33.IsInfixAt NativeRustcVmArm.Vm.code 7168 :=
+public theorem RingTarget.b33_at : NativeRustcVmArm.Vm.RingTarget.b33.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b33Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b33_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b34_at : NativeRustcVmArm.Vm.RingTarget.b34.IsInfixAt NativeRustcVmArm.Vm.code 7185 :=
+public theorem RingTarget.b34_at : NativeRustcVmArm.Vm.RingTarget.b34.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b34Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b34_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b35_at : NativeRustcVmArm.Vm.RingTarget.b35.IsInfixAt NativeRustcVmArm.Vm.code 7191 :=
+public theorem RingTarget.b35_at : NativeRustcVmArm.Vm.RingTarget.b35.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b35Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b35_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingTarget.b36_at : NativeRustcVmArm.Vm.RingTarget.b36.IsInfixAt NativeRustcVmArm.Vm.code 7195 :=
+public theorem RingTarget.b36_at : NativeRustcVmArm.Vm.RingTarget.b36.IsInfixAt NativeRustcVmArm.Vm.code (RingTarget.programOffset + NativeRustcVmArm.Vm.RingTarget.b36Offset) :=
   NativeRustcVmArm.Vm.RingTarget.b36_in_code.trans RingTarget.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.code_at : NativeRustcVmArm.Vm.RingCoefficients.code.IsInfixAt NativeRustcVmArm.Vm.code 7205 :=
+@[expose] public def RingCoefficients.programOffset : Nat := 7205
+
+public theorem RingCoefficients.code_at : NativeRustcVmArm.Vm.RingCoefficients.code.IsInfixAt NativeRustcVmArm.Vm.code RingCoefficients.programOffset :=
   List.isInfixAt_flatten_of (i := 56) rfl (by decide +kernel)
 
-public theorem RingCoefficients.b0_at : NativeRustcVmArm.Vm.RingCoefficients.b0.IsInfixAt NativeRustcVmArm.Vm.code 7205 :=
+public theorem RingCoefficients.b0_at : NativeRustcVmArm.Vm.RingCoefficients.b0.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b0Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b0_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b1_at : NativeRustcVmArm.Vm.RingCoefficients.b1.IsInfixAt NativeRustcVmArm.Vm.code 7229 :=
+public theorem RingCoefficients.b1_at : NativeRustcVmArm.Vm.RingCoefficients.b1.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b1Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b1_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b2_at : NativeRustcVmArm.Vm.RingCoefficients.b2.IsInfixAt NativeRustcVmArm.Vm.code 7236 :=
+public theorem RingCoefficients.b2_at : NativeRustcVmArm.Vm.RingCoefficients.b2.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b2Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b2_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b3_at : NativeRustcVmArm.Vm.RingCoefficients.b3.IsInfixAt NativeRustcVmArm.Vm.code 7241 :=
+public theorem RingCoefficients.b3_at : NativeRustcVmArm.Vm.RingCoefficients.b3.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b3Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b3_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b4_at : NativeRustcVmArm.Vm.RingCoefficients.b4.IsInfixAt NativeRustcVmArm.Vm.code 7247 :=
+public theorem RingCoefficients.b4_at : NativeRustcVmArm.Vm.RingCoefficients.b4.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b4Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b4_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b5_at : NativeRustcVmArm.Vm.RingCoefficients.b5.IsInfixAt NativeRustcVmArm.Vm.code 7252 :=
+public theorem RingCoefficients.b5_at : NativeRustcVmArm.Vm.RingCoefficients.b5.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b5Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b5_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b6_at : NativeRustcVmArm.Vm.RingCoefficients.b6.IsInfixAt NativeRustcVmArm.Vm.code 7258 :=
+public theorem RingCoefficients.b6_at : NativeRustcVmArm.Vm.RingCoefficients.b6.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b6Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b6_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b7_at : NativeRustcVmArm.Vm.RingCoefficients.b7.IsInfixAt NativeRustcVmArm.Vm.code 7264 :=
+public theorem RingCoefficients.b7_at : NativeRustcVmArm.Vm.RingCoefficients.b7.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b7Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b7_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b8_at : NativeRustcVmArm.Vm.RingCoefficients.b8.IsInfixAt NativeRustcVmArm.Vm.code 7270 :=
+public theorem RingCoefficients.b8_at : NativeRustcVmArm.Vm.RingCoefficients.b8.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b8Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b8_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b9_at : NativeRustcVmArm.Vm.RingCoefficients.b9.IsInfixAt NativeRustcVmArm.Vm.code 7276 :=
+public theorem RingCoefficients.b9_at : NativeRustcVmArm.Vm.RingCoefficients.b9.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b9Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b9_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b10_at : NativeRustcVmArm.Vm.RingCoefficients.b10.IsInfixAt NativeRustcVmArm.Vm.code 7280 :=
+public theorem RingCoefficients.b10_at : NativeRustcVmArm.Vm.RingCoefficients.b10.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b10Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b10_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b11_at : NativeRustcVmArm.Vm.RingCoefficients.b11.IsInfixAt NativeRustcVmArm.Vm.code 7284 :=
+public theorem RingCoefficients.b11_at : NativeRustcVmArm.Vm.RingCoefficients.b11.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b11Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b11_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b12_at : NativeRustcVmArm.Vm.RingCoefficients.b12.IsInfixAt NativeRustcVmArm.Vm.code 7289 :=
+public theorem RingCoefficients.b12_at : NativeRustcVmArm.Vm.RingCoefficients.b12.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b12Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b12_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b13_at : NativeRustcVmArm.Vm.RingCoefficients.b13.IsInfixAt NativeRustcVmArm.Vm.code 7294 :=
+public theorem RingCoefficients.b13_at : NativeRustcVmArm.Vm.RingCoefficients.b13.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b13Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b13_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b14_at : NativeRustcVmArm.Vm.RingCoefficients.b14.IsInfixAt NativeRustcVmArm.Vm.code 7299 :=
+public theorem RingCoefficients.b14_at : NativeRustcVmArm.Vm.RingCoefficients.b14.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b14Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b14_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b15_at : NativeRustcVmArm.Vm.RingCoefficients.b15.IsInfixAt NativeRustcVmArm.Vm.code 7305 :=
+public theorem RingCoefficients.b15_at : NativeRustcVmArm.Vm.RingCoefficients.b15.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b15Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b15_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b16_at : NativeRustcVmArm.Vm.RingCoefficients.b16.IsInfixAt NativeRustcVmArm.Vm.code 7311 :=
+public theorem RingCoefficients.b16_at : NativeRustcVmArm.Vm.RingCoefficients.b16.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b16Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b16_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b17_at : NativeRustcVmArm.Vm.RingCoefficients.b17.IsInfixAt NativeRustcVmArm.Vm.code 7317 :=
+public theorem RingCoefficients.b17_at : NativeRustcVmArm.Vm.RingCoefficients.b17.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b17Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b17_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingCoefficients.b18_at : NativeRustcVmArm.Vm.RingCoefficients.b18.IsInfixAt NativeRustcVmArm.Vm.code 7324 :=
+public theorem RingCoefficients.b18_at : NativeRustcVmArm.Vm.RingCoefficients.b18.IsInfixAt NativeRustcVmArm.Vm.code (RingCoefficients.programOffset + NativeRustcVmArm.Vm.RingCoefficients.b18Offset) :=
   NativeRustcVmArm.Vm.RingCoefficients.b18_in_code.trans RingCoefficients.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.code_at : NativeRustcVmArm.Vm.RingPsi.code.IsInfixAt NativeRustcVmArm.Vm.code 7332 :=
+@[expose] public def RingPsi.programOffset : Nat := 7332
+
+public theorem RingPsi.code_at : NativeRustcVmArm.Vm.RingPsi.code.IsInfixAt NativeRustcVmArm.Vm.code RingPsi.programOffset :=
   List.isInfixAt_flatten_of (i := 57) rfl (by decide +kernel)
 
-public theorem RingPsi.b0_at : NativeRustcVmArm.Vm.RingPsi.b0.IsInfixAt NativeRustcVmArm.Vm.code 7332 :=
+public theorem RingPsi.b0_at : NativeRustcVmArm.Vm.RingPsi.b0.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b0Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b0_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b1_at : NativeRustcVmArm.Vm.RingPsi.b1.IsInfixAt NativeRustcVmArm.Vm.code 7344 :=
+public theorem RingPsi.b1_at : NativeRustcVmArm.Vm.RingPsi.b1.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b1Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b1_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b2_at : NativeRustcVmArm.Vm.RingPsi.b2.IsInfixAt NativeRustcVmArm.Vm.code 7351 :=
+public theorem RingPsi.b2_at : NativeRustcVmArm.Vm.RingPsi.b2.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b2Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b2_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b3_at : NativeRustcVmArm.Vm.RingPsi.b3.IsInfixAt NativeRustcVmArm.Vm.code 7358 :=
+public theorem RingPsi.b3_at : NativeRustcVmArm.Vm.RingPsi.b3.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b3Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b3_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b4_at : NativeRustcVmArm.Vm.RingPsi.b4.IsInfixAt NativeRustcVmArm.Vm.code 7365 :=
+public theorem RingPsi.b4_at : NativeRustcVmArm.Vm.RingPsi.b4.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b4Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b4_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b5_at : NativeRustcVmArm.Vm.RingPsi.b5.IsInfixAt NativeRustcVmArm.Vm.code 7372 :=
+public theorem RingPsi.b5_at : NativeRustcVmArm.Vm.RingPsi.b5.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b5Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b5_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b6_at : NativeRustcVmArm.Vm.RingPsi.b6.IsInfixAt NativeRustcVmArm.Vm.code 7379 :=
+public theorem RingPsi.b6_at : NativeRustcVmArm.Vm.RingPsi.b6.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b6Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b6_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b7_at : NativeRustcVmArm.Vm.RingPsi.b7.IsInfixAt NativeRustcVmArm.Vm.code 7386 :=
+public theorem RingPsi.b7_at : NativeRustcVmArm.Vm.RingPsi.b7.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b7Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b7_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b8_at : NativeRustcVmArm.Vm.RingPsi.b8.IsInfixAt NativeRustcVmArm.Vm.code 7393 :=
+public theorem RingPsi.b8_at : NativeRustcVmArm.Vm.RingPsi.b8.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b8Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b8_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b9_at : NativeRustcVmArm.Vm.RingPsi.b9.IsInfixAt NativeRustcVmArm.Vm.code 7400 :=
+public theorem RingPsi.b9_at : NativeRustcVmArm.Vm.RingPsi.b9.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b9Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b9_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b10_at : NativeRustcVmArm.Vm.RingPsi.b10.IsInfixAt NativeRustcVmArm.Vm.code 7407 :=
+public theorem RingPsi.b10_at : NativeRustcVmArm.Vm.RingPsi.b10.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b10Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b10_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b11_at : NativeRustcVmArm.Vm.RingPsi.b11.IsInfixAt NativeRustcVmArm.Vm.code 7414 :=
+public theorem RingPsi.b11_at : NativeRustcVmArm.Vm.RingPsi.b11.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b11Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b11_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b12_at : NativeRustcVmArm.Vm.RingPsi.b12.IsInfixAt NativeRustcVmArm.Vm.code 7421 :=
+public theorem RingPsi.b12_at : NativeRustcVmArm.Vm.RingPsi.b12.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b12Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b12_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b13_at : NativeRustcVmArm.Vm.RingPsi.b13.IsInfixAt NativeRustcVmArm.Vm.code 7428 :=
+public theorem RingPsi.b13_at : NativeRustcVmArm.Vm.RingPsi.b13.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b13Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b13_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b14_at : NativeRustcVmArm.Vm.RingPsi.b14.IsInfixAt NativeRustcVmArm.Vm.code 7435 :=
+public theorem RingPsi.b14_at : NativeRustcVmArm.Vm.RingPsi.b14.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b14Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b14_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem RingPsi.b15_at : NativeRustcVmArm.Vm.RingPsi.b15.IsInfixAt NativeRustcVmArm.Vm.code 7440 :=
+public theorem RingPsi.b15_at : NativeRustcVmArm.Vm.RingPsi.b15.IsInfixAt NativeRustcVmArm.Vm.code (RingPsi.programOffset + NativeRustcVmArm.Vm.RingPsi.b15Offset) :=
   NativeRustcVmArm.Vm.RingPsi.b15_in_code.trans RingPsi.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.code_at : NativeRustcVmArm.Vm.BlockForm.code.IsInfixAt NativeRustcVmArm.Vm.code 7446 :=
+@[expose] public def BlockForm.programOffset : Nat := 7446
+
+public theorem BlockForm.code_at : NativeRustcVmArm.Vm.BlockForm.code.IsInfixAt NativeRustcVmArm.Vm.code BlockForm.programOffset :=
   List.isInfixAt_flatten_of (i := 58) rfl (by decide +kernel)
 
-public theorem BlockForm.b0_at : NativeRustcVmArm.Vm.BlockForm.b0.IsInfixAt NativeRustcVmArm.Vm.code 7446 :=
+public theorem BlockForm.b0_at : NativeRustcVmArm.Vm.BlockForm.b0.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b0Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b0_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b1_at : NativeRustcVmArm.Vm.BlockForm.b1.IsInfixAt NativeRustcVmArm.Vm.code 7461 :=
+public theorem BlockForm.b1_at : NativeRustcVmArm.Vm.BlockForm.b1.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b1Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b1_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b2_at : NativeRustcVmArm.Vm.BlockForm.b2.IsInfixAt NativeRustcVmArm.Vm.code 7466 :=
+public theorem BlockForm.b2_at : NativeRustcVmArm.Vm.BlockForm.b2.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b2Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b2_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b3_at : NativeRustcVmArm.Vm.BlockForm.b3.IsInfixAt NativeRustcVmArm.Vm.code 7472 :=
+public theorem BlockForm.b3_at : NativeRustcVmArm.Vm.BlockForm.b3.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b3Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b3_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b4_at : NativeRustcVmArm.Vm.BlockForm.b4.IsInfixAt NativeRustcVmArm.Vm.code 7474 :=
+public theorem BlockForm.b4_at : NativeRustcVmArm.Vm.BlockForm.b4.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b4Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b4_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b5_at : NativeRustcVmArm.Vm.BlockForm.b5.IsInfixAt NativeRustcVmArm.Vm.code 7479 :=
+public theorem BlockForm.b5_at : NativeRustcVmArm.Vm.BlockForm.b5.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b5Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b5_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b6_at : NativeRustcVmArm.Vm.BlockForm.b6.IsInfixAt NativeRustcVmArm.Vm.code 7483 :=
+public theorem BlockForm.b6_at : NativeRustcVmArm.Vm.BlockForm.b6.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b6Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b6_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b7_at : NativeRustcVmArm.Vm.BlockForm.b7.IsInfixAt NativeRustcVmArm.Vm.code 7487 :=
+public theorem BlockForm.b7_at : NativeRustcVmArm.Vm.BlockForm.b7.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b7Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b7_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b8_at : NativeRustcVmArm.Vm.BlockForm.b8.IsInfixAt NativeRustcVmArm.Vm.code 7489 :=
+public theorem BlockForm.b8_at : NativeRustcVmArm.Vm.BlockForm.b8.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b8Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b8_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b9_at : NativeRustcVmArm.Vm.BlockForm.b9.IsInfixAt NativeRustcVmArm.Vm.code 7493 :=
+public theorem BlockForm.b9_at : NativeRustcVmArm.Vm.BlockForm.b9.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b9Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b9_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BlockForm.b10_at : NativeRustcVmArm.Vm.BlockForm.b10.IsInfixAt NativeRustcVmArm.Vm.code 7496 :=
+public theorem BlockForm.b10_at : NativeRustcVmArm.Vm.BlockForm.b10.IsInfixAt NativeRustcVmArm.Vm.code (BlockForm.programOffset + NativeRustcVmArm.Vm.BlockForm.b10Offset) :=
   NativeRustcVmArm.Vm.BlockForm.b10_in_code.trans BlockForm.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.code_at : NativeRustcVmArm.Vm.BusLayout.code.IsInfixAt NativeRustcVmArm.Vm.code 7504 :=
+@[expose] public def BusLayout.programOffset : Nat := 7504
+
+public theorem BusLayout.code_at : NativeRustcVmArm.Vm.BusLayout.code.IsInfixAt NativeRustcVmArm.Vm.code BusLayout.programOffset :=
   List.isInfixAt_flatten_of (i := 59) rfl (by decide +kernel)
 
-public theorem BusLayout.b0_at : NativeRustcVmArm.Vm.BusLayout.b0.IsInfixAt NativeRustcVmArm.Vm.code 7504 :=
+public theorem BusLayout.b0_at : NativeRustcVmArm.Vm.BusLayout.b0.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b0Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b0_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b1_at : NativeRustcVmArm.Vm.BusLayout.b1.IsInfixAt NativeRustcVmArm.Vm.code 7523 :=
+public theorem BusLayout.b1_at : NativeRustcVmArm.Vm.BusLayout.b1.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b1Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b1_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b2_at : NativeRustcVmArm.Vm.BusLayout.b2.IsInfixAt NativeRustcVmArm.Vm.code 7525 :=
+public theorem BusLayout.b2_at : NativeRustcVmArm.Vm.BusLayout.b2.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b2Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b2_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b3_at : NativeRustcVmArm.Vm.BusLayout.b3.IsInfixAt NativeRustcVmArm.Vm.code 7529 :=
+public theorem BusLayout.b3_at : NativeRustcVmArm.Vm.BusLayout.b3.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b3Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b3_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b4_at : NativeRustcVmArm.Vm.BusLayout.b4.IsInfixAt NativeRustcVmArm.Vm.code 7533 :=
+public theorem BusLayout.b4_at : NativeRustcVmArm.Vm.BusLayout.b4.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b4Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b4_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b5_at : NativeRustcVmArm.Vm.BusLayout.b5.IsInfixAt NativeRustcVmArm.Vm.code 7535 :=
+public theorem BusLayout.b5_at : NativeRustcVmArm.Vm.BusLayout.b5.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b5Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b5_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b6_at : NativeRustcVmArm.Vm.BusLayout.b6.IsInfixAt NativeRustcVmArm.Vm.code 7539 :=
+public theorem BusLayout.b6_at : NativeRustcVmArm.Vm.BusLayout.b6.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b6Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b6_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b7_at : NativeRustcVmArm.Vm.BusLayout.b7.IsInfixAt NativeRustcVmArm.Vm.code 7545 :=
+public theorem BusLayout.b7_at : NativeRustcVmArm.Vm.BusLayout.b7.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b7Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b7_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b8_at : NativeRustcVmArm.Vm.BusLayout.b8.IsInfixAt NativeRustcVmArm.Vm.code 7549 :=
+public theorem BusLayout.b8_at : NativeRustcVmArm.Vm.BusLayout.b8.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b8Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b8_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b9_at : NativeRustcVmArm.Vm.BusLayout.b9.IsInfixAt NativeRustcVmArm.Vm.code 7553 :=
+public theorem BusLayout.b9_at : NativeRustcVmArm.Vm.BusLayout.b9.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b9Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b9_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b10_at : NativeRustcVmArm.Vm.BusLayout.b10.IsInfixAt NativeRustcVmArm.Vm.code 7559 :=
+public theorem BusLayout.b10_at : NativeRustcVmArm.Vm.BusLayout.b10.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b10Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b10_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b11_at : NativeRustcVmArm.Vm.BusLayout.b11.IsInfixAt NativeRustcVmArm.Vm.code 7565 :=
+public theorem BusLayout.b11_at : NativeRustcVmArm.Vm.BusLayout.b11.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b11Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b11_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b12_at : NativeRustcVmArm.Vm.BusLayout.b12.IsInfixAt NativeRustcVmArm.Vm.code 7567 :=
+public theorem BusLayout.b12_at : NativeRustcVmArm.Vm.BusLayout.b12.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b12Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b12_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b13_at : NativeRustcVmArm.Vm.BusLayout.b13.IsInfixAt NativeRustcVmArm.Vm.code 7684 :=
+public theorem BusLayout.b13_at : NativeRustcVmArm.Vm.BusLayout.b13.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b13Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b13_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b14_at : NativeRustcVmArm.Vm.BusLayout.b14.IsInfixAt NativeRustcVmArm.Vm.code 7688 :=
+public theorem BusLayout.b14_at : NativeRustcVmArm.Vm.BusLayout.b14.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b14Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b14_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b15_at : NativeRustcVmArm.Vm.BusLayout.b15.IsInfixAt NativeRustcVmArm.Vm.code 7693 :=
+public theorem BusLayout.b15_at : NativeRustcVmArm.Vm.BusLayout.b15.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b15Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b15_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b16_at : NativeRustcVmArm.Vm.BusLayout.b16.IsInfixAt NativeRustcVmArm.Vm.code 7695 :=
+public theorem BusLayout.b16_at : NativeRustcVmArm.Vm.BusLayout.b16.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b16Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b16_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b17_at : NativeRustcVmArm.Vm.BusLayout.b17.IsInfixAt NativeRustcVmArm.Vm.code 7699 :=
+public theorem BusLayout.b17_at : NativeRustcVmArm.Vm.BusLayout.b17.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b17Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b17_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b18_at : NativeRustcVmArm.Vm.BusLayout.b18.IsInfixAt NativeRustcVmArm.Vm.code 7703 :=
+public theorem BusLayout.b18_at : NativeRustcVmArm.Vm.BusLayout.b18.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b18Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b18_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b19_at : NativeRustcVmArm.Vm.BusLayout.b19.IsInfixAt NativeRustcVmArm.Vm.code 7708 :=
+public theorem BusLayout.b19_at : NativeRustcVmArm.Vm.BusLayout.b19.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b19Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b19_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b20_at : NativeRustcVmArm.Vm.BusLayout.b20.IsInfixAt NativeRustcVmArm.Vm.code 7711 :=
+public theorem BusLayout.b20_at : NativeRustcVmArm.Vm.BusLayout.b20.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b20Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b20_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b21_at : NativeRustcVmArm.Vm.BusLayout.b21.IsInfixAt NativeRustcVmArm.Vm.code 7717 :=
+public theorem BusLayout.b21_at : NativeRustcVmArm.Vm.BusLayout.b21.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b21Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b21_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BusLayout.b22_at : NativeRustcVmArm.Vm.BusLayout.b22.IsInfixAt NativeRustcVmArm.Vm.code 7719 :=
+public theorem BusLayout.b22_at : NativeRustcVmArm.Vm.BusLayout.b22.IsInfixAt NativeRustcVmArm.Vm.code (BusLayout.programOffset + NativeRustcVmArm.Vm.BusLayout.b22Offset) :=
   NativeRustcVmArm.Vm.BusLayout.b22_in_code.trans BusLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.code_at : NativeRustcVmArm.Vm.Fingerprints.code.IsInfixAt NativeRustcVmArm.Vm.code 7727 :=
+@[expose] public def Fingerprints.programOffset : Nat := 7727
+
+public theorem Fingerprints.code_at : NativeRustcVmArm.Vm.Fingerprints.code.IsInfixAt NativeRustcVmArm.Vm.code Fingerprints.programOffset :=
   List.isInfixAt_flatten_of (i := 60) rfl (by decide +kernel)
 
-public theorem Fingerprints.b0_at : NativeRustcVmArm.Vm.Fingerprints.b0.IsInfixAt NativeRustcVmArm.Vm.code 7727 :=
+public theorem Fingerprints.b0_at : NativeRustcVmArm.Vm.Fingerprints.b0.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b0Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b0_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.b1_at : NativeRustcVmArm.Vm.Fingerprints.b1.IsInfixAt NativeRustcVmArm.Vm.code 7749 :=
+public theorem Fingerprints.b1_at : NativeRustcVmArm.Vm.Fingerprints.b1.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b1Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b1_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.b2_at : NativeRustcVmArm.Vm.Fingerprints.b2.IsInfixAt NativeRustcVmArm.Vm.code 7758 :=
+public theorem Fingerprints.b2_at : NativeRustcVmArm.Vm.Fingerprints.b2.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b2Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b2_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.b3_at : NativeRustcVmArm.Vm.Fingerprints.b3.IsInfixAt NativeRustcVmArm.Vm.code 7763 :=
+public theorem Fingerprints.b3_at : NativeRustcVmArm.Vm.Fingerprints.b3.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b3Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b3_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.b4_at : NativeRustcVmArm.Vm.Fingerprints.b4.IsInfixAt NativeRustcVmArm.Vm.code 7776 :=
+public theorem Fingerprints.b4_at : NativeRustcVmArm.Vm.Fingerprints.b4.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b4Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b4_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.b5_at : NativeRustcVmArm.Vm.Fingerprints.b5.IsInfixAt NativeRustcVmArm.Vm.code 7780 :=
+public theorem Fingerprints.b5_at : NativeRustcVmArm.Vm.Fingerprints.b5.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b5Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b5_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.b6_at : NativeRustcVmArm.Vm.Fingerprints.b6.IsInfixAt NativeRustcVmArm.Vm.code 7784 :=
+public theorem Fingerprints.b6_at : NativeRustcVmArm.Vm.Fingerprints.b6.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b6Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b6_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem Fingerprints.b7_at : NativeRustcVmArm.Vm.Fingerprints.b7.IsInfixAt NativeRustcVmArm.Vm.code 7793 :=
+public theorem Fingerprints.b7_at : NativeRustcVmArm.Vm.Fingerprints.b7.IsInfixAt NativeRustcVmArm.Vm.code (Fingerprints.programOffset + NativeRustcVmArm.Vm.Fingerprints.b7Offset) :=
   NativeRustcVmArm.Vm.Fingerprints.b7_in_code.trans Fingerprints.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.code_at : NativeRustcVmArm.Vm.BytecodeShare.code.IsInfixAt NativeRustcVmArm.Vm.code 7807 :=
+@[expose] public def BytecodeShare.programOffset : Nat := 7807
+
+public theorem BytecodeShare.code_at : NativeRustcVmArm.Vm.BytecodeShare.code.IsInfixAt NativeRustcVmArm.Vm.code BytecodeShare.programOffset :=
   List.isInfixAt_flatten_of (i := 61) rfl (by decide +kernel)
 
-public theorem BytecodeShare.b0_at : NativeRustcVmArm.Vm.BytecodeShare.b0.IsInfixAt NativeRustcVmArm.Vm.code 7807 :=
+public theorem BytecodeShare.b0_at : NativeRustcVmArm.Vm.BytecodeShare.b0.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b0Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b0_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b1_at : NativeRustcVmArm.Vm.BytecodeShare.b1.IsInfixAt NativeRustcVmArm.Vm.code 7823 :=
+public theorem BytecodeShare.b1_at : NativeRustcVmArm.Vm.BytecodeShare.b1.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b1Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b1_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b2_at : NativeRustcVmArm.Vm.BytecodeShare.b2.IsInfixAt NativeRustcVmArm.Vm.code 7825 :=
+public theorem BytecodeShare.b2_at : NativeRustcVmArm.Vm.BytecodeShare.b2.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b2Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b2_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b3_at : NativeRustcVmArm.Vm.BytecodeShare.b3.IsInfixAt NativeRustcVmArm.Vm.code 7838 :=
+public theorem BytecodeShare.b3_at : NativeRustcVmArm.Vm.BytecodeShare.b3.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b3Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b3_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b4_at : NativeRustcVmArm.Vm.BytecodeShare.b4.IsInfixAt NativeRustcVmArm.Vm.code 7840 :=
+public theorem BytecodeShare.b4_at : NativeRustcVmArm.Vm.BytecodeShare.b4.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b4Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b4_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b5_at : NativeRustcVmArm.Vm.BytecodeShare.b5.IsInfixAt NativeRustcVmArm.Vm.code 7844 :=
+public theorem BytecodeShare.b5_at : NativeRustcVmArm.Vm.BytecodeShare.b5.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b5Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b5_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b6_at : NativeRustcVmArm.Vm.BytecodeShare.b6.IsInfixAt NativeRustcVmArm.Vm.code 7846 :=
+public theorem BytecodeShare.b6_at : NativeRustcVmArm.Vm.BytecodeShare.b6.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b6Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b6_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b7_at : NativeRustcVmArm.Vm.BytecodeShare.b7.IsInfixAt NativeRustcVmArm.Vm.code 7868 :=
+public theorem BytecodeShare.b7_at : NativeRustcVmArm.Vm.BytecodeShare.b7.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b7Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b7_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b8_at : NativeRustcVmArm.Vm.BytecodeShare.b8.IsInfixAt NativeRustcVmArm.Vm.code 7869 :=
+public theorem BytecodeShare.b8_at : NativeRustcVmArm.Vm.BytecodeShare.b8.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b8Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b8_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b9_at : NativeRustcVmArm.Vm.BytecodeShare.b9.IsInfixAt NativeRustcVmArm.Vm.code 7874 :=
+public theorem BytecodeShare.b9_at : NativeRustcVmArm.Vm.BytecodeShare.b9.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b9Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b9_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b10_at : NativeRustcVmArm.Vm.BytecodeShare.b10.IsInfixAt NativeRustcVmArm.Vm.code 7877 :=
+public theorem BytecodeShare.b10_at : NativeRustcVmArm.Vm.BytecodeShare.b10.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b10Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b10_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b11_at : NativeRustcVmArm.Vm.BytecodeShare.b11.IsInfixAt NativeRustcVmArm.Vm.code 7879 :=
+public theorem BytecodeShare.b11_at : NativeRustcVmArm.Vm.BytecodeShare.b11.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b11Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b11_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b12_at : NativeRustcVmArm.Vm.BytecodeShare.b12.IsInfixAt NativeRustcVmArm.Vm.code 7881 :=
+public theorem BytecodeShare.b12_at : NativeRustcVmArm.Vm.BytecodeShare.b12.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b12Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b12_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b13_at : NativeRustcVmArm.Vm.BytecodeShare.b13.IsInfixAt NativeRustcVmArm.Vm.code 7884 :=
+public theorem BytecodeShare.b13_at : NativeRustcVmArm.Vm.BytecodeShare.b13.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b13Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b13_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b14_at : NativeRustcVmArm.Vm.BytecodeShare.b14.IsInfixAt NativeRustcVmArm.Vm.code 7886 :=
+public theorem BytecodeShare.b14_at : NativeRustcVmArm.Vm.BytecodeShare.b14.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b14Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b14_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b15_at : NativeRustcVmArm.Vm.BytecodeShare.b15.IsInfixAt NativeRustcVmArm.Vm.code 7888 :=
+public theorem BytecodeShare.b15_at : NativeRustcVmArm.Vm.BytecodeShare.b15.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b15Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b15_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b16_at : NativeRustcVmArm.Vm.BytecodeShare.b16.IsInfixAt NativeRustcVmArm.Vm.code 7890 :=
+public theorem BytecodeShare.b16_at : NativeRustcVmArm.Vm.BytecodeShare.b16.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b16Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b16_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b17_at : NativeRustcVmArm.Vm.BytecodeShare.b17.IsInfixAt NativeRustcVmArm.Vm.code 7899 :=
+public theorem BytecodeShare.b17_at : NativeRustcVmArm.Vm.BytecodeShare.b17.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b17Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b17_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b18_at : NativeRustcVmArm.Vm.BytecodeShare.b18.IsInfixAt NativeRustcVmArm.Vm.code 7904 :=
+public theorem BytecodeShare.b18_at : NativeRustcVmArm.Vm.BytecodeShare.b18.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b18Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b18_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b19_at : NativeRustcVmArm.Vm.BytecodeShare.b19.IsInfixAt NativeRustcVmArm.Vm.code 7911 :=
+public theorem BytecodeShare.b19_at : NativeRustcVmArm.Vm.BytecodeShare.b19.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b19Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b19_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b20_at : NativeRustcVmArm.Vm.BytecodeShare.b20.IsInfixAt NativeRustcVmArm.Vm.code 7913 :=
+public theorem BytecodeShare.b20_at : NativeRustcVmArm.Vm.BytecodeShare.b20.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b20Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b20_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b21_at : NativeRustcVmArm.Vm.BytecodeShare.b21.IsInfixAt NativeRustcVmArm.Vm.code 7919 :=
+public theorem BytecodeShare.b21_at : NativeRustcVmArm.Vm.BytecodeShare.b21.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b21Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b21_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem BytecodeShare.b22_at : NativeRustcVmArm.Vm.BytecodeShare.b22.IsInfixAt NativeRustcVmArm.Vm.code 7926 :=
+public theorem BytecodeShare.b22_at : NativeRustcVmArm.Vm.BytecodeShare.b22.IsInfixAt NativeRustcVmArm.Vm.code (BytecodeShare.programOffset + NativeRustcVmArm.Vm.BytecodeShare.b22Offset) :=
   NativeRustcVmArm.Vm.BytecodeShare.b22_in_code.trans BytecodeShare.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.code_at : NativeRustcVmArm.Vm.AccumulateSide.code.IsInfixAt NativeRustcVmArm.Vm.code 7940 :=
+@[expose] public def AccumulateSide.programOffset : Nat := 7940
+
+public theorem AccumulateSide.code_at : NativeRustcVmArm.Vm.AccumulateSide.code.IsInfixAt NativeRustcVmArm.Vm.code AccumulateSide.programOffset :=
   List.isInfixAt_flatten_of (i := 62) rfl (by decide +kernel)
 
-public theorem AccumulateSide.b0_at : NativeRustcVmArm.Vm.AccumulateSide.b0.IsInfixAt NativeRustcVmArm.Vm.code 7940 :=
+public theorem AccumulateSide.b0_at : NativeRustcVmArm.Vm.AccumulateSide.b0.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b0Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b0_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b1_at : NativeRustcVmArm.Vm.AccumulateSide.b1.IsInfixAt NativeRustcVmArm.Vm.code 7976 :=
+public theorem AccumulateSide.b1_at : NativeRustcVmArm.Vm.AccumulateSide.b1.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b1Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b1_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b2_at : NativeRustcVmArm.Vm.AccumulateSide.b2.IsInfixAt NativeRustcVmArm.Vm.code 7990 :=
+public theorem AccumulateSide.b2_at : NativeRustcVmArm.Vm.AccumulateSide.b2.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b2Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b2_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b3_at : NativeRustcVmArm.Vm.AccumulateSide.b3.IsInfixAt NativeRustcVmArm.Vm.code 7993 :=
+public theorem AccumulateSide.b3_at : NativeRustcVmArm.Vm.AccumulateSide.b3.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b3Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b3_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b4_at : NativeRustcVmArm.Vm.AccumulateSide.b4.IsInfixAt NativeRustcVmArm.Vm.code 7999 :=
+public theorem AccumulateSide.b4_at : NativeRustcVmArm.Vm.AccumulateSide.b4.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b4Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b4_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b5_at : NativeRustcVmArm.Vm.AccumulateSide.b5.IsInfixAt NativeRustcVmArm.Vm.code 8001 :=
+public theorem AccumulateSide.b5_at : NativeRustcVmArm.Vm.AccumulateSide.b5.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b5Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b5_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b6_at : NativeRustcVmArm.Vm.AccumulateSide.b6.IsInfixAt NativeRustcVmArm.Vm.code 8007 :=
+public theorem AccumulateSide.b6_at : NativeRustcVmArm.Vm.AccumulateSide.b6.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b6Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b6_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b7_at : NativeRustcVmArm.Vm.AccumulateSide.b7.IsInfixAt NativeRustcVmArm.Vm.code 8011 :=
+public theorem AccumulateSide.b7_at : NativeRustcVmArm.Vm.AccumulateSide.b7.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b7Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b7_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b8_at : NativeRustcVmArm.Vm.AccumulateSide.b8.IsInfixAt NativeRustcVmArm.Vm.code 8026 :=
+public theorem AccumulateSide.b8_at : NativeRustcVmArm.Vm.AccumulateSide.b8.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b8Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b8_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b9_at : NativeRustcVmArm.Vm.AccumulateSide.b9.IsInfixAt NativeRustcVmArm.Vm.code 8030 :=
+public theorem AccumulateSide.b9_at : NativeRustcVmArm.Vm.AccumulateSide.b9.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b9Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b9_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b10_at : NativeRustcVmArm.Vm.AccumulateSide.b10.IsInfixAt NativeRustcVmArm.Vm.code 8034 :=
+public theorem AccumulateSide.b10_at : NativeRustcVmArm.Vm.AccumulateSide.b10.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b10Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b10_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b11_at : NativeRustcVmArm.Vm.AccumulateSide.b11.IsInfixAt NativeRustcVmArm.Vm.code 8036 :=
+public theorem AccumulateSide.b11_at : NativeRustcVmArm.Vm.AccumulateSide.b11.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b11Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b11_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b12_at : NativeRustcVmArm.Vm.AccumulateSide.b12.IsInfixAt NativeRustcVmArm.Vm.code 8049 :=
+public theorem AccumulateSide.b12_at : NativeRustcVmArm.Vm.AccumulateSide.b12.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b12Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b12_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b13_at : NativeRustcVmArm.Vm.AccumulateSide.b13.IsInfixAt NativeRustcVmArm.Vm.code 8053 :=
+public theorem AccumulateSide.b13_at : NativeRustcVmArm.Vm.AccumulateSide.b13.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b13Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b13_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b14_at : NativeRustcVmArm.Vm.AccumulateSide.b14.IsInfixAt NativeRustcVmArm.Vm.code 8055 :=
+public theorem AccumulateSide.b14_at : NativeRustcVmArm.Vm.AccumulateSide.b14.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b14Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b14_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b15_at : NativeRustcVmArm.Vm.AccumulateSide.b15.IsInfixAt NativeRustcVmArm.Vm.code 8057 :=
+public theorem AccumulateSide.b15_at : NativeRustcVmArm.Vm.AccumulateSide.b15.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b15Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b15_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b16_at : NativeRustcVmArm.Vm.AccumulateSide.b16.IsInfixAt NativeRustcVmArm.Vm.code 8070 :=
+public theorem AccumulateSide.b16_at : NativeRustcVmArm.Vm.AccumulateSide.b16.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b16Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b16_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b17_at : NativeRustcVmArm.Vm.AccumulateSide.b17.IsInfixAt NativeRustcVmArm.Vm.code 8082 :=
+public theorem AccumulateSide.b17_at : NativeRustcVmArm.Vm.AccumulateSide.b17.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b17Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b17_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b18_at : NativeRustcVmArm.Vm.AccumulateSide.b18.IsInfixAt NativeRustcVmArm.Vm.code 8086 :=
+public theorem AccumulateSide.b18_at : NativeRustcVmArm.Vm.AccumulateSide.b18.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b18Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b18_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b19_at : NativeRustcVmArm.Vm.AccumulateSide.b19.IsInfixAt NativeRustcVmArm.Vm.code 8097 :=
+public theorem AccumulateSide.b19_at : NativeRustcVmArm.Vm.AccumulateSide.b19.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b19Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b19_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b20_at : NativeRustcVmArm.Vm.AccumulateSide.b20.IsInfixAt NativeRustcVmArm.Vm.code 8101 :=
+public theorem AccumulateSide.b20_at : NativeRustcVmArm.Vm.AccumulateSide.b20.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b20Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b20_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b21_at : NativeRustcVmArm.Vm.AccumulateSide.b21.IsInfixAt NativeRustcVmArm.Vm.code 8112 :=
+public theorem AccumulateSide.b21_at : NativeRustcVmArm.Vm.AccumulateSide.b21.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b21Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b21_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b22_at : NativeRustcVmArm.Vm.AccumulateSide.b22.IsInfixAt NativeRustcVmArm.Vm.code 8114 :=
+public theorem AccumulateSide.b22_at : NativeRustcVmArm.Vm.AccumulateSide.b22.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b22Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b22_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b23_at : NativeRustcVmArm.Vm.AccumulateSide.b23.IsInfixAt NativeRustcVmArm.Vm.code 8118 :=
+public theorem AccumulateSide.b23_at : NativeRustcVmArm.Vm.AccumulateSide.b23.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b23Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b23_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b24_at : NativeRustcVmArm.Vm.AccumulateSide.b24.IsInfixAt NativeRustcVmArm.Vm.code 8142 :=
+public theorem AccumulateSide.b24_at : NativeRustcVmArm.Vm.AccumulateSide.b24.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b24Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b24_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b25_at : NativeRustcVmArm.Vm.AccumulateSide.b25.IsInfixAt NativeRustcVmArm.Vm.code 8151 :=
+public theorem AccumulateSide.b25_at : NativeRustcVmArm.Vm.AccumulateSide.b25.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b25Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b25_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b26_at : NativeRustcVmArm.Vm.AccumulateSide.b26.IsInfixAt NativeRustcVmArm.Vm.code 8157 :=
+public theorem AccumulateSide.b26_at : NativeRustcVmArm.Vm.AccumulateSide.b26.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b26Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b26_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b27_at : NativeRustcVmArm.Vm.AccumulateSide.b27.IsInfixAt NativeRustcVmArm.Vm.code 8173 :=
+public theorem AccumulateSide.b27_at : NativeRustcVmArm.Vm.AccumulateSide.b27.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b27Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b27_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b28_at : NativeRustcVmArm.Vm.AccumulateSide.b28.IsInfixAt NativeRustcVmArm.Vm.code 8184 :=
+public theorem AccumulateSide.b28_at : NativeRustcVmArm.Vm.AccumulateSide.b28.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b28Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b28_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b29_at : NativeRustcVmArm.Vm.AccumulateSide.b29.IsInfixAt NativeRustcVmArm.Vm.code 8191 :=
+public theorem AccumulateSide.b29_at : NativeRustcVmArm.Vm.AccumulateSide.b29.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b29Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b29_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b30_at : NativeRustcVmArm.Vm.AccumulateSide.b30.IsInfixAt NativeRustcVmArm.Vm.code 8193 :=
+public theorem AccumulateSide.b30_at : NativeRustcVmArm.Vm.AccumulateSide.b30.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b30Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b30_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b31_at : NativeRustcVmArm.Vm.AccumulateSide.b31.IsInfixAt NativeRustcVmArm.Vm.code 8196 :=
+public theorem AccumulateSide.b31_at : NativeRustcVmArm.Vm.AccumulateSide.b31.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b31Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b31_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b32_at : NativeRustcVmArm.Vm.AccumulateSide.b32.IsInfixAt NativeRustcVmArm.Vm.code 8215 :=
+public theorem AccumulateSide.b32_at : NativeRustcVmArm.Vm.AccumulateSide.b32.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b32Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b32_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b33_at : NativeRustcVmArm.Vm.AccumulateSide.b33.IsInfixAt NativeRustcVmArm.Vm.code 8216 :=
+public theorem AccumulateSide.b33_at : NativeRustcVmArm.Vm.AccumulateSide.b33.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b33Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b33_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b34_at : NativeRustcVmArm.Vm.AccumulateSide.b34.IsInfixAt NativeRustcVmArm.Vm.code 8242 :=
+public theorem AccumulateSide.b34_at : NativeRustcVmArm.Vm.AccumulateSide.b34.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b34Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b34_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b35_at : NativeRustcVmArm.Vm.AccumulateSide.b35.IsInfixAt NativeRustcVmArm.Vm.code 8247 :=
+public theorem AccumulateSide.b35_at : NativeRustcVmArm.Vm.AccumulateSide.b35.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b35Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b35_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b36_at : NativeRustcVmArm.Vm.AccumulateSide.b36.IsInfixAt NativeRustcVmArm.Vm.code 8254 :=
+public theorem AccumulateSide.b36_at : NativeRustcVmArm.Vm.AccumulateSide.b36.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b36Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b36_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b37_at : NativeRustcVmArm.Vm.AccumulateSide.b37.IsInfixAt NativeRustcVmArm.Vm.code 8259 :=
+public theorem AccumulateSide.b37_at : NativeRustcVmArm.Vm.AccumulateSide.b37.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b37Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b37_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b38_at : NativeRustcVmArm.Vm.AccumulateSide.b38.IsInfixAt NativeRustcVmArm.Vm.code 8265 :=
+public theorem AccumulateSide.b38_at : NativeRustcVmArm.Vm.AccumulateSide.b38.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b38Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b38_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b39_at : NativeRustcVmArm.Vm.AccumulateSide.b39.IsInfixAt NativeRustcVmArm.Vm.code 8266 :=
+public theorem AccumulateSide.b39_at : NativeRustcVmArm.Vm.AccumulateSide.b39.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b39Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b39_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b40_at : NativeRustcVmArm.Vm.AccumulateSide.b40.IsInfixAt NativeRustcVmArm.Vm.code 8269 :=
+public theorem AccumulateSide.b40_at : NativeRustcVmArm.Vm.AccumulateSide.b40.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b40Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b40_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b41_at : NativeRustcVmArm.Vm.AccumulateSide.b41.IsInfixAt NativeRustcVmArm.Vm.code 8281 :=
+public theorem AccumulateSide.b41_at : NativeRustcVmArm.Vm.AccumulateSide.b41.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b41Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b41_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem AccumulateSide.b42_at : NativeRustcVmArm.Vm.AccumulateSide.b42.IsInfixAt NativeRustcVmArm.Vm.code 8284 :=
+public theorem AccumulateSide.b42_at : NativeRustcVmArm.Vm.AccumulateSide.b42.IsInfixAt NativeRustcVmArm.Vm.code (AccumulateSide.programOffset + NativeRustcVmArm.Vm.AccumulateSide.b42Offset) :=
   NativeRustcVmArm.Vm.AccumulateSide.b42_in_code.trans AccumulateSide.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.code_at : NativeRustcVmArm.Vm.VerifyBusBalance.code.IsInfixAt NativeRustcVmArm.Vm.code 8295 :=
+@[expose] public def VerifyBusBalance.programOffset : Nat := 8295
+
+public theorem VerifyBusBalance.code_at : NativeRustcVmArm.Vm.VerifyBusBalance.code.IsInfixAt NativeRustcVmArm.Vm.code VerifyBusBalance.programOffset :=
   List.isInfixAt_flatten_of (i := 63) rfl (by decide +kernel)
 
-public theorem VerifyBusBalance.b0_at : NativeRustcVmArm.Vm.VerifyBusBalance.b0.IsInfixAt NativeRustcVmArm.Vm.code 8295 :=
+public theorem VerifyBusBalance.b0_at : NativeRustcVmArm.Vm.VerifyBusBalance.b0.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b0Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b0_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b1_at : NativeRustcVmArm.Vm.VerifyBusBalance.b1.IsInfixAt NativeRustcVmArm.Vm.code 8326 :=
+public theorem VerifyBusBalance.b1_at : NativeRustcVmArm.Vm.VerifyBusBalance.b1.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b1Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b1_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b2_at : NativeRustcVmArm.Vm.VerifyBusBalance.b2.IsInfixAt NativeRustcVmArm.Vm.code 8328 :=
+public theorem VerifyBusBalance.b2_at : NativeRustcVmArm.Vm.VerifyBusBalance.b2.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b2Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b2_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b3_at : NativeRustcVmArm.Vm.VerifyBusBalance.b3.IsInfixAt NativeRustcVmArm.Vm.code 8334 :=
+public theorem VerifyBusBalance.b3_at : NativeRustcVmArm.Vm.VerifyBusBalance.b3.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b3Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b3_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b4_at : NativeRustcVmArm.Vm.VerifyBusBalance.b4.IsInfixAt NativeRustcVmArm.Vm.code 8346 :=
+public theorem VerifyBusBalance.b4_at : NativeRustcVmArm.Vm.VerifyBusBalance.b4.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b4Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b4_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b5_at : NativeRustcVmArm.Vm.VerifyBusBalance.b5.IsInfixAt NativeRustcVmArm.Vm.code 8348 :=
+public theorem VerifyBusBalance.b5_at : NativeRustcVmArm.Vm.VerifyBusBalance.b5.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b5Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b5_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b6_at : NativeRustcVmArm.Vm.VerifyBusBalance.b6.IsInfixAt NativeRustcVmArm.Vm.code 8352 :=
+public theorem VerifyBusBalance.b6_at : NativeRustcVmArm.Vm.VerifyBusBalance.b6.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b6Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b6_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b7_at : NativeRustcVmArm.Vm.VerifyBusBalance.b7.IsInfixAt NativeRustcVmArm.Vm.code 8363 :=
+public theorem VerifyBusBalance.b7_at : NativeRustcVmArm.Vm.VerifyBusBalance.b7.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b7Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b7_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b8_at : NativeRustcVmArm.Vm.VerifyBusBalance.b8.IsInfixAt NativeRustcVmArm.Vm.code 8365 :=
+public theorem VerifyBusBalance.b8_at : NativeRustcVmArm.Vm.VerifyBusBalance.b8.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b8Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b8_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b9_at : NativeRustcVmArm.Vm.VerifyBusBalance.b9.IsInfixAt NativeRustcVmArm.Vm.code 8369 :=
+public theorem VerifyBusBalance.b9_at : NativeRustcVmArm.Vm.VerifyBusBalance.b9.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b9Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b9_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b10_at : NativeRustcVmArm.Vm.VerifyBusBalance.b10.IsInfixAt NativeRustcVmArm.Vm.code 8371 :=
+public theorem VerifyBusBalance.b10_at : NativeRustcVmArm.Vm.VerifyBusBalance.b10.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b10Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b10_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b11_at : NativeRustcVmArm.Vm.VerifyBusBalance.b11.IsInfixAt NativeRustcVmArm.Vm.code 8375 :=
+public theorem VerifyBusBalance.b11_at : NativeRustcVmArm.Vm.VerifyBusBalance.b11.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b11Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b11_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b12_at : NativeRustcVmArm.Vm.VerifyBusBalance.b12.IsInfixAt NativeRustcVmArm.Vm.code 8379 :=
+public theorem VerifyBusBalance.b12_at : NativeRustcVmArm.Vm.VerifyBusBalance.b12.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b12Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b12_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b13_at : NativeRustcVmArm.Vm.VerifyBusBalance.b13.IsInfixAt NativeRustcVmArm.Vm.code 8380 :=
+public theorem VerifyBusBalance.b13_at : NativeRustcVmArm.Vm.VerifyBusBalance.b13.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b13Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b13_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b14_at : NativeRustcVmArm.Vm.VerifyBusBalance.b14.IsInfixAt NativeRustcVmArm.Vm.code 8416 :=
+public theorem VerifyBusBalance.b14_at : NativeRustcVmArm.Vm.VerifyBusBalance.b14.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b14Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b14_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b15_at : NativeRustcVmArm.Vm.VerifyBusBalance.b15.IsInfixAt NativeRustcVmArm.Vm.code 8418 :=
+public theorem VerifyBusBalance.b15_at : NativeRustcVmArm.Vm.VerifyBusBalance.b15.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b15Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b15_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b16_at : NativeRustcVmArm.Vm.VerifyBusBalance.b16.IsInfixAt NativeRustcVmArm.Vm.code 8560 :=
+public theorem VerifyBusBalance.b16_at : NativeRustcVmArm.Vm.VerifyBusBalance.b16.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b16Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b16_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b17_at : NativeRustcVmArm.Vm.VerifyBusBalance.b17.IsInfixAt NativeRustcVmArm.Vm.code 8562 :=
+public theorem VerifyBusBalance.b17_at : NativeRustcVmArm.Vm.VerifyBusBalance.b17.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b17Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b17_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b18_at : NativeRustcVmArm.Vm.VerifyBusBalance.b18.IsInfixAt NativeRustcVmArm.Vm.code 8566 :=
+public theorem VerifyBusBalance.b18_at : NativeRustcVmArm.Vm.VerifyBusBalance.b18.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b18Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b18_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b19_at : NativeRustcVmArm.Vm.VerifyBusBalance.b19.IsInfixAt NativeRustcVmArm.Vm.code 8586 :=
+public theorem VerifyBusBalance.b19_at : NativeRustcVmArm.Vm.VerifyBusBalance.b19.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b19Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b19_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b20_at : NativeRustcVmArm.Vm.VerifyBusBalance.b20.IsInfixAt NativeRustcVmArm.Vm.code 8587 :=
+public theorem VerifyBusBalance.b20_at : NativeRustcVmArm.Vm.VerifyBusBalance.b20.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b20Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b20_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b21_at : NativeRustcVmArm.Vm.VerifyBusBalance.b21.IsInfixAt NativeRustcVmArm.Vm.code 8591 :=
+public theorem VerifyBusBalance.b21_at : NativeRustcVmArm.Vm.VerifyBusBalance.b21.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b21Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b21_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b22_at : NativeRustcVmArm.Vm.VerifyBusBalance.b22.IsInfixAt NativeRustcVmArm.Vm.code 8593 :=
+public theorem VerifyBusBalance.b22_at : NativeRustcVmArm.Vm.VerifyBusBalance.b22.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b22Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b22_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b23_at : NativeRustcVmArm.Vm.VerifyBusBalance.b23.IsInfixAt NativeRustcVmArm.Vm.code 8600 :=
+public theorem VerifyBusBalance.b23_at : NativeRustcVmArm.Vm.VerifyBusBalance.b23.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b23Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b23_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b24_at : NativeRustcVmArm.Vm.VerifyBusBalance.b24.IsInfixAt NativeRustcVmArm.Vm.code 8602 :=
+public theorem VerifyBusBalance.b24_at : NativeRustcVmArm.Vm.VerifyBusBalance.b24.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b24Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b24_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b25_at : NativeRustcVmArm.Vm.VerifyBusBalance.b25.IsInfixAt NativeRustcVmArm.Vm.code 8613 :=
+public theorem VerifyBusBalance.b25_at : NativeRustcVmArm.Vm.VerifyBusBalance.b25.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b25Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b25_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b26_at : NativeRustcVmArm.Vm.VerifyBusBalance.b26.IsInfixAt NativeRustcVmArm.Vm.code 8614 :=
+public theorem VerifyBusBalance.b26_at : NativeRustcVmArm.Vm.VerifyBusBalance.b26.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b26Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b26_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b27_at : NativeRustcVmArm.Vm.VerifyBusBalance.b27.IsInfixAt NativeRustcVmArm.Vm.code 8621 :=
+public theorem VerifyBusBalance.b27_at : NativeRustcVmArm.Vm.VerifyBusBalance.b27.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b27Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b27_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b28_at : NativeRustcVmArm.Vm.VerifyBusBalance.b28.IsInfixAt NativeRustcVmArm.Vm.code 8622 :=
+public theorem VerifyBusBalance.b28_at : NativeRustcVmArm.Vm.VerifyBusBalance.b28.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b28Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b28_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b29_at : NativeRustcVmArm.Vm.VerifyBusBalance.b29.IsInfixAt NativeRustcVmArm.Vm.code 8628 :=
+public theorem VerifyBusBalance.b29_at : NativeRustcVmArm.Vm.VerifyBusBalance.b29.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b29Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b29_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b30_at : NativeRustcVmArm.Vm.VerifyBusBalance.b30.IsInfixAt NativeRustcVmArm.Vm.code 8629 :=
+public theorem VerifyBusBalance.b30_at : NativeRustcVmArm.Vm.VerifyBusBalance.b30.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b30Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b30_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b31_at : NativeRustcVmArm.Vm.VerifyBusBalance.b31.IsInfixAt NativeRustcVmArm.Vm.code 8635 :=
+public theorem VerifyBusBalance.b31_at : NativeRustcVmArm.Vm.VerifyBusBalance.b31.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b31Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b31_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b32_at : NativeRustcVmArm.Vm.VerifyBusBalance.b32.IsInfixAt NativeRustcVmArm.Vm.code 8636 :=
+public theorem VerifyBusBalance.b32_at : NativeRustcVmArm.Vm.VerifyBusBalance.b32.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b32Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b32_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b33_at : NativeRustcVmArm.Vm.VerifyBusBalance.b33.IsInfixAt NativeRustcVmArm.Vm.code 8780 :=
+public theorem VerifyBusBalance.b33_at : NativeRustcVmArm.Vm.VerifyBusBalance.b33.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b33Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b33_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b34_at : NativeRustcVmArm.Vm.VerifyBusBalance.b34.IsInfixAt NativeRustcVmArm.Vm.code 8782 :=
+public theorem VerifyBusBalance.b34_at : NativeRustcVmArm.Vm.VerifyBusBalance.b34.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b34Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b34_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b35_at : NativeRustcVmArm.Vm.VerifyBusBalance.b35.IsInfixAt NativeRustcVmArm.Vm.code 8791 :=
+public theorem VerifyBusBalance.b35_at : NativeRustcVmArm.Vm.VerifyBusBalance.b35.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b35Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b35_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b36_at : NativeRustcVmArm.Vm.VerifyBusBalance.b36.IsInfixAt NativeRustcVmArm.Vm.code 8796 :=
+public theorem VerifyBusBalance.b36_at : NativeRustcVmArm.Vm.VerifyBusBalance.b36.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b36Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b36_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b37_at : NativeRustcVmArm.Vm.VerifyBusBalance.b37.IsInfixAt NativeRustcVmArm.Vm.code 8797 :=
+public theorem VerifyBusBalance.b37_at : NativeRustcVmArm.Vm.VerifyBusBalance.b37.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b37Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b37_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b38_at : NativeRustcVmArm.Vm.VerifyBusBalance.b38.IsInfixAt NativeRustcVmArm.Vm.code 8819 :=
+public theorem VerifyBusBalance.b38_at : NativeRustcVmArm.Vm.VerifyBusBalance.b38.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b38Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b38_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b39_at : NativeRustcVmArm.Vm.VerifyBusBalance.b39.IsInfixAt NativeRustcVmArm.Vm.code 8860 :=
+public theorem VerifyBusBalance.b39_at : NativeRustcVmArm.Vm.VerifyBusBalance.b39.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b39Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b39_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b40_at : NativeRustcVmArm.Vm.VerifyBusBalance.b40.IsInfixAt NativeRustcVmArm.Vm.code 8870 :=
+public theorem VerifyBusBalance.b40_at : NativeRustcVmArm.Vm.VerifyBusBalance.b40.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b40Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b40_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b41_at : NativeRustcVmArm.Vm.VerifyBusBalance.b41.IsInfixAt NativeRustcVmArm.Vm.code 8892 :=
+public theorem VerifyBusBalance.b41_at : NativeRustcVmArm.Vm.VerifyBusBalance.b41.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b41Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b41_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b42_at : NativeRustcVmArm.Vm.VerifyBusBalance.b42.IsInfixAt NativeRustcVmArm.Vm.code 8894 :=
+public theorem VerifyBusBalance.b42_at : NativeRustcVmArm.Vm.VerifyBusBalance.b42.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b42Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b42_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b43_at : NativeRustcVmArm.Vm.VerifyBusBalance.b43.IsInfixAt NativeRustcVmArm.Vm.code 8904 :=
+public theorem VerifyBusBalance.b43_at : NativeRustcVmArm.Vm.VerifyBusBalance.b43.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b43Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b43_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b44_at : NativeRustcVmArm.Vm.VerifyBusBalance.b44.IsInfixAt NativeRustcVmArm.Vm.code 8924 :=
+public theorem VerifyBusBalance.b44_at : NativeRustcVmArm.Vm.VerifyBusBalance.b44.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b44Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b44_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b45_at : NativeRustcVmArm.Vm.VerifyBusBalance.b45.IsInfixAt NativeRustcVmArm.Vm.code 8926 :=
+public theorem VerifyBusBalance.b45_at : NativeRustcVmArm.Vm.VerifyBusBalance.b45.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b45Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b45_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b46_at : NativeRustcVmArm.Vm.VerifyBusBalance.b46.IsInfixAt NativeRustcVmArm.Vm.code 8948 :=
+public theorem VerifyBusBalance.b46_at : NativeRustcVmArm.Vm.VerifyBusBalance.b46.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b46Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b46_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b47_at : NativeRustcVmArm.Vm.VerifyBusBalance.b47.IsInfixAt NativeRustcVmArm.Vm.code 8950 :=
+public theorem VerifyBusBalance.b47_at : NativeRustcVmArm.Vm.VerifyBusBalance.b47.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b47Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b47_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b48_at : NativeRustcVmArm.Vm.VerifyBusBalance.b48.IsInfixAt NativeRustcVmArm.Vm.code 8959 :=
+public theorem VerifyBusBalance.b48_at : NativeRustcVmArm.Vm.VerifyBusBalance.b48.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b48Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b48_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b49_at : NativeRustcVmArm.Vm.VerifyBusBalance.b49.IsInfixAt NativeRustcVmArm.Vm.code 8960 :=
+public theorem VerifyBusBalance.b49_at : NativeRustcVmArm.Vm.VerifyBusBalance.b49.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b49Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b49_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b50_at : NativeRustcVmArm.Vm.VerifyBusBalance.b50.IsInfixAt NativeRustcVmArm.Vm.code 8968 :=
+public theorem VerifyBusBalance.b50_at : NativeRustcVmArm.Vm.VerifyBusBalance.b50.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b50Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b50_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyBusBalance.b51_at : NativeRustcVmArm.Vm.VerifyBusBalance.b51.IsInfixAt NativeRustcVmArm.Vm.code 8970 :=
+public theorem VerifyBusBalance.b51_at : NativeRustcVmArm.Vm.VerifyBusBalance.b51.IsInfixAt NativeRustcVmArm.Vm.code (VerifyBusBalance.programOffset + NativeRustcVmArm.Vm.VerifyBusBalance.b51Offset) :=
   NativeRustcVmArm.Vm.VerifyBusBalance.b51_in_code.trans VerifyBusBalance.code_at (List.cons_ne_nil _ _)
 
-public theorem ComputedBytecodeValue.code_at : NativeRustcVmArm.Vm.ComputedBytecodeValue.code.IsInfixAt NativeRustcVmArm.Vm.code 8980 :=
+@[expose] public def ComputedBytecodeValue.programOffset : Nat := 8980
+
+public theorem ComputedBytecodeValue.code_at : NativeRustcVmArm.Vm.ComputedBytecodeValue.code.IsInfixAt NativeRustcVmArm.Vm.code ComputedBytecodeValue.programOffset :=
   List.isInfixAt_flatten_of (i := 64) rfl (by decide +kernel)
 
-public theorem ComputedBytecodeValue.b0_at : NativeRustcVmArm.Vm.ComputedBytecodeValue.b0.IsInfixAt NativeRustcVmArm.Vm.code 8980 :=
+public theorem ComputedBytecodeValue.b0_at : NativeRustcVmArm.Vm.ComputedBytecodeValue.b0.IsInfixAt NativeRustcVmArm.Vm.code (ComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.ComputedBytecodeValue.b0Offset) :=
   NativeRustcVmArm.Vm.ComputedBytecodeValue.b0_in_code.trans ComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem ComputedBytecodeValue.b1_at : NativeRustcVmArm.Vm.ComputedBytecodeValue.b1.IsInfixAt NativeRustcVmArm.Vm.code 8991 :=
+public theorem ComputedBytecodeValue.b1_at : NativeRustcVmArm.Vm.ComputedBytecodeValue.b1.IsInfixAt NativeRustcVmArm.Vm.code (ComputedBytecodeValue.programOffset + NativeRustcVmArm.Vm.ComputedBytecodeValue.b1Offset) :=
   NativeRustcVmArm.Vm.ComputedBytecodeValue.b1_in_code.trans ComputedBytecodeValue.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.code_at : NativeRustcVmArm.Vm.GkrLayers.code.IsInfixAt NativeRustcVmArm.Vm.code 8997 :=
+@[expose] public def GkrLayers.programOffset : Nat := 8997
+
+public theorem GkrLayers.code_at : NativeRustcVmArm.Vm.GkrLayers.code.IsInfixAt NativeRustcVmArm.Vm.code GkrLayers.programOffset :=
   List.isInfixAt_flatten_of (i := 65) rfl (by decide +kernel)
 
-public theorem GkrLayers.b0_at : NativeRustcVmArm.Vm.GkrLayers.b0.IsInfixAt NativeRustcVmArm.Vm.code 8997 :=
+public theorem GkrLayers.b0_at : NativeRustcVmArm.Vm.GkrLayers.b0.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b0Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b0_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b1_at : NativeRustcVmArm.Vm.GkrLayers.b1.IsInfixAt NativeRustcVmArm.Vm.code 9006 :=
+public theorem GkrLayers.b1_at : NativeRustcVmArm.Vm.GkrLayers.b1.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b1Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b1_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b2_at : NativeRustcVmArm.Vm.GkrLayers.b2.IsInfixAt NativeRustcVmArm.Vm.code 9012 :=
+public theorem GkrLayers.b2_at : NativeRustcVmArm.Vm.GkrLayers.b2.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b2Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b2_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b3_at : NativeRustcVmArm.Vm.GkrLayers.b3.IsInfixAt NativeRustcVmArm.Vm.code 9014 :=
+public theorem GkrLayers.b3_at : NativeRustcVmArm.Vm.GkrLayers.b3.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b3Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b3_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b4_at : NativeRustcVmArm.Vm.GkrLayers.b4.IsInfixAt NativeRustcVmArm.Vm.code 9017 :=
+public theorem GkrLayers.b4_at : NativeRustcVmArm.Vm.GkrLayers.b4.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b4Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b4_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b5_at : NativeRustcVmArm.Vm.GkrLayers.b5.IsInfixAt NativeRustcVmArm.Vm.code 9019 :=
+public theorem GkrLayers.b5_at : NativeRustcVmArm.Vm.GkrLayers.b5.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b5Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b5_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b6_at : NativeRustcVmArm.Vm.GkrLayers.b6.IsInfixAt NativeRustcVmArm.Vm.code 9020 :=
+public theorem GkrLayers.b6_at : NativeRustcVmArm.Vm.GkrLayers.b6.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b6Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b6_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b7_at : NativeRustcVmArm.Vm.GkrLayers.b7.IsInfixAt NativeRustcVmArm.Vm.code 9026 :=
+public theorem GkrLayers.b7_at : NativeRustcVmArm.Vm.GkrLayers.b7.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b7Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b7_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b8_at : NativeRustcVmArm.Vm.GkrLayers.b8.IsInfixAt NativeRustcVmArm.Vm.code 9027 :=
+public theorem GkrLayers.b8_at : NativeRustcVmArm.Vm.GkrLayers.b8.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b8Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b8_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b9_at : NativeRustcVmArm.Vm.GkrLayers.b9.IsInfixAt NativeRustcVmArm.Vm.code 9028 :=
+public theorem GkrLayers.b9_at : NativeRustcVmArm.Vm.GkrLayers.b9.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b9Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b9_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b10_at : NativeRustcVmArm.Vm.GkrLayers.b10.IsInfixAt NativeRustcVmArm.Vm.code 9034 :=
+public theorem GkrLayers.b10_at : NativeRustcVmArm.Vm.GkrLayers.b10.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b10Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b10_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b11_at : NativeRustcVmArm.Vm.GkrLayers.b11.IsInfixAt NativeRustcVmArm.Vm.code 9035 :=
+public theorem GkrLayers.b11_at : NativeRustcVmArm.Vm.GkrLayers.b11.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b11Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b11_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b12_at : NativeRustcVmArm.Vm.GkrLayers.b12.IsInfixAt NativeRustcVmArm.Vm.code 9038 :=
+public theorem GkrLayers.b12_at : NativeRustcVmArm.Vm.GkrLayers.b12.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b12Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b12_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b13_at : NativeRustcVmArm.Vm.GkrLayers.b13.IsInfixAt NativeRustcVmArm.Vm.code 9039 :=
+public theorem GkrLayers.b13_at : NativeRustcVmArm.Vm.GkrLayers.b13.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b13Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b13_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrLayers.b14_at : NativeRustcVmArm.Vm.GkrLayers.b14.IsInfixAt NativeRustcVmArm.Vm.code 9045 :=
+public theorem GkrLayers.b14_at : NativeRustcVmArm.Vm.GkrLayers.b14.IsInfixAt NativeRustcVmArm.Vm.code (GkrLayers.programOffset + NativeRustcVmArm.Vm.GkrLayers.b14Offset) :=
   NativeRustcVmArm.Vm.GkrLayers.b14_in_code.trans GkrLayers.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.code_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.code.IsInfixAt NativeRustcVmArm.Vm.code 9051 :=
+@[expose] public def VerifyGkrGrandProducts.programOffset : Nat := 9051
+
+public theorem VerifyGkrGrandProducts.code_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.code.IsInfixAt NativeRustcVmArm.Vm.code VerifyGkrGrandProducts.programOffset :=
   List.isInfixAt_flatten_of (i := 66) rfl (by decide +kernel)
 
-public theorem VerifyGkrGrandProducts.b0_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b0.IsInfixAt NativeRustcVmArm.Vm.code 9051 :=
+public theorem VerifyGkrGrandProducts.b0_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b0.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b0Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b0_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b1_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b1.IsInfixAt NativeRustcVmArm.Vm.code 9063 :=
+public theorem VerifyGkrGrandProducts.b1_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b1.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b1Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b1_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b2_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b2.IsInfixAt NativeRustcVmArm.Vm.code 9065 :=
+public theorem VerifyGkrGrandProducts.b2_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b2.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b2Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b2_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b3_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b3.IsInfixAt NativeRustcVmArm.Vm.code 9069 :=
+public theorem VerifyGkrGrandProducts.b3_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b3.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b3Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b3_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b4_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b4.IsInfixAt NativeRustcVmArm.Vm.code 9071 :=
+public theorem VerifyGkrGrandProducts.b4_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b4.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b4Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b4_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b5_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b5.IsInfixAt NativeRustcVmArm.Vm.code 9080 :=
+public theorem VerifyGkrGrandProducts.b5_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b5.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b5Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b5_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b6_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b6.IsInfixAt NativeRustcVmArm.Vm.code 9082 :=
+public theorem VerifyGkrGrandProducts.b6_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b6.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b6Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b6_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b7_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b7.IsInfixAt NativeRustcVmArm.Vm.code 9085 :=
+public theorem VerifyGkrGrandProducts.b7_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b7.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b7Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b7_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyGkrGrandProducts.b8_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8.IsInfixAt NativeRustcVmArm.Vm.code 9087 :=
+public theorem VerifyGkrGrandProducts.b8_at : NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8.IsInfixAt NativeRustcVmArm.Vm.code (VerifyGkrGrandProducts.programOffset + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8Offset) :=
   NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8_in_code.trans VerifyGkrGrandProducts.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.code_at : NativeRustcVmArm.Vm.GkrStep.code.IsInfixAt NativeRustcVmArm.Vm.code 9095 :=
+@[expose] public def GkrStep.programOffset : Nat := 9095
+
+public theorem GkrStep.code_at : NativeRustcVmArm.Vm.GkrStep.code.IsInfixAt NativeRustcVmArm.Vm.code GkrStep.programOffset :=
   List.isInfixAt_flatten_of (i := 67) rfl (by decide +kernel)
 
-public theorem GkrStep.b0_at : NativeRustcVmArm.Vm.GkrStep.b0.IsInfixAt NativeRustcVmArm.Vm.code 9095 :=
+public theorem GkrStep.b0_at : NativeRustcVmArm.Vm.GkrStep.b0.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b0Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b0_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b1_at : NativeRustcVmArm.Vm.GkrStep.b1.IsInfixAt NativeRustcVmArm.Vm.code 9110 :=
+public theorem GkrStep.b1_at : NativeRustcVmArm.Vm.GkrStep.b1.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b1Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b1_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b2_at : NativeRustcVmArm.Vm.GkrStep.b2.IsInfixAt NativeRustcVmArm.Vm.code 9114 :=
+public theorem GkrStep.b2_at : NativeRustcVmArm.Vm.GkrStep.b2.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b2Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b2_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b3_at : NativeRustcVmArm.Vm.GkrStep.b3.IsInfixAt NativeRustcVmArm.Vm.code 9117 :=
+public theorem GkrStep.b3_at : NativeRustcVmArm.Vm.GkrStep.b3.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b3Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b3_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b4_at : NativeRustcVmArm.Vm.GkrStep.b4.IsInfixAt NativeRustcVmArm.Vm.code 9119 :=
+public theorem GkrStep.b4_at : NativeRustcVmArm.Vm.GkrStep.b4.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b4Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b4_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b5_at : NativeRustcVmArm.Vm.GkrStep.b5.IsInfixAt NativeRustcVmArm.Vm.code 9126 :=
+public theorem GkrStep.b5_at : NativeRustcVmArm.Vm.GkrStep.b5.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b5Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b5_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b6_at : NativeRustcVmArm.Vm.GkrStep.b6.IsInfixAt NativeRustcVmArm.Vm.code 9239 :=
+public theorem GkrStep.b6_at : NativeRustcVmArm.Vm.GkrStep.b6.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b6Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b6_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b7_at : NativeRustcVmArm.Vm.GkrStep.b7.IsInfixAt NativeRustcVmArm.Vm.code 9241 :=
+public theorem GkrStep.b7_at : NativeRustcVmArm.Vm.GkrStep.b7.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b7Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b7_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b8_at : NativeRustcVmArm.Vm.GkrStep.b8.IsInfixAt NativeRustcVmArm.Vm.code 9271 :=
+public theorem GkrStep.b8_at : NativeRustcVmArm.Vm.GkrStep.b8.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b8Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b8_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b9_at : NativeRustcVmArm.Vm.GkrStep.b9.IsInfixAt NativeRustcVmArm.Vm.code 9272 :=
+public theorem GkrStep.b9_at : NativeRustcVmArm.Vm.GkrStep.b9.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b9Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b9_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b10_at : NativeRustcVmArm.Vm.GkrStep.b10.IsInfixAt NativeRustcVmArm.Vm.code 9276 :=
+public theorem GkrStep.b10_at : NativeRustcVmArm.Vm.GkrStep.b10.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b10Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b10_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b11_at : NativeRustcVmArm.Vm.GkrStep.b11.IsInfixAt NativeRustcVmArm.Vm.code 9277 :=
+public theorem GkrStep.b11_at : NativeRustcVmArm.Vm.GkrStep.b11.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b11Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b11_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b12_at : NativeRustcVmArm.Vm.GkrStep.b12.IsInfixAt NativeRustcVmArm.Vm.code 9281 :=
+public theorem GkrStep.b12_at : NativeRustcVmArm.Vm.GkrStep.b12.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b12Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b12_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b13_at : NativeRustcVmArm.Vm.GkrStep.b13.IsInfixAt NativeRustcVmArm.Vm.code 9282 :=
+public theorem GkrStep.b13_at : NativeRustcVmArm.Vm.GkrStep.b13.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b13Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b13_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b14_at : NativeRustcVmArm.Vm.GkrStep.b14.IsInfixAt NativeRustcVmArm.Vm.code 9285 :=
+public theorem GkrStep.b14_at : NativeRustcVmArm.Vm.GkrStep.b14.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b14Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b14_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b15_at : NativeRustcVmArm.Vm.GkrStep.b15.IsInfixAt NativeRustcVmArm.Vm.code 9290 :=
+public theorem GkrStep.b15_at : NativeRustcVmArm.Vm.GkrStep.b15.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b15Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b15_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b16_at : NativeRustcVmArm.Vm.GkrStep.b16.IsInfixAt NativeRustcVmArm.Vm.code 9295 :=
+public theorem GkrStep.b16_at : NativeRustcVmArm.Vm.GkrStep.b16.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b16Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b16_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b17_at : NativeRustcVmArm.Vm.GkrStep.b17.IsInfixAt NativeRustcVmArm.Vm.code 9302 :=
+public theorem GkrStep.b17_at : NativeRustcVmArm.Vm.GkrStep.b17.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b17Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b17_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b18_at : NativeRustcVmArm.Vm.GkrStep.b18.IsInfixAt NativeRustcVmArm.Vm.code 9304 :=
+public theorem GkrStep.b18_at : NativeRustcVmArm.Vm.GkrStep.b18.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b18Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b18_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b19_at : NativeRustcVmArm.Vm.GkrStep.b19.IsInfixAt NativeRustcVmArm.Vm.code 9306 :=
+public theorem GkrStep.b19_at : NativeRustcVmArm.Vm.GkrStep.b19.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b19Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b19_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b20_at : NativeRustcVmArm.Vm.GkrStep.b20.IsInfixAt NativeRustcVmArm.Vm.code 9309 :=
+public theorem GkrStep.b20_at : NativeRustcVmArm.Vm.GkrStep.b20.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b20Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b20_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b21_at : NativeRustcVmArm.Vm.GkrStep.b21.IsInfixAt NativeRustcVmArm.Vm.code 9313 :=
+public theorem GkrStep.b21_at : NativeRustcVmArm.Vm.GkrStep.b21.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b21Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b21_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b22_at : NativeRustcVmArm.Vm.GkrStep.b22.IsInfixAt NativeRustcVmArm.Vm.code 9314 :=
+public theorem GkrStep.b22_at : NativeRustcVmArm.Vm.GkrStep.b22.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b22Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b22_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b23_at : NativeRustcVmArm.Vm.GkrStep.b23.IsInfixAt NativeRustcVmArm.Vm.code 9322 :=
+public theorem GkrStep.b23_at : NativeRustcVmArm.Vm.GkrStep.b23.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b23Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b23_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b24_at : NativeRustcVmArm.Vm.GkrStep.b24.IsInfixAt NativeRustcVmArm.Vm.code 9328 :=
+public theorem GkrStep.b24_at : NativeRustcVmArm.Vm.GkrStep.b24.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b24Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b24_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b25_at : NativeRustcVmArm.Vm.GkrStep.b25.IsInfixAt NativeRustcVmArm.Vm.code 9335 :=
+public theorem GkrStep.b25_at : NativeRustcVmArm.Vm.GkrStep.b25.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b25Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b25_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b26_at : NativeRustcVmArm.Vm.GkrStep.b26.IsInfixAt NativeRustcVmArm.Vm.code 9342 :=
+public theorem GkrStep.b26_at : NativeRustcVmArm.Vm.GkrStep.b26.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b26Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b26_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b27_at : NativeRustcVmArm.Vm.GkrStep.b27.IsInfixAt NativeRustcVmArm.Vm.code 9346 :=
+public theorem GkrStep.b27_at : NativeRustcVmArm.Vm.GkrStep.b27.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b27Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b27_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b28_at : NativeRustcVmArm.Vm.GkrStep.b28.IsInfixAt NativeRustcVmArm.Vm.code 9352 :=
+public theorem GkrStep.b28_at : NativeRustcVmArm.Vm.GkrStep.b28.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b28Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b28_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b29_at : NativeRustcVmArm.Vm.GkrStep.b29.IsInfixAt NativeRustcVmArm.Vm.code 9355 :=
+public theorem GkrStep.b29_at : NativeRustcVmArm.Vm.GkrStep.b29.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b29Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b29_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b30_at : NativeRustcVmArm.Vm.GkrStep.b30.IsInfixAt NativeRustcVmArm.Vm.code 9357 :=
+public theorem GkrStep.b30_at : NativeRustcVmArm.Vm.GkrStep.b30.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b30Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b30_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b31_at : NativeRustcVmArm.Vm.GkrStep.b31.IsInfixAt NativeRustcVmArm.Vm.code 9359 :=
+public theorem GkrStep.b31_at : NativeRustcVmArm.Vm.GkrStep.b31.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b31Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b31_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b32_at : NativeRustcVmArm.Vm.GkrStep.b32.IsInfixAt NativeRustcVmArm.Vm.code 9361 :=
+public theorem GkrStep.b32_at : NativeRustcVmArm.Vm.GkrStep.b32.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b32Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b32_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b33_at : NativeRustcVmArm.Vm.GkrStep.b33.IsInfixAt NativeRustcVmArm.Vm.code 9363 :=
+public theorem GkrStep.b33_at : NativeRustcVmArm.Vm.GkrStep.b33.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b33Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b33_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b34_at : NativeRustcVmArm.Vm.GkrStep.b34.IsInfixAt NativeRustcVmArm.Vm.code 9372 :=
+public theorem GkrStep.b34_at : NativeRustcVmArm.Vm.GkrStep.b34.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b34Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b34_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b35_at : NativeRustcVmArm.Vm.GkrStep.b35.IsInfixAt NativeRustcVmArm.Vm.code 9379 :=
+public theorem GkrStep.b35_at : NativeRustcVmArm.Vm.GkrStep.b35.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b35Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b35_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b36_at : NativeRustcVmArm.Vm.GkrStep.b36.IsInfixAt NativeRustcVmArm.Vm.code 9387 :=
+public theorem GkrStep.b36_at : NativeRustcVmArm.Vm.GkrStep.b36.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b36Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b36_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b37_at : NativeRustcVmArm.Vm.GkrStep.b37.IsInfixAt NativeRustcVmArm.Vm.code 9389 :=
+public theorem GkrStep.b37_at : NativeRustcVmArm.Vm.GkrStep.b37.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b37Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b37_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b38_at : NativeRustcVmArm.Vm.GkrStep.b38.IsInfixAt NativeRustcVmArm.Vm.code 9398 :=
+public theorem GkrStep.b38_at : NativeRustcVmArm.Vm.GkrStep.b38.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b38Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b38_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem GkrStep.b39_at : NativeRustcVmArm.Vm.GkrStep.b39.IsInfixAt NativeRustcVmArm.Vm.code 9405 :=
+public theorem GkrStep.b39_at : NativeRustcVmArm.Vm.GkrStep.b39.IsInfixAt NativeRustcVmArm.Vm.code (GkrStep.programOffset + NativeRustcVmArm.Vm.GkrStep.b39Offset) :=
   NativeRustcVmArm.Vm.GkrStep.b39_in_code.trans GkrStep.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.code_at : NativeRustcVmArm.Vm.FoldRound.code.IsInfixAt NativeRustcVmArm.Vm.code 9408 :=
+@[expose] public def FoldRound.programOffset : Nat := 9408
+
+public theorem FoldRound.code_at : NativeRustcVmArm.Vm.FoldRound.code.IsInfixAt NativeRustcVmArm.Vm.code FoldRound.programOffset :=
   List.isInfixAt_flatten_of (i := 68) rfl (by decide +kernel)
 
-public theorem FoldRound.b0_at : NativeRustcVmArm.Vm.FoldRound.b0.IsInfixAt NativeRustcVmArm.Vm.code 9408 :=
+public theorem FoldRound.b0_at : NativeRustcVmArm.Vm.FoldRound.b0.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b0Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b0_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b1_at : NativeRustcVmArm.Vm.FoldRound.b1.IsInfixAt NativeRustcVmArm.Vm.code 9421 :=
+public theorem FoldRound.b1_at : NativeRustcVmArm.Vm.FoldRound.b1.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b1Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b1_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b2_at : NativeRustcVmArm.Vm.FoldRound.b2.IsInfixAt NativeRustcVmArm.Vm.code 9423 :=
+public theorem FoldRound.b2_at : NativeRustcVmArm.Vm.FoldRound.b2.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b2Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b2_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b3_at : NativeRustcVmArm.Vm.FoldRound.b3.IsInfixAt NativeRustcVmArm.Vm.code 9427 :=
+public theorem FoldRound.b3_at : NativeRustcVmArm.Vm.FoldRound.b3.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b3Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b3_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b4_at : NativeRustcVmArm.Vm.FoldRound.b4.IsInfixAt NativeRustcVmArm.Vm.code 9429 :=
+public theorem FoldRound.b4_at : NativeRustcVmArm.Vm.FoldRound.b4.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b4Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b4_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b5_at : NativeRustcVmArm.Vm.FoldRound.b5.IsInfixAt NativeRustcVmArm.Vm.code 9433 :=
+public theorem FoldRound.b5_at : NativeRustcVmArm.Vm.FoldRound.b5.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b5Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b5_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b6_at : NativeRustcVmArm.Vm.FoldRound.b6.IsInfixAt NativeRustcVmArm.Vm.code 9435 :=
+public theorem FoldRound.b6_at : NativeRustcVmArm.Vm.FoldRound.b6.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b6Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b6_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b7_at : NativeRustcVmArm.Vm.FoldRound.b7.IsInfixAt NativeRustcVmArm.Vm.code 9439 :=
+public theorem FoldRound.b7_at : NativeRustcVmArm.Vm.FoldRound.b7.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b7Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b7_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b8_at : NativeRustcVmArm.Vm.FoldRound.b8.IsInfixAt NativeRustcVmArm.Vm.code 9441 :=
+public theorem FoldRound.b8_at : NativeRustcVmArm.Vm.FoldRound.b8.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b8Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b8_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b9_at : NativeRustcVmArm.Vm.FoldRound.b9.IsInfixAt NativeRustcVmArm.Vm.code 9445 :=
+public theorem FoldRound.b9_at : NativeRustcVmArm.Vm.FoldRound.b9.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b9Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b9_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b10_at : NativeRustcVmArm.Vm.FoldRound.b10.IsInfixAt NativeRustcVmArm.Vm.code 9446 :=
+public theorem FoldRound.b10_at : NativeRustcVmArm.Vm.FoldRound.b10.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b10Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b10_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b11_at : NativeRustcVmArm.Vm.FoldRound.b11.IsInfixAt NativeRustcVmArm.Vm.code 9448 :=
+public theorem FoldRound.b11_at : NativeRustcVmArm.Vm.FoldRound.b11.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b11Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b11_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b12_at : NativeRustcVmArm.Vm.FoldRound.b12.IsInfixAt NativeRustcVmArm.Vm.code 9454 :=
+public theorem FoldRound.b12_at : NativeRustcVmArm.Vm.FoldRound.b12.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b12Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b12_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b13_at : NativeRustcVmArm.Vm.FoldRound.b13.IsInfixAt NativeRustcVmArm.Vm.code 9462 :=
+public theorem FoldRound.b13_at : NativeRustcVmArm.Vm.FoldRound.b13.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b13Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b13_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b14_at : NativeRustcVmArm.Vm.FoldRound.b14.IsInfixAt NativeRustcVmArm.Vm.code 9468 :=
+public theorem FoldRound.b14_at : NativeRustcVmArm.Vm.FoldRound.b14.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b14Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b14_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b15_at : NativeRustcVmArm.Vm.FoldRound.b15.IsInfixAt NativeRustcVmArm.Vm.code 9471 :=
+public theorem FoldRound.b15_at : NativeRustcVmArm.Vm.FoldRound.b15.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b15Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b15_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b16_at : NativeRustcVmArm.Vm.FoldRound.b16.IsInfixAt NativeRustcVmArm.Vm.code 9478 :=
+public theorem FoldRound.b16_at : NativeRustcVmArm.Vm.FoldRound.b16.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b16Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b16_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b17_at : NativeRustcVmArm.Vm.FoldRound.b17.IsInfixAt NativeRustcVmArm.Vm.code 9486 :=
+public theorem FoldRound.b17_at : NativeRustcVmArm.Vm.FoldRound.b17.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b17Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b17_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b18_at : NativeRustcVmArm.Vm.FoldRound.b18.IsInfixAt NativeRustcVmArm.Vm.code 9490 :=
+public theorem FoldRound.b18_at : NativeRustcVmArm.Vm.FoldRound.b18.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b18Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b18_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b19_at : NativeRustcVmArm.Vm.FoldRound.b19.IsInfixAt NativeRustcVmArm.Vm.code 9505 :=
+public theorem FoldRound.b19_at : NativeRustcVmArm.Vm.FoldRound.b19.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b19Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b19_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b20_at : NativeRustcVmArm.Vm.FoldRound.b20.IsInfixAt NativeRustcVmArm.Vm.code 9514 :=
+public theorem FoldRound.b20_at : NativeRustcVmArm.Vm.FoldRound.b20.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b20Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b20_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRound.b21_at : NativeRustcVmArm.Vm.FoldRound.b21.IsInfixAt NativeRustcVmArm.Vm.code 9516 :=
+public theorem FoldRound.b21_at : NativeRustcVmArm.Vm.FoldRound.b21.IsInfixAt NativeRustcVmArm.Vm.code (FoldRound.programOffset + NativeRustcVmArm.Vm.FoldRound.b21Offset) :=
   NativeRustcVmArm.Vm.FoldRound.b21_in_code.trans FoldRound.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.code_at : NativeRustcVmArm.Vm.GlueLevel.code.IsInfixAt NativeRustcVmArm.Vm.code 9526 :=
+@[expose] public def GlueLevel.programOffset : Nat := 9526
+
+public theorem GlueLevel.code_at : NativeRustcVmArm.Vm.GlueLevel.code.IsInfixAt NativeRustcVmArm.Vm.code GlueLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 69) rfl (by decide +kernel)
 
-public theorem GlueLevel.b0_at : NativeRustcVmArm.Vm.GlueLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code 9526 :=
+public theorem GlueLevel.b0_at : NativeRustcVmArm.Vm.GlueLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b0Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b0_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b1_at : NativeRustcVmArm.Vm.GlueLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code 9547 :=
+public theorem GlueLevel.b1_at : NativeRustcVmArm.Vm.GlueLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b1Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b1_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b2_at : NativeRustcVmArm.Vm.GlueLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code 9554 :=
+public theorem GlueLevel.b2_at : NativeRustcVmArm.Vm.GlueLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b2Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b2_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b3_at : NativeRustcVmArm.Vm.GlueLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code 9559 :=
+public theorem GlueLevel.b3_at : NativeRustcVmArm.Vm.GlueLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b3Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b3_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b4_at : NativeRustcVmArm.Vm.GlueLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code 9565 :=
+public theorem GlueLevel.b4_at : NativeRustcVmArm.Vm.GlueLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b4Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b4_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b5_at : NativeRustcVmArm.Vm.GlueLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code 9575 :=
+public theorem GlueLevel.b5_at : NativeRustcVmArm.Vm.GlueLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b5Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b5_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b6_at : NativeRustcVmArm.Vm.GlueLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code 9576 :=
+public theorem GlueLevel.b6_at : NativeRustcVmArm.Vm.GlueLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b6Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b6_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b7_at : NativeRustcVmArm.Vm.GlueLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code 9581 :=
+public theorem GlueLevel.b7_at : NativeRustcVmArm.Vm.GlueLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b7Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b7_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b8_at : NativeRustcVmArm.Vm.GlueLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code 9592 :=
+public theorem GlueLevel.b8_at : NativeRustcVmArm.Vm.GlueLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b8Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b8_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b9_at : NativeRustcVmArm.Vm.GlueLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code 9593 :=
+public theorem GlueLevel.b9_at : NativeRustcVmArm.Vm.GlueLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b9Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b9_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b10_at : NativeRustcVmArm.Vm.GlueLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code 9597 :=
+public theorem GlueLevel.b10_at : NativeRustcVmArm.Vm.GlueLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b10Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b10_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b11_at : NativeRustcVmArm.Vm.GlueLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code 9598 :=
+public theorem GlueLevel.b11_at : NativeRustcVmArm.Vm.GlueLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b11Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b11_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b12_at : NativeRustcVmArm.Vm.GlueLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code 9603 :=
+public theorem GlueLevel.b12_at : NativeRustcVmArm.Vm.GlueLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b12Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b12_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GlueLevel.b13_at : NativeRustcVmArm.Vm.GlueLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code 9605 :=
+public theorem GlueLevel.b13_at : NativeRustcVmArm.Vm.GlueLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code (GlueLevel.programOffset + NativeRustcVmArm.Vm.GlueLevel.b13Offset) :=
   NativeRustcVmArm.Vm.GlueLevel.b13_in_code.trans GlueLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem GluedEval.code_at : NativeRustcVmArm.Vm.GluedEval.code.IsInfixAt NativeRustcVmArm.Vm.code 9614 :=
+@[expose] public def GluedEval.programOffset : Nat := 9614
+
+public theorem GluedEval.code_at : NativeRustcVmArm.Vm.GluedEval.code.IsInfixAt NativeRustcVmArm.Vm.code GluedEval.programOffset :=
   List.isInfixAt_flatten_of (i := 70) rfl (by decide +kernel)
 
-public theorem GluedEval.b0_at : NativeRustcVmArm.Vm.GluedEval.b0.IsInfixAt NativeRustcVmArm.Vm.code 9614 :=
+public theorem GluedEval.b0_at : NativeRustcVmArm.Vm.GluedEval.b0.IsInfixAt NativeRustcVmArm.Vm.code (GluedEval.programOffset + NativeRustcVmArm.Vm.GluedEval.b0Offset) :=
   NativeRustcVmArm.Vm.GluedEval.b0_in_code.trans GluedEval.code_at (List.cons_ne_nil _ _)
 
-public theorem GluedEval.b1_at : NativeRustcVmArm.Vm.GluedEval.b1.IsInfixAt NativeRustcVmArm.Vm.code 9619 :=
+public theorem GluedEval.b1_at : NativeRustcVmArm.Vm.GluedEval.b1.IsInfixAt NativeRustcVmArm.Vm.code (GluedEval.programOffset + NativeRustcVmArm.Vm.GluedEval.b1Offset) :=
   NativeRustcVmArm.Vm.GluedEval.b1_in_code.trans GluedEval.code_at (List.cons_ne_nil _ _)
 
-public theorem GluedEval.b2_at : NativeRustcVmArm.Vm.GluedEval.b2.IsInfixAt NativeRustcVmArm.Vm.code 9633 :=
+public theorem GluedEval.b2_at : NativeRustcVmArm.Vm.GluedEval.b2.IsInfixAt NativeRustcVmArm.Vm.code (GluedEval.programOffset + NativeRustcVmArm.Vm.GluedEval.b2Offset) :=
   NativeRustcVmArm.Vm.GluedEval.b2_in_code.trans GluedEval.code_at (List.cons_ne_nil _ _)
 
-public theorem GluedEval.b3_at : NativeRustcVmArm.Vm.GluedEval.b3.IsInfixAt NativeRustcVmArm.Vm.code 9646 :=
+public theorem GluedEval.b3_at : NativeRustcVmArm.Vm.GluedEval.b3.IsInfixAt NativeRustcVmArm.Vm.code (GluedEval.programOffset + NativeRustcVmArm.Vm.GluedEval.b3Offset) :=
   NativeRustcVmArm.Vm.GluedEval.b3_in_code.trans GluedEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.code_at : NativeRustcVmArm.Vm.NextLevel.code.IsInfixAt NativeRustcVmArm.Vm.code 9651 :=
+@[expose] public def NextLevel.programOffset : Nat := 9651
+
+public theorem NextLevel.code_at : NativeRustcVmArm.Vm.NextLevel.code.IsInfixAt NativeRustcVmArm.Vm.code NextLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 71) rfl (by decide +kernel)
 
-public theorem NextLevel.b0_at : NativeRustcVmArm.Vm.NextLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code 9651 :=
+public theorem NextLevel.b0_at : NativeRustcVmArm.Vm.NextLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b0Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b0_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b1_at : NativeRustcVmArm.Vm.NextLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code 9675 :=
+public theorem NextLevel.b1_at : NativeRustcVmArm.Vm.NextLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b1Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b1_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b2_at : NativeRustcVmArm.Vm.NextLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code 9676 :=
+public theorem NextLevel.b2_at : NativeRustcVmArm.Vm.NextLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b2Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b2_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b3_at : NativeRustcVmArm.Vm.NextLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code 9685 :=
+public theorem NextLevel.b3_at : NativeRustcVmArm.Vm.NextLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b3Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b3_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b4_at : NativeRustcVmArm.Vm.NextLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code 9689 :=
+public theorem NextLevel.b4_at : NativeRustcVmArm.Vm.NextLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b4Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b4_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b5_at : NativeRustcVmArm.Vm.NextLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code 9690 :=
+public theorem NextLevel.b5_at : NativeRustcVmArm.Vm.NextLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b5Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b5_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b6_at : NativeRustcVmArm.Vm.NextLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code 9693 :=
+public theorem NextLevel.b6_at : NativeRustcVmArm.Vm.NextLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b6Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b6_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b7_at : NativeRustcVmArm.Vm.NextLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code 9694 :=
+public theorem NextLevel.b7_at : NativeRustcVmArm.Vm.NextLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b7Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b7_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b8_at : NativeRustcVmArm.Vm.NextLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code 9738 :=
+public theorem NextLevel.b8_at : NativeRustcVmArm.Vm.NextLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b8Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b8_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b9_at : NativeRustcVmArm.Vm.NextLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code 9745 :=
+public theorem NextLevel.b9_at : NativeRustcVmArm.Vm.NextLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b9Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b9_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b10_at : NativeRustcVmArm.Vm.NextLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code 9748 :=
+public theorem NextLevel.b10_at : NativeRustcVmArm.Vm.NextLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b10Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b10_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b11_at : NativeRustcVmArm.Vm.NextLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code 9750 :=
+public theorem NextLevel.b11_at : NativeRustcVmArm.Vm.NextLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b11Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b11_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b12_at : NativeRustcVmArm.Vm.NextLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code 9755 :=
+public theorem NextLevel.b12_at : NativeRustcVmArm.Vm.NextLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b12Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b12_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b13_at : NativeRustcVmArm.Vm.NextLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code 9756 :=
+public theorem NextLevel.b13_at : NativeRustcVmArm.Vm.NextLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b13Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b13_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b14_at : NativeRustcVmArm.Vm.NextLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code 9764 :=
+public theorem NextLevel.b14_at : NativeRustcVmArm.Vm.NextLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b14Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b14_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b15_at : NativeRustcVmArm.Vm.NextLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code 9765 :=
+public theorem NextLevel.b15_at : NativeRustcVmArm.Vm.NextLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b15Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b15_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b16_at : NativeRustcVmArm.Vm.NextLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code 9767 :=
+public theorem NextLevel.b16_at : NativeRustcVmArm.Vm.NextLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b16Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b16_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b17_at : NativeRustcVmArm.Vm.NextLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code 9772 :=
+public theorem NextLevel.b17_at : NativeRustcVmArm.Vm.NextLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b17Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b17_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b18_at : NativeRustcVmArm.Vm.NextLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code 9781 :=
+public theorem NextLevel.b18_at : NativeRustcVmArm.Vm.NextLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b18Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b18_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b19_at : NativeRustcVmArm.Vm.NextLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code 9798 :=
+public theorem NextLevel.b19_at : NativeRustcVmArm.Vm.NextLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b19Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b19_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b20_at : NativeRustcVmArm.Vm.NextLevel.b20.IsInfixAt NativeRustcVmArm.Vm.code 9803 :=
+public theorem NextLevel.b20_at : NativeRustcVmArm.Vm.NextLevel.b20.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b20Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b20_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b21_at : NativeRustcVmArm.Vm.NextLevel.b21.IsInfixAt NativeRustcVmArm.Vm.code 9810 :=
+public theorem NextLevel.b21_at : NativeRustcVmArm.Vm.NextLevel.b21.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b21Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b21_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b22_at : NativeRustcVmArm.Vm.NextLevel.b22.IsInfixAt NativeRustcVmArm.Vm.code 9812 :=
+public theorem NextLevel.b22_at : NativeRustcVmArm.Vm.NextLevel.b22.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b22Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b22_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b23_at : NativeRustcVmArm.Vm.NextLevel.b23.IsInfixAt NativeRustcVmArm.Vm.code 9852 :=
+public theorem NextLevel.b23_at : NativeRustcVmArm.Vm.NextLevel.b23.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b23Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b23_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b24_at : NativeRustcVmArm.Vm.NextLevel.b24.IsInfixAt NativeRustcVmArm.Vm.code 9853 :=
+public theorem NextLevel.b24_at : NativeRustcVmArm.Vm.NextLevel.b24.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b24Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b24_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b25_at : NativeRustcVmArm.Vm.NextLevel.b25.IsInfixAt NativeRustcVmArm.Vm.code 9868 :=
+public theorem NextLevel.b25_at : NativeRustcVmArm.Vm.NextLevel.b25.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b25Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b25_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b26_at : NativeRustcVmArm.Vm.NextLevel.b26.IsInfixAt NativeRustcVmArm.Vm.code 9869 :=
+public theorem NextLevel.b26_at : NativeRustcVmArm.Vm.NextLevel.b26.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b26Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b26_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NextLevel.b27_at : NativeRustcVmArm.Vm.NextLevel.b27.IsInfixAt NativeRustcVmArm.Vm.code 9871 :=
+public theorem NextLevel.b27_at : NativeRustcVmArm.Vm.NextLevel.b27.IsInfixAt NativeRustcVmArm.Vm.code (NextLevel.programOffset + NativeRustcVmArm.Vm.NextLevel.b27Offset) :=
   NativeRustcVmArm.Vm.NextLevel.b27_in_code.trans NextLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.code_at : NativeRustcVmArm.Vm.NovelEval.code.IsInfixAt NativeRustcVmArm.Vm.code 9881 :=
+@[expose] public def NovelEval.programOffset : Nat := 9881
+
+public theorem NovelEval.code_at : NativeRustcVmArm.Vm.NovelEval.code.IsInfixAt NativeRustcVmArm.Vm.code NovelEval.programOffset :=
   List.isInfixAt_flatten_of (i := 72) rfl (by decide +kernel)
 
-public theorem NovelEval.b0_at : NativeRustcVmArm.Vm.NovelEval.b0.IsInfixAt NativeRustcVmArm.Vm.code 9881 :=
+public theorem NovelEval.b0_at : NativeRustcVmArm.Vm.NovelEval.b0.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b0Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b0_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b1_at : NativeRustcVmArm.Vm.NovelEval.b1.IsInfixAt NativeRustcVmArm.Vm.code 9899 :=
+public theorem NovelEval.b1_at : NativeRustcVmArm.Vm.NovelEval.b1.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b1Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b1_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b2_at : NativeRustcVmArm.Vm.NovelEval.b2.IsInfixAt NativeRustcVmArm.Vm.code 9901 :=
+public theorem NovelEval.b2_at : NativeRustcVmArm.Vm.NovelEval.b2.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b2Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b2_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b3_at : NativeRustcVmArm.Vm.NovelEval.b3.IsInfixAt NativeRustcVmArm.Vm.code 9905 :=
+public theorem NovelEval.b3_at : NativeRustcVmArm.Vm.NovelEval.b3.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b3Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b3_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b4_at : NativeRustcVmArm.Vm.NovelEval.b4.IsInfixAt NativeRustcVmArm.Vm.code 9907 :=
+public theorem NovelEval.b4_at : NativeRustcVmArm.Vm.NovelEval.b4.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b4Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b4_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b5_at : NativeRustcVmArm.Vm.NovelEval.b5.IsInfixAt NativeRustcVmArm.Vm.code 9910 :=
+public theorem NovelEval.b5_at : NativeRustcVmArm.Vm.NovelEval.b5.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b5Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b5_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b6_at : NativeRustcVmArm.Vm.NovelEval.b6.IsInfixAt NativeRustcVmArm.Vm.code 9913 :=
+public theorem NovelEval.b6_at : NativeRustcVmArm.Vm.NovelEval.b6.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b6Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b6_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b7_at : NativeRustcVmArm.Vm.NovelEval.b7.IsInfixAt NativeRustcVmArm.Vm.code 9917 :=
+public theorem NovelEval.b7_at : NativeRustcVmArm.Vm.NovelEval.b7.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b7Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b7_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b8_at : NativeRustcVmArm.Vm.NovelEval.b8.IsInfixAt NativeRustcVmArm.Vm.code 9921 :=
+public theorem NovelEval.b8_at : NativeRustcVmArm.Vm.NovelEval.b8.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b8Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b8_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b9_at : NativeRustcVmArm.Vm.NovelEval.b9.IsInfixAt NativeRustcVmArm.Vm.code 9925 :=
+public theorem NovelEval.b9_at : NativeRustcVmArm.Vm.NovelEval.b9.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b9Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b9_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b10_at : NativeRustcVmArm.Vm.NovelEval.b10.IsInfixAt NativeRustcVmArm.Vm.code 9929 :=
+public theorem NovelEval.b10_at : NativeRustcVmArm.Vm.NovelEval.b10.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b10Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b10_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b11_at : NativeRustcVmArm.Vm.NovelEval.b11.IsInfixAt NativeRustcVmArm.Vm.code 9933 :=
+public theorem NovelEval.b11_at : NativeRustcVmArm.Vm.NovelEval.b11.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b11Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b11_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b12_at : NativeRustcVmArm.Vm.NovelEval.b12.IsInfixAt NativeRustcVmArm.Vm.code 9938 :=
+public theorem NovelEval.b12_at : NativeRustcVmArm.Vm.NovelEval.b12.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b12Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b12_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b13_at : NativeRustcVmArm.Vm.NovelEval.b13.IsInfixAt NativeRustcVmArm.Vm.code 9942 :=
+public theorem NovelEval.b13_at : NativeRustcVmArm.Vm.NovelEval.b13.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b13Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b13_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b14_at : NativeRustcVmArm.Vm.NovelEval.b14.IsInfixAt NativeRustcVmArm.Vm.code 9947 :=
+public theorem NovelEval.b14_at : NativeRustcVmArm.Vm.NovelEval.b14.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b14Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b14_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b15_at : NativeRustcVmArm.Vm.NovelEval.b15.IsInfixAt NativeRustcVmArm.Vm.code 9948 :=
+public theorem NovelEval.b15_at : NativeRustcVmArm.Vm.NovelEval.b15.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b15Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b15_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b16_at : NativeRustcVmArm.Vm.NovelEval.b16.IsInfixAt NativeRustcVmArm.Vm.code 9951 :=
+public theorem NovelEval.b16_at : NativeRustcVmArm.Vm.NovelEval.b16.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b16Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b16_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b17_at : NativeRustcVmArm.Vm.NovelEval.b17.IsInfixAt NativeRustcVmArm.Vm.code 9954 :=
+public theorem NovelEval.b17_at : NativeRustcVmArm.Vm.NovelEval.b17.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b17Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b17_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem NovelEval.b18_at : NativeRustcVmArm.Vm.NovelEval.b18.IsInfixAt NativeRustcVmArm.Vm.code 9957 :=
+public theorem NovelEval.b18_at : NativeRustcVmArm.Vm.NovelEval.b18.IsInfixAt NativeRustcVmArm.Vm.code (NovelEval.programOffset + NativeRustcVmArm.Vm.NovelEval.b18Offset) :=
   NativeRustcVmArm.Vm.NovelEval.b18_in_code.trans NovelEval.code_at (List.cons_ne_nil _ _)
 
-public theorem QueryBits.code_at : NativeRustcVmArm.Vm.QueryBits.code.IsInfixAt NativeRustcVmArm.Vm.code 9967 :=
+@[expose] public def QueryBits.programOffset : Nat := 9967
+
+public theorem QueryBits.code_at : NativeRustcVmArm.Vm.QueryBits.code.IsInfixAt NativeRustcVmArm.Vm.code QueryBits.programOffset :=
   List.isInfixAt_flatten_of (i := 73) rfl (by decide +kernel)
 
-public theorem QueryBits.b0_at : NativeRustcVmArm.Vm.QueryBits.b0.IsInfixAt NativeRustcVmArm.Vm.code 9967 :=
+public theorem QueryBits.b0_at : NativeRustcVmArm.Vm.QueryBits.b0.IsInfixAt NativeRustcVmArm.Vm.code (QueryBits.programOffset + NativeRustcVmArm.Vm.QueryBits.b0Offset) :=
   NativeRustcVmArm.Vm.QueryBits.b0_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-public theorem QueryBits.b1_at : NativeRustcVmArm.Vm.QueryBits.b1.IsInfixAt NativeRustcVmArm.Vm.code 9969 :=
+public theorem QueryBits.b1_at : NativeRustcVmArm.Vm.QueryBits.b1.IsInfixAt NativeRustcVmArm.Vm.code (QueryBits.programOffset + NativeRustcVmArm.Vm.QueryBits.b1Offset) :=
   NativeRustcVmArm.Vm.QueryBits.b1_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-public theorem QueryBits.b2_at : NativeRustcVmArm.Vm.QueryBits.b2.IsInfixAt NativeRustcVmArm.Vm.code 9971 :=
+public theorem QueryBits.b2_at : NativeRustcVmArm.Vm.QueryBits.b2.IsInfixAt NativeRustcVmArm.Vm.code (QueryBits.programOffset + NativeRustcVmArm.Vm.QueryBits.b2Offset) :=
   NativeRustcVmArm.Vm.QueryBits.b2_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-public theorem QueryBits.b3_at : NativeRustcVmArm.Vm.QueryBits.b3.IsInfixAt NativeRustcVmArm.Vm.code 9976 :=
+public theorem QueryBits.b3_at : NativeRustcVmArm.Vm.QueryBits.b3.IsInfixAt NativeRustcVmArm.Vm.code (QueryBits.programOffset + NativeRustcVmArm.Vm.QueryBits.b3Offset) :=
   NativeRustcVmArm.Vm.QueryBits.b3_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-public theorem QueryBits.b4_at : NativeRustcVmArm.Vm.QueryBits.b4.IsInfixAt NativeRustcVmArm.Vm.code 9983 :=
+public theorem QueryBits.b4_at : NativeRustcVmArm.Vm.QueryBits.b4.IsInfixAt NativeRustcVmArm.Vm.code (QueryBits.programOffset + NativeRustcVmArm.Vm.QueryBits.b4Offset) :=
   NativeRustcVmArm.Vm.QueryBits.b4_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-public theorem QueryBits.b5_at : NativeRustcVmArm.Vm.QueryBits.b5.IsInfixAt NativeRustcVmArm.Vm.code 9986 :=
+public theorem QueryBits.b5_at : NativeRustcVmArm.Vm.QueryBits.b5.IsInfixAt NativeRustcVmArm.Vm.code (QueryBits.programOffset + NativeRustcVmArm.Vm.QueryBits.b5Offset) :=
   NativeRustcVmArm.Vm.QueryBits.b5_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-public theorem QueryBits.b6_at : NativeRustcVmArm.Vm.QueryBits.b6.IsInfixAt NativeRustcVmArm.Vm.code 9993 :=
+public theorem QueryBits.b6_at : NativeRustcVmArm.Vm.QueryBits.b6.IsInfixAt NativeRustcVmArm.Vm.code (QueryBits.programOffset + NativeRustcVmArm.Vm.QueryBits.b6Offset) :=
   NativeRustcVmArm.Vm.QueryBits.b6_in_code.trans QueryBits.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.code_at : NativeRustcVmArm.Vm.FinalLevel.code.IsInfixAt NativeRustcVmArm.Vm.code 10000 :=
+@[expose] public def FinalLevel.programOffset : Nat := 10000
+
+public theorem FinalLevel.code_at : NativeRustcVmArm.Vm.FinalLevel.code.IsInfixAt NativeRustcVmArm.Vm.code FinalLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 74) rfl (by decide +kernel)
 
-public theorem FinalLevel.b0_at : NativeRustcVmArm.Vm.FinalLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code 10000 :=
+public theorem FinalLevel.b0_at : NativeRustcVmArm.Vm.FinalLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b0Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b0_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b1_at : NativeRustcVmArm.Vm.FinalLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code 10110 :=
+public theorem FinalLevel.b1_at : NativeRustcVmArm.Vm.FinalLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b1Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b1_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b2_at : NativeRustcVmArm.Vm.FinalLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code 10117 :=
+public theorem FinalLevel.b2_at : NativeRustcVmArm.Vm.FinalLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b2Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b2_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b3_at : NativeRustcVmArm.Vm.FinalLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code 10119 :=
+public theorem FinalLevel.b3_at : NativeRustcVmArm.Vm.FinalLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b3Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b3_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b4_at : NativeRustcVmArm.Vm.FinalLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code 10128 :=
+public theorem FinalLevel.b4_at : NativeRustcVmArm.Vm.FinalLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b4Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b4_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b5_at : NativeRustcVmArm.Vm.FinalLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code 10139 :=
+public theorem FinalLevel.b5_at : NativeRustcVmArm.Vm.FinalLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b5Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b5_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b6_at : NativeRustcVmArm.Vm.FinalLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code 10140 :=
+public theorem FinalLevel.b6_at : NativeRustcVmArm.Vm.FinalLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b6Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b6_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b7_at : NativeRustcVmArm.Vm.FinalLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code 10143 :=
+public theorem FinalLevel.b7_at : NativeRustcVmArm.Vm.FinalLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b7Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b7_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b8_at : NativeRustcVmArm.Vm.FinalLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code 10144 :=
+public theorem FinalLevel.b8_at : NativeRustcVmArm.Vm.FinalLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b8Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b8_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b9_at : NativeRustcVmArm.Vm.FinalLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code 10151 :=
+public theorem FinalLevel.b9_at : NativeRustcVmArm.Vm.FinalLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b9Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b9_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b10_at : NativeRustcVmArm.Vm.FinalLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code 10152 :=
+public theorem FinalLevel.b10_at : NativeRustcVmArm.Vm.FinalLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b10Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b10_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b11_at : NativeRustcVmArm.Vm.FinalLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code 10165 :=
+public theorem FinalLevel.b11_at : NativeRustcVmArm.Vm.FinalLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b11Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b11_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b12_at : NativeRustcVmArm.Vm.FinalLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code 10167 :=
+public theorem FinalLevel.b12_at : NativeRustcVmArm.Vm.FinalLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b12Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b12_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b13_at : NativeRustcVmArm.Vm.FinalLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code 10190 :=
+public theorem FinalLevel.b13_at : NativeRustcVmArm.Vm.FinalLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b13Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b13_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b14_at : NativeRustcVmArm.Vm.FinalLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code 10191 :=
+public theorem FinalLevel.b14_at : NativeRustcVmArm.Vm.FinalLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b14Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b14_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b15_at : NativeRustcVmArm.Vm.FinalLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code 10253 :=
+public theorem FinalLevel.b15_at : NativeRustcVmArm.Vm.FinalLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b15Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b15_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b16_at : NativeRustcVmArm.Vm.FinalLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code 10260 :=
+public theorem FinalLevel.b16_at : NativeRustcVmArm.Vm.FinalLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b16Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b16_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b17_at : NativeRustcVmArm.Vm.FinalLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code 10262 :=
+public theorem FinalLevel.b17_at : NativeRustcVmArm.Vm.FinalLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b17Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b17_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b18_at : NativeRustcVmArm.Vm.FinalLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code 10334 :=
+public theorem FinalLevel.b18_at : NativeRustcVmArm.Vm.FinalLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b18Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b18_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b19_at : NativeRustcVmArm.Vm.FinalLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code 10335 :=
+public theorem FinalLevel.b19_at : NativeRustcVmArm.Vm.FinalLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b19Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b19_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b20_at : NativeRustcVmArm.Vm.FinalLevel.b20.IsInfixAt NativeRustcVmArm.Vm.code 10339 :=
+public theorem FinalLevel.b20_at : NativeRustcVmArm.Vm.FinalLevel.b20.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b20Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b20_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b21_at : NativeRustcVmArm.Vm.FinalLevel.b21.IsInfixAt NativeRustcVmArm.Vm.code 10340 :=
+public theorem FinalLevel.b21_at : NativeRustcVmArm.Vm.FinalLevel.b21.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b21Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b21_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b22_at : NativeRustcVmArm.Vm.FinalLevel.b22.IsInfixAt NativeRustcVmArm.Vm.code 10414 :=
+public theorem FinalLevel.b22_at : NativeRustcVmArm.Vm.FinalLevel.b22.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b22Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b22_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b23_at : NativeRustcVmArm.Vm.FinalLevel.b23.IsInfixAt NativeRustcVmArm.Vm.code 10415 :=
+public theorem FinalLevel.b23_at : NativeRustcVmArm.Vm.FinalLevel.b23.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b23Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b23_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b24_at : NativeRustcVmArm.Vm.FinalLevel.b24.IsInfixAt NativeRustcVmArm.Vm.code 10420 :=
+public theorem FinalLevel.b24_at : NativeRustcVmArm.Vm.FinalLevel.b24.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b24Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b24_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b25_at : NativeRustcVmArm.Vm.FinalLevel.b25.IsInfixAt NativeRustcVmArm.Vm.code 10421 :=
+public theorem FinalLevel.b25_at : NativeRustcVmArm.Vm.FinalLevel.b25.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b25Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b25_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b26_at : NativeRustcVmArm.Vm.FinalLevel.b26.IsInfixAt NativeRustcVmArm.Vm.code 10430 :=
+public theorem FinalLevel.b26_at : NativeRustcVmArm.Vm.FinalLevel.b26.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b26Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b26_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b27_at : NativeRustcVmArm.Vm.FinalLevel.b27.IsInfixAt NativeRustcVmArm.Vm.code 10432 :=
+public theorem FinalLevel.b27_at : NativeRustcVmArm.Vm.FinalLevel.b27.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b27Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b27_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b28_at : NativeRustcVmArm.Vm.FinalLevel.b28.IsInfixAt NativeRustcVmArm.Vm.code 10444 :=
+public theorem FinalLevel.b28_at : NativeRustcVmArm.Vm.FinalLevel.b28.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b28Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b28_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b29_at : NativeRustcVmArm.Vm.FinalLevel.b29.IsInfixAt NativeRustcVmArm.Vm.code 10446 :=
+public theorem FinalLevel.b29_at : NativeRustcVmArm.Vm.FinalLevel.b29.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b29Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b29_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b30_at : NativeRustcVmArm.Vm.FinalLevel.b30.IsInfixAt NativeRustcVmArm.Vm.code 10457 :=
+public theorem FinalLevel.b30_at : NativeRustcVmArm.Vm.FinalLevel.b30.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b30Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b30_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b31_at : NativeRustcVmArm.Vm.FinalLevel.b31.IsInfixAt NativeRustcVmArm.Vm.code 10459 :=
+public theorem FinalLevel.b31_at : NativeRustcVmArm.Vm.FinalLevel.b31.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b31Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b31_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b32_at : NativeRustcVmArm.Vm.FinalLevel.b32.IsInfixAt NativeRustcVmArm.Vm.code 10464 :=
+public theorem FinalLevel.b32_at : NativeRustcVmArm.Vm.FinalLevel.b32.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b32Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b32_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b33_at : NativeRustcVmArm.Vm.FinalLevel.b33.IsInfixAt NativeRustcVmArm.Vm.code 10469 :=
+public theorem FinalLevel.b33_at : NativeRustcVmArm.Vm.FinalLevel.b33.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b33Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b33_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b34_at : NativeRustcVmArm.Vm.FinalLevel.b34.IsInfixAt NativeRustcVmArm.Vm.code 10476 :=
+public theorem FinalLevel.b34_at : NativeRustcVmArm.Vm.FinalLevel.b34.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b34Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b34_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FinalLevel.b35_at : NativeRustcVmArm.Vm.FinalLevel.b35.IsInfixAt NativeRustcVmArm.Vm.code 10481 :=
+public theorem FinalLevel.b35_at : NativeRustcVmArm.Vm.FinalLevel.b35.IsInfixAt NativeRustcVmArm.Vm.code (FinalLevel.programOffset + NativeRustcVmArm.Vm.FinalLevel.b35Offset) :=
   NativeRustcVmArm.Vm.FinalLevel.b35_in_code.trans FinalLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.code_at : NativeRustcVmArm.Vm.FoldRounds.code.IsInfixAt NativeRustcVmArm.Vm.code 10486 :=
+@[expose] public def FoldRounds.programOffset : Nat := 10486
+
+public theorem FoldRounds.code_at : NativeRustcVmArm.Vm.FoldRounds.code.IsInfixAt NativeRustcVmArm.Vm.code FoldRounds.programOffset :=
   List.isInfixAt_flatten_of (i := 75) rfl (by decide +kernel)
 
-public theorem FoldRounds.b0_at : NativeRustcVmArm.Vm.FoldRounds.b0.IsInfixAt NativeRustcVmArm.Vm.code 10486 :=
+public theorem FoldRounds.b0_at : NativeRustcVmArm.Vm.FoldRounds.b0.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b0Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b0_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b1_at : NativeRustcVmArm.Vm.FoldRounds.b1.IsInfixAt NativeRustcVmArm.Vm.code 10489 :=
+public theorem FoldRounds.b1_at : NativeRustcVmArm.Vm.FoldRounds.b1.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b1Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b1_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b2_at : NativeRustcVmArm.Vm.FoldRounds.b2.IsInfixAt NativeRustcVmArm.Vm.code 10501 :=
+public theorem FoldRounds.b2_at : NativeRustcVmArm.Vm.FoldRounds.b2.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b2Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b2_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b3_at : NativeRustcVmArm.Vm.FoldRounds.b3.IsInfixAt NativeRustcVmArm.Vm.code 10503 :=
+public theorem FoldRounds.b3_at : NativeRustcVmArm.Vm.FoldRounds.b3.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b3Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b3_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b4_at : NativeRustcVmArm.Vm.FoldRounds.b4.IsInfixAt NativeRustcVmArm.Vm.code 10515 :=
+public theorem FoldRounds.b4_at : NativeRustcVmArm.Vm.FoldRounds.b4.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b4Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b4_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b5_at : NativeRustcVmArm.Vm.FoldRounds.b5.IsInfixAt NativeRustcVmArm.Vm.code 10519 :=
+public theorem FoldRounds.b5_at : NativeRustcVmArm.Vm.FoldRounds.b5.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b5Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b5_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b6_at : NativeRustcVmArm.Vm.FoldRounds.b6.IsInfixAt NativeRustcVmArm.Vm.code 10521 :=
+public theorem FoldRounds.b6_at : NativeRustcVmArm.Vm.FoldRounds.b6.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b6Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b6_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b7_at : NativeRustcVmArm.Vm.FoldRounds.b7.IsInfixAt NativeRustcVmArm.Vm.code 10533 :=
+public theorem FoldRounds.b7_at : NativeRustcVmArm.Vm.FoldRounds.b7.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b7Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b7_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b8_at : NativeRustcVmArm.Vm.FoldRounds.b8.IsInfixAt NativeRustcVmArm.Vm.code 10535 :=
+public theorem FoldRounds.b8_at : NativeRustcVmArm.Vm.FoldRounds.b8.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b8Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b8_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b9_at : NativeRustcVmArm.Vm.FoldRounds.b9.IsInfixAt NativeRustcVmArm.Vm.code 10541 :=
+public theorem FoldRounds.b9_at : NativeRustcVmArm.Vm.FoldRounds.b9.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b9Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b9_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b10_at : NativeRustcVmArm.Vm.FoldRounds.b10.IsInfixAt NativeRustcVmArm.Vm.code 10544 :=
+public theorem FoldRounds.b10_at : NativeRustcVmArm.Vm.FoldRounds.b10.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b10Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b10_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b11_at : NativeRustcVmArm.Vm.FoldRounds.b11.IsInfixAt NativeRustcVmArm.Vm.code 10549 :=
+public theorem FoldRounds.b11_at : NativeRustcVmArm.Vm.FoldRounds.b11.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b11Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b11_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b12_at : NativeRustcVmArm.Vm.FoldRounds.b12.IsInfixAt NativeRustcVmArm.Vm.code 10551 :=
+public theorem FoldRounds.b12_at : NativeRustcVmArm.Vm.FoldRounds.b12.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b12Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b12_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b13_at : NativeRustcVmArm.Vm.FoldRounds.b13.IsInfixAt NativeRustcVmArm.Vm.code 10563 :=
+public theorem FoldRounds.b13_at : NativeRustcVmArm.Vm.FoldRounds.b13.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b13Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b13_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b14_at : NativeRustcVmArm.Vm.FoldRounds.b14.IsInfixAt NativeRustcVmArm.Vm.code 10567 :=
+public theorem FoldRounds.b14_at : NativeRustcVmArm.Vm.FoldRounds.b14.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b14Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b14_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b15_at : NativeRustcVmArm.Vm.FoldRounds.b15.IsInfixAt NativeRustcVmArm.Vm.code 10569 :=
+public theorem FoldRounds.b15_at : NativeRustcVmArm.Vm.FoldRounds.b15.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b15Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b15_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b16_at : NativeRustcVmArm.Vm.FoldRounds.b16.IsInfixAt NativeRustcVmArm.Vm.code 10581 :=
+public theorem FoldRounds.b16_at : NativeRustcVmArm.Vm.FoldRounds.b16.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b16Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b16_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b17_at : NativeRustcVmArm.Vm.FoldRounds.b17.IsInfixAt NativeRustcVmArm.Vm.code 10585 :=
+public theorem FoldRounds.b17_at : NativeRustcVmArm.Vm.FoldRounds.b17.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b17Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b17_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b18_at : NativeRustcVmArm.Vm.FoldRounds.b18.IsInfixAt NativeRustcVmArm.Vm.code 10587 :=
+public theorem FoldRounds.b18_at : NativeRustcVmArm.Vm.FoldRounds.b18.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b18Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b18_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b19_at : NativeRustcVmArm.Vm.FoldRounds.b19.IsInfixAt NativeRustcVmArm.Vm.code 10599 :=
+public theorem FoldRounds.b19_at : NativeRustcVmArm.Vm.FoldRounds.b19.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b19Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b19_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b20_at : NativeRustcVmArm.Vm.FoldRounds.b20.IsInfixAt NativeRustcVmArm.Vm.code 10603 :=
+public theorem FoldRounds.b20_at : NativeRustcVmArm.Vm.FoldRounds.b20.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b20Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b20_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b21_at : NativeRustcVmArm.Vm.FoldRounds.b21.IsInfixAt NativeRustcVmArm.Vm.code 10605 :=
+public theorem FoldRounds.b21_at : NativeRustcVmArm.Vm.FoldRounds.b21.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b21Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b21_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b22_at : NativeRustcVmArm.Vm.FoldRounds.b22.IsInfixAt NativeRustcVmArm.Vm.code 10617 :=
+public theorem FoldRounds.b22_at : NativeRustcVmArm.Vm.FoldRounds.b22.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b22Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b22_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRounds.b23_at : NativeRustcVmArm.Vm.FoldRounds.b23.IsInfixAt NativeRustcVmArm.Vm.code 10621 :=
+public theorem FoldRounds.b23_at : NativeRustcVmArm.Vm.FoldRounds.b23.IsInfixAt NativeRustcVmArm.Vm.code (FoldRounds.programOffset + NativeRustcVmArm.Vm.FoldRounds.b23Offset) :=
   NativeRustcVmArm.Vm.FoldRounds.b23_in_code.trans FoldRounds.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.code_at : NativeRustcVmArm.Vm.WhirLevels.code.IsInfixAt NativeRustcVmArm.Vm.code 10628 :=
+@[expose] public def WhirLevels.programOffset : Nat := 10628
+
+public theorem WhirLevels.code_at : NativeRustcVmArm.Vm.WhirLevels.code.IsInfixAt NativeRustcVmArm.Vm.code WhirLevels.programOffset :=
   List.isInfixAt_flatten_of (i := 76) rfl (by decide +kernel)
 
-public theorem WhirLevels.b0_at : NativeRustcVmArm.Vm.WhirLevels.b0.IsInfixAt NativeRustcVmArm.Vm.code 10628 :=
+public theorem WhirLevels.b0_at : NativeRustcVmArm.Vm.WhirLevels.b0.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b0Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b0_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b1_at : NativeRustcVmArm.Vm.WhirLevels.b1.IsInfixAt NativeRustcVmArm.Vm.code 10638 :=
+public theorem WhirLevels.b1_at : NativeRustcVmArm.Vm.WhirLevels.b1.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b1Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b1_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b2_at : NativeRustcVmArm.Vm.WhirLevels.b2.IsInfixAt NativeRustcVmArm.Vm.code 10651 :=
+public theorem WhirLevels.b2_at : NativeRustcVmArm.Vm.WhirLevels.b2.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b2Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b2_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b3_at : NativeRustcVmArm.Vm.WhirLevels.b3.IsInfixAt NativeRustcVmArm.Vm.code 10652 :=
+public theorem WhirLevels.b3_at : NativeRustcVmArm.Vm.WhirLevels.b3.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b3Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b3_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b4_at : NativeRustcVmArm.Vm.WhirLevels.b4.IsInfixAt NativeRustcVmArm.Vm.code 10657 :=
+public theorem WhirLevels.b4_at : NativeRustcVmArm.Vm.WhirLevels.b4.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b4Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b4_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b5_at : NativeRustcVmArm.Vm.WhirLevels.b5.IsInfixAt NativeRustcVmArm.Vm.code 10672 :=
+public theorem WhirLevels.b5_at : NativeRustcVmArm.Vm.WhirLevels.b5.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b5Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b5_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b6_at : NativeRustcVmArm.Vm.WhirLevels.b6.IsInfixAt NativeRustcVmArm.Vm.code 10679 :=
+public theorem WhirLevels.b6_at : NativeRustcVmArm.Vm.WhirLevels.b6.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b6Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b6_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b7_at : NativeRustcVmArm.Vm.WhirLevels.b7.IsInfixAt NativeRustcVmArm.Vm.code 10680 :=
+public theorem WhirLevels.b7_at : NativeRustcVmArm.Vm.WhirLevels.b7.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b7Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b7_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b8_at : NativeRustcVmArm.Vm.WhirLevels.b8.IsInfixAt NativeRustcVmArm.Vm.code 10685 :=
+public theorem WhirLevels.b8_at : NativeRustcVmArm.Vm.WhirLevels.b8.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b8Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b8_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b9_at : NativeRustcVmArm.Vm.WhirLevels.b9.IsInfixAt NativeRustcVmArm.Vm.code 10686 :=
+public theorem WhirLevels.b9_at : NativeRustcVmArm.Vm.WhirLevels.b9.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b9Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b9_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b10_at : NativeRustcVmArm.Vm.WhirLevels.b10.IsInfixAt NativeRustcVmArm.Vm.code 10691 :=
+public theorem WhirLevels.b10_at : NativeRustcVmArm.Vm.WhirLevels.b10.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b10Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b10_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b11_at : NativeRustcVmArm.Vm.WhirLevels.b11.IsInfixAt NativeRustcVmArm.Vm.code 10693 :=
+public theorem WhirLevels.b11_at : NativeRustcVmArm.Vm.WhirLevels.b11.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b11Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b11_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b12_at : NativeRustcVmArm.Vm.WhirLevels.b12.IsInfixAt NativeRustcVmArm.Vm.code 10700 :=
+public theorem WhirLevels.b12_at : NativeRustcVmArm.Vm.WhirLevels.b12.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b12Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b12_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b13_at : NativeRustcVmArm.Vm.WhirLevels.b13.IsInfixAt NativeRustcVmArm.Vm.code 10702 :=
+public theorem WhirLevels.b13_at : NativeRustcVmArm.Vm.WhirLevels.b13.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b13Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b13_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b14_at : NativeRustcVmArm.Vm.WhirLevels.b14.IsInfixAt NativeRustcVmArm.Vm.code 10703 :=
+public theorem WhirLevels.b14_at : NativeRustcVmArm.Vm.WhirLevels.b14.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b14Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b14_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b15_at : NativeRustcVmArm.Vm.WhirLevels.b15.IsInfixAt NativeRustcVmArm.Vm.code 10708 :=
+public theorem WhirLevels.b15_at : NativeRustcVmArm.Vm.WhirLevels.b15.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b15Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b15_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b16_at : NativeRustcVmArm.Vm.WhirLevels.b16.IsInfixAt NativeRustcVmArm.Vm.code 10709 :=
+public theorem WhirLevels.b16_at : NativeRustcVmArm.Vm.WhirLevels.b16.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b16Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b16_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b17_at : NativeRustcVmArm.Vm.WhirLevels.b17.IsInfixAt NativeRustcVmArm.Vm.code 10715 :=
+public theorem WhirLevels.b17_at : NativeRustcVmArm.Vm.WhirLevels.b17.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b17Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b17_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b18_at : NativeRustcVmArm.Vm.WhirLevels.b18.IsInfixAt NativeRustcVmArm.Vm.code 10718 :=
+public theorem WhirLevels.b18_at : NativeRustcVmArm.Vm.WhirLevels.b18.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b18Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b18_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b19_at : NativeRustcVmArm.Vm.WhirLevels.b19.IsInfixAt NativeRustcVmArm.Vm.code 10725 :=
+public theorem WhirLevels.b19_at : NativeRustcVmArm.Vm.WhirLevels.b19.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b19Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b19_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b20_at : NativeRustcVmArm.Vm.WhirLevels.b20.IsInfixAt NativeRustcVmArm.Vm.code 10727 :=
+public theorem WhirLevels.b20_at : NativeRustcVmArm.Vm.WhirLevels.b20.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b20Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b20_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b21_at : NativeRustcVmArm.Vm.WhirLevels.b21.IsInfixAt NativeRustcVmArm.Vm.code 10728 :=
+public theorem WhirLevels.b21_at : NativeRustcVmArm.Vm.WhirLevels.b21.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b21Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b21_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b22_at : NativeRustcVmArm.Vm.WhirLevels.b22.IsInfixAt NativeRustcVmArm.Vm.code 10733 :=
+public theorem WhirLevels.b22_at : NativeRustcVmArm.Vm.WhirLevels.b22.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b22Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b22_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b23_at : NativeRustcVmArm.Vm.WhirLevels.b23.IsInfixAt NativeRustcVmArm.Vm.code 10734 :=
+public theorem WhirLevels.b23_at : NativeRustcVmArm.Vm.WhirLevels.b23.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b23Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b23_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b24_at : NativeRustcVmArm.Vm.WhirLevels.b24.IsInfixAt NativeRustcVmArm.Vm.code 10740 :=
+public theorem WhirLevels.b24_at : NativeRustcVmArm.Vm.WhirLevels.b24.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b24Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b24_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b25_at : NativeRustcVmArm.Vm.WhirLevels.b25.IsInfixAt NativeRustcVmArm.Vm.code 10746 :=
+public theorem WhirLevels.b25_at : NativeRustcVmArm.Vm.WhirLevels.b25.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b25Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b25_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b26_at : NativeRustcVmArm.Vm.WhirLevels.b26.IsInfixAt NativeRustcVmArm.Vm.code 10748 :=
+public theorem WhirLevels.b26_at : NativeRustcVmArm.Vm.WhirLevels.b26.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b26Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b26_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b27_at : NativeRustcVmArm.Vm.WhirLevels.b27.IsInfixAt NativeRustcVmArm.Vm.code 10749 :=
+public theorem WhirLevels.b27_at : NativeRustcVmArm.Vm.WhirLevels.b27.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b27Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b27_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b28_at : NativeRustcVmArm.Vm.WhirLevels.b28.IsInfixAt NativeRustcVmArm.Vm.code 10754 :=
+public theorem WhirLevels.b28_at : NativeRustcVmArm.Vm.WhirLevels.b28.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b28Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b28_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b29_at : NativeRustcVmArm.Vm.WhirLevels.b29.IsInfixAt NativeRustcVmArm.Vm.code 10755 :=
+public theorem WhirLevels.b29_at : NativeRustcVmArm.Vm.WhirLevels.b29.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b29Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b29_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b30_at : NativeRustcVmArm.Vm.WhirLevels.b30.IsInfixAt NativeRustcVmArm.Vm.code 10761 :=
+public theorem WhirLevels.b30_at : NativeRustcVmArm.Vm.WhirLevels.b30.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b30Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b30_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b31_at : NativeRustcVmArm.Vm.WhirLevels.b31.IsInfixAt NativeRustcVmArm.Vm.code 10767 :=
+public theorem WhirLevels.b31_at : NativeRustcVmArm.Vm.WhirLevels.b31.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b31Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b31_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b32_at : NativeRustcVmArm.Vm.WhirLevels.b32.IsInfixAt NativeRustcVmArm.Vm.code 10769 :=
+public theorem WhirLevels.b32_at : NativeRustcVmArm.Vm.WhirLevels.b32.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b32Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b32_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b33_at : NativeRustcVmArm.Vm.WhirLevels.b33.IsInfixAt NativeRustcVmArm.Vm.code 10770 :=
+public theorem WhirLevels.b33_at : NativeRustcVmArm.Vm.WhirLevels.b33.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b33Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b33_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b34_at : NativeRustcVmArm.Vm.WhirLevels.b34.IsInfixAt NativeRustcVmArm.Vm.code 10776 :=
+public theorem WhirLevels.b34_at : NativeRustcVmArm.Vm.WhirLevels.b34.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b34Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b34_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b35_at : NativeRustcVmArm.Vm.WhirLevels.b35.IsInfixAt NativeRustcVmArm.Vm.code 10777 :=
+public theorem WhirLevels.b35_at : NativeRustcVmArm.Vm.WhirLevels.b35.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b35Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b35_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b36_at : NativeRustcVmArm.Vm.WhirLevels.b36.IsInfixAt NativeRustcVmArm.Vm.code 10782 :=
+public theorem WhirLevels.b36_at : NativeRustcVmArm.Vm.WhirLevels.b36.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b36Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b36_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b37_at : NativeRustcVmArm.Vm.WhirLevels.b37.IsInfixAt NativeRustcVmArm.Vm.code 10784 :=
+public theorem WhirLevels.b37_at : NativeRustcVmArm.Vm.WhirLevels.b37.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b37Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b37_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem WhirLevels.b38_at : NativeRustcVmArm.Vm.WhirLevels.b38.IsInfixAt NativeRustcVmArm.Vm.code 10791 :=
+public theorem WhirLevels.b38_at : NativeRustcVmArm.Vm.WhirLevels.b38.IsInfixAt NativeRustcVmArm.Vm.code (WhirLevels.programOffset + NativeRustcVmArm.Vm.WhirLevels.b38Offset) :=
   NativeRustcVmArm.Vm.WhirLevels.b38_in_code.trans WhirLevels.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.code_at : NativeRustcVmArm.Vm.InducedWeight.code.IsInfixAt NativeRustcVmArm.Vm.code 10800 :=
+@[expose] public def InducedWeight.programOffset : Nat := 10800
+
+public theorem InducedWeight.code_at : NativeRustcVmArm.Vm.InducedWeight.code.IsInfixAt NativeRustcVmArm.Vm.code InducedWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 77) rfl (by decide +kernel)
 
-public theorem InducedWeight.b0_at : NativeRustcVmArm.Vm.InducedWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code 10800 :=
+public theorem InducedWeight.b0_at : NativeRustcVmArm.Vm.InducedWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b0Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b0_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b1_at : NativeRustcVmArm.Vm.InducedWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code 10818 :=
+public theorem InducedWeight.b1_at : NativeRustcVmArm.Vm.InducedWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b1Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b1_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b2_at : NativeRustcVmArm.Vm.InducedWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code 10820 :=
+public theorem InducedWeight.b2_at : NativeRustcVmArm.Vm.InducedWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b2Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b2_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b3_at : NativeRustcVmArm.Vm.InducedWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code 10828 :=
+public theorem InducedWeight.b3_at : NativeRustcVmArm.Vm.InducedWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b3Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b3_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b4_at : NativeRustcVmArm.Vm.InducedWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code 10833 :=
+public theorem InducedWeight.b4_at : NativeRustcVmArm.Vm.InducedWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b4Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b4_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b5_at : NativeRustcVmArm.Vm.InducedWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code 10846 :=
+public theorem InducedWeight.b5_at : NativeRustcVmArm.Vm.InducedWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b5Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b5_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b6_at : NativeRustcVmArm.Vm.InducedWeight.b6.IsInfixAt NativeRustcVmArm.Vm.code 10853 :=
+public theorem InducedWeight.b6_at : NativeRustcVmArm.Vm.InducedWeight.b6.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b6Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b6_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b7_at : NativeRustcVmArm.Vm.InducedWeight.b7.IsInfixAt NativeRustcVmArm.Vm.code 10862 :=
+public theorem InducedWeight.b7_at : NativeRustcVmArm.Vm.InducedWeight.b7.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b7Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b7_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b8_at : NativeRustcVmArm.Vm.InducedWeight.b8.IsInfixAt NativeRustcVmArm.Vm.code 10869 :=
+public theorem InducedWeight.b8_at : NativeRustcVmArm.Vm.InducedWeight.b8.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b8Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b8_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b9_at : NativeRustcVmArm.Vm.InducedWeight.b9.IsInfixAt NativeRustcVmArm.Vm.code 10870 :=
+public theorem InducedWeight.b9_at : NativeRustcVmArm.Vm.InducedWeight.b9.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b9Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b9_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b10_at : NativeRustcVmArm.Vm.InducedWeight.b10.IsInfixAt NativeRustcVmArm.Vm.code 10875 :=
+public theorem InducedWeight.b10_at : NativeRustcVmArm.Vm.InducedWeight.b10.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b10Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b10_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b11_at : NativeRustcVmArm.Vm.InducedWeight.b11.IsInfixAt NativeRustcVmArm.Vm.code 10879 :=
+public theorem InducedWeight.b11_at : NativeRustcVmArm.Vm.InducedWeight.b11.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b11Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b11_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b12_at : NativeRustcVmArm.Vm.InducedWeight.b12.IsInfixAt NativeRustcVmArm.Vm.code 10884 :=
+public theorem InducedWeight.b12_at : NativeRustcVmArm.Vm.InducedWeight.b12.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b12Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b12_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b13_at : NativeRustcVmArm.Vm.InducedWeight.b13.IsInfixAt NativeRustcVmArm.Vm.code 10889 :=
+public theorem InducedWeight.b13_at : NativeRustcVmArm.Vm.InducedWeight.b13.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b13Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b13_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b14_at : NativeRustcVmArm.Vm.InducedWeight.b14.IsInfixAt NativeRustcVmArm.Vm.code 10890 :=
+public theorem InducedWeight.b14_at : NativeRustcVmArm.Vm.InducedWeight.b14.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b14Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b14_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b15_at : NativeRustcVmArm.Vm.InducedWeight.b15.IsInfixAt NativeRustcVmArm.Vm.code 10893 :=
+public theorem InducedWeight.b15_at : NativeRustcVmArm.Vm.InducedWeight.b15.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b15Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b15_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem InducedWeight.b16_at : NativeRustcVmArm.Vm.InducedWeight.b16.IsInfixAt NativeRustcVmArm.Vm.code 10897 :=
+public theorem InducedWeight.b16_at : NativeRustcVmArm.Vm.InducedWeight.b16.IsInfixAt NativeRustcVmArm.Vm.code (InducedWeight.programOffset + NativeRustcVmArm.Vm.InducedWeight.b16Offset) :=
   NativeRustcVmArm.Vm.InducedWeight.b16_in_code.trans InducedWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.code_at : NativeRustcVmArm.Vm.SampleQueries.code.IsInfixAt NativeRustcVmArm.Vm.code 10907 :=
+@[expose] public def SampleQueries.programOffset : Nat := 10907
+
+public theorem SampleQueries.code_at : NativeRustcVmArm.Vm.SampleQueries.code.IsInfixAt NativeRustcVmArm.Vm.code SampleQueries.programOffset :=
   List.isInfixAt_flatten_of (i := 78) rfl (by decide +kernel)
 
-public theorem SampleQueries.b0_at : NativeRustcVmArm.Vm.SampleQueries.b0.IsInfixAt NativeRustcVmArm.Vm.code 10907 :=
+public theorem SampleQueries.b0_at : NativeRustcVmArm.Vm.SampleQueries.b0.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b0Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b0_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b1_at : NativeRustcVmArm.Vm.SampleQueries.b1.IsInfixAt NativeRustcVmArm.Vm.code 10910 :=
+public theorem SampleQueries.b1_at : NativeRustcVmArm.Vm.SampleQueries.b1.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b1Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b1_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b2_at : NativeRustcVmArm.Vm.SampleQueries.b2.IsInfixAt NativeRustcVmArm.Vm.code 10922 :=
+public theorem SampleQueries.b2_at : NativeRustcVmArm.Vm.SampleQueries.b2.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b2Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b2_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b3_at : NativeRustcVmArm.Vm.SampleQueries.b3.IsInfixAt NativeRustcVmArm.Vm.code 10930 :=
+public theorem SampleQueries.b3_at : NativeRustcVmArm.Vm.SampleQueries.b3.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b3Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b3_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b4_at : NativeRustcVmArm.Vm.SampleQueries.b4.IsInfixAt NativeRustcVmArm.Vm.code 10933 :=
+public theorem SampleQueries.b4_at : NativeRustcVmArm.Vm.SampleQueries.b4.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b4Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b4_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b5_at : NativeRustcVmArm.Vm.SampleQueries.b5.IsInfixAt NativeRustcVmArm.Vm.code 10935 :=
+public theorem SampleQueries.b5_at : NativeRustcVmArm.Vm.SampleQueries.b5.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b5Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b5_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b6_at : NativeRustcVmArm.Vm.SampleQueries.b6.IsInfixAt NativeRustcVmArm.Vm.code 10938 :=
+public theorem SampleQueries.b6_at : NativeRustcVmArm.Vm.SampleQueries.b6.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b6Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b6_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b7_at : NativeRustcVmArm.Vm.SampleQueries.b7.IsInfixAt NativeRustcVmArm.Vm.code 10941 :=
+public theorem SampleQueries.b7_at : NativeRustcVmArm.Vm.SampleQueries.b7.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b7Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b7_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b8_at : NativeRustcVmArm.Vm.SampleQueries.b8.IsInfixAt NativeRustcVmArm.Vm.code 10947 :=
+public theorem SampleQueries.b8_at : NativeRustcVmArm.Vm.SampleQueries.b8.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b8Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b8_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b9_at : NativeRustcVmArm.Vm.SampleQueries.b9.IsInfixAt NativeRustcVmArm.Vm.code 10953 :=
+public theorem SampleQueries.b9_at : NativeRustcVmArm.Vm.SampleQueries.b9.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b9Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b9_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b10_at : NativeRustcVmArm.Vm.SampleQueries.b10.IsInfixAt NativeRustcVmArm.Vm.code 10955 :=
+public theorem SampleQueries.b10_at : NativeRustcVmArm.Vm.SampleQueries.b10.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b10Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b10_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b11_at : NativeRustcVmArm.Vm.SampleQueries.b11.IsInfixAt NativeRustcVmArm.Vm.code 10957 :=
+public theorem SampleQueries.b11_at : NativeRustcVmArm.Vm.SampleQueries.b11.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b11Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b11_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b12_at : NativeRustcVmArm.Vm.SampleQueries.b12.IsInfixAt NativeRustcVmArm.Vm.code 10961 :=
+public theorem SampleQueries.b12_at : NativeRustcVmArm.Vm.SampleQueries.b12.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b12Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b12_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b13_at : NativeRustcVmArm.Vm.SampleQueries.b13.IsInfixAt NativeRustcVmArm.Vm.code 10972 :=
+public theorem SampleQueries.b13_at : NativeRustcVmArm.Vm.SampleQueries.b13.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b13Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b13_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b14_at : NativeRustcVmArm.Vm.SampleQueries.b14.IsInfixAt NativeRustcVmArm.Vm.code 10974 :=
+public theorem SampleQueries.b14_at : NativeRustcVmArm.Vm.SampleQueries.b14.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b14Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b14_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b15_at : NativeRustcVmArm.Vm.SampleQueries.b15.IsInfixAt NativeRustcVmArm.Vm.code 10979 :=
+public theorem SampleQueries.b15_at : NativeRustcVmArm.Vm.SampleQueries.b15.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b15Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b15_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b16_at : NativeRustcVmArm.Vm.SampleQueries.b16.IsInfixAt NativeRustcVmArm.Vm.code 10986 :=
+public theorem SampleQueries.b16_at : NativeRustcVmArm.Vm.SampleQueries.b16.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b16Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b16_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b17_at : NativeRustcVmArm.Vm.SampleQueries.b17.IsInfixAt NativeRustcVmArm.Vm.code 10987 :=
+public theorem SampleQueries.b17_at : NativeRustcVmArm.Vm.SampleQueries.b17.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b17Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b17_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SampleQueries.b18_at : NativeRustcVmArm.Vm.SampleQueries.b18.IsInfixAt NativeRustcVmArm.Vm.code 10989 :=
+public theorem SampleQueries.b18_at : NativeRustcVmArm.Vm.SampleQueries.b18.IsInfixAt NativeRustcVmArm.Vm.code (SampleQueries.programOffset + NativeRustcVmArm.Vm.SampleQueries.b18Offset) :=
   NativeRustcVmArm.Vm.SampleQueries.b18_in_code.trans SampleQueries.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.code_at : NativeRustcVmArm.Vm.SubspaceTable.code.IsInfixAt NativeRustcVmArm.Vm.code 10998 :=
+@[expose] public def SubspaceTable.programOffset : Nat := 10998
+
+public theorem SubspaceTable.code_at : NativeRustcVmArm.Vm.SubspaceTable.code.IsInfixAt NativeRustcVmArm.Vm.code SubspaceTable.programOffset :=
   List.isInfixAt_flatten_of (i := 79) rfl (by decide +kernel)
 
-public theorem SubspaceTable.b0_at : NativeRustcVmArm.Vm.SubspaceTable.b0.IsInfixAt NativeRustcVmArm.Vm.code 10998 :=
+public theorem SubspaceTable.b0_at : NativeRustcVmArm.Vm.SubspaceTable.b0.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b0Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b0_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b1_at : NativeRustcVmArm.Vm.SubspaceTable.b1.IsInfixAt NativeRustcVmArm.Vm.code 11013 :=
+public theorem SubspaceTable.b1_at : NativeRustcVmArm.Vm.SubspaceTable.b1.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b1Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b1_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b2_at : NativeRustcVmArm.Vm.SubspaceTable.b2.IsInfixAt NativeRustcVmArm.Vm.code 11015 :=
+public theorem SubspaceTable.b2_at : NativeRustcVmArm.Vm.SubspaceTable.b2.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b2Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b2_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b3_at : NativeRustcVmArm.Vm.SubspaceTable.b3.IsInfixAt NativeRustcVmArm.Vm.code 11018 :=
+public theorem SubspaceTable.b3_at : NativeRustcVmArm.Vm.SubspaceTable.b3.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b3Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b3_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b4_at : NativeRustcVmArm.Vm.SubspaceTable.b4.IsInfixAt NativeRustcVmArm.Vm.code 11022 :=
+public theorem SubspaceTable.b4_at : NativeRustcVmArm.Vm.SubspaceTable.b4.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b4Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b4_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b5_at : NativeRustcVmArm.Vm.SubspaceTable.b5.IsInfixAt NativeRustcVmArm.Vm.code 11024 :=
+public theorem SubspaceTable.b5_at : NativeRustcVmArm.Vm.SubspaceTable.b5.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b5Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b5_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b6_at : NativeRustcVmArm.Vm.SubspaceTable.b6.IsInfixAt NativeRustcVmArm.Vm.code 11027 :=
+public theorem SubspaceTable.b6_at : NativeRustcVmArm.Vm.SubspaceTable.b6.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b6Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b6_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b7_at : NativeRustcVmArm.Vm.SubspaceTable.b7.IsInfixAt NativeRustcVmArm.Vm.code 11039 :=
+public theorem SubspaceTable.b7_at : NativeRustcVmArm.Vm.SubspaceTable.b7.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b7Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b7_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b8_at : NativeRustcVmArm.Vm.SubspaceTable.b8.IsInfixAt NativeRustcVmArm.Vm.code 11050 :=
+public theorem SubspaceTable.b8_at : NativeRustcVmArm.Vm.SubspaceTable.b8.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b8Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b8_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b9_at : NativeRustcVmArm.Vm.SubspaceTable.b9.IsInfixAt NativeRustcVmArm.Vm.code 11052 :=
+public theorem SubspaceTable.b9_at : NativeRustcVmArm.Vm.SubspaceTable.b9.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b9Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b9_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b10_at : NativeRustcVmArm.Vm.SubspaceTable.b10.IsInfixAt NativeRustcVmArm.Vm.code 11055 :=
+public theorem SubspaceTable.b10_at : NativeRustcVmArm.Vm.SubspaceTable.b10.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b10Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b10_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b11_at : NativeRustcVmArm.Vm.SubspaceTable.b11.IsInfixAt NativeRustcVmArm.Vm.code 11061 :=
+public theorem SubspaceTable.b11_at : NativeRustcVmArm.Vm.SubspaceTable.b11.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b11Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b11_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b12_at : NativeRustcVmArm.Vm.SubspaceTable.b12.IsInfixAt NativeRustcVmArm.Vm.code 11112 :=
+public theorem SubspaceTable.b12_at : NativeRustcVmArm.Vm.SubspaceTable.b12.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b12Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b12_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b13_at : NativeRustcVmArm.Vm.SubspaceTable.b13.IsInfixAt NativeRustcVmArm.Vm.code 11114 :=
+public theorem SubspaceTable.b13_at : NativeRustcVmArm.Vm.SubspaceTable.b13.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b13Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b13_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b14_at : NativeRustcVmArm.Vm.SubspaceTable.b14.IsInfixAt NativeRustcVmArm.Vm.code 11120 :=
+public theorem SubspaceTable.b14_at : NativeRustcVmArm.Vm.SubspaceTable.b14.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b14Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b14_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b15_at : NativeRustcVmArm.Vm.SubspaceTable.b15.IsInfixAt NativeRustcVmArm.Vm.code 11125 :=
+public theorem SubspaceTable.b15_at : NativeRustcVmArm.Vm.SubspaceTable.b15.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b15Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b15_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b16_at : NativeRustcVmArm.Vm.SubspaceTable.b16.IsInfixAt NativeRustcVmArm.Vm.code 11130 :=
+public theorem SubspaceTable.b16_at : NativeRustcVmArm.Vm.SubspaceTable.b16.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b16Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b16_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b17_at : NativeRustcVmArm.Vm.SubspaceTable.b17.IsInfixAt NativeRustcVmArm.Vm.code 11134 :=
+public theorem SubspaceTable.b17_at : NativeRustcVmArm.Vm.SubspaceTable.b17.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b17Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b17_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b18_at : NativeRustcVmArm.Vm.SubspaceTable.b18.IsInfixAt NativeRustcVmArm.Vm.code 11138 :=
+public theorem SubspaceTable.b18_at : NativeRustcVmArm.Vm.SubspaceTable.b18.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b18Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b18_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b19_at : NativeRustcVmArm.Vm.SubspaceTable.b19.IsInfixAt NativeRustcVmArm.Vm.code 11141 :=
+public theorem SubspaceTable.b19_at : NativeRustcVmArm.Vm.SubspaceTable.b19.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b19Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b19_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b20_at : NativeRustcVmArm.Vm.SubspaceTable.b20.IsInfixAt NativeRustcVmArm.Vm.code 11143 :=
+public theorem SubspaceTable.b20_at : NativeRustcVmArm.Vm.SubspaceTable.b20.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b20Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b20_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b21_at : NativeRustcVmArm.Vm.SubspaceTable.b21.IsInfixAt NativeRustcVmArm.Vm.code 11149 :=
+public theorem SubspaceTable.b21_at : NativeRustcVmArm.Vm.SubspaceTable.b21.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b21Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b21_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b22_at : NativeRustcVmArm.Vm.SubspaceTable.b22.IsInfixAt NativeRustcVmArm.Vm.code 11156 :=
+public theorem SubspaceTable.b22_at : NativeRustcVmArm.Vm.SubspaceTable.b22.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b22Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b22_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b23_at : NativeRustcVmArm.Vm.SubspaceTable.b23.IsInfixAt NativeRustcVmArm.Vm.code 11159 :=
+public theorem SubspaceTable.b23_at : NativeRustcVmArm.Vm.SubspaceTable.b23.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b23Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b23_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceTable.b24_at : NativeRustcVmArm.Vm.SubspaceTable.b24.IsInfixAt NativeRustcVmArm.Vm.code 11162 :=
+public theorem SubspaceTable.b24_at : NativeRustcVmArm.Vm.SubspaceTable.b24.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceTable.programOffset + NativeRustcVmArm.Vm.SubspaceTable.b24Offset) :=
   NativeRustcVmArm.Vm.SubspaceTable.b24_in_code.trans SubspaceTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.code_at : NativeRustcVmArm.Vm.SubspaceAtTable.code.IsInfixAt NativeRustcVmArm.Vm.code 11171 :=
+@[expose] public def SubspaceAtTable.programOffset : Nat := 11171
+
+public theorem SubspaceAtTable.code_at : NativeRustcVmArm.Vm.SubspaceAtTable.code.IsInfixAt NativeRustcVmArm.Vm.code SubspaceAtTable.programOffset :=
   List.isInfixAt_flatten_of (i := 80) rfl (by decide +kernel)
 
-public theorem SubspaceAtTable.b0_at : NativeRustcVmArm.Vm.SubspaceAtTable.b0.IsInfixAt NativeRustcVmArm.Vm.code 11171 :=
+public theorem SubspaceAtTable.b0_at : NativeRustcVmArm.Vm.SubspaceAtTable.b0.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b0Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b0_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b1_at : NativeRustcVmArm.Vm.SubspaceAtTable.b1.IsInfixAt NativeRustcVmArm.Vm.code 11188 :=
+public theorem SubspaceAtTable.b1_at : NativeRustcVmArm.Vm.SubspaceAtTable.b1.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b1Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b1_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b2_at : NativeRustcVmArm.Vm.SubspaceAtTable.b2.IsInfixAt NativeRustcVmArm.Vm.code 11189 :=
+public theorem SubspaceAtTable.b2_at : NativeRustcVmArm.Vm.SubspaceAtTable.b2.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b2Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b2_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b3_at : NativeRustcVmArm.Vm.SubspaceAtTable.b3.IsInfixAt NativeRustcVmArm.Vm.code 11191 :=
+public theorem SubspaceAtTable.b3_at : NativeRustcVmArm.Vm.SubspaceAtTable.b3.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b3Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b3_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b4_at : NativeRustcVmArm.Vm.SubspaceAtTable.b4.IsInfixAt NativeRustcVmArm.Vm.code 11195 :=
+public theorem SubspaceAtTable.b4_at : NativeRustcVmArm.Vm.SubspaceAtTable.b4.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b4Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b4_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b5_at : NativeRustcVmArm.Vm.SubspaceAtTable.b5.IsInfixAt NativeRustcVmArm.Vm.code 11199 :=
+public theorem SubspaceAtTable.b5_at : NativeRustcVmArm.Vm.SubspaceAtTable.b5.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b5Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b5_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b6_at : NativeRustcVmArm.Vm.SubspaceAtTable.b6.IsInfixAt NativeRustcVmArm.Vm.code 11203 :=
+public theorem SubspaceAtTable.b6_at : NativeRustcVmArm.Vm.SubspaceAtTable.b6.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b6Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b6_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b7_at : NativeRustcVmArm.Vm.SubspaceAtTable.b7.IsInfixAt NativeRustcVmArm.Vm.code 11207 :=
+public theorem SubspaceAtTable.b7_at : NativeRustcVmArm.Vm.SubspaceAtTable.b7.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b7Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b7_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem SubspaceAtTable.b8_at : NativeRustcVmArm.Vm.SubspaceAtTable.b8.IsInfixAt NativeRustcVmArm.Vm.code 11213 :=
+public theorem SubspaceAtTable.b8_at : NativeRustcVmArm.Vm.SubspaceAtTable.b8.IsInfixAt NativeRustcVmArm.Vm.code (SubspaceAtTable.programOffset + NativeRustcVmArm.Vm.SubspaceAtTable.b8Offset) :=
   NativeRustcVmArm.Vm.SubspaceAtTable.b8_in_code.trans SubspaceAtTable.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.code_at : NativeRustcVmArm.Vm.VerifyStackedOpening.code.IsInfixAt NativeRustcVmArm.Vm.code 11220 :=
+@[expose] public def VerifyStackedOpening.programOffset : Nat := 11220
+
+public theorem VerifyStackedOpening.code_at : NativeRustcVmArm.Vm.VerifyStackedOpening.code.IsInfixAt NativeRustcVmArm.Vm.code VerifyStackedOpening.programOffset :=
   List.isInfixAt_flatten_of (i := 81) rfl (by decide +kernel)
 
-public theorem VerifyStackedOpening.b0_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b0.IsInfixAt NativeRustcVmArm.Vm.code 11220 :=
+public theorem VerifyStackedOpening.b0_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b0.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b0Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b0_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b1_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b1.IsInfixAt NativeRustcVmArm.Vm.code 11240 :=
+public theorem VerifyStackedOpening.b1_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b1.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b1Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b1_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b2_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b2.IsInfixAt NativeRustcVmArm.Vm.code 11245 :=
+public theorem VerifyStackedOpening.b2_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b2.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b2Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b2_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b3_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b3.IsInfixAt NativeRustcVmArm.Vm.code 11254 :=
+public theorem VerifyStackedOpening.b3_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b3.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b3Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b3_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b4_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b4.IsInfixAt NativeRustcVmArm.Vm.code 11258 :=
+public theorem VerifyStackedOpening.b4_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b4.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b4Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b4_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b5_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b5.IsInfixAt NativeRustcVmArm.Vm.code 11262 :=
+public theorem VerifyStackedOpening.b5_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b5.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b5Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b5_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b6_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b6.IsInfixAt NativeRustcVmArm.Vm.code 11266 :=
+public theorem VerifyStackedOpening.b6_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b6.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b6Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b6_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b7_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b7.IsInfixAt NativeRustcVmArm.Vm.code 11270 :=
+public theorem VerifyStackedOpening.b7_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b7.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b7Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b7_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b8_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b8.IsInfixAt NativeRustcVmArm.Vm.code 11272 :=
+public theorem VerifyStackedOpening.b8_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b8.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b8Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b8_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b9_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b9.IsInfixAt NativeRustcVmArm.Vm.code 11275 :=
+public theorem VerifyStackedOpening.b9_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b9.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b9Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b9_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b10_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b10.IsInfixAt NativeRustcVmArm.Vm.code 11279 :=
+public theorem VerifyStackedOpening.b10_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b10.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b10Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b10_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b11_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b11.IsInfixAt NativeRustcVmArm.Vm.code 11280 :=
+public theorem VerifyStackedOpening.b11_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b11.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b11Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b11_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b12_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b12.IsInfixAt NativeRustcVmArm.Vm.code 11286 :=
+public theorem VerifyStackedOpening.b12_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b12.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b12Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b12_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b13_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b13.IsInfixAt NativeRustcVmArm.Vm.code 11293 :=
+public theorem VerifyStackedOpening.b13_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b13.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b13Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b13_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b14_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b14.IsInfixAt NativeRustcVmArm.Vm.code 11296 :=
+public theorem VerifyStackedOpening.b14_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b14.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b14Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b14_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b15_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b15.IsInfixAt NativeRustcVmArm.Vm.code 11300 :=
+public theorem VerifyStackedOpening.b15_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b15.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b15Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b15_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b16_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b16.IsInfixAt NativeRustcVmArm.Vm.code 11305 :=
+public theorem VerifyStackedOpening.b16_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b16.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b16Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b16_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b17_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b17.IsInfixAt NativeRustcVmArm.Vm.code 11308 :=
+public theorem VerifyStackedOpening.b17_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b17.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b17Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b17_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b18_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b18.IsInfixAt NativeRustcVmArm.Vm.code 11312 :=
+public theorem VerifyStackedOpening.b18_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b18.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b18Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b18_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b19_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b19.IsInfixAt NativeRustcVmArm.Vm.code 11314 :=
+public theorem VerifyStackedOpening.b19_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b19.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b19Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b19_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b20_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b20.IsInfixAt NativeRustcVmArm.Vm.code 11318 :=
+public theorem VerifyStackedOpening.b20_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b20.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b20Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b20_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b21_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b21.IsInfixAt NativeRustcVmArm.Vm.code 11320 :=
+public theorem VerifyStackedOpening.b21_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b21.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b21Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b21_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b22_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b22.IsInfixAt NativeRustcVmArm.Vm.code 11324 :=
+public theorem VerifyStackedOpening.b22_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b22.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b22Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b22_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b23_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b23.IsInfixAt NativeRustcVmArm.Vm.code 11328 :=
+public theorem VerifyStackedOpening.b23_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b23.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b23Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b23_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b24_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b24.IsInfixAt NativeRustcVmArm.Vm.code 11331 :=
+public theorem VerifyStackedOpening.b24_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b24.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b24Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b24_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b25_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b25.IsInfixAt NativeRustcVmArm.Vm.code 11333 :=
+public theorem VerifyStackedOpening.b25_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b25.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b25Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b25_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b26_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b26.IsInfixAt NativeRustcVmArm.Vm.code 11336 :=
+public theorem VerifyStackedOpening.b26_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b26.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b26Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b26_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b27_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b27.IsInfixAt NativeRustcVmArm.Vm.code 11339 :=
+public theorem VerifyStackedOpening.b27_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b27.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b27Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b27_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b28_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b28.IsInfixAt NativeRustcVmArm.Vm.code 11341 :=
+public theorem VerifyStackedOpening.b28_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b28.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b28Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b28_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b29_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b29.IsInfixAt NativeRustcVmArm.Vm.code 11344 :=
+public theorem VerifyStackedOpening.b29_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b29.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b29Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b29_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b30_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b30.IsInfixAt NativeRustcVmArm.Vm.code 11348 :=
+public theorem VerifyStackedOpening.b30_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b30.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b30Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b30_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b31_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b31.IsInfixAt NativeRustcVmArm.Vm.code 11361 :=
+public theorem VerifyStackedOpening.b31_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b31.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b31Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b31_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b32_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b32.IsInfixAt NativeRustcVmArm.Vm.code 11363 :=
+public theorem VerifyStackedOpening.b32_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b32.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b32Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b32_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b33_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b33.IsInfixAt NativeRustcVmArm.Vm.code 11367 :=
+public theorem VerifyStackedOpening.b33_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b33.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b33Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b33_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b34_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b34.IsInfixAt NativeRustcVmArm.Vm.code 11370 :=
+public theorem VerifyStackedOpening.b34_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b34.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b34Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b34_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b35_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b35.IsInfixAt NativeRustcVmArm.Vm.code 11384 :=
+public theorem VerifyStackedOpening.b35_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b35.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b35Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b35_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b36_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b36.IsInfixAt NativeRustcVmArm.Vm.code 11385 :=
+public theorem VerifyStackedOpening.b36_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b36.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b36Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b36_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyStackedOpening.b37_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b37.IsInfixAt NativeRustcVmArm.Vm.code 11387 :=
+public theorem VerifyStackedOpening.b37_at : NativeRustcVmArm.Vm.VerifyStackedOpening.b37.IsInfixAt NativeRustcVmArm.Vm.code (VerifyStackedOpening.programOffset + NativeRustcVmArm.Vm.VerifyStackedOpening.b37Offset) :=
   NativeRustcVmArm.Vm.VerifyStackedOpening.b37_in_code.trans VerifyStackedOpening.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.code_at : NativeRustcVmArm.Vm.Ladder.code.IsInfixAt NativeRustcVmArm.Vm.code 11396 :=
+@[expose] public def Ladder.programOffset : Nat := 11396
+
+public theorem Ladder.code_at : NativeRustcVmArm.Vm.Ladder.code.IsInfixAt NativeRustcVmArm.Vm.code Ladder.programOffset :=
   List.isInfixAt_flatten_of (i := 82) rfl (by decide +kernel)
 
-public theorem Ladder.b0_at : NativeRustcVmArm.Vm.Ladder.b0.IsInfixAt NativeRustcVmArm.Vm.code 11396 :=
+public theorem Ladder.b0_at : NativeRustcVmArm.Vm.Ladder.b0.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b0Offset) :=
   NativeRustcVmArm.Vm.Ladder.b0_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b1_at : NativeRustcVmArm.Vm.Ladder.b1.IsInfixAt NativeRustcVmArm.Vm.code 11402 :=
+public theorem Ladder.b1_at : NativeRustcVmArm.Vm.Ladder.b1.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b1Offset) :=
   NativeRustcVmArm.Vm.Ladder.b1_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b2_at : NativeRustcVmArm.Vm.Ladder.b2.IsInfixAt NativeRustcVmArm.Vm.code 11404 :=
+public theorem Ladder.b2_at : NativeRustcVmArm.Vm.Ladder.b2.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b2Offset) :=
   NativeRustcVmArm.Vm.Ladder.b2_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b3_at : NativeRustcVmArm.Vm.Ladder.b3.IsInfixAt NativeRustcVmArm.Vm.code 11412 :=
+public theorem Ladder.b3_at : NativeRustcVmArm.Vm.Ladder.b3.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b3Offset) :=
   NativeRustcVmArm.Vm.Ladder.b3_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b4_at : NativeRustcVmArm.Vm.Ladder.b4.IsInfixAt NativeRustcVmArm.Vm.code 11416 :=
+public theorem Ladder.b4_at : NativeRustcVmArm.Vm.Ladder.b4.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b4Offset) :=
   NativeRustcVmArm.Vm.Ladder.b4_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b5_at : NativeRustcVmArm.Vm.Ladder.b5.IsInfixAt NativeRustcVmArm.Vm.code 11423 :=
+public theorem Ladder.b5_at : NativeRustcVmArm.Vm.Ladder.b5.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b5Offset) :=
   NativeRustcVmArm.Vm.Ladder.b5_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b6_at : NativeRustcVmArm.Vm.Ladder.b6.IsInfixAt NativeRustcVmArm.Vm.code 11427 :=
+public theorem Ladder.b6_at : NativeRustcVmArm.Vm.Ladder.b6.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b6Offset) :=
   NativeRustcVmArm.Vm.Ladder.b6_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b7_at : NativeRustcVmArm.Vm.Ladder.b7.IsInfixAt NativeRustcVmArm.Vm.code 11433 :=
+public theorem Ladder.b7_at : NativeRustcVmArm.Vm.Ladder.b7.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b7Offset) :=
   NativeRustcVmArm.Vm.Ladder.b7_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b8_at : NativeRustcVmArm.Vm.Ladder.b8.IsInfixAt NativeRustcVmArm.Vm.code 11439 :=
+public theorem Ladder.b8_at : NativeRustcVmArm.Vm.Ladder.b8.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b8Offset) :=
   NativeRustcVmArm.Vm.Ladder.b8_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b9_at : NativeRustcVmArm.Vm.Ladder.b9.IsInfixAt NativeRustcVmArm.Vm.code 11447 :=
+public theorem Ladder.b9_at : NativeRustcVmArm.Vm.Ladder.b9.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b9Offset) :=
   NativeRustcVmArm.Vm.Ladder.b9_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b10_at : NativeRustcVmArm.Vm.Ladder.b10.IsInfixAt NativeRustcVmArm.Vm.code 11460 :=
+public theorem Ladder.b10_at : NativeRustcVmArm.Vm.Ladder.b10.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b10Offset) :=
   NativeRustcVmArm.Vm.Ladder.b10_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b11_at : NativeRustcVmArm.Vm.Ladder.b11.IsInfixAt NativeRustcVmArm.Vm.code 11462 :=
+public theorem Ladder.b11_at : NativeRustcVmArm.Vm.Ladder.b11.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b11Offset) :=
   NativeRustcVmArm.Vm.Ladder.b11_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b12_at : NativeRustcVmArm.Vm.Ladder.b12.IsInfixAt NativeRustcVmArm.Vm.code 11465 :=
+public theorem Ladder.b12_at : NativeRustcVmArm.Vm.Ladder.b12.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b12Offset) :=
   NativeRustcVmArm.Vm.Ladder.b12_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b13_at : NativeRustcVmArm.Vm.Ladder.b13.IsInfixAt NativeRustcVmArm.Vm.code 11469 :=
+public theorem Ladder.b13_at : NativeRustcVmArm.Vm.Ladder.b13.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b13Offset) :=
   NativeRustcVmArm.Vm.Ladder.b13_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b14_at : NativeRustcVmArm.Vm.Ladder.b14.IsInfixAt NativeRustcVmArm.Vm.code 11471 :=
+public theorem Ladder.b14_at : NativeRustcVmArm.Vm.Ladder.b14.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b14Offset) :=
   NativeRustcVmArm.Vm.Ladder.b14_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b15_at : NativeRustcVmArm.Vm.Ladder.b15.IsInfixAt NativeRustcVmArm.Vm.code 11473 :=
+public theorem Ladder.b15_at : NativeRustcVmArm.Vm.Ladder.b15.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b15Offset) :=
   NativeRustcVmArm.Vm.Ladder.b15_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b16_at : NativeRustcVmArm.Vm.Ladder.b16.IsInfixAt NativeRustcVmArm.Vm.code 11489 :=
+public theorem Ladder.b16_at : NativeRustcVmArm.Vm.Ladder.b16.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b16Offset) :=
   NativeRustcVmArm.Vm.Ladder.b16_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem Ladder.b17_at : NativeRustcVmArm.Vm.Ladder.b17.IsInfixAt NativeRustcVmArm.Vm.code 11493 :=
+public theorem Ladder.b17_at : NativeRustcVmArm.Vm.Ladder.b17.IsInfixAt NativeRustcVmArm.Vm.code (Ladder.programOffset + NativeRustcVmArm.Vm.Ladder.b17Offset) :=
   NativeRustcVmArm.Vm.Ladder.b17_in_code.trans Ladder.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.code_at : NativeRustcVmArm.Vm.FoldRow.code.IsInfixAt NativeRustcVmArm.Vm.code 11495 :=
+@[expose] public def FoldRow.programOffset : Nat := 11495
+
+public theorem FoldRow.code_at : NativeRustcVmArm.Vm.FoldRow.code.IsInfixAt NativeRustcVmArm.Vm.code FoldRow.programOffset :=
   List.isInfixAt_flatten_of (i := 83) rfl (by decide +kernel)
 
-public theorem FoldRow.b0_at : NativeRustcVmArm.Vm.FoldRow.b0.IsInfixAt NativeRustcVmArm.Vm.code 11495 :=
+public theorem FoldRow.b0_at : NativeRustcVmArm.Vm.FoldRow.b0.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b0Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b0_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b1_at : NativeRustcVmArm.Vm.FoldRow.b1.IsInfixAt NativeRustcVmArm.Vm.code 11506 :=
+public theorem FoldRow.b1_at : NativeRustcVmArm.Vm.FoldRow.b1.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b1Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b1_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b2_at : NativeRustcVmArm.Vm.FoldRow.b2.IsInfixAt NativeRustcVmArm.Vm.code 11512 :=
+public theorem FoldRow.b2_at : NativeRustcVmArm.Vm.FoldRow.b2.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b2Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b2_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b3_at : NativeRustcVmArm.Vm.FoldRow.b3.IsInfixAt NativeRustcVmArm.Vm.code 11517 :=
+public theorem FoldRow.b3_at : NativeRustcVmArm.Vm.FoldRow.b3.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b3Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b3_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b4_at : NativeRustcVmArm.Vm.FoldRow.b4.IsInfixAt NativeRustcVmArm.Vm.code 11520 :=
+public theorem FoldRow.b4_at : NativeRustcVmArm.Vm.FoldRow.b4.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b4Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b4_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b5_at : NativeRustcVmArm.Vm.FoldRow.b5.IsInfixAt NativeRustcVmArm.Vm.code 11526 :=
+public theorem FoldRow.b5_at : NativeRustcVmArm.Vm.FoldRow.b5.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b5Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b5_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b6_at : NativeRustcVmArm.Vm.FoldRow.b6.IsInfixAt NativeRustcVmArm.Vm.code 11532 :=
+public theorem FoldRow.b6_at : NativeRustcVmArm.Vm.FoldRow.b6.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b6Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b6_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b7_at : NativeRustcVmArm.Vm.FoldRow.b7.IsInfixAt NativeRustcVmArm.Vm.code 11535 :=
+public theorem FoldRow.b7_at : NativeRustcVmArm.Vm.FoldRow.b7.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b7Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b7_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b8_at : NativeRustcVmArm.Vm.FoldRow.b8.IsInfixAt NativeRustcVmArm.Vm.code 11540 :=
+public theorem FoldRow.b8_at : NativeRustcVmArm.Vm.FoldRow.b8.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b8Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b8_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b9_at : NativeRustcVmArm.Vm.FoldRow.b9.IsInfixAt NativeRustcVmArm.Vm.code 11544 :=
+public theorem FoldRow.b9_at : NativeRustcVmArm.Vm.FoldRow.b9.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b9Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b9_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b10_at : NativeRustcVmArm.Vm.FoldRow.b10.IsInfixAt NativeRustcVmArm.Vm.code 11548 :=
+public theorem FoldRow.b10_at : NativeRustcVmArm.Vm.FoldRow.b10.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b10Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b10_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b11_at : NativeRustcVmArm.Vm.FoldRow.b11.IsInfixAt NativeRustcVmArm.Vm.code 11553 :=
+public theorem FoldRow.b11_at : NativeRustcVmArm.Vm.FoldRow.b11.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b11Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b11_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b12_at : NativeRustcVmArm.Vm.FoldRow.b12.IsInfixAt NativeRustcVmArm.Vm.code 11557 :=
+public theorem FoldRow.b12_at : NativeRustcVmArm.Vm.FoldRow.b12.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b12Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b12_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b13_at : NativeRustcVmArm.Vm.FoldRow.b13.IsInfixAt NativeRustcVmArm.Vm.code 11560 :=
+public theorem FoldRow.b13_at : NativeRustcVmArm.Vm.FoldRow.b13.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b13Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b13_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b14_at : NativeRustcVmArm.Vm.FoldRow.b14.IsInfixAt NativeRustcVmArm.Vm.code 11566 :=
+public theorem FoldRow.b14_at : NativeRustcVmArm.Vm.FoldRow.b14.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b14Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b14_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b15_at : NativeRustcVmArm.Vm.FoldRow.b15.IsInfixAt NativeRustcVmArm.Vm.code 11572 :=
+public theorem FoldRow.b15_at : NativeRustcVmArm.Vm.FoldRow.b15.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b15Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b15_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b16_at : NativeRustcVmArm.Vm.FoldRow.b16.IsInfixAt NativeRustcVmArm.Vm.code 11575 :=
+public theorem FoldRow.b16_at : NativeRustcVmArm.Vm.FoldRow.b16.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b16Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b16_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b17_at : NativeRustcVmArm.Vm.FoldRow.b17.IsInfixAt NativeRustcVmArm.Vm.code 11580 :=
+public theorem FoldRow.b17_at : NativeRustcVmArm.Vm.FoldRow.b17.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b17Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b17_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b18_at : NativeRustcVmArm.Vm.FoldRow.b18.IsInfixAt NativeRustcVmArm.Vm.code 11584 :=
+public theorem FoldRow.b18_at : NativeRustcVmArm.Vm.FoldRow.b18.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b18Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b18_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b19_at : NativeRustcVmArm.Vm.FoldRow.b19.IsInfixAt NativeRustcVmArm.Vm.code 11588 :=
+public theorem FoldRow.b19_at : NativeRustcVmArm.Vm.FoldRow.b19.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b19Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b19_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b20_at : NativeRustcVmArm.Vm.FoldRow.b20.IsInfixAt NativeRustcVmArm.Vm.code 11593 :=
+public theorem FoldRow.b20_at : NativeRustcVmArm.Vm.FoldRow.b20.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b20Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b20_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b21_at : NativeRustcVmArm.Vm.FoldRow.b21.IsInfixAt NativeRustcVmArm.Vm.code 11597 :=
+public theorem FoldRow.b21_at : NativeRustcVmArm.Vm.FoldRow.b21.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b21Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b21_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b22_at : NativeRustcVmArm.Vm.FoldRow.b22.IsInfixAt NativeRustcVmArm.Vm.code 11600 :=
+public theorem FoldRow.b22_at : NativeRustcVmArm.Vm.FoldRow.b22.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b22Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b22_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b23_at : NativeRustcVmArm.Vm.FoldRow.b23.IsInfixAt NativeRustcVmArm.Vm.code 11606 :=
+public theorem FoldRow.b23_at : NativeRustcVmArm.Vm.FoldRow.b23.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b23Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b23_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b24_at : NativeRustcVmArm.Vm.FoldRow.b24.IsInfixAt NativeRustcVmArm.Vm.code 11612 :=
+public theorem FoldRow.b24_at : NativeRustcVmArm.Vm.FoldRow.b24.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b24Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b24_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b25_at : NativeRustcVmArm.Vm.FoldRow.b25.IsInfixAt NativeRustcVmArm.Vm.code 11615 :=
+public theorem FoldRow.b25_at : NativeRustcVmArm.Vm.FoldRow.b25.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b25Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b25_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b26_at : NativeRustcVmArm.Vm.FoldRow.b26.IsInfixAt NativeRustcVmArm.Vm.code 11620 :=
+public theorem FoldRow.b26_at : NativeRustcVmArm.Vm.FoldRow.b26.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b26Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b26_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b27_at : NativeRustcVmArm.Vm.FoldRow.b27.IsInfixAt NativeRustcVmArm.Vm.code 11624 :=
+public theorem FoldRow.b27_at : NativeRustcVmArm.Vm.FoldRow.b27.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b27Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b27_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b28_at : NativeRustcVmArm.Vm.FoldRow.b28.IsInfixAt NativeRustcVmArm.Vm.code 11628 :=
+public theorem FoldRow.b28_at : NativeRustcVmArm.Vm.FoldRow.b28.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b28Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b28_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b29_at : NativeRustcVmArm.Vm.FoldRow.b29.IsInfixAt NativeRustcVmArm.Vm.code 11633 :=
+public theorem FoldRow.b29_at : NativeRustcVmArm.Vm.FoldRow.b29.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b29Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b29_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b30_at : NativeRustcVmArm.Vm.FoldRow.b30.IsInfixAt NativeRustcVmArm.Vm.code 11637 :=
+public theorem FoldRow.b30_at : NativeRustcVmArm.Vm.FoldRow.b30.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b30Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b30_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b31_at : NativeRustcVmArm.Vm.FoldRow.b31.IsInfixAt NativeRustcVmArm.Vm.code 11640 :=
+public theorem FoldRow.b31_at : NativeRustcVmArm.Vm.FoldRow.b31.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b31Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b31_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b32_at : NativeRustcVmArm.Vm.FoldRow.b32.IsInfixAt NativeRustcVmArm.Vm.code 11646 :=
+public theorem FoldRow.b32_at : NativeRustcVmArm.Vm.FoldRow.b32.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b32Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b32_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b33_at : NativeRustcVmArm.Vm.FoldRow.b33.IsInfixAt NativeRustcVmArm.Vm.code 11652 :=
+public theorem FoldRow.b33_at : NativeRustcVmArm.Vm.FoldRow.b33.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b33Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b33_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b34_at : NativeRustcVmArm.Vm.FoldRow.b34.IsInfixAt NativeRustcVmArm.Vm.code 11655 :=
+public theorem FoldRow.b34_at : NativeRustcVmArm.Vm.FoldRow.b34.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b34Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b34_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b35_at : NativeRustcVmArm.Vm.FoldRow.b35.IsInfixAt NativeRustcVmArm.Vm.code 11660 :=
+public theorem FoldRow.b35_at : NativeRustcVmArm.Vm.FoldRow.b35.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b35Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b35_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b36_at : NativeRustcVmArm.Vm.FoldRow.b36.IsInfixAt NativeRustcVmArm.Vm.code 11664 :=
+public theorem FoldRow.b36_at : NativeRustcVmArm.Vm.FoldRow.b36.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b36Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b36_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b37_at : NativeRustcVmArm.Vm.FoldRow.b37.IsInfixAt NativeRustcVmArm.Vm.code 11668 :=
+public theorem FoldRow.b37_at : NativeRustcVmArm.Vm.FoldRow.b37.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b37Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b37_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b38_at : NativeRustcVmArm.Vm.FoldRow.b38.IsInfixAt NativeRustcVmArm.Vm.code 11673 :=
+public theorem FoldRow.b38_at : NativeRustcVmArm.Vm.FoldRow.b38.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b38Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b38_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b39_at : NativeRustcVmArm.Vm.FoldRow.b39.IsInfixAt NativeRustcVmArm.Vm.code 11677 :=
+public theorem FoldRow.b39_at : NativeRustcVmArm.Vm.FoldRow.b39.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b39Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b39_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b40_at : NativeRustcVmArm.Vm.FoldRow.b40.IsInfixAt NativeRustcVmArm.Vm.code 11680 :=
+public theorem FoldRow.b40_at : NativeRustcVmArm.Vm.FoldRow.b40.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b40Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b40_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b41_at : NativeRustcVmArm.Vm.FoldRow.b41.IsInfixAt NativeRustcVmArm.Vm.code 11686 :=
+public theorem FoldRow.b41_at : NativeRustcVmArm.Vm.FoldRow.b41.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b41Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b41_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b42_at : NativeRustcVmArm.Vm.FoldRow.b42.IsInfixAt NativeRustcVmArm.Vm.code 11692 :=
+public theorem FoldRow.b42_at : NativeRustcVmArm.Vm.FoldRow.b42.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b42Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b42_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b43_at : NativeRustcVmArm.Vm.FoldRow.b43.IsInfixAt NativeRustcVmArm.Vm.code 11695 :=
+public theorem FoldRow.b43_at : NativeRustcVmArm.Vm.FoldRow.b43.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b43Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b43_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b44_at : NativeRustcVmArm.Vm.FoldRow.b44.IsInfixAt NativeRustcVmArm.Vm.code 11700 :=
+public theorem FoldRow.b44_at : NativeRustcVmArm.Vm.FoldRow.b44.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b44Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b44_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b45_at : NativeRustcVmArm.Vm.FoldRow.b45.IsInfixAt NativeRustcVmArm.Vm.code 11704 :=
+public theorem FoldRow.b45_at : NativeRustcVmArm.Vm.FoldRow.b45.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b45Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b45_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b46_at : NativeRustcVmArm.Vm.FoldRow.b46.IsInfixAt NativeRustcVmArm.Vm.code 11708 :=
+public theorem FoldRow.b46_at : NativeRustcVmArm.Vm.FoldRow.b46.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b46Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b46_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b47_at : NativeRustcVmArm.Vm.FoldRow.b47.IsInfixAt NativeRustcVmArm.Vm.code 11713 :=
+public theorem FoldRow.b47_at : NativeRustcVmArm.Vm.FoldRow.b47.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b47Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b47_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b48_at : NativeRustcVmArm.Vm.FoldRow.b48.IsInfixAt NativeRustcVmArm.Vm.code 11717 :=
+public theorem FoldRow.b48_at : NativeRustcVmArm.Vm.FoldRow.b48.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b48Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b48_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b49_at : NativeRustcVmArm.Vm.FoldRow.b49.IsInfixAt NativeRustcVmArm.Vm.code 11720 :=
+public theorem FoldRow.b49_at : NativeRustcVmArm.Vm.FoldRow.b49.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b49Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b49_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b50_at : NativeRustcVmArm.Vm.FoldRow.b50.IsInfixAt NativeRustcVmArm.Vm.code 11727 :=
+public theorem FoldRow.b50_at : NativeRustcVmArm.Vm.FoldRow.b50.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b50Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b50_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b51_at : NativeRustcVmArm.Vm.FoldRow.b51.IsInfixAt NativeRustcVmArm.Vm.code 11733 :=
+public theorem FoldRow.b51_at : NativeRustcVmArm.Vm.FoldRow.b51.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b51Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b51_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b52_at : NativeRustcVmArm.Vm.FoldRow.b52.IsInfixAt NativeRustcVmArm.Vm.code 11736 :=
+public theorem FoldRow.b52_at : NativeRustcVmArm.Vm.FoldRow.b52.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b52Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b52_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b53_at : NativeRustcVmArm.Vm.FoldRow.b53.IsInfixAt NativeRustcVmArm.Vm.code 11741 :=
+public theorem FoldRow.b53_at : NativeRustcVmArm.Vm.FoldRow.b53.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b53Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b53_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b54_at : NativeRustcVmArm.Vm.FoldRow.b54.IsInfixAt NativeRustcVmArm.Vm.code 11745 :=
+public theorem FoldRow.b54_at : NativeRustcVmArm.Vm.FoldRow.b54.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b54Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b54_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem FoldRow.b55_at : NativeRustcVmArm.Vm.FoldRow.b55.IsInfixAt NativeRustcVmArm.Vm.code 11747 :=
+public theorem FoldRow.b55_at : NativeRustcVmArm.Vm.FoldRow.b55.IsInfixAt NativeRustcVmArm.Vm.code (FoldRow.programOffset + NativeRustcVmArm.Vm.FoldRow.b55Offset) :=
   NativeRustcVmArm.Vm.FoldRow.b55_in_code.trans FoldRow.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.code_at : NativeRustcVmArm.Vm.LanesOf.code.IsInfixAt NativeRustcVmArm.Vm.code 11761 :=
+@[expose] public def LanesOf.programOffset : Nat := 11761
+
+public theorem LanesOf.code_at : NativeRustcVmArm.Vm.LanesOf.code.IsInfixAt NativeRustcVmArm.Vm.code LanesOf.programOffset :=
   List.isInfixAt_flatten_of (i := 84) rfl (by decide +kernel)
 
-public theorem LanesOf.b0_at : NativeRustcVmArm.Vm.LanesOf.b0.IsInfixAt NativeRustcVmArm.Vm.code 11761 :=
+public theorem LanesOf.b0_at : NativeRustcVmArm.Vm.LanesOf.b0.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b0Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b0_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b1_at : NativeRustcVmArm.Vm.LanesOf.b1.IsInfixAt NativeRustcVmArm.Vm.code 11763 :=
+public theorem LanesOf.b1_at : NativeRustcVmArm.Vm.LanesOf.b1.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b1Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b1_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b2_at : NativeRustcVmArm.Vm.LanesOf.b2.IsInfixAt NativeRustcVmArm.Vm.code 11765 :=
+public theorem LanesOf.b2_at : NativeRustcVmArm.Vm.LanesOf.b2.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b2Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b2_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b3_at : NativeRustcVmArm.Vm.LanesOf.b3.IsInfixAt NativeRustcVmArm.Vm.code 11767 :=
+public theorem LanesOf.b3_at : NativeRustcVmArm.Vm.LanesOf.b3.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b3Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b3_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b4_at : NativeRustcVmArm.Vm.LanesOf.b4.IsInfixAt NativeRustcVmArm.Vm.code 11769 :=
+public theorem LanesOf.b4_at : NativeRustcVmArm.Vm.LanesOf.b4.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b4Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b4_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b5_at : NativeRustcVmArm.Vm.LanesOf.b5.IsInfixAt NativeRustcVmArm.Vm.code 11771 :=
+public theorem LanesOf.b5_at : NativeRustcVmArm.Vm.LanesOf.b5.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b5Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b5_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b6_at : NativeRustcVmArm.Vm.LanesOf.b6.IsInfixAt NativeRustcVmArm.Vm.code 11774 :=
+public theorem LanesOf.b6_at : NativeRustcVmArm.Vm.LanesOf.b6.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b6Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b6_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b7_at : NativeRustcVmArm.Vm.LanesOf.b7.IsInfixAt NativeRustcVmArm.Vm.code 11775 :=
+public theorem LanesOf.b7_at : NativeRustcVmArm.Vm.LanesOf.b7.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b7Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b7_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b8_at : NativeRustcVmArm.Vm.LanesOf.b8.IsInfixAt NativeRustcVmArm.Vm.code 11787 :=
+public theorem LanesOf.b8_at : NativeRustcVmArm.Vm.LanesOf.b8.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b8Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b8_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b9_at : NativeRustcVmArm.Vm.LanesOf.b9.IsInfixAt NativeRustcVmArm.Vm.code 11795 :=
+public theorem LanesOf.b9_at : NativeRustcVmArm.Vm.LanesOf.b9.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b9Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b9_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b10_at : NativeRustcVmArm.Vm.LanesOf.b10.IsInfixAt NativeRustcVmArm.Vm.code 11806 :=
+public theorem LanesOf.b10_at : NativeRustcVmArm.Vm.LanesOf.b10.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b10Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b10_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b11_at : NativeRustcVmArm.Vm.LanesOf.b11.IsInfixAt NativeRustcVmArm.Vm.code 11808 :=
+public theorem LanesOf.b11_at : NativeRustcVmArm.Vm.LanesOf.b11.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b11Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b11_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b12_at : NativeRustcVmArm.Vm.LanesOf.b12.IsInfixAt NativeRustcVmArm.Vm.code 11813 :=
+public theorem LanesOf.b12_at : NativeRustcVmArm.Vm.LanesOf.b12.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b12Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b12_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b13_at : NativeRustcVmArm.Vm.LanesOf.b13.IsInfixAt NativeRustcVmArm.Vm.code 11819 :=
+public theorem LanesOf.b13_at : NativeRustcVmArm.Vm.LanesOf.b13.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b13Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b13_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b14_at : NativeRustcVmArm.Vm.LanesOf.b14.IsInfixAt NativeRustcVmArm.Vm.code 11823 :=
+public theorem LanesOf.b14_at : NativeRustcVmArm.Vm.LanesOf.b14.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b14Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b14_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b15_at : NativeRustcVmArm.Vm.LanesOf.b15.IsInfixAt NativeRustcVmArm.Vm.code 11826 :=
+public theorem LanesOf.b15_at : NativeRustcVmArm.Vm.LanesOf.b15.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b15Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b15_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b16_at : NativeRustcVmArm.Vm.LanesOf.b16.IsInfixAt NativeRustcVmArm.Vm.code 11830 :=
+public theorem LanesOf.b16_at : NativeRustcVmArm.Vm.LanesOf.b16.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b16Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b16_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b17_at : NativeRustcVmArm.Vm.LanesOf.b17.IsInfixAt NativeRustcVmArm.Vm.code 11835 :=
+public theorem LanesOf.b17_at : NativeRustcVmArm.Vm.LanesOf.b17.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b17Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b17_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b18_at : NativeRustcVmArm.Vm.LanesOf.b18.IsInfixAt NativeRustcVmArm.Vm.code 11842 :=
+public theorem LanesOf.b18_at : NativeRustcVmArm.Vm.LanesOf.b18.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b18Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b18_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b19_at : NativeRustcVmArm.Vm.LanesOf.b19.IsInfixAt NativeRustcVmArm.Vm.code 11844 :=
+public theorem LanesOf.b19_at : NativeRustcVmArm.Vm.LanesOf.b19.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b19Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b19_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b20_at : NativeRustcVmArm.Vm.LanesOf.b20.IsInfixAt NativeRustcVmArm.Vm.code 11848 :=
+public theorem LanesOf.b20_at : NativeRustcVmArm.Vm.LanesOf.b20.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b20Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b20_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b21_at : NativeRustcVmArm.Vm.LanesOf.b21.IsInfixAt NativeRustcVmArm.Vm.code 11855 :=
+public theorem LanesOf.b21_at : NativeRustcVmArm.Vm.LanesOf.b21.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b21Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b21_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem LanesOf.b22_at : NativeRustcVmArm.Vm.LanesOf.b22.IsInfixAt NativeRustcVmArm.Vm.code 11862 :=
+public theorem LanesOf.b22_at : NativeRustcVmArm.Vm.LanesOf.b22.IsInfixAt NativeRustcVmArm.Vm.code (LanesOf.programOffset + NativeRustcVmArm.Vm.LanesOf.b22Offset) :=
   NativeRustcVmArm.Vm.LanesOf.b22_in_code.trans LanesOf.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.code_at : NativeRustcVmArm.Vm.ClimbLevel.code.IsInfixAt NativeRustcVmArm.Vm.code 11863 :=
+@[expose] public def ClimbLevel.programOffset : Nat := 11863
+
+public theorem ClimbLevel.code_at : NativeRustcVmArm.Vm.ClimbLevel.code.IsInfixAt NativeRustcVmArm.Vm.code ClimbLevel.programOffset :=
   List.isInfixAt_flatten_of (i := 85) rfl (by decide +kernel)
 
-public theorem ClimbLevel.b0_at : NativeRustcVmArm.Vm.ClimbLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code 11863 :=
+public theorem ClimbLevel.b0_at : NativeRustcVmArm.Vm.ClimbLevel.b0.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b0Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b0_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b1_at : NativeRustcVmArm.Vm.ClimbLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code 11873 :=
+public theorem ClimbLevel.b1_at : NativeRustcVmArm.Vm.ClimbLevel.b1.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b1Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b1_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b2_at : NativeRustcVmArm.Vm.ClimbLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code 11883 :=
+public theorem ClimbLevel.b2_at : NativeRustcVmArm.Vm.ClimbLevel.b2.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b2Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b2_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b3_at : NativeRustcVmArm.Vm.ClimbLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code 11888 :=
+public theorem ClimbLevel.b3_at : NativeRustcVmArm.Vm.ClimbLevel.b3.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b3Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b3_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b4_at : NativeRustcVmArm.Vm.ClimbLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code 11890 :=
+public theorem ClimbLevel.b4_at : NativeRustcVmArm.Vm.ClimbLevel.b4.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b4Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b4_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b5_at : NativeRustcVmArm.Vm.ClimbLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code 11901 :=
+public theorem ClimbLevel.b5_at : NativeRustcVmArm.Vm.ClimbLevel.b5.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b5Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b5_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b6_at : NativeRustcVmArm.Vm.ClimbLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code 11904 :=
+public theorem ClimbLevel.b6_at : NativeRustcVmArm.Vm.ClimbLevel.b6.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b6Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b6_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b7_at : NativeRustcVmArm.Vm.ClimbLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code 11911 :=
+public theorem ClimbLevel.b7_at : NativeRustcVmArm.Vm.ClimbLevel.b7.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b7Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b7_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b8_at : NativeRustcVmArm.Vm.ClimbLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code 11913 :=
+public theorem ClimbLevel.b8_at : NativeRustcVmArm.Vm.ClimbLevel.b8.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b8Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b8_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b9_at : NativeRustcVmArm.Vm.ClimbLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code 11919 :=
+public theorem ClimbLevel.b9_at : NativeRustcVmArm.Vm.ClimbLevel.b9.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b9Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b9_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b10_at : NativeRustcVmArm.Vm.ClimbLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code 11929 :=
+public theorem ClimbLevel.b10_at : NativeRustcVmArm.Vm.ClimbLevel.b10.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b10Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b10_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b11_at : NativeRustcVmArm.Vm.ClimbLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code 11930 :=
+public theorem ClimbLevel.b11_at : NativeRustcVmArm.Vm.ClimbLevel.b11.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b11Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b11_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b12_at : NativeRustcVmArm.Vm.ClimbLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code 11934 :=
+public theorem ClimbLevel.b12_at : NativeRustcVmArm.Vm.ClimbLevel.b12.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b12Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b12_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b13_at : NativeRustcVmArm.Vm.ClimbLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code 11936 :=
+public theorem ClimbLevel.b13_at : NativeRustcVmArm.Vm.ClimbLevel.b13.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b13Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b13_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b14_at : NativeRustcVmArm.Vm.ClimbLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code 11947 :=
+public theorem ClimbLevel.b14_at : NativeRustcVmArm.Vm.ClimbLevel.b14.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b14Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b14_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b15_at : NativeRustcVmArm.Vm.ClimbLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code 11952 :=
+public theorem ClimbLevel.b15_at : NativeRustcVmArm.Vm.ClimbLevel.b15.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b15Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b15_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b16_at : NativeRustcVmArm.Vm.ClimbLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code 11954 :=
+public theorem ClimbLevel.b16_at : NativeRustcVmArm.Vm.ClimbLevel.b16.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b16Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b16_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b17_at : NativeRustcVmArm.Vm.ClimbLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code 11957 :=
+public theorem ClimbLevel.b17_at : NativeRustcVmArm.Vm.ClimbLevel.b17.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b17Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b17_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b18_at : NativeRustcVmArm.Vm.ClimbLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code 11959 :=
+public theorem ClimbLevel.b18_at : NativeRustcVmArm.Vm.ClimbLevel.b18.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b18Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b18_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem ClimbLevel.b19_at : NativeRustcVmArm.Vm.ClimbLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code 11961 :=
+public theorem ClimbLevel.b19_at : NativeRustcVmArm.Vm.ClimbLevel.b19.IsInfixAt NativeRustcVmArm.Vm.code (ClimbLevel.programOffset + NativeRustcVmArm.Vm.ClimbLevel.b19Offset) :=
   NativeRustcVmArm.Vm.ClimbLevel.b19_in_code.trans ClimbLevel.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.code_at : NativeRustcVmArm.Vm.WriteOpenings.code.IsInfixAt NativeRustcVmArm.Vm.code 11971 :=
+@[expose] public def WriteOpenings.programOffset : Nat := 11971
+
+public theorem WriteOpenings.code_at : NativeRustcVmArm.Vm.WriteOpenings.code.IsInfixAt NativeRustcVmArm.Vm.code WriteOpenings.programOffset :=
   List.isInfixAt_flatten_of (i := 86) rfl (by decide +kernel)
 
-public theorem WriteOpenings.b0_at : NativeRustcVmArm.Vm.WriteOpenings.b0.IsInfixAt NativeRustcVmArm.Vm.code 11971 :=
+public theorem WriteOpenings.b0_at : NativeRustcVmArm.Vm.WriteOpenings.b0.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b0Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b0_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b1_at : NativeRustcVmArm.Vm.WriteOpenings.b1.IsInfixAt NativeRustcVmArm.Vm.code 11989 :=
+public theorem WriteOpenings.b1_at : NativeRustcVmArm.Vm.WriteOpenings.b1.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b1Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b1_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b2_at : NativeRustcVmArm.Vm.WriteOpenings.b2.IsInfixAt NativeRustcVmArm.Vm.code 12000 :=
+public theorem WriteOpenings.b2_at : NativeRustcVmArm.Vm.WriteOpenings.b2.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b2Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b2_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b3_at : NativeRustcVmArm.Vm.WriteOpenings.b3.IsInfixAt NativeRustcVmArm.Vm.code 12010 :=
+public theorem WriteOpenings.b3_at : NativeRustcVmArm.Vm.WriteOpenings.b3.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b3Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b3_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b4_at : NativeRustcVmArm.Vm.WriteOpenings.b4.IsInfixAt NativeRustcVmArm.Vm.code 12014 :=
+public theorem WriteOpenings.b4_at : NativeRustcVmArm.Vm.WriteOpenings.b4.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b4Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b4_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b5_at : NativeRustcVmArm.Vm.WriteOpenings.b5.IsInfixAt NativeRustcVmArm.Vm.code 12019 :=
+public theorem WriteOpenings.b5_at : NativeRustcVmArm.Vm.WriteOpenings.b5.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b5Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b5_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b6_at : NativeRustcVmArm.Vm.WriteOpenings.b6.IsInfixAt NativeRustcVmArm.Vm.code 12020 :=
+public theorem WriteOpenings.b6_at : NativeRustcVmArm.Vm.WriteOpenings.b6.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b6Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b6_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b7_at : NativeRustcVmArm.Vm.WriteOpenings.b7.IsInfixAt NativeRustcVmArm.Vm.code 12025 :=
+public theorem WriteOpenings.b7_at : NativeRustcVmArm.Vm.WriteOpenings.b7.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b7Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b7_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b8_at : NativeRustcVmArm.Vm.WriteOpenings.b8.IsInfixAt NativeRustcVmArm.Vm.code 12029 :=
+public theorem WriteOpenings.b8_at : NativeRustcVmArm.Vm.WriteOpenings.b8.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b8Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b8_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b9_at : NativeRustcVmArm.Vm.WriteOpenings.b9.IsInfixAt NativeRustcVmArm.Vm.code 12031 :=
+public theorem WriteOpenings.b9_at : NativeRustcVmArm.Vm.WriteOpenings.b9.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b9Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b9_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b10_at : NativeRustcVmArm.Vm.WriteOpenings.b10.IsInfixAt NativeRustcVmArm.Vm.code 12039 :=
+public theorem WriteOpenings.b10_at : NativeRustcVmArm.Vm.WriteOpenings.b10.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b10Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b10_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b11_at : NativeRustcVmArm.Vm.WriteOpenings.b11.IsInfixAt NativeRustcVmArm.Vm.code 12042 :=
+public theorem WriteOpenings.b11_at : NativeRustcVmArm.Vm.WriteOpenings.b11.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b11Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b11_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b12_at : NativeRustcVmArm.Vm.WriteOpenings.b12.IsInfixAt NativeRustcVmArm.Vm.code 12047 :=
+public theorem WriteOpenings.b12_at : NativeRustcVmArm.Vm.WriteOpenings.b12.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b12Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b12_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b13_at : NativeRustcVmArm.Vm.WriteOpenings.b13.IsInfixAt NativeRustcVmArm.Vm.code 12052 :=
+public theorem WriteOpenings.b13_at : NativeRustcVmArm.Vm.WriteOpenings.b13.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b13Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b13_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b14_at : NativeRustcVmArm.Vm.WriteOpenings.b14.IsInfixAt NativeRustcVmArm.Vm.code 12058 :=
+public theorem WriteOpenings.b14_at : NativeRustcVmArm.Vm.WriteOpenings.b14.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b14Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b14_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b15_at : NativeRustcVmArm.Vm.WriteOpenings.b15.IsInfixAt NativeRustcVmArm.Vm.code 12062 :=
+public theorem WriteOpenings.b15_at : NativeRustcVmArm.Vm.WriteOpenings.b15.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b15Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b15_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b16_at : NativeRustcVmArm.Vm.WriteOpenings.b16.IsInfixAt NativeRustcVmArm.Vm.code 12070 :=
+public theorem WriteOpenings.b16_at : NativeRustcVmArm.Vm.WriteOpenings.b16.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b16Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b16_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b17_at : NativeRustcVmArm.Vm.WriteOpenings.b17.IsInfixAt NativeRustcVmArm.Vm.code 12074 :=
+public theorem WriteOpenings.b17_at : NativeRustcVmArm.Vm.WriteOpenings.b17.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b17Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b17_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b18_at : NativeRustcVmArm.Vm.WriteOpenings.b18.IsInfixAt NativeRustcVmArm.Vm.code 12078 :=
+public theorem WriteOpenings.b18_at : NativeRustcVmArm.Vm.WriteOpenings.b18.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b18Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b18_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b19_at : NativeRustcVmArm.Vm.WriteOpenings.b19.IsInfixAt NativeRustcVmArm.Vm.code 12081 :=
+public theorem WriteOpenings.b19_at : NativeRustcVmArm.Vm.WriteOpenings.b19.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b19Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b19_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b20_at : NativeRustcVmArm.Vm.WriteOpenings.b20.IsInfixAt NativeRustcVmArm.Vm.code 12086 :=
+public theorem WriteOpenings.b20_at : NativeRustcVmArm.Vm.WriteOpenings.b20.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b20Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b20_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b21_at : NativeRustcVmArm.Vm.WriteOpenings.b21.IsInfixAt NativeRustcVmArm.Vm.code 12092 :=
+public theorem WriteOpenings.b21_at : NativeRustcVmArm.Vm.WriteOpenings.b21.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b21Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b21_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b22_at : NativeRustcVmArm.Vm.WriteOpenings.b22.IsInfixAt NativeRustcVmArm.Vm.code 12106 :=
+public theorem WriteOpenings.b22_at : NativeRustcVmArm.Vm.WriteOpenings.b22.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b22Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b22_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b23_at : NativeRustcVmArm.Vm.WriteOpenings.b23.IsInfixAt NativeRustcVmArm.Vm.code 12107 :=
+public theorem WriteOpenings.b23_at : NativeRustcVmArm.Vm.WriteOpenings.b23.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b23Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b23_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b24_at : NativeRustcVmArm.Vm.WriteOpenings.b24.IsInfixAt NativeRustcVmArm.Vm.code 12109 :=
+public theorem WriteOpenings.b24_at : NativeRustcVmArm.Vm.WriteOpenings.b24.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b24Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b24_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b25_at : NativeRustcVmArm.Vm.WriteOpenings.b25.IsInfixAt NativeRustcVmArm.Vm.code 12114 :=
+public theorem WriteOpenings.b25_at : NativeRustcVmArm.Vm.WriteOpenings.b25.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b25Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b25_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b26_at : NativeRustcVmArm.Vm.WriteOpenings.b26.IsInfixAt NativeRustcVmArm.Vm.code 12123 :=
+public theorem WriteOpenings.b26_at : NativeRustcVmArm.Vm.WriteOpenings.b26.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b26Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b26_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b27_at : NativeRustcVmArm.Vm.WriteOpenings.b27.IsInfixAt NativeRustcVmArm.Vm.code 12127 :=
+public theorem WriteOpenings.b27_at : NativeRustcVmArm.Vm.WriteOpenings.b27.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b27Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b27_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b28_at : NativeRustcVmArm.Vm.WriteOpenings.b28.IsInfixAt NativeRustcVmArm.Vm.code 12132 :=
+public theorem WriteOpenings.b28_at : NativeRustcVmArm.Vm.WriteOpenings.b28.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b28Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b28_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b29_at : NativeRustcVmArm.Vm.WriteOpenings.b29.IsInfixAt NativeRustcVmArm.Vm.code 12133 :=
+public theorem WriteOpenings.b29_at : NativeRustcVmArm.Vm.WriteOpenings.b29.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b29Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b29_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b30_at : NativeRustcVmArm.Vm.WriteOpenings.b30.IsInfixAt NativeRustcVmArm.Vm.code 12136 :=
+public theorem WriteOpenings.b30_at : NativeRustcVmArm.Vm.WriteOpenings.b30.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b30Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b30_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b31_at : NativeRustcVmArm.Vm.WriteOpenings.b31.IsInfixAt NativeRustcVmArm.Vm.code 12138 :=
+public theorem WriteOpenings.b31_at : NativeRustcVmArm.Vm.WriteOpenings.b31.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b31Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b31_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b32_at : NativeRustcVmArm.Vm.WriteOpenings.b32.IsInfixAt NativeRustcVmArm.Vm.code 12141 :=
+public theorem WriteOpenings.b32_at : NativeRustcVmArm.Vm.WriteOpenings.b32.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b32Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b32_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b33_at : NativeRustcVmArm.Vm.WriteOpenings.b33.IsInfixAt NativeRustcVmArm.Vm.code 12149 :=
+public theorem WriteOpenings.b33_at : NativeRustcVmArm.Vm.WriteOpenings.b33.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b33Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b33_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b34_at : NativeRustcVmArm.Vm.WriteOpenings.b34.IsInfixAt NativeRustcVmArm.Vm.code 12152 :=
+public theorem WriteOpenings.b34_at : NativeRustcVmArm.Vm.WriteOpenings.b34.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b34Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b34_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b35_at : NativeRustcVmArm.Vm.WriteOpenings.b35.IsInfixAt NativeRustcVmArm.Vm.code 12157 :=
+public theorem WriteOpenings.b35_at : NativeRustcVmArm.Vm.WriteOpenings.b35.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b35Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b35_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b36_at : NativeRustcVmArm.Vm.WriteOpenings.b36.IsInfixAt NativeRustcVmArm.Vm.code 12162 :=
+public theorem WriteOpenings.b36_at : NativeRustcVmArm.Vm.WriteOpenings.b36.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b36Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b36_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b37_at : NativeRustcVmArm.Vm.WriteOpenings.b37.IsInfixAt NativeRustcVmArm.Vm.code 12168 :=
+public theorem WriteOpenings.b37_at : NativeRustcVmArm.Vm.WriteOpenings.b37.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b37Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b37_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b38_at : NativeRustcVmArm.Vm.WriteOpenings.b38.IsInfixAt NativeRustcVmArm.Vm.code 12169 :=
+public theorem WriteOpenings.b38_at : NativeRustcVmArm.Vm.WriteOpenings.b38.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b38Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b38_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b39_at : NativeRustcVmArm.Vm.WriteOpenings.b39.IsInfixAt NativeRustcVmArm.Vm.code 12173 :=
+public theorem WriteOpenings.b39_at : NativeRustcVmArm.Vm.WriteOpenings.b39.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b39Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b39_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b40_at : NativeRustcVmArm.Vm.WriteOpenings.b40.IsInfixAt NativeRustcVmArm.Vm.code 12180 :=
+public theorem WriteOpenings.b40_at : NativeRustcVmArm.Vm.WriteOpenings.b40.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b40Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b40_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b41_at : NativeRustcVmArm.Vm.WriteOpenings.b41.IsInfixAt NativeRustcVmArm.Vm.code 12184 :=
+public theorem WriteOpenings.b41_at : NativeRustcVmArm.Vm.WriteOpenings.b41.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b41Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b41_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b42_at : NativeRustcVmArm.Vm.WriteOpenings.b42.IsInfixAt NativeRustcVmArm.Vm.code 12187 :=
+public theorem WriteOpenings.b42_at : NativeRustcVmArm.Vm.WriteOpenings.b42.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b42Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b42_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b43_at : NativeRustcVmArm.Vm.WriteOpenings.b43.IsInfixAt NativeRustcVmArm.Vm.code 12188 :=
+public theorem WriteOpenings.b43_at : NativeRustcVmArm.Vm.WriteOpenings.b43.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b43Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b43_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b44_at : NativeRustcVmArm.Vm.WriteOpenings.b44.IsInfixAt NativeRustcVmArm.Vm.code 12191 :=
+public theorem WriteOpenings.b44_at : NativeRustcVmArm.Vm.WriteOpenings.b44.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b44Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b44_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b45_at : NativeRustcVmArm.Vm.WriteOpenings.b45.IsInfixAt NativeRustcVmArm.Vm.code 12192 :=
+public theorem WriteOpenings.b45_at : NativeRustcVmArm.Vm.WriteOpenings.b45.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b45Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b45_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem WriteOpenings.b46_at : NativeRustcVmArm.Vm.WriteOpenings.b46.IsInfixAt NativeRustcVmArm.Vm.code 12194 :=
+public theorem WriteOpenings.b46_at : NativeRustcVmArm.Vm.WriteOpenings.b46.IsInfixAt NativeRustcVmArm.Vm.code (WriteOpenings.programOffset + NativeRustcVmArm.Vm.WriteOpenings.b46Offset) :=
   NativeRustcVmArm.Vm.WriteOpenings.b46_in_code.trans WriteOpenings.code_at (List.cons_ne_nil _ _)
 
-public theorem Find.code_at : NativeRustcVmArm.Vm.Find.code.IsInfixAt NativeRustcVmArm.Vm.code 12203 :=
+@[expose] public def Find.programOffset : Nat := 12203
+
+public theorem Find.code_at : NativeRustcVmArm.Vm.Find.code.IsInfixAt NativeRustcVmArm.Vm.code Find.programOffset :=
   List.isInfixAt_flatten_of (i := 87) rfl (by decide +kernel)
 
-public theorem Find.b0_at : NativeRustcVmArm.Vm.Find.b0.IsInfixAt NativeRustcVmArm.Vm.code 12203 :=
+public theorem Find.b0_at : NativeRustcVmArm.Vm.Find.b0.IsInfixAt NativeRustcVmArm.Vm.code (Find.programOffset + NativeRustcVmArm.Vm.Find.b0Offset) :=
   NativeRustcVmArm.Vm.Find.b0_in_code.trans Find.code_at (List.cons_ne_nil _ _)
 
-public theorem Find.b1_at : NativeRustcVmArm.Vm.Find.b1.IsInfixAt NativeRustcVmArm.Vm.code 12205 :=
+public theorem Find.b1_at : NativeRustcVmArm.Vm.Find.b1.IsInfixAt NativeRustcVmArm.Vm.code (Find.programOffset + NativeRustcVmArm.Vm.Find.b1Offset) :=
   NativeRustcVmArm.Vm.Find.b1_in_code.trans Find.code_at (List.cons_ne_nil _ _)
 
-public theorem Find.b2_at : NativeRustcVmArm.Vm.Find.b2.IsInfixAt NativeRustcVmArm.Vm.code 12211 :=
+public theorem Find.b2_at : NativeRustcVmArm.Vm.Find.b2.IsInfixAt NativeRustcVmArm.Vm.code (Find.programOffset + NativeRustcVmArm.Vm.Find.b2Offset) :=
   NativeRustcVmArm.Vm.Find.b2_in_code.trans Find.code_at (List.cons_ne_nil _ _)
 
-public theorem Find.b3_at : NativeRustcVmArm.Vm.Find.b3.IsInfixAt NativeRustcVmArm.Vm.code 12215 :=
+public theorem Find.b3_at : NativeRustcVmArm.Vm.Find.b3.IsInfixAt NativeRustcVmArm.Vm.code (Find.programOffset + NativeRustcVmArm.Vm.Find.b3Offset) :=
   NativeRustcVmArm.Vm.Find.b3_in_code.trans Find.code_at (List.cons_ne_nil _ _)
 
-public theorem Find.b4_at : NativeRustcVmArm.Vm.Find.b4.IsInfixAt NativeRustcVmArm.Vm.code 12218 :=
+public theorem Find.b4_at : NativeRustcVmArm.Vm.Find.b4.IsInfixAt NativeRustcVmArm.Vm.code (Find.programOffset + NativeRustcVmArm.Vm.Find.b4Offset) :=
   NativeRustcVmArm.Vm.Find.b4_in_code.trans Find.code_at (List.cons_ne_nil _ _)
 
-public theorem Find.b5_at : NativeRustcVmArm.Vm.Find.b5.IsInfixAt NativeRustcVmArm.Vm.code 12220 :=
+public theorem Find.b5_at : NativeRustcVmArm.Vm.Find.b5.IsInfixAt NativeRustcVmArm.Vm.code (Find.programOffset + NativeRustcVmArm.Vm.Find.b5Offset) :=
   NativeRustcVmArm.Vm.Find.b5_in_code.trans Find.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.code_at : NativeRustcVmArm.Vm.InsD.code.IsInfixAt NativeRustcVmArm.Vm.code 12222 :=
+@[expose] public def InsD.programOffset : Nat := 12222
+
+public theorem InsD.code_at : NativeRustcVmArm.Vm.InsD.code.IsInfixAt NativeRustcVmArm.Vm.code InsD.programOffset :=
   List.isInfixAt_flatten_of (i := 88) rfl (by decide +kernel)
 
-public theorem InsD.b0_at : NativeRustcVmArm.Vm.InsD.b0.IsInfixAt NativeRustcVmArm.Vm.code 12222 :=
+public theorem InsD.b0_at : NativeRustcVmArm.Vm.InsD.b0.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b0Offset) :=
   NativeRustcVmArm.Vm.InsD.b0_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b1_at : NativeRustcVmArm.Vm.InsD.b1.IsInfixAt NativeRustcVmArm.Vm.code 12225 :=
+public theorem InsD.b1_at : NativeRustcVmArm.Vm.InsD.b1.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b1Offset) :=
   NativeRustcVmArm.Vm.InsD.b1_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b2_at : NativeRustcVmArm.Vm.InsD.b2.IsInfixAt NativeRustcVmArm.Vm.code 12230 :=
+public theorem InsD.b2_at : NativeRustcVmArm.Vm.InsD.b2.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b2Offset) :=
   NativeRustcVmArm.Vm.InsD.b2_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b3_at : NativeRustcVmArm.Vm.InsD.b3.IsInfixAt NativeRustcVmArm.Vm.code 12233 :=
+public theorem InsD.b3_at : NativeRustcVmArm.Vm.InsD.b3.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b3Offset) :=
   NativeRustcVmArm.Vm.InsD.b3_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b4_at : NativeRustcVmArm.Vm.InsD.b4.IsInfixAt NativeRustcVmArm.Vm.code 12237 :=
+public theorem InsD.b4_at : NativeRustcVmArm.Vm.InsD.b4.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b4Offset) :=
   NativeRustcVmArm.Vm.InsD.b4_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b5_at : NativeRustcVmArm.Vm.InsD.b5.IsInfixAt NativeRustcVmArm.Vm.code 12239 :=
+public theorem InsD.b5_at : NativeRustcVmArm.Vm.InsD.b5.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b5Offset) :=
   NativeRustcVmArm.Vm.InsD.b5_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b6_at : NativeRustcVmArm.Vm.InsD.b6.IsInfixAt NativeRustcVmArm.Vm.code 12241 :=
+public theorem InsD.b6_at : NativeRustcVmArm.Vm.InsD.b6.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b6Offset) :=
   NativeRustcVmArm.Vm.InsD.b6_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b7_at : NativeRustcVmArm.Vm.InsD.b7.IsInfixAt NativeRustcVmArm.Vm.code 12247 :=
+public theorem InsD.b7_at : NativeRustcVmArm.Vm.InsD.b7.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b7Offset) :=
   NativeRustcVmArm.Vm.InsD.b7_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem InsD.b8_at : NativeRustcVmArm.Vm.InsD.b8.IsInfixAt NativeRustcVmArm.Vm.code 12256 :=
+public theorem InsD.b8_at : NativeRustcVmArm.Vm.InsD.b8.IsInfixAt NativeRustcVmArm.Vm.code (InsD.programOffset + NativeRustcVmArm.Vm.InsD.b8Offset) :=
   NativeRustcVmArm.Vm.InsD.b8_in_code.trans InsD.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.code_at : NativeRustcVmArm.Vm.Decode.code.IsInfixAt NativeRustcVmArm.Vm.code 12261 :=
+@[expose] public def Decode.programOffset : Nat := 12261
+
+public theorem Decode.code_at : NativeRustcVmArm.Vm.Decode.code.IsInfixAt NativeRustcVmArm.Vm.code Decode.programOffset :=
   List.isInfixAt_flatten_of (i := 89) rfl (by decide +kernel)
 
-public theorem Decode.b0_at : NativeRustcVmArm.Vm.Decode.b0.IsInfixAt NativeRustcVmArm.Vm.code 12261 :=
+public theorem Decode.b0_at : NativeRustcVmArm.Vm.Decode.b0.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b0Offset) :=
   NativeRustcVmArm.Vm.Decode.b0_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b1_at : NativeRustcVmArm.Vm.Decode.b1.IsInfixAt NativeRustcVmArm.Vm.code 12275 :=
+public theorem Decode.b1_at : NativeRustcVmArm.Vm.Decode.b1.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b1Offset) :=
   NativeRustcVmArm.Vm.Decode.b1_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b2_at : NativeRustcVmArm.Vm.Decode.b2.IsInfixAt NativeRustcVmArm.Vm.code 12277 :=
+public theorem Decode.b2_at : NativeRustcVmArm.Vm.Decode.b2.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b2Offset) :=
   NativeRustcVmArm.Vm.Decode.b2_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b3_at : NativeRustcVmArm.Vm.Decode.b3.IsInfixAt NativeRustcVmArm.Vm.code 12280 :=
+public theorem Decode.b3_at : NativeRustcVmArm.Vm.Decode.b3.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b3Offset) :=
   NativeRustcVmArm.Vm.Decode.b3_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b4_at : NativeRustcVmArm.Vm.Decode.b4.IsInfixAt NativeRustcVmArm.Vm.code 12284 :=
+public theorem Decode.b4_at : NativeRustcVmArm.Vm.Decode.b4.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b4Offset) :=
   NativeRustcVmArm.Vm.Decode.b4_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b5_at : NativeRustcVmArm.Vm.Decode.b5.IsInfixAt NativeRustcVmArm.Vm.code 12285 :=
+public theorem Decode.b5_at : NativeRustcVmArm.Vm.Decode.b5.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b5Offset) :=
   NativeRustcVmArm.Vm.Decode.b5_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b6_at : NativeRustcVmArm.Vm.Decode.b6.IsInfixAt NativeRustcVmArm.Vm.code 12289 :=
+public theorem Decode.b6_at : NativeRustcVmArm.Vm.Decode.b6.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b6Offset) :=
   NativeRustcVmArm.Vm.Decode.b6_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b7_at : NativeRustcVmArm.Vm.Decode.b7.IsInfixAt NativeRustcVmArm.Vm.code 12293 :=
+public theorem Decode.b7_at : NativeRustcVmArm.Vm.Decode.b7.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b7Offset) :=
   NativeRustcVmArm.Vm.Decode.b7_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b8_at : NativeRustcVmArm.Vm.Decode.b8.IsInfixAt NativeRustcVmArm.Vm.code 12297 :=
+public theorem Decode.b8_at : NativeRustcVmArm.Vm.Decode.b8.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b8Offset) :=
   NativeRustcVmArm.Vm.Decode.b8_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b9_at : NativeRustcVmArm.Vm.Decode.b9.IsInfixAt NativeRustcVmArm.Vm.code 12315 :=
+public theorem Decode.b9_at : NativeRustcVmArm.Vm.Decode.b9.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b9Offset) :=
   NativeRustcVmArm.Vm.Decode.b9_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b10_at : NativeRustcVmArm.Vm.Decode.b10.IsInfixAt NativeRustcVmArm.Vm.code 12317 :=
+public theorem Decode.b10_at : NativeRustcVmArm.Vm.Decode.b10.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b10Offset) :=
   NativeRustcVmArm.Vm.Decode.b10_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b11_at : NativeRustcVmArm.Vm.Decode.b11.IsInfixAt NativeRustcVmArm.Vm.code 12319 :=
+public theorem Decode.b11_at : NativeRustcVmArm.Vm.Decode.b11.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b11Offset) :=
   NativeRustcVmArm.Vm.Decode.b11_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b12_at : NativeRustcVmArm.Vm.Decode.b12.IsInfixAt NativeRustcVmArm.Vm.code 12325 :=
+public theorem Decode.b12_at : NativeRustcVmArm.Vm.Decode.b12.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b12Offset) :=
   NativeRustcVmArm.Vm.Decode.b12_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b13_at : NativeRustcVmArm.Vm.Decode.b13.IsInfixAt NativeRustcVmArm.Vm.code 12328 :=
+public theorem Decode.b13_at : NativeRustcVmArm.Vm.Decode.b13.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b13Offset) :=
   NativeRustcVmArm.Vm.Decode.b13_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b14_at : NativeRustcVmArm.Vm.Decode.b14.IsInfixAt NativeRustcVmArm.Vm.code 12329 :=
+public theorem Decode.b14_at : NativeRustcVmArm.Vm.Decode.b14.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b14Offset) :=
   NativeRustcVmArm.Vm.Decode.b14_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b15_at : NativeRustcVmArm.Vm.Decode.b15.IsInfixAt NativeRustcVmArm.Vm.code 12331 :=
+public theorem Decode.b15_at : NativeRustcVmArm.Vm.Decode.b15.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b15Offset) :=
   NativeRustcVmArm.Vm.Decode.b15_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem Decode.b16_at : NativeRustcVmArm.Vm.Decode.b16.IsInfixAt NativeRustcVmArm.Vm.code 12338 :=
+public theorem Decode.b16_at : NativeRustcVmArm.Vm.Decode.b16.IsInfixAt NativeRustcVmArm.Vm.code (Decode.programOffset + NativeRustcVmArm.Vm.Decode.b16Offset) :=
   NativeRustcVmArm.Vm.Decode.b16_in_code.trans Decode.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.code_at : NativeRustcVmArm.Vm.PhaseM.code.IsInfixAt NativeRustcVmArm.Vm.code 12347 :=
+@[expose] public def PhaseM.programOffset : Nat := 12347
+
+public theorem PhaseM.code_at : NativeRustcVmArm.Vm.PhaseM.code.IsInfixAt NativeRustcVmArm.Vm.code PhaseM.programOffset :=
   List.isInfixAt_flatten_of (i := 90) rfl (by decide +kernel)
 
-public theorem PhaseM.b0_at : NativeRustcVmArm.Vm.PhaseM.b0.IsInfixAt NativeRustcVmArm.Vm.code 12347 :=
+public theorem PhaseM.b0_at : NativeRustcVmArm.Vm.PhaseM.b0.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b0Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b0_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b1_at : NativeRustcVmArm.Vm.PhaseM.b1.IsInfixAt NativeRustcVmArm.Vm.code 12360 :=
+public theorem PhaseM.b1_at : NativeRustcVmArm.Vm.PhaseM.b1.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b1Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b1_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b2_at : NativeRustcVmArm.Vm.PhaseM.b2.IsInfixAt NativeRustcVmArm.Vm.code 12364 :=
+public theorem PhaseM.b2_at : NativeRustcVmArm.Vm.PhaseM.b2.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b2Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b2_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b3_at : NativeRustcVmArm.Vm.PhaseM.b3.IsInfixAt NativeRustcVmArm.Vm.code 12367 :=
+public theorem PhaseM.b3_at : NativeRustcVmArm.Vm.PhaseM.b3.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b3Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b3_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b4_at : NativeRustcVmArm.Vm.PhaseM.b4.IsInfixAt NativeRustcVmArm.Vm.code 12369 :=
+public theorem PhaseM.b4_at : NativeRustcVmArm.Vm.PhaseM.b4.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b4Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b4_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b5_at : NativeRustcVmArm.Vm.PhaseM.b5.IsInfixAt NativeRustcVmArm.Vm.code 12373 :=
+public theorem PhaseM.b5_at : NativeRustcVmArm.Vm.PhaseM.b5.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b5Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b5_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b6_at : NativeRustcVmArm.Vm.PhaseM.b6.IsInfixAt NativeRustcVmArm.Vm.code 12374 :=
+public theorem PhaseM.b6_at : NativeRustcVmArm.Vm.PhaseM.b6.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b6Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b6_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b7_at : NativeRustcVmArm.Vm.PhaseM.b7.IsInfixAt NativeRustcVmArm.Vm.code 12377 :=
+public theorem PhaseM.b7_at : NativeRustcVmArm.Vm.PhaseM.b7.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b7Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b7_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b8_at : NativeRustcVmArm.Vm.PhaseM.b8.IsInfixAt NativeRustcVmArm.Vm.code 12381 :=
+public theorem PhaseM.b8_at : NativeRustcVmArm.Vm.PhaseM.b8.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b8Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b8_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b9_at : NativeRustcVmArm.Vm.PhaseM.b9.IsInfixAt NativeRustcVmArm.Vm.code 12382 :=
+public theorem PhaseM.b9_at : NativeRustcVmArm.Vm.PhaseM.b9.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b9Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b9_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b10_at : NativeRustcVmArm.Vm.PhaseM.b10.IsInfixAt NativeRustcVmArm.Vm.code 12386 :=
+public theorem PhaseM.b10_at : NativeRustcVmArm.Vm.PhaseM.b10.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b10Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b10_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b11_at : NativeRustcVmArm.Vm.PhaseM.b11.IsInfixAt NativeRustcVmArm.Vm.code 12389 :=
+public theorem PhaseM.b11_at : NativeRustcVmArm.Vm.PhaseM.b11.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b11Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b11_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b12_at : NativeRustcVmArm.Vm.PhaseM.b12.IsInfixAt NativeRustcVmArm.Vm.code 12392 :=
+public theorem PhaseM.b12_at : NativeRustcVmArm.Vm.PhaseM.b12.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b12Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b12_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b13_at : NativeRustcVmArm.Vm.PhaseM.b13.IsInfixAt NativeRustcVmArm.Vm.code 12393 :=
+public theorem PhaseM.b13_at : NativeRustcVmArm.Vm.PhaseM.b13.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b13Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b13_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b14_at : NativeRustcVmArm.Vm.PhaseM.b14.IsInfixAt NativeRustcVmArm.Vm.code 12394 :=
+public theorem PhaseM.b14_at : NativeRustcVmArm.Vm.PhaseM.b14.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b14Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b14_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b15_at : NativeRustcVmArm.Vm.PhaseM.b15.IsInfixAt NativeRustcVmArm.Vm.code 12399 :=
+public theorem PhaseM.b15_at : NativeRustcVmArm.Vm.PhaseM.b15.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b15Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b15_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b16_at : NativeRustcVmArm.Vm.PhaseM.b16.IsInfixAt NativeRustcVmArm.Vm.code 12404 :=
+public theorem PhaseM.b16_at : NativeRustcVmArm.Vm.PhaseM.b16.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b16Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b16_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b17_at : NativeRustcVmArm.Vm.PhaseM.b17.IsInfixAt NativeRustcVmArm.Vm.code 12408 :=
+public theorem PhaseM.b17_at : NativeRustcVmArm.Vm.PhaseM.b17.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b17Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b17_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b18_at : NativeRustcVmArm.Vm.PhaseM.b18.IsInfixAt NativeRustcVmArm.Vm.code 12411 :=
+public theorem PhaseM.b18_at : NativeRustcVmArm.Vm.PhaseM.b18.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b18Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b18_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b19_at : NativeRustcVmArm.Vm.PhaseM.b19.IsInfixAt NativeRustcVmArm.Vm.code 12413 :=
+public theorem PhaseM.b19_at : NativeRustcVmArm.Vm.PhaseM.b19.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b19Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b19_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b20_at : NativeRustcVmArm.Vm.PhaseM.b20.IsInfixAt NativeRustcVmArm.Vm.code 12422 :=
+public theorem PhaseM.b20_at : NativeRustcVmArm.Vm.PhaseM.b20.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b20Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b20_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b21_at : NativeRustcVmArm.Vm.PhaseM.b21.IsInfixAt NativeRustcVmArm.Vm.code 12425 :=
+public theorem PhaseM.b21_at : NativeRustcVmArm.Vm.PhaseM.b21.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b21Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b21_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b22_at : NativeRustcVmArm.Vm.PhaseM.b22.IsInfixAt NativeRustcVmArm.Vm.code 12428 :=
+public theorem PhaseM.b22_at : NativeRustcVmArm.Vm.PhaseM.b22.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b22Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b22_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b23_at : NativeRustcVmArm.Vm.PhaseM.b23.IsInfixAt NativeRustcVmArm.Vm.code 12431 :=
+public theorem PhaseM.b23_at : NativeRustcVmArm.Vm.PhaseM.b23.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b23Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b23_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b24_at : NativeRustcVmArm.Vm.PhaseM.b24.IsInfixAt NativeRustcVmArm.Vm.code 12436 :=
+public theorem PhaseM.b24_at : NativeRustcVmArm.Vm.PhaseM.b24.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b24Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b24_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b25_at : NativeRustcVmArm.Vm.PhaseM.b25.IsInfixAt NativeRustcVmArm.Vm.code 12444 :=
+public theorem PhaseM.b25_at : NativeRustcVmArm.Vm.PhaseM.b25.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b25Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b25_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b26_at : NativeRustcVmArm.Vm.PhaseM.b26.IsInfixAt NativeRustcVmArm.Vm.code 12452 :=
+public theorem PhaseM.b26_at : NativeRustcVmArm.Vm.PhaseM.b26.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b26Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b26_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b27_at : NativeRustcVmArm.Vm.PhaseM.b27.IsInfixAt NativeRustcVmArm.Vm.code 12460 :=
+public theorem PhaseM.b27_at : NativeRustcVmArm.Vm.PhaseM.b27.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b27Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b27_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b28_at : NativeRustcVmArm.Vm.PhaseM.b28.IsInfixAt NativeRustcVmArm.Vm.code 12468 :=
+public theorem PhaseM.b28_at : NativeRustcVmArm.Vm.PhaseM.b28.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b28Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b28_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b29_at : NativeRustcVmArm.Vm.PhaseM.b29.IsInfixAt NativeRustcVmArm.Vm.code 12478 :=
+public theorem PhaseM.b29_at : NativeRustcVmArm.Vm.PhaseM.b29.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b29Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b29_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b30_at : NativeRustcVmArm.Vm.PhaseM.b30.IsInfixAt NativeRustcVmArm.Vm.code 12483 :=
+public theorem PhaseM.b30_at : NativeRustcVmArm.Vm.PhaseM.b30.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b30Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b30_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b31_at : NativeRustcVmArm.Vm.PhaseM.b31.IsInfixAt NativeRustcVmArm.Vm.code 12489 :=
+public theorem PhaseM.b31_at : NativeRustcVmArm.Vm.PhaseM.b31.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b31Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b31_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b32_at : NativeRustcVmArm.Vm.PhaseM.b32.IsInfixAt NativeRustcVmArm.Vm.code 12492 :=
+public theorem PhaseM.b32_at : NativeRustcVmArm.Vm.PhaseM.b32.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b32Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b32_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b33_at : NativeRustcVmArm.Vm.PhaseM.b33.IsInfixAt NativeRustcVmArm.Vm.code 12500 :=
+public theorem PhaseM.b33_at : NativeRustcVmArm.Vm.PhaseM.b33.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b33Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b33_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b34_at : NativeRustcVmArm.Vm.PhaseM.b34.IsInfixAt NativeRustcVmArm.Vm.code 12502 :=
+public theorem PhaseM.b34_at : NativeRustcVmArm.Vm.PhaseM.b34.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b34Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b34_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b35_at : NativeRustcVmArm.Vm.PhaseM.b35.IsInfixAt NativeRustcVmArm.Vm.code 12509 :=
+public theorem PhaseM.b35_at : NativeRustcVmArm.Vm.PhaseM.b35.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b35Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b35_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b36_at : NativeRustcVmArm.Vm.PhaseM.b36.IsInfixAt NativeRustcVmArm.Vm.code 12512 :=
+public theorem PhaseM.b36_at : NativeRustcVmArm.Vm.PhaseM.b36.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b36Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b36_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem PhaseM.b37_at : NativeRustcVmArm.Vm.PhaseM.b37.IsInfixAt NativeRustcVmArm.Vm.code 12521 :=
+public theorem PhaseM.b37_at : NativeRustcVmArm.Vm.PhaseM.b37.IsInfixAt NativeRustcVmArm.Vm.code (PhaseM.programOffset + NativeRustcVmArm.Vm.PhaseM.b37Offset) :=
   NativeRustcVmArm.Vm.PhaseM.b37_in_code.trans PhaseM.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.code_at : NativeRustcVmArm.Vm.RdRows.code.IsInfixAt NativeRustcVmArm.Vm.code 12522 :=
+@[expose] public def RdRows.programOffset : Nat := 12522
+
+public theorem RdRows.code_at : NativeRustcVmArm.Vm.RdRows.code.IsInfixAt NativeRustcVmArm.Vm.code RdRows.programOffset :=
   List.isInfixAt_flatten_of (i := 91) rfl (by decide +kernel)
 
-public theorem RdRows.b0_at : NativeRustcVmArm.Vm.RdRows.b0.IsInfixAt NativeRustcVmArm.Vm.code 12522 :=
+public theorem RdRows.b0_at : NativeRustcVmArm.Vm.RdRows.b0.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b0Offset) :=
   NativeRustcVmArm.Vm.RdRows.b0_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b1_at : NativeRustcVmArm.Vm.RdRows.b1.IsInfixAt NativeRustcVmArm.Vm.code 12532 :=
+public theorem RdRows.b1_at : NativeRustcVmArm.Vm.RdRows.b1.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b1Offset) :=
   NativeRustcVmArm.Vm.RdRows.b1_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b2_at : NativeRustcVmArm.Vm.RdRows.b2.IsInfixAt NativeRustcVmArm.Vm.code 12534 :=
+public theorem RdRows.b2_at : NativeRustcVmArm.Vm.RdRows.b2.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b2Offset) :=
   NativeRustcVmArm.Vm.RdRows.b2_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b3_at : NativeRustcVmArm.Vm.RdRows.b3.IsInfixAt NativeRustcVmArm.Vm.code 12544 :=
+public theorem RdRows.b3_at : NativeRustcVmArm.Vm.RdRows.b3.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b3Offset) :=
   NativeRustcVmArm.Vm.RdRows.b3_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b4_at : NativeRustcVmArm.Vm.RdRows.b4.IsInfixAt NativeRustcVmArm.Vm.code 12551 :=
+public theorem RdRows.b4_at : NativeRustcVmArm.Vm.RdRows.b4.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b4Offset) :=
   NativeRustcVmArm.Vm.RdRows.b4_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b5_at : NativeRustcVmArm.Vm.RdRows.b5.IsInfixAt NativeRustcVmArm.Vm.code 12561 :=
+public theorem RdRows.b5_at : NativeRustcVmArm.Vm.RdRows.b5.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b5Offset) :=
   NativeRustcVmArm.Vm.RdRows.b5_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b6_at : NativeRustcVmArm.Vm.RdRows.b6.IsInfixAt NativeRustcVmArm.Vm.code 12565 :=
+public theorem RdRows.b6_at : NativeRustcVmArm.Vm.RdRows.b6.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b6Offset) :=
   NativeRustcVmArm.Vm.RdRows.b6_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b7_at : NativeRustcVmArm.Vm.RdRows.b7.IsInfixAt NativeRustcVmArm.Vm.code 12568 :=
+public theorem RdRows.b7_at : NativeRustcVmArm.Vm.RdRows.b7.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b7Offset) :=
   NativeRustcVmArm.Vm.RdRows.b7_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b8_at : NativeRustcVmArm.Vm.RdRows.b8.IsInfixAt NativeRustcVmArm.Vm.code 12572 :=
+public theorem RdRows.b8_at : NativeRustcVmArm.Vm.RdRows.b8.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b8Offset) :=
   NativeRustcVmArm.Vm.RdRows.b8_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b9_at : NativeRustcVmArm.Vm.RdRows.b9.IsInfixAt NativeRustcVmArm.Vm.code 12577 :=
+public theorem RdRows.b9_at : NativeRustcVmArm.Vm.RdRows.b9.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b9Offset) :=
   NativeRustcVmArm.Vm.RdRows.b9_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b10_at : NativeRustcVmArm.Vm.RdRows.b10.IsInfixAt NativeRustcVmArm.Vm.code 12581 :=
+public theorem RdRows.b10_at : NativeRustcVmArm.Vm.RdRows.b10.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b10Offset) :=
   NativeRustcVmArm.Vm.RdRows.b10_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b11_at : NativeRustcVmArm.Vm.RdRows.b11.IsInfixAt NativeRustcVmArm.Vm.code 12585 :=
+public theorem RdRows.b11_at : NativeRustcVmArm.Vm.RdRows.b11.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b11Offset) :=
   NativeRustcVmArm.Vm.RdRows.b11_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b12_at : NativeRustcVmArm.Vm.RdRows.b12.IsInfixAt NativeRustcVmArm.Vm.code 12590 :=
+public theorem RdRows.b12_at : NativeRustcVmArm.Vm.RdRows.b12.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b12Offset) :=
   NativeRustcVmArm.Vm.RdRows.b12_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b13_at : NativeRustcVmArm.Vm.RdRows.b13.IsInfixAt NativeRustcVmArm.Vm.code 12591 :=
+public theorem RdRows.b13_at : NativeRustcVmArm.Vm.RdRows.b13.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b13Offset) :=
   NativeRustcVmArm.Vm.RdRows.b13_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b14_at : NativeRustcVmArm.Vm.RdRows.b14.IsInfixAt NativeRustcVmArm.Vm.code 12598 :=
+public theorem RdRows.b14_at : NativeRustcVmArm.Vm.RdRows.b14.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b14Offset) :=
   NativeRustcVmArm.Vm.RdRows.b14_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b15_at : NativeRustcVmArm.Vm.RdRows.b15.IsInfixAt NativeRustcVmArm.Vm.code 12599 :=
+public theorem RdRows.b15_at : NativeRustcVmArm.Vm.RdRows.b15.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b15Offset) :=
   NativeRustcVmArm.Vm.RdRows.b15_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b16_at : NativeRustcVmArm.Vm.RdRows.b16.IsInfixAt NativeRustcVmArm.Vm.code 12607 :=
+public theorem RdRows.b16_at : NativeRustcVmArm.Vm.RdRows.b16.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b16Offset) :=
   NativeRustcVmArm.Vm.RdRows.b16_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b17_at : NativeRustcVmArm.Vm.RdRows.b17.IsInfixAt NativeRustcVmArm.Vm.code 12610 :=
+public theorem RdRows.b17_at : NativeRustcVmArm.Vm.RdRows.b17.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b17Offset) :=
   NativeRustcVmArm.Vm.RdRows.b17_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b18_at : NativeRustcVmArm.Vm.RdRows.b18.IsInfixAt NativeRustcVmArm.Vm.code 12613 :=
+public theorem RdRows.b18_at : NativeRustcVmArm.Vm.RdRows.b18.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b18Offset) :=
   NativeRustcVmArm.Vm.RdRows.b18_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b19_at : NativeRustcVmArm.Vm.RdRows.b19.IsInfixAt NativeRustcVmArm.Vm.code 12616 :=
+public theorem RdRows.b19_at : NativeRustcVmArm.Vm.RdRows.b19.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b19Offset) :=
   NativeRustcVmArm.Vm.RdRows.b19_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b20_at : NativeRustcVmArm.Vm.RdRows.b20.IsInfixAt NativeRustcVmArm.Vm.code 12621 :=
+public theorem RdRows.b20_at : NativeRustcVmArm.Vm.RdRows.b20.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b20Offset) :=
   NativeRustcVmArm.Vm.RdRows.b20_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b21_at : NativeRustcVmArm.Vm.RdRows.b21.IsInfixAt NativeRustcVmArm.Vm.code 12623 :=
+public theorem RdRows.b21_at : NativeRustcVmArm.Vm.RdRows.b21.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b21Offset) :=
   NativeRustcVmArm.Vm.RdRows.b21_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b22_at : NativeRustcVmArm.Vm.RdRows.b22.IsInfixAt NativeRustcVmArm.Vm.code 12627 :=
+public theorem RdRows.b22_at : NativeRustcVmArm.Vm.RdRows.b22.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b22Offset) :=
   NativeRustcVmArm.Vm.RdRows.b22_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b23_at : NativeRustcVmArm.Vm.RdRows.b23.IsInfixAt NativeRustcVmArm.Vm.code 12632 :=
+public theorem RdRows.b23_at : NativeRustcVmArm.Vm.RdRows.b23.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b23Offset) :=
   NativeRustcVmArm.Vm.RdRows.b23_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b24_at : NativeRustcVmArm.Vm.RdRows.b24.IsInfixAt NativeRustcVmArm.Vm.code 12633 :=
+public theorem RdRows.b24_at : NativeRustcVmArm.Vm.RdRows.b24.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b24Offset) :=
   NativeRustcVmArm.Vm.RdRows.b24_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem RdRows.b25_at : NativeRustcVmArm.Vm.RdRows.b25.IsInfixAt NativeRustcVmArm.Vm.code 12637 :=
+public theorem RdRows.b25_at : NativeRustcVmArm.Vm.RdRows.b25.IsInfixAt NativeRustcVmArm.Vm.code (RdRows.programOffset + NativeRustcVmArm.Vm.RdRows.b25Offset) :=
   NativeRustcVmArm.Vm.RdRows.b25_in_code.trans RdRows.code_at (List.cons_ne_nil _ _)
 
-public theorem BitLength.code_at : NativeRustcVmArm.Vm.BitLength.code.IsInfixAt NativeRustcVmArm.Vm.code 12639 :=
+@[expose] public def BitLength.programOffset : Nat := 12639
+
+public theorem BitLength.code_at : NativeRustcVmArm.Vm.BitLength.code.IsInfixAt NativeRustcVmArm.Vm.code BitLength.programOffset :=
   List.isInfixAt_flatten_of (i := 92) rfl (by decide +kernel)
 
-public theorem BitLength.b0_at : NativeRustcVmArm.Vm.BitLength.b0.IsInfixAt NativeRustcVmArm.Vm.code 12639 :=
+public theorem BitLength.b0_at : NativeRustcVmArm.Vm.BitLength.b0.IsInfixAt NativeRustcVmArm.Vm.code (BitLength.programOffset + NativeRustcVmArm.Vm.BitLength.b0Offset) :=
   NativeRustcVmArm.Vm.BitLength.b0_in_code.trans BitLength.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.code_at : NativeRustcVmArm.Vm.IndexMleFrom.code.IsInfixAt NativeRustcVmArm.Vm.code 12674 :=
+@[expose] public def IndexMleFrom.programOffset : Nat := 12674
+
+public theorem IndexMleFrom.code_at : NativeRustcVmArm.Vm.IndexMleFrom.code.IsInfixAt NativeRustcVmArm.Vm.code IndexMleFrom.programOffset :=
   List.isInfixAt_flatten_of (i := 93) rfl (by decide +kernel)
 
-public theorem IndexMleFrom.b0_at : NativeRustcVmArm.Vm.IndexMleFrom.b0.IsInfixAt NativeRustcVmArm.Vm.code 12674 :=
+public theorem IndexMleFrom.b0_at : NativeRustcVmArm.Vm.IndexMleFrom.b0.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b0Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b0_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b1_at : NativeRustcVmArm.Vm.IndexMleFrom.b1.IsInfixAt NativeRustcVmArm.Vm.code 12680 :=
+public theorem IndexMleFrom.b1_at : NativeRustcVmArm.Vm.IndexMleFrom.b1.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b1Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b1_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b2_at : NativeRustcVmArm.Vm.IndexMleFrom.b2.IsInfixAt NativeRustcVmArm.Vm.code 12686 :=
+public theorem IndexMleFrom.b2_at : NativeRustcVmArm.Vm.IndexMleFrom.b2.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b2Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b2_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b3_at : NativeRustcVmArm.Vm.IndexMleFrom.b3.IsInfixAt NativeRustcVmArm.Vm.code 12691 :=
+public theorem IndexMleFrom.b3_at : NativeRustcVmArm.Vm.IndexMleFrom.b3.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b3Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b3_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b4_at : NativeRustcVmArm.Vm.IndexMleFrom.b4.IsInfixAt NativeRustcVmArm.Vm.code 12696 :=
+public theorem IndexMleFrom.b4_at : NativeRustcVmArm.Vm.IndexMleFrom.b4.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b4Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b4_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b5_at : NativeRustcVmArm.Vm.IndexMleFrom.b5.IsInfixAt NativeRustcVmArm.Vm.code 12703 :=
+public theorem IndexMleFrom.b5_at : NativeRustcVmArm.Vm.IndexMleFrom.b5.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b5Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b5_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b6_at : NativeRustcVmArm.Vm.IndexMleFrom.b6.IsInfixAt NativeRustcVmArm.Vm.code 12707 :=
+public theorem IndexMleFrom.b6_at : NativeRustcVmArm.Vm.IndexMleFrom.b6.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b6Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b6_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b7_at : NativeRustcVmArm.Vm.IndexMleFrom.b7.IsInfixAt NativeRustcVmArm.Vm.code 12708 :=
+public theorem IndexMleFrom.b7_at : NativeRustcVmArm.Vm.IndexMleFrom.b7.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b7Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b7_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem IndexMleFrom.b8_at : NativeRustcVmArm.Vm.IndexMleFrom.b8.IsInfixAt NativeRustcVmArm.Vm.code 12711 :=
+public theorem IndexMleFrom.b8_at : NativeRustcVmArm.Vm.IndexMleFrom.b8.IsInfixAt NativeRustcVmArm.Vm.code (IndexMleFrom.programOffset + NativeRustcVmArm.Vm.IndexMleFrom.b8Offset) :=
   NativeRustcVmArm.Vm.IndexMleFrom.b8_in_code.trans IndexMleFrom.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.code_at : NativeRustcVmArm.Vm.PaddingWeight.code.IsInfixAt NativeRustcVmArm.Vm.code 12719 :=
+@[expose] public def PaddingWeight.programOffset : Nat := 12719
+
+public theorem PaddingWeight.code_at : NativeRustcVmArm.Vm.PaddingWeight.code.IsInfixAt NativeRustcVmArm.Vm.code PaddingWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 94) rfl (by decide +kernel)
 
-public theorem PaddingWeight.b0_at : NativeRustcVmArm.Vm.PaddingWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code 12719 :=
+public theorem PaddingWeight.b0_at : NativeRustcVmArm.Vm.PaddingWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b0Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b0_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.b1_at : NativeRustcVmArm.Vm.PaddingWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code 12730 :=
+public theorem PaddingWeight.b1_at : NativeRustcVmArm.Vm.PaddingWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b1Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b1_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.b2_at : NativeRustcVmArm.Vm.PaddingWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code 12735 :=
+public theorem PaddingWeight.b2_at : NativeRustcVmArm.Vm.PaddingWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b2Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b2_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.b3_at : NativeRustcVmArm.Vm.PaddingWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code 12746 :=
+public theorem PaddingWeight.b3_at : NativeRustcVmArm.Vm.PaddingWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b3Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b3_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.b4_at : NativeRustcVmArm.Vm.PaddingWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code 12753 :=
+public theorem PaddingWeight.b4_at : NativeRustcVmArm.Vm.PaddingWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b4Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b4_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.b5_at : NativeRustcVmArm.Vm.PaddingWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code 12757 :=
+public theorem PaddingWeight.b5_at : NativeRustcVmArm.Vm.PaddingWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b5Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b5_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.b6_at : NativeRustcVmArm.Vm.PaddingWeight.b6.IsInfixAt NativeRustcVmArm.Vm.code 12758 :=
+public theorem PaddingWeight.b6_at : NativeRustcVmArm.Vm.PaddingWeight.b6.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b6Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b6_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem PaddingWeight.b7_at : NativeRustcVmArm.Vm.PaddingWeight.b7.IsInfixAt NativeRustcVmArm.Vm.code 12761 :=
+public theorem PaddingWeight.b7_at : NativeRustcVmArm.Vm.PaddingWeight.b7.IsInfixAt NativeRustcVmArm.Vm.code (PaddingWeight.programOffset + NativeRustcVmArm.Vm.PaddingWeight.b7Offset) :=
   NativeRustcVmArm.Vm.PaddingWeight.b7_in_code.trans PaddingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.code_at : NativeRustcVmArm.Vm.SelectorPoint.code.IsInfixAt NativeRustcVmArm.Vm.code 12777 :=
+@[expose] public def SelectorPoint.programOffset : Nat := 12777
+
+public theorem SelectorPoint.code_at : NativeRustcVmArm.Vm.SelectorPoint.code.IsInfixAt NativeRustcVmArm.Vm.code SelectorPoint.programOffset :=
   List.isInfixAt_flatten_of (i := 95) rfl (by decide +kernel)
 
-public theorem SelectorPoint.b0_at : NativeRustcVmArm.Vm.SelectorPoint.b0.IsInfixAt NativeRustcVmArm.Vm.code 12777 :=
+public theorem SelectorPoint.b0_at : NativeRustcVmArm.Vm.SelectorPoint.b0.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b0Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b0_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b1_at : NativeRustcVmArm.Vm.SelectorPoint.b1.IsInfixAt NativeRustcVmArm.Vm.code 12779 :=
+public theorem SelectorPoint.b1_at : NativeRustcVmArm.Vm.SelectorPoint.b1.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b1Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b1_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b2_at : NativeRustcVmArm.Vm.SelectorPoint.b2.IsInfixAt NativeRustcVmArm.Vm.code 12783 :=
+public theorem SelectorPoint.b2_at : NativeRustcVmArm.Vm.SelectorPoint.b2.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b2Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b2_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b3_at : NativeRustcVmArm.Vm.SelectorPoint.b3.IsInfixAt NativeRustcVmArm.Vm.code 12786 :=
+public theorem SelectorPoint.b3_at : NativeRustcVmArm.Vm.SelectorPoint.b3.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b3Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b3_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b4_at : NativeRustcVmArm.Vm.SelectorPoint.b4.IsInfixAt NativeRustcVmArm.Vm.code 12793 :=
+public theorem SelectorPoint.b4_at : NativeRustcVmArm.Vm.SelectorPoint.b4.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b4Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b4_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b5_at : NativeRustcVmArm.Vm.SelectorPoint.b5.IsInfixAt NativeRustcVmArm.Vm.code 12818 :=
+public theorem SelectorPoint.b5_at : NativeRustcVmArm.Vm.SelectorPoint.b5.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b5Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b5_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b6_at : NativeRustcVmArm.Vm.SelectorPoint.b6.IsInfixAt NativeRustcVmArm.Vm.code 12820 :=
+public theorem SelectorPoint.b6_at : NativeRustcVmArm.Vm.SelectorPoint.b6.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b6Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b6_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b7_at : NativeRustcVmArm.Vm.SelectorPoint.b7.IsInfixAt NativeRustcVmArm.Vm.code 12822 :=
+public theorem SelectorPoint.b7_at : NativeRustcVmArm.Vm.SelectorPoint.b7.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b7Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b7_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem SelectorPoint.b8_at : NativeRustcVmArm.Vm.SelectorPoint.b8.IsInfixAt NativeRustcVmArm.Vm.code 12831 :=
+public theorem SelectorPoint.b8_at : NativeRustcVmArm.Vm.SelectorPoint.b8.IsInfixAt NativeRustcVmArm.Vm.code (SelectorPoint.programOffset + NativeRustcVmArm.Vm.SelectorPoint.b8Offset) :=
   NativeRustcVmArm.Vm.SelectorPoint.b8_in_code.trans SelectorPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem Dot.code_at : NativeRustcVmArm.Vm.Dot.code.IsInfixAt NativeRustcVmArm.Vm.code 12833 :=
+@[expose] public def Dot.programOffset : Nat := 12833
+
+public theorem Dot.code_at : NativeRustcVmArm.Vm.Dot.code.IsInfixAt NativeRustcVmArm.Vm.code Dot.programOffset :=
   List.isInfixAt_flatten_of (i := 96) rfl (by decide +kernel)
 
-public theorem Dot.b0_at : NativeRustcVmArm.Vm.Dot.b0.IsInfixAt NativeRustcVmArm.Vm.code 12833 :=
+public theorem Dot.b0_at : NativeRustcVmArm.Vm.Dot.b0.IsInfixAt NativeRustcVmArm.Vm.code (Dot.programOffset + NativeRustcVmArm.Vm.Dot.b0Offset) :=
   NativeRustcVmArm.Vm.Dot.b0_in_code.trans Dot.code_at (List.cons_ne_nil _ _)
 
-public theorem Dot.b1_at : NativeRustcVmArm.Vm.Dot.b1.IsInfixAt NativeRustcVmArm.Vm.code 12840 :=
+public theorem Dot.b1_at : NativeRustcVmArm.Vm.Dot.b1.IsInfixAt NativeRustcVmArm.Vm.code (Dot.programOffset + NativeRustcVmArm.Vm.Dot.b1Offset) :=
   NativeRustcVmArm.Vm.Dot.b1_in_code.trans Dot.code_at (List.cons_ne_nil _ _)
 
-public theorem Dot.b2_at : NativeRustcVmArm.Vm.Dot.b2.IsInfixAt NativeRustcVmArm.Vm.code 12844 :=
+public theorem Dot.b2_at : NativeRustcVmArm.Vm.Dot.b2.IsInfixAt NativeRustcVmArm.Vm.code (Dot.programOffset + NativeRustcVmArm.Vm.Dot.b2Offset) :=
   NativeRustcVmArm.Vm.Dot.b2_in_code.trans Dot.code_at (List.cons_ne_nil _ _)
 
-public theorem Dot.b3_at : NativeRustcVmArm.Vm.Dot.b3.IsInfixAt NativeRustcVmArm.Vm.code 12848 :=
+public theorem Dot.b3_at : NativeRustcVmArm.Vm.Dot.b3.IsInfixAt NativeRustcVmArm.Vm.code (Dot.programOffset + NativeRustcVmArm.Vm.Dot.b3Offset) :=
   NativeRustcVmArm.Vm.Dot.b3_in_code.trans Dot.code_at (List.cons_ne_nil _ _)
 
-public theorem Dot.b4_at : NativeRustcVmArm.Vm.Dot.b4.IsInfixAt NativeRustcVmArm.Vm.code 12854 :=
+public theorem Dot.b4_at : NativeRustcVmArm.Vm.Dot.b4.IsInfixAt NativeRustcVmArm.Vm.code (Dot.programOffset + NativeRustcVmArm.Vm.Dot.b4Offset) :=
   NativeRustcVmArm.Vm.Dot.b4_in_code.trans Dot.code_at (List.cons_ne_nil _ _)
 
-public theorem Dot.b5_at : NativeRustcVmArm.Vm.Dot.b5.IsInfixAt NativeRustcVmArm.Vm.code 12860 :=
+public theorem Dot.b5_at : NativeRustcVmArm.Vm.Dot.b5.IsInfixAt NativeRustcVmArm.Vm.code (Dot.programOffset + NativeRustcVmArm.Vm.Dot.b5Offset) :=
   NativeRustcVmArm.Vm.Dot.b5_in_code.trans Dot.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.code_at : NativeRustcVmArm.Vm.Kinv.code.IsInfixAt NativeRustcVmArm.Vm.code 12869 :=
+@[expose] public def Kinv.programOffset : Nat := 12869
+
+public theorem Kinv.code_at : NativeRustcVmArm.Vm.Kinv.code.IsInfixAt NativeRustcVmArm.Vm.code Kinv.programOffset :=
   List.isInfixAt_flatten_of (i := 97) rfl (by decide +kernel)
 
-public theorem Kinv.b0_at : NativeRustcVmArm.Vm.Kinv.b0.IsInfixAt NativeRustcVmArm.Vm.code 12869 :=
+public theorem Kinv.b0_at : NativeRustcVmArm.Vm.Kinv.b0.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b0Offset) :=
   NativeRustcVmArm.Vm.Kinv.b0_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b1_at : NativeRustcVmArm.Vm.Kinv.b1.IsInfixAt NativeRustcVmArm.Vm.code 12875 :=
+public theorem Kinv.b1_at : NativeRustcVmArm.Vm.Kinv.b1.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b1Offset) :=
   NativeRustcVmArm.Vm.Kinv.b1_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b2_at : NativeRustcVmArm.Vm.Kinv.b2.IsInfixAt NativeRustcVmArm.Vm.code 12877 :=
+public theorem Kinv.b2_at : NativeRustcVmArm.Vm.Kinv.b2.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b2Offset) :=
   NativeRustcVmArm.Vm.Kinv.b2_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b3_at : NativeRustcVmArm.Vm.Kinv.b3.IsInfixAt NativeRustcVmArm.Vm.code 12879 :=
+public theorem Kinv.b3_at : NativeRustcVmArm.Vm.Kinv.b3.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b3Offset) :=
   NativeRustcVmArm.Vm.Kinv.b3_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b4_at : NativeRustcVmArm.Vm.Kinv.b4.IsInfixAt NativeRustcVmArm.Vm.code 12881 :=
+public theorem Kinv.b4_at : NativeRustcVmArm.Vm.Kinv.b4.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b4Offset) :=
   NativeRustcVmArm.Vm.Kinv.b4_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b5_at : NativeRustcVmArm.Vm.Kinv.b5.IsInfixAt NativeRustcVmArm.Vm.code 12884 :=
+public theorem Kinv.b5_at : NativeRustcVmArm.Vm.Kinv.b5.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b5Offset) :=
   NativeRustcVmArm.Vm.Kinv.b5_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b6_at : NativeRustcVmArm.Vm.Kinv.b6.IsInfixAt NativeRustcVmArm.Vm.code 12886 :=
+public theorem Kinv.b6_at : NativeRustcVmArm.Vm.Kinv.b6.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b6Offset) :=
   NativeRustcVmArm.Vm.Kinv.b6_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b7_at : NativeRustcVmArm.Vm.Kinv.b7.IsInfixAt NativeRustcVmArm.Vm.code 12889 :=
+public theorem Kinv.b7_at : NativeRustcVmArm.Vm.Kinv.b7.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b7Offset) :=
   NativeRustcVmArm.Vm.Kinv.b7_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b8_at : NativeRustcVmArm.Vm.Kinv.b8.IsInfixAt NativeRustcVmArm.Vm.code 12891 :=
+public theorem Kinv.b8_at : NativeRustcVmArm.Vm.Kinv.b8.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b8Offset) :=
   NativeRustcVmArm.Vm.Kinv.b8_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b9_at : NativeRustcVmArm.Vm.Kinv.b9.IsInfixAt NativeRustcVmArm.Vm.code 12894 :=
+public theorem Kinv.b9_at : NativeRustcVmArm.Vm.Kinv.b9.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b9Offset) :=
   NativeRustcVmArm.Vm.Kinv.b9_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b10_at : NativeRustcVmArm.Vm.Kinv.b10.IsInfixAt NativeRustcVmArm.Vm.code 12896 :=
+public theorem Kinv.b10_at : NativeRustcVmArm.Vm.Kinv.b10.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b10Offset) :=
   NativeRustcVmArm.Vm.Kinv.b10_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b11_at : NativeRustcVmArm.Vm.Kinv.b11.IsInfixAt NativeRustcVmArm.Vm.code 12899 :=
+public theorem Kinv.b11_at : NativeRustcVmArm.Vm.Kinv.b11.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b11Offset) :=
   NativeRustcVmArm.Vm.Kinv.b11_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b12_at : NativeRustcVmArm.Vm.Kinv.b12.IsInfixAt NativeRustcVmArm.Vm.code 12901 :=
+public theorem Kinv.b12_at : NativeRustcVmArm.Vm.Kinv.b12.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b12Offset) :=
   NativeRustcVmArm.Vm.Kinv.b12_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b13_at : NativeRustcVmArm.Vm.Kinv.b13.IsInfixAt NativeRustcVmArm.Vm.code 12903 :=
+public theorem Kinv.b13_at : NativeRustcVmArm.Vm.Kinv.b13.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b13Offset) :=
   NativeRustcVmArm.Vm.Kinv.b13_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b14_at : NativeRustcVmArm.Vm.Kinv.b14.IsInfixAt NativeRustcVmArm.Vm.code 12905 :=
+public theorem Kinv.b14_at : NativeRustcVmArm.Vm.Kinv.b14.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b14Offset) :=
   NativeRustcVmArm.Vm.Kinv.b14_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b15_at : NativeRustcVmArm.Vm.Kinv.b15.IsInfixAt NativeRustcVmArm.Vm.code 12907 :=
+public theorem Kinv.b15_at : NativeRustcVmArm.Vm.Kinv.b15.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b15Offset) :=
   NativeRustcVmArm.Vm.Kinv.b15_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kinv.b16_at : NativeRustcVmArm.Vm.Kinv.b16.IsInfixAt NativeRustcVmArm.Vm.code 12909 :=
+public theorem Kinv.b16_at : NativeRustcVmArm.Vm.Kinv.b16.IsInfixAt NativeRustcVmArm.Vm.code (Kinv.programOffset + NativeRustcVmArm.Vm.Kinv.b16Offset) :=
   NativeRustcVmArm.Vm.Kinv.b16_in_code.trans Kinv.code_at (List.cons_ne_nil _ _)
 
-public theorem Kmul.code_at : NativeRustcVmArm.Vm.Kmul.code.IsInfixAt NativeRustcVmArm.Vm.code 12913 :=
+@[expose] public def Kmul.programOffset : Nat := 12913
+
+public theorem Kmul.code_at : NativeRustcVmArm.Vm.Kmul.code.IsInfixAt NativeRustcVmArm.Vm.code Kmul.programOffset :=
   List.isInfixAt_flatten_of (i := 98) rfl (by decide +kernel)
 
-public theorem Kmul.b0_at : NativeRustcVmArm.Vm.Kmul.b0.IsInfixAt NativeRustcVmArm.Vm.code 12913 :=
+public theorem Kmul.b0_at : NativeRustcVmArm.Vm.Kmul.b0.IsInfixAt NativeRustcVmArm.Vm.code (Kmul.programOffset + NativeRustcVmArm.Vm.Kmul.b0Offset) :=
   NativeRustcVmArm.Vm.Kmul.b0_in_code.trans Kmul.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.code_at : NativeRustcVmArm.Vm.Kpow.code.IsInfixAt NativeRustcVmArm.Vm.code 13027 :=
+@[expose] public def Kpow.programOffset : Nat := 13027
+
+public theorem Kpow.code_at : NativeRustcVmArm.Vm.Kpow.code.IsInfixAt NativeRustcVmArm.Vm.code Kpow.programOffset :=
   List.isInfixAt_flatten_of (i := 99) rfl (by decide +kernel)
 
-public theorem Kpow.b0_at : NativeRustcVmArm.Vm.Kpow.b0.IsInfixAt NativeRustcVmArm.Vm.code 13027 :=
+public theorem Kpow.b0_at : NativeRustcVmArm.Vm.Kpow.b0.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b0Offset) :=
   NativeRustcVmArm.Vm.Kpow.b0_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b1_at : NativeRustcVmArm.Vm.Kpow.b1.IsInfixAt NativeRustcVmArm.Vm.code 13031 :=
+public theorem Kpow.b1_at : NativeRustcVmArm.Vm.Kpow.b1.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b1Offset) :=
   NativeRustcVmArm.Vm.Kpow.b1_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b2_at : NativeRustcVmArm.Vm.Kpow.b2.IsInfixAt NativeRustcVmArm.Vm.code 13035 :=
+public theorem Kpow.b2_at : NativeRustcVmArm.Vm.Kpow.b2.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b2Offset) :=
   NativeRustcVmArm.Vm.Kpow.b2_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b3_at : NativeRustcVmArm.Vm.Kpow.b3.IsInfixAt NativeRustcVmArm.Vm.code 13039 :=
+public theorem Kpow.b3_at : NativeRustcVmArm.Vm.Kpow.b3.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b3Offset) :=
   NativeRustcVmArm.Vm.Kpow.b3_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b4_at : NativeRustcVmArm.Vm.Kpow.b4.IsInfixAt NativeRustcVmArm.Vm.code 13042 :=
+public theorem Kpow.b4_at : NativeRustcVmArm.Vm.Kpow.b4.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b4Offset) :=
   NativeRustcVmArm.Vm.Kpow.b4_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b5_at : NativeRustcVmArm.Vm.Kpow.b5.IsInfixAt NativeRustcVmArm.Vm.code 13044 :=
+public theorem Kpow.b5_at : NativeRustcVmArm.Vm.Kpow.b5.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b5Offset) :=
   NativeRustcVmArm.Vm.Kpow.b5_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b6_at : NativeRustcVmArm.Vm.Kpow.b6.IsInfixAt NativeRustcVmArm.Vm.code 13047 :=
+public theorem Kpow.b6_at : NativeRustcVmArm.Vm.Kpow.b6.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b6Offset) :=
   NativeRustcVmArm.Vm.Kpow.b6_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b7_at : NativeRustcVmArm.Vm.Kpow.b7.IsInfixAt NativeRustcVmArm.Vm.code 13049 :=
+public theorem Kpow.b7_at : NativeRustcVmArm.Vm.Kpow.b7.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b7Offset) :=
   NativeRustcVmArm.Vm.Kpow.b7_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem Kpow.b8_at : NativeRustcVmArm.Vm.Kpow.b8.IsInfixAt NativeRustcVmArm.Vm.code 13051 :=
+public theorem Kpow.b8_at : NativeRustcVmArm.Vm.Kpow.b8.IsInfixAt NativeRustcVmArm.Vm.code (Kpow.programOffset + NativeRustcVmArm.Vm.Kpow.b8Offset) :=
   NativeRustcVmArm.Vm.Kpow.b8_in_code.trans Kpow.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.code_at : NativeRustcVmArm.Vm.SumE.code.IsInfixAt NativeRustcVmArm.Vm.code 13056 :=
+@[expose] public def SumE.programOffset : Nat := 13056
+
+public theorem SumE.code_at : NativeRustcVmArm.Vm.SumE.code.IsInfixAt NativeRustcVmArm.Vm.code SumE.programOffset :=
   List.isInfixAt_flatten_of (i := 100) rfl (by decide +kernel)
 
-public theorem SumE.b0_at : NativeRustcVmArm.Vm.SumE.b0.IsInfixAt NativeRustcVmArm.Vm.code 13056 :=
+public theorem SumE.b0_at : NativeRustcVmArm.Vm.SumE.b0.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b0Offset) :=
   NativeRustcVmArm.Vm.SumE.b0_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b1_at : NativeRustcVmArm.Vm.SumE.b1.IsInfixAt NativeRustcVmArm.Vm.code 13058 :=
+public theorem SumE.b1_at : NativeRustcVmArm.Vm.SumE.b1.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b1Offset) :=
   NativeRustcVmArm.Vm.SumE.b1_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b2_at : NativeRustcVmArm.Vm.SumE.b2.IsInfixAt NativeRustcVmArm.Vm.code 13060 :=
+public theorem SumE.b2_at : NativeRustcVmArm.Vm.SumE.b2.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b2Offset) :=
   NativeRustcVmArm.Vm.SumE.b2_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b3_at : NativeRustcVmArm.Vm.SumE.b3.IsInfixAt NativeRustcVmArm.Vm.code 13064 :=
+public theorem SumE.b3_at : NativeRustcVmArm.Vm.SumE.b3.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b3Offset) :=
   NativeRustcVmArm.Vm.SumE.b3_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b4_at : NativeRustcVmArm.Vm.SumE.b4.IsInfixAt NativeRustcVmArm.Vm.code 13070 :=
+public theorem SumE.b4_at : NativeRustcVmArm.Vm.SumE.b4.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b4Offset) :=
   NativeRustcVmArm.Vm.SumE.b4_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b5_at : NativeRustcVmArm.Vm.SumE.b5.IsInfixAt NativeRustcVmArm.Vm.code 13078 :=
+public theorem SumE.b5_at : NativeRustcVmArm.Vm.SumE.b5.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b5Offset) :=
   NativeRustcVmArm.Vm.SumE.b5_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b6_at : NativeRustcVmArm.Vm.SumE.b6.IsInfixAt NativeRustcVmArm.Vm.code 13092 :=
+public theorem SumE.b6_at : NativeRustcVmArm.Vm.SumE.b6.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b6Offset) :=
   NativeRustcVmArm.Vm.SumE.b6_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b7_at : NativeRustcVmArm.Vm.SumE.b7.IsInfixAt NativeRustcVmArm.Vm.code 13106 :=
+public theorem SumE.b7_at : NativeRustcVmArm.Vm.SumE.b7.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b7Offset) :=
   NativeRustcVmArm.Vm.SumE.b7_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b8_at : NativeRustcVmArm.Vm.SumE.b8.IsInfixAt NativeRustcVmArm.Vm.code 13118 :=
+public theorem SumE.b8_at : NativeRustcVmArm.Vm.SumE.b8.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b8Offset) :=
   NativeRustcVmArm.Vm.SumE.b8_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b9_at : NativeRustcVmArm.Vm.SumE.b9.IsInfixAt NativeRustcVmArm.Vm.code 13127 :=
+public theorem SumE.b9_at : NativeRustcVmArm.Vm.SumE.b9.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b9Offset) :=
   NativeRustcVmArm.Vm.SumE.b9_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b10_at : NativeRustcVmArm.Vm.SumE.b10.IsInfixAt NativeRustcVmArm.Vm.code 13131 :=
+public theorem SumE.b10_at : NativeRustcVmArm.Vm.SumE.b10.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b10Offset) :=
   NativeRustcVmArm.Vm.SumE.b10_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem SumE.b11_at : NativeRustcVmArm.Vm.SumE.b11.IsInfixAt NativeRustcVmArm.Vm.code 13138 :=
+public theorem SumE.b11_at : NativeRustcVmArm.Vm.SumE.b11.IsInfixAt NativeRustcVmArm.Vm.code (SumE.programOffset + NativeRustcVmArm.Vm.SumE.b11Offset) :=
   NativeRustcVmArm.Vm.SumE.b11_in_code.trans SumE.code_at (List.cons_ne_nil _ _)
 
-public theorem Powers.code_at : NativeRustcVmArm.Vm.Powers.code.IsInfixAt NativeRustcVmArm.Vm.code 13142 :=
+@[expose] public def Powers.programOffset : Nat := 13142
+
+public theorem Powers.code_at : NativeRustcVmArm.Vm.Powers.code.IsInfixAt NativeRustcVmArm.Vm.code Powers.programOffset :=
   List.isInfixAt_flatten_of (i := 101) rfl (by decide +kernel)
 
-public theorem Powers.b0_at : NativeRustcVmArm.Vm.Powers.b0.IsInfixAt NativeRustcVmArm.Vm.code 13142 :=
+public theorem Powers.b0_at : NativeRustcVmArm.Vm.Powers.b0.IsInfixAt NativeRustcVmArm.Vm.code (Powers.programOffset + NativeRustcVmArm.Vm.Powers.b0Offset) :=
   NativeRustcVmArm.Vm.Powers.b0_in_code.trans Powers.code_at (List.cons_ne_nil _ _)
 
-public theorem Powers.b1_at : NativeRustcVmArm.Vm.Powers.b1.IsInfixAt NativeRustcVmArm.Vm.code 13144 :=
+public theorem Powers.b1_at : NativeRustcVmArm.Vm.Powers.b1.IsInfixAt NativeRustcVmArm.Vm.code (Powers.programOffset + NativeRustcVmArm.Vm.Powers.b1Offset) :=
   NativeRustcVmArm.Vm.Powers.b1_in_code.trans Powers.code_at (List.cons_ne_nil _ _)
 
-public theorem Powers.b2_at : NativeRustcVmArm.Vm.Powers.b2.IsInfixAt NativeRustcVmArm.Vm.code 13153 :=
+public theorem Powers.b2_at : NativeRustcVmArm.Vm.Powers.b2.IsInfixAt NativeRustcVmArm.Vm.code (Powers.programOffset + NativeRustcVmArm.Vm.Powers.b2Offset) :=
   NativeRustcVmArm.Vm.Powers.b2_in_code.trans Powers.code_at (List.cons_ne_nil _ _)
 
-public theorem Powers.b3_at : NativeRustcVmArm.Vm.Powers.b3.IsInfixAt NativeRustcVmArm.Vm.code 13158 :=
+public theorem Powers.b3_at : NativeRustcVmArm.Vm.Powers.b3.IsInfixAt NativeRustcVmArm.Vm.code (Powers.programOffset + NativeRustcVmArm.Vm.Powers.b3Offset) :=
   NativeRustcVmArm.Vm.Powers.b3_in_code.trans Powers.code_at (List.cons_ne_nil _ _)
 
-public theorem Powers.b4_at : NativeRustcVmArm.Vm.Powers.b4.IsInfixAt NativeRustcVmArm.Vm.code 13160 :=
+public theorem Powers.b4_at : NativeRustcVmArm.Vm.Powers.b4.IsInfixAt NativeRustcVmArm.Vm.code (Powers.programOffset + NativeRustcVmArm.Vm.Powers.b4Offset) :=
   NativeRustcVmArm.Vm.Powers.b4_in_code.trans Powers.code_at (List.cons_ne_nil _ _)
 
-public theorem Powers.b5_at : NativeRustcVmArm.Vm.Powers.b5.IsInfixAt NativeRustcVmArm.Vm.code 13163 :=
+public theorem Powers.b5_at : NativeRustcVmArm.Vm.Powers.b5.IsInfixAt NativeRustcVmArm.Vm.code (Powers.programOffset + NativeRustcVmArm.Vm.Powers.b5Offset) :=
   NativeRustcVmArm.Vm.Powers.b5_in_code.trans Powers.code_at (List.cons_ne_nil _ _)
 
-public theorem ProdE.code_at : NativeRustcVmArm.Vm.ProdE.code.IsInfixAt NativeRustcVmArm.Vm.code 13165 :=
+@[expose] public def ProdE.programOffset : Nat := 13165
+
+public theorem ProdE.code_at : NativeRustcVmArm.Vm.ProdE.code.IsInfixAt NativeRustcVmArm.Vm.code ProdE.programOffset :=
   List.isInfixAt_flatten_of (i := 102) rfl (by decide +kernel)
 
-public theorem ProdE.b0_at : NativeRustcVmArm.Vm.ProdE.b0.IsInfixAt NativeRustcVmArm.Vm.code 13165 :=
+public theorem ProdE.b0_at : NativeRustcVmArm.Vm.ProdE.b0.IsInfixAt NativeRustcVmArm.Vm.code (ProdE.programOffset + NativeRustcVmArm.Vm.ProdE.b0Offset) :=
   NativeRustcVmArm.Vm.ProdE.b0_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-public theorem ProdE.b1_at : NativeRustcVmArm.Vm.ProdE.b1.IsInfixAt NativeRustcVmArm.Vm.code 13174 :=
+public theorem ProdE.b1_at : NativeRustcVmArm.Vm.ProdE.b1.IsInfixAt NativeRustcVmArm.Vm.code (ProdE.programOffset + NativeRustcVmArm.Vm.ProdE.b1Offset) :=
   NativeRustcVmArm.Vm.ProdE.b1_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-public theorem ProdE.b2_at : NativeRustcVmArm.Vm.ProdE.b2.IsInfixAt NativeRustcVmArm.Vm.code 13176 :=
+public theorem ProdE.b2_at : NativeRustcVmArm.Vm.ProdE.b2.IsInfixAt NativeRustcVmArm.Vm.code (ProdE.programOffset + NativeRustcVmArm.Vm.ProdE.b2Offset) :=
   NativeRustcVmArm.Vm.ProdE.b2_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-public theorem ProdE.b3_at : NativeRustcVmArm.Vm.ProdE.b3.IsInfixAt NativeRustcVmArm.Vm.code 13178 :=
+public theorem ProdE.b3_at : NativeRustcVmArm.Vm.ProdE.b3.IsInfixAt NativeRustcVmArm.Vm.code (ProdE.programOffset + NativeRustcVmArm.Vm.ProdE.b3Offset) :=
   NativeRustcVmArm.Vm.ProdE.b3_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-public theorem ProdE.b4_at : NativeRustcVmArm.Vm.ProdE.b4.IsInfixAt NativeRustcVmArm.Vm.code 13180 :=
+public theorem ProdE.b4_at : NativeRustcVmArm.Vm.ProdE.b4.IsInfixAt NativeRustcVmArm.Vm.code (ProdE.programOffset + NativeRustcVmArm.Vm.ProdE.b4Offset) :=
   NativeRustcVmArm.Vm.ProdE.b4_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-public theorem ProdE.b5_at : NativeRustcVmArm.Vm.ProdE.b5.IsInfixAt NativeRustcVmArm.Vm.code 13182 :=
+public theorem ProdE.b5_at : NativeRustcVmArm.Vm.ProdE.b5.IsInfixAt NativeRustcVmArm.Vm.code (ProdE.programOffset + NativeRustcVmArm.Vm.ProdE.b5Offset) :=
   NativeRustcVmArm.Vm.ProdE.b5_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-public theorem ProdE.b6_at : NativeRustcVmArm.Vm.ProdE.b6.IsInfixAt NativeRustcVmArm.Vm.code 13186 :=
+public theorem ProdE.b6_at : NativeRustcVmArm.Vm.ProdE.b6.IsInfixAt NativeRustcVmArm.Vm.code (ProdE.programOffset + NativeRustcVmArm.Vm.ProdE.b6Offset) :=
   NativeRustcVmArm.Vm.ProdE.b6_in_code.trans ProdE.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEval.code_at : NativeRustcVmArm.Vm.EqEval.code.IsInfixAt NativeRustcVmArm.Vm.code 13191 :=
+@[expose] public def EqEval.programOffset : Nat := 13191
+
+public theorem EqEval.code_at : NativeRustcVmArm.Vm.EqEval.code.IsInfixAt NativeRustcVmArm.Vm.code EqEval.programOffset :=
   List.isInfixAt_flatten_of (i := 103) rfl (by decide +kernel)
 
-public theorem EqEval.b0_at : NativeRustcVmArm.Vm.EqEval.b0.IsInfixAt NativeRustcVmArm.Vm.code 13191 :=
+public theorem EqEval.b0_at : NativeRustcVmArm.Vm.EqEval.b0.IsInfixAt NativeRustcVmArm.Vm.code (EqEval.programOffset + NativeRustcVmArm.Vm.EqEval.b0Offset) :=
   NativeRustcVmArm.Vm.EqEval.b0_in_code.trans EqEval.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEval.b1_at : NativeRustcVmArm.Vm.EqEval.b1.IsInfixAt NativeRustcVmArm.Vm.code 13197 :=
+public theorem EqEval.b1_at : NativeRustcVmArm.Vm.EqEval.b1.IsInfixAt NativeRustcVmArm.Vm.code (EqEval.programOffset + NativeRustcVmArm.Vm.EqEval.b1Offset) :=
   NativeRustcVmArm.Vm.EqEval.b1_in_code.trans EqEval.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEval.b2_at : NativeRustcVmArm.Vm.EqEval.b2.IsInfixAt NativeRustcVmArm.Vm.code 13201 :=
+public theorem EqEval.b2_at : NativeRustcVmArm.Vm.EqEval.b2.IsInfixAt NativeRustcVmArm.Vm.code (EqEval.programOffset + NativeRustcVmArm.Vm.EqEval.b2Offset) :=
   NativeRustcVmArm.Vm.EqEval.b2_in_code.trans EqEval.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEval.b3_at : NativeRustcVmArm.Vm.EqEval.b3.IsInfixAt NativeRustcVmArm.Vm.code 13208 :=
+public theorem EqEval.b3_at : NativeRustcVmArm.Vm.EqEval.b3.IsInfixAt NativeRustcVmArm.Vm.code (EqEval.programOffset + NativeRustcVmArm.Vm.EqEval.b3Offset) :=
   NativeRustcVmArm.Vm.EqEval.b3_in_code.trans EqEval.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEval.b4_at : NativeRustcVmArm.Vm.EqEval.b4.IsInfixAt NativeRustcVmArm.Vm.code 13212 :=
+public theorem EqEval.b4_at : NativeRustcVmArm.Vm.EqEval.b4.IsInfixAt NativeRustcVmArm.Vm.code (EqEval.programOffset + NativeRustcVmArm.Vm.EqEval.b4Offset) :=
   NativeRustcVmArm.Vm.EqEval.b4_in_code.trans EqEval.code_at (List.cons_ne_nil _ _)
 
-public theorem EqEval.b5_at : NativeRustcVmArm.Vm.EqEval.b5.IsInfixAt NativeRustcVmArm.Vm.code 13215 :=
+public theorem EqEval.b5_at : NativeRustcVmArm.Vm.EqEval.b5.IsInfixAt NativeRustcVmArm.Vm.code (EqEval.programOffset + NativeRustcVmArm.Vm.EqEval.b5Offset) :=
   NativeRustcVmArm.Vm.EqEval.b5_in_code.trans EqEval.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.code_at : NativeRustcVmArm.Vm.EqKernel.code.IsInfixAt NativeRustcVmArm.Vm.code 13221 :=
+@[expose] public def EqKernel.programOffset : Nat := 13221
+
+public theorem EqKernel.code_at : NativeRustcVmArm.Vm.EqKernel.code.IsInfixAt NativeRustcVmArm.Vm.code EqKernel.programOffset :=
   List.isInfixAt_flatten_of (i := 104) rfl (by decide +kernel)
 
-public theorem EqKernel.b0_at : NativeRustcVmArm.Vm.EqKernel.b0.IsInfixAt NativeRustcVmArm.Vm.code 13221 :=
+public theorem EqKernel.b0_at : NativeRustcVmArm.Vm.EqKernel.b0.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b0Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b0_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b1_at : NativeRustcVmArm.Vm.EqKernel.b1.IsInfixAt NativeRustcVmArm.Vm.code 13226 :=
+public theorem EqKernel.b1_at : NativeRustcVmArm.Vm.EqKernel.b1.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b1Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b1_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b2_at : NativeRustcVmArm.Vm.EqKernel.b2.IsInfixAt NativeRustcVmArm.Vm.code 13229 :=
+public theorem EqKernel.b2_at : NativeRustcVmArm.Vm.EqKernel.b2.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b2Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b2_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b3_at : NativeRustcVmArm.Vm.EqKernel.b3.IsInfixAt NativeRustcVmArm.Vm.code 13241 :=
+public theorem EqKernel.b3_at : NativeRustcVmArm.Vm.EqKernel.b3.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b3Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b3_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b4_at : NativeRustcVmArm.Vm.EqKernel.b4.IsInfixAt NativeRustcVmArm.Vm.code 13248 :=
+public theorem EqKernel.b4_at : NativeRustcVmArm.Vm.EqKernel.b4.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b4Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b4_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b5_at : NativeRustcVmArm.Vm.EqKernel.b5.IsInfixAt NativeRustcVmArm.Vm.code 13254 :=
+public theorem EqKernel.b5_at : NativeRustcVmArm.Vm.EqKernel.b5.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b5Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b5_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b6_at : NativeRustcVmArm.Vm.EqKernel.b6.IsInfixAt NativeRustcVmArm.Vm.code 13257 :=
+public theorem EqKernel.b6_at : NativeRustcVmArm.Vm.EqKernel.b6.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b6Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b6_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b7_at : NativeRustcVmArm.Vm.EqKernel.b7.IsInfixAt NativeRustcVmArm.Vm.code 13261 :=
+public theorem EqKernel.b7_at : NativeRustcVmArm.Vm.EqKernel.b7.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b7Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b7_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b8_at : NativeRustcVmArm.Vm.EqKernel.b8.IsInfixAt NativeRustcVmArm.Vm.code 13265 :=
+public theorem EqKernel.b8_at : NativeRustcVmArm.Vm.EqKernel.b8.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b8Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b8_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b9_at : NativeRustcVmArm.Vm.EqKernel.b9.IsInfixAt NativeRustcVmArm.Vm.code 13272 :=
+public theorem EqKernel.b9_at : NativeRustcVmArm.Vm.EqKernel.b9.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b9Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b9_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b10_at : NativeRustcVmArm.Vm.EqKernel.b10.IsInfixAt NativeRustcVmArm.Vm.code 13280 :=
+public theorem EqKernel.b10_at : NativeRustcVmArm.Vm.EqKernel.b10.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b10Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b10_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b11_at : NativeRustcVmArm.Vm.EqKernel.b11.IsInfixAt NativeRustcVmArm.Vm.code 13281 :=
+public theorem EqKernel.b11_at : NativeRustcVmArm.Vm.EqKernel.b11.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b11Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b11_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b12_at : NativeRustcVmArm.Vm.EqKernel.b12.IsInfixAt NativeRustcVmArm.Vm.code 13285 :=
+public theorem EqKernel.b12_at : NativeRustcVmArm.Vm.EqKernel.b12.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b12Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b12_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem EqKernel.b13_at : NativeRustcVmArm.Vm.EqKernel.b13.IsInfixAt NativeRustcVmArm.Vm.code 13288 :=
+public theorem EqKernel.b13_at : NativeRustcVmArm.Vm.EqKernel.b13.IsInfixAt NativeRustcVmArm.Vm.code (EqKernel.programOffset + NativeRustcVmArm.Vm.EqKernel.b13Offset) :=
   NativeRustcVmArm.Vm.EqKernel.b13_in_code.trans EqKernel.code_at (List.cons_ne_nil _ _)
 
-public theorem PolyEval.code_at : NativeRustcVmArm.Vm.PolyEval.code.IsInfixAt NativeRustcVmArm.Vm.code 13298 :=
+@[expose] public def PolyEval.programOffset : Nat := 13298
+
+public theorem PolyEval.code_at : NativeRustcVmArm.Vm.PolyEval.code.IsInfixAt NativeRustcVmArm.Vm.code PolyEval.programOffset :=
   List.isInfixAt_flatten_of (i := 105) rfl (by decide +kernel)
 
-public theorem PolyEval.b0_at : NativeRustcVmArm.Vm.PolyEval.b0.IsInfixAt NativeRustcVmArm.Vm.code 13298 :=
+public theorem PolyEval.b0_at : NativeRustcVmArm.Vm.PolyEval.b0.IsInfixAt NativeRustcVmArm.Vm.code (PolyEval.programOffset + NativeRustcVmArm.Vm.PolyEval.b0Offset) :=
   NativeRustcVmArm.Vm.PolyEval.b0_in_code.trans PolyEval.code_at (List.cons_ne_nil _ _)
 
-public theorem PolyEval.b1_at : NativeRustcVmArm.Vm.PolyEval.b1.IsInfixAt NativeRustcVmArm.Vm.code 13312 :=
+public theorem PolyEval.b1_at : NativeRustcVmArm.Vm.PolyEval.b1.IsInfixAt NativeRustcVmArm.Vm.code (PolyEval.programOffset + NativeRustcVmArm.Vm.PolyEval.b1Offset) :=
   NativeRustcVmArm.Vm.PolyEval.b1_in_code.trans PolyEval.code_at (List.cons_ne_nil _ _)
 
-public theorem PolyEval.b2_at : NativeRustcVmArm.Vm.PolyEval.b2.IsInfixAt NativeRustcVmArm.Vm.code 13317 :=
+public theorem PolyEval.b2_at : NativeRustcVmArm.Vm.PolyEval.b2.IsInfixAt NativeRustcVmArm.Vm.code (PolyEval.programOffset + NativeRustcVmArm.Vm.PolyEval.b2Offset) :=
   NativeRustcVmArm.Vm.PolyEval.b2_in_code.trans PolyEval.code_at (List.cons_ne_nil _ _)
 
-public theorem PolyEval.b3_at : NativeRustcVmArm.Vm.PolyEval.b3.IsInfixAt NativeRustcVmArm.Vm.code 13322 :=
+public theorem PolyEval.b3_at : NativeRustcVmArm.Vm.PolyEval.b3.IsInfixAt NativeRustcVmArm.Vm.code (PolyEval.programOffset + NativeRustcVmArm.Vm.PolyEval.b3Offset) :=
   NativeRustcVmArm.Vm.PolyEval.b3_in_code.trans PolyEval.code_at (List.cons_ne_nil _ _)
 
-public theorem PushClaim.code_at : NativeRustcVmArm.Vm.PushClaim.code.IsInfixAt NativeRustcVmArm.Vm.code 13327 :=
+@[expose] public def PushClaim.programOffset : Nat := 13327
+
+public theorem PushClaim.code_at : NativeRustcVmArm.Vm.PushClaim.code.IsInfixAt NativeRustcVmArm.Vm.code PushClaim.programOffset :=
   List.isInfixAt_flatten_of (i := 106) rfl (by decide +kernel)
 
-public theorem PushClaim.b0_at : NativeRustcVmArm.Vm.PushClaim.b0.IsInfixAt NativeRustcVmArm.Vm.code 13327 :=
+public theorem PushClaim.b0_at : NativeRustcVmArm.Vm.PushClaim.b0.IsInfixAt NativeRustcVmArm.Vm.code (PushClaim.programOffset + NativeRustcVmArm.Vm.PushClaim.b0Offset) :=
   NativeRustcVmArm.Vm.PushClaim.b0_in_code.trans PushClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem PushClaim.b1_at : NativeRustcVmArm.Vm.PushClaim.b1.IsInfixAt NativeRustcVmArm.Vm.code 13331 :=
+public theorem PushClaim.b1_at : NativeRustcVmArm.Vm.PushClaim.b1.IsInfixAt NativeRustcVmArm.Vm.code (PushClaim.programOffset + NativeRustcVmArm.Vm.PushClaim.b1Offset) :=
   NativeRustcVmArm.Vm.PushClaim.b1_in_code.trans PushClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem PushClaim.b2_at : NativeRustcVmArm.Vm.PushClaim.b2.IsInfixAt NativeRustcVmArm.Vm.code 13345 :=
+public theorem PushClaim.b2_at : NativeRustcVmArm.Vm.PushClaim.b2.IsInfixAt NativeRustcVmArm.Vm.code (PushClaim.programOffset + NativeRustcVmArm.Vm.PushClaim.b2Offset) :=
   NativeRustcVmArm.Vm.PushClaim.b2_in_code.trans PushClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem PushClaim.b3_at : NativeRustcVmArm.Vm.PushClaim.b3.IsInfixAt NativeRustcVmArm.Vm.code 13346 :=
+public theorem PushClaim.b3_at : NativeRustcVmArm.Vm.PushClaim.b3.IsInfixAt NativeRustcVmArm.Vm.code (PushClaim.programOffset + NativeRustcVmArm.Vm.PushClaim.b3Offset) :=
   NativeRustcVmArm.Vm.PushClaim.b3_in_code.trans PushClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem PushClaim.b4_at : NativeRustcVmArm.Vm.PushClaim.b4.IsInfixAt NativeRustcVmArm.Vm.code 13356 :=
+public theorem PushClaim.b4_at : NativeRustcVmArm.Vm.PushClaim.b4.IsInfixAt NativeRustcVmArm.Vm.code (PushClaim.programOffset + NativeRustcVmArm.Vm.PushClaim.b4Offset) :=
   NativeRustcVmArm.Vm.PushClaim.b4_in_code.trans PushClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem PushClaim.b5_at : NativeRustcVmArm.Vm.PushClaim.b5.IsInfixAt NativeRustcVmArm.Vm.code 13359 :=
+public theorem PushClaim.b5_at : NativeRustcVmArm.Vm.PushClaim.b5.IsInfixAt NativeRustcVmArm.Vm.code (PushClaim.programOffset + NativeRustcVmArm.Vm.PushClaim.b5Offset) :=
   NativeRustcVmArm.Vm.PushClaim.b5_in_code.trans PushClaim.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.code_at : NativeRustcVmArm.Vm.RingWeight.code.IsInfixAt NativeRustcVmArm.Vm.code 13365 :=
+@[expose] public def RingWeight.programOffset : Nat := 13365
+
+public theorem RingWeight.code_at : NativeRustcVmArm.Vm.RingWeight.code.IsInfixAt NativeRustcVmArm.Vm.code RingWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 107) rfl (by decide +kernel)
 
-public theorem RingWeight.b0_at : NativeRustcVmArm.Vm.RingWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code 13365 :=
+public theorem RingWeight.b0_at : NativeRustcVmArm.Vm.RingWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b0Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b0_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b1_at : NativeRustcVmArm.Vm.RingWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code 13420 :=
+public theorem RingWeight.b1_at : NativeRustcVmArm.Vm.RingWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b1Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b1_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b2_at : NativeRustcVmArm.Vm.RingWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code 13421 :=
+public theorem RingWeight.b2_at : NativeRustcVmArm.Vm.RingWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b2Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b2_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b3_at : NativeRustcVmArm.Vm.RingWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code 13431 :=
+public theorem RingWeight.b3_at : NativeRustcVmArm.Vm.RingWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b3Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b3_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b4_at : NativeRustcVmArm.Vm.RingWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code 13447 :=
+public theorem RingWeight.b4_at : NativeRustcVmArm.Vm.RingWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b4Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b4_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b5_at : NativeRustcVmArm.Vm.RingWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code 13454 :=
+public theorem RingWeight.b5_at : NativeRustcVmArm.Vm.RingWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b5Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b5_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b6_at : NativeRustcVmArm.Vm.RingWeight.b6.IsInfixAt NativeRustcVmArm.Vm.code 13457 :=
+public theorem RingWeight.b6_at : NativeRustcVmArm.Vm.RingWeight.b6.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b6Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b6_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b7_at : NativeRustcVmArm.Vm.RingWeight.b7.IsInfixAt NativeRustcVmArm.Vm.code 13463 :=
+public theorem RingWeight.b7_at : NativeRustcVmArm.Vm.RingWeight.b7.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b7Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b7_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b8_at : NativeRustcVmArm.Vm.RingWeight.b8.IsInfixAt NativeRustcVmArm.Vm.code 13470 :=
+public theorem RingWeight.b8_at : NativeRustcVmArm.Vm.RingWeight.b8.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b8Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b8_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b9_at : NativeRustcVmArm.Vm.RingWeight.b9.IsInfixAt NativeRustcVmArm.Vm.code 13472 :=
+public theorem RingWeight.b9_at : NativeRustcVmArm.Vm.RingWeight.b9.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b9Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b9_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b10_at : NativeRustcVmArm.Vm.RingWeight.b10.IsInfixAt NativeRustcVmArm.Vm.code 13478 :=
+public theorem RingWeight.b10_at : NativeRustcVmArm.Vm.RingWeight.b10.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b10Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b10_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b11_at : NativeRustcVmArm.Vm.RingWeight.b11.IsInfixAt NativeRustcVmArm.Vm.code 13485 :=
+public theorem RingWeight.b11_at : NativeRustcVmArm.Vm.RingWeight.b11.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b11Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b11_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b12_at : NativeRustcVmArm.Vm.RingWeight.b12.IsInfixAt NativeRustcVmArm.Vm.code 13492 :=
+public theorem RingWeight.b12_at : NativeRustcVmArm.Vm.RingWeight.b12.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b12Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b12_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b13_at : NativeRustcVmArm.Vm.RingWeight.b13.IsInfixAt NativeRustcVmArm.Vm.code 13496 :=
+public theorem RingWeight.b13_at : NativeRustcVmArm.Vm.RingWeight.b13.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b13Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b13_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b14_at : NativeRustcVmArm.Vm.RingWeight.b14.IsInfixAt NativeRustcVmArm.Vm.code 13502 :=
+public theorem RingWeight.b14_at : NativeRustcVmArm.Vm.RingWeight.b14.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b14Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b14_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b15_at : NativeRustcVmArm.Vm.RingWeight.b15.IsInfixAt NativeRustcVmArm.Vm.code 13509 :=
+public theorem RingWeight.b15_at : NativeRustcVmArm.Vm.RingWeight.b15.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b15Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b15_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b16_at : NativeRustcVmArm.Vm.RingWeight.b16.IsInfixAt NativeRustcVmArm.Vm.code 13513 :=
+public theorem RingWeight.b16_at : NativeRustcVmArm.Vm.RingWeight.b16.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b16Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b16_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b17_at : NativeRustcVmArm.Vm.RingWeight.b17.IsInfixAt NativeRustcVmArm.Vm.code 13516 :=
+public theorem RingWeight.b17_at : NativeRustcVmArm.Vm.RingWeight.b17.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b17Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b17_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b18_at : NativeRustcVmArm.Vm.RingWeight.b18.IsInfixAt NativeRustcVmArm.Vm.code 13521 :=
+public theorem RingWeight.b18_at : NativeRustcVmArm.Vm.RingWeight.b18.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b18Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b18_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b19_at : NativeRustcVmArm.Vm.RingWeight.b19.IsInfixAt NativeRustcVmArm.Vm.code 13524 :=
+public theorem RingWeight.b19_at : NativeRustcVmArm.Vm.RingWeight.b19.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b19Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b19_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b20_at : NativeRustcVmArm.Vm.RingWeight.b20.IsInfixAt NativeRustcVmArm.Vm.code 13529 :=
+public theorem RingWeight.b20_at : NativeRustcVmArm.Vm.RingWeight.b20.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b20Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b20_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b21_at : NativeRustcVmArm.Vm.RingWeight.b21.IsInfixAt NativeRustcVmArm.Vm.code 13530 :=
+public theorem RingWeight.b21_at : NativeRustcVmArm.Vm.RingWeight.b21.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b21Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b21_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b22_at : NativeRustcVmArm.Vm.RingWeight.b22.IsInfixAt NativeRustcVmArm.Vm.code 13532 :=
+public theorem RingWeight.b22_at : NativeRustcVmArm.Vm.RingWeight.b22.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b22Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b22_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b23_at : NativeRustcVmArm.Vm.RingWeight.b23.IsInfixAt NativeRustcVmArm.Vm.code 13536 :=
+public theorem RingWeight.b23_at : NativeRustcVmArm.Vm.RingWeight.b23.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b23Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b23_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b24_at : NativeRustcVmArm.Vm.RingWeight.b24.IsInfixAt NativeRustcVmArm.Vm.code 13541 :=
+public theorem RingWeight.b24_at : NativeRustcVmArm.Vm.RingWeight.b24.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b24Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b24_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b25_at : NativeRustcVmArm.Vm.RingWeight.b25.IsInfixAt NativeRustcVmArm.Vm.code 13544 :=
+public theorem RingWeight.b25_at : NativeRustcVmArm.Vm.RingWeight.b25.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b25Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b25_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingWeight.b26_at : NativeRustcVmArm.Vm.RingWeight.b26.IsInfixAt NativeRustcVmArm.Vm.code 13549 :=
+public theorem RingWeight.b26_at : NativeRustcVmArm.Vm.RingWeight.b26.IsInfixAt NativeRustcVmArm.Vm.code (RingWeight.programOffset + NativeRustcVmArm.Vm.RingWeight.b26Offset) :=
   NativeRustcVmArm.Vm.RingWeight.b26_in_code.trans RingWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem CommitStack.code_at : NativeRustcVmArm.Vm.CommitStack.code.IsInfixAt NativeRustcVmArm.Vm.code 13562 :=
+@[expose] public def CommitStack.programOffset : Nat := 13562
+
+public theorem CommitStack.code_at : NativeRustcVmArm.Vm.CommitStack.code.IsInfixAt NativeRustcVmArm.Vm.code CommitStack.programOffset :=
   List.isInfixAt_flatten_of (i := 108) rfl (by decide +kernel)
 
-public theorem CommitStack.b0_at : NativeRustcVmArm.Vm.CommitStack.b0.IsInfixAt NativeRustcVmArm.Vm.code 13562 :=
+public theorem CommitStack.b0_at : NativeRustcVmArm.Vm.CommitStack.b0.IsInfixAt NativeRustcVmArm.Vm.code (CommitStack.programOffset + NativeRustcVmArm.Vm.CommitStack.b0Offset) :=
   NativeRustcVmArm.Vm.CommitStack.b0_in_code.trans CommitStack.code_at (List.cons_ne_nil _ _)
 
-public theorem CommitStack.b1_at : NativeRustcVmArm.Vm.CommitStack.b1.IsInfixAt NativeRustcVmArm.Vm.code 13570 :=
+public theorem CommitStack.b1_at : NativeRustcVmArm.Vm.CommitStack.b1.IsInfixAt NativeRustcVmArm.Vm.code (CommitStack.programOffset + NativeRustcVmArm.Vm.CommitStack.b1Offset) :=
   NativeRustcVmArm.Vm.CommitStack.b1_in_code.trans CommitStack.code_at (List.cons_ne_nil _ _)
 
-public theorem CommitStack.b2_at : NativeRustcVmArm.Vm.CommitStack.b2.IsInfixAt NativeRustcVmArm.Vm.code 13572 :=
+public theorem CommitStack.b2_at : NativeRustcVmArm.Vm.CommitStack.b2.IsInfixAt NativeRustcVmArm.Vm.code (CommitStack.programOffset + NativeRustcVmArm.Vm.CommitStack.b2Offset) :=
   NativeRustcVmArm.Vm.CommitStack.b2_in_code.trans CommitStack.code_at (List.cons_ne_nil _ _)
 
-public theorem CommitStack.b3_at : NativeRustcVmArm.Vm.CommitStack.b3.IsInfixAt NativeRustcVmArm.Vm.code 13576 :=
+public theorem CommitStack.b3_at : NativeRustcVmArm.Vm.CommitStack.b3.IsInfixAt NativeRustcVmArm.Vm.code (CommitStack.programOffset + NativeRustcVmArm.Vm.CommitStack.b3Offset) :=
   NativeRustcVmArm.Vm.CommitStack.b3_in_code.trans CommitStack.code_at (List.cons_ne_nil _ _)
 
-public theorem CommitStack.b4_at : NativeRustcVmArm.Vm.CommitStack.b4.IsInfixAt NativeRustcVmArm.Vm.code 13582 :=
+public theorem CommitStack.b4_at : NativeRustcVmArm.Vm.CommitStack.b4.IsInfixAt NativeRustcVmArm.Vm.code (CommitStack.programOffset + NativeRustcVmArm.Vm.CommitStack.b4Offset) :=
   NativeRustcVmArm.Vm.CommitStack.b4_in_code.trans CommitStack.code_at (List.cons_ne_nil _ _)
 
-public theorem ColumnWeight.code_at : NativeRustcVmArm.Vm.ColumnWeight.code.IsInfixAt NativeRustcVmArm.Vm.code 13594 :=
+@[expose] public def ColumnWeight.programOffset : Nat := 13594
+
+public theorem ColumnWeight.code_at : NativeRustcVmArm.Vm.ColumnWeight.code.IsInfixAt NativeRustcVmArm.Vm.code ColumnWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 109) rfl (by decide +kernel)
 
-public theorem ColumnWeight.b0_at : NativeRustcVmArm.Vm.ColumnWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code 13594 :=
+public theorem ColumnWeight.b0_at : NativeRustcVmArm.Vm.ColumnWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code (ColumnWeight.programOffset + NativeRustcVmArm.Vm.ColumnWeight.b0Offset) :=
   NativeRustcVmArm.Vm.ColumnWeight.b0_in_code.trans ColumnWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem ColumnWeight.b1_at : NativeRustcVmArm.Vm.ColumnWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code 13711 :=
+public theorem ColumnWeight.b1_at : NativeRustcVmArm.Vm.ColumnWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code (ColumnWeight.programOffset + NativeRustcVmArm.Vm.ColumnWeight.b1Offset) :=
   NativeRustcVmArm.Vm.ColumnWeight.b1_in_code.trans ColumnWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem ColumnWeight.b2_at : NativeRustcVmArm.Vm.ColumnWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code 13714 :=
+public theorem ColumnWeight.b2_at : NativeRustcVmArm.Vm.ColumnWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code (ColumnWeight.programOffset + NativeRustcVmArm.Vm.ColumnWeight.b2Offset) :=
   NativeRustcVmArm.Vm.ColumnWeight.b2_in_code.trans ColumnWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem ColumnWeight.b3_at : NativeRustcVmArm.Vm.ColumnWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code 13718 :=
+public theorem ColumnWeight.b3_at : NativeRustcVmArm.Vm.ColumnWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code (ColumnWeight.programOffset + NativeRustcVmArm.Vm.ColumnWeight.b3Offset) :=
   NativeRustcVmArm.Vm.ColumnWeight.b3_in_code.trans ColumnWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem ColumnWeight.b4_at : NativeRustcVmArm.Vm.ColumnWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code 13720 :=
+public theorem ColumnWeight.b4_at : NativeRustcVmArm.Vm.ColumnWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code (ColumnWeight.programOffset + NativeRustcVmArm.Vm.ColumnWeight.b4Offset) :=
   NativeRustcVmArm.Vm.ColumnWeight.b4_in_code.trans ColumnWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingClaimWeight.code_at : NativeRustcVmArm.Vm.RingClaimWeight.code.IsInfixAt NativeRustcVmArm.Vm.code 13727 :=
+@[expose] public def RingClaimWeight.programOffset : Nat := 13727
+
+public theorem RingClaimWeight.code_at : NativeRustcVmArm.Vm.RingClaimWeight.code.IsInfixAt NativeRustcVmArm.Vm.code RingClaimWeight.programOffset :=
   List.isInfixAt_flatten_of (i := 110) rfl (by decide +kernel)
 
-public theorem RingClaimWeight.b0_at : NativeRustcVmArm.Vm.RingClaimWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code 13727 :=
+public theorem RingClaimWeight.b0_at : NativeRustcVmArm.Vm.RingClaimWeight.b0.IsInfixAt NativeRustcVmArm.Vm.code (RingClaimWeight.programOffset + NativeRustcVmArm.Vm.RingClaimWeight.b0Offset) :=
   NativeRustcVmArm.Vm.RingClaimWeight.b0_in_code.trans RingClaimWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingClaimWeight.b1_at : NativeRustcVmArm.Vm.RingClaimWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code 13752 :=
+public theorem RingClaimWeight.b1_at : NativeRustcVmArm.Vm.RingClaimWeight.b1.IsInfixAt NativeRustcVmArm.Vm.code (RingClaimWeight.programOffset + NativeRustcVmArm.Vm.RingClaimWeight.b1Offset) :=
   NativeRustcVmArm.Vm.RingClaimWeight.b1_in_code.trans RingClaimWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingClaimWeight.b2_at : NativeRustcVmArm.Vm.RingClaimWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code 13761 :=
+public theorem RingClaimWeight.b2_at : NativeRustcVmArm.Vm.RingClaimWeight.b2.IsInfixAt NativeRustcVmArm.Vm.code (RingClaimWeight.programOffset + NativeRustcVmArm.Vm.RingClaimWeight.b2Offset) :=
   NativeRustcVmArm.Vm.RingClaimWeight.b2_in_code.trans RingClaimWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingClaimWeight.b3_at : NativeRustcVmArm.Vm.RingClaimWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code 13763 :=
+public theorem RingClaimWeight.b3_at : NativeRustcVmArm.Vm.RingClaimWeight.b3.IsInfixAt NativeRustcVmArm.Vm.code (RingClaimWeight.programOffset + NativeRustcVmArm.Vm.RingClaimWeight.b3Offset) :=
   NativeRustcVmArm.Vm.RingClaimWeight.b3_in_code.trans RingClaimWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingClaimWeight.b4_at : NativeRustcVmArm.Vm.RingClaimWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code 13767 :=
+public theorem RingClaimWeight.b4_at : NativeRustcVmArm.Vm.RingClaimWeight.b4.IsInfixAt NativeRustcVmArm.Vm.code (RingClaimWeight.programOffset + NativeRustcVmArm.Vm.RingClaimWeight.b4Offset) :=
   NativeRustcVmArm.Vm.RingClaimWeight.b4_in_code.trans RingClaimWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem RingClaimWeight.b5_at : NativeRustcVmArm.Vm.RingClaimWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code 13769 :=
+public theorem RingClaimWeight.b5_at : NativeRustcVmArm.Vm.RingClaimWeight.b5.IsInfixAt NativeRustcVmArm.Vm.code (RingClaimWeight.programOffset + NativeRustcVmArm.Vm.RingClaimWeight.b5Offset) :=
   NativeRustcVmArm.Vm.RingClaimWeight.b5_in_code.trans RingClaimWeight.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadOod.code_at : NativeRustcVmArm.Vm.ReadOod.code.IsInfixAt NativeRustcVmArm.Vm.code 13778 :=
+@[expose] public def ReadOod.programOffset : Nat := 13778
+
+public theorem ReadOod.code_at : NativeRustcVmArm.Vm.ReadOod.code.IsInfixAt NativeRustcVmArm.Vm.code ReadOod.programOffset :=
   List.isInfixAt_flatten_of (i := 111) rfl (by decide +kernel)
 
-public theorem ReadOod.b0_at : NativeRustcVmArm.Vm.ReadOod.b0.IsInfixAt NativeRustcVmArm.Vm.code 13778 :=
+public theorem ReadOod.b0_at : NativeRustcVmArm.Vm.ReadOod.b0.IsInfixAt NativeRustcVmArm.Vm.code (ReadOod.programOffset + NativeRustcVmArm.Vm.ReadOod.b0Offset) :=
   NativeRustcVmArm.Vm.ReadOod.b0_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadOod.b1_at : NativeRustcVmArm.Vm.ReadOod.b1.IsInfixAt NativeRustcVmArm.Vm.code 13787 :=
+public theorem ReadOod.b1_at : NativeRustcVmArm.Vm.ReadOod.b1.IsInfixAt NativeRustcVmArm.Vm.code (ReadOod.programOffset + NativeRustcVmArm.Vm.ReadOod.b1Offset) :=
   NativeRustcVmArm.Vm.ReadOod.b1_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadOod.b2_at : NativeRustcVmArm.Vm.ReadOod.b2.IsInfixAt NativeRustcVmArm.Vm.code 13790 :=
+public theorem ReadOod.b2_at : NativeRustcVmArm.Vm.ReadOod.b2.IsInfixAt NativeRustcVmArm.Vm.code (ReadOod.programOffset + NativeRustcVmArm.Vm.ReadOod.b2Offset) :=
   NativeRustcVmArm.Vm.ReadOod.b2_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadOod.b3_at : NativeRustcVmArm.Vm.ReadOod.b3.IsInfixAt NativeRustcVmArm.Vm.code 13795 :=
+public theorem ReadOod.b3_at : NativeRustcVmArm.Vm.ReadOod.b3.IsInfixAt NativeRustcVmArm.Vm.code (ReadOod.programOffset + NativeRustcVmArm.Vm.ReadOod.b3Offset) :=
   NativeRustcVmArm.Vm.ReadOod.b3_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadOod.b4_at : NativeRustcVmArm.Vm.ReadOod.b4.IsInfixAt NativeRustcVmArm.Vm.code 13798 :=
+public theorem ReadOod.b4_at : NativeRustcVmArm.Vm.ReadOod.b4.IsInfixAt NativeRustcVmArm.Vm.code (ReadOod.programOffset + NativeRustcVmArm.Vm.ReadOod.b4Offset) :=
   NativeRustcVmArm.Vm.ReadOod.b4_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadOod.b5_at : NativeRustcVmArm.Vm.ReadOod.b5.IsInfixAt NativeRustcVmArm.Vm.code 13800 :=
+public theorem ReadOod.b5_at : NativeRustcVmArm.Vm.ReadOod.b5.IsInfixAt NativeRustcVmArm.Vm.code (ReadOod.programOffset + NativeRustcVmArm.Vm.ReadOod.b5Offset) :=
   NativeRustcVmArm.Vm.ReadOod.b5_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadOod.b6_at : NativeRustcVmArm.Vm.ReadOod.b6.IsInfixAt NativeRustcVmArm.Vm.code 13807 :=
+public theorem ReadOod.b6_at : NativeRustcVmArm.Vm.ReadOod.b6.IsInfixAt NativeRustcVmArm.Vm.code (ReadOod.programOffset + NativeRustcVmArm.Vm.ReadOod.b6Offset) :=
   NativeRustcVmArm.Vm.ReadOod.b6_in_code.trans ReadOod.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakF.code_at : NativeRustcVmArm.Vm.KeccakF.code.IsInfixAt NativeRustcVmArm.Vm.code 13813 :=
+@[expose] public def KeccakF.programOffset : Nat := 13813
+
+public theorem KeccakF.code_at : NativeRustcVmArm.Vm.KeccakF.code.IsInfixAt NativeRustcVmArm.Vm.code KeccakF.programOffset :=
   List.isInfixAt_flatten_of (i := 112) rfl (by decide +kernel)
 
-public theorem KeccakF.b0_at : NativeRustcVmArm.Vm.KeccakF.b0.IsInfixAt NativeRustcVmArm.Vm.code 13813 :=
+public theorem KeccakF.b0_at : NativeRustcVmArm.Vm.KeccakF.b0.IsInfixAt NativeRustcVmArm.Vm.code (KeccakF.programOffset + NativeRustcVmArm.Vm.KeccakF.b0Offset) :=
   NativeRustcVmArm.Vm.KeccakF.b0_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakF.b1_at : NativeRustcVmArm.Vm.KeccakF.b1.IsInfixAt NativeRustcVmArm.Vm.code 13828 :=
+public theorem KeccakF.b1_at : NativeRustcVmArm.Vm.KeccakF.b1.IsInfixAt NativeRustcVmArm.Vm.code (KeccakF.programOffset + NativeRustcVmArm.Vm.KeccakF.b1Offset) :=
   NativeRustcVmArm.Vm.KeccakF.b1_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakF.b2_at : NativeRustcVmArm.Vm.KeccakF.b2.IsInfixAt NativeRustcVmArm.Vm.code 13846 :=
+public theorem KeccakF.b2_at : NativeRustcVmArm.Vm.KeccakF.b2.IsInfixAt NativeRustcVmArm.Vm.code (KeccakF.programOffset + NativeRustcVmArm.Vm.KeccakF.b2Offset) :=
   NativeRustcVmArm.Vm.KeccakF.b2_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakF.b3_at : NativeRustcVmArm.Vm.KeccakF.b3.IsInfixAt NativeRustcVmArm.Vm.code 14004 :=
+public theorem KeccakF.b3_at : NativeRustcVmArm.Vm.KeccakF.b3.IsInfixAt NativeRustcVmArm.Vm.code (KeccakF.programOffset + NativeRustcVmArm.Vm.KeccakF.b3Offset) :=
   NativeRustcVmArm.Vm.KeccakF.b3_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-public theorem HashPair.code_at : NativeRustcVmArm.Vm.HashPair.code.IsInfixAt NativeRustcVmArm.Vm.code 14031 :=
+@[expose] public def HashPair.programOffset : Nat := 14031
+
+public theorem HashPair.code_at : NativeRustcVmArm.Vm.HashPair.code.IsInfixAt NativeRustcVmArm.Vm.code HashPair.programOffset :=
   List.isInfixAt_flatten_of (i := 113) rfl (by decide +kernel)
 
-public theorem HashPair.b0_at : NativeRustcVmArm.Vm.HashPair.b0.IsInfixAt NativeRustcVmArm.Vm.code 14031 :=
+public theorem HashPair.b0_at : NativeRustcVmArm.Vm.HashPair.b0.IsInfixAt NativeRustcVmArm.Vm.code (HashPair.programOffset + NativeRustcVmArm.Vm.HashPair.b0Offset) :=
   NativeRustcVmArm.Vm.HashPair.b0_in_code.trans HashPair.code_at (List.cons_ne_nil _ _)
 
-public theorem HashPair.b1_at : NativeRustcVmArm.Vm.HashPair.b1.IsInfixAt NativeRustcVmArm.Vm.code 14047 :=
+public theorem HashPair.b1_at : NativeRustcVmArm.Vm.HashPair.b1.IsInfixAt NativeRustcVmArm.Vm.code (HashPair.programOffset + NativeRustcVmArm.Vm.HashPair.b1Offset) :=
   NativeRustcVmArm.Vm.HashPair.b1_in_code.trans HashPair.code_at (List.cons_ne_nil _ _)
 
-public theorem FormTerms.code_at : NativeRustcVmArm.Vm.FormTerms.code.IsInfixAt NativeRustcVmArm.Vm.code 14050 :=
+@[expose] public def FormTerms.programOffset : Nat := 14050
+
+public theorem FormTerms.code_at : NativeRustcVmArm.Vm.FormTerms.code.IsInfixAt NativeRustcVmArm.Vm.code FormTerms.programOffset :=
   List.isInfixAt_flatten_of (i := 114) rfl (by decide +kernel)
 
-public theorem FormTerms.b0_at : NativeRustcVmArm.Vm.FormTerms.b0.IsInfixAt NativeRustcVmArm.Vm.code 14050 :=
+public theorem FormTerms.b0_at : NativeRustcVmArm.Vm.FormTerms.b0.IsInfixAt NativeRustcVmArm.Vm.code (FormTerms.programOffset + NativeRustcVmArm.Vm.FormTerms.b0Offset) :=
   NativeRustcVmArm.Vm.FormTerms.b0_in_code.trans FormTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem FormTerms.b1_at : NativeRustcVmArm.Vm.FormTerms.b1.IsInfixAt NativeRustcVmArm.Vm.code 14053 :=
+public theorem FormTerms.b1_at : NativeRustcVmArm.Vm.FormTerms.b1.IsInfixAt NativeRustcVmArm.Vm.code (FormTerms.programOffset + NativeRustcVmArm.Vm.FormTerms.b1Offset) :=
   NativeRustcVmArm.Vm.FormTerms.b1_in_code.trans FormTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem FormTerms.b2_at : NativeRustcVmArm.Vm.FormTerms.b2.IsInfixAt NativeRustcVmArm.Vm.code 14069 :=
+public theorem FormTerms.b2_at : NativeRustcVmArm.Vm.FormTerms.b2.IsInfixAt NativeRustcVmArm.Vm.code (FormTerms.programOffset + NativeRustcVmArm.Vm.FormTerms.b2Offset) :=
   NativeRustcVmArm.Vm.FormTerms.b2_in_code.trans FormTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.code_at : NativeRustcVmArm.Vm.StackPoint.code.IsInfixAt NativeRustcVmArm.Vm.code 14073 :=
+@[expose] public def StackPoint.programOffset : Nat := 14073
+
+public theorem StackPoint.code_at : NativeRustcVmArm.Vm.StackPoint.code.IsInfixAt NativeRustcVmArm.Vm.code StackPoint.programOffset :=
   List.isInfixAt_flatten_of (i := 115) rfl (by decide +kernel)
 
-public theorem StackPoint.b0_at : NativeRustcVmArm.Vm.StackPoint.b0.IsInfixAt NativeRustcVmArm.Vm.code 14073 :=
+public theorem StackPoint.b0_at : NativeRustcVmArm.Vm.StackPoint.b0.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b0Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b0_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b1_at : NativeRustcVmArm.Vm.StackPoint.b1.IsInfixAt NativeRustcVmArm.Vm.code 14083 :=
+public theorem StackPoint.b1_at : NativeRustcVmArm.Vm.StackPoint.b1.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b1Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b1_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b2_at : NativeRustcVmArm.Vm.StackPoint.b2.IsInfixAt NativeRustcVmArm.Vm.code 14085 :=
+public theorem StackPoint.b2_at : NativeRustcVmArm.Vm.StackPoint.b2.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b2Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b2_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b3_at : NativeRustcVmArm.Vm.StackPoint.b3.IsInfixAt NativeRustcVmArm.Vm.code 14087 :=
+public theorem StackPoint.b3_at : NativeRustcVmArm.Vm.StackPoint.b3.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b3Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b3_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b4_at : NativeRustcVmArm.Vm.StackPoint.b4.IsInfixAt NativeRustcVmArm.Vm.code 14089 :=
+public theorem StackPoint.b4_at : NativeRustcVmArm.Vm.StackPoint.b4.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b4Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b4_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b5_at : NativeRustcVmArm.Vm.StackPoint.b5.IsInfixAt NativeRustcVmArm.Vm.code 14094 :=
+public theorem StackPoint.b5_at : NativeRustcVmArm.Vm.StackPoint.b5.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b5Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b5_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b6_at : NativeRustcVmArm.Vm.StackPoint.b6.IsInfixAt NativeRustcVmArm.Vm.code 14101 :=
+public theorem StackPoint.b6_at : NativeRustcVmArm.Vm.StackPoint.b6.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b6Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b6_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b7_at : NativeRustcVmArm.Vm.StackPoint.b7.IsInfixAt NativeRustcVmArm.Vm.code 14103 :=
+public theorem StackPoint.b7_at : NativeRustcVmArm.Vm.StackPoint.b7.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b7Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b7_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b8_at : NativeRustcVmArm.Vm.StackPoint.b8.IsInfixAt NativeRustcVmArm.Vm.code 14109 :=
+public theorem StackPoint.b8_at : NativeRustcVmArm.Vm.StackPoint.b8.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b8Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b8_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b9_at : NativeRustcVmArm.Vm.StackPoint.b9.IsInfixAt NativeRustcVmArm.Vm.code 14116 :=
+public theorem StackPoint.b9_at : NativeRustcVmArm.Vm.StackPoint.b9.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b9Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b9_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b10_at : NativeRustcVmArm.Vm.StackPoint.b10.IsInfixAt NativeRustcVmArm.Vm.code 14122 :=
+public theorem StackPoint.b10_at : NativeRustcVmArm.Vm.StackPoint.b10.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b10Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b10_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem StackPoint.b11_at : NativeRustcVmArm.Vm.StackPoint.b11.IsInfixAt NativeRustcVmArm.Vm.code 14123 :=
+public theorem StackPoint.b11_at : NativeRustcVmArm.Vm.StackPoint.b11.IsInfixAt NativeRustcVmArm.Vm.code (StackPoint.programOffset + NativeRustcVmArm.Vm.StackPoint.b11Offset) :=
   NativeRustcVmArm.Vm.StackPoint.b11_in_code.trans StackPoint.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.code_at : NativeRustcVmArm.Vm.BuildLayout.code.IsInfixAt NativeRustcVmArm.Vm.code 14128 :=
+@[expose] public def BuildLayout.programOffset : Nat := 14128
+
+public theorem BuildLayout.code_at : NativeRustcVmArm.Vm.BuildLayout.code.IsInfixAt NativeRustcVmArm.Vm.code BuildLayout.programOffset :=
   List.isInfixAt_flatten_of (i := 116) rfl (by decide +kernel)
 
-public theorem BuildLayout.b0_at : NativeRustcVmArm.Vm.BuildLayout.b0.IsInfixAt NativeRustcVmArm.Vm.code 14128 :=
+public theorem BuildLayout.b0_at : NativeRustcVmArm.Vm.BuildLayout.b0.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b0Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b0_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b1_at : NativeRustcVmArm.Vm.BuildLayout.b1.IsInfixAt NativeRustcVmArm.Vm.code 14133 :=
+public theorem BuildLayout.b1_at : NativeRustcVmArm.Vm.BuildLayout.b1.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b1Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b1_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b2_at : NativeRustcVmArm.Vm.BuildLayout.b2.IsInfixAt NativeRustcVmArm.Vm.code 14145 :=
+public theorem BuildLayout.b2_at : NativeRustcVmArm.Vm.BuildLayout.b2.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b2Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b2_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b3_at : NativeRustcVmArm.Vm.BuildLayout.b3.IsInfixAt NativeRustcVmArm.Vm.code 14150 :=
+public theorem BuildLayout.b3_at : NativeRustcVmArm.Vm.BuildLayout.b3.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b3Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b3_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b4_at : NativeRustcVmArm.Vm.BuildLayout.b4.IsInfixAt NativeRustcVmArm.Vm.code 14154 :=
+public theorem BuildLayout.b4_at : NativeRustcVmArm.Vm.BuildLayout.b4.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b4Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b4_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b5_at : NativeRustcVmArm.Vm.BuildLayout.b5.IsInfixAt NativeRustcVmArm.Vm.code 14159 :=
+public theorem BuildLayout.b5_at : NativeRustcVmArm.Vm.BuildLayout.b5.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b5Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b5_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b6_at : NativeRustcVmArm.Vm.BuildLayout.b6.IsInfixAt NativeRustcVmArm.Vm.code 14162 :=
+public theorem BuildLayout.b6_at : NativeRustcVmArm.Vm.BuildLayout.b6.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b6Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b6_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b7_at : NativeRustcVmArm.Vm.BuildLayout.b7.IsInfixAt NativeRustcVmArm.Vm.code 14165 :=
+public theorem BuildLayout.b7_at : NativeRustcVmArm.Vm.BuildLayout.b7.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b7Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b7_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b8_at : NativeRustcVmArm.Vm.BuildLayout.b8.IsInfixAt NativeRustcVmArm.Vm.code 14168 :=
+public theorem BuildLayout.b8_at : NativeRustcVmArm.Vm.BuildLayout.b8.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b8Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b8_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b9_at : NativeRustcVmArm.Vm.BuildLayout.b9.IsInfixAt NativeRustcVmArm.Vm.code 14172 :=
+public theorem BuildLayout.b9_at : NativeRustcVmArm.Vm.BuildLayout.b9.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b9Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b9_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b10_at : NativeRustcVmArm.Vm.BuildLayout.b10.IsInfixAt NativeRustcVmArm.Vm.code 14177 :=
+public theorem BuildLayout.b10_at : NativeRustcVmArm.Vm.BuildLayout.b10.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b10Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b10_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b11_at : NativeRustcVmArm.Vm.BuildLayout.b11.IsInfixAt NativeRustcVmArm.Vm.code 14182 :=
+public theorem BuildLayout.b11_at : NativeRustcVmArm.Vm.BuildLayout.b11.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b11Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b11_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b12_at : NativeRustcVmArm.Vm.BuildLayout.b12.IsInfixAt NativeRustcVmArm.Vm.code 14187 :=
+public theorem BuildLayout.b12_at : NativeRustcVmArm.Vm.BuildLayout.b12.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b12Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b12_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b13_at : NativeRustcVmArm.Vm.BuildLayout.b13.IsInfixAt NativeRustcVmArm.Vm.code 14192 :=
+public theorem BuildLayout.b13_at : NativeRustcVmArm.Vm.BuildLayout.b13.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b13Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b13_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b14_at : NativeRustcVmArm.Vm.BuildLayout.b14.IsInfixAt NativeRustcVmArm.Vm.code 14197 :=
+public theorem BuildLayout.b14_at : NativeRustcVmArm.Vm.BuildLayout.b14.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b14Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b14_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b15_at : NativeRustcVmArm.Vm.BuildLayout.b15.IsInfixAt NativeRustcVmArm.Vm.code 14202 :=
+public theorem BuildLayout.b15_at : NativeRustcVmArm.Vm.BuildLayout.b15.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b15Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b15_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b16_at : NativeRustcVmArm.Vm.BuildLayout.b16.IsInfixAt NativeRustcVmArm.Vm.code 14212 :=
+public theorem BuildLayout.b16_at : NativeRustcVmArm.Vm.BuildLayout.b16.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b16Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b16_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b17_at : NativeRustcVmArm.Vm.BuildLayout.b17.IsInfixAt NativeRustcVmArm.Vm.code 14215 :=
+public theorem BuildLayout.b17_at : NativeRustcVmArm.Vm.BuildLayout.b17.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b17Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b17_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b18_at : NativeRustcVmArm.Vm.BuildLayout.b18.IsInfixAt NativeRustcVmArm.Vm.code 14217 :=
+public theorem BuildLayout.b18_at : NativeRustcVmArm.Vm.BuildLayout.b18.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b18Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b18_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b19_at : NativeRustcVmArm.Vm.BuildLayout.b19.IsInfixAt NativeRustcVmArm.Vm.code 14219 :=
+public theorem BuildLayout.b19_at : NativeRustcVmArm.Vm.BuildLayout.b19.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b19Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b19_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b20_at : NativeRustcVmArm.Vm.BuildLayout.b20.IsInfixAt NativeRustcVmArm.Vm.code 14223 :=
+public theorem BuildLayout.b20_at : NativeRustcVmArm.Vm.BuildLayout.b20.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b20Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b20_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem BuildLayout.b21_at : NativeRustcVmArm.Vm.BuildLayout.b21.IsInfixAt NativeRustcVmArm.Vm.code 14225 :=
+public theorem BuildLayout.b21_at : NativeRustcVmArm.Vm.BuildLayout.b21.IsInfixAt NativeRustcVmArm.Vm.code (BuildLayout.programOffset + NativeRustcVmArm.Vm.BuildLayout.b21Offset) :=
   NativeRustcVmArm.Vm.BuildLayout.b21_in_code.trans BuildLayout.code_at (List.cons_ne_nil _ _)
 
-public theorem ColumnKappas.code_at : NativeRustcVmArm.Vm.ColumnKappas.code.IsInfixAt NativeRustcVmArm.Vm.code 14235 :=
+@[expose] public def ColumnKappas.programOffset : Nat := 14235
+
+public theorem ColumnKappas.code_at : NativeRustcVmArm.Vm.ColumnKappas.code.IsInfixAt NativeRustcVmArm.Vm.code ColumnKappas.programOffset :=
   List.isInfixAt_flatten_of (i := 117) rfl (by decide +kernel)
 
-public theorem ColumnKappas.b0_at : NativeRustcVmArm.Vm.ColumnKappas.b0.IsInfixAt NativeRustcVmArm.Vm.code 14235 :=
+public theorem ColumnKappas.b0_at : NativeRustcVmArm.Vm.ColumnKappas.b0.IsInfixAt NativeRustcVmArm.Vm.code (ColumnKappas.programOffset + NativeRustcVmArm.Vm.ColumnKappas.b0Offset) :=
   NativeRustcVmArm.Vm.ColumnKappas.b0_in_code.trans ColumnKappas.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.code_at : NativeRustcVmArm.Vm.ConstraintsW.code.IsInfixAt NativeRustcVmArm.Vm.code 14368 :=
+@[expose] public def ConstraintsW.programOffset : Nat := 14368
+
+public theorem ConstraintsW.code_at : NativeRustcVmArm.Vm.ConstraintsW.code.IsInfixAt NativeRustcVmArm.Vm.code ConstraintsW.programOffset :=
   List.isInfixAt_flatten_of (i := 118) rfl (by decide +kernel)
 
-public theorem ConstraintsW.b0_at : NativeRustcVmArm.Vm.ConstraintsW.b0.IsInfixAt NativeRustcVmArm.Vm.code 14368 :=
+public theorem ConstraintsW.b0_at : NativeRustcVmArm.Vm.ConstraintsW.b0.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b0Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b0_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b1_at : NativeRustcVmArm.Vm.ConstraintsW.b1.IsInfixAt NativeRustcVmArm.Vm.code 14371 :=
+public theorem ConstraintsW.b1_at : NativeRustcVmArm.Vm.ConstraintsW.b1.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b1Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b1_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b2_at : NativeRustcVmArm.Vm.ConstraintsW.b2.IsInfixAt NativeRustcVmArm.Vm.code 14377 :=
+public theorem ConstraintsW.b2_at : NativeRustcVmArm.Vm.ConstraintsW.b2.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b2Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b2_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b3_at : NativeRustcVmArm.Vm.ConstraintsW.b3.IsInfixAt NativeRustcVmArm.Vm.code 14380 :=
+public theorem ConstraintsW.b3_at : NativeRustcVmArm.Vm.ConstraintsW.b3.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b3Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b3_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b4_at : NativeRustcVmArm.Vm.ConstraintsW.b4.IsInfixAt NativeRustcVmArm.Vm.code 14384 :=
+public theorem ConstraintsW.b4_at : NativeRustcVmArm.Vm.ConstraintsW.b4.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b4Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b4_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b5_at : NativeRustcVmArm.Vm.ConstraintsW.b5.IsInfixAt NativeRustcVmArm.Vm.code 14386 :=
+public theorem ConstraintsW.b5_at : NativeRustcVmArm.Vm.ConstraintsW.b5.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b5Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b5_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b6_at : NativeRustcVmArm.Vm.ConstraintsW.b6.IsInfixAt NativeRustcVmArm.Vm.code 14389 :=
+public theorem ConstraintsW.b6_at : NativeRustcVmArm.Vm.ConstraintsW.b6.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b6Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b6_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b7_at : NativeRustcVmArm.Vm.ConstraintsW.b7.IsInfixAt NativeRustcVmArm.Vm.code 14395 :=
+public theorem ConstraintsW.b7_at : NativeRustcVmArm.Vm.ConstraintsW.b7.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b7Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b7_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b8_at : NativeRustcVmArm.Vm.ConstraintsW.b8.IsInfixAt NativeRustcVmArm.Vm.code 14398 :=
+public theorem ConstraintsW.b8_at : NativeRustcVmArm.Vm.ConstraintsW.b8.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b8Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b8_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b9_at : NativeRustcVmArm.Vm.ConstraintsW.b9.IsInfixAt NativeRustcVmArm.Vm.code 14401 :=
+public theorem ConstraintsW.b9_at : NativeRustcVmArm.Vm.ConstraintsW.b9.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b9Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b9_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b10_at : NativeRustcVmArm.Vm.ConstraintsW.b10.IsInfixAt NativeRustcVmArm.Vm.code 14405 :=
+public theorem ConstraintsW.b10_at : NativeRustcVmArm.Vm.ConstraintsW.b10.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b10Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b10_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem ConstraintsW.b11_at : NativeRustcVmArm.Vm.ConstraintsW.b11.IsInfixAt NativeRustcVmArm.Vm.code 14413 :=
+public theorem ConstraintsW.b11_at : NativeRustcVmArm.Vm.ConstraintsW.b11.IsInfixAt NativeRustcVmArm.Vm.code (ConstraintsW.programOffset + NativeRustcVmArm.Vm.ConstraintsW.b11Offset) :=
   NativeRustcVmArm.Vm.ConstraintsW.b11_in_code.trans ConstraintsW.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.code_at : NativeRustcVmArm.Vm.PlacementsOf.code.IsInfixAt NativeRustcVmArm.Vm.code 14419 :=
+@[expose] public def PlacementsOf.programOffset : Nat := 14419
+
+public theorem PlacementsOf.code_at : NativeRustcVmArm.Vm.PlacementsOf.code.IsInfixAt NativeRustcVmArm.Vm.code PlacementsOf.programOffset :=
   List.isInfixAt_flatten_of (i := 119) rfl (by decide +kernel)
 
-public theorem PlacementsOf.b0_at : NativeRustcVmArm.Vm.PlacementsOf.b0.IsInfixAt NativeRustcVmArm.Vm.code 14419 :=
+public theorem PlacementsOf.b0_at : NativeRustcVmArm.Vm.PlacementsOf.b0.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b0Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b0_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b1_at : NativeRustcVmArm.Vm.PlacementsOf.b1.IsInfixAt NativeRustcVmArm.Vm.code 14436 :=
+public theorem PlacementsOf.b1_at : NativeRustcVmArm.Vm.PlacementsOf.b1.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b1Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b1_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b2_at : NativeRustcVmArm.Vm.PlacementsOf.b2.IsInfixAt NativeRustcVmArm.Vm.code 14441 :=
+public theorem PlacementsOf.b2_at : NativeRustcVmArm.Vm.PlacementsOf.b2.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b2Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b2_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b3_at : NativeRustcVmArm.Vm.PlacementsOf.b3.IsInfixAt NativeRustcVmArm.Vm.code 14448 :=
+public theorem PlacementsOf.b3_at : NativeRustcVmArm.Vm.PlacementsOf.b3.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b3Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b3_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b4_at : NativeRustcVmArm.Vm.PlacementsOf.b4.IsInfixAt NativeRustcVmArm.Vm.code 14452 :=
+public theorem PlacementsOf.b4_at : NativeRustcVmArm.Vm.PlacementsOf.b4.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b4Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b4_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b5_at : NativeRustcVmArm.Vm.PlacementsOf.b5.IsInfixAt NativeRustcVmArm.Vm.code 14456 :=
+public theorem PlacementsOf.b5_at : NativeRustcVmArm.Vm.PlacementsOf.b5.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b5Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b5_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b6_at : NativeRustcVmArm.Vm.PlacementsOf.b6.IsInfixAt NativeRustcVmArm.Vm.code 14458 :=
+public theorem PlacementsOf.b6_at : NativeRustcVmArm.Vm.PlacementsOf.b6.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b6Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b6_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b7_at : NativeRustcVmArm.Vm.PlacementsOf.b7.IsInfixAt NativeRustcVmArm.Vm.code 14460 :=
+public theorem PlacementsOf.b7_at : NativeRustcVmArm.Vm.PlacementsOf.b7.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b7Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b7_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b8_at : NativeRustcVmArm.Vm.PlacementsOf.b8.IsInfixAt NativeRustcVmArm.Vm.code 14465 :=
+public theorem PlacementsOf.b8_at : NativeRustcVmArm.Vm.PlacementsOf.b8.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b8Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b8_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b9_at : NativeRustcVmArm.Vm.PlacementsOf.b9.IsInfixAt NativeRustcVmArm.Vm.code 14470 :=
+public theorem PlacementsOf.b9_at : NativeRustcVmArm.Vm.PlacementsOf.b9.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b9Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b9_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b10_at : NativeRustcVmArm.Vm.PlacementsOf.b10.IsInfixAt NativeRustcVmArm.Vm.code 14472 :=
+public theorem PlacementsOf.b10_at : NativeRustcVmArm.Vm.PlacementsOf.b10.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b10Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b10_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b11_at : NativeRustcVmArm.Vm.PlacementsOf.b11.IsInfixAt NativeRustcVmArm.Vm.code 14477 :=
+public theorem PlacementsOf.b11_at : NativeRustcVmArm.Vm.PlacementsOf.b11.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b11Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b11_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b12_at : NativeRustcVmArm.Vm.PlacementsOf.b12.IsInfixAt NativeRustcVmArm.Vm.code 14479 :=
+public theorem PlacementsOf.b12_at : NativeRustcVmArm.Vm.PlacementsOf.b12.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b12Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b12_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b13_at : NativeRustcVmArm.Vm.PlacementsOf.b13.IsInfixAt NativeRustcVmArm.Vm.code 14485 :=
+public theorem PlacementsOf.b13_at : NativeRustcVmArm.Vm.PlacementsOf.b13.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b13Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b13_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b14_at : NativeRustcVmArm.Vm.PlacementsOf.b14.IsInfixAt NativeRustcVmArm.Vm.code 14486 :=
+public theorem PlacementsOf.b14_at : NativeRustcVmArm.Vm.PlacementsOf.b14.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b14Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b14_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b15_at : NativeRustcVmArm.Vm.PlacementsOf.b15.IsInfixAt NativeRustcVmArm.Vm.code 14488 :=
+public theorem PlacementsOf.b15_at : NativeRustcVmArm.Vm.PlacementsOf.b15.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b15Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b15_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b16_at : NativeRustcVmArm.Vm.PlacementsOf.b16.IsInfixAt NativeRustcVmArm.Vm.code 14492 :=
+public theorem PlacementsOf.b16_at : NativeRustcVmArm.Vm.PlacementsOf.b16.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b16Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b16_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b17_at : NativeRustcVmArm.Vm.PlacementsOf.b17.IsInfixAt NativeRustcVmArm.Vm.code 14496 :=
+public theorem PlacementsOf.b17_at : NativeRustcVmArm.Vm.PlacementsOf.b17.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b17Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b17_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b18_at : NativeRustcVmArm.Vm.PlacementsOf.b18.IsInfixAt NativeRustcVmArm.Vm.code 14498 :=
+public theorem PlacementsOf.b18_at : NativeRustcVmArm.Vm.PlacementsOf.b18.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b18Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b18_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b19_at : NativeRustcVmArm.Vm.PlacementsOf.b19.IsInfixAt NativeRustcVmArm.Vm.code 14500 :=
+public theorem PlacementsOf.b19_at : NativeRustcVmArm.Vm.PlacementsOf.b19.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b19Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b19_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b20_at : NativeRustcVmArm.Vm.PlacementsOf.b20.IsInfixAt NativeRustcVmArm.Vm.code 14504 :=
+public theorem PlacementsOf.b20_at : NativeRustcVmArm.Vm.PlacementsOf.b20.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b20Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b20_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b21_at : NativeRustcVmArm.Vm.PlacementsOf.b21.IsInfixAt NativeRustcVmArm.Vm.code 14506 :=
+public theorem PlacementsOf.b21_at : NativeRustcVmArm.Vm.PlacementsOf.b21.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b21Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b21_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b22_at : NativeRustcVmArm.Vm.PlacementsOf.b22.IsInfixAt NativeRustcVmArm.Vm.code 14513 :=
+public theorem PlacementsOf.b22_at : NativeRustcVmArm.Vm.PlacementsOf.b22.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b22Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b22_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b23_at : NativeRustcVmArm.Vm.PlacementsOf.b23.IsInfixAt NativeRustcVmArm.Vm.code 14518 :=
+public theorem PlacementsOf.b23_at : NativeRustcVmArm.Vm.PlacementsOf.b23.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b23Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b23_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b24_at : NativeRustcVmArm.Vm.PlacementsOf.b24.IsInfixAt NativeRustcVmArm.Vm.code 14520 :=
+public theorem PlacementsOf.b24_at : NativeRustcVmArm.Vm.PlacementsOf.b24.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b24Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b24_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b25_at : NativeRustcVmArm.Vm.PlacementsOf.b25.IsInfixAt NativeRustcVmArm.Vm.code 14523 :=
+public theorem PlacementsOf.b25_at : NativeRustcVmArm.Vm.PlacementsOf.b25.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b25Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b25_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b26_at : NativeRustcVmArm.Vm.PlacementsOf.b26.IsInfixAt NativeRustcVmArm.Vm.code 14524 :=
+public theorem PlacementsOf.b26_at : NativeRustcVmArm.Vm.PlacementsOf.b26.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b26Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b26_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b27_at : NativeRustcVmArm.Vm.PlacementsOf.b27.IsInfixAt NativeRustcVmArm.Vm.code 14527 :=
+public theorem PlacementsOf.b27_at : NativeRustcVmArm.Vm.PlacementsOf.b27.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b27Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b27_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b28_at : NativeRustcVmArm.Vm.PlacementsOf.b28.IsInfixAt NativeRustcVmArm.Vm.code 14532 :=
+public theorem PlacementsOf.b28_at : NativeRustcVmArm.Vm.PlacementsOf.b28.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b28Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b28_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b29_at : NativeRustcVmArm.Vm.PlacementsOf.b29.IsInfixAt NativeRustcVmArm.Vm.code 14538 :=
+public theorem PlacementsOf.b29_at : NativeRustcVmArm.Vm.PlacementsOf.b29.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b29Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b29_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem PlacementsOf.b30_at : NativeRustcVmArm.Vm.PlacementsOf.b30.IsInfixAt NativeRustcVmArm.Vm.code 14540 :=
+public theorem PlacementsOf.b30_at : NativeRustcVmArm.Vm.PlacementsOf.b30.IsInfixAt NativeRustcVmArm.Vm.code (PlacementsOf.programOffset + NativeRustcVmArm.Vm.PlacementsOf.b30Offset) :=
   NativeRustcVmArm.Vm.PlacementsOf.b30_in_code.trans PlacementsOf.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.code_at : NativeRustcVmArm.Vm.StackOffsets.code.IsInfixAt NativeRustcVmArm.Vm.code 14549 :=
+@[expose] public def StackOffsets.programOffset : Nat := 14549
+
+public theorem StackOffsets.code_at : NativeRustcVmArm.Vm.StackOffsets.code.IsInfixAt NativeRustcVmArm.Vm.code StackOffsets.programOffset :=
   List.isInfixAt_flatten_of (i := 120) rfl (by decide +kernel)
 
-public theorem StackOffsets.b0_at : NativeRustcVmArm.Vm.StackOffsets.b0.IsInfixAt NativeRustcVmArm.Vm.code 14549 :=
+public theorem StackOffsets.b0_at : NativeRustcVmArm.Vm.StackOffsets.b0.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b0Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b0_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b1_at : NativeRustcVmArm.Vm.StackOffsets.b1.IsInfixAt NativeRustcVmArm.Vm.code 14552 :=
+public theorem StackOffsets.b1_at : NativeRustcVmArm.Vm.StackOffsets.b1.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b1Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b1_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b2_at : NativeRustcVmArm.Vm.StackOffsets.b2.IsInfixAt NativeRustcVmArm.Vm.code 14554 :=
+public theorem StackOffsets.b2_at : NativeRustcVmArm.Vm.StackOffsets.b2.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b2Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b2_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b3_at : NativeRustcVmArm.Vm.StackOffsets.b3.IsInfixAt NativeRustcVmArm.Vm.code 14570 :=
+public theorem StackOffsets.b3_at : NativeRustcVmArm.Vm.StackOffsets.b3.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b3Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b3_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b4_at : NativeRustcVmArm.Vm.StackOffsets.b4.IsInfixAt NativeRustcVmArm.Vm.code 14572 :=
+public theorem StackOffsets.b4_at : NativeRustcVmArm.Vm.StackOffsets.b4.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b4Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b4_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b5_at : NativeRustcVmArm.Vm.StackOffsets.b5.IsInfixAt NativeRustcVmArm.Vm.code 14576 :=
+public theorem StackOffsets.b5_at : NativeRustcVmArm.Vm.StackOffsets.b5.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b5Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b5_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b6_at : NativeRustcVmArm.Vm.StackOffsets.b6.IsInfixAt NativeRustcVmArm.Vm.code 14579 :=
+public theorem StackOffsets.b6_at : NativeRustcVmArm.Vm.StackOffsets.b6.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b6Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b6_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b7_at : NativeRustcVmArm.Vm.StackOffsets.b7.IsInfixAt NativeRustcVmArm.Vm.code 14585 :=
+public theorem StackOffsets.b7_at : NativeRustcVmArm.Vm.StackOffsets.b7.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b7Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b7_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b8_at : NativeRustcVmArm.Vm.StackOffsets.b8.IsInfixAt NativeRustcVmArm.Vm.code 14592 :=
+public theorem StackOffsets.b8_at : NativeRustcVmArm.Vm.StackOffsets.b8.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b8Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b8_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b9_at : NativeRustcVmArm.Vm.StackOffsets.b9.IsInfixAt NativeRustcVmArm.Vm.code 14602 :=
+public theorem StackOffsets.b9_at : NativeRustcVmArm.Vm.StackOffsets.b9.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b9Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b9_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b10_at : NativeRustcVmArm.Vm.StackOffsets.b10.IsInfixAt NativeRustcVmArm.Vm.code 14604 :=
+public theorem StackOffsets.b10_at : NativeRustcVmArm.Vm.StackOffsets.b10.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b10Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b10_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b11_at : NativeRustcVmArm.Vm.StackOffsets.b11.IsInfixAt NativeRustcVmArm.Vm.code 14606 :=
+public theorem StackOffsets.b11_at : NativeRustcVmArm.Vm.StackOffsets.b11.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b11Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b11_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b12_at : NativeRustcVmArm.Vm.StackOffsets.b12.IsInfixAt NativeRustcVmArm.Vm.code 14611 :=
+public theorem StackOffsets.b12_at : NativeRustcVmArm.Vm.StackOffsets.b12.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b12Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b12_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b13_at : NativeRustcVmArm.Vm.StackOffsets.b13.IsInfixAt NativeRustcVmArm.Vm.code 14616 :=
+public theorem StackOffsets.b13_at : NativeRustcVmArm.Vm.StackOffsets.b13.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b13Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b13_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b14_at : NativeRustcVmArm.Vm.StackOffsets.b14.IsInfixAt NativeRustcVmArm.Vm.code 14618 :=
+public theorem StackOffsets.b14_at : NativeRustcVmArm.Vm.StackOffsets.b14.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b14Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b14_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b15_at : NativeRustcVmArm.Vm.StackOffsets.b15.IsInfixAt NativeRustcVmArm.Vm.code 14622 :=
+public theorem StackOffsets.b15_at : NativeRustcVmArm.Vm.StackOffsets.b15.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b15Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b15_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b16_at : NativeRustcVmArm.Vm.StackOffsets.b16.IsInfixAt NativeRustcVmArm.Vm.code 14624 :=
+public theorem StackOffsets.b16_at : NativeRustcVmArm.Vm.StackOffsets.b16.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b16Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b16_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b17_at : NativeRustcVmArm.Vm.StackOffsets.b17.IsInfixAt NativeRustcVmArm.Vm.code 14629 :=
+public theorem StackOffsets.b17_at : NativeRustcVmArm.Vm.StackOffsets.b17.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b17Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b17_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b18_at : NativeRustcVmArm.Vm.StackOffsets.b18.IsInfixAt NativeRustcVmArm.Vm.code 14631 :=
+public theorem StackOffsets.b18_at : NativeRustcVmArm.Vm.StackOffsets.b18.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b18Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b18_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b19_at : NativeRustcVmArm.Vm.StackOffsets.b19.IsInfixAt NativeRustcVmArm.Vm.code 14634 :=
+public theorem StackOffsets.b19_at : NativeRustcVmArm.Vm.StackOffsets.b19.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b19Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b19_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b20_at : NativeRustcVmArm.Vm.StackOffsets.b20.IsInfixAt NativeRustcVmArm.Vm.code 14637 :=
+public theorem StackOffsets.b20_at : NativeRustcVmArm.Vm.StackOffsets.b20.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b20Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b20_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b21_at : NativeRustcVmArm.Vm.StackOffsets.b21.IsInfixAt NativeRustcVmArm.Vm.code 14640 :=
+public theorem StackOffsets.b21_at : NativeRustcVmArm.Vm.StackOffsets.b21.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b21Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b21_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b22_at : NativeRustcVmArm.Vm.StackOffsets.b22.IsInfixAt NativeRustcVmArm.Vm.code 14648 :=
+public theorem StackOffsets.b22_at : NativeRustcVmArm.Vm.StackOffsets.b22.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b22Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b22_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem StackOffsets.b23_at : NativeRustcVmArm.Vm.StackOffsets.b23.IsInfixAt NativeRustcVmArm.Vm.code 14652 :=
+public theorem StackOffsets.b23_at : NativeRustcVmArm.Vm.StackOffsets.b23.IsInfixAt NativeRustcVmArm.Vm.code (StackOffsets.programOffset + NativeRustcVmArm.Vm.StackOffsets.b23Offset) :=
   NativeRustcVmArm.Vm.StackOffsets.b23_in_code.trans StackOffsets.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.code_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.code.IsInfixAt NativeRustcVmArm.Vm.code 14660 :=
+@[expose] public def ReadAnnouncedSizes.programOffset : Nat := 14660
+
+public theorem ReadAnnouncedSizes.code_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.code.IsInfixAt NativeRustcVmArm.Vm.code ReadAnnouncedSizes.programOffset :=
   List.isInfixAt_flatten_of (i := 121) rfl (by decide +kernel)
 
-public theorem ReadAnnouncedSizes.b0_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b0.IsInfixAt NativeRustcVmArm.Vm.code 14660 :=
+public theorem ReadAnnouncedSizes.b0_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b0.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b0Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b0_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b1_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b1.IsInfixAt NativeRustcVmArm.Vm.code 14677 :=
+public theorem ReadAnnouncedSizes.b1_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b1.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b1Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b1_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b2_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b2.IsInfixAt NativeRustcVmArm.Vm.code 14680 :=
+public theorem ReadAnnouncedSizes.b2_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b2.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b2Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b2_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b3_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b3.IsInfixAt NativeRustcVmArm.Vm.code 14682 :=
+public theorem ReadAnnouncedSizes.b3_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b3.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b3Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b3_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b4_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b4.IsInfixAt NativeRustcVmArm.Vm.code 14684 :=
+public theorem ReadAnnouncedSizes.b4_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b4.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b4Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b4_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b5_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b5.IsInfixAt NativeRustcVmArm.Vm.code 14686 :=
+public theorem ReadAnnouncedSizes.b5_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b5.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b5Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b5_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b6_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b6.IsInfixAt NativeRustcVmArm.Vm.code 14688 :=
+public theorem ReadAnnouncedSizes.b6_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b6.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b6Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b6_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b7_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b7.IsInfixAt NativeRustcVmArm.Vm.code 14690 :=
+public theorem ReadAnnouncedSizes.b7_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b7.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b7Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b7_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b8_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b8.IsInfixAt NativeRustcVmArm.Vm.code 14692 :=
+public theorem ReadAnnouncedSizes.b8_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b8.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b8Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b8_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b9_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b9.IsInfixAt NativeRustcVmArm.Vm.code 14694 :=
+public theorem ReadAnnouncedSizes.b9_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b9.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b9Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b9_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b10_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b10.IsInfixAt NativeRustcVmArm.Vm.code 14696 :=
+public theorem ReadAnnouncedSizes.b10_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b10.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b10Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b10_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b11_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b11.IsInfixAt NativeRustcVmArm.Vm.code 14710 :=
+public theorem ReadAnnouncedSizes.b11_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b11.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b11Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b11_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b12_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b12.IsInfixAt NativeRustcVmArm.Vm.code 14714 :=
+public theorem ReadAnnouncedSizes.b12_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b12.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b12Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b12_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b13_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b13.IsInfixAt NativeRustcVmArm.Vm.code 14715 :=
+public theorem ReadAnnouncedSizes.b13_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b13.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b13Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b13_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b14_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b14.IsInfixAt NativeRustcVmArm.Vm.code 14719 :=
+public theorem ReadAnnouncedSizes.b14_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b14.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b14Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b14_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b15_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b15.IsInfixAt NativeRustcVmArm.Vm.code 14725 :=
+public theorem ReadAnnouncedSizes.b15_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b15.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b15Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b15_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem ReadAnnouncedSizes.b16_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b16.IsInfixAt NativeRustcVmArm.Vm.code 14732 :=
+public theorem ReadAnnouncedSizes.b16_at : NativeRustcVmArm.Vm.ReadAnnouncedSizes.b16.IsInfixAt NativeRustcVmArm.Vm.code (ReadAnnouncedSizes.programOffset + NativeRustcVmArm.Vm.ReadAnnouncedSizes.b16Offset) :=
   NativeRustcVmArm.Vm.ReadAnnouncedSizes.b16_in_code.trans ReadAnnouncedSizes.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.code_at : NativeRustcVmArm.Vm.Evaluate.code.IsInfixAt NativeRustcVmArm.Vm.code 14738 :=
+@[expose] public def Evaluate.programOffset : Nat := 14738
+
+public theorem Evaluate.code_at : NativeRustcVmArm.Vm.Evaluate.code.IsInfixAt NativeRustcVmArm.Vm.code Evaluate.programOffset :=
   List.isInfixAt_flatten_of (i := 122) rfl (by decide +kernel)
 
-public theorem Evaluate.b0_at : NativeRustcVmArm.Vm.Evaluate.b0.IsInfixAt NativeRustcVmArm.Vm.code 14738 :=
+public theorem Evaluate.b0_at : NativeRustcVmArm.Vm.Evaluate.b0.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b0Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b0_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b1_at : NativeRustcVmArm.Vm.Evaluate.b1.IsInfixAt NativeRustcVmArm.Vm.code 14745 :=
+public theorem Evaluate.b1_at : NativeRustcVmArm.Vm.Evaluate.b1.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b1Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b1_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b2_at : NativeRustcVmArm.Vm.Evaluate.b2.IsInfixAt NativeRustcVmArm.Vm.code 14753 :=
+public theorem Evaluate.b2_at : NativeRustcVmArm.Vm.Evaluate.b2.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b2Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b2_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b3_at : NativeRustcVmArm.Vm.Evaluate.b3.IsInfixAt NativeRustcVmArm.Vm.code 14756 :=
+public theorem Evaluate.b3_at : NativeRustcVmArm.Vm.Evaluate.b3.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b3Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b3_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b4_at : NativeRustcVmArm.Vm.Evaluate.b4.IsInfixAt NativeRustcVmArm.Vm.code 14758 :=
+public theorem Evaluate.b4_at : NativeRustcVmArm.Vm.Evaluate.b4.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b4Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b4_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b5_at : NativeRustcVmArm.Vm.Evaluate.b5.IsInfixAt NativeRustcVmArm.Vm.code 14764 :=
+public theorem Evaluate.b5_at : NativeRustcVmArm.Vm.Evaluate.b5.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b5Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b5_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b6_at : NativeRustcVmArm.Vm.Evaluate.b6.IsInfixAt NativeRustcVmArm.Vm.code 14773 :=
+public theorem Evaluate.b6_at : NativeRustcVmArm.Vm.Evaluate.b6.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b6Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b6_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b7_at : NativeRustcVmArm.Vm.Evaluate.b7.IsInfixAt NativeRustcVmArm.Vm.code 14776 :=
+public theorem Evaluate.b7_at : NativeRustcVmArm.Vm.Evaluate.b7.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b7Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b7_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b8_at : NativeRustcVmArm.Vm.Evaluate.b8.IsInfixAt NativeRustcVmArm.Vm.code 14779 :=
+public theorem Evaluate.b8_at : NativeRustcVmArm.Vm.Evaluate.b8.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b8Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b8_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b9_at : NativeRustcVmArm.Vm.Evaluate.b9.IsInfixAt NativeRustcVmArm.Vm.code 14781 :=
+public theorem Evaluate.b9_at : NativeRustcVmArm.Vm.Evaluate.b9.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b9Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b9_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b10_at : NativeRustcVmArm.Vm.Evaluate.b10.IsInfixAt NativeRustcVmArm.Vm.code 14782 :=
+public theorem Evaluate.b10_at : NativeRustcVmArm.Vm.Evaluate.b10.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b10Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b10_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b11_at : NativeRustcVmArm.Vm.Evaluate.b11.IsInfixAt NativeRustcVmArm.Vm.code 14786 :=
+public theorem Evaluate.b11_at : NativeRustcVmArm.Vm.Evaluate.b11.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b11Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b11_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b12_at : NativeRustcVmArm.Vm.Evaluate.b12.IsInfixAt NativeRustcVmArm.Vm.code 14788 :=
+public theorem Evaluate.b12_at : NativeRustcVmArm.Vm.Evaluate.b12.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b12Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b12_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b13_at : NativeRustcVmArm.Vm.Evaluate.b13.IsInfixAt NativeRustcVmArm.Vm.code 14792 :=
+public theorem Evaluate.b13_at : NativeRustcVmArm.Vm.Evaluate.b13.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b13Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b13_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b14_at : NativeRustcVmArm.Vm.Evaluate.b14.IsInfixAt NativeRustcVmArm.Vm.code 14795 :=
+public theorem Evaluate.b14_at : NativeRustcVmArm.Vm.Evaluate.b14.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b14Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b14_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem Evaluate.b15_at : NativeRustcVmArm.Vm.Evaluate.b15.IsInfixAt NativeRustcVmArm.Vm.code 14798 :=
+public theorem Evaluate.b15_at : NativeRustcVmArm.Vm.Evaluate.b15.IsInfixAt NativeRustcVmArm.Vm.code (Evaluate.programOffset + NativeRustcVmArm.Vm.Evaluate.b15Offset) :=
   NativeRustcVmArm.Vm.Evaluate.b15_in_code.trans Evaluate.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.code_at : NativeRustcVmArm.Vm.TablePhase.code.IsInfixAt NativeRustcVmArm.Vm.code 14807 :=
+@[expose] public def TablePhase.programOffset : Nat := 14807
+
+public theorem TablePhase.code_at : NativeRustcVmArm.Vm.TablePhase.code.IsInfixAt NativeRustcVmArm.Vm.code TablePhase.programOffset :=
   List.isInfixAt_flatten_of (i := 123) rfl (by decide +kernel)
 
-public theorem TablePhase.b0_at : NativeRustcVmArm.Vm.TablePhase.b0.IsInfixAt NativeRustcVmArm.Vm.code 14807 :=
+public theorem TablePhase.b0_at : NativeRustcVmArm.Vm.TablePhase.b0.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b0Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b0_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.b1_at : NativeRustcVmArm.Vm.TablePhase.b1.IsInfixAt NativeRustcVmArm.Vm.code 14818 :=
+public theorem TablePhase.b1_at : NativeRustcVmArm.Vm.TablePhase.b1.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b1Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b1_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.b2_at : NativeRustcVmArm.Vm.TablePhase.b2.IsInfixAt NativeRustcVmArm.Vm.code 14822 :=
+public theorem TablePhase.b2_at : NativeRustcVmArm.Vm.TablePhase.b2.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b2Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b2_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.b3_at : NativeRustcVmArm.Vm.TablePhase.b3.IsInfixAt NativeRustcVmArm.Vm.code 14825 :=
+public theorem TablePhase.b3_at : NativeRustcVmArm.Vm.TablePhase.b3.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b3Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b3_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.b4_at : NativeRustcVmArm.Vm.TablePhase.b4.IsInfixAt NativeRustcVmArm.Vm.code 14827 :=
+public theorem TablePhase.b4_at : NativeRustcVmArm.Vm.TablePhase.b4.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b4Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b4_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.b5_at : NativeRustcVmArm.Vm.TablePhase.b5.IsInfixAt NativeRustcVmArm.Vm.code 14836 :=
+public theorem TablePhase.b5_at : NativeRustcVmArm.Vm.TablePhase.b5.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b5Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b5_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.b6_at : NativeRustcVmArm.Vm.TablePhase.b6.IsInfixAt NativeRustcVmArm.Vm.code 14842 :=
+public theorem TablePhase.b6_at : NativeRustcVmArm.Vm.TablePhase.b6.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b6Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b6_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TablePhase.b7_at : NativeRustcVmArm.Vm.TablePhase.b7.IsInfixAt NativeRustcVmArm.Vm.code 14851 :=
+public theorem TablePhase.b7_at : NativeRustcVmArm.Vm.TablePhase.b7.IsInfixAt NativeRustcVmArm.Vm.code (TablePhase.programOffset + NativeRustcVmArm.Vm.TablePhase.b7Offset) :=
   NativeRustcVmArm.Vm.TablePhase.b7_in_code.trans TablePhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.code_at : NativeRustcVmArm.Vm.TableTerms.code.IsInfixAt NativeRustcVmArm.Vm.code 14857 :=
+@[expose] public def TableTerms.programOffset : Nat := 14857
+
+public theorem TableTerms.code_at : NativeRustcVmArm.Vm.TableTerms.code.IsInfixAt NativeRustcVmArm.Vm.code TableTerms.programOffset :=
   List.isInfixAt_flatten_of (i := 124) rfl (by decide +kernel)
 
-public theorem TableTerms.b0_at : NativeRustcVmArm.Vm.TableTerms.b0.IsInfixAt NativeRustcVmArm.Vm.code 14857 :=
+public theorem TableTerms.b0_at : NativeRustcVmArm.Vm.TableTerms.b0.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b0Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b0_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b1_at : NativeRustcVmArm.Vm.TableTerms.b1.IsInfixAt NativeRustcVmArm.Vm.code 14880 :=
+public theorem TableTerms.b1_at : NativeRustcVmArm.Vm.TableTerms.b1.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b1Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b1_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b2_at : NativeRustcVmArm.Vm.TableTerms.b2.IsInfixAt NativeRustcVmArm.Vm.code 14884 :=
+public theorem TableTerms.b2_at : NativeRustcVmArm.Vm.TableTerms.b2.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b2Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b2_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b3_at : NativeRustcVmArm.Vm.TableTerms.b3.IsInfixAt NativeRustcVmArm.Vm.code 14889 :=
+public theorem TableTerms.b3_at : NativeRustcVmArm.Vm.TableTerms.b3.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b3Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b3_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b4_at : NativeRustcVmArm.Vm.TableTerms.b4.IsInfixAt NativeRustcVmArm.Vm.code 14890 :=
+public theorem TableTerms.b4_at : NativeRustcVmArm.Vm.TableTerms.b4.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b4Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b4_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b5_at : NativeRustcVmArm.Vm.TableTerms.b5.IsInfixAt NativeRustcVmArm.Vm.code 14898 :=
+public theorem TableTerms.b5_at : NativeRustcVmArm.Vm.TableTerms.b5.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b5Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b5_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b6_at : NativeRustcVmArm.Vm.TableTerms.b6.IsInfixAt NativeRustcVmArm.Vm.code 14912 :=
+public theorem TableTerms.b6_at : NativeRustcVmArm.Vm.TableTerms.b6.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b6Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b6_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b7_at : NativeRustcVmArm.Vm.TableTerms.b7.IsInfixAt NativeRustcVmArm.Vm.code 14921 :=
+public theorem TableTerms.b7_at : NativeRustcVmArm.Vm.TableTerms.b7.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b7Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b7_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b8_at : NativeRustcVmArm.Vm.TableTerms.b8.IsInfixAt NativeRustcVmArm.Vm.code 14931 :=
+public theorem TableTerms.b8_at : NativeRustcVmArm.Vm.TableTerms.b8.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b8Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b8_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b9_at : NativeRustcVmArm.Vm.TableTerms.b9.IsInfixAt NativeRustcVmArm.Vm.code 14941 :=
+public theorem TableTerms.b9_at : NativeRustcVmArm.Vm.TableTerms.b9.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b9Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b9_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b10_at : NativeRustcVmArm.Vm.TableTerms.b10.IsInfixAt NativeRustcVmArm.Vm.code 14949 :=
+public theorem TableTerms.b10_at : NativeRustcVmArm.Vm.TableTerms.b10.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b10Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b10_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b11_at : NativeRustcVmArm.Vm.TableTerms.b11.IsInfixAt NativeRustcVmArm.Vm.code 14960 :=
+public theorem TableTerms.b11_at : NativeRustcVmArm.Vm.TableTerms.b11.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b11Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b11_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b12_at : NativeRustcVmArm.Vm.TableTerms.b12.IsInfixAt NativeRustcVmArm.Vm.code 14961 :=
+public theorem TableTerms.b12_at : NativeRustcVmArm.Vm.TableTerms.b12.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b12Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b12_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b13_at : NativeRustcVmArm.Vm.TableTerms.b13.IsInfixAt NativeRustcVmArm.Vm.code 14969 :=
+public theorem TableTerms.b13_at : NativeRustcVmArm.Vm.TableTerms.b13.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b13Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b13_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b14_at : NativeRustcVmArm.Vm.TableTerms.b14.IsInfixAt NativeRustcVmArm.Vm.code 14979 :=
+public theorem TableTerms.b14_at : NativeRustcVmArm.Vm.TableTerms.b14.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b14Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b14_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b15_at : NativeRustcVmArm.Vm.TableTerms.b15.IsInfixAt NativeRustcVmArm.Vm.code 14984 :=
+public theorem TableTerms.b15_at : NativeRustcVmArm.Vm.TableTerms.b15.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b15Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b15_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableTerms.b16_at : NativeRustcVmArm.Vm.TableTerms.b16.IsInfixAt NativeRustcVmArm.Vm.code 14987 :=
+public theorem TableTerms.b16_at : NativeRustcVmArm.Vm.TableTerms.b16.IsInfixAt NativeRustcVmArm.Vm.code (TableTerms.programOffset + NativeRustcVmArm.Vm.TableTerms.b16Offset) :=
   NativeRustcVmArm.Vm.TableTerms.b16_in_code.trans TableTerms.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.code_at : NativeRustcVmArm.Vm.TableWeights.code.IsInfixAt NativeRustcVmArm.Vm.code 14996 :=
+@[expose] public def TableWeights.programOffset : Nat := 14996
+
+public theorem TableWeights.code_at : NativeRustcVmArm.Vm.TableWeights.code.IsInfixAt NativeRustcVmArm.Vm.code TableWeights.programOffset :=
   List.isInfixAt_flatten_of (i := 125) rfl (by decide +kernel)
 
-public theorem TableWeights.b0_at : NativeRustcVmArm.Vm.TableWeights.b0.IsInfixAt NativeRustcVmArm.Vm.code 14996 :=
+public theorem TableWeights.b0_at : NativeRustcVmArm.Vm.TableWeights.b0.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b0Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b0_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b1_at : NativeRustcVmArm.Vm.TableWeights.b1.IsInfixAt NativeRustcVmArm.Vm.code 15007 :=
+public theorem TableWeights.b1_at : NativeRustcVmArm.Vm.TableWeights.b1.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b1Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b1_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b2_at : NativeRustcVmArm.Vm.TableWeights.b2.IsInfixAt NativeRustcVmArm.Vm.code 15029 :=
+public theorem TableWeights.b2_at : NativeRustcVmArm.Vm.TableWeights.b2.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b2Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b2_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b3_at : NativeRustcVmArm.Vm.TableWeights.b3.IsInfixAt NativeRustcVmArm.Vm.code 15033 :=
+public theorem TableWeights.b3_at : NativeRustcVmArm.Vm.TableWeights.b3.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b3Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b3_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b4_at : NativeRustcVmArm.Vm.TableWeights.b4.IsInfixAt NativeRustcVmArm.Vm.code 15043 :=
+public theorem TableWeights.b4_at : NativeRustcVmArm.Vm.TableWeights.b4.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b4Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b4_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b5_at : NativeRustcVmArm.Vm.TableWeights.b5.IsInfixAt NativeRustcVmArm.Vm.code 15053 :=
+public theorem TableWeights.b5_at : NativeRustcVmArm.Vm.TableWeights.b5.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b5Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b5_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b6_at : NativeRustcVmArm.Vm.TableWeights.b6.IsInfixAt NativeRustcVmArm.Vm.code 15063 :=
+public theorem TableWeights.b6_at : NativeRustcVmArm.Vm.TableWeights.b6.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b6Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b6_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b7_at : NativeRustcVmArm.Vm.TableWeights.b7.IsInfixAt NativeRustcVmArm.Vm.code 15073 :=
+public theorem TableWeights.b7_at : NativeRustcVmArm.Vm.TableWeights.b7.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b7Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b7_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b8_at : NativeRustcVmArm.Vm.TableWeights.b8.IsInfixAt NativeRustcVmArm.Vm.code 15083 :=
+public theorem TableWeights.b8_at : NativeRustcVmArm.Vm.TableWeights.b8.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b8Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b8_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b9_at : NativeRustcVmArm.Vm.TableWeights.b9.IsInfixAt NativeRustcVmArm.Vm.code 15092 :=
+public theorem TableWeights.b9_at : NativeRustcVmArm.Vm.TableWeights.b9.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b9Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b9_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b10_at : NativeRustcVmArm.Vm.TableWeights.b10.IsInfixAt NativeRustcVmArm.Vm.code 15098 :=
+public theorem TableWeights.b10_at : NativeRustcVmArm.Vm.TableWeights.b10.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b10Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b10_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b11_at : NativeRustcVmArm.Vm.TableWeights.b11.IsInfixAt NativeRustcVmArm.Vm.code 15104 :=
+public theorem TableWeights.b11_at : NativeRustcVmArm.Vm.TableWeights.b11.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b11Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b11_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b12_at : NativeRustcVmArm.Vm.TableWeights.b12.IsInfixAt NativeRustcVmArm.Vm.code 15107 :=
+public theorem TableWeights.b12_at : NativeRustcVmArm.Vm.TableWeights.b12.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b12Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b12_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableWeights.b13_at : NativeRustcVmArm.Vm.TableWeights.b13.IsInfixAt NativeRustcVmArm.Vm.code 15118 :=
+public theorem TableWeights.b13_at : NativeRustcVmArm.Vm.TableWeights.b13.IsInfixAt NativeRustcVmArm.Vm.code (TableWeights.programOffset + NativeRustcVmArm.Vm.TableWeights.b13Offset) :=
   NativeRustcVmArm.Vm.TableWeights.b13_in_code.trans TableWeights.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.code_at : NativeRustcVmArm.Vm.TableSumcheck.code.IsInfixAt NativeRustcVmArm.Vm.code 15138 :=
+@[expose] public def TableSumcheck.programOffset : Nat := 15138
+
+public theorem TableSumcheck.code_at : NativeRustcVmArm.Vm.TableSumcheck.code.IsInfixAt NativeRustcVmArm.Vm.code TableSumcheck.programOffset :=
   List.isInfixAt_flatten_of (i := 126) rfl (by decide +kernel)
 
-public theorem TableSumcheck.b0_at : NativeRustcVmArm.Vm.TableSumcheck.b0.IsInfixAt NativeRustcVmArm.Vm.code 15138 :=
+public theorem TableSumcheck.b0_at : NativeRustcVmArm.Vm.TableSumcheck.b0.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b0Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b0_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b1_at : NativeRustcVmArm.Vm.TableSumcheck.b1.IsInfixAt NativeRustcVmArm.Vm.code 15191 :=
+public theorem TableSumcheck.b1_at : NativeRustcVmArm.Vm.TableSumcheck.b1.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b1Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b1_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b2_at : NativeRustcVmArm.Vm.TableSumcheck.b2.IsInfixAt NativeRustcVmArm.Vm.code 15206 :=
+public theorem TableSumcheck.b2_at : NativeRustcVmArm.Vm.TableSumcheck.b2.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b2Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b2_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b3_at : NativeRustcVmArm.Vm.TableSumcheck.b3.IsInfixAt NativeRustcVmArm.Vm.code 15208 :=
+public theorem TableSumcheck.b3_at : NativeRustcVmArm.Vm.TableSumcheck.b3.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b3Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b3_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b4_at : NativeRustcVmArm.Vm.TableSumcheck.b4.IsInfixAt NativeRustcVmArm.Vm.code 15210 :=
+public theorem TableSumcheck.b4_at : NativeRustcVmArm.Vm.TableSumcheck.b4.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b4Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b4_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b5_at : NativeRustcVmArm.Vm.TableSumcheck.b5.IsInfixAt NativeRustcVmArm.Vm.code 15213 :=
+public theorem TableSumcheck.b5_at : NativeRustcVmArm.Vm.TableSumcheck.b5.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b5Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b5_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b6_at : NativeRustcVmArm.Vm.TableSumcheck.b6.IsInfixAt NativeRustcVmArm.Vm.code 15220 :=
+public theorem TableSumcheck.b6_at : NativeRustcVmArm.Vm.TableSumcheck.b6.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b6Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b6_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b7_at : NativeRustcVmArm.Vm.TableSumcheck.b7.IsInfixAt NativeRustcVmArm.Vm.code 15237 :=
+public theorem TableSumcheck.b7_at : NativeRustcVmArm.Vm.TableSumcheck.b7.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b7Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b7_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b8_at : NativeRustcVmArm.Vm.TableSumcheck.b8.IsInfixAt NativeRustcVmArm.Vm.code 15247 :=
+public theorem TableSumcheck.b8_at : NativeRustcVmArm.Vm.TableSumcheck.b8.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b8Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b8_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b9_at : NativeRustcVmArm.Vm.TableSumcheck.b9.IsInfixAt NativeRustcVmArm.Vm.code 15249 :=
+public theorem TableSumcheck.b9_at : NativeRustcVmArm.Vm.TableSumcheck.b9.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b9Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b9_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b10_at : NativeRustcVmArm.Vm.TableSumcheck.b10.IsInfixAt NativeRustcVmArm.Vm.code 15255 :=
+public theorem TableSumcheck.b10_at : NativeRustcVmArm.Vm.TableSumcheck.b10.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b10Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b10_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem TableSumcheck.b11_at : NativeRustcVmArm.Vm.TableSumcheck.b11.IsInfixAt NativeRustcVmArm.Vm.code 15257 :=
+public theorem TableSumcheck.b11_at : NativeRustcVmArm.Vm.TableSumcheck.b11.IsInfixAt NativeRustcVmArm.Vm.code (TableSumcheck.programOffset + NativeRustcVmArm.Vm.TableSumcheck.b11Offset) :=
   NativeRustcVmArm.Vm.TableSumcheck.b11_in_code.trans TableSumcheck.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.code_at : NativeRustcVmArm.Vm.PublicInputPhase.code.IsInfixAt NativeRustcVmArm.Vm.code 15266 :=
+@[expose] public def PublicInputPhase.programOffset : Nat := 15266
+
+public theorem PublicInputPhase.code_at : NativeRustcVmArm.Vm.PublicInputPhase.code.IsInfixAt NativeRustcVmArm.Vm.code PublicInputPhase.programOffset :=
   List.isInfixAt_flatten_of (i := 127) rfl (by decide +kernel)
 
-public theorem PublicInputPhase.b0_at : NativeRustcVmArm.Vm.PublicInputPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code 15266 :=
+public theorem PublicInputPhase.b0_at : NativeRustcVmArm.Vm.PublicInputPhase.b0.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b0Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b0_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b1_at : NativeRustcVmArm.Vm.PublicInputPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code 15276 :=
+public theorem PublicInputPhase.b1_at : NativeRustcVmArm.Vm.PublicInputPhase.b1.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b1Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b1_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b2_at : NativeRustcVmArm.Vm.PublicInputPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code 15312 :=
+public theorem PublicInputPhase.b2_at : NativeRustcVmArm.Vm.PublicInputPhase.b2.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b2Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b2_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b3_at : NativeRustcVmArm.Vm.PublicInputPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code 15316 :=
+public theorem PublicInputPhase.b3_at : NativeRustcVmArm.Vm.PublicInputPhase.b3.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b3Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b3_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b4_at : NativeRustcVmArm.Vm.PublicInputPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code 15330 :=
+public theorem PublicInputPhase.b4_at : NativeRustcVmArm.Vm.PublicInputPhase.b4.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b4Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b4_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b5_at : NativeRustcVmArm.Vm.PublicInputPhase.b5.IsInfixAt NativeRustcVmArm.Vm.code 15337 :=
+public theorem PublicInputPhase.b5_at : NativeRustcVmArm.Vm.PublicInputPhase.b5.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b5Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b5_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b6_at : NativeRustcVmArm.Vm.PublicInputPhase.b6.IsInfixAt NativeRustcVmArm.Vm.code 15338 :=
+public theorem PublicInputPhase.b6_at : NativeRustcVmArm.Vm.PublicInputPhase.b6.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b6Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b6_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b7_at : NativeRustcVmArm.Vm.PublicInputPhase.b7.IsInfixAt NativeRustcVmArm.Vm.code 15351 :=
+public theorem PublicInputPhase.b7_at : NativeRustcVmArm.Vm.PublicInputPhase.b7.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b7Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b7_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b8_at : NativeRustcVmArm.Vm.PublicInputPhase.b8.IsInfixAt NativeRustcVmArm.Vm.code 15358 :=
+public theorem PublicInputPhase.b8_at : NativeRustcVmArm.Vm.PublicInputPhase.b8.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b8Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b8_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem PublicInputPhase.b9_at : NativeRustcVmArm.Vm.PublicInputPhase.b9.IsInfixAt NativeRustcVmArm.Vm.code 15365 :=
+public theorem PublicInputPhase.b9_at : NativeRustcVmArm.Vm.PublicInputPhase.b9.IsInfixAt NativeRustcVmArm.Vm.code (PublicInputPhase.programOffset + NativeRustcVmArm.Vm.PublicInputPhase.b9Offset) :=
   NativeRustcVmArm.Vm.PublicInputPhase.b9_in_code.trans PublicInputPhase.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.code_at : NativeRustcVmArm.Vm.TableColumnClaims.code.IsInfixAt NativeRustcVmArm.Vm.code 15373 :=
+@[expose] public def TableColumnClaims.programOffset : Nat := 15373
+
+public theorem TableColumnClaims.code_at : NativeRustcVmArm.Vm.TableColumnClaims.code.IsInfixAt NativeRustcVmArm.Vm.code TableColumnClaims.programOffset :=
   List.isInfixAt_flatten_of (i := 128) rfl (by decide +kernel)
 
-public theorem TableColumnClaims.b0_at : NativeRustcVmArm.Vm.TableColumnClaims.b0.IsInfixAt NativeRustcVmArm.Vm.code 15373 :=
+public theorem TableColumnClaims.b0_at : NativeRustcVmArm.Vm.TableColumnClaims.b0.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b0Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b0_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b1_at : NativeRustcVmArm.Vm.TableColumnClaims.b1.IsInfixAt NativeRustcVmArm.Vm.code 15393 :=
+public theorem TableColumnClaims.b1_at : NativeRustcVmArm.Vm.TableColumnClaims.b1.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b1Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b1_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b2_at : NativeRustcVmArm.Vm.TableColumnClaims.b2.IsInfixAt NativeRustcVmArm.Vm.code 15395 :=
+public theorem TableColumnClaims.b2_at : NativeRustcVmArm.Vm.TableColumnClaims.b2.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b2Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b2_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b3_at : NativeRustcVmArm.Vm.TableColumnClaims.b3.IsInfixAt NativeRustcVmArm.Vm.code 15404 :=
+public theorem TableColumnClaims.b3_at : NativeRustcVmArm.Vm.TableColumnClaims.b3.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b3Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b3_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b4_at : NativeRustcVmArm.Vm.TableColumnClaims.b4.IsInfixAt NativeRustcVmArm.Vm.code 15406 :=
+public theorem TableColumnClaims.b4_at : NativeRustcVmArm.Vm.TableColumnClaims.b4.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b4Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b4_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b5_at : NativeRustcVmArm.Vm.TableColumnClaims.b5.IsInfixAt NativeRustcVmArm.Vm.code 15407 :=
+public theorem TableColumnClaims.b5_at : NativeRustcVmArm.Vm.TableColumnClaims.b5.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b5Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b5_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b6_at : NativeRustcVmArm.Vm.TableColumnClaims.b6.IsInfixAt NativeRustcVmArm.Vm.code 15421 :=
+public theorem TableColumnClaims.b6_at : NativeRustcVmArm.Vm.TableColumnClaims.b6.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b6Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b6_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b7_at : NativeRustcVmArm.Vm.TableColumnClaims.b7.IsInfixAt NativeRustcVmArm.Vm.code 15423 :=
+public theorem TableColumnClaims.b7_at : NativeRustcVmArm.Vm.TableColumnClaims.b7.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b7Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b7_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b8_at : NativeRustcVmArm.Vm.TableColumnClaims.b8.IsInfixAt NativeRustcVmArm.Vm.code 15432 :=
+public theorem TableColumnClaims.b8_at : NativeRustcVmArm.Vm.TableColumnClaims.b8.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b8Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b8_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b9_at : NativeRustcVmArm.Vm.TableColumnClaims.b9.IsInfixAt NativeRustcVmArm.Vm.code 15434 :=
+public theorem TableColumnClaims.b9_at : NativeRustcVmArm.Vm.TableColumnClaims.b9.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b9Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b9_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b10_at : NativeRustcVmArm.Vm.TableColumnClaims.b10.IsInfixAt NativeRustcVmArm.Vm.code 15435 :=
+public theorem TableColumnClaims.b10_at : NativeRustcVmArm.Vm.TableColumnClaims.b10.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b10Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b10_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b11_at : NativeRustcVmArm.Vm.TableColumnClaims.b11.IsInfixAt NativeRustcVmArm.Vm.code 15450 :=
+public theorem TableColumnClaims.b11_at : NativeRustcVmArm.Vm.TableColumnClaims.b11.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b11Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b11_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b12_at : NativeRustcVmArm.Vm.TableColumnClaims.b12.IsInfixAt NativeRustcVmArm.Vm.code 15452 :=
+public theorem TableColumnClaims.b12_at : NativeRustcVmArm.Vm.TableColumnClaims.b12.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b12Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b12_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b13_at : NativeRustcVmArm.Vm.TableColumnClaims.b13.IsInfixAt NativeRustcVmArm.Vm.code 15461 :=
+public theorem TableColumnClaims.b13_at : NativeRustcVmArm.Vm.TableColumnClaims.b13.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b13Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b13_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b14_at : NativeRustcVmArm.Vm.TableColumnClaims.b14.IsInfixAt NativeRustcVmArm.Vm.code 15463 :=
+public theorem TableColumnClaims.b14_at : NativeRustcVmArm.Vm.TableColumnClaims.b14.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b14Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b14_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b15_at : NativeRustcVmArm.Vm.TableColumnClaims.b15.IsInfixAt NativeRustcVmArm.Vm.code 15464 :=
+public theorem TableColumnClaims.b15_at : NativeRustcVmArm.Vm.TableColumnClaims.b15.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b15Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b15_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b16_at : NativeRustcVmArm.Vm.TableColumnClaims.b16.IsInfixAt NativeRustcVmArm.Vm.code 15480 :=
+public theorem TableColumnClaims.b16_at : NativeRustcVmArm.Vm.TableColumnClaims.b16.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b16Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b16_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b17_at : NativeRustcVmArm.Vm.TableColumnClaims.b17.IsInfixAt NativeRustcVmArm.Vm.code 15482 :=
+public theorem TableColumnClaims.b17_at : NativeRustcVmArm.Vm.TableColumnClaims.b17.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b17Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b17_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b18_at : NativeRustcVmArm.Vm.TableColumnClaims.b18.IsInfixAt NativeRustcVmArm.Vm.code 15491 :=
+public theorem TableColumnClaims.b18_at : NativeRustcVmArm.Vm.TableColumnClaims.b18.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b18Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b18_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b19_at : NativeRustcVmArm.Vm.TableColumnClaims.b19.IsInfixAt NativeRustcVmArm.Vm.code 15493 :=
+public theorem TableColumnClaims.b19_at : NativeRustcVmArm.Vm.TableColumnClaims.b19.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b19Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b19_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b20_at : NativeRustcVmArm.Vm.TableColumnClaims.b20.IsInfixAt NativeRustcVmArm.Vm.code 15494 :=
+public theorem TableColumnClaims.b20_at : NativeRustcVmArm.Vm.TableColumnClaims.b20.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b20Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b20_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b21_at : NativeRustcVmArm.Vm.TableColumnClaims.b21.IsInfixAt NativeRustcVmArm.Vm.code 15510 :=
+public theorem TableColumnClaims.b21_at : NativeRustcVmArm.Vm.TableColumnClaims.b21.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b21Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b21_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b22_at : NativeRustcVmArm.Vm.TableColumnClaims.b22.IsInfixAt NativeRustcVmArm.Vm.code 15512 :=
+public theorem TableColumnClaims.b22_at : NativeRustcVmArm.Vm.TableColumnClaims.b22.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b22Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b22_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b23_at : NativeRustcVmArm.Vm.TableColumnClaims.b23.IsInfixAt NativeRustcVmArm.Vm.code 15521 :=
+public theorem TableColumnClaims.b23_at : NativeRustcVmArm.Vm.TableColumnClaims.b23.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b23Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b23_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b24_at : NativeRustcVmArm.Vm.TableColumnClaims.b24.IsInfixAt NativeRustcVmArm.Vm.code 15523 :=
+public theorem TableColumnClaims.b24_at : NativeRustcVmArm.Vm.TableColumnClaims.b24.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b24Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b24_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b25_at : NativeRustcVmArm.Vm.TableColumnClaims.b25.IsInfixAt NativeRustcVmArm.Vm.code 15525 :=
+public theorem TableColumnClaims.b25_at : NativeRustcVmArm.Vm.TableColumnClaims.b25.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b25Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b25_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b26_at : NativeRustcVmArm.Vm.TableColumnClaims.b26.IsInfixAt NativeRustcVmArm.Vm.code 15531 :=
+public theorem TableColumnClaims.b26_at : NativeRustcVmArm.Vm.TableColumnClaims.b26.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b26Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b26_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b27_at : NativeRustcVmArm.Vm.TableColumnClaims.b27.IsInfixAt NativeRustcVmArm.Vm.code 15547 :=
+public theorem TableColumnClaims.b27_at : NativeRustcVmArm.Vm.TableColumnClaims.b27.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b27Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b27_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b28_at : NativeRustcVmArm.Vm.TableColumnClaims.b28.IsInfixAt NativeRustcVmArm.Vm.code 15549 :=
+public theorem TableColumnClaims.b28_at : NativeRustcVmArm.Vm.TableColumnClaims.b28.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b28Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b28_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b29_at : NativeRustcVmArm.Vm.TableColumnClaims.b29.IsInfixAt NativeRustcVmArm.Vm.code 15558 :=
+public theorem TableColumnClaims.b29_at : NativeRustcVmArm.Vm.TableColumnClaims.b29.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b29Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b29_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b30_at : NativeRustcVmArm.Vm.TableColumnClaims.b30.IsInfixAt NativeRustcVmArm.Vm.code 15562 :=
+public theorem TableColumnClaims.b30_at : NativeRustcVmArm.Vm.TableColumnClaims.b30.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b30Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b30_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem TableColumnClaims.b31_at : NativeRustcVmArm.Vm.TableColumnClaims.b31.IsInfixAt NativeRustcVmArm.Vm.code 15563 :=
+public theorem TableColumnClaims.b31_at : NativeRustcVmArm.Vm.TableColumnClaims.b31.IsInfixAt NativeRustcVmArm.Vm.code (TableColumnClaims.programOffset + NativeRustcVmArm.Vm.TableColumnClaims.b31Offset) :=
   NativeRustcVmArm.Vm.TableColumnClaims.b31_in_code.trans TableColumnClaims.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.code_at : NativeRustcVmArm.Vm.VerifyExecution.code.IsInfixAt NativeRustcVmArm.Vm.code 15570 :=
+@[expose] public def VerifyExecution.programOffset : Nat := 15570
+
+public theorem VerifyExecution.code_at : NativeRustcVmArm.Vm.VerifyExecution.code.IsInfixAt NativeRustcVmArm.Vm.code VerifyExecution.programOffset :=
   List.isInfixAt_flatten_of (i := 129) rfl (by decide +kernel)
 
-public theorem VerifyExecution.b0_at : NativeRustcVmArm.Vm.VerifyExecution.b0.IsInfixAt NativeRustcVmArm.Vm.code 15570 :=
+public theorem VerifyExecution.b0_at : NativeRustcVmArm.Vm.VerifyExecution.b0.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b0Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b0_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b1_at : NativeRustcVmArm.Vm.VerifyExecution.b1.IsInfixAt NativeRustcVmArm.Vm.code 15585 :=
+public theorem VerifyExecution.b1_at : NativeRustcVmArm.Vm.VerifyExecution.b1.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b1Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b1_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b2_at : NativeRustcVmArm.Vm.VerifyExecution.b2.IsInfixAt NativeRustcVmArm.Vm.code 15587 :=
+public theorem VerifyExecution.b2_at : NativeRustcVmArm.Vm.VerifyExecution.b2.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b2Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b2_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b3_at : NativeRustcVmArm.Vm.VerifyExecution.b3.IsInfixAt NativeRustcVmArm.Vm.code 15593 :=
+public theorem VerifyExecution.b3_at : NativeRustcVmArm.Vm.VerifyExecution.b3.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b3Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b3_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b4_at : NativeRustcVmArm.Vm.VerifyExecution.b4.IsInfixAt NativeRustcVmArm.Vm.code 15594 :=
+public theorem VerifyExecution.b4_at : NativeRustcVmArm.Vm.VerifyExecution.b4.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b4Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b4_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b5_at : NativeRustcVmArm.Vm.VerifyExecution.b5.IsInfixAt NativeRustcVmArm.Vm.code 15598 :=
+public theorem VerifyExecution.b5_at : NativeRustcVmArm.Vm.VerifyExecution.b5.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b5Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b5_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b6_at : NativeRustcVmArm.Vm.VerifyExecution.b6.IsInfixAt NativeRustcVmArm.Vm.code 15599 :=
+public theorem VerifyExecution.b6_at : NativeRustcVmArm.Vm.VerifyExecution.b6.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b6Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b6_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b7_at : NativeRustcVmArm.Vm.VerifyExecution.b7.IsInfixAt NativeRustcVmArm.Vm.code 15609 :=
+public theorem VerifyExecution.b7_at : NativeRustcVmArm.Vm.VerifyExecution.b7.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b7Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b7_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b8_at : NativeRustcVmArm.Vm.VerifyExecution.b8.IsInfixAt NativeRustcVmArm.Vm.code 15610 :=
+public theorem VerifyExecution.b8_at : NativeRustcVmArm.Vm.VerifyExecution.b8.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b8Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b8_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b9_at : NativeRustcVmArm.Vm.VerifyExecution.b9.IsInfixAt NativeRustcVmArm.Vm.code 15617 :=
+public theorem VerifyExecution.b9_at : NativeRustcVmArm.Vm.VerifyExecution.b9.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b9Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b9_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b10_at : NativeRustcVmArm.Vm.VerifyExecution.b10.IsInfixAt NativeRustcVmArm.Vm.code 15618 :=
+public theorem VerifyExecution.b10_at : NativeRustcVmArm.Vm.VerifyExecution.b10.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b10Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b10_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b11_at : NativeRustcVmArm.Vm.VerifyExecution.b11.IsInfixAt NativeRustcVmArm.Vm.code 15621 :=
+public theorem VerifyExecution.b11_at : NativeRustcVmArm.Vm.VerifyExecution.b11.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b11Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b11_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b12_at : NativeRustcVmArm.Vm.VerifyExecution.b12.IsInfixAt NativeRustcVmArm.Vm.code 15622 :=
+public theorem VerifyExecution.b12_at : NativeRustcVmArm.Vm.VerifyExecution.b12.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b12Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b12_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b13_at : NativeRustcVmArm.Vm.VerifyExecution.b13.IsInfixAt NativeRustcVmArm.Vm.code 15627 :=
+public theorem VerifyExecution.b13_at : NativeRustcVmArm.Vm.VerifyExecution.b13.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b13Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b13_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b14_at : NativeRustcVmArm.Vm.VerifyExecution.b14.IsInfixAt NativeRustcVmArm.Vm.code 15628 :=
+public theorem VerifyExecution.b14_at : NativeRustcVmArm.Vm.VerifyExecution.b14.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b14Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b14_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b15_at : NativeRustcVmArm.Vm.VerifyExecution.b15.IsInfixAt NativeRustcVmArm.Vm.code 15638 :=
+public theorem VerifyExecution.b15_at : NativeRustcVmArm.Vm.VerifyExecution.b15.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b15Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b15_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b16_at : NativeRustcVmArm.Vm.VerifyExecution.b16.IsInfixAt NativeRustcVmArm.Vm.code 15639 :=
+public theorem VerifyExecution.b16_at : NativeRustcVmArm.Vm.VerifyExecution.b16.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b16Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b16_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b17_at : NativeRustcVmArm.Vm.VerifyExecution.b17.IsInfixAt NativeRustcVmArm.Vm.code 15646 :=
+public theorem VerifyExecution.b17_at : NativeRustcVmArm.Vm.VerifyExecution.b17.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b17Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b17_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b18_at : NativeRustcVmArm.Vm.VerifyExecution.b18.IsInfixAt NativeRustcVmArm.Vm.code 15647 :=
+public theorem VerifyExecution.b18_at : NativeRustcVmArm.Vm.VerifyExecution.b18.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b18Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b18_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b19_at : NativeRustcVmArm.Vm.VerifyExecution.b19.IsInfixAt NativeRustcVmArm.Vm.code 15660 :=
+public theorem VerifyExecution.b19_at : NativeRustcVmArm.Vm.VerifyExecution.b19.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b19Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b19_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b20_at : NativeRustcVmArm.Vm.VerifyExecution.b20.IsInfixAt NativeRustcVmArm.Vm.code 15661 :=
+public theorem VerifyExecution.b20_at : NativeRustcVmArm.Vm.VerifyExecution.b20.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b20Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b20_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem VerifyExecution.b21_at : NativeRustcVmArm.Vm.VerifyExecution.b21.IsInfixAt NativeRustcVmArm.Vm.code 15663 :=
+public theorem VerifyExecution.b21_at : NativeRustcVmArm.Vm.VerifyExecution.b21.IsInfixAt NativeRustcVmArm.Vm.code (VerifyExecution.programOffset + NativeRustcVmArm.Vm.VerifyExecution.b21Offset) :=
   NativeRustcVmArm.Vm.VerifyExecution.b21_in_code.trans VerifyExecution.code_at (List.cons_ne_nil _ _)
 
-public theorem Seed.code_at : NativeRustcVmArm.Vm.Seed.code.IsInfixAt NativeRustcVmArm.Vm.code 15671 :=
+@[expose] public def Seed.programOffset : Nat := 15671
+
+public theorem Seed.code_at : NativeRustcVmArm.Vm.Seed.code.IsInfixAt NativeRustcVmArm.Vm.code Seed.programOffset :=
   List.isInfixAt_flatten_of (i := 130) rfl (by decide +kernel)
 
-public theorem Seed.b0_at : NativeRustcVmArm.Vm.Seed.b0.IsInfixAt NativeRustcVmArm.Vm.code 15671 :=
+public theorem Seed.b0_at : NativeRustcVmArm.Vm.Seed.b0.IsInfixAt NativeRustcVmArm.Vm.code (Seed.programOffset + NativeRustcVmArm.Vm.Seed.b0Offset) :=
   NativeRustcVmArm.Vm.Seed.b0_in_code.trans Seed.code_at (List.cons_ne_nil _ _)
 
-public theorem Seed.b1_at : NativeRustcVmArm.Vm.Seed.b1.IsInfixAt NativeRustcVmArm.Vm.code 15685 :=
+public theorem Seed.b1_at : NativeRustcVmArm.Vm.Seed.b1.IsInfixAt NativeRustcVmArm.Vm.code (Seed.programOffset + NativeRustcVmArm.Vm.Seed.b1Offset) :=
   NativeRustcVmArm.Vm.Seed.b1_in_code.trans Seed.code_at (List.cons_ne_nil _ _)
 
-public theorem Seed.b2_at : NativeRustcVmArm.Vm.Seed.b2.IsInfixAt NativeRustcVmArm.Vm.code 15689 :=
+public theorem Seed.b2_at : NativeRustcVmArm.Vm.Seed.b2.IsInfixAt NativeRustcVmArm.Vm.code (Seed.programOffset + NativeRustcVmArm.Vm.Seed.b2Offset) :=
   NativeRustcVmArm.Vm.Seed.b2_in_code.trans Seed.code_at (List.cons_ne_nil _ _)
 
-public theorem Seed.b3_at : NativeRustcVmArm.Vm.Seed.b3.IsInfixAt NativeRustcVmArm.Vm.code 15695 :=
+public theorem Seed.b3_at : NativeRustcVmArm.Vm.Seed.b3.IsInfixAt NativeRustcVmArm.Vm.code (Seed.programOffset + NativeRustcVmArm.Vm.Seed.b3Offset) :=
   NativeRustcVmArm.Vm.Seed.b3_in_code.trans Seed.code_at (List.cons_ne_nil _ _)
 
-public theorem Seed.b4_at : NativeRustcVmArm.Vm.Seed.b4.IsInfixAt NativeRustcVmArm.Vm.code 15699 :=
+public theorem Seed.b4_at : NativeRustcVmArm.Vm.Seed.b4.IsInfixAt NativeRustcVmArm.Vm.code (Seed.programOffset + NativeRustcVmArm.Vm.Seed.b4Offset) :=
   NativeRustcVmArm.Vm.Seed.b4_in_code.trans Seed.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.code_at : NativeRustcVmArm.Vm.Verify.code.IsInfixAt NativeRustcVmArm.Vm.code 15703 :=
+@[expose] public def Verify.programOffset : Nat := 15703
+
+public theorem Verify.code_at : NativeRustcVmArm.Vm.Verify.code.IsInfixAt NativeRustcVmArm.Vm.code Verify.programOffset :=
   List.isInfixAt_flatten_of (i := 131) rfl (by decide +kernel)
 
-public theorem Verify.b0_at : NativeRustcVmArm.Vm.Verify.b0.IsInfixAt NativeRustcVmArm.Vm.code 15703 :=
+public theorem Verify.b0_at : NativeRustcVmArm.Vm.Verify.b0.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b0Offset) :=
   NativeRustcVmArm.Vm.Verify.b0_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b1_at : NativeRustcVmArm.Vm.Verify.b1.IsInfixAt NativeRustcVmArm.Vm.code 15719 :=
+public theorem Verify.b1_at : NativeRustcVmArm.Vm.Verify.b1.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b1Offset) :=
   NativeRustcVmArm.Vm.Verify.b1_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b2_at : NativeRustcVmArm.Vm.Verify.b2.IsInfixAt NativeRustcVmArm.Vm.code 15777 :=
+public theorem Verify.b2_at : NativeRustcVmArm.Vm.Verify.b2.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b2Offset) :=
   NativeRustcVmArm.Vm.Verify.b2_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b3_at : NativeRustcVmArm.Vm.Verify.b3.IsInfixAt NativeRustcVmArm.Vm.code 15778 :=
+public theorem Verify.b3_at : NativeRustcVmArm.Vm.Verify.b3.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b3Offset) :=
   NativeRustcVmArm.Vm.Verify.b3_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b4_at : NativeRustcVmArm.Vm.Verify.b4.IsInfixAt NativeRustcVmArm.Vm.code 15781 :=
+public theorem Verify.b4_at : NativeRustcVmArm.Vm.Verify.b4.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b4Offset) :=
   NativeRustcVmArm.Vm.Verify.b4_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b5_at : NativeRustcVmArm.Vm.Verify.b5.IsInfixAt NativeRustcVmArm.Vm.code 15783 :=
+public theorem Verify.b5_at : NativeRustcVmArm.Vm.Verify.b5.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b5Offset) :=
   NativeRustcVmArm.Vm.Verify.b5_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b6_at : NativeRustcVmArm.Vm.Verify.b6.IsInfixAt NativeRustcVmArm.Vm.code 15786 :=
+public theorem Verify.b6_at : NativeRustcVmArm.Vm.Verify.b6.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b6Offset) :=
   NativeRustcVmArm.Vm.Verify.b6_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b7_at : NativeRustcVmArm.Vm.Verify.b7.IsInfixAt NativeRustcVmArm.Vm.code 15789 :=
+public theorem Verify.b7_at : NativeRustcVmArm.Vm.Verify.b7.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b7Offset) :=
   NativeRustcVmArm.Vm.Verify.b7_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b8_at : NativeRustcVmArm.Vm.Verify.b8.IsInfixAt NativeRustcVmArm.Vm.code 15791 :=
+public theorem Verify.b8_at : NativeRustcVmArm.Vm.Verify.b8.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b8Offset) :=
   NativeRustcVmArm.Vm.Verify.b8_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem Verify.b9_at : NativeRustcVmArm.Vm.Verify.b9.IsInfixAt NativeRustcVmArm.Vm.code 15798 :=
+public theorem Verify.b9_at : NativeRustcVmArm.Vm.Verify.b9.IsInfixAt NativeRustcVmArm.Vm.code (Verify.programOffset + NativeRustcVmArm.Vm.Verify.b9Offset) :=
   NativeRustcVmArm.Vm.Verify.b9_in_code.trans Verify.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.code_at : NativeRustcVmArm.Vm.IvWord.code.IsInfixAt NativeRustcVmArm.Vm.code 15806 :=
+@[expose] public def IvWord.programOffset : Nat := 15806
+
+public theorem IvWord.code_at : NativeRustcVmArm.Vm.IvWord.code.IsInfixAt NativeRustcVmArm.Vm.code IvWord.programOffset :=
   List.isInfixAt_flatten_of (i := 132) rfl (by decide +kernel)
 
-public theorem IvWord.b0_at : NativeRustcVmArm.Vm.IvWord.b0.IsInfixAt NativeRustcVmArm.Vm.code 15806 :=
+public theorem IvWord.b0_at : NativeRustcVmArm.Vm.IvWord.b0.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b0Offset) :=
   NativeRustcVmArm.Vm.IvWord.b0_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b1_at : NativeRustcVmArm.Vm.IvWord.b1.IsInfixAt NativeRustcVmArm.Vm.code 15808 :=
+public theorem IvWord.b1_at : NativeRustcVmArm.Vm.IvWord.b1.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b1Offset) :=
   NativeRustcVmArm.Vm.IvWord.b1_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b2_at : NativeRustcVmArm.Vm.IvWord.b2.IsInfixAt NativeRustcVmArm.Vm.code 15810 :=
+public theorem IvWord.b2_at : NativeRustcVmArm.Vm.IvWord.b2.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b2Offset) :=
   NativeRustcVmArm.Vm.IvWord.b2_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b3_at : NativeRustcVmArm.Vm.IvWord.b3.IsInfixAt NativeRustcVmArm.Vm.code 15813 :=
+public theorem IvWord.b3_at : NativeRustcVmArm.Vm.IvWord.b3.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b3Offset) :=
   NativeRustcVmArm.Vm.IvWord.b3_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b4_at : NativeRustcVmArm.Vm.IvWord.b4.IsInfixAt NativeRustcVmArm.Vm.code 15817 :=
+public theorem IvWord.b4_at : NativeRustcVmArm.Vm.IvWord.b4.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b4Offset) :=
   NativeRustcVmArm.Vm.IvWord.b4_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b5_at : NativeRustcVmArm.Vm.IvWord.b5.IsInfixAt NativeRustcVmArm.Vm.code 15818 :=
+public theorem IvWord.b5_at : NativeRustcVmArm.Vm.IvWord.b5.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b5Offset) :=
   NativeRustcVmArm.Vm.IvWord.b5_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b6_at : NativeRustcVmArm.Vm.IvWord.b6.IsInfixAt NativeRustcVmArm.Vm.code 15824 :=
+public theorem IvWord.b6_at : NativeRustcVmArm.Vm.IvWord.b6.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b6Offset) :=
   NativeRustcVmArm.Vm.IvWord.b6_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b7_at : NativeRustcVmArm.Vm.IvWord.b7.IsInfixAt NativeRustcVmArm.Vm.code 15828 :=
+public theorem IvWord.b7_at : NativeRustcVmArm.Vm.IvWord.b7.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b7Offset) :=
   NativeRustcVmArm.Vm.IvWord.b7_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b8_at : NativeRustcVmArm.Vm.IvWord.b8.IsInfixAt NativeRustcVmArm.Vm.code 15831 :=
+public theorem IvWord.b8_at : NativeRustcVmArm.Vm.IvWord.b8.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b8Offset) :=
   NativeRustcVmArm.Vm.IvWord.b8_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b9_at : NativeRustcVmArm.Vm.IvWord.b9.IsInfixAt NativeRustcVmArm.Vm.code 15834 :=
+public theorem IvWord.b9_at : NativeRustcVmArm.Vm.IvWord.b9.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b9Offset) :=
   NativeRustcVmArm.Vm.IvWord.b9_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem IvWord.b10_at : NativeRustcVmArm.Vm.IvWord.b10.IsInfixAt NativeRustcVmArm.Vm.code 15838 :=
+public theorem IvWord.b10_at : NativeRustcVmArm.Vm.IvWord.b10.IsInfixAt NativeRustcVmArm.Vm.code (IvWord.programOffset + NativeRustcVmArm.Vm.IvWord.b10Offset) :=
   NativeRustcVmArm.Vm.IvWord.b10_in_code.trans IvWord.code_at (List.cons_ne_nil _ _)
 
-public theorem KinvSq.code_at : NativeRustcVmArm.Vm.KinvSq.code.IsInfixAt NativeRustcVmArm.Vm.code 15839 :=
+@[expose] public def KinvSq.programOffset : Nat := 15839
+
+public theorem KinvSq.code_at : NativeRustcVmArm.Vm.KinvSq.code.IsInfixAt NativeRustcVmArm.Vm.code KinvSq.programOffset :=
   List.isInfixAt_flatten_of (i := 133) rfl (by decide +kernel)
 
-public theorem KinvSq.b0_at : NativeRustcVmArm.Vm.KinvSq.b0.IsInfixAt NativeRustcVmArm.Vm.code 15839 :=
+public theorem KinvSq.b0_at : NativeRustcVmArm.Vm.KinvSq.b0.IsInfixAt NativeRustcVmArm.Vm.code (KinvSq.programOffset + NativeRustcVmArm.Vm.KinvSq.b0Offset) :=
   NativeRustcVmArm.Vm.KinvSq.b0_in_code.trans KinvSq.code_at (List.cons_ne_nil _ _)
 
-public theorem KinvSq.b1_at : NativeRustcVmArm.Vm.KinvSq.b1.IsInfixAt NativeRustcVmArm.Vm.code 15842 :=
+public theorem KinvSq.b1_at : NativeRustcVmArm.Vm.KinvSq.b1.IsInfixAt NativeRustcVmArm.Vm.code (KinvSq.programOffset + NativeRustcVmArm.Vm.KinvSq.b1Offset) :=
   NativeRustcVmArm.Vm.KinvSq.b1_in_code.trans KinvSq.code_at (List.cons_ne_nil _ _)
 
-public theorem KinvSq.b2_at : NativeRustcVmArm.Vm.KinvSq.b2.IsInfixAt NativeRustcVmArm.Vm.code 15845 :=
+public theorem KinvSq.b2_at : NativeRustcVmArm.Vm.KinvSq.b2.IsInfixAt NativeRustcVmArm.Vm.code (KinvSq.programOffset + NativeRustcVmArm.Vm.KinvSq.b2Offset) :=
   NativeRustcVmArm.Vm.KinvSq.b2_in_code.trans KinvSq.code_at (List.cons_ne_nil _ _)
 
-public theorem KinvSq.b3_at : NativeRustcVmArm.Vm.KinvSq.b3.IsInfixAt NativeRustcVmArm.Vm.code 15847 :=
+public theorem KinvSq.b3_at : NativeRustcVmArm.Vm.KinvSq.b3.IsInfixAt NativeRustcVmArm.Vm.code (KinvSq.programOffset + NativeRustcVmArm.Vm.KinvSq.b3Offset) :=
   NativeRustcVmArm.Vm.KinvSq.b3_in_code.trans KinvSq.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.code_at : NativeRustcVmArm.Vm.LeanvmVerify.code.IsInfixAt NativeRustcVmArm.Vm.code 15849 :=
+@[expose] public def LeanvmVerify.programOffset : Nat := 15849
+
+public theorem LeanvmVerify.code_at : NativeRustcVmArm.Vm.LeanvmVerify.code.IsInfixAt NativeRustcVmArm.Vm.code LeanvmVerify.programOffset :=
   List.isInfixAt_flatten_of (i := 134) rfl (by decide +kernel)
 
-public theorem LeanvmVerify.b0_at : NativeRustcVmArm.Vm.LeanvmVerify.b0.IsInfixAt NativeRustcVmArm.Vm.code 15849 :=
+public theorem LeanvmVerify.b0_at : NativeRustcVmArm.Vm.LeanvmVerify.b0.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b0Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b0_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b1_at : NativeRustcVmArm.Vm.LeanvmVerify.b1.IsInfixAt NativeRustcVmArm.Vm.code 15871 :=
+public theorem LeanvmVerify.b1_at : NativeRustcVmArm.Vm.LeanvmVerify.b1.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b1Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b1_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b2_at : NativeRustcVmArm.Vm.LeanvmVerify.b2.IsInfixAt NativeRustcVmArm.Vm.code 15873 :=
+public theorem LeanvmVerify.b2_at : NativeRustcVmArm.Vm.LeanvmVerify.b2.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b2Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b2_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b3_at : NativeRustcVmArm.Vm.LeanvmVerify.b3.IsInfixAt NativeRustcVmArm.Vm.code 15881 :=
+public theorem LeanvmVerify.b3_at : NativeRustcVmArm.Vm.LeanvmVerify.b3.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b3Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b3_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b4_at : NativeRustcVmArm.Vm.LeanvmVerify.b4.IsInfixAt NativeRustcVmArm.Vm.code 15885 :=
+public theorem LeanvmVerify.b4_at : NativeRustcVmArm.Vm.LeanvmVerify.b4.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b4Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b4_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b5_at : NativeRustcVmArm.Vm.LeanvmVerify.b5.IsInfixAt NativeRustcVmArm.Vm.code 15887 :=
+public theorem LeanvmVerify.b5_at : NativeRustcVmArm.Vm.LeanvmVerify.b5.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b5Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b5_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b6_at : NativeRustcVmArm.Vm.LeanvmVerify.b6.IsInfixAt NativeRustcVmArm.Vm.code 15890 :=
+public theorem LeanvmVerify.b6_at : NativeRustcVmArm.Vm.LeanvmVerify.b6.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b6Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b6_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b7_at : NativeRustcVmArm.Vm.LeanvmVerify.b7.IsInfixAt NativeRustcVmArm.Vm.code 15892 :=
+public theorem LeanvmVerify.b7_at : NativeRustcVmArm.Vm.LeanvmVerify.b7.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b7Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b7_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b8_at : NativeRustcVmArm.Vm.LeanvmVerify.b8.IsInfixAt NativeRustcVmArm.Vm.code 15897 :=
+public theorem LeanvmVerify.b8_at : NativeRustcVmArm.Vm.LeanvmVerify.b8.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b8Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b8_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b9_at : NativeRustcVmArm.Vm.LeanvmVerify.b9.IsInfixAt NativeRustcVmArm.Vm.code 15899 :=
+public theorem LeanvmVerify.b9_at : NativeRustcVmArm.Vm.LeanvmVerify.b9.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b9Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b9_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b10_at : NativeRustcVmArm.Vm.LeanvmVerify.b10.IsInfixAt NativeRustcVmArm.Vm.code 15901 :=
+public theorem LeanvmVerify.b10_at : NativeRustcVmArm.Vm.LeanvmVerify.b10.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b10Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b10_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b11_at : NativeRustcVmArm.Vm.LeanvmVerify.b11.IsInfixAt NativeRustcVmArm.Vm.code 15903 :=
+public theorem LeanvmVerify.b11_at : NativeRustcVmArm.Vm.LeanvmVerify.b11.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b11Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b11_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b12_at : NativeRustcVmArm.Vm.LeanvmVerify.b12.IsInfixAt NativeRustcVmArm.Vm.code 15904 :=
+public theorem LeanvmVerify.b12_at : NativeRustcVmArm.Vm.LeanvmVerify.b12.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b12Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b12_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b13_at : NativeRustcVmArm.Vm.LeanvmVerify.b13.IsInfixAt NativeRustcVmArm.Vm.code 15912 :=
+public theorem LeanvmVerify.b13_at : NativeRustcVmArm.Vm.LeanvmVerify.b13.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b13Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b13_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b14_at : NativeRustcVmArm.Vm.LeanvmVerify.b14.IsInfixAt NativeRustcVmArm.Vm.code 15913 :=
+public theorem LeanvmVerify.b14_at : NativeRustcVmArm.Vm.LeanvmVerify.b14.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b14Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b14_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b15_at : NativeRustcVmArm.Vm.LeanvmVerify.b15.IsInfixAt NativeRustcVmArm.Vm.code 15914 :=
+public theorem LeanvmVerify.b15_at : NativeRustcVmArm.Vm.LeanvmVerify.b15.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b15Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b15_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b16_at : NativeRustcVmArm.Vm.LeanvmVerify.b16.IsInfixAt NativeRustcVmArm.Vm.code 15923 :=
+public theorem LeanvmVerify.b16_at : NativeRustcVmArm.Vm.LeanvmVerify.b16.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b16Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b16_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b17_at : NativeRustcVmArm.Vm.LeanvmVerify.b17.IsInfixAt NativeRustcVmArm.Vm.code 15924 :=
+public theorem LeanvmVerify.b17_at : NativeRustcVmArm.Vm.LeanvmVerify.b17.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b17Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b17_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem LeanvmVerify.b18_at : NativeRustcVmArm.Vm.LeanvmVerify.b18.IsInfixAt NativeRustcVmArm.Vm.code 15935 :=
+public theorem LeanvmVerify.b18_at : NativeRustcVmArm.Vm.LeanvmVerify.b18.IsInfixAt NativeRustcVmArm.Vm.code (LeanvmVerify.programOffset + NativeRustcVmArm.Vm.LeanvmVerify.b18Offset) :=
   NativeRustcVmArm.Vm.LeanvmVerify.b18_in_code.trans LeanvmVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.code_at : NativeRustcVmArm.Vm.Memcpy.code.IsInfixAt NativeRustcVmArm.Vm.code 15937 :=
+@[expose] public def Memcpy.programOffset : Nat := 15937
+
+public theorem Memcpy.code_at : NativeRustcVmArm.Vm.Memcpy.code.IsInfixAt NativeRustcVmArm.Vm.code Memcpy.programOffset :=
   List.isInfixAt_flatten_of (i := 135) rfl (by decide +kernel)
 
-public theorem Memcpy.b0_at : NativeRustcVmArm.Vm.Memcpy.b0.IsInfixAt NativeRustcVmArm.Vm.code 15937 :=
+public theorem Memcpy.b0_at : NativeRustcVmArm.Vm.Memcpy.b0.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b0Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b0_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b1_at : NativeRustcVmArm.Vm.Memcpy.b1.IsInfixAt NativeRustcVmArm.Vm.code 15942 :=
+public theorem Memcpy.b1_at : NativeRustcVmArm.Vm.Memcpy.b1.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b1Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b1_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b2_at : NativeRustcVmArm.Vm.Memcpy.b2.IsInfixAt NativeRustcVmArm.Vm.code 15943 :=
+public theorem Memcpy.b2_at : NativeRustcVmArm.Vm.Memcpy.b2.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b2Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b2_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b3_at : NativeRustcVmArm.Vm.Memcpy.b3.IsInfixAt NativeRustcVmArm.Vm.code 15944 :=
+public theorem Memcpy.b3_at : NativeRustcVmArm.Vm.Memcpy.b3.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b3Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b3_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b4_at : NativeRustcVmArm.Vm.Memcpy.b4.IsInfixAt NativeRustcVmArm.Vm.code 15949 :=
+public theorem Memcpy.b4_at : NativeRustcVmArm.Vm.Memcpy.b4.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b4Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b4_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b5_at : NativeRustcVmArm.Vm.Memcpy.b5.IsInfixAt NativeRustcVmArm.Vm.code 15950 :=
+public theorem Memcpy.b5_at : NativeRustcVmArm.Vm.Memcpy.b5.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b5Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b5_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b6_at : NativeRustcVmArm.Vm.Memcpy.b6.IsInfixAt NativeRustcVmArm.Vm.code 15952 :=
+public theorem Memcpy.b6_at : NativeRustcVmArm.Vm.Memcpy.b6.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b6Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b6_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b7_at : NativeRustcVmArm.Vm.Memcpy.b7.IsInfixAt NativeRustcVmArm.Vm.code 15953 :=
+public theorem Memcpy.b7_at : NativeRustcVmArm.Vm.Memcpy.b7.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b7Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b7_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b8_at : NativeRustcVmArm.Vm.Memcpy.b8.IsInfixAt NativeRustcVmArm.Vm.code 15959 :=
+public theorem Memcpy.b8_at : NativeRustcVmArm.Vm.Memcpy.b8.IsInfixAt NativeRustcVmArm.Vm.code (Memcpy.programOffset + NativeRustcVmArm.Vm.Memcpy.b8Offset) :=
   NativeRustcVmArm.Vm.Memcpy.b8_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.code_at : NativeRustcVmArm.Vm.Memset.code.IsInfixAt NativeRustcVmArm.Vm.code 15961 :=
+@[expose] public def Memset.programOffset : Nat := 15961
+
+public theorem Memset.code_at : NativeRustcVmArm.Vm.Memset.code.IsInfixAt NativeRustcVmArm.Vm.code Memset.programOffset :=
   List.isInfixAt_flatten_of (i := 136) rfl (by decide +kernel)
 
-public theorem Memset.b0_at : NativeRustcVmArm.Vm.Memset.b0.IsInfixAt NativeRustcVmArm.Vm.code 15961 :=
+public theorem Memset.b0_at : NativeRustcVmArm.Vm.Memset.b0.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b0Offset) :=
   NativeRustcVmArm.Vm.Memset.b0_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b1_at : NativeRustcVmArm.Vm.Memset.b1.IsInfixAt NativeRustcVmArm.Vm.code 15965 :=
+public theorem Memset.b1_at : NativeRustcVmArm.Vm.Memset.b1.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b1Offset) :=
   NativeRustcVmArm.Vm.Memset.b1_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b2_at : NativeRustcVmArm.Vm.Memset.b2.IsInfixAt NativeRustcVmArm.Vm.code 15966 :=
+public theorem Memset.b2_at : NativeRustcVmArm.Vm.Memset.b2.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b2Offset) :=
   NativeRustcVmArm.Vm.Memset.b2_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b3_at : NativeRustcVmArm.Vm.Memset.b3.IsInfixAt NativeRustcVmArm.Vm.code 15967 :=
+public theorem Memset.b3_at : NativeRustcVmArm.Vm.Memset.b3.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b3Offset) :=
   NativeRustcVmArm.Vm.Memset.b3_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b4_at : NativeRustcVmArm.Vm.Memset.b4.IsInfixAt NativeRustcVmArm.Vm.code 15971 :=
+public theorem Memset.b4_at : NativeRustcVmArm.Vm.Memset.b4.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b4Offset) :=
   NativeRustcVmArm.Vm.Memset.b4_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b5_at : NativeRustcVmArm.Vm.Memset.b5.IsInfixAt NativeRustcVmArm.Vm.code 15972 :=
+public theorem Memset.b5_at : NativeRustcVmArm.Vm.Memset.b5.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b5Offset) :=
   NativeRustcVmArm.Vm.Memset.b5_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b6_at : NativeRustcVmArm.Vm.Memset.b6.IsInfixAt NativeRustcVmArm.Vm.code 15974 :=
+public theorem Memset.b6_at : NativeRustcVmArm.Vm.Memset.b6.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b6Offset) :=
   NativeRustcVmArm.Vm.Memset.b6_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b7_at : NativeRustcVmArm.Vm.Memset.b7.IsInfixAt NativeRustcVmArm.Vm.code 15978 :=
+public theorem Memset.b7_at : NativeRustcVmArm.Vm.Memset.b7.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b7Offset) :=
   NativeRustcVmArm.Vm.Memset.b7_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b8_at : NativeRustcVmArm.Vm.Memset.b8.IsInfixAt NativeRustcVmArm.Vm.code 15983 :=
+public theorem Memset.b8_at : NativeRustcVmArm.Vm.Memset.b8.IsInfixAt NativeRustcVmArm.Vm.code (Memset.programOffset + NativeRustcVmArm.Vm.Memset.b8Offset) :=
   NativeRustcVmArm.Vm.Memset.b8_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem traps_at : NativeRustcVmArm.Vm.traps.IsInfixAt NativeRustcVmArm.Vm.code 15985 :=
+@[expose] public def trapsOffset : Nat := 15985
+
+@[expose] public def rodataOffset : Nat := 15985
+
+@[expose] public def programLength : Nat := 16214
+
+public theorem traps_at : NativeRustcVmArm.Vm.traps.IsInfixAt NativeRustcVmArm.Vm.code trapsOffset :=
   List.isInfixAt_flatten_of (i := 137) rfl (by decide +kernel)
 
-public theorem rodata_at : NativeRustcVmArm.Vm.rodata.IsInfixAt NativeRustcVmArm.Vm.code 15985 :=
+public theorem rodata_at : NativeRustcVmArm.Vm.rodata.IsInfixAt NativeRustcVmArm.Vm.code rodataOffset :=
   List.isInfixAt_flatten_of (i := 138) rfl (by decide +kernel)
 
-public theorem code_length : NativeRustcVmArm.Vm.code.length = 16214 := by decide +kernel
+public theorem code_length : NativeRustcVmArm.Vm.code.length = programLength := by decide +kernel
 
 end NativeRustcVmArm.Vm

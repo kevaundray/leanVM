@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.SphincsVerify.Encode.Key
 public import NativeRustcX64.SphincsVerify.Encode.Num
 public import NativeRustc.Sphincs.Digest
@@ -96,14 +100,6 @@ theorem seed_bytes {m : MachineData} (hI : r.Inputs m) : bytesOf m.dmem (r.off 1
 
 end Run
 
-theorem length_b105 : Sphincs.SphincsVerify.b105.length = 4 := by decide +kernel
-theorem length_b106 : Sphincs.SphincsVerify.b106.length = 4 := by decide +kernel
-theorem length_b107 : Sphincs.SphincsVerify.b107.length = 4 := by decide +kernel
-theorem length_b108 : Sphincs.SphincsVerify.b108.length = 4 := by decide +kernel
-theorem length_b109 : Sphincs.SphincsVerify.b109.length = 4 := by decide +kernel
-theorem length_b110 : Sphincs.SphincsVerify.b110.length = 6 := by decide +kernel
-theorem length_b111 : Sphincs.SphincsVerify.b111.length = 3 := by decide +kernel
-theorem length_b112 : Sphincs.SphincsVerify.b112.length = 7 := by decide +kernel
 
 variable [Host]
 
@@ -163,7 +159,7 @@ theorem enc_block' (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre 
 
 /-- **`Hasher::update(a, b, n)`** on hasher A or B, at a call with the data. -/
 theorem call_update (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label updateLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
+    (hpc : st.pc = Labels.label NativeRustcX64.Common.Update.entryLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
     {c : UInt32} (hl : l < 3) (hs : s.length = 16) (hcall : r.AtCall st.data)
     (h : r.EncData l s c st.data) {a b n : Nat} {x : List UInt8}
     (h0 : Run.RegIs st.data .rdi (r.off a)) (h1 : Run.RegIs st.data .rsi (r.off b))
@@ -185,7 +181,7 @@ theorem call_update (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} 
 
 /-- **`memcpy(a, b, 344)`** between the hashers, at a call with the data. -/
 theorem call_memcpy (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label "memcpy" ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
+    (hpc : st.pc = Labels.label NativeRustcX64.Common.Memcpy.entryLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
     {c : UInt32} (hl : l < 3) (hs : s.length = 16) (hcall : r.AtCall st.data)
     (h : r.EncData l s c st.data) {a b : Nat}
     (h0 : Run.RegIs st.data .rdi (r.off a)) (h1 : Run.RegIs st.data .rsi (r.off b))
@@ -207,7 +203,7 @@ theorem call_memcpy (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} 
 
 /-- **`Hasher::finalize(576, 4096)`**: hasher A's digest into hasher B's place. -/
 theorem call_finalize (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label finalizeLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
+    (hpc : st.pc = Labels.label NativeRustcX64.Common.Finalize.entryLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
     {c : UInt32} (hl : l < 3) (hs : s.length = 16) (hcall : r.AtCall st.data)
     (h : r.EncData l s c st.data)
     (h0 : Run.RegIs st.data .rdi (r.off 576)) (h1 : Run.RegIs st.data .rsi (r.off 4096))
@@ -232,9 +228,9 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32} {m : MachineData}
     (h : r.EncBase l s c m) (hA : r.EncAdrs l m)
     (hh : HasherHolds (bytesOf m.dmem (r.off 4096) 344) []) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1209 ∧ (∃ c', r.EncBase l s c' st.data) ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b113Offset ∧ (∃ c', r.EncBase l s c' st.data) ∧
       digest128 st.data = beNat (encodeDigest r.seed (r.key l) s c) ∧
-      Run.RegIs st.data .rdi 0 ∧ Run.RegIs st.data .rsi (r.off 577)) ⟨m, r.pc 1173⟩ := by
+      Run.RegIs st.data .rdi 0 ∧ Run.RegIs st.data .rsi (r.off 577)) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b105Offset⟩ := by
   have hl := h.1
   have hs := h.2.1
   -- b105, update(A, PK.seed)
@@ -253,7 +249,7 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   rw [hk1 (by decide) rfl, r.seed_bytes h.2.2.2.1, List.nil_append] at hH2
   have hA2 : r.EncAdrs l st2.data := r.bytesAt_of_call hpre hc1 (by omega) (by decide) hout2
     (by rw [length_adrs7]; omega) (by rw [length_adrs7]; omega) hA1
-  refine goto (hpc2.trans (pc_step r length_b105 rfl)) ?_
+  refine goto (hpc2.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b105_length rfl)) ?_
   -- b106, update(A, address)
   refine enc_block r hp hpre Sphincs.SphincsVerify.b106_in_code (List.cons_ne_nil _ _) b106_exec
     rfl h2 fun st3 hwf3 hm3 hpc3 hd3 ↦ ?_
@@ -266,7 +262,7 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     (.inl ⟨le_refl _, le_refl _⟩) (by omega) (.inr (by omega))
     (by rw [hk3 (by decide) rfl]; exact hH2) fun st4 hpc4 h4 hH4 _ ↦ ?_
   rw [hk3 (by decide) rfl, Run.bytesOf_of_bytesAt' hA2 (length_adrs7 _)] at hH4
-  refine goto (hpc4.trans (pc_step r length_b106 rfl)) ?_
+  refine goto (hpc4.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b106_length rfl)) ?_
   -- b107, memcpy(B, A)
   refine enc_block r hp hpre Sphincs.SphincsVerify.b107_in_code (List.cons_ne_nil _ _) b107_exec
     rfl h4 fun st5 hwf5 hm5 hpc5 hd5 ↦ ?_
@@ -280,7 +276,7 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   have hHB6 : HasherHolds (bytesOf st6.data.dmem (r.off 576) 344)
       (r.seed ++ (r.key l).adrs 7) := by
     rw [hB6, hk5 (by decide) rfl]; exact hH4
-  refine goto (hpc6.trans (pc_step r length_b107 rfl)) ?_
+  refine goto (hpc6.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b107_length rfl)) ?_
   -- b108, update(B, message)
   refine enc_block r hp hpre Sphincs.SphincsVerify.b108_in_code (List.cons_ne_nil _ _) b108_exec
     rfl h6 fun st7 hwf7 hm7 hpc7 hd7 ↦ ?_
@@ -294,7 +290,7 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     (.inr ⟨le_refl _, le_refl _⟩) (by omega) (.inr (by omega))
     (by rw [hk7 (by decide) rfl]; exact hHB6) fun st8 hpc8 h8 hH8 _ ↦ ?_
   rw [hk7 (by decide) rfl, Run.bytesOf_of_bytesAt' h6.2.2.2.2.2.2.2.2.2.1 h6.2.1] at hH8
-  refine goto (hpc8.trans (pc_step r length_b108 rfl)) ?_
+  refine goto (hpc8.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b108_length rfl)) ?_
   -- b109, memcpy(A, B)
   refine enc_block r hp hpre Sphincs.SphincsVerify.b109_in_code (List.cons_ne_nil _ _) b109_exec
     rfl h8 fun st9 hwf9 hm9 hpc9 hd9 ↦ ?_
@@ -308,7 +304,7 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   have hHA10 : HasherHolds (bytesOf st10.data.dmem (r.off 4096) 344)
       (r.seed ++ (r.key l).adrs 7 ++ s) := by
     rw [hB10, hk9 (by decide) rfl]; exact hH8
-  refine goto (hpc10.trans (pc_step r length_b109 rfl)) ?_
+  refine goto (hpc10.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b109_length rfl)) ?_
   -- b110, the counter written, update(A, counter)
   refine enc_block' r hp hpre Sphincs.SphincsVerify.b110_in_code (List.cons_ne_nil _ _) b110_exec
     rfl h10 fun st11 hwf11 hm11 hpc11 hd11 ↦ ?_
@@ -330,7 +326,7 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     (.inl ⟨le_refl _, le_refl _⟩) (by omega) (.inr (by omega))
     (by rw [hk11 (by decide) rfl]; exact hHA10) fun st12 hpc12 h12 hH12 _ ↦ ?_
   rw [Run.bytesOf_of_bytesAt' (n := 4) hcb rfl] at hH12
-  refine goto (hpc12.trans (pc_step r length_b110 rfl)) ?_
+  refine goto (hpc12.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b110_length rfl)) ?_
   -- b111, finalize(B's place, A)
   refine enc_block r hp hpre Sphincs.SphincsVerify.b111_in_code (List.cons_ne_nil _ _) b111_exec
     rfl h12 fun st13 hwf13 hm13 hpc13 hd13 ↦ ?_
@@ -340,10 +336,10 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   refine call_finalize r hc hpre hpc13 hl hs hc13 hd13
     ((hm13.regs .rdi _ rfl).trans h12.2.2.2.2.2.2.1) ((hm13.regs .rsi _ rfl).trans h12.2.2.2.2.2.1)
     (by rw [hk13 (by decide) rfl]; exact hH12) fun st14 hpc14 h14 hD14 ↦ ?_
-  refine goto (hpc14.trans (pc_step r length_b111 rfl)) ?_
+  refine goto (hpc14.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b111_length rfl)) ?_
   -- b112, the digest's number
   refine enc_block r hp hpre Sphincs.SphincsVerify.b112_in_code (List.cons_ne_nil _ _) b112_exec
-    rfl h14 fun st15 hwf15 hm15 hpc15 hd15 ↦ .done _ ⟨hpc15.trans (pc_step r length_b112 rfl),
+    rfl h14 fun st15 hwf15 hm15 hpc15 hd15 ↦ .done _ ⟨hpc15.trans (pc_step r NativeRustcX64.Sphincs.SphincsVerify.b112_length rfl),
       ⟨_, hl, hs, Run.Frame.of_match r hpre h14.2.2.1 hm15 hwf15 rfl rfl, hd15⟩, ?_, ?_, ?_⟩
   · have hlen : (hashBytes (r.seed ++ (r.key l).adrs 7 ++ s ++ be32 c)).length = 32 :=
       length_hashBytes _

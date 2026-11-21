@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Sphincs.Names
+
 public import NativeRustcArm.SphincsVerify.Digest.ForsKey
 
 /-!
@@ -38,8 +40,8 @@ variable [NativeArm.Host]
 /-- **`signed`, the layer loop's registers** (`b100`). -/
 theorem forsKey2_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     {m : MachineData} (hA : FK1 r m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 1306 ∧ r.AtLayer 0 r.forsPk st.data)
-      ⟨m, r.pc 1288⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b101Offset ∧ r.AtLayer 0 r.forsPk st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b100Offset⟩ := by
   obtain ⟨hK, h22, h19, h20, h384, hD⟩ := hA
   obtain ⟨hF, ⟨hpk, hsig, h376⟩, h392⟩ := hK
   have hwf := r.frame_wf hpre hF (fun _ ↦ 0)
@@ -65,7 +67,7 @@ theorem forsKey2_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hp
     (regIs_lit hm₁ (y := .X26) (c := 136) rfl :), regIs_ptr hm₁ (y := .X21) (o := 26968) rfl, ?_,
     regIs_ptr hm₁ (y := .X25) (o := 16600) rfl, ?_, ?_, hk 384 _ (by rw [hw]; omega) (by rw [hw]; rfl) h384⟩
   · unfold Run.RegIs
-    rw [hm₁.regs .X8 (.label lhLabel) rfl]
+    rw [hm₁.regs .X8 (.label NativeRustcArm.Sphincs.Symbols.rodata7Label) rfl]
     rfl
   · unfold Run.RegIs
     rw [hm₁.regs .X11 (.load 0 392 8) rfl]

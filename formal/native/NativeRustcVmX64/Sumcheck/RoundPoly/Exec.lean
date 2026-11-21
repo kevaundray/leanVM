@@ -2,6 +2,13 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.SumE.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly.Names
 public meta import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -91,10 +98,10 @@ sym_block run_b17 := exec b17 (after b16 bodyS)
 sym_block run_b18 := exec b18 exitS
 sym_block run_b19 := exec b19 exitS
 
-public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 ".LTStateSumcheckRoundPoly_4") :=
+public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_4) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 public theorem exit_b1 : exec b1 (after b0 entryS) = some (someS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) :=
   run_b1.trans (by rw [show someS = after b1 (after b0 entryS) from rfl, after_eq run_b1])
 public theorem ok_some : ProOk 112 0 slots someS = true ∧
     someS.reg .rdi = some (.reg .rdi) ∧ someS.reg .rsi = some (.bin .add .W64 (.reg .r9) (.lit 16)) ∧
@@ -107,10 +114,10 @@ public theorem ok_some : ProOk 112 0 slots someS = true ∧
     WordW 0 32 (.load 1 8 8) someS ∧ (∀ w ∈ someS.mem, w.r = 0) := by
   decide +kernel
 
-public theorem exit_b0n : exec b0 entryN = some (after b0 entryN, .cond c0 ".LTStateSumcheckRoundPoly_4") :=
+public theorem exit_b0n : exec b0 entryN = some (after b0 entryN, .cond c0 NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_4) :=
   run_b0n.trans (by rw [after_eq run_b0n]; rfl)
 public theorem exit_b9 : exec b9 (after b0 entryN) = some (noneS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b9.trans (by rw [show noneS = after b9 (after b0 entryN) from rfl, after_eq run_b9])
 public theorem ok_none : ProOk 112 0 slots noneS = true ∧
     noneS.reg .rdi = some (.ptr 0 40) ∧ noneS.reg .rsi = some (.reg .rdi) ∧
@@ -120,14 +127,14 @@ public theorem ok_none : ProOk 112 0 slots noneS = true ∧
       w.r = 0 ∧ 64 ≤ w.off) := by
   decide +kernel
 
-public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .cond cAl ".LTStateSumcheckRoundPoly_9") :=
+public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .cond cAl NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9) :=
   run_b2.trans (by rw [after_eq run_b2]; rfl)
 public theorem ok_b2 : MidOk 112 8 slots (after b2 bodyS) = true ∧ (after b2 bodyS).mem = [] ∧
     (after b2 bodyS).reg .rbp = some (.lit 0) ∧
     KeepsR (after b2 bodyS) [.r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b3 : exec b3 (after b2 bodyS) = some (after b3 (after b2 bodyS),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field5sum_e") :=
+    .call NativeRustcVmX64.Vm.SumE.entryLabel) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 112 0 slots (after b3 (after b2 bodyS)) = true ∧
     (∀ w ∈ (after b3 (after b2 bodyS)).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -137,7 +144,7 @@ public theorem ok_b3 : MidOk 112 0 slots (after b3 (after b2 bodyS)) = true ∧
     KeepsR (after b3 (after b2 bodyS)) [.r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b4 : exec b4 bodyS = some (after b4 bodyS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 112 0 slots (after b4 bodyS) = true ∧
     (∀ w ∈ (after b4 bodyS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ w.off = 24 ∧ w.n = 8)) ∧
@@ -146,20 +153,20 @@ public theorem ok_b4 : MidOk 112 0 slots (after b4 bodyS) = true ∧
     KeepsR (after b4 bodyS) [.rbp, .r12, .r13, .r15] = true := by
   decide +kernel
 public theorem exit_b5 : exec b5 bodyS = some (after b5 bodyS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState5grind") :=
+    .call NativeRustcVmX64.Vm.TStateGrind.entryLabel) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : MidOk 112 0 slots (after b5 bodyS) = true ∧
     (∀ w ∈ (after b5 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
     (after b5 bodyS).reg .rdi = some (.reg .r12) ∧ (after b5 bodyS).reg .rsi = some bitsS ∧
     KeepsR (after b5 bodyS) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
-public theorem exit_b6 : exec b6 bodyS = some (after b6 bodyS, .cond cAl ".LTStateSumcheckRoundPoly_9") :=
+public theorem exit_b6 : exec b6 bodyS = some (after b6 bodyS, .cond cAl NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9) :=
   run_b6.trans (by rw [after_eq run_b6]; rfl)
 public theorem ok_b6 : MidOk 112 8 slots (after b6 bodyS) = true ∧ (after b6 bodyS).mem = [] ∧
     KeepsR (after b6 bodyS) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b7 : exec b7 (after b6 bodyS) = some (after b7 (after b6 bodyS),
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") :=
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 : MidOk 112 0 slots (after b7 (after b6 bodyS)) = true ∧
     (∀ w ∈ (after b7 (after b6 bodyS)).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -169,7 +176,7 @@ public theorem ok_b7 : MidOk 112 0 slots (after b7 (after b6 bodyS)) = true ∧
     (after b7 (after b6 bodyS)).reg .rcx = some (.load 0 24 8) ∧
     KeepsR (after b7 (after b6 bodyS)) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
-public theorem exit_b8 : exec b8 bodyS = some (after b8 bodyS, .jump ".LTStateSumcheckRoundPoly_9") :=
+public theorem exit_b8 : exec b8 bodyS = some (after b8 bodyS, .jump NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk 112 8 slots (after b8 bodyS) = true ∧
     (∀ w ∈ (after b8 bodyS).mem, w.r = 1 ∧ w.off + w.n ≤ 16) ∧
@@ -179,13 +186,13 @@ public theorem ok_b8 : MidOk 112 8 slots (after b8 bodyS) = true ∧
     (after b8 bodyS).reg .rbx = some (.ptr 1 0) := by
   decide +kernel
 
-public theorem exit_b10 : exec b10 bodyS = some (after b10 bodyS, .cond c10 ".LTStateSumcheckRoundPoly_8") :=
+public theorem exit_b10 : exec b10 bodyS = some (after b10 bodyS, .cond c10 NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_8) :=
   run_b10.trans (by rw [after_eq run_b10]; rfl)
 public theorem ok_b10 : MidOk 112 8 slots (after b10 bodyS) = true ∧ (after b10 bodyS).mem = [] ∧
     KeepsR (after b10 bodyS) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b11 : exec b11 (after b10 bodyS) = some (after b11 (after b10 bodyS),
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : MidOk 112 0 slots (after b11 (after b10 bodyS)) = true ∧
     (∀ w ∈ (after b11 (after b10 bodyS)).mem,
@@ -202,14 +209,14 @@ public theorem ok_b11 : MidOk 112 0 slots (after b11 (after b10 bodyS)) = true �
     (after b11 (after b10 bodyS)).reg .r14 = some (.ptr 1 32) ∧
     KeepsR (after b11 (after b10 bodyS)) [.rbp, .r12, .r15] = true := by
   decide +kernel
-public theorem exit_b12 : exec b12 bodyS = some (after b12 bodyS, .cond cAl ".LTStateSumcheckRoundPoly_9") :=
+public theorem exit_b12 : exec b12 bodyS = some (after b12 bodyS, .cond cAl NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9) :=
   run_b12.trans (by rw [after_eq run_b12]; rfl)
 public theorem ok_b12 : MidOk 112 8 slots (after b12 bodyS) = true ∧ (after b12 bodyS).mem = [] ∧
     (after b12 bodyS).reg .rbp = some (.lit 0) ∧
     KeepsR (after b12 bodyS) [.r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b13 : exec b13 (after b12 bodyS) = some (after b13 (after b12 bodyS),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field5sum_e") :=
+    .call NativeRustcVmX64.Vm.SumE.entryLabel) :=
   run_b13.trans (by rw [after_eq run_b13])
 public theorem ok_b13 : MidOk 112 0 slots (after b13 (after b12 bodyS)) = true ∧
     (∀ w ∈ (after b13 (after b12 bodyS)).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ w.off = 8 ∧ w.n = 8)) ∧
@@ -220,7 +227,7 @@ public theorem ok_b13 : MidOk 112 0 slots (after b13 (after b12 bodyS)) = true �
     KeepsR (after b13 (after b12 bodyS)) [.r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b14 : exec b14 bodyS = some (after b14 bodyS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : MidOk 112 0 slots (after b14 bodyS) = true ∧
     (∀ w ∈ (after b14 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -229,20 +236,20 @@ public theorem ok_b14 : MidOk 112 0 slots (after b14 bodyS) = true ∧
     KeepsR (after b14 bodyS) [.rbp, .r12, .r13] = true := by
   decide +kernel
 public theorem exit_b15 : exec b15 bodyS = some (after b15 bodyS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState5grind") :=
+    .call NativeRustcVmX64.Vm.TStateGrind.entryLabel) :=
   run_b15.trans (by rw [after_eq run_b15])
 public theorem ok_b15 : MidOk 112 0 slots (after b15 bodyS) = true ∧
     (∀ w ∈ (after b15 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
     (after b15 bodyS).reg .rdi = some (.reg .r12) ∧ (after b15 bodyS).reg .rsi = some bitsS ∧
     KeepsR (after b15 bodyS) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
-public theorem exit_b16 : exec b16 bodyS = some (after b16 bodyS, .cond cAl ".LTStateSumcheckRoundPoly_9") :=
+public theorem exit_b16 : exec b16 bodyS = some (after b16 bodyS, .cond cAl NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9) :=
   run_b16.trans (by rw [after_eq run_b16]; rfl)
 public theorem ok_b16 : MidOk 112 8 slots (after b16 bodyS) = true ∧ (after b16 bodyS).mem = [] ∧
     KeepsR (after b16 bodyS) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b17 : exec b17 (after b16 bodyS) = some (after b17 (after b16 bodyS),
-    .jump ".LTStateSumcheckRoundPoly_9") :=
+    .jump NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9) :=
   run_b17.trans (by rw [after_eq run_b17])
 public theorem ok_b17 : MidOk 112 8 slots (after b17 (after b16 bodyS)) = true ∧
     (∀ w ∈ (after b17 (after b16 bodyS)).mem, w.r = 1 ∧ 16 ≤ w.off ∧ w.off + w.n ≤ 32) ∧

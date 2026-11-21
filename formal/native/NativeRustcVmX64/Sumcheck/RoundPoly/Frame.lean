@@ -440,7 +440,7 @@ theorem exit_spec (hp : Placed code k) (h : RoundPolyPre a s e m0) {d : MachineD
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         (reg st.data .rax).toNat % 256 = (reg d .rbp).toNat % 256 ∧ st.data.dmem = d.dmem ∧
         Saved m0 st.data)
-      ⟨d, Host.addrOf (k + 97)⟩ := by
+      ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19Offset)⟩ := by
   have c := ctx_of h
   have hwf := frame_wf (m0 := m0) (d := d) (F := 112) (rest := []) (vars := fun _ ↦ 0) (ret := 0)
     ⟨c.mapped_frame hf.frame.kept, c.noWrap_frame⟩ (by simp) (List.pairwise_singleton _ _)
@@ -463,7 +463,7 @@ theorem fail_spec (hp : Placed code k) (h : RoundPolyPre a s e m0) {d : MachineD
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         (reg st.data .rax).toNat % 256 = 0 ∧ st.data.dmem = d.dmem ∧ Saved m0 st.data)
-      ⟨d, Host.addrOf (k + 95)⟩ := by
+      ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b18Offset)⟩ := by
   have c := ctx_of h
   have hwf := frame_wf (m0 := m0) (d := d) (F := 112) (rest := []) (vars := fun _ ↦ 0) (ret := 0)
     ⟨c.mapped_frame hf.frame.kept, c.noWrap_frame⟩ (by simp) (List.pairwise_singleton _ _)

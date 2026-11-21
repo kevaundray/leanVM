@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LanesOf.Names
 public import NativeRustcVmArm.Whir.LanesOf.PairsRun
 public import NativeRustcVmArm.Whir.LanesOf.RevRun
 
@@ -22,9 +23,9 @@ public section
 variable [Host] {k : Nat}
 
 /-- **`lanes_of`'s contract.** -/
-theorem lanesOf_spec (hp : Placed code k) : Spec (label lanesOfLabel) LanesOfPre LanesOfPost := by
+theorem lanesOf_spec (hp : Placed code k) : Spec (label NativeRustcVmArm.Vm.LanesOf.entryLabel) LanesOfPre LanesOfPost := by
   intro m0 hpre
-  rw [show Labels.label lanesOfLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.LanesOf.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b0Offset) from hp.label NativeRustcVmArm.Vm.LanesOf.entry_at]
   have hb0 : ∀ f, Body m0 f 0 m0 := fun f ↦ ⟨fr_entry, lanes_zero f, rfl, rfl, rfl⟩
   refine exec_then (inf hp b0_in_code (by simp [b0])) run_b0 (Env.wf_nil _) (match_nil _)
     fun s hm hpc ↦ ?_
@@ -37,7 +38,7 @@ theorem lanesOf_spec (hp : Placed code k) : Spec (label lanesOfLabel) LanesOfPre
     rfl
   by_cases h0 : m0.regs.X0.toNat = 0
   · have hpc' := pc_taken hpc (by rw [hc]; simp [h0])
-    rw [hp.label (j := 10) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b5Offset) NativeRustcVmArm.Vm.LanesOf.label_5_at] at hpc'
     exact goto hpc' (rev hp hpre h0 ((hb0 _).of_regsS hm hk.1 hk.2 rfl rfl rfl) e2)
   · have hpc' := pc_fall hpc (by rw [hc]; simp [h0])
     exact goto hpc' (pairs hp hpre h0 ((hb0 _).of_regsS hm hk.1 hk.2 rfl rfl rfl) e2)

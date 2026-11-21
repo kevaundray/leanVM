@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FinalLevel.Names
+public import NativeRustcVmArm.Code.Vm.FoldRounds.Names
+public import NativeRustcVmArm.Code.Vm.NextLevel.Names
+public import NativeRustcVmArm.Code.Vm.WhirLevels.Names
 public import NativeRustcVmArm.Whir.WhirLevels.Entry
 
 /-!
@@ -25,18 +29,18 @@ variable [Host] {k : Nat}
 
 /-- **`whir_levels`' contract.** -/
 theorem whirLevels_spec (hp : Placed code k)
-    (hfr : ∀ a s w, Spec (label foldRoundsLabel) (FoldRoundsPre a s w) (FoldRoundsPost a s w))
-    (hnl : ∀ a s level w rounds, Spec (label nextLevelLabel)
+    (hfr : ∀ a s w, Spec (label NativeRustcVmArm.Vm.FoldRounds.entryLabel) (FoldRoundsPre a s w) (FoldRoundsPost a s w))
+    (hnl : ∀ a s level w rounds, Spec (label NativeRustcVmArm.Vm.NextLevel.entryLabel)
       (NextLevelPre a s level w rounds) (NextLevelPost a s level w rounds))
-    (hfl : ∀ a s level ba b w rounds, Spec (label finalLevelLabel)
+    (hfl : ∀ a s level ba b w rounds, Spec (label NativeRustcVmArm.Vm.FinalLevel.entryLabel)
       (FinalLevelPre a s level ba b w rounds) (FinalLevelPost a s level b w rounds))
     (a : DecArea) (s : TState) (levels : List LeanVM.Parameters.Whir.Level) (ba : BasisAddrs)
     (b : BasisW) (claim : EW) :
-    Spec (label whirLevelsLabel) (WhirLevelsPre a s levels ba b claim)
+    Spec (label NativeRustcVmArm.Vm.WhirLevels.entryLabel) (WhirLevelsPre a s levels ba b claim)
       (WhirLevelsPost a s levels b claim) := by
   intro m0 h
   obtain ⟨rate, c⟩ := Ctx.of_pre h
-  rw [show Labels.label whirLevelsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.WhirLevels.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.WhirLevels.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.WhirLevels.entryOffset) NativeRustcVmArm.Vm.WhirLevels.entry_at]
   exact entry hp ⟨hfr, hnl, hfl⟩ c
 
 end

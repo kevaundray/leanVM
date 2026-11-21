@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Find.Names
 public import NativeRustcVmArm.Wire.WriteOpenings.A.Chunk
 public import NativeRustcVmArm.Wire.WriteOpenings.A.Next
 
@@ -40,7 +41,7 @@ theorem copy_step (hp : Placed code R.k) (G : Geo R) {j i : Nat} {st : MachineSt
 
 /-- **The queries' loop** with levels, from query `j`: the epilogue. -/
 theorem query_loop (hp : Placed code R.k) (G : Geo R)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) {j : Nat} {st : MachineState}
+    (hfind : Spec (Labels.label NativeRustcVmArm.Vm.Find.entryLabel) FindPre FindPost) {j : Nat} {st : MachineState}
     (H : HeadA R j st) : Eventually (step1 Host.exe) (Post R) st := by
   refine Sym.loop (fun n st ↦ ∃ j, n = R.nq - j ∧ HeadA R j st) (fun n st ⟨j, hn, H⟩ ↦ ?_)
     ⟨j, rfl, H⟩

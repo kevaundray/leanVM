@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.ClaimCopy
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
 
 /-! # Replacing the claim's point with the sumcheck point -/
 
@@ -16,7 +17,7 @@ variable [Host] {m0 : MachineData} {a : DecArea} {s s6 : TState} {c : KeccakClai
   {ch b : EW} {pt lp t : Array EW} {k : Nat}
 
 theorem claim_extend (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
     (hpt : pt.size ≤ 30) (hpsz : pt.size = c.point.size)
     {d : MachineData} (hb : Body m0 (outs m0) 24 d) (h : TailLive m0 a c ch b pt lp t s6 d.dmem)
     (hbx : reg d .rbx = cA m0)
@@ -27,17 +28,17 @@ theorem claim_extend (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     {R : MachineState → Prop}
     (cont : ∀ d', Body m0 (outs m0) 24 d' → TailLive m0 a c ch b pt lp t s6 d'.dmem →
       OkAl d' true → NativeRustcVm.KeccakGkr.ClaimAt d'.dmem (cA m0) (newClaim ch pt lp t b) →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 725)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 720)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b84Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b83Offset)⟩ := by
   have g := geo_of hpre
   have cx := ctx hpre (F := 2000) (by decide)
   have hw128 := h.fw (128, .ofBitVec (cA m0 + BitVec.ofNat 64 280))
     (by apply List.mem_append_left; fw_mem)
   have hw64 := h.fw (64, c.point.size.toUInt64) (by apply List.mem_append_left; fw_mem)
   have hwf := wfC hpre hb (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 720 + b83.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b83Offset + b83.length)).toBitVec)
   have hm : Match (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + 720 + b83.length)).toBitVec) (claimS (.reg .rbx)) d :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b83Offset + b83.length)).toBitVec) (claimS (.reg .rbx)) d :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb.rsp, trivial⟩ trivial trivial
       ⟨by show reg d .rbx = cA m0 + BitVec.ofInt 64 0
           rw [hbx]; simp, trivial⟩
@@ -69,7 +70,7 @@ theorem claim_extend (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   have hdx : reg st.data .rdx = BitVec.ofNat 64 pt.size := by
     rw [show reg st.data .rdx = _ from hm1.regs .rdx _ rfl]
     change (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + 720 + b83.length)).toBitVec).load 0 64 8 = _
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b83Offset + b83.length)).toBitVec).load 0 64 8 = _
     rw [fload8 hw64, ← hpsz]
     rfl
   have hlen : (reg st.data .rdx).toNat = pt.size := by

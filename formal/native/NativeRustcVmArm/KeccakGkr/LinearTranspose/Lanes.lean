@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPi.Names
 public import NativeRustcVmArm.KeccakGkr.LinearTranspose.Lane
 
 /-!
@@ -22,9 +23,9 @@ variable [NativeArm.Host] {ws : Array EW} {m0 : MachineData} {k : Nat}
 /-- **The next lane**: from `.LLinearTranspose_1` after lane `l`, lane `l + 1`'s head, or `g`
 done. -/
 theorem next_lane (hp : Placed code k) {l : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 16)) (hI : AfterLane m0 ws l s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + 22) ∧
-      Head m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + 57) ∧ GDone m0 ws s'.data)) s := by
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b1Offset)) (hI : AfterLane m0 ws l s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b2Offset) ∧
+      Head m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b10Offset) ∧ GDone m0 ws s'.data)) s := by
   have hl := hI.regs.lt
   refine exec_at (b1_in_code.trans hp.1 (by simp [b1])) e1 (Env.wf_nil _) hpc (match_nil _)
     fun s1 hm1 hpc1 ↦ ?_
@@ -51,11 +52,11 @@ theorem next_lane (hp : Placed code k) {l : Nat} {s : MachineState}
   by_cases hlast : l = 24
   · subst hlast
     simp only [show (BitVec.ofNat 64 (24 + 1) == 25#64) = true from rfl, ite_true] at hpc1
-    refine .done _ (Or.inr ⟨hpc1.trans (hp.label (j := 57) rfl), hctx, hg⟩)
+    refine .done _ (Or.inr ⟨hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b10Offset) NativeRustcVmArm.Vm.LinearTranspose.label_7_at), hctx, hg⟩)
   · have hc : (BitVec.ofNat 64 (l + 1) == 25#64) = false := by
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h
       simp at this; omega
-    simp only [hc, Bool.false_eq_true, ite_false, show b1.length = 6 from rfl] at hpc1
+    simp only [hc, Bool.false_eq_true, ite_false, NativeRustcVmArm.Vm.LinearTranspose.b1_length, NativeRustcVmArm.Vm.LinearTranspose.b1Length] at hpc1
     refine .done _ (Or.inl ⟨by omega, hpc1, ⟨⟨hctx, by omega, ?_, ?_, ?_, ?_⟩, ?_⟩⟩)
     · show (s1.data.regs.getXReg .X23).toBitVec.toNat = _
       rw [h23, hx23', BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
@@ -73,10 +74,10 @@ theorem next_lane (hp : Placed code k) {l : Nat} {s : MachineState}
 
 /-- **The lane loop**: from lane `l`'s head, `g` done. -/
 theorem lanes_loop (hp : Placed code k) (hpre : LinearTransposePre ws m0)
-    (hpi : Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost) {l : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 22)) (hI : Head m0 ws l s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 57) ∧ GDone m0 ws s'.data) s :=
-  Sym.loop (fun n s ↦ ∃ l, n = 25 - l ∧ s.pc = Host.addrOf (k + 22) ∧ Head m0 ws l s.data)
+    (hpi : Spec (Labels.label NativeRustcVmArm.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost) {l : Nat}
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b2Offset)) (hI : Head m0 ws l s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b10Offset) ∧ GDone m0 ws s'.data) s :=
+  Sym.loop (fun n s ↦ ∃ l, n = 25 - l ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b2Offset) ∧ Head m0 ws l s.data)
     (fun _ s ⟨l, hn, hpc, hI⟩ ↦ (lane_step hp hpre hpi hpc hI).bind fun s1 ⟨hpc1, hI1⟩ ↦
       (next_lane hp hpc1 hI1).mono fun s' h ↦ by
         rcases h with ⟨hlt, hpc', hI'⟩ | h

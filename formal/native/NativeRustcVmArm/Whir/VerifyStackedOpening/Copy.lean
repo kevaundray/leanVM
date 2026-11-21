@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.Final
 
 /-!
@@ -68,16 +69,16 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 /-- **From `b32`** to `b34`: the levels copied, their count checked. -/
 theorem copy_b32 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {R : MachineState → Prop}
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {R : MachineState → Prop}
     (cont : ∀ st, AtB34 a s layout target cs value ls m0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 150)⟩)
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b34Offset)⟩)
     {st : MachineData} (hb : AtB32 a s layout target cs value ls m0 st) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 143)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b32Offset)⟩ := by
   have hc := hb.com
   have hS := h.hS
   -- `b32`
   obtain ⟨hwf, hm⟩ := h.frame_env hc.fr
-  have hk32 : b32.IsInfixAt Host.prog (k + 143) := b32_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk32 : b32.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b32Offset) := b32_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk32 run_b32 hwf hm fun st1 hm1 hpc1 ↦ ?_
   have hf1 : VFr m0 st1.data := Fr.ofBlock hc.fr hm hm1 hwf rfl rfl rfl (by simp)
   have hd1 : st1.data.dmem = st.dmem := hm1.dmem_eq hwf rfl
@@ -141,7 +142,7 @@ theorem copy_b32 (hp : Placed code k)
       (.inr (by omega)) (by rw [hd1]; exact hb.cnt)
   -- `b33`
   obtain ⟨hwf3, hm3⟩ := h.frame_env hf2
-  have hk33 : b33.IsInfixAt Host.prog (k + 147) := b33_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk33 : b33.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b33Offset) := b33_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at (st := ⟨m2, _⟩) hk33 run_b33 hwf3 rfl hm3 fun st3 hm3' hpc3 ↦ ?_
   have hl408 : (Env.ofMachine m2 [(base m0 512, 512)]).load 0 408 8 =
       ls.length.toUInt64.toBitVec := Ring.load_word hcnt2
@@ -155,7 +156,7 @@ theorem copy_b32 (hp : Placed code k)
   rw [hl408, toBitVec_ult_ofNat (by decide), natCast_toUInt64_toNat (by omega)] at hpc3
   simp only [show decide (ls.length < 7) = true from decide_eq_true (by omega), Bool.not_true,
     Bool.false_eq_true, ↓reduceIte] at hpc3
-  have hb33 : b33.length = 3 := rfl
+  have hb33 : b33.length = NativeRustcVmArm.Vm.VerifyStackedOpening.b33Length := NativeRustcVmArm.Vm.VerifyStackedOpening.b33_length
   rw [hb33] at hpc3
   obtain ⟨d3, pc3⟩ := st3
   simp only at hpc3

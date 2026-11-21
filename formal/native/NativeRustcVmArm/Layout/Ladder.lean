@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Ladder.Names
 public import NativeRustcVmArm.Layout.Ladder.Head
 
 /-!
@@ -19,9 +20,9 @@ public section
 variable [Host] {k : Nat}
 
 /-- **`ladder`'s contract.** -/
-theorem ladder_spec (hp : Placed code k) : Spec (Labels.label ladderLabel) LadderPre LadderPost := by
+theorem ladder_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmArm.Vm.Ladder.entryLabel) LadderPre LadderPost := by
   intro m hpre
-  rw [show Labels.label ladderLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.Ladder.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Ladder.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.Ladder.entryOffset) NativeRustcVmArm.Vm.Ladder.entry_at]
   by_cases hadm : Whir.Admissible m.regs.X1.toNat m.regs.X2.toNat
   · exact head hp hpre hadm fun st hpc h9 ↦ mid hp hpre.1 hpre.2.1 hpre.2.2 hadm hpc h9
       fun st' hpc' h15 ↦ tail hp hpre.2.1 hadm hpc' h15

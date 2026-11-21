@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.LinearTranspose
+public import NativeRustcVmX64.Code.Vm.KeccakPi.Names
+public import NativeRustcVmX64.Code.Vm.LinearTranspose.Names
+public import NativeRustcVmX64.Code.Vm.Names
 public meta import NativeRustcVmX64.Code.Vm.LinearTranspose
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -31,7 +34,7 @@ def slots : Slots :=
   [(56, .rbp), (48, .r15), (40, .r14), (32, .r13), (24, .r12), (16, .rbx)]
 
 /-- `KECCAK_RHO`'s label. -/
-abbrev rhoL : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.2"
+abbrev rhoL : Label := NativeRustcVmX64.Vm.Symbols.rodata2Label
 
 /-- A position's byte offset in a lane: `16 ((x as u32) & 63)`. -/
 def posS (x : Sym) : Sym := .bin .shl .W32 (.bin .and .W32 (.un .trunc .W32 x) (.lit 63)) (.lit 4)
@@ -118,12 +121,6 @@ sym_block e19 := exec b19 callS
 
 public section
 
-theorem lengths : b0.length = 15 ∧ b1.length = 3 ∧ b2.length = 6 ∧ b3.length = 19 ∧
-    b4.length = 4 ∧ b5.length = 2 ∧ b6.length = 16 ∧ b7.length = 2 ∧ b8.length = 16 ∧
-    b9.length = 2 ∧ b10.length = 16 ∧ b11.length = 2 ∧ b12.length = 16 ∧ b13.length = 2 ∧
-    b14.length = 16 ∧ b15.length = 8 ∧ b16.length = 25 ∧ b17.length = 16 ∧ b18.length = 5 := by
-  decide +kernel
-
 theorem ok_b0 : ProOk 64 8 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ w.off + w.n ≤ 64) ∧
     (after b0 entryS).reg .rbx = some (.reg .rcx) ∧ (after b0 entryS).reg .r14 = some (.reg .rdx) ∧
@@ -141,7 +138,7 @@ theorem ok_b1 : MidOk 64 0 slots (after b1 callS) = true ∧
   rw [after_eq e1]; decide +kernel
 
 theorem exit_b1 : exec b1 callS = some (after b1 callS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr9keccak_pi") := e1.trans (by rw [after_eq e1])
+    .call NativeRustcVmX64.Vm.KeccakPi.entryLabel) := e1.trans (by rw [after_eq e1])
 
 theorem ok_b2 : MidOk 64 8 slots (after b2 rhoS) = true ∧ (after b2 rhoS).mem = [] ∧
     (after b2 rhoS).reg .rcx = some (.loadx 1 0 (.bin .mul .W64 (.reg .r13) (.lit 4)) 4) ∧
@@ -167,7 +164,7 @@ theorem ok_b3 : (after b3 copyS).reg .rsp = some (.reg .rsp) ∧
 
 theorem exit_b3 : exec b3 copyS = some (after b3 copyS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 32) (.reg .rdx)) (.lit 1024)).not
-      ".LLinearTranspose_2") := e3.trans (by rw [after_eq e3])
+      NativeRustcVmX64.Vm.LinearTranspose.label_2) := e3.trans (by rw [after_eq e3])
 
 theorem ok_b4 : regOk (after b4 regsS) = true ∧
     atoms (after b4 regsS) [.r12, .r14, .r15, .rbx] = true ∧
@@ -177,7 +174,7 @@ theorem ok_b4 : regOk (after b4 regsS) = true ∧
 
 theorem exit_b4 : exec b4 regsS = some (after b4 regsS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.reg .r13) (.lit 1)) (.lit 25)).not
-      ".LLinearTranspose_1") := e4.trans (by rw [after_eq e4])
+      NativeRustcVmX64.Vm.LinearTranspose.label_1) := e4.trans (by rw [after_eq e4])
 
 /-- `b5`, `b7`, `b9`, `b11`, `b13`: RAX zeroed. -/
 theorem ok_zero : ∀ b ∈ [b5, b7, b9, b11, b13], (exec b regsS).map (fun p ↦ (p.2,
@@ -195,19 +192,19 @@ theorem ok_zero : ∀ b ∈ [b5, b7, b9, b11, b13], (exec b regsS).map (fun p �
 
 theorem ok_cols : (exec b6 (colS 0)).map (fun p ↦ (colOk 0 p.1, p.2)) = some (true, .cond
       (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .rax)) (.lit 1024)).not
-      ".LLinearTranspose_5") ∧
+      NativeRustcVmX64.Vm.LinearTranspose.label_5) ∧
     (exec b8 (colS 1)).map (fun p ↦ (colOk 1 p.1, p.2)) = some (true, .cond
       (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .rax)) (.lit 1024)).not
-      ".LLinearTranspose_7") ∧
+      NativeRustcVmX64.Vm.LinearTranspose.label_7) ∧
     (exec b10 (colS 2)).map (fun p ↦ (colOk 2 p.1, p.2)) = some (true, .cond
       (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .rax)) (.lit 1024)).not
-      ".LLinearTranspose_9") ∧
+      NativeRustcVmX64.Vm.LinearTranspose.label_9) ∧
     (exec b12 (colS 3)).map (fun p ↦ (colOk 3 p.1, p.2)) = some (true, .cond
       (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .rax)) (.lit 1024)).not
-      ".LLinearTranspose_11") ∧
+      NativeRustcVmX64.Vm.LinearTranspose.label_11) ∧
     (exec b14 (colS 4)).map (fun p ↦ (colOk 4 p.1, p.2)) = some (true, .cond
       (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .rax)) (.lit 1024)).not
-      ".LLinearTranspose_13") := by
+      NativeRustcVmX64.Vm.LinearTranspose.label_13) := by
   rw [e6, e8, e10, e12, e14]; decide +kernel
 
 theorem ok_b15 : regOk (after b15 regsS) = true ∧ atoms (after b15 regsS) [.r14] = true ∧
@@ -242,7 +239,7 @@ theorem ok_b17 : (after b17 outS).reg .rsp = some (.reg .rsp) ∧
 
 theorem exit_b17 : exec b17 outS = some (after b17 outS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .r11)) (.lit 1024)).not
-      ".LLinearTranspose_17") := e17.trans (by rw [after_eq e17])
+      NativeRustcVmX64.Vm.LinearTranspose.label_17) := e17.trans (by rw [after_eq e17])
 
 theorem ok_b18 : regOk (after b18 regsS) = true ∧
     atoms (after b18 regsS) [.rsi, .rdi, .r8, .r9, .r14] = true ∧
@@ -253,7 +250,7 @@ theorem ok_b18 : regOk (after b18 regsS) = true ∧
 
 theorem exit_b18 : exec b18 regsS = some (after b18 regsS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.reg .rcx) (.lit 1)) (.lit 25)).not
-      ".LLinearTranspose_16") := e18.trans (by rw [after_eq e18])
+      NativeRustcVmX64.Vm.LinearTranspose.label_16) := e18.trans (by rw [after_eq e18])
 
 theorem ok_b19 : EpiOk 64 slots (after b19 callS) = true ∧ (after b19 callS).mem = [] := by
   rw [after_eq e19]; decide +kernel

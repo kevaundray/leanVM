@@ -32,10 +32,10 @@ theorem weights_store (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     (hpt : pt.size ≤ 30) (hlp : lp.size = 11) (hj : j < 1600)
     {d : MachineData} (h : WMul m0 a c ch b pt lp t s6 j d) {R : MachineState → Prop}
     (more : ∀ d', WHead m0 a c ch b pt lp t s6 (j + 1) d' →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 644)⟩)
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b74Offset)⟩)
     (done : ∀ d', Body m0 (wFront m0) 24 d' → WMem m0 a c ch b pt lp t s6 1600 d'.dmem →
-      reg d' .r15 = sA m0 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 689)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 634)⟩ := by
+      reg d' .r15 = sA m0 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b79Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b73Offset)⟩ := by
   have g := geo_of hpre
   have hwf := wfScratch hpre h.body (p := 51200 + 16 * j) (n := 16) (by omega) (by omega) (ret := 0)
   have hw80 := h.mem.fw (80, .ofBitVec (sA m0)) (by apply List.mem_append_left; fw_mem)

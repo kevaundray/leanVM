@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmArm.Code.Vm.TStateSumcheckRoundPoly.Names
 public import NativeRustcVmArm.Sumcheck.Plain.Frame
 
 /-!
@@ -39,7 +41,7 @@ structure Mid [Labels] (a : DecArea) (s : TState) (m0 : MachineData) (i : Nat) (
 abbrev Goal [Host] (a : DecArea) (s : TState) (m0 : MachineData) (k : Nat) (st : MachineState) :
     Prop :=
   (st.pc = retOf m0 ∧ SumcheckPlainPost a s m0 st.data) ∨
-    (st.pc = Host.addrOf (k + 36) ∧ Done a s m0 st.data)
+    (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b7Offset) ∧ Done a s m0 st.data)
 
 end
 
@@ -49,20 +51,20 @@ variable [Host] {a : DecArea} {s : TState} {m0 : MachineData} {k : Nat}
 
 /-- **A round's polynomial**: from the head, a rejection's exit or `b4` with the polynomial. -/
 theorem head_spec (hp : Placed code k)
-    (hrp : ∀ a s e, Spec (Labels.label roundPolyLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
+    (hrp : ∀ a s e, Spec (Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.entryLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
     (hpre : SumcheckPlainPre a s m0) {i : Nat} {m : MachineData} (hi : Inv a s m0 i m) :
     Eventually (step1 Host.exe)
       (fun st ↦ Goal a s m0 k st ∨
-        (st.pc = Host.addrOf (k + 24) ∧ ∃ xs msg s1, Mid a s m0 i xs msg s1 st.data))
-      ⟨m, Host.addrOf (k + 16)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b4Offset) ∧ ∃ xs msg s1, Mid a s m0 i xs msg s1 st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b2Offset)⟩ := by
   have g := geo hpre
   have hS := hpre.1
   obtain ⟨xs, si, hrun, hsz, hxs, hts⟩ := hi.run
   have hlt := hi.lt
-  have hk2 : b2.IsInfixAt Host.prog (k + 16) := b2_in_code.trans hp.1 (by simp [b2])
-  have hk3 : b3.IsInfixAt Host.prog (k + 23) := b3_in_code.trans hp.1 (by simp [b3])
-  have hl5 : Labels.label ".LSumcheckOfSumcheckPlain_5" = Host.addrOf (k + 45) :=
-    hp.label (j := 45) rfl
+  have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b2Offset) := b2_in_code.trans hp.1 (by simp [b2])
+  have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b3Offset) := b3_in_code.trans hp.1 (by simp [b3])
+  have hl5 : Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8Offset) NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.label_5_at
   have hwf2 := Bus.wf_frame (F := 160) hS (by decide) hi.fr.kept
   have hm2 : Match (Env.ofMachine m [(base m0 160, 160)]) frS m :=
     Bus.match_frame hS (by decide) (by decide) hi.fr.sp
@@ -130,7 +132,7 @@ theorem head_spec (hp : Placed code k)
   cases hr : (sumcheckRoundPoly (cntP m0) ⟨m.regs.X2, m.regs.X3⟩ none).run si with
   | none =>
     rw [hr] at hok3
-    have hpc : st4.pc = Host.addrOf (k + 45) := by
+    have hpc : st4.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b8Offset) := by
       rw [hpc4, hok3]; simp [okWord, hl5]
     have hnone := sumcheckFn_run_none_le (sumcheckFn_run_succ_none hrun hr)
       (show i + 1 ≤ nP m0 by omega)
@@ -142,7 +144,7 @@ theorem head_spec (hp : Placed code k)
   | some p =>
     obtain ⟨msg, s1⟩ := p
     rw [hr] at hok3
-    have hpc : st4.pc = Host.addrOf (k + 24) := by
+    have hpc : st4.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.b4Offset) := by
       rw [hpc4, hok3]; simp [okWord]; rfl
     obtain ⟨hmsg, hts3⟩ := hmsg3 msg s1 hr
     refine Eventually.done _ (.inr ⟨hpc, xs, msg, s1, hfr4, hlt, ?_, ?_, ?_, ?_, ?_,

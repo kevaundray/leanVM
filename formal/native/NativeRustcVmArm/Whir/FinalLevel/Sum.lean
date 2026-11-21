@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Core
 public import NativeRustcVm.Top.Phases
 
@@ -29,14 +30,14 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The last sumcheck.** -/
 theorem sum (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
     {st : MachineState} {folded : Array EW} {s4 : TState}
-    (hpc : st.pc = Host.addrOf (k + 191)) (hl : Live level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b14Offset)) (hl : Live level m0 st.data folded)
     (hts : TStateAt st.data.dmem (tA m0) a s4)
     (hrun : runF s0 level b w rounds m0 = (C5 (mu m0) m0.regs.X4.toNat b w folded).run s4)
     (cont : ∀ (st' : MachineState) (tail : Array EW) (claim : EW) (s5 : TState),
-      st'.pc = Host.addrOf (k + 262) → Core level m0 st'.data folded → tail.size = mu m0 →
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b17Offset) → Core level m0 st'.data folded → tail.size = mu m0 →
       NativeRustcVm.EWsAt st'.data.dmem (loc m0 1096) tail.toList →
       NativeRustcVm.EWAt st'.data.dmem (loc m0 2072) claim →
       TStateAt st'.data.dmem (tA m0) a s5 →
@@ -55,7 +56,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hf1 : FFr m0 st1.data := c.fr_block hf (c.fmatch hf) hm1 hwf rfl
     (by rw [← after_eq run_b14]; exact hS1)
   simp only [PcOk] at hpc1
-  rw [show k + 191 + b14.length = k + 253 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b14Offset + b14.length = k + NativeRustcVmArm.Vm.FinalLevel.b15Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b14_next]] at hpc1
   split at hpc1
   · rename_i h
     exfalso
@@ -83,7 +84,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hm2 := c.match1 (n := 16) hf1 x27
   refine exec_at (inf hp b15_in_code (by simp [b15])) run_b15 hwf2 hpc1 hm2
     fun st2 hm2' hpc2 ↦ ?_
-  rw [show k + 253 + b15.length = k + 260 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b15Offset + b15.length = k + NativeRustcVmArm.Vm.FinalLevel.b16Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b15_next]] at hpc2
   have hf2 : FFr m0 st2.data :=
     Fr.ofBlock hf1 hm2 hm2' hwf2 rfl rfl rfl (fun _ h ↦ by cases h)
   have hd2 : st2.data.dmem = st1.data.dmem := hm2'.dmem_eq hwf2 rfl
@@ -191,7 +192,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     have h0 : (fenv m0 m3 []).load 0 2064 8 = (0 : UInt64).toBitVec :=
       load_of_wordAt (hopt : NativeRustcVm.WordAt _ _ 0)
     rw [cbz_load h0] at hpc4
-    simp only [beq_self_eq_true, ↓reduceIte, hp.label (j := 117) rfl] at hpc4
+    simp only [beq_self_eq_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b2Offset) NativeRustcVmArm.Vm.FinalLevel.label_2_at] at hpc4
     exact exit2 hp c hpc4 hf4 (by rw [hrun, C5]; exact run_bind_none hr)
   | some p =>
     obtain ⟨⟨tail, claim⟩, s5⟩ := p
@@ -199,7 +200,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     obtain ⟨h1, hcw⟩ := hopt
     rw [cbz_load (load_of_wordAt h1)] at hpc4
     simp only [show ((1 : UInt64) == 0) = false from rfl, Bool.false_eq_true, ↓reduceIte,
-      show k + 260 + b16.length = k + 262 from rfl] at hpc4
+      show k + NativeRustcVmArm.Vm.FinalLevel.b16Offset + b16.length = k + NativeRustcVmArm.Vm.FinalLevel.b17Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b16_next]] at hpc4
     refine cont st4 tail claim s5 hpc4
       (hc3.saved hf4 (fun r hr ↦ hk4 r (kept_of (by decide) r hr)) (fun j _ ↦ by rw [hd4]) hfo)
       (sumcheckPlain_size hr) (by rw [hd4]; exact hslots tail claim s5 hr)

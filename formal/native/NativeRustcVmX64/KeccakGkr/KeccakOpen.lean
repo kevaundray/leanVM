@@ -4,6 +4,11 @@ public import NativeRustcVmX64.KeccakGkr.KeccakOpen.Entry2
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.ExitNone
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.ExitSome
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.Fold
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.KeccakOpen.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.SlotWeights.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
 
 /-!
 # `keccak_open` meets its x86-64 contract
@@ -23,15 +28,15 @@ public section
 
 /-- The complete machine-code contract, given the four callee contracts. -/
 theorem keccakOpen_spec [Host] {k : Nat} (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hsw : ∀ c, Spec (Labels.label slotWeightsLabel) (SlotWeightsPre c) (SlotWeightsPost c))
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hsw : ∀ c, Spec (Labels.label NativeRustcVmX64.Vm.SlotWeights.entryLabel) (SlotWeightsPre c) (SlotWeightsPost c))
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s)) :
-    ∀ a s c, Spec (Labels.label keccakOpenLabel) (KeccakOpenPre a s c) (KeccakOpenPost a s c) := by
+    ∀ a s c, Spec (Labels.label NativeRustcVmX64.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c) (KeccakOpenPost a s c) := by
   intro a s c m0 hpre
   have h := preOk hpre
-  rw [show Labels.label keccakOpenLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.KeccakOpen.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset) from hp.label NativeRustcVmX64.Vm.KeccakOpen.entry_at]
   refine (sc_run hp h hsc).bind fun st ⟨hpc, hs⟩ ↦ ?_
   cases hr : scRun s m0 with
   | none => exact none_exit hp h hpc hs hr

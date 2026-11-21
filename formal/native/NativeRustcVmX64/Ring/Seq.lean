@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Field.Call
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
 
 /-!
 # Functions as sequences of blocks and calls (x86-64)
@@ -763,10 +765,10 @@ theorem exitStep (h : Lay m0 F N rs) {T S' : SState} {vals : Nat → BitVec 64} 
     rw [hm.regs r v hv, he]
 
 /-- **A block ending in a call of `EW::sq_iter`.** -/
-theorem sqStep (h : Lay m0 F N rs) (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+theorem sqStep (h : Lay m0 F N rs) (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     (hS : F + ewSqIterStack ≤ N) {T T' S' : SState} {vals vals' : Nat → BitVec 64}
     {m : MachineData} (hB : Bnd m0 F N rs wr T vals m) {ds : List Directive} {k : Nat}
-    (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', .call ewSqIterLabel))
+    (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWSqIter.entryLabel))
     (hwr : S'.mem.all (writeOk F ((F + 8) :: rs.map Prod.snd) wr) = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0))
     {L LW : List (Nat × Sym)} (hL : rlinks true S' T' = some L) (hLW : wlinks S' T'.mem = some LW)
@@ -793,10 +795,10 @@ theorem sqStep (h : Lay m0 F N rs) (hsq : Spec (Labels.label ewSqIterLabel) EWSq
     (fun _ _ _ _ hx ↦ by rw [hbd] at hx; cases hx) fun st h1 h2 _ ↦ cont st h1 h2
 
 /-- **A block ending in a call of `EW::mul`.** -/
-theorem mulStep (h : Lay m0 F N rs) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem mulStep (h : Lay m0 F N rs) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hS : F + ewMulStack ≤ N) {T T' S' : SState} {vals vals' : Nat → BitVec 64}
     {m : MachineData} (hB : Bnd m0 F N rs wr T vals m) {ds : List Directive} {k : Nat}
-    (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', .call ewMulLabel))
+    (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hwr : S'.mem.all (writeOk F ((F + 8) :: rs.map Prod.snd) wr) = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0))
     {L LW : List (Nat × Sym)} (hL : rlinks true S' T' = some L) (hLW : wlinks S' T'.mem = some LW)

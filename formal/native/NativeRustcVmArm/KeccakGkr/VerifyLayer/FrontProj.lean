@@ -1,11 +1,13 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontMask
 
 /-!
 # `verify_layer`'s front: the product's projection
 
-The loop over the product's `47` coefficients (`ProjI j` at `.LVerifyLayer_4`, `k + 132`): the
+The loop over the product's `47` coefficients (`ProjI j` at `.LVerifyLayer_4`, `k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset`): the
 masked sum (`masked_run`), times coefficient `j` (`b4`, `EW::mul`), added into X21, X22 (`b5`);
 after the last one, `.LVerifyLayer_12` (`proj_loop`). A leaf call from the front changing only the
 bytes below the frame (`fleaf`, `fmul_call`).
@@ -58,9 +60,9 @@ theorem fleaf (h : VerifyLayerPre a s c m0) {l : Label} {P : MachineData → Pro
       (bel_of (geo_of h) hfr.sp (by rw [stack_eq] at hle; omega)) False.elim) hk
 
 /-- **`EW::mul`** from the front. -/
-theorem fmul_call (h : VerifyLayerPre a s c m0) (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+theorem fmul_call (h : VerifyLayerPre a s c m0) (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (hfr : FB m0 st.data)
-    (hpc : st.pc = Labels.label ewMulLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, FB m0 m2 →
       m2.regs.X0 = (EW.mul ⟨st.data.regs.X0, st.data.regs.X1⟩
         ⟨st.data.regs.X2, st.data.regs.X3⟩).c0 →
@@ -74,22 +76,22 @@ theorem fmul_call (h : VerifyLayerPre a s c m0) (hmul : Spec (label ewMulLabel) 
     (hfr.stackOk (pre_stack h) rfl le_mul) fun m2 hf2 hq hcs hs hk ↦
       cont m2 hf2 hq.1 hq.2.1 hcs hs hk
 
-theorem label4 (hp : Placed code k) : Labels.label ".LVerifyLayer_4" = Host.addrOf (k + 132) :=
-  hp.label (j := 132) (by rw [getElem?_of_infix (i := 0) b6_in_code (by decide)]; rfl)
+theorem label4 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b6Offset) NativeRustcVmArm.Vm.VerifyLayer.label_4_at
 
-theorem label12 (hp : Placed code k) : Labels.label ".LVerifyLayer_12" = Host.addrOf (k + 188) :=
-  hp.label (j := 188) (by rw [getElem?_of_infix (i := 0) b15_in_code (by decide)]; rfl)
+theorem label12 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_12 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b15Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b15Offset) NativeRustcVmArm.Vm.VerifyLayer.label_12_at
 
 /-- **The projection's loop**, from coefficient `j` to `.LVerifyLayer_12`. -/
 theorem proj_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {p : Array EW} {st0 : MachineData}
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {p : Array EW} {st0 : MachineData}
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 188) → FB m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b15Offset) → FB m0 st'.data →
       SameOutside st0.dmem st'.data.dmem (Bel m0) → Kept st0.dmem st'.data.dmem →
       Bus.KeepRegs regsP st0 st'.data →
       (⟨st'.data.regs.X21, st'.data.regs.X22⟩ : EW) = xs (projTerm c.mu p) 47 →
       Eventually (step1 Host.exe) R st') :
-    ∀ r j (st : MachineState), 47 - j = r → st.pc = Host.addrOf (k + 132) →
+    ∀ r j (st : MachineState), 47 - j = r → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset) →
       ProjI m0 c p j st.data → SameOutside st0.dmem st.data.dmem (Bel m0) →
       Kept st0.dmem st.data.dmem → Bus.KeepRegs regsP st0 st.data →
       Eventually (step1 Host.exe) R st := by
@@ -141,7 +143,7 @@ theorem proj_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0)
       exact hp1))
     have k2 : Bus.KeepRegs [.X0, .X1, .X19, .X21, .X22, .X23, .X24, .X25, .X26, .X27, .X28]
         st1.data st2.data := Bus.KeepRegs.of_block hm2 rfl
-    rw [show k + 122 + b4.length = k + 128 from rfl] at hpc2
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b4Offset + b4.length = k + NativeRustcVmArm.Vm.VerifyLayer.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b4_next]] at hpc2
     refine fmul_call h hmul hb2 hpc2 fun m3 hb3 h30 h31 hcs3 hs3 hk3 ↦ ?_
     have q0 : st2.data.regs.X0 = st1.data.regs.X0 := kg k2 .X0
     have q1 : st2.data.regs.X1 = st1.data.regs.X1 := kg k2 .X1
@@ -203,7 +205,7 @@ theorem proj_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0)
         hs4 hk4 hkr ?_
       rw [hacc, hl]
     · have hpc4' := pc_false hpc4 (by rw [hc5, decide_eq_false hl])
-      rw [show k + 128 + b5.length = k + 132 from rfl] at hpc4'
+      rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b5Offset + b5.length = k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b5_next]] at hpc4'
       have hmi := hi.mi
       refine ih (j + 1) st4 (by omega) hpc4' ⟨⟨hb4, by omega, ?_, ?_, r20', ?_, ?_, ?_, ?_, ?_⟩,
         ?_, ?_, hacc, ?_, hi.psz⟩ hs4 hk4 hkr

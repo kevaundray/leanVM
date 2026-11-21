@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Push
 public import NativeRustcVmX64.Spec.Sumcheck
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
 
 /-!
 # The instance sumcheck
@@ -22,15 +23,15 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem sumStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hsum : ∀ s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsum : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
     {st : MachineState} {V : Vs} {s1 : TState} {cl : KeccakClaimW} {outs : Array ColumnClaimW}
-    (hat : At m0 k 378 wrB t52 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b55Offset wrB t52 (vv m0 V) st)
     (hcl : ClaimAt st.data.dmem (off (fb m0) 992) cl)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s1)
     (hmod : (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s =
       (restSum (reg m0 .rsi).toNat cl outs).run s1)
-    (cont : ∀ st' low v s2, At m0 k 398 wrB t57 (vv m0 V) st' →
+    (cont : ∀ st' low v s2, At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b57Offset wrB t57 (vv m0 V) st' →
       (sumcheckPlain cl.value 3 4).run s1 = some ((low, v), s2) →
       NativeRustcVm.EWAt st'.data.dmem (off (fb m0) 104) v →
       NativeRustcVm.EWsAt st'.data.dmem (off (fb m0) 168) low.toList →
@@ -97,8 +98,8 @@ theorem sumStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
   simp only [show (3#64).toNat = 3 from rfl, show (4#64).toNat = 4 from rfl] at hout
   generalize hr : (sumcheckPlain cl.value 3 4).run s1 = res at hout
   obtain ⟨hopt, hlow, hnext⟩ := hout
-  rw [show 378 + b55.length = 395 from rfl] at hpc1
-  refine stepJ (T' := t57) (vals' := vv m0 V) (o := 395) hp c h ⟨hpc1, hB1⟩ b56_in_code
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b55_next] at hpc1
+  refine stepJ (T' := t57) (vals' := vv m0 V) (o := NativeRustcVmX64.Vm.VerifyKeccak.b56Offset) hp c h ⟨hpc1, hB1⟩ b56_in_code
     (by simp [b56]) run_b56 nofun (hB1.mt 0) (by decide) rfl rfl (by vtacJ)
     (by decide) rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) rfl
     fun st2 hpc2 hB2 _ hc2 hk2 ↦ ?_
@@ -119,7 +120,7 @@ theorem sumStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
       have hr' := hr
       rw [← NativeRustcVm.Sumcheck.sumcheckFn_none] at hr'
       exact Bus.Gkr.sumcheckFn_size _ _ _ _ hr'
-    refine cont st2 low v s2 ⟨hpc2.trans (by rw [show 395 + b56.length = 398 from rfl]), hB2⟩ hr
+    refine cont st2 low v s2 ⟨hpc2.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b56_next]), hB2⟩ hr
       (NativeRustcVm.Layout.EWAt.of_same hv
         (Chg.frame c hc2 (by decide) rfl (by decide) (by decide)) le_rfl)
       (Chg.ewsF c hc2 (by decide) rfl (by rw [Array.length_toList, hlow4]; decide)

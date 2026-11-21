@@ -25,7 +25,7 @@ variable [Host] {k : Nat} {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {
 /-- **The return** (`b19`), the parents' count in X19. -/
 theorem ret_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 98)) (hfr : Frm m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b19Offset)) (hfr : Frm m0 st.data)
     (hres : match sibsM B ns ns c with
       | some (sl, c') => st.data.regs.X0 = 1 ∧
           (st.data.regs.getXReg .X19).toNat = (parentsOf ns sl).length ∧
@@ -66,7 +66,7 @@ theorem ret_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (
 theorem ok_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {st : MachineState}
     {sl : List (Nat × Digest × Bool)} {ci : Nat}
-    (hpc : st.pc = Host.addrOf (k + 96)) (hfr : Frm m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b18Offset)) (hfr : Frm m0 st.data)
     (hdn : Done m0 bp B c ns (cnt m0) sl ci st.data.dmem)
     (h19 : (st.data.regs.getXReg .X19).toNat = (parentsOf (ns.take (cnt m0)) sl).length) :
     Eventually (step1 Host.exe) (Post m0) st := by
@@ -93,14 +93,14 @@ theorem ok_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (r
 /-- **`None`** (`b16`, then the return). -/
 theorem none_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 91)) (hfr : Frm m0 st.data) (hnone : sibsM B ns ns c = none) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b16Offset)) (hfr : Frm m0 st.data) (hnone : sibsM B ns ns c = none) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hwf := G.frEnv_wf hfr
   have hm := G.frEnv_match hfr
   refine exec_at (infix_of b16_in_code (by simp [b16]) hp) run_b16 hwf hpc hm fun st1 hm1 hpc1 ↦ ?_
   have hfr1 : Frm m0 st1.data := Fr.ofBlock hfr hm hm1 hwf rfl rfl rfl
     fun x hx ↦ absurd hx (by simp)
-  simp only [PcOk, hp.label (j := 98) rfl] at hpc1
+  simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b19Offset) NativeRustcVmArm.Vm.ClimbLevel.label_15_at] at hpc1
   refine ret_spec hp G hR hns hlen hpc1 hfr1 ?_
   rw [hnone]
   exact UInt64.toBitVec_inj.mp (hm1.regs .X0 _ rfl)

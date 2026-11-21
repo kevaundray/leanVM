@@ -242,7 +242,7 @@ theorem scanB_loop (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : S
   have hk1 : Regs s1.data (sB R j) := H.rg.keep hm1 (by kdecB)
   have hw1 := H.w.keep (FwK.of_eq hd1 _)
   by_cases he : R.pw i = R.qw j
-  · rw [decide_eq_true he, hp.label (j := 194) rfl] at hpc1'
+  · rw [decide_eq_true he, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_25_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     exact .done _ (.inl (.inr ⟨i, hpc1', F1, H.lt, H.h0, hi, pos_some hi he H.miss,
       hd1 ▸ H.mem, hw1, hk1, kreg hm1 rfl H.rax, kreg hm1 rfl H.r10⟩))
@@ -274,10 +274,10 @@ theorem scanB_loop (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : S
     refine blk hp b30_in_code (by simp [b30]) run_b30 F2 (hpc2'.trans (congrArg Host.addrOf rfl))
       hwf3 (frMatch F2.fr) nofun (o := 8) (by decide +kernel) (by decide +kernel) fun s3 F3 _ hpc3 _ ↦ ?_
     have := pc_jump hpc3
-    rw [hp.label (j := 278) rfl] at this
+    rw [hp.label NativeRustcVmX64.Vm.WriteOpenings.label_45_at] at this
     exact Eventually.mono (fail_spec hp G this F3 (bad_of_none H.lt fun i' hi' ↦
       miss i' (by omega))) fun _ h ↦ .inl (.inl h)
-  rw [decide_eq_true hl, hp.label (j := 184) rfl] at hpc2'
+  rw [decide_eq_true hl, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_23_at] at hpc2'
   simp only [↓reduceIte] at hpc2'
   refine .done _ (.inr ⟨R.np - (i + 1), by omega, i + 1, rfl, hpc2', F2, H.lt, H.h0, by omega,
     miss, hd2 ▸ hd1 ▸ H.mem, hw1.keep (FwK.of_eq hd2 _), hk1.keep hm2 (by kdecB), ?_, ?_, ?_, ?_⟩)
@@ -319,7 +319,7 @@ theorem foundB_step (hp : Placed code R.k) (G : Geo R) (hlw0 : 0 < R.lw) {st : M
       Regs s.data (kB R j) → KB R j i s.data := fun s F hd hr ↦
     ⟨F, H.lt, H.h0, H.ilt, H.pos, hd ▸ H.mem, H.w.keep (FwK.of_eq hd _), hr⟩
   by_cases h4 : 4 ≤ R.lw
-  · rw [decide_eq_true h4, hp.label (j := 200) rfl] at hpc1'
+  · rw [decide_eq_true h4, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_27_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine blk hp b34_in_code (by simp [b34]) run_b34 F1 hpc1' hwf2 (frMatch F1.fr) nofun (o := 8)
       (by decide +kernel) (by decide +kernel) fun s2 F2 hm2 hpc2 _ ↦ ?_
@@ -336,7 +336,7 @@ theorem foundB_step (hp : Placed code R.k) (G : Geo R) (hlw0 : 0 < R.lw) {st : M
     hwf2 (frMatch F1.fr) nofun (o := 8) (by decide +kernel) (by decide +kernel) fun s2 F2 hm2 hpc2 _ ↦ ?_
   have hd2 : s2.data.dmem = st.data.dmem := (hm2.dmem_eq hwf2 rfl).trans hd1
   have hq : q4 R.lw = 0 := by omega
-  refine .done _ (.inr ⟨(pc_jump hpc2).trans (hp.label (j := 219) rfl), K s2 F2 hd2 ?_,
+  refine .done _ (.inr ⟨(pc_jump hpc2).trans (hp.label NativeRustcVmX64.Vm.WriteOpenings.label_30_at), K s2 F2 hd2 ?_,
     by rw [hq]; exact leaf_zero, by omega, (hm2.regs .r11 _ rfl).trans (by rw [hq]; rfl),
     kreg hm2 rfl (kreg hm1 rfl H.rax)⟩)
   refine Regs.append (hk1.left.keep hm2 (by kdecB)) (Regs.cons
@@ -407,7 +407,7 @@ theorem chunkB_step (hp : Placed code R.k) (G : Geo R) {t : Nat} {st : MachineSt
     rw [K.rg.get (v := BitVec.ofNat 64 (q4 R.lw)) (by simp), H.r11, ofNat_add,
       beq_ofNat (by omega) (by omega), not_beq_decide])
   by_cases hl : q4 R.lw ≠ 4 + t
-  · rw [decide_eq_true hl, hp.label (j := 204) rfl] at hpc1'
+  · rw [decide_eq_true hl, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_28_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine .done _ (.inl ⟨hpc1', K1, hleaf, by omega, by omega, hr11, kreg hm1 rfl H.rax, ?_⟩)
     refine (hm1.regs .r10 _ rfl).trans ?_
@@ -427,7 +427,7 @@ theorem chunkB_step (hp : Placed code R.k) (G : Geo R) {t : Nat} {st : MachineSt
     rw [K1.rg.get (v := BitVec.ofNat 64 (R.lw % 4)) (by simp), beq_ofNat (by omega) (by decide +kernel),
       beq_decide])
   by_cases h0 : R.lw % 4 = 0
-  · rw [decide_eq_true h0, hp.label (j := 230) rfl] at hpc2'
+  · rw [decide_eq_true h0, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_32_at] at hpc2'
     simp only [↓reduceIte] at hpc2'
     refine .done _ (.inr (.inl ⟨hpc2', K2, ?_⟩))
     rw [hd2, show R.lw = t + 4 by omega]
@@ -506,7 +506,7 @@ theorem remB_step (hp : Placed code R.k) (G : Geo R) {u : Nat} {st : MachineStat
     rw [K.rg.get (v := BitVec.ofNat 64 (R.lw % 4)) (by simp), H.r11, ofNat_add,
       beq_ofNat (by omega) (by omega), not_beq_decide])
   by_cases hl : R.lw % 4 ≠ u + 1
-  · rw [decide_eq_true hl, hp.label (j := 224) rfl] at hpc1'
+  · rw [decide_eq_true hl, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_31_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine .done _ (.inl ⟨hpc1', K1, hleaf, by omega, ?_, kreg hm1 rfl H.rax,
       kreg hm1 rfl H.r10⟩)
@@ -547,7 +547,7 @@ theorem leafB_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : L
     · rw [decide_eq_false (by omega), decide_eq_false (by omega)]
     · rw [decide_eq_true (by omega), decide_eq_true h])
   by_cases hl : j + 1 ≠ R.nq
-  · rw [decide_eq_true hl, hp.label (j := 172) rfl] at hpc1'
+  · rw [decide_eq_true hl, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_22_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine .done _ (.inl ⟨hpc1', F1, by omega, K.h0, hdone, K.w.keep (FwK.of_eq hd1 _), ?_⟩)
     refine Regs.cons (kreg hm1 rfl (K.rg.get (by simp)))
@@ -572,7 +572,7 @@ theorem leafB_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : L
   refine blk hp b40_in_code (by simp [b40]) run_b40 F1 (hpc1'.trans (congrArg Host.addrOf rfl))
     hwf2 (frMatch F1.fr) nofun (o := 8) (by decide +kernel) (by decide +kernel) fun s2 F2 hm2 hpc2 _ ↦ ?_
   have hd2 : s2.data.dmem = s1.data.dmem := hm2.dmem_eq hwf2 rfl
-  refine .done _ (.inr ⟨(pc_jump hpc2).trans (hp.label (j := 280) rfl), F2, .inl ⟨?_, ?_⟩⟩)
+  refine .done _ (.inr ⟨(pc_jump hpc2).trans (hp.label NativeRustcVmX64.Vm.WriteOpenings.label_46_at), F2, .inl ⟨?_, ?_⟩⟩)
   · unfold boolRet; rw [kreg hm2 (r := .rax) rfl rfl]; exact hax
   · rw [hd2, show R.nq = j + 1 by omega]; exact hdone
 
@@ -627,7 +627,7 @@ theorem noLev (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : Ent R 
     rw [H.r9, beq_ofNat (by omega) (by decide +kernel), beq_decide])
   have hwf2 := G.wf0 F1.fr.kept (ret := 0)
   by_cases hl0 : R.lw = 0
-  · rw [decide_eq_true hl0, hp.label (j := 239) rfl] at hpc1'
+  · rw [decide_eq_true hl0, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_35_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine blk hp b41_in_code (by simp [b41]) run_b41 F1 hpc1' hwf2 (frMatch F1.fr) nofun (o := 8)
       (by decide +kernel) (by decide +kernel) fun s2 F2 hm2 hpc2 _ ↦ ?_

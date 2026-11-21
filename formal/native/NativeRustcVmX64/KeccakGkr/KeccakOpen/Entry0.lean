@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.Body
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.ExecE
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
 
 /-!
 # `keccak_open`: prologue and plain sumcheck
@@ -38,21 +39,21 @@ public section
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
 theorem sc_run (hp : Placed code k) (h : PreOk a s c m0)
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s)) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 20) ∧ Sc a s m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b1Offset) ∧ Sc a s m0 st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset)⟩ := by
   have hn := nums h
   have := hn.r1; have := hn.r2; have := hn.s; have := hn.t; have := hn.ss; have := hn.st
   have hfb := fbA_toNat h
   have hctx := context h
   have hle : 2208 + sumcheckPlainStack ≤ keccakOpenStack := by decide
   have hwf := wf_fold h (st := m0) (fun _ hx ↦ hx) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
-  have hmatch : Match (E m0 m0 (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec) e0S m0 := by
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset + b0.length)).toBitVec)
+  have hmatch : Match (E m0 m0 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset + b0.length)).toBitVec) e0S m0 := by
     refine match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial
       ⟨arg_alias 0, arg_alias 1, arg_alias 2, arg_alias 3, arg_alias 4, arg_alias 5, ?_, trivial⟩
-    show (E m0 m0 (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec).load 3 32 8 =
+    show (E m0 m0 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b0Offset + b0.length)).toBitVec).load 3 32 8 =
       slA m0 + BitVec.ofInt 64 0
     rw [show (32 : Nat) = 8 * 4 from rfl, load_arg h (fun _ _ ↦ rfl) (i := 4) (by decide), ofInt0,
       BitVec.add_zero]
@@ -145,7 +146,7 @@ theorem sc_run (hp : Placed code k) (h : PreOk a s c m0)
         (by decide)))
   have hb2 : Body m0 8 st2.data := ⟨hf2, fun q hq ↦
     (hso q fun ht ↦ hq (hchange q ht).1).trans (hb1.same q hq)⟩
-  refine .done _ ⟨hpc2.trans (by rw [f0.1]), hb2,
+  refine .done _ ⟨hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakOpen.b0_next), hb2,
     (hsv.1 .rbx rfl).trans (hm1.regs .rbx _ hbx),
     (hsv.1 .rbp rfl).trans (hm1.regs .rbp _ hbp),
     (hsv.1 .r12 rfl).trans (hm1.regs .r12 _ h12),

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.OutStep
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
 
 /-! # Resetting the final point and appending its four low coordinates (blocks 66–67) -/
 
@@ -17,12 +18,12 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem outFirstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {st : MachineState} {V : Vs} {low : Array EW}
-    (hat : At m0 k 460 wrAll t60 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b66Offset wrAll t60 (vv m0 V) st)
     (hlow : NativeRustcVm.EWsAt st.data.dmem (off (fb m0) 168) low.toList)
     (h4 : low.size = 4) {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 467 wrAll t60 (vv m0 V) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b68Offset wrAll t60 (vv m0 V) st' →
       NativeRustcVm.BufEWAt st'.data.dmem (keccakOutArg m0) 36 low.toList →
       Chg m0 st.data.dmem st'.data.dmem [(0, 88), (3296, 48)] [(4, 0, 584)] →
       Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
@@ -87,8 +88,8 @@ theorem outFirstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst ou
   simp only [show (0 : UInt64).toNat + (4#64).toNat ≤ 36 from by decide, ↓reduceIte,
     List.nil_append] at hres
   obtain ⟨hal, hbuf1⟩ := hres
-  rw [show 460 + b66.length = 465 from rfl] at hat1
-  refine stepJ (T' := t60) (vals' := vv m0 V) (o := 465) hp c h hat1 b67_in_code
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b66_next] at hat1
+  refine stepJ (T' := t60) (vals' := vv m0 V) (o := NativeRustcVmX64.Vm.VerifyKeccak.b67Offset) hp c h hat1 b67_in_code
     (by simp [b67]) run_b67 nofun (hat1.2.mt 0) (by decide) rfl rfl (by vtacJ)
     (by decide) rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) rfl
     fun st2 hpc2 hB2 _ hc2 hk2 ↦ ?_
@@ -98,7 +99,7 @@ theorem outFirstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst ou
   simp only [show (envZ m0 st1.data 3344 3368 (rsOf m0) (vv m0 V) 0).regs .rax =
     reg st1.data .rax from rfl, h1, show ¬(1 = 0) from by decide, decide_false,
     Bool.false_eq_true, ↓reduceIte] at hpc2
-  refine cont st2 ⟨hpc2.trans (by rw [show 465 + b67.length = 467 from rfl]), hB2⟩
+  refine cont st2 ⟨hpc2.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b67_next]), hB2⟩
     (NativeRustcVm.Layout.BufEWAt.of_same hbuf1
       (by simpa only [off0, ob] using
         (Chg.regS c hc2 (by decide) rfl (i := 4) (o := 0) (n := 584)

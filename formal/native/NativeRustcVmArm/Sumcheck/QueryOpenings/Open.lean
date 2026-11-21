@@ -1,14 +1,15 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.OpenPhase.Names
 public import NativeRustcVmArm.Sumcheck.QueryOpenings.Ok
 public import NativeVm.Equiv.Transcript
 
 /-!
 # `TState::query_openings` from `b4`: `open_phase`, its result tested
 
-`b4` (`k + 21`, the phase's address in X0) calls `open_phase` with the frame's first 32 bytes as
+`b4` (`k + NativeRustcVmArm.Vm.TStateQueryOpenings.b4Offset`, the phase's address in X0) calls `open_phase` with the frame's first 32 bytes as
 its output, root `i` (`t + 368 + 48 i`, its height and width), the positions and the phase
-(`open_pre`: its precondition); `b5` (`k + 30`) tests the `Option<Rows>`'s first word: `0` goes
+(`open_pre`: its precondition); `b5` (`k + NativeRustcVmArm.Vm.TStateQueryOpenings.b5Offset`) tests the `Option<Rows>`'s first word: `0` goes
 to `b7` (`finish_fail`), the rows to `b6` (`finish_ok`). `open_spec` runs it all.
 -/
 
@@ -109,10 +110,10 @@ theorem open_pre {a : DecArea} {s : TState} {Q : Array UInt64} {m0 : MachineData
 
 /-- **From `b4`**: `open_phase` called, its result tested, the function finished. -/
 theorem open_spec (hp : Placed code k)
-    (hop : ∀ P R Q, Spec (Labels.label openPhaseLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q))
+    (hop : ∀ P R Q, Spec (Labels.label NativeRustcVmArm.Vm.OpenPhase.entryLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q))
     {a : DecArea} {s : TState} {Q : Array UInt64} {m0 : MachineData}
     (hpre : QueryOpeningsPre a s Q m0) (hi : m0.regs.X2.toNat < s.roots.size)
-    (hlt : s.phase < s.openings.size) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 21))
+    (hlt : s.phase < s.openings.size) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateQueryOpenings.b4Offset))
     (hf : Frame m0 96 slots st.data) (hs : SameOutside m0.dmem st.data.dmem (Stk m0))
     (hx0 : st.data.regs.X0.toBitVec = a.word (phaseBase a.l s.phase))
     (hx19 : st.data.regs.X19 = m0.regs.X0) (hx20 : st.data.regs.X20 = m0.regs.X1)
@@ -225,7 +226,7 @@ theorem open_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf2.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 (hfr hf2)
-    (hpc2.trans (by rw [show b4.length = 9 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateQueryOpenings.b4_next])) hm2 fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hmem3, hcs3⟩ := after_eq run_b5 ▸ ok_b5
   have hf3 : Frame m0 96 slots st3.data := Frame.of_block hf2 (hfr hf2) hm3 hmid3 slots_le
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq (hfr hf2) hmem3
@@ -245,7 +246,7 @@ theorem open_spec (hp : Placed code k)
     simp (config := { decide := true }) only [↓reduceIte] at hpc3
     have hnone : (queryOpenings m0.regs.X2.toNat Q).run s = none := by
       rw [run_some hi hlt, hop3]; rfl
-    exact finish_fail hp hpre hnone (hpc3.trans (hp.label (j := 44) rfl)) hf3 h19₃ hso3
+    exact finish_fail hp hpre hnone (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.TStateQueryOpenings.b7Offset) NativeRustcVmArm.Vm.TStateQueryOpenings.label_5_at)) hf3 h19₃ hso3
   | some rows =>
     rw [hop3] at hout2
     have hcp := hout2
@@ -260,7 +261,7 @@ theorem open_spec (hp : Placed code k)
         some (rows, { s with phase := s.phase + 1 }) := by
       rw [run_some hi hlt, hop3]; rfl
     exact finish_ok hp hpre hrun hlt (openPhase_some hop3)
-      (hpc3.trans (by rw [show b5.length = 2 from rfl])) hf3 h19₃ ((hk3 .X20 rfl).trans h20₂)
+      (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateQueryOpenings.b5_next])) hf3 h19₃ ((hk3 .X20 rfl).trans h20₂)
       ((hk3 .X21 rfl).trans h21₂) (tstate_stk hpre hf3.kept hs3) (by rw [hd3]; exact hout2) hso3
 
 end

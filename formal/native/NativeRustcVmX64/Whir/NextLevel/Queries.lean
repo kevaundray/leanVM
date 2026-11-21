@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.NextLevel.Facts
+public import NativeRustcVmX64.Code.Vm.SampleQueries.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
 # `next_level`: the queries and `λ` (x86-64)
@@ -124,15 +126,15 @@ theorem blk_stepZ (c : Ctx a s level w rounds m0) {b : List Directive} {j : Nat}
 
 /-- **The queries and `λ`**: `b13` to `b16`, to the zeroing loop's head with `H17`. -/
 theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (hsq : ∀ a s, Spec (Labels.label sampleQueriesLabel) (SampleQueriesPre a s)
+    (hsq : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SampleQueries.entryLabel) (SampleQueriesPre a s)
       (SampleQueriesPost a s))
-    (hsqz : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsqz : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {xs ood : Array EW} {v : EW} {s6 : TState} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 135)) (hH : H13 a level w rounds m0 xs ood v s6 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b13Offset)) (hH : H13 a level w rounds m0 xs ood v s6 st.data)
     (hrun : runN level w rounds m0 s =
       tail6 (reg m0 .rsi).toNat (reg m0 .r9).toNat level w rounds xs ood v s6) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s level w rounds m0 st' ∨
-      (st'.pc = Host.addrOf (k + 150) ∧ reg st'.data .rcx = BitVec.ofNat 64 72 ∧
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b17Offset) ∧ reg st'.data .rcx = BitVec.ofNat 64 72 ∧
         ∃ qs lam s8, runN level w rounds m0 s =
           tail8 (reg m0 .rsi).toNat (reg m0 .r9).toNat w rounds xs ood v qs lam s8 ∧
           H17 a level w rounds m0 xs ood v lam qs s8 st'.data)) st := by
@@ -157,9 +159,9 @@ theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
       (load_ofMachine (r := 0) (o := 8184) rfl (c.arg_keep hK.fr.same))
   have hk1r : ∀ r ∈ six, reg st1.data r = reg st.data r := fun r hr ↦ hm1.regs r _ (hkr1 r hr)
   have hR1 : R0 level m0 st1.data := hH.regs.saved fun r hr ↦ hk1r r (cs_six hr)
-  have hpc1' : st1.pc = Host.addrOf (k + 136) := hpc1
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b13Offset + (b13.take 1).length) := hpc1
   -- `b13`, the rest: `sample_queries(t, μ + rate, level.queries, &w.queries)`
-  let env2 := frameEnv m0 st1.data 8176 [(lA m0, 24)] (fun _ ↦ 0) (Host.addrOf (k + 142)).toBitVec
+  let env2 := frameEnv m0 st1.data 8176 [(lA m0, 24)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b14Offset)).toBitVec
   have hwf2 : env2.WF := c.wfL hK1.fr.frame.kept
   have hm2 : Match env2 levelS st1.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hK1.fr.frame.rsp_eval, known_ptr rfl hR1.rbp, trivial⟩
@@ -232,16 +234,16 @@ theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hz3 : KeepZ m0 st2.data.dmem st3.data.dmem :=
     keepZ_call (o := 64) hkeep3 (by omega) (by decide)
   have hcs3 : ∀ r, calleeSaved r = true → reg st3.data r = reg st2.data r := hsv.1
-  have hpc3' : st3.pc = Host.addrOf (k + 142) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b14Offset) := hpc3
   -- `b14`: `sample_queries`' `Some`
   refine Eventually.bind (test_spec hp c b14_in_code rfl (b_eq.2.2 ▸ exit_b4) (b_eq.2.2 ▸ ok_b4)
     hK3 hpc3' hok) fun st4 ⟨hr4, hd4, hpc4⟩ ↦ ?_
-  have hpc4' : st4.pc = Host.addrOf (k + 144) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b15Offset) := hpc4
   have hK4 := hK3.congr hr4 hd4
   -- `b15`: `squeeze(t)`
   refine blk_stepZ c b15_in_code (by simp [b15]) hp exit_b15 ok_b15.1 ok_b15.2.1 (by decide)
     (fun p hp ↦ by simp at hp; subst hp; right; omega) hK4 hpc4'
-    (ret := (Host.addrOf (k + 146)).toBitVec) (fun _ _ ↦ rfl) fun st5 hm5 hpc5 hK5 hs5 hz5 ↦ ?_
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b16Offset)).toBitVec) (fun _ _ ↦ rfl) fun st5 hm5 hpc5 hK5 hs5 hz5 ↦ ?_
   obtain ⟨-, -, hrdi5, hkr5⟩ := ok_b15
   have hk5r : ∀ r ∈ six, reg st5.data r = reg st4.data r := fun r hr ↦ hm5.regs r _ (hkr5 r hr)
   have hc41 : ∀ r ∈ [Reg64.rbx, .r12, .r13, .r14, .r15], reg st5.data r = reg st1.data r :=
@@ -277,7 +279,7 @@ theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
     · show (tA m0).toNat + 328 ≤ _ ∨ _ ≤ (tA m0).toNat; omega
   refine call_then hpc5 (hsqz s7.sponge) hpre5 fun st6 hpc6 hrsp6 hq ↦ ?_
   obtain ⟨hc0, hc1, hsp6, hs6, hsv6⟩ := hq
-  have hpc6' : st6.pc = Host.addrOf (k + 146) := hpc6
+  have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b16Offset) := hpc6
   rw [ht5] at hsp6 hs6
   have hcal5 : ∀ q, NativeRustcVm.InRange (stackBelow st5.data squeezeStack) squeezeStack q →
       ¬NativeRustcVm.InRange (tA m0) tstateBytes q ∧
@@ -341,7 +343,7 @@ theorem qry (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hfv7 : FV m0 xs ood v st7.data.dmem :=
     hfv.keep ((KeepV.of_eq hd1).trans (hz2.v.trans (hz3.v.trans ((KeepV.of_eq hd4).trans
       (hz5.v.trans (hz6.v.trans hz7)))))) hxs hos
-  have hpc7' : st7.pc = Host.addrOf (k + 150) := hpc7
+  have hpc7' : st7.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b17Offset) := hpc7
   refine .done _ (Or.inr ⟨hpc7', hm7.regs _ _ hrcx7, qs, (sq s7).1, (sq s7).2,
     by rw [hrun, tail6, hres7]; rfl,
     ⟨hK7, (hc71 .rbx (by simp)).trans hH.regs.rbx, (hc71 .r12 (by simp)).trans hH.r12,

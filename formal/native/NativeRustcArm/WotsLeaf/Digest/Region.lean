@@ -72,7 +72,7 @@ theorem regIs_of_reg [Labels] {r : Run} {m m' : MachineData} {S : SState} (hm : 
 variable [NativeArm.Host]
 
 /-- **Region 1, the message digest.** -/
-theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) 0 fun r st ↦ st.pc = r.pc 48 ∧
+theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) NativeRustcArm.Xmss.WotsLeaf.b0Offset fun r st ↦ st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b6Offset ∧
     r.AtCheck st.data := by
   intro r hp hc hpre m hm0
   subst hm0

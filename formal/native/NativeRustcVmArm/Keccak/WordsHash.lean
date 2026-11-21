@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcVmArm.Keccak.WordsHash.Entry
 public import NativeRustcVmArm.Keccak.WordsHash.Tail
 public import NativeRustcVmArm.Keccak.WordsHash.Epi
@@ -25,13 +28,13 @@ variable [Host]
 
 /-- **`keccak256_words::<hash_words's closure>` meets its contract.** -/
 theorem keccak256WordsHash_spec {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code k)
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost)
-    (hkf : Spec (label keccakFLabel) KeccakFPre KeccakFPost) :
-    Spec (label keccak256WordsHashLabel) Keccak256WordsHashPre Keccak256WordsHashPost := by
+    (hmemset : Spec (label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost) :
+    Spec (label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre Keccak256WordsHashPost := by
   intro m0 hpre
   obtain ⟨hstk, hrc, hx1, hx2, hmap, hnw, hmo, hnwo, hap, hapo, -⟩ := hpre
   have g : WordsHash.Geo m0 := ⟨hstk, hx2, hmap, hnw, hap⟩
-  rw [show label keccak256WordsHashLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b0Offset) from hp.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entry_at]
   refine Eventually.bind (WordsHash.entry_run hmemset hp g hx1) fun st h => ?_
   have hts : Eventually (step1 Host.exe) (WordsHash.TailStart m0 k) st := by
     rcases h with h | h

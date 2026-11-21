@@ -23,10 +23,10 @@ variable [Host] {k : Nat}
 
 /-- **`v` waits at level `kk`** (`b13`): stored, flagged; entry `i + 1` next, or the end. -/
 theorem push (hp : Placed code k) {m0 : MachineData} (hpre : LPre m0)
-    {i kk : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + 163))
+    {i kk : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13Offset))
     (hI : Inner m0 i kk s.data) (hnone : pendOf s.data.dmem (fbOf m0) kk = none) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 125) ∧ Outer m0 (i + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4Offset) ∧ Outer m0 (i + 1) s'.data)) s := by
   obtain ⟨hS, h02, h64, -, -⟩ := hpre
   obtain ⟨fr, hi, hk, -, h20, h21, -, h29, hval⟩ := hI
   obtain ⟨st, pc⟩ := s
@@ -111,7 +111,7 @@ theorem push (hp : Placed code k) {m0 : MachineData} (hpre : LPre m0)
   have hpc2' := pc_ne hpc2
   by_cases hlast : i + 1 = nn m0
   · have hpc3 := hpc2'.2 (heq.mpr hlast)
-    simp only [show b13.length = 9 from rfl] at hpc3
+    simp only [NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13_length, NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13Length] at hpc3
     refine exec_at (hb14 hp) run_b14 (Env.wf_nil _) hpc3 (match_nil _) fun s3 hm3 hpc3' ↦ ?_
     have fr2 : Body m0 1232 mleStack slots 0 0 s2.data :=
       body_of_frame_write fr.body hS hm hm2 hwf rfl

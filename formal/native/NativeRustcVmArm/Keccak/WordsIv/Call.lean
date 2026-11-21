@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.IvWord.Names
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsIv.Inv
 public import NativeRustcVm.Keccak.Words
 
@@ -27,13 +29,13 @@ public section
 variable [Host]
 
 /-- **A call of `iv_word`** for word `i` below the count. -/
-theorem call_iv (hiv : Spec (label NativeRustcVmArm.ivWordLabel) NativeRustcVmArm.IvWordPre
+theorem call_iv (hiv : Spec (label NativeRustcVmArm.Vm.IvWord.entryLabel) NativeRustcVmArm.IvWordPre
       NativeRustcVmArm.IvWordPost) {m0 : MachineData} (g : Geo m0) {st : MachineState}
     {env : Env} {next : Int64} (hc : Ctx m0 st.data)
     (hx0 : (st.data.regs.getXReg .X0).toBitVec = m0.regs.X3.toBitVec)
     (hx1 : (st.data.regs.getXReg .X1).toBitVec = m0.regs.X4.toBitVec) {i : Nat}
     (hx2 : (st.data.regs.getXReg .X2).toBitVec = BitVec.ofNat 64 i) (hi : i < m0.regs.X1.toNat)
-    (hpc : PcOk env (.call NativeRustcVmArm.ivWordLabel) next st) {R : MachineState → Prop}
+    (hpc : PcOk env (.call NativeRustcVmArm.Vm.IvWord.entryLabel) next st) {R : MachineState → Prop}
     (cont : ∀ st', st'.pc = next → st'.data.dmem = st.data.dmem → Saved st.data st'.data →
       (st'.data.regs.getXReg .X0).toBitVec = (wv m0 i).toBitVec →
       Eventually (step1 Host.exe) R st') :
@@ -60,14 +62,14 @@ theorem call_iv (hiv : Spec (label NativeRustcVmArm.ivWordLabel) NativeRustcVmAr
     NativeRustcVm.Keccak.getD_ivWords]
 
 /-- **A call of `keccak_f` on the state in the frame.** -/
-theorem call_kf (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem call_kf (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {m0 : MachineData}
     (hstk : StackOk m0 NativeRustcVmArm.keccak256WordsStack)
     (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack)
     {st : MachineState} {env : Env} {next : Int64} {A : KeccakState}
     (hc : Ctx m0 st.data) (hl : Lanes m0 st.data (Keccak.lane A))
     (hx0 : st.data.regs.X0.toBitVec = frame m0 + BitVec.ofNat 64 8)
-    (hpc : PcOk env (.call NativeRustcVmArm.keccakFLabel) next st) {R : MachineState → Prop}
+    (hpc : PcOk env (.call NativeRustcVmArm.Vm.KeccakF.entryLabel) next st) {R : MachineState → Prop}
     (cont : ∀ st', st'.pc = next → Ctx m0 st'.data →
       Lanes m0 st'.data (Keccak.lane (keccakF1600 A)) →
       (∀ r, calleeSaved r = true → st'.data.regs.getXReg r = st.data.regs.getXReg r) →

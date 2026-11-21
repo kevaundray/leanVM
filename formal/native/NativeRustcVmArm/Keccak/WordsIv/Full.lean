@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsIv.Tail
 public import NativeRustcVmArm.Keccak.WordsIv.BlocksFull
 
@@ -29,7 +30,7 @@ open Vm.Keccak256WordsOfFiatShamirIv
 def FullHead [Host] (m0 : MachineData) (k b : Nat) (st : MachineState) : Prop :=
   Ctx m0 st.data ∧ Lanes m0 st.data (Keccak.lane (wordBlocks (wv m0) b)) ∧
     (st.data.regs.getXReg .X25).toBitVec = BitVec.ofNat 64 (17 * b) ∧ b < nb m0 ∧
-    st.pc = Host.addrOf (k + 161)
+    st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b25Offset)
 
 /-- Before lane `j` of whole block `b`. -/
 abbrev FullLane [Host] (m0 : MachineData) (k b j sL sZ : Nat) : MachineState → Prop :=
@@ -205,7 +206,7 @@ theorem next_cmp {m0 : MachineData} (g : Geo m0) {b : Nat} (hb : b < nb m0) :
     exact h (by omega)
 
 /-- **The end of whole block `b`**: lane 16's XOR, `keccak_f`, and the next block's branch. -/
-theorem full_end (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem full_end (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {k : Nat} (hp : Placed code k) {m0 : MachineData}
     (g : Geo m0) (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack)
     {b : Nat} {st : MachineState}
@@ -241,7 +242,7 @@ theorem full_end (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVm
     rw [hsv3 .X25 rfl]; exact hB2
   obtain ⟨m3, pc3⟩ := st3
   simp only at hpc3 hc3 hl3 hB3
-  rw [show b23.length = 6 from rfl] at hpc3
+  rw [NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b23_length, NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b23Length] at hpc3
   subst hpc3
   obtain ⟨hwf3, hm3⟩ := frame_env g hc3
   refine exec_then (ic hp b24_in_code (List.cons_ne_nil _ _)) fullNext hwf3 hm3
@@ -252,7 +253,7 @@ theorem full_end (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVm
     fun i hi => wordAt_keep (r := 0) (sz := 288) hm4 rfl (by omega) rfl (hl3 i hi)
   have hcmp := next_cmp g hb
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, Sym.low_W64] at hpc4
-  have hpc4' : st4.pc = if b + 1 = nb m0 then Host.addrOf (k + 23) else Host.addrOf (k + 161) := by
+  have hpc4' : st4.pc = if b + 1 = nb m0 then Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b2Offset) else Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b25Offset) := by
     rw [hpc4]
     show (if ((m3.regs.getXReg .X24).toBitVec == BinOp.apply .add .W64
       (m3.regs.getXReg .X25).toBitVec 17#64) = true then _ else _) = _
@@ -278,7 +279,7 @@ theorem full_end (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVm
     simp [h]
 
 /-- **A whole block.** -/
-theorem full_block (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem full_block (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {k : Nat} (hp : Placed code k) (hiv : IvSpec)
     {m0 : MachineData} (g : Geo m0)
     (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack) {b : Nat}
@@ -305,7 +306,7 @@ theorem full_block (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustc
   exact full_end hkf hp g hrc h17
 
 /-- **The whole blocks' loop.** -/
-theorem full_loop (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem full_loop (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {k : Nat} (hp : Placed code k) (hiv : IvSpec)
     {m0 : MachineData} (g : Geo m0)
     (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack) {b : Nat}

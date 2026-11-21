@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.LoopKB
 public import NativeRustcVmX64.Bus.AccumulateSide.FactsO
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
 
 /-!
 # `accumulate_side`: the framework ones (x86-64)
@@ -25,7 +26,7 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
 
 /-- **A turn of the framework ones.** -/
 theorem turnO (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
     {j : Nat} (hj : j < SL.framework.size) {st : MachineData}
     (hst : St m0 Z (Vt SL m0 (lpO SL m0 j)) DO 8 st) :
     Eventually (step1 Host.exe) (fun st' ↦
@@ -33,9 +34,9 @@ theorem turnO (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       st'.data.regs.get64 .r12 = (lpO SL m0 (j + 1) 0).toBitVec ∧
       st'.data.regs.get64 .r14 = (lpO SL m0 (j + 1) 1).toBitVec ∧
       st'.data.regs.get64 .r15 = (lpO SL m0 (j + 1) 2).toBitVec ∧
-      ((st'.pc = Host.addrOf (k + 94) ∧ j + 1 < SL.framework.size) ∨
-        (st'.pc = Host.addrOf (k + 116) ∧ j + 1 = SL.framework.size)))
-      ⟨st, Host.addrOf (k + 94)⟩ := by
+      ((st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b8Offset) ∧ j + 1 < SL.framework.size) ∨
+        (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b10Offset) ∧ j + 1 = SL.framework.size)))
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b8Offset)⟩ := by
   have hfw := h.fw
   have hn := h.pn
   have hpl := fw_place h hj
@@ -45,7 +46,7 @@ theorem turnO (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   have hplIn : In m0 pl 16 := h.slIn.sub (by omega) (by decide)
   let V := Vt SL m0 (lpO SL m0 j)
   let env1 := frameEnv m0 st F [(pl, 16)] (fun _ ↦ 0)
-    (Host.addrOf (k + 94 + b8.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b8Offset + b8.length)).toBitVec
   have hwf1 : env1.WF := wf1 h hst.fr.kept hplIn
   have hr12 := hst.hd.reg (r := .r12) (i := 32) (by decide)
   have hrbp := hst.hd.reg (r := .rbp) (i := 14) (by decide)
@@ -99,7 +100,7 @@ theorem turnO (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     rw [eqAbove_ret g0 g1 g2 g3 hq3, St.pt h hst2c Z_outs]
     rfl
   -- `b9`: the selector added, the next placement.
-  show Eventually _ _ (⟨m3, Host.addrOf (k + 110)⟩ : MachineState)
+  show Eventually _ _ (⟨m3, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b9Offset)⟩ : MachineState)
   obtain ⟨hmid9, hw9, htr9, h12, h14, h15⟩ := ok_b9
   refine St.run h (rest := [(rspOf m0 + 8#64, 88)]) (vs := fun _ ↦ 0) (ret := 0) rfl
     (infix_of b9_in_code (by simp [b9]) hp) exit_b9 nofun hst3.fr hst3.same
@@ -160,7 +161,7 @@ theorem turnO (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     exact .done _ ⟨hnext, e12, e14, e15, .inr ⟨by rw [hpc4]; rfl, hlast⟩⟩
   · simp only [hlast, ne_eq, not_false_eq_true, decide_true, ↓reduceIte] at hpc4
     exact .done _ ⟨hnext, e12, e14, e15,
-      .inl ⟨by rw [hpc4]; exact hp.label (j := 94) rfl, by omega⟩⟩
+      .inl ⟨by rw [hpc4]; exact hp.label NativeRustcVmX64.Vm.AccumulateSide.label_7_at, by omega⟩⟩
 
 end
 

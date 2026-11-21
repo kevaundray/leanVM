@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.IterC
+public import NativeRustcVmX64.Code.Vm.EachRowOfFinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.NovelEval.Names
 
 /-!
 # `each_row` with `final_level`'s closure: the check of a row (x86-64)
@@ -34,11 +36,11 @@ theorem add_ofNat_ofNat (a : BitVec 64) (x y : Nat) :
 variable [Host] {k : Nat}
 
 /-- **The check of a row**: from `b13` to the next iteration or the exit. -/
-theorem iter_d (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEvalPre NovelEvalPost)
+theorem iter_d (hp : Placed code k) (hnov : Spec (label NativeRustcVmX64.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost)
     (hpre : EachRowFinalPre rows op m0) {m : MachineData} (h : AtB13 rows m0 j m)
     (cont : ∀ m', Inv rows m0 (j + 1) m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 40)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 87)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b5Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13Offset)⟩ := by
   have hl := lay hpre
   have hsp := hl.sp
   have htop := hl.ok.2.1
@@ -53,10 +55,10 @@ theorem iter_d (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEva
   let F := foldRow (lanesJ m0 (rows[j]'hjr)) q (eachRowArgs m0).2
   have hWs : W.size ≤ 31 := by have := h.what.1; rwa [Array.length_toList] at this
   -- `b13`: `novel_eval`
-  obtain ⟨hwf, hm⟩ := frame_env hpre h.fr (Host.addrOf (k + 87 + b13.length)).toBitVec
-  have hk13 : b13.IsInfixAt Host.prog (k + 87) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf, hm⟩ := frame_env hpre h.fr (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13Offset + b13.length)).toBitVec
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hl1128 : (EachRow.envE m0 m 1936 24 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 87 + b13.length)).toBitVec).load 0 1128 8 = BitVec.ofNat 64 W.size := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13Offset + b13.length)).toBitVec).load 0 1128 8 = BitVec.ofNat 64 W.size := by
     have := h.what.2.1
     rw [Array.length_toList] at this
     exact NativeRustcVmX64.Arrays.load_word this
@@ -125,7 +127,7 @@ theorem iter_d (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEva
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2 hfr2 hs2 hsv hr
   subst hpc2
-  rw [show k + 87 + b13.length = k + 98 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13Offset + b13.length = k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b14Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13_next]]
   have k2 : ∀ r, calleeSaved r = true → (after b13 frameS).reg r = some (.reg r) →
       reg d2 r = reg m r := fun r hc hr ↦ by
     rw [sv hsv r hc]
@@ -157,18 +159,18 @@ theorem iter_d (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEva
   have hrbp : (EachRow.envE m0 d2 1936 24 []).regs .rbp = F.c0.toBitVec := by rw [hF]; rfl
   have hr14 : (EachRow.envE m0 d2 1936 24 []).regs .r14 = F.c1.toBitVec := by rw [hF]; rfl
   have hok : okOf m0 q (rows[j]'hjr) = (F.c0 == r.c0 && F.c1 == r.c1) := EachRow.ew_beq _ _
-  have hL12 : Labels.label ".LEachRowOfFinalLevel_12" = Host.addrOf (k + 118) := hp.label rfl
+  have hL12 : Labels.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_12 = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b19Offset) := hp.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_12_at
   have hfalse : ∀ {d : MachineData} {S : SState}, Match (EachRow.envE m0 d2 1936 24 []) S d → S.mem = [] →
       S.reg .rsp = some (.ptr 0 8) → okOf m0 q (rows[j]'hjr) = false →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨d, Host.addrOf (k + 118)⟩ :=
+      Eventually (step1 Host.exe) (Done rows m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b19Offset)⟩ :=
     fun hm' hmem hsp' hb ↦ exit_false hp hpre (hfr2.ofBlock hwf2 hm' hmem hsp')
       (EachRow.finalOk_false hjq hjr hb)
-  have hk14 : b14.IsInfixAt Host.prog (k + 98) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk15 : b15.IsInfixAt Host.prog (k + 100) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk16 : b16.IsInfixAt Host.prog (k + 102) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk17 : b17.IsInfixAt Host.prog (k + 104) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk14 : b14.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b14Offset) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk15 : b15.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b15Offset) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b16Offset) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk17 : b17.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b17Offset) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk14 run_b14 hwf2 (fun _ h ↦ by cases h) hm2 fun st3 hm3 hpc3 ↦ ?_
-  have hpc3' : st3.pc = Host.addrOf (k + 100) := by
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b15Offset) := by
     simp only [PcOk] at hpc3
     rw [hpc3]
     simp only [SBool.eval, Sym.eval, CmpOp.apply, htag]
@@ -234,7 +236,7 @@ theorem iter_d (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEva
     subst hpc6
     exact exit_true hp hpre hfr6 (EachRow.finalOk_of (j := j + 1) (.inr (by omega)) ok')
   · simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc6
-    rw [show Labels.label ".LEachRowOfFinalLevel_3" = Host.addrOf (k + 40) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b5Offset) from hp.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_3_at]
       at hpc6
     obtain ⟨d, pc⟩ := st6
     simp only at hpc6 hfr6 hd6 hm6

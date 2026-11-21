@@ -1,6 +1,10 @@
 module
 
 public import NativeRustcVmX64.Layout.BuildLayout.Finish
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.BuildLayout.Names
+public import NativeRustcVmX64.Code.Vm.ColumnKappas.Names
+public import NativeRustcVmX64.Code.Vm.PlacementsOf.Names
 
 /-!
 # `build_layout` on x86-64
@@ -26,11 +30,11 @@ variable [Host] {k : Nat}
 
 /-- **`build_layout` meets its contract.** -/
 theorem buildLayout_spec (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hck : Spec (Labels.label columnKappasLabel) ColumnKappasPre ColumnKappasPost)
-    (hpl : Spec (Labels.label placementsOfLabel) PlacementsOfPre PlacementsOfPost)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hck : Spec (Labels.label NativeRustcVmX64.Vm.ColumnKappas.entryLabel) ColumnKappasPre ColumnKappasPost)
+    (hpl : Spec (Labels.label NativeRustcVmX64.Vm.PlacementsOf.entryLabel) PlacementsOfPre PlacementsOfPost)
     {bc : Array UInt64} :
-    Spec (Labels.label buildLayoutLabel) (BuildLayoutPre bc) (BuildLayoutPost bc) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.BuildLayout.entryLabel) (BuildLayoutPre bc) (BuildLayoutPost bc) := by
   intro m0 hpre
   have hF := Facts.of_pre hpre
   refine Eventually.bind (checks hp hbl hF) fun s1 h1 ↦ h1.elim (fun h ↦ .done _ h) fun ⟨hpc1, h9⟩ ↦ ?_

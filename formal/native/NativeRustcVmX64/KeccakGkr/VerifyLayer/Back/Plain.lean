@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.Layer
 public import NativeRustcVm.Sumcheck.RoundPoly
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `verify_layer` on x86-64: the plain sumcheck and the three values
@@ -68,15 +70,15 @@ variable [Host] {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
 /-- **The plain sumcheck and the three values**, from `b53` to `b57`. -/
 theorem plain (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hspl : ∀ s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hspl : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {ch : EW} {pt : Array EW} {v : EW} {s3 : TState} {d : MachineData}
     (h : C3 m0 a c ch pt v s3 d) (hrun : runL s c m0 = rest4 c ch pt v s3)
     (cont : ∀ lp t val s5 d', C4 m0 a c ch pt lp t val s5 d' →
       runL s c m0 = (if checkB c (kap ch) lp t val then rest6 ch pt lp t s5 else none) →
-      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d', Host.addrOf (k + 533)⟩) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + 485)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b57Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b53Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hS := pre_stack hpre
@@ -87,8 +89,8 @@ theorem plain (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     NativeRustcVm.Transcript.off_add _ _ _] at hv
   -- `b53`: the local point's slots cleared, `11` pushed.
   have hwf := wf0 hS h.body (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 485 + b53.length)).toBitVec)
-  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + 485 + b53.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b53Offset + b53.length)).toBitVec)
+  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b53Offset + b53.length)).toBitVec)
       (fr 24) d :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨h.body.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 0) g h.body hwf (blk hp b53_in_code (by simp [b53])) e53
@@ -184,7 +186,7 @@ theorem plain (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   simp only at hpc2 hb2 hout hfw2 hmu2 hpt2 hr12' hr15'
   subst hpc2
   -- `b54`: `None` exits.
-  rw [show k + 485 + b53.length = k + 516 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b53Offset + b53.length = k + NativeRustcVmX64.Vm.VerifyLayer.b54Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b53_next]]
   have hwf3 := wf0 hS hb2 (vars := fun _ ↦ 0) (ret := 0)
   have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) 0) (fr 8) d2 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb2.rsp, trivial⟩ trivial trivial trivial
@@ -233,10 +235,10 @@ theorem plain (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
       show off (stackBelow m0 2016) 144 + BitVec.ofNat 64 8 = off (stackBelow m0 2016) 152 from
         NativeRustcVm.Transcript.off_add _ _ _] at hval'
     -- `b55`: the values' slots cleared, `read_scalars(t, frame + 136, 3)`.
-    rw [show k + 516 + b54.length = k + 519 from rfl]
+    rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b54Offset + b54.length = k + NativeRustcVmX64.Vm.VerifyLayer.b55Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b54_next]]
     have hwf5 := wf0 hS hb4 (vars := fun _ ↦ 0)
-      (ret := (Host.addrOf (k + 519 + b55.length)).toBitVec)
-    have hm5 : Match (envB m0 d4 [] (fun _ ↦ 0) (Host.addrOf (k + 519 + b55.length)).toBitVec)
+      (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b55Offset + b55.length)).toBitVec)
+    have hm5 : Match (envB m0 d4 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b55Offset + b55.length)).toBitVec)
         (fr 24) d4 :=
       match_ofMachine ⟨rfl, trivial⟩ ⟨hb4.rsp, trivial⟩ trivial trivial trivial
     refine Body.blk (o' := 16) g hb4 hwf5 (blk hp b55_in_code (by simp [b55])) e55
@@ -297,7 +299,7 @@ theorem plain (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     simp only at hpc7 hb7 hok hxs hnext hcs7 hmiss7
     subst hpc7
     -- `b56`: `None` exits.
-    rw [show k + 519 + b55.length = k + 531 from rfl]
+    rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b55Offset + b55.length = k + NativeRustcVmX64.Vm.VerifyLayer.b56Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b55_next]]
     have hwf8 := wf0 hS hb7 (vars := fun _ ↦ 0) (ret := 0)
     have hm8 : Match (envB m0 d7 [] (fun _ ↦ 0) 0) (fr 24) d7 :=
       match_ofMachine ⟨rfl, trivial⟩ ⟨hb7.rsp, trivial⟩ trivial trivial trivial

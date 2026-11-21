@@ -86,11 +86,11 @@ variable [Host] {k : Nat}
 /-- **A turn of the sum.** -/
 theorem sumTurn (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} (ht : t < 16)
     {st : MachineState}
-    (hA : At m0 k 96 (rsC m0) noWr (tZ (sz1 1024) cAl t) (vv m0 0 0 (csum m0 (4 * t)) 0)
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b4Offset (rsC m0) noWr (tZ (sz1 1024) cAl t) (vv m0 0 0 (csum m0 (4 * t)) 0)
       (fun _ ↦ True) st) :
     Eventually (step1 Host.exe) (At m0 k (if decide (t < 15) then 96 else 108) (rsC m0) noWr
       (tZ (sz1 1024) cAl (t + 1)) (vv m0 0 0 (csum m0 (4 * (t + 1))) 0) (fun _ ↦ True)) st :=
-  jcond hp (layC h) b4_in_code (by simp [b4]) rfl (by exact hp.label (j := 96) rfl) (f_b4 t ht)
+  jcond hp (layC h) b4_in_code (by simp [b4]) rfl (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_2_at) (f_b4 t ht)
     (fun _ _ _ ↦ rfl) (fun m hB _ ret ↦ by
       wv
       · exact sumX0 h hB ht rfl
@@ -100,9 +100,9 @@ theorem sumTurn (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} (ht : t < 
 /-- **The sum**, from turn `t`. -/
 theorem sumLoop (hp : Placed code k) (h : RingWeightPre m0) :
     ∀ n t, t + n = 15 → ∀ {st : MachineState},
-      At m0 k 96 (rsC m0) noWr (tZ (sz1 1024) cAl t) (vv m0 0 0 (csum m0 (4 * t)) 0)
+      At m0 k NativeRustcVmX64.Vm.RingWeight.b4Offset (rsC m0) noWr (tZ (sz1 1024) cAl t) (vv m0 0 0 (csum m0 (4 * t)) 0)
         (fun _ ↦ True) st →
-      Eventually (step1 Host.exe) (At m0 k 108 (rsC m0) noWr (tZ (sz1 1024) cAl 16)
+      Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingWeight.b5Offset (rsC m0) noWr (tZ (sz1 1024) cAl 16)
         (vv m0 0 0 (csum m0 64) 0) (fun _ ↦ True)) st := by
   intro n
   induction n with
@@ -121,7 +121,7 @@ theorem sumLoop (hp : Placed code k) (h : RingWeightPre m0) :
 /-- **`ring_weight` with `r` empty.** -/
 theorem sumPath (hp : Placed code k) (h : RingWeightPre m0) (h0 : nR m0 = 0)
     {I : MachineData → Prop} {st : MachineState}
-    (hA : At m0 k 91 [] noWr (tA sz0 []) (vv m0 0 0 0 0) I st) :
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b3Offset [] noWr (tA sz0 []) (vv m0 0 0 0 0) I st) :
     Eventually (step1 Host.exe) (Goal m0) st := by
   refine Eventually.bind (jfall hp (lay0 h.1) b3_in_code (by simp [b3]) (next := 96) rfl f_b3
     (vals' := vv m0 0 0 (csum m0 (4 * 0)) 0) (I' := fun _ ↦ True) (fun _ _ _ _ ↦ by wv <;> rfl) rfl rfl rfl
@@ -129,7 +129,7 @@ theorem sumPath (hp : Placed code k) (h : RingWeightPre m0) (h0 : nR m0 = 0)
   have hA := hA.sw sw_sum.1 (rs' := rsC m0) (wr' := noWr) rfl (fun _ _ ↦ oneAl rfl (al0 _)) outs_noWr
   refine Eventually.bind (sumLoop hp h 15 0 rfl hA) fun st hA ↦ ?_
   refine Eventually.bind (jjump hp (layC h) b5_in_code (by simp [b5])
-    (by exact hp.label (j := 219) rfl) f_b5 (vals' := vv m0 0 0 (csum m0 64) 0)
+    (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_13_at) f_b5 (vals' := vv m0 0 0 (csum m0 64) 0)
     (I' := fun _ ↦ True) (fun _ _ _ _ ↦ by wv) rfl rfl rfl (fun _ _ ↦ noAl rfl) rfl
     (fun _ _ _ _ _ ↦ trivial) hA) fun st hA ↦ ?_
   have hA := hA.sw sw_sum.2 (rs' := rsO m0) (wr' := oWr) rfl (fun _ _ ↦ oneAl rfl (al0 _))

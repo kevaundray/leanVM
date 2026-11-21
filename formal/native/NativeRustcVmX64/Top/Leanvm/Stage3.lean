@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Top.Leanvm.Stage2
+public import NativeRustcVmX64.Code.Vm.Verify.Names
 
 /-!
 # `leanvm_verify`: the verifier (x86-64)
 
-`stage3`: from `AD` at `.LLeanvmVerify_16` with the decoded proof in the area, `b16` stores the
+`stage3`: from `AD` at `NativeRustcVmX64.Vm.LeanvmVerify.label_16` with the decoded proof in the area, `b16` stores the
 `Decoded` (the area's address, word count, `L`) at the frame's bytes 40 to 63 and calls `verify`
 with the bytecode (a dangling `8` when empty), the public input in the frame, the `Decoded` and
 the working area; `b17` zero-extends its `bool`, `b13` returns: RAX is `Model.verify`'s verdict.
@@ -34,11 +35,11 @@ variable [Host] {k : Nat}
 
 /-- **The verifier.** -/
 theorem stage3 (hp : Placed code k)
-    (hver : ∀ a stream openings, Spec (Labels.label verifyLabel) (VerifyPre a stream openings)
+    (hver : ∀ a stream openings, Spec (Labels.label NativeRustcVmX64.Vm.Verify.entryLabel) (VerifyPre a stream openings)
       (VerifyPost stream openings))
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    {r : List E × List PhaseOut} (hpc : st.pc = Host.addrOf (k + 95))
+    {r : List E × List PhaseOut} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b16Offset))
     (hA : AD a bytes bytecode pub m0 st.data)
     (hD : DecodedAt st.data.dmem ⟨a.decoded.toBitVec, decodedWords bytes.length, bytes.length⟩
       (streamW r.1) (openingsW r.2)) :
@@ -105,7 +106,7 @@ theorem stage3 (hp : Placed code k)
       have := rodW t; omega
   -- `b16`: the `Decoded`, `call verify`.
   have hwf := frame_wf (m0 := m0) (d := st.data) (F := 112) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 95 + b16.length)).toBitVec) ⟨hFm _ hA.frame.kept, hfnw⟩ (by simp)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b16Offset + b16.length)).toBitVec) ⟨hFm _ hA.frame.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b16_in_code (by simp [b16]) hp) run_b16 hwf (fun _ _ ↦ rfl) hpc
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hA.frame.rsp_eval, trivial⟩ trivial trivial trivial)
@@ -163,7 +164,7 @@ theorem stage3 (hp : Placed code k)
         NativeRustcVm.WordAt st1.data.dmem (off (stackBelow m0 112) o) v := fun o rg v ho hw hr ↦ by
       have := wordAt_write (r := 0) (b := stackBelow m0 112) (sz := 120) hm1 rfl ho hw
       rwa [show (Sym.reg rg).eval (frameEnv m0 st.data 112 [] (fun _ ↦ 0)
-          (Host.addrOf (k + 95 + b16.length)).toBitVec) = reg st.data rg from rfl, hr,
+          (Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b16Offset + b16.length)).toBitVec) = reg st.data rg from rfl, hr,
         UInt64.ofBitVec_toBitVec] at this
     refine ⟨?_, ?_, ?_⟩
     · exact w 40 .r12 _ (by decide) (after_eq run_b16 ▸ h40) hA.r12
@@ -288,7 +289,7 @@ theorem stage3 (hp : Placed code k)
   have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 112) (rest := []) (vars := fun _ ↦ 0)
     (ret := 0) ⟨hFm _ hf2.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
   refine exec_at (infix_of b17_in_code (by simp [b17]) hp) run_b17 hwf2 nofun
-    (hpc2.trans (by rw [show k + 95 + b16.length = k + 108 from rfl]))
+    (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b16Offset + b16.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b17Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b16_next]]))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hmem3, hrax3⟩ := after_eq run_b17 ▸ ok_b17

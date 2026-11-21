@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.FirstClaim.Tail
 
 /-!
@@ -23,8 +24,8 @@ variable [NativeArm.Host] {inst segment lanePoint output : Array EW} {m0 : Machi
 
 /-- **`b15` to `b19`**: from the claim in the frame to the return. -/
 theorem finish (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 216))
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b15Offset))
     (hI : PDone m0 inst segment lanePoint output s.data) :
     Eventually (step1 Host.exe)
       (fun s' ↦ s'.pc = retOf m0 ∧ FirstClaimPost inst segment lanePoint output m0 s'.data) s := by
@@ -166,9 +167,9 @@ theorem finish (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint
   have hb5 : Body m0 s5.data :=
     hb4.write hS h1408 slots_le' hws hm4 hm5 hwf4 rfl all_slots (by decide)
       fun p hw ↦ ⟨_, hwo, Written.inRange (r := 0) (sz := 776) rfl hook' (by decide) hw⟩
-  have hpc5' : s5.pc = Host.addrOf (k + 233) := by
+  have hpc5' : s5.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b19Offset) := by
     simp only [PcOk] at hpc5
-    exact hpc5.trans (hp.label (j := 233) rfl)
+    exact hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.FirstClaim.b19Offset) NativeRustcVmArm.Vm.FirstClaim.label_9_at)
   have htag : NativeRustcVm.WordAt s5.data.dmem (outA m0) 1 := by
     have h := Sumcheck.Match.wordAt_write hm5 (r := 0) (o := 0) (v := .lit 1) rfl (by decide)
       (by decide +kernel)

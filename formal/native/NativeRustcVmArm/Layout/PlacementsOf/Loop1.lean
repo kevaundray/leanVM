@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PlacementsOf.Names
 public import NativeRustcVmArm.Layout.PlacementsOf.Base
 
 /-!
@@ -150,14 +151,14 @@ theorem keep_frame [Labels] {m0 : MachineData} (hF : Facts m0) {env : Env} {S : 
 
 variable [Host] {k : Nat}
 
-theorem L1_eq (hp : Placed code k) : Labels.label ".LPlacementsOf_1" = Host.addrOf (k + 29) :=
-  hp.label (j := 29) rfl
+theorem L1_eq (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.PlacementsOf.label_1 = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b3Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b3Offset) NativeRustcVmArm.Vm.PlacementsOf.label_1_at
 
 /-- **`b7`**: column `c` appended. -/
 theorem append (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    (hblk : isBlockF c = true) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 41))
+    (hblk : isBlockF c = true) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b7Offset))
     (hI : I1 m0 c c st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 29) ∧ I1 m0 (c + 1) c st'.data)
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b3Offset) ∧ I1 m0 (c + 1) c st'.data)
       st := by
   have hb := hI.body
   set n := (below c).length with hn
@@ -316,8 +317,8 @@ theorem rk {b : List Directive} {S' : SState} {x : Exit} (hx : exec b regsS = so
 
 /-- **A turn** from `.L2`: column `c` tested, appended if stacked; at `.L1`. -/
 theorem turn1 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 33)) (hI : I1 m0 c c st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 29) ∧ I1 m0 (c + 1) c st'.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b4Offset)) (hI : I1 m0 c c st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b3Offset) ∧ I1 m0 (c + 1) c st'.data)
       st := by
   have hb := hI.body
   -- `b4`: the slot byte
@@ -334,7 +335,7 @@ theorem turn1 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} 
   swap
   · refine .done _ ⟨(f1 (by simp [slotByte_255, hs])).trans (L1_eq hp), hI1.skip hc ?_⟩
     rw [isBlockF_eq c hc]; simp [hs]
-  have hpc2 := pc_of (t1 (by rw [hs]; decide)) (show k + 33 + b4.length = k + 37 from rfl)
+  have hpc2 := pc_of (t1 (by rw [hs]; decide)) (show k + NativeRustcVmArm.Vm.PlacementsOf.b4Offset + b4.length = k + NativeRustcVmArm.Vm.PlacementsOf.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b4_next])
   -- `b5`: the output byte
   refine byte_step (infix_of b5_in_code (by simp [b5]) hp) run_b5 b5_keep hF hb1 hpc2 .keccakOutput
     (by rw [length_out]; exact hc) hI1.x24 hI1.x8 (idxB_eval · .X24 .X8)
@@ -349,7 +350,7 @@ theorem turn1 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} 
   swap
   · refine .done _ ⟨(f2 (by simp [ho])).trans (L1_eq hp), hI2.skip hc ?_⟩
     rw [isBlockF_eq c hc]; simp [hs] at ho ⊢; exact ho
-  have hpc4 := pc_of (t2 (by simp [ho])) (show k + 37 + b5.length = k + 39 from rfl)
+  have hpc4 := pc_of (t2 (by simp [ho])) (show k + NativeRustcVmArm.Vm.PlacementsOf.b5Offset + b5.length = k + NativeRustcVmArm.Vm.PlacementsOf.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b5_next])
   have hblk : isBlockF c = true := by rw [isBlockF_eq c hc]; simp [hs, ho]
   -- `b6`: room
   refine regs_step (infix_of b6_in_code (by simp [b6]) hp) run_b6
@@ -365,14 +366,14 @@ theorem turn1 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} 
       rw [hI2.x22, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)])
   rw [e22, ofNat_ult' (by omega) (by decide)] at hpc5
   have hpc6 := pc_of ((Arrays.pc_cond hpc5).2 (by simp; omega))
-    (show k + 39 + b6.length = k + 41 from rfl)
+    (show k + NativeRustcVmArm.Vm.PlacementsOf.b6Offset + b6.length = k + NativeRustcVmArm.Vm.PlacementsOf.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b6_next])
   exact append hp hF hc hblk hpc6 hI3
 
 /-- **`.L1`** (`b3`): on to the next column, or out of the loop. -/
 theorem l1 (hp : Placed code k) {m0 : MachineData} {c : Nat} (hc : c < 158) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 29)) (hI : I1 m0 (c + 1) c st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ (c + 1 < 158 ∧ st'.pc = Host.addrOf (k + 33) ∧
-      I1 m0 (c + 1) (c + 1) st'.data) ∨ (c + 1 = 158 ∧ st'.pc = Host.addrOf (k + 46) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b3Offset)) (hI : I1 m0 (c + 1) c st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ (c + 1 < 158 ∧ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b4Offset) ∧
+      I1 m0 (c + 1) (c + 1) st'.data) ∨ (c + 1 = 158 ∧ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b8Offset) ∧
       I1 m0 158 158 st'.data)) st := by
   refine regs_step (infix_of b3_in_code (by simp [b3]) hp) run_b3 (rk run_b3) hI.body
     hpc fun st1 hm1 hpc1 hb1 hd1 hr1 ↦ ?_
@@ -408,7 +409,7 @@ theorem l1 (hp : Placed code k) {m0 : MachineData} {c : Nat} (hc : c < 158) {st 
   rw [e21, ofNat_beq' (by omega) (by decide)] at hpc1
   obtain ⟨f, t⟩ := Arrays.pc_cond hpc1
   by_cases hlast : c + 1 = 158
-  · refine .done _ (.inr ⟨hlast, (f (by simp; omega)).trans (hp.label (j := 46) rfl), ?_⟩)
+  · refine .done _ (.inr ⟨hlast, (f (by simp; omega)).trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b8Offset) NativeRustcVmArm.Vm.PlacementsOf.label_6_at), ?_⟩)
     rw [← hlast]; exact hlast ▸ hI1
   · exact .done _ (.inl ⟨by omega, pc_of (t (by simp; omega)) rfl, hI1⟩)
 

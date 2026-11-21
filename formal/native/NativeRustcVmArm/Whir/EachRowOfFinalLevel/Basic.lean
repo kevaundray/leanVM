@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfFinalLevel.Names
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.Exec
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.Frame
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.Model
@@ -126,7 +127,7 @@ theorem exit_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m : 
     (hres : finalOk m0.regs.X0.toNat m0.regs.X4.toNat (eachRowArgs m0).2
       (slice m0 m0.regs.X7 (whirStackArg m0 0)) (eachRowArgs m0).1 rows = b) :
     Eventually (step1 Host.exe) (Done rows m0)
-      ⟨m, Host.addrOf (k + if b then 218 else 221)⟩ := by
+      ⟨m, Host.addrOf (k + if b then NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16Offset else NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17Offset)⟩ := by
   have hstk := hpre.1.1
   have hl := lay hpre
   let env := Env.ofMachine m [(fb m0, 1952)]
@@ -137,7 +138,7 @@ theorem exit_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m : 
   have hm : Match env frameS m :=
     match_ofMachine ⟨rfl, fun _ ↦ Ring.frame_aligned hstk (by decide) rfl, trivial⟩
       (by rw [hfr.sp]; simp [Sym.eval]) trivial trivial trivial trivial
-  have hk18 : b18.IsInfixAt Host.prog (k + 223) := b18_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk18 : b18.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18Offset) := b18_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have fin : ∀ {S₁ : SState} {st : MachineState}, Match env S₁ st.data → S₁.mem = [] →
       Ring.exitOk S₁ 1952 slots [] = true → st.pc = retOf st.data →
       (st.data.regs.X0 = okWord b) → Done rows m0 st := fun hm' hmem hok hpc hx0 ↦ by
@@ -149,16 +150,17 @@ theorem exit_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m : 
       exact hfr.same q fun h ↦ hq (h.elim .inr False.elim)
   cases b with
   | true =>
-    have hk16 : b16.IsInfixAt Host.prog (k + 218) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16Offset) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_then hk16 run_b16 hwf hm fun st16 hm16 hpc16 ↦ ?_
-    have hpc16' : st16.pc = Host.addrOf (k + 223) := by
-      rw [show Host.addrOf (k + 223) = Labels.label ".LEachRowOfFinalLevel_11" from
-        (hp.label rfl).symm]
+    have hpc16' : st16.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18Offset) := by
+      rw [show Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18Offset) = Labels.label NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_11 from
+        (hp.label (j := NativeRustcVmArm.Vm.EachRowOfFinalLevel.b18Offset)
+          NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_11_at).symm]
       exact hpc16
     exact exec_at hk18 (exec_after run_b16 run_b18t) hwf hpc16' hm16 fun st hm' hpc ↦
       .done _ (fin hm' rfl (by decide) hpc ((rv hm' (r := .X0) rfl).trans rfl))
   | false =>
-    have hk17 : b17.IsInfixAt Host.prog (k + 221) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk17 : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17Offset) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
     exact exec_then hk17 run_b17 hwf hm fun st17 hm17 hpc17 ↦
       exec_at hk18 (exec_after run_b17 run_b18f) hwf hpc17 hm17 fun st hm' hpc ↦
         .done _ (fin hm' rfl (by decide) hpc ((rv hm' (r := .X0) rfl).trans rfl))

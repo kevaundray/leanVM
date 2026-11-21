@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.DecodedPhase.Names
+public import NativeRustcVmArm.Code.Vm.OpenPhase.Names
+public import NativeRustcVmArm.Code.Vm.TStateQueryOpenings.Names
 public import NativeRustcVmArm.Sumcheck.QueryOpenings.Open
 
 /-!
@@ -36,11 +39,11 @@ variable [Host] {k : Nat}
 
 /-- **`TState::query_openings` meets its contract.** -/
 theorem queryOpenings_spec (hp : Placed code k)
-    (hph : ∀ a stream openings, Spec (Labels.label phaseLabel) (PhasePre a stream openings)
+    (hph : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhase.entryLabel) (PhasePre a stream openings)
       (PhasePost a openings))
-    (hop : ∀ P R Q, Spec (Labels.label openPhaseLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q))
+    (hop : ∀ P R Q, Spec (Labels.label NativeRustcVmArm.Vm.OpenPhase.entryLabel) (OpenPhasePre P R Q) (OpenPhasePost P R Q))
     (a : DecArea) (s : TState) (Q : Array UInt64) :
-    Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q) (QueryOpeningsPost a s Q) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q) (QueryOpeningsPost a s Q) := by
   intro m0 hpre
   have hst := hpre.1
   have hts0 := hpre.2.2.1
@@ -83,8 +86,8 @@ theorem queryOpenings_spec (hp : Placed code k)
   have hm0 : Match (frameEnv m0 m0 96 [(t, 760)]) entryS m0 :=
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), rfl, nofun, trivial⟩
       frameBase_add.symm ⟨known_ptr rfl rfl, trivial⟩ trivial trivial trivial
-  unfold queryOpeningsLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.TStateQueryOpenings.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.TStateQueryOpenings.entryOffset) NativeRustcVmArm.Vm.TStateQueryOpenings.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro, hws1, hx8₁, hx19₁, hx1₁, hx2₁, hx3₁, hx4₁⟩ := after_eq run_b0 ▸ ok_b0
   have hf1 : Frame m0 96 slots st1.data := Frame.of_prologue hwf0 hm1 hpro slots_le
@@ -118,7 +121,7 @@ theorem queryOpenings_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf1.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 (hfr hf1)
-    (hpc1.trans (by rw [show b0.length = 10 from rfl])) hm1' fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.TStateQueryOpenings.b0Offset + NativeRustcVmArm.Vm.TStateQueryOpenings.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.TStateQueryOpenings.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateQueryOpenings.b0_next])) hm1' fun st2 hm2 hpc2 => ?_
   obtain ⟨hmid2, hmem2, hx24₂, hx1₂, hx3₂, hx4₂, hcs2⟩ := after_eq run_b1 ▸ ok_b1
   have hf2 : Frame m0 96 slots st2.data := Frame.of_block hf1 (hfr hf1) hm2 hmid2 slots_le
   have hd2 : st2.data.dmem = st1.data.dmem := hm2.dmem_eq (hfr hf1) hmem2
@@ -147,7 +150,7 @@ theorem queryOpenings_spec (hp : Placed code k)
       omega
     rw [hc] at hpc2
     simp only [↓reduceIte] at hpc2
-    exact finish_fail hp hpre (run_no_root (by omega)) (hpc2.trans (hp.label (j := 44) rfl)) hf2
+    exact finish_fail hp hpre (run_no_root (by omega)) (hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.TStateQueryOpenings.b7Offset) NativeRustcVmArm.Vm.TStateQueryOpenings.label_5_at)) hf2
       hX19₂ (SameOutside.mono hs2 fun _ hq ↦ Or.inr (Or.inr hq))
   have hc : (!m0.regs.X2.toBitVec.ult nr.toUInt64.toBitVec) = false := by
     simp only [BitVec.ult, hnr64]
@@ -162,7 +165,7 @@ theorem queryOpenings_spec (hp : Placed code k)
       (by rw [hf2.sp]; exact (eval_ptr rfl).symm) ⟨known_ptr rfl hX1₂, trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 (hfrT hf2)
-    (hpc2.trans (by rw [show b1.length = 3 from rfl])) hm2' fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateQueryOpenings.b1_next])) hm2' fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hmem3, hx0₃, hx1₃, hx20₃, hx21₃, hx22₃, hx23₃, hx19₃, hx24₃⟩ :=
     after_eq run_b2 ▸ ok_b2
   have hf3 : Frame m0 96 slots st3.data := Frame.of_block hf2 (hfrT hf2) hm3 hmid3 slots_le
@@ -233,7 +236,7 @@ theorem queryOpenings_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf4.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 (hfr hf4)
-    (hpc4.trans (by rw [show b2.length = 7 from rfl])) hm4 fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateQueryOpenings.b2_next])) hm4 fun st5 hm5 hpc5 => ?_
   obtain ⟨hmid5, hmem5, hx0₅, hcs5⟩ := after_eq run_b3 ▸ ok_b3
   have hf5 : Frame m0 96 slots st5.data := Frame.of_block hf4 (hfr hf4) hm5 hmid5 slots_le
   have hd5 : st5.data.dmem = st4.data.dmem := hm5.dmem_eq (hfr hf4) hmem5
@@ -250,7 +253,7 @@ theorem queryOpenings_spec (hp : Placed code k)
     rw [show (st4.data.regs.getXReg .X0).toBitVec = 0#64 from by
       show st4.data.regs.X0.toBitVec = _; rw [hx0₄]; rfl] at hpc5
     simp only [beq_self_eq_true, ↓reduceIte] at hpc5
-    exact finish_fail hp hpre (run_no_phase (by omega)) (hpc5.trans (hp.label (j := 44) rfl)) hf5
+    exact finish_fail hp hpre (run_no_phase (by omega)) (hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.TStateQueryOpenings.b7Offset) NativeRustcVmArm.Vm.TStateQueryOpenings.label_5_at)) hf5
       ((hk5 .X19 rfl).trans hX19₃) (SameOutside.mono hs5 fun _ hq ↦ Or.inr (Or.inr hq))
   simp only [hlt, ↓reduceIte] at hx0₄
   have hbase : 0 < phaseBase a.l s.phase := by unfold phaseBase; omega
@@ -269,7 +272,7 @@ theorem queryOpenings_spec (hp : Placed code k)
   rw [show (st4.data.regs.getXReg .X0).toBitVec = a.word (phaseBase a.l s.phase) from by
     show st4.data.regs.X0.toBitVec = _; rw [hx0₄], hne] at hpc5
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc5
-  exact open_spec hp hop hpre hi hlt (hpc5.trans (by rw [show b3.length = 1 from rfl])) hf5 hs5
+  exact open_spec hp hop hpre hi hlt (hpc5.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateQueryOpenings.b3_next])) hf5 hs5
     (by rw [hX0₅, hx0₄]) ((hk5 .X19 rfl).trans hX19₃) ((hk5 .X20 rfl).trans hX20₃)
     ((hk5 .X21 rfl).trans hX21₃) ((hk5 .X22 rfl).trans hX22₃) ((hk5 .X23 rfl).trans hX23₃)
     ((hk5 .X24 rfl).trans hX24₃)

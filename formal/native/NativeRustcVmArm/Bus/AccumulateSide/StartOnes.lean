@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.StartKnown
 
 /-!
@@ -44,7 +46,7 @@ variable [Host] {m0 : MachineData} {L : LayoutW} {rows : Array Nat}
 
 /-- The ones' start: the framework's first block, or none. -/
 abbrev onesPc (SL : BusLayoutW) (k : Nat) : Int64 :=
-  if SL.framework.size = 0 then Host.addrOf (k + 67) else Host.addrOf (k + 130)
+  if SL.framework.size = 0 then Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b6Offset) else Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b16Offset)
 
 /-! ## The tree's value plus the known part -/
 
@@ -55,7 +57,7 @@ theorem k15 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QO m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
       Eventually (step1 Host.exe) R ⟨m2, onesPc SL k⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 117)⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b15Offset)⟩ := by
   have hH0 : Holds ((base m0 F, F + 72) :: []) (TT SL m0 L rows bl Fm 0) (Q15 ++ QArgs) m :=
     Holds.append (St.lift hst (by decide) 72 []) (holds_QArgs h hst.fr)
   have hwf := wfA' h hst.fr.kept
@@ -79,8 +81,8 @@ theorem k15 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       exact UInt64.xor_comm _ _
   · have he := x22_eq h hH0 (by decide) 0 (by decide)
     simp only [PcOk, he] at hpc
-    rw [hp.label (j := 67) (l := ".LAccumulateSide_4") rfl,
-      show k + 117 + b15.length = k + 130 from rfl] at hpc
+    rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b6Offset) NativeRustcVmArm.Vm.AccumulateSide.label_4_at,
+      show k + NativeRustcVmArm.Vm.AccumulateSide.b15Offset + b15.length = k + NativeRustcVmArm.Vm.AccumulateSide.b16Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b15_next]] at hpc
     exact Gkr.at_pc (by simpa [onesPc] using hpc) (cont _ ⟨hst'.fr, Holds.sub hst'.hd
       (by decide)⟩ (forms_wrOk h (.inr rfl) hm' hwf (by decide) hF))
 
@@ -91,7 +93,7 @@ theorem k5 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (hc0 : cK SL m0 = 0
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QO m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
       Eventually (step1 Host.exe) R ⟨m2, onesPc SL k⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 61)⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b5Offset)⟩ := by
   have hH0 : Holds ((base m0 F, F + 72) :: []) (TT SL m0 L rows bl Fm 0)
       ((.reg .X29, 81) :: (.load 0 32 8, 80) :: (QA ++ QArgs)) m := by
     refine Holds.dup (Holds.dup (Holds.append (St.lift hst (by decide) 72 [])
@@ -113,8 +115,8 @@ theorem k5 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (hc0 : cK SL m0 = 0
     show (!SBool.eval _ _) = _
     rw [he]
   simp only [PcOk, hc] at hpc
-  rw [hp.label (j := 130) (l := ".LAccumulateSide_10") rfl,
-    show k + 61 + b5.length = k + 67 from rfl] at hpc
+  rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b16Offset) NativeRustcVmArm.Vm.AccumulateSide.label_10_at,
+    show k + NativeRustcVmArm.Vm.AccumulateSide.b5Offset + b5.length = k + NativeRustcVmArm.Vm.AccumulateSide.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b5_next]] at hpc
   exact Gkr.at_pc (by by_cases h0 : SL.framework.size = 0 <;> simpa [onesPc, h0] using hpc)
     (cont _ ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
       (forms_wrOk h (.inr rfl) hm' hwf (by decide) hF))
@@ -127,8 +129,8 @@ theorem o6 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (h0 : SL.framework.
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QZ m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 174)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 67)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b6Offset)⟩ := by
   have hH0 := St.lift (D := QO) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
@@ -146,17 +148,17 @@ theorem o6 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (h0 : SL.framework.
       rw [h0]
       rfl
   · simp only [PcOk] at hpc
-    rw [hp.label (j := 174) (l := ".LAccumulateSide_13") rfl] at hpc
+    rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b22Offset) NativeRustcVmArm.Vm.AccumulateSide.label_13_at] at hpc
     exact Gkr.at_pc hpc (cont _ ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
       (forms_wrOk h (.inl rfl) hm' hwf (by decide) hF))
 
 /-- A framework block's selector, as `b16`, `b18`, `b20` call `eq_eval_fn`. -/
 theorem oSel (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     {i : Nat} (hi : i < SL.framework.size) {ds : List Directive} {j : Nat}
     (hk : ds.IsInfixAt Host.prog (k + j)) {S' : SState}
-    (hrun : exec ds sW = some (S', .call eqEvalFnOfEqAboveLabel)) (hsp : S'.sp = .ptr 0 0)
+    (hrun : exec ds sW = some (S', .call NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel)) (hsp : S'.sp = .ptr 0 0)
     (hw : wrOk S' = true)
     (h0 : S'.reg .X0 = some (.ite (.cmp .ult .W64 (.reg .X26) (.load 1 (16 + 16 * i) 8)) (.lit 0)
       (.bin .sub .W64 (.reg .X26) (.load 1 (16 + 16 * i) 8))))
@@ -212,14 +214,14 @@ theorem oSel (h : Pre L rows bl Fm SL m0)
 
 /-- **`b16`**: framework block `0`'s selector. -/
 theorem o16 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     (hfw : 0 < SL.framework.size) {m : MachineData} (hst : St m0 (TT SL m0 L rows bl Fm 0) QO m)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q17 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 142)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 130)⟩ :=
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b17Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b16Offset)⟩ :=
   oSel h hee (i := 0) hfw (b16_in_code.trans hp.1 (by simp [b16])) run_b16 rfl (by decide) rfl rfl rfl rfl (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) hst hF fun m2 hst2 hret hF2 ↦
       cont m2 ⟨hst2.fr, holds_ewRet hst2.hd (r0 := 40) hret rfl rfl⟩ hF2
@@ -230,11 +232,11 @@ theorem o17 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (c22 : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q18 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm → SL.framework.size = 1 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 174)⟩)
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset)⟩)
     (c18 : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q18 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm → SL.framework.size ≠ 1 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 146)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 142)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b18Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b17Offset)⟩ := by
   have hH0 := St.lift (D := Q17) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
@@ -254,8 +256,8 @@ theorem o17 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       rw [onesF_succ, onesF_zero, add_c1, c1_one, UInt64.zero_xor]
   · have he := x22_eq h hH0 (by decide) 1 (by decide)
     simp only [PcOk, he] at hpc
-    rw [hp.label (j := 174) (l := ".LAccumulateSide_13") rfl,
-      show k + 142 + b17.length = k + 146 from rfl] at hpc
+    rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b22Offset) NativeRustcVmArm.Vm.AccumulateSide.label_13_at,
+      show k + NativeRustcVmArm.Vm.AccumulateSide.b17Offset + b17.length = k + NativeRustcVmArm.Vm.AccumulateSide.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b17_next]] at hpc
     have hF' := forms_wrOk h (.inl rfl) hm' hwf (by decide) hF
     have hst2 : St m0 (TT SL m0 L rows bl Fm 0) Q18 st.data :=
       ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
@@ -265,14 +267,14 @@ theorem o17 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
 
 /-- **`b18`**: framework block `1`'s selector. -/
 theorem o18 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     (hfw : 1 < SL.framework.size) {m : MachineData} (hst : St m0 (TT SL m0 L rows bl Fm 0) Q18 m)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q19 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 157)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 146)⟩ :=
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b19Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b18Offset)⟩ :=
   oSel h hee (i := 1) hfw (b18_in_code.trans hp.1 (by simp [b18])) run_b18 rfl (by decide) rfl rfl rfl rfl (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) hst hF fun m2 hst2 hret hF2 ↦
       cont m2 ⟨hst2.fr, holds_ewRet hst2.hd (r0 := 42) hret rfl rfl⟩ hF2
@@ -283,11 +285,11 @@ theorem o19 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (c22 : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q20 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm → SL.framework.size = 2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 174)⟩)
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset)⟩)
     (c20 : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q20 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm → SL.framework.size ≠ 2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 161)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 157)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b20Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b19Offset)⟩ := by
   have hH0 := St.lift (D := Q19) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
@@ -308,8 +310,8 @@ theorem o19 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       exact UInt64.xor_comm _ _
   · have he := x22_eq h hH0 (by decide) 2 (by decide)
     simp only [PcOk, he] at hpc
-    rw [hp.label (j := 174) (l := ".LAccumulateSide_13") rfl,
-      show k + 157 + b19.length = k + 161 from rfl] at hpc
+    rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b22Offset) NativeRustcVmArm.Vm.AccumulateSide.label_13_at,
+      show k + NativeRustcVmArm.Vm.AccumulateSide.b19Offset + b19.length = k + NativeRustcVmArm.Vm.AccumulateSide.b20Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b19_next]] at hpc
     have hF' := forms_wrOk h (.inl rfl) hm' hwf (by decide) hF
     have hst2 : St m0 (TT SL m0 L rows bl Fm 0) Q20 st.data :=
       ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
@@ -319,14 +321,14 @@ theorem o19 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
 
 /-- **`b20`**: framework block `2`'s selector. -/
 theorem o20 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     (hfw : 2 < SL.framework.size) {m : MachineData} (hst : St m0 (TT SL m0 L rows bl Fm 0) Q20 m)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q21 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 172)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 161)⟩ :=
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b21Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b20Offset)⟩ :=
   oSel h hee (i := 2) hfw (b20_in_code.trans hp.1 (by simp [b20])) run_b20 rfl (by decide) rfl rfl rfl rfl (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) hst hF fun m2 hst2 hret hF2 ↦
       cont m2 ⟨hst2.fr, holds_ewRet hst2.hd (r0 := 44) hret rfl rfl⟩ hF2
@@ -337,8 +339,8 @@ theorem o21 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (h3 : SL.framework
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QZ m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 174)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 172)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b21Offset)⟩ := by
   have hH0 := St.lift (D := Q21) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
@@ -360,19 +362,19 @@ theorem o21 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (h3 : SL.framework
       rw [h3, onesF_succ SL (ptA m0) 2, add_c1]
       exact UInt64.xor_comm _ _
   · simp only [PcOk] at hpc
-    rw [show k + 172 + b21.length = k + 174 from rfl] at hpc
+    rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b21Offset + b21.length = k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b21_next]] at hpc
     exact Gkr.at_pc hpc (cont _ ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
       (forms_wrOk h (.inl rfl) hm' hwf (by decide) hF))
 
 /-- **The ones**: from `b6` or `b16` to `b22`, the framework's blocks. -/
 theorem ones (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     {m : MachineData} (hst : St m0 (TT SL m0 L rows bl Fm 0) QO m)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QZ m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 174)⟩) :
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset)⟩) :
     Eventually (step1 Host.exe) R ⟨m, onesPc SL k⟩ := by
   have h3 := fw_le h
   have dupQZ : ∀ {m2 : MachineData} {a b : Nat},

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Rest
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `phase_m`: the leaf width and the row width (x86-64)
@@ -24,7 +25,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 /-- **The leaf width read** (`b11`). -/
 structure At11 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw c4 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 50)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b11Offset)
   bod : Bod m0 8 st.data
   model : phaseM B c = match rdU32 B c4 with
     | none => none
@@ -49,7 +50,7 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 
 /-- **The leaf width.** -/
 theorem lw_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c) {count : Nat} {qs : List Nat} {height c3 : Nat}
     {st : MachineState} (h : At9 m0 bp B c k count qs height c3 st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
@@ -76,12 +77,12 @@ theorem lw_run (hp : Placed code k) (G : Geo m0 bp B.length)
     (hk10 .r12 (by simp)) (hk10 .r14 (by simp)) (st := ⟨m2, _⟩) rfl hb2
     fun s3 hb3 hs3 hkeep3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
-  have ea : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + 47 + b10.length)).toBitVec).regs
+  have ea : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b10Offset + b10.length)).toBitVec).regs
       .rax = reg m2 .rax := rfl
   rcases read4_cases hr2 with ⟨hn, h0⟩ | ⟨lw, hv, h0, hdx, hll, hR4⟩
   · rw [rax_ne1_eval _ (by rw [ea]; exact .inl h0), ea, h0] at hpc3
     simp only [decide_true, ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [hmod, hn]
   rw [rax_ne1_eval _ (by rw [ea]; exact .inr h0), ea, h0] at hpc3
@@ -107,13 +108,13 @@ theorem lw_run (hp : Placed code k) (G : Geo m0 bp B.length)
     rw [List.length_map, hw0]
     rcases hq with (hq | hq) | hq <;> omega
   have e13' : reg s3.data .r13 = reg m2 .r13 := hm3.regs .r13 _ (hk10 .r13 (by simp))
-  refine .done _ (.inr ⟨lw, c3 + 4, ⟨hpc3.trans (by rw [show b10.length = 3 from rfl]), hb3,
+  refine .done _ (.inr ⟨lw, c3 + 4, ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b10_next), hb3,
     by rw [hmod, hv]; rfl, hlen, hcnt, hqlt, hhl, hll, hkf 40 _ (.inr rfl) hf40, hkf 32 _ (.inl rfl) hf32,
     hf16, by rw [e13', e13]; exact h13, hqW3, hR3⟩⟩)
 
 /-- **The row width**: to the sort's head. -/
 theorem rw_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c) {count : Nat} {qs : List Nat} {height lw c4 : Nat}
     {st : MachineState} (h : At11 m0 bp B c k count qs height lw c4 st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
@@ -134,22 +135,22 @@ theorem rw_run (hp : Placed code k) (G : Geo m0 bp B.length)
   have e13 : reg m2 .r13 = reg st.data .r13 :=
     (hcs2 .r13 rfl).trans (hm1.regs .r13 _ (hk11 .r13 (by simp)))
   have hl40 : ((frameEnv m0 st.data 160 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 50 + b11.length)).toBitVec).load 0 40 8).toNat = count := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b11Offset + b11.length)).toBitVec).load 0 40 8).toNat = count := by
     rw [load_ofMachine (o := 40) rfl hf40, UInt64.toNat_toBitVec, toNat_toUInt64 (by omega)]
   have hbp2 : reg m2 .rbp = BinOp.apply .merge .W8 (reg st.data .rbp)
       (if CmpOp.apply .eq .W64 ((frameEnv m0 st.data 160 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 50 + b11.length)).toBitVec).load 0 40 8) (BitVec.ofNat 64 0) = true
+        (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b11Offset + b11.length)).toBitVec).load 0 40 8) (BitVec.ofNat 64 0) = true
         then BitVec.ofNat 64 1 else BitVec.ofNat 64 0) :=
     (hcs2 .rbp rfl).trans (hm1.regs .rbp _ hbp11)
   have hz : CmpOp.apply .eq .W64 ((frameEnv m0 st.data 160 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 50 + b11.length)).toBitVec).load 0 40 8) (BitVec.ofNat 64 0) =
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b11Offset + b11.length)).toBitVec).load 0 40 8) (BitVec.ofNat 64 0) =
       decide (count = 0) := by
     rw [eqv_eval, hl40]; rfl
   rw [hz] at hbp2
   -- `b12`: the tag, a query.
   obtain ⟨hok12, hk12⟩ := ok_b12
   refine fblk hp G b12_in_code (by simp [b12]) exit_b12 nofun hok12 (hk12 .r12 (by simp))
-    (hk12 .r14 (by simp)) (st := ⟨m2, _⟩) (by rw [show b11.length = 5 from rfl]) hb2
+    (hk12 .r14 (by simp)) (st := ⟨m2, _⟩) (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b11_next) hb2
     fun s3 hb3 hd3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
   have ea : (frameEnv m0 m2 160 []).regs .rax = reg m2 .rax := rfl
@@ -158,14 +159,14 @@ theorem rw_run (hp : Placed code k) (G : Geo m0 bp B.length)
   · rw [c12_eval _ (by rw [ea]; exact .inl h0) (by rw [eb]; exact hbp2), ea, h0] at hpc3
     simp only [show decide ((0 : BitVec 64) = 1) = false by decide, Bool.false_and,
       Bool.not_false, ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [hmod, hn]
   rw [c12_eval _ (by rw [ea]; exact .inr h0) (by rw [eb]; exact hbp2), ea, h0] at hpc3
   by_cases hc0 : count = 0
   · simp only [hc0, decide_true, Bool.not_true, Bool.and_false, Bool.not_false,
       ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [hmod, hv]
     simp only
@@ -180,7 +181,7 @@ theorem rw_run (hp : Placed code k) (G : Geo m0 bp B.length)
   obtain ⟨hmid13, hmem13, hw24, hdi13, hbp13, h15_13, hk13⟩ := ok_b13
   refine wblk hp G b13_in_code (by simp [b13]) exit_b13 hmid13
     (fun w hw ↦ by rw [hmem13] at hw; simp only [List.mem_singleton] at hw; subst hw; decide)
-    (hk13 .r12 (by simp)) (hk13 .r14 (by simp)) (hpc3.trans (by rw [show b12.length = 4 from rfl]))
+    (hk13 .r12 (by simp)) (hk13 .r14 (by simp)) (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b12_next))
     hb3 fun s4 hb4 hs4 hkeep4 hm4 hpc4 ↦ ?_
   have hmem : ∀ o, o = 16 ∨ o = 32 ∨ o = 40 → ∀ w ∈ (after b13 frS).mem, w.r = 0 →
       w.off + w.n ≤ o ∨ o + 8 ≤ w.off := fun o ho w hw _ ↦ by
@@ -212,7 +213,7 @@ theorem rw_run (hp : Placed code k) (G : Geo m0 bp B.length)
     rw [show s3.data.regs.get64 .r14 = reg s3.data .r14 from rfl, hb3.r14]
   have erbp : reg s4.data .rbp = BitVec.ofNat 64 0 := hm4.regs .rbp _ hbp13
   have er15 : reg s4.data .r15 = BitVec.ofNat 64 0 := hm4.regs .r15 _ h15_13
-  refine .done _ (.inr ⟨rw, c4 + 4, ⟨hpc4.trans (by rw [show b13.length = 5 from rfl]), hb4,
+  refine .done _ (.inr ⟨rw, c4 + 4, ⟨hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b13_next), hb4,
     by rw [hmod, hv], hlen, by omega, hcnt, hqlt, hhl, hll, hrl, by omega,
     hkf 40 _ (.inr (.inr rfl)) hf40, hkf 32 _ (.inr (.inl rfl)) hf32, hkf 16 _ (.inl rfl) hf16, hf24,
     by rw [e13', rk3 .r13 (by simp), e13]; exact h13, by rw [er15]; rfl, by rw [erbp]; rfl, ?_,
@@ -221,11 +222,11 @@ theorem rw_run (hp : Placed code k) (G : Geo m0 bp B.length)
 
 /-- **Every read**, from the entry: to the sort's head or out. -/
 theorem reads_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
       ∃ count qs height lw rw c5, SortSt m0 bp B c k count qs height lw rw c5 0 st')
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b0Offset)⟩ := by
   have h7 : ∀ st, (∃ count qs c2, At7 m0 bp B c k count qs c2 st) →
       Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
         ∃ count qs height lw rw c5, SortSt m0 bp B c k count qs height lw rw c5 0 st') st := by

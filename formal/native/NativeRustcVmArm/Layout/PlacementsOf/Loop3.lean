@@ -75,12 +75,12 @@ variable [Host] {k : Nat}
 
 /-- Where a turn of the third loop ends. -/
 abbrev Next3 (k : Nat) (m0 : MachineData) (c : Nat) (s : MachineState) : Prop :=
-  (c + 1 < 158 ∧ s.pc = Host.addrOf (k + 94) ∧ I3 m0 (c + 1) s.data) ∨
-    (c + 1 = 158 ∧ s.pc = Host.addrOf (k + 113) ∧ I3 m0 158 s.data)
+  (c + 1 < 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b22Offset) ∧ I3 m0 (c + 1) s.data) ∨
+    (c + 1 = 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b28Offset) ∧ I3 m0 158 s.data)
 
 /-- **A `q_keccak` slot** `s` (`b23`, `b24`, `b21`). -/
 theorem slot3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c s : Nat} (hc : c < 158)
-    (hs : slotF c = some s) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 99))
+    (hs : slotF c = some s) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b23Offset))
     (hI : I3 m0 c st.data) (x11 : st.data.regs.X11.toNat = κ m0 c)
     (x12 : st.data.regs.X12.toNat = s) :
     Eventually (step1 Host.exe) (Next3 k m0 c) st := by
@@ -99,7 +99,7 @@ theorem slot3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c s : Nat
   rw [e11, ofNat_ult' (by omega) (by decide)] at hpc1
   have hpc1' := pc_of ((Arrays.pc_cond hpc1).2
     (by rw [decide_eq_true (by omega : κ m0 c < 64)]; decide))
-    (show k + 99 + b23.length = k + 101 from rfl)
+    (show k + NativeRustcVmArm.Vm.PlacementsOf.b23Offset + b23.length = k + NativeRustcVmArm.Vm.PlacementsOf.b24Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b23_next])
   -- `b24`: the index
   refine regs_step (infix_of b24_in_code (by simp [b24]) hp) run_b24 (rk run_b24) hb1 hpc1'
     fun st2 hm2 hpc2 hb2 hd2 hr2 ↦ ?_
@@ -122,7 +122,7 @@ theorem slot3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c s : Nat
   have hsum : ((Env.ofMachine st1.data []).regs .X8).toNat + ((Env.ofMachine st1.data []).regs
       .X12 <<< (((Env.ofMachine st1.data []).regs .X11).toNat % RegWidth.W64.bits)).toNat <
       2 ^ 64 := by rw [v8, hsh]; omega
-  have hpc3 := ((Arrays.pc_cond hpc2).1 (carry_ok hsum)).trans (hp.label (j := 87) rfl)
+  have hpc3 := ((Arrays.pc_cond hpc2).1 (carry_ok hsum)).trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b21Offset) NativeRustcVmArm.Vm.PlacementsOf.label_16_at)
   refine store21 hp hF hc hpc3 hI2 (idx := sumF (κ m0) (keyF (κ m0) 4) + s * 2 ^ κ m0 c)
     (by omega) ?_ ?_ (plF_slot hs)
   · rw [show st2.data.regs.X11 = st.data.regs.X11 from (hr2 .X11 rfl).trans (hr1 .X11 rfl)]

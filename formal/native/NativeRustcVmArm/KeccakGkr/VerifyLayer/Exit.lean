@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.Defs
 
 /-!
@@ -36,13 +37,13 @@ theorem getElem?_of_infix {α : Type} {b l : List α} {o i : Nat} (h : b.IsInfix
 
 /-- `.LVerifyLayer_38`'s address. -/
 theorem label38 (hp : Placed code k) :
-    Labels.label ".LVerifyLayer_38" = Host.addrOf (k + 692) :=
-  hp.label (j := 692) (by rw [getElem?_of_infix (i := 0) b70_in_code (by decide)]; rfl)
+    Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_38 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b70Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b70Offset) NativeRustcVmArm.Vm.VerifyLayer.label_38_at
 
 /-- `.LVerifyLayer_37`'s address. -/
 theorem label37 (hp : Placed code k) :
-    Labels.label ".LVerifyLayer_37" = Host.addrOf (k + 690) :=
-  hp.label (j := 690) (by rw [getElem?_of_infix (i := 0) b69_in_code (by decide)]; rfl)
+    Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_37 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b69Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b69Offset) NativeRustcVmArm.Vm.VerifyLayer.label_37_at
 
 /-- The frame's environment of a body is well formed. -/
 theorem wf_fr (hpre : VerifyLayerPre a s c m0) {m : MachineData} (hb : Body m0 m) :
@@ -75,7 +76,7 @@ theorem writes_of (g : Geo m0) {m : MachineData} (hb : Body m0 m) :
 
 /-- **The exit**, at `.LVerifyLayer_38`. -/
 theorem exit (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 692)) (hb : Body m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b70Offset)) (hb : Body m0 st.data)
     (hx0 : st.data.regs.X0 = okWord (runL s c m0).isSome)
     (hok : ∀ c' s', runL s c m0 = some (c', s') → TStateAt st.data.dmem (tA m0) a s' ∧
       ClaimAt st.data.dmem (cA m0) c' ∧ WeightsAt st.data.dmem (sA m0 + BitVec.ofNat 64 25600) c') :
@@ -94,7 +95,7 @@ theorem exit (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {st : Machine
 
 /-- **A rejection**, at `.LVerifyLayer_37`: X0 cleared, then the exit. -/
 theorem reject (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 690)) (hb : Body m0 st.data) (hr : runL s c m0 = none) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b69Offset)) (hb : Body m0 st.data) (hr : runL s c m0 = none) :
     Eventually (step1 Host.exe) (Goal a s c m0) st := by
   have hwf := wf_fr hpre hb
   refine exec_at (blk hp b69_in_code (by simp [b69])) e69 hwf hpc (match_fr hpre hb)

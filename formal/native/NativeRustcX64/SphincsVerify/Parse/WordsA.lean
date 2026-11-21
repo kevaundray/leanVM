@@ -57,11 +57,11 @@ theorem ctxS_match {m : MachineData} (hF : r.Frame m) (hrbx : Run.RegIs m .rbx (
 /-- **A turn of `b2`**. -/
 theorem b2_turn (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 106) {m : MachineData}
     (h : WS r (wb r.w 8 (5 * j)) m ∧ Run.RegIs m .r12 (BitVec.ofNat 64 (40 * j))) :
-    Eventually (step1 Host.exe) (fun st ↦ (st.pc = r.pc 55 ∧ WS r (wb r.w 8 530) st.data) ∨
-      (j + 1 < 106 ∧ st.pc = r.pc 41 ∧ WS r (wb r.w 8 (5 * (j + 1))) st.data ∧
-        Run.RegIs st.data .r12 (BitVec.ofNat 64 (40 * (j + 1))))) ⟨m, r.pc 41⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ (st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b3Offset ∧ WS r (wb r.w 8 530) st.data) ∨
+      (j + 1 < 106 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b2Offset ∧ WS r (wb r.w 8 (5 * (j + 1))) st.data ∧
+        Run.RegIs st.data .r12 (BitVec.ofNat 64 (40 * (j + 1))))) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b2Offset⟩ := by
   obtain ⟨hw, h12⟩ := h
-  have hk : b2.IsInfixAt Host.prog (r.k + 41) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b2.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := wf_in_frame r hpre hw.1.2.2.2 hw.1.2.2.1 (s := 8 + 5 * j) (k := 8 * 5)
     (a := 12416 + 40 * j) (n := 8 * 5) (by omega) (by decide) (by omega) (fun _ ↦ 0) 0
   have hbx : reg m .rbx = ctx r := hw.2.2.2.1
@@ -105,31 +105,31 @@ theorem b2_turn (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 106) {
   have h12'' : Run.RegIs st.data .r12 (BitVec.ofNat 64 (40 * (j + 1))) := (hm'.regs .r12 _ rfl).trans hv
   obtain ⟨hne, heq⟩ := pc_cond hpc hv (by omega) (by decide)
   by_cases hj1 : j + 1 < 106
-  · rw [hp.label (j := 41) rfl] at hne
+  · rw [hp.label NativeRustcX64.Sphincs.SphincsVerify.label_1_at] at hne
     exact .done _ (Or.inr ⟨hj1, hne (by omega), ⟨hF', hmsg, hraw, hbx', hkey'⟩, h12''⟩)
   · obtain rfl : j = 105 := by omega
     exact .done _ (Or.inl ⟨pc_next r (heq rfl) rfl, ⟨hF', hmsg, hraw, hbx', hkey'⟩⟩)
 
 /-- **The loop `b2`**: the words 8 .. 537. -/
 theorem b2_loop (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : AtW r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 55 ∧ WS r (wb r.w 8 530) st.data)
-      ⟨m, r.pc 41⟩ :=
-  count_loop (σ := MachineState) (P := fun j st ↦ st.pc = r.pc 41 ∧ WS r (wb r.w 8 (5 * j)) st.data ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b3Offset ∧ WS r (wb r.w 8 530) st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b2Offset⟩ :=
+  count_loop (σ := MachineState) (P := fun j st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b2Offset ∧ WS r (wb r.w 8 (5 * j)) st.data ∧
       Run.RegIs st.data .r12 (BitVec.ofNat 64 (40 * j))) 106
     (fun j st hj ⟨hpc, h⟩ ↦ by
       obtain ⟨m, pc⟩ := st
       simp only at hpc
       subst hpc
-      exact b2_turn r hp hpre hj h) (j := 0) (s := ⟨m, r.pc 41⟩) (by decide)
+      exact b2_turn r hp hpre hj h) (j := 0) (s := ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b2Offset⟩) (by decide)
     ⟨rfl, ⟨h.1, h.2.1.1.2, fun i hi ↦ by simp [wb, Native.Keccak.wordsBytes] at hi, h.2.2.1,
       h.2.2.2.1⟩, h.2.2.2.2⟩
 
 /-- **`b3`**: the first layer's counter; EAX `5360`. -/
 theorem b3_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData}
     (h : WS r (wb r.w 8 530) m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 60 ∧ WS r (P1 r.w) st.data ∧
-      Run.RegIs st.data .rax (BitVec.ofNat 64 5360)) ⟨m, r.pc 55⟩ := by
-  have hk : b3.IsInfixAt Host.prog (r.k + 55) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b4Offset ∧ WS r (P1 r.w) st.data ∧
+      Run.RegIs st.data .rax (BitVec.ofNat 64 5360)) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b3Offset⟩ := by
+  have hk : b3.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b3Offset) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := wf3 r hpre h.1.2.2.2 h.1.2.2.1 (fun _ ↦ 0) 0
   have hm := ctxS_match r h.1 h.2.2.2.1 (fun _ ↦ 0) 0
   refine exec_then hk run_b3 hwf (fun _ h ↦ nomatch h) hm fun st hm' hpc ↦ ?_

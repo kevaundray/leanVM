@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Ring.Coeff.Steps
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
+public import NativeRustcVmX64.Code.Vm.RingCoefficients.Names
 
 /-!
 # `ring_coefficients`: a turn (x86-64)
@@ -21,7 +24,7 @@ variable [Host]
 
 /-- The end of turn `p`. -/
 def TEnd (m0 m : MachineData) (p k : Nat) (F : EW) (g G' : Nat → EW) (st : MachineState) : Prop :=
-  st.pc = (if p = 7 then Host.addrOf (k + 151) else Labels.label ".LRingCoefficients_1") ∧
+  st.pc = (if p = 7 then Host.addrOf (k + NativeRustcVmX64.Vm.RingCoefficients.b18Offset) else Labels.label NativeRustcVmX64.Vm.RingCoefficients.label_1) ∧
     Bnd (own m0 m) 176 NC (rsP m0 p) wrRow tRn (bvG m0 p F g G' 17) st.data
 
 end
@@ -51,8 +54,8 @@ theorem loop_test (hpl : p < 8) :
 
 /-- The row's products. -/
 theorem turn_rows (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (_hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (_hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     (h : P m0) (hM : Mem m0 m) (hpl : p < 8) {F : EW} (hF : fE m0 p = F) {g G' : Nat → EW}
     (_hG : ∀ b, frobenius8 (g b) 1 = G' b) {st : MachineState}
     (hA : TAt m0 m p k 40 tH (hvG m0 p g) st) :
@@ -96,8 +99,8 @@ theorem turn_rows (hp : Placed code k)
 
 /-- `G`'s Frobenius images. -/
 theorem turn_frob (hp : Placed code k)
-    (_hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+    (_hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     (h : P m0) (hM : Mem m0 m) (hpl : p < 8) {F : EW} (_hF : fE m0 p = F) {g G' : Nat → EW}
     (hG : ∀ b, frobenius8 (g b) 1 = G' b) {st : MachineState}
     (hA : TAt m0 m p k 100 (tR 7) (bvG m0 p F g G' 8) st) :
@@ -138,8 +141,8 @@ theorem turn_frob (hp : Placed code k)
 
 /-- The loop's test. -/
 theorem turn_test (hp : Placed code k)
-    (_hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (_hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+    (_hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (_hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     (h : P m0) (hM : Mem m0 m) (hpl : p < 8) {F : EW} (_hF : fE m0 p = F) {g G' : Nat → EW}
     (_hG : ∀ b, frobenius8 (g b) 1 = G' b) {st : MachineState}
     (hA : TAt m0 m p k 148 (tR 8) (bvG m0 p F g G' 16) st) :
@@ -155,7 +158,7 @@ theorem turn_test (hp : Placed code k)
       exact rbp_next hpl) rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) (fun _ _ _ _ h ↦ by cases h)
     fun st hpc hB _ ↦ .done _ ⟨?_, hB⟩
   simp only [PcOk] at hpc
-  rw [hpc, show k + 148 + b17.length = k + 151 from rfl]
+  rw [hpc, show k + NativeRustcVmX64.Vm.RingCoefficients.b17Offset + b17.length = k + NativeRustcVmX64.Vm.RingCoefficients.b18Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.RingCoefficients.b17_next]]
   have hc : (SBool.not (SBool.cmp .eq .W64 (Sym.bin .add .W64 (.lit 16) (.var 8)) (.lit 128))).eval
       (envS (own m0 m) d 176 (rsP m0 p) (bvG m0 p F g G' 16) 0) = !decide (p = 7) := loop_test hpl
   rw [hc]
@@ -166,8 +169,8 @@ theorem turn_test (hp : Placed code k)
 
 /-- **A turn.** -/
 theorem turn_body (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     (h : P m0) (hM : Mem m0 m) (hpl : p < 8) {F : EW} (hF : fE m0 p = F) {g G' : Nat → EW}
     (hG : ∀ b, frobenius8 (g b) 1 = G' b) {st : MachineState}
     (hA : TAt m0 m p k 40 tH (hvG m0 p g) st) : Eventually (step1 Host.exe) (TEnd m0 m p k F g G') st :=

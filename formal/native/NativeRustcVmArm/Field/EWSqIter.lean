@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EWSqIter.Names
 public import NativeRustcVmArm.Field.EWSqIter.Exec
 public import NativeRustcVmArm.Field.Prologue
 public import NativeRustcVmArm.Field.W32
@@ -37,18 +39,18 @@ public section
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EWSqIter.b0Offset) :=
   b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _)
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 6) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EWSqIter.b1Offset) :=
   b1_in_code.trans hp.1 (by rw [b1]; exact List.cons_ne_nil _ _)
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 10) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EWSqIter.b2Offset) :=
   b2_in_code.trans hp.1 (by rw [b2]; exact List.cons_ne_nil _ _)
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 13) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EWSqIter.b3Offset) :=
   b3_in_code.trans hp.1 (by rw [b3]; exact List.cons_ne_nil _ _)
 
 /-- **The loop's head** `.LEWSqIter_1`, `j ≥ 1` squarings left. -/
 structure Inv (m0 m1 : MachineData) (k j : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 6)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EWSqIter.b1Offset)
   pos : 0 < j
   fr : Fr m0 m1 16 ewSqIterStack used st.data
   x19 : st.data.regs.X19.toNat = j
@@ -72,7 +74,7 @@ theorem keep [Labels] {d : MachineData} {S : SState} {st : MachineData}
 theorem finish (hp : Placed code k) {m0 m1 d : MachineData} (hpre : EWSqIterPre m0)
     (hsl : Slots m0 m1 16 slots) (hF : Fr m0 m1 16 ewSqIterStack used d)
     (hv : (⟨d.regs.X0, d.regs.X3⟩ : EW) = target m0) :
-    Eventually (step1 Host.exe) (Post m0) ⟨d, Host.addrOf (k + 13)⟩ := by
+    Eventually (step1 Host.exe) (Post m0) ⟨d, Host.addrOf (k + NativeRustcVmArm.Vm.EWSqIter.b3Offset)⟩ := by
   have g := geo hpre
   refine Eventually.mono (epilogue g hF hsl (hb3 hp) run_b3 (by decide +kernel) rfl rfl)
     fun st ⟨hret, hso, hsv, hm⟩ ↦ ⟨hret, ?_, ?_, hso, hsv⟩
@@ -85,7 +87,7 @@ theorem finish (hp : Placed code k) {m0 m1 d : MachineData} (hpre : EWSqIterPre 
 
 /-- **One squaring**: from the loop's head, back to it or returned. -/
 theorem step (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 m1 : MachineData} (hpre : EWSqIterPre m0) (hsl : Slots m0 m1 16 slots) {j : Nat}
     {st : MachineState} (hI : Inv m0 m1 k j st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨ Inv m0 m1 k (j - 1) st') st := by
@@ -108,7 +110,7 @@ theorem step (hp : Placed code k)
     rfl
   have h219 : st2.data.regs.X19 = d.regs.X19 := (hq.2.2.2.1 .X19 rfl).trans h119
   obtain ⟨d2, pc2⟩ := st2
-  simp only [show k + 6 + b1.length = k + 10 from rfl] at hpc2
+  simp only [show k + NativeRustcVmArm.Vm.EWSqIter.b1Offset + b1.length = k + NativeRustcVmArm.Vm.EWSqIter.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.EWSqIter.b1_next]] at hpc2
   subst hpc2
   simp only at hF2 hsq h219
   refine block hF2 (hb2 hp) run_b2 rfl rfl (by decide +kernel) fun st3 hm3 hpc3 hF3 ↦ ?_
@@ -134,22 +136,22 @@ theorem step (hp : Placed code k)
   by_cases hlast : j = 1
   · simp only [hlast, decide_true, Bool.not_true, Bool.false_eq_true, ite_false] at hpc3
     obtain ⟨d3, pc3⟩ := st3
-    simp only [show k + 10 + b2.length = k + 13 from rfl] at hpc3
+    simp only [show k + NativeRustcVmArm.Vm.EWSqIter.b2Offset + b2.length = k + NativeRustcVmArm.Vm.EWSqIter.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.EWSqIter.b2_next]] at hpc3
     subst hpc3
     simp only at hF3 hv'
     refine Eventually.mono (finish hp hpre hsl hF3 ?_) fun _ h ↦ Or.inl h
     rw [← hv', hlast]
     rfl
   · simp only [hlast, decide_false, Bool.not_false, ite_true] at hpc3
-    exact .done _ (Or.inr ⟨hpc3.trans (hp.label (j := 6) rfl), by omega, hF3, h319, hv'⟩)
+    exact .done _ (Or.inr ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.EWSqIter.b1Offset) NativeRustcVmArm.Vm.EWSqIter.label_1_at), by omega, hF3, h319, hv'⟩)
 
 /-- **`EW::sq_iter` squares `k` times.** -/
 theorem ewSqIter_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost := by
   intro m0 hpre
   have g := geo hpre
-  rw [show Labels.label ewSqIterLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.EWSqIter.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.EWSqIter.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.EWSqIter.entryOffset) NativeRustcVmArm.Vm.EWSqIter.entry_at]
   refine prologue (used := used) (slots := slots) g (hb0 hp) run_b0 rfl (by decide +kernel)
     (by decide +kernel) (by decide +kernel) fun st1 hm1 hpc1 hF1 hsl ↦ ?_
   have h10 : st1.data.regs.X0 = m0.regs.X1 := UInt64.toBitVec_inj.mp (hm1.regs .X0 (.reg .X1) rfl)
@@ -166,15 +168,15 @@ theorem ewSqIter_spec (hp : Placed code k)
   simp only at hF1 hsl h10 h13 h119 hpc1
   by_cases hz : cnt m0 = 0
   · simp only [hz, decide_true, ite_true] at hpc1
-    rw [hp.label (j := 13) rfl] at hpc1
+    rw [hp.label (j := NativeRustcVmArm.Vm.EWSqIter.b3Offset) NativeRustcVmArm.Vm.EWSqIter.label_2_at] at hpc1
     subst hpc1
     refine finish hp hpre hsl hF1 ?_
     rw [h10, h13, target, hz]
     rfl
   · simp only [hz, decide_false, Bool.false_eq_true, ite_false,
-      show k + 0 + b0.length = k + 6 from rfl] at hpc1
+      show k + NativeRustcVmArm.Vm.EWSqIter.b0Offset + b0.length = k + NativeRustcVmArm.Vm.EWSqIter.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.EWSqIter.b0_next]] at hpc1
     subst hpc1
-    have hI : Inv m0 d1 k (cnt m0) ⟨d1, Host.addrOf (k + 6)⟩ :=
+    have hI : Inv m0 d1 k (cnt m0) ⟨d1, Host.addrOf (k + NativeRustcVmArm.Vm.EWSqIter.b1Offset)⟩ :=
       ⟨rfl, Nat.pos_of_ne_zero hz, hF1, by rw [h119]; rfl, by rw [h10, h13]; rfl⟩
     exact Sym.loop (fun μ st ↦ ∃ j, μ = j ∧ Inv m0 d1 k j st)
       (fun _ _ ⟨j, hμ, hI⟩ ↦ Eventually.mono (step hp hmul hpre hsl hI) fun st' h ↦

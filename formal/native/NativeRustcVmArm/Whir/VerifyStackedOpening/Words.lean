@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.CountLoop
 
 /-!
@@ -111,9 +112,9 @@ variable [Host] {a : DecArea} {s : TState} {layout : LayoutW} {target : EW}
 /-- **`EW::mul`** from a state of the frame: the product in X0, X1; memory changed below the
 frame only. -/
 theorem mul_call (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {st : MachineState}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {st : MachineState}
     {next : Int64} {R : MachineState → Prop} (hf : VFr m0 st.data)
-    (hpc : st.pc = Labels.label ewMulLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, VFr m0 m2 →
       m2.regs.X0 = (EW.mul ⟨st.data.regs.X0, st.data.regs.X1⟩
         ⟨st.data.regs.X2, st.data.regs.X3⟩).c0 →

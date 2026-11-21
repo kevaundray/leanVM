@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+
 public import NativeRustcArm.FromBytes.Inv
 meta import NativeRustcArm.Code.Xmss.FromBytes
 
@@ -39,10 +41,10 @@ public theorem length_chainBytes {m₀ : MachineData} (P : Pre m₀) : (chainByt
 
 /-- **The `memcpy` of the chain values.** -/
 public theorem mid [Host] {k : Nat} (hp : Placed code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 36)) (h : LoopDone m₀ st.data)
+    (hmemcpy : Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.FromBytes.b4Offset)) (h : LoopDone m₀ st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 40) → MidAt m₀ st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.FromBytes.b5Offset) → MidAt m₀ st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have C := h.common

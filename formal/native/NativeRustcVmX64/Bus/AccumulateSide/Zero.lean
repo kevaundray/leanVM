@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Bus.AccumulateSide.Front
 public import NativeRustcVmX64.Bus.AccumulateSide.FactsZ
 public import NativeRustcVmX64.Mem
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `accumulate_side`: the frame's `FormBuf` cleared, the table loop set up (x86-64)
@@ -107,9 +108,9 @@ theorem zeroTurn (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {lp : Nat →
     (hrax : st.regs.get64 .rax = BitVec.ofNat 64 (72 + 80 * t)) :
     Eventually (step1 Host.exe) (fun st' ↦ St m0 Z (Vt SL m0 lp) D12 8 st'.data ∧
       st'.data.regs.get64 .rax = BitVec.ofNat 64 (72 + 80 * (t + 1)) ∧
-      ((st'.pc = Host.addrOf (k + 123) ∧ t + 1 < 74) ∨
-        (st'.pc = Host.addrOf (k + 137) ∧ t + 1 = 74)))
-      ⟨st, Host.addrOf (k + 123)⟩ := by
+      ((st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b13Offset) ∧ t + 1 < 74) ∨
+        (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b14Offset) ∧ t + 1 = 74)))
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b13Offset)⟩ := by
   have hnw := h.frame_nw
   unfold NativeRustcVm.NoWrap at hnw
   have hfbN := h.fbN
@@ -202,16 +203,16 @@ theorem zeroTurn (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {lp : Nat →
   · simp only [hl, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc
     exact .done _ ⟨hst', erax, .inr ⟨by rw [hpc]; rfl, hl⟩⟩
   · simp only [hl, ne_eq, not_false_eq_true, decide_true, ↓reduceIte] at hpc
-    exact .done _ ⟨hst', erax, .inl ⟨by rw [hpc]; exact hp.label (j := 123) rfl, by omega⟩⟩
+    exact .done _ ⟨hst', erax, .inl ⟨by rw [hpc]; exact hp.label NativeRustcVmX64.Vm.AccumulateSide.label_9_at, by omega⟩⟩
 /-- **The zeroing loop** from turn `t`. -/
 theorem zeroLoop (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {lp : Nat → UInt64} {t : Nat}
     (ht : t < 74) {st : MachineData} (hst : St m0 Z (Vt SL m0 lp) D12 8 st)
     (hrax : st.regs.get64 .rax = BitVec.ofNat 64 (72 + 80 * t)) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 137) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b14Offset) ∧
       St m0 Z (Vt SL m0 lp) D12 8 st'.data)
-      ⟨st, Host.addrOf (k + 123)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b13Offset)⟩ := by
   refine Sym.loop (fun n (s : MachineState) ↦ ∃ t, n = 74 - t ∧ t < 74 ∧
-      s.pc = Host.addrOf (k + 123) ∧ St m0 Z (Vt SL m0 lp) D12 8 s.data ∧
+      s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b13Offset) ∧ St m0 Z (Vt SL m0 lp) D12 8 s.data ∧
       s.data.regs.get64 .rax = BitVec.ofNat 64 (72 + 80 * t))
     (fun n s ⟨t, hn, ht, hpc, hst, hrax⟩ ↦ ?_) ⟨t, rfl, ht, rfl, hst, hrax⟩
   obtain ⟨d, pc⟩ := s
@@ -224,11 +225,11 @@ theorem zeroLoop (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {lp : Nat →
 
 /-- **From `b12` to the table loop's head.** -/
 theorem toTables (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {lp : Nat → UInt64}
+    (hmc : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {lp : Nat → UInt64}
     {st : MachineData} (hst : St m0 Z (Vt SL m0 lp) D12 8 st) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 161) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b17Offset) ∧
       TH L rows bl Fm SL m0 0 st'.data)
-      ⟨st, Host.addrOf (k + 120)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b12Offset)⟩ := by
   have hnw := h.frame_nw
   unfold NativeRustcVm.NoWrap at hnw
   have hfbN := h.fbN
@@ -240,7 +241,7 @@ theorem toTables (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (hst.hd.reg0 (by decide) rfl) (by decide) (wf0 h hst.fr.kept)
     (St.mt hst ⟨rfl, trivial⟩ trivial trivial trivial) hmid12 hw12 (by decide) htr12
     fun st1 hm1 hpc1 hst1 _ ↦ ?_
-  have hpc1' : st1.pc = Host.addrOf (k + 123) := hpc1
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b13Offset) := hpc1
   obtain ⟨d1, pc1⟩ := st1
   simp only at hpc1' hst1 hm1
   subst hpc1'
@@ -252,7 +253,7 @@ theorem toTables (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   -- `b14`: `memcpy`.
   obtain ⟨hmid14, hw14, htr14, hdi14, hsi14, hdx14⟩ := ok_b14
   refine St.run h (rest := []) (vs := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 137 + b14.length)).toBitVec) rfl
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b14Offset + b14.length)).toBitVec) rfl
     (infix_of b14_in_code (by simp [b14]) hp) exit_b14 (fun _ _ ↦ rfl) hst2.fr hst2.same
     (hst2.hd.reg0 (by decide) rfl) (by decide) (wf0 h hst2.fr.kept)
     (St.mt hst2 ⟨rfl, trivial⟩ trivial trivial trivial) hmid14 hw14 (by decide) htr14
@@ -302,8 +303,8 @@ theorem toTables (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     show reg m0 .r8 = _
     exact bv_eq h.r8
   obtain ⟨hmid15, hw15, htr15, hcx15⟩ := ok_b15
-  have hpc4 : (⟨m4, Host.addrOf (k + 137 + b14.length)⟩ : MachineState) =
-      ⟨m4, Host.addrOf (k + 141)⟩ := rfl
+  have hpc4 : (⟨m4, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b14Offset + b14.length)⟩ : MachineState) =
+      ⟨m4, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b15Offset)⟩ := rfl
   rw [hpc4]
   refine St.run h (rest := [(rspOf m0 + 8#64, 88), (stackArg m0 0, 888)]) (vs := fun _ ↦ 0)
     (ret := 0) rfl (infix_of b15_in_code (by simp [b15]) hp) exit_b15 nofun hst4.fr hst4.same
@@ -341,7 +342,7 @@ theorem toTables (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   have hst5' : St m0 Z (Vt SL m0 lp) D15 8 st5.data :=
     St.add hst5 (fun _ _ ↦ rfl) (holds_reg (r := .rcx) (i := 4) (by
       rw [e_cx]; exact (bv_eq h.r8).symm) (holds_nil _ _ _))
-  have hpc5' : st5.pc = Host.addrOf (k + 149) := hpc5
+  have hpc5' : st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b16Offset) := hpc5
   obtain ⟨d5, pc5⟩ := st5
   simp only at hpc5' hst5'
   subst hpc5'

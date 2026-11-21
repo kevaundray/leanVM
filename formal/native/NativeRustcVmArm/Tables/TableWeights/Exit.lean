@@ -55,7 +55,7 @@ variable [Host] {k : Nat}
 /-- **The exit.** -/
 theorem exit_step (hp : Placed code k) (hc : Ctx m0) {m : MachineData} (hfin : Fin m0 m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = retOf m0 ∧ TableWeightsPost m0 st.data) ⟨m, Host.addrOf (k + 122)⟩ := by
+      (fun st => st.pc = retOf m0 ∧ TableWeightsPost m0 st.data) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b13Offset)⟩ := by
   have hf := hfin.frm
   have hout : In m0 (rg m0 .X0) 96 := hc.out
   have hfm : FrameOk m.dmem (fb m0) 240 :=

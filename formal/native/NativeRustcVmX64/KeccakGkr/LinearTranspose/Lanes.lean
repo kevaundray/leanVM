@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.LinearTranspose.Defs
+public import NativeRustcVmX64.Code.Vm.KeccakPi.Names
 
 /-!
 # `linear_transpose`: `g`, lane by lane (x86-64)
@@ -91,14 +92,14 @@ variable [Host] {k : Nat}
 
 /-- **The prologue** (`b0`): lane `0`'s head. -/
 theorem entry (hp : Placed code k) (h : PreOk m0 ws) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 15) ∧ Head m0 ws 0 s'.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b1Offset) ∧ Head m0 ws 0 s'.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b0Offset)⟩ := by
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 64) (rest := []) (vars := fun _ ↦ 0)
     (ret := 0) ⟨frame_mapped h.st (by rw [stack_eq]), frame_nw h⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 nofun
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
-    fun st1 hm1 hpc1 ↦ .done _ ⟨by simp only [PcOk] at hpc1; rw [hpc1, lengths.1], ?_⟩
+    fun st1 hm1 hpc1 ↦ .done _ ⟨by simp only [PcOk] at hpc1; rw [hpc1, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b0_next, ?_⟩
   obtain ⟨hpro, hws1, hrbx, hr14, hr15, hr12, hrbp, hr13⟩ := ok_b0
   have hf1 : Frame m0 64 slots 8 st1.data :=
     Frame.of_prologue Frame.entry hwf0 hm1 hpro slots_le (by decide)
@@ -113,14 +114,14 @@ theorem entry (hp : Placed code k) (h : PreOk m0 ws) :
 
 /-- **A lane's start**: `keccak_pi`, `ρ`, the copy loop's head. -/
 theorem lane_head (hp : Placed code k) (h : PreOk m0 ws)
-    (hpi : Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost) {l : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 15)) (hI : Head m0 ws l st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 24) ∧
+    (hpi : Spec (Labels.label NativeRustcVmX64.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost) {l : Nat}
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b1Offset)) (hI : Head m0 ws l st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b3Offset) ∧
       CopyHead m0 ws l 0 s'.data) st := by
   have hl := hI.l_lt
   have hnw := frame_nw h
   have hwf := frame_wf (m0 := m0) (d := st.data) (F := 64) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 15 + b1.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b1Offset + b1.length)).toBitVec)
     ⟨Mapped.keeps (frame_mapped h.st (by rw [stack_eq])) hI.ctx.frame.kept, hnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf (fun _ _ ↦ rfl) hpc
@@ -164,7 +165,7 @@ theorem lane_head (hp : Placed code k) (h : PreOk m0 ws)
         rhoAddr.toNat + 100 ≤ (stackBelow m0 64).toNat
       rw [hsb]; omega))
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf2 nofun
-    (hpc2.trans (by rw [lengths.2.1])) (match_ofMachine ⟨rfl, rfl, trivial⟩
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b1_next)) (match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨hf2.rsp_eval, trivial⟩ ⟨rfl, trivial⟩
       ⟨by
         show (reg st2.data .r13).toNat < 25
@@ -179,7 +180,7 @@ theorem lane_head (hp : Placed code k) (h : PreOk m0 ws)
       BitVec.ofNat 64 (rho l) :=
     load_rho rfl (rho_at h hso2) hl
   simp only [PcOk] at hpc3
-  refine .done _ ⟨hpc3.trans (by rw [lengths.2.2.1]), ⟨⟨hf3, hd3 ▸ hso2, ?_, ?_⟩, hl, by decide,
+  refine .done _ ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b2_next), ⟨⟨hf3, hd3 ▸ hso2, ?_, ?_⟩, hl, by decide,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · exact (hreg3 .r12 (by simp)).trans hI.ctx.r12
   · exact (hreg3 .r14 (by simp)).trans hI.ctx.r14

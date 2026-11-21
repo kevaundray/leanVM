@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Wire.PhaseM.Hash
 public import NativeRustcVm.Wire.ClimbFacts
+public import NativeRustcVmX64.Code.Vm.ClimbLevel.Names
 
 /-!
 # `phase_m`: the climb (x86-64)
@@ -33,7 +34,7 @@ structure ClimbSt [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List 
     (c k count : Nat) (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 l : Nat)
     (acc : List (List (Nat × Digest))) (ns : List (Nat × Digest)) (cl : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 155)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b30Offset)
   bod : Bod m0 8 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   accl : acc.length = l
@@ -55,7 +56,7 @@ structure ClimbSt [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List 
 structure Pre36 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8)
     (c k count : Nat) (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 : Nat)
     (sl : List (List (Nat × Digest))) (cf : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 187)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b36Offset)
   bod : Bod m0 8 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   model : climbM B height (nodes0 qs lw rows) c6 = some (sl, cf)
@@ -75,7 +76,7 @@ structure Lev [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt
     (c k count : Nat) (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 l : Nat)
     (acc : List (List (Nat × Digest))) (ns : List (Nat × Digest)) (cl : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 169)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b32Offset)
   bod : Bod m0 8 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   accl : acc.length = l
@@ -103,8 +104,8 @@ structure CallSt [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List U
     (c k count : Nat) (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 l : Nat)
     (acc : List (List (Nat × Digest))) (ns : List (Nat × Digest)) (cl : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Labels.label climbLevelLabel
-  ret : retOf st.data = Host.addrOf (k + 169)
+  pc : st.pc = Labels.label NativeRustcVmX64.Vm.ClimbLevel.entryLabel
+  ret : retOf st.data = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b32Offset)
   bod : Bod m0 0 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   accl : acc.length = l
@@ -306,11 +307,11 @@ theorem climb_entry (hp : Placed code k) (G : Geo m0 bp B.length) {count : Nat} 
     -- `b35`
     obtain ⟨hok35, hcx35, h1035, h1535, hk35⟩ := ok_b35
     refine fblk hp G b35_in_code (by simp [b35]) exit_b35 nofun hok35 (hk35 .r12 (by simp))
-      (hk35 .r14 (by simp)) (hpc1.trans (hp.label (j := 183) rfl)) hb1
+      (hk35 .r14 (by simp)) (hpc1.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_19_at)) hb1
       fun s2 hb2 hd2 hm2 hpc2 ↦ ?_
     have r9 : reg s1.data .r9 = reg st.data .r9 := hm1.regs .r9 (.reg .r9) (by decide +kernel)
     have hd : s2.data.dmem = st.data.dmem := hd2.trans hd1
-    refine .done _ (.inl ⟨[], c6, hpc2.trans (by rw [show b35.length = 4 from rfl]), hb2,
+    refine .done _ (.inl ⟨[], c6, hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b35_next), hb2,
       by rw [hd]; exact hM, rfl, rfl, fun j hj ↦ absurd hj (by simp), by rw [hd]; exact hrd,
       ?_, ?_, ?_, ?_, ?_, ?_⟩)
     · rw [show reg s2.data .rbp = reg s1.data .rbp from hm2.regs .rbp _ (hk35 .rbp (by simp)),
@@ -328,7 +329,7 @@ theorem climb_entry (hp : Placed code k) (G : Geo m0 bp B.length) {count : Nat} 
   -- `b29`
   obtain ⟨hok29, hdx29, hdi29, h1329, hk29⟩ := ok_b29
   refine fblk hp G b29_in_code (by simp [b29]) exit_b29 nofun hok29 (hk29 .r12 (by simp))
-    (hk29 .r14 (by simp)) (hpc1.trans (by rw [show b28.length = 3 from rfl])) hb1
+    (hk29 .r14 (by simp)) (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b28_next)) hb1
     fun s2 hb2 hd2 hm2 hpc2 ↦ ?_
   have hd : s2.data.dmem = st.data.dmem := hd2.trans hd1
   have rk2 : ∀ x ∈ [Reg64.rbx, .rbp, .r11], reg s2.data x = reg s1.data x := fun x hx ↦
@@ -336,7 +337,7 @@ theorem climb_entry (hp : Placed code k) (G : Geo m0 bp B.length) {count : Nat} 
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hx ⊢
       rcases hx with rfl | rfl | rfl <;> simp))
   have ebp : (reg s1.data .rbp).toNat = (sortD qs).length := by rw [rk1 .rbp (by simp)]; exact hbp
-  refine .done _ (.inr ⟨hpc2.trans (by rw [show b29.length = 3 from rfl]), hb2,
+  refine .done _ (.inr ⟨hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b29_next), hb2,
     by rw [hd]; exact hM, rfl, by simp, by omega, by rw [length_nodes0 hl]; omega,
     fun j hj ↦ absurd hj (by simp), by rw [hd]; simpa using hnd, by rw [hd]; exact hrd,
     by rw [rk2 .rbp (by simp)]; exact ebp,
@@ -390,9 +391,9 @@ theorem climb_args (hp : Placed code k) (G : Geo m0 bp B.length)
   refine wblk hp G b31_in_code (by simp [b31]) exit_b31 hmid31
     (fun w hw ↦ by obtain ⟨h1, h2⟩ := hw31 w hw; exact ⟨h1, by omega, by omega⟩)
     (hk31 .r12 (by simp)) (hk31 .r14 (by simp))
-    (hpc1.trans (by rw [show b30.length = 3 from rfl])) hb1 fun s2 hb2 hs2 hkeep2 hm2 hpc2 ↦ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b30_next)) hb1 fun s2 hb2 hs2 hkeep2 hm2 hpc2 ↦ ?_
   have env31 : ∀ x, (frameEnv m0 s1.data 160 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 158 + b31.length)).toBitVec).regs x = reg s1.data x := fun _ ↦ rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b31Offset + b31.length)).toBitVec).regs x = reg s1.data x := fun _ ↦ rfl
   have e13 : (reg s1.data .r13).toNat = l := by rw [rk1 .r13 (by simp)]; exact h13
   have hsel : CmpOp.apply .eq .W8 (BinOp.apply .and .W8 (reg s1.data .r13) (BitVec.ofNat 64 1))
       (BitVec.ofNat 64 0) = decide (l % 2 = 0) := by rw [and1_eq, e13]
@@ -577,7 +578,7 @@ theorem climb_sib [Labels] (G : Geo m0 bp B.length) {l : Nat} (hl : l < 32) :
 
 /-- **A level's call**: `climb_level` by contract. -/
 theorem climb_res (G : Geo m0 bp B.length)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
+    (hcl : Spec (Labels.label NativeRustcVmX64.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
     {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 l : Nat}
     {acc : List (List (Nat × Digest))} {ns : List (Nat × Digest)} {cl : Nat} {s2 : MachineState}
     (h : CallSt m0 bp B c k count qs height lw rows c6 l acc ns cl s2) :
@@ -662,7 +663,7 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
       show (!CmpOp.apply .eq .W64 (reg s3.data .rax) (BitVec.ofNat 64 1)) = true
       rw [hres]; rfl
     simp only [hc, ↓reduceIte] at hpc4
-    rw [hp.label (j := 78) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc4
     refine Eventually.mono (none_run hp G hR0 hpc4 hb4 ?_) fun _ h ↦ .inl h
     rw [hM3.model]
     refine climbFin_none ?_
@@ -698,7 +699,7 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
   have e15' : (reg s4.data .r15).toNat = ns.length := by
     rw [rk4 .r15 (by simp)]; exact h152
   -- `b33`: the level's count.
-  have hm33 : Match (aEnv m0 s4.data (24576 + 8 * l) 8 (Host.addrOf (k + 173 + b33.length)).toBitVec)
+  have hm33 : Match (aEnv m0 s4.data (24576 + 8 * l) 8 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b33Offset + b33.length)).toBitVec)
       cntS s4.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb4.fr.rsp_eval, trivial⟩ trivial trivial
       ⟨by
@@ -712,11 +713,11 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
         omega, trivial⟩
   obtain ⟨hmid33, hmem33, hw33, hdi33, h1033, h1333, hk33⟩ := ok_b33
   have hwf33 := aEnv_wf G hb4.fr.kept (o := 24576 + 8 * l) (n := 8) (by omega) (by omega)
-    (Host.addrOf (k + 173 + b33.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b33Offset + b33.length)).toBitVec
   refine ablk hp G b33_in_code (by simp [b33]) exit_b33 (by omega) (by omega) hmid33
     (fun w hw ↦ by rw [hmem33] at hw; simp only [List.mem_singleton] at hw; subst hw; decide)
     (hk33 .r12 (by simp)) (hk33 .r14 (by simp))
-    (hpc4.trans (by rw [show b32.length = 4 from rfl])) hb4 hm33
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b32_next)) hb4 hm33
     fun s5 hb5 _ _ hsw5 hm5 hpc5 ↦ ?_
   have hs5 : NativeRustcVm.SameOutside s4.data.dmem s5.data.dmem (fun q ↦
       (WK m0).toNat + (24576 + 8 * l) ≤ q.toNat ∧ q.toNat < (WK m0).toNat + (24576 + 8 * l) + 8) :=
@@ -759,9 +760,9 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
     · rw [hal, off_off, show nodesBytes * l = 10240 * l from rfl]; exact hlev5
   -- the registers
   have env33 : ∀ x, (aEnv m0 s4.data (24576 + 8 * l) 8
-      (Host.addrOf (k + 173 + b33.length)).toBitVec).regs x = reg s4.data x := fun _ ↦ rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b33Offset + b33.length)).toBitVec).regs x = reg s4.data x := fun _ ↦ rfl
   have e32' : (aEnv m0 s4.data (24576 + 8 * l) 8
-      (Host.addrOf (k + 173 + b33.length)).toBitVec).load 0 32 8 = height.toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b33Offset + b33.length)).toBitVec).load 0 32 8 = height.toUInt64.toBitVec :=
     load_ofMachine (o := 32) rfl (by rw [hd4]; exact hM3.f32)
   have hh : height.toUInt64.toBitVec.toNat = height := by
     rw [UInt64.toNat_toBitVec, toNat_toUInt64 (by omega)]
@@ -779,10 +780,10 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
     rw [e32', hh]
   simp only [PcOk] at hpc5
   have hc5 : (SBool.cmp .eq .W64 (.load 0 32 8) (.bin .add .W64 (.reg .r13) (.lit 1))).not.eval
-      (aEnv m0 s4.data (24576 + 8 * l) 8 (Host.addrOf (k + 173 + b33.length)).toBitVec) =
+      (aEnv m0 s4.data (24576 + 8 * l) 8 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b33Offset + b33.length)).toBitVec) =
       !decide (height = l + 1) := by
     show (!CmpOp.apply .eq .W64 ((aEnv m0 s4.data (24576 + 8 * l) 8
-      (Host.addrOf (k + 173 + b33.length)).toBitVec).load 0 32 8)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b33Offset + b33.length)).toBitVec).load 0 32 8)
       (BinOp.apply .add .W64 (reg s4.data .r13) (BitVec.ofNat 64 1))) = _
     rw [eqv_eval, e32', hh]
     simp only [BinOp.apply, low_W64, ext_W64, BitVec.toNat_add, BitVec.toNat_ofNat, e13']
@@ -802,14 +803,14 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
     -- `b34`
     obtain ⟨hok34, hcx34, hr934, h1534, hk34⟩ := ok_b34
     refine fblk hp G b34_in_code (by simp [b34]) exit_b34 nofun hok34 (hk34 .r12 (by simp))
-      (hk34 .r14 (by simp)) (hpc5.trans (by rw [show b33.length = 6 from rfl])) hb5
+      (hk34 .r14 (by simp)) (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b33_next)) hb5
       fun s6 hb6 hd6 hm6 hpc6 ↦ ?_
     simp only [PcOk] at hpc6
     have rk6 : ∀ x ∈ [Reg64.rbp, .r10, .r11], reg s6.data x = reg s5.data x := fun x hx ↦
       hm6.regs x _ (hk34 x (by
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hx ⊢
         rcases hx with rfl | rfl | rfl <;> simp))
-    refine .done _ (.inr (.inr ⟨_, c', hpc6.trans (hp.label (j := 187) rfl), hb6,
+    refine .done _ (.inr (.inr ⟨_, c', hpc6.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_20_at), hb6,
       by rw [hd6]; exact hM5, hfin, by rw [hacc, hlast], by rw [hd6]; exact hsb5,
       by rw [hd6]; exact hrd5, by rw [rk6 .rbp (by simp)]; exact ebp, ?_, ?_,
       by rw [rk6 .r10 (by simp)]; exact e10,
@@ -822,7 +823,7 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
     · rw [show reg s6.data .r15 = _ from hm6.regs .r15 _ h1534]
       exact load_ofMachine (o := 48) rfl hb5.out
   · simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc5
-    refine .done _ (.inr (.inl ⟨_, _, c', hpc5.trans (hp.label (j := 155) rfl), hb5, hM5,
+    refine .done _ (.inr (.inl ⟨_, _, c', hpc5.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_22_at), hb5, hM5,
       hacc, hmod', by omega, le_trans (parentsOf_length_le ns sl) hnsl, hsb5,
       by rw [show 4096 + 10240 * ((l + 1) % 2) = 4096 + 10240 * ((l + 1) % 2) from rfl]
          exact hnext5, hrd5, ebp, ebx, ?_, ?_, by rw [rk5 .r11 (by simp)]; exact h114, ?_⟩))
@@ -839,7 +840,7 @@ theorem climb_tail (hp : Placed code k) (G : Geo m0 bp B.length)
 /-- **A level of the climb.** -/
 theorem climb_step (hp : Placed code k) (G : Geo m0 bp B.length)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
+    (hcl : Spec (Labels.label NativeRustcVmX64.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
     {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 l : Nat}
     {acc : List (List (Nat × Digest))} {ns : List (Nat × Digest)} {cl : Nat} {st : MachineState}
     (h : ClimbSt m0 bp B c k count qs height lw rows c6 l acc ns cl st) :
@@ -852,7 +853,7 @@ theorem climb_step (hp : Placed code k) (G : Geo m0 bp B.length)
 /-- **The climb.** -/
 theorem climb_run (hp : Placed code k) (G : Geo m0 bp B.length)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
+    (hcl : Spec (Labels.label NativeRustcVmX64.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
     {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 : Nat} {st : MachineState}
     (h : Climb0 m0 bp B c k count qs height lw rows c6 st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨

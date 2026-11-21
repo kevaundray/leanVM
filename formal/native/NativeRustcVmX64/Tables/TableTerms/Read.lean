@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.Calls
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `table_terms`: table `i`'s evaluations (x86-64)
@@ -135,12 +136,12 @@ theorem R_none (hh : heights.size = 6) (hf : forms.size = 6) {i : Nat} (hi : i <
 /-- **Table `i`'s evaluations.** -/
 theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {i : Nat} (hi : i < 6) {acc : Acc} {si : TState} {d : MachineData}
     (H : Head a s heights forms m0 i acc si d)
     (cont : ∀ xs s' d', Rd a s heights forms m0 i acc si xs s' d' →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + 41)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 25)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b4Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b1Offset)⟩ := by
   have hS := Pre.stack h
   have c0 := ctx h
   have hwl := width_le hi
@@ -183,13 +184,13 @@ theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     rw [hd1]; exact H.w16
   -- `b2`: the sum and `8 i` saved, the length, `read_scalars`.
   have eo := evi_out h hi
-  let ra := (Host.addrOf (k + 29 + b2.length)).toBitVec
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b2Offset + b2.length)).toBitVec
   have hwf2 : (E m0 st1.data [(evi m0 i, 1968)] ra).WF := wf_ev h hi hb1.fr.kept
   have hm2 : Match (E m0 st1.data [(evi m0 i, 1968)] ra) evS st1.data :=
     match_body hb1 ⟨rfl, rfl, trivial⟩ ⟨by
       show (Sym.load 0 16 8).eval _ = evi m0 i + BitVec.ofInt 64 0
       rw [ld0 w16, ofInt_zero64, BitVec.add_zero], trivial⟩
-  refine at_pc (hpc1.trans (addr_eq (by rw [show b1.length = 4 from rfl])))
+  refine at_pc (hpc1.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b1_next)))
     (exec_then (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf2 (fun _ _ ↦ rfl) hm2
       fun st2 hm2' hpc2 ↦ ?_)
   obtain ⟨hmiss2, hmid2, hW2, -, w136, w128, w120, w488, rdi2, rsi2, rbx2, rdx2, k2⟩ := ok_b2
@@ -303,7 +304,7 @@ theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   -- `b3`: the result.
   have hwf4 : (E m0 st3.data [] 0).WF := wf_nil h hb3.fr.kept
   have hm4 : Match (E m0 st3.data [] 0) sF st3.data := match_body hb3 ⟨rfl, trivial⟩ trivial
-  refine at_pc (hpc3.trans (addr_eq (by rw [show b2.length = 10 from rfl])))
+  refine at_pc (hpc3.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b2_next)))
     (exec_then (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf4 nofun hm4
       fun st4 hm4' hpc4 ↦ ?_)
   obtain ⟨hmid4, hmem4, k4⟩ := ok_b3
@@ -333,7 +334,7 @@ theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     obtain ⟨xs, s'⟩ := p
     simp only [hr, Option.isSome_some, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc4
     have hxs : xs.size = (tb i).width := NativeRustcVm.Sumcheck.readScalars_size hr
-    refine at_pc (hpc4.trans (addr_eq (by rw [show b3.length = 2 from rfl])))
+    refine at_pc (hpc4.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b3_next)))
       (cont xs s' st4.data ⟨hb4, FW.of_dmem hd4 fw3, FW.of_dmem hd4 fl3, ?_, ?_, ?_, ?_, ?_, ?_,
         ⟨by rw [hd4]; exact q2 xs s' hr, ?_, fun j hj ↦ by rw [hd4]; exact evs3 j hj, H.osz⟩,
         H.run, H.cur, hr⟩)

@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Ring.Coeff.Lay
 public import NativeRustcVmX64.Field.LinSound
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
 
 /-!
 # `ring_coefficients`: a turn's blocks (x86-64)
@@ -115,11 +117,11 @@ theorem fload [Labels] (h : P m0) {m' : MachineData} (hM : Mem m0 m') (hp : p < 
     exact congrArg UInt64.toBitVec (fword h hM (by omega))
 
 /-- **A block and its call of `EW::mul`.** -/
-theorem mstep (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem mstep (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (h : P m0) (hM : Mem m0 m) (hpl : p < 8) {ds : List Directive} {off off' : Nat}
     (hds : ds.IsInfixAt code off) (hne : ds ≠ []) (hoff : off + ds.length = off')
     {T T' S' : SState} {vals vals' : Nat → BitVec 64}
-    (hrun : exec ds T = some (S', .call ewMulLabel))
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hwr : S'.mem.all (writeOk 176 [184, 128, 16] wrRow) = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0))
     {L LW : List (Nat × Sym)} (hL : rlinks true S' T' = some L) (hLW : wlinks S' T'.mem = some LW)
@@ -150,11 +152,11 @@ theorem mstep (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulP
 
 /-- **A block and its call of `EW::sq_iter`.** -/
 theorem sstep (hp : Placed code k)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     (h : P m0) (hM : Mem m0 m) (hpl : p < 8) {ds : List Directive} {off off' : Nat}
     (hds : ds.IsInfixAt code off) (hne : ds ≠ []) (hoff : off + ds.length = off')
     {T T' S' : SState} {vals vals' : Nat → BitVec 64}
-    (hrun : exec ds T = some (S', .call ewSqIterLabel))
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWSqIter.entryLabel))
     (hwr : S'.mem.all (writeOk 176 [184, 128, 16] wrRow) = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0))
     {L LW : List (Nat × Sym)} (hL : rlinks true S' T' = some L) (hLW : wlinks S' T'.mem = some LW)

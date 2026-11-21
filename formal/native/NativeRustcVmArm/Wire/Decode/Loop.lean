@@ -36,7 +36,7 @@ structure Fix (m0 : MachineData) (B : List UInt8) (n : Nat) (ws : List K) (p cs 
 /-- **The loop's state** at `.LDecode_6` (`b9`), `k` phases read. -/
 structure LInv [Host] (k0 : Nat) (m0 : MachineData) (B : List UInt8) (n : Nat) (ws : List K)
     (p cs k : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k0 + 54)
+  pc : st.pc = Host.addrOf (k0 + NativeRustcVmArm.Vm.Decode.b9Offset)
   fr : Frm m0 st.data
   x19 : st.data.regs.getXReg .X19 = m0.regs.X4
   x20 : st.data.regs.getXReg .X20 = m0.regs.X1
@@ -95,7 +95,7 @@ variable [Host] {k0 : Nat}
 
 /-- **No phase left**: the check that no byte is (`b16`). -/
 theorem done_spec (hp : Placed code k0) (G : Geo m0 B) (F : Fix m0 B n ws p cs)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + 77)) (hfr : Frm m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + NativeRustcVmArm.Vm.Decode.b16Offset)) (hfr : Frm m0 st.data)
     (x20 : st.data.regs.getXReg .X20 = m0.regs.X1) {ps : List PhaseOut} {ck : Nat}
     (hph : phasesM B p cs = some (ps, ck)) (hR : ReaderAt st.data.dmem (rdr m0) (bpA m0) B ck)
     (hD : DecF m0 st.data.dmem n ws p ps) :

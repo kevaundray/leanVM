@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.MathCall
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 
 /-! # Evaluating the last claim's instance weights (block 61) -/
 
@@ -19,14 +20,14 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem mleStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
     {st : MachineState} {V : Vs} {cl : KeccakClaimW} {low : Array EW}
-    (hat : At m0 k 433 wrAll t60 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b61Offset wrAll t60 (vv m0 V) st)
     (hcl : ClaimAt st.data.dmem (off (fb m0) 992) cl)
     (hlow : NativeRustcVm.EWsAt st.data.dmem (off (fb m0) 168) low.toList)
     (h4 : low.size = 4) {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 444 wrAll t61 (vv m0 (Ve V (multilinearEval cl.mu low))) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b62Offset wrAll t61 (vv m0 (Ve V (multilinearEval cl.mu low))) st' →
       Chg m0 st.data.dmem st'.data.dmem [(0, 88), (3296, 48)] [] →
       Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
@@ -89,7 +90,7 @@ theorem mleStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
       have he := Chg.ewsF c hch (by decide) rfl
         (by rw [Array.length_toList, h4]; decide) (by rw [Array.length_toList, h4]; decide) hlow
       simpa using slice_of he (by simp [h4])
-  · refine cont st' ⟨hpc'.trans (by rw [show 433 + b61.length = 444 from rfl]), hB'⟩ ?_ hk'
+  · refine cont st' ⟨hpc'.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b61_next]), hB'⟩ ?_ hk'
     exact Chg.mono c hc' (by decide) rfl (by decide) rfl (by decide) rfl
 
 end

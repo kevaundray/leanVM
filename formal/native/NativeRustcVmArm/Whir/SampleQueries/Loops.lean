@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.QueryBits.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Whir.SampleQueries.Inner
 
 /-!
@@ -21,11 +23,11 @@ variable [Host] {a : DecArea} {s0 : TState} {m1 : MachineData} {k : Nat}
 
 /-- **The inner loop**, from its head after `i` positions, to `b8`. -/
 theorem inner_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
-    (hqb : Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost)
+    (hqb : Spec (Labels.label NativeRustcVmArm.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost)
     {j r : Nat} {s : TState} {qs : List UInt64} {n : Nat} :
-    ∀ {d i : Nat} {st : MachineState}, d = n - i → st.pc = Host.addrOf (k + 65) →
+    ∀ {d i : Nat} {st : MachineState}, d = n - i → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b13Offset) →
       Inner a s0 m1 j r s qs n i st.data →
-      Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 40) ∧
+      Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b8Offset) ∧
         AtB8 a s0 m1 j r n (sq s).2 (qs ++ (chunk (dep m1) (sq s).1 n).toList) st'.data) st := by
   intro d
   induction d using Nat.strongRecOn with
@@ -39,8 +41,8 @@ theorem inner_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
 
 /-- **The outer loop**, from its head after `j` challenges, to the epilogue. -/
 theorem outer_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hqb : Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost) :
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hqb : Spec (Labels.label NativeRustcVmArm.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost) :
     ∀ {d : Nat} {st : MachineState}, OuterAt a s0 m1 k d st →
       Eventually (step1 Host.exe) (Goal a s0 m1) st := by
   refine Sym.loop (OuterAt a s0 m1 k) fun d st hO ↦ ?_
@@ -62,10 +64,10 @@ theorem outer_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
 /-- **The squeezes' loop** (depth above `128`), from its head after `j` squeezes, to the
 epilogue. -/
 theorem big_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     (hd : 128 < dep m1) :
     ∀ {d j : Nat} {s : TState} {st : MachineState}, d = cnt m1 - j →
-      st.pc = Host.addrOf (k + 23) → Big a s0 m1 j s st.data →
+      st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b3Offset) → Big a s0 m1 j s st.data →
       Eventually (step1 Host.exe) (Goal a s0 m1) st := by
   have h128 : 128 / dep m1 = 0 := Nat.div_eq_of_lt hd
   intro d
@@ -90,7 +92,7 @@ theorem big_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
         m2.regs.getXReg r' = st.data.regs.getXReg r' := fun r' hr' ↦
       (hcs2 r' hr').trans (hk1 r' (by rintro rfl; simp [calleeSaved] at hr')
         (by rintro rfl; simp [calleeSaved] at hr'))
-    refine hf2.regsBlock (st := ⟨m2, _⟩) (k := k + 26) (inf hp b4_in_code (by simp [b4])) run_b4
+    refine hf2.regsBlock (st := ⟨m2, _⟩) (k := k + NativeRustcVmArm.Vm.SampleQueries.b4Offset) (inf hp b4_in_code (by simp [b4])) run_b4
       rfl rfl rfl (by rfl) fun st3 hf3 hd3 hm3 hpc3 ↦ ?_
     simp only [PcOk] at hpc3
     have hx19 : (m2.regs.getXReg .X19).toNat = cnt m1 - j := by
@@ -108,7 +110,7 @@ theorem big_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
         auxP (dep m1) (cnt m1 - (j + 1)) (cnt m1) (sq s).2 := by
       rw [hb.model, show cnt m1 - j = cnt m1 - (j + 1) + 1 by omega, auxP_big h128 _ _ _ (by omega)]
     by_cases hc : j + 1 < cnt m1
-    · simp only [hc, decide_true, ↓reduceIte, hp.label (j := 23) rfl] at hpc3
+    · simp only [hc, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b3Offset) NativeRustcVmArm.Vm.SampleQueries.label_3_at] at hpc3
       refine ih (cnt m1 - (j + 1)) (by omega) (s := (sq s).2) rfl hpc3 ?_
       exact {
         fr := hf3
@@ -128,10 +130,10 @@ theorem big_run (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
         buf := by rw [hd3]; simpa using hbuf2.2.1
         model := hmodel }
     · simp only [hc, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc3
-      rw [show k + 26 + b4.length = k + 28 from rfl] at hpc3
+      rw [show k + NativeRustcVmArm.Vm.SampleQueries.b4Offset + b4.length = k + NativeRustcVmArm.Vm.SampleQueries.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SampleQueries.b4_next]] at hpc3
       refine hf3.regsBlock (inf hp b5_in_code (by simp [b5])) run_b5 hpc3 rfl rfl (by rfl)
         fun st4 hf4 hd4 hm4 hpc4 ↦ ?_
-      simp only [PcOk, hp.label (j := 82) rfl] at hpc4
+      simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b18Offset) NativeRustcVmArm.Vm.SampleQueries.label_14_at] at hpc4
       have h0 : st4.data.regs.X0 = 1 := reg_of hm4 (r := .X0) rfl rfl
       refine finish hp h hpc4 hf4 h0 (qs := []) (s := (sq s).2) ?_ (by rw [hd4, hd3]; exact hbuf2)
         (by rw [hd4, hd3]; exact hts2)

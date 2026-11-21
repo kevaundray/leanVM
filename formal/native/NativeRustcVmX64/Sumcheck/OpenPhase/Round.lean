@@ -1,14 +1,15 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.OpenPhase.Climb
+public import NativeRustcVmX64.Code.Vm.OpenPhase.Names
 
 /-!
 # `open_phase`: a climb's check (x86-64)
 
 At `b16` (`Climbed`), `b16` to `b19` test the path's top word by word against the root's (the
-frame's `48 - 8 i`; `test_spec`): a mismatch leaves for `.LOpenPhase_19` (`exit_fail`, the climbs
-fail); `b20` steps the counters: back to `.LOpenPhase_7` with one climb more (`CInv`), or after
-the last one `.LOpenPhase_13` (`exit_rows`) (`round_spec`).
+frame's `48 - 8 i`; `test_spec`): a mismatch leaves for `NativeRustcVmX64.Vm.OpenPhase.label_19` (`exit_fail`, the climbs
+fail); `b20` steps the counters: back to `NativeRustcVmX64.Vm.OpenPhase.label_7` with one climb more (`CInv`), or after
+the last one `NativeRustcVmX64.Vm.OpenPhase.label_13` (`exit_rows`) (`round_spec`).
 -/
 
 namespace NativeRustcVmX64.Sumcheck.OpenPhase
@@ -23,11 +24,11 @@ variable [Host] {P : Array OpeningW} {R : Digest} {Q : Array UInt64} {m0 : Machi
   {h w j : Nat}
 
 /-- **A test of the path's top**: `ds` compares its word `i` (the frame's `64 + 8 i`) with the
-root's (the frame's `48 - 8 i`) and leaves for `.LOpenPhase_19` where they differ. -/
+root's (the frame's `48 - 8 i`) and leaves for `NativeRustcVmX64.Vm.OpenPhase.label_19` where they differ. -/
 theorem test_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     (hph : PhaseHW m0.dmem (phO m0) P h w) {m : MachineData} (hc : Climbed m0 P Q R h w j m)
     {ds : List Directive} {S' : SState} {a i : Nat} (hi4 : i < 4)
-    (hk : ds.IsInfixAt Host.prog a) (hx : exec ds frS = some (S', .cond (cw i) ".LOpenPhase_19"))
+    (hk : ds.IsInfixAt Host.prog a) (hx : exec ds frS = some (S', .cond (cw i) NativeRustcVmX64.Vm.OpenPhase.label_19))
     (hok : WTestOk S') :
     Eventually (step1 Host.exe)
       (fun st ↦ Done P R Q m0 st ∨
@@ -68,7 +69,7 @@ theorem test_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     rw [hne] at hpc
     simp only [Bool.not_false, ↓reduceIte] at hpc
     obtain ⟨d, pc⟩ := st
-    have hpc' : pc = Host.addrOf (k + 108) := hpc.trans (hp.label (j := 108) rfl)
+    have hpc' : pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b22Offset) := hpc.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_19_at)
     subst hpc'
     refine Eventually.mono (exit_fail hp hpre hf (by rw [hd]; exact hc.inv.w16) ?_)
       fun st h ↦ .inl h
@@ -76,49 +77,49 @@ theorem test_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     rw [hT, hcl j hlt hlt]
 
 /-- **A climb's check**: from `b16`, the exit (a mismatch, or the rows after the last climb) or
-`.LOpenPhase_7` with one climb more. -/
+`NativeRustcVmX64.Vm.OpenPhase.label_7` with one climb more. -/
 theorem round_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     (hph : PhaseHW m0.dmem (phO m0) P h w) {m : MachineData} (hc : Climbed m0 P Q R h w j m) :
     Eventually (step1 Host.exe)
       (fun st ↦ Done P R Q m0 st ∨
-        (st.pc = Host.addrOf (k + 67) ∧ CInv m0 P Q R h w (j + 1) st.data))
-      ⟨m, Host.addrOf (k + 85)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b13Offset) ∧ CInv m0 P Q R h w (j + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b16Offset)⟩ := by
   have hst := hpre.1
   have hlt := hc.inv.lt
   have hsz : P.size ≤ 256 := hph.2.2.1
   have hpw : phaseWords = 49411 := rfl
   -- `b16` to `b19`: the path's top is the root.
-  refine Eventually.bind (test_spec hp hpre hph hc (a := k + 85) (i := 0) (by decide)
+  refine Eventually.bind (test_spec hp hpre hph hc (a := k + NativeRustcVmX64.Vm.OpenPhase.b16Offset) (i := 0) (by decide)
     (infix_of b16_in_code (by simp [b16]) hp) exit_b16 ok_b16) fun st1 h1 ↦ ?_
   rcases h1 with h1 | ⟨hpc1, hc1, e0⟩
   · exact .done _ (.inl h1)
   obtain ⟨d1, pc1⟩ := st1
   simp only at hpc1
-  rw [show b16.length = 3 from rfl] at hpc1
+  rw [NativeRustcVmX64.Vm.OpenPhase.b16_length] at hpc1
   subst hpc1
-  refine Eventually.bind (test_spec hp hpre hph hc1 (a := k + 88) (i := 1) (by decide)
+  refine Eventually.bind (test_spec hp hpre hph hc1 (a := k + NativeRustcVmX64.Vm.OpenPhase.b17Offset) (i := 1) (by decide)
     (infix_of b17_in_code (by simp [b17]) hp) exit_b17 ok_b17) fun st2 h2 ↦ ?_
   rcases h2 with h2 | ⟨hpc2, hc2, e1⟩
   · exact .done _ (.inl h2)
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2
-  rw [show b17.length = 3 from rfl] at hpc2
+  rw [NativeRustcVmX64.Vm.OpenPhase.b17_length] at hpc2
   subst hpc2
-  refine Eventually.bind (test_spec hp hpre hph hc2 (a := k + 91) (i := 2) (by decide)
+  refine Eventually.bind (test_spec hp hpre hph hc2 (a := k + NativeRustcVmX64.Vm.OpenPhase.b18Offset) (i := 2) (by decide)
     (infix_of b18_in_code (by simp [b18]) hp) exit_b18 ok_b18) fun st3 h3 ↦ ?_
   rcases h3 with h3 | ⟨hpc3, hc3, e2⟩
   · exact .done _ (.inl h3)
   obtain ⟨d3, pc3⟩ := st3
   simp only at hpc3
-  rw [show b18.length = 3 from rfl] at hpc3
+  rw [NativeRustcVmX64.Vm.OpenPhase.b18_length] at hpc3
   subst hpc3
-  refine Eventually.bind (test_spec hp hpre hph hc3 (a := k + 94) (i := 3) (by decide)
+  refine Eventually.bind (test_spec hp hpre hph hc3 (a := k + NativeRustcVmX64.Vm.OpenPhase.b19Offset) (i := 3) (by decide)
     (infix_of b19_in_code (by simp [b19]) hp) exit_b19 ok_b19) fun st4 h4 ↦ ?_
   rcases h4 with h4 | ⟨hpc4, hc4, e3⟩
   · exact .done _ (.inl h4)
   obtain ⟨d4, pc4⟩ := st4
   simp only at hpc4
-  rw [show b19.length = 3 from rfl] at hpc4
+  rw [NativeRustcVmX64.Vm.OpenPhase.b19_length] at hpc4
   subst hpc4
   have hTR : climb (hashWords (P[j]'hlt).leaf) (P[j]'hlt).leafIndex (P[j]'hlt).path = R :=
     Vector.toList_inj.mp (List.ext_getElem (by simp) fun n h1 _ ↦ by
@@ -154,8 +155,7 @@ theorem round_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   · -- after the last climb: the rows.
     simp only [hj1, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc5
     obtain ⟨d5, pc5⟩ := st5
-    have hpc5' : pc5 = Host.addrOf (k + 101) := hpc5.trans (by
-      rw [show b20.length = 4 from rfl])
+    have hpc5' : pc5 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b21Offset) := hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b20_next)
     subst hpc5'
     refine Eventually.mono (exit_rows hp hpre hf5 (hl.word (by omega) (by omega) hi.w16) hph.2.1
       hph.2.2.1 ((hk' _ (by simp)).trans hi.rbp) ((hk' _ (by simp)).trans hi.r13)
@@ -164,7 +164,7 @@ theorem round_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   · -- one climb more.
     simp only [hj1, decide_false, Bool.not_false, ↓reduceIte] at hpc5
     have hj1' : j + 1 < P.size := by omega
-    refine .done _ (.inr ⟨hpc5.trans (hp.label (j := 67) rfl), hf5, hj1', hi.shape, hi.pos, hcl,
+    refine .done _ (.inr ⟨hpc5.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_7_at), hf5, hj1', hi.shape, hi.pos, hcl,
       ?_, (hk' _ (by simp)).trans hi.r13, (hk' _ (by simp)).trans hi.r14, ?_,
       (hk' _ (by simp)).trans hi.rbp, hl.word (by omega) (by omega) hi.w16,
       hl.word (by omega) (by omega) hi.w56,

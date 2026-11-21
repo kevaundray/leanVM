@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+
 public import NativeRustcArm.SphincsVerify.Parse.Glue
 public import NativeRustcArm.SphincsVerify.Rev
 
@@ -54,7 +57,7 @@ theorem match_fs (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) {known : List
 `memcpy`'s contract; `cont` from the return address. -/
 theorem block_memcpy (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {ds : List Directive} {j : Nat} (hk : ds.IsInfixAt Sphincs.SphincsVerify.code j)
-    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call "memcpy"))
+    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call NativeRustcArm.Common.Memcpy.entryLabel))
     (hw : Run.frameWrites S' = true) (hsp : S'.sp = .ptr 0 0) (h29 : S'.reg .X29 = some (.ptr 0 29280))
     {a b n : Nat} (h0 : S'.reg .X0 = some (.ptr 0 a)) (h1 : S'.reg .X1 = some (.ptr 0 b))
     (h2 : S'.reg .X2 = some (.lit n)) (hn : n < 2 ^ 64) (ha : a + n ≤ 29280) (hb : b + n ≤ 29376)
@@ -87,7 +90,7 @@ theorem block_memcpy (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
 /-- **A straight block ending in `bl memset`** of frame offsets. -/
 theorem block_memset (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {ds : List Directive} {j : Nat} (hk : ds.IsInfixAt Sphincs.SphincsVerify.code j)
-    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call "memset"))
+    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call NativeRustcArm.Common.Memset.entryLabel))
     (hw : Run.frameWrites S' = true) (hsp : S'.sp = .ptr 0 0) (h29 : S'.reg .X29 = some (.ptr 0 29280))
     {a n : Nat} (h0 : S'.reg .X0 = some (.ptr 0 a)) (h2 : S'.reg .X2 = some (.lit n))
     (hn : n < 2 ^ 64) (ha : a + n ≤ 29280) {m : MachineData} (hF : r.Frame m)

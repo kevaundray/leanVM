@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.IvWord.Names
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfFiatShamirIv.Names
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcVmArm.Keccak.WordsIv.Entry
 public import NativeRustcVmArm.Keccak.WordsIv.Epi
 
@@ -24,14 +28,14 @@ variable [Host]
 
 /-- **`keccak256_words::<fiat_shamir_iv's closure>` meets its contract.** -/
 theorem keccak256WordsIv_spec {k : Nat} (hp : Placed Vm.Keccak256WordsOfFiatShamirIv.code k)
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost)
-    (hiv : Spec (label ivWordLabel) IvWordPre IvWordPost)
-    (hkf : Spec (label keccakFLabel) KeccakFPre KeccakFPost) :
-    Spec (label keccak256WordsIvLabel) Keccak256WordsIvPre Keccak256WordsIvPost := by
+    (hmemset : Spec (label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hiv : Spec (label NativeRustcVmArm.Vm.IvWord.entryLabel) IvWordPre IvWordPost)
+    (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost) :
+    Spec (label NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.entryLabel) Keccak256WordsIvPre Keccak256WordsIvPost := by
   intro m0 hpre
   obtain ⟨hstk, hrc, hx1, hx2, hsmall, hmap, hnw, hmo, hnwo, hap, hapo, -⟩ := hpre
   have g : WordsIv.Geo m0 := ⟨hstk, hx1, hx2, hsmall, hmap, hnw, hap⟩
-  rw [show label keccak256WordsIvLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show label NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0Offset) from hp.label NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.entry_at]
   refine Eventually.bind (WordsIv.entry_run hmemset hp g) fun st h => ?_
   have hts : Eventually (step1 Host.exe) (WordsIv.TailStart m0 k) st := by
     rcases h with h | h

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.ReaderDigest
+public import NativeRustcVmX64.Code.Vm.ReaderDigest.Names
 public meta import NativeRustcVmX64.Code.Vm.ReaderDigest
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -59,7 +60,7 @@ public theorem ok_b1 : MidOk 48 8 slots (after b1 midS) = true ∧
   cases r <;> decide +kernel
 
 public theorem exit_b1 : exec b1 midS = some (after b1 midS,
-    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LReaderDigest_8") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.ReaderDigest.label_8) :=
   run_b1.trans (by rw [after_eq run_b1])
 
 /-- A call block keeping RDX's word in `x`. -/

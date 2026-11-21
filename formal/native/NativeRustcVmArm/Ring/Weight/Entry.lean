@@ -81,8 +81,8 @@ variable [Host] {k : Nat}
 /-- **The prologue** (`b0`): `Base`, at `b5` when `|r| = 1`, else at `b1`. -/
 theorem stepEntry (hp : Placed code k) (h : RingWeightPre m0) {R : MachineState → Prop}
     (cont : ∀ st : MachineState, Base m0 st.data →
-      st.pc = Host.addrOf (k + if nR m0 = 1 then 89 else 55) → Eventually (step1 Host.exe) R st) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      st.pc = Host.addrOf (k + if nR m0 = 1 then NativeRustcVmArm.Vm.RingWeight.b5Offset else NativeRustcVmArm.Vm.RingWeight.b1Offset) → Eventually (step1 Host.exe) R st) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b0Offset)⟩ := by
   have hfw := fbw h
   have hwf : (Env.ofMachine m0 [(fb m0, 688)]).WF :=
     Env.wf_of ⟨⟨frame_mapped h.1 (by decide), hfw⟩, trivial⟩ (List.pairwise_singleton _ _)
@@ -106,7 +106,7 @@ theorem stepEntry (hp : Placed code k) (h : RingWeightPre m0) {R : MachineState 
     · exact reg_bv hm1 rfl rfl
   refine cont st hB ?_
   simp only [PcOk] at hpc
-  rw [show k + 0 + b0.length = k + 55 from rfl] at hpc
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b0Offset + b0.length = k + NativeRustcVmArm.Vm.RingWeight.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b0_next]] at hpc
   have hc := NativeRustcVmArm.Arrays.pc_cond hpc
   have he : (SBool.cmp .eq .W64 (.reg .X2) (.lit 1)).eval (Env.ofMachine m0 [(fb m0, 688)]) = true ↔
       nR m0 = 1 := by
@@ -114,20 +114,20 @@ theorem stepEntry (hp : Placed code k) (h : RingWeightPre m0) {R : MachineState 
     exact eq_lit (by decide)
   by_cases h1 : nR m0 = 1
   · rw [ite_eq_left h1, hc.1 (he.mpr h1)]
-    exact hp.label (j := 89) rfl
+    exact hp.label (j := NativeRustcVmArm.Vm.RingWeight.b5Offset) NativeRustcVmArm.Vm.RingWeight.label_5_at
   · rw [ite_eq_right h1, hc.2 (fun e ↦ h1 (he.mp e))]
 
 /-- **`|r| = 0`?** (`b1`): at `b2` if so, else at `b6`. -/
 theorem stepB1 (hp : Placed code k) {m : MachineData} (hB : Base m0 m) {R : MachineState → Prop}
     (cont : ∀ st : MachineState, Base m0 st.data →
-      st.pc = Host.addrOf (k + if nR m0 = 0 then 56 else 92) → Eventually (step1 Host.exe) R st) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 55)⟩ := by
+      st.pc = Host.addrOf (k + if nR m0 = 0 then NativeRustcVmArm.Vm.RingWeight.b2Offset else NativeRustcVmArm.Vm.RingWeight.b6Offset) → Eventually (step1 Host.exe) R st) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b1Offset)⟩ := by
   refine exec_then (hb b1_in_code (by simp [b1]) hp) run_b1 (Env.wf_nil m) (match_nil m)
     fun st hm1 hpc ↦ ?_
   refine cont st (hB.after (match_nil m) hm1 (by decide) (by decide)
     (regs_fr hB.fr hm1 rfl rfl)) ?_
   simp only [PcOk] at hpc
-  rw [show k + 55 + b1.length = k + 56 from rfl] at hpc
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b1Offset + b1.length = k + NativeRustcVmArm.Vm.RingWeight.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b1_next]] at hpc
   have hc := NativeRustcVmArm.Arrays.pc_cond hpc
   have he : (SBool.not (SBool.cmp .eq .W64 (.reg .X2) (.lit 0))).eval (Env.ofMachine m []) = true ↔
       nR m0 ≠ 0 := by
@@ -137,7 +137,7 @@ theorem stepB1 (hp : Placed code k) {m : MachineData} (hB : Base m0 m) {R : Mach
   by_cases h0 : nR m0 = 0
   · rw [ite_eq_left h0, hc.2 (fun e ↦ he.mp e h0)]
   · rw [ite_eq_right h0, hc.1 (he.mpr h0)]
-    exact hp.label (j := 92) rfl
+    exact hp.label (j := NativeRustcVmArm.Vm.RingWeight.b6Offset) NativeRustcVmArm.Vm.RingWeight.label_6_at
 
 end
 

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
+public import NativeRustcVmArm.Code.Vm.StackOffsets.Names
 public import NativeRustcVmArm.Bus.BusLayout.Keep
 
 /-!
@@ -55,12 +57,12 @@ variable [Host] {k : Nat}
 
 /-- **The offsets, the layout's start**: from `.LBusLayout_8` to the placements' loop. -/
 theorem offsets_run (hp : Placed code k)
-    (hms : Spec (Labels.label "memset") MemsetPre MemsetPost)
-    (hso : Spec (Labels.label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost)
+    (hms : Spec (Labels.label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hso : Spec (Labels.label NativeRustcVmArm.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost)
     {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : MachineData}
     (hpre : BusLayoutPre L bl m0) {st : MachineState} (hD : Done L bl m0 k st) :
     Eventually (step1 Host.exe) (fun st' ↦
-      st'.pc = Host.addrOf (k + 184) ∧ PInv L bl m0 0 st'.data) st := by
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b14Offset) ∧ PInv L bl m0 0 st'.data) st := by
   obtain ⟨hpc, hfr, hregs, hx21, hsz⟩ := hD
   have hS := hpre.1
   have hN : busLayoutStack ≤ m0.regs.SP.toNat := hS.2.1

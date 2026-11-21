@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.Words
 
 /-!
@@ -47,9 +49,9 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 theorem count_run (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0) {R : MachineState → Prop}
     (fin : ∀ st', AtB5 layout cs m0 st' →
-      Eventually (step1 Host.exe) R ⟨st', Host.addrOf (k + 42)⟩) :
+      Eventually (step1 Host.exe) R ⟨st', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b5Offset)⟩) :
     ∀ n i st, cs.size - i = n → CntInv layout cs m0 i st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 34)⟩ := by
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b3Offset)⟩ := by
   intro n
   induction n using Nat.strongRecOn with
   | ind n ih =>
@@ -71,19 +73,19 @@ theorem sq_out {st : MachineData} {q : BitVec 64}
 /-- **From `b5`**: the checks, the squeeze, the words. -/
 theorem sample_b5 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {R : MachineState → Prop}
     (cont : ∀ st, AtB11 a s layout cs m0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 60)⟩)
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b11Offset)⟩)
     {st : MachineData} (hb5 : AtB5 layout cs m0 st) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 42)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b5Offset)⟩ := by
   have hb := hb5.base
   have c := h.ctx
   have hnt : NoWrap (tA m0) tstateBytes := h.ts.footprint.1.2
   have hP : placedOf layout cs cs.size ≤ 160 :=
     (placedOf_le_self _).trans h.cl.len_le
   -- `b5`
-  have hk5 : b5.IsInfixAt Host.prog (k + 42) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk5 : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b5Offset) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine hb.fr.regsBlock (st := ⟨st, _⟩) hk5 run_b5 rfl rfl rfl rfl fun st1 hf1 hd1 hm1 hpc1 ↦ ?_
   have hx8 : (Env.ofMachine st []).regs .X8 = (placedOf layout cs cs.size).toUInt64.toBitVec := by
     show (st.regs.getXReg .X8).toBitVec = _; rw [hb5.x8]
@@ -118,7 +120,7 @@ theorem sample_b5 (hp : Placed code k)
   have hb1 : Base cs m0 st1.data := hb.keep hf1 hd1 k1
   -- `b6`: the `TState` saved, `squeeze`
   obtain ⟨hwf6, hm6⟩ := h.frame_env hf1
-  have hk6 : b6.IsInfixAt Host.prog (k + 46) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b6Offset) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk6 run_b6 hwf6 hpc1 hm6 fun st6 hm6' hpc6 ↦ ?_
   have hf6 : VFr m0 st6.data := Fr.ofBlockW hb1.fr hm6 hm6' hwf6 rfl rfl
     (fun _ h ↦ absurd h (by simp)) rfl (by rw [stack_eq]; decide) h.hN slots_le
@@ -147,7 +149,7 @@ theorem sample_b5 (hp : Placed code k)
       (NativeRustcVm.SameOutside.mono hs2 fun q hq ↦ sq_out hq hnt) (by simp)
       (FW.cons hw16 (FW.nil _ _))
   -- `b7`: the count's cap
-  have hk7 : b7.IsInfixAt Host.prog (k + 50) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine hf2.regsBlock (st := ⟨m2, _⟩) hk7 run_b7 rfl rfl rfl rfl fun st7 hf7 hd7 hm7 hpc7 ↦ ?_
   have hc27 : m2.regs.getXReg .X27 = (placedOf layout cs cs.size + 2).toUInt64 :=
     (hcs2 .X27 rfl).trans ((k6 .X27 rfl).trans e1x27)
@@ -169,10 +171,10 @@ theorem sample_b5 (hp : Placed code k)
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc7
   -- `b8`: the Keccak output and the rate saved
   obtain ⟨hwf8, hm8⟩ := h.frame_env hf7
-  have hk8 : b8.IsInfixAt Host.prog (k + 52) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b8Offset) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk8 run_b8 hwf8 hpc7 hm8 fun st8 hm8' hpc8 ↦ ?_
   simp only [PcOk] at hpc8
-  rw [show Labels.label ".LVerifyStackedOpening_9" = Host.addrOf (k + 60) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b11Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyStackedOpening.b11Offset) NativeRustcVmArm.Vm.VerifyStackedOpening.label_9_at]
     at hpc8
   obtain ⟨d8, pc8⟩ := st8
   simp only at hpc8
@@ -226,16 +228,16 @@ theorem sample_b5 (hp : Placed code k)
 /-- **From `b9`** (no claim): the words, the squeeze, the count `2`. -/
 theorem sample_b9 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {R : MachineState → Prop}
     (cont : ∀ st, AtB11 a s layout cs m0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 60)⟩)
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b11Offset)⟩)
     {st : MachineData} (hb : Base cs m0 st) (hz : cs.size = 0) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 55)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b9Offset)⟩ := by
   have c := h.ctx
   have hnt : NoWrap (tA m0) tstateBytes := h.ts.footprint.1.2
   obtain ⟨hwf9, hm9⟩ := h.frame_env hb.fr
-  have hk9 : b9.IsInfixAt Host.prog (k + 55) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk9 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b9Offset) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk9 run_b9 hwf9 hm9 fun st9 hm9' hpc9 ↦ ?_
   have hf9 : VFr m0 st9.data := Fr.ofBlockW hb.fr hm9 hm9' hwf9 rfl rfl
     (fun _ h ↦ absurd h (by simp)) rfl (by rw [stack_eq]; decide) h.hN slots_le
@@ -266,7 +268,7 @@ theorem sample_b9 (hp : Placed code k)
   have hfw2 := fw_call h hf9 (by rw [stack_eq]; decide)
     (NativeRustcVm.SameOutside.mono hs2 fun q hq ↦ sq_out hq hnt) (by simp) hfw9
   -- `b10`: the count `2`
-  have hk10 : b10.IsInfixAt Host.prog (k + 59) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b10Offset) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine hf2.regsBlock (st := ⟨m2, _⟩) hk10 run_b10 rfl rfl rfl rfl
     fun st10 hf10 hd10 hm10 hpc10 ↦ ?_
   simp only [PcOk] at hpc10

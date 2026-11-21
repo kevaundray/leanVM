@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
+public import NativeRustcVmArm.Code.Vm.NovelEval.Names
 public import NativeRustcVmArm.Whir.NovelEval.Inner
 
 /-!
@@ -48,20 +50,20 @@ theorem what_ne {m0 : MachineData} (hpre : NovelEvalPre m0) {j : Nat} (hj : j < 
 variable [Host] {k : Nat}
 
 /-- **A turn of the doubling loop.** -/
-theorem outer_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
+theorem outer_step (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hpre : NovelEvalPre m0) (hc : cnt m0 ≤ 64) {j : Nat}
     {st : MachineData} (hI : OInv m0 j st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (Mid m0 s.data ∧ s.pc = Host.addrOf (k + 44)) ∨
-        (OInv m0 (j + 1) s.data ∧ s.pc = Host.addrOf (k + 26)))
-      ⟨st, Host.addrOf (k + 26)⟩ := by
+      (fun s ↦ (Mid m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b9Offset)) ∨
+        (OInv m0 (j + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b4Offset)))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b4Offset)⟩ := by
   have hS : StackOk m0 novelEvalStack := hpre.1
   have hwin := hpre.2.2.1
   have hfr := hI.fr
-  have hl7 : Labels.label ".LNovelEval_7" = Host.addrOf (k + 44) := hp.label rfl
-  have hl3 : Labels.label ".LNovelEval_3" = Host.addrOf (k + 26) := hp.label rfl
+  have hl7 : Labels.label NativeRustcVmArm.Vm.NovelEval.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b9Offset) := hp.label (j := NativeRustcVmArm.Vm.NovelEval.b9Offset) NativeRustcVmArm.Vm.NovelEval.label_7_at
+  have hl3 : Labels.label NativeRustcVmArm.Vm.NovelEval.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b4Offset) := hp.label (j := NativeRustcVmArm.Vm.NovelEval.b4Offset) NativeRustcVmArm.Vm.NovelEval.label_3_at
   -- `b4`: any value left?
-  have hk4 : b4.IsInfixAt Host.prog (k + 26) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b4Offset) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk4 run_b4 (Env.wf_nil _) (match_nil _) fun s1 hm1 hpc1 ↦ ?_
   have hb4 := after_eq run_b4 ▸ regs_keeps b4 (.tail _ (.tail _ (.head _)))
   have hfr1 := hfr.of_regs (match_nil _) hm1 (Env.wf_nil _) rfl hb4.1 hb4.2
@@ -90,8 +92,8 @@ theorem outer_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   have hj : j < wn m0 := by have := hI.hj; omega
   simp only [what_ne hpre hj, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
   -- `b5`: load value `j`
-  have hk5 : b5.IsInfixAt Host.prog (k + 29) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc1' : s1.pc = Host.addrOf (k + 29) := hpc1
+  have hk5 : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b5Offset) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc1' : s1.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b5Offset) := hpc1
   let a5 := m0.regs.X3.toBitVec + BitVec.ofNat 64 (8 * j)
   have hrd : Readable s1.data a5 8 := hfr1.readable (Readable.sub hwin.1 (by
     have : wn m0 = m0.regs.X4.toNat := rfl
@@ -143,9 +145,9 @@ theorem outer_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
       exact NativeRustcVm.wordsAt_nil _ _
   -- the inner loop
   have hloop := Sym.loop (tr := step1 Host.exe)
-    (Q := fun s ↦ Post8 m0 j s.data ∧ s.pc = Host.addrOf (k + 40))
+    (Q := fun s ↦ Post8 m0 j s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b8Offset))
     (fun n s ↦ ∃ t, n = (basisOf m0 j).size - t ∧ t < (basisOf m0 j).size ∧
-      s.pc = Host.addrOf (k + 32) ∧ IInv m0 j t s.data)
+      s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b6Offset) ∧ IInv m0 j t s.data)
     (fun n s ⟨t, hn', ht, hpc, hI'⟩ ↦ by
       obtain ⟨d, pc⟩ := s
       simp only at hpc
@@ -157,7 +159,7 @@ theorem outer_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
     (n := (basisOf m0 j).size) ⟨0, by omega, by unfold basisOf; omega, hpc2, hI0⟩
   refine hloop.bind fun s ⟨hP, hpc⟩ ↦ ?_
   -- `b8`: double, next value
-  have hk8 : b8.IsInfixAt Host.prog (k + 40) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b8Offset) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk8 run_b8 (Env.wf_nil _) hpc (match_nil _) fun s3 hm3 hpc3 ↦ ?_
   have hb8 := after_eq run_b8 ▸ regs_keeps b8 (.tail _ (.tail _ (.tail _ (.head _))))
   have hfr3 := hP.fr.of_regs (match_nil _) hm3 (Env.wf_nil _) rfl hb8.1 hb8.2
@@ -207,7 +209,7 @@ theorem outer_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
       rfl
     · rw [show s3.data.regs.X25 = s.data.regs.X25 from e3 .X25 (by simp)]; exact hP.x25
   · -- long enough: the basis is complete
-    have hpc3' : s3.pc = Host.addrOf (k + 44) := by
+    have hpc3' : s3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b9Offset) := by
       rw [hpc3]
       by_cases heq : cnt m0 = (basisOf m0 (j + 1)).size
       · simp [heq]; rfl

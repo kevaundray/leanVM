@@ -1,6 +1,19 @@
 module
 
 public import NativeRustcVmX64.Whir.NextLevel.Glue
+public import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel.Names
+public import NativeRustcVmX64.Code.Vm.GlueLevel.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.NextLevel.Names
+public import NativeRustcVmX64.Code.Vm.Powers.Names
+public import NativeRustcVmX64.Code.Vm.SampleQueries.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadCommitment.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 
 /-!
 # `next_level` on x86-64
@@ -24,29 +37,29 @@ variable [Host] {k : Nat}
 
 /-- **`next_level`'s contract.** -/
 theorem nextLevel_spec (hp : Placed code k)
-    (her : ∀ rows op, Spec (Labels.label eachRowNextLabel) (EachRowNextPre rows op)
+    (her : ∀ rows op, Spec (Labels.label NativeRustcVmX64.Vm.EachRowOfNextLevel.entryLabel) (EachRowNextPre rows op)
       (EachRowNextPost rows))
-    (hgl : ∀ s, Spec (Labels.label glueLevelLabel) (GlueLevelPre s) (GlueLevelPost s))
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hpw : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hsqz : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hqo : ∀ a s Q, Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q)
+    (hgl : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.GlueLevel.entryLabel) (GlueLevelPre s) (GlueLevelPost s))
+    (hmc : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hpw : Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hsqz : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hqo : ∀ a s Q, Spec (Labels.label NativeRustcVmX64.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q)
       (QueryOpeningsPost a s Q))
-    (hrc : ∀ a s, Spec (Labels.label readCommitmentLabel) (ReadCommitmentPre a s)
+    (hrc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s)
       (ReadCommitmentPost a s))
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s)
       (ReadScalarsPost a s))
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hsq : ∀ a s, Spec (Labels.label sampleQueriesLabel) (SampleQueriesPre a s)
+    (hsq : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SampleQueries.entryLabel) (SampleQueriesPre a s)
       (SampleQueriesPost a s)) :
-    ∀ a s level w rounds, Spec (Labels.label nextLevelLabel) (NextLevelPre a s level w rounds)
+    ∀ a s level w rounds, Spec (Labels.label NativeRustcVmX64.Vm.NextLevel.entryLabel) (NextLevelPre a s level w rounds)
       (NextLevelPost a s level w rounds) := by
   intro a s level w rounds m0 h
   have c := Ctx.of_pre h
-  rw [show Labels.label nextLevelLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.NextLevel.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b0Offset) from hp.label NativeRustcVmX64.Vm.NextLevel.entry_at]
   refine Eventually.bind (head1 hp c hrc) fun st1 h1 ↦ ?_
   rcases h1 with hg | ⟨hpc1, s1, hr1, hH1⟩
   · exact .done _ hg

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 public import NativeRustcVmArm.Bus.GkrStep.Tail
 
 /-!
@@ -140,11 +141,11 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData} 
 
 /-- `multilinear_eval(2^step child at frame + o, y)`. -/
 theorem mle_call (h : GkrStepPre a s0 g0 m0)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
     {st : MachineState} {next : Int64} {R : MachineState → Prop} {o : Nat} (ho : o + 64 ≤ 1216)
     (hfr : Fr m0 1392 gkrStepStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label mleOfMultilinearEvalLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel ∧ retOf st.data = next)
     {ch y : Array EW} (hch : NativeRustcVm.EWsAt st.data.dmem (loc m0 o) ch.toList)
     (hys : NativeRustcVm.EWsAt st.data.dmem (loc m0 1264) y.toList)
     (hcs : ch.size = 2 ^ m0.regs.X1.toNat) (hyz : y.size = m0.regs.X1.toNat)

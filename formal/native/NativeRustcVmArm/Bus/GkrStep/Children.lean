@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.Bus.GkrStep.Calls
 
 /-!
@@ -20,7 +21,7 @@ open NativeRustcVm.Sumcheck (readScalars_size)
 
 public section
 
-/-- **At `b13`** (`k + 187`): the three children read, the claim in X29, X28. -/
+/-- **At `b13`** (`k + NativeRustcVmArm.Vm.GkrStep.b13Offset`): the three children read, the claim in X29, X28. -/
 structure AtProds [Labels] (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData)
     (c cl : EW) (xs h0 h1 h2 : Array EW) (s3 : TState) (m : MachineData) : Prop where
   fr : Fr m0 1392 gkrStepStack slots keep (outs m0) m
@@ -60,12 +61,12 @@ theorem ews_rs (h : GkrStepPre a s0 g0 m0) {m d : MachineData} {o' n : Nat}
 
 /-- **The children** (`b7` to `b12`). -/
 theorem reads_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {c cl : EW} {xs : Array EW} {s2 : TState}
     (hprods : ∀ h0 h1 h2 s3 m, AtProds a s0 g0 m0 c cl xs h0 h1 h2 s3 m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 187)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b13Offset)⟩)
     {m : MachineData} (hi : AtChildren a s0 g0 m0 c cl xs s2 m) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 146)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b7Offset)⟩ := by
   have hS := pre_stack h
   have hN : gkrStepStack ≤ m0.regs.SP.toNat := hS.2.1
   have hn := two_pow_le h
@@ -94,7 +95,7 @@ theorem reads_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     show (st.data.regs.getXReg .X2).toBitVec.toNat = _
     rw [reg_of hm' (r := .X2) (r' := .X26) rfl, hi.x26,
       NativeRustcVm.toNat_ofNat_of_lt (by omega)]
-  simp only [PcOk, show b7.length = 30 from rfl, show k + 146 + 30 = k + 176 by omega] at hpc
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b7_length, NativeRustcVmArm.Vm.GkrStep.b7Length, show k + NativeRustcVmArm.Vm.GkrStep.b7Offset + 30 = k + NativeRustcVmArm.Vm.GkrStep.b8Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b7_length, NativeRustcVmArm.Vm.GkrStep.b7Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b7_next] at hpc
   refine rs_call h hrs (o := 1024) (by omega) hfr hpc e0 e1 e2 hts1
     fun m2 hfr2 hx2 hok2 hcs2 hs2 ↦ ?_
   have R2 := R1.call hcs2
@@ -108,11 +109,11 @@ theorem reads_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       !((readScalars (2 ^ m0.regs.X1.toNat)).run s2).isSome := by
     show (!(low .W32 (m2.regs.getXReg .X0).toBitVec).getLsbD 0) = _
     rw [show m2.regs.getXReg .X0 = m2.regs.X0 from rfl, hx2, okWord_bit]
-  simp only [PcOk, hc8, show b8.length = 1 from rfl, show k + 176 + 1 = k + 177 by omega] at hpc8
+  simp only [PcOk, hc8, NativeRustcVmArm.Vm.GkrStep.b8_length, NativeRustcVmArm.Vm.GkrStep.b8Length, show k + NativeRustcVmArm.Vm.GkrStep.b8Offset + 1 = k + NativeRustcVmArm.Vm.GkrStep.b9Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b8_length, NativeRustcVmArm.Vm.GkrStep.b8Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b8_next] at hpc8
   cases hr0 : (readScalars (2 ^ m0.regs.X1.toNat)).run s2 with
   | none =>
     simp only [hr0, Option.isSome_none, Bool.not_false, ↓reduceIte] at hpc8
-    exact at_pc (hpc8.trans (hp.label (j := 266) rfl)) (fail_spec hp h hfr8
+    exact at_pc (hpc8.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b32Offset) NativeRustcVmArm.Vm.GkrStep.label_14_at)) (fail_spec hp h hfr8
       (by rw [hi.run, gkrChildren, hr0]; rfl))
   | some p0 =>
     obtain ⟨h0v, s3a⟩ := p0
@@ -134,7 +135,7 @@ theorem reads_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       show (st9.data.regs.getXReg .X2).toBitVec.toNat = _
       rw [reg_of hm9 (r := .X2) (r' := .X26) rfl, R8.x26,
         NativeRustcVm.toNat_ofNat_of_lt (by omega)]
-    simp only [PcOk, show b9.length = 4 from rfl, show k + 177 + 4 = k + 181 by omega] at hpc9
+    simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b9_length, NativeRustcVmArm.Vm.GkrStep.b9Length, show k + NativeRustcVmArm.Vm.GkrStep.b9Offset + 4 = k + NativeRustcVmArm.Vm.GkrStep.b10Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b9_length, NativeRustcVmArm.Vm.GkrStep.b9Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b9_next] at hpc9
     have hxs9 : NativeRustcVm.EWsAt st9.data.dmem (loc m0 16) xs.toList := by
       rw [hd9, hd8]; exact hxs2
     have hc09 : NativeRustcVm.EWsAt st9.data.dmem (loc m0 1024) h0v.toList := by
@@ -153,12 +154,12 @@ theorem reads_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
         !((readScalars (2 ^ m0.regs.X1.toNat)).run s3a).isSome := by
       show CmpOp.eq.apply .W32 (m3.regs.getXReg .X0).toBitVec (BitVec.ofNat 64 0) = _
       rw [show m3.regs.getXReg .X0 = m3.regs.X0 from rfl, hx3, okWord_eq0]
-    simp only [PcOk, hc10, show b10.length = 1 from rfl, show k + 181 + 1 = k + 182 by omega]
+    simp only [PcOk, hc10, NativeRustcVmArm.Vm.GkrStep.b10_length, NativeRustcVmArm.Vm.GkrStep.b10Length, show k + NativeRustcVmArm.Vm.GkrStep.b10Offset + 1 = k + NativeRustcVmArm.Vm.GkrStep.b11Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b10_length, NativeRustcVmArm.Vm.GkrStep.b10Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b10_next]
       at hpc10
     cases hr1 : (readScalars (2 ^ m0.regs.X1.toNat)).run s3a with
     | none =>
       simp only [hr1, Option.isSome_none, Bool.not_false, ↓reduceIte] at hpc10
-      exact at_pc (hpc10.trans (hp.label (j := 266) rfl)) (fail_spec hp h hfr10
+      exact at_pc (hpc10.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b32Offset) NativeRustcVmArm.Vm.GkrStep.label_14_at)) (fail_spec hp h hfr10
         (by rw [hi.run, gkrChildren, hr0]; simp only [Option.bind_some]; rw [hr1]; rfl))
     | some p1 =>
       obtain ⟨h1v, s3b⟩ := p1
@@ -182,7 +183,7 @@ theorem reads_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
         show (st11.data.regs.getXReg .X2).toBitVec.toNat = _
         rw [reg_of hm11 (r := .X2) (r' := .X26) rfl, R10.x26,
           NativeRustcVm.toNat_ofNat_of_lt (by omega)]
-      simp only [PcOk, show b11.length = 4 from rfl, show k + 182 + 4 = k + 186 by omega] at hpc11
+      simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b11_length, NativeRustcVmArm.Vm.GkrStep.b11Length, show k + NativeRustcVmArm.Vm.GkrStep.b11Offset + 4 = k + NativeRustcVmArm.Vm.GkrStep.b12Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b11_length, NativeRustcVmArm.Vm.GkrStep.b11Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b11_next] at hpc11
       have hd' : st11.data.dmem = m3.dmem := hd11.trans hd10
       refine rs_call h hrs (o := 1152) (by omega) hfr11 hpc11 k0 k1 k2 (by rw [hd']; exact hts3)
         fun m4 hfr4 hx4 hok4 hcs4 hs4 ↦ ?_
@@ -201,12 +202,12 @@ theorem reads_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
           !((readScalars (2 ^ m0.regs.X1.toNat)).run s3b).isSome := by
         show CmpOp.eq.apply .W32 (m4.regs.getXReg .X0).toBitVec (BitVec.ofNat 64 0) = _
         rw [show m4.regs.getXReg .X0 = m4.regs.X0 from rfl, hx4, okWord_eq0]
-      simp only [PcOk, hc12, show b12.length = 1 from rfl, show k + 186 + 1 = k + 187 by omega]
+      simp only [PcOk, hc12, NativeRustcVmArm.Vm.GkrStep.b12_length, NativeRustcVmArm.Vm.GkrStep.b12Length, show k + NativeRustcVmArm.Vm.GkrStep.b12Offset + 1 = k + NativeRustcVmArm.Vm.GkrStep.b13Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b12_length, NativeRustcVmArm.Vm.GkrStep.b12Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b12_next]
         at hpc12
       cases hr2 : (readScalars (2 ^ m0.regs.X1.toNat)).run s3b with
       | none =>
         simp only [hr2, Option.isSome_none, Bool.not_false, ↓reduceIte] at hpc12
-        exact at_pc (hpc12.trans (hp.label (j := 266) rfl)) (fail_spec hp h hfr12
+        exact at_pc (hpc12.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b32Offset) NativeRustcVmArm.Vm.GkrStep.label_14_at)) (fail_spec hp h hfr12
           (by rw [hi.run, gkrChildren, hr0]; simp only [Option.bind_some]; rw [hr1]
               simp only [Option.bind_some]; rw [hr2]; rfl))
       | some p2 =>

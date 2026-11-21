@@ -31,7 +31,7 @@ theorem seg_b37 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 32)) (h14 : Run.RegIs m .r14 (BitVec.ofNat 64 32))
     (hbx : Run.RegIs m .rbx (r.off 672)) (h12 : Run.RegIs m .r12 (BitVec.ofNat 64 32))
     (cont : StepCont r i p (SA ++ P) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 384⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b37Offset⟩ := by
   -- `b37`: `memcpy` of `P`.
   refine frameCall r hp hpre b37_in_code (List.cons_ne_nil _ _) run_b37 (by decide) rfl hK
     trivial extraOK_nil ⟨known_lit h15, known_lit h14, known_ptr hbx, trivial⟩ trivial trivial
@@ -52,7 +52,7 @@ theorem seg_b37 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
       BytesAt.cat hSA₂ hB (by rw [hSA])⟩, trivial⟩
   -- `b38`: B's `buf_len` 64.
   have hm₀ := match_seeded (match_frameS hK₂'.1.1 (sextra := []) (extra := [])
-    (ret := (r.pc (390 + b38.length)).toBitVec) (k := [(.r14, .lit 32)]) (bounds := [])
+    (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b38Offset + b38.length)).toBitVec) (k := [(.r14, .lit 32)]) (bounds := [])
     (aliases := []) trivial ⟨known_lit h14₂, trivial⟩ trivial trivial)
     h1040
   refine frameStepS r hp hpre b38_in_code (List.cons_ne_nil _ _) run_b38 (by decide) rfl hK₂'
@@ -74,7 +74,7 @@ theorem seg_b31 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))), (672, 32, P),
       (112, 200, List.replicate 200 0), (312, 32, SA), (448, 8, regBytes (BitVec.ofNat 64 32))]) m)
     (h12 : Run.RegIs m .r12 (r.off 112)) (cont : StepCont r i p (SA ++ P) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 359⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b31Offset⟩ := by
   -- `b31`: `memcpy` of A into B.
   refine frameCall r hp hpre b31_in_code (List.cons_ne_nil _ _) run_b31 (by decide) rfl hK
     trivial extraOK_nil ⟨known_ptr h12, trivial⟩ trivial trivial hc.1 fun m₁ hm₁ hK₁ _ ↦ ?_
@@ -98,7 +98,7 @@ theorem seg_b31 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     hK₂.left.add ⟨t56, t672, ⟨by simp only [List.length_replicate], by norm_num, hB0⟩,
       ⟨hSA, by norm_num, hBsa⟩, trivial⟩
   have hm₀ := match_seeded (match_frameS hK₂'.1.1 (sextra := []) (extra := [])
-    (ret := (r.pc (364 + b32.length)).toBitVec) (k := []) (bounds := []) (aliases := []) trivial
+    (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b32Offset + b32.length)).toBitVec) (k := []) (bounds := []) (aliases := []) trivial
     trivial trivial trivial) hB32
   refine frameStepS r hp hpre b32_in_code (List.cons_ne_nil _ _) run_b32 (by decide) rfl hK₂'
     extraOK_nil hm₀ fun st3 hm3 hK3 _ hpc3 ↦ ?_

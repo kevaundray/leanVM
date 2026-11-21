@@ -5,7 +5,7 @@ public import NativeRustcVmX64.Whir.WhirLevels.Steps
 /-!
 # `whir_levels`: `None` returned (x86-64)
 
-`none_exit`: at `.LWhirLevels_5` (`b7`) from a state of the frame (RSP at offset `8`) where the run
+`none_exit`: at `NativeRustcVmX64.Vm.WhirLevels.label_5` (`b7`) from a state of the frame (RSP at offset `8`) where the run
 rejects, `0` in AL, the registers restored, `ret`. `changes`: the frame's changes are the
 contract's.
 -/
@@ -43,9 +43,9 @@ theorem changes {m0 d : MachineData} {o : Nat} (hf : Fr m0 o d) :
 variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : BasisAddrs}
   {b : BasisW} {claim : EW} {m0 : MachineData} {rate : Nat} {k0 : Nat}
 
-/-- **`None` returned** at `.LWhirLevels_5`. -/
+/-- **`None` returned** at `NativeRustcVmX64.Vm.WhirLevels.label_5`. -/
 theorem none_exit (hp : Placed code k0) (c : Ctx a s0 levels ba b claim m0 rate)
-    {st : MachineState} (hf : Fr m0 8 st.data) (hpc : st.pc = Host.addrOf (k0 + 58))
+    {st : MachineState} (hf : Fr m0 8 st.data) (hpc : st.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b7Offset))
     (hnone : runAll s0 levels b claim m0 = none) :
     Eventually (step1 Host.exe) (Goal a s0 levels b claim m0) st := by
   have hwf := c.wf (d := st.data) (rest := []) (ret := 0) hf.frame.kept (by simp)

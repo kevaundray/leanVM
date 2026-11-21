@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Whir.NovelEval.Mid
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.NovelEval.Names
 
 /-!
 # `novel_eval` on x86-64
@@ -27,21 +30,21 @@ public section
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + 0) ∧
-    b0b.IsInfixAt Host.prog (k + 0 + 8) := by
+theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b0Offset) ∧
+    b0b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b0Offset + b0a.length) := by
   have h := b0_in_code.trans hp.1 (by simp [b0])
   rw [← List.take_append_drop 8 b0] at h
   exact h.append
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 18) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 18 + 2) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 18 + 2 + 6) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + 81) :=
+theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b16Offset) :=
   b16_in_code.trans hp.1 (by simp [b16])
-theorem hb17 (hp : Placed code k) : b17a.IsInfixAt Host.prog (k + 86) ∧
-    b17b.IsInfixAt Host.prog (k + 86 + 2) := by
+theorem hb17 (hp : Placed code k) : b17a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b17Offset) ∧
+    b17b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b17Offset + b17a.length) := by
   have h := b17_in_code.trans hp.1 (by simp [b17])
   rw [← List.take_append_drop 2 b17] at h
   exact h.append
@@ -57,7 +60,7 @@ abbrev OFrame (m0 st : MachineData) : Prop :=
 /-- **The tag and the epilogue** (`b17a`, `b17b`): RBX the tag, R15 the output, the value (for
 `Some`) already stored. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 86)) (hfr : OFrame m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b17Offset)) (hfr : OFrame m0 st.data)
     (hr15 : reg st.data .r15 = reg m0 .rdi) {v : Option EW}
     (htag : reg st.data .rbx = BitVec.ofNat 64 (if v.isSome then 1 else 0))
     (hval : ∀ x, v = some x → NativeRustcVm.EWAt st.data.dmem (off (reg m0 .rdi) 8) x)
@@ -93,7 +96,7 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) 
     convert this using 1
     split <;> rfl
   -- `b17b`
-  have hpc1' : st1.pc = Host.addrOf (k + 86 + 2) := hpc1
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b17Offset + b17a.length) := hpc1
   have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb17 hp).2 run_b17b hwf2 (by intro l h; cases h) hpc1' hfr1.mid_match
     fun st2 hm2 hpc2 ↦ .done _ ?_
@@ -118,7 +121,7 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) 
 
 /-- **The sum stored** (`b16`), then the tag and the epilogue. -/
 theorem store (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) (hc : cnt m0 ≤ 64)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 81)) (hD : Done m0 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b16Offset)) (hD : Done m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
   obtain ⟨hS, hcs, hwh, hout⟩ := hpre'
@@ -167,9 +170,9 @@ theorem stack_le : 1104 ≤ novelEvalStack ∧ 1104 + kmulStack ≤ novelEvalSta
 
 /-- **`novel_eval` meets its contract.** -/
 theorem novelEval_spec (hp : Placed code k)
-    (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
-    (hmemset : Spec (Labels.label "memset") MemsetPre MemsetPost) :
-    Spec (Labels.label novelEvalLabel) NovelEvalPre NovelEvalPost := by
+    (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmemset : Spec (Labels.label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost := by
   intro m0 hpre
   have hpre' := hpre
   obtain ⟨hS, hcs, hwh, hout⟩ := hpre'
@@ -179,7 +182,7 @@ theorem novelEval_spec (hp : Placed code k)
   have hS2 := hS.2.1
   have hsl := slots_ok
   have hlw : ∀ w : UInt64, (NativeRustcVm.wordBytes w).length = 8 := NativeRustcVm.length_wordBytes
-  rw [show Labels.label novelEvalLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.NovelEval.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b0Offset) from hp.label NativeRustcVmX64.Vm.NovelEval.entry_at]
   -- `b0a`: the prologue
   have hwf0 := frame_wf (m := m0) (vars := fun _ ↦ 0) (ret := 0) (stackOk_mono hS hF)
     fun _ h ↦ h
@@ -191,7 +194,7 @@ theorem novelEval_spec (hp : Placed code k)
   have harg : ∀ r ∈ [Reg64.rdi, .rsi, .rdx, .rcx, .r8], reg st1.data r = reg m0 r := fun r hr ↦
     hm1.regs r (.reg r) (hargs0 r hr)
   -- `b0b`: the arguments, `memset`
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 0 + 8 + 10)).toBitVec) hS hF
+  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b1Offset)).toBitVec) hS hF
   refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hfr1.mid_match fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_b0b ▸ b0b_call
   have hrsp2 := rsp_call hm2 hsp2
@@ -228,7 +231,7 @@ theorem novelEval_spec (hp : Placed code k)
   have hrbx3 : reg st3.data .rbx = BitVec.ofNat 64 0 :=
     (hsv3.1 .rbx rfl).trans ((hm2.regs .rbx _ rfl).trans rfl)
   -- `b1`: more than 64 coefficients
-  have hpc3' : st3.pc = Host.addrOf (k + 18) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b1Offset) := hpc3
   refine exec_at (hb1 hp) run_b1 (Env.wf_nil _) (by intro l h; cases h) hpc3' (match_nil _)
     fun st4 hm4 hpc4 ↦ ?_
   have hfr4 := hfr3.of_block (match_nil _) hm4 (Env.wf_nil _) rfl (after_eq run_b1 ▸ b1_keeps)
@@ -245,12 +248,12 @@ theorem novelEval_spec (hp : Placed code k)
   obtain ⟨hT, hF4⟩ := Arrays.pc_cond hpc4
   by_cases hbig : 64 < cnt m0
   · refine finish hp hpre ((hT (by rw [decide_eq_true_eq]; omega)).trans
-      (hp.label (j := 86) rfl)) (frame_mono hfr4) ((e4 .r15 (by simp)).trans (hr153))
+      (hp.label NativeRustcVmX64.Vm.NovelEval.label_12_at)) (frame_mono hfr4) ((e4 .r15 (by simp)).trans (hr153))
       (v := none) ((e4 .rbx (by simp)).trans hrbx3) (fun _ h ↦ by cases h) ?_
     have : ¬(reg m0 .rdx).toNat ≤ laneCap := by show ¬_ ≤ 64; omega
     simp only [this, ↓reduceIte]
   have hc : cnt m0 ≤ 64 := by omega
-  have hpc4' : st4.pc = Host.addrOf (k + 18 + 2) := hF4 (by rw [decide_eq_true_eq]; omega)
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b2Offset) := hF4 (by rw [decide_eq_true_eq]; omega)
   -- `b2`: the spills, the basis `[1]`
   have hwf5 := hfr4.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb2 hp) run_b2 hwf5 (by intro l h; cases h) hpc4' hfr4.mid_match
@@ -292,15 +295,15 @@ theorem novelEval_spec (hp : Placed code k)
             (reg st4.data .r14).ult (BitVec.ofNat 64 2) from rfl, ult_ofNat (by decide)],
     (e4 .r14 (by simp)).trans (hr143)] at hpc5
   obtain ⟨hT5, hF5⟩ := Arrays.pc_cond hpc5
-  have hmid : ∀ {s : MachineState}, s.pc = Host.addrOf (k + 50) → Mid m0 s.data →
+  have hmid : ∀ {s : MachineState}, s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b9Offset) → Mid m0 s.data →
       Eventually (step1 Host.exe) (Post m0) s := fun hpc hM ↦
     (sum hp hkmul hpre hc hpc hM).bind fun s ⟨hpc', hD⟩ ↦ store hp hpre hc hpc' hD
   by_cases hsmall : cnt m0 < 2
   · have hfin := basisOf_final m0 (j := 0) (Nat.zero_le _) (by rw [hb0]; simp; omega)
-    exact hmid ((hT5 (by rw [decide_eq_true_eq]; omega)).trans (hp.label (j := 50) rfl))
+    exact hmid ((hT5 (by rw [decide_eq_true_eq]; omega)).trans (hp.label NativeRustcVmX64.Vm.NovelEval.label_7_at))
       ⟨hfr5, hsp5, by rw [hfin]; exact hrbp5, hr145, by rw [hfin]; exact hbas5⟩
   -- `b3`: the `What`s' end
-  have hpc5' : st5.pc = Host.addrOf (k + 18 + 2 + 6) := hF5 (by rw [decide_eq_true_eq]; omega)
+  have hpc5' : st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b3Offset) := hF5 (by rw [decide_eq_true_eq]; omega)
   have hwf6 := hfr5.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb3 hp) run_b3 hwf6 (by intro l h; cases h) hpc5' hfr5.mid_match
     fun st6 hm6 hpc6 ↦ ?_

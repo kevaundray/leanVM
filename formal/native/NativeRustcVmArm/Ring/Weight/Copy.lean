@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingWeight.Names
 public import NativeRustcVmArm.Ring.Weight.Entry
 
 /-!
@@ -59,13 +60,13 @@ variable [Host] {k : Nat}
 /-- **The pairs' copy set up** (`b6`). -/
 theorem stepB6 (hp : Placed code k) (h : RingWeightPre m0) {m : MachineData} (hB : Base m0 m)
     (h2 : 2 ≤ nR m0) {R : MachineState → Prop}
-    (cont : ∀ m', CopyI m0 0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 98)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 92)⟩ := by
+    (cont : ∀ m', CopyI m0 0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b7Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b6Offset)⟩ := by
   refine exec_then (hb b6_in_code (by simp [b6]) hp) run_b6 (Env.wf_nil m) (match_nil m)
     fun st hm1 hpc ↦ ?_
   simp only [PcOk] at hpc
   refine at_pc hpc ?_
-  rw [show k + 92 + b6.length = k + 98 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b6Offset + b6.length = k + NativeRustcVmArm.Vm.RingWeight.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b6_next]]
   have hn := n36 h
   have h62 : BinOp.apply .and .W64 m0.regs.X2.toBitVec (BitVec.ofNat 64 62) =
       BitVec.ofNat 64 (nR m0 / 2 * 2) := by
@@ -94,10 +95,10 @@ theorem stepB6 (hp : Placed code k) (h : RingWeightPre m0) {m : MachineData} (hB
 /-- **A pair copied** (`b7`): the next turn, or the pairs done at `b8`. -/
 theorem stepB7 (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} {m : MachineData}
     (hI : CopyI m0 t m) {R : MachineState → Prop}
-    (hnext : ∀ m', CopyI m0 (t + 1) m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 98)⟩)
+    (hnext : ∀ m', CopyI m0 (t + 1) m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b7Offset)⟩)
     (hdone : ∀ m', Base m0 m' → (m'.regs.getXReg .X10).toBitVec = BitVec.ofNat 64 (nR m0 / 2 * 2) →
-      CopyAt m0 m'.dmem (nR m0 / 2 * 2) → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 105)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 98)⟩ := by
+      CopyAt m0 m'.dmem (nR m0 / 2 * 2) → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b8Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b7Offset)⟩ := by
   have hn := n36 h
   have hnn : nR m0 = m0.regs.X2.toNat := rfl
   have hlt := hI.lt
@@ -161,7 +162,7 @@ theorem stepB7 (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} {m : Machin
       simp only [BitVec.toNat_ofNat] at this
       omega)
     refine at_pc hpc' ?_
-    rw [show Labels.label ".LRingWeight_7" = Host.addrOf (k + 98) from hp.label (j := 98) rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.RingWeight.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b7Offset) from hp.label (j := NativeRustcVmArm.Vm.RingWeight.b7Offset) NativeRustcVmArm.Vm.RingWeight.label_7_at]
     refine hnext st.data ⟨hB1, hl, hx10, ?_, ?_, h13, by rw [show 2 * (t + 1) = 2 * t + 2 by omega]; exact hcp⟩
     · refine reg_bv hm1 rfl ?_
       show m0.regs.X1.toBitVec + BitVec.ofNat 64 (32 * t) + BitVec.ofInt 64 (48 : Nat) = _
@@ -174,7 +175,7 @@ theorem stepB7 (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} {m : Machin
       simp only [BitVec.toNat_ofNat]
       omega)
     refine at_pc hpc' ?_
-    rw [show k + 98 + b7.length = k + 105 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.RingWeight.b7Offset + b7.length = k + NativeRustcVmArm.Vm.RingWeight.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b7_next]]
     exact hdone st.data hB1 hx10 (by rw [show nR m0 / 2 * 2 = 2 * t + 2 by omega]; exact hcp)
 
 end

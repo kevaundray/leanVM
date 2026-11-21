@@ -5,7 +5,7 @@ public import NativeRustcVmX64.Whir.NextLevel.Queries
 /-!
 # `next_level`: the zeroing loop (x86-64)
 
-`.LNextLevel_9` (`b17`) zeroes the frame's 80 bytes at `RSP + RCX + 616` (the frame's offset
+`NativeRustcVmX64.Vm.NextLevel.label_9` (`b17`) zeroes the frame's 80 bytes at `RSP + RCX + 616` (the frame's offset
 `760 + 80 i`, RCX `72 + 80 i`) for `i < 46` (`zero_step`, `zero_loop`): to `b18` with `H17`.
 Nothing it writes is read again.
 -/
@@ -38,13 +38,13 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **A turn of the zeroing loop.** -/
 theorem zero_step (hp : Placed code k) (c : Ctx a s level w rounds m0) {i : Nat} (hi : i < 46)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 150))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b17Offset))
     (hrcx : reg st.data .rcx = BitVec.ofNat 64 (72 + 80 * i))
     (hH : H17 a level w rounds m0 xs ood v lam qs s8 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ H17 a level w rounds m0 xs ood v lam qs s8 st'.data ∧
-      ((st'.pc = Host.addrOf (k + 150) ∧ i + 1 < 46 ∧
+      ((st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b17Offset) ∧ i + 1 < 46 ∧
         reg st'.data .rcx = BitVec.ofNat 64 (72 + 80 * (i + 1))) ∨
-      st'.pc = Host.addrOf (k + 164))) st := by
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b18Offset))) st := by
   have g := c.geo
   have hK := hH.K
   have hxs : xs.size ≤ 6 := by rw [hH.size]; exact c.fold
@@ -107,19 +107,19 @@ theorem zero_step (hp : Placed code k) (c : Ctx a s level w rounds m0) {i : Nat}
   by_cases h45 : i = 45
   · have e : (!decide (i = 45)) = false := by simp [h45]
     simp only [e, Bool.false_eq_true, ite_false] at hpc'
-    have hpc'' : st'.pc = Host.addrOf (k + 164) := hpc'
+    have hpc'' : st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b18Offset) := hpc'
     exact .done _ ⟨hH', Or.inr hpc''⟩
   · have e : (!decide (i = 45)) = true := by simp [h45]
     simp only [e, ite_true] at hpc'
-    exact .done _ ⟨hH', Or.inl ⟨hpc'.trans (hp.label (j := 150) rfl), by omega, hrcx2⟩⟩
+    exact .done _ ⟨hH', Or.inl ⟨hpc'.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_9_at), by omega, hrcx2⟩⟩
 
 /-- **The zeroing loop**, from its head with RCX `72`, to `b18`. -/
 theorem zero_loop (hp : Placed code k) (c : Ctx a s level w rounds m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 150)) (hrcx : reg st.data .rcx = BitVec.ofNat 64 72)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b17Offset)) (hrcx : reg st.data .rcx = BitVec.ofNat 64 72)
     (hH : H17 a level w rounds m0 xs ood v lam qs s8 st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 164) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b18Offset) ∧
       H17 a level w rounds m0 xs ood v lam qs s8 st'.data) st := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 150) ∧ ∃ i, 46 - i = n ∧ i < 46 ∧
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b17Offset) ∧ ∃ i, 46 - i = n ∧ i < 46 ∧
       reg st.data .rcx = BitVec.ofNat 64 (72 + 80 * i) ∧
       H17 a level w rounds m0 xs ood v lam qs s8 st.data)
     (fun n st ⟨hpc, i, hn, hi, hr, hH⟩ ↦ ?_) ⟨hpc, 0, rfl, by decide, hrcx, hH⟩

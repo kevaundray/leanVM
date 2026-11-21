@@ -70,7 +70,7 @@ theorem finish (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m 
     (hsp : reg m .rsp = r.base) (hsv : BytesAt m.dmem (r.off 2712) (savedBytes r.m0))
     (hk : Kept r.m0.dmem m.dmem) (hs : SameOutside r.m0.dmem m.dmem r.Changed)
     (hout : WotsLeafOut1 (bytesOf m.dmem r.out 75) r.result) :
-    Eventually (step1 Host.exe) r.Done ⟨m, r.pc 158⟩ :=
+    Eventually (step1 Host.exe) r.Done ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b12Offset⟩ :=
   Eventually.mono (epilogue r hp hpre m hsp hsv hk hs) fun st ⟨hpc, hrsp, hS, hmem⟩ ↦ by
     have hb : bytesOf st.data.dmem r.out 75 = bytesOf m.dmem r.out 75 := by
       unfold bytesOf
@@ -84,8 +84,8 @@ theorem finish (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m 
 theorem fail_path (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {L : List Slot}
     (m : MachineData) (hK : Keep r L m) (h96 : BytesAt m.dmem (r.off 96) (regBytes r.out))
     (hnone : r.result = none) :
-    Eventually (step1 Host.exe) r.Done ⟨m, r.pc 155⟩ := by
-  obtain ⟨hm, hwf⟩ := match_out hpre hK h96 (ret := (r.pc (155 + b11.length)).toBitVec) (k := [])
+    Eventually (step1 Host.exe) r.Done ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b11Offset⟩ := by
+  obtain ⟨hm, hwf⟩ := match_out hpre hK h96 (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b11Offset + b11.length)).toBitVec) (k := [])
     trivial
   refine blk r hp b11_in_code (List.cons_ne_nil _ _) run_b11 hwf rfl hm
     fun st hm' hpc ↦ pc_at hpc ?_

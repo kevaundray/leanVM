@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Tables.TableWeights.Ends
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.TableWeights.Names
 
 /-!
 # `table_weights` on x86-64
@@ -27,7 +29,7 @@ abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
 
 /-- **The exit**: the weights stored at `out`, the epilogue. -/
 theorem exit_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 151)) (hI : Fin m0 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b13Offset)) (hI : Fin m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hS, hOr, hOo, -, -, -⟩ := hpre
   have hb : Body m0 256 tableWeightsStack slots (reg m0 .rdi) 96 st.data := Body.widen hI.body
@@ -102,13 +104,13 @@ theorem exit_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPr
 
 /-- **`table_weights` meets its contract.** -/
 theorem table_weights_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label tableWeightsLabel) TableWeightsPre TableWeightsPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.TableWeights.entryLabel) TableWeightsPre TableWeightsPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   refine Eventually.bind (entry_step hp hpre) fun st h ↦ ?_
   rcases h with ⟨hpc, hI⟩ | ⟨hpc, hF⟩
-  · refine Sym.loop (fun c st ↦ st.pc = Host.addrOf (k + 123) ∧ ∃ i, n m0 - i = c ∧
+  · refine Sym.loop (fun c st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b10Offset) ∧ ∃ i, n m0 - i = c ∧
       It m0 i st.data) (fun c st ⟨hpc, i, hc, hI⟩ ↦ ?_) ⟨hpc, 0, rfl, hI⟩
     refine Eventually.bind (turn hp hmul hpre hpc hI) fun st' h ↦ ?_
     rcases h with ⟨hpc', hI'⟩ | ⟨hpc', hF⟩

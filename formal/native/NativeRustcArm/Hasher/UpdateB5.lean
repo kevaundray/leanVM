@@ -71,9 +71,9 @@ set_option linter.unusedSimpArgs false in
 theorem b5_spec (hp : Placed code k) {m0 m1 m : MachineData} (hpre : UpdatePre m0) {c : Nat}
     {Hc : List UInt8} (hcp : Copied m0 m1 c Hc m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 13) ∧ Mid m0 m1 c (takeN m0 c Hc) st.data) ∨
-        (st.pc = Host.addrOf (k + 35) ∧ Full m0 m1 c Hc st.data))
-      ⟨m, Host.addrOf (k + 30)⟩ := by
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b1Offset) ∧ Mid m0 m1 c (takeN m0 c Hc) st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b6Offset) ∧ Full m0 m1 c Hc st.data))
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Update.b5Offset)⟩ := by
   have g := geo_of hpre
   have hwf := wf_head hpre hcp.frame
   have hm := match_headS hcp.frame
@@ -119,7 +119,7 @@ theorem b5_spec (hp : Placed code k) {m0 m1 m : MachineData} (hpre : UpdatePre m
     omega
   refine exec_then (hb5 hp) run_b5 hwf hm fun st5 hm5 hpc5 => ?_
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply, low_W64, ext_W64,
-    Env.ofMachine_regs, hload, hx22, hV, show b5.length = 5 from rfl] at hpc5
+    Env.ofMachine_regs, hload, hx22, hV, Nat.add_assoc, NativeRustcArm.Common.Update.b5_next] at hpc5
   -- Memory: the new `buf_len`.
   have hmem5 : ∀ j < 344, st5.data.dmem.get? (hAt m0 + BitVec.ofNat 64 j) =
       if 336 ≤ j then some (byteOf (BitVec.ofNat 64 (L + t)) (j - 336))

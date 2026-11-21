@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Sphincs.SphincsVerify.Names
+
 public import NativeRustcX64.SphincsVerify.Encode.Hash
 meta import NativeRustcX64.Code.Sphincs.SphincsVerify.Part2
 meta import NativeRustcX64.SphincsVerify.Frame
@@ -45,7 +47,7 @@ def loopInit (j : Nat) : SState :=
 RDX, RSP and the callee-saved registers kept, the two digits written. -/
 def loopOk (j : Nat) : Bool :=
   match exec Sphincs.SphincsVerify.b113 (loopInit j) with
-  | some (S, x) => x == .cond (.lit (j + 1 != 32)) ".LSphincsVerify_39" &&
+  | some (S, x) => x == .cond (.lit (j + 1 != 32)) NativeRustcX64.Sphincs.SphincsVerify.label_39 &&
       S.reg .rdi == some (.lit (4 * j + 4)) &&
       S.reg .rsi == some (.ptr 0 ((579 + 2 * j : Nat) : Int)) &&
       S.reg .rax == some (.reg .rax) && S.reg .rdx == some (.reg .rdx) &&
@@ -111,10 +113,9 @@ end Run
 /-! ## A turn -/
 
 theorem label_39 [Host] {k : Nat} (hp : Placed Sphincs.SphincsVerify.code k) :
-    Labels.label ".LSphincsVerify_39" = Host.addrOf (k + 1209) :=
-  hp.label (List.isInfixAt_iff_getElem?.mp Sphincs.SphincsVerify.b113_in_code 0 (by decide))
+    Labels.label NativeRustcX64.Sphincs.SphincsVerify.label_39 = Host.addrOf (k + NativeRustcX64.Sphincs.SphincsVerify.b113Offset) :=
+  hp.label NativeRustcX64.Sphincs.SphincsVerify.label_39_at
 
-theorem length_b113 : Sphincs.SphincsVerify.b113.length = 25 := by decide +kernel
 
 variable [Host]
 
@@ -125,13 +126,13 @@ theorem loop_step (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
     (h7 : Run.RegIs m .rdi (BitVec.ofNat 64 (4 * j)))
     (h6 : Run.RegIs m .rsi (r.off (577 + 2 * j))) :
     Eventually (step1 Host.exe) (fun st ↦
-      st.pc = (if j + 1 = 32 then r.pc 1234 else r.pc 1209) ∧ r.Frame st.data ∧
+      st.pc = (if j + 1 = 32 then r.pc NativeRustcX64.Sphincs.SphincsVerify.b114Offset else r.pc NativeRustcX64.Sphincs.SphincsVerify.b113Offset) ∧ r.Frame st.data ∧
       Run.RegIs st.data .rdi (BitVec.ofNat 64 (4 * (j + 1))) ∧
       Run.RegIs st.data .rsi (r.off (577 + 2 * (j + 1))) ∧ digest128 st.data = digest128 m ∧
       Saved m st.data ∧ SameOutside m.dmem st.data.dmem (InRange (r.off (576 + 2 * j)) 2) ∧
       ∀ t < 2, st.data.dmem.get? (r.off (576 + 2 * j + t)) =
         some (UInt8.ofNat (digest128 m >>> (126 - 2 * (2 * j + t)) % 4)))
-      ⟨m, r.pc 1209⟩ := by
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b113Offset⟩ := by
   have hok := loopOk_all j hj
   rw [loopOk] at hok
   rcases hx : exec Sphincs.SphincsVerify.b113 (loopInit j) with _ | ⟨S, x⟩
@@ -152,8 +153,8 @@ theorem loop_step (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
   · simp only [Sym.PcOk, SBool.eval] at hpc
     rw [hpc]
     by_cases hj1 : j + 1 = 32
-    · simp only [hj1, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, length_b113]
-      rfl
+    · simp only [hj1, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+      simp only [Run.pc, Nat.add_assoc, NativeRustcX64.Sphincs.SphincsVerify.b113_next]
     · simp only [hj1, ↓reduceIte, bne_iff_ne, ne_eq, not_false_eq_true]
       exact label_39 hp
   · exact Run.Frame.of_match r hpre hF hm' hwf hssp hfw
@@ -191,11 +192,11 @@ theorem loop_run (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
       Run.RegIs m .rdi (BitVec.ofNat 64 (4 * j)) → Run.RegIs m .rsi (r.off (577 + 2 * j)) →
       digest128 m = V →
       (∀ t < 2 * j, m.dmem.get? (r.off (576 + t)) = some (digitByte V t)) →
-      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1234 ∧ r.Frame st.data ∧
+      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b114Offset ∧ r.Frame st.data ∧
         Saved m st.data ∧
         SameOutside m.dmem st.data.dmem (InRange (r.off (576 + 2 * j)) (64 - 2 * j)) ∧
         ∀ t < 64, st.data.dmem.get? (r.off (576 + t)) = some (digitByte V t))
-      ⟨m, r.pc 1209⟩ := by
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b113Offset⟩ := by
   intro n
   induction n with
   | zero =>

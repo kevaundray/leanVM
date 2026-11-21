@@ -1,6 +1,13 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.SumStep
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmX64.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.TableTerms.Names
 
 /-!
 # `table_terms` meets its contract (x86-64)
@@ -23,14 +30,14 @@ variable [Host] {k : Nat}
 
 /-- **`table_terms` meets its contract.** -/
 theorem tableTerms_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hcw : Spec (Labels.label constraintsWLabel) ConstraintsWPre ConstraintsWPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hcw : Spec (Labels.label NativeRustcVmX64.Vm.ConstraintsW.entryLabel) ConstraintsWPre ConstraintsWPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmX64.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {a : DecArea} {s : TState} {heights : Array Nat} {forms : Array (Array FormW)} :
-    Spec (Labels.label tableTermsLabel) (TableTermsPre a s heights forms)
+    Spec (Labels.label NativeRustcVmX64.Vm.TableTerms.entryLabel) (TableTermsPre a s heights forms)
       (TableTermsPost a s heights forms) := by
   intro m0 h
   rw [lbl_entry hp]
@@ -38,7 +45,7 @@ theorem tableTerms_spec (hp : Placed code k)
   have hf : forms.size = 6 := forms_size h
   refine entry hp h fun d H ↦ ?_
   have loop : ∀ n i acc si d, 6 - i = n → i < 6 → Head a s heights forms m0 i acc si d →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 25)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b1Offset)⟩ := by
     intro n
     induction n with
     | zero => intro i _ _ _ hn hi; omega

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Keccak.WordsHash.Pad
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
 
 /-!
 # `keccak256_words::<hash_words's closure>` (x86-64): from the padding to the epilogue
@@ -21,10 +22,10 @@ public section
 variable [Host]
 
 /-- **From the padding to the epilogue.** -/
-theorem pad_run (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX64.KeccakFPre
+theorem pad_run (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) NativeRustcVmX64.KeccakFPre
       NativeRustcVmX64.KeccakFPost) {k : Nat} (hp : Placed code k) {m0 : MachineData}
     (g : Geo m0) {st : MachineState}
-    (h : ValAt m0 k (tailR4 m0) (stA m0) (17 * nb m0) 16 .rax 439 st) :
+    (h : ValAt m0 k (tailR4 m0) (stA m0) (17 * nb m0) 16 .rax NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b82Offset st) :
     Eventually (step1 Host.exe) (EpiAt m0 k) st := by
   obtain ⟨hc, hl, hrax, hpc⟩ := h
   obtain ⟨m, pc⟩ := st
@@ -34,8 +35,8 @@ theorem pad_run (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX
   rw [show b82 = padACode ++ (padBCode ++ padCCode) from rfl] at hb82
   obtain ⟨hkA, hkBC⟩ := List.IsInfixAt.append hb82
   obtain ⟨hkB, hkC⟩ := List.IsInfixAt.append hkBC
-  rw [show k + 439 + padACode.length = k + 447 from rfl] at hkB hkC
-  rw [show k + 447 + padBCode.length = k + 448 from rfl] at hkC
+  rw [show k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b82Offset + padACode.length = k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b82Offset + padACode.length from rfl] at hkB hkC
+  rw [show k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b82Offset + padACode.length + padBCode.length = k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b82Offset + padACode.length + padBCode.length from rfl] at hkC
   have hr136 : (m0.regs.get64 .rdx).toNat % 136 < 136 := Nat.mod_lt _ (by decide)
   obtain ⟨t, ht⟩ : ∃ t, t = (m0.regs.get64 .rdx).toNat % 136 / 8 := ⟨_, rfl⟩
   have ht17 : t < 17 := by omega
@@ -63,7 +64,7 @@ theorem pad_run (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX
     rw [hm1.regs .rax _ rfl]
     show BinOp.apply .shl .W64 (BitVec.ofNat 64 1) (oct32 (m.regs.get64 .r14)) = _
     rw [hr14, padWord_val _ hr136]
-  simp only [PcOk, show k + 439 + padACode.length = k + 447 from rfl] at hpc1
+  simp only [PcOk] at hpc1
   -- `padB t`
   obtain ⟨SB, hxB, hmemB, hrspB⟩ := padB_exec t ht17
   let env2 := Env.ofMachine st1.data [(frame m0, 296)]
@@ -88,10 +89,10 @@ theorem pad_run (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX
       show BinOp.apply .xor .W64 (env2.load 0 (40 + 8 * t) 8) (st1.data.regs.get64 .rax) = _
       rw [xor64, hax, load_of_wordAt (r := 0) (hl1 t (by omega))]
       rfl)
-  simp only [PcOk, show k + 447 + padBCode.length = k + 448 from rfl] at hpc2
+  simp only [PcOk] at hpc2
   -- `padC`, and the call
   obtain ⟨hwf3, hm3⟩ := main_env g.stk hc2 (vars := fun _ => 0)
-    (ret := (Host.addrOf (k + 448 + padCCode.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b82Offset + padACode.length + padBCode.length + padCCode.length)).toBitVec)
   refine exec_at hkC padC hwf3 (fun _ _ => rfl) hpc2 hm3 fun st3 hm3' hpc3 => ?_
   have hc3 : Ctx m0 (slotsH m0) [] 0 st3.data :=
     ctx_step g.stk (slotsH_low m0) hc2 hm3' hwf3 rfl rfl (by decide) trivial

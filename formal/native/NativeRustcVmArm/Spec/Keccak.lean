@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
+public import NativeRustcVmArm.Code.Vm.IvWord.Names
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfFiatShamirIv.Names
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcArm.Spec.Keccak
 public import NativeRustcVm.Mem
 public import NativeVm.Model.Verify
@@ -10,7 +16,7 @@ public import NativeVm.Model.Verify
 Each function uses the stack below SP (`<fn>Stack` bytes, its callees' included; `StackOk` in its
 precondition; `iv_word` uses none) and returns with the callee-saved registers and SP kept, no byte
 changed outside its output and that stack (`stackBelow`). Those that permute read the round
-constants, 192 bytes at `rcLabel` (`RcAt`). A state, a digest and a slice of `u64` are their
+constants, 192 bytes at `NativeRustcVmArm.Vm.Symbols.rodata1Label` (`RcAt`). A state, a digest and a slice of `u64` are their
 words end to end, little-endian (`NativeRustcVm.WordsAt`). Results are the model's
 (`NativeVm.Model`):
 
@@ -33,20 +39,6 @@ open NativeRustcArm NativeVm.Model LeanVM.Semantics LeanVM.Parameters
 
 /-! ## Symbols -/
 
-/-- `keccak_f`'s symbol. -/
-def keccakFLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6keccak8keccak_f"
-/-- `keccak256_words`'s symbol, with `hash_words`'s closure. -/
-def keccak256WordsHashLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm6keccak15keccak256_wordsNCNvB2_10hash_words0EB4_"
-/-- `keccak256_words`'s symbol, with `fiat_shamir_iv`'s closure. -/
-def keccak256WordsIvLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm6keccak15keccak256_wordsNCNvNtB4_6verify14fiat_shamir_iv0EB4_"
-/-- `iv_word`'s symbol. -/
-def ivWordLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify7iv_word"
-/-- `hash_pair`'s symbol. -/
-def hashPairLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair"
-/-- The label of the round constants `KECCAK_RC` (192 bytes). -/
-def rcLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.1"
 
 /-! ## Stacks -/
 
@@ -62,7 +54,7 @@ section
 variable [Labels]
 
 /-- The address of the round constants. -/
-def rcAddr : BitVec 64 := (label rcLabel).toBitVec
+def rcAddr : BitVec 64 := (label NativeRustcVmArm.Vm.Symbols.rodata1Label).toBitVec
 
 /-- The round constants are at their label, apart from the `n` bytes below SP. -/
 def RcAt (m : MachineData) (n : Nat) : Prop :=

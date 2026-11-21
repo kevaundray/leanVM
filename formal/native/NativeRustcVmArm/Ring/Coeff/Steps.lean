@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EWSqIter.Names
 public import NativeRustcVmArm.Ring.Coeff.Env
 public import NativeRustcVmArm.Ring.Coeff.Model
 
@@ -94,9 +96,9 @@ variable [Host]
 /-! ## The head -/
 
 /-- **The head** (`b1`): `f_p · G_0`. -/
-theorem stepHead (h : P m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat}
+theorem stepHead (h : P m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat}
     {ds : List Directive} {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewMulLabel)) (hS : headOk S' = true) {m : MachineData}
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hS : headOk S' = true) {m : MachineData}
     (hH : Head m0 p m) {R : MachineState → Prop}
     (cont : ∀ m2, MulD m0 p 0 m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + ds.length)⟩) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf i⟩ := by
@@ -163,9 +165,9 @@ theorem stepHead (h : P m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMu
 /-! ## A product -/
 
 /-- **A product block** (`b2` to `b8`): the last product stored, `f_p · G_b`. -/
-theorem stepMul (h : P m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i b : Nat}
+theorem stepMul (h : P m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i b : Nat}
     {ds : List Directive} {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewMulLabel)) (hS : mulOk (b + 1) S' = true)
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hS : mulOk (b + 1) S' = true)
     (hb : b + 1 < 8) {m : MachineData} (hM : MulD m0 p b m) {R : MachineState → Prop}
     (cont : ∀ m2, MulD m0 p (b + 1) m2 →
       Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + ds.length)⟩) :
@@ -223,9 +225,9 @@ theorem stepMul (h : P m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMul
 /-! ## The Frobenius images -/
 
 /-- **The first Frobenius block** (`b9`): the last product stored, `G_0`'s image. -/
-theorem stepSq0 (h : P m0) (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+theorem stepSq0 (h : P m0) (hsq : Spec (Labels.label NativeRustcVmArm.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     {i : Nat} {ds : List Directive} {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewSqIterLabel)) (hS : sq0Ok S' = true)
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWSqIter.entryLabel)) (hS : sq0Ok S' = true)
     {m : MachineData} (hM : MulD m0 p 7 m) {R : MachineState → Prop}
     (cont : ∀ m2, SqD m0 p 0 m2 →
       Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + ds.length)⟩) :
@@ -279,9 +281,9 @@ theorem stepSq0 (h : P m0) (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre 
     out := hout _ (by rw [rc_length1 (by omega)]; omega) hout2 }
 
 /-- **A Frobenius block** (`b10` to `b16`): `G_(b)`'s image stored, `G_(b+1)`'s. -/
-theorem stepSq (h : P m0) (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
+theorem stepSq (h : P m0) (hsq : Spec (Labels.label NativeRustcVmArm.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
     {i b : Nat} {ds : List Directive} {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewSqIterLabel)) (hS : sqOk (b + 1) S' = true)
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWSqIter.entryLabel)) (hS : sqOk (b + 1) S' = true)
     (hb : b + 1 < 8) {m : MachineData} (hQ : SqD m0 p b m) {R : MachineState → Prop}
     (cont : ∀ m2, SqD m0 p (b + 1) m2 →
       Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + ds.length)⟩) :

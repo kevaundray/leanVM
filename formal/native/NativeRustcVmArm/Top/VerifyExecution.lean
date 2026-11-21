@@ -1,5 +1,16 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.CommitStack.Names
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmArm.Code.Vm.ReadAnnouncedSizes.Names
+public import NativeRustcVmArm.Code.Vm.ReadOod.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmArm.Code.Vm.TablePhase.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcVmArm.Code.Vm.VerifyExecution.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Call2
 
 /-!
@@ -61,14 +72,14 @@ variable [Host] {k : Nat}
 /-- **The walk**, from the entry: the function returns the walk's result on the bytecode's and the
 public input's words at the entry. -/
 theorem walk (hp : Placed code k) (hR : Rest)
-    (hras : ∀ bc a s, Spec (Labels.label readAnnouncedSizesLabel) (ReadAnnouncedSizesPre bc a s)
+    (hras : ∀ bc a s, Spec (Labels.label NativeRustcVmArm.Vm.ReadAnnouncedSizes.entryLabel) (ReadAnnouncedSizesPre bc a s)
       (ReadAnnouncedSizesPost bc a s))
-    (hcs : ∀ a s, Spec (Labels.label commitStackLabel) (CommitStackPre a s) (CommitStackPost a s))
-    (hro : ∀ a s, Spec (Labels.label readOodLabel) (ReadOodPre a s) (ReadOodPost a s))
+    (hcs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.CommitStack.entryLabel) (CommitStackPre a s) (CommitStackPost a s))
+    (hro : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s))
     {a : DecArea} {s : TState} {m0 : MachineData} (hpre : VerifyExecutionPre a s m0) :
     Eventually (step1 Host.exe)
       (Done a m0 ((verifyExecution (bcE m0).toArray (pubE m0)).run s))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b0Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨-, -, -, hts0, hroots, -⟩ := hpre
   have hs := g.s
@@ -163,7 +174,7 @@ theorem walk (hp : Placed code k) (hR : Rest)
     · exact wr_w g (o := 0) (n := 3912) (by omega) (by omega) hq
     · exact wr_t g hq
     · exact wr_stk h1 g hN' hq
-  rw [show k + 0 + b0.length = k + 15 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b0Offset + b0.length = k + NativeRustcVmArm.Vm.VerifyExecution.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b0_next]] at hpc2
   rw [NativeRustcVm.Top.verifyExecution_eq, run_bind_eq]
   generalize hr : (readAnnouncedSizes (bcE m0).toArray).run s = r at hx0 hres
   have bk := branch_keeps b1 (by simp)
@@ -177,7 +188,7 @@ theorem walk (hp : Placed code k) (hR : Rest)
   obtain ⟨⟨⟨L, rate⟩, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
   obtain ⟨hrate, hL, hts'⟩ := hres _ _ _ rfl
   obtain ⟨hbc, hsl, hvc, hroots'⟩ := readAnnouncedSizes_some hr
-  rw [show k + 15 + b1.length = k + 17 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b1Offset + b1.length = k + NativeRustcVmArm.Vm.VerifyExecution.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b1_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)
@@ -194,28 +205,28 @@ theorem walk (hp : Placed code k) (hR : Rest)
 
 /-- **`verify_execution` meets its contract.** -/
 theorem verifyExecution_spec (hp : Placed code k)
-    (hras : ∀ bc a s, Spec (Labels.label readAnnouncedSizesLabel) (ReadAnnouncedSizesPre bc a s)
+    (hras : ∀ bc a s, Spec (Labels.label NativeRustcVmArm.Vm.ReadAnnouncedSizes.entryLabel) (ReadAnnouncedSizesPre bc a s)
       (ReadAnnouncedSizesPost bc a s))
-    (hcs : ∀ a s, Spec (Labels.label commitStackLabel) (CommitStackPre a s) (CommitStackPost a s))
-    (hro : ∀ a s, Spec (Labels.label readOodLabel) (ReadOodPre a s) (ReadOodPost a s))
-    (hbb : ∀ a s L, Spec (Labels.label verifyBusBalanceLabel) (VerifyBusBalancePre a s L)
+    (hcs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.CommitStack.entryLabel) (CommitStackPre a s) (CommitStackPost a s))
+    (hro : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s))
+    (hbb : ∀ a s L, Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalance.entryLabel) (VerifyBusBalancePre a s L)
       (VerifyBusBalancePost a s L))
-    (htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+    (htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmArm.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
       (TablePhasePost a s layout bus))
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmArm.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmArm.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label verifyExecutionLabel) (VerifyExecutionPre a s)
+    Spec (Labels.label NativeRustcVmArm.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s) := by
   intro m0 hpre
   rw [lbl_entry hp]

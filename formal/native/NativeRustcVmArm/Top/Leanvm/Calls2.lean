@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Decode.Names
 public import NativeRustcVmArm.Top.Leanvm.Calls
 
 /-!
@@ -62,10 +63,10 @@ variable [Host] {k : Nat}
 
 /-- **A nonempty wire**: from `b11`. -/
 theorem decodeWire (hp : Placed code k)
-    (hdec : Spec (Labels.label decodeLabel) DecodePre DecodePost)
+    (hdec : Spec (Labels.label NativeRustcVmArm.Vm.Decode.entryLabel) DecodePre DecodePost)
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 54)) (h1 : C1 a bytes bytecode pub m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b11Offset)) (h1 : C1 a bytes bytecode pub m0 st.data)
     (hL0 : 0 < bytes.length) :
     Eventually (step1 Host.exe) (Decoded k a bytes bytecode pub m0) st := by
   have g := geo_of hpre
@@ -82,17 +83,17 @@ theorem decodeWire (hp : Placed code k)
   have hFm0 : Mapped m0.dmem (frameOf m0) 128 :=
     Mapped.within hmap (by rw [hsb]; omega) (by rw [hsb, hF]; omega) (by rw [hsb, hF]; omega)
   -- `b11`: the wire's address nonzero.
-  refine exec_at (hb 54 hp b11_in_code (by simp [b11])) run_b11 (Env.wf_nil _) hpc (match_nil _)
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b11Offset hp b11_in_code (by simp [b11])) run_b11 (Env.wf_nil _) hpc (match_nil _)
     fun st11 hm11 hpc11 ↦ ?_
   have hk11 := none_keeps b11 (by simp)
   rw [after_eq run_b11] at hk11
   have h11 := h1.step hs128 hm11 hk11.1 hk11.2 rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
   simp only [PcOk, evalReg0 (Env.ofMachine st.data []) (r := .X9) (x := a.wire)
     (congrArg UInt64.toBitVec h1.x9), hal.wire hL0, decide_false, Bool.false_eq_true,
-    ite_false, show k + 54 + b11.length = k + 55 from rfl] at hpc11
+    ite_false, show k + NativeRustcVmArm.Vm.LeanvmVerify.b11Offset + b11.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b11_next]] at hpc11
   -- `b12`: the public input in the frame, `decode`'s arguments.
   obtain ⟨hwf, hm⟩ := frameEnv h11.body hs128 hal16 (Mapped.kept hFm0 h11.body.kept)
-  refine exec_at (hb 55 hp b12_in_code (by simp [b12])) run_b12 hwf hpc11 hm
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b12Offset hp b12_in_code (by simp [b12])) run_b12 hwf hpc11 hm
     fun st12 hm12 hpc12 ↦ ?_
   have hk := b12_keeps
   rw [after_eq run_b12] at hk
@@ -117,9 +118,9 @@ theorem decodeWire (hp : Placed code k)
   have hX1n : st12.data.regs.X1.toNat = bytes.length := by
     rw [hX1]; exact natToU64 (by have := hin.L32; omega)
   refine callDecode hdec hpre hpc12 hP hD hBy hX1n fun st13 hpc13 hres hB13 hpub13 hsaved ↦ ?_
-  rw [show k + 55 + b12.length = k + 63 from rfl] at hpc13
+  rw [show k + NativeRustcVmArm.Vm.LeanvmVerify.b12Offset + b12.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b13Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b12_next]] at hpc13
   -- `b13`: the verdict's test.
-  refine exec_at (hb 63 hp b13_in_code (by simp [b13])) run_b13 (Env.wf_nil _) hpc13
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b13Offset hp b13_in_code (by simp [b13])) run_b13 (Env.wf_nil _) hpc13
     (match_nil _) fun st14 hm14 hpc14 ↦ ?_
   have hk14 := none_keeps b13 (by simp)
   rw [after_eq run_b13] at hk14
@@ -141,10 +142,10 @@ theorem decodeWire (hp : Placed code k)
     simp only [PcOk, evalW32 (Env.ofMachine st13.data []) (x := 1)
       (congrArg UInt64.toBitVec hres.1)] at hpc14
     rw [show ((1 : UInt64).toBitVec.setWidth 32 == 0#32) = false from rfl,
-      show k + 63 + b13.length = k + 64 from rfl] at hpc14
+      show k + NativeRustcVmArm.Vm.LeanvmVerify.b13Offset + b13.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b14Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b13_next]] at hpc14
     simp only [Bool.false_eq_true, ite_false] at hpc14
     have h14 := hc2.step hs128 hm14 hk14.1 hk14.2 rfl rfl rfl rfl rfl rfl
-    refine exec_at (hb 64 hp b14_in_code (by simp [b14])) run_b14 (Env.wf_nil _) hpc14
+    refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b14Offset hp b14_in_code (by simp [b14])) run_b14 (Env.wf_nil _) hpc14
       (match_nil _) fun st15 hm15 hpc15 ↦ ?_
     have hk15 := none_keeps b14 (by simp)
     rw [after_eq run_b14] at hk15

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmArm.Code.Vm.Dot.Names
 public import NativeRustcVmArm.Tables.TableTerms.Body
 
 /-!
@@ -39,8 +41,8 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 
 /-- **Table `i`'s constraints and their sum** (`b4`, `constraints_w`, `b5`, `dot`). -/
 theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
-    (hcw : Spec (Labels.label constraintsWLabel) ConstraintsWPre ConstraintsWPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost) {R : MachineState → Prop}
+    (hcw : Spec (Labels.label NativeRustcVmArm.Vm.ConstraintsW.entryLabel) ConstraintsWPre ConstraintsWPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost) {R : MachineState → Prop}
     {i : Nat} (hi : i < 6) {o : Array (Array EW × Array EW)} {xs : Array EW} {s' : TState}
     {m : MachineData} (H : It a m0 i o xs s' m) (hl : FW m0 m (lws m0 i))
     (x19 : rg m .X19 = T + BitVec.ofNat 64 (8 + 40 * i))
@@ -51,8 +53,8 @@ theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
       (m'.regs.X22).toNat = (tb i).nConstraints → m'.regs.X23 = 8 →
       ewRet m' = dot ((cpw m0).extract (cursorAt i) (cursorAt i + (tb i).nConstraints))
         (constraintsW (tb i).opcode xs) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 55)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 33)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b6Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b4Offset)⟩ := by
   have hS := Pre.stack h
   have hN := spN h
   have tr := tab_rin h hi
@@ -122,8 +124,8 @@ theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     have := It4.vals.2.2
     rwa [show evi m0 i + BitVec.ofNat 64 488 + 8#64 = evi m0 i + BitVec.ofNat 64 496 from
       NativeRustcVm.addr_add_add _ 488 8] at this
-  have hpc4' : st4.pc = Labels.label constraintsWLabel ∧ retOf st4.data = Host.addrOf (k + 41) :=
-    ⟨hpc4.1, hpc4.2.trans (addr_eq (by rw [len_b4]))⟩
+  have hpc4' : st4.pc = Labels.label NativeRustcVmArm.Vm.ConstraintsW.entryLabel ∧ retOf st4.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b5Offset) :=
+    ⟨hpc4.1, hpc4.2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b4_next]))⟩
   refine Bus.Gkr.Fr.callLocal (X := fun q ↦ InRange (base m0 288 + BitVec.ofNat 64 112) 32 q)
     (o := 112) (n := 32) hfr4 hN hle (fun _ h ↦ nomatch h) (by decide) (by omega) (outs_frame h)
     (fun q hq ↦ .inr hq) hcw hpc4' hpre (fun m' hq ↦ ?_) fun m5 hfr5 hq5 hcs5 hs5 ↦ ?_
@@ -198,8 +200,8 @@ theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
       exact ⟨Bus.Fr.readable hfr6 cpr.1, Bus.Fr.offStack hfr6 hS cpr.2.1 hdl⟩
     · rw [SliceOk, e2, e3]
       exact Bus.local_ok hS hdl (by omega) hfr6.kept hfr6.sp
-  have hpc6' : st6.pc = Labels.label dotLabel ∧ retOf st6.data = Host.addrOf (k + 55) :=
-    ⟨hpc6.1, hpc6.2.trans (addr_eq (by rw [len_b5]))⟩
+  have hpc6' : st6.pc = Labels.label NativeRustcVmArm.Vm.Dot.entryLabel ∧ retOf st6.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b6Offset) :=
+    ⟨hpc6.1, hpc6.2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b5_next]))⟩
   refine Bus.Gkr.Fr.callSpec hfr6 hN hdl (fun _ h ↦ nomatch h) slots_le (outs_frame h) hdot
     hpc6' hpre6 (fun m' hq ↦ ⟨Bus.changes_zero hq.2.1, hq.2.2⟩) fun m7 hfr7 hq7 hcs7 ↦ ?_
   have g7 : ∀ r ∈ [XReg.X19, .X20, .X21, .X24, .X25, .X26, .X27, .X28, .X29],

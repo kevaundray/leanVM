@@ -46,9 +46,9 @@ variable [Host] {k : Nat}
 
 /-- **Eight layer words** (`b7`). -/
 theorem vturn (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0) {d : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 38)) (hI : VInv m0 d st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 38) ∧ VInv m0 (d + 8) s.data) ∨
-      (s.pc = Host.addrOf (k + 38 + 30) ∧ Init m0 (muOf m0 / 8 * 8) s.data ∧
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b7Offset)) (hI : VInv m0 d st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b7Offset) ∧ VInv m0 (d + 8) s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b8Offset) ∧ Init m0 (muOf m0 / 8 * 8) s.data ∧
         reg s.data .r15 = fbOf m0 + BitVec.ofNat 64 (552 + 8 * (muOf m0 / 8 * 8)) ∧
         reg s.data .rdx = BitVec.ofNat 64 (muOf m0 / 8 * 8) ∧
         reg s.data .rax = BitVec.ofNat 64 (muOf m0 % 8))) st := by
@@ -132,14 +132,14 @@ theorem vturn (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m
     rw [hlast, Nat.add_comm 8 d]
     exact hinit
   · refine .done _ (.inl ⟨(hT (by rw [Bool.not_eq_true', decide_eq_false_iff_not]; omega)).trans
-      (hp.label (j := 38) rfl), hinit, by omega, by omega, hr15, hrdx,
+      (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_7_at), hinit, by omega, by omega, hr15, hrdx,
       (e1 .rsi (by simp)).trans hI.rsi, (e1 .rax (by simp)).trans hI.rax⟩)
 
 /-- **One layer word** (`b10`). -/
 theorem tturn (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0) {s : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 73)) (hI : TInv m0 s st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 73) ∧ TInv m0 (s + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 81) ∧ Init m0 (muOf m0) s'.data)) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b10Offset)) (hI : TInv m0 s st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b10Offset) ∧ TInv m0 (s + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b11Offset) ∧ Init m0 (muOf m0) s'.data)) st := by
   obtain ⟨hS, hout⟩ := hpre
   obtain ⟨hF, -, -, -⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
@@ -213,7 +213,7 @@ theorem tturn (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m
       rfl, ?_⟩)
     exact (show muOf m0 / 8 * 8 + (s + 1) = muOf m0 by omega) ▸ hinit
   · refine .done _ (.inl ⟨(hT (by rw [Bool.not_eq_true', decide_eq_false_iff_not]; omega)).trans
-      (hp.label (j := 73) rfl), hinit, by omega, (e1 .r15 (by simp)).trans hI.r15,
+      (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_10_at), hinit, by omega, (e1 .r15 (by simp)).trans hI.r15,
       (e1 .rdx (by simp)).trans hI.rdx, ?_, (e1 .rax (by simp)).trans hI.rax⟩)
     refine (hm1.regs .rsi _ rfl).trans ?_
     rw [eval_add, eval_lit, eval_reg, Env.ofMachine_regs, show st.data.regs.get64 .rsi = _ from

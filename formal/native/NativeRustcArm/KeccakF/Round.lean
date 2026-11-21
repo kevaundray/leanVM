@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.KeccakF.Names
+
 public import NativeRustcArm.KeccakF.RoundLanes
 
 /-!
@@ -58,13 +60,13 @@ variable [Host]
 theorem round_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : MachineData}
     (hpre : KeccakFPre m0) {i : Nat} (hi : i < 24) {m : MachineData} (hA : At m0 i m) :
     Eventually (step1 Host.exe) (fun st => At m0 (i + 1) st.data ∧
-      st.pc = if i + 1 = 24 then Host.addrOf (k + 203) else Host.addrOf (k + 49))
-      ⟨m, Host.addrOf (k + 49)⟩ := by
+      st.pc = if i + 1 = 24 then Host.addrOf (k + NativeRustcArm.Common.KeccakF.b2Offset) else Host.addrOf (k + NativeRustcArm.Common.KeccakF.b1Offset))
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.KeccakF.b1Offset)⟩ := by
   have hstk := hpre.1
   have hrc := rcAt_of_at hpre hA
   have hnw := hpre.2.1.2.1
   have hap := hpre.2.1.2.2
-  have hk : Common.KeccakF.b1.IsInfixAt Host.prog (k + 49) :=
+  have hk : Common.KeccakF.b1.IsInfixAt Host.prog (k + NativeRustcArm.Common.KeccakF.b1Offset) :=
     Common.KeccakF.b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine m [(frame m0, 192), (rcAddr, 192)] fun _ => BitVec.ofNat 64 (8 * i)
   have hwf : env.WF := by
@@ -118,12 +120,12 @@ theorem round_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : MachineDa
     · exact (Match.reg_eq hm hm' rfl rfl).trans hA.x29
     · exact fun p hp => (same_region hm' hwf hb0 (by decide) p hp).trans (hA.same p hp)
     · exact fun p h => hm'.kept hwf p (hA.kept p h)
-  · have hlab : Labels.label ".LKeccakF_1" = Host.addrOf (k + 49) := hp.label (j := 49) rfl
+  · have hlab : Labels.label NativeRustcArm.Common.KeccakF.label_1 = Host.addrOf (k + NativeRustcArm.Common.KeccakF.b1Offset) := hp.label NativeRustcArm.Common.KeccakF.label_1_at
     simp only [PcOk] at hpc
     rw [hpc, hlab]
     sym_simp
     rw [show env.vars 0 = BitVec.ofNat 64 (8 * i) from rfl,
-      show Common.KeccakF.b1.length = 154 from rfl]
+      Nat.add_assoc, NativeRustcArm.Common.KeccakF.b1_next]
     by_cases h : i + 1 = 24
     · obtain rfl : i = 23 := by omega
       rfl

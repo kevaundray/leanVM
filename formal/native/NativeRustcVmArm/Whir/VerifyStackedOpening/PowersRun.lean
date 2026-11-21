@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Powers.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.Powers
 
 /-!
@@ -46,12 +48,12 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 /-- **From `b11` to `b15`.** -/
 theorem powers_b11 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
+    (hpow : Spec (Labels.label NativeRustcVmArm.Vm.Powers.entryLabel) PowersPre PowersPost)
     {R : MachineState → Prop}
     (cont : ∀ st, AtB15 a s layout cs m0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 80)⟩)
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b15Offset)⟩)
     {st : MachineData} (hb : AtB11 a s layout cs m0 st) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 60)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b11Offset)⟩ := by
   have c := h.ctx
   have hP : placedOf layout cs cs.size ≤ 160 := (placedOf_le_self _).trans h.cl.len_le
   have hC : cntOf layout cs ≤ 162 := by unfold cntOf; omega
@@ -78,7 +80,7 @@ theorem powers_b11 (hp : Placed code k)
       (by rw [hb.fr.sp]; simp [Sym.eval])
       ⟨by show (st.regs.getXReg .X26).toBitVec = _; rw [hb.x26]; simp [Sym.eval], trivial⟩
       trivial trivial trivial
-  have hk11 : b11.IsInfixAt Host.prog (k + 60) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b11Offset) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk11 run_b11 hwf hm fun st1 hm1 hpc1 ↦ ?_
   have hf1 : VFr m0 st1.data := Fr.ofBlockW hb.fr hm hm1 hwf rfl rfl
     (fun _ h ↦ absurd h (by simp)) rfl (by rw [stack_eq]; decide) h.hN slots_le
@@ -229,7 +231,7 @@ theorem powers_b11 (hp : Placed code k)
     rw [toBitVec_ult_ofNat (by decide), hCn]
     simp
     omega
-  have hk12 : b12.IsInfixAt Host.prog (k + 66) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b12Offset) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk12 run_b12 hwf2 hm2 fun st3 hm3 hpc3 ↦ ?_
   have hf3 : VFr m0 st3.data := Fr.ofBlockW hf2 hm2 hm3 hwf2 rfl rfl
     (fun _ h ↦ absurd h (by simp)) rfl (by rw [stack_eq]; decide) h.hN slots_le
@@ -307,10 +309,10 @@ theorem powers_b11 (hp : Placed code k)
   have hl48 : env4.load 0 8 8 = ((scalesOf s layout cs).toList[0]).c1.toBitVec := by
     refine Ring.load_word ?_
     exact he0'.2
-  have hk13 : b13.IsInfixAt Host.prog (k + 73) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk13 run_b13 hwf4 hpc3 hm4 fun st4 hm4' hpc4 ↦ ?_
   simp only [PcOk] at hpc4
-  rw [show Labels.label ".LVerifyStackedOpening_12" = Host.addrOf (k + 80) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.label_12 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b15Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyStackedOpening.b15Offset) NativeRustcVmArm.Vm.VerifyStackedOpening.label_12_at]
     at hpc4
   obtain ⟨d4, pc4⟩ := st4
   simp only at hpc4

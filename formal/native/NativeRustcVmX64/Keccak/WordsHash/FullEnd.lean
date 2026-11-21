@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Keccak.WordsHash.Full
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
 
 /-!
 # `keccak256_words::<hash_words's closure>` (x86-64): the end of a whole block, and the loop
@@ -40,11 +41,11 @@ theorem next_cmp {nb b : Nat} (hb : b < nb) (hnb : 17 * nb < 2 ^ 64) :
 variable [Host]
 
 /-- **The end of whole block `b`.** -/
-theorem fullEnd (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX64.KeccakFPre
+theorem fullEnd (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) NativeRustcVmX64.KeccakFPre
       NativeRustcVmX64.KeccakFPost) {k : Nat} (hp : Placed code k) {m0 : MachineData}
     (g : Geo m0) {b : Nat} (hb : b < nb m0) {st : MachineState}
     (h : ValAt m0 k ((.rbx, BitVec.ofNat 64 (17 * b)) :: fullR m0) (wordBlocks (word m0) b) (17 * b)
-      16 .rax 53 st) :
+      16 .rax NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b8Offset st) :
     Eventually (step1 Host.exe)
       (fun st' => FullHead m0 k (b + 1) st' ∨ TailStart m0 k st') st := by
   obtain ⟨hc, hl, hrax, hpc⟩ := h
@@ -54,7 +55,7 @@ theorem fullEnd (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX
   have hle := nb_le g
   have hn := n_lt g
   -- lane 16's XOR, and the call
-  let env := Env.ofMachine m [(frame m0, 296)] (fun _ => 0) (Host.addrOf (k + 53 + 4)).toBitVec
+  let env := Env.ofMachine m [(frame m0, 296)] (fun _ => 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b9Offset)).toBitVec
   have hwf : env.WF := frame_wf g.stk hc.kept
   have hm : Match env startMain m :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨rsp_eval hc.rsp rfl, trivial⟩ trivial trivial trivial
@@ -83,7 +84,7 @@ theorem fullEnd (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX
   -- the next block's branch
   obtain ⟨m2, pc2⟩ := st2
   simp only at hpc2 hc2 hl2 hR2
-  rw [show k + 53 + b8.length = k + 57 from rfl] at hpc2
+  rw [show k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b8Offset + b8.length = k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b9Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b8_next]] at hpc2
   subst hpc2
   obtain ⟨hwf3, hm3⟩ := main_env g.stk hc2 (vars := fun _ => 0) (ret := 0)
   refine exec_then (b9_in_code.trans hp.1 (List.cons_ne_nil _ _)) fullNext hwf3
@@ -115,7 +116,7 @@ theorem fullEnd (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX
         (hm4.regs .r14 _ rfl).trans hR2.2.2.2.2.2.1, trivial⟩, hl4, by omega, hpc4⟩
 
 /-- **The whole blocks' loop.** -/
-theorem full_loop (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX64.KeccakFPre
+theorem full_loop (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) NativeRustcVmX64.KeccakFPre
       NativeRustcVmX64.KeccakFPost) {k : Nat} (hp : Placed code k) {m0 : MachineData}
     (g : Geo m0) {b : Nat} {st : MachineState} (h : FullHead m0 k b st) :
     Eventually (step1 Host.exe) (TailStart m0 k) st :=

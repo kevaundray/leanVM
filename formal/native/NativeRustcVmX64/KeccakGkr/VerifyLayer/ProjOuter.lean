@@ -5,9 +5,9 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.ProjInner
 /-!
 # `verify_layer` on x86-64: the masked sum at one bit
 
-From `.LVerifyLayer_4` (`PHead j`): no instance weight (`b7`, `b11`), one (`b8`, `b9`), more
+From `NativeRustcVmX64.Vm.VerifyLayer.label_4` (`PHead j`): no instance weight (`b7`, `b11`), one (`b8`, `b9`), more
 (`b8`, `b13`, the pairs' loop, `b21`); an odd count's last weight (`MT`, `b22`, `b23`, `b4`): at
-`.LVerifyLayer_3` with the masked sum at bit `j` in RDI, RSI (`MQ`): `masked`.
+`NativeRustcVmX64.Vm.VerifyLayer.label_3` with the masked sum at bit `j` in RDI, RSI (`MQ`): `masked`.
 -/
 
 namespace NativeRustcVmX64.KeccakGkr.VerifyLayer
@@ -19,13 +19,13 @@ open LeanVM.Parameters LeanVM.Protocol.Verifier
 
 @[expose] public section
 
-/-- **At `.LVerifyLayer_3`**: the masked sum at bit `j` in RDI, RSI. -/
+/-- **At `NativeRustcVmX64.Vm.VerifyLayer.label_3`**: the masked sum at bit `j` in RDI, RSI. -/
 structure MQ [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (j : Nat) (d : MachineData) : Prop where
   core : PCore m0 a c p s1 j d
   acc : ewArg (reg d .rdi) (reg d .rsi) = maskedOf c.mu j
 
-/-- **An odd count's last weight** to add, at `.LVerifyLayer_15`. -/
+/-- **An odd count's last weight** to add, at `NativeRustcVmX64.Vm.VerifyLayer.label_15`. -/
 structure MT [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (j : Nat) (d : MachineData) : Prop where
   core : PCore m0 a c p s1 j d
@@ -85,8 +85,8 @@ theorem step4 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machine
     (cont : ∀ d', PCore m0 a c p s1 j d' →
       ewArg (reg d' .rdi) (reg d' .rsi) =
         ewArg (reg d .rdi) (reg d .rsi) + ewArg (reg d .r8) (reg d .rdx) →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 144)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 141)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b5Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b4Offset)⟩ := by
   have hwf4 := wf0 (pre_stack hpre) hc.body (vars := fun _ ↦ 0) (ret := 0)
   have hm4 : Match (envB m0 d [] (fun _ ↦ 0) 0) (fr 24) d :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hc.body.rsp, trivial⟩ trivial trivial trivial
@@ -121,8 +121,8 @@ theorem step23 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machin
     (hrcx : reg d .rcx = BitVec.ofNat 64 i) {R : MachineState → Prop}
     (cont : ∀ d', PCore m0 a c p s1 j d' → ewArg (reg d' .r8) (reg d' .rdx) = c.mu.getD i 0 →
       reg d' .rdi = reg d .rdi → reg d' .rsi = reg d .rsi →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 141)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 213)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b4Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b23Offset)⟩ := by
   have g := geo_of hpre
   have hlen := muSize hpre hc
   have hwf2 := wfSub hpre hc.body (x := cA m0 + BitVec.ofNat 64 (24 + 16 * i))
@@ -155,8 +155,8 @@ theorem last_sum {mu : Array EW} {j : Nat} (hlen : mu.size ≤ 16) (hodd : mu.si
 /-- `b22`, `b23`, `b4`: an odd count's last weight. -/
 theorem lastW (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : MT m0 a c p s1 j d) {R : MachineState → Prop}
-    (cont : ∀ d', MQ m0 a c p s1 j d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 144)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 209)⟩ := by
+    (cont : ∀ d', MQ m0 a c p s1 j d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b5Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b22Offset)⟩ := by
   have hWo := wFront_outs hpre
   have hc := h.core
   have hlen := muSize hpre hc

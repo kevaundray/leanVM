@@ -141,7 +141,7 @@ variable [Host]
 /-- **A tree's head** (`b60` and `memset`): from `AtTree`, `T1` at `b61`. -/
 theorem tree_s1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {m : MachineData}
     (h : AtTree r c m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 744 ∧ T1 r c st.data) ⟨m, r.pc 727⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b61Offset ∧ T1 r c st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b60Offset⟩ := by
   obtain ⟨⟨hB, hc24, hroots⟩, h19, h24, h9, h8, h23, h25, h26, h27⟩ := h
   have hwf := r.frame_wf hpre hB.frame (fun _ ↦ 0)
   have h19' : (m.regs.getXReg .X19).toBitVec = BitVec.ofNat 64 c := h19
@@ -194,7 +194,7 @@ theorem tree_s1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {
       (hd : o + bs.length ≤ 16400 ∨ 16400 + 344 ≤ o) (h : BytesAt st1.data.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hB1.frame (a := 16400) (n := 344) (N := 0) (by decide) (by decide) hout
       ho hd h
-  refine .done _ ⟨hpc2.trans (pc_after (n := 17) rfl), ⟨⟨hB2, hc24, roots_call hpre hB1.frame
+  refine .done _ ⟨hpc2.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b60_next), ⟨⟨hB2, hc24, roots_call hpre hB1.frame
     (by decide) (by decide) hout hc24.le hroots1⟩, ?_, ?_, ?_, ?_, ?_, ?_,
     hkc (by rw [length_wordBytes]; decide) (by rw [length_wordBytes]; decide) hw424, ?_,
     hkc (by rw [length_forsNodeAdrs]; decide) (by rw [length_forsNodeAdrs]; decide) had⟩⟩

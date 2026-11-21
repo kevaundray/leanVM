@@ -48,8 +48,8 @@ theorem step (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre :
     (h22 : Run.RegIs m .X22 (r.off 21648)) (hcell : BytesAt m.dmem (r.off 29248) v)
     (cont : ∀ m', Keep r l x E m' → Regs m' (pos + 1) i → Run.RegIs m' .X22 (r.off 21648) →
       BytesAt m'.dmem (r.off 29248) (th r.seed (chainAdrs r l i pos) v) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc 2156 else r.pc 1728⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 1728⟩ :=
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc NativeRustcArm.Sphincs.SphincsVerify.b142Offset else r.pc NativeRustcArm.Sphincs.SphincsVerify.b116Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b116Offset⟩ :=
   seg_b116 hp hc hpre hx hE hpos hi hv hK hR h22 hcell fun m' h1 h2 h3 h4 ↦ cont m' h1 h2 h3 (by
     rw [th_short (by simp [length_seed, length_chainAdrs, hv])]
     exact h4)
@@ -64,8 +64,8 @@ theorem steps (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre 
       BytesAt m.dmem (r.off 29248) v →
       (∀ m', Keep r l x E m' → Regs m' 3 i →
         BytesAt m'.dmem (r.off 29248) (chain r.seed (r.key l) i pos (k + 1) v) →
-        Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 2156⟩) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 1728⟩
+        Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Sphincs.SphincsVerify.b142Offset⟩) →
+      Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b116Offset⟩
   | 0, pos, v, m, hk, hv, hK, hR, h22, hcell, cont =>
     step hp hc hpre hx hE (by omega) hi hv hK hR h22 hcell fun m' h1 h2 _ h4 ↦ by
       simp only [show pos + 1 = 3 by omega, ↓reduceIte] at h2 ⊢

@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.Plain.Frame
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly.Names
 
 /-!
 # `sumcheck` with `sumcheck_plain`'s closure: a round's polynomial (x86-64)
@@ -42,7 +44,7 @@ structure Mid [Labels] (a : DecArea) (s : TState) (m0 : MachineData) (i : Nat) (
 abbrev Goal [Host] (a : DecArea) (s : TState) (m0 : MachineData) (k : Nat) (st : MachineState) :
     Prop :=
   (st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧ SumcheckPlainPost a s m0 st.data) ∨
-    (st.pc = Host.addrOf (k + 54) ∧ Done a s m0 st.data)
+    (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b7Offset) ∧ Done a s m0 st.data)
 
 end
 
@@ -52,19 +54,19 @@ variable [Host] {a : DecArea} {s : TState} {m0 : MachineData} {k : Nat}
 
 /-- **A round's polynomial**: from the head, a rejection's exit or `b4` with the polynomial. -/
 theorem head_spec (hp : Placed code k)
-    (hrp : ∀ a s e, Spec (Labels.label roundPolyLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
+    (hrp : ∀ a s e, Spec (Labels.label NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.entryLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
     (hpre : SumcheckPlainPre a s m0) {i : Nat} {m : MachineData} (hi : Inv a s m0 i m) :
     Eventually (step1 Host.exe)
       (fun st ↦ Goal a s m0 k st ∨
-        (st.pc = Host.addrOf (k + 41) ∧ ∃ xs msg s1, Mid a s m0 i xs msg s1 st.data))
-      ⟨m, Host.addrOf (k + 31)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b4Offset) ∧ ∃ xs msg s1, Mid a s m0 i xs msg s1 st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b2Offset)⟩ := by
   have g := geo hpre
   obtain ⟨xs, si, hrun, hsz, hxs, hts⟩ := hi.run
   have hlt := hi.lt
-  have hl3 : Labels.label ".LSumcheckOfSumcheckPlain_3" = Host.addrOf (k + 60) :=
-    hp.label (j := 60) rfl
+  have hl3 : Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b8Offset) :=
+    hp.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_3_at
   -- `b2`: `eq = None`, `sumcheck_round_poly`.
-  have hwf2 := wf_envB hpre hi.fr (Host.addrOf (k + 31 + b2.length)).toBitVec
+  have hwf2 := wf_envB hpre hi.fr (Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b2Offset + b2.length)).toBitVec
   refine exec_then (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf2 (fun _ _ ↦ rfl)
     (match_bodyS hi.fr _) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hw2, hW104, hrdi2, hrsi2, hrdx2, hrcx2, hr8_2, hr9_2, hk2⟩ := ok_b2
@@ -110,7 +112,7 @@ theorem head_spec (hp : Placed code k)
   -- `b3`: the polynomial's test.
   have hwf3 := wf_envB hpre hf3 0
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf3 nofun
-    (hpc3.trans (by rw [show b2.length = 8 from rfl])) (match_bodyS hf3 _) fun st4 hm4 hpc4 ↦ ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b2_next)) (match_bodyS hf3 _) fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hmem4, hk4⟩ := ok_b3
   have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 hmem4
   have hf4 : FrP m0 8 st4.data := g.block hf3 hwf3 hm4 hmid4 (R := fun _ ↦ False)
@@ -124,7 +126,7 @@ theorem head_spec (hp : Placed code k)
   | none =>
     rw [hr] at hok3
     have hal : (reg st3.data .rax).toNat % 256 = 0 := hok3
-    have hpc : st4.pc = Host.addrOf (k + 60) := by
+    have hpc : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b8Offset) := by
       rw [hpc4, hal]; simp [hl3]
     have hnone := sumcheckFn_run_none_le (sumcheckFn_run_succ_none hrun hr)
       (show i + 1 ≤ nP m0 by omega)
@@ -137,7 +139,7 @@ theorem head_spec (hp : Placed code k)
     obtain ⟨msg, s1⟩ := p
     rw [hr] at hok3
     have hal : (reg st3.data .rax).toNat % 256 = 1 := hok3
-    have hpc : st4.pc = Host.addrOf (k + 41) := by
+    have hpc : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b4Offset) := by
       rw [hpc4, hal]; rfl
     obtain ⟨hmsg, hts3⟩ := hmsg3 msg s1 hr
     refine Eventually.done _ (.inr ⟨hpc, xs, msg, s1, hf4, hlt, by rw [hd4]; exact out3,

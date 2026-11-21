@@ -135,7 +135,7 @@ theorem store_fin (hp : Placed code k) (g : G m L) {bj : List Directive} {j : Na
 
 /-- **`x` found at `i`** (`b6`): the array kept, the count back. -/
 theorem found_fin (hp : Placed code k) (g : G m L) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 20)) (hk : Kp m st.data) (hd : st.data.dmem = m.dmem)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b6Offset)) (hk : Kp m st.data) (hd : st.data.dmem = m.dmem)
     {i : Nat} (hi : i < L.length) (hbl : Below m L i) (hx : L[i].toNat = xv m)
     (hn : (reg st.data .rax).toNat = L.length) : Eventually (step1 Host.exe) (Post m) st :=
   Eventually.mono (Wire.ret_keep (Wire.infix_of b6_in_code (by simp [b6]) hp) run_b6 rfl rfl

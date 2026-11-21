@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TableSumcheck.Names
 public import NativeRustcVmArm.Tables.TableSumcheck.Exec
 public import NativeRustcVmArm.Bus.Common
 
@@ -56,7 +57,7 @@ theorem slots_le : ∀ p ∈ slots, p.1 + 8 ≤ 720 := by decide
 theorem slots_hi : ∀ p ∈ slots, 624 ≤ p.1 ∧ p.1 + 8 ≤ 720 := by decide
 
 theorem run_b0' : exec b0 entryS =
-    some (Bus.after b0 entryS, .cond (hiS maxS 30) ".LTableSumcheck_7") := by
+    some (Bus.after b0 entryS, .cond (hiS maxS 30) NativeRustcVmArm.Vm.TableSumcheck.label_7) := by
   rw [Bus.after_eq run_b0]; exact run_b0.trans rfl
 
 theorem ok_b0 : (Bus.after b0 entryS).sp = .ptr 0 0 ∧ slotsOk (Bus.after b0 entryS) slots = true ∧
@@ -90,7 +91,7 @@ theorem ok_b2 : (Bus.after b2 sF).sp = .ptr 0 0 ∧ (Bus.after b2 sF).mem = [] �
   rw [Bus.after_eq run_b2]; decide
 
 theorem run_b2' : exec b2 sF = some (Bus.after b2 sF,
-    .cond (.cmp .eq .W64 (.load 0 504 8) (.lit 0)) ".LTableSumcheck_7") := by
+    .cond (.cmp .eq .W64 (.load 0 504 8) (.lit 0)) NativeRustcVmArm.Vm.TableSumcheck.label_7) := by
   rw [Bus.after_eq run_b2]; exact run_b2
 
 theorem ok_b3 : (Bus.after b3 sF).sp = .ptr 0 0 ∧ (Bus.after b3 sF).mem = [] ∧
@@ -99,7 +100,7 @@ theorem ok_b3 : (Bus.after b3 sF).sp = .ptr 0 0 ∧ (Bus.after b3 sF).mem = [] �
   rw [Bus.after_eq run_b3]; decide
 
 theorem run_b3' : exec b3 sF = some (Bus.after b3 sF,
-    .cond (.cmp .eq .W64 (.un (.ubfm 1 63) .W64 (.reg .X25)) (.lit 0)) ".LTableSumcheck_5") := by
+    .cond (.cmp .eq .W64 (.un (.ubfm 1 63) .W64 (.reg .X25)) (.lit 0)) NativeRustcVmArm.Vm.TableSumcheck.label_5) := by
   rw [Bus.after_eq run_b3]; exact run_b3
 
 theorem ok_b4 : (Bus.after b4 sF).sp = .ptr 0 0 ∧ (Bus.after b4 sF).mem = [] ∧
@@ -120,7 +121,7 @@ theorem ok_b5 : (Bus.after b5 revS).sp = .sp ∧
 
 theorem run_b5' : exec b5 revS = some (Bus.after b5 revS,
     .cond (.not (.cmp .eq .W64 (.bin .sub .W64 (.reg .X8) (.lit 1)) (.lit 0)))
-      ".LTableSumcheck_4") := by
+      NativeRustcVmArm.Vm.TableSumcheck.label_4) := by
   rw [Bus.after_eq run_b5]; exact run_b5
 
 theorem ok_b6 : (Bus.after b6 busS).sp = .ptr 0 0 ∧ (Bus.after b6 busS).mem = [] ∧
@@ -157,7 +158,7 @@ theorem ok_b8 : (Bus.after b8 sF).sp = .ptr 0 0 ∧ (Bus.after b8 sF).mem = [] �
   rw [Bus.after_eq run_b8]; decide
 
 theorem run_b8' : exec b8 sF = some (Bus.after b8 sF,
-    .cond (.not (.bit .W32 (.load 0 600 4) 0)) ".LTableSumcheck_7") := by
+    .cond (.not (.bit .W32 (.load 0 600 4) 0)) NativeRustcVmArm.Vm.TableSumcheck.label_7) := by
   rw [Bus.after_eq run_b8]; exact run_b8
 
 theorem ok_b9 : (Bus.after b9 sF).sp = .ptr 0 0 ∧ (Bus.after b9 sF).mem = [] ∧

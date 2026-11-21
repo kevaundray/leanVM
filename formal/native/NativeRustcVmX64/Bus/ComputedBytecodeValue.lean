@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Bus.ComputedBytecodeValue.Exec
 public import NativeRustcVmX64.Bus.Common
+public import NativeRustcVmX64.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfComputedBytecodeValue.Names
 
 /-!
 # `computed_bytecode_value` on x86-64
@@ -24,18 +26,18 @@ variable [Host] {k : Nat}
 
 /-- **`computed_bytecode_value`'s contract.** -/
 theorem computedBytecodeValue_spec (hp : Placed code k)
-    (hmle : Spec (Labels.label mleOfComputedBytecodeValueLabel) MleOfComputedBytecodeValuePre
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfComputedBytecodeValue.entryLabel) MleOfComputedBytecodeValuePre
       MleOfComputedBytecodeValuePost) :
-    Spec (Labels.label computedBytecodeValueLabel) ComputedBytecodeValuePre
+    Spec (Labels.label NativeRustcVmX64.Vm.ComputedBytecodeValue.entryLabel) ComputedBytecodeValuePre
       ComputedBytecodeValuePost := by
   rintro m0 ⟨hst, hwr, hwo, hpt⟩
   have hN : computedBytecodeValueStack = 32 + mleStack := rfl
   have hF : 32 ≤ computedBytecodeValueStack := by rw [hN]; omega
   have hle : 32 + mleStack ≤ computedBytecodeValueStack := le_of_eq hN.symm
   have hwf0 := wf0 (d := m0) hst hF (fun _ h ↦ h) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
-  unfold computedBytecodeValueLabel
-  rw [hp.label (j := 0) rfl]
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ComputedBytecodeValue.b0Offset + b0.length)).toBitVec)
+  unfold NativeRustcVmX64.Vm.ComputedBytecodeValue.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.ComputedBytecodeValue.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 ↦ ?_
@@ -60,7 +62,7 @@ theorem computedBytecodeValue_spec (hp : Placed code k)
   -- `b1`.
   have hwf2 := wf0 (d := st2.data) hst hF hb2.fr.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 nofun
-    (hpc2.trans (by rw [show b0.length = 12 from rfl]))
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ComputedBytecodeValue.b0_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hb2.fr.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hepi, hmem, hrax⟩ := after_eq run_b1 ▸ ok_b1

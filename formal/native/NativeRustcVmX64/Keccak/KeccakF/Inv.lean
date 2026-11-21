@@ -9,7 +9,7 @@ The frame: the 488 bytes from 480 below the entry's RSP (`frame`): `memcpy`'s re
 (offset 0), the 424 bytes of locals (8 to 431), the six pushed registers (RBX at 432, R12, R13,
 R14, R15, RBP at 472) and the return address (480). In the loop RSP is `frame + 8`.
 
-At the head of the round loop `.LKeccakF_1` after `i` rounds (`At m0 i m`, from the machine
+At the head of the round loop `NativeRustcVmX64.Vm.KeccakF.label_1` after `i` rounds (`At m0 i m`, from the machine
 state `m0` at `keccak_f`'s entry): RSP is `frame + 8`; the counter RAX is `2 + i`; the state
 pointer at 184 is the entry's RDI; the 25 lanes of the state after `i` rounds (`stAfter`) are in
 11 registers (`laneRegs`) and 14 frame slots (`laneSlots`); the round constants are in the frame at

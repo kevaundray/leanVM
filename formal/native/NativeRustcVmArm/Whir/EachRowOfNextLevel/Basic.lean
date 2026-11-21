@@ -174,10 +174,10 @@ theorem exit_step (hp : Placed code k) (hpre : EachRowNextPre rows op m0) {m : M
     (hfr : FR m0 m)
     (hbat : EWAt m.dmem (bOf m0) (batchedOf m0.regs.X0.toNat m0.regs.X4.toNat (eachRowArgs m0).2
       (highOf m0) (eachRowArgs m0).1 rows (qwOf m0))) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 253)⟩ := by
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b23Offset)⟩ := by
   obtain ⟨hwf, hm⟩ := frame_env hpre hfr
-  have hk23 : b23.IsInfixAt Host.prog (k + 253) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk24 : b24.IsInfixAt Host.prog (k + 255) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk23 : b23.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b23Offset) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk24 : b24.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b24Offset) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk23 run_b23 hwf hm fun st23 hm23 hpc23 ↦
     exec_at hk24 (exec_after run_b23 run_b24t) hwf hpc23 hm23 fun st hm' hpc ↦ .done _ ?_
   obtain ⟨hret, hsaved⟩ := Ring.Fr.exit hfr hm' hwf (by decide)

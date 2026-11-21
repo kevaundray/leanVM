@@ -48,8 +48,8 @@ variable [Host] {k : Nat}
 /-- **The loop head**: the factor of coordinate `c`. -/
 theorem head_step (hp : Placed code k) (hc : Ctx m0) {c : Nat} {m : MachineData}
     (hit : It m0 c m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 37) ∧ Pre3 m0 c st.data)
-      ⟨m, Host.addrOf (k + 102)⟩ := by
+    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b3Offset) ∧ Pre3 m0 c st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b10Offset)⟩ := by
   have hx := hc.ptc hit.lt
   have hwf := hc.wf_in hit.frm hx
   have hcn : c < 2 ^ 64 := Nat.lt_of_lt_of_le hit.lt (UInt64.toNat_lt _).le
@@ -84,7 +84,7 @@ theorem head_step (hp : Placed code k) (hc : Ctx m0) {c : Nat} {m : MachineData}
           rw [add_ofNat_ofInt, Nat.add_comm]
           exact hd.x23, trivial⟩ trivial
     refine exec_at (hb2 hp) run_b2 hwfB hpc1 hmB fun st2 hm2 hpc2 => .done _
-      ⟨hpc2.trans (addr_eq (by rw [len_b2])), ?_⟩
+      ⟨hpc2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableWeights.b2_next])), ?_⟩
     have hm2' : Match (Env.ofMachine st1.data [(fb m0, 240),
         (rg m0 .X2 + BitVec.ofNat 64 (16 * c), 16)]) (after b2 eqS) st2.data := by
       rw [after_eq run_b2]; exact hm2
@@ -113,7 +113,7 @@ theorem head_step (hp : Placed code k) (hc : Ctx m0) {c : Nat} {m : MachineData}
   · -- no equality coordinate: `b11`
     simp only [show (rg m0 .X3).toNat = m0.regs.X3.toNat from rfl, hlt, decide_false,
       Bool.false_eq_true, ↓reduceIte] at hpc1
-    refine exec_at (hb11 hp) run_b11 hwf (hpc1.trans (addr_eq (by rw [len_b10]))) hm1'
+    refine exec_at (hb11 hp) run_b11 hwf (hpc1.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableWeights.b10_next]))) hm1'
       fun st2 hm2 hpc2 => .done _ ⟨by rw [hpc2, lbl_3 hp], ?_⟩
     have hm2' : Match (Env.ofMachine m [(fb m0, 240), (rg m0 .X4 + BitVec.ofNat 64 (16 * c), 16)])
         (after b11 (after b10 headS)) st2.data := by

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.Blocks
+public import NativeRustcVmX64.Code.Vm.TableTerms.Names
 
 /-!
 # `table_terms`: the entry (x86-64)
@@ -23,14 +24,14 @@ public section
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
   {forms : Array (Array FormW)} {m0 : MachineData}
 
-theorem lbl_entry (hp : Placed code k) : Labels.label tableTermsLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LTableTerms_1" = Host.addrOf (k + 25) :=
-  hp.label (j := 25) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LTableTerms_6" = Host.addrOf (k + 160) :=
-  hp.label (j := 160) rfl
-theorem lbl_7 (hp : Placed code k) : Labels.label ".LTableTerms_7" = Host.addrOf (k + 163) :=
-  hp.label (j := 163) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableTerms.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableTerms.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableTerms.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b1Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableTerms.label_1_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableTerms.label_6 = Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b15Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableTerms.label_6_at
+theorem lbl_7 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableTerms.label_7 = Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b16Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableTerms.label_7_at
 
 theorem addr_eq {i j : Nat} (h : i = j) : Host.addrOf i = Host.addrOf j := by rw [h]
 
@@ -55,8 +56,8 @@ theorem ld_arg {ret : BitVec 64} {j : Nat} :
 theorem entry (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     {R : MachineState → Prop}
     (cont : ∀ d, Head a s heights forms m0 0 (0, 0, #[]) s d →
-      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 25)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b1Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b0Offset)⟩ := by
   have hS := Pre.stack h
   have hwf : (E m0 m0 [(argA m0, 32)] 0).WF := wf_args h (fun _ h ↦ h)
   have hal : ∀ o : Nat, (Sym.ptr 0 ((280 + o : Nat) : Int)).eval (E m0 m0 [(argA m0, 32)] 0) =
@@ -84,7 +85,7 @@ theorem entry (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     NativeRustcVm.SameOutside.mono hs0 fun q hq ↦ hq.elim (fun h ↦ .inr (hFst q h)) False.elim
   have c := ctx h
   simp only [PcOk] at hpc
-  refine at_pc (hpc.trans (addr_eq (by rw [show b0.length = 25 from rfl]))) (cont st.data ?_)
+  refine at_pc (hpc.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b0_next))) (cont st.data ?_)
   have rg : ∀ {r : Reg64} {v : Sym}, (after b0 entryS).reg r = some v →
       reg st.data r = v.eval (E m0 m0 [(argA m0, 32)] 0) := fun hv ↦ hm'.regs _ _ hv
   refine ⟨⟨hfr, hs⟩, ?_, ?_, (rg r14).trans rfl, (rg rbp).trans rfl, ?_, (rg rax).trans rfl,

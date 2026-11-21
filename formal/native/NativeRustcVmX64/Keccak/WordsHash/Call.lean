@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Keccak.WordsHash.Frame
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
 
 /-!
 # `keccak256_words` (x86-64): its calls of `keccak_f`
@@ -47,7 +48,7 @@ theorem lanes_of_bytesAt {m0 : MachineData} {d : DataMem} {A : KeccakState}
 variable [Host]
 
 /-- **A call of `keccak_f` on the lanes.** -/
-theorem call_kf (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX64.KeccakFPre
+theorem call_kf (hkf : Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) NativeRustcVmX64.KeccakFPre
       NativeRustcVmX64.KeccakFPost) {m0 : MachineData}
     (hstk : StackOk m0 NativeRustcVmX64.keccak256WordsStack)
     (hrc : NativeRustcVmX64.RcAt m0 NativeRustcVmX64.keccak256WordsStack)
@@ -55,7 +56,7 @@ theorem call_kf (hkf : Spec (label NativeRustcVmX64.keccakFLabel) NativeRustcVmX
     {st : MachineState} {env : Env} {next : Int64} {A : KeccakState}
     (hc : Ctx m0 L R 0 st.data) (hl : Lanes m0 st.data.dmem (Keccak.lane A))
     (hrdi : st.data.regs.get64 .rdi = frame m0 + BitVec.ofNat 64 40)
-    (hpc : PcOk env (.call NativeRustcVmX64.keccakFLabel) next st) {Q : MachineState → Prop}
+    (hpc : PcOk env (.call NativeRustcVmX64.Vm.KeccakF.entryLabel) next st) {Q : MachineState → Prop}
     (cont : ∀ st', st'.pc = next → Ctx m0 L [] 8 st'.data →
       Lanes m0 st'.data.dmem (Keccak.lane (keccakF1600 A)) →
       (∀ r, calleeSaved r = true → st'.data.regs.get64 r = st.data.regs.get64 r) →

@@ -29,7 +29,7 @@ theorem exit16 (hp : Placed code k) (h : TableTermsPre a s heights forms m0) {m 
       OptEWAt m'.dmem m0.regs.X0.toBitVec ((R heights forms m0 s).map (·.1.1)) ∧
       (∀ x s', R heights forms m0 s = some (x, s') → TableEvalsAt m'.dmem (ev m0) x.2) ∧
       NextAt m'.dmem m0.regs.X1.toBitVec a (R heights forms m0 s)) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 130)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b16Offset)⟩ := by
   have hS := Pre.stack h
   have hwf := wf0 hS hfr.kept
   refine exec_then (hb16 hp) run_b16 hwf (match0 hS hfr.sp) fun st hm hpc ↦ ?_
@@ -58,7 +58,7 @@ theorem out_env (h : TableTermsPre a s heights forms m0) {m : MachineData}
 theorem exit_none (hp : Placed code k) (h : TableTermsPre a s heights forms m0) {m : MachineData}
     (hfr : Fr m0 288 N slots [] (outs m0) m) (hw : FW m0 m (cws m0))
     (hr : R heights forms m0 s = none) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 127)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b15Offset)⟩ := by
   have hS := Pre.stack h
   obtain ⟨hwf, hm⟩ := out_env h hfr hw
   refine exec_then (hb15 hp) run_b15 hwf hm fun st hm1 hpc ↦ ?_
@@ -71,7 +71,7 @@ theorem exit_none (hp : Placed code k) (h : TableTermsPre a s heights forms m0) 
     rw [NativeRustcVm.addr_add_zero] at this
     exact this
   simp only [PcOk] at hpc
-  refine Bus.Gkr.at_pc (hpc.trans (addr_eq (by rw [len_b15])))
+  refine Bus.Gkr.at_pc (hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b15_next])))
     (exit16 hp h hfr1 fun m' hd ↦ ⟨?_, fun x s' h' ↦ (by rw [hr] at h'; cases h'),
       fun x s' h' ↦ (by rw [hr] at h'; cases h')⟩)
   rw [hr, hd]
@@ -81,7 +81,7 @@ theorem exit_none (hp : Placed code k) (h : TableTermsPre a s heights forms m0) 
 theorem exit_some (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6) {acc : Acc} {si : TState} {m : MachineData}
     (H : Head a s heights forms m0 6 acc si m) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 122)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b14Offset)⟩ := by
   have hcw : FW m0 m (cws m0) := fun p hp ↦ H.fw p (List.mem_append_left _ hp)
   obtain ⟨hwf, hm⟩ := out_env h H.fr hcw
   refine exec_then (hb14 hp) run_b14 hwf hm fun st hm1 hpc ↦ ?_

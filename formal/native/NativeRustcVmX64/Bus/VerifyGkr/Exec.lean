@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.VerifyGkrGrandProducts
+public import NativeRustcVmX64.Code.Vm.GkrLayers.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.VerifyGkrGrandProducts.Names
 public meta import NativeRustcVmX64.Code.Vm.VerifyGkrGrandProducts
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -60,7 +63,7 @@ sym_block run_b7 := exec b7 oS
 sym_block run_b8f := exec b8 (after b7 oS)
 
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 80 0 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 32 ≤ w.off)) ∧
@@ -70,14 +73,14 @@ public theorem ok_b0 : ProOk 80 0 slots (after b0 entryS) = true ∧
   decide +kernel
 
 public theorem exit_b1 : exec b1 headS = some (after b1 headS,
-    .cond (SBool.cmp .eq .W32 (.load 0 8 4) (.lit 1)).not ".LVerifyGkrGrandProducts_5") :=
+    .cond (SBool.cmp .eq .W32 (.load 0 8 4) (.lit 1)).not NativeRustcVmX64.Vm.VerifyGkrGrandProducts.label_5) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : MidOk 80 8 slots (after b1 headS) = true ∧ (after b1 headS).mem = [] ∧
     Keeps (after b1 headS) [.rbx, .r12, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b2 : exec b2 headS = some (after b2 headS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : MidOk 80 0 slots (after b2 headS) = true ∧
     (∀ w ∈ (after b2 headS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -87,14 +90,14 @@ public theorem ok_b2 : MidOk 80 0 slots (after b2 headS) = true ∧
   decide +kernel
 
 public theorem exit_b3 : exec b3 headS = some (after b3 headS,
-    .cond (.cmp .eq .W8 (.load 0 8 1) (.lit 0)) ".LVerifyGkrGrandProducts_5") :=
+    .cond (.cmp .eq .W8 (.load 0 8 1) (.lit 0)) NativeRustcVmX64.Vm.VerifyGkrGrandProducts.label_5) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 80 8 slots (after b3 headS) = true ∧ (after b3 headS).mem = [] ∧
     Keeps (after b3 headS) [.rbx, .rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b4 : exec b4 sS = some (after b4 sS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3gkr10gkr_layers") :=
+    .call NativeRustcVmX64.Vm.GkrLayers.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 80 0 slots (after b4 sS) = true ∧
     (∀ w ∈ (after b4 sS).mem, (w.r = 0 ∧ w.off + w.n ≤ 8) ∨ (w.r = 1 ∧ w.off + w.n ≤ 56)) ∧
@@ -110,13 +113,13 @@ public theorem ok_b4 : MidOk 80 0 slots (after b4 sS) = true ∧
 
 public theorem exit_b5 : exec b5 headS = some (after b5 headS,
     .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0))
-      ".LVerifyGkrGrandProducts_5") :=
+      NativeRustcVmX64.Vm.VerifyGkrGrandProducts.label_5) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : MidOk 80 8 slots (after b5 headS) = true ∧ (after b5 headS).mem = [] ∧
     Keeps (after b5 headS) [.rbx, .rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b6 : exec b6 oS = some (after b6 oS, .jump ".LVerifyGkrGrandProducts_6") :=
+public theorem exit_b6 : exec b6 oS = some (after b6 oS, .jump NativeRustcVmX64.Vm.VerifyGkrGrandProducts.label_6) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem exit_b8s : exec b8 (after b6 oS) = some (after b8 (after b6 oS), .ret (.load 0 80 8)) :=
   run_b8s.trans (by rw [after_eq run_b8s])

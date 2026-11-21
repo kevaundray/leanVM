@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakPhase.Nums
 public import NativeRustcX64.Spec.Mem
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `keccak_phase` up to `verify_keccak`
@@ -37,13 +38,13 @@ public section
 variable [Host] {k : Nat} {m0 : MachineData}
 
 /-- **`keccak_phase` up to `verify_keccak`.** -/
-theorem front (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+theorem front (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {a : DecArea} (hS : StackOk m0 keccakPhaseStack) (hn : Nums a m0)
     (hevm : NativeRustcVm.Mapped m0.dmem (reg m0 .rdx) 11808) {values : Array EW}
     (h40 : 40 ≤ values.size) (h92 : values.size ≤ 92)
     (hv0 : NativeRustcVm.BufEWAt m0.dmem (off (reg m0 .rdx) 10328) 92 values.toList) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 89) ∧ AtVK m0 values st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b2Offset) ∧ AtVK m0 values st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b0Offset)⟩ := by
   have g := geo1 hS
   have hB := hn.hB
   have hTop := hn.top
@@ -57,14 +58,14 @@ theorem front (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") Memcp
     fun j hj ↦ toNat_off (by omega)
   have hlv : values.toList.length = values.size := Array.length_toList
   have hwf0 : (fenv m0 m0 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + 72 + b1.length)).toBitVec).WF :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec).WF :=
     fenv_wf1 g (fun _ h ↦ h) hevm heW heS
   have hm0 : Match (fenv m0 m0 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + 72 + b1.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨((eval_ptr0' 480).trans off_frame_F).symm, known_ptr rfl rfl, trivial⟩ trivial trivial trivial
   have hlen0 : (lenS.eval (fenv m0 m0 480 488 [(reg m0 .rdx, 11808)] (fun _ ↦ 0)
-      (Host.addrOf (k + 72 + b1.length)).toBitVec)).toNat = values.size := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakPhase.b1Offset + b1.length)).toBitVec)).toNat = values.size := by
     show (Env.load _ 1 10328 8).toNat = _
     rw [load_ofMachine (b := reg m0 .rdx) rfl hv0.2.1]
     simp only [Array.length_toList, Nat.toUInt64_eq]
@@ -76,7 +77,7 @@ theorem front (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") Memcp
     fun st0 hm0' hpc0 ↦ ?_
   simp only [PcOk, hc0, Bool.false_eq_true, ↓reduceIte] at hpc0
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf0 (fun _ _ ↦ rfl)
-    (hpc0.trans (by rw [show b0.length = 72 from rfl])) hm0' fun st1 hm1 hpc1 ↦ ?_
+    (hpc0.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakPhase.b0_next)) hm0' fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hs1sp, hs1di, hs1si, hs1dx, hs1bx, hs1bp, hs1r12, hs1r13, hs1r14, hs1r15, hs1sl, hs1z,
     hs1w⟩ := ok_s1
   have hb1 : Body m0 480 488 slots (W1 m0) 16 st1.data :=
@@ -136,7 +137,7 @@ theorem front (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") Memcp
   have hlanes := lanes_at (d := st1.data.dmem) (d' := st2.data.dmem) (fb0 := off (stackBelow m0 480) 32)
     (vb := off (reg m0 .rdx) 10336) (by rw [hoffB 32 (by omega)]; omega) hz hv1 h40
     (by rw [off_add]; exact hcp) hso
-  refine .done _ ⟨hpc2.trans (by rw [show b1.length = 17 from rfl]), ⟨hb2, ?_, ?_, ?_, ?_, ?_, ?_,
+  refine .done _ ⟨hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakPhase.b1_next), ⟨hb2, ?_, ?_, ?_, ?_, ?_, ?_,
     hlanes⟩⟩
   · exact (hsv.1 .rbx rfl).trans ((hm1.regs .rbx _ hs1bx).trans (eval_ptr rfl))
   · exact (hsv.1 .rbp rfl).trans (hm1.regs .rbp _ hs1bp)

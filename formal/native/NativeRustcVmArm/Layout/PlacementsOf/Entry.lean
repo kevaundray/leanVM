@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcVmArm.Layout.PlacementsOf.Loop1
 
 /-!
@@ -22,9 +23,9 @@ public section
 variable [Host] {k : Nat}
 
 /-- **The prologue** `b0`-`b2`: two arrays zeroed, at `.L2` with nothing stacked. -/
-theorem entry (hp : Placed code k) (hms : Spec (Labels.label "memset") MemsetPre MemsetPost)
+theorem entry (hp : Placed code k) (hms : Spec (Labels.label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
     {m0 : MachineData} (hF : Facts m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 33) ∧ I1 m0 0 0 st.data)
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b4Offset) ∧ I1 m0 0 0 st.data)
       ⟨m0, Host.addrOf k⟩ := by
   obtain ⟨hwf, hm⟩ := Arrays.entry_match hF.stack (F := 5136) (by decide) (by decide)
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st1 hm1 hpc1 ↦ ?_
@@ -65,7 +66,7 @@ theorem entry (hp : Placed code k) (hms : Spec (Labels.label "memset") MemsetPre
   have g24 := hm5.regs .X24 _ rfl
   sym_simp at g8 g22 g23 g24
   simp only [PcOk] at hpc5
-  refine .done _ ⟨hpc5.trans (hp.label (j := 33) rfl), hb5, by omega, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+  refine .done _ ⟨hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b4Offset) NativeRustcVmArm.Vm.PlacementsOf.label_2_at), hb5, by omega, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, fun q hq ↦ absurd hq (by simp [below]), fun q hq ↦ absurd hq (by simp [below])⟩
   · show (st5.data.regs.getXReg .X8).toBitVec.toNat = _; rw [g8]; rfl
   · show (st5.data.regs.getXReg .X21).toBitVec.toNat = _
@@ -89,10 +90,10 @@ theorem entry (hp : Placed code k) (hms : Spec (Labels.label "memset") MemsetPre
 
 /-- **The first loop**, from `.L2` at column `c` to `.L6` with every column tested. -/
 theorem loop1 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 33)) (hI : I1 m0 c c st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 46) ∧ I1 m0 158 158 s.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b4Offset)) (hI : I1 m0 c c st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b8Offset) ∧ I1 m0 158 158 s.data)
       st := by
-  refine Sym.loop (fun n s ↦ ∃ c, c < 158 ∧ 158 - c = n ∧ s.pc = Host.addrOf (k + 33) ∧
+  refine Sym.loop (fun n s ↦ ∃ c, c < 158 ∧ 158 - c = n ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b4Offset) ∧
       I1 m0 c c s.data) (fun n s ⟨c, hc, hn, hpc, hI⟩ ↦ ?_) ⟨c, hc, rfl, hpc, hI⟩
   refine Eventually.bind (turn1 hp hF hc hpc hI) fun s1 ⟨hpc1, hI1⟩ ↦ ?_
   refine Eventually.mono (l1 hp hc hpc1 hI1) fun s2 h ↦ ?_

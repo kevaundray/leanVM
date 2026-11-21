@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.PhaseCount.Exec
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.DecodedPhaseCount.Names
 
 /-!
 # `Decoded::phase_count` on x86-64
@@ -30,7 +31,7 @@ variable [Host] {k : Nat}
 /-- **`Decoded::phase_count` meets its contract.** -/
 theorem phaseCount_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     (openings : Array (Array OpeningW)) :
-    Spec (Labels.label phaseCountLabel) (PhaseCountPre a stream openings)
+    Spec (Labels.label NativeRustcVmX64.Vm.DecodedPhaseCount.entryLabel) (PhaseCountPre a stream openings)
       (PhaseCountPost openings) := by
   rintro m0 ⟨hst, hdf, hmap, hnw, hap, ⟨hrm, hrn⟩, hdec⟩
   set dp := reg m0 .rdi with hdp
@@ -50,8 +51,8 @@ theorem phaseCount_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     load_of_wordAt hdf.2.1
   have hm0 : Match (Env.ofMachine m0 [(dp, 24)]) entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨known_ptr rfl rfl, trivial⟩ trivial trivial trivial
-  unfold phaseCountLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.DecodedPhaseCount.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.DecodedPhaseCount.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 => ?_
   obtain ⟨hk1, hmem1, hx7, hx6, hx0⟩ := after_eq run_b0 ▸ ok_b0
@@ -103,7 +104,7 @@ theorem phaseCount_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     simp only [BitVec.toNat_ofNat, show (2 : Nat) ^ Width.W64.bits = 2 ^ 64 from rfl]
     omega
   refine exec_at (infix_of ((infix_take b1 2).trans b1_in_code (by simp [b1])) (by simp [b1]) hp)
-    run_b1 hwf1 nofun (hpc1.trans (by rw [show b0.length = 6 from rfl])) hm1'
+    run_b1 hwf1 nofun (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.DecodedPhaseCount.b0_next)) hm1'
     fun st2 hm2 hpc2 => ?_
   obtain ⟨hk2, hmem2, hx6', hx0'⟩ := after_eq run_b1 ▸ ok_b1
   have hd2 : st2.data.dmem = st1.data.dmem := hm2.dmem_eq hwf1 hmem2
@@ -118,7 +119,7 @@ theorem phaseCount_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     (ret := 0) ⟨Mapped.keeps (frame_mapped hst le_rfl) hf2.kept, frame_noWrap hst le_rfl⟩
     (by simp) (List.pairwise_singleton _ _)
   refine exec_at (infix_of ((infix_drop b1 2).trans b1_in_code (by simp [b1])) (by simp [b1]) hp)
-    run_b1r hwf2 nofun (hpc2.trans (congrArg Host.addrOf (by simp [b1])))
+    run_b1r hwf2 nofun (hpc2.trans (congrArg Host.addrOf (by simp [b1, Nat.add_assoc])))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 => ?_
   obtain ⟨hepi, hmem3, hx0''⟩ := after_eq run_b1r ▸ ok_b1r

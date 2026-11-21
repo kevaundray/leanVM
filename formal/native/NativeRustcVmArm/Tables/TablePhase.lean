@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.Powers.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TablePhase.Names
+public import NativeRustcVmArm.Code.Vm.TableSumcheck.Names
 public import NativeRustcVmArm.Tables.TablePhase.Tail
 
 /-!
@@ -22,17 +29,17 @@ variable [Host] {k : Nat}
 
 /-- **`table_phase` meets its contract.** -/
 theorem tablePhase_spec (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgrind : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hsum : ∀ a s heights bus, Spec (Labels.label tableSumcheckLabel)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgrind : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpow : Spec (Labels.label NativeRustcVmArm.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (hsum : ∀ a s heights bus, Spec (Labels.label NativeRustcVmArm.Vm.TableSumcheck.entryLabel)
       (TableSumcheckPre a s heights bus) (TableSumcheckPost a s heights bus))
     {a : DecArea} {s : TState} {L : LayoutW} {bus : BusResultW} :
-    Spec (Labels.label tablePhaseLabel) (TablePhasePre a s L bus) (TablePhasePost a s L bus) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.TablePhase.entryLabel) (TablePhasePre a s L bus) (TablePhasePost a s L bus) := by
   intro m0 hpre
-  rw [show Labels.label tablePhaseLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.TablePhase.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.TablePhase.entryOffset) NativeRustcVmArm.Vm.TablePhase.entry_at]
   have hpre' := hpre
   obtain ⟨hS, hrc, hT, hts0, htok, heo, hRt, hRe, hLin, hL, hBin, hB⟩ := hpre'
   have hN := hS.2.1
@@ -55,7 +62,7 @@ theorem tablePhase_spec (hp : Placed code k)
     tstate_keep c (fun q hq ↦ Bus.frame_inRange hN N_ge (Bus.Written.inRange rfl
       (base_noWrap (le_trans N_ge hN)) hmem0 hq)) hts0 (hm1'.kept hwf) (hm1'.sameOutside hwf)
   have hle0 : 128 + bitLengthStack ≤ tablePhaseStack := N_ge
-  have hpc' : st.pc = Labels.label bitLengthLabel ∧ retOf st.data = Host.addrOf (k + 11) := hpc
+  have hpc' : st.pc = Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b1Offset) := hpc
   refine Fr.leaf hfr0 hN hle0 keep_callee slots_le hof hbl
     (fun m m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun _ h ↦ .inl h, hq.2.2⟩) hpc' trivial
     fun m2 hfr2 hq2 hcs2 ↦ ?_
@@ -92,7 +99,7 @@ theorem tablePhase_spec (hp : Placed code k)
     rw [hd3]
     exact tstate_keep c (fun q hq ↦ by unfold bitLengthStack at hq; exact
       (Bus.not_inRange_zero _ _ hq).elim) hts1 hq2.2.2.2.2 hq2.2.1
-  have hpc3' : st3.pc = Labels.label grindLabel ∧ retOf st3.data = Host.addrOf (k + 15) := hpc3
+  have hpc3' : st3.pc = Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel ∧ retOf st3.data = Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b2Offset) := hpc3
   refine Bus.Gkr.Fr.callSpec hfr3 hN hle_g keep_callee slots_le hof (hgrind a s) hpc3'
     ⟨hfr3.stackOk hS rfl hle_g, c.rcAt hat3 hle_g, by rw [e30]; exact hts3,
       by rw [e30]; exact c.tstateOk hat3 hle_g, by rw [e31]; decide⟩
@@ -126,7 +133,7 @@ theorem tablePhase_spec (hp : Placed code k)
     -- A failed grind: the exit with `0`.
     simp only [hr, Option.isSome_none, Bool.not_false, ↓reduceIte] at hpc5
     have hrun : (tablePhase L bus).run s = none := by rw [tablePhase_run, hr]; rfl
-    refine Bus.Gkr.at_pc (hpc5.trans (hp.label (j := 44) rfl)) (exit7 hp hS hfr5
+    refine Bus.Gkr.at_pc (hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.TablePhase.b7Offset) NativeRustcVmArm.Vm.TablePhase.label_2_at)) (exit7 hp hS hfr5
       fun m' _ hx0' ↦ ⟨?_, fun x s' h ↦ (by rw [hrun] at h; cases h),
         fun x s' h ↦ (by rw [hrun] at h; cases h)⟩)
     rw [hx0', hrun]
@@ -150,7 +157,7 @@ theorem tablePhase_spec (hp : Placed code k)
       rw [Bus.Gkr.reg_of hm6' d0, tr .X21 rfl (by simp), Bus.Gkr.reg_of hm1' h21]
       rfl
     have hle_q : 128 + squeezeStack ≤ tablePhaseStack := by unfold tablePhaseStack; omega
-    have hpc6' : st6.pc = Labels.label squeezeLabel ∧ retOf st6.data = Host.addrOf (k + 20) :=
+    have hpc6' : st6.pc = Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel ∧ retOf st6.data = Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b4Offset) :=
       hpc6
     refine squeeze_call c hsq hfr6 hor hle_q keep_callee slots_le hof (fun _ h ↦ .inl h) hpc6'
       e60 (by rw [hd6, hd5]; exact hts4) fun m7 hfr7 hts7 hc0 hc1 hcs7 _ ↦ ?_

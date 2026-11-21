@@ -6,7 +6,7 @@ public import NativeRustcVmX64.Mem
 /-!
 # `bus_layout`'s sizes (x86-64)
 
-From the entry to `.LBusLayout_16` (`sizes_run`): the prologue and `memset` of the sizes
+From the entry to `NativeRustcVmX64.Vm.BusLayout.label_16` (`sizes_run`): the prologue and `memset` of the sizes
 (`b0`), the framework's sizes copied (`b1` to `b4`), the pairs' loop set up (`b5`) and run
 (`pair_step`), the last block of an odd count (`b15` to `b19`): every size written (`SzDone`).
 -/
@@ -19,7 +19,7 @@ open NativeRustcVmX64.Vm.BusLayout
 
 public section
 
-/-- At `.LBusLayout_16`: every size written. -/
+/-- At `NativeRustcVmX64.Vm.BusLayout.label_16`: every size written. -/
 structure SzDone (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m0 : MachineData)
     (st : MachineData) : Prop where
   bd : Body m0 1808 busLayoutStack slots 8 st
@@ -45,8 +45,8 @@ variable [Host] {k : Nat}
 /-- **The odd block** `b15` to `b19`. -/
 theorem odd_run (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 68)) (hE : SzEnd L bl m0 st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 82) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b15Offset)) (hE : SzEnd L bl m0 st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b20Offset) ∧
       SzDone L bl m0 st'.data) st := by
   have hpre' := hpre
   obtain ⟨hst, hnf3, -, -, hbl2, hblmax, -, hown, -, hBok, -, hLok, -⟩ := hpre
@@ -85,7 +85,7 @@ theorem odd_run (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
   · -- Even: done.
     rw [decide_eq_true hev] at hpc1
     simp only [↓reduceIte] at hpc1
-    refine .done _ ⟨hpc1.trans (hp.label (j := 82) rfl), bd1,
+    refine .done _ ⟨hpc1.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_16_at), bd1,
       hE.rg.keep fun r hr ↦ K1 r (by
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hr ⊢
         rcases hr with h | h | h | h | h <;> simp [h]),
@@ -127,7 +127,7 @@ theorem odd_run (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
     have : j < 2 ^ 64 := by omega
     rw [Nat.mod_eq_of_lt this, Nat.mul_comm]
   refine exec_at (infix_of b16_in_code (by simp [b16]) hp) run_b16 hwf2 nofun
-    (hpc1.trans (congrArg Host.addrOf (by have : b15.length = 3 := rfl; omega)))
+    (hpc1.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b15_next)))
     (match_ofMachine ⟨rfl, trivial⟩ trivial trivial trivial ⟨hkeyO, trivial⟩)
     fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmem2, hdx2, hk2⟩ := after_eq run_b16 ▸ ok_b16
@@ -161,7 +161,7 @@ theorem odd_run (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
     (hk2.reg' hm2 (by simp)).trans ((K1 .r12 (by simp)).trans hE.rg.r12)
   have hb2 : (reg st2.data .rdx).toNat < 6 := by rw [ho2, htoN hwk]; exact hwk
   refine exec_at (infix_of b17_in_code (by simp [b17]) hp) run_b17 hwf3 nofun
-    (hpc2.trans (congrArg Host.addrOf (by have : b16.length = 5 := rfl; omega)))
+    (hpc2.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b16_next)))
     (match_ofMachine (sregions := [72]) ⟨rfl, trivial⟩
       ⟨h12_2.trans (eval_ptr rfl).symm, rfl, trivial⟩ trivial ⟨hb2, trivial⟩ trivial)
     fun st3 hm3 hpc3 ↦ ?_
@@ -209,7 +209,7 @@ theorem odd_run (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
       BitVec.ofNat_mul_ofNat, off_add, Nat.cast_zero, ofInt_zero64, BitVec.add_zero,
       show 896 + 8 * nf m0 + j * 8 = 896 + 8 * i0 by omega]
   refine exec_at (infix_of b19_in_code (by simp [b19]) hp) run_b19 hwf4 nofun
-    (hpc3.trans (hp.label (j := 80) rfl))
+    (hpc3.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_15_at))
     (match_ofMachine ⟨rfl, trivial⟩ trivial trivial trivial ⟨hkeyP, trivial⟩)
     fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hw4, hwr4, hk4⟩ := after_eq run_b19 ▸ ok_b19
@@ -225,7 +225,7 @@ theorem odd_run (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
       (.reg .rdx) (hwr4.find (by simp)) hh3
     rwa [off_zero] at this
   simp only [PcOk] at hpc4
-  refine .done _ ⟨hpc4.trans (congrArg Host.addrOf (by have : b19.length = 2 := rfl; omega)),
+  refine .done _ ⟨hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b19_next)),
     bd4, hE.rg.keep fun r hr ↦ ?_, ?_, ?_⟩
   · have hr' : r ∈ [Reg64.rax, .rcx, .rbx, .rbp, .r12, .r13, .r14, .r15, .rsp] := by
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hr ⊢

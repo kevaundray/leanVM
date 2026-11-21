@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.LoopO
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
 
 /-!
 # `accumulate_side`: the framework ones, the whole loop (x86-64)
@@ -21,16 +22,16 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
 
 /-- **The ones' loop** from turn `j`. -/
 theorem onesLoop (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
     {j : Nat} (hj : j < SL.framework.size) {st : MachineData}
     (hst : St m0 Z (Vt SL m0 (lpO SL m0 j)) DO 8 st) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 116) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b10Offset) ∧
       St m0 Z (Vt SL m0 (lpO SL m0 SL.framework.size)) DOf 8 st'.data ∧
       st'.data.regs.get64 .r14 = (sv SL m0 22).toBitVec ∧
       st'.data.regs.get64 .r15 = (sv SL m0 23).toBitVec)
-      ⟨st, Host.addrOf (k + 94)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b8Offset)⟩ := by
   refine Sym.loop (fun n (s : MachineState) ↦ ∃ j, n = SL.framework.size - j ∧
-      j < SL.framework.size ∧ s.pc = Host.addrOf (k + 94) ∧
+      j < SL.framework.size ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b8Offset) ∧
       St m0 Z (Vt SL m0 (lpO SL m0 j)) DO 8 s.data)
     (fun n s ⟨j, hn, hj, hpc, hst⟩ ↦ ?_) ⟨j, rfl, hj, rfl, hst⟩
   obtain ⟨d, pc⟩ := s
@@ -46,12 +47,12 @@ theorem onesLoop (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
 
 /-- **The ones** (`b6` to `b12`): from the ones' head, the ones over the framework. -/
 theorem ones (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
     {lp : Nat → UInt64} {st : MachineData} (hst : St m0 Z (Vt SL m0 lp) D6 8 st)
     (lp' : Nat → UInt64) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 120) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b12Offset) ∧
       St m0 Z (Vt SL m0 lp') D12 8 st'.data)
-      ⟨st, Host.addrOf (k + 85)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b6Offset)⟩ := by
   have hfw := h.fw
   have hslnw := h.slIn.2.1
   unfold NativeRustcVm.NoWrap at hslnw
@@ -80,7 +81,7 @@ theorem ones (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   by_cases hz : SL.framework.size = 0
   · -- `b11`: the ones `1`.
     simp only [hz, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 117) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.AccumulateSide.label_5_at] at hpc1
     obtain ⟨d1, pc1⟩ := st1
     simp only at hpc1 hst1
     subst hpc1
@@ -104,7 +105,7 @@ theorem ones (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       rw [hon]; rfl
   · -- `b7`: the loop's setup.
     simp only [hz, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    have hpc1' : st1.pc = Host.addrOf (k + 88) := hpc1
+    have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b7Offset) := hpc1
     obtain ⟨d1, pc1⟩ := st1
     simp only at hpc1' hst1
     subst hpc1'
@@ -136,7 +137,7 @@ theorem ones (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
         rw [Nat.mul_zero, show BitVec.ofNat 64 0 = 0#64 from rfl, BitVec.add_zero]
       · rw [hm2.regs .r14 _ h14]; rfl
       · rw [hm2.regs .r15 _ h15]; rfl
-    have hpc2' : st2.pc = Host.addrOf (k + 94) := by rw [hpc2]; rfl
+    have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b8Offset) := by rw [hpc2]; rfl
     obtain ⟨d2, pc2⟩ := st2
     simp only at hpc2' hD
     subst hpc2'
@@ -154,7 +155,7 @@ theorem ones (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       (infix_of b10_in_code (by simp [b10]) hp) exit_b10 nofun hst3'.fr hst3'.same
       (hst3'.hd.reg0 (by decide) rfl) (by decide) (wf0 h hst3'.fr.kept)
       (St.mt hst3' ⟨rfl, trivial⟩ trivial trivial trivial) hmid10 hw10 (by decide) htr10
-      fun st4 _ hpc4 hst4 _ ↦ .done _ ⟨by rw [hpc4]; exact hp.label (j := 120) rfl, hst4⟩
+      fun st4 _ hpc4 hst4 _ ↦ .done _ ⟨by rw [hpc4]; exact hp.label NativeRustcVmX64.Vm.AccumulateSide.label_8_at, hst4⟩
 
 end
 

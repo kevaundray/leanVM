@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
 public import NativeRustcVmArm.Tables.PublicInputPhase.Limbs
 
 /-!
@@ -23,12 +25,12 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {L : LayoutW} {pub : Vector
 
 /-- **The second limb**, from `b6`. -/
 theorem limb1 (hp : Placed code k)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     (hpre : PublicInputPhasePre a s L pub cs m0) {m : MachineData}
     (hi : LimbAt a s L pub (cs.push (claim0 s L pub)) (ptWords s.sponge.squeeze.1) m0 m) :
-    Eventually (step1 Host.exe) (Goal a s L pub cs m0) ⟨m, Host.addrOf (k + 72)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s L pub cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.PublicInputPhase.b6Offset)⟩ := by
   obtain ⟨hS, -, -, htok, hco, -, -, -, hvc, hPin, -⟩ := hpre
   have hS1 := StackOk.rebase hS hi.kept
   have hN := hS.2.1
@@ -87,8 +89,8 @@ theorem limb1 (hp : Placed code k)
   have r3 : st.data.regs.X3.toBitVec = base m0 608 + BitVec.ofNat 64 528 := by
     show (st.data.regs.getXReg .X3).toBitVec = _
     rw [hm6'.regs .X3 _ h3, eval_ptr0]; rfl
-  have hpc6' : st.pc = Labels.label mleOfMultilinearEvalLabel ∧
-      retOf st.data = Host.addrOf (k + 85) := hpc6
+  have hpc6' : st.pc = Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel ∧
+      retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.PublicInputPhase.b7Offset) := hpc6
   refine mle_call hmle hS1 hfr6 hpc6' (Bus.Gkr.reg_lit hm6' h0) (Bus.Gkr.reg_lit hm6' h2)
     (Bus.Gkr.reg_lit hm6' h4) r1 r3 hxy hch fun m7 hfr7 hres hcs7 hs7 ↦ ?_
   have hpt7 : Bus.FrameWords m7.dmem (base m0 608) (ptWords s.sponge.squeeze.1) :=

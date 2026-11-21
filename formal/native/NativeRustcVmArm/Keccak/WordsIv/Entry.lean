@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcVmArm.Keccak.WordsIv.Full
 public import NativeRustcVmArm.Keccak.WordsHash.Entry
 
@@ -30,7 +31,7 @@ open Vm.Keccak256WordsOfFiatShamirIv
 one, else at the last block's head. -/
 def SetupAt [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   Ctx m0 st.data ∧ Lanes m0 st.data (fun _ => 0) ∧
-    st.pc = if 136 ≤ m0.regs.X2.toNat then Host.addrOf (k + 144) else Host.addrOf (k + 23)
+    st.pc = if 136 ≤ m0.regs.X2.toNat then Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b21Offset) else Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b2Offset)
 
 end
 
@@ -78,9 +79,9 @@ theorem nbI_val (x : Nat) (hx : x < 2 ^ 32) :
 variable [Host]
 
 /-- **The entry and the setup.** -/
-theorem setup_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
+theorem setup_run (hms : Spec (label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost) {k : Nat}
     (hp : Placed code k) {m0 : MachineData} (g : Geo m0) :
-    Eventually (step1 Host.exe) (SetupAt m0 k) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (SetupAt m0 k) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0Offset)⟩ := by
   have hstk := g.stk
   have hf := frame_noWrap hstk
   unfold NoWrap at hf
@@ -121,7 +122,7 @@ theorem setup_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
   refine call_then hpc1 hms hpre1 fun st2 hpc2 hpost => ?_
   obtain ⟨-, hzero, hsame2, hsaved2⟩ := hpost
   simp only [hx0, hx1, hx2] at hzero hsame2
-  rw [show b0.length = 16 from rfl, Nat.add_zero] at hpc2
+  rw [NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0_length, NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0Length, NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0Offset, Nat.add_zero] at hpc2
   let env2 := Env.ofMachine st2.data [(frame m0, 288)]
   have hwf2 : env2.WF :=
     Env.wf_of ⟨⟨frame_mapped hstk fun p h => hsaved2.2.2 p (hm1.kept hwf0 p h),
@@ -200,10 +201,10 @@ theorem setup_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
       rfl
 
 /-- **The entry**: to the head of the first whole block, or with none, of the last block. -/
-theorem entry_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
+theorem entry_run (hms : Spec (label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost) {k : Nat}
     (hp : Placed code k) {m0 : MachineData} (g : Geo m0) :
     Eventually (step1 Host.exe) (fun st => FullHead m0 k 0 st ∨ TailStart m0 k st)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b0Offset)⟩ := by
   refine Eventually.bind (setup_run hms hp g) fun st h => ?_
   obtain ⟨hc, hl, hpc⟩ := h
   obtain ⟨m, pc⟩ := st

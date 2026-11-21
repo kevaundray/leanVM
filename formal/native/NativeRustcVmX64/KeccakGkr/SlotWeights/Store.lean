@@ -23,10 +23,10 @@ public section
 
 variable {c : KeccakClaimW} {m0 : MachineData}
 
-theorem p1_infix : p1.IsInfixAt code 98 :=
+theorem p1_infix : p1.IsInfixAt code (NativeRustcVmX64.Vm.SlotWeights.b14Offset) :=
   (List.IsInfixAt.trans (infix_take b14 5) b14_in_code (by simp [b14]) :)
 
-theorem p2_infix : p2.IsInfixAt code 103 :=
+theorem p2_infix : p2.IsInfixAt code (NativeRustcVmX64.Vm.SlotWeights.b14Offset + p1.length) :=
   (List.IsInfixAt.trans (infix_drop b14 5) b14_in_code (by simp [b14]) :)
 
 /-- The product's value at its flat index. -/
@@ -39,9 +39,9 @@ variable [Host] {k : Nat}
 
 /-- **The product stored**, the bit counted. -/
 theorem bit_store (hp : Placed code k) (h : PreOk m0 c) {s j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 98)) (hI : AfterMul m0 c s j st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (j + 1 < 1600 ∧ s'.pc = Host.addrOf (k + 86) ∧
-      Inner m0 c s (j + 1) s'.data) ∨ (j + 1 = 1600 ∧ s'.pc = Host.addrOf (k + 62) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b14Offset)) (hI : AfterMul m0 c s j st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (j + 1 < 1600 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b12Offset) ∧
+      Inner m0 c s (j + 1) s'.data) ∨ (j + 1 = 1600 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b8Offset) ∧
       SegEnd m0 c s s'.data)) st := by
   have hs := hI.s_lt
   have hj := hI.j_lt
@@ -103,7 +103,7 @@ theorem bit_store (hp : Placed code k) (h : PreOk m0 c) {s j : Nat} {st : Machin
               apply BitVec.eq_of_toNat_eq; rw [toNat_ofNat_lt (by omega)]; exact hX1,
           BitVec.add_comm, NativeRustcVm.Transcript.off_add, hE, h16], trivial⟩
   refine exec_at (infix_of p2_infix (by simp [p2, b14]) hp) exit_p2 hwf1 nofun
-    (hpc1.trans (by rw [p1_length])) hm1' fun st2 hm2 hpc2 ↦ ?_
+    (hpc1.trans (by rw [Nat.add_assoc])) hm1' fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hr13', hrbp', hr14', hr15', hrbx', hws2, hw0, hw1⟩ := ok_p2
   have hf2 : Frame m0 160 slots 8 st2.data := Frame.of_block hctx1.frame hwf1 hm2 hmid2 slots_le
   have hs2 : NativeRustcVm.SameOutside st1.data.dmem st2.data.dmem (NativeRustcVm.InRange E 16) :=
@@ -168,7 +168,7 @@ theorem bit_store (hp : Placed code k) (h : PreOk m0 c) {s j : Nat} {st : Machin
     exact hrows2
   · rw [decide_eq_false (show ¬16 + 16 * j = 25600 by omega)] at hpc3
     simp only [Bool.false_eq_true, ite_false] at hpc3
-    refine .done _ (Or.inl ⟨by omega, hpc3.trans (by rw [b11_length]),
+    refine .done _ (Or.inl ⟨by omega, hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b11_next),
       ⟨hctx3, hs, by omega, hd3 ▸ hseg2, ?_, ?_, ?_, eR15, eRbx, ?_⟩⟩)
     · exact (hm3.regs .r13 _ hr133).trans ((hm2.regs .r13 _ hr13').trans
         ((hm1.regs .r13 _ hr13).trans hI.r13))

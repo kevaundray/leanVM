@@ -42,7 +42,7 @@ theorem exitW (hp : Placed code k) (h : RingWeightPre m0) {vals : Nat → BitVec
     (hv : ∀ i < 6, vals i = vv m0 0 0 0 0 i)
     (h20 : vals 20 = c0 T) (h21 : vals 21 = c1 T)
     (hT : T = ringWeight (rL m0) (qL m0) (cL m0)) {I : MachineData → Prop} {st : MachineState}
-    (hA : At m0 k 219 (rsO m0) oWr (tE (sz1 24) oAl) vals I st) :
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b25Offset (rsO m0) oWr (tE (sz1 24) oAl) vals I st) :
     Eventually (step1 Host.exe) (Goal m0) st := by
   obtain ⟨d, pc⟩ := st
   obtain ⟨hpc, hB, -⟩ := hA

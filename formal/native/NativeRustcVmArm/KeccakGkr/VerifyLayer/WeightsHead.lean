@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.WeightsA
 import Mathlib.Tactic.IntervalCases
 
@@ -23,13 +24,13 @@ public section
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
   {s' : TState} {t0 t1 t2 beta : EW} {mu point eq : Array EW}
 
-/-- **The iteration to the first `EW::mul`**: back at `k + 601` with `WMid` and
+/-- **The iteration to the first `EW::mul`**: back at `k + NativeRustcVmArm.Vm.VerifyLayer.b55Offset` with `WMid` and
 `β · eq[keccakAlong j 3]` in X0, X1. -/
 theorem phaseA (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hps : point.size ≤ 30) (heq : eq.size = 2048) {j : Nat} {st : MachineState}
     (hh : WHead k m0 a s' t0 t1 t2 beta mu point eq j st) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 601) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b55Offset) →
       WMid m0 a s' t0 t1 t2 beta mu point eq j st'.data →
       st'.data.regs.X0 = (beta * eq.getD (keccakAlong j 3) 0).c0 →
       st'.data.regs.X1 = (beta * eq.getD (keccakAlong j 3) 0).c1 →
@@ -64,7 +65,7 @@ theorem phaseA (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     rw [sb_and, sb_not (SBool.cmp .ult .W64 x11S (.lit 2047)), sb_cmp .ult .W64 x11S (.lit 2047),
       ult_apply, x11S_val hx19 hj, ev_lit, BitVec.toNat_ofNat, decide_eq_true h1]
     rfl
-  have hpc1' : st1.pc = Host.addrOf (k + 633) := pc_false hpc1 hc57
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b58Offset) := pc_false hpc1 hc57
   have k1 : Bus.KeepRegs [.X19, .X20, .X23, .X24, .X25, .X26, .X29] st.data st1.data :=
     Bus.KeepRegs.of_block hm1 rfl
   -- `b58`: `eq[keccakAlong j 4]`.
@@ -88,7 +89,7 @@ theorem phaseA (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     reg_load (r := .X21) hm2' rfl hk4.1
   have e22 : st2.data.regs.X22 = (eq.getD (keccakAlong j 4) 0).c1 :=
     reg_load (r := .X22) hm2' rfl hk4.2
-  have hpc2' : st2.pc = Host.addrOf (k + 641) := Eq.trans hpc2 (label33 hp)
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b60Offset) := Eq.trans hpc2 (label33 hp)
   have k2 : Bus.KeepRegs [.X19, .X20, .X23, .X24, .X25, .X26, .X29] st1.data st2.data :=
     Bus.KeepRegs.of_block hm2' rfl
   have k2' : Bus.KeepRegs [.X8, .X9, .X10] st1.data st2.data := Bus.KeepRegs.of_block hm2' rfl
@@ -116,7 +117,7 @@ theorem phaseA (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     rw [sb_or, sb_cmp .ult .W64 x9b (.lit 2047), ult_apply, hx9b, ev_lit, BitVec.toNat_ofNat,
       decide_eq_true h1]
     rfl
-  have hpc3' : st3.pc = Host.addrOf (k + 588) := (pc_true hpc3 hc60).trans (label28 hp)
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b53Offset) := (pc_true hpc3 hc60).trans (label28 hp)
   have k3 : Bus.KeepRegs [.X19, .X20, .X21, .X22, .X23, .X24, .X25, .X26, .X29, .X8]
       st2.data st3.data := Bus.KeepRegs.of_block hm3 rfl
   have h83 : (st3.data.regs.getXReg .X8).toBitVec.toNat = j % 64 := by
@@ -133,7 +134,7 @@ theorem phaseA (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
         NativeRustcVm.addr_add_add, show BitVec.ofInt 64 0 = BitVec.ofNat 64 0 from rfl,
         NativeRustcVm.addr_add_zero])
   refine exec_at (blk hp b53_in_code (by simp [b53])) e53 hwf4 hpc3' hm4 fun st4 hm4' hpc4 ↦ ?_
-  rw [show k + 588 + b53.length = k + 593 from rfl] at hpc4
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b53Offset + b53.length = k + NativeRustcVmArm.Vm.VerifyLayer.b54Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b53_next]] at hpc4
   have hb4 : Body m0 st4.data :=
     Fr.ofBlock hb3 hm4 hm4' hwf4 rfl rfl rfl (fun r hr ↦ by cases hr)
   have hd4 : st4.data.dmem = st3.data.dmem := hm4'.dmem_eq hwf4 rfl
@@ -158,7 +159,7 @@ theorem phaseA (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
         show BitVec.ofInt 64 8 = BitVec.ofNat 64 8 from rfl, NativeRustcVm.addr_add_add,
         show 107520 + 16 * j + 8 = 107528 + 16 * j by omega])
   refine exec_at (blk hp b54_in_code (by simp [b54])) e54 hwf5 hpc4 hm5 fun st5 hm5' hpc5 ↦ ?_
-  rw [show k + 593 + b54.length = k + 601 from rfl] at hpc5
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b54Offset + b54.length = k + NativeRustcVmArm.Vm.VerifyLayer.b55Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b54_next]] at hpc5
   have hb5 : Body m0 st5.data :=
     Body.sBlock hpre hb4 (o := 107520 + 16 * j) (n := 16) (by decide) (by omega) (by omega)
       hm5 hm5' rfl rfl

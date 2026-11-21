@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRounds.Round
+public import NativeRustcVmX64.Code.Vm.FoldRound.Names
+public import NativeRustcVmX64.Code.Vm.FoldRounds.Names
 
 /-!
 # `fold_rounds` on x86-64
@@ -28,13 +30,13 @@ variable [Host] {k : Nat}
 
 /-- **`fold_rounds` meets its contract.** -/
 theorem foldRounds_spec (hp : Placed code k)
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmX64.Vm.FoldRound.entryLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
     (a : DecArea) (s : TState) (w : WhirStateW) :
-    Spec (Labels.label foldRoundsLabel) (FoldRoundsPre a s w) (FoldRoundsPost a s w) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.FoldRounds.entryLabel) (FoldRoundsPre a s w) (FoldRoundsPost a s w) := by
   intro m0 h
-  rw [show Labels.label foldRoundsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.FoldRounds.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRounds.b0Offset) from hp.label NativeRustcVmX64.Vm.FoldRounds.entry_at]
   have hn6 := pre_n6 h
-  have hwf := entry_wf h (r := (Host.addrOf (k + 12 + b1.length)).toBitVec)
+  have hwf := entry_wf h (r := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRounds.b1Offset + b1.length)).toBitVec)
   refine exec_then (inf hp b0_in_code (by simp [b0])) run_b0 hwf (by intro l h; cases h)
     entry_match fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
@@ -42,7 +44,7 @@ theorem foldRounds_spec (hp : Placed code k)
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases h0 : (reg m0 .rsi).toNat = 0
   · -- `n = 0`: `b21`.
-    have hpc := (hT (decide_eq_true h0)).trans (hp.label (j := 148) rfl)
+    have hpc := (hT (decide_eq_true h0)).trans (hp.label NativeRustcVmX64.Vm.FoldRounds.label_3_at)
     refine exec_at (inf hp b21_in_code (by simp [b21])) (exec_after run_b0 run_b21z) hwf
       (by intro l h; cases h) hpc hm1 fun st2 hm2 hpc2 ↦ .done _ ?_
     rw [← after_eq run_b21z] at hm2
@@ -65,54 +67,50 @@ theorem foldRounds_spec (hp : Placed code k)
   simp only [PcOk] at hpc2
   -- Round 1.
   refine round hp hfr h 0 b2_in_code (by simp [b2]) run_b2 ok_b2 (fun _ hd ↦ tag8_0 hd)
-    (fun _ hd ↦ tag8_1 hd) (by rw [show b2.length = 2 from rfl]; exact b3_in_code) (by simp [b3])
+    (fun _ hd ↦ tag8_1 hd) (by rw [NativeRustcVmX64.Vm.FoldRounds.b2_length]; exact b3_in_code) (by simp [b3])
     (.inl rfl) run_b3 ok_b3 (by omega)
-    ⟨hpc2.1, hpc2.2.trans (by rw [show b1.length = 7 from rfl])⟩ hI
+    ⟨hpc2.1, hpc2.2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FoldRounds.b1_next)⟩ hI
     ((hm2.regs .rdi _ hdi).trans (Transcript.eval_ptr0 40)) (hm2.regs .rsi _ hsi)
     (hm2.regs .rdx _ hdx) fun st3 hpc3 hne1 hI1 ↦ ?_
   -- Round 2.
   refine step hp hfr h 1 b4_in_code (by simp [b4]) run_b4 ok_b4
-    (by rw [show b4.length = 4 from rfl]; exact b5_in_code) (by simp [b5]) run_b5 ok_b5
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b4_length]; exact b5_in_code) (by simp [b5]) run_b5 ok_b5
     (fun _ hd ↦ tag32_0 hd) (fun _ hd ↦ tag32_1 hd)
-    (by rw [show b4.length = 4 from rfl, show b5.length = 2 from rfl]; exact b6_in_code)
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b4_length, NativeRustcVmX64.Vm.FoldRounds.b5_length]; exact b6_in_code)
     (by simp [b6]) (.inr ⟨rfl, by omega⟩) run_b6 ok_b6 (by omega)
-    (hpc3.trans (by rw [show b2.length = 2 from rfl, show b3.length = 16 from rfl])) hI1
+    (hpc3.trans (by rw [NativeRustcVmX64.Vm.FoldRounds.b2_next, Nat.add_assoc, NativeRustcVmX64.Vm.FoldRounds.b3_next])) hI1
     fun st4 hpc4 hne2 hI2 ↦ ?_
   -- Round 3.
   refine step hp hfr h 2 b7_in_code (by simp [b7]) run_b7 ok_b7
-    (by rw [show b7.length = 4 from rfl]; exact b8_in_code) (by simp [b8]) run_b8 ok_b8
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b7_length]; exact b8_in_code) (by simp [b8]) run_b8 ok_b8
     (fun _ hd ↦ tag32_0 hd) (fun _ hd ↦ tag32_1 hd)
-    (by rw [show b7.length = 4 from rfl, show b8.length = 2 from rfl]; exact b9_in_code)
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b7_length, NativeRustcVmX64.Vm.FoldRounds.b8_length]; exact b9_in_code)
     (by simp [b9]) (.inr ⟨rfl, by omega⟩) run_b9 ok_b9 (by omega)
-    (hpc4.trans (by rw [show b4.length = 4 from rfl, show b5.length = 2 from rfl,
-      show b6.length = 15 from rfl])) hI2
+    (hpc4.trans (by rw [NativeRustcVmX64.Vm.FoldRounds.b4_next, NativeRustcVmX64.Vm.FoldRounds.b5_next, Nat.add_assoc, NativeRustcVmX64.Vm.FoldRounds.b6_next])) hI2
     fun st5 hpc5 hne3 hI3 ↦ ?_
   -- Round 4.
   refine step hp hfr h 3 b10_in_code (by simp [b10]) run_b10 ok_b10
-    (by rw [show b10.length = 4 from rfl]; exact b11_in_code) (by simp [b11]) run_b11 ok_b11
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b10_length]; exact b11_in_code) (by simp [b11]) run_b11 ok_b11
     (fun _ hd ↦ tag32_0 hd) (fun _ hd ↦ tag32_1 hd)
-    (by rw [show b10.length = 4 from rfl, show b11.length = 2 from rfl]; exact b12_in_code)
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b10_length, NativeRustcVmX64.Vm.FoldRounds.b11_length]; exact b12_in_code)
     (by simp [b12]) (.inr ⟨rfl, by omega⟩) run_b12 ok_b12 (by omega)
-    (hpc5.trans (by rw [show b7.length = 4 from rfl, show b8.length = 2 from rfl,
-      show b9.length = 15 from rfl])) hI3
+    (hpc5.trans (by rw [NativeRustcVmX64.Vm.FoldRounds.b7_next, NativeRustcVmX64.Vm.FoldRounds.b8_next, Nat.add_assoc, NativeRustcVmX64.Vm.FoldRounds.b9_next])) hI3
     fun st6 hpc6 hne4 hI4 ↦ ?_
   -- Round 5.
   refine step hp hfr h 4 b13_in_code (by simp [b13]) run_b13 ok_b13
-    (by rw [show b13.length = 4 from rfl]; exact b14_in_code) (by simp [b14]) run_b14 ok_b14
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b13_length]; exact b14_in_code) (by simp [b14]) run_b14 ok_b14
     (fun _ hd ↦ tag32_0 hd) (fun _ hd ↦ tag32_1 hd)
-    (by rw [show b13.length = 4 from rfl, show b14.length = 2 from rfl]; exact b15_in_code)
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b13_length, NativeRustcVmX64.Vm.FoldRounds.b14_length]; exact b15_in_code)
     (by simp [b15]) (.inr ⟨rfl, by omega⟩) run_b15 ok_b15 (by omega)
-    (hpc6.trans (by rw [show b10.length = 4 from rfl, show b11.length = 2 from rfl,
-      show b12.length = 15 from rfl])) hI4
+    (hpc6.trans (by rw [NativeRustcVmX64.Vm.FoldRounds.b10_next, NativeRustcVmX64.Vm.FoldRounds.b11_next, Nat.add_assoc, NativeRustcVmX64.Vm.FoldRounds.b12_next])) hI4
     fun st7 hpc7 hne5 hI5 ↦ ?_
   -- Round 6: `n = 6`, the seventh call (`b19`) unreached.
   exact step hp hfr h 5 b16_in_code (by simp [b16]) run_b16 ok_b16
-    (by rw [show b16.length = 4 from rfl]; exact b17_in_code) (by simp [b17]) run_b17 ok_b17
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b16_length]; exact b17_in_code) (by simp [b17]) run_b17 ok_b17
     (fun _ hd ↦ tag32_0 hd) (fun _ hd ↦ tag32_1 hd)
-    (by rw [show b16.length = 4 from rfl, show b17.length = 2 from rfl]; exact b18_in_code)
+    (by rw [NativeRustcVmX64.Vm.FoldRounds.b16_length, NativeRustcVmX64.Vm.FoldRounds.b17_length]; exact b18_in_code)
     (by simp [b18]) (.inr ⟨rfl, by omega⟩) run_b18 ok_b18 (by omega)
-    (hpc7.trans (by rw [show b13.length = 4 from rfl, show b14.length = 2 from rfl,
-      show b15.length = 15 from rfl])) hI5
+    (hpc7.trans (by rw [NativeRustcVmX64.Vm.FoldRounds.b13_next, NativeRustcVmX64.Vm.FoldRounds.b14_next, Nat.add_assoc, NativeRustcVmX64.Vm.FoldRounds.b15_next])) hI5
     fun _ _ hne6 _ ↦ absurd hn6 (by omega)
 
 end

@@ -4,6 +4,8 @@ public import NativeRustcVmX64.Transcript.Callee
 public import NativeRustcVmX64.Transcript.ReadScalars.Exec
 public import NativeRustcVmX64.Transcript.Arith
 public import NativeRustcVm.Transcript.Loop
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `TState::read_scalars` on x86-64
@@ -52,7 +54,7 @@ variable [Host] {k : Nat}
 theorem finish (hp : Placed code k) {m0 d : MachineData} (hst : StackOk m0 readScalarsStack)
     (hf : Frame m0 80 slots 8 d) {S S' : SState} {v : Sym}
     (hx : exec b7 S = some (S', .ret (.load 0 80 8))) (hE : EndOk S' v) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 33)) (hm : Match (frameEnv m0 d 80 [] (fun _ ↦ 0) 0) S st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadScalars.b7Offset)) (hm : Match (frameEnv m0 d 80 [] (fun _ ↦ 0) 0) S st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
       reg st'.data .rax = v.eval (frameEnv m0 d 80 [] (fun _ ↦ 0) 0) ∧
       st'.data.dmem = d.dmem ∧ Saved m0 st'.data) st := by
@@ -70,13 +72,13 @@ theorem finish (hp : Placed code k) {m0 d : MachineData} (hst : StackOk m0 readS
 /-- **One round of the loop**: a scalar read and stored; the loop goes on, returns `1` at the end
 or `0` on a rejection. -/
 theorem step (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {a : DecArea} {s : TState} {m0 : MachineData} (hpre : ReadScalarsPre a s m0) {i : Nat}
-    (hi : i < (reg m0 .rdx).toNat) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 17))
+    (hi : i < (reg m0 .rdx).toNat) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadScalars.b2Offset))
     (hI : Inv m0 a s i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
       (st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧ ReadScalarsPost a s m0 st'.data) ∨
-      (st'.pc = Host.addrOf (k + 17) ∧ i + 1 < (reg m0 .rdx).toNat ∧
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadScalars.b2Offset) ∧ i + 1 < (reg m0 .rdx).toNat ∧
         Inv m0 a s (i + 1) st'.data)) st := by
   obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := hpre
   set t := reg m0 .rdi with htdef
@@ -106,7 +108,7 @@ theorem step (hp : Placed code k)
   have hxs : xs.size = i := pushes_size hrun
   -- `b2`: `call read_scalar`, its output at `fb + 16`.
   have hwf := frame_wf (m0 := m0) (d := st.data) (F := 80) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 17 + b2.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadScalars.b2Offset + b2.length)).toBitVec)
     ⟨Mapped.keeps (frame_mapped hst (by decide)) hf.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf (fun _ _ ↦ rfl) hpc
@@ -204,7 +206,7 @@ theorem step (hp : Placed code k)
   have hm4 : Match (frameEnv m0 st4.data 80 [] (fun _ ↦ 0) 0) doneS st4.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hf4.rsp_eval, trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf4 nofun
-    (hpc4.trans (by rw [show b2.length = 4 from rfl])) hm4 fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadScalars.b2_next)) hm4 fun st5 hm5 hpc5 => ?_
   obtain ⟨hmid5, hmem5, hx12₅, hx13₅, hx14₅, hx15₅, hx3₅⟩ := after_eq run_b3 ▸ ok_b3
   simp only [PcOk] at hpc5
   sym_simp_at hpc5
@@ -219,9 +221,9 @@ theorem step (hp : Placed code k)
     simp (config := { decide := true }) only [↓reduceIte] at hpc5
     have hnone : (readScalars n).run s = none := pushes_none_of hrun hr n hi
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf4 nofun
-      (hpc5.trans (hp.label (j := 31) rfl)) hm5 fun st6 hm6 hpc6 => ?_
+      (hpc5.trans (hp.label NativeRustcVmX64.Vm.TStateReadScalars.label_4_at)) hm5 fun st6 hm6 hpc6 => ?_
     refine Eventually.mono (finish hp hst hf4 exit_b7r end_r
-      (hpc6.trans (by rw [show b6.length = 2 from rfl])) hm6)
+      (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadScalars.b6_next)) hm6)
       fun st' ⟨hpc', hrsp', hrax', hd', hsv'⟩ ↦ Or.inl ⟨hpc', hrsp', ?_, ?_, ?_, ?_, hsv'⟩
     · show (reg st'.data .rax).toNat % 256 = (okWord ((readScalars n).run s).isSome).toNat
       rw [hnone, hrax']; rfl
@@ -264,7 +266,7 @@ theorem step (hp : Placed code k)
       ⟨hf5.rsp_eval, known_ptr rfl ((hreg5 .r15 hx15₅).trans hX15₄), trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf5 nofun
-    (hpc5.trans (by rw [show b3.length = 2 from rfl])) hm5' fun st6 hm6 hpc6 => ?_
+    (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadScalars.b3_next)) hm5' fun st6 hm6 hpc6 => ?_
   obtain ⟨hmid6, hw0, hw1, hws6, hx15₆, hx12₆, hx13₆, hx14₆, hx3₆⟩ := after_eq run_b4 ▸ ok_b4
   have hf6 : Frame m0 80 slots 8 st6.data := Frame.of_block hf5 hwf5 hm6 hmid6 slots_le
   have hs6 : NativeRustcVm.SameOutside st5.data.dmem st6.data.dmem (NativeRustcVm.InRange w 16) :=
@@ -338,12 +340,12 @@ theorem step (hp : Placed code k)
       (ret := 0) ⟨Mapped.keeps (frame_mapped hst (by decide)) hf6.kept, hfnw⟩ (by simp)
       (List.pairwise_singleton _ _)
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf6 nofun
-      (hpc6.trans (by rw [show b4.length = 7 from rfl]))
+      (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadScalars.b4_next))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st7 hm7 hpc7 => ?_
     simp only [PcOk] at hpc7
     refine Eventually.mono (finish hp hst hf6 exit_b7e end_e
-      (hpc7.trans (hp.label (j := 33) rfl)) hm7)
+      (hpc7.trans (hp.label NativeRustcVmX64.Vm.TStateReadScalars.label_5_at)) hm7)
       fun st' ⟨hpc', hrsp', hrax', hd', hsv'⟩ ↦ Or.inl ⟨hpc', hrsp', ?_, ?_, ?_, ?_, hsv'⟩
     · show (reg st'.data .rax).toNat % 256 = (okWord ((readScalars n).run s).isSome).toNat
       rw [hrn, hrax']
@@ -359,16 +361,16 @@ theorem step (hp : Placed code k)
       rw [hd']; exact hts6
     · intro q hq; rw [hd']; exact hso6 q hq
   · simp only [hlast, ne_eq, not_false_eq_true, decide_true, ↓reduceIte] at hpc6
-    exact .done _ (Or.inr ⟨hpc6.trans (hp.label (j := 17) rfl), by omega,
+    exact .done _ (Or.inr ⟨hpc6.trans (hp.label NativeRustcVmX64.Vm.TStateReadScalars.label_2_at), by omega,
       ⟨hf6, (hreg6 .r12 hx12₆ hx12₅).trans hX12₄, (hreg6 .r14 hx14₆ hx14₅).trans hX14₄,
         hX15₆, (hreg6 .r13 hx13₆ hx13₅).trans hX13₄, by rw [hX3₆]; exact hxbx,
         ⟨_, _, hrun', hews6, hts6⟩, hso6⟩⟩)
 
 /-- **`TState::read_scalars` meets its contract.** -/
 theorem readScalars_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s) := by
   intro m0 hpre
   obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := id hpre
   set t := reg m0 .rdi with htdef
@@ -387,8 +389,8 @@ theorem readScalars_spec (hp : Placed code k)
     (ret := 0) ⟨frame_mapped hst (by decide), hfnw⟩ (by simp) (List.pairwise_singleton _ _)
   have hm0 : Match (frameEnv m0 m0 80 [] (fun _ ↦ 0) 0) entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
-  unfold readScalarsLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.TStateReadScalars.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.TStateReadScalars.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 => ?_
   have hbx : ∀ {S : SState} {d : MachineData}, Match (frameEnv m0 m0 80 [] (fun _ ↦ 0) 0) S d →
@@ -410,7 +412,7 @@ theorem readScalars_spec (hp : Placed code k)
       Frame.of_prologue Frame.entry hwf0 hm1 hpro slots_le (by decide)
     have hs1 : NativeRustcVm.SameOutside m0.dmem st1.data.dmem (NativeRustcVm.InRange fb 80) :=
       sameOutside_low hwf0 hm1 (r := 0) rfl (by decide) hws1
-    refine Eventually.mono (finish hp hst hf1 exit_b7 end_0 (hpc1.trans (hp.label (j := 33) rfl))
+    refine Eventually.mono (finish hp hst hf1 exit_b7 end_0 (hpc1.trans (hp.label NativeRustcVmX64.Vm.TStateReadScalars.label_5_at))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf1.rsp_eval, trivial⟩ trivial trivial trivial))
       fun st' ⟨hpc', hrsp', hrax', hd', hsv'⟩ ↦ ⟨hpc', hrsp', ?_, ?_, ?_, ?_, hsv'⟩
     · show (reg st'.data .rax).toNat % 256 = (okWord ((readScalars n).run s).isSome).toNat
@@ -441,7 +443,7 @@ theorem readScalars_spec (hp : Placed code k)
     exact h0
   -- `b1`: the output's cursor and end.
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf0 nofun
-    (hpc1.trans (by rw [show b0.length = 10 from rfl])) hm1 fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadScalars.b0_next)) hm1 fun st2 hm2 hpc2 => ?_
   obtain ⟨hpro, hws2, hrbx2, hx14, hx15, hx12, hx13⟩ := ok_b1
   have hf2 : Frame m0 80 slots 8 st2.data :=
     Frame.of_prologue Frame.entry hwf0 hm2 hpro slots_le (by decide)
@@ -467,10 +469,10 @@ theorem readScalars_spec (hp : Placed code k)
         (inRange_mono hq (by decide)), fun h ↦ not_inRange_of_apart hAF hAn hfnw h
         (inRange_mono hq (by decide))⟩) hs2
     · exact hs2 q fun h ↦ hq (Or.inr (Or.inr (inRange_frame_stack h8 hn (by decide) h)))
-  refine loop (I := fun j st ↦ ∃ i, j = n - i ∧ i < n ∧ st.pc = Host.addrOf (k + 17) ∧
+  refine loop (I := fun j st ↦ ∃ i, j = n - i ∧ i < n ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadScalars.b2Offset) ∧
       Inv m0 a s i st.data)
     (fun j st ⟨i, hj, hi, hpc, hI⟩ ↦ Eventually.mono (step hp hrs hpre hi hpc hI) fun st' h ↦ ?_)
-    ⟨0, rfl, by omega, hpc2.trans (by rw [show b1.length = 7 from rfl]), hInv⟩
+    ⟨0, rfl, by omega, hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadScalars.b1_next), hInv⟩
   rcases h with h | ⟨hpc', hlt, hI'⟩
   · exact Or.inl h
   · exact Or.inr ⟨n - (i + 1), by omega, i + 1, rfl, hlt, hpc', hI'⟩

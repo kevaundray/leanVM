@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
+public import NativeRustcVmArm.Code.Vm.NovelEval.Names
 public import NativeRustcVmArm.Whir.NovelEval.Outer
 
 /-!
@@ -44,10 +46,10 @@ variable [Host] {k : Nat}
 /-- **The basis complete**: to the sum's head, or with no product to the end. -/
 theorem mid_sum (hp : Placed code k) {m0 : MachineData} {st : MachineData} (hM : Mid m0 st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (Done m0 s.data ∧ s.pc = Host.addrOf (k + 73)) ∨
-        (SInv m0 0 s.data ∧ s.pc = Host.addrOf (k + 52) ∧ 0 < lenOf m0))
-      ⟨st, Host.addrOf (k + 44)⟩ := by
-  have hk9 : b9.IsInfixAt Host.prog (k + 44) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
+      (fun s ↦ (Done m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b17Offset)) ∨
+        (SInv m0 0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b11Offset) ∧ 0 < lenOf m0))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b9Offset)⟩ := by
+  have hk9 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b9Offset) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk9 run_b9 (Env.wf_nil _) (match_nil _) fun s1 hm1 hpc1 ↦ ?_
   have hb9 := after_eq run_b9 ▸ regs_keeps b9 (.tail _ (.tail _ (.tail _ (.tail _ (.head _)))))
   have hfr1 := hM.fr.of_regs (match_nil _) hm1 (Env.wf_nil _) rfl hb9.1 hb9.2
@@ -74,8 +76,8 @@ theorem mid_sum (hp : Placed code k) {m0 : MachineData} {st : MachineData} (hM :
   by_cases h0 : lenOf m0 = 0
   · -- no product: `b16`, the sum `0`
     simp only [h0, decide_true, ↓reduceIte] at hpc1
-    rw [show Labels.label ".LNovelEval_11" = Host.addrOf (k + 70) from hp.label rfl] at hpc1
-    have hk16 : b16.IsInfixAt Host.prog (k + 70) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    rw [show Labels.label NativeRustcVmArm.Vm.NovelEval.label_11 = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b16Offset) from hp.label (j := NativeRustcVmArm.Vm.NovelEval.b16Offset) NativeRustcVmArm.Vm.NovelEval.label_11_at] at hpc1
+    have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b16Offset) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_at hk16 run_b16 (Env.wf_nil _) hpc1 (match_nil _) fun s2 hm2 hpc2 ↦ .done _ (.inl ?_)
     have hb16 := after_eq run_b16 ▸ regs_keeps b16
       (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.tail _
@@ -91,8 +93,8 @@ theorem mid_sum (hp : Placed code k) {m0 : MachineData} {st : MachineData} (hM :
       rw [show s2.data.regs.X23.toBitVec = _ from hm2.regs .X23 _ rfl, h0, novelAcc_zero]
       rfl
   · simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    have hk10 : b10.IsInfixAt Host.prog (k + 48) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
-    have hpc1' : s1.pc = Host.addrOf (k + 48) := hpc1
+    have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b10Offset) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hpc1' : s1.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b10Offset) := hpc1
     refine exec_at hk10 run_b10 (Env.wf_nil _) hpc1' (match_nil _) fun s2 hm2 hpc2 ↦
       .done _ (.inr ⟨?_, hpc2, by omega⟩)
     have hb10 := after_eq run_b10 ▸ regs_keeps b10
@@ -122,13 +124,13 @@ theorem mid_sum (hp : Placed code k) {m0 : MachineData} {st : MachineData} (hM :
       rfl
 
 /-- **A turn of the sum.** -/
-theorem sum_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
+theorem sum_step (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hpre : NovelEvalPre m0) (hc : cnt m0 ≤ 64) {t : Nat}
     (ht : t < lenOf m0) {st : MachineData} (hI : SInv m0 t st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (Done m0 s.data ∧ s.pc = Host.addrOf (k + 73)) ∨
-        (SInv m0 (t + 1) s.data ∧ s.pc = Host.addrOf (k + 52) ∧ t + 1 < lenOf m0))
-      ⟨st, Host.addrOf (k + 52)⟩ := by
+      (fun s ↦ (Done m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b17Offset)) ∨
+        (SInv m0 (t + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b11Offset) ∧ t + 1 < lenOf m0))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b11Offset)⟩ := by
   have hS : StackOk m0 novelEvalStack := hpre.1
   have hcs := hpre.2.1
   have hF : 1120 ≤ novelEvalStack := by decide
@@ -173,7 +175,7 @@ theorem sum_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre Km
        trivial⟩
       trivial trivial trivial
   -- `b11`: load coefficient and basis word, `kmul(b, c₀)`
-  have hk11 : b11.IsInfixAt Host.prog (k + 52) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b11Offset) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk11 run_b11 hwf hm fun s1 hm1 hpc1 ↦ ?_
   have hb11 := after_eq run_b11 ▸ b11_keeps
   have hfr1 := hfr.of_regs hm hm1 hwf rfl hb11.1 hb11.2
@@ -208,8 +210,8 @@ theorem sum_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre Km
       (by rw [NativeRustcVm.addr_add_zero, hd1]; exact hI.basis)
     rwa [NativeRustcVm.addr_add_zero] at this
   -- `b12`: `kmul(b, c₁)`
-  have hk12 : b12.IsInfixAt Host.prog (k + 57) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc2' : s2.pc = Host.addrOf (k + 57) := hpc2
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b12Offset) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc2' : s2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b12Offset) := hpc2
   refine exec_at hk12 run_b12 (Env.wf_nil _) hpc2' (match_nil _) fun s3 hm3 hpc3 ↦ ?_
   have hb12 := after_eq run_b12 ▸ regs_keeps b12
     (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.head _)))))))
@@ -231,8 +233,8 @@ theorem sum_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre Km
       (by rw [NativeRustcVm.addr_add_zero, hd3]; exact hbasis2)
     rwa [NativeRustcVm.addr_add_zero] at this
   -- `b13`: add, count
-  have hk13 : b13.IsInfixAt Host.prog (k + 61) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc4' : s4.pc = Host.addrOf (k + 61) := hpc4
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc4' : s4.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b13Offset) := hpc4
   refine exec_at hk13 run_b13 (Env.wf_nil _) hpc4' (match_nil _) fun s5 hm5 hpc5 ↦ ?_
   have hb13 := after_eq run_b13 ▸ regs_keeps b13
     (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.tail _ (.head _))))))))
@@ -287,8 +289,8 @@ theorem sum_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre Km
   by_cases hlast : lenOf m0 - t = 1
   · simp only [hlast, Nat.one_mod, decide_true, Bool.not_true, Bool.false_eq_true,
       ↓reduceIte] at hpc5
-    have hk14 : b14.IsInfixAt Host.prog (k + 66) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
-    have hpc5' : s5.pc = Host.addrOf (k + 66) := hpc5
+    have hk14 : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b14Offset) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hpc5' : s5.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b14Offset) := hpc5
     refine exec_at hk14 run_b14 (Env.wf_nil _) hpc5' (match_nil _) fun s6 hm6 hpc6 ↦
       .done _ (.inl ⟨?_, ?_⟩)
     · have hb14 := after_eq run_b14 ▸ regs_keeps b14
@@ -304,11 +306,11 @@ theorem sum_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre Km
         exact x23
     · simp only [PcOk] at hpc6
       rw [hpc6]
-      exact hp.label rfl
+      exact hp.label (j := NativeRustcVmArm.Vm.NovelEval.b17Offset) NativeRustcVmArm.Vm.NovelEval.label_12_at
   · simp only [show ¬lenOf m0 - t = 1 % 2 ^ 64 by simpa using hlast, decide_false, Bool.not_false,
       ↓reduceIte] at hpc5
     refine .done _ (.inr ⟨⟨hfr5, x19, ?_, ?_, ?_, x24, x23, hbasis5⟩,
-      hpc5.trans (hp.label rfl), by omega⟩)
+      hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.NovelEval.b11Offset) NativeRustcVmArm.Vm.NovelEval.label_9_at), by omega⟩)
     · show (s5.data.regs.getXReg .X25).toBitVec.toNat = _
       rw [hm5.regs .X25 _ rfl]
       sym_simp

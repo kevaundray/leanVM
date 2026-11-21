@@ -1,6 +1,14 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.IterD
+public import NativeRustcVmX64.Code.Vm.EachRowOfFinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.FoldRow.Names
+public import NativeRustcVmX64.Code.Vm.LanesOf.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.NovelEval.Names
+public import NativeRustcVmX64.Code.Vm.RowsRow.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceAtTable.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceTable.Names
 
 /-!
 # `each_row` with `final_level`'s closure meets its contract (x86-64)
@@ -23,19 +31,19 @@ variable [Host] {k : Nat}
 
 /-- **`each_row` with `final_level`'s closure meets its contract.** -/
 theorem eachRowFinal_spec (hp : Placed code k)
-    (htab : Spec (label subspaceTableLabel) SubspaceTablePre SubspaceTablePost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hlanes : Spec (label lanesOfLabel) LanesOfPre LanesOfPost)
-    (hfold : Spec (label foldRowLabel) FoldRowPre FoldRowPost)
-    (hsat : Spec (label subspaceAtTableLabel) SubspaceAtTablePre SubspaceAtTablePost)
-    (hnov : Spec (label novelEvalLabel) NovelEvalPre NovelEvalPost)
+    (htab : Spec (label NativeRustcVmX64.Vm.SubspaceTable.entryLabel) SubspaceTablePre SubspaceTablePost)
+    (hmemcpy : Spec (label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hlanes : Spec (label NativeRustcVmX64.Vm.LanesOf.entryLabel) LanesOfPre LanesOfPost)
+    (hfold : Spec (label NativeRustcVmX64.Vm.FoldRow.entryLabel) FoldRowPre FoldRowPost)
+    (hsat : Spec (label NativeRustcVmX64.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost)
+    (hnov : Spec (label NativeRustcVmX64.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost)
     (rows : Array (Array UInt64)) (op : BitVec 64)
-    (hrow : Spec (label rowsRowLabel) (RowsRowPre op rows) (RowsRowPost op rows)) :
-    Spec (label eachRowFinalLabel) (EachRowFinalPre rows op) (EachRowFinalPost rows) := by
+    (hrow : Spec (label NativeRustcVmX64.Vm.RowsRow.entryLabel) (RowsRowPre op rows) (RowsRowPost op rows)) :
+    Spec (label NativeRustcVmX64.Vm.EachRowOfFinalLevel.entryLabel) (EachRowFinalPre rows op) (EachRowFinalPost rows) := by
   intro m0 hpre
-  rw [show label eachRowFinalLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show label NativeRustcVmX64.Vm.EachRowOfFinalLevel.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b0Offset) from hp.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.entry_at]
   have loop : ∀ n j m, rows.size - j = n → Inv rows m0 j m →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 40)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b5Offset)⟩ := by
     intro n
     induction n using Nat.strongRecOn with
     | ind n ih =>

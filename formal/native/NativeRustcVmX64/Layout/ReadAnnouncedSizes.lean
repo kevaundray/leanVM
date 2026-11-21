@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Layout.ReadAnnouncedSizes.Rows
+public import NativeRustcVmX64.Code.Vm.BuildLayout.Names
+public import NativeRustcVmX64.Code.Vm.ReadAnnouncedSizes.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `read_announced_sizes` on x86-64
@@ -46,10 +49,10 @@ variable [Host] {k : Nat}
 
 /-- **`read_announced_sizes`' contract.** -/
 theorem readAnnouncedSizes_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hbl : ∀ bc, Spec (Labels.label buildLayoutLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hbl : ∀ bc, Spec (Labels.label NativeRustcVmX64.Vm.BuildLayout.entryLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
     (bc : Array UInt64) (a : DecArea) (s : TState) :
-    Spec (Labels.label readAnnouncedSizesLabel) (ReadAnnouncedSizesPre bc a s)
+    Spec (Labels.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.entryLabel) (ReadAnnouncedSizesPre bc a s)
       (ReadAnnouncedSizesPost bc a s) := by
   intro m0 h
   show Eventually (step1 Host.exe) (Goal bc a s m0) _
@@ -57,7 +60,7 @@ theorem readAnnouncedSizes_spec (hp : Placed code k)
   have c := ctx h
   rw [lbl_entry hp]
   -- `b0`: the prologue, `announced` zeroed, `read_scalars(t, announced, 8)`.
-  let ra := (Host.addrOf (k + 0 + b0.length)).toBitVec
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b0Offset + b0.length)).toBitVec
   have hwf := wf0 h (d := m0) (fun _ h ↦ h) ra
   have hm : Match (frameEnv m0 m0 208 [] (fun _ ↦ 0) ra) entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
@@ -107,7 +110,7 @@ theorem readAnnouncedSizes_spec (hp : Placed code k)
   -- `b1`: `None` returns `0`.
   have hwf2 := wf0 h hb2.fr.kept 0
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
-    (hpc2.trans (addr_eq (by have : b0.length = 26 := rfl; omega))) (match_mid hb2 0)
+    (hpc2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b0_next]))) (match_mid hb2 0)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hmem3, hax3, hk3⟩ := ok_b1
   obtain ⟨hb3, hd3⟩ := step0 h hb2 hwf2 hm3 hmid3 hmem3
@@ -126,9 +129,9 @@ theorem readAnnouncedSizes_spec (hp : Placed code k)
     rw [readAnnouncedSizes_run, show 2 + nTables = 8 from rfl, hr]; rfl
   | some p =>
   obtain ⟨xs, s1⟩ := p
-  have hpc3' : st3.pc = Host.addrOf (k + 30) :=
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b2Offset) :=
     (pc_false hpc3 (by rw [hc, hr]; rfl)).trans
-      (addr_eq (by have : b1.length = 4 := rfl; omega))
+      (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b1_next]))
   have hM : Mid a m0 xs s1 st3.data :=
     ⟨hb3, hrax3, (keeps_reg hm3 hk3 (r := .rbx) (by simp)).trans ((hsv2.1 .rbx rfl).trans hbx),
       (keeps_reg hm3 hk3 (r := .r14) (by simp)).trans ((hsv2.1 .r14 rfl).trans h14),
@@ -140,43 +143,43 @@ theorem readAnnouncedSizes_spec (hp : Placed code k)
   refine check h (infix_of b2_in_code (by simp [b2]) hp) exit_b2 o2 hpc3' hM
     (hM.word (i := 0) (by omega)).2 (fun st' hpc' hM' hv ↦ fail78 hp h hM'.bd
       (hpc'.trans (lbl_21 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h0 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 32) :=
-    hpc.trans (addr_eq (by have : b2.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b3Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b2_next]))
   refine check h (infix_of b3_in_code (by simp [b3]) hp) exit_b3 o3 hpc hM
     (hM.word (i := 1) (by omega)).2 (fun st' hpc' hM' hv ↦ fail78 hp h hM'.bd
       (hpc'.trans (lbl_21 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h1 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 34) :=
-    hpc.trans (addr_eq (by have : b3.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b4Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b3_next]))
   refine check h (infix_of b4_in_code (by simp [b4]) hp) exit_b4 o4 hpc hM
     (hM.word (i := 2) (by omega)).2 (fun st' hpc' hM' hv ↦ fail78 hp h hM'.bd
       (hpc'.trans (lbl_21 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h2 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 36) :=
-    hpc.trans (addr_eq (by have : b4.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b5Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b4_next]))
   refine check h (infix_of b5_in_code (by simp [b5]) hp) exit_b5 o5 hpc hM
     (hM.word (i := 3) (by omega)).2 (fun st' hpc' hM' hv ↦ fail78 hp h hM'.bd
       (hpc'.trans (lbl_21 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h3 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 38) :=
-    hpc.trans (addr_eq (by have : b5.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b6Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b5_next]))
   refine check h (infix_of b6_in_code (by simp [b6]) hp) exit_b6 o6 hpc hM
     (hM.word (i := 4) (by omega)).2 (fun st' hpc' hM' hv ↦ fail78 hp h hM'.bd
       (hpc'.trans (lbl_21 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h4 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 40) :=
-    hpc.trans (addr_eq (by have : b6.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b7Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b6_next]))
   refine check h (infix_of b7_in_code (by simp [b7]) hp) exit_b7 o7 hpc hM
     (hM.word (i := 5) (by omega)).2 (fun st' hpc' hM' hv ↦ fail78 hp h hM'.bd
       (hpc'.trans (lbl_21 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h5 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 42) :=
-    hpc.trans (addr_eq (by have : b7.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b8Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b7_next]))
   refine check h (infix_of b8_in_code (by simp [b8]) hp) exit_b8 o8 hpc hM
     (hM.word (i := 6) (by omega)).2 (fun st' hpc' hM' hv ↦ fail78 hp h hM'.bd
       (hpc'.trans (lbl_21 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h6 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 44) :=
-    hpc.trans (addr_eq (by have : b8.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b9Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b8_next]))
   refine check h (infix_of b9_in_code (by simp [b9]) hp) exit_b9 o9 hpc hM
     (hM.word (i := 7) (by omega)).2 (fun st' hpc' hM' hv ↦ fail79 hp h hM'.bd
       (hpc'.trans (lbl_22 hp)) hM'.rax (run_none_c1 hr (by omega) hv)) fun st hpc hM h7 ↦ ?_
-  replace hpc : st.pc = Host.addrOf (k + 46) :=
-    hpc.trans (addr_eq (by have : b9.length = 2 := rfl; omega))
+  replace hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b10Offset) :=
+    hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b9_next]))
   have hc1 : ∀ i (hi : i < xs.size), xs[i].c1 = 0 := by
     intro i hi
     rcases (show i = 0 ∨ i = 1 ∨ i = 2 ∨ i = 3 ∨ i = 4 ∨ i = 5 ∨ i = 6 ∨ i = 7 by omega) with

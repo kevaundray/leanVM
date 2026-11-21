@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.FactsO
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 public meta import NativeRustcVmX64.Bus.AccumulateSide.Exec
 
 /-!
@@ -34,7 +36,7 @@ def D16 : List (Sym × Nat) :=
 
 end
 
-public theorem exit_b13 : exec b13 zS = some (after b13 zS, .cond c13 ".LAccumulateSide_9") :=
+public theorem exit_b13 : exec b13 zS = some (after b13 zS, .cond c13 NativeRustcVmX64.Vm.AccumulateSide.label_9) :=
   run_b13.trans (by rw [after_eq run_b13]; rfl)
 public theorem ok_b13 :
     allRegs.all (fun r ↦ r == .rax || (after b13 zS).reg r == some (.reg r)) = true ∧
@@ -43,7 +45,7 @@ public theorem ok_b13 :
       = true := by
   rw [after_eq run_b13]; decide +kernel
 
-public theorem exit_b14 : exec b14 fS = some (after b14 fS, .call "memcpy") :=
+public theorem exit_b14 : exec b14 fS = some (after b14 fS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : MidOk F 0 slots (after b14 fS) = true ∧
     (after b14 fS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -52,7 +54,7 @@ public theorem ok_b14 : MidOk F 0 slots (after b14 fS) = true ∧
     (after b14 fS).reg .rdx = some (.lit 5920) := by
   rw [after_eq run_b14]; decide +kernel
 
-public theorem exit_b15 : exec b15 slS = some (after b15 slS, .cond c15 ".LAccumulateSide_11") :=
+public theorem exit_b15 : exec b15 slS = some (after b15 slS, .cond c15 NativeRustcVmX64.Vm.AccumulateSide.label_11) :=
   run_b15.trans (by rw [after_eq run_b15]; rfl)
 public theorem ok_b15 : MidOk F 8 slots (after b15 slS) = true ∧
     (after b15 slS).mem.all (fun w ↦ w.r == 0) = true ∧

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.TgtBlocks
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `verify_stacked_opening`: the target's loop (x86-64)
@@ -67,15 +68,15 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 
 /-- **A placed claim**: from `b36`, its term added, at `b33`. -/
 theorem placed_b36 (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 167))
+    (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat}
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b36Offset))
     (hc : Acc a s layout target cs value m0 i st.data)
     (hw96 : NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 512) 96)
       (UInt64.ofBitVec (off (layA m0) 120)))
     (hi : i < cs.size) (hbp : (reg st.data .rbp).toNat = 608 * i)
     (h15 : (reg st.data .r15).toNat = 608 * cs.size) (hpl : (cs[i].onStack layout).isSome)
     {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 155) →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b33Offset) →
       Done a s layout target cs value m0 i st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hok := hc.ok
@@ -97,8 +98,8 @@ theorem placed_b36 (h : Parts a s layout target coefficients point slices cs z v
   simp only [PcOk] at hpc1
   rw [eval_eq64] at hpc1
   have hne : ¬ (((Sym.reg .r14).eval (frameEnv m0 st.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 167 + b36.length)).toBitVec)).toNat = ((Sym.reg .r12).eval
-        (frameEnv m0 st.data 512 [] (fun _ ↦ 0) (Host.addrOf (k + 167 + b36.length)).toBitVec)).toNat)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b36Offset + b36.length)).toBitVec)).toNat = ((Sym.reg .r12).eval
+        (frameEnv m0 st.data 512 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b36Offset + b36.length)).toBitVec)).toNat)
       := by
     show ¬ (reg st.data .r14).toNat = (reg st.data .r12).toNat
     have hcnt : cntOf layout cs = placedOf layout cs cs.size + 2 := rfl
@@ -130,17 +131,17 @@ theorem placed_b36 (h : Parts a s layout target coefficients point slices cs z v
       ⟨by show reg st1.data .r14 = _
           rw [hc1.r14, show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]; rfl, trivial⟩
   have hsj := ew_loads (d := st1.data) (vs := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 169 + b37.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b37Offset + b37.length)).toBitVec)
     (rs := [(stackBelow m0 512, 520), (off (scA m0) (8 + 16 * (1 + placedOf layout cs i)), 16)])
     (b := off (scA m0) (8 + 16 * (1 + placedOf layout cs i))) (n := 16) (r := 1) (o := 0)
     (x := (scalesOf s layout cs).toList[1 + placedOf layout cs i]) rfl (by
       rw [off_zero, ← off_off]
       exact hc1.out.scs.getElem hj)
   refine h.run hp b37_in_code (List.cons_ne_nil _ _)
-    (hpc1.trans (by rw [show b36.length = 2 from rfl])) hok1 (hwf2 _) (hm2 _) run_b37 (o := 8)
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b36_next)) hok1 (hwf2 _) (hm2 _) run_b37 (o := 8)
     (by decide +kernel) (by decide) fun st2 hok2 hs2 hm2' hpc2 ↦ ?_
   simp only [PcOk] at hpc2
-  rw [hp.label (j := 149) rfl] at hpc2
+  rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_24_at] at hpc2
   have hd2 := hm2'.dmem_eq (hwf2 _) rfl
   have e2_r14 : reg st2.data .r14 = off (scA m0) (8 + 16 * (1 + placedOf layout cs (i + 1))) := by
     rw [show reg st2.data .r14 = _ from hm2'.regs .r14 _ rfl, eval_add64]
@@ -157,7 +158,7 @@ theorem placed_b36 (h : Parts a s layout target coefficients point slices cs z v
     (clMatch hok2 (by rw [k2 .r13 (by simp)]; exact hc1.r13)
       (by rw [k2 .rbp (by simp)]; exact hbp1)) run_b31 (o := 0)
     (by decide +kernel) (by decide) fun st3 hok3 hs3 hm3 hpc3 ↦ ?_
-  have hval := hok2.val_load h hi (ret := (Host.addrOf (k + 149 + b31.length)).toBitVec)
+  have hval := hok2.val_load h hi (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b31Offset + b31.length)).toBitVec)
   refine h.mul hmul hok3 hpc3 fun st4 hpc4 hok4 hfs4 hret4 hcs4 hk4 hs4 ↦ ?_
   have hprod : ewRet st4.data = (scalesOf s layout cs).toList[1 + placedOf layout cs i] *
       cs[i].value := by
@@ -207,9 +208,9 @@ theorem placed_b36 (h : Parts a s layout target coefficients point slices cs z v
     have := fw_write hm5 (o := 72) (by omega) (v := .bin .xor .W64 (.load 0 72 8) (.reg .rdx))
       (by decide +kernel)
     rw [eval_xor64, show (Sym.load 0 72 8).eval (frameEnv m0 st4.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 153 + b32.length)).toBitVec) = _ from fw_load h72_4 List.mem_cons_self,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b32Offset + b32.length)).toBitVec) = _ from fw_load h72_4 List.mem_cons_self,
       show (Sym.reg .rdx).eval (frameEnv m0 st4.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 153 + b32.length)).toBitVec) = reg st4.data .rdx from rfl, hdx4] at this
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b32Offset + b32.length)).toBitVec) = reg st4.data .rdx from rfl, hdx4] at this
     rw [hacc]
     exact this
   have e5_rbx : reg st5.data .rbx =
@@ -223,7 +224,7 @@ theorem placed_b36 (h : Parts a s layout target coefficients point slices cs z v
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl | rfl | rfl <;>
       exact (regKeep hm5 _ rfl).trans (k4 _ (by simp))
-  refine cont st5 (hpc5.trans (by rw [show b32.length = 2 from rfl]))
+  refine cont st5 (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b32_next))
     ⟨⟨hok5, hout5, hfw5.left, w72, e5_rbx,
       by rw [k5 .r13 (by simp), k2 .r13 (by simp)]; exact hc1.r13,
       by rw [k5 .r14 (by simp)]; exact e2_r14,
@@ -234,16 +235,16 @@ theorem placed_b36 (h : Parts a s layout target coefficients point slices cs z v
 
 /-- **A step of the target's loop**: claim `i`, from the head `b34` to `b33`. -/
 theorem tgt_step (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 159))
+    (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat}
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b34Offset))
     (ht : Tgt a s layout target cs value m0 i st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 155) →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b33Offset) →
       Done a s layout target cs value m0 i st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hc := ht.acc
   have hok := hc.ok
   have hi := ht.hi
-  have hcol := hok.col_load h hi (ret := (Host.addrOf (k + 159 + b34.length)).toBitVec)
+  have hcol := hok.col_load h hi (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b34Offset + b34.length)).toBitVec)
   -- `b34`: the column
   refine h.run hp b34_in_code (List.cons_ne_nil _ _) hpc hok (hok.cl_wf h hi)
     (clMatch hok hc.r13 ht.rbp) run_b34 (o := 8) (by decide +kernel) (by decide)
@@ -259,11 +260,11 @@ theorem tgt_step (h : Parts a s layout target coefficients point slices cs z val
     rw [show reg st1.data .rax = _ from hm1.regs .rax _ rfl]; exact hcol
   simp only [PcOk] at hpc1
   rw [eval_gt157] at hpc1
-  rw [show ((Sym.load 1 0 8).eval (clEnv m0 st.data i (Host.addrOf (k + 159 + b34.length)).toBitVec)).toNat
+  rw [show ((Sym.load 1 0 8).eval (clEnv m0 st.data i (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b34Offset + b34.length)).toBitVec)).toNat
     = cs[i].column from hcol] at hpc1
   by_cases hgt : 157 < cs[i].column
   · simp only [hgt, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 155) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_25_at] at hpc1
     refine cont st1 hpc1 (Done.skip hc1 hw961 hi hbp1 h151 ?_)
     rw [hok1.bit_eq h hi]
     simp only [show ¬ cs[i].column ≤ 157 by omega, ↓reduceIte]
@@ -299,7 +300,7 @@ theorem tgt_step (h : Parts a s layout target coefficients point slices cs z val
       exact load_ofMachine (r := 1) rfl (NativeRustcVm.wordAt_of_mapped
         (mapped_off (Mapped.keeps hl.1.1 hok1.fr.kept) (by omega)))
     refine h.run hp b35_in_code (List.cons_ne_nil _ _)
-      (hpc1.trans (by rw [show b34.length = 4 from rfl])) hok1 (hwf2 _) (hm2 _) run_b35 (o := 8)
+      (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b34_next)) hok1 (hwf2 _) (hm2 _) run_b35 (o := 8)
       (by decide +kernel) (by decide) fun st2 hok2 hs2 hm2' hpc2 ↦ ?_
     have hc2 := Acc.blk h hc1 (hwf2 _) hm2' hok2 hs2 rfl (by decide +kernel) (by decide +kernel)
     have hw962 := (FW.block_os (L := [(96, _)]) (hwf2 _) hm2' rfl (FW.one hw961) [96] rfl
@@ -310,14 +311,14 @@ theorem tgt_step (h : Parts a s layout target coefficients point slices cs z val
     have hd2 : st2.data.dmem = st1.data.dmem := hm2'.dmem_eq (hwf2 _) rfl
     simp only [PcOk] at hpc2
     rw [eval_eq64, hpl, show ((Sym.lit 0).eval (frameEnv m0 st1.data 512 [(layA m0, 3912)]
-      (fun _ ↦ 0) (Host.addrOf (k + 163 + b35.length)).toBitVec)).toNat = 0 from rfl] at hpc2
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b35Offset + b35.length)).toBitVec)).toNat = 0 from rfl] at hpc2
     have hbit := hok1.bit_eq h hi (layout := layout)
     simp only [hcle, ↓reduceIte] at hbit
     by_cases hw0 : NativeRustcVm.wordOf st1.data.dmem (off (layA m0) (120 + 24 * cs[i].column)) = 0
     · have hz : (NativeRustcVm.wordOf st1.data.dmem
           (off (layA m0) (120 + 24 * cs[i].column))).toBitVec.toNat = 0 := by rw [hw0]; rfl
       simp only [hz, decide_true, ↓reduceIte] at hpc2
-      rw [hp.label (j := 155) rfl] at hpc2
+      rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_25_at] at hpc2
       refine cont st2 hpc2 (Done.skip hc2 hw962 hi hbp2 h152 ?_)
       rw [hbit, hw0]
       rfl
@@ -331,16 +332,16 @@ theorem tgt_step (h : Parts a s layout target coefficients point slices cs z val
         rw [hb1] at this
         by_contra hn
         simp [hn] at this
-      exact placed_b36 h hp hmul (hpc2.trans (by rw [show b35.length = 4 from rfl])) hc2
+      exact placed_b36 h hp hmul (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b35_next)) hc2
         hw962 hi hbp2 h152 hpls cont
 
 /-- **The target's loop**: from the head before claim `i`, to `b38`. -/
 theorem tgt_run (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {R : MachineState → Prop}
-    (fin : ∀ st', st'.pc = Host.addrOf (k + 173) →
+    (fin : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b38Offset) →
       Acc a s layout target cs value m0 cs.size st'.data → Eventually (step1 Host.exe) R st') :
-    ∀ d i (st : MachineState), cs.size - i = d → st.pc = Host.addrOf (k + 159) →
+    ∀ d i (st : MachineState), cs.size - i = d → st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b34Offset) →
       Tgt a s layout target cs value m0 i st.data → Eventually (step1 Host.exe) R st := by
   intro d
   induction d with

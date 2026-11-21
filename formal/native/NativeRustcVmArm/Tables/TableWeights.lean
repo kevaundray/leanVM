@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.TableWeights.Names
 public import NativeRustcVmArm.Tables.TableWeights.Entry
 
 /-!
@@ -19,8 +21,8 @@ variable [Host] {k : Nat}
 
 /-- **`table_weights` meets its contract.** -/
 theorem table_weights_spec (hp : Placed Vm.TableWeights.code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label tableWeightsLabel) TableWeightsPre TableWeightsPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.TableWeights.entryLabel) TableWeightsPre TableWeightsPost := by
   intro m0 hpre
   have hc := ctx_of hpre
   rw [lbl_entry hp]

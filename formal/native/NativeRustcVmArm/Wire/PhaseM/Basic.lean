@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
 public import NativeRustcVmArm.Wire.PhaseM.Exec
 public import NativeRustcVmArm.Wire.PhaseM.Model
 public import NativeRustcVmArm.Wire.Frame
@@ -277,11 +278,11 @@ end
 variable [Host]
 
 /-- **A call of `Reader::le` for four bytes** from a state of the frame. -/
-theorem le4_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+theorem le4_call (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (G : Geo m0 bp B) {c : Nat} {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Frm m0 st.data) (hR : ReaderAt st.data.dmem (rdr m0) bp B c)
     (hx0 : st.data.regs.X0.toBitVec = rdr m0) (hx1 : st.data.regs.X1.toNat = 4)
-    (hpc : st.pc = Labels.label readerLeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, Frm m0 m2 →
       (∀ x, calleeSaved x = true → m2.regs.getXReg x = st.data.regs.getXReg x) →
       SameOutside st.data.dmem m2.dmem (InRange (rdr m0 + BitVec.ofNat 64 16) 8) →

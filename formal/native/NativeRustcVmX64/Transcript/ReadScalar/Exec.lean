@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.TStateReadScalar
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 public meta import NativeRustcVmX64.Code.Vm.TStateReadScalar
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -48,7 +49,7 @@ public theorem ok_b0 : ProOk 80 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .r14 = some (.reg .rsi) ∧ (after b0 entryS).reg .rbx = some (.reg .rdi) := by
   decide +kernel
 public theorem exit_b1 : exec b1 tagS = some (T1,
-    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not ".LTStateReadScalar_2") :=
+    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not NativeRustcVmX64.Vm.TStateReadScalar.label_2) :=
   run_b1.trans (by rw [show T1 = _ from after_eq run_b1])
 public theorem ok_b2 : MidOk 80 0 slots (after b2 T1) = true ∧
     (∀ w ∈ (after b2 T1).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧

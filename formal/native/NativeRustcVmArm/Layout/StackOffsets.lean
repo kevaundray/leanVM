@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.InsertionSortOfStackOffsets.Names
+public import NativeRustcVmArm.Code.Vm.Memset.Names
+public import NativeRustcVmArm.Code.Vm.StackOffsets.Names
 public import NativeRustcVmArm.Layout.StackOffsets.Loop
 
 /-!
@@ -89,7 +93,7 @@ theorem fail (hp : Placed code k) {m0 : MachineData} (hpre : StackOffsetsPre m0)
 
 /-- **The end** `b22`, `b23`: `bit_length(total - 1)` and the offsets returned. -/
 theorem finish (hp : Placed code k)
-    (hbl : Spec (label bitLengthLabel) BitLengthPre BitLengthPost) {m0 : MachineData}
+    (hbl : Spec (label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) {m0 : MachineData}
     (hpre : StackOffsetsPre m0) (hcap : n m0 ≤ cap m0) {st : MachineState} (h : End k m0 st) :
     Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hpc, hL⟩ := h
@@ -115,7 +119,7 @@ theorem finish (hp : Placed code k)
       have : ¬(P m0 (n m0)).2 < 1 := fun h ↦ by
         rw [decide_eq_true h] at hc; exact absurd hc (by decide)
       rw [sub_apply (by omega), e8]
-  simp only [show b22.length = 4 from rfl] at hpc1
+  simp only [NativeRustcVmArm.Vm.StackOffsets.b22_length, NativeRustcVmArm.Vm.StackOffsets.b22Length] at hpc1
   refine call_then hpc1 hbl trivial fun st2 hpc2 ⟨hx0, hsame, hsv⟩ ↦ ?_
   have hd2 : ∀ p, st2.data.dmem.get? p = st1.data.dmem.get? p := fun p ↦
     hsame p (by simp [bitLengthStack, inRange_zero])
@@ -148,9 +152,9 @@ theorem finish (hp : Placed code k)
 
 /-- `b13`, `b14`: the order sorted, the main loop's head. -/
 theorem sorted (hp : Placed code k)
-    (hsort : Spec (label insertionSortLabel) InsertionSortPre InsertionSortPost)
+    (hsort : Spec (label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.entryLabel) InsertionSortPre InsertionSortPost)
     {m0 : MachineData} (hpre : StackOffsetsPre m0) {st : MachineState} (h : At13 k m0 st) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 80) ∧ Loop m0 0 s.data) st := by
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackOffsets.b17Offset) ∧ Loop m0 0 s.data) st := by
   obtain ⟨hpc, hR⟩ := h
   have hS : StackOk m0 1328 := hpre.1
   have hn : n m0 ≤ 158 := hpre.2.1
@@ -187,7 +191,7 @@ theorem sorted (hp : Placed code k)
       rw [hfbsb] at hsoff
       unfold Apart at hsoff ⊢
       omega
-  simp only [show b13.length = 2 from rfl] at hpc1
+  simp only [NativeRustcVmArm.Vm.StackOffsets.b13_length, NativeRustcVmArm.Vm.StackOffsets.b13Length] at hpc1
   refine call_then hpc1 hsort hpre1 fun st2 hpc2 ⟨hw2, hsame2, hsv2⟩ ↦ ?_
   have hsizes : natsOf st1.data st1.data.regs.X2 st1.data.regs.X3.toNat = sizes m0 := by
     rw [x2, x3]
@@ -232,10 +236,10 @@ theorem sorted (hp : Placed code k)
 
 /-- **`stack_offsets` meets its contract.** -/
 theorem stackOffsets_spec (hp : Placed code k)
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost)
-    (hsort : Spec (label insertionSortLabel) InsertionSortPre InsertionSortPost)
-    (hbl : Spec (label bitLengthLabel) BitLengthPre BitLengthPost) :
-    Spec (label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost := by
+    (hmemset : Spec (label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hsort : Spec (label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.entryLabel) InsertionSortPre InsertionSortPost)
+    (hbl : Spec (label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) :
+    Spec (label NativeRustcVmArm.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost := by
   intro m0 hpre
   have hS : StackOk m0 1328 := hpre.1
   have hn : n m0 ≤ 158 := hpre.2.1
@@ -245,7 +249,7 @@ theorem stackOffsets_spec (hp : Placed code k)
   obtain ⟨hwf, hm⟩ := Arrays.entry_match (F := 1328) hS (Nat.le_refl _) rfl
   have hm' : Match (Arrays.frameEnv m0 m0 1328) entryS m0 := hm
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm' fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 3 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.StackOffsets.b0_length, NativeRustcVmArm.Vm.StackOffsets.b0Length] at hpc1
   obtain ⟨hy, hno⟩ := pc_of (P := ¬cap m0 < n m0) hpc1 (by
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
     rw [ult_apply (show (m0.regs.getXReg .X3).toBitVec.toNat = cap m0 from rfl)
@@ -303,7 +307,7 @@ theorem stackOffsets_spec (hp : Placed code k)
       have := frame_readable hS (Nat.le_refl _) hfr2 (o := 0) (k := 1264) (by omega)
       rw [NativeRustcVm.addr_add_zero] at this
       exact this
-    simp only [show b2.length = 16 from rfl] at hpc2
+    simp only [NativeRustcVmArm.Vm.StackOffsets.b2_length, NativeRustcVmArm.Vm.StackOffsets.b2Length] at hpc2
     refine call_then hpc2 hmemset hpre2 fun st3 hpc3 ⟨_, _, hsame3, hsv3⟩ ↦ ?_
     rw [hx0, hx2] at hsame3
     have hfr3 : Fr m0 st3.data := Frame.call hfr2 hsame3 hsv3

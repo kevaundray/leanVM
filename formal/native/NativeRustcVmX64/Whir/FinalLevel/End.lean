@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Glued
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 
 /-!
 # `final_level`: the end check (x86-64)
@@ -63,11 +65,11 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The end check**: `b33` to `b35`, the epilogue. -/
 theorem finish (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState}
-    (hpc : st.pc = Host.addrOf (k + 409)) (htn : tail.size = mu m0)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b33Offset)) (htn : tail.size = mu m0)
     (hgb : GB a level m0 folded tail claim (finalWeight (reg m0 .r8).toNat b w tail) s5 st.data)
     (hrun : runF level b w rounds m0 s =
       (C6 (mu m0) (reg m0 .r8).toNat b w folded (tail, claim)).run s5) :
@@ -81,7 +83,7 @@ theorem finish (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have h2mu : 2 ^ mu m0 ≤ 64 := by omega
   have htl : tail.toList.length = mu m0 := by rw [Array.length_toList, htn]
   -- `b33`: `multilinear_eval_by(2 ^ μ, folded, 2 ^ μ, tail, μ)`.
-  let env1 := argEnv m0 st.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 416)).toBitVec
+  let env1 := argEnv m0 st.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b34Offset)).toBitVec
   have hwf1 : env1.WF := c.wf0 hf.frame.kept
   refine exec_at (infix_of b33_in_code (by simp [b33]) hp) exit_b33 hwf1 (fun _ _ ↦ rfl) hpc
     (match_retS hf) fun st1 hm1 hpc1 ↦ ?_
@@ -132,9 +134,9 @@ theorem finish (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hts2 := c.ts_call (o := 32) (by omega) hf1 hle1 hsv2
     (fun q hq ↦ c.loc_not_t (by omega) hq) hch2'
     (c.ts_frame (hi := 40) (by omega) (hm1.kept hwf1) hs1 hgb.ts)
-  have hpc2' : st2.pc = Host.addrOf (k + 416) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b34Offset) := hpc2
   -- `b34`: `EW::mul(weight, mle)`.
-  let env3 := argEnv m0 st2.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 421)).toBitVec
+  let env3 := argEnv m0 st2.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b35Offset)).toBitVec
   have hwf3 : env3.WF := c.wf0 hf2.frame.kept
   refine exec_at (infix_of b34_in_code (by simp [b34]) hp) exit_b34 hwf3 (fun _ _ ↦ rfl) hpc2'
     (match_retS hf2) fun st3 hm3 hpc3 ↦ ?_
@@ -174,7 +176,7 @@ theorem finish (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hts4 := c.ts_call (o := 32) (by omega) hf3 hle3 hsv4
     (fun q hq ↦ c.loc_not_t (by omega) hq) hch4'
     (c.ts_frame (hi := 40) (by omega) (hm3.kept hwf3) hs3 hts2)
-  have hpc4' : st4.pc = Host.addrOf (k + 421) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b35Offset) := hpc4
   -- `b35`: the comparison.
   let env5 := argEnv m0 st4.data 2672 8 [] (fun _ ↦ 0) 0
   have hwf5 : env5.WF := c.wf0 hf4.frame.kept

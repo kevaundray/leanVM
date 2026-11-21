@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Whir.InducedWeight.Inner
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceAtTable.Names
 
 /-!
 # `induced_weight`'s queries' loop body (x86-64)
@@ -75,22 +78,22 @@ structure AtB8 (m0 : MachineData) (j : Nat) (st : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb7 (hp : Placed code k) : b7a.IsInfixAt Host.prog (k + 54) ∧
-    b7b.IsInfixAt Host.prog (k + 54 + 8) := by
+theorem hb7 (hp : Placed code k) : b7a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset) ∧
+    b7b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset + b7a.length) := by
   have h := b7_in_code.trans hp.1 (by simp [b7])
   rw [← List.take_append_drop 8 b7] at h
   exact h.append
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 68) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 79) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
 
 /-- **From the queries' loop head to `b8`**: weight `j`, query `j`'s `What`s. -/
 theorem outer_a (hp : Placed code k)
-    (hsat : Spec (Labels.label subspaceAtTableLabel) SubspaceAtTablePre SubspaceAtTablePost)
+    (hsat : Spec (Labels.label NativeRustcVmX64.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost)
     {m0 : MachineData} (hpre : InducedWeightPre m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 54)) (hI : OInv m0 j st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 68) ∧ AtB8 m0 j s.data) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset)) (hI : OInv m0 j st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b8Offset) ∧ AtB8 m0 j s.data) st := by
   obtain ⟨hS, -, hqin, hwin, -, -, -⟩ := hpre
   obtain ⟨hF, -, hle_a, -, -, -⟩ := stack_le
   have hsl := slots_ok
@@ -170,7 +173,7 @@ theorem outer_a (hp : Placed code k)
     rw [toNat_add_ofNat _ _ (by omega)]
     omega
   let env2 := Env.ofMachine s1.data [(stackBelow m0 1168, 1168 + 8), (qa, 8)] (fun _ ↦ 0)
-    (Host.addrOf (k + 54 + 8 + 6)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b8Offset)).toBitVec
   have hwf2 : env2.WF := wf_two (stackOk_mono hS hF) hfr1.kept hqrd hapq
   have l56 : env2.load 0 56 8 = reg m0 .rdx := by
     rw [load8_eq]
@@ -183,7 +186,7 @@ theorem outer_a (hp : Placed code k)
           reg m0 .rdx + BitVec.ofNat 64 (8 * j) + BitVec.ofInt 64 0
       rw [add64, mul64, l56, e1 .rsi (by simp), hI.rsi, mul_lit, show j * 8 = 8 * j by omega,
         show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero], trivial⟩
-  have hpc1' : s1.pc = Host.addrOf (k + 54 + 8) := hpc1
+  have hpc1' : s1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset + b7a.length) := hpc1
   refine exec_at (hb7 hp).2 run_b7b hwf2 (fun _ _ ↦ rfl) hpc1' hm2 fun s2 hm2' hpc2 ↦ ?_
   obtain ⟨hk2, hsig2, hv72⟩ := after_eq run_b7b ▸ b7b_call
   have hrsp2 := rsp_call hm2' rfl
@@ -264,7 +267,7 @@ theorem outer_a (hp : Placed code k)
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl <;>
       exact (hsv3.1 _ rfl).trans (Match.reg_eq hm2 hm2' rfl rfl)
-  have hpc3' : s3.pc = Host.addrOf (k + 68) := hpc3
+  have hpc3' : s3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b8Offset) := hpc3
   refine .done _ ⟨hpc3', hfr3, hsp2.mono (k3.mono (by omega) (by omega))
     (k3b.mono (by omega) (by omega)), ⟨word_keep w72 k3 (by omega) (by omega), ?_⟩, hjc, hI.mu,
     hval, (e3 .rbx (by simp)).trans e1rbx, (e3 .r12 (by simp)).trans e1r12,
@@ -275,11 +278,11 @@ theorem outer_a (hp : Placed code k)
     exact word_keep (word_keep w88 k2b (by omega) (by omega)) k3 (by omega) (by omega)
 
 /-- **From `b8`**: the factors' count; the product loop, to the sum. -/
-theorem outer_b (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem outer_b (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : InducedWeightPre m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 68)) (hA : AtB8 m0 j st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 43) ∧ Acc m0 j s.data) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b8Offset)) (hA : AtB8 m0 j st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b6Offset) ∧ Acc m0 j s.data) st := by
   have hpre' := hpre
   obtain ⟨hS, hargs, -, -, -, -, -⟩ := hpre'
   obtain ⟨hF, -, -, -, -, -⟩ := stack_le
@@ -329,11 +332,11 @@ theorem outer_b (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmul
     (by omega))
   have hlp1 : Loop m0 j s1.data := hA.lp.mono (k1a.mono (by omega) (by omega))
   by_cases h0 : lenOf m0 j = 0
-  · refine .done _ ⟨(hT (by simp [h0])).trans (hp.label (j := 43) rfl), hfr1, hsp1, hlp1, hA.hj,
+  · refine .done _ ⟨(hT (by simp [h0])).trans (hp.label NativeRustcVmX64.Vm.InducedWeight.label_9_at), hfr1, hsp1, hlp1, hA.hj,
       hA.mu, ?_, ?_, (e1 .r14 (by simp)).trans hA.r14⟩
     · rw [h0]; exact (e1 .rbx (by simp)).trans hA.rbx
     · rw [h0]; exact (e1 .r12 (by simp)).trans hA.r12
-  have hpc1' : s1.pc = Host.addrOf (k + 79) := hF1 (by simp; omega)
+  have hpc1' : s1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b9Offset) := hF1 (by simp; omega)
   -- `b9`: `8 · len`
   have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb9 hp) run_b9 hwf2 (by intro l h; cases h) hpc1' hfr1.mid_match
@@ -362,9 +365,9 @@ theorem outer_b (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmul
       bufWords_keep (bufWords_keep hA.what k1a (by omega) (by omega)) k2 (by omega) (by omega),
       w16', by omega, (e2 .rbx (by simp)).trans hA.rbx, (e2 .r12 (by simp)).trans hA.r12,
       (e2 .r14 (by simp)).trans hA.r14, (hm2.regs .r15 _ rfl).trans rfl⟩
-  have hpc2' : s2.pc = Host.addrOf (k + 82) := hpc2
+  have hpc2' : s2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b10Offset) := hpc2
   -- the product loop
-  refine Sym.loop (fun n s ↦ ∃ i, n = lenOf m0 j - i ∧ s.pc = Host.addrOf (k + 82) ∧
+  refine Sym.loop (fun n s ↦ ∃ i, n = lenOf m0 j - i ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b10Offset) ∧
     IInv m0 j i s.data) (fun n s ⟨i, hn, hpc, hI⟩ ↦ ?_) ⟨0, rfl, hpc2', hI0⟩
   have hi := hI.hi
   refine ((inner_a hp hkmul hpre hpc hI).bind fun s ⟨hpc', hA'⟩ ↦
@@ -375,12 +378,12 @@ theorem outer_b (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmul
 
 /-- **A turn of the queries' loop**: query `j`'s product. -/
 theorem outer_step (hp : Placed code k)
-    (hsat : Spec (Labels.label subspaceAtTableLabel) SubspaceAtTablePre SubspaceAtTablePost)
-    (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hsat : Spec (Labels.label NativeRustcVmX64.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost)
+    (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : InducedWeightPre m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 54)) (hI : OInv m0 j st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 43) ∧ Acc m0 j s.data) st :=
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset)) (hI : OInv m0 j st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b6Offset) ∧ Acc m0 j s.data) st :=
   (outer_a hp hsat hpre hpc hI).bind fun _ ⟨hpc', hA⟩ ↦ outer_b hp hkmul hmul hpre hpc' hA
 
 end

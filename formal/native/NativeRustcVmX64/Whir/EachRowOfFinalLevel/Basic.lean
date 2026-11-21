@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.Exec
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.Frame
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.Model
+public import NativeRustcVmX64.Code.Vm.EachRowOfFinalLevel.Names
 
 /-!
 # `each_row` with `final_level`'s closure: frame, invariant, exit (x86-64)
@@ -13,7 +14,7 @@ the index (`Low`); in an iteration `[48]` the query's address, `[56]` the rows l
 `[72]` query `j`; `novel_eval`'s result at 80, the table's `Option` and then the lanes from 104,
 the `What`s at 1128, the table's count at 1384 and its pairs from 1392 (`Low`), the pushes from
 1888 (`slots`), the return address at 1936, the stack arguments at 1944, 1952, 1960. The calls
-change the frame's `[80, 1384)` (`HitF`). The loop's invariant at `.LEachRowOfFinalLevel_3`
+change the frame's `[80, 1384)` (`HitF`). The loop's invariant at `NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_3`
 (`Inv j`): rows `0 … j - 1` checked, RBP query `j`'s address, RSI `j`, R13 the rows left. The exit
 (`exit_true`, `exit_false`) returns the outcome in AL.
 -/
@@ -67,7 +68,7 @@ structure Low (m0 : MachineData) (d : DataMem) : Prop where
   w40 : WordAt d (fb m0 + BitVec.ofNat 64 40) (UInt64.ofBitVec (reg m0 .rdi))
   tab : BufPairsAt d (fb m0 + BitVec.ofNat 64 1384) rootCap (tableOf m0).toList
 
-/-- **The loop's invariant** at `.LEachRowOfFinalLevel_3`, before row `j`. -/
+/-- **The loop's invariant** at `NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_3`, before row `j`. -/
 structure Inv (rows : Array (Array UInt64)) (m0 : MachineData) (j : Nat) (m : MachineData) :
     Prop where
   fr : FR m0 8 m
@@ -166,7 +167,7 @@ theorem done_of (hpre : EachRowFinalPre rows op m0) {m : MachineData} (hfr : FR 
     {S : SState} {st : MachineState} {b : Bool}
     (hm : Match (EachRow.envE m0 m 1936 24 [] (fun _ ↦ 0) 0) S st.data)
     (hpc : PcOk (EachRow.envE m0 m 1936 24 [] (fun _ ↦ 0) 0) (.ret (.load 0 1936 8))
-      (Host.addrOf (k + 129)) st)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b20End)) st)
     (hmem : ∀ w ∈ S.mem, w.r = 0 ∧ w.off + w.n ≤ 1936)
     (hrs : ∀ p ∈ slots, S.reg p.2 = some (.load 0 p.1 8))
     (hsp : S.reg .rsp = some (.ptr 0 ((1936 + 8 : Nat) : Int)))
@@ -181,46 +182,46 @@ theorem done_of (hpre : EachRowFinalPre rows op m0) {m : MachineData} (hfr : FR 
   show boolRet st.data = _
   rw [hal, hres]
 
-/-- **The exit** at `.LEachRowOfFinalLevel_13`, AL the outcome `b`. -/
+/-- **The exit** at `NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_13`, AL the outcome `b`. -/
 theorem exit_at (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m : MachineData}
     (hfr : FR m0 8 m) {b : Bool} (hal : boolRet m = (okWord b).toNat)
     (hres : finalOk (reg m0 .rdi).toNat (reg m0 .r8).toNat (eachRowArgs m0).2 (foldedOf m0)
       (qsOf m0) rows = b) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 120)⟩ := by
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b20Offset)⟩ := by
   obtain ⟨hwf, hm⟩ := frame_env hpre hfr 0
-  have hk20 : b20.IsInfixAt Host.prog (k + 120) := b20_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk20 : b20.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b20Offset) := b20_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk20 run_b20 hwf (fun _ h ↦ by cases h) hm fun st' hm' hpc' ↦
     .done _ (done_of hpre hfr hm' hpc' (fun _ h ↦ by cases h) (by decide) rfl ?_ hres)
   show (st'.data.regs.get64 .rax).toNat % 256 = _
   rw [hm'.regs .rax _ rfl]
   exact hal
 
-/-- **The exit with outcome `true`**, from `.LEachRowOfFinalLevel_14`. -/
+/-- **The exit with outcome `true`**, from `NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_14`. -/
 theorem exit_true (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m : MachineData}
     (hfr : FR m0 8 m)
     (hres : finalOk (reg m0 .rdi).toNat (reg m0 .r8).toNat (eachRowArgs m0).2 (foldedOf m0)
       (qsOf m0) rows = true) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 115)⟩ := by
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b18Offset)⟩ := by
   obtain ⟨hwf, hm⟩ := frame_env hpre hfr 0
-  have hk18 : b18.IsInfixAt Host.prog (k + 115) := b18_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk18 : b18.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b18Offset) := b18_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk18 run_b18 hwf (fun _ h ↦ by cases h) hm fun st hm1 hpc1 ↦ ?_
   obtain ⟨d, pc⟩ := st
   simp only [PcOk] at hpc1
   subst hpc1
-  rw [show Labels.label ".LEachRowOfFinalLevel_13" = Host.addrOf (k + 120) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_13 = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b20Offset) from hp.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_13_at]
   refine exit_at hp hpre (hfr.ofBlock hwf hm1 rfl (by decide)) ?_ hres
   show (d.regs.get64 .rax).toNat % 256 = 1
   rw [hm1.regs .rax _ rfl]
   exact NativeRustcVmX64.Arrays.merge_one_mod _
 
-/-- **The exit with outcome `false`**, from `.LEachRowOfFinalLevel_12`. -/
+/-- **The exit with outcome `false`**, from `NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_12`. -/
 theorem exit_false (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m : MachineData}
     (hfr : FR m0 8 m)
     (hres : finalOk (reg m0 .rdi).toNat (reg m0 .r8).toNat (eachRowArgs m0).2 (foldedOf m0)
       (qsOf m0) rows = false) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 118)⟩ := by
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b19Offset)⟩ := by
   obtain ⟨hwf, hm⟩ := frame_env hpre hfr 0
-  have hk19 : b19.IsInfixAt Host.prog (k + 118) := b19_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk19 : b19.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b19Offset) := b19_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk19 run_b19 hwf (fun _ h ↦ by cases h) hm fun st hm1 hpc1 ↦ ?_
   obtain ⟨d, pc⟩ := st
   simp only [PcOk] at hpc1

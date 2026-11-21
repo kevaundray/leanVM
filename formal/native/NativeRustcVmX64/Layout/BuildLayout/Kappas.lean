@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Layout.BuildLayout.Stores
+public import NativeRustcVmX64.Code.Vm.ColumnKappas.Names
 
 /-!
 # `build_layout` on x86-64: the last row and height, `column_kappas` (`b15`)
@@ -104,13 +105,13 @@ variable [Host] {k : Nat}
 
 /-- **`b15` and `column_kappas`.** -/
 theorem kappas (hp : Placed code k)
-    (hck : Spec (Labels.label columnKappasLabel) ColumnKappasPre ColumnKappasPost) (hF : Facts bc m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 94)) (hs : Ht m0 st.data 12 5)
+    (hck : Spec (Labels.label NativeRustcVmX64.Vm.ColumnKappas.entryLabel) ColumnKappasPre ColumnKappasPost) (hF : Facts bc m0)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b15Offset)) (hs : Ht m0 st.data 12 5)
     (h15 : reg st.data .r15 = (rowW m0 5).toBitVec) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 105) ∧ SK m0 s.data) st := by
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b16Offset) ∧ SK m0 s.data) st := by
   obtain ⟨hA, hA1, hA2, hL, hLA⟩ := hF.num
   have hb := hs.1.b
-  have hwf := wfL (ret := (Host.addrOf (k + 94 + b15.length)).toBitVec) hF hb
+  have hwf := wfL (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b15Offset + b15.length)).toBitVec) hF hb
   obtain ⟨hok, h0, hmiss, w1, w2, hdi, hsi, hdx, hcx, h12, h13, hK⟩ := ok_b15
   refine exec_at (b15_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b15 hwf (fun _ _ ↦ rfl) hpc
     (matchL hb hs.1.r13) fun st1 hm1 hpc1 ↦ ?_

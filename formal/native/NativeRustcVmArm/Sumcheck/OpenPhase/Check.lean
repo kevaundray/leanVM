@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.OpenPhase.Names
 public import NativeRustcVmArm.Sumcheck.OpenPhase.Frame
 
 /-!
@@ -106,9 +107,9 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Nat}
     (hph : PhaseHW m0.dmem (phO m0) P h w) {j : Nat} {m : MachineData} (hi : PInv m0 P Q h w j m) :
     Eventually (step1 Host.exe)
       (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 34) ∧ Checked m0 P Q h w st.data) ∨
-        (st.pc = Host.addrOf (k + 25) ∧ j < Q.size ∧ PInv m0 P Q h w (j + 1) st.data))
-      ⟨m, Host.addrOf (k + 25)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b7Offset) ∧ j < Q.size ∧ PInv m0 P Q h w (j + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b7Offset)⟩ := by
   have hS := hpre.1
   have hN' := hN hpre
   rw [openPhaseStack_eq] at hN'
@@ -119,12 +120,12 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Nat}
   have hmq : wireMaxQueries = 256 := rfl
   have hsize := hi.shape.2
   have hPq : P.size ≤ 256 := hph.2.2.1
-  have hk7 : b7.IsInfixAt Host.prog (k + 25) := b7_in_code.trans hp.1 (by simp [b7])
-  have hk8 : b8.IsInfixAt Host.prog (k + 27) := b8_in_code.trans hp.1 (by simp [b8])
-  have hk9 : b9.IsInfixAt Host.prog (k + 33) := b9_in_code.trans hp.1 (by simp [b9])
-  have hl8 : Labels.label ".LOpenPhase_8" = Host.addrOf (k + 34) := hp.label (j := 34) rfl
-  have hl6 : Labels.label ".LOpenPhase_6" = Host.addrOf (k + 25) := hp.label (j := 25) rfl
-  have hl18 : Labels.label ".LOpenPhase_18" = Host.addrOf (k + 83) := hp.label (j := 83) rfl
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b7Offset) := b7_in_code.trans hp.1 (by simp [b7])
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b8Offset) := b8_in_code.trans hp.1 (by simp [b8])
+  have hk9 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b9Offset) := b9_in_code.trans hp.1 (by simp [b9])
+  have hl8 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b10Offset) NativeRustcVmArm.Vm.OpenPhase.label_8_at
+  have hl6 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b7Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b7Offset) NativeRustcVmArm.Vm.OpenPhase.label_6_at
+  have hl18 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_18 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b22Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b22Offset) NativeRustcVmArm.Vm.OpenPhase.label_18_at
   have hwf := Bus.wf_frame (F := 176) hS (by decide) hi.fr.kept
   have hm := Bus.match_frame hS (F := 176) (by decide) (by decide) hi.fr.sp
   refine exec_then hk7 run_b7 hwf hm fun st hm' hpc ↦ ?_
@@ -292,9 +293,9 @@ theorem pos_loop (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Nat}
     (hph : PhaseHW m0.dmem (phO m0) P h w) {j : Nat} {m : MachineData} (hi : PInv m0 P Q h w j m) :
     Eventually (step1 Host.exe)
       (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 34) ∧ Checked m0 P Q h w st.data))
-      ⟨m, Host.addrOf (k + 25)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 25) ∧
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b7Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b7Offset) ∧
       ∃ j, Q.size - j = n ∧ PInv m0 P Q h w j st.data) (fun n st ⟨hpc, j, hn, hi⟩ ↦ ?_)
     ⟨rfl, j, rfl, hi⟩
   obtain ⟨d, pc⟩ := st
@@ -320,10 +321,10 @@ theorem b6_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Nat}
     (hx4 : m.regs.getXReg .X4 = m0.regs.X4) (hx5 : m.regs.getXReg .X5 = m0.regs.X5) :
     Eventually (step1 Host.exe)
       (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 34) ∧ Checked m0 P Q h w st.data))
-      ⟨m, Host.addrOf (k + 22)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b6Offset)⟩ := by
   have hS := hpre.1
-  have hk6 : b6.IsInfixAt Host.prog (k + 22) := b6_in_code.trans hp.1 (by simp [b6])
+  have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b6Offset) := b6_in_code.trans hp.1 (by simp [b6])
   have hwf := Bus.wf_frame (F := 176) hS (by decide) hf.kept
   have hm := Bus.match_frame hS (F := 176) (by decide) (by decide) hf.sp
   refine exec_then hk6 run_b6 hwf hm fun st hm' hpc ↦ ?_
@@ -337,7 +338,7 @@ theorem b6_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Nat}
     rintro r (rfl | rfl | rfl | rfl | rfl | rfl | rfl) <;>
       exact UInt64.toBitVec_inj.mp ((hm'.regs _ _ rfl).trans rfl)
   obtain ⟨a1, a19, a20, a21, a22, a23⟩ := hr
-  have hpc' : st.pc = Host.addrOf (k + 25) := hpc
+  have hpc' : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b7Offset) := hpc
   obtain ⟨d, pc⟩ := st
   simp only at hpc'
   subst hpc'

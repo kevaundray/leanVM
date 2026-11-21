@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.QueryBits.Names
+public import NativeRustcVmArm.Code.Vm.SampleQueries.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Whir.SampleQueries.Loops
 
 /-!
@@ -60,12 +63,12 @@ theorem entry_out (h : SampleQueriesPre a s0 m0) {q : BitVec 64}
 
 /-- **`sample_queries`'s contract.** -/
 theorem sampleQueries_spec (hp : Placed code k)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hqb : Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost) (a : DecArea)
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hqb : Spec (Labels.label NativeRustcVmArm.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost) (a : DecArea)
     (s0 : TState) :
-    Spec (Labels.label sampleQueriesLabel) (SampleQueriesPre a s0) (SampleQueriesPost a s0) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.SampleQueries.entryLabel) (SampleQueriesPre a s0) (SampleQueriesPost a s0) := by
   intro m0 h
-  rw [show Labels.label sampleQueriesLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.SampleQueries.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.SampleQueries.entryOffset) NativeRustcVmArm.Vm.SampleQueries.entry_at]
   have hwf := entry_wf h
   have hm := entry_match h
   have hc := cnt_le h
@@ -79,7 +82,7 @@ theorem sampleQueries_spec (hp : Placed code k)
   rw [hcond0] at hpc0
   by_cases hc0 : cnt m0 = 0
   · -- no position: `b6`
-    simp only [hc0, decide_true, ↓reduceIte, hp.label (j := 31) rfl] at hpc0
+    simp only [hc0, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b6Offset) NativeRustcVmArm.Vm.SampleQueries.label_5_at] at hpc0
     refine exec_at (inf hp b6_in_code (by simp [b6])) (exec_after run_b0 run_b6) hwf hpc0 hm0
       fun st hm' hpc' ↦ ?_
     simp only [PcOk] at hpc'
@@ -107,7 +110,7 @@ theorem sampleQueries_spec (hp : Placed code k)
         · exact Or.inl ⟨_, List.mem_cons_of_mem _ List.mem_cons_self, hq⟩
   · -- the prologue: `b1`
     simp only [hc0, decide_false, Bool.false_eq_true, ↓reduceIte,
-      show k + 0 + b0.length = k + 3 from rfl] at hpc0
+      show k + NativeRustcVmArm.Vm.SampleQueries.b0Offset + b0.length = k + NativeRustcVmArm.Vm.SampleQueries.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SampleQueries.b0_next]] at hpc0
     refine exec_at (inf hp b1_in_code (by simp [b1])) (exec_after run_b0 run_b1) hwf hpc0 hm0
       fun st1 hm1 hpc1 ↦ ?_
     simp only [PcOk] at hpc1
@@ -141,7 +144,7 @@ theorem sampleQueries_spec (hp : Placed code k)
     rw [hcond1] at hpc1
     by_cases hd : 128 < dep m0
     · -- the squeezes' loop
-      simp only [hd, decide_true, ↓reduceIte, hp.label (j := 23) rfl] at hpc1
+      simp only [hd, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b3Offset) NativeRustcVmArm.Vm.SampleQueries.label_3_at] at hpc1
       refine big_run hp h hsq hd (j := 0) (s := s0) rfl hpc1 {
         fr := hf1
         x19 := by rw [h19]; rfl
@@ -152,10 +155,10 @@ theorem sampleQueries_spec (hp : Placed code k)
         model := rfl }
     · -- the outer loop
       simp only [hd, decide_false, Bool.false_eq_true, ↓reduceIte,
-        show k + 3 + b1.length = k + 15 from rfl] at hpc1
+        show k + NativeRustcVmArm.Vm.SampleQueries.b1Offset + b1.length = k + NativeRustcVmArm.Vm.SampleQueries.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SampleQueries.b1_next]] at hpc1
       refine hf1.regsBlock (inf hp b2_in_code (by simp [b2])) run_b2 hpc1 rfl rfl (by rfl)
         fun st2 hf2 hd2 hm2 hpc2 ↦ ?_
-      simp only [PcOk, hp.label (j := 46) rfl] at hpc2
+      simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b9Offset) NativeRustcVmArm.Vm.SampleQueries.label_8_at] at hpc2
       refine outer_run hp h hsq hqb ⟨0, cnt m0, s0, [], rfl, hpc2, {
         fr := hf2
         x19 := (reg_of hm2 (r := .X19) (v := .reg .X19) rfl rfl).trans h19

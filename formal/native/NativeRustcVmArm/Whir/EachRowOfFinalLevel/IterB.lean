@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FoldRow.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceAtTable.Names
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.Mid
 
 /-!
@@ -44,8 +46,8 @@ theorem roundsOf_congr {d d' : Mem 64} {a : BitVec 64} {n : Nat}
 variable [Host] {k : Nat}
 
 /-- **From `b8` to `b11`.** -/
-theorem iterB (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPre FoldRowPost)
-    (hsat : Spec (label subspaceAtTableLabel) SubspaceAtTablePre SubspaceAtTablePost)
+theorem iterB (hp : Placed code k) (hfold : Spec (label NativeRustcVmArm.Vm.FoldRow.entryLabel) FoldRowPre FoldRowPost)
+    (hsat : Spec (label NativeRustcVmArm.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost)
     (hpre : EachRowFinalPre rows op m0) {m : MachineData} (h : Mid rows m0 j m)
     {lanes : Array EW} (hls : lanes.size ≤ 64) (hx0 : m.regs.X0 = 1)
     (hx1 : m.regs.X1 = lanes.size.toUInt64)
@@ -55,17 +57,17 @@ theorem iterB (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPre
         foldRow lanes ((qsOf m0)[j]'h.hjq) (eachRowArgs m0).2 →
       BufWordsAt m'.dmem (fb m0 + BitVec.ofNat 64 1576) rootCap
         (subspaceAtTable (tableOf m0) ((qsOf m0)[j]'h.hjq)).toList →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 197)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 184)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b11Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b8Offset)⟩ := by
   have hl := lay hpre
   have hstk := hpre.1.1
   have hS : 3184 ≤ m0.regs.SP.toNat := hstk.2.1
   have hrdin := hpre.1.2.2.2.2.2.2.2
   obtain ⟨hwf, hm⟩ := frame_env hpre h.fr
-  have hk8 : b8.IsInfixAt Host.prog (k + 184) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk9 : b9.IsInfixAt Host.prog (k + 186) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b8Offset) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk9 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b9Offset) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk8 run_b8 hwf hm fun st8 hm8 hpc8 ↦ ?_
-  have hpc8' : st8.pc = Host.addrOf (k + 186) := by
+  have hpc8' : st8.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b9Offset) := by
     simp only [PcOk] at hpc8
     sym_simp at hpc8
     simp only [Env.ofMachine_regs, show (m.regs.getXReg .X0) = 1 from hx0] at hpc8
@@ -117,7 +119,7 @@ theorem iterB (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPre
     rfl
   -- `b10`, `subspace_at_table`
   obtain ⟨hwf10, hm10⟩ := frame_env hpre hmid10.fr
-  have hk10 : b10.IsInfixAt Host.prog (k + 191) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b10Offset) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk10 run_b10 hwf10 hm10 fun st11 hm11 hpc11 ↦ ?_
   have hmid11 : Mid rows m0 j st11.data := hmid10.block hm10 hm11 hwf10 rfl rfl (by decide)
   have hd11 : st11.data.dmem = d10.dmem := hm11.dmem_eq hwf10 rfl

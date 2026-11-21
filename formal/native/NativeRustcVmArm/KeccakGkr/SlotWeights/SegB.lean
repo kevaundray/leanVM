@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.SlotWeights.Step
 
 /-!
@@ -44,10 +45,10 @@ variable [NativeArm.Host] {c : KeccakClaimW} {m0 : MachineData} {k : Nat}
 
 /-- **A turn of the second segment's loop**. -/
 theorem segB_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 185)) (hI : SegB m0 c j s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 185) ∧ SegB m0 c (j + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 161) ∧ Body m0 s'.data ∧ s'.data.regs.X20 = 1 ∧
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b13Offset)) (hI : SegB m0 c j s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b13Offset) ∧ SegB m0 c (j + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b10Offset) ∧ Body m0 s'.data ∧ s'.data.regs.X20 = 1 ∧
         ElemsAt s'.data.dmem (rowsA m0) (prog m0.regs.X0.toNat c m0.regs.X4.toNat 3200) 4096)) s := by
   have hS := hpre.1
   have hj := hI.j_lt
@@ -196,7 +197,7 @@ theorem segB_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
   -- `b12`: the counters
   simp only [PcOk] at hpc4
   refine exec_at (b12_in_code.trans hp.1 (by simp [b12])) e12 (Env.wf_nil _)
-    (hpc4.trans (hp.label (j := 180) rfl)) (match_nil _) fun s5 hm5 hpc5 ↦ ?_
+    (hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b12Offset) NativeRustcVmArm.Vm.SlotWeights.label_10_at)) (match_nil _) fun s5 hm5 hpc5 ↦ ?_
   have hb5 : Body m0 s5.data :=
     hb4.of_block (match_nil _) hm5 (Env.wf_nil _) rfl all_slots (by decide)
   have k5 := KeccakGkr.Match.regs_keep (match_nil _) hm5 [.X19, .X20, .X22, .X23, .X25] (by decide)
@@ -219,12 +220,12 @@ theorem segB_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
     have hc : ((s4.data.regs.getXReg .X26).toBitVec == 16#64) = true := by
       rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; rw [hx26]; rfl
     simp only [hc, ite_true] at hpc5
-    exact .done _ (Or.inr ⟨hpc5.trans (hp.label (j := 161) rfl), hb5, hx20,
+    exact .done _ (Or.inr ⟨hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b10Offset) NativeRustcVmArm.Vm.SlotWeights.label_8_at), hb5, hx20,
       by rw [hd5]; exact hrows4⟩)
   · have hc : ((s4.data.regs.getXReg .X26).toBitVec == 16#64) = false := by
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h; rw [hx26] at this
       simp at this; omega
-    simp only [hc, Bool.false_eq_true, ite_false, show b12.length = 5 from rfl] at hpc5
+    simp only [hc, Bool.false_eq_true, ite_false, NativeRustcVmArm.Vm.SlotWeights.b12_length, NativeRustcVmArm.Vm.SlotWeights.b12Length] at hpc5
     refine .done _ (Or.inl ⟨hpc5, hb5, hf, ?_, hx20, by omega, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩)
     · rw [show s5.data.regs.X19 = s5.data.regs.getXReg .X19 from rfl, k5 .X19 (by simp),
         k4 .X19 (by simp), hk3 .X19 (by simp)]; exact hI.x19
@@ -249,12 +250,12 @@ theorem segB_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
 
 /-- **The second segment's loop**, to its end. -/
 theorem segB_loop (hp : Placed code k) (hpre : SlotWeightsPre c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 185)) (hI : SegB m0 c j s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 161) ∧ Body m0 s'.data ∧
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b13Offset)) (hI : SegB m0 c j s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b10Offset) ∧ Body m0 s'.data ∧
       s'.data.regs.X20 = 1 ∧
       ElemsAt s'.data.dmem (rowsA m0) (prog m0.regs.X0.toNat c m0.regs.X4.toNat 3200) 4096) s :=
-  Sym.loop (fun n s ↦ ∃ j, n = 1600 - j ∧ s.pc = Host.addrOf (k + 185) ∧ SegB m0 c j s.data)
+  Sym.loop (fun n s ↦ ∃ j, n = 1600 - j ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b13Offset) ∧ SegB m0 c j s.data)
     (fun _ s ⟨j, hn, hpc, hI⟩ ↦ (segB_step hp hpre hmul hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨1600 - (j + 1), by have := hI.j_lt; omega, j + 1, rfl, hpc', hI'⟩

@@ -1,6 +1,14 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.LayersAll
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.FirstClaim.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
+public import NativeRustcVmX64.Code.Vm.VerifyKeccak.Names
+public import NativeRustcVmX64.Code.Vm.VerifyLayer.Names
 
 /-!
 # `verify_keccak` from its entry to the first opening (x86-64)
@@ -24,18 +32,18 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 
 /-- **From the entry to `b40`.** -/
 theorem toB40 (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hfc : ∀ inst segment lanePoint output, Spec (Labels.label firstClaimLabel)
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hfc : ∀ inst segment lanePoint output, Spec (Labels.label NativeRustcVmX64.Vm.FirstClaim.entryLabel)
       (FirstClaimPre inst segment lanePoint output) (FirstClaimPost inst segment lanePoint output))
-    (hvl : ∀ s c, Spec (Labels.label verifyLayerLabel) (VerifyLayerPre a s c)
+    (hvl : ∀ s c, Spec (Labels.label NativeRustcVmX64.Vm.VerifyLayer.entryLabel) (VerifyLayerPre a s c)
       (VerifyLayerPost a s c))
     (cont : ∀ (st : MachineState) (s' : TState) (first cl : KeccakClaimW) (cm : EW),
-      At m0 k 217 wrA tL (vv m0 (V2 cm first.point.size)) st →
+      At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b40Offset wrA tL (vv m0 (V2 cm first.point.size)) st →
       TStateAt st.data.dmem (reg m0 .rdi) a s' →
       ClaimAt st.data.dmem (off (fb m0) 992) cl →
       WeightsAt st.data.dmem (off (reg m0 .r9) 25600) cl →
@@ -46,7 +54,7 @@ theorem toB40 (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0
         (restOpen (reg m0 .rsi).toNat inst first cm cl).run s' →
       Eventually (step1 Host.exe) (Goal a s cs inst output m0) st) :
     Eventually (step1 Host.exe) (Goal a s cs inst output m0)
-      ⟨m0, Labels.label verifyKeccakLabel⟩ := by
+      ⟨m0, Labels.label NativeRustcVmX64.Vm.VerifyKeccak.entryLabel⟩ := by
   have hsz : inst.size = (reg m0 .rsi).toNat := hpre.2.2.2.2.2.2.2.2.2.1
   refine frontA hp hpre hbl hgr fun st s1 hat hts hrun ↦ ?_
   refine frontB hp hpre hsc hrs hat hts hrun fun st' s4 seg lp cm hat' hts' hseg1 hseg hlp5 hlp

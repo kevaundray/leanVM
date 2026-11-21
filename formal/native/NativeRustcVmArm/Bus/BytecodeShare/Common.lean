@@ -168,7 +168,7 @@ theorem exit16 (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {m : MachineD
       (∀ x s', res s0 m0 = some (x, s') →
         NativeRustcVm.EWsAt m.dmem m0.regs.X5.toBitVec x.2.1.toList ∧
           TStateAt m.dmem m0.regs.X1.toBitVec a s')) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + 83)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b16Offset)⟩ := by
   have hS := (pre_parts h).1
   have hwf := Bus.wf_frame (F := 432) hS N_ge hfr.kept
   have hm := Bus.match_frame (m := m) hS N_ge rfl hfr.sp
@@ -191,7 +191,7 @@ theorem exit16 (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {m : MachineD
 theorem none15 (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {m : MachineData}
     (hfr : Fr m0 432 bytecodeShareStack slots keep (outs m0) m)
     (h19 : m.regs.getXReg .X19 = m0.regs.X0) (hr : res s0 m0 = none) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + 81)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b15Offset)⟩ := by
   obtain ⟨hS, -, -, -, -, -, -, hoo, -⟩ := pre_parts h
   have hwf : (Env.ofMachine m [(base m0 432, 432), (m0.regs.X0.toBitVec, 48)]).WF :=
     Bus.wf_frame2 hS N_ge hfr.kept ⟨hoo.1, hoo.2.1⟩ hoo.2.2.2.2.1

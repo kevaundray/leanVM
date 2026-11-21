@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Flow
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
 
 /-!
 # `verify_execution`: the stacked opening (x86-64)
@@ -27,11 +28,11 @@ variable [Host] {k : Nat}
 /-- **The stacked opening**, from `b18`: the function returns its result. -/
 theorem callVso (hp : Placed code k)
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 82)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b18Offset)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
     (h12 : reg st.data .r12 = off (reg m0 .r8) 222888)
     (h13 : reg st.data .r13 = off (reg m0 .r8) 123992)
     (hbp : reg st.data .rbp = off (reg m0 .r8) 3912)
@@ -53,7 +54,7 @@ theorem callVso (hp : Placed code k)
   have htw := g.tw
   have htS := g.tS
   have hN : verifyStackedOpeningStack = 11936 := rfl
-  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + 82 + b18.length)).toBitVec)
+  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b18Offset + b18.length)).toBitVec)
   refine exec_at (infix_of b18_in_code (by simp [b18]) hp) run_b18 hwf (fun _ _ ↦ rfl) hpc hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hw1, hw8, hw16, hw24, hrdi, hrsi, hrdx, hrcx, hr8, hr9, hk⟩ :=
@@ -84,7 +85,7 @@ theorem callVso (hp : Placed code k)
   have eR9 : reg st1.data .r9 = off (reg m0 .r8) 123992 := (hm1.regs .r9 _ hr9).trans h13
   have warg : ∀ (o : Nat) (v : Sym) (x : BitVec 64), o + 8 ≤ 32 →
       (∀ j < 8, findWrite 0 (o + j) (after b18 bodyS).mem = some (v, j)) →
-      v.eval (frameEnv m0 st.data 96 [] (fun _ ↦ 0) (Host.addrOf (k + 82 + b18.length)).toBitVec) = x →
+      v.eval (frameEnv m0 st.data 96 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b18Offset + b18.length)).toBitVec) = x →
       NativeRustcVm.WordAt st1.data.dmem (off (stackBelow m0 96) o) (UInt64.ofBitVec x) :=
     fun o v x ho hv hx ↦ by
       have := wordAt_write (r := 0) (b := stackBelow m0 96) (sz := 104) hm1 rfl (by omega) hv
@@ -220,7 +221,7 @@ theorem callVso (hp : Placed code k)
   have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 96) (rest := []) (vars := fun _ ↦ 0)
     (ret := 0) ⟨Mapped.keeps g.fmapped hf2.kept, g.fnw⟩ (by simp) (List.pairwise_singleton _ _)
   refine exec_at (infix_of b19_in_code (by simp [b19]) hp) run_b19 hwf2 nofun
-    (hpc2.trans (by rw [show k + 82 + b18.length = k + 95 from rfl]))
+    (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b18Offset + b18.length = k + NativeRustcVmX64.Vm.VerifyExecution.b19Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b18_next]]))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hmem3, hrax3⟩ := after_eq run_b19 ▸ ok_b19

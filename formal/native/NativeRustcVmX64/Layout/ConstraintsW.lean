@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Layout.ConstraintsW.Exec
+public import NativeRustcVmX64.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `constraints_w` on x86-64
@@ -81,20 +83,20 @@ variable [Host] {k : Nat}
 
 /-- At `b9`. -/
 abbrev G (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 36) ∧ At9 m0 s.data
+  s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b9Offset) ∧ At9 m0 s.data
 
-theorem lbl_entry (hp : Placed code k) : Labels.label constraintsWLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LConstraintsW_1" = Host.addrOf (k + 21) :=
-  hp.label (j := 21) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LConstraintsW_3" = Host.addrOf (k + 24) :=
-  hp.label (j := 24) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LConstraintsW_5" = Host.addrOf (k + 30) :=
-  hp.label (j := 30) rfl
-theorem lbl_7 (hp : Placed code k) : Labels.label ".LConstraintsW_7" = Host.addrOf (k + 33) :=
-  hp.label (j := 33) rfl
-theorem lbl_9 (hp : Placed code k) : Labels.label ".LConstraintsW_9" = Host.addrOf (k + 36) :=
-  hp.label (j := 36) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ConstraintsW.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.ConstraintsW.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ConstraintsW.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b5Offset) :=
+  hp.label NativeRustcVmX64.Vm.ConstraintsW.label_1_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ConstraintsW.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b6Offset) :=
+  hp.label NativeRustcVmX64.Vm.ConstraintsW.label_3_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ConstraintsW.label_5 = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b7Offset) :=
+  hp.label NativeRustcVmX64.Vm.ConstraintsW.label_5_at
+theorem lbl_7 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ConstraintsW.label_7 = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b8Offset) :=
+  hp.label NativeRustcVmX64.Vm.ConstraintsW.label_7_at
+theorem lbl_9 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.ConstraintsW.label_9 = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b9Offset) :=
+  hp.label NativeRustcVmX64.Vm.ConstraintsW.label_9_at
 
 omit [Host] in
 /-- A register a block left as it was. -/
@@ -124,7 +126,7 @@ theorem row_match {m0 : MachineData} (hpre : ConstraintsWPre m0) {st : MachineDa
 
 /-- **`b8`**: `flag` is `0`. -/
 theorem from8 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 33)) (hb : Body m0 48 S slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b8Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (hbx : reg st.data .rbx = reg m0 .rcx)
     (hc : ewArg (reg st.data .r15) (reg st.data .r14) = (row m0).getD 5 0)
     (hi : ewArg (reg st.data .rdx) (reg st.data .rcx) = (row m0).getD 12 0)
@@ -132,7 +134,7 @@ theorem from8 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) run_b8 (Env.wf_nil _) nofun hpc
     (match_nil _) fun st' hm hpc' ↦ .done _ ⟨?_, hb.of_block (match_nil _) hm (Env.wf_nil _) rfl
       (after_eq run_b8 ▸ b8_keeps), ?_, ?_, ?_, ?_⟩
-  · simp only [PcOk, show b8.length = 3 from rfl] at hpc'
+  · simp only [PcOk, NativeRustcVmX64.Vm.ConstraintsW.b8_length] at hpc'
     exact hpc'
   · rw [← hbx]; exact keep (match_nil _) hm (r := .rbx) rfl rfl
   · rw [← hc, keep (match_nil _) hm (r := .r15) rfl rfl,
@@ -145,14 +147,14 @@ theorem from8 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
 
 /-- **`b7`**: `inverse` and `flag` are `0`. -/
 theorem from7 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 30)) (hb : Body m0 48 S slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b7Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (hbx : reg st.data .rbx = reg m0 .rcx)
     (hc : ewArg (reg st.data .r15) (reg st.data .r14) = (row m0).getD 5 0)
     (hi : (row m0).getD 12 0 = 0) (hf : (row m0).getD 13 0 = 0) :
     Eventually (step1 Host.exe) (G k m0) st := by
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) run_b7 (Env.wf_nil _) nofun hpc
     (match_nil _) fun st' hm hpc' ↦ ?_
-  simp only [PcOk, show b7.length = 3 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmX64.Vm.ConstraintsW.b7_length] at hpc'
   refine from8 hp hpc' (hb.of_block (match_nil _) hm (Env.wf_nil _) rfl
     (after_eq run_b7 ▸ b7_keeps)) ?_ ?_ ?_ hf
   · rw [← hbx]; exact keep (match_nil _) hm (r := .rbx) rfl rfl
@@ -164,7 +166,7 @@ theorem from7 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
 
 /-- **`b6`**: a row shorter than `6`, all three `0`. -/
 theorem from6 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 24)) (hb : Body m0 48 S slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b6Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (hbx : reg st.data .rbx = reg m0 .rcx) (hc : (row m0).getD 5 0 = 0)
     (hi : (row m0).getD 12 0 = 0) (hf : (row m0).getD 13 0 = 0) :
     Eventually (step1 Host.exe) (G k m0) st := by
@@ -183,7 +185,7 @@ theorem from6 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
 
 /-- **The entry and the prologue**: `JUMP`, on to `b9`. -/
 theorem head (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 3))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b1Offset))
     (hm1 : Match (frameEnv m0 m0 48) (after b0 entryS) st.data)
     (hwf : (frameEnv m0 m0 48).WF) : Eventually (step1 Host.exe) (G k m0) st := by
   have hm1' := hm1
@@ -197,7 +199,7 @@ theorem head (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
   have hsi2 : reg st2.data .rsi = reg m0 .rsi := hm2.regs .rsi _ hsi
   have hdx2 : reg st2.data .rdx = reg m0 .rdx := hm2.regs .rdx _ hdx
   have hlen := Arrays.lt_of_offStack hpre.2.1.1.2 hpre.2.1.2
-  simp only [PcOk, show b1.length = 8 from rfl] at hpc2
+  simp only [PcOk, NativeRustcVmX64.Vm.ConstraintsW.b1_length] at hpc2
   obtain ⟨hy, hn⟩ := pc_cond hpc2
   by_cases h6 : (reg m0 .rdx).toNat < 6
   · refine from6 hp ((hy ?_).trans (lbl_3 hp)) hb hbx2 (row_getD_ge (by omega))
@@ -246,7 +248,7 @@ theorem head (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
       rw [show st2.data.regs.get64 .rdx = reg m0 .rdx from hdx2, ult_ofNat _ (by decide)]
       simpa using h13)
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) (exec_after run_b2' run_b3) hwf3 nofun
-      (hpc4.trans (congrArg Host.addrOf (by have : b2.length = 4 := rfl; omega))) hm3'
+      (hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.ConstraintsW.b2_next))) hm3'
       fun st4 hm4 hpc4' ↦ ?_
     obtain ⟨hk, h15, h14, h2, h1, hbx4⟩ := after_eq run_b3 ▸ b3_keeps
     simp only [PcOk] at hpc4'
@@ -268,7 +270,7 @@ theorem head (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
       rw [show st2.data.regs.get64 .rdx = reg m0 .rdx from hdx2, ult_ofNat _ (by decide)]
       simpa using h13)
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) (exec_after run_b2'' run_b3'') hwf3
-      nofun (hpc4.trans (congrArg Host.addrOf (by have : b2.length = 4 := rfl; omega))) hm3'
+      nofun (hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.ConstraintsW.b2_next))) hm3'
       fun st4 hm4 hpc4' ↦ ?_
     simp only [PcOk] at hpc4'
     obtain ⟨-, hn4⟩ := pc_cond hpc4'
@@ -278,7 +280,7 @@ theorem head (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
       simpa using h13')
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp)
       (exec_after (exec_after run_b2'' run_b3'') run_b4) hwf3 nofun
-      (hpc5.trans (congrArg Host.addrOf (by have : b3.length = 3 := rfl; omega))) hm4
+      (hpc5.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.ConstraintsW.b3_next))) hm4
       fun st5 hm5 hpc5' ↦ ?_
     obtain ⟨hk, h15, h14, h2, h1, h13r, h12r, hbx5⟩ := after_eq run_b4 ▸ b4_keeps
     simp only [PcOk] at hpc5'
@@ -299,7 +301,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
   s.pc = retOf m0 ∧ rspOf s.data = rspOf m0 + 8#64 ∧ ConstraintsWPost m0 s.data
 
 /-- **`b9`-`b11`**: the two products, stored, and the return. -/
-theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem tail (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : ConstraintsWPre m0) (h4 : (reg m0 .rdi).toNat = 4)
     {st : MachineState} (hG : G k m0 st) : Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hpc, hA⟩ := hG
@@ -309,7 +311,7 @@ theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     fun j hj ↦ Arrays.not_inRange_of_apart (Arrays.apart_mono hoO (Nat.le_add_right S 8)) hrO.2
       (Transcript.stack_noWrap hS) hj
   -- `b9`: `condition·inverse`
-  have hwf9 := hA.body.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 36 + b9.length)).toBitVec)
+  have hwf9 := hA.body.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ConstraintsW.b9Offset + b9.length)).toBitVec)
     hS hF
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) run_b9 hwf9 (fun _ _ ↦ rfl) hpc
     hA.body.mid_match fun st1 hm1 hpc1 ↦ ?_
@@ -342,7 +344,7 @@ theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       trivial
   refine exec_at (infix_of ((infix_take b10 4).trans b10_in_code (by simp [b10]))
     (by simp [b10]) hp) run_b10a hwf10 nofun
-    (hpc2.trans (congrArg Host.addrOf (by have : b9.length = 4 := rfl; omega))) hm10
+    (hpc2.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.ConstraintsW.b9_next))) hm10
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hk10, hw10, hv0, hv1⟩ := after_eq run_b10a ▸ b10a_store
   have hb3 := hb2'.of_store hwf10 hm10 hm3 hk10 hw10 (fun _ h ↦ h)
@@ -398,7 +400,7 @@ theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       trivial
   refine exec_at (infix_of ((infix_take b11 2).trans b11_in_code (by simp [b11]))
     (by simp [b11]) hp) run_b11a hwf12 nofun
-    (hpc5.trans (congrArg Host.addrOf (by have : (b10.drop 4).length = 6 := rfl; omega))) hm12
+    (hpc5.trans (congrArg Host.addrOf (by have hn := NativeRustcVmX64.Vm.ConstraintsW.b10_next; have hl := NativeRustcVmX64.Vm.ConstraintsW.b10_length; simp only [NativeRustcVmX64.Vm.ConstraintsW.b10Length] at hl; simp only [List.length_drop]; omega))) hm12
     fun st6 hm6 hpc6 ↦ ?_
   obtain ⟨hk12, hw12, hov, hz0, hz1⟩ := after_eq run_b11a ▸ b11a_store
   have hb6 := hb5.of_store hwf12 hm12 hm6 hk12 hw12 (fun _ h ↦ h)
@@ -439,8 +441,8 @@ theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`constraints_w` meets its contract.** -/
 theorem constraintsW_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label constraintsWLabel) ConstraintsWPre ConstraintsWPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.ConstraintsW.entryLabel) ConstraintsWPre ConstraintsWPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hF : 48 ≤ S := by decide
@@ -449,7 +451,7 @@ theorem constraintsW_spec (hp : Placed code k)
   have hm : Match (frameEnv m0 m0 48) entryS m0 := match_frame
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf nofun hm
     fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 3 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.ConstraintsW.b0_length] at hpc1
   obtain ⟨hy, hn⟩ := pc_cond hpc1
   by_cases h4 : (reg m0 .rdi).toNat = 4
   · have hpc2 := hn (by

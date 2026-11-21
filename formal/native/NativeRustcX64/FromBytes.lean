@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Xmss.FromBytes.Names
+
 public import NativeRustcX64.FromBytes.Head
 public import NativeRustcX64.FromBytes.Loop
 public import NativeRustcX64.FromBytes.Path
@@ -19,11 +22,11 @@ namespace NativeRustcX64.Xmss.FromBytes
 
 /-- **`from_bytes`'s closure meets its contract.** -/
 public theorem fromBytes_spec [Host] {k : Nat} (hp : Placed code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) :
-    Spec (label fromBytesLabel) FromBytesPre FromBytesPost := by
+    (hmemcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
+    Spec (label NativeRustcX64.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost := by
   intro m₀ hpre
   have P := pre_of hpre
-  rw [hp.label (j := 0) (by decide +kernel), Nat.add_zero]
+  rw [hp.label NativeRustcX64.Xmss.FromBytes.entry_at, NativeRustcX64.Xmss.FromBytes.entryOffset, Nat.add_zero]
   exact head hp hpre fun st hpc h =>
     NativeRustcX64.Eventually.bind (loop hp P hpc h) fun st' ⟨hpc', h'⟩ =>
       mid hp hmemcpy P hpc' h' fun st'' hpc'' h'' =>

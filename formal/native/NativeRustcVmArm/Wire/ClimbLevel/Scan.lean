@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
+public import NativeRustcVmArm.Code.Vm.ReaderDigest.Names
 public import NativeRustcVmArm.Wire.ClimbLevel.CarryRun
 
 /-!
@@ -71,8 +73,8 @@ theorem saved10' : ∀ r ∈ [XReg.X19, .X20, .X22, .X23, .X24, .X25, .X26, .X27
 /-- **A step of the scan**: the sibling read or found (`Post` or the head after node `i`), or the
 scan at node `j + 1`. -/
 theorem scan_step (hp : Placed code k) (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-    (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+    (hd : Spec (Labels.label NativeRustcVmArm.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
     (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {i : Nat}
     {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st : MachineState}
@@ -109,7 +111,7 @@ theorem scan_step (hp : Placed code k) (G : Geo m0 bp B)
     · rw [decide_eq_false (by omega), decide_eq_false h]
   simp only [PcOk, hc] at hpc1
   by_cases hend : j = cnt m0
-  · simp only [hend, decide_true, ↓reduceIte, hp.label (j := 67) rfl] at hpc1
+  · simp only [hend, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b11Offset) NativeRustcVmArm.Vm.ClimbLevel.label_9_at] at hpc1
     refine Eventually.mono (carry_spec hp G hh hd hR hns hlen hpc1 hC1 hi ?_) fun _ h ↦ .inl h
     rw [hlen, ← hend]
     exact hS.miss
@@ -125,8 +127,8 @@ theorem scan_step (hp : Placed code k) (G : Geo m0 bp B)
   obtain ⟨hkj, wj⟩ := key_word G hns hlen hfr1 hjl
   obtain ⟨hki, wi⟩ := key_word G hns hlen hfr1 hi
   -- after `b8`: node `j`'s key compared
-  have post : ∀ st2 : MachineState, (st2.pc = Host.addrOf (k + 56) ∧ ns[j].1 = ns[i].1 ^^^ 1) ∨
-      (st2.pc = Host.addrOf (k + 48) ∧ ns[j].1 ≠ ns[i].1 ^^^ 1) → Frm m0 st2.data →
+  have post : ∀ st2 : MachineState, (st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b9Offset) ∧ ns[j].1 = ns[i].1 ^^^ 1) ∨
+      (st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b7Offset) ∧ ns[j].1 ≠ ns[i].1 ^^^ 1) → Frm m0 st2.data →
       st2.data.dmem = st1.data.dmem →
       (∀ r ∈ [XReg.X19, .X20, .X22, .X23, .X24, .X25, .X26, .X27, .X28, .X29],
         st2.data.regs.getXReg r = st1.data.regs.getXReg r) →
@@ -170,7 +172,7 @@ theorem scan_step (hp : Placed code k) (G : Geo m0 bp B)
       simp only [SBool.eval, eq_apply, Sym.eval, BinOp.apply, Sym.low_W64, Sym.ext_W64, hl,
         BitVec.xor_self]
       decide
-    simp only [PcOk, hc2, ↓reduceIte, hp.label (j := 48) rfl] at hpc2
+    simp only [PcOk, hc2, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b7Offset) NativeRustcVmArm.Vm.ClimbLevel.label_6_at] at hpc2
     have hne : ns[j].1 ≠ ns[j].1 ^^^ 1 := by
       intro h
       have := (xor_eq_one_iff ns[j].1 ns[j].1).mpr h
@@ -228,7 +230,7 @@ theorem scan_step (hp : Placed code k) (G : Geo m0 bp B)
     simp only [PcOk, hc2] at hpc2
     refine post st2 ?_ hfr2 (hm2'.dmem_eq hwf2 rfl) (fun r hr ↦ ?_) ?_ ?_ ?_
     · by_cases h : ns[j].1 ≠ ns[i].1 ^^^ 1
-      · simp only [decide_eq_true h, ↓reduceIte, hp.label (j := 48) rfl] at hpc2
+      · simp only [decide_eq_true h, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b7Offset) NativeRustcVmArm.Vm.ClimbLevel.label_6_at] at hpc2
         exact .inr ⟨hpc2, h⟩
       · simp only [decide_eq_false h, Bool.false_eq_true, ↓reduceIte] at hpc2
         exact .inl ⟨hpc2.trans (congrArg Host.addrOf rfl), not_not.mp h⟩

@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.FirstClaim.Keep
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `first_claim`: the segment's kernel and `last` (x86-64)
@@ -48,11 +51,11 @@ variable [Host] {k : Nat}
 
 /-- **`b5` to `b8`**: the segment's kernel, `last`. -/
 theorem last (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 109)) (hI : WDone m0 lanePoint st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 133) ∧
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost) {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b5Offset)) (hI : WDone m0 lanePoint st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b9Offset) ∧
       LDone m0 segment lanePoint output s'.data) st := by
   have h := preOk hpre
   have hn := nums h
@@ -62,7 +65,7 @@ theorem last (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint o
   have hfmap := frame_mapped h.st (F := 1376) (by rw [stack_eq]; decide)
   -- `b5`: the segment's kernel zeroed, `call eq_kernel`.
   have hwf := wf_body h hI.body.frame.kept (d := st.data) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 109 + b5.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b5Offset + b5.length)).toBitVec)
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf (fun _ _ ↦ rfl) hpc
     (match_callS hI.body.frame) fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hwi1, hlo1, hrdi, hrsi, hrdx, hrcx, hr12, hat1⟩ := ok_b5
@@ -125,7 +128,7 @@ theorem last (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint o
   -- `b6`: `eq_kernel`'s result checked.
   have hwf2 := wf_body h hb2.frame.kept (d := st2.data) (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf2 nofun
-    (hpc2.trans (by rw [lengths.2.2.2.2.2.1])) (match_callS hb2.frame) fun st3 hm3 hpc3 ↦ ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b5_next)) (match_callS hb2.frame) fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hmem3, hat3⟩ := ok_test b6 (by simp)
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq hwf2 hmem3
   have hb3 : Body m0 st3.data := hb2.of_mem (Frame.of_block hb2.frame hwf2 hm3 hmid3 slots_le') hd3
@@ -136,9 +139,9 @@ theorem last (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint o
   simp only [PcOk, hc3, Bool.false_eq_true, ite_false] at hpc3
   -- `b7`: `dot` of the first 25 lanes and the output lanes.
   have hwf3 := wf_body h hb3.frame.kept (d := st3.data) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 121 + b7.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b7Offset + b7.length)).toBitVec)
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) exit_b7 hwf3 (fun _ _ ↦ rfl)
-    (hpc3.trans (by rw [lengths.2.2.2.2.2.2.1])) (match_callS hb3.frame) fun st4 hm4 hpc4 ↦ ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b6_next)) (match_callS hb3.frame) fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hwi4, hrdi4, hrsi4, hrdx4, hrcx4, hrbp4, hr144, hat4⟩ := ok_b7
   have hf4 : Frame m0 1376 slots 0 st4.data := Frame.of_block hb3.frame hwf3 hm4 hmid4 slots_le'
   have hs4 := sameOutside_touch hwf3 hm4 (r := 0) rfl (by decide) (within_spec hwi4)
@@ -232,9 +235,9 @@ theorem last (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint o
     (fun _ hq ↦ hq.elim)
   -- `b8`: `EW::mul` of the kernel's entry `1` and the dot product.
   have hwf5 := wf_body h hb5.frame.kept (d := st5.data) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 128 + b8.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b8Offset + b8.length)).toBitVec)
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf5 (fun _ _ ↦ rfl)
-    (hpc5.trans (by rw [lengths.2.2.2.2.2.2.2.1])) (match_callS hb5.frame) fun st6 hm6 hpc6 ↦ ?_
+    (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b7_next)) (match_callS hb5.frame) fun st6 hm6 hpc6 ↦ ?_
   obtain ⟨hmid6, hwi6, hrdi6, hrsi6, hrdx6, hrcx6, hat6⟩ := ok_b8
   have hf6 : Frame m0 1376 slots 0 st6.data := Frame.of_block hb5.frame hwf5 hm6 hmid6 slots_le'
   have hs6 := sameOutside_touch hwf5 hm6 (r := 0) rfl (by decide) (within_spec hwi6)
@@ -282,7 +285,7 @@ theorem last (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint o
     have w4 := w_keep h hs4 (tk fun _ hj ↦ by omega) (by
       show ElemsAt st3.data.dmem _ _ _; rw [hd3]; exact w2)
     exact w_keep h hc7 ck (w_keep h hs6 (tk fun _ hj ↦ by omega) (w_keep h hc5 ck w4))
-  refine .done _ ⟨hpc7.trans (by rw [lengths.2.2.2.2.2.2.2.2.1]), hb7,
+  refine .done _ ⟨hpc7.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b8_next), hb7,
     ⟨kf (by decide) (by simp [NativeRustcVm.length_wordBytes]) hI.il.ip,
       kf (by decide) (by simp [NativeRustcVm.length_wordBytes]) hI.il.il⟩, hw7, hrax, hrdx7,
     ?_, ?_⟩

@@ -4,6 +4,7 @@ public import NativeRustcX64.Sym
 public import NativeRustcVmX64.Spec.Arrays
 public import NativeRustcVmX64.Field.Leaf
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # The array functions' proofs: what they share (x86-64)
@@ -400,7 +401,7 @@ the frame (region 0) below offset `L` (the return address, locals below the push
 keeps the free callee-saved registers and leaves RSP at offset `0` calls `EW::mul`, which returns
 to a body with the product of the block's RDI, RSI and RDX, RCX in RAX, RDX, the callee-saved
 registers and the frame the block's. -/
-theorem Body.call_mul [Host] (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem Body.call_mul [Host] (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 st : MachineData} {F S L : Nat} {slots : List (Nat × Reg64)} {oa : BitVec 64} {on : Nat}
     {rs : List (BitVec 64 × Nat)} {vars : Nat → BitVec 64} {ret : BitVec 64}
     {S₀ S₁ : SState} {st1 : MachineState} {next : Int64} {R : MachineState → Prop}
@@ -409,7 +410,7 @@ theorem Body.call_mul [Host] (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWM
     (hwf : (Env.ofMachine st ((stackBelow m0 F, F + 8) :: rs) vars ret).WF)
     (hm₀ : Match (Env.ofMachine st ((stackBelow m0 F, F + 8) :: rs) vars ret) S₀ st)
     (hm : Match (Env.ofMachine st ((stackBelow m0 F, F + 8) :: rs) vars ret) S₁ st1.data)
-    (hpc : PcOk (Env.ofMachine st ((stackBelow m0 F, F + 8) :: rs) vars ret) (.call ewMulLabel)
+    (hpc : PcOk (Env.ofMachine st ((stackBelow m0 F, F + 8) :: rs) vars ret) (.call NativeRustcVmX64.Vm.EWMul.entryLabel)
       next st1)
     (hk : keepsRegs S₀ S₁ (freeRegs slots) = true)
     (hsp : S₁.reg .rsp = some (.ptr 0 0)) (hw : ∀ w ∈ S₁.mem, w.r = 0 ∧ w.off + w.n ≤ L)
@@ -782,11 +783,11 @@ theorem retOf_congr {m m' : MachineData} (hr : rspOf m' = rspOf m)
 /-- **The epilogue jumping to `EW::mul`** (a tail call): from a body, a block restoring the entry's
 callee-saved registers and RSP, writing nothing, then `EW::mul` returns to the entry's caller with
 the product of the block's RDI, RSI and RDX, RCX. -/
-theorem Body.tail_mul [Host] (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem Body.tail_mul [Host] (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 st : MachineData} {F S : Nat} {slots : List (Nat × Reg64)} {oa : BitVec 64} {on : Nat}
     {vars : Nat → BitVec 64} {ret : BitVec 64} {S₁ : SState} {st' : MachineState}
     (hb : Body m0 F S slots oa on st) (hS : StackOk m0 S) (hF : F ≤ S) (hle : ewMulStack ≤ S)
-    (hm : Match (frameEnv m0 st F vars ret) S₁ st'.data) (hpc : st'.pc = Labels.label ewMulLabel)
+    (hm : Match (frameEnv m0 st F vars ret) S₁ st'.data) (hpc : st'.pc = Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel)
     (hr : restoredRegs slots S₁ = true) (hsp : S₁.reg .rsp = some (.ptr 0 F))
     (hmem : S₁.mem = []) (hret : ∀ j < 8, ¬InRange oa on (rspOf m0 + BitVec.ofNat 64 j)) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ rspOf s.data = rspOf m0 + 8#64 ∧

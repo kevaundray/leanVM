@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Wire.Find.Exec
 public import NativeRustcVmX64.Wire.Common
 public import NativeRustcVmX64.Spec.Wire
 public import NativeRustcVm.Wire.WordsFacts
+public import NativeRustcVmX64.Code.Vm.Find.Names
 
 /-!
 # `find` meets its contract (x86-64)
@@ -89,7 +90,7 @@ variable [Host] (k : Nat) (m)
 
 /-- The loop's head (`b2`) at node `i < n`. -/
 structure HInv (i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 10)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Find.b2Offset)
   sv : Saved m st.data
   d : st.data.dmem = m.dmem
   rsp : reg st.data .rsp = rspOf m
@@ -163,7 +164,7 @@ theorem step {i : Nat} {st : MachineState} (hI : HInv m k i st) :
   have hsv1 : Saved m st1.data := saved_trans hI.sv (Match.saved hm hm1 hwf rfl (by decide))
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64, hload] at hpc1
   change st1.pc = if (w.toBitVec == reg st.data .rcx) = true then _ else _ at hpc1
-  rw [hI.rcx, hp.label (j := 21) rfl, show k + 10 + b2.length = k + 13 from rfl] at hpc1
+  rw [hI.rcx, hp.label NativeRustcVmX64.Vm.Find.label_4_at, show k + NativeRustcVmX64.Vm.Find.b2Offset + b2.length = k + NativeRustcVmX64.Vm.Find.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Find.b2_next]] at hpc1
   by_cases hk : w = key m
   · -- `b6`: `Some i`.
     have he : (w.toBitVec == reg m .rdx) = true := by rw [hk]; exact beq_self_eq_true _
@@ -211,7 +212,7 @@ theorem step {i : Nat} {st : MachineState} (hI : HInv m k i st) :
     simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64] at hpc2
     change st2.pc = if (!(reg st1.data .rsi == BinOp.apply .add .W64 (BitVec.ofNat 64 40)
       (reg st1.data .r8))) = true then _ else _ at hpc2
-    rw [hp.label (j := 10) rfl, show k + 13 + b3.length = k + 17 from rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.Find.label_3_at, show k + NativeRustcVmX64.Vm.Find.b3Offset + b3.length = k + NativeRustcVmX64.Vm.Find.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Find.b3_next]] at hpc2
     have hsum : (BinOp.apply .add .W64 (BitVec.ofNat 64 40) (reg st1.data .r8)).toNat =
         40 * (i + 1) := by
       rw [hr1]
@@ -251,9 +252,9 @@ theorem step {i : Nat} {st : MachineState} (hI : HInv m k i st) :
 end
 
 /-- **`find` meets its contract.** -/
-theorem find_spec (hp : Placed code k) : Spec (Labels.label findLabel) FindPre FindPost := by
+theorem find_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmX64.Vm.Find.entryLabel) FindPre FindPost := by
   intro m ⟨hstk, hok⟩
-  rw [show Labels.label findLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.Find.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Find.b0Offset) from hp.label NativeRustcVmX64.Vm.Find.entry_at]
   have hnw : (arr m).toNat + 40 * cnt m ≤ 2 ^ 64 := hok.2
   let env := Env.ofMachine m []
   have hwf : env.WF := Env.wf_of trivial List.Pairwise.nil
@@ -267,7 +268,7 @@ theorem find_spec (hp : Placed code k) : Spec (Labels.label findLabel) FindPre F
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64, BinOp.apply, ext_W64,
     BitVec.and_self] at hpc1
   change st1.pc = if (reg m .rsi == BitVec.ofNat 64 0) = true then _ else _ at hpc1
-  rw [hp.label (j := 18) rfl, show k + 0 + b0.length = k + 3 from rfl] at hpc1
+  rw [hp.label NativeRustcVmX64.Vm.Find.label_1_at, show k + NativeRustcVmX64.Vm.Find.b0Offset + b0.length = k + NativeRustcVmX64.Vm.Find.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Find.b0_next]] at hpc1
   by_cases h0 : cnt m = 0
   · have he : (reg m .rsi == BitVec.ofNat 64 0) = true := by
       rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; exact h0

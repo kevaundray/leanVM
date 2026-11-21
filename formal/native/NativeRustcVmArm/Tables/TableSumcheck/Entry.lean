@@ -87,7 +87,7 @@ theorem exit11 (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack) {m : Ma
       m'.regs.X0 = okWord (res s heights bus m0).isSome ∧
       (∀ x s', res s heights bus m0 = some (x, s') → TableEvalsAt m'.dmem m0.regs.X7.toBitVec x) ∧
       NextAt m'.dmem m0.regs.X0.toBitVec a (res s heights bus m0)) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 119)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b11Offset)⟩ := by
   have hwf := Bus.wf_frame hS N_ge hfr.kept
   have hm := Bus.match_frame hS N_ge rfl hfr.sp
   refine exec_then (b11_in_code.trans hp.1 (by simp [b11])) run_b11 hwf hm fun st hm' hpc ↦ ?_
@@ -106,7 +106,7 @@ theorem exit11 (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack) {m : Ma
 theorem fail10 (hp : Placed code k) (hS : StackOk m0 tableSumcheckStack) {m : MachineData}
     (hfr : Fr m0 720 tableSumcheckStack slots keep (outs m0) m)
     (hr : res s heights bus m0 = none) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 117)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b10Offset)⟩ := by
   refine Bus.Gkr.Fr.runBlock hS N_ge rfl hfr (b10_in_code.trans hp.1 (by simp [b10])) run_b10 rfl
     rfl rfl rfl fun st hfr' _ hm hpc ↦ ?_
   have hm' : Match (Env.ofMachine m [(base m0 720, 720)]) (Bus.after b10 sF) st.data := by
@@ -125,7 +125,7 @@ theorem start (hp : Placed code k) (hpre : TableSumcheckPre a s heights bus m0)
       (∀ r ∈ [XReg.X0, .X1, .X2, .X3, .X4, .X5, .X6, .X7], m.regs.getXReg r = m0.regs.getXReg r) →
       (m.regs.getXReg .X25).toNat = heights.foldl max 0 →
       TStateAt m.dmem m0.regs.X0.toBitVec a s →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 53)⟩) :
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b1Offset)⟩) :
     Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m0, Host.addrOf k⟩ := by
   obtain ⟨hS, hrc, -, hts0, htok, -, -, -, hHin, hH, -⟩ := hpre
   have hN := hS.2.1
@@ -137,7 +137,7 @@ theorem start (hp : Placed code k) (hpre : TableSumcheckPre a s heights bus m0)
       ⟨rfl, fun _ ↦ Bus.base_aligned hS N_ge rfl, rfl, nofun, trivial⟩
       (Bus.env0_sp (F := 720) [(m0.regs.X1.toBitVec, 48)])
       ⟨by simp [Sym.eval]; rfl, trivial⟩ trivial trivial trivial
-  rw [show Host.addrOf k = Host.addrOf (k + 0) from rfl]
+  rw [show Host.addrOf k = Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b0Offset) from rfl]
   refine exec_then (b0_in_code.trans hp.1 (by simp [b0])) run_b0' hwf hm fun st hm1 hpc ↦ ?_
   obtain ⟨hsp0, hsl0, hmem0, h0, h1, h2, h3, h4, h5, h6, h7, h25⟩ := ok_b0
   have hfr : Fr m0 720 tableSumcheckStack slots keep (outs m0) st.data :=
@@ -146,7 +146,7 @@ theorem start (hp : Placed code k) (hpre : TableSumcheckPre a s heights bus m0)
   have hle : heights.foldl max 0 ≤ 30 := foldl_max_le heights hH.1 hH.2.1
   simp only [PcOk, hiS_eval _ maxS (v := 30) (by decide) (by rw [hmax]; exact hle),
     Bool.false_eq_true, ↓reduceIte] at hpc
-  rw [show k + 0 + b0.length = k + 53 from rfl] at hpc
+  rw [show k + NativeRustcVmArm.Vm.TableSumcheck.b0Offset + b0.length = k + NativeRustcVmArm.Vm.TableSumcheck.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableSumcheck.b0_next]] at hpc
   have c : Sumcheck.Ctx m0 m0.regs.X0.toBitVec a tableSumcheckStack 720 :=
     Bus.Gkr.ctx_of hS hrc hts0 htok N_ge rfl
   have hts : TStateAt st.data.dmem m0.regs.X0.toBitVec a s :=

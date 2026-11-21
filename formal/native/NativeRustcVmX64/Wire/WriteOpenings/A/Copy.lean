@@ -59,7 +59,7 @@ theorem found_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : F
     rw [H.rg.get (v := BitVec.ofNat 64 R.lw) (by simp), beq_ofNat (by omega) (by decide +kernel),
       beq_decide])
   by_cases h0 : R.lw = 0
-  · rw [decide_eq_true h0, hp.label (j := 92) rfl] at hpc1'
+  · rw [decide_eq_true h0, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_12_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine .done _ (.inl ⟨hpc1', K1, ?_⟩)
     rw [h0]
@@ -79,7 +79,7 @@ theorem found_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : F
     simp only [SBool.eval, Sym.eval, ult_eval, envRegs]
     rw [hr10, toNat_ofNat (by omega), toNat_ofNat (by decide +kernel)])
   by_cases h4 : R.lw < 4
-  · rw [decide_eq_true h4, hp.label (j := 80) rfl] at hpc2'
+  · rw [decide_eq_true h4, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_10_at] at hpc2'
     simp only [↓reduceIte] at hpc2'
     have hq : q4 R.lw = 0 := by omega
     refine .done _ (.inr (.inr ⟨hpc2', K2, by rw [hq]; exact leaf_zero, by omega,
@@ -161,7 +161,7 @@ theorem chunk_step (hp : Placed code R.k) (G : Geo R) {t : Nat} {st : MachineSta
     simp only [SBool.eval, Sym.eval, eq_eval, add_eval, envRegs]
     rw [H.rdi, H.rcx, ofNat_add, beq_ofNat (by omega) (by omega), not_beq_decide])
   by_cases hl : q4 R.lw ≠ 4 + t
-  · rw [decide_eq_true hl, hp.label (j := 65) rfl] at hpc1'
+  · rw [decide_eq_true hl, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_8_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine .done _ (.inl ⟨hpc1', K1, hleaf, by omega, by omega, hrcx, kreg hm1 rfl H.rdi,
       kreg hm1 rfl H.rax, ?_⟩)
@@ -183,7 +183,7 @@ theorem chunk_step (hp : Placed code R.k) (G : Geo R) {t : Nat} {st : MachineSta
     rw [K1.rg.get (v := BitVec.ofNat 64 (R.lw % 4)) (by simp), beq_ofNat (by omega) (by decide +kernel),
       beq_decide])
   by_cases h0 : R.lw % 4 = 0
-  · rw [decide_eq_true h0, hp.label (j := 92) rfl] at hpc2'
+  · rw [decide_eq_true h0, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_12_at] at hpc2'
     simp only [↓reduceIte] at hpc2'
     refine .done _ (.inr (.inl ⟨hpc2', K2, ?_⟩))
     rw [hd2, show R.lw = t + 4 by omega]
@@ -265,7 +265,7 @@ theorem rem_step (hp : Placed code R.k) (G : Geo R) {u : Nat} {st : MachineState
     rw [K.rg.get (v := BitVec.ofNat 64 (R.lw % 4)) (by simp), H.rdi, ofNat_add,
       beq_ofNat (by omega) (by omega), not_beq_decide])
   by_cases hl : R.lw % 4 ≠ u + 1
-  · rw [decide_eq_true hl, hp.label (j := 86) rfl] at hpc1'
+  · rw [decide_eq_true hl, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_11_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine .done _ (.inl ⟨hpc1', K1, hleaf, by omega, ?_, kreg hm1 rfl H.rax,
       kreg hm1 rfl H.rcx⟩)

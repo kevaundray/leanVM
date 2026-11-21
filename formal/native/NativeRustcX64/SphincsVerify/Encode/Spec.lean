@@ -41,7 +41,7 @@ theorem encode_spec [Host] : EncodeSpec := by
       fun x hx ↦ hS3.1 x (by rcases hx with rfl | rfl | rfl | rfl | rfl <;> rfl)
   refine Eventually.mono (sum_spec r hp hpre hl hF3 hD3.1 hD3.2.1 hD3.2.2.2.1 hd3) fun st h' ↦ ?_
   show (encode r.seed (r.key l) s (r.layerSig l).counter = none ∧ r.Done false st) ∨
-    ∃ x, encode r.seed (r.key l) s (r.layerSig l).counter = some x ∧ st.pc = r.pc 1548 ∧
+    ∃ x, encode r.seed (r.key l) s (r.layerSig l).counter = some x ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset ∧
       r.AtChains l x st.data
   rw [encode_eq]
   simp only [hVdef]

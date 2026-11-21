@@ -81,7 +81,7 @@ variable [Host] (k : Nat)
 /-- **The loop's head** (`b5`) after `i` nodes. -/
 structure Head (i : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 38)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b5Offset)
   fr : Frm m0 st.data
   fx : Fix m0 st.data
   dn : Done m0 bp B c ns i sl ci st.data.dmem
@@ -93,7 +93,7 @@ structure Head (i : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (st : Ma
 /-- **The scan** (`b7`) for node `i`'s sibling, at node `j`. -/
 structure Scan (i : Nat) (sl : List (Nat × Digest × Bool)) (ci j : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 48)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b7Offset)
   cur : Cur m0 bp B c ns i sl ci st.data
   le : j ≤ cnt m0
   x8 : (st.data.regs.getXReg .X8).toBitVec + BitVec.ofNat 64 40 = nd m0 j

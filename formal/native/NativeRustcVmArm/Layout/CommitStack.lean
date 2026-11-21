@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.CommitStack.Names
+public import NativeRustcVmArm.Code.Vm.Ladder.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadCommitment.Names
 public import NativeRustcVmArm.Layout.CommitStack.Exec
 public import NativeRustcVmArm.Layout.Ladder.Table
 public import NativeRustcVmArm.Layout.Common
@@ -71,11 +74,11 @@ variable [Host] {k : Nat}
 
 /-- **`commit_stack`'s contract.** -/
 theorem commitStack_spec (hp : Placed code k)
-    (hlad : Spec (Labels.label ladderLabel) LadderPre LadderPost)
-    (hrc : ∀ a s, Spec (Labels.label readCommitmentLabel) (ReadCommitmentPre a s)
+    (hlad : Spec (Labels.label NativeRustcVmArm.Vm.Ladder.entryLabel) LadderPre LadderPost)
+    (hrc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s)
       (ReadCommitmentPost a s))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label commitStackLabel) (CommitStackPre a s) (CommitStackPost a s) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.CommitStack.entryLabel) (CommitStackPre a s) (CommitStackPost a s) := by
   intro m0 ⟨hst, hrcA, hro, hts, htok, hroots⟩
   rw [stack_eq] at hst hrcA hro htok
   set t := m0.regs.X0.toBitVec with ht
@@ -105,7 +108,7 @@ theorem commitStack_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (show _ = fb + BitVec.ofInt 64 ((192 : Nat) : Int) from frameBase_add.symm)
       trivial trivial trivial trivial
-  rw [show Labels.label commitStackLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.CommitStack.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.CommitStack.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.CommitStack.entryOffset) NativeRustcVmArm.Vm.CommitStack.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st0 hm1 hpc1 ↦ ?_
   obtain ⟨okp, okw, ok0, ok1, ok2, ok19, ok20⟩ := ok_b0
   rw [← after_eq run_b0] at hm1
@@ -159,7 +162,7 @@ theorem commitStack_spec (hp : Placed code k)
   have hm2 : Match env1 retS st1.data :=
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       ((congrArg id hf1.sp).trans (eval_ptr00 _ rfl).symm) trivial trivial trivial trivial
-  have hpc2' : st1.pc = Host.addrOf (k + 8) := hpc2
+  have hpc2' : st1.pc = Host.addrOf (k + NativeRustcVmArm.Vm.CommitStack.b1Offset) := hpc2
   have hd1 : env1.mem0 = st1.data.dmem := rfl
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1 hpc2' hm2
     fun st2 hm3 hpc3 ↦ ?_
@@ -194,7 +197,7 @@ theorem commitStack_spec (hp : Placed code k)
     simp only [SBool.eval, Sym.eval, CmpOp.apply, Sym.low_W64, hl0] at hpc3
     simp only [show ((1 : UInt64).toBitVec == BitVec.ofNat 64 0) = false by decide,
       Bool.false_eq_true, ↓reduceIte] at hpc3
-    rw [show b1.length = 2 from rfl] at hpc3
+    rw [NativeRustcVmArm.Vm.CommitStack.b1_length, NativeRustcVmArm.Vm.CommitStack.b1Length] at hpc3
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) (exec_after run_b1 run_b2) hwf1 hpc3 hm3
       fun st3 hm4 hpc4 ↦ ?_
     rw [← after_eq (exec_after run_b1 run_b2)] at hm4
@@ -204,7 +207,7 @@ theorem commitStack_spec (hp : Placed code k)
     rw [hlen] at hcnt
     have hlc : env1.load 0 152 8 = BitVec.ofNat 64 (nOf m0.regs.X1.toNat) := Layout.load_word hcnt
     simp only [PcOk, SBool.eval, Sym.eval, hlc, count_ok _ (by omega) hn3.2, ↓reduceIte] at hpc4
-    rw [hp.label (j := 20) rfl] at hpc4
+    rw [hp.label (j := NativeRustcVmArm.Vm.CommitStack.b4Offset) NativeRustcVmArm.Vm.CommitStack.label_3_at] at hpc4
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp)
       (exec_after (exec_after run_b1 run_b2) run_b4) hwf1 hpc4 hm4 fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨oke, okmem, okx0, okx1, okx2⟩ := ok_b4
@@ -279,7 +282,7 @@ theorem commitStack_spec (hp : Placed code k)
     simp only [SBool.eval, Sym.eval, CmpOp.apply, Sym.low_W64, hl0] at hpc3
     simp only [show ((0 : UInt64).toBitVec == BitVec.ofNat 64 0) = true by decide,
       ↓reduceIte] at hpc3
-    rw [hp.label (j := 14) rfl] at hpc3
+    rw [hp.label (j := NativeRustcVmArm.Vm.CommitStack.b3Offset) NativeRustcVmArm.Vm.CommitStack.label_2_at] at hpc3
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) (exec_after run_b1 run_b3) hwf1 hpc3 hm3
       fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨oke, okmem, okx0⟩ := ok_b3

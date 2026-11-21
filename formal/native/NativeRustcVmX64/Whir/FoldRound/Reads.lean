@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRound.Check
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
 # `fold_round` on x86-64: the four reads and the grind
@@ -56,16 +57,16 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : Mac
 
 /-- **The first read** (`b0`, `b1`). -/
 theorem read1 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (cont : ∀ (x1 : EW) (s1 : TState) (st : MachineState), readScalar.run s0 = some (x1, s1) →
-      st.pc = Host.addrOf (k + 15) → Bd m0 a s1 st.data →
+      st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b2Offset) → Bd m0 a s1 st.data →
       WordAt st.data.dmem (off (fb m0) 16) x1.c0 → WordAt st.data.dmem (off (fb m0) 24) x1.c1 →
       reg st.data .r13 = tA m0 → Eventually (step1 Host.exe) (Goal a s0 w m0) st) :
-    Eventually (step1 Host.exe) (Goal a s0 w m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 w m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b0Offset)⟩ := by
   have cx := ctx h
   have hwf := cx.wf0 (d := m0) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) (fun _ h ↦ h)
-  have hm0 : Match (frameEnv m0 m0 176 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b0Offset + b0.length)).toBitVec) (fun _ h ↦ h)
+  have hm0 : Match (frameEnv m0 m0 176 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b0Offset + b0.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨Transcript.match_rsp, trivial⟩ trivial trivial trivial
   refine exec_then (inf hp b0_in_code (by simp [b0])) run_b0 hwf (fun _ _ ↦ rfl) hm0
@@ -79,26 +80,26 @@ theorem read1 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
       cx.ts_frame (hm1.kept hwf) (by omega) hs1 h.2.1⟩
   refine readCheck hp h hrs hat (fun q hq ↦ hs1 q fun h' ↦ hq (.inl (cx.frame_stack h')))
     ((hm1.regs .rdi _ hdi).trans (Transcript.eval_ptr0 8)) (hm1.regs .rsi _ hsi)
-    (hm1.regs .rbx _ hbx) (hm1.regs .r14 _ h14) (j := 13) hpc1 b1_in_code (by simp [b1]) run_b1
+    (hm1.regs .rbx _ hbx) (hm1.regs .r14 _ h14) (j := NativeRustcVmX64.Vm.FoldRound.b1Offset) hpc1 b1_in_code (by simp [b1]) run_b1
     (after_eq run_b1 ▸ ok_b1) c_b1 (fun hr ↦ by simp only [foldRound_run, hr, Option.bind_none])
     fun x s' st hr hpc hbd h16 h24 _ hcs ↦
       cont x s' st hr hpc hbd h16 h24 ((hcs .r13 rfl).trans (hm1.regs .r13 _ h13))
 
 /-- **The second read** (`b2`, `b3`): the first scalar in R12, RBP. -/
 theorem read2 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {x1 : EW} {s1 : TState} {st : MachineState} (h1 : readScalar.run s0 = some (x1, s1))
-    (hpc : st.pc = Host.addrOf (k + 15)) (hb : Bd m0 a s1 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b2Offset)) (hb : Bd m0 a s1 st.data)
     (w16 : WordAt st.data.dmem (off (fb m0) 16) x1.c0)
     (w24 : WordAt st.data.dmem (off (fb m0) 24) x1.c1) (h13 : reg st.data .r13 = tA m0)
     (cont : ∀ (x2 : EW) (s2 : TState) (st' : MachineState), readScalar.run s1 = some (x2, s2) →
-      st'.pc = Host.addrOf (k + 22) → Bd m0 a s2 st'.data →
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b4Offset) → Bd m0 a s2 st'.data →
       WordAt st'.data.dmem (off (fb m0) 16) x2.c0 → WordAt st'.data.dmem (off (fb m0) 24) x2.c1 →
       reg st'.data .r13 = tA m0 → reg st'.data .r12 = x1.c0.toBitVec →
       reg st'.data .rbp = x1.c1.toBitVec → Eventually (step1 Host.exe) (Goal a s0 w m0) st') :
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   have cx := ctx h
-  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 15 + b2.length)).toBitVec)
+  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b2Offset + b2.length)).toBitVec)
     hb.fr.fr.kept
   refine exec_at (inf hp b2_in_code (by simp [b2])) run_b2 hwf (fun _ _ ↦ rfl) hpc hb.fr.mid
     fun st1 hm1 hpc1 ↦ ?_
@@ -110,7 +111,7 @@ theorem read2 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
   refine readCheck hp h hrs hat (mem_trans hb.mem hs1 fun q hq ↦ .inl (cx.frame_stack hq))
     ((hm1.regs .rdi _ hdi).trans (Transcript.eval_ptr0 8)) ((hm1.regs .rsi _ hsi).trans h13)
     ((hm1.regs .rbx _ (kept_spec hk (by simp))).trans hb.rbx)
-    ((hm1.regs .r14 _ (kept_spec hk (by simp))).trans hb.r14) (j := 20) hpc1 b3_in_code
+    ((hm1.regs .r14 _ (kept_spec hk (by simp))).trans hb.r14) (j := NativeRustcVmX64.Vm.FoldRound.b3Offset) hpc1 b3_in_code
     (by simp [b3]) run_b3 (after_eq run_b3 ▸ ok_b3) c_b3
     (fun hr ↦ by simp only [foldRound_run, h1, hr, Option.bind_some, Option.bind_none])
     fun x s' st' hr hpc' hbd h16 h24 _ hcs ↦ cont x s' st' hr hpc' hbd h16 h24
@@ -118,15 +119,15 @@ theorem read2 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
 
 /-- **The third read** (`b4`, `b5`): the second scalar in R15 and the frame's word `64`. -/
 theorem read3 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {x1 x2 : EW} {s1 s2 : TState} {st : MachineState} (h1 : readScalar.run s0 = some (x1, s1))
     (h2 : readScalar.run s1 = some (x2, s2))
-    (hpc : st.pc = Host.addrOf (k + 22)) (hb : Bd m0 a s2 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b4Offset)) (hb : Bd m0 a s2 st.data)
     (w16 : WordAt st.data.dmem (off (fb m0) 16) x2.c0)
     (w24 : WordAt st.data.dmem (off (fb m0) 24) x2.c1) (h13 : reg st.data .r13 = tA m0)
     (h12 : reg st.data .r12 = x1.c0.toBitVec) (hbp : reg st.data .rbp = x1.c1.toBitVec)
     (cont : ∀ (x3 : EW) (s3 : TState) (st' : MachineState), readScalar.run s2 = some (x3, s3) →
-      st'.pc = Host.addrOf (k + 30) → Bd m0 a s3 st'.data →
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b6Offset) → Bd m0 a s3 st'.data →
       WordAt st'.data.dmem (off (fb m0) 16) x3.c0 → WordAt st'.data.dmem (off (fb m0) 24) x3.c1 →
       reg st'.data .r13 = tA m0 → reg st'.data .r12 = x1.c0.toBitVec →
       reg st'.data .rbp = x1.c1.toBitVec → reg st'.data .r15 = x2.c0.toBitVec →
@@ -134,7 +135,7 @@ theorem read3 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
       Eventually (step1 Host.exe) (Goal a s0 w m0) st') :
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   have cx := ctx h
-  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 22 + b4.length)).toBitVec)
+  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b4Offset + b4.length)).toBitVec)
     hb.fr.fr.kept
   refine exec_at (inf hp b4_in_code (by simp [b4])) run_b4 hwf (fun _ _ ↦ rfl) hpc hb.fr.mid
     fun st1 hm1 hpc1 ↦ ?_
@@ -146,7 +147,7 @@ theorem read3 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
   have e64 : WordAt st1.data.dmem (off (fb m0) 64) x2.c1 := by
     have := loc_write hm1 (o := 64) (by omega) hw64
     rwa [show (Sym.load 0 24 8).eval (frameEnv m0 st.data 176 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 22 + b4.length)).toBitVec) = x2.c1.toBitVec from loc_load w24,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b4Offset + b4.length)).toBitVec) = x2.c1.toBitVec from loc_load w24,
       UInt64.ofBitVec_toBitVec] at this
   refine readCheck hp h hrs hat (mem_trans hb.mem hs1 fun q hq ↦ .inl (cx.frame_stack hq))
     ((hm1.regs .rdi _ hdi).trans (Transcript.eval_ptr0 8))

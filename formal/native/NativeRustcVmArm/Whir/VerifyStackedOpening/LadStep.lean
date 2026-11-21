@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Ladder.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.Ladder
 public import NativeRustcVmArm.Spec.Layout
 
@@ -49,7 +51,7 @@ theorem fail_ladder (hp : Placed code k)
     (hnone : Whir.ladder layout.stackLog m0.regs.X2.toNat = none) {st : MachineData}
     (hf : VFr m0 st) :
     Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0)
-      ⟨st, Host.addrOf (k + 165)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b36Offset)⟩ := by
   have hrun : (verifyStackedOpening layout.stackLog m0.regs.X2.toNat
       (stackClaims layout target point coefficients cs z value)).run s = none := by
     rw [vso_run _ _ _ (size_claims_le h), hnone]
@@ -80,13 +82,13 @@ theorem lad_tag [Labels] {st : MachineData} {r : Option (List Whir.Level)}
 /-- **From `b30`**: the `BasisW`'s words, `ladder`, its tag. -/
 theorem ladder_b30 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hlad : Spec (Labels.label ladderLabel) LadderPre LadderPost)
+    (hlad : Spec (Labels.label NativeRustcVmArm.Vm.Ladder.entryLabel) LadderPre LadderPost)
     (cont : ∀ st ls, AtB32 a s layout target cs value ls m0 st →
       Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0)
-        ⟨st, Host.addrOf (k + 143)⟩)
+        ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b32Offset)⟩)
     {st : MachineData} (hb : AtB30 a s layout target cs value m0 st) :
     Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0)
-      ⟨st, Host.addrOf (k + 128)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b30Offset)⟩ := by
   have hc := hb.com
   have hS := h.hS
   have hlin := h.in_ok hc.fr mem_lay
@@ -115,7 +117,7 @@ theorem ladder_b30 (hp : Placed code k)
   have hl16 : env.load 1 16 8 = layout.stackLog.toUInt64.toBitVec := Ring.load_word hlay.stack_log
   have hl24 : env.load 0 24 8 = m0.regs.X4.toBitVec := fw_load hb0 hc.fw (by simp)
   have hl48 : env.load 0 48 8 = m0.regs.X2.toBitVec := fw_load hb0 hc.fw (by simp)
-  have hk30 : b30.IsInfixAt Host.prog (k + 128) := b30_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk30 : b30.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b30Offset) := b30_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk30 run_b30 hwf hm fun st1 hm1 hpc1 ↦ ?_
   have hf1 : VFr m0 st1.data := Fr.ofBlockW hc.fr hm hm1 hwf rfl rfl
     (fun _ h ↦ absurd h (by simp)) rfl (by rw [stack_eq]; decide) h.hN slots_le
@@ -209,7 +211,7 @@ theorem ladder_b30 (hp : Placed code k)
                    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp) hwb
   -- `b31`: the tag
   obtain ⟨hwf3, hm3⟩ := h.frame_env hf2
-  have hk31 : b31.IsInfixAt Host.prog (k + 141) := b31_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk31 : b31.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b31Offset) := b31_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk31 run_b31 hwf3 hm3 fun st3 hm3' hpc3 ↦ ?_
   have hc3 : Common a s layout cs m0 st3.data := hc2.blk hm3 hm3' hwf3 rfl rfl (by decide)
   have hd3 : st3.data.dmem = m2.dmem := hm3'.dmem_eq hwf3 rfl
@@ -219,7 +221,7 @@ theorem ladder_b30 (hp : Placed code k)
   cases hl : Whir.ladder layout.stackLog m0.regs.X2.toNat with
   | none =>
     simp only [hl, Option.isNone_none, ↓reduceIte] at hpc3
-    rw [show Labels.label ".LVerifyStackedOpening_27" = Host.addrOf (k + 165) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.label_27 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b36Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyStackedOpening.b36Offset) NativeRustcVmArm.Vm.VerifyStackedOpening.label_27_at]
       at hpc3
     obtain ⟨d3, pc3⟩ := st3
     simp only at hpc3
@@ -229,7 +231,7 @@ theorem ladder_b30 (hp : Placed code k)
     simp only [hl, Option.isNone_some, Bool.false_eq_true, ↓reduceIte] at hpc3
     rw [hl] at hL
     obtain ⟨-, hlen, hcnt, hlv⟩ := hL
-    have hb31 : b31.length = 2 := rfl
+    have hb31 : b31.length = NativeRustcVmArm.Vm.VerifyStackedOpening.b31Length := NativeRustcVmArm.Vm.VerifyStackedOpening.b31_length
     rw [hb31] at hpc3
     obtain ⟨d3, pc3⟩ := st3
     simp only at hpc3

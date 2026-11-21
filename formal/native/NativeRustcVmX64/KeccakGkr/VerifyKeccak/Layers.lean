@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Copies
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Exit
+public import NativeRustcVmX64.Code.Vm.VerifyKeccak.Names
+public import NativeRustcVmX64.Code.Vm.VerifyLayer.Names
 
 /-!
 # `verify_keccak`: one layer (x86-64)
@@ -25,7 +27,7 @@ public section
 
 /-- `verify_layer`'s check: `test %al, %al`, `je .LVerifyKeccak_31`. -/
 abbrev alFail : Exit :=
-  .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) ".LVerifyKeccak_31"
+  .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) NativeRustcVmX64.Vm.VerifyKeccak.label_31
 
 /-- **`verify_layer`'s footprint.** -/
 theorem areas_vl [Labels] {m0 : MachineData} {a : DecArea} {inst : Array EW} (c : Ctx a inst m0)
@@ -96,11 +98,11 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 /-- **One layer**: the block `ds` at `p0` (from `T`) ending in `verify_layer`'s call for step
 `j`, the check `ds2` (from `tL`). -/
 theorem layerStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hvl : ∀ s c, Spec (Labels.label verifyLayerLabel) (VerifyLayerPre a s c)
+    (hvl : ∀ s c, Spec (Labels.label NativeRustcVmX64.Vm.VerifyLayer.entryLabel) (VerifyLayerPre a s c)
       (VerifyLayerPost a s c))
     {j : Nat} (hj : j < keccakDepth) {T : SState} {p0 : Nat} {ds ds2 : List Directive}
     (hds : ds.IsInfixAt code p0) (hne : ds ≠ []) {S' : SState}
-    (hrun : exec ds T = some (S', .call verifyLayerLabel)) (hw0 : frameW S' = true)
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.VerifyLayer.entryLabel)) (hw0 : frameW S' = true)
     (hokS : okL (wsL S') = true) (hmS : missL (wsL S') 992 768 = true)
     (hok1 : okL (wsL S' ++ (0, 48) :: [(992, 768)]) = true)
     (hm1 : missL (wsL S' ++ (0, 48) :: [(992, 768)]) 1768 768 = true)

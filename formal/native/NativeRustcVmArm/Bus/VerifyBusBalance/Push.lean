@@ -1,11 +1,15 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmArm.Code.Vm.Kpow.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.PushPre
 
 /-!
 # `verify_bus_balance`'s push side
 
-From `b37` (`k + 502`), after `computed_bytecode_value`: `b37` writes the closure's environment
+From `b37` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b37Offset`), after `computed_bytecode_value`: `b37` writes the closure's environment
 and calls `kpow` for `pc_final`; `b38` empties the bus's forms, keeps `pc_final` and the tree's
 third value, and calls `kpow` for `gpow(0)`; `b39` calls the closure for the push side's
 fingerprints; `b40` calls `accumulate_side` on the push side; then the pull side (`push_spec`).
@@ -50,16 +54,16 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The push side** (`b37`, `k + 502`). -/
+/-- **The push side** (`b37`, `k + NativeRustcVmArm.Vm.VerifyBusBalance.b37Offset`). -/
 theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hkp : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hkp : Spec (Labels.label NativeRustcVmArm.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hfc : Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
     {w pt tv mem bp : Array EW} {beta mf bf share : EW} {s' : TState} {m : MachineData}
     (A : AtPush a s0 L m0 w pt tv mem beta mf bf share bp s' m) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 502)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b37Offset)⟩ := by
   have hS := pre_stack h
   have hN := hS.2.1
   have hbus := pre_bus h

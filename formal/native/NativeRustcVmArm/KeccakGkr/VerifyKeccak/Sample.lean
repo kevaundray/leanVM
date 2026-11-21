@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Fin
 
 /-!
@@ -45,8 +48,8 @@ theorem stepGrind (hp : Placed code k) (hn : Nums a inst m0) {m : MachineData} (
     {b : Bool} (hx0 : m.regs.X0 = okWord b) (hfail : b = false → run0 s inst output m0 = none)
     (cont : b = true → ∀ m', Mid m0 m' → m'.dmem = m.dmem →
       (∀ r, calleeSaved r = true → m'.regs.getXReg r = m.regs.getXReg r) →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 36)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 33)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b3Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b2Offset)⟩ := by
   refine blockStep hn (b2_in_code.trans hp.1 (by simp [b2])) run_b2 hmid.fr rfl rfl
     fun st hm1 hfr1 hd hpc ↦ ?_
   obtain ⟨d, pc⟩ := st
@@ -56,8 +59,8 @@ theorem stepGrind (hp : Placed code k) (hn : Nums a inst m0) {m : MachineData} (
       (.lit 0)) = true := by
       sym_simp; simp only [Env.ofMachine_regs, gx0, hx0]; decide
     simp only [hc, ↓reduceIte] at hpc
-    rw [show Labels.label ".LVerifyKeccak_32" = Host.addrOf (k + 445) from
-      hp.label (j := 445) rfl] at hpc
+    rw [show Labels.label NativeRustcVmArm.Vm.VerifyKeccak.label_32 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b73Offset) from
+      hp.label (j := NativeRustcVmArm.Vm.VerifyKeccak.b73Offset) NativeRustcVmArm.Vm.VerifyKeccak.label_32_at] at hpc
     subst hpc
     refine goal_exit hp hn hfr1 ?_ fun _ _ _ _ hr ↦ by rw [hfail rfl] at hr; cases hr
     rw [hfail rfl]
@@ -66,7 +69,7 @@ theorem stepGrind (hp : Placed code k) (hn : Nums a inst m0) {m : MachineData} (
       (.lit 0)) = false := by
       sym_simp; simp only [Env.ofMachine_regs, gx0, hx0]; decide
     simp only [hc, Bool.false_eq_true, ↓reduceIte] at hpc
-    rw [show k + 33 + b2.length = k + 36 from rfl] at hpc
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b2Offset + b2.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b2_next]] at hpc
     subst hpc
     have hwf := envM_wf hn hmid.fr
     exact cont rfl d ⟨hfr1, hmid.regs.block (matchM hn hmid.fr) hm1 (by decide),
@@ -96,12 +99,12 @@ and the stack below the frame. -/
 
 /-- **`sample_challenges(t, frame + o, n)`**, after a block writing only the output. -/
 theorem scStep (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
     {ds : List Directive} {i : Nat} {S' : SState} {o n : Nat} {s1 : TState} {m : MachineData}
     {R : MachineState → Prop}
     (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call sampleChallengesLabel))
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel))
     (hmid : Mid m0 m) (hts : TStateAt m.dmem (tA m0) a s1)
     (hcl : NativeRustcVm.Layout.ClaimsWAt m.dmem (clA m0) cs)
     (hsp : S'.sp = .ptr 0 0)
@@ -177,11 +180,11 @@ theorem scStep (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
 
 /-- **`read_scalar(frame + o, t)`**, after a block without writes. -/
 theorem rsStep (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {ds : List Directive} {i : Nat} {S' : SState} {o : Nat} {s1 : TState} {m : MachineData}
     {cs' : Array ColumnClaimW} {R : MachineState → Prop}
     (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call readScalarLabel))
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.TStateReadScalar.entryLabel))
     (hmid : Mid m0 m) (hts : TStateAt m.dmem (tA m0) a s1)
     (hcl : NativeRustcVm.Layout.ClaimsWAt m.dmem (clA m0) cs')
     (hsp : S'.sp = .ptr 0 0) (hmem : S'.mem = [])

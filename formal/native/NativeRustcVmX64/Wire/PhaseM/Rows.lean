@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Mid
+public import NativeRustcVmX64.Code.Vm.RdRows.Names
 
 /-!
 # `phase_m`: the rows (x86-64)
@@ -27,7 +28,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile LeanVM.Protocol.K
 structure HashSt [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8)
     (c k count : Nat) (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 i : Nat)
     (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 122)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b26Offset)
   bod : Bod m0 8 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   rd : ReaderAt st.data.dmem (RD m0) bp B c6
@@ -81,7 +82,7 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 
 /-- **The rows.** -/
 theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hrows : Spec (Labels.label rdRowsLabel) RdRowsPre RdRowsPost)
+    (hrows : Spec (Labels.label NativeRustcVmX64.Vm.RdRows.entryLabel) RdRowsPre RdRowsPost)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c) {count : Nat} {qs : List Nat}
     {height lw rw c5 : Nat} {st : MachineState} (h : Pre23 m0 bp B c k count qs height lw rw c5 st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
@@ -138,7 +139,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
   have hf56 : FW m0 s1.data.dmem 56 (UInt64.ofBitVec (wa m0 352512)) := by
     have := wordAt_write hm1 (r := 0) (o := 56) rfl (by omega) h56
     have e : (Sym.bin .add .W64 (.reg .r14) (.lit 352512)).eval (frameEnv m0 st.data 160 []
-        (fun _ ↦ 0) (Host.addrOf (k + 101 + b23.length)).toBitVec) = wa m0 352512 := by
+        (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b23Offset + b23.length)).toBitVec) = wa m0 352512 := by
       show BinOp.apply .add .W64 (reg st.data .r14) (BitVec.ofNat 64 352512) = _
       rw [hbod.r14, add_off]
     rw [e] at this
@@ -169,8 +170,8 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
         (by rw [hcs1, hRS, hw3]; omega) (by omega) (by rw [hw3]; omega) (by rw [hw3]; omega)
   simp only [PcOk] at hpc1
   refine call_then (env := frameEnv m0 st.data 160 [] (fun _ ↦ 0)
-    (Host.addrOf (k + 101 + b23.length)).toBitVec)
-    (l := "_RNvNtCsemcRClSg8DH_9native_vm4wire7rd_rows") ⟨hpc1.1, hpc1.2⟩ hrows hpre
+    (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b23Offset + b23.length)).toBitVec)
+    (l := NativeRustcVmX64.Vm.RdRows.entryLabel) ⟨hpc1.1, hpc1.2⟩ hrows hpre
     fun s2 hpc2 hrsp2 ⟨hres2, hso2, hsv2⟩ ↦ ?_
   rw [hdi1, hsi1, hcx1, hdx1, hr81] at hres2
   rw [hdi1] at hso2
@@ -214,7 +215,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
   -- `b24`: the rows' check.
   obtain ⟨hok24, hk24⟩ := ok_b24
   refine fblk hp G b24_in_code (by simp [b24]) exit_b24 nofun hok24 (hk24 .r12 (by simp))
-    (hk24 .r14 (by simp)) (hpc2.trans (by rw [show b23.length = 7 from rfl])) hb2
+    (hk24 .r14 (by simp)) (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b23_next)) hb2
     fun s3 hb3 hd3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
   have h15e : ((frameEnv m0 s2.data 160 []).regs .r15).toNat = rw := by
@@ -225,7 +226,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
     rw [c24_eval (frameEnv m0 s2.data 160 []) (a := 2)
       (show (reg s2.data .rax).toNat % 256 = 2 from hres) (by omega)] at hpc3
     simp only [decide_true, Bool.true_or, ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [hmod, hrr]
   rw [hrr] at hres
@@ -256,7 +257,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
   by_cases hbad : 0 < rw ∧ ∀ x ∈ rows, x.getD 0 0 = 0
   · rw [decide_eq_true hbad] at hpc3
     simp only [↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [hmod, hrr]
     exact ite_eq_left_of_eq_true _ _ (eq_true hbad)
@@ -270,7 +271,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
   refine wblk hp G b25_in_code (by simp [b25]) exit_b25 hmid25
     (fun w hw ↦ by rw [hmem25] at hw; simp only [List.mem_singleton] at hw; subst hw; decide)
     (hk25 .r12 (by simp)) (hk25 .r14 (by simp))
-    (hpc3.trans (by rw [show b24.length = 7 from rfl])) hb3 fun s4 hb4 hs4 hkeep4 hm4 hpc4 ↦ ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b24_next)) hb3 fun s4 hb4 hs4 hkeep4 hm4 hpc4 ↦ ?_
   have hmiss : ∀ o, o = 16 ∨ o = 32 ∨ o = 40 ∨ o = 56 → ∀ w ∈ (after b25 frS).mem, w.r = 0 →
       w.off + w.n ≤ o ∨ o + 8 ≤ w.off := fun o ho w hw _ ↦ by
     rw [hmem25] at hw; simp only [List.mem_singleton] at hw; subst hw
@@ -279,7 +280,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
       FW m0 s4.data.dmem o v := fun o v ho hf ↦
     hkeep4 o v (by omega) (hmiss o ho) (by rw [hd3]; exact hk2 o v (by omega) hf)
   have hl16 : (frameEnv m0 s3.data 160 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 115 + b25.length)).toBitVec).load 0 16 8 = lw.toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b25Offset + b25.length)).toBitVec).load 0 16 8 = lw.toUInt64.toBitVec :=
     load_ofMachine (o := 16) rfl (by rw [hd3]; exact hk2 16 _ (by omega) (hk1 16 _ (by omega) hf16))
   have hf64 : FW m0 s4.data.dmem 64 (8 * lw).toUInt64 := by
     have := wordAt_write hm4 (r := 0) (o := 64) rfl (by omega) hw64
@@ -317,7 +318,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B.length)
     · rw [show reg s4.data .rbx = reg s3.data .rbx from hm4.regs .rbx (.reg .rbx) (by decide +kernel),
         show reg s3.data .rbx = reg s2.data .rbx from hm3.regs .rbx (.reg .rbx) (by decide +kernel)]
       exact rk2 .rbx (by simp)
-  refine .done _ (.inr ⟨rows, c6, ⟨hpc4.trans (by rw [show b25.length = 7 from rfl]), hb4, hmid,
+  refine .done _ (.inr ⟨rows, c6, ⟨hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b25_next), hb4, hmid,
     hrd4, by rw [rk4 .rbp (by simp)]; exact hbp, by rw [rk4 .rbx (by simp)]; exact hbx, ?_, ?_, ?_,
     ?_, hf64, hps0, fun i hi ↦ absurd hi (by simp)⟩⟩)
   · rw [show reg s4.data .r9 = _ from hm4.regs .r9 _ hr925]

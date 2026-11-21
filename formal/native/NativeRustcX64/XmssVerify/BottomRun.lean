@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcX64.XmssVerify.WotsCall
 
 /-!
@@ -64,19 +67,19 @@ set_option linter.unusedSimpArgs false in
 /-- **The bottom layer's one-time leaf**: from block 5 to the failure, or to the loop over the
 bottom layer's path from the leaf. -/
 public theorem bottom {k : Nat} (hp : Placed code k)
-    (hwots : Spec (label wotsLeafLabel) WotsLeafPre WotsLeafPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) (P : Pre w m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 66)) (h : Parsed w m₀ st.data)
+    (hwots : Spec (label NativeRustcX64.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost)
+    (hmemcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) (P : Pre w m₀)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b5Offset)) (h : Parsed w m₀ st.data)
     {R : MachineState → Prop}
-    (hfail : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 246) → FailAt w m₀ st'.data →
+    (hfail : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b27Offset) → FailAt w m₀ st'.data →
       Eventually (step1 Host.exe) R st')
     (hok : ∀ (st' : MachineState) (x leaf : List UInt8), leaf0 w = some (x, leaf) →
-      st'.pc = Host.addrOf (k + 90) → TreeAt0 w m₀ leaf st'.data 0 →
+      st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b9Offset) → TreeAt0 w m₀ leaf st'.data 0 →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have C := h.common
   -- Block 5.
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) (Host.addrOf (k + 66 + b5.length)).toBitVec
+  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b5Offset + b5.length)).toBitVec
   have hwf : env.WF := frame_wf P C.kept
   have hm0 : Match env st5 st.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨h.rsp.trans (ad_int m₀ 24).symm,
@@ -229,7 +232,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
         none from hl]
     refine hfail st₃ ?_ ⟨C₃, hrsp₃, hfalse⟩
     rw [hpc₃, Sym.ite_pos (by decide)]
-    exact hp.label (j := 246) (by decide +kernel)
+    exact hp.label NativeRustcX64.Xmss.XmssVerify.label_10_at
   | some xl =>
     obtain ⟨x, leaf⟩ := xl
     rw [hl] at hout₂
@@ -239,7 +242,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
     rw [List.take_of_length_le (by rw [length_bytesOf]), hd₂, List.cons.injEq] at hout'
     obtain ⟨h1b, hrest⟩ := hout'
     simp only [PcOk, hcond 1 (.inr rfl) h1b] at hpc₃
-    have hpc₃' : st₃.pc = Host.addrOf (k + 81) := by
+    have hpc₃' : st₃.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b7Offset) := by
       rw [hpc₃, Sym.ite_neg (by decide)]
       rfl
     have hxl₂ : BytesAt st₂.data.dmem (ad m₀ (fr + 185)) (x ++ leaf) := by
@@ -247,7 +250,7 @@ public theorem bottom {k : Nat} (hp : Placed code k)
       exact bytesAt_bytesOf (C₂.mapped P (by fro))
     -- Block 7.
     let env₃ := Env.ofMachine st₃.data [frR m₀] (fun _ => 0)
-      (Host.addrOf (k + 81 + b7.length)).toBitVec
+      (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b7Offset + b7.length)).toBitVec
     have hwf₃ : env₃.WF := frame_wf P C₃.kept
     have hm₃' : Match env₃ (stF []) st₃.data :=
       match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp₃.trans (ad_int m₀ 24).symm, trivial⟩ trivial

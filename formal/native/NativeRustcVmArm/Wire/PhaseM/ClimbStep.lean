@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ClimbLevel.Names
 public import NativeRustcVmArm.Wire.PhaseM.Climb
 
 /-!
@@ -71,7 +72,7 @@ theorem wa_apart' [Labels] (G : Geo m0 bp B) {o n o' n' : Nat} (h : o + n ≤ wo
 
 /-- **A level of the climb.** -/
 theorem climb_step (hp : Placed code k) (G : Geo m0 bp B)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
+    (hcl : Spec (Labels.label NativeRustcVmArm.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
     {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 l : Nat}
     {acc : List (List (Nat × Digest))} {ns : List (Nat × Digest)} {cl : Nat} {st : MachineState}
     (h : ClimbSt m0 bp B c k count qs height lw rows c6 l acc ns cl st) :
@@ -268,7 +269,7 @@ theorem climb_step (hp : Placed code k) (G : Geo m0 bp B)
       rw [SBool.eval, cmp_eq_lit (v := 0) (by decide)
         (by simp only [Env.ofMachine_regs]; rw [x0_bv hpost']; rfl)]; rfl
     simp only [PcOk, hc, ↓reduceIte] at hpc4
-    refine .done _ (.inl ⟨hpc4.trans (hp.label (j := 64) rfl), hb4, ?_⟩)
+    refine .done _ (.inl ⟨hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb4, ?_⟩)
     rw [hM.model]
     apply climbFin_none
     rw [hmod, hh1, climb_none hsib]; rfl
@@ -426,7 +427,7 @@ theorem climb_step (hp : Placed code k) (G : Geo m0 bp B)
     · rw [hm6.regs .X29 _ rfl]; show (frEnv m0 s5.data).load 0 24 8 = _
       rw [load_fw hf24]
   · simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc5
-    refine .done _ (.inr (.inl ⟨_, _, c', hpc5.trans (hp.label (j := 142) rfl), hb5, hM5,
+    refine .done _ (.inr (.inl ⟨_, _, c', hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b31Offset) NativeRustcVmArm.Vm.PhaseM.label_23_at), hb5, hM5,
       by simp [hal], hmod5, by omega, by omega, hacc', hnd5, hrd5, hf24, ex21, ex24, ex26, ?_, ?_,
       ?_, ?_, ?_⟩))
     · show (s5.data.regs.getXReg .X25).toBitVec.toNat = _

@@ -128,7 +128,7 @@ theorem entry_spec (hp : Placed code R.k) (G : Geo R) :
       rw [← ofNat_toNat' (R.m0.regs.get64 .rsi)]
       exact qend
   simp only [PcOk, SBool.eval, Sym.eval, eq_eval, and_self_eval, hh0] at hpc1
-  rw [hp.label (j := 157) rfl, show R.k + 0 + b0.length = R.k + 17 from rfl] at hpc1
+  rw [hp.label NativeRustcVmX64.Vm.WriteOpenings.label_20_at, show R.k + NativeRustcVmX64.Vm.WriteOpenings.b0Offset + b0.length = R.k + NativeRustcVmX64.Vm.WriteOpenings.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.WriteOpenings.b0_next]] at hpc1
   by_cases h0 : R.h = 0
   · have he : (stackArg R.m0 0 == BitVec.ofNat 64 0) = true := by
       rw [beq_iff_eq]; exact BitVec.eq_of_toNat_eq h0

@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqEval.Names
+public import NativeRustcVmArm.Code.Vm.GluedEval.Names
+public import NativeRustcVmArm.Code.Vm.InducedWeight.Names
 public import NativeRustcVmArm.Whir.GluedEval.Exec
 public import NativeRustcVmArm.Whir.MathFrame
 
@@ -43,13 +46,13 @@ variable [Host] {k : Nat}
 
 /-- **`glued_eval`'s contract.** -/
 theorem gluedEval_spec (hp : Placed code k)
-    (heq : Spec (label eqEvalLabel) EqEvalPre EqEvalPost)
-    (hind : Spec (label inducedWeightLabel) InducedWeightPre InducedWeightPost)
-    (g : GluedClaimW) : Spec (label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g) := by
+    (heq : Spec (label NativeRustcVmArm.Vm.EqEval.entryLabel) EqEvalPre EqEvalPost)
+    (hind : Spec (label NativeRustcVmArm.Vm.InducedWeight.entryLabel) InducedWeightPre InducedWeightPost)
+    (g : GluedClaimW) : Spec (label NativeRustcVmArm.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g) := by
   intro m ⟨hS, hg, hgin, hx, hout⟩
   obtain ⟨hsle1, hsle2, hsle3⟩ := stack_le
-  rw [show Labels.label gluedEvalLabel = Host.addrOf (k + 0) from hp.label rfl]
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  rw [show Labels.label NativeRustcVmArm.Vm.GluedEval.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.GluedEval.b0Offset) from hp.label NativeRustcVmArm.Vm.GluedEval.entry_at]
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GluedEval.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let p := m.regs.X1.toBitVec
   let fb := m.regs.SP.toBitVec - BitVec.ofNat 64 16
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hsle2
@@ -77,8 +80,8 @@ theorem gluedEval_spec (hp : Placed code k)
     obtain ⟨hkind, hzlen, hzw, hzs⟩ := hw
     rw [hload hkind, show ((0 : UInt64).toBitVec == BitVec.ofNat 64 0) = true from rfl] at hpc1
     simp only [↓reduceIte] at hpc1
-    rw [show Labels.label ".LGluedEval_2" = Host.addrOf (k + 19) from hp.label rfl] at hpc1
-    have hk2 : b2.IsInfixAt Host.prog (k + 19) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    rw [show Labels.label NativeRustcVmArm.Vm.GluedEval.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.GluedEval.b2Offset) from hp.label (j := NativeRustcVmArm.Vm.GluedEval.b2Offset) NativeRustcVmArm.Vm.GluedEval.label_2_at] at hpc1
+    have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GluedEval.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_at hk2 (exec_after run_b0 run_b2) hwf hpc1 hm1 fun st2 hm2 hpc2 ↦ ?_
     have hfr : Frame m 16 gluedEvalStack slots [⟨m.regs.X0.toBitVec, 24⟩] st2.data :=
       Frame.of_entry hS hsle2 hwf hm2 rfl (after_eq (exec_after run_b0 run_b2) ▸ b2_frame).1
@@ -130,8 +133,8 @@ theorem gluedEval_spec (hp : Placed code k)
     have hpt : slice st2.data st2.data.regs.X2 st2.data.regs.X3 = slice m m.regs.X2 m.regs.X3 := by
       rw [hx2, hx3, slice, slice, NativeRustcVm.ewsOf_congr fun i hi ↦ hkeep hx.1.2 hxap i hi]
     rw [hz, hpt] at hval
-    have hpc3' : st3.pc = Host.addrOf (k + 32) := hpc3
-    have hk3 : b3.IsInfixAt Host.prog (k + 32) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GluedEval.b3Offset) := hpc3
+    have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GluedEval.b3Offset) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
     let o := m.regs.X0.toBitVec
     let env3 := Env.ofMachine st3.data [(fb, 16), (o, 24)]
     have hwf3 : env3.WF :=
@@ -171,7 +174,7 @@ theorem gluedEval_spec (hp : Placed code k)
     obtain ⟨hkind, hmu, hmuw, ⟨hql, hqw, hqs⟩, ⟨hwl, hww, hws⟩⟩ := hw
     rw [hload hkind, show ((1 : UInt64).toBitVec == BitVec.ofNat 64 0) = false from rfl] at hpc1
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc1
-    have hk1 : b1.IsInfixAt Host.prog (k + 5) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GluedEval.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_at hk1 (exec_after run_b0 run_b1) hwf hpc1 hm1 fun st2 hm2 hpc2 ↦ ?_
     have hd2 : st2.data.dmem = m.dmem := hm2.dmem_eq hwf rfl
     have hsv2 : Saved m st2.data :=

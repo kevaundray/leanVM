@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.States
 public import NativeRustcVmX64.Code.Vm.KeccakOpen
+public import NativeRustcVmX64.Code.Vm.KeccakOpen.Names
+public import NativeRustcVmX64.Code.Vm.SlotWeights.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
 public meta import NativeRustcVmX64.KeccakGkr.KeccakOpen.States
 public meta import NativeRustcVmX64.Code.Vm.KeccakOpen
 
@@ -42,7 +45,7 @@ theorem f0 : b0.length = 20 ∧ ProOk 2208 0 slots (after b0 e0S) = true ∧
   rw [after_eq e0]; decide +kernel
 
 theorem x0 : exec b0 e0S = some (after b0 e0S, .call
-    "_RINvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB6_6TState8sumcheckNCNvB2_14sumcheck_plain0EB8_") :=
+    NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) :=
   e0.trans (by rw [after_eq e0])
 
 theorem f1 : b1.length = 2 ∧ MidOk 2208 8 slots (after b1 (pS [])) = true ∧
@@ -51,7 +54,7 @@ theorem f1 : b1.length = 2 ∧ MidOk 2208 8 slots (after b1 (pS [])) = true ∧
   rw [after_eq e1]; decide +kernel
 
 theorem x1 : exec b1 (pS []) = some (after b1 (pS []),
-    .cond (.not (.cmp .eq .W32 (.load 0 88 4) (.lit 1))) ".LKeccakOpen_2") :=
+    .cond (.not (.cmp .eq .W32 (.load 0 88 4) (.lit 1))) NativeRustcVmX64.Vm.KeccakOpen.label_2) :=
   e1.trans (by rw [after_eq e1])
 
 theorem f2 : b2.length = 13 ∧ MidOk 2208 0 slots (after b2 (pS [])) = true ∧
@@ -66,7 +69,7 @@ theorem f2 : b2.length = 13 ∧ MidOk 2208 0 slots (after b2 (pS [])) = true ∧
   rw [after_eq e2]; decide +kernel
 
 theorem x2 : exec b2 (pS []) = some (after b2 (pS []),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr12slot_weights") :=
+    .call NativeRustcVmX64.Vm.SlotWeights.entryLabel) :=
   e2.trans (by rw [after_eq e2])
 
 theorem f3 : b3.length = 2 ∧ MidOk 2208 8 slots (after b3 (pS [])) = true ∧
@@ -74,7 +77,7 @@ theorem f3 : b3.length = 2 ∧ MidOk 2208 8 slots (after b3 (pS [])) = true ∧
   rw [after_eq e3]; decide +kernel
 
 theorem x3 : exec b3 (pS []) = some (after b3 (pS []),
-    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) ".LKeccakOpen_2") :=
+    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) NativeRustcVmX64.Vm.KeccakOpen.label_2) :=
   e3.trans (by rw [after_eq e3])
 
 theorem f4 : b4.length = 7 ∧ MidOk 2208 8 slots (after b4 (pS [(.r15, P)])) = true ∧
@@ -91,7 +94,7 @@ theorem f93 : b93.length = 7 ∧ MidOk 2208 8 slots (after b93 outS) = true ∧
     (after b93 outS).reg .rbx = some (.load 0 64 8) ∧ (after b93 outS).reg .rax = some (.lit 1) := by
   rw [after_eq e93]; decide +kernel
 
-theorem x93 : exec b93 outS = some (after b93 outS, .jump ".LKeccakOpen_3") :=
+theorem x93 : exec b93 outS = some (after b93 outS, .jump NativeRustcVmX64.Vm.KeccakOpen.label_3) :=
   e93.trans (by rw [after_eq e93])
 
 theorem f94 : b94.length = 2 ∧ MidOk 2208 8 slots (after b94 (pS [])) = true ∧

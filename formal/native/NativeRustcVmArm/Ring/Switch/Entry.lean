@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
 public import NativeRustcVmArm.Ring.Switch.Steps
 
 /-!
@@ -58,14 +60,14 @@ theorem hb {ds : List Directive} {j : Nat} (h : ds.IsInfixAt code j) (hne : ds �
 
 /-- **The prologue and the grind** (`b0`). -/
 theorem stepEntry (hp : Placed code k) (h : RingSwitchPre a s m0)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     {R : MachineState → Prop}
     (cont : ∀ m2, SFr m0 m2 → m2.regs.getXReg .X19 = m0.regs.X2 →
       m2.regs.getXReg .X20 = m0.regs.X1 → m2.regs.getXReg .X21 = m0.regs.X0 →
       m2.regs.X0 = okWord ((grind LeanVM.Parameters.Whir.batchGrindingBits).run s).isSome →
       NextAt m2.dmem (tA m0) a ((grind LeanVM.Parameters.Whir.batchGrindingBits).run s) →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 10)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b1Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b0Offset)⟩ := by
   have hwf : (Env.ofMachine m0 [(fb m0, 432)]).WF :=
     Env.wf_of ⟨⟨frame_mapped h.1 (by decide), fbw h⟩, trivial⟩ (List.pairwise_singleton _ _)
   have hm : Match (Env.ofMachine m0 [(fb m0, 432)]) entryS m0 :=
@@ -97,7 +99,7 @@ theorem stepEntry (hp : Placed code k) (h : RingSwitchPre a s m0)
     fun m2 hfr2 hq hcs ↦ ?_
   obtain ⟨q0, qn, -, -⟩ := hq
   rw [hbits] at q0 qn
-  rw [show k + 0 + b0.length = k + 10 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingSwitch.b0Offset + b0.length = k + NativeRustcVmArm.Vm.RingSwitch.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingSwitch.b0_next]]
   refine cont m2 hfr2 ?_ ?_ ?_ q0 (by rw [show tA m0 = st.data.regs.X0.toBitVec by rw [e0]; rfl]; exact qn)
   · rw [hcs .X19 rfl]; exact reg_of hm1 (v := .reg .X2) rfl rfl
   · rw [hcs .X20 rfl]; exact reg_of hm1 (v := .reg .X1) rfl rfl
@@ -111,10 +113,10 @@ theorem stepBranch (hp : Placed code k) (h : RingSwitchPre a s m0) {m : MachineD
     {s1 : TState} {b : Bool} (hts : b = true → TStateAt m.dmem (tA m0) a s1)
     (hx0 : m.regs.X0 = okWord b) {R : MachineState → Prop}
     (hnone : ∀ m', SFr m0 m' → m'.dmem = m.dmem → m'.regs.X0 = okWord b → b = false →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 59)⟩)
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b6Offset)⟩)
     (hsome : ∀ m', G1 a s1 m0 m' → m'.regs.X0 = okWord b → b = true →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 11)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 10)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b2Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b1Offset)⟩ := by
   have hwf := envM_wf h hfr
   refine exec_then (hb b1_in_code (by simp [b1]) hp) run_b1 hwf (matchM h hfr)
     fun st hm1 hpc ↦ ?_
@@ -132,7 +134,7 @@ theorem stepBranch (hp : Placed code k) (h : RingSwitchPre a s m0) {m : MachineD
     simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs,
       show m.regs.getXReg .X0 = m.regs.X0 from rfl, hx0, hc, ↓reduceIte] at hpc
     subst hpc
-    rw [show Labels.label ".LRingSwitch_2" = Host.addrOf (k + 59) from hp.label (j := 59) rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.RingSwitch.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b6Offset) from hp.label (j := NativeRustcVmArm.Vm.RingSwitch.b6Offset) NativeRustcVmArm.Vm.RingSwitch.label_2_at]
     exact hnone d hfr1 hd (e0.trans hx0) rfl
   · have hc : (!(low RegWidth.W32 (okWord true).toBitVec).getLsbD 0) = false := by decide
     simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs,

@@ -1,13 +1,14 @@
 module
 
 public import NativeRustcVmX64.Top.Leanvm.Cond
+public import NativeRustcVmX64.Code.Vm.LeanvmVerify.Names
 
 /-!
 # `leanvm_verify`: the prologue and the checks (x86-64)
 
 From the entry, `b0` saves the registers and reads `L`; `b1` to `b5` check the counts and the
 areas (`Cond`), `b6` reads the bytecode's address and the public input, `b7` checks the bytecode
-when nonempty: `checks`, to `C1` at `.LLeanvmVerify_8`, the frame's slots written, the context's
+when nonempty: `checks`, to `C1` at `NativeRustcVmX64.Vm.LeanvmVerify.label_8`, the frame's slots written, the context's
 values in registers.
 -/
 
@@ -40,25 +41,25 @@ public section
 
 variable [Host] {k : Nat}
 
-theorem lbl_entry (hp : Placed code k) : Labels.label leanvmVerifyLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LLeanvmVerify_8" = Host.addrOf (k + 52) :=
-  hp.label (j := 52) rfl
-theorem lbl_17 (hp : Placed code k) : Labels.label ".LLeanvmVerify_17" = Host.addrOf (k + 69) :=
-  hp.label (j := 69) rfl
-theorem lbl_18 (hp : Placed code k) : Labels.label ".LLeanvmVerify_18" = Host.addrOf (k + 71) :=
-  hp.label (j := 71) rfl
-theorem lbl_15 (hp : Placed code k) : Labels.label ".LLeanvmVerify_15" = Host.addrOf (k + 80) :=
-  hp.label (j := 80) rfl
-theorem lbl_16 (hp : Placed code k) : Labels.label ".LLeanvmVerify_16" = Host.addrOf (k + 95) :=
-  hp.label (j := 95) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.LeanvmVerify.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.LeanvmVerify.entry_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.LeanvmVerify.label_8 = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b8Offset) :=
+  hp.label NativeRustcVmX64.Vm.LeanvmVerify.label_8_at
+theorem lbl_17 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.LeanvmVerify.label_17 = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b12Offset) :=
+  hp.label NativeRustcVmX64.Vm.LeanvmVerify.label_17_at
+theorem lbl_18 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.LeanvmVerify.label_18 = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b13Offset) :=
+  hp.label NativeRustcVmX64.Vm.LeanvmVerify.label_18_at
+theorem lbl_15 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.LeanvmVerify.label_15 = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b14Offset) :=
+  hp.label NativeRustcVmX64.Vm.LeanvmVerify.label_15_at
+theorem lbl_16 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.LeanvmVerify.label_16 = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b16Offset) :=
+  hp.label NativeRustcVmX64.Vm.LeanvmVerify.label_16_at
 
 /-- **The prologue and the checks.** -/
 theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
     {bytecode : List UInt64} {pub : Vector UInt64 4} {m0 : MachineData}
     (hpre : LeanvmVerifyPre a bytes bytecode pub m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 52) ∧
-      C1 a bytes bytecode pub m0 st.data) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b8Offset) ∧
+      C1 a bytes bytecode pub m0 st.data) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b0Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨hst, -, hin, hal, -, -⟩ := hpre
   have hR := g.R
@@ -133,7 +134,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   -- `b1`: `n`.
   obtain ⟨hwf1, hm1'⟩ := envOk _ hf1 hs1 eRdi1
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1 nofun
-    (hpc1.trans (by rw [show k + 0 + b0.length = k + 13 from rfl])) hm1' fun st2 hm2 hpc2 ↦ ?_
+    (hpc1.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b0Offset + b0.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b0_next]])) hm1' fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hmem2, hr142, hrbx2, hrdi2⟩ := after_eq run_b1 ▸ ok_b1
   have hn1 := ldk st1.data 0 hs1 (i := 3) (by decide) hin.bcLen
   simp only [PcOk] at hpc2
@@ -149,7 +150,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   -- `b2`: the decoded area's count.
   obtain ⟨hwf2, hm2'⟩ := envOk _ hf2 hs2 eRdi2
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf2 nofun
-    (hpc2.trans (by rw [show k + 13 + b1.length = k + 16 from rfl])) hm2' fun st3 hm3 hpc3 ↦ ?_
+    (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b1Offset + b1.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b1_next]])) hm2' fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hmem3, hr153, hrbx3, hr143, hrdi3⟩ := after_eq run_b2 ▸ ok_b2
   have h72 := ldk st2.data 0 hs2 (i := 9) (by decide) h9
   simp only [PcOk] at hpc3
@@ -175,7 +176,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   -- `b3`: the working area's count.
   obtain ⟨hwf3, hm3'⟩ := envOk _ hf3 hs3 eRdi3
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf3 nofun
-    (hpc3.trans (by rw [show k + 16 + b2.length = k + 22 from rfl])) hm3' fun st4 hm4 hpc4 ↦ ?_
+    (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b2Offset + b2.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b2_next]])) hm3' fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hmem4, hrbx4, hr144, hr154, hrdi4⟩ := after_eq run_b3 ▸ ok_b3
   have h88 := ldk st3.data 0 hs3 (i := 11) (by decide) h11
   simp only [PcOk] at hpc4
@@ -192,7 +193,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   -- `b4`: the decoded area.
   obtain ⟨hwf4, hm4'⟩ := envOk _ hf4 hs4 eRdi4
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf4 nofun
-    (hpc4.trans (by rw [show k + 22 + b3.length = k + 24 from rfl])) hm4' fun st5 hm5 hpc5 ↦ ?_
+    (hpc4.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b3Offset + b3.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b3_next]])) hm4' fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hmid5, hmem5, hr125, hrbx5, hr145, hr155, hrdi5⟩ := after_eq run_b4 ▸ ok_b4
   have h64 := ldk st4.data 0 hs4 (i := 8) (by decide) hin.decPtr
   simp only [PcOk] at hpc5
@@ -210,7 +211,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   -- `b5`: the working area.
   obtain ⟨hwf5, hm5'⟩ := envOk _ hf5 hs5 eRdi5
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 hwf5 nofun
-    (hpc5.trans (by rw [show k + 24 + b4.length = k + 31 from rfl])) hm5' fun st6 hm6 hpc6 ↦ ?_
+    (hpc5.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b4Offset + b4.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b4_next]])) hm5' fun st6 hm6 hpc6 ↦ ?_
   obtain ⟨hmid6, hmem6, hr136, hr126, hrbx6, hr146, hr156, hrdi6⟩ := after_eq run_b5 ▸ ok_b5
   have h80 := ldk st5.data 0 hs5 (i := 10) (by decide) hin.workPtr
   simp only [PcOk] at hpc6
@@ -229,7 +230,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   -- `b6`: the wire's and the bytecode's addresses, the public input.
   obtain ⟨hwf6, hm6'⟩ := envOk _ hf6 hs6 eRdi6
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf6 nofun
-    (hpc6.trans (by rw [show k + 31 + b5.length = k + 38 from rfl])) hm6' fun st7 hm7 hpc7 ↦ ?_
+    (hpc6.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b5Offset + b5.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b5_next]])) hm6' fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hmem7, hrax7, hrbp7, hr87, hrsi7, hrdx7, hrcx7, hr127, hr137, hrbx7, hr147,
     hr157⟩ := after_eq run_b6 ▸ ok_b6
   have hf7 : Frame m0 112 slots 8 st7.data := Frame.of_block hf6 hwf6 hm7 hmid7 slots_le
@@ -249,7 +250,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
   simp only [PcOk] at hpc7
   rw [cond_zero _ eR146] at hpc7
   rcases Nat.eq_zero_or_pos bytecode.length with hn0 | hn0
-  · -- an empty bytecode: to `.LLeanvmVerify_8`
+  · -- an empty bytecode: to `NativeRustcVmX64.Vm.LeanvmVerify.label_8`
     rw [hn0] at hpc7
     simp only [show (BitVec.ofNat 64 0 == 0) = true from rfl, ↓reduceIte] at hpc7
     exact .done _ ⟨hpc7.trans (lbl_8 hp), hC⟩
@@ -263,7 +264,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
     have hwf7 := frame_wf (m0 := m0) (d := st7.data) (F := 112) (rest := []) (vars := fun _ ↦ 0)
       (ret := 0) ⟨hFm _ hf7.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) run_b7 hwf7 nofun
-      (hpc7.trans (by rw [show k + 38 + b6.length = k + 46 from rfl]))
+      (hpc7.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b6Offset + b6.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b6_next]]))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf7.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st8 hm8 hpc8 ↦ ?_
     obtain ⟨hmid8, hmem8, hk8⟩ := after_eq run_b7 ▸ ok_b7
@@ -273,7 +274,7 @@ theorem checks (hp : Placed code k) {a : Code.Areas} {bytes : List UInt8}
     rw [cond_b7 _ hC.rbp (fun h ↦ hb.1 (UInt64.toBitVec_inj.mp h)) hb.2] at hpc8
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc8
     have hd8 : st8.data.dmem = st7.data.dmem := hm8.dmem_eq hwf7 hmem8
-    exact .done _ ⟨hpc8.trans (by rw [show k + 46 + b7.length = k + 52 from rfl]),
+    exact .done _ ⟨hpc8.trans (by rw [show k + NativeRustcVmX64.Vm.LeanvmVerify.b7Offset + b7.length = k + NativeRustcVmX64.Vm.LeanvmVerify.b8Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LeanvmVerify.b7_next]]),
       ⟨Frame.of_block hC.frame hwf7 hm8 hmid8 slots_le, by rw [hd8]; exact hC.same,
         (hm8.regs .rax _ k0).trans hC.rax, (hm8.regs .rbx _ k8).trans hC.rbx,
         (hm8.regs .rbp _ k1).trans hC.rbp, (hm8.regs .r8 _ k2).trans hC.r8,

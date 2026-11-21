@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.LDefs
 
 /-!
@@ -44,14 +45,14 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **`b15`**: the first claim's bit weights copied to the scratch's `weights`. -/
 theorem scrCopy (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {m : MachineData}
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m : MachineData}
     (hmid : Mid m0 m) {R : MachineState → Prop}
     (cont : ∀ m2 : MachineData, Mid m0 m2 → Chg m0 [] [(1, 25600, 51200)] m.dmem m2.dmem →
       Kept m.dmem m2.dmem →
       (∀ r, calleeSaved r = true → m2.regs.getXReg r = m.regs.getXReg r) →
       Img m.dmem (scA m0) m2.dmem (scA m0 + BitVec.ofNat 64 25600) 25600 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 108)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 103)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b16Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b15Offset)⟩ := by
   have hwf := envM_wf hn hmid.fr
   have hN := hn.hN
   have hsW := hn.sW

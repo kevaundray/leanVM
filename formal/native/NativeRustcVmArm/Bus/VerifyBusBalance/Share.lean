@@ -1,11 +1,17 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmArm.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmArm.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmArm.Code.Vm.Kpow.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.SharePre
 
 /-!
 # `verify_bus_balance`'s bytecode share
 
-From `b32` (`k + 341`), after the claims: `b32` empties the bytecode point and calls
+From `b32` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b32Offset`), after the claims: `b32` empties the bytecode point and calls
 `bytecode_share`; `b33` checks its tag; `b34` keeps the share at `5248` and checks the point's
 length (`< 68`); `b35` calls `computed_bytecode_value`; `b36` checks it; then the push side
 (`share_spec`).
@@ -20,20 +26,20 @@ open NativeRustcVm.Layout NativeRustcVmArm.Bus.Gkr
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The bytecode share** (`b32`, `k + 341`). -/
+/-- **The bytecode share** (`b32`, `k + NativeRustcVmArm.Vm.VerifyBusBalance.b32Offset`). -/
 theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hbs : ∀ a s, Spec (Labels.label bytecodeShareLabel) (BytecodeSharePre a s)
+    (hbs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.BytecodeShare.entryLabel) (BytecodeSharePre a s)
       (BytecodeSharePost a s))
-    (hcbv : Spec (Labels.label computedBytecodeValueLabel) ComputedBytecodeValuePre
+    (hcbv : Spec (Labels.label NativeRustcVmArm.Vm.ComputedBytecodeValue.entryLabel) ComputedBytecodeValuePre
       ComputedBytecodeValuePost)
-    (hkp : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hkp : Spec (Labels.label NativeRustcVmArm.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hfc : Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
     {w pt tv mem : Array EW} {beta mf bf : EW} {s3 : TState} {m : MachineData}
     (A : AtShare a s0 L m0 w pt tv mem beta mf bf s3 m) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 341)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b32Offset)⟩ := by
   have hS := pre_stack h
   have hN := hS.2.1
   have c := ctx h
@@ -136,7 +142,7 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     · exact NativeRustcVm.Apart.not_inRange (pre_cl h).2.2.1 hc (pre_ts h).footprint.1.2 hin hq
   have R2 : RegsEq [.X19, .X20, .X21, .X22, .X23, .X24, .X25, .X26, .X27, .X29] st1.data m2 :=
     regsEq_call hcs2 (by decide)
-  rw [show b32.length = 144 by decide +kernel]
+  rw [NativeRustcVmArm.Vm.VerifyBusBalance.b32_length, NativeRustcVmArm.Vm.VerifyBusBalance.b32Length]
   cases hr : (bytecodeShare w (pt.extract 0 L.logBytecode)).run s3 with
   | none =>
     rw [hr] at hopt

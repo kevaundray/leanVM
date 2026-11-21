@@ -1,5 +1,15 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EachRowOfNextLevel.Names
+public import NativeRustcVmArm.Code.Vm.FoldRow.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
+public import NativeRustcVmArm.Code.Vm.LanesOf.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.NovelEval.Names
+public import NativeRustcVmArm.Code.Vm.RowsRow.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceAtTable.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceTable.Names
 public import NativeRustcVmArm.Whir.EachRowOfNextLevel.IterA
 
 /-!
@@ -24,21 +34,21 @@ variable [Host] {k : Nat}
 
 /-- **`each_row` with `next_level`'s closure meets its contract.** -/
 theorem eachRowNext_spec (hp : Placed code k)
-    (htab : Spec (label subspaceTableLabel) SubspaceTablePre SubspaceTablePost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hlanes : Spec (label lanesOfLabel) LanesOfPre LanesOfPost)
-    (hfold : Spec (label foldRowLabel) FoldRowPre FoldRowPost)
-    (hsat : Spec (label subspaceAtTableLabel) SubspaceAtTablePre SubspaceAtTablePost)
-    (hnov : Spec (label novelEvalLabel) NovelEvalPre NovelEvalPost)
-    (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+    (htab : Spec (label NativeRustcVmArm.Vm.SubspaceTable.entryLabel) SubspaceTablePre SubspaceTablePost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hlanes : Spec (label NativeRustcVmArm.Vm.LanesOf.entryLabel) LanesOfPre LanesOfPost)
+    (hfold : Spec (label NativeRustcVmArm.Vm.FoldRow.entryLabel) FoldRowPre FoldRowPost)
+    (hsat : Spec (label NativeRustcVmArm.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost)
+    (hnov : Spec (label NativeRustcVmArm.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost)
+    (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (rows : Array (Array UInt64)) (op : BitVec 64)
-    (hrow : Spec (label rowsRowLabel) (RowsRowPre op rows) (RowsRowPost op rows)) :
-    Spec (label eachRowNextLabel) (EachRowNextPre rows op) (EachRowNextPost rows) := by
+    (hrow : Spec (label NativeRustcVmArm.Vm.RowsRow.entryLabel) (RowsRowPre op rows) (RowsRowPost op rows)) :
+    Spec (label NativeRustcVmArm.Vm.EachRowOfNextLevel.entryLabel) (EachRowNextPre rows op) (EachRowNextPost rows) := by
   intro m0 hpre
-  rw [show label eachRowNextLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show label NativeRustcVmArm.Vm.EachRowOfNextLevel.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b0Offset) from hp.label NativeRustcVmArm.Vm.EachRowOfNextLevel.entry_at]
   have loop : ∀ n j m, rows.size - j = n → Inv rows m0 j m →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 63)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b8Offset)⟩ := by
     intro n
     induction n using Nat.strongRecOn with
     | ind n ih =>

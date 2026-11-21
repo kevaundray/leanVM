@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Layout.PlacementsOf.Base
 public import NativeRustcX64.Spec.Mem
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.PlacementsOf.Names
 
 /-!
 # `placements_of` on x86-64: the entry and the first loop (`b0` to `b8`)
@@ -110,15 +112,15 @@ end
 variable [Host] {k : Nat} {m0 : MachineData}
 
 /-- **The entry**: the prologue, `block_cols` and `block_sizes` zeroed, the loop's head. -/
-theorem entry (hp : Placed code k) (hms : Spec (label "memset") MemsetPre MemsetPost)
+theorem entry (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
     (hF : Facts m0) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 32) ∧ I1 m0 0 0 s.data)
-      ⟨m0, Labels.label placementsOfLabel⟩ := by
-  rw [show Labels.label placementsOfLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
-  have hwf0 : (frameEnv m0 m0 5120 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec).WF :=
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b5Offset) ∧ I1 m0 0 0 s.data)
+      ⟨m0, Labels.label NativeRustcVmX64.Vm.PlacementsOf.entryLabel⟩ := by
+  rw [show Labels.label NativeRustcVmX64.Vm.PlacementsOf.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b0Offset) from hp.label NativeRustcVmX64.Vm.PlacementsOf.entry_at]
+  have hwf0 : (frameEnv m0 m0 5120 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b0Offset + b0.length)).toBitVec).WF :=
     frame_wf ⟨frame_mapped hF.stack (by decide), frame_noWrap hF.stack (by decide)⟩ (by simp)
       (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 5120 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 5120 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b0Offset + b0.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
   refine exec_then (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b0 hwf0 (fun _ _ ↦ rfl)
@@ -135,7 +137,7 @@ theorem entry (hp : Placed code k) (hms : Spec (label "memset") MemsetPre Memset
   have hsv2 := hpost2.2.2.2
   -- `b1`: `block_sizes` zeroed
   obtain ⟨hok1, h17, h16, h12, -, hK1⟩ := ok_b1
-  refine run0 (ret := (Host.addrOf (k + 18 + b1.length)).toBitVec) hF
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b1Offset + b1.length)).toBitVec) hF
     (b1_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b1 (fun _ _ ↦ rfl) (hpc2.trans rfl) hb2
     hok1 fun st3 hm3 hpc3 hb3 ↦ ?_
   have hrdi3 : reg st3.data .rdi = off (fb m0) 2544 := (hm3.regs .rdi _ h17).trans (eval_ptr0 2544)
@@ -148,7 +150,7 @@ theorem entry (hp : Placed code k) (hms : Spec (label "memset") MemsetPre Memset
   -- `b2`: the loop's registers
   obtain ⟨hok2, hmem2, hax, h13, hbp, h12', hK2⟩ := ok_b2
   refine step0 hF (b2_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b2 nofun (hpc4.trans rfl)
-    hb4 hok2 hmem2 fun st5 hm5 hpc5 hb5 hd5 ↦ .done _ ⟨hpc5.trans (hp.label (j := 32) rfl), ?_⟩
+    hb4 hok2 hmem2 fun st5 hm5 hpc5 hb5 hd5 ↦ .done _ ⟨hpc5.trans (hp.label NativeRustcVmX64.Vm.PlacementsOf.label_2_at), ?_⟩
   -- the callee-saved registers through the calls
   have hr : ∀ r, calleeSaved r = true → (after b1 bodyS).reg r = some (.reg r) →
       reg st4.data r = reg st1.data r := fun r hc h ↦

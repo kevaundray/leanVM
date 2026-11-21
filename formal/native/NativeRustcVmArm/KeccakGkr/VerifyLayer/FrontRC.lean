@@ -1,13 +1,14 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontIota
 import Mathlib.Tactic.IntervalCases
 
 /-!
 # `verify_layer`'s front: ι's two round constants' bit weights
 
-From `b17` (`k + 214`, the segment kernel in the frame, `AtS`): the first round constant's bit
-weights (`b17`, `bitsA_loop`), the second's (`b19`, `bitsB_loop`), to `b21` (`k + 335`, `AtJ`,
+From `b17` (`k + NativeRustcVmArm.Vm.VerifyLayer.b17Offset`, the segment kernel in the frame, `AtS`): the first round constant's bit
+weights (`b17`, `bitsA_loop`), the second's (`b19`, `bitsB_loop`), to `b21` (`k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset`, `AtJ`,
 `segB_run`); with the segment kernel, `seg_run` from `b15`.
 -/
 
@@ -47,9 +48,9 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The round constants' bit weights**, from `b17` to `b21`. -/
 theorem segB_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {p : Array EW}
-    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 214))
+    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b17Offset))
     (hs : AtS m0 a c p s1 st.data) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 335) → AtJ m0 a c p s1 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset) → AtJ m0 a c p s1 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have g := geo_of h
@@ -71,7 +72,7 @@ theorem segB_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {p : Array E
     match_rc h hs.fb trivial ⟨rfl, trivial⟩ ⟨lt_of_eq_of_lt i11 (by omega), trivial⟩
   refine exec_at (blk hp b17_in_code (by simp [b17])) e17 hwfA hpc hmA fun stA hmA' hpcA ↦ ?_
   have hfbA := fb_blkW h hs.fb hmA' hwfA rfl (by decide)
-  simp only [PcOk, show k + 214 + b17.length = k + 241 from rfl] at hpcA
+  simp only [PcOk, show k + NativeRustcVmArm.Vm.VerifyLayer.b17Offset + b17.length = k + NativeRustcVmArm.Vm.VerifyLayer.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b17_next]] at hpcA
   have rcA := rc_fb h hs.fb
   have xA18 : stA.data.regs.getXReg .X18 = wA m0 :=
     reg_val hmA' rfl (ev_loadx rfl i11 (by omega) (rc_word rcA (by omega)))
@@ -152,7 +153,7 @@ theorem segB_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {p : Array E
       ⟨lt_of_eq_of_lt i23 (by omega), trivial⟩
   refine exec_at (blk hp b19_in_code (by simp [b19])) e19 hwfB hpcB hmB fun stC hmC hpcC ↦ ?_
   have hfbC := fb_blkW h hfbB hmC hwfB rfl (by decide)
-  simp only [PcOk, show k + 274 + b19.length = k + 302 from rfl] at hpcC
+  simp only [PcOk, show k + NativeRustcVmArm.Vm.VerifyLayer.b19Offset + b19.length = k + NativeRustcVmArm.Vm.VerifyLayer.b20Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b19_next]] at hpcC
   have rcB := rc_fb h hfbB
   rw [← hdB] at fwA s920 s928 prodA tsA w112 w72
   have l120B := ld0 (m := stB.data) (b1 := rcAddr) (n0 := 2032) (n1 := 192) (o := 120)
@@ -247,10 +248,10 @@ theorem segB_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {p : Array E
 
 /-- **The segment kernel and the bit weights**, from `b15` to `b21`. -/
 theorem seg_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost) {p : Array EW}
-    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 188))
+    (hek : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost) {p : Array EW}
+    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b15Offset))
     (hi : AtI m0 a c p s1 st.data) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 335) → AtJ m0 a c p s1 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset) → AtJ m0 a c p s1 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st :=
   segA_run hp h hek hpc hi fun _ hpc' hs ↦ segB_run hp h hpc' hs cont

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Arrays.SumE.Exec
 public import NativeRustcVm.Arrays.Folds
+public import NativeRustcVmX64.Code.Vm.SumE.Names
 
 /-!
 # `sum_e` on x86-64
@@ -142,8 +143,8 @@ theorem hb (hp : Placed code k) {b : List Directive} {j : Nat} (hj : b.IsInfixAt
     (hne : b ≠ []) : b.IsInfixAt Host.prog (k + j) :=
   hj.trans hp.1 hne
 
-theorem lbl_entry (hp : Placed code k) : Labels.label sumELabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.SumE.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.SumE.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.SumE.entry_at
 
 /-- The postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
@@ -184,7 +185,7 @@ theorem ret_of {b : List Directive} {kb : Nat} {S : SState} (hk : b.IsInfixAt Ho
 
 /-! ## The tail loop -/
 
-/-- **The tail loop's head** `.LSumE_8`, from value `i0`, `j` more added. -/
+/-- **The tail loop's head** `NativeRustcVmX64.Vm.SumE.label_8`, from value `i0`, `j` more added. -/
 structure TInv (m0 : MachineData) (i0 j : Nat) (s : MachineData) : Prop where
   base : Base m0 s
   lt : i0 + j < len m0
@@ -200,11 +201,11 @@ theorem sixteen_add (i : Nat) :
 
 /-- **The tail loop** (`b8`), then the return (`b9`). -/
 theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i0 j : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 44)) (hI : TInv m0 i0 j s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumE.b8Offset)) (hI : TInv m0 i0 j s.data) :
     Eventually (step1 Host.exe) (Post m0) s := by
   have h16 : len m0 ≤ 16 := hpre.2.1
   have hrV : Readable m0 (addr m0) (16 * len m0) := hpre.2.2
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 44) ∧ ∃ j, len m0 - i0 - j = n ∧
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumE.b8Offset) ∧ ∃ j, len m0 - i0 - j = n ∧
     TInv m0 i0 j s.data) (fun n s ⟨hpc, j, hn, hI⟩ ↦ ?_) ⟨hpc, j, rfl, hI⟩
   have hlt := hI.lt
   have hd := hI.base.dmem
@@ -243,7 +244,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i0 j :
     rw [hI.rdi, sixteen_add]
   have hcx : reg s'.data .rcx = reg s.data .rcx := hm'.regs .rcx (.reg .rcx) rfl
   have hsi : reg s'.data .rsi = reg s.data .rsi := hm'.regs .rsi (.reg .rsi) rfl
-  simp only [PcOk, show b8.length = 6 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmX64.Vm.SumE.b8_length] at hpc'
   rw [eval_not, eval_cmp_eq, eval_add, eval_lit, eval_reg, eval_reg] at hpc'
   rw [show (Env.ofMachine s.data [(addr m0 + BitVec.ofNat 64 (16 * (i0 + j)), 16)]).regs .rcx =
       reg s.data .rcx from rfl,
@@ -257,13 +258,13 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i0 j :
     rw [show len m0 = i0 + (j + 1) by omega, ← hacc]
     rfl
   · refine .done _ (Or.inr ⟨len m0 - i0 - (j + 1), by omega,
-      (hT (by simp [hlast])).trans (hp.label (j := 44) rfl), j + 1, rfl, hB, by omega, ?_, hdi,
+      (hT (by simp [hlast])).trans (hp.label NativeRustcVmX64.Vm.SumE.label_8_at), j + 1, rfl, hB, by omega, ?_, hdi,
       hcx.trans hI.rcx, hacc⟩)
     exact hsi.trans hI.rsi
 
-/-- **`.LSumE_7`** (`b7`): the tail from value `i0`. -/
+/-- **`NativeRustcVmX64.Vm.SumE.label_7`** (`b7`): the tail from value `i0`. -/
 theorem fromL7 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i0 : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 37)) (hB : Base m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumE.b7Offset)) (hB : Base m0 s.data)
     (hlt : i0 < len m0) (hr8 : reg s.data .r8 = BitVec.ofNat 64 i0)
     (hrcx : reg s.data .rcx = BitVec.ofNat 64 (len m0 - i0))
     (hrdi : reg s.data .rdi = addr m0)
@@ -273,7 +274,7 @@ theorem fromL7 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i0 :
   refine exec_at (hb hp b7_in_code (by simp [b7])) run_b7 (Env.wf_nil _) (by intro l h; cases h)
     hpc (match_nil _) fun s' hm' hpc' ↦ ?_
   have hB' := hB.regs' hm' (after_eq run_b7 ▸ b7_keeps)
-  simp only [PcOk, show b7.length = 7 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmX64.Vm.SumE.b7_length] at hpc'
   refine tail hp hpre (i0 := i0) (j := 0) hpc' ⟨hB', by omega, ?_, ?_, ?_, ?_⟩
   · rw [show reg s'.data .rsi = (Sym.bin .add .W64 (.lit 8) (.bin .add .W64
       (.bin .shl .W64 (.reg .r8) (.lit 4)) (.reg .rdi))).eval (Env.ofMachine s.data []) from
@@ -296,7 +297,7 @@ theorem fromL7 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i0 :
 
 /-! ## The unrolled loop -/
 
-/-- **The unrolled loop's head** `.LSumE_5`, `4 t` values added. -/
+/-- **The unrolled loop's head** `NativeRustcVmX64.Vm.SumE.label_5`, `4 t` values added. -/
 structure UInv (m0 : MachineData) (t : Nat) (s : MachineData) : Prop where
   base : Base m0 s
   le : 4 * t + 4 ≤ 4 * (len m0 / 4)
@@ -309,7 +310,7 @@ structure UInv (m0 : MachineData) (t : Nat) (s : MachineData) : Prop where
 
 /-- The unrolled loop's exit, `.LSumE_6` (`b6`): the return, or the tail. -/
 theorem fromL6 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 35)) (hB : Base m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumE.b6Offset)) (hB : Base m0 s.data)
     (ht : 4 * t = 4 * (len m0 / 4)) (hr8 : reg s.data .r8 = BitVec.ofNat 64 (4 * t))
     (hrcx : reg s.data .rcx = BitVec.ofNat 64 (len m0 % 4))
     (hrdi : reg s.data .rdi = addr m0)
@@ -324,14 +325,14 @@ theorem fromL6 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t : 
     rcases hr with rfl | rfl | rfl | rfl | rfl <;> exact Match.reg_eq (match_nil _) hm' rfl rfl
   have hacc' : ewArg (reg s'.data .rax) (reg s'.data .rdx) = acc m0 (4 * t) := by
     rw [e .rax (by simp), e .rdx (by simp), hacc]
-  simp only [PcOk, show b6.length = 2 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmX64.Vm.SumE.b6_length] at hpc'
   rw [eval_test, eval_reg] at hpc'
   rw [show (Env.ofMachine s.data []).regs .rcx = reg s.data .rcx from rfl, hrcx,
     ofNat_beq (by omega) (by decide)] at hpc'
   obtain ⟨hT, hF⟩ := pc_cond hpc'
   by_cases hz : len m0 % 4 = 0
   · refine ret_of (hb hp b9_in_code (by simp [b9])) run_b9 rfl rfl (after_eq run_b9 ▸ b9_ret)
-      hpre ((hT (by simp [hz])).trans (hp.label (j := 50) rfl)) hB' ?_
+      hpre ((hT (by simp [hz])).trans (hp.label NativeRustcVmX64.Vm.SumE.label_9_at)) hB' ?_
     rw [show len m0 = 4 * t by omega, ← hacc']
     rfl
   · refine fromL7 hp hpre (i0 := 4 * t) (hF (by simp [hz])) hB' (by omega)
@@ -340,11 +341,11 @@ theorem fromL6 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t : 
 
 /-- **The unrolled loop** (`b5`), then its exit. -/
 theorem unrolled (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 22)) (hI : UInv m0 t s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumE.b5Offset)) (hI : UInv m0 t s.data) :
     Eventually (step1 Host.exe) (Post m0) s := by
   have h16 : len m0 ≤ 16 := hpre.2.1
   have hrV : Readable m0 (addr m0) (16 * len m0) := hpre.2.2
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 22) ∧ ∃ t, len m0 / 4 - t = n ∧
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumE.b5Offset) ∧ ∃ t, len m0 / 4 - t = n ∧
     UInv m0 t s.data) (fun n s ⟨hpc, t, hn, hI⟩ ↦ ?_) ⟨hpc, t, rfl, hI⟩
   have hle := hI.le
   have hd := hI.base.dmem
@@ -396,7 +397,7 @@ theorem unrolled (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t 
     intro r hr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl <;> exact Match.reg_eq hm hm' rfl rfl
-  simp only [PcOk, show b5.length = 13 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmX64.Vm.SumE.b5_length] at hpc'
   rw [eval_not, eval_cmp_eq, eval_add, eval_lit, eval_reg, eval_reg] at hpc'
   rw [show (Env.ofMachine s.data [(addr m0 + BitVec.ofNat 64 (64 * t), 64)]).regs .rsi =
       reg s.data .rsi from rfl,
@@ -409,7 +410,7 @@ theorem unrolled (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t 
       ((e .rcx (by simp)).trans hI.rcx) ((e .rdi (by simp)).trans hI.rdi) hacc)
       fun _ h ↦ Or.inl h
   · refine .done _ (Or.inr ⟨len m0 / 4 - (t + 1), by omega,
-      (hT (by simp [hlast])).trans (hp.label (j := 22) rfl), t + 1, rfl,
+      (hT (by simp [hlast])).trans (hp.label NativeRustcVmX64.Vm.SumE.label_5_at), t + 1, rfl,
       ⟨hB, by omega, h8, (e .rsi (by simp)).trans hI.rsi, ?_, (e .rcx (by simp)).trans hI.rcx,
         (e .rdi (by simp)).trans hI.rdi, hacc⟩⟩)
     rw [show reg s'.data .r9 = (Sym.ptr 0 120).eval
@@ -422,7 +423,7 @@ theorem unrolled (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t 
 /-! ## The entry -/
 
 /-- **`sum_e` meets its contract.** -/
-theorem sumE_spec (hp : Placed code k) : Spec (Labels.label sumELabel) SumEPre SumEPost := by
+theorem sumE_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmX64.Vm.SumE.entryLabel) SumEPre SumEPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have h16 : len m0 ≤ 16 := hpre.2.1
@@ -435,13 +436,13 @@ theorem sumE_spec (hp : Placed code k) : Spec (Labels.label sumELabel) SumEPre S
     intro r hr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl <;> exact Match.reg_eq (match_nil _) hm1 rfl rfl
-  simp only [PcOk, show b0.length = 3 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.SumE.b0_length] at hpc1
   rw [eval_test, eval_reg, Env.ofMachine_regs, beq_ofNat _ (by decide)] at hpc1
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hz : len m0 = 0
   · -- `len = 0`: return `0`.
     refine ret_of (hb hp b3_in_code (by simp [b3])) run_b3 rfl rfl (after_eq run_b3 ▸ b3_ret) hpre
-      ((hT (decide_eq_true hz)).trans (hp.label (j := 11) rfl)) hB1 ?_
+      ((hT (decide_eq_true hz)).trans (hp.label NativeRustcVmX64.Vm.SumE.label_1_at)) hB1 ?_
     rw [hz]
     rfl
   have hpc1 := hF (fun h ↦ hz (of_decide_eq_true h))
@@ -459,7 +460,7 @@ theorem sumE_spec (hp : Placed code k) : Spec (Labels.label sumELabel) SumEPre S
       (Env.ofMachine s1.data []) from hm2.regs .rcx _ rfl]
     show BinOp.apply .and .W32 (UnOp.apply .trunc .W32 (reg s1.data .rsi)) (BitVec.ofNat 64 3) = _
     rw [trunc_eval32 _ hsi1, and_eval32 _ hsi1 (by decide), e1 .rsi (by simp), and3 _ h16]
-  simp only [PcOk, show b1.length = 4 from rfl] at hpc2
+  simp only [PcOk, NativeRustcVmX64.Vm.SumE.b1_length] at hpc2
   have hsi : s1.data.regs.get64 .rsi = reg m0 .rsi := e1 .rsi (by simp)
   have hu := ult_eval (reg m0 .rsi) (c := 4) (by decide)
   simp only [SBool.eval, Sym.eval, Env.ofMachine_regs, hsi, hu] at hpc2
@@ -471,7 +472,7 @@ theorem sumE_spec (hp : Placed code k) : Spec (Labels.label sumELabel) SumEPre S
       (by intro l h; cases h) hpc2 (match_nil _) fun s3 hm3 hpc3 ↦ ?_
     have hB3 := hB2.regs' hm3 (after_eq run_b2 ▸ b2_keeps)
     simp only [PcOk] at hpc3
-    refine fromL7 hp hpre (i0 := 0) (hpc3.trans (hp.label (j := 37) rfl)) hB3 (by omega)
+    refine fromL7 hp hpre (i0 := 0) (hpc3.trans (hp.label NativeRustcVmX64.Vm.SumE.label_7_at)) hB3 (by omega)
       (hm3.regs .r8 (.lit 0) rfl) ?_ ?_ ?_
     · rw [show reg s3.data .rcx = reg s2.data .rcx from Match.reg_eq (match_nil _) hm3 rfl rfl,
         hcx2, Nat.mod_eq_of_lt h4, Nat.sub_zero]
@@ -480,11 +481,11 @@ theorem sumE_spec (hp : Placed code k) : Spec (Labels.label sumELabel) SumEPre S
       rw [hm3.regs .rax (.lit 0) rfl, hm3.regs .rdx (.lit 0) rfl]
       rfl
   · -- from `4`: the unrolled loop.
-    have hpc2 := (hT2 (by simp [h4])).trans (hp.label (j := 15) rfl)
+    have hpc2 := (hT2 (by simp [h4])).trans (hp.label NativeRustcVmX64.Vm.SumE.label_4_at)
     refine exec_at (hb hp b4_in_code (by simp [b4])) run_b4 (Env.wf_nil _)
       (by intro l h; cases h) hpc2 (match_nil _) fun s3 hm3 hpc3 ↦ ?_
     have hB3 := hB2.regs' hm3 (after_eq run_b4 ▸ b4_keeps)
-    simp only [PcOk, show b4.length = 7 from rfl] at hpc3
+    simp only [PcOk, NativeRustcVmX64.Vm.SumE.b4_length] at hpc3
     have hsi2 : (reg s2.data .rsi).toNat < 2 ^ 32 := by rw [e2 .rsi (by simp)]; omega
     have hdi : reg s3.data .rdi = addr m0 :=
       (Match.reg_eq (r := .rdi) (match_nil _) hm3 rfl rfl).trans (e2 .rdi (by simp))

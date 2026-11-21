@@ -42,7 +42,7 @@ theorem wf_lay (h : ReadAnnouncedSizesPre bc a s m0) {d : MachineData} (hk : Kep
 theorem from12 (hp : Placed code k) (h : ReadAnnouncedSizesPre bc a s m0) {xs : Array EW}
     {s1 : TState} (hrs : (readScalars 8).run s = some (xs, s1)) (hsz : xs.size = 8)
     (hall : (xs.all fun x ↦ x.c1 == 0) = true) (hrate : 1 ≤ rateA xs ∧ rateA xs ≤ 4)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 67)) (hb : Bod m0 8 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b12Offset)) (hb : Bod m0 8 st.data)
     (hrbx : reg st.data .rbx = lA m0)
     (hr15 : reg st.data .r15 = (xs[7]'(by omega)).c0.toBitVec)
     (hok : OkAl st.data (buildLayout bc (lmA xs) (rowsA xs)).isSome)
@@ -72,8 +72,8 @@ theorem from12 (hp : Placed code k) (h : ReadAnnouncedSizesPre bc a s m0) {xs : 
     refine fail75 hp h hb1 ((pc_true hpc1 (by rw [hc, hbl]; rfl)).trans (lbl_13 hp)) ?_
     rw [hrun, hbl]; rfl
   | some L =>
-  have hpc1' : st1.pc = Host.addrOf (k + 69) :=
-    (pc_false hpc1 (by rw [hc, hbl]; rfl)).trans (addr_eq (by have : b12.length = 2 := rfl; omega))
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b13Offset) :=
+    (pc_false hpc1 (by rw [hc, hbl]; rfl)).trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b12_next]))
   have hLw : LayoutWAt st1.data.dmem (lA m0) L := by rw [hd1]; exact hL L hbl
   -- `b13`: the stack's log-size, at the layout's byte `16`.
   have hwf2 := wf_lay h hb1.fr.kept

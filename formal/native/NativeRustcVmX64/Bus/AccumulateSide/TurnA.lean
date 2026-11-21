@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.TPre
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
 
 /-!
 # `accumulate_side`: the table loop's turn, to `eq_above` (x86-64)
@@ -23,14 +24,14 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
 
 /-- **The table loop's turn `j`, to `eq_above`'s return.** -/
 theorem turnA (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
     {j : Nat} (hj : j < bl.length) {st : MachineData} (hth : TH L rows bl Fm SL m0 j st)
     {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (outs m0) (VT L rows bl Fm SL m0 j) D17 8 m2 →
       ewRet m2 = tsel SL (ptA m0) j →
       FormsAt m2.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 j).1 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 180)⟩) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 161)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b18Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b17Offset)⟩ := by
   obtain ⟨hst, hG⟩ := hth
   have hlen := h.sl_size
   have hj51 := h.bl51
@@ -42,7 +43,7 @@ theorem turnA (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     apart_sub (Apart.symm' h.slArgs) h.slIn.2.1 (by rw [busLayoutBytes_eq]; omega) (by decide)
   let V := VT L rows bl Fm SL m0 j
   let env1 := frameEnv m0 st F [(rspOf m0 + 8#64, 88), (pl, 88)] (fun _ ↦ 0)
-    (Host.addrOf (k + 161 + b17.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b17Offset + b17.length)).toBitVec
   have hwf1 : env1.WF := wf2 h hst.fr.kept h.argsIn hplIn hApl
   have hl0 : env1.load 1 0 8 = stackArg m0 0 := St.arg h hst outs_id (i := 0) (by decide)
   have hl72 : env1.load 2 72 8 = BitVec.ofNat 64 (tpl SL j).variableCount :=

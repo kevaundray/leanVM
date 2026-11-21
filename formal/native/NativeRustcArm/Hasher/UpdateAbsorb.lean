@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.KeccakF.Names
+
 public import NativeRustcArm.Hasher.UpdateB5
 
 /-!
@@ -42,13 +44,13 @@ variable [Host] {k : Nat}
 
 /-- **Absorbing a full buffer.** -/
 theorem b6_spec (hp : Placed code k)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hkf : Spec (Labels.label NativeRustcArm.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m1 m : MachineData} (hpre : UpdatePre m0)
     (h01 : SameOutside m0.dmem m1.dmem (InRange (spAt m0 - 64#64) 64)) {c : Nat}
     {Hc : List UInt8} (hfu : Full m0 m1 c Hc m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 81) ∧ Absorbed m0 m1 c Hc st.data)
-      ⟨m, Host.addrOf (k + 35)⟩ := by
+      (fun st => st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b7Offset) ∧ Absorbed m0 m1 c Hc st.data)
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Update.b6Offset)⟩ := by
   have g := geo_of hpre
   have gr := geoRc_of hpre
   have hwf := wf_head hpre hfu.frame

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Layout.ReadAnnouncedSizes.Model
+public import NativeRustcVmX64.Code.Vm.ReadAnnouncedSizes.Names
 
 /-!
 # `read_announced_sizes`: the body (x86-64)
@@ -214,13 +215,13 @@ end
 variable [Host] {k : Nat} {bc : Array UInt64} {a : DecArea} {s : TState} {m0 : MachineData}
 
 theorem lbl_entry (hp : Placed code k) :
-    Labels.label readAnnouncedSizesLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+    Labels.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b0Offset) := hp.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.entry_at
 theorem lbl_13 (hp : Placed code k) :
-    Labels.label ".LReadAnnouncedSizes_13" = Host.addrOf (k + 75) := hp.label (j := 75) rfl
+    Labels.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_13 = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b14Offset) := hp.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_13_at
 theorem lbl_21 (hp : Placed code k) :
-    Labels.label ".LReadAnnouncedSizes_21" = Host.addrOf (k + 78) := hp.label (j := 78) rfl
+    Labels.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_21 = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b15Offset) := hp.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_21_at
 theorem lbl_22 (hp : Placed code k) :
-    Labels.label ".LReadAnnouncedSizes_22" = Host.addrOf (k + 79) := hp.label (j := 79) rfl
+    Labels.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_22 = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_22Offset) := hp.label NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_22_at
 
 theorem addr_eq {i j : Nat} (h : i = j) : Host.addrOf i = Host.addrOf j := by rw [h]
 
@@ -249,26 +250,26 @@ theorem fin {ds : List Directive} {kk : Nat} (hk : ds.IsInfixAt Host.prog kk)
     exact hb.same q fun h' ↦ hq (Or.elim h' (fun h'' ↦ Or.elim h'' Or.inl fun x ↦ .inr (.inl x))
       fun x ↦ .inr (.inr x))
 
-/-- `b15` from `.LReadAnnouncedSizes_21` with RAX = `0`. -/
+/-- `b15` from `NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_21` with RAX = `0`. -/
 theorem fail78 (hp : Placed code k) (h : ReadAnnouncedSizesPre bc a s m0) {st : MachineState}
-    (hb : Bod m0 8 st.data) (hpc : st.pc = Host.addrOf (k + 78)) (hrax : reg st.data .rax = 0)
+    (hb : Bod m0 8 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b15Offset)) (hrax : reg st.data .rax = 0)
     (hr : (readAnnouncedSizes bc).run s = none) :
     Eventually (step1 Host.exe) (Goal bc a s m0) st :=
   fin (infix_of b15_in_code (by simp [b15]) hp) exit_b15 ok_b15.1 ok_b15.2.1 ok_b15.2.2.1
     ok_b15.2.2.2 h hb hpc (by rw [hrax, hr]; rfl) fun _ _ _ h' ↦ by rw [hr] at h'; cases h'
 
-/-- `b15` from `.LReadAnnouncedSizes_22` with RAX = `0`. -/
+/-- `b15` from `NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_22` with RAX = `0`. -/
 theorem fail79 (hp : Placed code k) (h : ReadAnnouncedSizesPre bc a s m0) {st : MachineState}
-    (hb : Bod m0 8 st.data) (hpc : st.pc = Host.addrOf (k + 79)) (hrax : reg st.data .rax = 0)
+    (hb : Bod m0 8 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_22Offset)) (hrax : reg st.data .rax = 0)
     (hr : (readAnnouncedSizes bc).run s = none) :
     Eventually (step1 Host.exe) (Goal bc a s m0) st :=
   fin (infix_of ((infix_drop b15 1).trans b15_in_code (by simp [b15])) (by simp [b15]) hp)
     exit_b15d ok_b15d.1 ok_b15d.2.1 ok_b15d.2.2.1 ok_b15d.2.2.2 h hb hpc (by rw [hrax, hr]; rfl)
     fun _ _ _ h' ↦ by rw [hr] at h'; cases h'
 
-/-- `b14` (`.LReadAnnouncedSizes_13`): RAX = `0`, then `b15`. -/
+/-- `b14` (`NativeRustcVmX64.Vm.ReadAnnouncedSizes.label_13`): RAX = `0`, then `b15`. -/
 theorem fail75 (hp : Placed code k) (h : ReadAnnouncedSizesPre bc a s m0) {st : MachineState}
-    (hb : Bod m0 8 st.data) (hpc : st.pc = Host.addrOf (k + 75))
+    (hb : Bod m0 8 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b14Offset))
     (hr : (readAnnouncedSizes bc).run s = none) :
     Eventually (step1 Host.exe) (Goal bc a s m0) st := by
   have hwf := wf0 h hb.fr.kept 0

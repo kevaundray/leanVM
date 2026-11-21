@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.SumE.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmArm.Code.Vm.TStateSumcheckRoundPoly.Names
 public import NativeRustcVmArm.Sumcheck.RoundPoly.NoneTail
 
 /-!
@@ -33,9 +38,9 @@ variable [Host] {a : DecArea} {s : TState} {m0 : MachineData} {k : Nat}
 
 /-- **After `read_scalars`**, at `b12`: the tail's sum, or a rejection. -/
 theorem none_b12 (hp : Placed code k)
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hsum : Spec (Labels.label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     (hpre : RoundPolyPre a s none m0) {p0 : EW} {s0 : TState}
     (hr0 : runR m0 s none = runN m0 p0 s0) {m : MachineData}
     (hf : RFrame m0 m) (hg : NoneRegs m0 m)
@@ -46,15 +51,15 @@ theorem none_b12 (hp : Placed code k)
         TStateAt m.dmem (tAt m0) a s1) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ RoundPolyPost a s none m0 st.data)
-      ⟨m, Host.addrOf (k + 57)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b12Offset)⟩ := by
   have hc2 : 2 ≤ cnt m0 := hpre.2.2.2.2.1
   have hc5 : cnt m0 ≤ maxCount := hpre.2.2.2.2.2.1
   have hmc : maxCount = 5 := rfl
   have hwf := wf_envB hpre hf
-  have hk12 : b12.IsInfixAt Host.prog (k + 57) := b12_in_code.trans hp.1 (by simp [b12])
-  have hk13 : b13.IsInfixAt Host.prog (k + 58) := b13_in_code.trans hp.1 (by simp [b13])
-  have hl8 : Labels.label ".LTStateSumcheckRoundPoly_8" = Host.addrOf (k + 75) :=
-    hp.label (j := 75) rfl
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b12Offset) := b12_in_code.trans hp.1 (by simp [b12])
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b13Offset) := b13_in_code.trans hp.1 (by simp [b13])
+  have hl8 : Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_8_at
   refine exec_then hk12 run_b12 hwf (match_bodyS hpre hf hg.x19) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hf2, -⟩ := RFrame.of_block hpre hf hm2 rfl rfl rfl rfl
   have hm2' : Match (envB m0 m) (after b12 bodyS) st2.data := by
@@ -64,7 +69,7 @@ theorem none_b12 (hp : Placed code k)
   cases hr1 : (readScalars (cnt m0 - 2)).run s0 with
   | none =>
     rw [hr1] at hx0
-    have hpc : st2.pc = Host.addrOf (k + 75) := by
+    have hpc : st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) := by
       rw [hpc2, hx0]; simp [okWord, hl8]
     obtain ⟨d2, pc2⟩ := st2
     simp only at hpc
@@ -78,7 +83,7 @@ theorem none_b12 (hp : Placed code k)
     rw [hr1] at hx0
     obtain ⟨htl, hts⟩ := htail tail s1 hr1
     have hsz : tail.size = cnt m0 - 2 := readScalars_size hr1
-    have hpc : st2.pc = Host.addrOf (k + 58) := by
+    have hpc : st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b13Offset) := by
       rw [hpc2, hx0]; simp [okWord]; rfl
     refine exec_at hk13 run_b13 hwf hpc hm2' fun st3 hm3 hpc3 ↦ ?_
     obtain ⟨hf3, hd3⟩ := RFrame.of_block hpre hf hm3 rfl rfl rfl rfl
@@ -116,27 +121,27 @@ theorem none_b12 (hp : Placed code k)
 /-- **After `read_scalar`**, at `b10`: the constant into `msg[0]`, `read_scalars`, the rest; or a
 rejection. -/
 theorem none_b10 (hp : Placed code k)
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hsum : Spec (Labels.label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     (hpre : RoundPolyPre a s none m0) {m : MachineData}
     (hf : RFrame m0 m) (hg : ConstRegs m0 m)
     (hopt : OptEWAt m.dmem (fr m0 + BitVec.ofNat 64 8) ((readScalar.run s).map (·.1)))
     (hnext : NextAt m.dmem (tAt m0) a (readScalar.run s)) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ RoundPolyPost a s none m0 st.data)
-      ⟨m, Host.addrOf (k + 48)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b10Offset)⟩ := by
   have c := ctx_of hpre
   have hc2 : 2 ≤ cnt m0 := hpre.2.2.2.2.1
   have hc5 : cnt m0 ≤ maxCount := hpre.2.2.2.2.2.1
   have hmc : maxCount = 5 := rfl
   have hwf := wf_envB hpre hf
   have hm := match_bodyS hpre hf hg.x19
-  have hk10 : b10.IsInfixAt Host.prog (k + 48) := b10_in_code.trans hp.1 (by simp [b10])
-  have hk11 : b11.IsInfixAt Host.prog (k + 50) := b11_in_code.trans hp.1 (by simp [b11])
-  have hl8 : Labels.label ".LTStateSumcheckRoundPoly_8" = Host.addrOf (k + 75) :=
-    hp.label (j := 75) rfl
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b10Offset) := b10_in_code.trans hp.1 (by simp [b10])
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b11Offset) := b11_in_code.trans hp.1 (by simp [b11])
+  have hl8 : Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_8_at
   have hb0 : (envB m0 m).base 0 = fr m0 := rfl
   refine exec_then hk10 run_b10 hwf hm fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hf2, -⟩ := RFrame.of_block hpre hf hm2 rfl rfl rfl rfl
@@ -148,7 +153,7 @@ theorem none_b10 (hp : Placed code k)
     rw [h0] at hopt
     have htag : (envB m0 m).load 0 8 8 = 0#64 := by
       rw [load_word (v := 0) (by rw [hb0]; exact hopt)]; rfl
-    have hpc : st2.pc = Host.addrOf (k + 75) := by
+    have hpc : st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) := by
       rw [hpc2, htag]; simp [hl8]
     obtain ⟨d2, pc2⟩ := st2
     simp only at hpc
@@ -164,7 +169,7 @@ theorem none_b10 (hp : Placed code k)
       simp only [runR, roundPoly_none_run, h0, Option.bind_some]
     have htag : (envB m0 m).load 0 8 8 = 1#64 := by
       rw [load_word (v := 1) (by rw [hb0]; exact hopt.1)]; rfl
-    have hpc : st2.pc = Host.addrOf (k + 50) := by
+    have hpc : st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b11Offset) := by
       rw [hpc2, htag]; simp; rfl
     refine exec_at hk11 run_b11 hwf hpc hm2' fun st3 hm3 hpc3 ↦ ?_
     have hm3' : Match (envB m0 m) (after b11 (after b10 bodyS)) st3.data := by

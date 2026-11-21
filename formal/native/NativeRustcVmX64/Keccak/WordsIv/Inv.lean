@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Keccak.WordsHash.Lane
 public import NativeRustcVmX64.Keccak.WordsIv.Vals
 public import NativeRustcVm.Arrays.ReadLemmas
 public import NativeRustcVm.MemLemmas
+public import NativeRustcVmX64.Code.Vm.IvWord.Names
 
 /-!
 # `keccak256_words::<fiat_shamir_iv's closure>` (x86-64): what holds between its blocks
@@ -164,13 +165,13 @@ end
 variable [Host]
 
 /-- **A call of `iv_word`** for word `i` below the count, RSP at the frame. -/
-theorem call_iv (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem call_iv (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {m0 : MachineData} (g : Geo m0)
     {L : List (Nat × BitVec 64)} {R : List (Reg64 × BitVec 64)} {st : MachineState} {env : Env}
     {next : Int64} (hc : Ctx m0 L R 0 st.data)
     (hrdi : st.data.regs.get64 .rdi = bc m0) (hrsi : st.data.regs.get64 .rsi = m0.regs.get64 .r8)
     {i : Nat} (hrdx : st.data.regs.get64 .rdx = BitVec.ofNat 64 i) (hi : i < cnt m0)
-    (hpc : PcOk env (.call NativeRustcVmX64.ivWordLabel) next st) {Q : MachineState → Prop}
+    (hpc : PcOk env (.call NativeRustcVmX64.Vm.IvWord.entryLabel) next st) {Q : MachineState → Prop}
     (cont : ∀ st', st'.pc = next → rspOf st'.data = rspOf st.data + 8#64 →
       st'.data.dmem = st.data.dmem → Saved st.data st'.data →
       st'.data.regs.get64 .rax = (wv m0 i).toBitVec →

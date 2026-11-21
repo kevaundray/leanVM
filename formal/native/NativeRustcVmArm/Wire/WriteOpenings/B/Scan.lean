@@ -129,7 +129,7 @@ theorem scanB_loop (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineSta
   have rb1 : RB R j s1.data :=
     H.rb.keep fun r hr ↦ hk1 r (by simp only [List.mem_cons] at hr ⊢; tauto)
   by_cases he : R.pw i = R.qw j
-  · simp only [he, decide_true, ↓reduceIte, hp.label (j := 162) rfl] at hpc1
+  · simp only [he, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b29Offset) NativeRustcVmArm.Vm.WriteOpenings.label_25_at] at hpc1
     refine .done _ (.inl (.inr ⟨i, hpc1, hfr1, rb1, by rw [hk1 .X13 (by simp)]; exact H.x13,
       by rw [hk1 .X14 (by simp)]; exact H.x14, H.lt, hi, H.hz, H.lw0, pos_some hi he H.miss,
       by rw [hd1]; exact H.mem⟩))
@@ -164,10 +164,10 @@ theorem scanB_loop (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineSta
     refine run_block G hp b28_in_code (by simp [b28]) run_b28 hfr2
       (hpc2.trans (congrArg Host.addrOf rfl)) hwf3 (frMatch G hfr2) rfl
       (writesOk_frame (by decide)) fun s3 hfr3 _ hpc3 ↦ ?_
-    simp only [PcOk, hp.label (j := 221) rfl] at hpc3
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b45Offset) NativeRustcVmArm.Vm.WriteOpenings.label_38_at] at hpc3
     exact Eventually.mono (fail_spec hp G hpc3 hfr3 (bad_of_none H.lt fun i' hi' ↦
       miss i' (by omega))) fun _ h ↦ .inl (.inl h)
-  simp only [ne_eq, hl, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 152) rfl]
+  simp only [ne_eq, hl, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b26Offset) NativeRustcVmArm.Vm.WriteOpenings.label_23_at]
     at hpc2
   refine .done _ (.inr ⟨R.np - (i + 1), by omega, i + 1, rfl, hpc2, hfr2,
     rb1.keep fun r hr ↦ hk2 r (List.mem_cons_of_mem _ hr), ?_, ?_, ?_,

@@ -141,9 +141,9 @@ variable [Host] {k : Nat}
 /-- **The entry**: the loop head with no coordinate done, or (an empty point) the exit. -/
 theorem entry_step (hp : Placed code k) (hc : Ctx m0) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 102) ∧ It m0 0 st.data) ∨
-        (st.pc = Host.addrOf (k + 122) ∧ Fin m0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b10Offset) ∧ It m0 0 st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b13Offset) ∧ Fin m0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b0Offset)⟩ := by
   refine exec_then (hb0 hp) run_b0 (wf0 hc) (match0 hc) fun st1 hm1 hpc1 => ?_
   have hm1' : Match (env0 m0) (after b0 entryS) st1.data := by rw [after_eq run_b0]; exact hm1
   simp only [PcOk, SBool.eval, CmpOp.apply, Sym.eval, low_W64, Env.ofMachine_regs] at hpc1
@@ -155,7 +155,7 @@ theorem entry_step (hp : Placed code k) (hc : Ctx m0) :
       rw [hn]; rfl
     simp only [h5, beq_self_eq_true, ↓reduceIte, lbl_6 hp] at hpc1
     refine exec_at (hb12 hp) run_b12 (wf0 hc) hpc1 hm1' fun st2 hm2 hpc2 => .done _
-      (Or.inr ⟨hpc2.trans (addr_eq (by rw [len_b12])), ?_⟩)
+      (Or.inr ⟨hpc2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableWeights.b12_next])), ?_⟩)
     have hm2' : Match (env0 m0) (after b12 (after b0 entryS)) st2.data := by
       rw [after_eq run_b12]; exact hm2
     have hb := entryB_b12
@@ -168,7 +168,7 @@ theorem entry_step (hp : Placed code k) (hc : Ctx m0) :
       have := congrArg BitVec.toNat h
       exact this)
     simp only [beq_false_of_ne h5, Bool.false_eq_true, ↓reduceIte] at hpc1
-    refine exec_at (hb1 hp) run_b1 (wf0 hc) (hpc1.trans (addr_eq (by rw [len_b0]))) hm1'
+    refine exec_at (hb1 hp) run_b1 (wf0 hc) (hpc1.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableWeights.b0_next]))) hm1'
       fun st2 hm2 hpc2 => .done _ (Or.inl ⟨by rw [hpc2, lbl_4 hp], ?_⟩)
     have hm2' : Match (env0 m0) (after b1 (after b0 entryS)) st2.data := by
       rw [after_eq run_b1]; exact hm2

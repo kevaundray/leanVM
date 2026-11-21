@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Update.Names
+
 public import NativeRustcArm.XmssVerify.Calls
 meta import NativeRustcArm.Code.Xmss.XmssVerify
 public meta import NativeRustcArm.XmssVerify.Parse
@@ -28,7 +32,7 @@ sym_block b9_exec := exec b9 (stF0 [])
 /-- The symbolic state after block 9. -/
 def st9 : SState := ((exec b9 (stF0 [])).getD (stF0 [], .fall)).1
 
-theorem b9_exec' : exec b9 (stF0 []) = some (st9, .call updateL) := by
+theorem b9_exec' : exec b9 (stF0 []) = some (st9, .call NativeRustcArm.Common.Update.entryLabel) := by
   rw [b9_exec]
   rfl
 
@@ -40,7 +44,7 @@ sym_block b19_exec := exec b19 (stF0 [(.X27, .ptr 0 2448)])
 /-- The symbolic state after block 19. -/
 def st19 : SState := ((exec b19 (stF0 [(.X27, .ptr 0 2448)])).getD (stF0 [], .fall)).1
 
-theorem b19_exec' : exec b19 (stF0 [(.X27, .ptr 0 2448)]) = some (st19, .call updateL) := by
+theorem b19_exec' : exec b19 (stF0 [(.X27, .ptr 0 2448)]) = some (st19, .call NativeRustcArm.Common.Update.entryLabel) := by
   rw [b19_exec]
   rfl
 
@@ -53,7 +57,7 @@ sym_block b10_exec := exec b10 (stF0 [])
 /-- The symbolic state after block 10. -/
 def st10 : SState := ((exec b10 (stF0 [])).getD (stF0 [], .fall)).1
 
-theorem b10_exec' : exec b10 (stF0 []) = some (st10, .call updateL) := by
+theorem b10_exec' : exec b10 (stF0 []) = some (st10, .call NativeRustcArm.Common.Update.entryLabel) := by
   rw [b10_exec]
   rfl
 
@@ -66,7 +70,7 @@ sym_block b11_exec := exec b11 (stF0 [])
 /-- The symbolic state after block 11. -/
 def st11 : SState := ((exec b11 (stF0 [])).getD (stF0 [], .fall)).1
 
-theorem b11_exec' : exec b11 (stF0 []) = some (st11, .call "memcpy") := by
+theorem b11_exec' : exec b11 (stF0 []) = some (st11, .call NativeRustcArm.Common.Memcpy.entryLabel) := by
   rw [b11_exec]
   rfl
 
@@ -79,7 +83,7 @@ sym_block b12_exec := exec b12 (stF0 [])
 /-- The symbolic state after block 12. -/
 def st12 : SState := ((exec b12 (stF0 [])).getD (stF0 [], .fall)).1
 
-theorem b12_exec' : exec b12 (stF0 []) = some (st12, .call updateL) := by
+theorem b12_exec' : exec b12 (stF0 []) = some (st12, .call NativeRustcArm.Common.Update.entryLabel) := by
   rw [b12_exec]
   rfl
 
@@ -92,7 +96,7 @@ sym_block b13_exec := exec b13 (stF0 [])
 /-- The symbolic state after block 13. -/
 def st13 : SState := ((exec b13 (stF0 [])).getD (stF0 [], .fall)).1
 
-theorem b13_exec' : exec b13 (stF0 []) = some (st13, .call finalizeL) := by
+theorem b13_exec' : exec b13 (stF0 []) = some (st13, .call NativeRustcArm.Common.Finalize.entryLabel) := by
   rw [b13_exec]
   rfl
 
@@ -104,8 +108,8 @@ theorem b20_23 : b20 = b10 ∧ b21 = b11 ∧ b22 = b12 ∧ b23 = b13 := by decid
 
 /-- Blocks 10 to 13 at `j` and after. -/
 def HashPos [Host] (j : Nat) : Prop :=
-  b10.IsInfixAt Host.prog j ∧ b11.IsInfixAt Host.prog (j + 6) ∧
-    b12.IsInfixAt Host.prog (j + 12) ∧ b13.IsInfixAt Host.prog (j + 18)
+  b10.IsInfixAt Host.prog j ∧ b11.IsInfixAt Host.prog (j + (NativeRustcArm.Xmss.XmssVerify.b11Offset - NativeRustcArm.Xmss.XmssVerify.b10Offset)) ∧
+    b12.IsInfixAt Host.prog (j + (NativeRustcArm.Xmss.XmssVerify.b12Offset - NativeRustcArm.Xmss.XmssVerify.b10Offset)) ∧ b13.IsInfixAt Host.prog (j + (NativeRustcArm.Xmss.XmssVerify.b13Offset - NativeRustcArm.Xmss.XmssVerify.b10Offset))
 
 end
 
@@ -113,11 +117,11 @@ public section
 
 variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 
-theorem hashPos_bottom {k : Nat} (hp : Placed code k) : HashPos (k + 146) :=
+theorem hashPos_bottom {k : Nat} (hp : Placed code k) : HashPos (k + NativeRustcArm.Xmss.XmssVerify.b10Offset) :=
   ⟨b10_in_code.trans hp.1 (List.cons_ne_nil _ _), b11_in_code.trans hp.1 (List.cons_ne_nil _ _),
     b12_in_code.trans hp.1 (List.cons_ne_nil _ _), b13_in_code.trans hp.1 (List.cons_ne_nil _ _)⟩
 
-theorem hashPos_top {k : Nat} (hp : Placed code k) : HashPos (k + 233) := by
+theorem hashPos_top {k : Nat} (hp : Placed code k) : HashPos (k + NativeRustcArm.Xmss.XmssVerify.b20Offset) := by
   obtain ⟨h20, h21, h22, h23⟩ := b20_23
   refine ⟨?_, ?_, ?_, ?_⟩
   · rw [← h20]; exact b20_in_code.trans hp.1 (List.cons_ne_nil _ _)
@@ -151,7 +155,7 @@ public parameter `pp`, the address `A` at `5392` and the children `Ch` at `5016`
 frame's bytes below `5016` kept. -/
 theorem hashNode (Cs : Callees) (P : Pre w m₀) {j9 j : Nat} {ds9 : List Directive}
     {known9 : List (XReg × Sym)} {S9 : SState} (hk9 : ds9.IsInfixAt Host.prog j9)
-    (hj : j9 + ds9.length = j) (hx9 : exec ds9 (stF0 known9) = some (S9, .call updateL))
+    (hj : j9 + ds9.length = j) (hx9 : exec ds9 (stF0 known9) = some (S9, .call NativeRustcArm.Common.Update.entryLabel))
     (hf9 : S9.mem = [] ∧ keeps (stF0 known9) S9 = true ∧ S9.reg .X0 = some (.ptr 0 5408) ∧
       S9.reg .X1 = some (.ptr 0 2464) ∧ S9.reg .X2 = some (.lit 16))
     (hpos : HashPos j) {st : MachineState} (hpc : st.pc = Host.addrOf j9)
@@ -163,7 +167,7 @@ theorem hashNode (Cs : Callees) (P : Pre w m₀) {j9 j : Nat} {ds9 : List Direct
     (hpp : BytesAt st.data.dmem (ad m₀ (fb + 2464)) pp)
     (hA : BytesAt st.data.dmem (ad m₀ (fb + 5392)) A)
     (hC : BytesAt st.data.dmem (ad m₀ (fb + 5016)) Ch) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (j + 23) → Common m₀ st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (j + (NativeRustcArm.Xmss.XmssVerify.b13End - NativeRustcArm.Xmss.XmssVerify.b10Offset)) → Common m₀ st'.data →
       Saved st.data st'.data →
       BytesAt st'.data.dmem (ad m₀ (fb + 5408)) (Keccak.hashBytes (pp ++ A ++ Ch)) →
       (∀ (o : Nat) (bs : List UInt8), o + bs.length ≤ 5016 →

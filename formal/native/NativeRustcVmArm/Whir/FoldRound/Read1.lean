@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Whir.FoldRound.Checks
 
 /-!
@@ -25,11 +26,11 @@ structure AfterRs (s : TState) (m0 st : MachineData) : Prop where
 
 /-- **The prologue and the first scalar.** -/
 theorem stage1 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {R : MachineState → Prop}
-    (cont : ∀ st, st.pc = Host.addrOf (k + 13) → Base w m0 st.data →
+    (cont : ∀ st, st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b1Offset) → Base w m0 st.data →
       AfterRs (a := a) s0 m0 st.data → Eventually (step1 Host.exe) R st) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b0Offset)⟩ := by
   have hN := pre_hN h
   have hN' : 800 ≤ m0.regs.SP.toNat := by rw [← stack_eq]; exact hN
   have hwf : (Env.ofMachine m0 [(base m0 208, 208)]).WF :=
@@ -56,7 +57,7 @@ theorem stage1 (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
       ws_keep h h.2.2.1 hs1 fun q hq ↦ frame_away h hq⟩
   have hts1 : TStateAt st1.data.dmem (tA m0) a s0 :=
     h.2.1.frame (hm1.kept hwf) (fun q hq ↦ frame_not_t h hq) hs1
-  rw [show k + 0 + b0.length = k + 13 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.FoldRound.b0Offset + b0.length = k + NativeRustcVmArm.Vm.FoldRound.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FoldRound.b0_next]] at hpc1
   refine rs_call h hrs hb1 hpc1 ?_ (reg_of hm1 (r := .X1) (v := .reg .X1) rfl rfl) hts1
     fun m2 hb2 hopt hnext _ _ ↦ cont ⟨m2, _⟩ rfl hb2 ⟨hopt, hnext⟩
   have := reg_val hm1 (r := .X0) rfl

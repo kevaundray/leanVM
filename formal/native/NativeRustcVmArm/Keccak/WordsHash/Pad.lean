@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsHash.Tail
 public import NativeRustcVmArm.Keccak.WordsHash.Call
 public import NativeRustcVmArm.Keccak.WordsHash.PadVals
@@ -52,7 +53,7 @@ def lastB (m0 : MachineData) : KeccakState :=
 /-- **At the epilogue**: the lanes `keccakF1600 (lastB m0)`. -/
 def EpiAt [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   Ctx m0 st.data ∧ Lanes m0 st.data (Keccak.lane (keccakF1600 (lastB m0))) ∧
-    st.pc = Host.addrOf (k + 553)
+    st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b77Offset)
 
 end
 
@@ -60,7 +61,7 @@ public section
 
 /-- The padding block from the padded lane `t`. -/
 theorem pad_exec (t : Nat) (ht : t < 17) : ∃ S, exec b76 (startPad t) =
-    some (S, .call NativeRustcVmArm.keccakFLabel) ∧ S.mem = padMem t ∧ S.sp = .ptr 0 0 ∧
+    some (S, .call NativeRustcVmArm.Vm.KeccakF.entryLabel) ∧ S.mem = padMem t ∧ S.sp = .ptr 0 0 ∧
     S.reg .X0 = some (.ptr 0 8) ∧ AllOf (fun r => S.reg r = some (.reg r)) ctxRegs := by
   match t, ht with
   | 0, _ => exact ⟨_, pad0, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩

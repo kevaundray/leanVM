@@ -1,5 +1,14 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.CommitStack.Names
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmArm.Code.Vm.ReadOod.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmArm.Code.Vm.TablePhase.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Call4
 
 /-!
@@ -25,28 +34,28 @@ variable [Host] {k : Nat}
 
 /-- The callees from the bus on. -/
 structure Rest : Prop where
-  hbb : ∀ a s L, Spec (Labels.label verifyBusBalanceLabel) (VerifyBusBalancePre a s L)
+  hbb : ∀ a s L, Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalance.entryLabel) (VerifyBusBalancePre a s L)
     (VerifyBusBalancePost a s L)
-  htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+  htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmArm.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
     (TablePhasePost a s layout bus)
-  htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+  htc : ∀ evals cs, Spec (Labels.label NativeRustcVmArm.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
     (TableColumnClaimsPost evals cs)
-  hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+  hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmArm.Vm.PublicInputPhase.entryLabel)
     (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs)
-  hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+  hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel)
     (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals)
-  hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+  hrs : ∀ a s point, Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
     (RingSwitchPost a s point)
   hvso : ∀ a s layout target coefficients point slices cs z value,
-    Spec (Labels.label verifyStackedOpeningLabel)
+    Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
       (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
       (VerifyStackedOpeningPost a s layout target coefficients point cs z value)
 
 /-- **The out-of-domain sample**, from `b4`: the function returns the walk's rest. -/
 theorem call3 (hp : Placed code k) (hR : Rest)
-    (hro : ∀ a s, Spec (Labels.label readOodLabel) (ReadOodPre a s) (ReadOodPost a s))
+    (hro : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 24)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b4Offset)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
     (h22 : st.data.regs.X22 = m0.regs.X3) (h23 : st.data.regs.X23 = m0.regs.X2)
     (h24 : st.data.regs.X24 = m0.regs.X1) {L : LayoutW}
     (h25 : st.data.regs.X25.toNat = L.stackLog) {P : Vector UInt64 4}
@@ -97,7 +106,7 @@ theorem call3 (hp : Placed code k) (hR : Rest)
       · have := g.inW (o := 3912) (n := 504) (by omega) (by omega) hq; omega
       · have := g.inT hq; have := g.tw; omega
       · have := h1.inStk g hN hq; have := g.wS; omega
-  rw [show k + 24 + b4.length = k + 28 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b4Offset + b4.length = k + NativeRustcVmArm.Vm.VerifyExecution.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b4_next]] at hpc2
   rw [walkOod, run_bind_eq]
   generalize hr : (readOod L.stackLog).run s = r at hx0 hres
   have bk := branch_keeps b5 (by simp)
@@ -111,7 +120,7 @@ theorem call3 (hp : Placed code k) (hR : Rest)
   obtain ⟨⟨ood, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
   obtain ⟨hood, hts'⟩ := hres _ _ rfl
   have hroots' : s'.roots = s.roots := (readOod_roots L.stackLog).keeps _ _ _ hr
-  rw [show k + 28 + b5.length = k + 29 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b5Offset + b5.length = k + NativeRustcVmArm.Vm.VerifyExecution.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b5_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)
@@ -128,10 +137,10 @@ theorem call3 (hp : Placed code k) (hR : Rest)
 
 /-- **The stack's commitment**, from `b2`: the function returns the walk's rest. -/
 theorem call2 (hp : Placed code k) (hR : Rest)
-    (hcs : ∀ a s, Spec (Labels.label commitStackLabel) (CommitStackPre a s) (CommitStackPost a s))
-    (hro : ∀ a s, Spec (Labels.label readOodLabel) (ReadOodPre a s) (ReadOodPost a s))
+    (hcs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.CommitStack.entryLabel) (CommitStackPre a s) (CommitStackPost a s))
+    (hro : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 17)) {rate : Nat} (h1r : st.data.regs.X1.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b2Offset)) {rate : Nat} (h1r : st.data.regs.X1.toNat = rate)
     (h22 : st.data.regs.X22 = m0.regs.X3) (h23 : st.data.regs.X23 = m0.regs.X2)
     (h24 : st.data.regs.X24 = m0.regs.X1) {P : Vector UInt64 4}
     (hP : NativeRustcVm.WordsAt m0.dmem m0.regs.X3.toBitVec P.toList) {s : TState}
@@ -184,7 +193,7 @@ theorem call2 (hp : Placed code k) (hR : Rest)
       rcases hq with hq | hq
       · have := g.inT hq; have := g.tw; omega
       · have := h1.inStk g hN' hq; have := g.wS; omega
-  rw [show k + 17 + b2.length = k + 23 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b2Offset + b2.length = k + NativeRustcVmArm.Vm.VerifyExecution.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b2_next]] at hpc2
   rw [walkCommit, run_bind_eq]
   generalize hr : (commitStack L.stackLog rate).run s = r at hx0 hnext
   have bk := branch_keeps b3 (by simp)
@@ -199,7 +208,7 @@ theorem call2 (hp : Placed code k) (hR : Rest)
   have hts' := hnext _ _ rfl
   have hroots' : s'.roots.size ≤ s.roots.size + 1 :=
     (commitStack_roots L.stackLog rate).grows _ _ _ hr
-  rw [show k + 23 + b3.length = k + 24 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b3Offset + b3.length = k + NativeRustcVmArm.Vm.VerifyExecution.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b3_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)

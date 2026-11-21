@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.DuplexInput.Exec
 public import NativeRustcVm.Transcript.Sponge
+public import NativeRustcVmX64.Code.Vm.SpongeWDuplexInput.Names
 
 /-!
 # `SpongeW::duplex_input` on x86-64
@@ -97,7 +98,7 @@ theorem finish {m0 : MachineData} {sp : SpongeW} (hst : StackOk m0 0)
 
 /-- **`SpongeW::duplex_input` meets its contract.** -/
 theorem duplexInput_spec (hp : Placed code k) (sp : SpongeW) :
-    Spec (Labels.label duplexInputLabel) (DuplexInputPre sp) (DuplexInputPost sp) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplexInput.entryLabel) (DuplexInputPre sp) (DuplexInputPost sp) := by
   rintro m0 ⟨hst, ⟨hmap, hnw, hapS, -⟩, hsp⟩
   have hwf : (envOf m0).WF :=
     frame_wf ⟨frame_mapped hst le_rfl, frame_noWrap hst le_rfl⟩
@@ -112,8 +113,8 @@ theorem duplexInput_spec (hp : Placed code k) (sp : SpongeW) :
       trivial
   have hcnt := load_count hsp
   have hle : sp.pending.size ≤ 4 := hsp.pending_le
-  unfold duplexInputLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.SpongeWDuplexInput.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.SpongeWDuplexInput.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf nofun hm0
     fun st1 hm1 hpc1 => ?_
   have hcases : sp.pending.size = 0 ∨ sp.pending.size = 1 ∨ sp.pending.size = 2 ∨
@@ -125,7 +126,7 @@ theorem duplexInput_spec (hp : Placed code k) (sp : SpongeW) :
     simp (config := { decide := true }) only [↓reduceIte] at hpc1
   · -- `b5` to `b9`.
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (exec_after run_b0 run_b5_0) hwf nofun
-      (hpc1.trans (hp.label (j := 35) rfl)) hm1 fun st2 hm2 hpc2 => ?_
+      (hpc1.trans (hp.label NativeRustcVmX64.Vm.SpongeWDuplexInput.label_1_at)) hm1 fun st2 hm2 hpc2 => ?_
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) (exec_after run_b5_0 run_b6_0) hwf
       nofun hpc2 hm2 fun st3 hm3 hpc3 => ?_
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) (exec_after run_b6_0 run_b7_0) hwf
@@ -147,7 +148,7 @@ theorem duplexInput_spec (hp : Placed code k) (sp : SpongeW) :
     simp (config := { decide := true }) only [↓reduceIte] at hpc2
   · -- `b6` to `b9`.
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) (exec_after run_b1 run_b6_1) hwf nofun
-      (hpc2.trans (hp.label (j := 40) rfl)) hm2 fun st3 hm3 hpc3 => ?_
+      (hpc2.trans (hp.label NativeRustcVmX64.Vm.SpongeWDuplexInput.label_3_at)) hm2 fun st3 hm3 hpc3 => ?_
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) (exec_after run_b6_1 run_b7_1) hwf
       nofun hpc3 hm3 fun st4 hm4 hpc4 => ?_
     refine exec_at (infix_of b8_in_code (by simp [b8]) hp) (exec_after run_b7_1 run_b8_1) hwf
@@ -167,7 +168,7 @@ theorem duplexInput_spec (hp : Placed code k) (sp : SpongeW) :
     simp (config := { decide := true }) only [↓reduceIte] at hpc3
   · -- `b7` to `b9`.
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) (exec_after run_b2 run_b7_2) hwf nofun
-      (hpc3.trans (hp.label (j := 45) rfl)) hm3 fun st4 hm4 hpc4 => ?_
+      (hpc3.trans (hp.label NativeRustcVmX64.Vm.SpongeWDuplexInput.label_5_at)) hm3 fun st4 hm4 hpc4 => ?_
     refine exec_at (infix_of b8_in_code (by simp [b8]) hp) (exec_after run_b7_2 run_b8_2) hwf
       nofun hpc4 hm4 fun st5 hm5 hpc5 => ?_
     refine exec_at (infix_of b9_in_code (by simp [b9]) hp) (exec_after run_b8_2 run_b9_2) hwf
@@ -185,7 +186,7 @@ theorem duplexInput_spec (hp : Placed code k) (sp : SpongeW) :
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
   · -- `b8`, `b9`.
     refine exec_at (infix_of b8_in_code (by simp [b8]) hp) (exec_after run_b3 run_b8_3) hwf nofun
-      (hpc4.trans (hp.label (j := 50) rfl)) hm4 fun st5 hm5 hpc5 => ?_
+      (hpc4.trans (hp.label NativeRustcVmX64.Vm.SpongeWDuplexInput.label_7_at)) hm4 fun st5 hm5 hpc5 => ?_
     refine exec_at (infix_of b9_in_code (by simp [b9]) hp) (exec_after run_b8_3 run_b9_3) hwf
       nofun hpc5 hm5 fun st6 hm6 hpc6 => ?_
     have he := end3
@@ -196,7 +197,7 @@ theorem duplexInput_spec (hp : Placed code k) (sp : SpongeW) :
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) (exec_after run_b3 run_b4) hwf nofun
       hpc4 hm4 fun st5 hm5 hpc5 => ?_
     refine exec_at (infix_of b9_in_code (by simp [b9]) hp) (exec_after run_b4 run_b9_4) hwf
-      nofun (hpc5.trans (hp.label (j := 54) rfl)) hm5 fun st6 hm6 hpc6 => ?_
+      nofun (hpc5.trans (hp.label NativeRustcVmX64.Vm.SpongeWDuplexInput.label_9_at)) hm5 fun st6 hm6 hpc6 => ?_
     have he := end4
     unfold E4 at he
     rw [after_eq run_b9_4] at he

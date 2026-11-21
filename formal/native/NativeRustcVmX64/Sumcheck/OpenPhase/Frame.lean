@@ -403,12 +403,12 @@ theorem exit_fail (hp : Placed code k) {P : Array OpeningW} {R : Digest} {Q : Ar
     (hr : openPhase R (reg m0 .rdx).toNat (reg m0 .rcx).toNat Q P = none) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧
       rspOf st.data = rspOf m0 + 8#64 ∧ OpenPhasePost P R Q m0 st.data)
-      ⟨m, Host.addrOf (k + 108)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b22Offset)⟩ := by
   have hwf := wf_out hpre hf
   refine exec_then (infix_of b22_in_code (by simp [b22]) hp) exit_b22 hwf nofun
     (match_outS hf h16) fun st1 hm1 hpc1 ↦ ?_
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9n hwf nofun
-    (hpc1.trans (hp.label (j := 40) rfl)) hm1 fun st hm hpc ↦ ?_
+    (hpc1.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_17_at)) hm1 fun st hm hpc ↦ ?_
   obtain ⟨hepi, hw0, hW⟩ := ok_b9n
   refine .done _ (retPost hpre hf hwf hm hpc hepi hW ?_)
   rw [hr]
@@ -421,13 +421,13 @@ theorem exit_fail8 (hp : Placed code k) {P : Array OpeningW} {R : Digest} {Q : A
     (hr : openPhase R (reg m0 .rdx).toNat (reg m0 .rcx).toNat Q P = none) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧
       rspOf st.data = rspOf m0 + 8#64 ∧ OpenPhasePost P R Q m0 st.data)
-      ⟨m, Host.addrOf (k + 38)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b8Offset)⟩ := by
   have hwf := wf_out hpre hf
   refine exec_then (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf nofun
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf.frame.rsp_eval, known_ptr rfl hdi, trivial⟩ trivial
       trivial trivial) fun st1 hm1 hpc1 ↦ ?_
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9f hwf nofun
-    (hpc1.trans (by rw [show b8.length = 2 from rfl])) hm1 fun st hm hpc ↦ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b8_next)) hm1 fun st hm hpc ↦ ?_
   obtain ⟨hepi, hw0, hW⟩ := ok_b9f
   refine .done _ (retPost hpre hf hwf hm hpc hepi hW ?_)
   rw [hr]
@@ -447,13 +447,13 @@ theorem exit_rows (hp : Placed code k) {P : Array OpeningW} {R : Digest} {Q : Ar
     (hr : openPhase R (reg m0 .rdx).toNat (reg m0 .rcx).toNat Q P = some (P.map (·.leaf))) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧
       rspOf st.data = rspOf m0 + 8#64 ∧ OpenPhasePost P R Q m0 st.data)
-      ⟨m, Host.addrOf (k + 101)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b21Offset)⟩ := by
   obtain ⟨hst, -, -, -, -, -, -, -, hnwp, -, -, -, hnwo, -, -, -, -, hop, -⟩ := id hpre
   have hwf := wf_out hpre hf
   refine exec_then (infix_of b21_in_code (by simp [b21]) hp) exit_b21 hwf nofun
     (match_outS hf h16) fun st1 hm1 hpc1 ↦ ?_
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9r hwf nofun
-    (hpc1.trans (hp.label (j := 40) rfl)) hm1 fun st hm hpc ↦ ?_
+    (hpc1.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_17_at)) hm1 fun st hm hpc ↦ ?_
   obtain ⟨hepi, hw0, hw8, hw16, hw24, hW⟩ := ok_b9r
   refine .done _ (retPost hpre hf hwf hm hpc hepi hW ?_)
   rw [hr]

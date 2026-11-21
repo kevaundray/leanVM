@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Seed.Names
 public import NativeRustcVmArm.Top.Verify.Basic
 
 /-!
@@ -19,11 +20,11 @@ public section
 
 variable [Host] {k : Nat}
 
-theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label seedLabel) SeedPre SeedPost)
+theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label NativeRustcVmArm.Vm.Seed.entryLabel) SeedPre SeedPost)
     {a : DecArea} {stream : Array EW} {openings : Array (Array OpeningW)} {m0 : MachineData}
     (hpre : VerifyPre a stream openings m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 16) ∧ SA m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b1Offset) ∧ SA m0 st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b0Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨⟨-, -, hmap⟩, hrod, -, -, -, ⟨hbcM, -⟩, ⟨hpubM, -⟩, -, -, -, -, -, -⟩ := hpre
   have hs := g.s
@@ -152,7 +153,7 @@ theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label seedLabel) SeedP
   have hsd := hseed2 (bcOf m0) (by rw [length_bcOf, hX2_1]) (by rw [hX1_1]; exact hbc)
     (pubOf m0) (by rw [hX3_1]; exact hpub)
   rw [hX0_1] at hsd
-  rw [show k + 0 + b0.length = k + 16 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.Verify.b0Offset + b0.length = k + NativeRustcVmArm.Vm.Verify.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b0_next]] at hpc2
   refine Eventually.done _ ⟨hpc2, hB2, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact (hsaved2.1 .X19 rfl).trans hX19_1
   · exact (hsaved2.1 .X20 rfl).trans hX20_1

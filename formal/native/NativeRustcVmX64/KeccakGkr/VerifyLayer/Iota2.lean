@@ -6,10 +6,10 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.B26
 # `verify_layer` on x86-64: ι's second segment
 
 `b32` (from `IX`, the first segment's bits in RDX, RAX) spills the second segment's weight to the
-frame's `24` and `72`, loads `KECCAK_RC[23 - step]` into R8 and enters `.LVerifyLayer_26` with no
+frame's `24` and `72`, loads `KECCAK_RC[23 - step]` into R8 and enters `NativeRustcVmX64.Vm.VerifyLayer.label_26` with no
 bit summed (`JA 0`): `b32Run`. The loop (`b36`, the expanded `bt` of bit `2 i`; `b34` or `b37`
 the term; `b35` the next bit and the sum) sums the bit weights it selects in R15, RBX: `iotaLoop2`,
-to `.LVerifyLayer_28` (`JX`).
+to `NativeRustcVmX64.Vm.VerifyLayer.label_28` (`JX`).
 -/
 
 namespace NativeRustcVmX64.KeccakGkr.VerifyLayer
@@ -43,7 +43,7 @@ structure JB [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : A
   base : JA m0 a c p s1 i d
   t : ewArg (reg d .r11) (reg d .r10) = bitSel c.weights (rcW (23 - stepN m0)) (2 * i)
 
-/-- **The second segment done**, at `.LVerifyLayer_28`. -/
+/-- **The second segment done**, at `NativeRustcVmX64.Vm.VerifyLayer.label_28`. -/
 structure JX [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (d : MachineData) : Prop where
   k0 : K0 m0 a c p s1 (spillsJ m0 c) d
@@ -72,8 +72,8 @@ variable [Host] {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 /-- **Into ι's second loop**: `b32`. -/
 theorem b32Run (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : IX m0 a c p s1 d) {R : MachineState → Prop}
-    (cont : ∀ d', JA m0 a c p s1 0 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 333)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 297)⟩ := by
+    (cont : ∀ d', JA m0 a c p s1 0 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b36Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b32Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hst : stepN m0 < 12 := pre_step hpre
@@ -169,8 +169,8 @@ theorem JA.keep {d d' : MachineData} (h : JA m0 a c p s1 i d)
 /-- `b36`, then `b34` or `b37`: the term `2 i`. -/
 theorem jaStep (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : JA m0 a c p s1 i d) {R : MachineState → Prop}
-    (cont : ∀ d', JB m0 a c p s1 i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 315)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 333)⟩ := by
+    (cont : ∀ d', JB m0 a c p s1 i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b35Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b36Offset)⟩ := by
   have g := geo_of hpre
   have hk := h.k0
   have hwf := wf0 (pre_stack hpre) hk.body (vars := fun _ ↦ 0) (ret := 0)
@@ -242,9 +242,9 @@ theorem jaStep (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machin
 /-- `b35`: the term `2 i + 1`, the sum; the next head or out. -/
 theorem jaStep2 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : JB m0 a c p s1 i d) {R : MachineState → Prop}
-    (hnext : ∀ d', JA m0 a c p s1 (i + 1) d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 333)⟩)
-    (hout : ∀ d', JX m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 342)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 315)⟩ := by
+    (hnext : ∀ d', JA m0 a c p s1 (i + 1) d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b36Offset)⟩)
+    (hout : ∀ d', JX m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b38Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b35Offset)⟩ := by
   have g := geo_of hpre
   have hja := h.base
   have hk := hja.k0
@@ -319,9 +319,9 @@ theorem jaStep2 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machi
 /-- **The second segment's loop.** -/
 theorem iotaLoop2 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : JA m0 a c p s1 0 d) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 342) ∧ JX m0 a c p s1 st.data)
-      ⟨d, Host.addrOf (k + 333)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 333) ∧ ∃ i, 32 - i = n ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b38Offset) ∧ JX m0 a c p s1 st.data)
+      ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b36Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b36Offset) ∧ ∃ i, 32 - i = n ∧
     JA m0 a c p s1 i st.data) (fun n st ⟨hpc, i, hn, hi⟩ ↦ ?_) ⟨rfl, 0, rfl, h⟩
   obtain ⟨d', pc⟩ := st
   simp only at hpc hi

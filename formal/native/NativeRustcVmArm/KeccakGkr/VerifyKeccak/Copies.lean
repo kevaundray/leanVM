@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.CopyStep
 
 /-!
@@ -32,12 +33,12 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The copies** (`b9` to `b15`): before layer `0`. -/
 theorem stepCopies (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m : MachineData} {s4 : TState} {first : KeccakClaimW} {c : EW}
     (hf : AtF a s cs inst output m0 m s4 first c)
     (cont : ∀ m', AtL a s cs inst output m0 m' 0 s4 first first c →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 108)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 71)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b16Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b9Offset)⟩ := by
   have hN := hn.hN
   obtain ⟨hval, hmu, hpl, hpw, hpe⟩ := hf.claim
   have hpl' : first.point.toList.length ≤ 30 := hpl
@@ -51,7 +52,7 @@ theorem stepCopies (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     (fun st hm ↦ reg_addL hm (x := .X1) (y := .X28) (o := 960) (c := 8) rfl hf.x28) rfl
     (by decide) (by decide) (by decide) (by decide)
     fun st9 m10 hm9 hmid10 hi9 hb9 hc9 hk9 hcs9 ↦ ?_
-  rw [show k + 71 + b9.length = k + 76 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b9Offset + b9.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b10Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b9_next]]
   have x28a : (m10.regs.getXReg .X28).toBitVec = loc m0 960 := by
     rw [keep_cs (matchM hn hf.mid.fr) hm9 hcs9 (r := .X28) rfl rfl rfl]; exact hf.x28
   have w56 : NativeRustcVm.WordAt st9.dmem (loc m0 56) c.c1 := by
@@ -68,7 +69,7 @@ theorem stepCopies (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     (fun st hm ↦ reg_addL hm (x := .X1) (y := .X28) (o := 960) (c := 296) rfl x28a) rfl
     (by decide) (by decide) (by decide) (by decide)
     fun st10 m11 hm10 hmid11 hi10 hb10 hc10 hk10 hcs10 ↦ ?_
-  rw [show k + 76 + b10.length = k + 81 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b10Offset + b10.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b11Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b10_next]]
   have x29a : st10.regs.getXReg .X29 = first.point.toList.length.toUInt64 :=
     reg_of hm10 (r := .X29) (v := .load 0 1248 8) rfl
       (Sumcheck.load_word (env := envM m0 m10) (r := 0) (off := 1248) pw10)
@@ -83,7 +84,7 @@ theorem stepCopies (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     (fun st hm ↦ reg_loc hm (r := .X1) (o := 2216) rfl) rfl
     (by decide) (by decide) (by decide) (by decide)
     fun st11 m12 hm11 hmid12 hi11 hb11 hc11 hk11 hcs11 ↦ ?_
-  rw [show k + 81 + b11.length = k + 86 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b11Offset + b11.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b11_next]]
   have x19a : (m12.regs.getXReg .X19).toBitVec = loc m0 192 := by
     rw [hcs11 .X19 rfl]; exact reg_loc hm11 (r := .X19) (o := 192) rfl
   have x28c : (m12.regs.getXReg .X28).toBitVec = loc m0 960 := by
@@ -101,7 +102,7 @@ theorem stepCopies (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     (fun st hm ↦ reg_loc hm (r := .X1) (o := 1736) rfl) rfl
     (by decide) (by decide) (by decide) (by decide)
     fun st12 m13 hm12 hmid13 hi12 hb12 hc12 hk12 hcs12 ↦ ?_
-  rw [show k + 86 + b12.length = k + 92 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b12Offset + b12.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b13Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b12_next]]
   have w48 : NativeRustcVm.WordAt st12.dmem (loc m0 48) (UInt64.ofBitVec (loc m0 480)) := by
     have := Sumcheck.Match.wordAt_write hm12 (r := 0) (o := 48)
       (v := .bin .add .W64 (.reg .X19) (.lit 288)) rfl (by decide) (by decide)
@@ -127,7 +128,7 @@ theorem stepCopies (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     (fun st hm ↦ reg_loc hm (r := .X1) (o := 2216) rfl) rfl
     (by decide) (by decide) (by decide) (by decide)
     fun st13 m14 hm13 hmid14 hi13 hb13 hc13 hk13 hcs13 ↦ ?_
-  rw [show k + 92 + b13.length = k + 96 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b13Offset + b13.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b14Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b13_next]]
   have x28e : (m14.regs.getXReg .X28).toBitVec = loc m0 960 := by
     rw [keep_cs (matchM hn hmid13.fr) hm13 hcs13 (r := .X28) rfl rfl rfl]; exact x28d
   have x29d : m14.regs.getXReg .X29 = first.point.toList.length.toUInt64 := by
@@ -143,7 +144,7 @@ theorem stepCopies (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     (fun st hm ↦ reg_loc hm (r := .X1) (o := 1736) rfl) rfl
     (by decide) (by decide) (by decide) (by decide)
     fun st14 m15 hm14 hmid15 hi14 hb14 hc14 hk14 hcs14 ↦ ?_
-  rw [show k + 96 + b14.length = k + 103 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b14Offset + b14.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b15Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b14_next]]
   have wsz : ∀ o, o + 8 ≤ 3360 → (∀ i < 8, findWrite 0 (o + i) (match exec b14 midS with
       | some (S, _) => S.mem | none => []) = some (.reg .X29, i)) →
       NativeRustcVm.WordAt st14.dmem (loc m0 o) first.point.toList.length.toUInt64 := by

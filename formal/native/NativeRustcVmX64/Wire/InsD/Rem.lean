@@ -47,7 +47,7 @@ theorem f_spec {i j : Nat} {gj : UInt64} {st : MachineState} (hI : FInv m L k i 
     hr1 r (.reg r) (by simp only [List.mem_cons, List.not_mem_nil, or_false] at hr; rcases hr with rfl | rfl | rfl <;> rfl)
   have hw1 : WordsAt st1.data.dmem (arr m) (hl L j gj) := by rw [hd1]; exact hI.w
   by_cases h4 : L.length - i < 4
-  · rw [ite_t h4, hp.label (j := 69) rfl] at hpc2
+  · rw [ite_t h4, hp.label NativeRustcVmX64.Vm.InsD.label_10_at] at hpc2
     have hji : j = i := by have := hI.rem; have := hI.jle; have := hI.lt; omega
     subst hji
     exact store_spec hp g hpc2 hk1 (by rw [e .rcx (by simp)]; exact hI.rcx)
@@ -65,7 +65,7 @@ theorem f_spec {i j : Nat} {gj : UInt64} {st : MachineState} (hI : FInv m L k i 
       by rw [e2 .rsi (by simp)]; exact hI.rsi, by omega, by omega, hI.jle, hI.below, hI.above,
       by rw [hd2]; exact hw1⟩
 
-/-- **A move** (`b10`): element `j - 1` to `j`; back at `.LInsD_4` or at the test. -/
+/-- **A move** (`b10`): element `j - 1` to `j`; back at `NativeRustcVmX64.Vm.InsD.label_4` or at the test. -/
 theorem rem_step {i j : Nat} {gj : UInt64} {st : MachineState} (hI : RInv m L k i j gj st) :
     Eventually (step1 Host.exe) (fun st' ↦ FInv m L k i (j - 1) (L.getD (j - 1) 0) st' ∨
       RInv m L k i (j - 1) (L.getD (j - 1) 0) st') st := by
@@ -130,7 +130,7 @@ theorem rem_step {i j : Nat} {gj : UInt64} {st : MachineState} (hI : RInv m L k 
       BitVec.toNat_ofNat, Bool.eq_iff_iff]
     simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq])
   by_cases hz : (reg st.data .r9).toNat - 1 ≠ 0
-  · rw [ite_t hz, hp.label (j := 34) rfl] at hpc2
+  · rw [ite_t hz, hp.label NativeRustcVmX64.Vm.InsD.label_4_at] at hpc2
     exact .done _ (.inr ⟨hpc2, hkp, by rw [e .rcx (by simp)]; exact hI.rcx,
       by rw [e .rax (by simp)]; exact hI.rax, by rw [e .r8 (by simp)]; exact hI.r8,
       hdec .r10 (by simp), by rw [hr9]; omega, by rw [hr9]; omega, hI.lt, by omega, hI.below,
@@ -151,7 +151,7 @@ theorem rem_spec {i j : Nat} {gj : UInt64} {st : MachineState} (hI : RInv m L k 
   · exact Eventually.mono (f_spec hp g h) fun _ h ↦ .inl h
   · exact .done _ (.inr ⟨n - 1, by have := hI'.r9; have := hI'.pos; omega, _, h⟩)
 
-/-- **From `.LInsD_1`** (`b7`): `x` stored at once, or the shift. -/
+/-- **From `NativeRustcVmX64.Vm.InsD.label_1`** (`b7`): `x` stored at once, or the shift. -/
 theorem six_spec {i : Nat} {gn : UInt64} (hgn : WordsAt m.dmem (arr m) (L ++ [gn]))
     {st : MachineState} (hI : SixInv m L k i st) : Eventually (step1 Host.exe) (Post m) st := by
   have hlt := g.lt
@@ -181,7 +181,7 @@ theorem six_spec {i : Nat} {gn : UInt64} (hgn : WordsAt m.dmem (arr m) (L ++ [gn
   have hrax : (reg st1.data .rax).toNat = L.length := by rw [e .rax (by simp)]; exact hI.rax
   have hw1 : WordsAt st1.data.dmem (arr m) (hl L L.length gn) := by rw [hd1]; exact hw0
   by_cases hin : i = L.length
-  · rw [ite_t hin, hp.label (j := 69) rfl] at hpc2
+  · rw [ite_t hin, hp.label NativeRustcVmX64.Vm.InsD.label_10_at] at hpc2
     subst hin
     exact store_spec hp g hpc2 hk1 hrcx hrax le_rfl hI.below hI.above hw1
   rw [ite_f hin] at hpc2
@@ -204,7 +204,7 @@ theorem six_spec {i : Nat} {gn : UInt64} (hgn : WordsAt m.dmem (arr m) (L ++ [gn
   have hr92 : (reg st2.data .r9).toNat = (L.length - i) % 4 := by rw [hr2 .r9 _ rfl]; exact hq
   have hw2 : WordsAt st2.data.dmem (arr m) (hl L L.length gn) := by rw [hd2]; exact hw1
   by_cases h0 : (L.length - i) % 4 = 0
-  · rw [ite_t h0, hp.label (j := 43) rfl] at hpc4
+  · rw [ite_t h0, hp.label NativeRustcVmX64.Vm.InsD.label_5_at] at hpc4
     exact f_spec hp g ⟨hpc4, hk2, by rw [e2 .rcx (by simp)]; exact hrcx,
       by rw [e2 .rax (by simp)]; exact hrax, by rw [e2 .r8 (by simp)]; exact h8, hsi2,
       by omega, hil, le_rfl, hI.below, hI.above, hw2⟩

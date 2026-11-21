@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
 public import NativeRustcVmArm.Wire.ReaderLe
 public import NativeRustcVmArm.Ring.Frame
 
@@ -113,7 +114,7 @@ end
 variable [Host]
 
 /-- **A call of `Reader::le` for eight bytes** from a state of a reading function's frame. -/
-theorem le_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+theorem le_call (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     {m0 : MachineData} {F N : Nat} {slots : List (Nat × XReg)} {keep : List XReg}
     {r bp : BitVec 64} {B : List UInt8} {W : BitVec 64 → Prop} {c : Nat}
     (g : RGeo m0 N r bp B.length W) (hF : F % 16 = 0) (hFN : F ≤ N)
@@ -121,7 +122,7 @@ theorem le_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePos
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m0 F N slots keep (outs r W) st.data) (hR : ReaderAt st.data.dmem r bp B c)
     (hx0 : st.data.regs.X0.toBitVec = r) (hx1 : st.data.regs.X1.toNat = 8)
-    (hpc : st.pc = Labels.label readerLeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, Fr m0 F N slots keep (outs r W) m2 →
       (∀ x, calleeSaved x = true → m2.regs.getXReg x = st.data.regs.getXReg x) →
       SameOutside st.data.dmem m2.dmem (InRange (r + BitVec.ofNat 64 16) 8) →

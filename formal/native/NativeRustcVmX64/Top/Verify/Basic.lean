@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Top.Verify.Exec
 public import NativeRustcVmX64.Top.Basic
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.Verify.Names
 
 /-!
 # `verify`: where things are (x86-64)
@@ -162,8 +163,8 @@ theorem pubOf_eq {m0 : MachineData} {P : Vector UInt64 4}
 
 variable [Host] {k : Nat}
 
-theorem lbl_entry (hp : Placed Vm.Verify.code k) : Labels.label verifyLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
+theorem lbl_entry (hp : Placed Vm.Verify.code k) : Labels.label NativeRustcVmX64.Vm.Verify.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.Verify.entry_at
 
 end
 

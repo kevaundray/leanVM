@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.Powers.Names
+public import NativeRustcVmArm.Code.Vm.TableSumcheck.Names
 public import NativeRustcVmArm.Tables.TablePhase.Facts
 public import NativeRustcVmArm.Tables.Frame
 public import NativeRustcVmArm.Tables.Common
@@ -61,7 +64,7 @@ theorem exit7 (hp : Placed code k) (hS : StackOk m0 tablePhaseStack) {m : Machin
       (∀ x s', (tablePhase L bus).run s = some (x, s') →
         TableEvalsAt m'.dmem m0.regs.X3.toBitVec x) ∧
       NextAt m'.dmem m0.regs.X0.toBitVec a ((tablePhase L bus).run s)) :
-    Eventually (step1 Host.exe) (Goal a s L bus m0) ⟨m, Host.addrOf (k + 44)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s L bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b7Offset)⟩ := by
   have hwf := Bus.wf_frame hS N_ge hfr.kept
   have hm := Bus.match_frame hS N_ge rfl hfr.sp
   refine exec_then (b7_in_code.trans hp.1 (by simp [b7])) run_b7 hwf hm fun st hm' hpc ↦ ?_
@@ -89,9 +92,9 @@ theorem inRange_le {x q : BitVec 64} {n n' : Nat} (h : InRange x n q) (hn : n �
 
 /-- **After `ξ`** (`b4` on): the powers, the target, the table sumcheck, the exit. -/
 theorem tail (hp : Placed code k)
-    (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hsum : ∀ a s heights bus, Spec (Labels.label tableSumcheckLabel)
+    (hpow : Spec (Labels.label NativeRustcVmArm.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (hsum : ∀ a s heights bus, Spec (Labels.label NativeRustcVmArm.Vm.TableSumcheck.entryLabel)
       (TableSumcheckPre a s heights bus) (TableSumcheckPost a s heights bus))
     (hpre : TablePhasePre a s L bus m0) {s1 : TState}
     (hg : (grind (grindingBits 4)).run s = some ((), s1)) {m : MachineData}
@@ -100,7 +103,7 @@ theorem tail (hp : Placed code k)
     (x21 : m.regs.getXReg .X21 = m0.regs.X0) (x22 : m.regs.getXReg .X22 = m0.regs.X1)
     (x0 : m.regs.X0 = s1.sponge.squeeze.1.c0) (x1 : m.regs.X1 = s1.sponge.squeeze.1.c1)
     (hts : TStateAt m.dmem m0.regs.X0.toBitVec a { s1 with sponge := s1.sponge.squeeze.2 }) :
-    Eventually (step1 Host.exe) (Goal a s L bus m0) ⟨m, Host.addrOf (k + 20)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s L bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b4Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, hrc, hT, hts0, htok, heo, hRt, hRe, hLin, hL, hBin, hB⟩ := hpre'
   have hN := hS.2.1
@@ -145,7 +148,7 @@ theorem tail (hp : Placed code k)
     exact (congrArg₂ EW.mk x0 x1).trans rfl
   have hl80 := Bus.local_ok (o := 0) (n := 80) hS hle_p (by omega) hfr4.kept hfr4.sp
   rw [NativeRustcVm.addr_add_zero] at hl80
-  have hpc4' : st4.pc = Labels.label powersLabel ∧ retOf st4.data = Host.addrOf (k + 29) := hpc4
+  have hpc4' : st4.pc = Labels.label NativeRustcVmArm.Vm.Powers.entryLabel ∧ retOf st4.data = Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b5Offset) := hpc4
   have hat4 := Bus.Gkr.Fr.at_ c hfr4 hor
   refine Bus.Gkr.Fr.callLocal (o := 0) (n := 80) (X := fun q ↦ InRange (base m0 128) 80 q) hfr4 hN
     hle_p keep_callee slots_hi (by omega) hof
@@ -195,7 +198,7 @@ theorem tail (hp : Placed code k)
           NativeRustcVm.Bus.pointBufBytes NativeRustcVm.Bus.formsBytes; decide)
     (by unfold busBytes NativeRustcVm.Bus.busTotalsOff NativeRustcVm.Bus.busPointOff
           NativeRustcVm.Bus.pointBufBytes NativeRustcVm.Bus.formsBytes; decide))
-  have hpc6' : st6.pc = Labels.label dotLabel ∧ retOf st6.data = Host.addrOf (k + 35) := hpc6
+  have hpc6' : st6.pc = Labels.label NativeRustcVmArm.Vm.Dot.entryLabel ∧ retOf st6.data = Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b6Offset) := hpc6
   refine Fr.leaf hfr6 hN hle_d keep_callee slots_le hof hdot
     (fun m m' hq ↦ ⟨Bus.changes_zero hq.2.1, hq.2.2⟩) hpc6'
     ⟨hfr6.stackOk hS rfl hle_d, by unfold SliceOk; rw [e60, e61]; exact hl48,
@@ -307,7 +310,7 @@ theorem tail (hp : Placed code k)
       ¬InRange (rodataAddr t) t.bytes.length q := fun q hq t ↦ hq.elim
     (fun h ↦ not_rodata hts0.footprint.1.2 hRt (fun t ↦ (hT t).2.1) h t)
     (fun h ↦ not_rodata heo.2.1 hRe (fun t ↦ (hT t).2.1) h t)
-  have hpc8' : st8.pc = Labels.label tableSumcheckLabel ∧ retOf st8.data = Host.addrOf (k + 44) :=
+  have hpc8' : st8.pc = Labels.label NativeRustcVmArm.Vm.TableSumcheck.entryLabel ∧ retOf st8.data = Host.addrOf (k + NativeRustcVmArm.Vm.TablePhase.b7Offset) :=
     hpc8
   have hts8 : TStateAt st8.data.dmem m0.regs.X0.toBitVec a
       { s1 with sponge := s1.sponge.squeeze.2 } := by rw [hd8']; exact hts7

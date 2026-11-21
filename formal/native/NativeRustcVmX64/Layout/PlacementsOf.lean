@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Layout.PlacementsOf.Turn3
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.PlacementsOf.Names
+public import NativeRustcVmX64.Code.Vm.StackOffsets.Names
 
 /-!
 # `placements_of` on x86-64
@@ -26,7 +29,7 @@ variable [Host] {k : Nat}
 
 /-- **`b32` and the epilogue**: `Some(max(16, total_log))`, the placements the model's. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 132)) (hI : I3 m0 158 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b32Offset)) (hI : I3 m0 158 st.data) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ rspOf s.data = rspOf m0 + 8#64 ∧
       PlacementsOfPost m0 s.data) st := by
   set L := log2Ceil (sumF (κ m0) 0) with hL
@@ -62,7 +65,7 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : Mac
   have hr15 : reg st1.data .r15 = 1#64 := hm1.regs .r15 _ h15
   obtain ⟨hepi, hmem31, hax31, hK31⟩ := ok_b31
   refine hb1.done hF.stack (by decide) ((infix_drop b31 1).trans b31_in_code (by simp [b31]) |>.trans
-    hp.1 (by simp [b31])) exit_b31 (hpc1.trans (hp.label (j := 122) rfl)) (match0 hb1) hepi hmem31
+    hp.1 (by simp [b31])) exit_b31 (hpc1.trans (hp.label NativeRustcVmX64.Vm.PlacementsOf.label_26_at)) (match0 hb1) hepi hmem31
     fun st2 hm2 hpc2 hrsp2 hsv2 hd2 ↦ ⟨hpc2, hrsp2, ?_⟩
   have hsz : (natsOf m0 (reg m0 .rdi) columnCountW).size = 158 := by
     simp [natsOf, columnCountW, NativeRustcVm.wordsOf]
@@ -78,9 +81,9 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : Mac
 
 /-- **`placements_of` meets its contract.** -/
 theorem placementsOf_spec (hp : Placed code k)
-    (hms : Spec (label "memset") MemsetPre MemsetPost)
-    (hso : Spec (label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost) :
-    Spec (label placementsOfLabel) PlacementsOfPre PlacementsOfPost := by
+    (hms : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hso : Spec (label NativeRustcVmX64.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost) :
+    Spec (label NativeRustcVmX64.Vm.PlacementsOf.entryLabel) PlacementsOfPre PlacementsOfPost := by
   intro m0 hpre
   have hF := Facts.of_pre hpre
   refine Eventually.bind (entry hp hms hF) fun s1 ⟨hpc1, hI1⟩ ↦ ?_

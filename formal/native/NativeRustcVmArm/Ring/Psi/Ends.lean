@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Ring.Psi.Steps
 
 /-!
@@ -105,7 +106,7 @@ variable [Host]
 
 /-- **The prologue and the first product.** -/
 theorem stepEntry (hpre : RingPsiPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat}
     (hk : Vm.RingPsi.b0.IsInfixAt Host.prog i) {R : MachineState → Prop}
     (cont : ∀ m2, First m0 m2 →
       Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + Vm.RingPsi.b0.length)⟩) :
@@ -140,9 +141,9 @@ theorem stepEntry (hpre : RingPsiPre m0)
 
 /-- **The first sum and square** (`b1`). -/
 theorem stepFirst (hpre : RingPsiPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat} {ds : List Directive}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat} {ds : List Directive}
     {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewMulLabel)) (hS : regsAre S' firstRegs = true)
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hS : regsAre S' firstRegs = true)
     (hsp : S'.sp = .sp) (hmem : S'.mem = []) {m : MachineData} (hF : First m0 m)
     {R : MachineState → Prop}
     (cont : ∀ m2, Even m0 1 m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + ds.length)⟩) :
@@ -186,9 +187,9 @@ theorem stepFirst (hpre : RingPsiPre m0)
 
 /-- **The last product** (`b14`). -/
 theorem stepLast (hpre : RingPsiPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat} {ds : List Directive}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat} {ds : List Directive}
     {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewMulLabel)) (hS : regsAre S' lastRegs = true)
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hS : regsAre S' lastRegs = true)
     (hsp : S'.sp = .sp) (hmem : S'.mem = []) {m : MachineData} (hE : Even m0 7 m)
     {R : MachineState → Prop}
     (cont : ∀ m2, Last m0 m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + ds.length)⟩) :

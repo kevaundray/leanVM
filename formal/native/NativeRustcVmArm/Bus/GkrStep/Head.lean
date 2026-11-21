@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfGkrStep.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
 public import NativeRustcVmArm.Bus.GkrStep.Frame
 
 /-!
@@ -26,10 +31,10 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData} 
 
 /-- **The sumcheck** (`b5`, `b6`), from the combiner's evaluation of the values. -/
 theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hsc : ∀ s pt n, Spec (Labels.label sumcheckGkrLabel) (SumcheckGkrPre a s pt n)
+    (hsc : ∀ s pt n, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfGkrStep.entryLabel) (SumcheckGkrPre a s pt n)
       (SumcheckGkrPost a s pt n))
     (hch : ∀ c cl xs s2 m, AtChildren a s0 g0 m0 c cl xs s2 m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 146)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b7Offset)⟩)
     {c : EW} {s1 : TState} {m : MachineData}
     (hfr : Fr m0 1392 gkrStepStack slots keep (outs m0) m)
     (h19 : m.regs.getXReg .X19 = m0.regs.X3) (h20 : m.regs.getXReg .X20 = m0.regs.X1)
@@ -39,7 +44,7 @@ theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     (hts : TStateAt m.dmem m0.regs.X0.toBitVec a s1)
     (hgs : GkrStateWAt m.dmem m0.regs.X3.toBitVec g0)
     (hrc : sampleChallenge.run s0 = some (c, s1)) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 31)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b5Offset)⟩ := by
   have hS := pre_stack h
   have hN : gkrStepStack ≤ m0.regs.SP.toNat := hS.2.1
   have cx := ctx h
@@ -122,7 +127,7 @@ theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have hfl' : (loc m0 1024).toNat = m0.regs.SP.toNat - 1392 + 1024 := loc_toNat hS (by omega)
   have hpa : NativeRustcVm.Apart m0.regs.X3.toBitVec gkrStateBytes (base m0 1392) 1392 :=
     apart_frame hN N_ge hgk.2.2.2.2.1
-  simp only [PcOk, show b5.length = 113 from rfl, show k + 31 + 113 = k + 144 by omega] at hpc
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b5_length, NativeRustcVmArm.Vm.GkrStep.b5Length, show k + NativeRustcVmArm.Vm.GkrStep.b5Offset + 113 = k + NativeRustcVmArm.Vm.GkrStep.b6Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b5_length, NativeRustcVmArm.Vm.GkrStep.b5Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b5_next] at hpc
   refine Fr.callLocal (o := 16) (n := 1032) (X := fun q ↦ InRange (loc m0 1024) 24 q ∨
       InRange (loc m0 16) (16 * g0.point.size) q ∨ InRange m0.regs.X0.toBitVec tstateBytes q)
     hfr' hN le_sc keep_callee (slots_lo (by omega)) (by omega) (outs_not_frame h)
@@ -225,7 +230,7 @@ theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   -- `b6`: the sumcheck's tag.
   refine Fr.runBlock hS N_ge rfl hfr2 (b6_in_code.trans hp.1 (by simp [b6])) run_b6 rfl rfl
     (by decide) (by decide) fun st6 hfr6 hd6 hm6 hpc6 ↦ ?_
-  simp only [PcOk, show b6.length = 2 from rfl, show k + 144 + 2 = k + 146 by omega] at hpc6
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b6_length, NativeRustcVmArm.Vm.GkrStep.b6Length, show k + NativeRustcVmArm.Vm.GkrStep.b6Offset + 2 = k + NativeRustcVmArm.Vm.GkrStep.b7Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b6_length, NativeRustcVmArm.Vm.GkrStep.b6Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b6_next] at hpc6
   cases hres : (sumcheckFn (polyEval g0.values c) (2 ^ m0.regs.X1.toNat + 1)
       (fun i ↦ g0.point[i]?) g0.point.size).run s1 with
   | none =>
@@ -239,7 +244,7 @@ theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       rw [hl]
       rfl
     simp only [hc, ↓reduceIte] at hpc6
-    exact at_pc (hpc6.trans (hp.label (j := 266) rfl))
+    exact at_pc (hpc6.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b32Offset) NativeRustcVmArm.Vm.GkrStep.label_14_at))
       (fail_spec hp h hfr6 (by rw [hrun, hres]; rfl))
   | some r =>
     obtain ⟨⟨xs, cl⟩, s2⟩ := r
@@ -283,15 +288,15 @@ theorem sc_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
 /-- **`gkr_step` up to the children**: the prologue, the first grind (of `0` bits), the
 combiner, its evaluation of the values, the sumcheck. -/
 theorem head_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hsc : ∀ s pt n, Spec (Labels.label sumcheckGkrLabel) (SumcheckGkrPre a s pt n)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpe : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hsc : ∀ s pt n, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfGkrStep.entryLabel) (SumcheckGkrPre a s pt n)
       (SumcheckGkrPost a s pt n))
     (hch : ∀ c cl xs s2 m, AtChildren a s0 g0 m0 c cl xs s2 m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 146)⟩) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b7Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b0Offset)⟩ := by
   have hS := pre_stack h
   have hN : gkrStepStack ≤ m0.regs.SP.toNat := hS.2.1
   have cx := ctx h
@@ -317,7 +322,7 @@ theorem head_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     rw [hm1.regs .X22 _ rfl]
     exact trunc_small _ (pre_last h)
   -- `bit_length(1)`
-  simp only [PcOk, show b0.length = 15 from rfl] at hpc
+  simp only [PcOk, Nat.add_assoc, NativeRustcVmArm.Vm.GkrStep.b0_next] at hpc
   refine Fr.callSpec hfr hN le_bl keep_callee slots_le (outs_not_frame h) hbl hpc trivial
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun _ h ↦ .inl h, hq.2.2⟩)
     fun m2 hfr2 hq2 hcs2 ↦ ?_
@@ -357,7 +362,7 @@ theorem head_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     rw [show st1.data.regs.X1.toNat = (st1.data.regs.getXReg .X1).toBitVec.toNat from rfl, this]
     rfl
   have hat1 := Fr.at_ cx hfr1 (outs_not_rc h)
-  simp only [PcOk, show b1.length = 4 from rfl, show k + 15 + 4 = k + 19 by omega] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b1_length, NativeRustcVmArm.Vm.GkrStep.b1Length, show k + NativeRustcVmArm.Vm.GkrStep.b1Offset + 4 = k + NativeRustcVmArm.Vm.GkrStep.b2Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b1_length, NativeRustcVmArm.Vm.GkrStep.b1Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b1_next] at hpc1
   refine Fr.callSpec hfr1 hN le_grind keep_callee slots_le (outs_not_frame h) (hgr s0) hpc1
     ⟨hfr1.stackOk hS rfl le_grind, cx.rcAt hat1 le_grind, by rw [g0', hd1]; exact hts2,
       by rw [g0']; exact cx.tstateOk hat1 le_grind, by rw [g1]; decide⟩
@@ -386,8 +391,8 @@ theorem head_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       (BitVec.ofNat 64 0) = false
     rw [show m3.regs.getXReg .X0 = m3.regs.X0 from rfl, hx3]
     rfl
-  simp only [PcOk, hc4, Bool.false_eq_true, ↓reduceIte, show b2.length = 3 from rfl,
-    show k + 19 + 3 = k + 22 by omega] at hpc4
+  simp only [PcOk, hc4, Bool.false_eq_true, ↓reduceIte, NativeRustcVmArm.Vm.GkrStep.b2_length, NativeRustcVmArm.Vm.GkrStep.b2Length,
+    show k + NativeRustcVmArm.Vm.GkrStep.b2Offset + 3 = k + NativeRustcVmArm.Vm.GkrStep.b3Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b2_length, NativeRustcVmArm.Vm.GkrStep.b2Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b2_next] at hpc4
   -- `b3`: the combiner.
   refine at_pc hpc4 (Fr.runBlock hS N_ge rfl hfr4 (b3_in_code.trans hp.1 (by simp [b3])) run_b3
     rfl rfl (by decide) (by decide) fun st5 hfr5 hd5 hm5 hpc5 ↦ ?_)
@@ -402,7 +407,7 @@ theorem head_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have l0 : st5.data.regs.X0.toBitVec = m0.regs.X0.toBitVec := by
     rw [show st5.data.regs.X0 = st5.data.regs.getXReg .X0 from rfl,
       reg_of hm5 (r := .X0) (r' := .X21) rfl, reg_of hm4 rfl, k21]
-  simp only [PcOk, show b3.length = 2 from rfl, show k + 22 + 2 = k + 24 by omega] at hpc5
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b3_length, NativeRustcVmArm.Vm.GkrStep.b3Length, show k + NativeRustcVmArm.Vm.GkrStep.b3Offset + 2 = k + NativeRustcVmArm.Vm.GkrStep.b4Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b3_length, NativeRustcVmArm.Vm.GkrStep.b3Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b3_next] at hpc5
   refine squeeze_call cx hsq hfr5 (outs_not_rc h) le_sq keep_callee slots_le (outs_not_frame h)
     (fun q hq ↦ .inl hq) hpc5 l0 (by rw [hd5, hd4]; exact hts3)
     fun m6 hfr6 hts6 h60 h61 hcs6 hs6 ↦ ?_
@@ -446,7 +451,7 @@ theorem head_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     unfold slice
     rw [n0, show st7.data.regs.X1.toNat = g0.values.toList.length by rw [n1, hsz3],
       NativeRustcVm.ewsOf_of_ewsAt hval, Array.toArray_toList]
-  simp only [PcOk, show b4.length = 7 from rfl, show k + 24 + 7 = k + 31 by omega] at hpc7
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b4_length, NativeRustcVmArm.Vm.GkrStep.b4Length, show k + NativeRustcVmArm.Vm.GkrStep.b4Offset + 7 = k + NativeRustcVmArm.Vm.GkrStep.b5Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b4_length, NativeRustcVmArm.Vm.GkrStep.b4Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b4_next] at hpc7
   refine Fr.callSpec hfr7 hN le_pe keep_callee slots_le (outs_not_frame h) hpe hpc7
     ⟨hfr7.stackOk hS rfl le_pe, by rw [n1]; omega, ?_⟩
     (fun m' hq ↦ ⟨Bus.changes_zero hq.2.1, hq.2.2⟩) fun m8 hfr8 hq8' hcs8 ↦ ?_

@@ -32,10 +32,10 @@ variable [NativeArm.Host] {c : KeccakClaimW} {m0 : MachineData} {k : Nat}
 
 /-- **`b9`, `b11`**: after the first segment, done or the second segment's loop at bit `0`. -/
 theorem after_segA (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 157))
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b9Offset))
     (hI : SegDone m0 c (1600 * m0.regs.X4.toNat + 1600) s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 161) ∧ EndOk m0 c s'.data) ∨
-      (s'.pc = Host.addrOf (k + 185) ∧ m0.regs.X5.toNat = 2 ∧ SegB m0 c 0 s'.data)) s := by
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b10Offset) ∧ EndOk m0 c s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b13Offset) ∧ m0.regs.X5.toNat = 2 ∧ SegB m0 c 0 s'.data)) s := by
   have hS := hpre.1
   have h176 : 176 ≤ slotWeightsStack := by decide
   have h1 : 1 ≤ m0.regs.X5.toNat := hpre.2.2.2.2.2.1
@@ -50,7 +50,7 @@ theorem after_segA (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : Machin
   have k1 := KeccakGkr.Match.regs_keep hm hm1 [.X19, .X20, .X21, .X22] (by decide)
   have hd1 : s1.data.dmem = s.data.dmem := hm1.dmem_eq hwf rfl
   have l8 := load_word (env := Env.ofMachine s.data [(fbA m0, 176)]) (r := 0) (off := 8) hI.loc.cnt
-  simp only [PcOk, show b9.length = 4 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.SlotWeights.b9_length, NativeRustcVmArm.Vm.SlotWeights.b9Length] at hpc1
   sym_simp at hpc1
   simp only [l8] at hpc1
   by_cases hc1 : m0.regs.X5.toNat = 1
@@ -74,7 +74,7 @@ theorem after_segA (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : Machin
       match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hS h176 rfl, trivial⟩
         (by rw [hb1.sp]; simp [Sym.eval]) trivial trivial trivial trivial
     refine exec_at (b11_in_code.trans hp.1 (by simp [b11])) e11 hwf1
-      (hpc1.trans (hp.label (j := 171) rfl)) hm1' fun s2 hm2 hpc2 ↦ ?_
+      (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b11Offset) NativeRustcVmArm.Vm.SlotWeights.label_9_at)) hm1' fun s2 hm2 hpc2 ↦ ?_
     have hb2 : Body m0 s2.data := hb1.of_block hm1' hm2 hwf1 rfl all_slots (by decide)
     have k2 := KeccakGkr.Match.regs_keep hm1' hm2 [.X19, .X20] (by decide)
     have hd2 : s2.data.dmem = s1.data.dmem := hm2.dmem_eq hwf1 rfl
@@ -85,7 +85,7 @@ theorem after_segA (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : Machin
     have l1 := load_word (env := Env.ofMachine s1.data [(fbA m0, 176)]) (r := 0) (off := 32 + 8) w1
     have x21 : s1.data.regs.getXReg .X21 = m0.regs.X3 := (k1 .X21 (by simp)).trans hI.keep.x21
     have x22 : s1.data.regs.getXReg .X22 = m0.regs.X4 := (k1 .X22 (by simp)).trans hI.keep.x22
-    refine .done _ (Or.inr ⟨hpc2.trans (hp.label (j := 185) rfl), hc2, hb2, hf0,
+    refine .done _ (Or.inr ⟨hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b13Offset) NativeRustcVmArm.Vm.SlotWeights.label_11_at), hc2, hb2, hf0,
       (k2 .X19 (by simp)).trans ((k1 .X19 (by simp)).trans hI.keep.x19),
       (k2 .X20 (by simp)).trans ((k1 .X20 (by simp)).trans hI.keep.x20), by decide, ?_, ?_, ?_, ?_,
       ?_, ?_, ?_⟩)
@@ -117,7 +117,7 @@ theorem after_segA (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : Machin
 
 /-- **The epilogue**: `1` returned, the rows `keccakSlotWeights`. -/
 theorem epilogue (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 161)) (hE : EndOk m0 c s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b10Offset)) (hE : EndOk m0 c s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ s'.pc = retOf m0 ∧ SlotWeightsPost c m0 s'.data) s := by
   obtain ⟨hb, hx20, hrows⟩ := hE
   have hS := hpre.1

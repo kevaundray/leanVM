@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Out1
 
 /-!
@@ -23,10 +25,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **A block without writes, then `extend` of `out.point`.** -/
 theorem extO (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {ds : List Directive} {i : Nat} {S' : SState} {m : MachineData}
     {R : MachineState → Prop} {A : BitVec 64} {L xs : List EW}
-    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S', .call bufEW36ExtendLabel))
+    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.BufEW36Extend.entryLabel))
     (hfr : VFr m0 m) (hsp : S'.sp = .ptr 0 0) (hmem : S'.mem = [])
     (h72 : NativeRustcVm.WordAt m.dmem (loc m0 72) m0.regs.X7)
     (hx0 : S'.reg .X0 = some (.load 0 72 8))
@@ -89,10 +91,10 @@ theorem prefix_ews {d : Mem 64} {p : BitVec 64} {xs : Array EW} {n : Nat}
 
 /-- **The rest of the output point and the return** (`b68` to `b73`). -/
 theorem stepOut2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {m : MachineData} {s3 : TState} {cj : KeccakClaimW} {outs : Array ColumnClaimW}
     {low sl xs : Array EW} (hz : AtZ a s cs inst output m0 m s3 cj outs low sl xs) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 431)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b68Offset)⟩ := by
   have hN := hn.hN
   have n1 := h.n1
   have n30 := h.n30
@@ -126,12 +128,12 @@ theorem stepOut2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
     · rw [hplen]; exact ⟨frame_mapped' hn hfr1 (by omega), loc_noWrap hn (by omega)⟩
     · rw [hplen]; unfold Apart; rw [loc_toNat hn.hN (by decide)]
       obtain h1 | h1 := hn.oS <;> omega
-  rw [show k + 431 + b68.length = k + 437 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b68Offset + b68.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b69Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b68_next]]
   refine failBranchF hp hn (b69_in_code.trans hp.1 (by simp [b69])) run_b69 hfr2 rfl rfl
     (L := []) (by decide) (b := true)
     (condW0 (by rw [Env.ofMachine_regs, gx0, hx2]; rfl)) (fun hf ↦ nomatch hf)
     fun _ m3 hfr3 hd3 _ ↦ ?_
-  rw [show k + 437 + b69.length = k + 438 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b69Offset + b69.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b70Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b69_next]]
   have hwf3 := envM_wf hn hfr3
   have w72 : NativeRustcVm.WordAt m3.dmem (loc m0 72) m0.regs.X7 := by
     rw [hd3]; exact hc2.word hn (by decide) (by decide) (by decide) hz.w72
@@ -150,7 +152,7 @@ theorem stepOut2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
     · exact ⟨frame_mapped' hn hfr1 (by simp [hz.slsz]), loc_noWrap hn (by simp [hz.slsz])⟩
     · unfold Apart; rw [loc_toNat hn.hN (by decide)]; simp only [Array.length_toList, hz.slsz]
       obtain h1 | h1 := hn.oS <;> omega
-  rw [show k + 438 + b70.length = k + 442 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b70Offset + b70.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b71Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b70_next]]
   have T : Chg m0 [] [(3, 0, 584)] m.dmem m4.dmem :=
     (hc2.trans (hd3 ▸ hc4)).mono (fun p hp ↦ by simp at hp) (fun o ho ↦ by simpa using ho)
   have hk : Kept m.dmem m4.dmem := kept_tr hk2 (hd3 ▸ hk4)
@@ -159,8 +161,8 @@ theorem stepOut2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
     fun st hm5 hfr5 hd5 hpc ↦ ?_
   obtain ⟨d, pc⟩ := st
   simp only [PcOk] at hpc
-  rw [show Labels.label ".LVerifyKeccak_32" = Host.addrOf (k + 445) from
-    hp.label (j := 445) rfl] at hpc
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyKeccak.label_32 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b73Offset) from
+    hp.label (j := NativeRustcVmArm.Vm.VerifyKeccak.b73Offset) NativeRustcVmArm.Vm.VerifyKeccak.label_32_at] at hpc
   subst hpc
   refine goal_exit hp hn hfr5 ?_ fun outs' pt sl' s' hr ↦ ?_
   · rw [show d.regs.X0 = d.regs.getXReg .X0 from rfl,

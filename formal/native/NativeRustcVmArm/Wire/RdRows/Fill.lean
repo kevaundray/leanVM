@@ -100,7 +100,7 @@ variable [Host] {k : Nat}
 /-- **The return** (`b2`) with the result in `X23`. -/
 theorem ret_spec (hp : Placed code k) (G : Geo m0 bp B)
     (hR : ReaderAt m0.dmem (rdr m0) bp B c) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 12)) (hfr : Frm m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b2Offset)) (hfr : Frm m0 st.data)
     (hres : match rdRows B (rw m0) (nr m0) c with
       | some (rows, c') => (st.data.regs.getXReg .X23).toNat = flag rows ∧
           LeavesAt st.data.dmem (lv m0) (rows.map fun x ↦ paddedLeaf x (lw m0)) ∧

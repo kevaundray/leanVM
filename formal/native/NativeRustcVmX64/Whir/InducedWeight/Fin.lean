@@ -39,14 +39,14 @@ def resOf (m0 : MachineData) : Option EW :=
 
 variable [Host] {k : Nat}
 
-theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + 107) :=
+theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b15Offset) :=
   b15_in_code.trans hp.1 (by simp [b15])
-theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + 110) :=
+theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b16Offset) :=
   b16_in_code.trans hp.1 (by simp [b16])
-theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + 113) :=
+theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b17Offset) :=
   b17_in_code.trans hp.1 (by simp [b17])
-theorem hb18 (hp : Placed code k) : b18a.IsInfixAt Host.prog (k + 118) ∧
-    b18b.IsInfixAt Host.prog (k + 118 + 2) := by
+theorem hb18 (hp : Placed code k) : b18a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b18Offset) ∧
+    b18b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b18Offset + b18a.length) := by
   have h := b18_in_code.trans hp.1 (by simp [b18])
   rw [← List.take_append_drop 2 b18] at h
   exact h.append
@@ -54,7 +54,7 @@ theorem hb18 (hp : Placed code k) : b18a.IsInfixAt Host.prog (k + 118) ∧
 /-- **The tag and the epilogue** (`b18a`, `b18b`): R14 the output, RAX the tag, the value (for
 `Some`) already stored. -/
 theorem tag_fin (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 118)) (hfr : OFrame m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b18Offset)) (hfr : OFrame m0 st.data)
     (hr14 : reg st.data .r14 = reg m0 .rdi) {v : Option EW}
     (htag : reg st.data .rax = BitVec.ofNat 64 (if v.isSome then 1 else 0))
     (hval : ∀ x, v = some x → NativeRustcVm.EWAt st.data.dmem (off (reg m0 .rdi) 8) x)
@@ -89,7 +89,7 @@ theorem tag_fin (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre
     convert this using 1
     split <;> rfl
   -- `b18b`
-  have hpc1' : st1.pc = Host.addrOf (k + 118 + 2) := hpc1
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b18Offset + b18a.length) := hpc1
   have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb18 hp).2 run_b18b hwf2 (by intro l h; cases h) hpc1' hfr1.mid_match
     fun st2 hm2 hpc2 ↦ .done _ ?_
@@ -114,7 +114,7 @@ theorem tag_fin (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre
 
 /-- **The sum stored** (`b17`), then the tag and the epilogue. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 113)) (hD : Done m0 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b17Offset)) (hD : Done m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
   obtain ⟨hS, -, -, -, -, hout, -⟩ := hpre'
@@ -162,14 +162,14 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre 
 /-- **`μ > 30`**: `b15` the tag `0`, then the epilogue. -/
 theorem none_fin (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre m0)
     (hmu : ¬(reg m0 .rsi).toNat ≤ stackCap) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 107)) (hfr : Fr m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b15Offset)) (hfr : Fr m0 st.data)
     (hr14 : reg st.data .r14 = reg m0 .rdi) :
     Eventually (step1 Host.exe) (Post m0) st := by
   refine exec_at (hb15 hp) run_b15 (Env.wf_nil _) (by intro l h; cases h) hpc (match_nil _)
     fun st1 hm1 hpc1 ↦ ?_
   have hfr1 := hfr.of_block (match_nil _) hm1 (Env.wf_nil _) rfl (after_eq run_b15 ▸ b15_keeps)
   simp only [PcOk] at hpc1
-  refine tag_fin hp hpre (hpc1.trans (hp.label (j := 118) rfl)) (frame_mono hfr1)
+  refine tag_fin hp hpre (hpc1.trans (hp.label NativeRustcVmX64.Vm.InducedWeight.label_4_at)) (frame_mono hfr1)
     ((Match.reg_eq (match_nil _) hm1 rfl rfl).trans hr14) (v := none)
     ((hm1.regs .rax _ rfl).trans rfl) (fun _ h ↦ by cases h) ?_
   simp only [resOf, hmu, ↓reduceIte]
@@ -177,7 +177,7 @@ theorem none_fin (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPr
 /-- **No query**: `b16` the sum `0`, then the store. -/
 theorem zero_fin (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre m0)
     (hmu : muOf m0 ≤ stackCap) (hc : cntOf m0 = 0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 110)) (hfr : Fr m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b16Offset)) (hfr : Fr m0 st.data)
     (hout : WordAt st.data.dmem (fbOf m0 + BitVec.ofNat 64 24) (.ofBitVec (reg m0 .rdi))) :
     Eventually (step1 Host.exe) (Post m0) st := by
   refine exec_at (hb16 hp) run_b16 (Env.wf_nil _) (by intro l h; cases h) hpc (match_nil _)

@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Layout.PushClaim.Exec
 public import NativeRustcVm.Layout.RepLemmas
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 
 /-!
 # `push_claim` on x86-64
@@ -62,7 +64,7 @@ variable [Host] {k : Nat}
 theorem full (hp : Placed code k) (cs : Array ColumnClaimW) {m0 : MachineData}
     (hpre : PushClaimPre cs m0) (hn : ¬cs.size < claimCap) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
-      PushClaimPost cs m0 st.data) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      PushClaimPost cs m0 st.data) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.PushClaim.b0Offset)⟩ := by
   obtain ⟨hst, hC, ⟨hcm, hcn⟩, hcs, -, -⟩ := hpre
   rw [stack_eq] at hst hcs
   set c := reg m0 .rdi with hcdef
@@ -97,7 +99,7 @@ theorem full (hp : Placed code k) (cs : Array ColumnClaimW) {m0 : MachineData}
   simp only [PcOk] at hpc1
   rw [hc] at hpc1
   simp (config := { decide := true }) only [↓reduceIte] at hpc1
-  rw [hp.label (j := 29) rfl] at hpc1
+  rw [hp.label NativeRustcVmX64.Vm.PushClaim.label_1_at] at hpc1
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf nofun hpc1 hm1
     fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hepi, hmem, hrax⟩ := ok_b4
@@ -112,10 +114,10 @@ theorem full (hp : Placed code k) (cs : Array ColumnClaimW) {m0 : MachineData}
 
 /-- **Room**: `b0`, `b1`, the call, then `b2` and `b3` or `b5`, and `b6`. -/
 theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {m0 : MachineData} (hpre : PushClaimPre cs m0) (hn : cs.size < claimCap) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
-      PushClaimPost cs m0 st.data) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      PushClaimPost cs m0 st.data) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.PushClaim.b0Offset)⟩ := by
   obtain ⟨hst, hC, ⟨hcm, hcn⟩, hcs, ⟨⟨hpm, hpn⟩, hps⟩, hcp⟩ := hpre
   rw [stack_eq] at hst hcs hps
   set c := reg m0 .rdi with hcdef
@@ -168,7 +170,7 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
       (by unfold NativeRustcVm.Apart; dsimp only; rw [hsN]; omega)
   -- `b0`, `b1`: the entry's environment.
   set env0 := frameEnv m0 m0 48 [(c, 8), (slot c n, 608)] (fun _ ↦ 0)
-    (Host.addrOf (k + 4 + b1.length)).toBitVec with henv0
+    (Host.addrOf (k + NativeRustcVmX64.Vm.PushClaim.b1Offset + b1.length)).toBitVec with henv0
   have hwf0 : env0.WF := frame_wf ⟨frame_mapped hst (by decide), hfnw⟩
     (rest2_ok hok1 hok2 fun _ h ↦ h) hap
   have hcnt0 : env0.load 1 0 8 = BitVec.ofNat 64 n :=
@@ -192,7 +194,7 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
   rw [hc0] at hpc1
   simp (config := { decide := true }) only [↓reduceIte] at hpc1
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf0 (fun _ _ ↦ rfl)
-    (hpc1.trans (by rw [show b0.length = 4 from rfl])) hm1 fun st1 hm2 hpc2 ↦ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PushClaim.b0_next)) hm1 fun st1 hm2 hpc2 ↦ ?_
   obtain ⟨hpro, hws1, hW1, hrdi, hrsi, hrdx, hr15, hr12, hr14, hrbx⟩ := ok_b1
   have hf1 : Frame m0 48 slots 0 st1.data :=
     Frame.of_prologue Frame.entry hwf0 hm2 hpro slots_le (by decide)
@@ -344,7 +346,7 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hf2.rsp_eval, known_ptr rfl hX15₂, trivial⟩ trivial
       trivial ⟨haliasC, trivial⟩
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwfC nofun
-    (hpc3.trans (by rw [show b1.length = 16 from rfl])) hmC fun st3 hm3 hpc4 ↦ ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PushClaim.b1_next)) hmC fun st3 hm3 hpc4 ↦ ?_
   have hc2 : failSym.eval envC = decide ((reg st2.data .rax).toNat % 256 = 0) := by
     simp only [failSym, SBool.eval, Sym.eval]
     exact and8_eval _
@@ -363,10 +365,10 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
     rw [show (reg st2.data .rax).toNat % 256 = 1 from hb1] at hpc4
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwfC nofun
-      (hpc4.trans (by rw [show b2.length = 2 from rfl])) hm3 fun st4 hm4 hpc5 ↦ ?_
+      (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PushClaim.b2_next)) hm3 fun st4 hm4 hpc5 ↦ ?_
     simp only [PcOk] at hpc5
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6a hwfC nofun
-      (hpc5.trans (hp.label (j := 34) rfl)) hm4 fun st5 hm5 hpc6 ↦ ?_
+      (hpc5.trans (hp.label NativeRustcVmX64.Vm.PushClaim.label_6_at)) hm4 fun st5 hm5 hpc6 ↦ ?_
     obtain ⟨hepi, hws6, hW61, hW62, hrax6⟩ := end_b6a
     obtain ⟨hsv5, hrsp5⟩ := Frame.epilogue hf2 hwfC hm5 hepi
     have hs5 : NativeRustcVm.SameOutside st2.data.dmem st5.data.dmem
@@ -473,10 +475,10 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
     rw [show (reg st2.data .rax).toNat % 256 = 0 from hres] at hpc4
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwfC nofun
-      (hpc4.trans (hp.label (j := 32) rfl)) hm3 fun st4 hm4 hpc5 ↦ ?_
+      (hpc4.trans (hp.label NativeRustcVmX64.Vm.PushClaim.label_4_at)) hm3 fun st4 hm4 hpc5 ↦ ?_
     simp only [PcOk] at hpc5
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6b hwfC nofun
-      (hpc5.trans (by rw [show b5.length = 2 from rfl])) hm4 fun st5 hm5 hpc6 ↦ ?_
+      (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PushClaim.b5_next)) hm4 fun st5 hm5 hpc6 ↦ ?_
     obtain ⟨hepi, hmem6, hrax6⟩ := end_b6b
     obtain ⟨hsv5, hrsp5⟩ := Frame.epilogue hf2 hwfC hm5 hepi
     have hd5 : st5.data.dmem = st2.data.dmem := hm5.dmem_eq hwfC hmem6
@@ -491,12 +493,12 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
 
 /-- **`push_claim`'s contract.** -/
 theorem pushClaim_spec (hp : Placed code k)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     (cs : Array ColumnClaimW) :
-    Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs) := by
   intro m0 hpre
-  unfold pushClaimLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.PushClaim.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.PushClaim.entry_at]
   by_cases hn : cs.size < claimCap
   · exact room hp cs hext hpre hn
   · exact full hp cs hpre hn

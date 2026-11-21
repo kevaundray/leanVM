@@ -29,9 +29,9 @@ theorem epilogue_step {k : Nat} (hp : Placed Vm.KeccakF.code k) {m0 : MachineDat
     (hpre : NativeRustcVmArm.KeccakFPre m0) {m : MachineData} (hA : At m0 24 m) :
     Eventually (step1 Host.exe)
       (fun st => st.pc = retOf m0 ∧ NativeRustcVmArm.KeccakFPost m0 st.data)
-      ⟨m, Host.addrOf (k + 191)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.KeccakF.b3Offset)⟩ := by
   obtain ⟨hstk, -, hmap, hnw, hap, -⟩ := hpre
-  have hk : Vm.KeccakF.b3.IsInfixAt Host.prog (k + 191) :=
+  have hk : Vm.KeccakF.b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KeccakF.b3Offset) :=
     Vm.KeccakF.b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine m [(frame m0, 400), (m0.regs.X0.toBitVec, 200)]
   have hwf : env.WF :=

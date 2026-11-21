@@ -3,6 +3,24 @@ module
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Bus.Facts
 public import NativeRustcVmX64.Code.Vm.VerifyBusBalance
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmX64.Code.Vm.BusLayout.Names
+public import NativeRustcVmX64.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmX64.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmX64.Code.Vm.Kpow.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0.Names
+public import NativeRustcVmX64.Code.Vm.VerifyGkrGrandProducts.Names
 public meta import NativeRustcVmX64.Code.Vm.VerifyBusBalance
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -43,12 +61,12 @@ def cs : List Reg64 := [.rbx, .rbp, .r12, .r13, .r14, .r15]
 def nsp : List Reg64 :=
   [.rax, .rbx, .rcx, .rdx, .rsi, .rdi, .rbp, .r8, .r9, .r10, .r11, .r12, .r13, .r14, .r15]
 
-def l6 : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.6"
-def l7 : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.7"
-def l8 : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.8"
-def l9 : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.9"
+def l6 : Label := NativeRustcVmX64.Vm.Symbols.rodata6Label
+def l7 : Label := NativeRustcVmX64.Vm.Symbols.rodata7Label
+def l8 : Label := NativeRustcVmX64.Vm.Symbols.rodata8Label
+def l9 : Label := NativeRustcVmX64.Vm.Symbols.rodata9Label
 /-- The failure's label. -/
-def lF : Label := ".LVerifyBusBalance_27"
+def lF : Label := NativeRustcVmX64.Vm.VerifyBusBalance.label_27
 
 def eS : SState := init [5528, 16] [(.rsp, .ptr 0 5520), (.rsi, .ptr 1 0)]
 def fS (o : Nat) : SState := init [5528] [(.rsp, .ptr 0 (o : Int))]
@@ -164,7 +182,7 @@ set_option Elab.async false
 /-! ## The layouts (`b0` to `b8`) -/
 
 public theorem exit_b0 : exec b0 eS =
-    some (after b0 eS, .call "_RNvNtCsemcRClSg8DH_9native_vm3bus10bus_layout") :=
+    some (after b0 eS, .call NativeRustcVmX64.Vm.BusLayout.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 5520 96 slots (after b0 eS) = true ∧ W0 96 5520 (after b0 eS) ∧
     Wrote 0 [(128, .reg .rdx), (136, .reg .rcx), (328, .lit 0), (336, .load 1 0 8),
@@ -181,7 +199,7 @@ public theorem exit_b1 : exec b1 (fS 104) = some (after b1 (fS 104), .cond (tag3
   run_b1.trans (by rw [after_eq run_b1]; rfl)
 public theorem ok_b1 : TestOk (after b1 (fS 104)) := by decide +kernel
 
-public theorem exit_b2 : exec b2 (fS 104) = some (after b2 (fS 104), .call "memcpy") :=
+public theorem exit_b2 : exec b2 (fS 104) = some (after b2 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : Mid 96 (after b2 (fS 104)) ∧ W0 96 120 (after b2 (fS 104)) ∧
     Wrote 0 [(112, .reg .r12)] (after b2 (fS 104)) ∧
@@ -193,7 +211,7 @@ public theorem ok_b2 : Mid 96 (after b2 (fS 104)) ∧ W0 96 120 (after b2 (fS 10
   decide +kernel
 
 public theorem exit_b3 : exec b3 (fS 104) =
-    some (after b3 (fS 104), .call "_RNvNtCsemcRClSg8DH_9native_vm3bus10bus_layout") :=
+    some (after b3 (fS 104), .call NativeRustcVmX64.Vm.BusLayout.entryLabel) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : Mid 96 (after b3 (fS 104)) ∧ W0 96 2816 (after b3 (fS 104)) ∧
     Wrote 0 [(2808, .reg .r12)] (after b3 (fS 104)) ∧
@@ -209,7 +227,7 @@ public theorem exit_b4 : exec b4 (fS 104) = some (after b4 (fS 104), .cond (tag8
   run_b4.trans (by rw [after_eq run_b4]; rfl)
 public theorem ok_b4 : TestOk (after b4 (fS 104)) := by decide +kernel
 
-public theorem exit_b5 : exec b5 (fS 104) = some (after b5 (fS 104), .call "memcpy") :=
+public theorem exit_b5 : exec b5 (fS 104) = some (after b5 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : Mid 96 (after b5 (fS 104)) ∧ W0 96 104 (after b5 (fS 104)) ∧
     (after b5 (fS 104)).reg .rdi = some (.ptr 0 3696) ∧
@@ -218,7 +236,7 @@ public theorem ok_b5 : Mid 96 (after b5 (fS 104)) ∧ W0 96 104 (after b5 (fS 10
   decide +kernel
 
 public theorem exit_b6 : exec b6 (fS 104) =
-    some (after b6 (fS 104), .call "_RNvNtCsemcRClSg8DH_9native_vm3bus10bus_layout") :=
+    some (after b6 (fS 104), .call NativeRustcVmX64.Vm.BusLayout.entryLabel) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : Mid 96 (after b6 (fS 104)) ∧ W0 96 104 (after b6 (fS 104)) ∧
     (after b6 (fS 104)).reg .rcx = some (.label l8) ∧
@@ -233,7 +251,7 @@ public theorem exit_b7 : exec b7 (fS 104) = some (after b7 (fS 104), .cond (tag8
   run_b7.trans (by rw [after_eq run_b7]; rfl)
 public theorem ok_b7 : TestOk (after b7 (fS 104)) := by decide +kernel
 
-public theorem exit_b8 : exec b8 (fS 104) = some (after b8 (fS 104), .call "memcpy") :=
+public theorem exit_b8 : exec b8 (fS 104) = some (after b8 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : Mid 96 (after b8 (fS 104)) ∧ W0 96 104 (after b8 (fS 104)) ∧
     (after b8 (fS 104)).reg .rdi = some (.ptr 0 4584) ∧
@@ -249,7 +267,7 @@ public theorem exit_b9 : exec b9 (fS 104) = some (after b9 (fS 104),
 public theorem ok_b9 : TestOk (after b9 (fS 104)) := by decide +kernel
 
 public theorem exit_b10 : exec b10 (fS 104) =
-    some (after b10 (fS 104), .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    some (after b10 (fS 104), .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem ok_b10 : Mid 96 (after b10 (fS 104)) ∧ W0 96 104 (after b10 (fS 104)) ∧
     (after b10 (fS 104)).reg .rdi = some (.un .not .W64 (.bin .shl .W64
@@ -258,7 +276,7 @@ public theorem ok_b10 : Mid 96 (after b10 (fS 104)) ∧ W0 96 104 (after b10 (fS
   decide +kernel
 
 public theorem exit_b11 : exec b11 (fS 104) = some (after b11 (fS 104),
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState5grind") :=
+    .call NativeRustcVmX64.Vm.TStateGrind.entryLabel) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : Mid 96 (after b11 (fS 104)) ∧ W0 96 104 (after b11 (fS 104)) ∧
     (after b11 (fS 104)).reg .rsi = some (.ite (.not (.cmp .ult .W32 (.reg .rax) (.lit 3)))
@@ -271,7 +289,7 @@ public theorem exit_b12 : exec b12 (fS 104) = some (after b12 (fS 104), .cond al
 public theorem ok_b12 : TestOk (after b12 (fS 104)) := by decide +kernel
 
 public theorem exit_b13 : exec b13 (fS 104) = some (after b13 (fS 104),
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState17sample_challenges") :=
+    .call NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) :=
   run_b13.trans (by rw [after_eq run_b13])
 public theorem ok_b13 : Mid 96 (after b13 (fS 104)) ∧ W0 96 624 (after b13 (fS 104)) ∧
     (after b13 (fS 104)).reg .rdi = some (.reg .rbx) ∧
@@ -280,7 +298,7 @@ public theorem ok_b13 : Mid 96 (after b13 (fS 104)) ∧ W0 96 624 (after b13 (fS
   decide +kernel
 
 public theorem exit_b14 : exec b14 (fS 104) = some (after b14 (fS 104),
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW7squeeze") :=
+    .call NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : Mid 96 (after b14 (fS 104)) ∧ W0 96 104 (after b14 (fS 104)) ∧
     (after b14 (fS 104)).reg .rdi = some (.reg .rbx) ∧ Keeps cs (after b14 (fS 104)) := by
@@ -295,7 +313,7 @@ public theorem ok_b15 : Mid 104 (after b15 (fS 104)) ∧ W0 176 192 (after b15 (
 
 public theorem exit_b16 : exec b16 (lS 132) = some (after b16 (lS 132),
     .cond (.not (.cmp .eq .W64 (.bin .add .W64 (.lit 48) (.bin .mul .W64 (.var 0) (.lit 8)))
-      (.lit 1048))) ".LVerifyBusBalance_6") :=
+      (.lit 1048))) NativeRustcVmX64.Vm.VerifyBusBalance.label_6) :=
   run_b16.trans (by rw [after_eq run_b16])
 public theorem ok_b16 : Mid 104 (after b16 (lS 132)) ∧ W0 632 1728 (after b16 (lS 132)) ∧
     (after b16 (lS 132)).reg .rax =
@@ -303,7 +321,7 @@ public theorem ok_b16 : Mid 104 (after b16 (lS 132)) ∧ W0 632 1728 (after b16 
     Keeps cs (after b16 (lS 132)) := by
   decide +kernel
 
-public theorem exit_b17 : exec b17 (fS 104) = some (after b17 (fS 104), .call "memcpy") :=
+public theorem exit_b17 : exec b17 (fS 104) = some (after b17 (fS 104), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b17.trans (by rw [after_eq run_b17])
 public theorem ok_b17 : Mid 96 (after b17 (fS 104)) ∧ W0 96 104 (after b17 (fS 104)) ∧
     (after b17 (fS 104)).reg .rdi = some (.ptr 0 1800) ∧
@@ -312,7 +330,7 @@ public theorem ok_b17 : Mid 96 (after b17 (fS 104)) ∧ W0 96 104 (after b17 (fS
   decide +kernel
 
 public theorem exit_b18 : exec b18 (fS 104) = some (after b18 (fS 104),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3gkr25verify_gkr_grand_products") :=
+    .call NativeRustcVmX64.Vm.VerifyGkrGrandProducts.entryLabel) :=
   run_b18.trans (by rw [after_eq run_b18])
 public theorem ok_b18 : Mid 96 (after b18 (fS 104)) ∧ W0 96 1800 (after b18 (fS 104)) ∧
     (after b18 (fS 104)).reg .rdi = some (.ptr 0 672) ∧
@@ -335,7 +353,7 @@ public theorem ok_b20 : Mid 104 (after b20 (fS 104)) ∧ (after b20 (fS 104)).me
 /-! ## The scalars (`b21` to `b26`) -/
 
 public theorem exit_b21 : exec b21 (fS 104) = some (after b21 (fS 104),
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) :=
   run_b21.trans (by rw [after_eq run_b21])
 public theorem ok_b21 : Mid 96 (after b21 (fS 104)) ∧ W0 96 248 (after b21 (fS 104)) ∧
     Wrote 0 [(104, .ite (.cmp .ult .W64 (.load 0 1792 8) (.lit 64)) (.ptr 0 1800) (.lit 8)),
@@ -354,7 +372,7 @@ public theorem exit_b22 : exec b22 (fS 104) = some (after b22 (fS 104), .cond al
 public theorem ok_b22 : TestOk (after b22 (fS 104)) := by decide +kernel
 
 public theorem exit_b23 : exec b23 (fS 104) = some (after b23 (fS 104),
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b23.trans (by rw [after_eq run_b23])
 public theorem ok_b23 : Mid 96 (after b23 (fS 104)) ∧ W0 96 104 (after b23 (fS 104)) ∧
     (after b23 (fS 104)).reg .rdi = some (.ptr 0 672) ∧
@@ -366,7 +384,7 @@ public theorem exit_b24 : exec b24 (fS 104) = some (after b24 (fS 104), .cond (t
 public theorem ok_b24 : TestOk (after b24 (fS 104)) := by decide +kernel
 
 public theorem exit_b25 : exec b25 (fS 104) = some (after b25 (fS 104),
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b25.trans (by rw [after_eq run_b25])
 public theorem ok_b25 : Mid 96 (after b25 (fS 104)) ∧ W0 96 176 (after b25 (fS 104)) ∧
     Wrote 0 [(160, .load 0 688 8), (168, .load 0 680 8)] (after b25 (fS 104)) ∧
@@ -381,7 +399,7 @@ public theorem ok_b26 : TestOk (after b26 (fS 104)) := by decide +kernel
 /-! ## The claims (`b27` to `b34`) -/
 
 public theorem exit_b27 : exec b27 cS =
-    some (after b27 cS, .call "_RNvNtCsemcRClSg8DH_9native_vm5stack10push_claim") :=
+    some (after b27 cS, .call NativeRustcVmX64.Vm.PushClaim.entryLabel) :=
   run_b27.trans (by rw [after_eq run_b27])
 public theorem ok_b27 : Mid 96 (after b27 cS) ∧ W01 96 160 0 8 (after b27 cS) ∧
     Wrote 0 [(144, .load 0 688 8), (152, .load 0 680 8)] (after b27 cS) ∧
@@ -397,7 +415,7 @@ public theorem exit_b28 : exec b28 (fS 104) = some (after b28 (fS 104), .cond al
 public theorem ok_b28 : TestOk (after b28 (fS 104)) := by decide +kernel
 
 public theorem exit_b29 : exec b29 (fS 104) =
-    some (after b29 (fS 104), .call "_RNvNtCsemcRClSg8DH_9native_vm5stack10push_claim") :=
+    some (after b29 (fS 104), .call NativeRustcVmX64.Vm.PushClaim.entryLabel) :=
   run_b29.trans (by rw [after_eq run_b29])
 public theorem ok_b29 : Mid 96 (after b29 (fS 104)) ∧ W0 96 104 (after b29 (fS 104)) ∧
     (after b29 (fS 104)).reg .rdi = some (.reg .r15) ∧
@@ -413,7 +431,7 @@ public theorem exit_b30 : exec b30 (fS 104) = some (after b30 (fS 104), .cond al
 public theorem ok_b30 : TestOk (after b30 (fS 104)) := by decide +kernel
 
 public theorem exit_b31 : exec b31 (fS 104) =
-    some (after b31 (fS 104), .call "_RNvNtCsemcRClSg8DH_9native_vm5stack10push_claim") :=
+    some (after b31 (fS 104), .call NativeRustcVmX64.Vm.PushClaim.entryLabel) :=
   run_b31.trans (by rw [after_eq run_b31])
 public theorem ok_b31 : Mid 96 (after b31 (fS 104)) ∧ W0 96 104 (after b31 (fS 104)) ∧
     (after b31 (fS 104)).reg .rdi = some (.reg .r15) ∧
@@ -429,7 +447,7 @@ public theorem exit_b32 : exec b32 (fS 104) = some (after b32 (fS 104), .cond al
 public theorem ok_b32 : TestOk (after b32 (fS 104)) := by decide +kernel
 
 public theorem exit_b33 : exec b33 (fS 104) =
-    some (after b33 (fS 104), .call "_RNvNtCsemcRClSg8DH_9native_vm5stack10push_claim") :=
+    some (after b33 (fS 104), .call NativeRustcVmX64.Vm.PushClaim.entryLabel) :=
   run_b33.trans (by rw [after_eq run_b33])
 public theorem ok_b33 : Mid 96 (after b33 (fS 104)) ∧ W0 96 104 (after b33 (fS 104)) ∧
     (after b33 (fS 104)).reg .rdi = some (.reg .r15) ∧
@@ -454,7 +472,7 @@ public theorem ok_b35 : Mid 104 (after b35 (fS 104)) ∧ (after b35 (fS 104)).me
 
 public theorem exit_b36 : exec b36 (lS 136) = some (after b36 (lS 136),
     .cond (.cmp .eq .W64 (.bin .mul .W64 (.var 0) (.lit 8)) (.lit 1080))
-      ".LVerifyBusBalance_19") :=
+      NativeRustcVmX64.Vm.VerifyBusBalance.label_19) :=
   run_b36.trans (by rw [after_eq run_b36])
 public theorem ok_b36 : Mid 104 (after b36 (lS 136)) ∧ W0 616 1744 (after b36 (lS 136)) ∧
     Wrote 0 [(616, .ite (.cmp .eq .W64 (.var 0) (.lit 0)) (.lit 0) (.load 0 616 8))]
@@ -465,7 +483,7 @@ public theorem ok_b36 : Mid 104 (after b36 (lS 136)) ∧ W0 616 1744 (after b36 
   decide +kernel
 
 public theorem exit_b37 : exec b37 (lS 128) =
-    some (after b37 (lS 128), .jump ".LVerifyBusBalance_17") :=
+    some (after b37 (lS 128), .jump NativeRustcVmX64.Vm.VerifyBusBalance.label_17) :=
   run_b37.trans (by rw [after_eq run_b37])
 public theorem ok_b37 : Mid 104 (after b37 (lS 128)) ∧ W0 664 1696 (after b37 (lS 128)) ∧
     (after b37 (lS 128)).reg .rax =
@@ -474,7 +492,7 @@ public theorem ok_b37 : Mid 104 (after b37 (lS 128)) ∧ W0 664 1696 (after b37 
   decide +kernel
 
 public theorem exit_b38 : exec b38 (fS 104) = some (after b38 (fS 104),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3bus14bytecode_share") :=
+    .call NativeRustcVmX64.Vm.BytecodeShare.entryLabel) :=
   run_b38.trans (by rw [after_eq run_b38])
 public theorem ok_b38 : Mid 96 (after b38 (fS 104)) ∧ W0 96 104 (after b38 (fS 104)) ∧
     (after b38 (fS 104)).reg .rdi = some (.ptr 0 248) ∧
@@ -502,7 +520,7 @@ public theorem ok_b40 : Mid 104 (after b40 (fS 104)) ∧ W0 352 368 (after b40 (
   decide +kernel
 
 public theorem exit_b41 : exec b41 (fS 104) = some (after b41 (fS 104),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3bus23computed_bytecode_value") :=
+    .call NativeRustcVmX64.Vm.ComputedBytecodeValue.entryLabel) :=
   run_b41.trans (by rw [after_eq run_b41])
 public theorem ok_b41 : Mid 96 (after b41 (fS 104)) ∧ W0 96 104 (after b41 (fS 104)) ∧
     (after b41 (fS 104)).reg .rdi = some (.load 0 128 8) ∧
@@ -518,7 +536,7 @@ public theorem ok_b42 : TestOk (after b42 (fS 104)) := by decide +kernel
 /-! ## The sides (`b43` to `b52`) -/
 
 public theorem exit_b43 : exec b43 (fS 104) =
-    some (after b43 (fS 104), .call "_RNvNtCsemcRClSg8DH_9native_vm5field4kpow") :=
+    some (after b43 (fS 104), .call NativeRustcVmX64.Vm.Kpow.entryLabel) :=
   run_b43.trans (by rw [after_eq run_b43])
 public theorem ok_b43 : Mid 96 (after b43 (fS 104)) ∧ W0 96 304 (after b43 (fS 104)) ∧
     Wrote 0 [(248, .reg .r15), (256, .ptr 0 216), (264, .load 0 104 8), (272, .reg .rbp),
@@ -530,7 +548,7 @@ public theorem ok_b43 : Mid 96 (after b43 (fS 104)) ∧ W0 96 304 (after b43 (fS
   decide +kernel
 
 public theorem exit_b44 : exec b44 bS =
-    some (after b44 bS, .call "_RNvNtCsemcRClSg8DH_9native_vm5field4kpow") :=
+    some (after b44 bS, .call NativeRustcVmX64.Vm.Kpow.entryLabel) :=
   run_b44.trans (by rw [after_eq run_b44])
 public theorem ok_b44 : Mid 96 (after b44 bS) ∧ W01 96 328 0 100784 (after b44 bS) ∧
     Wrote 0 [(128, .reg .rax), (136, .load 0 1760 8), (304, .load 0 1784 8),
@@ -543,7 +561,7 @@ public theorem ok_b44 : Mid 96 (after b44 bS) ∧ W01 96 328 0 100784 (after b44
   decide +kernel
 
 public theorem exit_b45 : exec b45 (fS 104) = some (after b45 (fS 104),
-    .call "_RNCNvNtCsemcRClSg8DH_9native_vm3bus18verify_bus_balance0B5_") :=
+    .call NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel) :=
   run_b45.trans (by rw [after_eq run_b45])
 public theorem ok_b45 : Mid 80 (after b45 (fS 104)) ∧ W0 80 96 (after b45 (fS 104)) ∧
     Wrote 0 [(88, .lit 0)] (after b45 (fS 104)) ∧
@@ -556,7 +574,7 @@ public theorem ok_b45 : Mid 80 (after b45 (fS 104)) ∧ W0 80 96 (after b45 (fS 
   decide +kernel
 
 public theorem exit_b46 : exec b46 (fS 88) = some (after b46 (fS 88),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3bus15accumulate_side") :=
+    .call NativeRustcVmX64.Vm.AccumulateSide.entryLabel) :=
   run_b46.trans (by rw [after_eq run_b46])
 public theorem ok_b46 : Mid 0 (after b46 (fS 88)) ∧ W0 0 96 (after b46 (fS 88)) ∧
     Wrote 0 [(8, .ptr 0 2808), (16, .ptr 0 624), (24, .lit 3), (32, .reg .r15), (40, .lit 16),
@@ -579,7 +597,7 @@ public theorem ok_b47 : Mid 104 (after b47 (fS 8)) ∧ (after b47 (fS 8)).mem = 
   decide +kernel
 
 public theorem exit_b48 : exec b48 (fS 104) = some (after b48 (fS 104),
-    .call "_RNCNvNtCsemcRClSg8DH_9native_vm3bus18verify_bus_balance0B5_") :=
+    .call NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel) :=
   run_b48.trans (by rw [after_eq run_b48])
 public theorem ok_b48 : Mid 80 (after b48 (fS 104)) ∧ W0 80 96 (after b48 (fS 104)) ∧
     Wrote 0 [(88, .load 0 144 8)] (after b48 (fS 104)) ∧
@@ -595,7 +613,7 @@ public theorem ok_b48 : Mid 80 (after b48 (fS 104)) ∧ W0 80 96 (after b48 (fS 
   decide +kernel
 
 public theorem exit_b49 : exec b49 (fS 88) = some (after b49 (fS 88),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3bus15accumulate_side") :=
+    .call NativeRustcVmX64.Vm.AccumulateSide.entryLabel) :=
   run_b49.trans (by rw [after_eq run_b49])
 public theorem ok_b49 : Mid 0 (after b49 (fS 88)) ∧ W0 0 96 (after b49 (fS 88)) ∧
     Wrote 0 [(8, .ptr 0 3696), (16, .reg .rbx), (24, .lit 3), (32, .reg .r15), (40, .lit 16),
@@ -616,7 +634,7 @@ public theorem ok_b50 : Mid 104 (after b50 (fS 8)) ∧ (after b50 (fS 8)).mem = 
   decide +kernel
 
 public theorem exit_b51 : exec b51 (fS 104) = some (after b51 (fS 104),
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3bus15accumulate_side") :=
+    .call NativeRustcVmX64.Vm.AccumulateSide.entryLabel) :=
   run_b51.trans (by rw [after_eq run_b51])
 public theorem ok_b51 : Mid 0 (after b51 (fS 104)) ∧ W0 0 96 (after b51 (fS 104)) ∧
     Wrote 0 [(8, .ptr 0 4584), (16, .lit 8), (24, .lit 0), (32, .label l9), (40, .lit 1),
@@ -642,7 +660,7 @@ public theorem ok_b52 : Mid 104 (after b52 (fS 8)) ∧ (after b52 (fS 8)).mem = 
 /-! ## The tail and the exits (`b53` to `b57`) -/
 
 public theorem exit_b53 : exec b53 bS = some (after b53 bS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj3f_E6extendB4_") :=
+    .call NativeRustcVmX64.Vm.BufEW63Extend.entryLabel) :=
   run_b53.trans (by rw [after_eq run_b53])
 public theorem ok_b53 : Mid 96 (after b53 bS) ∧ W01 96 104 106704 106712 (after b53 bS) ∧
     Wrote 1 [(106704, .lit 0)] (after b53 bS) ∧
@@ -659,7 +677,7 @@ public theorem exit_b54 : exec b54 (fS 104) = some (after b54 (fS 104), .cond al
 public theorem ok_b54 : TestOk (after b54 (fS 104)) := by decide +kernel
 
 public theorem exit_b55 : exec b55 bS =
-    some (after b55 bS, .jump ".LVerifyBusBalance_28") :=
+    some (after b55 bS, .jump NativeRustcVmX64.Vm.VerifyBusBalance.label_28) :=
   run_b55.trans (by rw [after_eq run_b55])
 public theorem ok_b55 : Mid 104 (after b55 bS) ∧ W01 0 0 107720 107768 (after b55 bS) ∧
     Wrote 1 [(107720, .reg .r13), (107728, .reg .rbp), (107736, .reg .rbx),

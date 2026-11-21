@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
 public import NativeRustcVmArm.Wire.ClimbLevel.Store
 
 /-!
@@ -56,9 +57,9 @@ variable [Host] {k : Nat}
 /-- **A call of `hash_pair`** from the frame, into SP+96: the hash there, memory changed only
 in the stack. -/
 theorem hash_call (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost) {st : MachineState}
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost) {st : MachineState}
     {next : Int64} {R : MachineState → Prop} (hfr : Frm m0 st.data)
-    (hpc : st.pc = Labels.label hashPairLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0.toBitVec = base m0 224 + BitVec.ofNat 64 96) {l r : BitVec 64}
     (hx1 : st.data.regs.X1.toBitVec = l) (hx2 : st.data.regs.X2.toBitVec = r)
     (hl : HashArg m0 st.data l) (hr : HashArg m0 st.data r) {L Rd : Digest}

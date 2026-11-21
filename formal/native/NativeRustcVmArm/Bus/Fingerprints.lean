@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.Fingerprints.Names
+public import NativeRustcVmArm.Code.Vm.IndexMleFrom.Names
+public import NativeRustcVmArm.Code.Vm.Kpow.Names
 public import NativeRustcVmArm.Bus.Fingerprints.Exec
 public import NativeRustcVmArm.Bus.Common
 
@@ -91,10 +95,10 @@ variable [Host] {k : Nat}
 
 /-- **`fingerprints`' contract.** -/
 theorem fingerprints_spec (hp : Placed code k)
-    (hkpow : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (himf : Spec (Labels.label indexMleFromLabel) IndexMleFromPre IndexMleFromPost) :
-    Spec (Labels.label fingerprintsLabel) FingerprintsPre FingerprintsPost := by
+    (hkpow : Spec (Labels.label NativeRustcVmArm.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (himf : Spec (Labels.label NativeRustcVmArm.Vm.IndexMleFrom.entryLabel) IndexMleFromPre IndexMleFromPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.Fingerprints.entryLabel) FingerprintsPre FingerprintsPost := by
   rintro m0 ⟨hS, hW, hM, hML, hBL, hSP, hOR, hOS⟩
   have hN : fingerprintsStack ≤ m0.regs.SP.toNat := hS.2.1
   obtain ⟨hlk, hld, hli⟩ := stack_le
@@ -120,7 +124,7 @@ theorem fingerprints_spec (hp : Placed code k)
             Option.getD_some]
           rw [show BitVec.ofInt 64 320 = BitVec.ofNat 64 320 from rfl]; exact hspb.symm)
       trivial trivial trivial trivial
-  rw [show Labels.label fingerprintsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.Fingerprints.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Fingerprints.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.Fingerprints.entryOffset) NativeRustcVmArm.Vm.Fingerprints.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 ↦ ?_
   have hfr1 : Fr m0 320 fingerprintsStack slots [] (fun _ ↦ False) st1.data :=
     Bus.Fr.ofPrologue' hN hF hm1 hwf0 rfl (by decide) slots_le (by decide) (by decide)

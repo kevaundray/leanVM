@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memset.Names
+
 public import NativeRustcArm.SphincsVerify.Tree.Leaf1
 public import NativeRustcArm.SphincsVerify.Tree.NodeExec
 
@@ -216,7 +218,7 @@ variable [Host] {r : Run}
 /-- **`b153` and `memset`**, from the symbolic run's facts. -/
 theorem nodeA_gen (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtNode r l e z m) {p : Nat}
-    (hpp : pathStart l = p) {S' : SState} (hrun : exec b153 (nodeS p) = some (S', .call "memset"))
+    (hpp : pathStart l = p) {S' : SState} (hrun : exec b153 (nodeS p) = some (S', .call NativeRustcArm.Common.Memset.entryLabel))
     (hsp : S'.sp = .ptr 0 0) (h29 : S'.reg .X29 = some (.ptr 0 29280))
     (hfw : Run.frameWrites S' = true) (hnw : Run.noWriteIn S' 0 15984 = true)
     (h21 : S'.reg .X21 = some (.ptr 0 26968)) (h25 : S'.reg .X25 = some (.ptr 0 16600))
@@ -242,8 +244,8 @@ theorem nodeA_gen (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       (.loadx 0 (12468 + 16 * p) idxS 8) (.load 0 20624 8), i))
     (wC3 : ∀ i < 8, findWrite 0 (22672 + 24 + i) S'.mem = some (.ite (bitC)
       (.loadx 0 (12476 + 16 * p) idxS 8) (.load 0 20632 8), i)) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2310 ∧ AtN2 r l e z st.data)
-      ⟨m, r.pc 2272⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b154Offset ∧ AtN2 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b153Offset⟩ := by
   obtain ⟨hB, hz, h19, h24, h20, h27, hV⟩ := h
   have hl := hB.1
   have hh := heightOf_le hl
@@ -355,7 +357,7 @@ theorem nodeA_gen (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     rw [Run.nodeAdrs, nodeAdrs_eq]; simp [be32, be64]
   have hlenC : (r.children l (r.foldUpTo l e z) z).length = 32 := by
     unfold Run.children; split <;> simp [hcur, hsib]
-  refine .done _ ⟨hpc'.trans (pc_after (n := 38) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b153_next),
     hB1.of_call hpre hS (by decide) (by decide) (by decide) hout, hz, keep .X19 rfl _ r19,
     keep .X24 rfl _ r24, keep .X20 rfl _ r20, keep .X27 rfl _ r27, ?_, ?_, ?_⟩
   · rw [h1] at hz0; exact hz0
@@ -365,8 +367,8 @@ theorem nodeA_gen (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
 /-- **`b153` and `memset`**: from the loop head to `b154`. -/
 theorem nodeA (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtNode r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2310 ∧ AtN2 r l e z st.data)
-      ⟨m, r.pc 2272⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b154Offset ∧ AtN2 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b153Offset⟩ := by
   rcases pathStart_cases h.1.1 with hpp | hpp | hpp
   · exact nodeA_gen hp hc hpre h hpp run_b153_0 rfl rfl (by decide) (by decide) rfl rfl rfl rfl rfl rfl rfl
       (by decide) rfl rfl (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)

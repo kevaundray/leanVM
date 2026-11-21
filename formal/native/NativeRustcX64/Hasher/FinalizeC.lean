@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.KeccakF.Names
+
 public import NativeRustcX64.Hasher.FinalizeB
 
 /-!
@@ -31,10 +33,10 @@ variable [Host] {k : Nat}
 set_option linter.unusedSimpArgs false in
 /-- **The final block absorbed.** -/
 theorem stage4_spec (hp : Placed code k)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hkf : Spec (Labels.label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m1 m : MachineData} (hpre : FinalizePre m0) (hpro : Pro m0 m1) (hs3 : Stage3 m0 m1 m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 64) ∧ Stage4 m0 m1 st.data)
-      ⟨m, Host.addrOf (k + 27)⟩ := by
+    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + NativeRustcX64.Common.Finalize.b6Offset) ∧ Stage4 m0 m1 st.data)
+      ⟨m, Host.addrOf (k + (NativeRustcX64.Common.Finalize.b5Offset + b5a.length))⟩ := by
   have g := geo_of hpre
   have gr := geoRc_of hpre
   have hf := frAt_toNat g
@@ -46,15 +48,14 @@ theorem stage4_spec (hp : Placed code k)
   have hFo : ∀ o, o < 392 → (frAt m0 + BitVec.ofNat 64 o).toNat = (frAt m0).toNat + o :=
     fun o ho => toNat_add_ofNat' (by omega)
   have hmapF : Mapped m.dmem (frAt m0) 392 := fun i hi => hfr.kept _ (mapped_frame hpre i hi)
-  have hblen : b5b.length = 37 := by rw [b5b, List.length_drop, b5_length]
   have hwf : (Env.ofMachine m [(frAt m0, 392)] (fun _ => 0)
-      (Host.addrOf (k + 27 + b5b.length)).toBitVec).WF :=
+      (Host.addrOf (k + (NativeRustcX64.Common.Finalize.b5Offset + b5a.length) + b5b.length)).toBitVec).WF :=
     Env.wf_of ⟨⟨hmapF, hFnw⟩, trivial⟩ (List.pairwise_singleton _ _)
   have hbF : (Env.ofMachine m [(frAt m0, 392)] (fun _ => 0)
-      (Host.addrOf (k + 27 + b5b.length)).toBitVec).base 0 = frAt m0 :=
+      (Host.addrOf (k + (NativeRustcX64.Common.Finalize.b5Offset + b5a.length) + b5b.length)).toBitVec).base 0 = frAt m0 :=
     Env.base_ofMachine m _ _ _ rfl
   have hmx := match_ofMachine (m := m) (regions := [(frAt m0, 392)]) (vars := fun _ => 0)
-    (ret := (Host.addrOf (k + 27 + b5b.length)).toBitVec) (sregions := [392])
+    (ret := (Host.addrOf (k + (NativeRustcX64.Common.Finalize.b5Offset + b5a.length) + b5b.length)).toBitVec) (sregions := [392])
     (known := [(.rsp, .ptr 0 8)]) (labels := []) (bounds := []) (aliases := []) ⟨rfl, trivial⟩
     ⟨by simp only [Sym.eval, hbF]; exact hfr.rsp, trivial⟩ trivial trivial trivial
   refine exec_then (hb5b hp) run_b5b hwf (fun _ _ => rfl) hmx fun st5 hm5 hpc5 => ?_

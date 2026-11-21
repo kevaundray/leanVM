@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmArm.Code.Vm.EqEval.Names
+public import NativeRustcVmArm.Code.Vm.StackPoint.Names
 public import NativeRustcVmArm.Ring.Column.Basic
 
 /-!
@@ -40,11 +43,11 @@ variable [Host] {k : Nat}
 
 /-- **`column_weight`'s contract.** -/
 theorem columnWeight_spec (hp : Placed code k)
-    (hsp : Spec (Labels.label stackPointLabel) StackPointPre StackPointPost)
-    (hee : Spec (Labels.label eqEvalLabel) EqEvalPre EqEvalPost) :
-    Spec (Labels.label columnWeightLabel) ColumnWeightPre ColumnWeightPost := by
+    (hsp : Spec (Labels.label NativeRustcVmArm.Vm.StackPoint.entryLabel) StackPointPre StackPointPost)
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEval.entryLabel) EqEvalPre EqEvalPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.ColumnWeight.entryLabel) ColumnWeightPre ColumnWeightPost := by
   intro m0 h
-  rw [show Labels.label columnWeightLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.ColumnWeight.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.ColumnWeight.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.ColumnWeight.entryOffset) NativeRustcVmArm.Vm.ColumnWeight.entry_at]
   refine stepEntry hp h hsp fun m2 hM hres ↦ ?_
   have hwf := envR_wf h hM.fr
   have hm := matchR h hM
@@ -59,7 +62,7 @@ theorem columnWeight_spec (hp : Placed code k)
     simp only [PcOk, hc, hx0] at hpc1
     rw [show (!((1 : UInt64).toBitVec == BitVec.ofNat 64 1)) = false from rfl] at hpc1
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc1
-    rw [show k + 117 + b1.length = k + 120 from rfl] at hpc1
+    rw [show k + NativeRustcVmArm.Vm.ColumnWeight.b1Offset + b1.length = k + NativeRustcVmArm.Vm.ColumnWeight.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.ColumnWeight.b1_next]] at hpc1
     refine exec_at (hb b2_in_code (by simp [b2]) hp) run_b2 hwf hpc1 hm1 fun st2 hm2 hpc2 ↦ ?_
     have hfr2 : CFr m0 st2.data :=
       hM.fr.ofBlock hm hm2 hwf rfl rfl rfl fun r hr ↦ by
@@ -93,7 +96,7 @@ theorem columnWeight_spec (hp : Placed code k)
       (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun q hq ↦ hq.elim
         (fun hq ↦ absurd hq (hnil q)) .inl, hq.2.2⟩)
       fun m3 hfr3 hq hcs ↦ ?_
-    rw [show k + 120 + b2.length = k + 124 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.ColumnWeight.b2Offset + b2.length = k + NativeRustcVmArm.Vm.ColumnWeight.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.ColumnWeight.b2_next]]
     have hM3 : Mid m0 m3 :=
       ⟨hfr3, (hcs .X19 rfl).trans ((Match.reg_eq hm hm2 (r := .X19) rfl rfl).trans hM.x19),
         (hcs .X20 rfl).trans ((Match.reg_eq hm hm2 (r := .X20) rfl rfl).trans hM.x20),
@@ -116,7 +119,7 @@ theorem columnWeight_spec (hp : Placed code k)
     have hm3 := matchR h hM3
     refine exec_then (hb b3_in_code (by simp [b3]) hp) run_b3 hwf3 hm3 fun st4 hm4 hpc4 ↦ ?_
     simp only [PcOk] at hpc4
-    rw [show k + 124 + b3.length = k + 126 from rfl] at hpc4
+    rw [show k + NativeRustcVmArm.Vm.ColumnWeight.b3Offset + b3.length = k + NativeRustcVmArm.Vm.ColumnWeight.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.ColumnWeight.b3_next]] at hpc4
     refine exec_at (hb b4_in_code (by simp [b4]) hp) run_b4s hwf3 hpc4 hm4 fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨hret, hpost⟩ := post_of h hfr3 hm5 (by decide) (by decide)
       (outSome_at hm5 rfl (by decide)) (by rw [ite_eq_left (show m0.regs.X4.toNat + (m0.regs.X5.toNat - m0.regs.X1.toNat) ≤ 66 from hn), hval]; rfl)
@@ -125,8 +128,8 @@ theorem columnWeight_spec (hp : Placed code k)
     simp only [PcOk, hc, hres] at hpc1
     rw [show (!((0 : UInt64).toBitVec == BitVec.ofNat 64 1)) = true from rfl] at hpc1
     simp only [↓reduceIte] at hpc1
-    rw [show Labels.label ".LColumnWeight_2" = Host.addrOf (k + 126) from
-      hp.label (j := 126) rfl] at hpc1
+    rw [show Labels.label NativeRustcVmArm.Vm.ColumnWeight.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.ColumnWeight.b4Offset) from
+      hp.label (j := NativeRustcVmArm.Vm.ColumnWeight.b4Offset) NativeRustcVmArm.Vm.ColumnWeight.label_2_at] at hpc1
     refine exec_at (hb b4_in_code (by simp [b4]) hp) run_b4n hwf hpc1 hm1 fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨hret, hpost⟩ := post_of h hM.fr hm5 (by decide) (by decide)
       (outNone_at hm5 rfl (by decide)) (by rw [ite_eq_right (show ¬ m0.regs.X4.toNat + (m0.regs.X5.toNat - m0.regs.X1.toNat) ≤ 66 from hn)])

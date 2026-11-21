@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldR01
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldR2c
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldR5
@@ -21,18 +23,18 @@ public section
 variable [NativeArm.Host] {k : Nat}
 
 /-- **The fold**: from `b5` with round 0's registers and the rows to `b93`, the rows folded. -/
-theorem fold_run (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+theorem fold_run (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {c : Cx} {m0 : MachineData} {rows : Array (Array EW)} (ok : Ok c.a m0)
     (hsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 45)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b5Offset)) (hmid : Mid c m0 s.data)
     (h29 : s.data.regs.X29.toBitVec = rwA m0)
     (h27 : s.data.regs.X27.toBitVec = fbA m0 + BitVec.ofNat 64 80)
     (h28 : s.data.regs.X28.toBitVec = fbA m0 + BitVec.ofNat 64 1104)
     (h22 : s.data.regs.X22 = (c.sl.getD 0 0).c0) (h23 : s.data.regs.X23 = (c.sl.getD 0 0).c1)
     (h25 : s.data.regs.X25 = 0) (h26 : s.data.regs.X26 = 0)
     (hrw : ElemsAt s.data.dmem (rwA m0) (Fr c.sl rows 0) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 576) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b93Offset) ∧ Mid c m0 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (Fr c.sl rows 6) 4096) s := by
   have hk0 : KAt m0 (varsOf c.sl 0 0) kO s.data := by
     refine KAt.of_reg hmid.body.sp fun p hp ↦ ?_

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Queries
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `phase_m`: the three sizes (x86-64)
@@ -51,7 +52,7 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 /-- **The height**: from `At7`, read and stored. -/
 structure At9 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height c3 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 44)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b9Offset)
   bod : Bod m0 8 st.data
   model : phaseM B c = match rdU32 B c3 with
     | none => none
@@ -70,7 +71,7 @@ structure At9 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt
 
 /-- **The height.** -/
 theorem height_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c) {count : Nat} {qs : List Nat} {c2 : Nat}
     {st : MachineState} (h : At7 m0 bp B c k count qs c2 st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
@@ -100,12 +101,12 @@ theorem height_run (hp : Placed code k) (G : Geo m0 bp B.length)
     (hk8 .r12 (by simp)) (hk8 .r14 (by simp)) (st := ⟨m2, _⟩) rfl hb2
     fun s3 hb3 hs3 hkeep3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
-  have ea : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + 41 + b8.length)).toBitVec).regs
+  have ea : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b8Offset + b8.length)).toBitVec).regs
       .rax = reg m2 .rax := rfl
   rcases read4_cases hr2 with ⟨hn, h0⟩ | ⟨height, hv, h0, hdx, hhl, hR4⟩
   · rw [and1_eval _ (by rw [ea]; exact .inl h0), ea, h0] at hpc3
     simp only [decide_true, ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [hmod, hn]
   rw [and1_eval _ (by rw [ea]; exact .inr h0), ea, h0] at hpc3
@@ -128,7 +129,7 @@ theorem height_run (hp : Placed code k) (G : Geo m0 bp B.length)
     rw [List.length_map, hw0]
     rcases hq with (hq | hq) | hq <;> omega
   have e13' : reg s3.data .r13 = reg m2 .r13 := hm3.regs .r13 _ (hk8 .r13 (by simp))
-  refine .done _ (.inr ⟨height, c2 + 4, ⟨hpc3.trans (by rw [show b8.length = 3 from rfl]), hb3,
+  refine .done _ (.inr ⟨height, c2 + 4, ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b8_next), hb3,
     by rw [hmod, hv]; rfl, hlen, hcnt, hqlt, hhl, hf40', hf32, by rw [e13', e13]; exact h13, hqW3,
     hR3⟩⟩)
 

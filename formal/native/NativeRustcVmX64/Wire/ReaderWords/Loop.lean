@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Wire.ReaderWords.Exec
 public import NativeRustcVmX64.Wire.Frame
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `Reader::words`' loop (x86-64)
@@ -146,10 +147,10 @@ theorem fr_step (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 48) {b
   exact exec_at (infix_of hb hne hp) hrun hwf (fun l h ↦ (hx l h).elim) hpc hm fun st' hm' hpc' ↦
     cont st' (Frame.of_block hf hwf hm' hok.1 slots_le) (hm'.dmem_eq hwf hok.2) hm' hpc'
 
-/-- **The epilogue** (`b9`, at `.LReaderWords_8`): RAX and memory as they are. -/
+/-- **The epilogue** (`b9`, at `NativeRustcVmX64.Vm.ReaderWords.label_8`): RAX and memory as they are. -/
 theorem fin (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat}
     (hst : StackOk m0 48) (hR : ReaderAt m0.dmem (reg m0 .rdi) bp B c) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 36)) (hf : Frame m0 48 slots 8 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderWords.b9Offset)) (hf : Frame m0 48 slots 8 st.data)
     (hres : match rdWords B (reg m0 .rdx).toNat c with
       | some (ws, c') => boolRet st.data = 1 ∧
           NativeRustcVm.WordsAt st.data.dmem (reg m0 .rsi) (ws.map K.lane) ∧
@@ -177,7 +178,7 @@ theorem fin (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : List U
 /-- The loop's head (`b4`) after `i` words. -/
 structure LInv (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c i : Nat)
     (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 22)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderWords.b4Offset)
   fr : Frame m0 48 slots 8 st.data
   lt : i < (reg m0 .rdx).toNat
   fit : c + 8 * (reg m0 .rdx).toNat ≤ B.length
@@ -192,7 +193,7 @@ structure LInv (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c i : Nat)
 /-- After the loop (`b7`). -/
 structure Done (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c : Nat)
     (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 32)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderWords.b7Offset)
   fr : Frame m0 48 slots 8 st.data
   fit : c + 8 * (reg m0 .rdx).toNat ≤ B.length
   rd : ReaderAt st.data.dmem (reg m0 .rdi) bp B (c + 8 * (reg m0 .rdx).toNat)
@@ -286,7 +287,7 @@ theorem ws_keep (g : Geo m0 bp B.length) {ws : List UInt64}
 
 /-- **One word**: from the loop's head after `i` words, the next read and stored; back at the
 head or done. -/
-theorem step (hp : Placed code k) (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+theorem step (hp : Placed code k) (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (g : Geo m0 bp B.length) {st : MachineState} (hI : LInv (k := k) m0 bp B c i st) :
     Eventually (step1 Host.exe)
       (fun st' ↦ Done (k := k) m0 bp B c st' ∨ LInv (k := k) m0 bp B c (i + 1) st') st := by
@@ -299,8 +300,8 @@ theorem step (hp : Placed code k) (hle : Spec (Labels.label readerLeLabel) Reade
     have := NativeRustcVmX64.stackBelow_toNat (m := m0) (n := 48) hst.1
     omega
   -- `b4`: `call Reader::le`.
-  have hwf := loop_wf g hn hI.fr (ret := (Host.addrOf (k + 22 + b4.length)).toBitVec)
-  have hm := loop_match hI.fr hI.rbx hI.r12 (ret := (Host.addrOf (k + 22 + b4.length)).toBitVec)
+  have hwf := loop_wf g hn hI.fr (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ReaderWords.b4Offset + b4.length)).toBitVec)
+  have hm := loop_match hI.fr hI.rbx hI.r12 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ReaderWords.b4Offset + b4.length)).toBitVec)
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf (fun _ _ ↦ rfl) hI.pc hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hws, hrdi, hrsi, hkeep⟩ := ok_b4
@@ -325,7 +326,7 @@ theorem step (hp : Placed code k) (hle : Spec (Labels.label readerLeLabel) Reade
       rcases hx with rfl | rfl | rfl | rfl <;> rfl
     exact (hcs2 x hcs).trans (hk1 x hx)
   -- `b5`: the tag.
-  refine fr_step hp hst (j := 26) b5_in_code (by simp [b5]) exit_b5 nofun ok_b5.1
+  refine fr_step hp hst (j := NativeRustcVmX64.Vm.ReaderWords.b5Offset) b5_in_code (by simp [b5]) exit_b5 nofun ok_b5.1
     (st := ⟨m2, _⟩) rfl hf2 fun st3 hf3 hd3 hm3 hpc3 ↦ ?_
   have hk3 : ∀ x ∈ [Reg64.rax, .rdx, .rbx, .r12, .r14, .r15], reg st3.data x = reg m2 x :=
     fun x hx ↦ hm3.regs x _ (ok_b5.2 x hx)
@@ -333,7 +334,7 @@ theorem step (hp : Placed code k) (hle : Spec (Labels.label readerLeLabel) Reade
   change st3.pc = if (!(reg m2 .rax == BitVec.ofNat 64 1)) = true then _ else _ at hpc3
   rw [hax] at hpc3
   simp only [show ((1 : BitVec 64) == BitVec.ofNat 64 1) = true from rfl, Bool.not_true,
-    Bool.false_eq_true, ↓reduceIte, show k + 26 + b5.length = k + 28 from rfl] at hpc3
+    Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmX64.Vm.ReaderWords.b5Offset + b5.length = k + NativeRustcVmX64.Vm.ReaderWords.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderWords.b5_next]] at hpc3
   -- `b6`: the store.
   have hrbx3 : reg st3.data .rbx = reg m0 .rsi := by
     rw [hk3 .rbx (by simp), hk2 .rbx (by simp), hI.rbx]
@@ -406,7 +407,7 @@ theorem step (hp : Placed code k) (hle : Spec (Labels.label readerLeLabel) Reade
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Width.bits]
     omega
-  rw [hr15, hsum, hp.label (j := 22) rfl, show k + 28 + b6.length = k + 32 from rfl] at hpc4
+  rw [hr15, hsum, hp.label NativeRustcVmX64.Vm.ReaderWords.label_4_at, show k + NativeRustcVmX64.Vm.ReaderWords.b6Offset + b6.length = k + NativeRustcVmX64.Vm.ReaderWords.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderWords.b6_next]] at hpc4
   by_cases hlast : i + 1 = (reg m0 .rdx).toNat
   · have he : (BitVec.ofNat 64 (8 * (reg m0 .rdx).toNat) == BitVec.ofNat 64 (8 * (i + 1))) =
         true := by rw [hlast]; exact beq_self_eq_true _

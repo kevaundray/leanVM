@@ -47,7 +47,7 @@ theorem next_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : Ne
     rw [show reg s1.data .rax = _ from hm1.regs .rax _ rfl]
     exact merge_one_mod _
   by_cases hl : j + 1 ≠ R.nq
-  · rw [decide_eq_true hl, hp.label (j := 32) rfl] at hpc1'
+  · rw [decide_eq_true hl, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_2_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     have hk := fwK_of hwf hm1 (o' := 8) (by decide +kernel) (os := [32, 88, 96]) (by decide +kernel) (by decide +kernel)
     refine .done _ (.inl ⟨hpc1', F1, by omega, H.h0, hdone, ?_, ?_⟩)
@@ -85,7 +85,7 @@ theorem next_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : Ne
   refine blk hp b24_in_code (by simp [b24]) run_b24 F1 (hpc1'.trans (congrArg Host.addrOf rfl))
     hwf2 (frMatch F1.fr) nofun (o := 8) (by decide +kernel) (by decide +kernel) fun s2 F2 hm2 hpc2 _ ↦ ?_
   have hd2 : s2.data.dmem = s1.data.dmem := hm2.dmem_eq hwf2 rfl
-  refine .done _ (.inr ⟨(pc_jump hpc2).trans (hp.label (j := 280) rfl), F2, .inl ⟨?_, ?_⟩⟩)
+  refine .done _ (.inr ⟨(pc_jump hpc2).trans (hp.label NativeRustcVmX64.Vm.WriteOpenings.label_46_at), F2, .inl ⟨?_, ?_⟩⟩)
   · unfold boolRet
     rw [kreg hm2 (r := .rax) rfl rfl]
     exact hax

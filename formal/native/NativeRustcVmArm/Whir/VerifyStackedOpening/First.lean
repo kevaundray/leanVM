@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.PowersRun
 
 /-!
@@ -25,14 +27,14 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 /-- **From `b15`** to the target's loop, or past it with no claim. -/
 theorem first_b15 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {R : MachineState → Prop}
     (cont : ∀ st, Tgt a s layout target cs value m0 0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 104)⟩)
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b22Offset)⟩)
     (fin : ∀ st, AtB26 a s layout target cs value m0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 116)⟩)
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b26Offset)⟩)
     {st : MachineData} (hb : AtB15 a s layout cs m0 st) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 80)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b15Offset)⟩ := by
   have hP : placedOf layout cs cs.size ≤ 160 := (placedOf_le_self _).trans h.cl.len_le
   have hC : cntOf layout cs ≤ 162 := by unfold cntOf; omega
   have hC2 : 2 ≤ cntOf layout cs := by unfold cntOf; omega
@@ -68,7 +70,7 @@ theorem first_b15 (hp : Placed code k)
     show NativeRustcVm.WordAt st.dmem (m0.regs.X3.toBitVec + BitVec.ofNat 64 0) _
     rw [NativeRustcVm.addr_add_zero]; exact htg.1
   have hl8 : env.load 1 8 8 = target.c1.toBitVec := Ring.load_word htg.2
-  have hk15 : b15.IsInfixAt Host.prog (k + 80) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk15 : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b15Offset) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk15 run_b15 hwf hm fun st1 hm1 hpc1 ↦ ?_
   have hf1 : VFr m0 st1.data := Fr.ofBlockW hb.fr hm hm1 hwf rfl rfl
     (fun _ h ↦ absurd h (by simp)) rfl (by rw [stack_eq]; decide) h.hN slots_le
@@ -138,7 +140,7 @@ theorem first_b15 (hp : Placed code k)
       rfl]
     rfl
   -- `b16`
-  have hk16 : b16.IsInfixAt Host.prog (k + 85) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b16Offset) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine hf2.regsBlock (st := ⟨m2, _⟩) hk16 run_b16 rfl rfl rfl rfl
     fun st3 hf3 hd3 hm3 hpc3 ↦ ?_
   have k3 : ∀ r, r ≠ .X27 → r ≠ .X26 → st3.data.regs.getXReg r = m2.regs.getXReg r :=
@@ -171,7 +173,7 @@ theorem first_b15 (hp : Placed code k)
   by_cases hz : cs.size = 0
   · have hc : (cs.size.toUInt64.toBitVec == 0#64) = true := by rw [hz]; rfl
     simp only [hc, ↓reduceIte] at hpc3
-    rw [show Labels.label ".LVerifyStackedOpening_21" = Host.addrOf (k + 116) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.label_21 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b26Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyStackedOpening.b26Offset) NativeRustcVmArm.Vm.VerifyStackedOpening.label_21_at]
       at hpc3
     obtain ⟨d3, pc3⟩ := st3
     simp only at hpc3
@@ -186,10 +188,10 @@ theorem first_b15 (hp : Placed code k)
       exact hz this
     simp only [hc, Bool.false_eq_true, ↓reduceIte] at hpc3
     -- `b17`
-    have hk17 : b17.IsInfixAt Host.prog (k + 88) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk17 : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b17Offset) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine hf3.regsBlock hk17 run_b17 hpc3 rfl rfl rfl fun st4 hf4 hd4 hm4 hpc4 ↦ ?_
     simp only [PcOk] at hpc4
-    rw [show Labels.label ".LVerifyStackedOpening_17" = Host.addrOf (k + 104) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.label_17 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b22Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyStackedOpening.b22Offset) NativeRustcVmArm.Vm.VerifyStackedOpening.label_17_at]
       at hpc4
     obtain ⟨d4, pc4⟩ := st4
     simp only at hpc4

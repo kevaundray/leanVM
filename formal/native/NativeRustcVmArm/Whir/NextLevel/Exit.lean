@@ -22,10 +22,10 @@ theorem b6_eq : b6 = b1 := rfl
 theorem b14_eq : b14 = b1 := rfl
 theorem b23_eq : b23 = b12 := rfl
 
-theorem b4_in : b1.IsInfixAt code 38 := b4_eq ▸ b4_in_code
-theorem b6_in : b1.IsInfixAt code 42 := b6_eq ▸ b6_in_code
-theorem b14_in : b1.IsInfixAt code 113 := b14_eq ▸ b14_in_code
-theorem b23_in : b12.IsInfixAt code 201 := b23_eq ▸ b23_in_code
+theorem b4_in : b1.IsInfixAt code b4Offset := b4_eq ▸ b4_in_code
+theorem b6_in : b1.IsInfixAt code b6Offset := b6_eq ▸ b6_in_code
+theorem b14_in : b1.IsInfixAt code b14Offset := b14_eq ▸ b14_in_code
+theorem b23_in : b12.IsInfixAt code b23Offset := b23_eq ▸ b23_in_code
 
 theorem okWord_toBitVec (b : Bool) :
     (okWord b).toBitVec = BitVec.ofNat 64 (if b then 1 else 0) := by
@@ -72,7 +72,7 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 /-- **`None` at `.LNextLevel_14`.** -/
 theorem none14 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
     (hnone : runN level w rounds m0 s = none) {st : MachineState} (hf : NFr m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 220)) (hx0 : st.data.regs.X0 = 0) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b27Offset)) (hx0 : st.data.regs.X0 = 0) :
     Eventually (step1 Host.exe) (Goal a s level w rounds m0) st :=
   Eventually.mono (epi hp h hf hpc) fun _ ⟨h1, h2, h3, h4⟩ ↦
     ⟨h1, none_post h hnone hf (h2.trans hx0) h3 h4⟩
@@ -80,7 +80,7 @@ theorem none14 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
 /-- **`None` at `.LNextLevel_13`.** -/
 theorem none13 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
     (hnone : runN level w rounds m0 s = none) {st : MachineState} (hf : NFr m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 218)) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b26Offset)) :
     Eventually (step1 Host.exe) (Goal a s level w rounds m0) st := by
   refine exec_at (inf hp b26_in_code (by simp [b26])) run_b26 (wfF h hf) hpc (mF h hf)
     fun st1 hm1 hpc1 ↦ ?_
@@ -88,7 +88,7 @@ theorem none13 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   have hd : st1.data.dmem = st.data.dmem := hm1.dmem_eq (wfF h hf) rfl
   have hf1 : NFr m0 st1.data := Fr.ofBlock hf (mF h hf) hm1 (wfF h hf) rfl rfl rfl
     (fun _ h ↦ by cases h)
-  exact none14 hp h hnone hf1 (hpc1.trans (by rw [show b26.length = 2 from rfl]))
+  exact none14 hp h hnone hf1 (hpc1.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b26_next]))
     (reg_of hm1 (r := .X0) (v := .lit 0) rfl rfl)
 
 /-- **`cbz w0, .LNextLevel_14`** after a callee's `Option<()>` `ok` in X0: `None` returned, or
@@ -119,7 +119,7 @@ theorem chk14 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0) {j :
   cases ok with
   | false =>
     simp only [Bool.not_false, ↓reduceIte] at hpc1
-    exact Eventually.mono (none14 hp h (hnone rfl) hf1 (hpc1.trans (hp.label (j := 220) rfl))
+    exact Eventually.mono (none14 hp h (hnone rfl) hf1 (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.NextLevel.b27Offset) NativeRustcVmArm.Vm.NextLevel.label_14_at))
       ((hr .X0).trans (hx0.trans rfl))) hR
   | true =>
     simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc1
@@ -152,7 +152,7 @@ theorem chk13 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0) {j :
   cases ok with
   | false =>
     simp only [Bool.not_false, ↓reduceIte] at hpc1
-    exact Eventually.mono (none13 hp h (hnone rfl) hf1 (hpc1.trans (hp.label (j := 218) rfl))) hR
+    exact Eventually.mono (none13 hp h (hnone rfl) hf1 (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.NextLevel.b26Offset) NativeRustcVmArm.Vm.NextLevel.label_13_at))) hR
   | true =>
     simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc1
     exact cont rfl st1 hpc1 hf1 hd hr

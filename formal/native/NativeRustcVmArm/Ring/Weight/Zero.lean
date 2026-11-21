@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Ring.Weight.Outer
 
 /-!
@@ -41,11 +42,11 @@ variable [Host] {k : Nat}
 
 /-- **A turn** (`b22` to `b25`). -/
 theorem zerTurn (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
     (hI : ZerI m0 j m) (hQ : nQ m0 = 0) (hR : 0 < nR m0) :
-    Eventually (step1 Host.exe) (fun st ↦ (st.pc = Host.addrOf (k + 167) ∧ ∃ j',
+    Eventually (step1 Host.exe) (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b22Offset) ∧ ∃ j',
         ZerI m0 j' st.data ∧ 64 - j' < 64 - j) ∨
-      (st.pc = Host.addrOf (k + 184) ∧ Done m0 st.data)) ⟨m, Host.addrOf (k + 167)⟩ := by
+      (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset) ∧ Done m0 st.data)) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b22Offset)⟩ := by
   have hj := hI.lt
   -- `b22`
   have hwf := coef_wf h hI.fr hj
@@ -53,7 +54,7 @@ theorem zerTurn (hp : Placed code k) (h : RingWeightPre m0)
   refine exec_then (hb b22_in_code (by simp [b22]) hp) run_b22 hwf hm fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
   refine at_pc hpc1 ?_
-  rw [show k + 167 + b22.length = k + 171 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b22Offset + b22.length = k + NativeRustcVmArm.Vm.RingWeight.b23Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b22_next]]
   have hfr1 : WFr m0 st1.data := hI.fr.ofBlock hm hm1 hwf rfl rfl rfl fun r hr ↦ by simp at hr
   have hce := coef_ew h hI.fr hj
   have k1 := regs_eq_of hm hm1 [.X20, .X21, .X22, .X23, .X24] (by decide)
@@ -67,9 +68,9 @@ theorem zerTurn (hp : Placed code k) (h : RingWeightPre m0)
   have h22 : (st1.data.regs.getXReg .X22).toBitVec = slotA m0 (nR m0) := by
     rw [k1 .X22 (by simp)]; exact hI.x22
   refine (sqLoop h hmul rfl h22 (by decide) (hb b23_in_code (by simp [b23]) hp) run_b23
-    (by decide) (show k + 171 + b23.length = k + 176 from rfl) (hb b24_in_code (by simp [b24]) hp)
-    run_b24 (by decide) (hp.label (j := 171) rfl) hsI).bind fun st4 ⟨hpc4, hS⟩ ↦ at_pc hpc4 ?_
-  rw [show k + 176 + b24.length = k + 179 from rfl]
+    (by decide) (show k + NativeRustcVmArm.Vm.RingWeight.b23Offset + b23.length = k + NativeRustcVmArm.Vm.RingWeight.b24Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b23_next]) (hb b24_in_code (by simp [b24]) hp)
+    run_b24 (by decide) (hp.label (j := NativeRustcVmArm.Vm.RingWeight.b23Offset) NativeRustcVmArm.Vm.RingWeight.label_20_at) hsI).bind fun st4 ⟨hpc4, hS⟩ ↦ at_pc hpc4 ?_
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b24Offset + b24.length = k + NativeRustcVmArm.Vm.RingWeight.b25Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b24_next]]
   -- `b25`
   refine exec_then (hb b25_in_code (by simp [b25]) hp) run_b25 (Env.wf_nil _) (match_nil _)
     fun st5 hm5 hpc5 ↦ ?_
@@ -132,10 +133,10 @@ theorem zerTurn (hp : Placed code k) (h : RingWeightPre m0)
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl <;> rw [k5 _ (by simp), hS' _ (by simp), k1 _ (by simp)]
   by_cases hl : j + 1 = 64
-  · refine .done _ (.inr ⟨(hc.2 (fun e ↦ he.mp e hl)).trans (show Host.addrOf (k + 179 + b25.length) =
-      Host.addrOf (k + 184) from rfl), hfr5, ?_⟩)
+  · refine .done _ (.inr ⟨(hc.2 (fun e ↦ he.mp e hl)).trans (show Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b25Offset + b25.length) =
+      Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset) from rfl), hfr5, ?_⟩)
     rw [htot', A_done, hl]
-  · refine .done _ (.inl ⟨(hc.1 (he.mpr hl)).trans (hp.label (j := 167) rfl), j + 1,
+  · refine .done _ (.inl ⟨(hc.1 (he.mpr hl)).trans (hp.label (j := NativeRustcVmArm.Vm.RingWeight.b22Offset) NativeRustcVmArm.Vm.RingWeight.label_19_at), j + 1,
       ⟨hfr5, by omega, by rw [hreg .X20 (by simp)]; exact hI.x20,
         by rw [hreg .X22 (by simp)]; exact hI.x22, h24, htot', hpow'⟩, by omega⟩)
 

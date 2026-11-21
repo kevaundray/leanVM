@@ -317,9 +317,9 @@ theorem exit_spec (hp : Placed code k) (hpre : RoundPolyPre a s e m0) {m : Machi
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ st.data.regs.X0 = m.regs.X0 ∧ st.data.dmem = m.dmem ∧
         Saved m0 st.data)
-      ⟨m, Host.addrOf (k + 77)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset)⟩ := by
   have c := ctx_of hpre
-  have hk : b19.IsInfixAt Host.prog (k + 77) := b19_in_code.trans hp.1 (by simp [b19])
+  have hk : b19.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) := b19_in_code.trans hp.1 (by simp [b19])
   let env := Env.ofMachine m [(fr m0, 112)]
   have hwf : env.WF :=
     Env.wf_of ⟨⟨c.mapped_fr hf.at_, c.noWrap_fr⟩, trivial⟩ (List.pairwise_singleton _ _)
@@ -368,9 +368,9 @@ theorem fail_spec (hp : Placed code k) (hpre : RoundPolyPre a s e m0) {m : Machi
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ st.data.regs.X0 = 0 ∧ st.data.dmem = m.dmem ∧
         Saved m0 st.data)
-      ⟨m, Host.addrOf (k + 75)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset)⟩ := by
   have c := ctx_of hpre
-  have hk : b18.IsInfixAt Host.prog (k + 75) := b18_in_code.trans hp.1 (by simp [b18])
+  have hk : b18.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b18Offset) := b18_in_code.trans hp.1 (by simp [b18])
   let env := Env.ofMachine m [(fr m0, 112)]
   have hwf : env.WF :=
     Env.wf_of ⟨⟨c.mapped_fr hf.at_, c.noWrap_fr⟩, trivial⟩ (List.pairwise_singleton _ _)

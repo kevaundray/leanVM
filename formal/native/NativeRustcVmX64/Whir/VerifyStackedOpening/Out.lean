@@ -221,13 +221,13 @@ variable (h : Parts a s layout target coefficients point slices cs z value m0)
 include h hp
 
 /-- **The epilogue** `b51`: the postcondition, given AL and the `TState`. -/
-theorem exit_b51 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 237))
+theorem exit_b51 {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b51Offset))
     (hok : Ok m0 st.data 8)
     (hal : OkAl st.data (runOf s layout target coefficients point cs z value m0).isSome)
     (hnext : NextAt st.data.dmem (tA m0) a (runOf s layout target coefficients point cs z value m0)) :
     Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0) st := by
   have hwf : (frameEnv m0 st.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 237 + b51.length)).toBitVec).WF := hok.wf0 h
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b51Offset + b51.length)).toBitVec).WF := hok.wf0 h
   refine exec_at (infix_of b51_in_code (List.cons_ne_nil _ _) hp) run_b51 hwf nofun hpc hok.m_reg
     fun st' hm' hpc' ↦ ?_
   obtain ⟨hsv, hrsp⟩ := Frame.epilogue hok.fr hwf hm' (by decide +kernel)
@@ -249,13 +249,13 @@ theorem exit_b51 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 237))
     · exact .inr h1
 
 /-- **The failure path** `b50`: AL `0`, the model's `none`. -/
-theorem fail_b50 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 235))
+theorem fail_b50 {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b50Offset))
     (hok : Ok m0 st.data 8) (hr : runOf s layout target coefficients point cs z value m0 = none) :
     Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0) st := by
   refine h.run hp b50_in_code (List.cons_ne_nil _ _) hpc hok (vars := fun _ ↦ 0) (hok.wf0 h)
     hok.m_reg run_b50 (o := 8) (by decide +kernel) (by decide) fun st1 hok1 _ hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
-  refine exit_b51 h hp (hpc1.trans (by rw [show b50.length = 2 from rfl])) hok1 ?_ ?_
+  refine exit_b51 h hp (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b50_next)) hok1 ?_ ?_
   · rw [hr]
     unfold OkAl boolRet
     rw [show reg st1.data .rax = _ from hm1.regs .rax _ rfl]

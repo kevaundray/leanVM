@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.ReadOod
+public import NativeRustcVmX64.Code.Vm.ReadOod.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 public meta import NativeRustcVmX64.Code.Vm.ReadOod
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -68,7 +72,7 @@ sym_block run_b6 := exec b6 S5
 sym_block run_b8d := exec b8 S6
 
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState5grind") :=
+    .call NativeRustcVmX64.Vm.TStateGrind.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 64 0 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ w.off + w.n ≤ 64) ∧
@@ -76,18 +80,18 @@ public theorem ok_b0 : ProOk 64 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .rbx = some (.reg .rdx) ∧ (after b0 entryS).reg .r14 = some (.reg .rdi) ∧
     (after b0 entryS).reg .r15 = some (.reg .rsi) := by
   decide +kernel
-public theorem exit_b1 : exec b1 outS = some (S1, .cond bigSym ".LReadOod_5") :=
+public theorem exit_b1 : exec b1 outS = some (S1, .cond bigSym NativeRustcVmX64.Vm.ReadOod.label_5) :=
   run_b1.trans (by rw [show S1 = _ from after_eq run_b1]; rfl)
 public theorem exit_b8a : exec b8 S1 = some (after b8 S1, .ret (.load 0 64 8)) :=
   run_b8a.trans (by rw [after_eq run_b8a])
 public theorem end_b8a : EndOk (after b8 S1) (.lit 0) := by decide +kernel
-public theorem exit_b2 : exec b2 S1 = some (S2, .cond failSym ".LReadOod_5") :=
+public theorem exit_b2 : exec b2 S1 = some (S2, .cond failSym NativeRustcVmX64.Vm.ReadOod.label_5) :=
   run_b2.trans (by rw [show S2 = _ from after_eq run_b2]; rfl)
 public theorem exit_b8b : exec b8 S2 = some (after b8 S2, .ret (.load 0 64 8)) :=
   run_b8b.trans (by rw [after_eq run_b8b])
 public theorem end_b8b : EndOk (after b8 S2) (.lit 0) := by decide +kernel
 public theorem exit_b3 : exec b3 S2 = some (after b3 S2,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState17sample_challenges") :=
+    .call NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 64 0 slots (after b3 S2) = true ∧
     (∀ w ∈ (after b3 S2).mem, (w.r = 0 ∧ w.off + w.n ≤ 8) ∨ (w.r = 1 ∧ w.off + w.n ≤ 8)) ∧
@@ -97,7 +101,7 @@ public theorem ok_b3 : MidOk 64 0 slots (after b3 S2) = true ∧
     (after b3 S2).reg .r14 = some (.reg .r14) := by
   decide +kernel
 public theorem exit_b4 : exec b4 callS = some (after b4 callS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 64 0 slots (after b4 callS) = true ∧
     (∀ w ∈ (after b4 callS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -105,14 +109,14 @@ public theorem ok_b4 : MidOk 64 0 slots (after b4 callS) = true ∧
     (after b4 callS).reg .rbx = some (.reg .rbx) ∧ (after b4 callS).reg .r14 = some (.reg .r14) := by
   decide +kernel
 public theorem exit_b5 : exec b5 outS = some (S5,
-    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not ".LReadOod_4") :=
+    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not NativeRustcVmX64.Vm.ReadOod.label_4) :=
   run_b5.trans (by rw [show S5 = _ from after_eq run_b5])
 public theorem exit_b7 : exec b7 S5 = some (S7, .fall) :=
   run_b7.trans (by rw [show S7 = _ from after_eq run_b7])
 public theorem exit_b8c : exec b8 S7 = some (after b8 S7, .ret (.load 0 64 8)) :=
   run_b8c.trans (by rw [after_eq run_b8c])
 public theorem end_b8c : EndOk (after b8 S7) (.lit 0) := by decide +kernel
-public theorem exit_b6 : exec b6 S5 = some (S6, .jump ".LReadOod_5") :=
+public theorem exit_b6 : exec b6 S5 = some (S6, .jump NativeRustcVmX64.Vm.ReadOod.label_5) :=
   run_b6.trans (by rw [show S6 = _ from after_eq run_b6])
 public theorem exit_b8d : exec b8 S6 = some (after b8 S6, .ret (.load 0 64 8)) :=
   run_b8d.trans (by rw [after_eq run_b8d])

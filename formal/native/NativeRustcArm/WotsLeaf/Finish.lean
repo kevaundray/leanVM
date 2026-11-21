@@ -84,7 +84,7 @@ theorem finish (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m 
     (hk : Kept r.m0.dmem m.dmem)
     (hso : SameOutside r.m0.dmem m.dmem (fun p ↦ InRange r.out 75 p ∨ r.StackArea p))
     (hout : WotsLeafOut (bytesOf m.dmem r.out 75) r.result) :
-    Eventually (step1 NativeArm.Host.exe) r.Done ⟨m, r.pc 164⟩ :=
+    Eventually (step1 NativeArm.Host.exe) r.Done ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b12Offset⟩ :=
   NativeRustcArm.Eventually.mono (epilogue r hp hpre m hsp hsv hk) fun st ⟨hpc, hS, hmem⟩ ↦ by
     have hb : bytesOf st.data.dmem r.out 75 = bytesOf m.dmem r.out 75 := by
       unfold bytesOf
@@ -97,7 +97,7 @@ theorem finish (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m 
 /-- **No codeword**: from `b11`, the tag `0` at `out`, then the return. -/
 theorem fail_path (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m : MachineData)
     (hF : r.Frame m) (h19 : Run.RegIs m .X19 r.out) (hnone : r.result = none) :
-    Eventually (step1 NativeArm.Host.exe) r.Done ⟨m, r.pc 162⟩ := by
+    Eventually (step1 NativeArm.Host.exe) r.Done ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b11Offset⟩ := by
   have hwf := outEnv_wf hpre hF (fun _ ↦ 0)
   have hm := match_out hpre hF (known := [(.X19, .ptr 1 0)])
     ⟨by show (m.regs.getXReg .X19).toBitVec = r.out + BitVec.ofInt 64 0

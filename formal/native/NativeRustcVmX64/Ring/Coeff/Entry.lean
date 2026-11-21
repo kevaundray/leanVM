@@ -40,9 +40,9 @@ variable [Host] {k : Nat}
 
 /-- **The entry block.** -/
 theorem enter (hp : Placed code k) (h : P m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 40) ∧ Mem m0 st.data ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RingCoefficients.b1Offset) ∧ Mem m0 st.data ∧
       Bnd (own m0 st.data) 176 NC (rsP m0 0) wrRow tH (hvG m0 0 (g0 m0)) st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.RingCoefficients.b0Offset)⟩ := by
   have hl := layG h
   have hwf := hl.wf (m := m0) (fun _ h ↦ h) (vals := fun _ ↦ 0) (ret := 0)
   have hB : Bnd m0 176 NC [(gA m0, 128)] (fun _ ↦ false) t0 (fun _ ↦ 0) m0 :=

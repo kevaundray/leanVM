@@ -1,12 +1,15 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Count
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Locs
 
 /-!
 # `verify_bus_balance`'s pull side
 
-From `b41` (`k + 597`), after the push side: `b41` checks its total's tag; `b42` calls the
+From `b41` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b41Offset`), after the push side: `b41` checks its total's tag; `b42` calls the
 closure for the pull side's fingerprints (`pc_final`, the final counters); `b43` calls
 `accumulate_side` on the pull side; then the count side (`pull_spec`).
 -/
@@ -20,7 +23,7 @@ open NativeRustcVm.Layout NativeRustcVmArm.Bus.Gkr
 public section
 variable [Labels]
 
-/-- **At `b41`** (`k + 597`): the push side's total at `5320`, its forms at the bus. -/
+/-- **At `b41`** (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b41Offset`): the push side's total at `5320`, its forms at the bus. -/
 structure AtPull (a : DecArea) (s0 : TState) (L : LayoutW) (m0 : MachineData)
     (w pt tv mem : Array EW) (beta mf bf share : EW) (bp : Array EW) (s' : TState)
     (m : MachineData) : Prop where
@@ -84,15 +87,15 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The pull side** (`b41`, `k + 597`). -/
+/-- **The pull side** (`b41`, `k + NativeRustcVmArm.Vm.VerifyBusBalance.b41Offset`). -/
 theorem pull_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hfc : Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
     {w pt tv mem bp : Array EW} {beta mf bf share : EW} {s' : TState} {m : MachineData}
     (A : AtPull a s0 L m0 w pt tv mem beta mf bf share bp s' m) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 597)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b41Offset)⟩ := by
   have hS := pre_stack h
   have hN := hS.2.1
   have hbnw := (pre_bus h).2.1
@@ -139,7 +142,7 @@ theorem pull_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   refine fp_call h hfc hfr2 hpc2 hl2 (reg_ptr (x := .X0) 5344 hm2' rfl)
     (reg_ptr (x := .X1) 5264 hm2' rfl) fun m3 hfr3 hfp3 hk3 hcs3 hs3 ↦ ?_
   rw [r2, r3, r4, r5, r6] at hfp3
-  have hpc3 : Host.addrOf (k + 597 + b41.length + b42.length) = Host.addrOf (k + 609) := rfl
+  have hpc3 : Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b41Offset + b41.length + b42.length) = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b43Offset) := rfl
   -- what the closure kept
   have kl3 : KeepLoc m0 st2.data.dmem m3.dmem :=
     keepLoc_call hS hfr2.sp le_fp hs3 (not_locs hS (o := 5344) (n := 48) (by omega)

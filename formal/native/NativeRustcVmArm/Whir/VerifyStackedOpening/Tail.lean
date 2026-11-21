@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.TgtLoop
 public import NativeRustcVm.Top.Same
 
@@ -45,11 +47,11 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 /-- **The target's loop** to `b26`. -/
 theorem tgt_run (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
     (fin : ∀ st, AtB26 a s layout target cs value m0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 116)⟩) :
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b26Offset)⟩) :
     ∀ n i st, cs.size - i = n → Tgt a s layout target cs value m0 i st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 104)⟩ := by
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b22Offset)⟩ := by
   intro n
   induction n using Nat.strongRecOn with
   | ind n ih =>
@@ -71,11 +73,11 @@ theorem vals_last (target value : EW) :
 /-- **From `b26`** to `b30`: the out-of-domain term. -/
 theorem tail_b26 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
     (cont : ∀ st, AtB30 a s layout target cs value m0 st →
-      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 128)⟩)
+      Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b30Offset)⟩)
     {st : MachineData} (hb : AtB26 a s layout target cs value m0 st) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 116)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b26Offset)⟩ := by
   have hc := hb.com
   have hP : placedOf layout cs cs.size ≤ 160 := (placedOf_le_self _).trans h.cl.len_le
   have hscb : scalesBytes = 2600 := rfl
@@ -85,7 +87,7 @@ theorem tail_b26 (hp : Placed code k)
     fun o ho ↦ NativeRustcVm.toNat_add_ofNat (by unfold NoWrap at hnw; omega)
   have hS := h.hS
   -- `b26`: a scale is left
-  have hk26 : b26.IsInfixAt Host.prog (k + 116) := b26_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk26 : b26.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b26Offset) := b26_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine hc.fr.regsBlock (st := ⟨st, _⟩) hk26 run_b26 rfl rfl rfl rfl
     fun st1 hf1 hd1 hm1 hpc1 ↦ ?_
   have k1 : ∀ r, st1.data.regs.getXReg r = st.regs.getXReg r := fun r ↦
@@ -133,7 +135,7 @@ theorem tail_b26 (hp : Placed code k)
   have hl8 : env2.load 0 8 8 =
       (scalesOf s layout cs).toList[1 + placedOf layout cs cs.size].c1.toBitVec :=
     Ring.load_word hsce.2
-  have hk27 : b27.IsInfixAt Host.prog (k + 119) := b27_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk27 : b27.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b27Offset) := b27_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk27 run_b27 hwf2 hpc1 hm2 fun st2 hm2' hpc2 ↦ ?_
   have hc2 : Common a s layout cs m0 st2.data := hc1.blk hm2 hm2' hwf2 rfl rfl (by decide)
   have k2 : ∀ r ∈ [XReg.X26, .X27], st2.data.regs.getXReg r = st1.data.regs.getXReg r :=
@@ -145,7 +147,7 @@ theorem tail_b26 (hp : Placed code k)
   have e2x1 : st2.data.regs.X1 = (scalesOf s layout cs).toList[1 + placedOf layout cs cs.size].c1 :=
     (rv hm2' (r := .X1) rfl).trans (by show UInt64.ofBitVec (env2.load 0 8 8) = _; rw [hl8])
   simp only [PcOk] at hpc2
-  rw [show Labels.label ".LVerifyStackedOpening_24" = Host.addrOf (k + 124) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.label_24 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b29Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyStackedOpening.b29Offset) NativeRustcVmArm.Vm.VerifyStackedOpening.label_24_at]
     at hpc2
   -- `b29`: the out-of-domain value, `EW::mul`
   have hoin := h.in_ok hc2.fr mem_ood
@@ -173,7 +175,7 @@ theorem tail_b26 (hp : Placed code k)
     refine Ring.load_word ?_
     have := hov.2
     rwa [NativeRustcVm.Transcript.off, NativeRustcVm.addr_add_add] at this
-  have hk29 : b29.IsInfixAt Host.prog (k + 124) := b29_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk29 : b29.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b29Offset) := b29_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk29 run_b29 hwf3 hpc2 hm3 fun st3 hm3' hpc3 ↦ ?_
   have hc3 : Common a s layout cs m0 st3.data := hc2.blk hm3 hm3' hwf3 rfl rfl (by decide)
   have e3x20 : st3.data.regs.getXReg .X20 = m0.regs.X5 :=

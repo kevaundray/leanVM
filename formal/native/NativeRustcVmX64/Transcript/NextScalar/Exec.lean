@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.TStateNextScalar
+public import NativeRustcVmX64.Code.Vm.TStateNextScalar.Names
 public meta import NativeRustcVmX64.Code.Vm.TStateNextScalar
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -45,10 +46,10 @@ sym_block run_b3 := exec b3 M2
 sym_block run_b5c := exec b5 (after b3 M2)
 
 public theorem exit_b0 : exec b0 entryS = some (S0,
-    .cond (SBool.cmp .eq .W8 (.load 1 304 1) (.lit 0)).not ".LTStateNextScalar_3") :=
+    .cond (SBool.cmp .eq .W8 (.load 1 304 1) (.lit 0)).not NativeRustcVmX64.Vm.TStateNextScalar.label_3) :=
   run_b0.trans (by rw [show S0 = _ from after_eq run_b0])
 public theorem exit_b2 : exec b2 midS = some (M2,
-    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not ".LTStateNextScalar_3") :=
+    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not NativeRustcVmX64.Vm.TStateNextScalar.label_3) :=
   run_b2.trans (by rw [show M2 = _ from after_eq run_b2])
 public theorem ok_b1 : ProOk 64 0 slots (after b1 S0) = true ∧
     (∀ w ∈ (after b1 S0).mem, w.r = 0 ∧ w.off + w.n ≤ 64) ∧

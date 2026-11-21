@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Wire.Decode.Entry
 public import NativeRustcVm.Wire.RowsFacts
+public import NativeRustcVmX64.Code.Vm.Decode.Names
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `decode`: the stream and the phase count (x86-64)
@@ -27,11 +30,11 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 
 @[expose] public section
 
-/-- **The loop's head** (`b9`, `.LDecode_6`) after `i` of the `p` phases (`done`), the reader at
+/-- **The loop's head** (`b9`, `NativeRustcVmX64.Vm.Decode.label_6`) after `i` of the `p` phases (`done`), the reader at
 `ci`: the model's rest is `tailPh` from there. -/
 structure Head [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (p i : Nat)
     (done : List PhaseOut) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 59)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b9Offset)
   bod : Bod m0 8 st.data
   pos : 4 ≤ LN m0
   model : decodeM (Bs m0) = tailPh (Bs m0) (streamOf n ws) done (p - i) ci
@@ -48,7 +51,7 @@ structure Head [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (p i
 /-- **After the stream's words** (`b5`). -/
 structure At5 [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 30)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b5Offset)
   bod : Bod m0 8 st.data
   h1 : rdU32 (Bs m0) 0 = some (n, 4)
   hw : rdWords (Bs m0) (2 * n) 4 = some (ws, 4 + 16 * n)
@@ -65,7 +68,7 @@ structure At5 [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (st :
 /-- **After the phase count** (`b7`). -/
 structure At7 [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (p : Nat)
     (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 39)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b7Offset)
   bod : Bod m0 8 st.data
   h1 : rdU32 (Bs m0) 0 = some (n, 4)
   hw : rdWords (Bs m0) (2 * n) 4 = some (ws, 4 + 16 * n)
@@ -124,7 +127,7 @@ variable [Host] {k : Nat}
 
 /-- **The stream's words**, from `Reader::words`' call to the count's store. -/
 theorem words_run (hp : Placed code k) (G : Geo m0)
-    (hrw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) {n : Nat}
+    (hrw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) {n : Nat}
     {st : MachineState} (h : At3 m0 k n st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨ ∃ ws, At5 m0 k n ws st') st := by
   obtain ⟨hpc, hbod, hR, h1, hnl, hrcx, hrdx, hlt, hr13, hr14, hpos⟩ := h
@@ -203,7 +206,7 @@ theorem words_run (hp : Placed code k) (G : Geo m0)
     exact (hsv2.1 .r12 rfl).trans (hm1.regs .r12 _ hr12_3)
   -- `b4`: the words' tag.
   refine fblk hp G b4_in_code (by simp [b4]) exit_b4 nofun ok_b4.1 (ok_b4.2 .rbx (by simp))
-    (ok_b4.2 .r15 (by simp)) (st := ⟨s2.data, _⟩) (hpc2.trans (by rw [show b3.length = 4 from rfl]))
+    (ok_b4.2 .r15 (by simp)) (st := ⟨s2.data, _⟩) (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b3_next))
     hb2 fun s3 hb3 hd3 hm3 hpc3 ↦ ?_
   simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, testAl_eq] at hpc3
   rcases hw : rdWords (Bs m0) (2 * n) 4 with _ | ⟨ws, c'⟩
@@ -211,7 +214,7 @@ theorem words_run (hp : Placed code k) (G : Geo m0)
     rw [hw] at hres
     rw [show (s2.data.regs.get64 .rax).toNat % 256 = 0 from hres] at hpc3
     simp only [decide_true, ↓reduceIte] at hpc3
-    rw [hp.label (j := 75) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.Decode.label_9_at] at hpc3
     exact Eventually.mono (none_run hp G hpc3 hb3 (by rw [decodeM_eq, h1]; simp only [hw]))
       fun _ h ↦ .inl h
   rw [hw] at hres
@@ -235,7 +238,7 @@ theorem words_run (hp : Placed code k) (G : Geo m0)
     exact rk2 x hx
   have h12_3 : reg s3.data .r12 = reg st.data .rcx := by
     rw [show reg s3.data .r12 = _ from hm3.regs .r12 _ (ok_b4.2 .r12 (by simp))]; exact h12_2
-  refine .done _ (.inr ⟨ws, hpc3.trans (by rw [show b4.length = 2 from rfl]), hb3, h1, hw, hfit,
+  refine .done _ (.inr ⟨ws, hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b4_next), hb3, h1, hw, hfit,
     hwsl, hlt, hpos, by rw [hd3]; exact hws2, by rw [hd3]; exact hR2, ?_, ?_, ?_⟩)
   · rw [h12_3]; exact hrcx
   · rw [rk3 .r13 (by simp)]; exact hr13
@@ -243,7 +246,7 @@ theorem words_run (hp : Placed code k) (G : Geo m0)
 
 /-- **The phase count**, from the count's store to the room's check. -/
 theorem count_run (hp : Placed code k) (G : Geo m0)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {n : Nat} {ws : List K}
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {n : Nat} {ws : List K}
     {st : MachineState} (h : At5 m0 k n ws st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨ ∃ p, At7 m0 k n ws p st') st := by
   obtain ⟨hpc3, hb3, h1, hw, hfit, hwsl, hlt, hpos, hws3, hR3, h12, h13, h14⟩ := h
@@ -264,7 +267,7 @@ theorem count_run (hp : Placed code k) (G : Geo m0)
   -- `b5`: the count stored, `Reader::le` for the phase count.
   have hd0 : (DEC m0).toNat + 8 ≤ SP0 m0 - 1296 ∨ SP0 m0 + 8 ≤ (DEC m0).toNat := by omega
   have hwf5 := frame_wf (m0 := m0) (d := st.data) (F := 80) (rest := [(DEC m0, 8)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 30 + b5.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b5Offset + b5.length)).toBitVec)
     ⟨Mapped.keeps (frame_mapped hst (by omega)) hb3.fr.kept, frame_noWrap hst (by omega)⟩
     (fun x hx ↦ by
       rw [List.mem_singleton] at hx; subst hx
@@ -275,7 +278,7 @@ theorem count_run (hp : Placed code k) (G : Geo m0)
       show NativeRustcVm.Apart (stackBelow m0 80) (80 + 8) (DEC m0) 8
       unfold NativeRustcVm.Apart; rw [hS]; omega))
   have hm5 : Match (frameEnv m0 st.data 80 [(DEC m0, 8)] (fun _ ↦ 0)
-      (Host.addrOf (k + 30 + b5.length)).toBitVec) cntS st.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b5Offset + b5.length)).toBitVec) cntS st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb3.fr.rsp_eval, trivial⟩ trivial trivial
       ⟨by
         show reg st.data .r13 = _ + BitVec.ofInt 64 0
@@ -349,36 +352,36 @@ theorem count_run (hp : Placed code k) (G : Geo m0)
       · exact .inl (by omega)
   -- `b6`: the tag, `p ≤ 8`.
   refine fblk hp G b6_in_code (by simp [b6]) exit_b6 nofun ok_b6.1 (ok_b6.2 .rbx (by simp))
-    (ok_b6.2 .r15 (by simp)) (st := ⟨m5, _⟩) (by rw [show b5.length = 4 from rfl]) hb5
+    (ok_b6.2 .r15 (by simp)) (st := ⟨m5, _⟩) (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b5_next) hb5
     fun s6 hb6 hd6 hm6 hpc6 ↦ ?_
   have rk6 : ∀ x ∈ [Reg64.rdx, .rbx, .r12, .r13, .r14, .r15], reg s6.data x = reg m5 x :=
     fun x hx ↦ hm6.regs x _ (ok_b6.2 x hx)
   rcases read4_cases hr5 with ⟨hn5, h05⟩ | ⟨p, hv5, h05, hdx5, hpl, hR5⟩
   · -- No phase count: `None`.
     have hc6 : c6.eval (frameEnv m0 m5 80 []) = true := c6_zero _ h05
-    have hpc6' : s6.pc = if c6.eval (frameEnv m0 m5 80 []) = true then Labels.label ".LDecode_9"
-        else Host.addrOf (k + 34 + b6.length) := hpc6
+    have hpc6' : s6.pc = if c6.eval (frameEnv m0 m5 80 []) = true then Labels.label NativeRustcVmX64.Vm.Decode.label_9
+        else Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b6Offset + b6.length) := hpc6
     simp only [hc6, ↓reduceIte] at hpc6'
-    rw [hp.label (j := 75) rfl] at hpc6'
+    rw [hp.label NativeRustcVmX64.Vm.Decode.label_9_at] at hpc6'
     refine Eventually.mono (none_run hp G hpc6' hb6 ?_) fun _ h ↦ .inl h
     simp only [decodeM_eq, h1, hw, afterStream, hn5]
   have hp6 : (reg s6.data .rdx).toNat = p := by rw [rk6 .rdx (by simp)]; exact hdx5
   have hc6 : c6.eval (frameEnv m0 m5 80 []) = !decide (p < 9) := c6_one _ h05 hdx5
-  have hpc6' : s6.pc = if c6.eval (frameEnv m0 m5 80 []) = true then Labels.label ".LDecode_9"
-      else Host.addrOf (k + 34 + b6.length) := hpc6
+  have hpc6' : s6.pc = if c6.eval (frameEnv m0 m5 80 []) = true then Labels.label NativeRustcVmX64.Vm.Decode.label_9
+      else Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b6Offset + b6.length) := hpc6
   rw [hc6] at hpc6'
   by_cases hp8 : p < 9
   swap
   · -- More than eight phases: `None`.
     simp only [decide_eq_false hp8, Bool.not_false, ↓reduceIte] at hpc6'
-    rw [hp.label (j := 75) rfl] at hpc6'
+    rw [hp.label NativeRustcVmX64.Vm.Decode.label_9_at] at hpc6'
     refine Eventually.mono (none_run hp G hpc6' hb6 ?_) fun _ h ↦ .inl h
     simp only [decodeM_eq, h1, hw, afterStream, hv5,
       show wireMaxPhases < p by unfold wireMaxPhases; omega, ↓reduceIte]
   simp only [decide_eq_true hp8, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc6'
   have hR6 : ReaderAt s6.data.dmem (rdA m0) (BP m0) (Bs m0) (8 + 16 * n) := by
     rw [hd6, show 8 + 16 * n = 4 + 16 * n + 4 by omega]; exact hR5
-  refine .done _ (.inr ⟨p, hpc6'.trans (by rw [show b6.length = 5 from rfl]), hb6, h1, hw,
+  refine .done _ (.inr ⟨p, hpc6'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b6_next), hb6, h1, hw,
     by rw [show 8 + 16 * n = 4 + 16 * n + 4 by omega]; exact hv5, hp8, hfit, hwsl, hpos, ?_, ?_,
     hR6, hp6, ?_, ?_⟩)
   · rw [hd6]

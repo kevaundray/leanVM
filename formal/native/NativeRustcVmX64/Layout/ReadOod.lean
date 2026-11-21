@@ -3,6 +3,10 @@ module
 public import NativeRustcVmX64.Layout.ReadOod.Exec
 public import NativeRustcVmX64.Layout.Stack.Common
 public import NativeVm.Model.Stack
+public import NativeRustcVmX64.Code.Vm.ReadOod.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 
 /-!
 # `read_ood` on x86-64
@@ -44,12 +48,12 @@ variable [Host] {k : Nat}
 
 /-- **`read_ood`'s contract.** -/
 theorem readOod_spec (hp : Placed code k)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label readOodLabel) (ReadOodPre a s) (ReadOodPost a s) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s) := by
   rintro m0 ⟨hst, hrc, hts, htok, hlog, hout⟩
   rw [stack_eq] at hst hrc htok hout
   set t := reg m0 .rdi with htdef
@@ -113,13 +117,13 @@ theorem readOod_spec (hp : Placed code k)
     fun hf ↦ by rw [hf.sp, off_zero]
   -- `b0`: the prologue, `call grind`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 64) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ReadOod.b0Offset + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
     (by simp) (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 64 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 64 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.ReadOod.b0Offset + b0.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
-  unfold readOodLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.ReadOod.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.ReadOod.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl) hm0
     fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro, hws1, hx7, hx6, hx3, hx14, hx15⟩ := ok_b0
@@ -163,13 +167,13 @@ theorem readOod_spec (hp : Placed code k)
   have hY15 : reg st2.data .r15 = reg m0 .rsi := (hsv2.1 .r15 rfl).trans hX15
   -- `b1`: `stack_log ≤ 30`.
   have hm2 : Match (frameEnv m0 st2.data 64 [(o, 504)] (fun _ ↦ 0)
-      (Host.addrOf (k + 16 + b3.length)).toBitVec) outS st2.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.ReadOod.b3Offset + b3.length)).toBitVec) outS st2.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf2.rsp_eval, known_ptr rfl hY3, trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 (hfrO hf2) nofun
-    (hpc2.trans (by rw [show b0.length = 10 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReadOod.b0_next)) hm2 fun st3 hm3 hpc3 => ?_
   have hc1 : bigSym.eval (frameEnv m0 st2.data 64 [(o, 504)] (fun _ ↦ 0)
-      (Host.addrOf (k + 16 + b3.length)).toBitVec) = false := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.ReadOod.b3Offset + b3.length)).toBitVec) = false := by
     simp only [bigSym, SBool.eval, Sym.eval, Env.ofMachine_regs]
     rw [show st2.data.regs.get64 .r15 = reg m0 .rsi from hY15]
     exact big_false _ hL
@@ -178,9 +182,9 @@ theorem readOod_spec (hp : Placed code k)
   simp (config := { decide := true }) only [↓reduceIte] at hpc3
   -- `b2`: the grind's result.
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 (hfrO hf2) nofun
-    (hpc3.trans (by rw [show b1.length = 4 from rfl])) hm3 fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReadOod.b1_next)) hm3 fun st4 hm4 hpc4 => ?_
   have hc2 : failSym.eval (frameEnv m0 st2.data 64 [(o, 504)] (fun _ ↦ 0)
-      (Host.addrOf (k + 16 + b3.length)).toBitVec) = !((grind 15).run s).isSome := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.ReadOod.b3Offset + b3.length)).toBitVec) = !((grind 15).run s).isSome := by
     simp only [failSym, SBool.eval, Sym.eval, Env.ofMachine_regs]
     rw [tag8_eval, show (st2.data.regs.get64 .rax).toNat % 256 = _ from hok2]
     cases ((grind 15).run s).isSome <;> rfl
@@ -192,7 +196,7 @@ theorem readOod_spec (hp : Placed code k)
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
     have hnone : (readOod L).run s = none := by rw [run_eq, hr1]; rfl
     refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8b (hfrO hf2) nofun
-      (hpc4.trans (hp.label (j := 34) rfl)) hm4 fun st5 hm5 hpc5 => ?_
+      (hpc4.trans (hp.label NativeRustcVmX64.Vm.ReadOod.label_5_at)) hm4 fun st5 hm5 hpc5 => ?_
     obtain ⟨hepi, hmem5, hrax5⟩ := end_b8b
     obtain ⟨hsv5, hrsp5⟩ := Frame.epilogue hf2 (hfrO hf2) hm5 hepi
     have hd5 : st5.data.dmem = st2.data.dmem := hm5.dmem_eq (hfrO hf2) hmem5
@@ -209,7 +213,7 @@ theorem readOod_spec (hp : Placed code k)
   have hts2 : TStateAt st2.data.dmem t a s1 := hnext2 u1 s1 hr1
   -- `b3`: the length, `call sample_challenges`.
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 (hfrO hf2) (fun _ _ ↦ rfl)
-    (hpc4.trans (by rw [show b2.length = 2 from rfl])) hm4 fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReadOod.b2_next)) hm4 fun st5 hm5 hpc5 => ?_
   obtain ⟨hmid5, hws5, hw5, hx7₅, hx6₅, hx2₅, hx3₅, hx14₅⟩ := ok_b3
   have hf5 : Frame m0 64 slots 0 st5.data := Frame.of_block hf2 (hfrO hf2) hm5 hmid5 slots_le
   have hsp5 := hsp_of hf5
@@ -305,10 +309,10 @@ theorem readOod_spec (hp : Placed code k)
   have hY14₆ : reg st6.data .r14 = t := (hsv6.1 .r14 rfl).trans hX14₅
   -- `b4`: `call read_scalar` into the frame.
   have hm6 : Match (frameEnv m0 st6.data 64 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 21 + b4.length)).toBitVec) callS st6.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.ReadOod.b4Offset + b4.length)).toBitVec) callS st6.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 (hfr hf6) (fun _ _ ↦ rfl)
-    (hpc6.trans (by rw [show b3.length = 5 from rfl])) hm6 fun st7 hm7 hpc7 => ?_
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReadOod.b3_next)) hm6 fun st7 hm7 hpc7 => ?_
   obtain ⟨hmid7, hws7, hx7₇, hx6₇, hx3₇, hx14₇⟩ := ok_b4
   have hf7 : Frame m0 64 slots 0 st7.data := Frame.of_block hf6 (hfr hf6) hm7 hmid7 slots_le
   have hsp7 := hsp_of hf7
@@ -379,7 +383,7 @@ theorem readOod_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf8.rsp_eval, known_ptr rfl hY3₈, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) exit_b5 (hfrO hf8) nofun
-    (hpc8.trans (by rw [show b4.length = 3 from rfl])) hm8 fun st9 hm9 hpc9 => ?_
+    (hpc8.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReadOod.b4_next)) hm8 fun st9 hm9 hpc9 => ?_
   simp only [PcOk] at hpc9
   cases hr3 : readScalar.run s2 with
   | none =>
@@ -397,10 +401,10 @@ theorem readOod_spec (hp : Placed code k)
       rw [hr2]; show (readScalar.run s2).bind _ = none
       rw [hr3]; rfl
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) exit_b7 (hfrO hf8) nofun
-      (hpc9.trans (hp.label (j := 32) rfl)) hm9 fun st10 hm10 hpc10 => ?_
+      (hpc9.trans (hp.label NativeRustcVmX64.Vm.ReadOod.label_4_at)) hm9 fun st10 hm10 hpc10 => ?_
     simp only [PcOk] at hpc10
     refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8c (hfrO hf8) nofun
-      (hpc10.trans (by rw [show b7.length = 2 from rfl])) hm10 fun st11 hm11 hpc11 => ?_
+      (hpc10.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReadOod.b7_next)) hm10 fun st11 hm11 hpc11 => ?_
     obtain ⟨hepi, hmem11, hrax11⟩ := end_b8c
     obtain ⟨hsv11, hrsp11⟩ := Frame.epilogue hf8 (hfrO hf8) hm11 hepi
     have hd11 : st11.data.dmem = st8.data.dmem := hm11.dmem_eq (hfrO hf8) hmem11
@@ -428,10 +432,10 @@ theorem readOod_spec (hp : Placed code k)
     rw [hr3]; rfl
   -- `b6`: the value stored, AL = `1`; `b8`.
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6 (hfrO hf8) nofun
-    (hpc9.trans (by rw [show b5.length = 2 from rfl])) hm9 fun st10 hm10 hpc10 => ?_
+    (hpc9.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReadOod.b5_next)) hm9 fun st10 hm10 hpc10 => ?_
   simp only [PcOk] at hpc10
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8d (hfrO hf8) nofun
-    (hpc10.trans (hp.label (j := 34) rfl)) hm10 fun st11 hm11 hpc11 => ?_
+    (hpc10.trans (hp.label NativeRustcVmX64.Vm.ReadOod.label_5_at)) hm10 fun st11 hm11 hpc11 => ?_
   obtain ⟨hepi, hrax11, hw488, hw496, hws11⟩ := end_b8d
   obtain ⟨hsv11, hrsp11⟩ := Frame.epilogue hf8 (hfrO hf8) hm11 hepi
   have hs11 : NativeRustcVm.SameOutside st8.data.dmem st11.data.dmem

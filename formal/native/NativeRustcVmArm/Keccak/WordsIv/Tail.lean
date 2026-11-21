@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.IvWord.Names
 public import NativeRustcVmArm.Keccak.WordsIv.Lane
 
 /-!
@@ -30,11 +31,11 @@ abbrev stI (m0 : MachineData) : KeccakState := wordBlocks (wv m0) (nb m0)
 
 /-- **At the last block's head**: the lanes the whole blocks' state. -/
 def TailStart [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
-  Ctx m0 st.data ∧ Lanes m0 st.data (Keccak.lane (stI m0)) ∧ st.pc = Host.addrOf (k + 23)
+  Ctx m0 st.data ∧ Lanes m0 st.data (Keccak.lane (stI m0)) ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b2Offset)
 
 /-- The `iv_word` contract. -/
 abbrev IvSpec [Host] : Prop :=
-  Spec (label NativeRustcVmArm.ivWordLabel) NativeRustcVmArm.IvWordPre NativeRustcVmArm.IvWordPost
+  Spec (label NativeRustcVmArm.Vm.IvWord.entryLabel) NativeRustcVmArm.IvWordPre NativeRustcVmArm.IvWordPost
 
 end
 
@@ -231,7 +232,7 @@ theorem tail15 {k : Nat} (hp : Placed code k) (hiv : IvSpec) {m0 : MachineData} 
 /-- **Lane 16's word**, to the padding block. -/
 theorem tail16 {k : Nat} (hp : Placed code k) (hiv : IvSpec) {m0 : MachineData} (g : Geo m0)
     {st : MachineState} (h : LaneAt m0 k .X24 (stI m0) (base m0) 16 627 141 st) :
-    Eventually (step1 Host.exe) (X0At m0 k .X24 (stI m0) (base m0) 631) st := by
+    Eventually (step1 Host.exe) (X0At m0 k .X24 (stI m0) (base m0) NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b108Offset) st := by
   obtain ⟨hc, hl, hB, h2, hpc⟩ := h
   have h2' := h2 rfl rfl
   obtain ⟨d, pc⟩ := st
@@ -251,7 +252,7 @@ theorem tail16 {k : Nat} (hp : Placed code k) (hiv : IvSpec) {m0 : MachineData} 
 /-- **The last block's words.** -/
 theorem tail_run {k : Nat} (hp : Placed code k) (hiv : IvSpec) {m0 : MachineData} (g : Geo m0)
     {st : MachineState} (h : TailStart m0 k st) :
-    Eventually (step1 Host.exe) (X0At m0 k .X24 (stI m0) (base m0) 631) st := by
+    Eventually (step1 Host.exe) (X0At m0 k .X24 (stI m0) (base m0) NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b108Offset) st := by
   refine Eventually.bind (tail_head hp g h) fun st0 h0 => ?_
   refine Eventually.bind (tail0 hp hiv g h0) fun st1 h1 => ?_
   refine Eventually.bind (tail1 hp hiv g h1) fun st2 h2 => ?_

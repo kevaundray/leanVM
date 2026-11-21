@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BuildLayout.Names
 public import NativeRustcVmArm.Layout.BuildLayout.Base
 
 /-!
@@ -49,14 +50,14 @@ theorem rows_getD (m0 : MachineData) {t : Nat} (ht : t < 6) :
 
 /-- **The checks.** -/
 theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF : Facts bc m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 17)) (hbd : Bd m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b2Offset)) (hbd : Bd m0 st.data)
     (h19 : st.data.regs.getXReg .X19 = m0.regs.X1) (h21 : st.data.regs.getXReg .X21 = m0.regs.X2)
     (h22 : st.data.regs.getXReg .X22 = m0.regs.X3) {bl : Nat}
     (hx0 : st.data.regs.X0.toNat = bl) (hbl1 : 1 ≤ bl)
     (hnone : ¬(5 ≤ bl ∧ 1 ≤ m0.regs.X1.toNat ∧ m0.regs.X1.toNat ≤ 30 ∧
       (∀ t < 6, (rowW m0 t).toNat ≤ 2 ^ 30) ∧ bl - 5 ≤ 30) →
       buildLayout bc m0.regs.X1.toNat (rowsOf m0) = none)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 44) → Bd m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b9Offset) → Bd m0 st'.data →
       st'.data.regs.getXReg .X22 = m0.regs.X3 → st'.data.regs.getXReg .X19 = m0.regs.X1 →
       (st'.data.regs.getXReg .X20).toNat = bl - 5 →
       st'.data.regs.getXReg .X28 = rowW m0 0 → st'.data.regs.getXReg .X27 = rowW m0 1 →
@@ -74,7 +75,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
       ⟨by show _ = rp m0 + BitVec.ofInt 64 0; rw [Layout.ofInt_zero, BitVec.add_zero]
           exact congrArg UInt64.toBitVec h21, trivial⟩ trivial trivial trivial
   have ld := fun {t : Nat} (ht : t < 6) ↦ row_load hF hbd ht
-  have L11 : Labels.label ".LBuildLayout_11" = Host.addrOf (k + 95) := hp.label (j := 95) rfl
+  have L11 : Labels.label NativeRustcVmArm.Vm.BuildLayout.label_11 = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b20Offset) := hp.label (j := NativeRustcVmArm.Vm.BuildLayout.b20Offset) NativeRustcVmArm.Vm.BuildLayout.label_11_at
   have kb : ∀ {S' : SState} {st' : MachineData},
       Match (Env.ofMachine st.data [(fb m0, 1360), (rp m0, 48)]) S' st' →
       keepsAll rowsS S' keptRegs = true → Bd m0 st' := fun hm' hk ↦
@@ -102,7 +103,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
   by_cases g2 : 5 ≤ bl ∧ 1 ≤ m0.regs.X1.toNat ∧ m0.regs.X1.toNat ≤ 30
   swap
   · exact fail hp hF ((f2 (c2.mpr g2)).trans L11) hb2 (hnone fun h ↦ g2 ⟨h.1, h.2.1, h.2.2.1⟩)
-  have hpc2' := pc_of (t2 fun h ↦ c2.mp h g2) (show k + 17 + b2.length = k + 22 from rfl)
+  have hpc2' := pc_of (t2 fun h ↦ c2.mp h g2) (show k + NativeRustcVmArm.Vm.BuildLayout.b2Offset + b2.length = k + NativeRustcVmArm.Vm.BuildLayout.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b2_next])
   -- `b3`
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) (Arrays.exec_after run_b2 run_b3) hwf hpc2'
     hm2 fun s3 hm3 hpc3 ↦ ?_
@@ -114,7 +115,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
   by_cases g3 : (rowW m0 0).toNat ≤ 2 ^ 30
   swap
   · exact fail hp hF ((f3 ((cond3 _).mpr g3)).trans L11) hb3 (hnone fun h ↦ g3 (h.2.2.2.1 0 (by decide)))
-  have hpc3' := pc_of (t3 fun h ↦ (cond3 _).mp h g3) (show k + 22 + b3.length = k + 26 from rfl)
+  have hpc3' := pc_of (t3 fun h ↦ (cond3 _).mp h g3) (show k + NativeRustcVmArm.Vm.BuildLayout.b3Offset + b3.length = k + NativeRustcVmArm.Vm.BuildLayout.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b3_next])
   -- `b4`
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) (Arrays.exec_after run_b3 run_b4) hwf hpc3'
     hm3 fun s4 hm4 hpc4 ↦ ?_
@@ -128,7 +129,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
   swap
   · exact fail hp hF ((f4 (by rw [nult]; exact g4)).trans L11) hb4
       (hnone fun h ↦ g4 (h.2.2.2.1 1 (by decide)))
-  have hpc4' := pc_of (t4 ((nult _).mpr g4)) (show k + 26 + b4.length = k + 31 from rfl)
+  have hpc4' := pc_of (t4 ((nult _).mpr g4)) (show k + NativeRustcVmArm.Vm.BuildLayout.b4Offset + b4.length = k + NativeRustcVmArm.Vm.BuildLayout.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b4_next])
   -- `b5`
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (Arrays.exec_after run_b4 run_b5) hwf hpc4'
     hm4 fun s5 hm5 hpc5 ↦ ?_
@@ -142,7 +143,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
   swap
   · exact fail hp hF ((f5 (by rw [nult]; exact g5)).trans L11) hb5
       (hnone fun h ↦ g5 (h.2.2.2.1 2 (by decide)))
-  have hpc5' := pc_of (t5 ((nult _).mpr g5)) (show k + 31 + b5.length = k + 34 from rfl)
+  have hpc5' := pc_of (t5 ((nult _).mpr g5)) (show k + NativeRustcVmArm.Vm.BuildLayout.b5Offset + b5.length = k + NativeRustcVmArm.Vm.BuildLayout.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b5_next])
   -- `b6`
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) (Arrays.exec_after run_b5 run_b6) hwf hpc5'
     hm5 fun s6 hm6 hpc6 ↦ ?_
@@ -156,7 +157,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
   swap
   · exact fail hp hF ((f6 (by rw [nult]; exact g6)).trans L11) hb6
       (hnone fun h ↦ g6 (h.2.2.2.1 3 (by decide)))
-  have hpc6' := pc_of (t6 ((nult _).mpr g6)) (show k + 34 + b6.length = k + 37 from rfl)
+  have hpc6' := pc_of (t6 ((nult _).mpr g6)) (show k + NativeRustcVmArm.Vm.BuildLayout.b6Offset + b6.length = k + NativeRustcVmArm.Vm.BuildLayout.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b6_next])
   -- `b7`
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) (Arrays.exec_after run_b6 run_b7) hwf hpc6'
     hm6 fun s7 hm7 hpc7 ↦ ?_
@@ -171,7 +172,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
   swap
   · exact fail hp hF ((f7 (by rw [nult]; exact g7)).trans L11) hb7
       (hnone fun h ↦ g7 (h.2.2.2.1 4 (by decide)))
-  have hpc7' := pc_of (t7 ((nult _).mpr g7)) (show k + 37 + b7.length = k + 40 from rfl)
+  have hpc7' := pc_of (t7 ((nult _).mpr g7)) (show k + NativeRustcVmArm.Vm.BuildLayout.b7Offset + b7.length = k + NativeRustcVmArm.Vm.BuildLayout.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b7_next])
   -- `b8`
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) (Arrays.exec_after run_b7 run_b8) hwf hpc7'
     hm7 fun s8 hm8 hpc8 ↦ ?_
@@ -185,7 +186,7 @@ theorem checks (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF :
   swap
   · exact fail hp hF ((f8 (c8.mpr g8)).trans L11) hb8
       (hnone fun h ↦ g8 ⟨h.2.2.2.2, h.2.2.2.1 5 (by decide)⟩)
-  have hpc8' := pc_of (t8 fun h ↦ c8.mp h g8) (show k + 40 + b8.length = k + 44 from rfl)
+  have hpc8' := pc_of (t8 fun h ↦ c8.mp h g8) (show k + NativeRustcVmArm.Vm.BuildLayout.b8Offset + b8.length = k + NativeRustcVmArm.Vm.BuildLayout.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b8_next])
   have hk8 := Arrays.regs_eq_of hm hm8 [.X19, .X22] (Arrays.after_eq run_b8 ▸ chk_keeps.2)
   have x28 : s8.data.regs.getXReg .X28 = rowW m0 0 :=
     UInt64.toBitVec_inj.mp ((hm8.regs .X28 _ rfl).trans l0)

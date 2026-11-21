@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Keep
 
 /-!
@@ -45,11 +47,11 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The end check.** -/
 theorem finish (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
     {st : MachineState} {folded tail : Array EW} {s5 : TState} {weight claim : EW}
-    (hpc : st.pc = Host.addrOf (k + 469)) (hf : FFr m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b33Offset)) (hf : FFr m0 st.data)
     (hx19 : st.data.regs.X19.toNat = 2 ^ mu m0) (hx20 : st.data.regs.X20 = m0.regs.X3)
     (hx21 : st.data.regs.X21 = weight.c0) (hx23 : st.data.regs.X23 = weight.c1)
     (hsize : folded.size = 2 ^ mu m0 + level.fold)
@@ -148,7 +150,7 @@ theorem finish (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     Fr.ofBlock hf4 (c.fmatch hf4) hm5 (c.fwf hf4) rfl rfl rfl (fun _ h ↦ by cases h)
   have hd5 : st5.data.dmem = m4.dmem := hm5.dmem_eq (c.fwf hf4) rfl
   simp only [PcOk] at hpc5
-  rw [hp.label (j := 119) rfl] at hpc5
+  rw [hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b3Offset) NativeRustcVmArm.Vm.FinalLevel.label_3_at] at hpc5
   have hts5 : TStateAt st5.data.dmem (tA m0) a s5 := by
     rw [hd5]
     refine c.ts_stk hsv4.2.2 hstk4 ?_

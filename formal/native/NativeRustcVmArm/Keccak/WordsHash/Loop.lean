@@ -1,11 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsHash.FullEnd
 
 /-!
 # `keccak256_words::<hash_words's closure>`: the whole blocks' loop and the last block's head
 
-`full_loop`: from the head of whole block `b` (`FullLaneAt m0 k b 0 159`), the machine inevitably
+`full_loop`: from the head of whole block `b` (`FullLaneAt m0 k b 0 NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset`), the machine inevitably
 reaches the last block's head (`TailStart`), by induction on the blocks left (`Sym.loop`), each
 turn the block's lanes (`full_lanes`) and its end (`fullEnd`). `tail_head`: from `TailStart`, the
 last block's head (`tailHead`, `b2`) branches to its first lane, loaded or zero (`TailAt m0 k 0`).
@@ -22,13 +23,13 @@ public section
 variable [Host]
 
 /-- **The whole blocks' loop.** -/
-theorem full_loop (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem full_loop (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {k : Nat} (hp : Placed code k) {m0 : MachineData}
     (g : Geo m0) (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack)
-    {b : Nat} {st : MachineState} (h : FullLaneAt m0 k b 0 159 st) :
+    {b : Nat} {st : MachineState} (h : FullLaneAt m0 k b 0 NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset st) :
     Eventually (step1 Host.exe) (TailStart m0 k) st :=
   Sym.loop (tr := step1 Host.exe) (Q := TailStart m0 k)
-    (fun n st => ∃ b, n = nb m0 - b ∧ FullLaneAt m0 k b 0 159 st)
+    (fun n st => ∃ b, n = nb m0 - b ∧ FullLaneAt m0 k b 0 NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset st)
     (fun _ st ⟨b, hn, h⟩ => Eventually.bind (full_lanes hp g h) fun _ h1 =>
       Eventually.mono (fullEnd hkf hp g hrc h1) fun _ h2 => by
         rcases h2 with h2 | h2

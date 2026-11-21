@@ -4,6 +4,9 @@ public import NativeRustcVmX64.Transcript.Callee
 public import NativeRustcVmX64.Transcript.Grind.Exec
 public import NativeRustcVmX64.Transcript.Arith
 public import NativeVm.Equiv.Transcript
+public import NativeRustcVmX64.Code.Vm.SpongeWAbsorbNonce.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateNextScalar.Names
 
 /-!
 # `TState::grind` on x86-64
@@ -78,10 +81,10 @@ variable [Host] {k : Nat}
 
 /-- **`TState::grind` meets its contract.** -/
 theorem grind_spec (hp : Placed code k)
-    (hns : ∀ a s, Spec (Labels.label nextScalarLabel) (NextScalarPre a s) (NextScalarPost a s))
-    (han : ∀ sp, Spec (Labels.label absorbNonceLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp))
+    (hns : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateNextScalar.entryLabel) (NextScalarPre a s) (NextScalarPost a s))
+    (han : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorbNonce.entryLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s) := by
   rintro m0 ⟨hst, hrc, hts, htok, hbits⟩
   set t := reg m0 .rdi with htdef
   set bits := grindBits m0 with hbdef
@@ -109,13 +112,13 @@ theorem grind_spec (hp : Placed code k)
     fun q h ↦ inRange_frame_stack h8 hn (by decide) h
   -- `b0`: `bits = 0`?
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 48) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 3 + b1.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TStateGrind.b1Offset + b1.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
     (by simp) (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 48 [] (fun _ ↦ 0) (Host.addrOf (k + 3 + b1.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 48 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.TStateGrind.b1Offset + b1.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
-  unfold grindLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.TStateGrind.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.TStateGrind.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 => ?_
   have hesi : (low .W32 (m0.regs.get64 .rsi)).toNat = bits := by
@@ -132,7 +135,7 @@ theorem grind_spec (hp : Placed code k)
       rw [this]; rfl
     have hr0 : (grind bits).run s = some ((), s) := by rw [hb0]; rfl
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf0 nofun
-      (hpc1.trans (hp.label (j := 27) rfl)) hm1 fun st2 hm2 hpc2 => ?_
+      (hpc1.trans (hp.label NativeRustcVmX64.Vm.TStateGrind.label_3_at)) hm1 fun st2 hm2 hpc2 => ?_
     obtain ⟨hk2, hmem2, hrsp2, hrax2⟩ := ok_b5
     have hd2 : st2.data.dmem = m0.dmem := hm2.dmem_eq hwf0 hmem2
     simp only [PcOk] at hpc2
@@ -156,7 +159,7 @@ theorem grind_spec (hp : Placed code k)
     rw [hesi, h0]; rfl
   -- `b1`: the prologue, `call next_scalar`.
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf0 (fun _ _ ↦ rfl)
-    (hpc1.trans (by rw [show b0.length = 3 from rfl])) hm1 fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateGrind.b0_next)) hm1 fun st2 hm2 hpc2 => ?_
   obtain ⟨hpro, hws2, hx7, hx6, hx3, hx14⟩ := after_eq run_b1 ▸ ok_b1
   have hf2 : Frame m0 48 slots 0 st2.data :=
     Frame.of_prologue Frame.entry hwf0 hm2 hpro slots_le (by decide)
@@ -218,11 +221,11 @@ theorem grind_spec (hp : Placed code k)
   have hX14₃ : reg st3.data .r14 = t := (hsv3.1 .r14 rfl).trans hX14
   -- `b2`: the tag's low byte.
   have hwf3 := frame_wf (m0 := m0) (d := st3.data) (F := 48) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 13 + b3.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TStateGrind.b3Offset + b3.length)).toBitVec)
     ⟨Mapped.keeps (frame_mapped hst (by decide)) hf3.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf3 nofun
-    (hpc3.trans (by rw [show b1.length = 8 from rfl]))
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateGrind.b1_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf3.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hmem4, hx3₄, hx14₄⟩ := ok_b2
@@ -234,14 +237,14 @@ theorem grind_spec (hp : Placed code k)
     rw [hns2] at hout3
     have h0 : NativeRustcVm.WordAt st3.data.dmem (off fb 8) 0 := hout3
     have ht0 : (frameEnv m0 st3.data 48 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 13 + b3.length)).toBitVec).load 0 8 1 = BitVec.ofNat 64 0 :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.TStateGrind.b3Offset + b3.length)).toBitVec).load 0 8 1 = BitVec.ofNat 64 0 :=
       load1_of_tag (Or.inl rfl) h0
     simp only [ht0] at hpc4
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
     have hnone : (grind bits).run s = none := by
       rw [NativeVm.Equiv.grind_run hb0, hns2]; rfl
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf3 nofun
-      (hpc4.trans (hp.label (j := 30) rfl)) hm4 fun st5 hm5 hpc5 => ?_
+      (hpc4.trans (hp.label NativeRustcVmX64.Vm.TStateGrind.label_4_at)) hm4 fun st5 hm5 hpc5 => ?_
     obtain ⟨hepi, hmem5, hrax5⟩ := end_b6
     obtain ⟨hsv5, hrsp5⟩ := Frame.epilogue hf3 hwf3 hm5 hepi
     have hd5 : st5.data.dmem = st3.data.dmem := hm5.dmem_eq hwf3 hmem5
@@ -258,13 +261,13 @@ theorem grind_spec (hp : Placed code k)
   rw [ewAt_iff, off_off, off_off] at hel
   have hts3 : TStateAt st3.data.dmem t a s1 := hnext3 x s1 hns2
   have ht1' : (frameEnv m0 st3.data 48 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 13 + b3.length)).toBitVec).load 0 8 1 = BitVec.ofNat 64 1 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateGrind.b3Offset + b3.length)).toBitVec).load 0 8 1 = BitVec.ofNat 64 1 :=
     load1_of_tag (Or.inr rfl) ht1
   simp only [ht1'] at hpc4
   simp (config := { decide := true }) only [↓reduceIte] at hpc4
   -- `b3`: `call absorb_nonce`.
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) (exec_after exit_b2 run_b3) hwf3
-    (fun _ _ ↦ rfl) (hpc4.trans (by rw [show b2.length = 2 from rfl])) hm4
+    (fun _ _ ↦ rfl) (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateGrind.b2_next)) hm4
     fun st5 hm5 hpc5 => ?_
   obtain ⟨hmid5, hws5, hx7₅, hx6₅, hx2₅, hx3₅, hx14₅⟩ := after_eq run_b3 ▸ ok_b3
   have hf5 : Frame m0 48 slots 0 st5.data := Frame.of_block hf3 hwf3 hm5 hmid5 slots_le
@@ -346,7 +349,7 @@ theorem grind_spec (hp : Placed code k)
     (ret := 0) ⟨Mapped.keeps (frame_mapped hst (by decide)) hf6.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf6 nofun
-    (hpc6.trans (by rw [show b3.length = 4 from rfl]))
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateGrind.b3_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st7 hm7 hpc7 => ?_
   obtain ⟨hepi, hmem7, hrax7⟩ := end_b4

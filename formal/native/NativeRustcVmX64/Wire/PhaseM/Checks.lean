@@ -40,8 +40,8 @@ def climbFin (B : List UInt8) (qs : List Nat) (height lw : Nat) (rows : List (Li
 /-- **At `rd_rows`' call** (`b23`): the sizes checked. -/
 structure Pre23 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw rw c5 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 101)
-  chk : Chk m0 bp B c k count qs height lw rw c5 ⟨st.data, Host.addrOf (k + 89)⟩
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b23Offset)
+  chk : Chk m0 bp B c k count qs height lw rw c5 ⟨st.data, Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b19Offset)⟩
   h32 : height ≤ 32
   lw64 : lw ≤ 64
   rwlw : rw ≤ lw
@@ -121,7 +121,7 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
       (WK m0).toNat + (2048 + 8 * ((sortD qs).length - 1)) := G.wa (by omega)
   have hw2 : (wa m0 2048).toNat = (WK m0).toNat + 2048 := G.wa (by omega)
   have hm19 : Match (aEnv m0 st.data (2048 + 8 * ((sortD qs).length - 1)) 8
-      (Host.addrOf (k + 89 + b19.length)).toBitVec) lastS st.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b19Offset + b19.length)).toBitVec) lastS st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hbod.fr.rsp_eval, trivial⟩ trivial trivial
       ⟨by
         show BinOp.apply .add .W64 (reg st.data .rdi)
@@ -133,7 +133,7 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
           BitVec.toNat_ofNat, hdi, hbp, hw2, hwl]
         omega, trivial⟩
   have hwf19 := aEnv_wf G hbod.fr.kept (o := 2048 + 8 * ((sortD qs).length - 1)) (n := 8) hon
-    (by omega) (Host.addrOf (k + 89 + b19.length)).toBitVec
+    (by omega) (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b19Offset + b19.length)).toBitVec
   obtain ⟨hmid19, hmem19, hax19, hk19⟩ := ok_b19
   refine ablk hp G b19_in_code (by simp [b19]) exit_b19 hon (by omega) hmid19
     (fun w hw ↦ by rw [hmem19] at hw; simp at hw)
@@ -141,12 +141,12 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
     fun s1 hb1 _ _ _ hm1 hpc1 ↦ ?_
   have hd1 : s1.data.dmem = st.data.dmem := hm1.dmem_eq hwf19 hmem19
   have hl32 : (aEnv m0 st.data (2048 + 8 * ((sortD qs).length - 1)) 8
-      (Host.addrOf (k + 89 + b19.length)).toBitVec).load 0 32 8 = height.toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b19Offset + b19.length)).toBitVec).load 0 32 8 = height.toUInt64.toBitVec :=
     load_ofMachine (o := 32) rfl hf32
   have hh : height.toUInt64.toBitVec.toNat = height := by
     rw [UInt64.toNat_toBitVec, toNat_toUInt64 (by omega)]
   have hlast : (aEnv m0 st.data (2048 + 8 * ((sortD qs).length - 1)) 8
-      (Host.addrOf (k + 89 + b19.length)).toBitVec).load 1 0 8 =
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b19Offset + b19.length)).toBitVec).load 1 0 8 =
       ((sortD qs).getLastD 0).toUInt64.toBitVec := by
     refine load_ofMachine (o := 0) (b := wa m0 (2048 + 8 * ((sortD qs).length - 1))) rfl ?_
     rw [off_zero, getLastD_eq hps0]
@@ -156,14 +156,14 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
     rw [getLastD_eq hps0]
     exact sortD_lt hqlt _ (List.getElem_mem _)
   have hc19 : (gtC (.load 0 32 8) (.lit 32)).eval (aEnv m0 st.data
-      (2048 + 8 * ((sortD qs).length - 1)) 8 (Host.addrOf (k + 89 + b19.length)).toBitVec) =
+      (2048 + 8 * ((sortD qs).length - 1)) 8 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b19Offset + b19.length)).toBitVec) =
       decide (32 < height) := by
     rw [gtC_eval]
     exact decide_eq_decide.mpr (by simp only [Sym.eval]; rw [hl32, hh]; exact Iff.rfl)
   simp only [PcOk, hc19] at hpc1
   by_cases h1 : 32 < height
   · simp only [h1, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 78) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc1
     refine Eventually.mono (none_run hp G hR0 hpc1 hb1 ?_) fun _ h ↦ .inl h
     rw [hmod]; exact tail_none_of (by unfold wireMaxHeight; omega)
   simp only [h1, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
@@ -175,7 +175,7 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
   -- `b20`: the leaf width.
   obtain ⟨hok20, hk20⟩ := ok_b20
   refine fblk hp G b20_in_code (by simp [b20]) exit_b20 nofun hok20 (hk20 .r12 (by simp))
-    (hk20 .r14 (by simp)) (hpc1.trans (by rw [show b19.length = 6 from rfl])) hb1
+    (hk20 .r14 (by simp)) (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b19_next)) hb1
     fun s2 hb2 hd2 hm2 hpc2 ↦ ?_
   have hl16 : (frameEnv m0 s1.data 160 []).load 0 16 8 = lw.toUInt64.toBitVec :=
     load_ofMachine (o := 16) rfl (by rw [hd1]; exact hf16)
@@ -188,14 +188,14 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
   simp only [PcOk, hc20] at hpc2
   by_cases h2 : 64 < lw
   · simp only [h2, decide_true, ↓reduceIte] at hpc2
-    rw [hp.label (j := 78) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc2
     refine Eventually.mono (none_run hp G hR0 hpc2 hb2 ?_) fun _ h ↦ .inl h
     rw [hmod]; exact tail_none_of (by unfold wireMaxLeafWords; omega)
   simp only [h2, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc2
   -- `b21`: the row width.
   obtain ⟨hok21, hk21⟩ := ok_b21
   refine fblk hp G b21_in_code (by simp [b21]) exit_b21 nofun hok21 (hk21 .r12 (by simp))
-    (hk21 .r14 (by simp)) (hpc2.trans (by rw [show b20.length = 2 from rfl])) hb2
+    (hk21 .r14 (by simp)) (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b20_next)) hb2
     fun s3 hb3 hd3 hm3 hpc3 ↦ ?_
   have rk2 : ∀ x ∈ [Reg64.rax, .rdi, .rbp, .r15], reg s2.data x = reg s1.data x := fun x hx ↦
     hm2.regs x _ (hk20 x (by
@@ -216,14 +216,14 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
   simp only [PcOk, hc21] at hpc3
   by_cases h3 : lw < rw
   · simp only [h3, decide_true, ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [hmod]; exact tail_none_of (by omega)
   simp only [h3, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc3
   -- `b22`: the last position below `2 ^ height`.
   obtain ⟨hok22, hk22⟩ := ok_b22
   refine fblk hp G b22_in_code (by simp [b22]) exit_b22 nofun hok22 (hk22 .r12 (by simp))
-    (hk22 .r14 (by simp)) (hpc3.trans (by rw [show b21.length = 2 from rfl])) hb3
+    (hk22 .r14 (by simp)) (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b21_next)) hb3
     fun s4 hb4 hd4 hm4 hpc4 ↦ ?_
   have rk3 : ∀ x ∈ [Reg64.rax, .rdi, .rbp, .r15], reg s3.data x = reg s2.data x := fun x hx ↦
     hm3.regs x _ (hk21 x (by
@@ -261,7 +261,7 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
         rcases hx with rfl | rfl | rfl <;> simp), rk2 x (by
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hx ⊢
         rcases hx with rfl | rfl | rfl <;> simp), rk1 x hx]
-    exact .done _ (.inr ⟨hpc4.trans (by rw [show b22.length = 2 from rfl]),
+    exact .done _ (.inr ⟨hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b22_next),
       ⟨rfl, hb4, hmod, hql, hc0, hcnt, hqlt, hhl, hlwl, hrwl, hps0, hps256,
         by rw [hd]; exact hf40, by rw [hd]; exact hf32, by rw [hd]; exact hf16,
         by rw [hd]; exact hf24, by rw [rk .rbp (by simp)]; exact hbp,
@@ -269,7 +269,7 @@ theorem sizes_run (hp : Placed code k) (G : Geo m0 bp B.length)
         by rw [rk .r15 (by simp)]; exact h15, by rw [hd]; exact hqW, by rw [hd]; exact hpW,
         by rw [hd]; exact hrd⟩, by omega, by omega, by omega, h4⟩)
   · simp only [h4, decide_false, Bool.not_false, ↓reduceIte] at hpc4
-    rw [hp.label (j := 78) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc4
     refine Eventually.mono (none_run hp G hR0 hpc4 hb4 ?_) fun _ h ↦ .inl h
     rw [hmod]; exact tail_none_of fun ⟨_, _, _, _, h⟩ ↦ h4 h
 

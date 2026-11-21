@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcArm.Sym
 public import NativeRustcVmArm.Code.Vm.VerifyLayer
 public meta import NativeRustcVmArm.Code.Vm.VerifyLayer
@@ -22,7 +23,7 @@ open NativeRustcArm NativeRustcArm.Sym NativeRustcVmArm.Vm.VerifyLayer
 @[expose] public section
 
 /-- `KECCAK_RC`'s label. -/
-def rcL : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.1"
+def rcL : Label := NativeRustcVmArm.Vm.Symbols.rodata1Label
 
 /-- `x << 4`. -/
 def shl4 (x : Sym) : Sym := .un (.shift .LSL 4) .W64 x

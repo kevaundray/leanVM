@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 public meta import NativeRustcVmX64.Code.Vm.TStateSampleChallenges
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -47,7 +48,7 @@ sym_block run_b5 := exec b5 (after b4 callS)
 
 public theorem exit_b0 : exec b0 entryS = some (S0, .cond
     (SBool.cmp .eq .W64 (.bin .and .W64 (.reg .rdx) (.reg .rdx)) (.lit 0))
-    ".LTStateSampleChallenges_4") :=
+    NativeRustcVmX64.Vm.TStateSampleChallenges.label_4) :=
   run_b0.trans (by rw [show S0 = _ from after_eq run_b0])
 public theorem ok_b5a : keeps entryS (after b5 S0) = true ∧ (after b5 S0).mem = [] ∧
     (after b5 S0).reg .rsp = some (.ptr 0 40) := by
@@ -65,7 +66,7 @@ public theorem ok_b2 : MidOk 32 0 slots (after b2 callS) = true ∧
     (after b2 callS).reg .r14 = some (.reg .r14) ∧ (after b2 callS).reg .rbx = some (.reg .rbx) := by
   decide +kernel
 public theorem exit_b3 : exec b3 storeS = some (after b3 storeS, .cond
-    (SBool.cmp .eq .W64 (.ptr 1 16) (.reg .rbx)).not ".LTStateSampleChallenges_2") :=
+    (SBool.cmp .eq .W64 (.ptr 1 16) (.reg .rbx)).not NativeRustcVmX64.Vm.TStateSampleChallenges.label_2) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 32 8 slots (after b3 storeS) = true ∧
     (∀ t < 8, findWrite 1 t (after b3 storeS).mem = some (.reg .rax, t)) ∧

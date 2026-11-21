@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW230Extend.Names
 public import NativeRustcVmArm.Whir.GlueLevel.Second
 
 /-!
@@ -42,10 +43,10 @@ variable [Host] {k : Nat} {s : WhirStateW} {m0 : MachineData}
 
 /-- **From `b8` to `b10`.** -/
 theorem third_step (hp : Placed code k)
-    (hext : Spec (Labels.label bufEW230ExtendLabel) (BufEWExtendPre 230) (BufEWExtendPost 230))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW230Extend.entryLabel) (BufEWExtendPre 230) (BufEWExtendPost 230))
     (hpre : GlueLevelPre s m0) {m : MachineData} (h : AtB8 s m0 m) {R : MachineState → Prop}
-    (cont : ∀ m', AtB10 s m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 71)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 66)⟩ := by
+    (cont : ∀ m', AtB10 s m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b10Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b8Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hstk, -, hcap, hmu, -, -, hwn, hargs, hpin, -, -, hwin, hapA, -, -, hapW⟩ := hpre'
   let p := pOf m0
@@ -89,14 +90,14 @@ theorem third_step (hp : Placed code k)
         by
           show base m0 112 + BitVec.ofInt 64 136 = m0.regs.SP.toBitVec + BitVec.ofInt 64 24
           simp only [base]; bv_omega, trivial⟩
-  have hk8 : b8.IsInfixAt Host.prog (k + 66) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk9 : b9.IsInfixAt Host.prog (k + 67) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b8Offset) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk9 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b9Offset) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hx0 : env.regs .X0 = 1#64 := by
     show (m.regs.getXReg .X0).toBitVec = _
     rw [show m.regs.getXReg .X0 = m.regs.X0 from rfl, h.x0]
     rfl
   refine exec_then hk8 run_b8 hwf hm fun st8 hm8 hpc8 ↦ ?_
-  have hpc8' : st8.pc = Host.addrOf (k + 67) := by
+  have hpc8' : st8.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b9Offset) := by
     simp only [PcOk] at hpc8
     rw [cbz_one hx0] at hpc8
     exact hpc8

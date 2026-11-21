@@ -38,7 +38,7 @@ theorem take_succ_eq {i : Nat} (hi : i < ns.length) : ns.take (i + 1) = ns.take 
 /-- **The parent stored** (`b4`): the loop's head after node `i`. -/
 theorem store_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat} {sl : List (Nat × Digest × Bool)}
     {ci : Nat} {q : Nat × Digest × Bool} {H : Digest} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 27)) (hfr : Frm m0 st.data) (hfx : Fix m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b4Offset)) (hfr : Frm m0 st.data) (hfx : Fix m0 st.data)
     (hlt : i < cnt m0) (hi : i < ns.length)
     (hs : sibsM B ns (ns.take (i + 1)) c = some (sl ++ [q], ci))
     (hrd : ReaderAt st.data.dmem (rdr m0) bp B ci)

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.ExtRest
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 
 /-!
 # Pushing the committed output claim
@@ -57,15 +58,15 @@ theorem pushArgs (c : Ctx a inst m0) {d mc : MachineData} {V : Vs} {ret : BitVec
     exact hl
 
 theorem pushStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {st : MachineState} {V : Vs} {slot : Array EW} {w : EW}
-    (hat : At m0 k 364 wrB t52 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b53Offset wrB t52 (vv m0 V) st)
     (hw0 : V.w0 = w.c0.toBitVec) (hw1 : V.w1 = w.c1.toBitVec)
     (hbuf : NativeRustcVm.BufEWAt st.data.dmem (off (fb m0) 408) 36
       (inst.toList ++ slot.toList))
     (hcls : NativeRustcVm.Layout.ClaimsWAt st.data.dmem (keccakClaims m0) cs)
     {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 378 wrB t52 (vv m0 V) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b55Offset wrB t52 (vv m0 V) st' →
       NativeRustcVm.Layout.ClaimsWAt st'.data.dmem (keccakClaims m0)
         (cs.push (outClaim inst slot w)) →
       Chg m0 st.data.dmem st'.data.dmem [(0, 152), (3296, 48)] [(3, 0, 97288)] →
@@ -132,8 +133,8 @@ theorem pushStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
     apply Array.toList_inj.mp
     simp [Array.toList_append, Array.toList_extract]
   rw [hout] at hcls1
-  rw [show 364 + b53.length = 376 from rfl] at hpc1
-  refine stepJ (T' := t52) (vals' := vv m0 V) (o := 376) hp c h ⟨hpc1, hB1⟩ b54_in_code
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b53_next] at hpc1
+  refine stepJ (T' := t52) (vals' := vv m0 V) (o := NativeRustcVmX64.Vm.VerifyKeccak.b54Offset) hp c h ⟨hpc1, hB1⟩ b54_in_code
     (by simp [b54]) run_b54 nofun (hB1.mt 0) (by decide) rfl rfl (by vtacJ)
     (by decide) rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) rfl
     fun st2 hpc2 hB2 _ hc2 hk2 ↦ ?_
@@ -143,7 +144,7 @@ theorem pushStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
   simp only [show (envZ m0 st1.data 3344 3368 (rsOf m0) (vv m0 V) 0).regs .rax =
     reg st1.data .rax from rfl, h1, show ¬(1 = 0) from by decide, decide_false,
     Bool.false_eq_true, ↓reduceIte] at hpc2
-  refine cont st2 ⟨hpc2.trans (by rw [show 376 + b54.length = 378 from rfl]), hB2⟩
+  refine cont st2 ⟨hpc2.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b54_next]), hB2⟩
     (Chg.cls c hc2 (by decide) rfl (by decide) hcls1) ?_
     (NativeRustcVmX64.Transcript.kept_trans hk1 hk2)
   exact Chg.mono c (hc1.trans hc2) (by decide) (by decide) (by decide) (by decide)

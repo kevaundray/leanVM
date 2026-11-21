@@ -80,9 +80,9 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {m0 : MachineData}
 theorem b16_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat} {s : TState}
     {qs : List UInt64} {i : Nat} {st : MachineData} (hB : AtB16 a s0 m0 j r s qs i st) :
     Eventually (step1 Host.exe) (fun st' ↦
-      (st'.pc = Host.addrOf (k + 77) ∧ Inner a s0 m0 j r s qs (i + 1) st'.data) ∨
-      (st'.pc = Host.addrOf (k + 96) ∧ AtB17 a s0 m0 j r s qs st'.data))
-      ⟨st, Host.addrOf (k + 86)⟩ := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b14Offset) ∧ Inner a s0 m0 j r s qs (i + 1) st'.data) ∨
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b17Offset) ∧ AtB17 a s0 m0 j r s qs st'.data))
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b16Offset)⟩ := by
   have hcnt := pre_cnt h
   have hlen := hB.len
   have hilt := hB.ilt
@@ -248,7 +248,7 @@ theorem b16_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat}
       rw [hlast]; exact (chunk_take_all _ _ _).symm
     rw [e]
     exact hbuf1
-  · have hpc := (hT (by simp [hlast])).trans (hp.label (j := 77) rfl)
+  · have hpc := (hT (by simp [hlast])).trans (hp.label NativeRustcVmX64.Vm.SampleQueries.label_6_at)
     exact .done _ (.inl ⟨hpc, ⟨hc1, hkw (by omega) hB.tw, hkw (by omega) hB.l16,
       hkw (by omega) hB.l32, hkw (by omega) hB.l40, hkw (by omega) hB.l48, hkw (by omega) hB.l56,
       hkw (by omega) hB.l64, hrcx, hr12, hr14, hr15, hrbp1, hB.jlt, hlen, hB.r0, hB.dpos, hdle,

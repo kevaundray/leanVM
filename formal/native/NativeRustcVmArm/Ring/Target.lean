@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EWSqIter.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.RingPsi.Names
+public import NativeRustcVmArm.Code.Vm.RingTarget.Names
 public import NativeRustcVmArm.Ring.Target.Copy
 
 /-!
@@ -21,17 +27,17 @@ variable [Host] {k : Nat}
 
 /-- **`ring_target`'s contract.** -/
 theorem ringTarget_spec (hp : Placed code k)
-    (hpsi : Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
-    (hpoly : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ringTargetLabel) RingTargetPre RingTargetPost := by
+    (hpsi : Spec (Labels.label NativeRustcVmArm.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hsq : Spec (Labels.label NativeRustcVmArm.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
+    (hpoly : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.RingTarget.entryLabel) RingTargetPre RingTargetPost := by
   intro m0 hpre
   have h := P.intro hpre
-  rw [show Labels.label ringTargetLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.RingTarget.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.RingTarget.entryOffset) NativeRustcVmArm.Vm.RingTarget.entry_at]
   refine stepEntry h (hb b0_in_code (by simp [b0]) hp) fun m1 h1 ↦ ?_
-  rw [show k + 0 + b0.length = k + 14 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingTarget.b0Offset + b0.length = k + NativeRustcVmArm.Vm.RingTarget.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingTarget.b0_next]]
   refine images hp h hpsi h1 fun m2 h2 ↦ ?_
   refine stepCopy hp h hmemcpy h2 fun m3 h3 ↦ ?_
   refine chainA hp h hsq hpoly h3 fun m4 h4 ↦ ?_

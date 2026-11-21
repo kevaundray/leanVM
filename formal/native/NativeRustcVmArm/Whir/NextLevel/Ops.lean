@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.Powers.Names
+public import NativeRustcVmArm.Code.Vm.TStateQueryOpenings.Names
 public import NativeRustcVmArm.Whir.NextLevel.Zero
 public import NativeVm.Equiv.Transcript
 
@@ -86,16 +89,16 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The query weights and the openings**, to `b22`. -/
 theorem ops (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hpw : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hqo : ∀ a s Q, Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q)
+    (hmc : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hpw : Spec (Labels.label NativeRustcVmArm.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hqo : ∀ a s Q, Spec (Labels.label NativeRustcVmArm.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q)
       (QueryOpeningsPost a s Q))
     {st : MachineState} {xs ood : Array EW} {v lam : EW} {qs : Array UInt64} {s8 : TState}
-    (hpc : st.pc = Host.addrOf (k + 130)) (hI : H17 a level m0 xs ood v lam qs s8 57 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b18Offset)) (hI : H17 a level m0 xs ood v lam qs s8 57 st.data)
     (hrun : runN level w rounds m0 s =
       tail8 m0.regs.X1.toNat m0.regs.X5.toNat w rounds xs ood v qs lam s8)
     (cont : ∀ (st' : MachineState) (rows : Array (Array UInt64)) (op : BitVec 64) (s9 : TState),
-      st'.pc = Host.addrOf (k + 161) → H22 a level m0 xs ood v lam qs rows op s9 st'.data →
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b22Offset) → H22 a level m0 xs ood v lam qs rows op s9 st'.data →
       runN level w rounds m0 s = some (glueLevel w lam m0.regs.X5.toNat ood v qs
         (powers lam qs.size) (batchedOf m0.regs.X1.toNat m0.regs.X5.toNat rounds xs qs rows
           (powers lam qs.size)), s9) →
@@ -121,7 +124,7 @@ theorem ops (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b18_in_code (by simp [b18]) run_b18 (wfF h hf) (mF h hf) (by decide) rfl hf hpc
     fun st1 hm1 hpc1 hf1 hs1 ↦ ?_
   simp only [PcOk] at hpc1
-  rw [show k + 130 + b18.length = k + 147 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b18Offset + b18.length = k + NativeRustcVmArm.Vm.NextLevel.b19Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b18_next]] at hpc1
   have e1 := sameRegs_ok (mF h hf) hm1
     (rs := [.X19, .X20, .X21, .X22, .X23, .X24, .X25, .X26]) (by decide)
   have x0 : st1.data.regs.X0.toBitVec = loc m0 688 := by
@@ -188,7 +191,7 @@ theorem ops (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b19_in_code (by simp [b19]) run_b19 (wfF h hf2) (mF h hf2) (by decide) rfl hf2
     rfl fun st3 hm3 hpc3 hf3 hs3 ↦ ?_
   simp only [PcOk] at hpc3
-  rw [show k + 147 + b19.length = k + 152 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b19Offset + b19.length = k + NativeRustcVmArm.Vm.NextLevel.b20Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b19_next]] at hpc3
   have e3 := sameRegs_ok (mF h hf2) hm3
     (rs := [.X19, .X20, .X21, .X22, .X23, .X24, .X25, .X26, .X27, .X28, .X29]) (by decide)
   have y1 : st3.data.regs.X1 = lam.c1 := reg_of hm3 (r := .X1) rfl (load_word (by simpa using f64))
@@ -243,7 +246,7 @@ theorem ops (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b20_in_code (by simp [b20]) run_b20 (wfF h hf4) (mF h hf4) (by decide) rfl hf4
     rfl fun st5 hm5 hpc5 hf5 hs5 ↦ ?_
   simp only [PcOk] at hpc5
-  rw [show k + 152 + b20.length = k + 159 from rfl] at hpc5
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b20Offset + b20.length = k + NativeRustcVmArm.Vm.NextLevel.b21Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b20_next]] at hpc5
   have hd5 : st5.data.dmem = m4.dmem := hm5.dmem_eq (wfF h hf4) rfl
   have e5 := sameRegs_ok (mF h hf4) hm5
     (rs := [.X19, .X20, .X21, .X22, .X23, .X24, .X25, .X26, .X27, .X28, .X29]) (by decide)
@@ -342,7 +345,7 @@ theorem ops (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
       load_word (by simpa using h0)
     rw [cbz_load l0] at hpc7
     simp only [beq_self_eq_true, ↓reduceIte] at hpc7
-    refine none13 hp h ?_ hf7 (hpc7.trans (hp.label (j := 218) rfl))
+    refine none13 hp h ?_ hf7 (hpc7.trans (hp.label (j := NativeRustcVmArm.Vm.NextLevel.b26Offset) NativeRustcVmArm.Vm.NextLevel.label_13_at))
     rw [hrun]; unfold tail8; rw [hr]; rfl
   | some p9 =>
   obtain ⟨rows, s9⟩ := p9
@@ -359,7 +362,7 @@ theorem ops (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
     load_word (by simpa using (NativeRustcVm.wordsAt_cons_iff.mp hhdr).1)
   rw [cbz_load l0, hne] at hpc7
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc7
-  rw [show k + 159 + b21.length = k + 161 from rfl] at hpc7
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b21Offset + b21.length = k + NativeRustcVmArm.Vm.NextLevel.b22Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b21_next]] at hpc7
   have hlt := qo_lt hr
   have hts5 : TStateAt st5.data.dmem (tA m0) a s8 := by rw [hd5]; exact hts4
   have hpb : phaseBase a.l s8.phase + phaseWords ≤ a.len :=

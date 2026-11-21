@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
+
 public import NativeRustcArm.Sym
 public meta import NativeRustcVmArm.Code.Vm.Kmul
 public meta import NativeRustcVmArm.Code.Vm.TableTerms
@@ -45,8 +47,8 @@ sym_block table_terms_exec := exec TableTerms.b0 tableTermsS
 
 /-- `adrp x19, l+8`, `add x19, x19, :lo12:l+8`: X19 (and X21, its copy) is `l + 8`. -/
 example : (exec TableTerms.b0 tableTermsS).map (fun r => (r.1.reg .X19, r.1.reg .X21)) =
-    some (some (.bin .add .W64 (.label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.4") (.lit 8)),
-      some (.bin .add .W64 (.label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.4") (.lit 8))) := by
+    some (some (.bin .add .W64 (.label NativeRustcVmArm.Vm.Symbols.rodata4Label) (.lit 8)),
+      some (.bin .add .W64 (.label NativeRustcVmArm.Vm.Symbols.rodata4Label) (.lit 8))) := by
   rw [table_terms_exec]
   rfl
 

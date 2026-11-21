@@ -446,7 +446,7 @@ end
 section
 variable [Labels]
 
-/-- **After `poly_eval`** (`b5`, `k + 32`): the combiner `c`, the claim it gives (RAX, RDX), the
+/-- **After `poly_eval`** (`b5`, `k + NativeRustcVmX64.Vm.GkrStep.b5Offset`): the combiner `c`, the claim it gives (RAX, RDX), the
 `TState` after the challenge, `last` at `44`, `c₀` at `104`, `c₁` in RBP. -/
 structure AtPE (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (d : MachineData) :
     Prop where
@@ -463,7 +463,7 @@ structure AtPE (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (
   ts : TStateAt d.dmem (reg m0 .rdi) a { s0 with sponge := s0.sponge.squeeze.2 }
   gs : GkrStateWAt d.dmem (reg m0 .rcx) g0
 
-/-- **At the children** (`b9`, `k + 78`): the sumcheck's challenges `xs` at `352`, its claim `cl`
+/-- **At the children** (`b9`, `k + NativeRustcVmX64.Vm.GkrStep.b9Offset`): the sumcheck's challenges `xs` at `352`, its claim `cl`
 (the `Option<EW>` at `112`), `2^step` in R12, `|xs|` in R13. -/
 structure AtCh (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (c cl : EW)
     (xs : Array EW) (s2 : TState) (d : MachineData) : Prop where
@@ -484,7 +484,7 @@ structure AtCh (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (
   gs : GkrStateWAt d.dmem (reg m0 .rcx) g0
   run : run0 s0 g0 m0 = gkrChildren (reg m0 .rsi).toNat c cl xs s2
 
-/-- **At the products** (`b15`, `k + 124`): the children `h0`, `h1`, `h2` at `112`, `176`, `240`,
+/-- **At the products** (`b15`, `k + NativeRustcVmX64.Vm.GkrStep.b15Offset`): the children `h0`, `h1`, `h2` at `112`, `176`, `240`,
 the claim's limbs at `88`, `80`. -/
 structure AtPr (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (c cl : EW)
     (xs h0 h1 h2 : Array EW) (s3 : TState) (d : MachineData) : Prop where
@@ -512,7 +512,7 @@ structure AtPr (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (
   gs : GkrStateWAt d.dmem (reg m0 .rcx) g0
   run : run0 s0 g0 m0 = gkrFinish (reg m0 .rsi).toNat c cl xs h0 h1 h2 s3
 
-/-- **After the check** (`b21`, `k + 148`): the coordinates to sample. -/
+/-- **After the check** (`b21`, `k + NativeRustcVmX64.Vm.GkrStep.b21Offset`): the coordinates to sample. -/
 structure AtTl (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData)
     (xs h0 h1 h2 : Array EW) (s3 : TState) (d : MachineData) : Prop where
   fr : FR m0 40 d
@@ -549,12 +549,12 @@ abbrev Goal (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (st 
     Prop :=
   st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧ GkrStepPost a s0 g0 m0 st.data
 
-/-- **The epilogue** (`.LGkrStep_18`, `b35`): AL = RBP's low byte. -/
+/-- **The epilogue** (`NativeRustcVmX64.Vm.GkrStep.label_18`, `b35`): AL = RBP's low byte. -/
 theorem exit_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {d : MachineData}
     (fr : FR m0 40 d) (hbp : (reg d .rbp).toNat % 256 = (okWord (run0 s0 g0 m0).isSome).toNat)
     (hok : ∀ g' s', run0 s0 g0 m0 = some (g', s') →
       TStateAt d.dmem (reg m0 .rdi) a s' ∧ GkrStateWAt d.dmem (reg m0 .rcx) g') :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 217)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b35Offset)⟩ := by
   have hwf := wf0 h fr.frame.kept 0
   obtain ⟨hepi, hmem, hrax⟩ := ok_b35
   refine fr.exit (pre_stack h) N_ge (infix_of b35_in_code (by simp [b35]) hp) exit_b35 hwf rfl
@@ -576,17 +576,17 @@ theorem exit_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {d : MachineD
       · exact .inl hq
       · exact .inr (.inl hq)
 
-/-- **A failure** (`.LGkrStep_17`, `b34`): RBP = `0`, then the epilogue. -/
+/-- **A failure** (`NativeRustcVmX64.Vm.GkrStep.label_17`, `b34`): RBP = `0`, then the epilogue. -/
 theorem fail_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {d : MachineData}
     (fr : FR m0 40 d) (hr : run0 s0 g0 m0 = none) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 215)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b34Offset)⟩ := by
   have hwf := wf0 h fr.frame.kept 0
   obtain ⟨hok, hmem, hbp⟩ := ok_b34
   refine exec_then (infix_of b34_in_code (by simp [b34]) hp) exit_b34 hwf nofun
     (match_head fr 0) fun st hm hpc ↦ ?_
   have fr' := (Fr.block0 fr (pre_stack h) N_ge hwf hm hok slots_le (by simp [hmem])).1
   simp only [PcOk] at hpc
-  refine at_pc (hpc.trans (by rw [show b34.length = 2 from rfl]))
+  refine at_pc (hpc.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b34_next))
     (exit_spec hp h fr' ?_ fun g' s' he ↦ by rw [hr] at he; cases he)
   rw [hr, show reg st.data .rbp = BitVec.ofNat 64 0 from hm.regs _ _ hbp]
   rfl

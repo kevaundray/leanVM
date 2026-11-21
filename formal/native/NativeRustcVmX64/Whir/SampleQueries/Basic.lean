@@ -7,6 +7,8 @@ public import NativeRustcVmX64.Spec.Whir
 public import NativeRustcVm.Whir.Sample
 public import NativeRustcVm.Whir.Per
 public import NativeRustcVm.Transcript.Update
+public import NativeRustcVmX64.Code.Vm.QueryBits.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
 # `sample_queries` on x86-64: its states and what every step shares
@@ -15,8 +17,8 @@ From the entry `m0` (the `TState` RDI, the depth RSI, the count RDX, the buffer 
 `fb m0` (128 bytes below RSP), the bytes the function may change (`Outs`: the buffer, the
 `TState`, its stack), what every state between blocks keeps (`Ctx`: the frame with RSP at its
 offset `8`, the buffer's address in its word `72`, the depth in R13, memory changed only in
-`Outs`), and the loop heads: the outer loop's `.LSampleQueries_3` (`Outer`), `b9` (`AtB9`), the
-inner loop's `.LSampleQueries_6` (`Inner`), the squeezes' loop for a depth above `128` (`Big`).
+`Outs`), and the loop heads: the outer loop's `NativeRustcVmX64.Vm.SampleQueries.label_3` (`Outer`), `b9` (`AtB9`), the
+inner loop's `NativeRustcVmX64.Vm.SampleQueries.label_6` (`Inner`), the squeezes' loop for a depth above `128` (`Big`).
 Then the facts a block keeps (`Ctx.block`, `loc_keep`, `loc_write`) and the two calls
 (`squeeze_call`, `qb_call`).
 -/
@@ -59,7 +61,7 @@ structure Ctx (m0 st : MachineData) : Prop where
 section
 variable [Labels]
 
-/-- **The outer loop's head** `.LSampleQueries_3`, after `j` challenges, `r` positions left, the
+/-- **The outer loop's head** `NativeRustcVmX64.Vm.SampleQueries.label_3`, after `j` challenges, `r` positions left, the
 `TState` `s`, the positions `qs`. -/
 structure Outer (a : DecArea) (s0 : TState) (m0 : MachineData) (j r : Nat) (s : TState)
     (qs : List UInt64) (st : MachineData) : Prop where
@@ -102,7 +104,7 @@ structure AtB9 (a : DecArea) (s0 : TState) (m0 : MachineData) (j r n : Nat) (s :
     (qs.toArray ++ (auxP (dep m0) (cnt m0 - (j + 1)) (r - n) s).1,
       (auxP (dep m0) (cnt m0 - (j + 1)) (r - n) s).2)
 
-/-- **The inner loop's head** `.LSampleQueries_6`: the `j`th challenge `(sq s).1`, `i` of its
+/-- **The inner loop's head** `NativeRustcVmX64.Vm.SampleQueries.label_6`: the `j`th challenge `(sq s).1`, `i` of its
 `n` positions pushed after `qs`. -/
 structure Inner (a : DecArea) (s0 : TState) (m0 : MachineData) (j r : Nat) (s : TState)
     (qs : List UInt64) (i : Nat) (st : MachineData) : Prop where
@@ -131,7 +133,7 @@ structure Inner (a : DecArea) (s0 : TState) (m0 : MachineData) (j r : Nat) (s : 
   model : auxP (dep m0) (cnt m0) (cnt m0) s0 =
     (qs.toArray ++ (auxP (dep m0) (cnt m0 - j) r s).1, (auxP (dep m0) (cnt m0 - j) r s).2)
 
-/-- **The squeezes' loop head** `.LSampleQueries_11` (a depth above `128`), `j` squeezes done. -/
+/-- **The squeezes' loop head** `NativeRustcVmX64.Vm.SampleQueries.label_11` (a depth above `128`), `j` squeezes done. -/
 structure Big (a : DecArea) (s0 : TState) (m0 : MachineData) (j : Nat) (s : TState)
     (st : MachineData) : Prop where
   ctx : Ctx m0 st
@@ -417,13 +419,13 @@ in the call with RSP at the frame's offset `0`, RDI the `TState`, writing the fr
 the challenge `(sq s).1` in RAX, RDX, the `TState` then `(sq s).2`, the context kept, the
 callee-saved registers the block's, the frame's bytes from `8` on the block's. -/
 theorem squeeze_call (h : SampleQueriesPre a s0 m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {st : MachineData} (hc : Ctx m0 st) {s : TState} (hts : TStateAt st.dmem (tA m0) a s)
     {ret : BitVec 64} {S : SState} {st1 : MachineState} {next : Int64} {R : MachineState → Prop}
     (hm : Match (frameEnv m0 st 128 [] (fun _ ↦ 0) ret) S st1.data)
     (hmid : MidOk 128 0 slots S = true) {L : Nat} (hL : L ≤ 24) (hw : wr0 S L = true)
     (h13 : S.reg .r13 = some (.reg .r13)) (hrdi : reg st1.data .rdi = tA m0)
-    (hpc : PcOk (frameEnv m0 st 128 [] (fun _ ↦ 0) ret) (.call squeezeLabel) next st1)
+    (hpc : PcOk (frameEnv m0 st 128 [] (fun _ ↦ 0) ret) (.call NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) next st1)
     (cont : ∀ st2 : MachineState, st2.pc = next → Ctx m0 st2.data →
       TStateAt st2.data.dmem (tA m0) a (sq s).2 →
       reg st2.data .rax = (sq s).1.c0.toBitVec → reg st2.data .rdx = (sq s).1.c1.toBitVec →
@@ -528,12 +530,12 @@ theorem squeeze_call (h : SampleQueriesPre a s0 m0)
 frame's offset `0`, writing the frame below `8`: RAX its value, the context kept, the
 callee-saved registers and memory the block's. -/
 theorem qb_call (h : SampleQueriesPre a s0 m0)
-    (hqb : Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost)
+    (hqb : Spec (Labels.label NativeRustcVmX64.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost)
     {st : MachineData} (hc : Ctx m0 st)
     {ret : BitVec 64} {S : SState} {st1 : MachineState} {next : Int64} {R : MachineState → Prop}
     (hm : Match (frameEnv m0 st 128 [] (fun _ ↦ 0) ret) S st1.data)
     (hmid : MidOk 128 0 slots S = true) (hw : wr0 S 8 = true) (h13 : S.reg .r13 = some (.reg .r13))
-    (hpc : PcOk (frameEnv m0 st 128 [] (fun _ ↦ 0) ret) (.call queryBitsLabel) next st1)
+    (hpc : PcOk (frameEnv m0 st 128 [] (fun _ ↦ 0) ret) (.call NativeRustcVmX64.Vm.QueryBits.entryLabel) next st1)
     (cont : ∀ st2 : MachineState, st2.pc = next → Ctx m0 st2.data →
       reg st2.data .rax = (queryBits (ewArg (reg st1.data .rdi) (reg st1.data .rsi))
         (reg st1.data .rdx).toNat (reg st1.data .rcx).toNat).toBitVec →

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.GluedEval.Names
 public import NativeRustcVmArm.Whir.FinalLevel.GluedStep
 
 /-!
@@ -23,16 +25,16 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The glued claims' loop.** -/
 theorem loop (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hge : ∀ g, Spec (Labels.label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hge : ∀ g, Spec (Labels.label NativeRustcVmArm.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {folded tail : Array EW} {claim : EW} {s5 : TState}
-    (done : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 469) →
+    (done : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b33Offset) →
       GBase a level w m0 st'.data folded tail claim s5 →
       st'.data.regs.X21 = (finalWeight m0.regs.X4.toNat b w tail).c0 →
       st'.data.regs.X23 = (finalWeight m0.regs.X4.toNat b w tail).c1 →
       Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st') :
     ∀ (n i : Nat) (st : MachineState), i + n = w.glued.size → i < w.glued.size →
-      st.pc = Host.addrOf (k + 446) → GInv a level b w m0 st.data folded tail claim s5 i →
+      st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b29Offset) → GInv a level b w m0 st.data folded tail claim s5 i →
       Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st := by
   intro n
   induction n with
@@ -46,10 +48,10 @@ theorem loop (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
 
 /-- **The glued claims.** -/
 theorem glued (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hge : ∀ g, Spec (Labels.label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hge : ∀ g, Spec (Labels.label NativeRustcVmArm.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState}
-    (hpc : st.pc = Host.addrOf (k + 432)) (hc : Core level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b27Offset)) (hc : Core level m0 st.data folded)
     (htn : tail.size = mu m0) (hx22 : st.data.regs.X22.toBitVec = loc m0 1584)
     (hx29 : st.data.regs.X29.toNat = (w.alphas ++ tail).size)
     (hx23 : st.data.regs.X23 = claim.c0) (hx24 : st.data.regs.X24 = claim.c1)
@@ -57,7 +59,7 @@ theorem glued (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     (hpt : NativeRustcVm.EWsAt st.data.dmem (loc m0 1584) (w.alphas ++ tail).toList)
     (hopt : OptEWAt st.data.dmem (loc m0 2552) (some (weightAt m0.regs.X4.toNat b w tail 0)))
     (hts : TStateAt st.data.dmem (tA m0) a s5)
-    (done : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 469) →
+    (done : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b33Offset) →
       GBase a level w m0 st'.data folded tail claim s5 →
       st'.data.regs.X21 = (finalWeight m0.regs.X4.toNat b w tail).c0 →
       st'.data.regs.X23 = (finalWeight m0.regs.X4.toNat b w tail).c1 →
@@ -164,16 +166,16 @@ theorem glued (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     · rw [decide_eq_false (by omega), decide_eq_false h0]
   rw [hcond] at hpc1
   by_cases h0 : w.glued.size = 0
-  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := 469) rfl] at hpc1
+  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b33Offset) NativeRustcVmArm.Vm.FinalLevel.label_20_at] at hpc1
     refine done st1 hpc1 hB1 ?_ ?_
     · rw [← weightAt_size, h0]; exact x21
     · rw [← weightAt_size, h0]; exact x23
   simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte,
-    show k + 432 + b27.length = k + 444 from rfl] at hpc1
+    show k + NativeRustcVmArm.Vm.FinalLevel.b27Offset + b27.length = k + NativeRustcVmArm.Vm.FinalLevel.b28Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b27_next]] at hpc1
   -- `b28`: the claims' end, their stride.
   refine c.fblock hp b28_in_code (by simp [b28]) run_b28 rfl rfl hpc1 hf1
     fun st2 hm2 hpc2 hf2 hd2 hk2 ↦ ?_
-  rw [show k + 444 + b28.length = k + 446 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b28Offset + b28.length = k + NativeRustcVmArm.Vm.FinalLevel.b29Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b28_next]] at hpc2
   have hB2 : GBase a level w m0 st2.data folded tail claim s5 :=
     hB1.saved hf2 (fun r hr ↦ hk2 r (kept_of (by decide) r hr)) (fun j _ ↦ by rw [hd2])
       (by rw [hd2]; exact hts1)

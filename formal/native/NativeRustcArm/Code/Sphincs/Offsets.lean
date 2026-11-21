@@ -13,726 +13,744 @@ namespace NativeRustcArm.Sphincs
 -- One lemma at a time: many kernel checks at once exceed a 60 GB address-space limit.
 set_option Elab.async false
 
-public theorem Memcpy.code_at : NativeRustcArm.Common.Memcpy.code.IsInfixAt NativeRustcArm.Sphincs.code 0 :=
+@[expose] public def Memcpy.programOffset : Nat := 0
+
+public theorem Memcpy.code_at : NativeRustcArm.Common.Memcpy.code.IsInfixAt NativeRustcArm.Sphincs.code Memcpy.programOffset :=
   List.isInfixAt_flatten_of (i := 0) rfl (by decide +kernel)
 
-public theorem Memcpy.b0_at : NativeRustcArm.Common.Memcpy.b0.IsInfixAt NativeRustcArm.Sphincs.code 0 :=
+public theorem Memcpy.b0_at : NativeRustcArm.Common.Memcpy.b0.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b0Offset) :=
   NativeRustcArm.Common.Memcpy.b0_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b1_at : NativeRustcArm.Common.Memcpy.b1.IsInfixAt NativeRustcArm.Sphincs.code 5 :=
+public theorem Memcpy.b1_at : NativeRustcArm.Common.Memcpy.b1.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b1Offset) :=
   NativeRustcArm.Common.Memcpy.b1_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b2_at : NativeRustcArm.Common.Memcpy.b2.IsInfixAt NativeRustcArm.Sphincs.code 6 :=
+public theorem Memcpy.b2_at : NativeRustcArm.Common.Memcpy.b2.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b2Offset) :=
   NativeRustcArm.Common.Memcpy.b2_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b3_at : NativeRustcArm.Common.Memcpy.b3.IsInfixAt NativeRustcArm.Sphincs.code 7 :=
+public theorem Memcpy.b3_at : NativeRustcArm.Common.Memcpy.b3.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b3Offset) :=
   NativeRustcArm.Common.Memcpy.b3_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b4_at : NativeRustcArm.Common.Memcpy.b4.IsInfixAt NativeRustcArm.Sphincs.code 12 :=
+public theorem Memcpy.b4_at : NativeRustcArm.Common.Memcpy.b4.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b4Offset) :=
   NativeRustcArm.Common.Memcpy.b4_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b5_at : NativeRustcArm.Common.Memcpy.b5.IsInfixAt NativeRustcArm.Sphincs.code 13 :=
+public theorem Memcpy.b5_at : NativeRustcArm.Common.Memcpy.b5.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b5Offset) :=
   NativeRustcArm.Common.Memcpy.b5_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b6_at : NativeRustcArm.Common.Memcpy.b6.IsInfixAt NativeRustcArm.Sphincs.code 15 :=
+public theorem Memcpy.b6_at : NativeRustcArm.Common.Memcpy.b6.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b6Offset) :=
   NativeRustcArm.Common.Memcpy.b6_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b7_at : NativeRustcArm.Common.Memcpy.b7.IsInfixAt NativeRustcArm.Sphincs.code 16 :=
+public theorem Memcpy.b7_at : NativeRustcArm.Common.Memcpy.b7.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b7Offset) :=
   NativeRustcArm.Common.Memcpy.b7_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memcpy.b8_at : NativeRustcArm.Common.Memcpy.b8.IsInfixAt NativeRustcArm.Sphincs.code 22 :=
+public theorem Memcpy.b8_at : NativeRustcArm.Common.Memcpy.b8.IsInfixAt NativeRustcArm.Sphincs.code (Memcpy.programOffset + NativeRustcArm.Common.Memcpy.b8Offset) :=
   NativeRustcArm.Common.Memcpy.b8_in_code.trans Memcpy.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.code_at : NativeRustcArm.Common.Memset.code.IsInfixAt NativeRustcArm.Sphincs.code 24 :=
+@[expose] public def Memset.programOffset : Nat := 24
+
+public theorem Memset.code_at : NativeRustcArm.Common.Memset.code.IsInfixAt NativeRustcArm.Sphincs.code Memset.programOffset :=
   List.isInfixAt_flatten_of (i := 1) rfl (by decide +kernel)
 
-public theorem Memset.b0_at : NativeRustcArm.Common.Memset.b0.IsInfixAt NativeRustcArm.Sphincs.code 24 :=
+public theorem Memset.b0_at : NativeRustcArm.Common.Memset.b0.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b0Offset) :=
   NativeRustcArm.Common.Memset.b0_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b1_at : NativeRustcArm.Common.Memset.b1.IsInfixAt NativeRustcArm.Sphincs.code 28 :=
+public theorem Memset.b1_at : NativeRustcArm.Common.Memset.b1.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b1Offset) :=
   NativeRustcArm.Common.Memset.b1_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b2_at : NativeRustcArm.Common.Memset.b2.IsInfixAt NativeRustcArm.Sphincs.code 29 :=
+public theorem Memset.b2_at : NativeRustcArm.Common.Memset.b2.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b2Offset) :=
   NativeRustcArm.Common.Memset.b2_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b3_at : NativeRustcArm.Common.Memset.b3.IsInfixAt NativeRustcArm.Sphincs.code 30 :=
+public theorem Memset.b3_at : NativeRustcArm.Common.Memset.b3.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b3Offset) :=
   NativeRustcArm.Common.Memset.b3_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b4_at : NativeRustcArm.Common.Memset.b4.IsInfixAt NativeRustcArm.Sphincs.code 34 :=
+public theorem Memset.b4_at : NativeRustcArm.Common.Memset.b4.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b4Offset) :=
   NativeRustcArm.Common.Memset.b4_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b5_at : NativeRustcArm.Common.Memset.b5.IsInfixAt NativeRustcArm.Sphincs.code 35 :=
+public theorem Memset.b5_at : NativeRustcArm.Common.Memset.b5.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b5Offset) :=
   NativeRustcArm.Common.Memset.b5_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b6_at : NativeRustcArm.Common.Memset.b6.IsInfixAt NativeRustcArm.Sphincs.code 37 :=
+public theorem Memset.b6_at : NativeRustcArm.Common.Memset.b6.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b6Offset) :=
   NativeRustcArm.Common.Memset.b6_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b7_at : NativeRustcArm.Common.Memset.b7.IsInfixAt NativeRustcArm.Sphincs.code 41 :=
+public theorem Memset.b7_at : NativeRustcArm.Common.Memset.b7.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b7Offset) :=
   NativeRustcArm.Common.Memset.b7_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem Memset.b8_at : NativeRustcArm.Common.Memset.b8.IsInfixAt NativeRustcArm.Sphincs.code 46 :=
+public theorem Memset.b8_at : NativeRustcArm.Common.Memset.b8.IsInfixAt NativeRustcArm.Sphincs.code (Memset.programOffset + NativeRustcArm.Common.Memset.b8Offset) :=
   NativeRustcArm.Common.Memset.b8_in_code.trans Memset.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.code_at : NativeRustcArm.Sphincs.SphincsVerify.code.IsInfixAt NativeRustcArm.Sphincs.code 48 :=
+@[expose] public def SphincsVerify.programOffset : Nat := 48
+
+public theorem SphincsVerify.code_at : NativeRustcArm.Sphincs.SphincsVerify.code.IsInfixAt NativeRustcArm.Sphincs.code SphincsVerify.programOffset :=
   List.isInfixAt_flatten_of (i := 2) rfl (by decide +kernel)
 
-public theorem SphincsVerify.b0_at : NativeRustcArm.Sphincs.SphincsVerify.b0.IsInfixAt NativeRustcArm.Sphincs.code 48 :=
+public theorem SphincsVerify.b0_at : NativeRustcArm.Sphincs.SphincsVerify.b0.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b0Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b0_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b1_at : NativeRustcArm.Sphincs.SphincsVerify.b1.IsInfixAt NativeRustcArm.Sphincs.code 57 :=
+public theorem SphincsVerify.b1_at : NativeRustcArm.Sphincs.SphincsVerify.b1.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b1Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b1_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b2_at : NativeRustcArm.Sphincs.SphincsVerify.b2.IsInfixAt NativeRustcArm.Sphincs.code 62 :=
+public theorem SphincsVerify.b2_at : NativeRustcArm.Sphincs.SphincsVerify.b2.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b2Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b2_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b3_at : NativeRustcArm.Sphincs.SphincsVerify.b3.IsInfixAt NativeRustcArm.Sphincs.code 80 :=
+public theorem SphincsVerify.b3_at : NativeRustcArm.Sphincs.SphincsVerify.b3.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b3Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b3_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b4_at : NativeRustcArm.Sphincs.SphincsVerify.b4.IsInfixAt NativeRustcArm.Sphincs.code 82 :=
+public theorem SphincsVerify.b4_at : NativeRustcArm.Sphincs.SphincsVerify.b4.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b4Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b4_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b5_at : NativeRustcArm.Sphincs.SphincsVerify.b5.IsInfixAt NativeRustcArm.Sphincs.code 95 :=
+public theorem SphincsVerify.b5_at : NativeRustcArm.Sphincs.SphincsVerify.b5.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b5Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b5_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b6_at : NativeRustcArm.Sphincs.SphincsVerify.b6.IsInfixAt NativeRustcArm.Sphincs.code 107 :=
+public theorem SphincsVerify.b6_at : NativeRustcArm.Sphincs.SphincsVerify.b6.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b6Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b6_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b7_at : NativeRustcArm.Sphincs.SphincsVerify.b7.IsInfixAt NativeRustcArm.Sphincs.code 117 :=
+public theorem SphincsVerify.b7_at : NativeRustcArm.Sphincs.SphincsVerify.b7.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b7Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b7_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b8_at : NativeRustcArm.Sphincs.SphincsVerify.b8.IsInfixAt NativeRustcArm.Sphincs.code 136 :=
+public theorem SphincsVerify.b8_at : NativeRustcArm.Sphincs.SphincsVerify.b8.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b8Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b8_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b9_at : NativeRustcArm.Sphincs.SphincsVerify.b9.IsInfixAt NativeRustcArm.Sphincs.code 148 :=
+public theorem SphincsVerify.b9_at : NativeRustcArm.Sphincs.SphincsVerify.b9.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b9Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b9_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b10_at : NativeRustcArm.Sphincs.SphincsVerify.b10.IsInfixAt NativeRustcArm.Sphincs.code 164 :=
+public theorem SphincsVerify.b10_at : NativeRustcArm.Sphincs.SphincsVerify.b10.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b10Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b10_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b11_at : NativeRustcArm.Sphincs.SphincsVerify.b11.IsInfixAt NativeRustcArm.Sphincs.code 174 :=
+public theorem SphincsVerify.b11_at : NativeRustcArm.Sphincs.SphincsVerify.b11.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b11Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b11_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b12_at : NativeRustcArm.Sphincs.SphincsVerify.b12.IsInfixAt NativeRustcArm.Sphincs.code 207 :=
+public theorem SphincsVerify.b12_at : NativeRustcArm.Sphincs.SphincsVerify.b12.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b12Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b12_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b13_at : NativeRustcArm.Sphincs.SphincsVerify.b13.IsInfixAt NativeRustcArm.Sphincs.code 246 :=
+public theorem SphincsVerify.b13_at : NativeRustcArm.Sphincs.SphincsVerify.b13.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b13Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b13_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b14_at : NativeRustcArm.Sphincs.SphincsVerify.b14.IsInfixAt NativeRustcArm.Sphincs.code 255 :=
+public theorem SphincsVerify.b14_at : NativeRustcArm.Sphincs.SphincsVerify.b14.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b14Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b14_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b15_at : NativeRustcArm.Sphincs.SphincsVerify.b15.IsInfixAt NativeRustcArm.Sphincs.code 261 :=
+public theorem SphincsVerify.b15_at : NativeRustcArm.Sphincs.SphincsVerify.b15.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b15Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b15_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b16_at : NativeRustcArm.Sphincs.SphincsVerify.b16.IsInfixAt NativeRustcArm.Sphincs.code 263 :=
+public theorem SphincsVerify.b16_at : NativeRustcArm.Sphincs.SphincsVerify.b16.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b16Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b16_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b17_at : NativeRustcArm.Sphincs.SphincsVerify.b17.IsInfixAt NativeRustcArm.Sphincs.code 269 :=
+public theorem SphincsVerify.b17_at : NativeRustcArm.Sphincs.SphincsVerify.b17.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b17Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b17_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b18_at : NativeRustcArm.Sphincs.SphincsVerify.b18.IsInfixAt NativeRustcArm.Sphincs.code 276 :=
+public theorem SphincsVerify.b18_at : NativeRustcArm.Sphincs.SphincsVerify.b18.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b18Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b18_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b19_at : NativeRustcArm.Sphincs.SphincsVerify.b19.IsInfixAt NativeRustcArm.Sphincs.code 284 :=
+public theorem SphincsVerify.b19_at : NativeRustcArm.Sphincs.SphincsVerify.b19.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b19Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b19_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b20_at : NativeRustcArm.Sphincs.SphincsVerify.b20.IsInfixAt NativeRustcArm.Sphincs.code 292 :=
+public theorem SphincsVerify.b20_at : NativeRustcArm.Sphincs.SphincsVerify.b20.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b20Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b20_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b21_at : NativeRustcArm.Sphincs.SphincsVerify.b21.IsInfixAt NativeRustcArm.Sphincs.code 339 :=
+public theorem SphincsVerify.b21_at : NativeRustcArm.Sphincs.SphincsVerify.b21.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b21Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b21_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b22_at : NativeRustcArm.Sphincs.SphincsVerify.b22.IsInfixAt NativeRustcArm.Sphincs.code 345 :=
+public theorem SphincsVerify.b22_at : NativeRustcArm.Sphincs.SphincsVerify.b22.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b22Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b22_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b23_at : NativeRustcArm.Sphincs.SphincsVerify.b23.IsInfixAt NativeRustcArm.Sphincs.code 351 :=
+public theorem SphincsVerify.b23_at : NativeRustcArm.Sphincs.SphincsVerify.b23.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b23Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b23_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b24_at : NativeRustcArm.Sphincs.SphincsVerify.b24.IsInfixAt NativeRustcArm.Sphincs.code 357 :=
+public theorem SphincsVerify.b24_at : NativeRustcArm.Sphincs.SphincsVerify.b24.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b24Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b24_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b25_at : NativeRustcArm.Sphincs.SphincsVerify.b25.IsInfixAt NativeRustcArm.Sphincs.code 363 :=
+public theorem SphincsVerify.b25_at : NativeRustcArm.Sphincs.SphincsVerify.b25.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b25Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b25_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b26_at : NativeRustcArm.Sphincs.SphincsVerify.b26.IsInfixAt NativeRustcArm.Sphincs.code 367 :=
+public theorem SphincsVerify.b26_at : NativeRustcArm.Sphincs.SphincsVerify.b26.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b26Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b26_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b27_at : NativeRustcArm.Sphincs.SphincsVerify.b27.IsInfixAt NativeRustcArm.Sphincs.code 375 :=
+public theorem SphincsVerify.b27_at : NativeRustcArm.Sphincs.SphincsVerify.b27.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b27Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b27_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b28_at : NativeRustcArm.Sphincs.SphincsVerify.b28.IsInfixAt NativeRustcArm.Sphincs.code 383 :=
+public theorem SphincsVerify.b28_at : NativeRustcArm.Sphincs.SphincsVerify.b28.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b28Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b28_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b29_at : NativeRustcArm.Sphincs.SphincsVerify.b29.IsInfixAt NativeRustcArm.Sphincs.code 420 :=
+public theorem SphincsVerify.b29_at : NativeRustcArm.Sphincs.SphincsVerify.b29.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b29Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b29_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b30_at : NativeRustcArm.Sphincs.SphincsVerify.b30.IsInfixAt NativeRustcArm.Sphincs.code 426 :=
+public theorem SphincsVerify.b30_at : NativeRustcArm.Sphincs.SphincsVerify.b30.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b30Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b30_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b31_at : NativeRustcArm.Sphincs.SphincsVerify.b31.IsInfixAt NativeRustcArm.Sphincs.code 432 :=
+public theorem SphincsVerify.b31_at : NativeRustcArm.Sphincs.SphincsVerify.b31.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b31Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b31_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b32_at : NativeRustcArm.Sphincs.SphincsVerify.b32.IsInfixAt NativeRustcArm.Sphincs.code 438 :=
+public theorem SphincsVerify.b32_at : NativeRustcArm.Sphincs.SphincsVerify.b32.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b32Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b32_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b33_at : NativeRustcArm.Sphincs.SphincsVerify.b33.IsInfixAt NativeRustcArm.Sphincs.code 444 :=
+public theorem SphincsVerify.b33_at : NativeRustcArm.Sphincs.SphincsVerify.b33.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b33Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b33_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b34_at : NativeRustcArm.Sphincs.SphincsVerify.b34.IsInfixAt NativeRustcArm.Sphincs.code 449 :=
+public theorem SphincsVerify.b34_at : NativeRustcArm.Sphincs.SphincsVerify.b34.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b34Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b34_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b35_at : NativeRustcArm.Sphincs.SphincsVerify.b35.IsInfixAt NativeRustcArm.Sphincs.code 457 :=
+public theorem SphincsVerify.b35_at : NativeRustcArm.Sphincs.SphincsVerify.b35.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b35Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b35_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b36_at : NativeRustcArm.Sphincs.SphincsVerify.b36.IsInfixAt NativeRustcArm.Sphincs.code 465 :=
+public theorem SphincsVerify.b36_at : NativeRustcArm.Sphincs.SphincsVerify.b36.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b36Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b36_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b37_at : NativeRustcArm.Sphincs.SphincsVerify.b37.IsInfixAt NativeRustcArm.Sphincs.code 527 :=
+public theorem SphincsVerify.b37_at : NativeRustcArm.Sphincs.SphincsVerify.b37.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b37Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b37_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b38_at : NativeRustcArm.Sphincs.SphincsVerify.b38.IsInfixAt NativeRustcArm.Sphincs.code 533 :=
+public theorem SphincsVerify.b38_at : NativeRustcArm.Sphincs.SphincsVerify.b38.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b38Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b38_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b39_at : NativeRustcArm.Sphincs.SphincsVerify.b39.IsInfixAt NativeRustcArm.Sphincs.code 539 :=
+public theorem SphincsVerify.b39_at : NativeRustcArm.Sphincs.SphincsVerify.b39.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b39Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b39_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b40_at : NativeRustcArm.Sphincs.SphincsVerify.b40.IsInfixAt NativeRustcArm.Sphincs.code 545 :=
+public theorem SphincsVerify.b40_at : NativeRustcArm.Sphincs.SphincsVerify.b40.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b40Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b40_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b41_at : NativeRustcArm.Sphincs.SphincsVerify.b41.IsInfixAt NativeRustcArm.Sphincs.code 556 :=
+public theorem SphincsVerify.b41_at : NativeRustcArm.Sphincs.SphincsVerify.b41.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b41Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b41_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b42_at : NativeRustcArm.Sphincs.SphincsVerify.b42.IsInfixAt NativeRustcArm.Sphincs.code 563 :=
+public theorem SphincsVerify.b42_at : NativeRustcArm.Sphincs.SphincsVerify.b42.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b42Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b42_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b43_at : NativeRustcArm.Sphincs.SphincsVerify.b43.IsInfixAt NativeRustcArm.Sphincs.code 570 :=
+public theorem SphincsVerify.b43_at : NativeRustcArm.Sphincs.SphincsVerify.b43.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b43Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b43_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b44_at : NativeRustcArm.Sphincs.SphincsVerify.b44.IsInfixAt NativeRustcArm.Sphincs.code 577 :=
+public theorem SphincsVerify.b44_at : NativeRustcArm.Sphincs.SphincsVerify.b44.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b44Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b44_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b45_at : NativeRustcArm.Sphincs.SphincsVerify.b45.IsInfixAt NativeRustcArm.Sphincs.code 584 :=
+public theorem SphincsVerify.b45_at : NativeRustcArm.Sphincs.SphincsVerify.b45.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b45Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b45_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b46_at : NativeRustcArm.Sphincs.SphincsVerify.b46.IsInfixAt NativeRustcArm.Sphincs.code 589 :=
+public theorem SphincsVerify.b46_at : NativeRustcArm.Sphincs.SphincsVerify.b46.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b46Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b46_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b47_at : NativeRustcArm.Sphincs.SphincsVerify.b47.IsInfixAt NativeRustcArm.Sphincs.code 594 :=
+public theorem SphincsVerify.b47_at : NativeRustcArm.Sphincs.SphincsVerify.b47.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b47Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b47_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b48_at : NativeRustcArm.Sphincs.SphincsVerify.b48.IsInfixAt NativeRustcArm.Sphincs.code 600 :=
+public theorem SphincsVerify.b48_at : NativeRustcArm.Sphincs.SphincsVerify.b48.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b48Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b48_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b49_at : NativeRustcArm.Sphincs.SphincsVerify.b49.IsInfixAt NativeRustcArm.Sphincs.code 605 :=
+public theorem SphincsVerify.b49_at : NativeRustcArm.Sphincs.SphincsVerify.b49.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b49Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b49_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b50_at : NativeRustcArm.Sphincs.SphincsVerify.b50.IsInfixAt NativeRustcArm.Sphincs.code 610 :=
+public theorem SphincsVerify.b50_at : NativeRustcArm.Sphincs.SphincsVerify.b50.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b50Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b50_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b51_at : NativeRustcArm.Sphincs.SphincsVerify.b51.IsInfixAt NativeRustcArm.Sphincs.code 616 :=
+public theorem SphincsVerify.b51_at : NativeRustcArm.Sphincs.SphincsVerify.b51.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b51Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b51_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b52_at : NativeRustcArm.Sphincs.SphincsVerify.b52.IsInfixAt NativeRustcArm.Sphincs.code 625 :=
+public theorem SphincsVerify.b52_at : NativeRustcArm.Sphincs.SphincsVerify.b52.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b52Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b52_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b53_at : NativeRustcArm.Sphincs.SphincsVerify.b53.IsInfixAt NativeRustcArm.Sphincs.code 630 :=
+public theorem SphincsVerify.b53_at : NativeRustcArm.Sphincs.SphincsVerify.b53.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b53Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b53_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b54_at : NativeRustcArm.Sphincs.SphincsVerify.b54.IsInfixAt NativeRustcArm.Sphincs.code 644 :=
+public theorem SphincsVerify.b54_at : NativeRustcArm.Sphincs.SphincsVerify.b54.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b54Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b54_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b55_at : NativeRustcArm.Sphincs.SphincsVerify.b55.IsInfixAt NativeRustcArm.Sphincs.code 652 :=
+public theorem SphincsVerify.b55_at : NativeRustcArm.Sphincs.SphincsVerify.b55.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b55Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b55_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b56_at : NativeRustcArm.Sphincs.SphincsVerify.b56.IsInfixAt NativeRustcArm.Sphincs.code 657 :=
+public theorem SphincsVerify.b56_at : NativeRustcArm.Sphincs.SphincsVerify.b56.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b56Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b56_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b57_at : NativeRustcArm.Sphincs.SphincsVerify.b57.IsInfixAt NativeRustcArm.Sphincs.code 669 :=
+public theorem SphincsVerify.b57_at : NativeRustcArm.Sphincs.SphincsVerify.b57.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b57Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b57_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b58_at : NativeRustcArm.Sphincs.SphincsVerify.b58.IsInfixAt NativeRustcArm.Sphincs.code 740 :=
+public theorem SphincsVerify.b58_at : NativeRustcArm.Sphincs.SphincsVerify.b58.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b58Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b58_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b59_at : NativeRustcArm.Sphincs.SphincsVerify.b59.IsInfixAt NativeRustcArm.Sphincs.code 760 :=
+public theorem SphincsVerify.b59_at : NativeRustcArm.Sphincs.SphincsVerify.b59.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b59Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b59_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b60_at : NativeRustcArm.Sphincs.SphincsVerify.b60.IsInfixAt NativeRustcArm.Sphincs.code 775 :=
+public theorem SphincsVerify.b60_at : NativeRustcArm.Sphincs.SphincsVerify.b60.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b60Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b60_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b61_at : NativeRustcArm.Sphincs.SphincsVerify.b61.IsInfixAt NativeRustcArm.Sphincs.code 792 :=
+public theorem SphincsVerify.b61_at : NativeRustcArm.Sphincs.SphincsVerify.b61.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b61Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b61_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b62_at : NativeRustcArm.Sphincs.SphincsVerify.b62.IsInfixAt NativeRustcArm.Sphincs.code 798 :=
+public theorem SphincsVerify.b62_at : NativeRustcArm.Sphincs.SphincsVerify.b62.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b62Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b62_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b63_at : NativeRustcArm.Sphincs.SphincsVerify.b63.IsInfixAt NativeRustcArm.Sphincs.code 804 :=
+public theorem SphincsVerify.b63_at : NativeRustcArm.Sphincs.SphincsVerify.b63.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b63Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b63_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b64_at : NativeRustcArm.Sphincs.SphincsVerify.b64.IsInfixAt NativeRustcArm.Sphincs.code 810 :=
+public theorem SphincsVerify.b64_at : NativeRustcArm.Sphincs.SphincsVerify.b64.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b64Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b64_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b65_at : NativeRustcArm.Sphincs.SphincsVerify.b65.IsInfixAt NativeRustcArm.Sphincs.code 816 :=
+public theorem SphincsVerify.b65_at : NativeRustcArm.Sphincs.SphincsVerify.b65.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b65Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b65_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b66_at : NativeRustcArm.Sphincs.SphincsVerify.b66.IsInfixAt NativeRustcArm.Sphincs.code 821 :=
+public theorem SphincsVerify.b66_at : NativeRustcArm.Sphincs.SphincsVerify.b66.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b66Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b66_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b67_at : NativeRustcArm.Sphincs.SphincsVerify.b67.IsInfixAt NativeRustcArm.Sphincs.code 822 :=
+public theorem SphincsVerify.b67_at : NativeRustcArm.Sphincs.SphincsVerify.b67.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b67Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b67_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b68_at : NativeRustcArm.Sphincs.SphincsVerify.b68.IsInfixAt NativeRustcArm.Sphincs.code 862 :=
+public theorem SphincsVerify.b68_at : NativeRustcArm.Sphincs.SphincsVerify.b68.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b68Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b68_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b69_at : NativeRustcArm.Sphincs.SphincsVerify.b69.IsInfixAt NativeRustcArm.Sphincs.code 870 :=
+public theorem SphincsVerify.b69_at : NativeRustcArm.Sphincs.SphincsVerify.b69.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b69Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b69_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b70_at : NativeRustcArm.Sphincs.SphincsVerify.b70.IsInfixAt NativeRustcArm.Sphincs.code 941 :=
+public theorem SphincsVerify.b70_at : NativeRustcArm.Sphincs.SphincsVerify.b70.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b70Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b70_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b71_at : NativeRustcArm.Sphincs.SphincsVerify.b71.IsInfixAt NativeRustcArm.Sphincs.code 943 :=
+public theorem SphincsVerify.b71_at : NativeRustcArm.Sphincs.SphincsVerify.b71.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b71Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b71_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b72_at : NativeRustcArm.Sphincs.SphincsVerify.b72.IsInfixAt NativeRustcArm.Sphincs.code 948 :=
+public theorem SphincsVerify.b72_at : NativeRustcArm.Sphincs.SphincsVerify.b72.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b72Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b72_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b73_at : NativeRustcArm.Sphincs.SphincsVerify.b73.IsInfixAt NativeRustcArm.Sphincs.code 952 :=
+public theorem SphincsVerify.b73_at : NativeRustcArm.Sphincs.SphincsVerify.b73.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b73Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b73_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b74_at : NativeRustcArm.Sphincs.SphincsVerify.b74.IsInfixAt NativeRustcArm.Sphincs.code 959 :=
+public theorem SphincsVerify.b74_at : NativeRustcArm.Sphincs.SphincsVerify.b74.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b74Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b74_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b75_at : NativeRustcArm.Sphincs.SphincsVerify.b75.IsInfixAt NativeRustcArm.Sphincs.code 961 :=
+public theorem SphincsVerify.b75_at : NativeRustcArm.Sphincs.SphincsVerify.b75.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b75Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b75_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b76_at : NativeRustcArm.Sphincs.SphincsVerify.b76.IsInfixAt NativeRustcArm.Sphincs.code 965 :=
+public theorem SphincsVerify.b76_at : NativeRustcArm.Sphincs.SphincsVerify.b76.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b76Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b76_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b77_at : NativeRustcArm.Sphincs.SphincsVerify.b77.IsInfixAt NativeRustcArm.Sphincs.code 970 :=
+public theorem SphincsVerify.b77_at : NativeRustcArm.Sphincs.SphincsVerify.b77.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b77Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b77_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b78_at : NativeRustcArm.Sphincs.SphincsVerify.b78.IsInfixAt NativeRustcArm.Sphincs.code 1041 :=
+public theorem SphincsVerify.b78_at : NativeRustcArm.Sphincs.SphincsVerify.b78.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b78Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b78_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b79_at : NativeRustcArm.Sphincs.SphincsVerify.b79.IsInfixAt NativeRustcArm.Sphincs.code 1044 :=
+public theorem SphincsVerify.b79_at : NativeRustcArm.Sphincs.SphincsVerify.b79.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b79Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b79_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b80_at : NativeRustcArm.Sphincs.SphincsVerify.b80.IsInfixAt NativeRustcArm.Sphincs.code 1053 :=
+public theorem SphincsVerify.b80_at : NativeRustcArm.Sphincs.SphincsVerify.b80.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b80Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b80_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b81_at : NativeRustcArm.Sphincs.SphincsVerify.b81.IsInfixAt NativeRustcArm.Sphincs.code 1058 :=
+public theorem SphincsVerify.b81_at : NativeRustcArm.Sphincs.SphincsVerify.b81.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b81Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b81_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b82_at : NativeRustcArm.Sphincs.SphincsVerify.b82.IsInfixAt NativeRustcArm.Sphincs.code 1062 :=
+public theorem SphincsVerify.b82_at : NativeRustcArm.Sphincs.SphincsVerify.b82.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b82Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b82_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b83_at : NativeRustcArm.Sphincs.SphincsVerify.b83.IsInfixAt NativeRustcArm.Sphincs.code 1069 :=
+public theorem SphincsVerify.b83_at : NativeRustcArm.Sphincs.SphincsVerify.b83.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b83Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b83_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b84_at : NativeRustcArm.Sphincs.SphincsVerify.b84.IsInfixAt NativeRustcArm.Sphincs.code 1071 :=
+public theorem SphincsVerify.b84_at : NativeRustcArm.Sphincs.SphincsVerify.b84.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b84Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b84_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b85_at : NativeRustcArm.Sphincs.SphincsVerify.b85.IsInfixAt NativeRustcArm.Sphincs.code 1075 :=
+public theorem SphincsVerify.b85_at : NativeRustcArm.Sphincs.SphincsVerify.b85.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b85Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b85_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b86_at : NativeRustcArm.Sphincs.SphincsVerify.b86.IsInfixAt NativeRustcArm.Sphincs.code 1080 :=
+public theorem SphincsVerify.b86_at : NativeRustcArm.Sphincs.SphincsVerify.b86.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b86Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b86_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b87_at : NativeRustcArm.Sphincs.SphincsVerify.b87.IsInfixAt NativeRustcArm.Sphincs.code 1151 :=
+public theorem SphincsVerify.b87_at : NativeRustcArm.Sphincs.SphincsVerify.b87.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b87Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b87_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b88_at : NativeRustcArm.Sphincs.SphincsVerify.b88.IsInfixAt NativeRustcArm.Sphincs.code 1154 :=
+public theorem SphincsVerify.b88_at : NativeRustcArm.Sphincs.SphincsVerify.b88.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b88Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b88_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b89_at : NativeRustcArm.Sphincs.SphincsVerify.b89.IsInfixAt NativeRustcArm.Sphincs.code 1161 :=
+public theorem SphincsVerify.b89_at : NativeRustcArm.Sphincs.SphincsVerify.b89.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b89Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b89_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b90_at : NativeRustcArm.Sphincs.SphincsVerify.b90.IsInfixAt NativeRustcArm.Sphincs.code 1163 :=
+public theorem SphincsVerify.b90_at : NativeRustcArm.Sphincs.SphincsVerify.b90.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b90Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b90_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b91_at : NativeRustcArm.Sphincs.SphincsVerify.b91.IsInfixAt NativeRustcArm.Sphincs.code 1186 :=
+public theorem SphincsVerify.b91_at : NativeRustcArm.Sphincs.SphincsVerify.b91.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b91Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b91_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b92_at : NativeRustcArm.Sphincs.SphincsVerify.b92.IsInfixAt NativeRustcArm.Sphincs.code 1267 :=
+public theorem SphincsVerify.b92_at : NativeRustcArm.Sphincs.SphincsVerify.b92.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b92Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b92_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b93_at : NativeRustcArm.Sphincs.SphincsVerify.b93.IsInfixAt NativeRustcArm.Sphincs.code 1278 :=
+public theorem SphincsVerify.b93_at : NativeRustcArm.Sphincs.SphincsVerify.b93.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b93Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b93_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b94_at : NativeRustcArm.Sphincs.SphincsVerify.b94.IsInfixAt NativeRustcArm.Sphincs.code 1291 :=
+public theorem SphincsVerify.b94_at : NativeRustcArm.Sphincs.SphincsVerify.b94.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b94Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b94_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b95_at : NativeRustcArm.Sphincs.SphincsVerify.b95.IsInfixAt NativeRustcArm.Sphincs.code 1302 :=
+public theorem SphincsVerify.b95_at : NativeRustcArm.Sphincs.SphincsVerify.b95.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b95Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b95_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b96_at : NativeRustcArm.Sphincs.SphincsVerify.b96.IsInfixAt NativeRustcArm.Sphincs.code 1309 :=
+public theorem SphincsVerify.b96_at : NativeRustcArm.Sphincs.SphincsVerify.b96.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b96Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b96_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b97_at : NativeRustcArm.Sphincs.SphincsVerify.b97.IsInfixAt NativeRustcArm.Sphincs.code 1315 :=
+public theorem SphincsVerify.b97_at : NativeRustcArm.Sphincs.SphincsVerify.b97.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b97Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b97_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b98_at : NativeRustcArm.Sphincs.SphincsVerify.b98.IsInfixAt NativeRustcArm.Sphincs.code 1323 :=
+public theorem SphincsVerify.b98_at : NativeRustcArm.Sphincs.SphincsVerify.b98.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b98Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b98_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b99_at : NativeRustcArm.Sphincs.SphincsVerify.b99.IsInfixAt NativeRustcArm.Sphincs.code 1329 :=
+public theorem SphincsVerify.b99_at : NativeRustcArm.Sphincs.SphincsVerify.b99.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b99Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b99_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b100_at : NativeRustcArm.Sphincs.SphincsVerify.b100.IsInfixAt NativeRustcArm.Sphincs.code 1336 :=
+public theorem SphincsVerify.b100_at : NativeRustcArm.Sphincs.SphincsVerify.b100.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b100Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b100_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b101_at : NativeRustcArm.Sphincs.SphincsVerify.b101.IsInfixAt NativeRustcArm.Sphincs.code 1354 :=
+public theorem SphincsVerify.b101_at : NativeRustcArm.Sphincs.SphincsVerify.b101.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b101Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b101_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b102_at : NativeRustcArm.Sphincs.SphincsVerify.b102.IsInfixAt NativeRustcArm.Sphincs.code 1391 :=
+public theorem SphincsVerify.b102_at : NativeRustcArm.Sphincs.SphincsVerify.b102.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b102Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b102_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b103_at : NativeRustcArm.Sphincs.SphincsVerify.b103.IsInfixAt NativeRustcArm.Sphincs.code 1397 :=
+public theorem SphincsVerify.b103_at : NativeRustcArm.Sphincs.SphincsVerify.b103.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b103Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b103_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b104_at : NativeRustcArm.Sphincs.SphincsVerify.b104.IsInfixAt NativeRustcArm.Sphincs.code 1403 :=
+public theorem SphincsVerify.b104_at : NativeRustcArm.Sphincs.SphincsVerify.b104.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b104Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b104_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b105_at : NativeRustcArm.Sphincs.SphincsVerify.b105.IsInfixAt NativeRustcArm.Sphincs.code 1409 :=
+public theorem SphincsVerify.b105_at : NativeRustcArm.Sphincs.SphincsVerify.b105.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b105Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b105_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b106_at : NativeRustcArm.Sphincs.SphincsVerify.b106.IsInfixAt NativeRustcArm.Sphincs.code 1415 :=
+public theorem SphincsVerify.b106_at : NativeRustcArm.Sphincs.SphincsVerify.b106.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b106Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b106_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b107_at : NativeRustcArm.Sphincs.SphincsVerify.b107.IsInfixAt NativeRustcArm.Sphincs.code 1421 :=
+public theorem SphincsVerify.b107_at : NativeRustcArm.Sphincs.SphincsVerify.b107.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b107Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b107_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b108_at : NativeRustcArm.Sphincs.SphincsVerify.b108.IsInfixAt NativeRustcArm.Sphincs.code 1429 :=
+public theorem SphincsVerify.b108_at : NativeRustcArm.Sphincs.SphincsVerify.b108.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b108Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b108_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b109_at : NativeRustcArm.Sphincs.SphincsVerify.b109.IsInfixAt NativeRustcArm.Sphincs.code 1434 :=
+public theorem SphincsVerify.b109_at : NativeRustcArm.Sphincs.SphincsVerify.b109.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b109Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b109_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b110_at : NativeRustcArm.Sphincs.SphincsVerify.b110.IsInfixAt NativeRustcArm.Sphincs.code 1440 :=
+public theorem SphincsVerify.b110_at : NativeRustcArm.Sphincs.SphincsVerify.b110.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b110Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b110_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b111_at : NativeRustcArm.Sphincs.SphincsVerify.b111.IsInfixAt NativeRustcArm.Sphincs.code 1489 :=
+public theorem SphincsVerify.b111_at : NativeRustcArm.Sphincs.SphincsVerify.b111.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b111Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b111_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b112_at : NativeRustcArm.Sphincs.SphincsVerify.b112.IsInfixAt NativeRustcArm.Sphincs.code 1644 :=
+public theorem SphincsVerify.b112_at : NativeRustcArm.Sphincs.SphincsVerify.b112.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b112Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b112_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b113_at : NativeRustcArm.Sphincs.SphincsVerify.b113.IsInfixAt NativeRustcArm.Sphincs.code 1753 :=
+public theorem SphincsVerify.b113_at : NativeRustcArm.Sphincs.SphincsVerify.b113.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b113Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b113_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b114_at : NativeRustcArm.Sphincs.SphincsVerify.b114.IsInfixAt NativeRustcArm.Sphincs.code 1763 :=
+public theorem SphincsVerify.b114_at : NativeRustcArm.Sphincs.SphincsVerify.b114.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b114Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b114_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b115_at : NativeRustcArm.Sphincs.SphincsVerify.b115.IsInfixAt NativeRustcArm.Sphincs.code 1775 :=
+public theorem SphincsVerify.b115_at : NativeRustcArm.Sphincs.SphincsVerify.b115.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b115Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b115_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b116_at : NativeRustcArm.Sphincs.SphincsVerify.b116.IsInfixAt NativeRustcArm.Sphincs.code 1776 :=
+public theorem SphincsVerify.b116_at : NativeRustcArm.Sphincs.SphincsVerify.b116.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b116Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b116_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b117_at : NativeRustcArm.Sphincs.SphincsVerify.b117.IsInfixAt NativeRustcArm.Sphincs.code 1794 :=
+public theorem SphincsVerify.b117_at : NativeRustcArm.Sphincs.SphincsVerify.b117.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b117Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b117_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b118_at : NativeRustcArm.Sphincs.SphincsVerify.b118.IsInfixAt NativeRustcArm.Sphincs.code 1802 :=
+public theorem SphincsVerify.b118_at : NativeRustcArm.Sphincs.SphincsVerify.b118.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b118Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b118_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b119_at : NativeRustcArm.Sphincs.SphincsVerify.b119.IsInfixAt NativeRustcArm.Sphincs.code 1873 :=
+public theorem SphincsVerify.b119_at : NativeRustcArm.Sphincs.SphincsVerify.b119.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b119Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b119_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b120_at : NativeRustcArm.Sphincs.SphincsVerify.b120.IsInfixAt NativeRustcArm.Sphincs.code 1875 :=
+public theorem SphincsVerify.b120_at : NativeRustcArm.Sphincs.SphincsVerify.b120.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b120Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b120_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b121_at : NativeRustcArm.Sphincs.SphincsVerify.b121.IsInfixAt NativeRustcArm.Sphincs.code 1881 :=
+public theorem SphincsVerify.b121_at : NativeRustcArm.Sphincs.SphincsVerify.b121.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b121Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b121_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b122_at : NativeRustcArm.Sphincs.SphincsVerify.b122.IsInfixAt NativeRustcArm.Sphincs.code 1885 :=
+public theorem SphincsVerify.b122_at : NativeRustcArm.Sphincs.SphincsVerify.b122.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b122Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b122_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b123_at : NativeRustcArm.Sphincs.SphincsVerify.b123.IsInfixAt NativeRustcArm.Sphincs.code 1892 :=
+public theorem SphincsVerify.b123_at : NativeRustcArm.Sphincs.SphincsVerify.b123.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b123Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b123_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b124_at : NativeRustcArm.Sphincs.SphincsVerify.b124.IsInfixAt NativeRustcArm.Sphincs.code 1894 :=
+public theorem SphincsVerify.b124_at : NativeRustcArm.Sphincs.SphincsVerify.b124.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b124Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b124_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b125_at : NativeRustcArm.Sphincs.SphincsVerify.b125.IsInfixAt NativeRustcArm.Sphincs.code 1898 :=
+public theorem SphincsVerify.b125_at : NativeRustcArm.Sphincs.SphincsVerify.b125.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b125Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b125_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b126_at : NativeRustcArm.Sphincs.SphincsVerify.b126.IsInfixAt NativeRustcArm.Sphincs.code 1903 :=
+public theorem SphincsVerify.b126_at : NativeRustcArm.Sphincs.SphincsVerify.b126.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b126Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b126_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b127_at : NativeRustcArm.Sphincs.SphincsVerify.b127.IsInfixAt NativeRustcArm.Sphincs.code 1974 :=
+public theorem SphincsVerify.b127_at : NativeRustcArm.Sphincs.SphincsVerify.b127.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b127Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b127_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b128_at : NativeRustcArm.Sphincs.SphincsVerify.b128.IsInfixAt NativeRustcArm.Sphincs.code 1977 :=
+public theorem SphincsVerify.b128_at : NativeRustcArm.Sphincs.SphincsVerify.b128.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b128Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b128_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b129_at : NativeRustcArm.Sphincs.SphincsVerify.b129.IsInfixAt NativeRustcArm.Sphincs.code 1984 :=
+public theorem SphincsVerify.b129_at : NativeRustcArm.Sphincs.SphincsVerify.b129.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b129Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b129_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b130_at : NativeRustcArm.Sphincs.SphincsVerify.b130.IsInfixAt NativeRustcArm.Sphincs.code 1989 :=
+public theorem SphincsVerify.b130_at : NativeRustcArm.Sphincs.SphincsVerify.b130.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b130Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b130_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b131_at : NativeRustcArm.Sphincs.SphincsVerify.b131.IsInfixAt NativeRustcArm.Sphincs.code 1993 :=
+public theorem SphincsVerify.b131_at : NativeRustcArm.Sphincs.SphincsVerify.b131.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b131Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b131_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b132_at : NativeRustcArm.Sphincs.SphincsVerify.b132.IsInfixAt NativeRustcArm.Sphincs.code 2000 :=
+public theorem SphincsVerify.b132_at : NativeRustcArm.Sphincs.SphincsVerify.b132.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b132Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b132_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b133_at : NativeRustcArm.Sphincs.SphincsVerify.b133.IsInfixAt NativeRustcArm.Sphincs.code 2002 :=
+public theorem SphincsVerify.b133_at : NativeRustcArm.Sphincs.SphincsVerify.b133.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b133Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b133_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b134_at : NativeRustcArm.Sphincs.SphincsVerify.b134.IsInfixAt NativeRustcArm.Sphincs.code 2006 :=
+public theorem SphincsVerify.b134_at : NativeRustcArm.Sphincs.SphincsVerify.b134.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b134Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b134_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b135_at : NativeRustcArm.Sphincs.SphincsVerify.b135.IsInfixAt NativeRustcArm.Sphincs.code 2011 :=
+public theorem SphincsVerify.b135_at : NativeRustcArm.Sphincs.SphincsVerify.b135.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b135Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b135_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b136_at : NativeRustcArm.Sphincs.SphincsVerify.b136.IsInfixAt NativeRustcArm.Sphincs.code 2082 :=
+public theorem SphincsVerify.b136_at : NativeRustcArm.Sphincs.SphincsVerify.b136.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b136Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b136_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b137_at : NativeRustcArm.Sphincs.SphincsVerify.b137.IsInfixAt NativeRustcArm.Sphincs.code 2085 :=
+public theorem SphincsVerify.b137_at : NativeRustcArm.Sphincs.SphincsVerify.b137.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b137Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b137_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b138_at : NativeRustcArm.Sphincs.SphincsVerify.b138.IsInfixAt NativeRustcArm.Sphincs.code 2092 :=
+public theorem SphincsVerify.b138_at : NativeRustcArm.Sphincs.SphincsVerify.b138.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b138Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b138_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b139_at : NativeRustcArm.Sphincs.SphincsVerify.b139.IsInfixAt NativeRustcArm.Sphincs.code 2094 :=
+public theorem SphincsVerify.b139_at : NativeRustcArm.Sphincs.SphincsVerify.b139.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b139Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b139_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b140_at : NativeRustcArm.Sphincs.SphincsVerify.b140.IsInfixAt NativeRustcArm.Sphincs.code 2116 :=
+public theorem SphincsVerify.b140_at : NativeRustcArm.Sphincs.SphincsVerify.b140.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b140Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b140_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b141_at : NativeRustcArm.Sphincs.SphincsVerify.b141.IsInfixAt NativeRustcArm.Sphincs.code 2197 :=
+public theorem SphincsVerify.b141_at : NativeRustcArm.Sphincs.SphincsVerify.b141.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b141Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b141_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b142_at : NativeRustcArm.Sphincs.SphincsVerify.b142.IsInfixAt NativeRustcArm.Sphincs.code 2204 :=
+public theorem SphincsVerify.b142_at : NativeRustcArm.Sphincs.SphincsVerify.b142.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b142Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b142_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b143_at : NativeRustcArm.Sphincs.SphincsVerify.b143.IsInfixAt NativeRustcArm.Sphincs.code 2205 :=
+public theorem SphincsVerify.b143_at : NativeRustcArm.Sphincs.SphincsVerify.b143.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b143Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b143_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b144_at : NativeRustcArm.Sphincs.SphincsVerify.b144.IsInfixAt NativeRustcArm.Sphincs.code 2221 :=
+public theorem SphincsVerify.b144_at : NativeRustcArm.Sphincs.SphincsVerify.b144.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b144Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b144_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b145_at : NativeRustcArm.Sphincs.SphincsVerify.b145.IsInfixAt NativeRustcArm.Sphincs.code 2227 :=
+public theorem SphincsVerify.b145_at : NativeRustcArm.Sphincs.SphincsVerify.b145.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b145Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b145_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b146_at : NativeRustcArm.Sphincs.SphincsVerify.b146.IsInfixAt NativeRustcArm.Sphincs.code 2233 :=
+public theorem SphincsVerify.b146_at : NativeRustcArm.Sphincs.SphincsVerify.b146.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b146Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b146_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b147_at : NativeRustcArm.Sphincs.SphincsVerify.b147.IsInfixAt NativeRustcArm.Sphincs.code 2239 :=
+public theorem SphincsVerify.b147_at : NativeRustcArm.Sphincs.SphincsVerify.b147.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b147Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b147_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b148_at : NativeRustcArm.Sphincs.SphincsVerify.b148.IsInfixAt NativeRustcArm.Sphincs.code 2245 :=
+public theorem SphincsVerify.b148_at : NativeRustcArm.Sphincs.SphincsVerify.b148.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b148Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b148_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b149_at : NativeRustcArm.Sphincs.SphincsVerify.b149.IsInfixAt NativeRustcArm.Sphincs.code 2250 :=
+public theorem SphincsVerify.b149_at : NativeRustcArm.Sphincs.SphincsVerify.b149.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b149Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b149_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b150_at : NativeRustcArm.Sphincs.SphincsVerify.b150.IsInfixAt NativeRustcArm.Sphincs.code 2306 :=
+public theorem SphincsVerify.b150_at : NativeRustcArm.Sphincs.SphincsVerify.b150.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b150Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b150_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b151_at : NativeRustcArm.Sphincs.SphincsVerify.b151.IsInfixAt NativeRustcArm.Sphincs.code 2308 :=
+public theorem SphincsVerify.b151_at : NativeRustcArm.Sphincs.SphincsVerify.b151.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b151Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b151_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b152_at : NativeRustcArm.Sphincs.SphincsVerify.b152.IsInfixAt NativeRustcArm.Sphincs.code 2310 :=
+public theorem SphincsVerify.b152_at : NativeRustcArm.Sphincs.SphincsVerify.b152.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b152Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b152_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b153_at : NativeRustcArm.Sphincs.SphincsVerify.b153.IsInfixAt NativeRustcArm.Sphincs.code 2320 :=
+public theorem SphincsVerify.b153_at : NativeRustcArm.Sphincs.SphincsVerify.b153.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b153Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b153_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b154_at : NativeRustcArm.Sphincs.SphincsVerify.b154.IsInfixAt NativeRustcArm.Sphincs.code 2358 :=
+public theorem SphincsVerify.b154_at : NativeRustcArm.Sphincs.SphincsVerify.b154.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b154Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b154_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b155_at : NativeRustcArm.Sphincs.SphincsVerify.b155.IsInfixAt NativeRustcArm.Sphincs.code 2366 :=
+public theorem SphincsVerify.b155_at : NativeRustcArm.Sphincs.SphincsVerify.b155.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b155Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b155_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b156_at : NativeRustcArm.Sphincs.SphincsVerify.b156.IsInfixAt NativeRustcArm.Sphincs.code 2437 :=
+public theorem SphincsVerify.b156_at : NativeRustcArm.Sphincs.SphincsVerify.b156.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b156Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b156_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b157_at : NativeRustcArm.Sphincs.SphincsVerify.b157.IsInfixAt NativeRustcArm.Sphincs.code 2439 :=
+public theorem SphincsVerify.b157_at : NativeRustcArm.Sphincs.SphincsVerify.b157.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b157Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b157_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b158_at : NativeRustcArm.Sphincs.SphincsVerify.b158.IsInfixAt NativeRustcArm.Sphincs.code 2444 :=
+public theorem SphincsVerify.b158_at : NativeRustcArm.Sphincs.SphincsVerify.b158.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b158Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b158_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b159_at : NativeRustcArm.Sphincs.SphincsVerify.b159.IsInfixAt NativeRustcArm.Sphincs.code 2448 :=
+public theorem SphincsVerify.b159_at : NativeRustcArm.Sphincs.SphincsVerify.b159.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b159Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b159_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b160_at : NativeRustcArm.Sphincs.SphincsVerify.b160.IsInfixAt NativeRustcArm.Sphincs.code 2455 :=
+public theorem SphincsVerify.b160_at : NativeRustcArm.Sphincs.SphincsVerify.b160.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b160Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b160_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b161_at : NativeRustcArm.Sphincs.SphincsVerify.b161.IsInfixAt NativeRustcArm.Sphincs.code 2457 :=
+public theorem SphincsVerify.b161_at : NativeRustcArm.Sphincs.SphincsVerify.b161.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b161Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b161_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b162_at : NativeRustcArm.Sphincs.SphincsVerify.b162.IsInfixAt NativeRustcArm.Sphincs.code 2461 :=
+public theorem SphincsVerify.b162_at : NativeRustcArm.Sphincs.SphincsVerify.b162.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b162Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b162_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b163_at : NativeRustcArm.Sphincs.SphincsVerify.b163.IsInfixAt NativeRustcArm.Sphincs.code 2466 :=
+public theorem SphincsVerify.b163_at : NativeRustcArm.Sphincs.SphincsVerify.b163.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b163Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b163_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b164_at : NativeRustcArm.Sphincs.SphincsVerify.b164.IsInfixAt NativeRustcArm.Sphincs.code 2537 :=
+public theorem SphincsVerify.b164_at : NativeRustcArm.Sphincs.SphincsVerify.b164.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b164Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b164_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b165_at : NativeRustcArm.Sphincs.SphincsVerify.b165.IsInfixAt NativeRustcArm.Sphincs.code 2540 :=
+public theorem SphincsVerify.b165_at : NativeRustcArm.Sphincs.SphincsVerify.b165.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b165Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b165_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b166_at : NativeRustcArm.Sphincs.SphincsVerify.b166.IsInfixAt NativeRustcArm.Sphincs.code 2547 :=
+public theorem SphincsVerify.b166_at : NativeRustcArm.Sphincs.SphincsVerify.b166.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b166Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b166_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b167_at : NativeRustcArm.Sphincs.SphincsVerify.b167.IsInfixAt NativeRustcArm.Sphincs.code 2552 :=
+public theorem SphincsVerify.b167_at : NativeRustcArm.Sphincs.SphincsVerify.b167.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b167Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b167_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b168_at : NativeRustcArm.Sphincs.SphincsVerify.b168.IsInfixAt NativeRustcArm.Sphincs.code 2556 :=
+public theorem SphincsVerify.b168_at : NativeRustcArm.Sphincs.SphincsVerify.b168.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b168Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b168_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b169_at : NativeRustcArm.Sphincs.SphincsVerify.b169.IsInfixAt NativeRustcArm.Sphincs.code 2563 :=
+public theorem SphincsVerify.b169_at : NativeRustcArm.Sphincs.SphincsVerify.b169.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b169Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b169_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b170_at : NativeRustcArm.Sphincs.SphincsVerify.b170.IsInfixAt NativeRustcArm.Sphincs.code 2565 :=
+public theorem SphincsVerify.b170_at : NativeRustcArm.Sphincs.SphincsVerify.b170.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b170Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b170_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b171_at : NativeRustcArm.Sphincs.SphincsVerify.b171.IsInfixAt NativeRustcArm.Sphincs.code 2569 :=
+public theorem SphincsVerify.b171_at : NativeRustcArm.Sphincs.SphincsVerify.b171.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b171Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b171_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b172_at : NativeRustcArm.Sphincs.SphincsVerify.b172.IsInfixAt NativeRustcArm.Sphincs.code 2574 :=
+public theorem SphincsVerify.b172_at : NativeRustcArm.Sphincs.SphincsVerify.b172.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b172Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b172_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b173_at : NativeRustcArm.Sphincs.SphincsVerify.b173.IsInfixAt NativeRustcArm.Sphincs.code 2645 :=
+public theorem SphincsVerify.b173_at : NativeRustcArm.Sphincs.SphincsVerify.b173.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b173Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b173_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b174_at : NativeRustcArm.Sphincs.SphincsVerify.b174.IsInfixAt NativeRustcArm.Sphincs.code 2648 :=
+public theorem SphincsVerify.b174_at : NativeRustcArm.Sphincs.SphincsVerify.b174.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b174Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b174_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b175_at : NativeRustcArm.Sphincs.SphincsVerify.b175.IsInfixAt NativeRustcArm.Sphincs.code 2655 :=
+public theorem SphincsVerify.b175_at : NativeRustcArm.Sphincs.SphincsVerify.b175.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b175Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b175_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b176_at : NativeRustcArm.Sphincs.SphincsVerify.b176.IsInfixAt NativeRustcArm.Sphincs.code 2657 :=
+public theorem SphincsVerify.b176_at : NativeRustcArm.Sphincs.SphincsVerify.b176.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b176Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b176_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b177_at : NativeRustcArm.Sphincs.SphincsVerify.b177.IsInfixAt NativeRustcArm.Sphincs.code 2679 :=
+public theorem SphincsVerify.b177_at : NativeRustcArm.Sphincs.SphincsVerify.b177.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b177Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b177_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b178_at : NativeRustcArm.Sphincs.SphincsVerify.b178.IsInfixAt NativeRustcArm.Sphincs.code 2760 :=
+public theorem SphincsVerify.b178_at : NativeRustcArm.Sphincs.SphincsVerify.b178.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b178Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b178_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b179_at : NativeRustcArm.Sphincs.SphincsVerify.b179.IsInfixAt NativeRustcArm.Sphincs.code 2769 :=
+public theorem SphincsVerify.b179_at : NativeRustcArm.Sphincs.SphincsVerify.b179.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b179Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b179_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b180_at : NativeRustcArm.Sphincs.SphincsVerify.b180.IsInfixAt NativeRustcArm.Sphincs.code 2774 :=
+public theorem SphincsVerify.b180_at : NativeRustcArm.Sphincs.SphincsVerify.b180.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b180Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b180_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b181_at : NativeRustcArm.Sphincs.SphincsVerify.b181.IsInfixAt NativeRustcArm.Sphincs.code 2777 :=
+public theorem SphincsVerify.b181_at : NativeRustcArm.Sphincs.SphincsVerify.b181.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b181Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b181_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b182_at : NativeRustcArm.Sphincs.SphincsVerify.b182.IsInfixAt NativeRustcArm.Sphincs.code 2795 :=
+public theorem SphincsVerify.b182_at : NativeRustcArm.Sphincs.SphincsVerify.b182.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b182Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b182_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b183_at : NativeRustcArm.Sphincs.SphincsVerify.b183.IsInfixAt NativeRustcArm.Sphincs.code 2803 :=
+public theorem SphincsVerify.b183_at : NativeRustcArm.Sphincs.SphincsVerify.b183.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b183Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b183_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b184_at : NativeRustcArm.Sphincs.SphincsVerify.b184.IsInfixAt NativeRustcArm.Sphincs.code 2808 :=
+public theorem SphincsVerify.b184_at : NativeRustcArm.Sphincs.SphincsVerify.b184.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b184Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b184_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b185_at : NativeRustcArm.Sphincs.SphincsVerify.b185.IsInfixAt NativeRustcArm.Sphincs.code 2814 :=
+public theorem SphincsVerify.b185_at : NativeRustcArm.Sphincs.SphincsVerify.b185.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b185Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b185_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b186_at : NativeRustcArm.Sphincs.SphincsVerify.b186.IsInfixAt NativeRustcArm.Sphincs.code 2821 :=
+public theorem SphincsVerify.b186_at : NativeRustcArm.Sphincs.SphincsVerify.b186.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b186Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b186_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b187_at : NativeRustcArm.Sphincs.SphincsVerify.b187.IsInfixAt NativeRustcArm.Sphincs.code 2827 :=
+public theorem SphincsVerify.b187_at : NativeRustcArm.Sphincs.SphincsVerify.b187.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b187Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b187_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b188_at : NativeRustcArm.Sphincs.SphincsVerify.b188.IsInfixAt NativeRustcArm.Sphincs.code 2829 :=
+public theorem SphincsVerify.b188_at : NativeRustcArm.Sphincs.SphincsVerify.b188.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b188Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b188_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b189_at : NativeRustcArm.Sphincs.SphincsVerify.b189.IsInfixAt NativeRustcArm.Sphincs.code 2839 :=
+public theorem SphincsVerify.b189_at : NativeRustcArm.Sphincs.SphincsVerify.b189.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b189Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b189_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b190_at : NativeRustcArm.Sphincs.SphincsVerify.b190.IsInfixAt NativeRustcArm.Sphincs.code 2846 :=
+public theorem SphincsVerify.b190_at : NativeRustcArm.Sphincs.SphincsVerify.b190.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b190Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b190_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b191_at : NativeRustcArm.Sphincs.SphincsVerify.b191.IsInfixAt NativeRustcArm.Sphincs.code 2852 :=
+public theorem SphincsVerify.b191_at : NativeRustcArm.Sphincs.SphincsVerify.b191.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b191Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b191_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem SphincsVerify.b192_at : NativeRustcArm.Sphincs.SphincsVerify.b192.IsInfixAt NativeRustcArm.Sphincs.code 2859 :=
+public theorem SphincsVerify.b192_at : NativeRustcArm.Sphincs.SphincsVerify.b192.IsInfixAt NativeRustcArm.Sphincs.code (SphincsVerify.programOffset + NativeRustcArm.Sphincs.SphincsVerify.b192Offset) :=
   NativeRustcArm.Sphincs.SphincsVerify.b192_in_code.trans SphincsVerify.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakF.code_at : NativeRustcArm.Common.KeccakF.code.IsInfixAt NativeRustcArm.Sphincs.code 2864 :=
+@[expose] public def KeccakF.programOffset : Nat := 2864
+
+public theorem KeccakF.code_at : NativeRustcArm.Common.KeccakF.code.IsInfixAt NativeRustcArm.Sphincs.code KeccakF.programOffset :=
   List.isInfixAt_flatten_of (i := 3) rfl (by decide +kernel)
 
-public theorem KeccakF.b0_at : NativeRustcArm.Common.KeccakF.b0.IsInfixAt NativeRustcArm.Sphincs.code 2864 :=
+public theorem KeccakF.b0_at : NativeRustcArm.Common.KeccakF.b0.IsInfixAt NativeRustcArm.Sphincs.code (KeccakF.programOffset + NativeRustcArm.Common.KeccakF.b0Offset) :=
   NativeRustcArm.Common.KeccakF.b0_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakF.b1_at : NativeRustcArm.Common.KeccakF.b1.IsInfixAt NativeRustcArm.Sphincs.code 2913 :=
+public theorem KeccakF.b1_at : NativeRustcArm.Common.KeccakF.b1.IsInfixAt NativeRustcArm.Sphincs.code (KeccakF.programOffset + NativeRustcArm.Common.KeccakF.b1Offset) :=
   NativeRustcArm.Common.KeccakF.b1_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-public theorem KeccakF.b2_at : NativeRustcArm.Common.KeccakF.b2.IsInfixAt NativeRustcArm.Sphincs.code 3067 :=
+public theorem KeccakF.b2_at : NativeRustcArm.Common.KeccakF.b2.IsInfixAt NativeRustcArm.Sphincs.code (KeccakF.programOffset + NativeRustcArm.Common.KeccakF.b2Offset) :=
   NativeRustcArm.Common.KeccakF.b2_in_code.trans KeccakF.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.code_at : NativeRustcArm.Common.Update.code.IsInfixAt NativeRustcArm.Sphincs.code 3094 :=
+@[expose] public def Update.programOffset : Nat := 3094
+
+public theorem Update.code_at : NativeRustcArm.Common.Update.code.IsInfixAt NativeRustcArm.Sphincs.code Update.programOffset :=
   List.isInfixAt_flatten_of (i := 4) rfl (by decide +kernel)
 
-public theorem Update.b0_at : NativeRustcArm.Common.Update.b0.IsInfixAt NativeRustcArm.Sphincs.code 3094 :=
+public theorem Update.b0_at : NativeRustcArm.Common.Update.b0.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b0Offset) :=
   NativeRustcArm.Common.Update.b0_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b1_at : NativeRustcArm.Common.Update.b1.IsInfixAt NativeRustcArm.Sphincs.code 3107 :=
+public theorem Update.b1_at : NativeRustcArm.Common.Update.b1.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b1Offset) :=
   NativeRustcArm.Common.Update.b1_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b2_at : NativeRustcArm.Common.Update.b2.IsInfixAt NativeRustcArm.Sphincs.code 3111 :=
+public theorem Update.b2_at : NativeRustcArm.Common.Update.b2.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b2Offset) :=
   NativeRustcArm.Common.Update.b2_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b3_at : NativeRustcArm.Common.Update.b3.IsInfixAt NativeRustcArm.Sphincs.code 3118 :=
+public theorem Update.b3_at : NativeRustcArm.Common.Update.b3.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b3Offset) :=
   NativeRustcArm.Common.Update.b3_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b4_at : NativeRustcArm.Common.Update.b4.IsInfixAt NativeRustcArm.Sphincs.code 3120 :=
+public theorem Update.b4_at : NativeRustcArm.Common.Update.b4.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b4Offset) :=
   NativeRustcArm.Common.Update.b4_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b5_at : NativeRustcArm.Common.Update.b5.IsInfixAt NativeRustcArm.Sphincs.code 3124 :=
+public theorem Update.b5_at : NativeRustcArm.Common.Update.b5.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b5Offset) :=
   NativeRustcArm.Common.Update.b5_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b6_at : NativeRustcArm.Common.Update.b6.IsInfixAt NativeRustcArm.Sphincs.code 3129 :=
+public theorem Update.b6_at : NativeRustcArm.Common.Update.b6.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b6Offset) :=
   NativeRustcArm.Common.Update.b6_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b7_at : NativeRustcArm.Common.Update.b7.IsInfixAt NativeRustcArm.Sphincs.code 3175 :=
+public theorem Update.b7_at : NativeRustcArm.Common.Update.b7.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b7Offset) :=
   NativeRustcArm.Common.Update.b7_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b8_at : NativeRustcArm.Common.Update.b8.IsInfixAt NativeRustcArm.Sphincs.code 3178 :=
+public theorem Update.b8_at : NativeRustcArm.Common.Update.b8.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b8Offset) :=
   NativeRustcArm.Common.Update.b8_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Update.b9_at : NativeRustcArm.Common.Update.b9.IsInfixAt NativeRustcArm.Sphincs.code 3185 :=
+public theorem Update.b9_at : NativeRustcArm.Common.Update.b9.IsInfixAt NativeRustcArm.Sphincs.code (Update.programOffset + NativeRustcArm.Common.Update.b9Offset) :=
   NativeRustcArm.Common.Update.b9_in_code.trans Update.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.code_at : NativeRustcArm.Common.Finalize.code.IsInfixAt NativeRustcArm.Sphincs.code 3190 :=
+@[expose] public def Finalize.programOffset : Nat := 3190
+
+public theorem Finalize.code_at : NativeRustcArm.Common.Finalize.code.IsInfixAt NativeRustcArm.Sphincs.code Finalize.programOffset :=
   List.isInfixAt_flatten_of (i := 5) rfl (by decide +kernel)
 
-public theorem Finalize.b0_at : NativeRustcArm.Common.Finalize.b0.IsInfixAt NativeRustcArm.Sphincs.code 3190 :=
+public theorem Finalize.b0_at : NativeRustcArm.Common.Finalize.b0.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b0Offset) :=
   NativeRustcArm.Common.Finalize.b0_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.b1_at : NativeRustcArm.Common.Finalize.b1.IsInfixAt NativeRustcArm.Sphincs.code 3201 :=
+public theorem Finalize.b1_at : NativeRustcArm.Common.Finalize.b1.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b1Offset) :=
   NativeRustcArm.Common.Finalize.b1_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.b2_at : NativeRustcArm.Common.Finalize.b2.IsInfixAt NativeRustcArm.Sphincs.code 3204 :=
+public theorem Finalize.b2_at : NativeRustcArm.Common.Finalize.b2.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b2Offset) :=
   NativeRustcArm.Common.Finalize.b2_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.b3_at : NativeRustcArm.Common.Finalize.b3.IsInfixAt NativeRustcArm.Sphincs.code 3206 :=
+public theorem Finalize.b3_at : NativeRustcArm.Common.Finalize.b3.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b3Offset) :=
   NativeRustcArm.Common.Finalize.b3_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.b4_at : NativeRustcArm.Common.Finalize.b4.IsInfixAt NativeRustcArm.Sphincs.code 3220 :=
+public theorem Finalize.b4_at : NativeRustcArm.Common.Finalize.b4.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b4Offset) :=
   NativeRustcArm.Common.Finalize.b4_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.b5_at : NativeRustcArm.Common.Finalize.b5.IsInfixAt NativeRustcArm.Sphincs.code 3272 :=
+public theorem Finalize.b5_at : NativeRustcArm.Common.Finalize.b5.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b5Offset) :=
   NativeRustcArm.Common.Finalize.b5_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.b6_at : NativeRustcArm.Common.Finalize.b6.IsInfixAt NativeRustcArm.Sphincs.code 3281 :=
+public theorem Finalize.b6_at : NativeRustcArm.Common.Finalize.b6.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b6Offset) :=
   NativeRustcArm.Common.Finalize.b6_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem Finalize.b7_at : NativeRustcArm.Common.Finalize.b7.IsInfixAt NativeRustcArm.Sphincs.code 3288 :=
+public theorem Finalize.b7_at : NativeRustcArm.Common.Finalize.b7.IsInfixAt NativeRustcArm.Sphincs.code (Finalize.programOffset + NativeRustcArm.Common.Finalize.b7Offset) :=
   NativeRustcArm.Common.Finalize.b7_in_code.trans Finalize.code_at (List.cons_ne_nil _ _)
 
-public theorem traps_at : NativeRustcArm.Sphincs.traps.IsInfixAt NativeRustcArm.Sphincs.code 3295 :=
+@[expose] public def trapsOffset : Nat := 3295
+
+@[expose] public def rodataOffset : Nat := 3299
+
+@[expose] public def programLength : Nat := 3321
+
+public theorem traps_at : NativeRustcArm.Sphincs.traps.IsInfixAt NativeRustcArm.Sphincs.code trapsOffset :=
   List.isInfixAt_flatten_of (i := 6) rfl (by decide +kernel)
 
-public theorem rodata_at : NativeRustcArm.Sphincs.rodata.IsInfixAt NativeRustcArm.Sphincs.code 3299 :=
+public theorem rodata_at : NativeRustcArm.Sphincs.rodata.IsInfixAt NativeRustcArm.Sphincs.code rodataOffset :=
   List.isInfixAt_flatten_of (i := 7) rfl (by decide +kernel)
 
-public theorem code_length : NativeRustcArm.Sphincs.code.length = 3321 := by decide +kernel
+public theorem code_length : NativeRustcArm.Sphincs.code.length = programLength := by decide +kernel
 
 end NativeRustcArm.Sphincs

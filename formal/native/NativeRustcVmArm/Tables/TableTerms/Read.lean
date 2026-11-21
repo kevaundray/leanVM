@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.Tables.TableTerms.Iter
 public import NativeRustcVmArm.Tables.TableTerms.Exit
 
@@ -45,15 +46,15 @@ theorem R_none (hh : heights.size = 6) (hf : forms.size = 6) {i : Nat} (hi : i <
 /-- **Table `i`'s evaluations.** -/
 theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {i : Nat} (hi : i < 6) {c : Nat} {f : EW} {o : Array (Array EW × Array EW)} {si : TState}
     {m : MachineData} (H : Head a s heights forms m0 i (c, f, o) si m)
     (cont : ∀ xs s' m', (readScalars (tb i).width).run si = some (xs, s') →
       It a m0 i o xs s' m' → FW m0 m' (lws m0 i) →
       rg m' .X19 = T + BitVec.ofNat 64 (8 + 40 * i) → m'.regs.X22 = f.c0 →
       m'.regs.X23 = f.c1 → (m'.regs.X28).toNat = (tb i).width →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m', Host.addrOf (k + 33)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 23)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b4Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b1Offset)⟩ := by
   have hS := Pre.stack h
   have hN := spN h
   have c0 := ctx h
@@ -100,7 +101,7 @@ theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     rw [k1r .X27 (by simp)]
     exact H.x27.trans (BitVec.add_zero _).symm
   have hm2 : Match (E1 m0 st1.data (evi m0 i) 1968) evS st1.data := match1 hS hfr1.sp hx27
-  refine Bus.Gkr.at_pc (hpc1.trans (addr_eq (by rw [len_b1])))
+  refine Bus.Gkr.at_pc (hpc1.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b1_next])))
     (exec_then (hb2 hp) run_b2 hwf2 hm2 fun st2 hm2a hpc2 ↦ ?_)
   have hm2' : Match (E1 m0 st1.data (evi m0 i) 1968) (after b2 evS) st2.data := by
     rw [Bus.after_eq run_b2]; exact hm2a
@@ -155,8 +156,8 @@ theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
         (NativeRustcVm.InRange.of_sub hq (evi_noWrap h hi) hsub))))
     · exact .inr (.inr (.inl hq))
     · exact .inl hq
-  have hpc2' : st2.pc = Labels.label readScalarsLabel ∧ retOf st2.data = Host.addrOf (k + 32) :=
-    ⟨hpc2.1, hpc2.2.trans (addr_eq (by rw [len_b2]))⟩
+  have hpc2' : st2.pc = Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel ∧ retOf st2.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b3Offset) :=
+    ⟨hpc2.1, hpc2.2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b2_next]))⟩
   refine Bus.Gkr.Fr.callSpec hfr2 hN hle (fun _ h ↦ nomatch h) slots_le (outs_frame h) (hrs a si)
     hpc2' hpre hQ fun m3 hfr3 hq3 hcs3 ↦ ?_
   have hs3 := (hQ m3 hq3).1
@@ -241,7 +242,7 @@ theorem read_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
       rw [H.x21, NativeRustcVm.addr_add_add, show 8 + 40 * i + 40 = 8 + 40 * (i + 1) by ring]
     have G : ∀ {r : XReg}, r ∈ [XReg.X19, .X20, .X22, .X23, .X26, .X27, .X29] →
         rg st4.data r = rg m r := fun hr ↦ by unfold rg; rw [g _ hr]
-    refine Bus.Gkr.at_pc (hpc4.trans (addr_eq (by rw [len_b3])))
+    refine Bus.Gkr.at_pc (hpc4.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b3_next])))
       (cont xs s' st4.data hr ?_ (fun p hp ↦ fw4 p (List.mem_append_right _ hp))
         ((G (by simp)).trans H.x19) ((g .X22 (by simp)).trans H.x22)
         ((g .X23 (by simp)).trans H.x23) ?_)

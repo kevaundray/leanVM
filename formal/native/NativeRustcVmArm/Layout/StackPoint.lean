@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SelectorPoint.Names
+public import NativeRustcVmArm.Code.Vm.StackPoint.Names
 public import NativeRustcVmArm.Layout.StackPoint.Exec
 public import NativeRustcVmArm.Layout.Body
 
@@ -104,20 +106,20 @@ theorem or8 (x : BitVec 64) (h : x.toNat < 2 ^ 59) :
 
 variable [Host] {k : Nat}
 
-theorem lbl_entry (hp : Placed code k) : Labels.label stackPointLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LStackPoint_4" = Host.addrOf (k + 16) :=
-  hp.label (j := 16) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LStackPoint_5" = Host.addrOf (k + 21) :=
-  hp.label (j := 21) rfl
-theorem lbl_7 (hp : Placed code k) : Labels.label ".LStackPoint_7" = Host.addrOf (k + 30) :=
-  hp.label (j := 30) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LStackPoint_8" = Host.addrOf (k + 36) :=
-  hp.label (j := 36) rfl
-theorem lbl_9 (hp : Placed code k) : Labels.label ".LStackPoint_9" = Host.addrOf (k + 43) :=
-  hp.label (j := 43) rfl
-theorem lbl_10 (hp : Placed code k) : Labels.label ".LStackPoint_10" = Host.addrOf (k + 50) :=
-  hp.label (j := 50) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackPoint.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackPoint.entryOffset) NativeRustcVmArm.Vm.StackPoint.entry_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackPoint.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b4Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackPoint.b4Offset) NativeRustcVmArm.Vm.StackPoint.label_4_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackPoint.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b5Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackPoint.b5Offset) NativeRustcVmArm.Vm.StackPoint.label_5_at
+theorem lbl_7 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackPoint.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b7Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackPoint.b7Offset) NativeRustcVmArm.Vm.StackPoint.label_7_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackPoint.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b8Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackPoint.b8Offset) NativeRustcVmArm.Vm.StackPoint.label_8_at
+theorem lbl_9 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackPoint.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b9Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackPoint.b9Offset) NativeRustcVmArm.Vm.StackPoint.label_9_at
+theorem lbl_10 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.StackPoint.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b11Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.StackPoint.b11Offset) NativeRustcVmArm.Vm.StackPoint.label_10_at
 
 /-- `stack_point`'s postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
@@ -130,7 +132,7 @@ abbrev res (m : MachineData) : List EW :=
 
 /-- **The epilogue** `b11`: `X8`, `X19` returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 50))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b11Offset))
     (hb : Body m0 16 S slots (out m0) outB st.data)
     (hok : nn m0 ≤ 66 → st.data.regs.X8 = 1 ∧ st.data.regs.X19.toNat = nn m0 ∧
       EWsAt st.data.dmem (out m0) (res m0))
@@ -166,11 +168,11 @@ theorem ofInt_pos (n : Nat) : BitVec.ofInt 64 (n : Int) = BitVec.ofNat 64 n := b
 
 /-- **A turn of the pair loop** `b5`: `point[i]`, `point[i + 1]` copied. -/
 theorem stepA (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 21))
+    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b5Offset))
     (hI : InvA m0 i st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 28) ∧ Copy m0 (E m0) s.data ∧
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b6Offset) ∧ Copy m0 (E m0) s.data ∧
         s.data.regs.X9 = m0.regs.X2 ∧ s.data.regs.X10.toNat = E m0) ∨
-      (s.pc = Host.addrOf (k + 21) ∧ InvA m0 (i + 2) s.data)) st := by
+      (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b5Offset) ∧ InvA m0 (i + 2) s.data)) st := by
   have hlt := hI.lt
   have hE : E m0 ≤ len m0 := Nat.div_mul_le_self _ _
   have hfit' : len m0 + tl m0 ≤ 66 := hfit
@@ -224,7 +226,7 @@ theorem stepA (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
       exact hI.copy.x8, by omega, hcp⟩
   have h9 : st'.data.regs.X9 = st.data.regs.X9 := Match.reg_eq hm hm' (r := .X9) rfl rfl
   have h10 : st'.data.regs.X10 = st.data.regs.X10 := Match.reg_eq hm hm' (r := .X10) rfl rfl
-  simp only [PcOk, show b5.length = 7 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b5_length, NativeRustcVmArm.Vm.StackPoint.b5Length] at hpc'
   sym_simp at hpc'
   obtain ⟨hy, hn⟩ := pc_cond hpc'
   have h13 : (st.data.regs.getXReg .X13).toBitVec.toNat = E m0 - i := hI.x13
@@ -259,14 +261,14 @@ theorem stepA (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
 
 /-- At `b9`: the point copied. -/
 abbrev At9 (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 43) ∧ Copy m0 (len m0) s.data
+  s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b9Offset) ∧ Copy m0 (len m0) s.data
 
 /-- **A turn of the single loop** `b8`: `point[i]` copied. -/
 theorem stepB (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 36))
+    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b8Offset))
     (hI : InvB m0 i st.data) :
     Eventually (step1 Host.exe) (fun s ↦ At9 k m0 s ∨
-      (s.pc = Host.addrOf (k + 36) ∧ InvB m0 (i + 1) s.data)) st := by
+      (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b8Offset) ∧ InvB m0 (i + 1) s.data)) st := by
   have hlt := hI.lt
   have hfit' : len m0 + tl m0 ≤ 66 := hfit
   have hl3 : m0.regs.X3.toNat = len m0 := rfl
@@ -311,7 +313,7 @@ theorem stepB (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
     ⟨bd, hI.copy.regs.of he, by
       rw [show st'.data.regs.X8 = st.data.regs.X8 from Match.reg_eq hm hm' (r := .X8) rfl rfl]
       exact hI.copy.x8, by omega, hcp⟩
-  simp only [PcOk, show b8.length = 7 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b8_length, NativeRustcVmArm.Vm.StackPoint.b8Length] at hpc'
   sym_simp at hpc'
   obtain ⟨hy, hn⟩ := pc_cond hpc'
   have h10 : (st.data.regs.getXReg .X10).toBitVec.toNat = len m0 - i := hI.x10
@@ -343,9 +345,9 @@ theorem stepB (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
 
 /-- **The single loop** from its head to `b9`. -/
 theorem loopB (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 36))
+    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b8Offset))
     (hI : InvB m0 i st.data) : Eventually (step1 Host.exe) (At9 k m0) st := by
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 36) ∧ ∃ i, len m0 - i = n ∧ InvB m0 i s.data)
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b8Offset) ∧ ∃ i, len m0 - i = n ∧ InvB m0 i s.data)
     (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc, i, rfl, hI⟩
   refine Eventually.mono (stepB hp hpre hfit hpc hI) fun s' h ↦ ?_
   rcases h with h | ⟨hpc', hI'⟩
@@ -354,14 +356,14 @@ theorem loopB (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
 
 /-- **`b7`**: from `i` elements copied, the single loop's head. -/
 theorem from7 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 30))
+    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b7Offset))
     (hc : Copy m0 i st.data) (hlt : i < len m0) (h9 : st.data.regs.X9 = m0.regs.X2)
     (h10 : st.data.regs.X10.toNat = i) : Eventually (step1 Host.exe) (At9 k m0) st := by
   have h64 : len m0 < 64 := hpre.2.2.2.2.2
   have hl3 : m0.regs.X3.toNat = len m0 := rfl
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) run_b7 (Env.wf_nil _) hpc (match_nil _)
     fun st' hm' hpc' ↦ ?_
-  simp only [PcOk, show b7.length = 6 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b7_length, NativeRustcVmArm.Vm.StackPoint.b7Length] at hpc'
   have he := regs_eq_of (match_nil _) hm' regsList rfl
   have hor : (BitVec.ofNat 64 8 ||| (st.data.regs.getXReg .X10).toBitVec <<< 4) =
       BitVec.ofNat 64 (16 * i + 8) := by
@@ -396,11 +398,11 @@ theorem from7 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
 
 /-- **The pair loop** from its head to its exit. -/
 theorem loopA (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 21))
+    (hfit : nn m0 ≤ 66) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b5Offset))
     (hI : InvA m0 i st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 28) ∧ Copy m0 (E m0) s.data ∧
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b6Offset) ∧ Copy m0 (E m0) s.data ∧
         s.data.regs.X9 = m0.regs.X2 ∧ s.data.regs.X10.toNat = E m0) st := by
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 21) ∧ ∃ i, E m0 - i = n ∧ InvA m0 i s.data)
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b5Offset) ∧ ∃ i, E m0 - i = n ∧ InvA m0 i s.data)
     (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc, i, rfl, hI⟩
   refine Eventually.mono (stepA hp hpre hfit hpc hI) fun s' h ↦ ?_
   rcases h with h | ⟨hpc', hI'⟩
@@ -409,7 +411,7 @@ theorem loopA (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
 
 /-- **`b6`**: after the pairs, done or one more element. -/
 theorem from6 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 28))
+    (hfit : nn m0 ≤ 66) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b6Offset))
     (hc : Copy m0 (E m0) st.data) (h9 : st.data.regs.X9 = m0.regs.X2)
     (h10 : st.data.regs.X10.toNat = E m0) : Eventually (step1 Host.exe) (At9 k m0) st := by
   have hE : E m0 ≤ len m0 := Nat.div_mul_le_self _ _
@@ -420,7 +422,7 @@ theorem from6 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
     (after_eq run_b6 ▸ b6_keeps), hc.regs.of fun r hr ↦ he r (by simp [hr]), by
       rw [show st'.data.regs.X8 = st.data.regs.X8 from he .X8 (by simp)]; exact hc.x8, hc.le, by
       rw [Match.dmem_eq hm' (Env.wf_nil _) rfl]; exact hc.copied⟩
-  simp only [PcOk, show b6.length = 2 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b6_length, NativeRustcVmArm.Vm.StackPoint.b6Length] at hpc'
   sym_simp at hpc'
   obtain ⟨hy, hn⟩ := pc_cond hpc'
   have h3 : (st.data.regs.getXReg .X3).toBitVec.toNat = len m0 := by
@@ -440,13 +442,13 @@ theorem from6 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
 
 /-- **`b4`**: the pair loop's set-up. -/
 theorem from4 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 16))
+    (hfit : nn m0 ≤ 66) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b4Offset))
     (hc : Copy m0 0 st.data) (h9 : st.data.regs.X9 = m0.regs.X2) (h2 : 2 ≤ len m0) :
     Eventually (step1 Host.exe) (At9 k m0) st := by
   have h64 : len m0 < 64 := hpre.2.2.2.2.2
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 (Env.wf_nil _) hpc (match_nil _)
     fun st' hm' hpc' ↦ ?_
-  simp only [PcOk, show b4.length = 5 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b4_length, NativeRustcVmArm.Vm.StackPoint.b4Length] at hpc'
   have he := regs_eq_of (match_nil _) hm' (.X8 :: .X9 :: regsList) rfl
   have hand : (BinOp.apply .and .W64 (st.data.regs.getXReg .X3).toBitVec (BitVec.ofNat 64 62)).toNat
       = E m0 := by
@@ -483,7 +485,7 @@ theorem ewsAt_nil (d : Mem 64) (a : BitVec 64) : EWsAt d a [] := fun i h ↦ abs
 
 /-- **`b1`-`b3`**: from the prologue, the copy's set-up. -/
 theorem from1 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
-    (hfit : nn m0 ≤ 66) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 10))
+    (hfit : nn m0 ≤ 66) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.StackPoint.b1Offset))
     (hb : Body m0 16 S slots (out m0) outB st.data) (hR : Regs m0 st.data)
     (h9 : st.data.regs.X9 = m0.regs.X2) : Eventually (step1 Host.exe) (At9 k m0) st := by
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 (Env.wf_nil _) hpc (match_nil _)
@@ -502,7 +504,7 @@ theorem from1 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
     ewsAt_nil _ _⟩
   have h3 : (st.data.regs.getXReg .X3).toBitVec.toNat = len m0 := by
     show st.data.regs.X3.toNat = _; rw [hR.x3]
-  simp only [PcOk, show b1.length = 2 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b1_length, NativeRustcVmArm.Vm.StackPoint.b1Length] at hpc1
   sym_simp at hpc1
   obtain ⟨hy, hn⟩ := pc_cond hpc1
   have h91 : st1.data.regs.X9 = m0.regs.X2 := (he1 .X9 (by simp)).trans h9
@@ -520,7 +522,7 @@ theorem from1 (hp : Placed code k) {m0 : MachineData} (hpre : StackPointPre m0)
     have h92 : st2.data.regs.X9 = m0.regs.X2 := (he2 .X9 (by simp)).trans h91
     have h31 : (st1.data.regs.getXReg .X3).toBitVec.toNat = len m0 := by
       show st1.data.regs.X3.toNat = _; rw [hc1.regs.x3]
-    simp only [PcOk, show b2.length = 2 from rfl] at hpc2'
+    simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b2_length, NativeRustcVmArm.Vm.StackPoint.b2Length] at hpc2'
     sym_simp at hpc2'
     obtain ⟨hy2, hn2⟩ := pc_cond hpc2'
     by_cases h1 : len m0 = 1
@@ -579,7 +581,7 @@ theorem not_inRange_of_apart' {a b p : BitVec 64} {n m : Nat} (h : Apart a n b m
 
 /-- **`b9`-`b11`**: the selector after the point, and the return. -/
 theorem from9 (hp : Placed code k)
-    (hsel : Spec (Labels.label selectorPointLabel) SelectorPointPre SelectorPointPost)
+    (hsel : Spec (Labels.label NativeRustcVmArm.Vm.SelectorPoint.entryLabel) SelectorPointPre SelectorPointPost)
     {m0 : MachineData} (hpre : StackPointPre m0) (hfit : nn m0 ≤ 66) {st : MachineState}
     (h9 : At9 k m0 st) : Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hpc, hc⟩ := h9
@@ -605,7 +607,7 @@ theorem from9 (hp : Placed code k)
     rw [show st.data.regs.getXReg .X1 = m0.regs.X1 from hc.regs.x1,
       show st.data.regs.getXReg .X0 = m0.regs.X0 from hc.regs.x0]
     rfl
-  simp only [show b9.length = 6 from rfl] at hpc9
+  simp only [NativeRustcVmArm.Vm.StackPoint.b9_length, NativeRustcVmArm.Vm.StackPoint.b9Length] at hpc9
   have hrd : Readable st9.data st9.data.regs.X1.toBitVec (16 * st9.data.regs.X2.toNat) := by
     rw [h1, h2]
     exact readable_sub hro bd9.kept (by show _ ≤ 16 * 66; omega)
@@ -645,7 +647,7 @@ theorem from9 (hp : Placed code k)
   rw [h1, h0, h2] at hsel'
   refine exec_at (infix_of b10_in_code (by simp [b10]) hp) run_b10 (Env.wf_nil _) hpc3
     (match_nil _) fun st10 hm10 hpc10 ↦ ?_
-  simp only [PcOk, show b10.length = 1 from rfl] at hpc10
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b10_length, NativeRustcVmArm.Vm.StackPoint.b10Length] at hpc10
   have hd10 : st10.data.dmem = st3.data.dmem := hm10.dmem_eq (Env.wf_nil _) rfl
   have h19 : st10.data.regs.X19 = st.data.regs.X19 :=
     (Match.reg_eq (match_nil _) hm10 (r := .X19) rfl rfl).trans ((hpost.2.2.1 .X19 rfl).trans
@@ -693,8 +695,8 @@ theorem cond_b0 (T x3 : BitVec 64) (t : Nat) (ht : T.toNat = t) :
 
 /-- **`stack_point` meets its contract.** -/
 theorem stackPoint_spec (hp : Placed code k)
-    (hsel : Spec (Labels.label selectorPointLabel) SelectorPointPre SelectorPointPost) :
-    Spec (Labels.label stackPointLabel) StackPointPre StackPointPost := by
+    (hsel : Spec (Labels.label NativeRustcVmArm.Vm.SelectorPoint.entryLabel) SelectorPointPre SelectorPointPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.StackPoint.entryLabel) StackPointPre StackPointPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hwf, hm⟩ := entry_match (F := 16) hpre.1 (by decide) rfl
@@ -702,7 +704,7 @@ theorem stackPoint_spec (hp : Placed code k)
   obtain ⟨hw, hmem, hregs⟩ := after_eq run_b0 ▸ b0_frame
   have hb : Body m0 16 S slots (out m0) outB st1.data :=
     Body.of_entry hpre.1 (by decide) hm1 rfl hw hregs hmem
-  simp only [PcOk, show b0.length = 10 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.StackPoint.b0_length, NativeRustcVmArm.Vm.StackPoint.b0Length] at hpc1
   sym_simp at hpc1
   obtain ⟨hy, hn⟩ := pc_cond hpc1
   have hT := tail_toNat ((Arrays.frameEnv m0 m0 16).regs .X0) ((Arrays.frameEnv m0 m0 16).regs .X4)

@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.LinearTranspose.OutStep
+public import NativeRustcVmX64.Code.Vm.KeccakPi.Names
+public import NativeRustcVmX64.Code.Vm.LinearTranspose.Names
 
 /-!
 # `linear_transpose` on x86-64
@@ -22,10 +24,10 @@ variable {ws : Array EW} {m0 : MachineData} [Host] {k : Nat}
 
 /-- **A lane's output**. -/
 theorem out_loop (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 170)) (hI : OutHead m0 ws l 0 st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 186) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b17Offset)) (hI : OutHead m0 ws l 0 st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b18Offset) ∧
       OutLane m0 ws l s'.data ∧ ElemsAt s'.data.dmem (oA m0) (oF ws) (64 * l + 64)) st :=
-  loop (fun n st ↦ ∃ z, n = 64 - z ∧ z < 64 ∧ st.pc = Host.addrOf (k + 170) ∧
+  loop (fun n st ↦ ∃ z, n = 64 - z ∧ z < 64 ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b17Offset) ∧
       OutHead m0 ws l z st.data)
     (fun _ st ⟨z, hn, hz, hpc, hI⟩ ↦ (out_step hp h hpc hI).mono fun s' h' ↦ by
       rcases h' with ⟨hlt, hpc', hI'⟩ | ⟨-, hpc', hE⟩
@@ -35,10 +37,10 @@ theorem out_loop (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineS
 
 /-- `b18`: the next lane, or the output complete. -/
 theorem out_lane_end (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 186)) (hI : OutLane m0 ws l st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b18Offset)) (hI : OutLane m0 ws l st.data)
     (ho : ElemsAt st.data.dmem (oA m0) (oF ws) (64 * l + 64)) :
-    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + 145) ∧
-      OutLane m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + 191) ∧ OCtx m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b16Offset) ∧
+      OutLane m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b19Offset) ∧ OCtx m0 s'.data ∧
       ElemsAt s'.data.dmem (oA m0) (oF ws) 1600)) st := by
   have hl := hI.regs.l_lt
   refine exec_at (infix_of b18_in_code (by simp [b18]) hp) exit_b18 (Env.wf_nil _) nofun hpc
@@ -53,7 +55,7 @@ theorem out_lane_end (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : Mach
   by_cases hlast : l + 1 = 25
   · rw [decide_eq_true hlast] at hpc'
     simp only [Bool.not_true, Bool.false_eq_true, ite_false] at hpc'
-    refine .done _ (Or.inr ⟨hpc'.trans (by rw [lengths.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2]), hc,
+    refine .done _ (Or.inr ⟨hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b18_next), hc,
       ?_⟩)
     rw [hd, show 1600 = 64 * l + 64 by omega]; exact ho
   · rw [decide_eq_false hlast] at hpc'
@@ -77,11 +79,11 @@ theorem out_lane_end (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : Mach
 
 /-- **The output**: from the columns complete to the epilogue. -/
 theorem output (hp : Placed code k) (h : PreOk m0 ws) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 137)) (hI : CDone m0 ws st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 191) ∧ OCtx m0 s'.data ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b15Offset)) (hI : CDone m0 ws st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b19Offset) ∧ OCtx m0 s'.data ∧
       ElemsAt s'.data.dmem (oA m0) (oF ws) 1600) st :=
   (out_start hp h hpc hI).bind fun s1 ⟨hpc1, hI1⟩ ↦
-    loop (fun n st ↦ ∃ l, n = 25 - l ∧ l < 25 ∧ st.pc = Host.addrOf (k + 145) ∧
+    loop (fun n st ↦ ∃ l, n = 25 - l ∧ l < 25 ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b16Offset) ∧
         OutLane m0 ws l st.data)
       (fun _ st ⟨l, hn, hl, hpc, hI⟩ ↦ (lane_cols hp h hpc hI).bind fun s2 ⟨hpc2, hI2⟩ ↦
         (out_loop hp h hpc2 hI2).bind fun s3 ⟨hpc3, hI3, ho3⟩ ↦
@@ -93,12 +95,12 @@ theorem output (hp : Placed code k) (h : PreOk m0 ws) {st : MachineState}
 
 /-- **`linear_transpose` meets its contract**, given `keccak_pi`'s. -/
 theorem linearTranspose_spec (hp : Placed code k)
-    (hpi : Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost) (ws : Array EW) :
-    Spec (Labels.label linearTransposeLabel) (LinearTransposePre ws) (LinearTransposePost ws) := by
+    (hpi : Spec (Labels.label NativeRustcVmX64.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost) (ws : Array EW) :
+    Spec (Labels.label NativeRustcVmX64.Vm.LinearTranspose.entryLabel) (LinearTransposePre ws) (LinearTransposePost ws) := by
   intro m0 hpre
   have h := preOk hpre
-  unfold linearTransposeLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.LinearTranspose.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.LinearTranspose.entry_at]
   refine (entry hp h).bind fun s1 ⟨hpc1, hI1⟩ ↦ ?_
   refine (lanes_loop hp h hpi hpc1 hI1).bind fun s2 ⟨hpc2, hI2⟩ ↦ ?_
   refine (columns hp h hpc2 hI2).bind fun s3 ⟨hpc3, hI3⟩ ↦ ?_

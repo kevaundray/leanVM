@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BuildLayout.Names
+public import NativeRustcVmArm.Code.Vm.ReadAnnouncedSizes.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.Layout.ReadAnnouncedSizes.Tail
 public import NativeRustcVmArm.Transcript.Callee
 
@@ -28,10 +31,10 @@ variable [Host] {k : Nat}
 
 /-- **`read_announced_sizes`' contract.** -/
 theorem readAnnouncedSizes_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hbl : ∀ bc, Spec (Labels.label buildLayoutLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hbl : ∀ bc, Spec (Labels.label NativeRustcVmArm.Vm.BuildLayout.entryLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
     (bc : Array UInt64) (a : DecArea) (s : TState) :
-    Spec (Labels.label readAnnouncedSizesLabel) (ReadAnnouncedSizesPre bc a s)
+    Spec (Labels.label NativeRustcVmArm.Vm.ReadAnnouncedSizes.entryLabel) (ReadAnnouncedSizesPre bc a s)
       (ReadAnnouncedSizesPost bc a s) := by
   intro m0 hpre
   obtain ⟨hst, hrc, -, hts0, htok, -⟩ := id hpre
@@ -110,7 +113,7 @@ theorem readAnnouncedSizes_spec (hp : Placed code k)
   obtain ⟨k1, m1, -⟩ := keeps_b1_b9
   rw [after_eq run_b1] at k1 m1
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2
-    (hpc2.trans (by rw [show b0.length = 17 from rfl])) hm2 fun st3 hm3 hpc3 ↦ ?_
+    (hpc2.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.ReadAnnouncedSizes.b0_next])) hm2 fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hfr3, hd3⟩ := fr_step hst hfr2 hm2 hm3 hwf2 k1 m1
   have he3 := Arrays.regs_eq_of hm2 hm3 _ (show ([XReg.X19, .X20].all fun r ↦
     (frS.reg r).isSome && (after b1 frS).reg r == frS.reg r) = true by
@@ -134,7 +137,7 @@ theorem readAnnouncedSizes_spec (hp : Placed code k)
   have hM : Mid m0 xs st2.data.dmem st3.data :=
     ⟨hfr3, hd3, ⟨(he3 .X19 (by simp)).trans h19, (he3 .X20 (by simp)).trans h20⟩, hx03,
       by rw [hd3]; exact hxs2 xs s1 hr, hsz⟩
-  exact checks hp hst hr (hpc3.trans (by rw [show b1.length = 3 from rfl]))
+  exact checks hp hst hr (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.ReadAnnouncedSizes.b1_next]))
     hM fun s' hpc' hM' hc ↦ from10 hp hbl hpre hr (hnext2 xs s1 hr) hpc' hM' hc
 
 end

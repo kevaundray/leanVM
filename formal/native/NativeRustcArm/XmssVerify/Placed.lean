@@ -8,8 +8,7 @@ public import NativeRustcArm.Code.Xmss.Offsets
 
 In `NativeRustcArm.Xmss.code`, each function sits where `Code/Xmss/Offsets.lean` says and each of
 its labels is the first of its name (`placed_of`: the labels checked by the kernel on the program,
-`labelsOk`): `memcpy` from directive 0, `memset` 24, `xmss_verify` 48, `keccak_f` 328,
-`Hasher::update` 558, `Hasher::finalize` 654, `from_bytes`'s closure 759, `wots_leaf` 972.
+`labelsOk`); their positions are generated scheme-qualified `programOffset` constants.
 -/
 
 namespace NativeRustcArm.Xmss.Placement
@@ -53,40 +52,40 @@ theorem placed_of [NativeArm.Host] (hP : NativeArm.Host.prog = Xmss.code) {F : L
 
 set_option Elab.async false
 
-theorem labelsOk_xmssVerify : labelsOk Xmss.code Xmss.XmssVerify.code 48 = true := by
+theorem labelsOk_xmssVerify : labelsOk Xmss.code Xmss.XmssVerify.code NativeRustcArm.Xmss.XmssVerify.programOffset = true := by
   decide +kernel
-theorem labelsOk_memcpy : labelsOk Xmss.code Common.Memcpy.code 0 = true := by decide +kernel
-theorem labelsOk_memset : labelsOk Xmss.code Common.Memset.code 24 = true := by decide +kernel
-theorem labelsOk_keccakF : labelsOk Xmss.code Common.KeccakF.code 328 = true := by
+theorem labelsOk_memcpy : labelsOk Xmss.code Common.Memcpy.code NativeRustcArm.Xmss.Memcpy.programOffset = true := by decide +kernel
+theorem labelsOk_memset : labelsOk Xmss.code Common.Memset.code NativeRustcArm.Xmss.Memset.programOffset = true := by decide +kernel
+theorem labelsOk_keccakF : labelsOk Xmss.code Common.KeccakF.code NativeRustcArm.Xmss.KeccakF.programOffset = true := by
   decide +kernel
-theorem labelsOk_update : labelsOk Xmss.code Common.Update.code 558 = true := by
+theorem labelsOk_update : labelsOk Xmss.code Common.Update.code NativeRustcArm.Xmss.Update.programOffset = true := by
   decide +kernel
-theorem labelsOk_finalize : labelsOk Xmss.code Common.Finalize.code 654 = true := by
+theorem labelsOk_finalize : labelsOk Xmss.code Common.Finalize.code NativeRustcArm.Xmss.Finalize.programOffset = true := by
   decide +kernel
-theorem labelsOk_fromBytes : labelsOk Xmss.code Xmss.FromBytes.code 759 = true := by
+theorem labelsOk_fromBytes : labelsOk Xmss.code Xmss.FromBytes.code NativeRustcArm.Xmss.FromBytes.programOffset = true := by
   decide +kernel
-theorem labelsOk_wotsLeaf : labelsOk Xmss.code Xmss.WotsLeaf.code 972 = true := by
+theorem labelsOk_wotsLeaf : labelsOk Xmss.code Xmss.WotsLeaf.code NativeRustcArm.Xmss.WotsLeaf.programOffset = true := by
   decide +kernel
 
 variable [NativeArm.Host] (hP : NativeArm.Host.prog = Xmss.code)
 include hP
 
-/-- **`xmss_verify` is placed** at directive 48 of its program. -/
-theorem placed : Placed Xmss.XmssVerify.code 48 :=
+/-- **`xmss_verify` is placed** at its generated program position. -/
+theorem placed : Placed Xmss.XmssVerify.code NativeRustcArm.Xmss.XmssVerify.programOffset :=
   placed_of hP XmssVerify.code_at labelsOk_xmssVerify
-theorem placed_memcpy : Placed Common.Memcpy.code 0 :=
+theorem placed_memcpy : Placed Common.Memcpy.code NativeRustcArm.Xmss.Memcpy.programOffset :=
   placed_of hP Memcpy.code_at labelsOk_memcpy
-theorem placed_memset : Placed Common.Memset.code 24 :=
+theorem placed_memset : Placed Common.Memset.code NativeRustcArm.Xmss.Memset.programOffset :=
   placed_of hP Memset.code_at labelsOk_memset
-theorem placed_keccakF : Placed Common.KeccakF.code 328 :=
+theorem placed_keccakF : Placed Common.KeccakF.code NativeRustcArm.Xmss.KeccakF.programOffset :=
   placed_of hP KeccakF.code_at labelsOk_keccakF
-theorem placed_update : Placed Common.Update.code 558 :=
+theorem placed_update : Placed Common.Update.code NativeRustcArm.Xmss.Update.programOffset :=
   placed_of hP Update.code_at labelsOk_update
-theorem placed_finalize : Placed Common.Finalize.code 654 :=
+theorem placed_finalize : Placed Common.Finalize.code NativeRustcArm.Xmss.Finalize.programOffset :=
   placed_of hP Finalize.code_at labelsOk_finalize
-theorem placed_fromBytes : Placed Xmss.FromBytes.code 759 :=
+theorem placed_fromBytes : Placed Xmss.FromBytes.code NativeRustcArm.Xmss.FromBytes.programOffset :=
   placed_of hP FromBytes.code_at labelsOk_fromBytes
-theorem placed_wotsLeaf : Placed Xmss.WotsLeaf.code 972 :=
+theorem placed_wotsLeaf : Placed Xmss.WotsLeaf.code NativeRustcArm.Xmss.WotsLeaf.programOffset :=
   placed_of hP WotsLeaf.code_at labelsOk_wotsLeaf
 
 end

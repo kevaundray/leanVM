@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
 public import NativeRustcVmArm.Bus.GkrStep.Prods
 
 /-!
@@ -74,7 +77,7 @@ theorem ult3 (x : UInt64) (h : x.toNat < 3) :
     · exact .inr (.inr (UInt64.toNat_inj.mp h))
   rcases this with rfl | rfl | rfl <;> rfl
 
-/-- **At `b23`** (`k + 227`): the coordinates `y` sampled into the frame at `1264`. -/
+/-- **At `b23`** (`k + NativeRustcVmArm.Vm.GkrStep.b23Offset`): the coordinates `y` sampled into the frame at `1264`. -/
 structure AtEval [Labels] (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData)
     (xs h0 h1 h2 y : Array EW) (s' : TState) (m : MachineData) : Prop where
   fr : Fr m0 1392 gkrStepStack slots keep (outs m0) m
@@ -97,15 +100,15 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData} 
 
 /-- **The second grind and the coordinates** (`b19` to `b22`). -/
 theorem coords_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
     {xs h0 h1 h2 : Array EW} {s3 : TState}
     (heval : ∀ y s' m, AtEval a s0 g0 m0 xs h0 h1 h2 y s' m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 227)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b23Offset)⟩)
     {m : MachineData} (hi : AtTail a s0 g0 m0 xs h0 h1 h2 s3 m) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 211)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b19Offset)⟩ := by
   have hS := pre_stack h
   have hN : gkrStepStack ≤ m0.regs.SP.toNat := hS.2.1
   have cx := ctx h
@@ -123,7 +126,7 @@ theorem coords_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       (m.regs.getXReg .X22).toBitVec) (BitVec.ofNat 64 1)).toNat ≤ 3
     rw [hi.x20, hi.x22]
     exact lsl_sub_le _ _ hstep (pre_last h)
-  simp only [PcOk, show b19.length = 3 from rfl, show k + 211 + 3 = k + 214 by omega] at hpc
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b19_length, NativeRustcVmArm.Vm.GkrStep.b19Length, show k + NativeRustcVmArm.Vm.GkrStep.b19Offset + 3 = k + NativeRustcVmArm.Vm.GkrStep.b20Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b19_length, NativeRustcVmArm.Vm.GkrStep.b19Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b19_next] at hpc
   refine leaf_call h le_bl hbl (fun _ _ hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1
       fun _ hq' ↦ .inr hq', hq.2.2⟩) hfr hpc trivial fun m2 hfr2 hq2 hcs2 hc2 hk2 ↦ ?_
   have hx2 : m2.regs.X0.toNat < 3 := by rw [hq2.1]; exact bitLength_lt _ hv
@@ -148,7 +151,7 @@ theorem coords_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     rfl
   have hts2 := ts_leaf h hfr le_bl hc2 hk2 (by rw [hd]; exact hi.ts)
   have hat3 := Fr.at_ cx hfr3 (outs_not_rc h)
-  simp only [PcOk, show b20.length = 4 from rfl, show k + 214 + 4 = k + 218 by omega] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b20_length, NativeRustcVmArm.Vm.GkrStep.b20Length, show k + NativeRustcVmArm.Vm.GkrStep.b20Offset + 4 = k + NativeRustcVmArm.Vm.GkrStep.b21Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b20_length, NativeRustcVmArm.Vm.GkrStep.b20Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b20_next] at hpc3
   refine Fr.callSpec hfr3 hN le_grind keep_callee slots_le (outs_not_frame h) (hgr s3) hpc3
     ⟨hfr3.stackOk hS rfl le_grind, cx.rcAt hat3 le_grind, by rw [g0', hd3]; exact hts2,
       by rw [g0']; exact cx.tstateOk hat3 le_grind, by rw [g1]; decide⟩
@@ -175,8 +178,8 @@ theorem coords_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     show (!(low .W32 (m4.regs.getXReg .X0).toBitVec).getLsbD 0) = false
     rw [show m4.regs.getXReg .X0 = m4.regs.X0 from rfl, hx4, okWord_bit]
     rfl
-  simp only [PcOk, hc5, Bool.false_eq_true, ↓reduceIte, show b21.length = 1 from rfl,
-    show k + 218 + 1 = k + 219 by omega] at hpc5
+  simp only [PcOk, hc5, Bool.false_eq_true, ↓reduceIte, NativeRustcVmArm.Vm.GkrStep.b21_length, NativeRustcVmArm.Vm.GkrStep.b21Length,
+    show k + NativeRustcVmArm.Vm.GkrStep.b21Offset + 1 = k + NativeRustcVmArm.Vm.GkrStep.b22Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b21_length, NativeRustcVmArm.Vm.GkrStep.b21Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b21_next] at hpc5
   have R5 := R4.block hm5 (by decide +kernel) ((reg_of hm5 rfl).trans R4.x19)
   -- `b22`: the coordinates.
   have hwf6 := Bus.wf_frame hS N_ge hfr5.kept
@@ -203,7 +206,7 @@ theorem coords_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       R5.x20]
   have hat6 := Fr.at_ cx hfr6 (outs_not_rc h)
   have hn : 16 * m0.regs.X1.toNat ≤ 32 := by omega
-  simp only [PcOk, show b22.length = 8 from rfl, show k + 219 + 8 = k + 227 by omega] at hpc6
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b22_length, NativeRustcVmArm.Vm.GkrStep.b22Length, show k + NativeRustcVmArm.Vm.GkrStep.b22Offset + 8 = k + NativeRustcVmArm.Vm.GkrStep.b23Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b22_length, NativeRustcVmArm.Vm.GkrStep.b22Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b22_next] at hpc6
   refine Fr.callLocal (o := 1264) (n := 16 * m0.regs.X1.toNat)
     (X := fun q ↦ InRange (loc m0 1264) (16 * m0.regs.X1.toNat) q ∨
       InRange m0.regs.X0.toBitVec tstateBytes q)

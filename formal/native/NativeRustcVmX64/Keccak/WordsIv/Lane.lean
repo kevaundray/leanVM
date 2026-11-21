@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Keccak.WordsIv.Inv
 public import NativeRustcVmX64.Keccak.WordsIv.Blocks
+public import NativeRustcVmX64.Code.Vm.IvWord.Names
 
 /-!
 # `keccak256_words::<fiat_shamir_iv's closure>` (x86-64): one lane of a block
@@ -76,12 +77,12 @@ theorem main_env {m0 m : MachineData} (hstk : StackOk m0 NativeRustcVmX64.keccak
 
 /-- **A call block**: `iv_word` of the index `i` in the register `r`, R12 the bytecode, R15 its
 word count; the word in RAX, the callee-saved registers `R'` kept. -/
-theorem call_step (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem call_step (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} {m0 m : MachineData} (g : Geo m0)
     {R R' : List (Reg64 × BitVec 64)} (hc : Ctx m0 (slotsI m0) R 8 m) {f : Nat → UInt64}
     (hl : Lanes m0 m.dmem f) {blk : List Directive} {s : Nat} {S : SState}
     (hk : blk.IsInfixAt Host.prog (k + s))
-    (hx : exec blk startMain = some (S, .call NativeRustcVmX64.ivWordLabel))
+    (hx : exec blk startMain = some (S, .call NativeRustcVmX64.Vm.IvWord.entryLabel))
     (hmem : S.mem = [⟨0, 0, 8, .retAddr⟩]) (hrsp : S.reg .rsp = some (.ptr 0 0))
     (hrdi : S.reg .rdi = some (.reg .r12)) (hrsi : S.reg .rsi = some (.reg .r15))
     {r : Reg64} (hrdx : S.reg .rdx = some (.reg r))
@@ -189,7 +190,7 @@ theorem ev_next {m0 m : MachineData} (g : Geo m0) {x : Reg64} {B j : Nat}
 
 /-- **A lane, either way**: from its call block and XOR block if index `B + j` is below the
 count, else from its zero block; RDX (`r`, from `R`) the index before, `RD … (j + 1)` after. -/
-theorem lane2_step (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem lane2_step (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} {m0 : MachineData} (g : Geo m0) {x : Reg64}
     {B j : Nat} {Rr R : List (Reg64 × BitVec 64)} {A : KeccakState} (hj : j < 25)
     (hB : B + (j + 1) < 2 ^ 32) (hsub : ∀ m, RegsAt m R → RegsAt m (RL m0 x B Rr))
@@ -198,7 +199,7 @@ theorem lane2_step (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcV
     (hcs : names.all calleeSaved = true)
     {sL sZ sV sL' sZ' : Nat}
     {blkC : List Directive} {SC : SState} (hkC : blkC.IsInfixAt Host.prog (k + sL))
-    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmX64.ivWordLabel))
+    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmX64.Vm.IvWord.entryLabel))
     (hmemC : SC.mem = [⟨0, 0, 8, .retAddr⟩]) (hrspC : SC.reg .rsp = some (.ptr 0 0))
     (hrdiC : SC.reg .rdi = some (.reg .r12)) (hrsiC : SC.reg .rsi = some (.reg .r15))
     (hrdxC : SC.reg .rdx = some (.reg r)) (hkeepC : keepsRegs SC names = true)
@@ -237,7 +238,7 @@ theorem lane2_step (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcV
 
 /-- **A lane of a whole block**: index `B + j` is below the count, the call block and the XOR
 block. -/
-theorem laneF_step (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem laneF_step (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} {m0 : MachineData} (g : Geo m0) {x : Reg64}
     {B j : Nat} {Rr R : List (Reg64 × BitVec 64)} {A : KeccakState} (hj : j < 25)
     (hin : B + j < cnt m0) (hB : B + (j + 1) < 2 ^ 32)
@@ -247,7 +248,7 @@ theorem laneF_step (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcV
     (hcs : names.all calleeSaved = true)
     {sL sZ sV sL' sZ' : Nat}
     {blkC : List Directive} {SC : SState} (hkC : blkC.IsInfixAt Host.prog (k + sL))
-    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmX64.ivWordLabel))
+    (hxC : exec blkC startMain = some (SC, .call NativeRustcVmX64.Vm.IvWord.entryLabel))
     (hmemC : SC.mem = [⟨0, 0, 8, .retAddr⟩]) (hrspC : SC.reg .rsp = some (.ptr 0 0))
     (hrdiC : SC.reg .rdi = some (.reg .r12)) (hrsiC : SC.reg .rsi = some (.reg .r15))
     (hrdxC : SC.reg .rdx = some (.reg r)) (hkeepC : keepsRegs SC names = true)

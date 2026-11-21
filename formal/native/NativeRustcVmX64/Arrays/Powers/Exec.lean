@@ -11,7 +11,7 @@ public meta import NativeRustcVmX64.Arrays.Common
 Region 0 is the frame (`Field.frameS 48`, `Field.midS 48`): the 40 bytes of pushes, the call's
 return-address slot below them, the return address above.
 - `entryS` at the entry (`b0`, then `b1`, or `b5` returning at once);
-- the loop head `.LPowers_2` (`b2`) in two parts: `s1` stores the power in `out[i]` (`stS`:
+- the loop head `NativeRustcVmX64.Vm.Powers.label_2` (`b2`) in two parts: `s1` stores the power in `out[i]` (`stS`:
   region 1 the element, at R14), `s2` calls `EW::mul` (`Field.midS 48`);
 - `regsS` after the call (`b3`): no region;
 - `Field.midS 48` at the epilogue (`b4`, `b5`, as one run `b45`).

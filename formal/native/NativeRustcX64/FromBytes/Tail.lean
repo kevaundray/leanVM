@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+
 public import NativeRustcX64.FromBytes.Mid
 public import NativeRustcX64.FromBytes.TailExec
 
@@ -124,9 +126,9 @@ theorem memBytes_takeLayer (m₀ : MachineData) :
 
 /-- **The output**: from the call of the path's `memcpy` to the return. -/
 public theorem tail [Host] {k : Nat} (hp : Placed code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
-    {st : MachineState} (hpc : st.pc = Labels.label "memcpy")
-    (hret : retOf st.data = Host.addrOf (k + 189)) (h : PathCall m₀ st.data) :
+    (hmemcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
+    {st : MachineState} (hpc : st.pc = Labels.label NativeRustcX64.Common.Memcpy.entryLabel)
+    (hret : retOf st.data = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b23Offset)) (h : PathCall m₀ st.data) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧
       rspOf st'.data = rspOf m₀ + 8#64 ∧ FromBytesPost m₀ st'.data) st := by
   have C := h.common
@@ -161,7 +163,7 @@ public theorem tail [Host] {k : Nat} (hp : Placed code k)
   have T := tailAt_of P h hrsp₁ hpost₁
   -- Block 23.
   let env₂ := Env.ofMachine st₁.data [(base m₀, 1928), (out m₀, 1200)] (fun _ => 0)
-    (Host.addrOf (k + 198)).toBitVec
+    (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b24Offset)).toBitVec
   have hwf₂ : env₂.WF :=
     Env.wf_of ⟨⟨P.stackMapped.kept T.kept, P.baseNW⟩, ⟨P.outMapped.kept T.kept, P.outNW⟩, trivial⟩
       (List.pairwise_pair.mpr P.outF.symm)

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.BasisWEval.Col
 
 /-!
@@ -54,11 +56,11 @@ theorem b15_apart (h : In m0 ba b v) {i : Nat} (hi : i < v.cs.size) {c : Nat} (h
 
 /-- **Column claim `i`'s weight**, from `b15` to `b9`. -/
 theorem col_weight (hp : Placed code k) (h : In m0 ba b v)
-    (hcw : Spec (Labels.label columnWeightLabel) ColumnWeightPre ColumnWeightPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {i : Nat} {pl : Placement}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 83)) (ha : AtB15 m0 ba b v i pl st.data)
+    (hcw : Spec (Labels.label NativeRustcVmArm.Vm.ColumnWeight.entryLabel) ColumnWeightPre ColumnWeightPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {i : Nat} {pl : Placement}
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b15Offset)) (ha : AtB15 m0 ba b v i pl st.data)
     {R : MachineState → Prop}
-    (hb9 : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 62) → AtB9 m0 ba b v i st'.data →
+    (hb9 : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b9Offset) → AtB9 m0 ba b v i st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hS := h.stackOk
@@ -227,10 +229,10 @@ theorem col_weight (hp : Placed code k) (h : In m0 ba b v)
       (by rintro rfl; simp [calleeSaved] at hr) (by rintro rfl; simp [calleeSaved] at hr)).trans
       ((hk3 r (by rintro rfl; simp [calleeSaved] at hr)).trans (hc2 r hr)))
   -- b18
-  refine hf5.regsBlock (st := ⟨m5, _⟩) (k := k + 101) (inf hp b18_in_code (by simp [b18])) run_b18
+  refine hf5.regsBlock (st := ⟨m5, _⟩) (k := k + NativeRustcVmArm.Vm.BasisWEval.b18Offset) (inf hp b18_in_code (by simp [b18])) run_b18
     rfl rfl rfl (by rfl) fun st6 hf6 hd6 hm6 hpc6 ↦ ?_
   simp only [PcOk] at hpc6
-  rw [hp.label (j := 62) rfl] at hpc6
+  rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b9Offset) NativeRustcVmArm.Vm.BasisWEval.label_6_at] at hpc6
   have hk6 : ∀ r : XReg, r ≠ .X24 → r ≠ .X25 → st6.data.regs.getXReg r = m5.regs.getXReg r :=
     fun r h24 h25 ↦ reg_of hm6 (v := .reg r) (by cases r <;> first | rfl | contradiction) rfl
   have hws : ws v (xpt m0) (i + 1) = (ws v (xpt m0) i).push w := by

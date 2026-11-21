@@ -4,6 +4,8 @@ public import NativeRustcVmX64.Bus.VerifyBusBalanceClosure0.Exec
 public import NativeRustcVmX64.Bus.VerifyBusBalanceFrame
 public import NativeRustcVmX64.Spec.Bus
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.Fingerprints.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0.Names
 
 /-!
 # `verify_bus_balance::{closure#0}` on x86-64
@@ -86,8 +88,8 @@ variable [Host] {k : Nat}
 
 /-- **The closure's contract.** -/
 theorem fpClosure_spec (hp : Placed code k)
-    (hfp : Spec (Labels.label fingerprintsLabel) FingerprintsPre FingerprintsPost) :
-    Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost := by
+    (hfp : Spec (Labels.label NativeRustcVmX64.Vm.Fingerprints.entryLabel) FingerprintsPre FingerprintsPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost := by
   intro m0 hpre
   obtain ⟨hS, hA, hER, hES, hW, hM, hML, hBL, hSh, hOR, hOS⟩ := id hpre
   have h96 : 96 ≤ fpClosureStack := by unfold fpClosureStack; omega
@@ -131,8 +133,8 @@ theorem fpClosure_spec (hp : Placed code k)
   rw [len_b0a] at hbb hbc hbd
   rw [len_b0b] at hbc hbd
   rw [len_b0c] at hbd
-  unfold fpClosureLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entry_at]
   -- `b0a`: the prologue, the environment's words.
   have hwfA := frame_wf (m0 := m0) (d := m0) (F := 96) (rest := [(reg m0 .rsi, 56)])
     (vars := fun _ ↦ 0) (ret := 0) ⟨hfm, hfnw⟩
@@ -255,14 +257,14 @@ theorem fpClosure_spec (hp : Placed code k)
   -- `b0d`: `bytecode_low`'s length pushed, `fingerprints` called.
   have x3r14 : reg st3.data .r14 = reg m0 .rsi := (kC rfl).trans ((kB rfl).trans x1r14)
   have hwfD := frame_wf (m0 := m0) (d := st3.data) (F := 96) (rest := [(reg m0 .rsi, 56)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 0 + 15 + 5 + 2 + b0d.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b0Offset + b0a.length + b0b.length + b0c.length + b0d.length)).toBitVec)
     ⟨Mapped.keeps hfm hf3.kept, hfnw⟩
     (fun x hx ↦ by
       rw [List.mem_singleton] at hx; subst hx
       exact ⟨Mapped.keeps hER.1 hf3.kept, hER.2⟩)
     (List.pairwise_pair.mpr (Apart.symm' heF))
   have hmD : Match (frameEnv m0 st3.data 96 [(reg m0 .rsi, 56)] (fun _ ↦ 0)
-      (Host.addrOf (k + 0 + 15 + 5 + 2 + b0d.length)).toBitVec) sD st3.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b0Offset + b0a.length + b0b.length + b0c.length + b0d.length)).toBitVec) sD st3.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf3.rsp_eval, known_ptr rfl x3r14, trivial⟩ trivial
       trivial trivial
   refine exec_at hbd exit_b0d hwfD (fun _ _ ↦ rfl) hpc3 hmD fun st4 hm4 hpc4 => ?_
@@ -302,7 +304,7 @@ theorem fpClosure_spec (hp : Placed code k)
   have sa0 : stackArg st4.data 0 = envWord m0 5 := by
     refine (stackArg_eq hsp4 (i := 0) (wordAt_write hm4 (r := 0) (o := 8) rfl (by decide) w8)).trans ?_
     have := load_word (m := st3.data) (rs := [(stackBelow m0 96, 96 + 8), (reg m0 .rsi, 56)])
-      (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + 0 + 15 + 5 + 2 + b0d.length)).toBitVec)
+      (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b0Offset + b0a.length + b0b.length + b0c.length + b0d.length)).toBitVec)
       (r := 1) (o := 40) rfl (mapped_off (Mapped.keeps hER.1 hf3.kept) (by decide))
     rw [wordOf_keep (get_keep hs03 heF hER.2 hfnw) (by decide)] at this
     exact this
@@ -362,7 +364,8 @@ theorem fpClosure_spec (hp : Placed code k)
     BusFrame.Frame.call_at hf4 hsv5 hrsp5 hch5
       (fun p hp i hi ↦ hnotR _ (by have := slots_le p hp; omega)) (fun j hj ↦ hnotR _ (by omega))
   -- `b1`: the epilogue.
-  rw [len_b0d, show k + 0 + 15 + 5 + 2 + 2 = k + 24 by omega] at hpc5
+  change st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b0Offset + b0.length) at hpc5
+  rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.b0_next] at hpc5
   have hwfE := frame_wf (m0 := m0) (d := st5.data) (F := 96) (rest := []) (vars := fun _ ↦ 0)
     (ret := 0) ⟨Mapped.keeps hfm hf5.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
   have hmE : Match (frameEnv m0 st5.data 96 [] (fun _ ↦ 0) 0) sE st5.data :=

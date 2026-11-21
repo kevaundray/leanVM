@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.WotsLeaf.Steps
 public import NativeRustcArm.Code.Xmss.WotsLeaf
 public meta import NativeRustcArm.Code.Xmss.WotsLeaf
@@ -52,7 +54,7 @@ def ok9 (j : Nat) : Bool :=
       Run.noWriteIn S 0 (380 + 4 * j) && Run.noWriteIn S 1776 32 &&
       S.reg .X11 == some (.ptr 0 (381 + 4 * (j + 1))) && S.reg .X12 == some (.lit (6 + 8 * (j + 1))) &&
       [XReg.X8, .X9, .X10, .X19, .X20, .X22].all (fun y ↦ S.reg y == some (.reg y)) &&
-      x == .cond (.lit (j != 13)) ".LWotsLeaf_3"
+      x == .cond (.lit (j != 13)) NativeRustcArm.Xmss.WotsLeaf.label_3
   | none => false
 
 end

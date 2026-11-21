@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Layout.LayoutWPlacement.Exec
+public import NativeRustcVmX64.Code.Vm.LayoutWPlacement.Names
 
 /-!
 # `LayoutW::placement` on x86-64
@@ -31,7 +32,7 @@ variable [Host] {k : Nat}
 
 /-- **`LayoutW::placement`'s contract.** -/
 theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
-    Spec (Labels.label layoutWPlacementLabel) (LayoutWPlacementPre L)
+    Spec (Labels.label NativeRustcVmX64.Vm.LayoutWPlacement.entryLabel) (LayoutWPlacementPre L)
       (LayoutWPlacementPost L) := by
   rintro m ⟨hst, hc, hL, hmap, hnw⟩
   have hcs : (reg m .rsi).toNat < L.placements.size := by rw [hL.placements_size]; exact hc
@@ -73,7 +74,7 @@ theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
   have hload0 : ∀ {v : UInt64}, NativeRustcVm.WordAt m.dmem
       (off (reg m .rdi) (120 + placementBytes * c)) v → env.load 0 120 8 = v.toBitVec :=
     fun h ↦ hload (j := 0) h
-  rw [show Labels.label layoutWPlacementLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.LayoutWPlacement.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.LayoutWPlacement.b0Offset) from hp.label NativeRustcVmX64.Vm.LayoutWPlacement.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf nofun hm
     fun st hm1 hpc ↦ ?_
   obtain ⟨hk1, hmem1, hsp1⟩ := after_eq run_b0 ▸ ok_b0
@@ -90,7 +91,7 @@ theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
     have hc : SBool.eval env (.cmp .eq .W64 (.load 0 120 8) (.lit 0)) = true := by
       rw [Arrays.eval_cmp_eq, Arrays.eval_load, Arrays.eval_lit, h0]; rfl
     have hpc2 := hT hc
-    rw [hp.label (j := 9) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.LayoutWPlacement.label_1_at] at hpc2
     refine Eventually.mono (leaf_retS (infix_of b2_in_code (by simp [b2]) hp) run_b2
       (after_eq run_b2 ▸ ok_b2).1 (after_eq run_b2 ▸ ok_b2).2.1 hst hpc2 hs1 hrsp1 hret1
       (Q := fun d ↦ reg d .rax = 0#64 ∧ reg d .rdx = 0#64 ∧ d.dmem = m.dmem)
@@ -106,10 +107,10 @@ theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
     have hc : ¬SBool.eval env (.cmp .eq .W64 (.load 0 120 8) (.lit 0)) = true := by
       rw [Arrays.eval_cmp_eq, Arrays.eval_load, Arrays.eval_lit, h0]; decide
     have hpc2 := hF hc
-    rw [show b0.length = 4 from rfl] at hpc2
+    rw [NativeRustcVmX64.Vm.LayoutWPlacement.b0_length] at hpc2
     rw [NativeRustcVm.Transcript.off_off] at hwvc hwix
     refine exec_at (infix_of ((infix_take b1 4).trans b1_in_code (by simp [b1]))
-      (by simp [b1]) hp) run_b1a hwf nofun (hpc2.trans (congrArg Host.addrOf (by omega)))
+      (by simp [b1]) hp) run_b1a hwf nofun (hpc2.trans (congrArg Host.addrOf (by rw [← NativeRustcVmX64.Vm.LayoutWPlacement.b0_length, Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.LayoutWPlacement.b0_next)))
       hm1 fun st2 hm2 hpc3 ↦ ?_
     obtain ⟨hk2, hmem2, hsp2, hax2, hdx2⟩ := after_eq run_b1a ▸ ok_b1a
     have hd2 : st2.data.dmem = m.dmem := hm2.dmem_eq hwf hmem2

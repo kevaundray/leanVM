@@ -88,7 +88,7 @@ variable [Host]
 /-- **The leaf's `th`** (`b61 .. b66`): from `T1`, the first node's head. -/
 theorem tree_s2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {m : MachineData}
     (h : T1 r c m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 774 ∧ AtNode r c 0 st.data) ⟨m, r.pc 744⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b67Offset ∧ AtNode r c 0 st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b61Offset⟩ := by
   obtain ⟨hrs, h19, h24, h23, h25, h26, h27, h424, hA, had⟩ := h
   have hT : TH r c m := ⟨hrs, h19, h24, h23, h25, h26, h27, h424⟩
   have hc24 := hrs.hc
@@ -115,7 +115,7 @@ theorem tree_s2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {
     r.bytesAt_of_call hpre hT1.rs.base.frame (by decide) (by decide) hout2 (by rw [hadl]; decide)
       (by rw [hadl]; decide) (hd1 ▸ had)
   -- `b62`: `update(A, address, 32)`
-  refine ev_at (hpc2.trans (pc_after (n := 6) rfl)) ?_
+  refine ev_at (hpc2.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b61_next)) ?_
   have hwf2 := r.frame_wf hpre hT2.rs.base.frame (fun _ ↦ 0)
   have hm2 : Match (r.env st2.data) s0 st2.data := match_frameS hpre hT2.rs.base trivial trivial
   refine exec_then (hb62 hp) run_b62 hwf2 hm2 fun st3 hm3 hpc3 ↦ ?_
@@ -132,7 +132,7 @@ theorem tree_s2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {
   have hH4 := hh4 _ hH3
   rw [bytesOf_of_bytesAt' (hd3 ▸ had2) hadl] at hH4
   -- `b63`: the clone into B
-  refine ev_at (hpc4.trans (pc_after (n := 6) rfl)) ?_
+  refine ev_at (hpc4.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b62_next)) ?_
   have hwf4 := r.frame_wf hpre hT4.rs.base.frame (fun _ ↦ 0)
   have hm4 : Match (r.env st4.data) s0 st4.data := match_frameS hpre hT4.rs.base trivial trivial
   refine exec_then (hb63 hp) run_b63 hwf4 hm4 fun st5 hm5 hpc5 ↦ ?_
@@ -149,7 +149,7 @@ theorem tree_s2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {
     rw [bytesOf_of_bytesAt' hcp6 (Hasher.length_bytesOf ..), hd5]
     exact hH4
   -- `b64`: `update(B, secret, 16)`, the opening spilled
-  refine ev_at (hpc6.trans (pc_after (n := 6) rfl)) ?_
+  refine ev_at (hpc6.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b63_next)) ?_
   have hwf6 := r.frame_wf hpre hT6.rs.base.frame (fun _ ↦ 0)
   have hm6 : Match (r.env st6.data) s0 st6.data := match_frameS hpre hT6.rs.base trivial trivial
   refine exec_then (hb64 hp) run_b64 hwf6 hm6 fun st7 hm7 hpc7 ↦ ?_
@@ -181,7 +181,7 @@ theorem tree_s2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {
     r.bytesAt_of_call hpre hT7.rs.base.frame (by decide) (by decide) hout8
       (by rw [length_wordBytes]; decide) (by rw [length_wordBytes]; decide) hw416
   -- `b65`: `finalize(20624, B)`
-  refine ev_at (hpc8.trans (pc_after (n := 6) rfl)) ?_
+  refine ev_at (hpc8.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b64_next)) ?_
   have hwf8 := r.frame_wf hpre hT8.rs.base.frame (fun _ ↦ 0)
   have hm8 : Match (r.env st8.data) s0 st8.data := match_frameS hpre hT8.rs.base trivial trivial
   refine exec_then (hb65 hp) run_b65 hwf8 hm8 fun st9 hm9 hpc9 ↦ ?_
@@ -206,7 +206,7 @@ theorem tree_s2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {
     r.bytesAt_of_call hpre hT9.rs.base.frame (by decide) (by decide) hout10
       (by rw [length_wordBytes]; decide) (by rw [length_wordBytes]; decide) hw4b
   -- `b66`: the first node
-  refine ev_at (hpc10.trans (pc_after (n := 5) rfl)) ?_
+  refine ev_at (hpc10.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b65_next)) ?_
   have hwf10 := r.frame_wf hpre hT10.rs.base.frame (fun _ ↦ 0)
   have hm10 : Match (r.env st10.data) s0 st10.data := match_frameS hpre hT10.rs.base trivial trivial
   refine exec_then (hb66 hp) run_b66 hwf10 hm10 fun st11 hm11 hpc11 ↦ ?_
@@ -215,7 +215,7 @@ theorem tree_s2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {
   have hw4d : r.WordAt st11.data 416 (r.addr (8244 + 176 * c)) := by
     unfold Run.WordAt; rw [hd11]; exact hw4c
   have hcur' : BytesAt st11.data.dmem (r.off 20624) (r.forsUpTo c 0) := by rw [hd11]; exact hcur
-  refine .done _ ⟨hpc11.trans (pc_after (n := 1) rfl), ⟨⟨hT11.rs.base, hc24, hw4d,
+  refine .done _ ⟨hpc11.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b66_next), ⟨⟨hT11.rs.base, hc24, hw4d,
     hT11.w424, hT11.rs.roots⟩, by decide, hT11.x19, hm11.regs .X28 _ rfl, hT11.x23, hT11.x25,
     hT11.x27, hT11.x26, hcur'⟩⟩
 

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.ClaimMem
 public import NativeRustcVmX64.KeccakGkr.FirstClaim.Keep
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-! # Storing the new value and copying the instance weights -/
 
@@ -17,7 +18,7 @@ variable [Host] {m0 : MachineData} {a : DecArea} {s s6 : TState} {c : KeccakClai
   {ch b : EW} {pt lp t : Array EW} {k : Nat}
 
 theorem claim_copy (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (hpt : pt.size ≤ 30)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (hpt : pt.size ≤ 30)
     {d : MachineData} (hb : Body m0 (outs m0) 24 d) (h : TailLive m0 a c ch b pt lp t s6 d.dmem)
     (hv : ewArg (reg d .rax) (reg d .rdx) = b * (t.getD 1 0 + b * t.getD 2 0))
     {R : MachineState → Prop}
@@ -26,8 +27,8 @@ theorem claim_copy (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
       NativeRustcVm.EWAt d'.dmem (cA m0) (t.getD 0 0 + b * (t.getD 1 0 + b * t.getD 2 0)) →
       NativeRustcVm.BufEWAt d'.dmem (cA m0 + BitVec.ofNat 64 16) 16
         (keccakInstanceWeights ch).toList →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 720)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 711)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b83Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset)⟩ := by
   have g := geo_of hpre
   have cx := ctx hpre (F := 2000) (by decide)
   have h96 := h.fw (96, .ofBitVec (cA m0)) (by apply List.mem_append_left; fw_mem)
@@ -36,9 +37,9 @@ theorem claim_copy (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   have h192 := h.fw (192, (t.getD 0 0).c0) (by apply List.mem_append_right; fw_mem)
   have h200 := h.fw (200, (t.getD 0 0).c1) (by apply List.mem_append_right; fw_mem)
   have hwf := wfC hpre hb (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 711 + b82.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset + b82.length)).toBitVec)
   have hm : Match (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + 711 + b82.length)).toBitVec) (claimS (.load 0 96 8)) d :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b82Offset + b82.length)).toBitVec) (claimS (.load 0 96 8)) d :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb.rsp, trivial⟩ trivial trivial
       ⟨by show Env.load _ 0 96 8 = cA m0 + BitVec.ofInt 64 0
           rw [fload8 h96]; simp, trivial⟩

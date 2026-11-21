@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRow.Turn
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
 
 /-!
 # `fold_row`'s rounds (x86-64)
@@ -42,23 +44,23 @@ theorem fac_c1 (m0 : MachineData) (r : Nat) :
 
 variable [Host] {k : Nat}
 
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 18) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.FoldRow.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 24) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.FoldRow.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 24 + 9) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.FoldRow.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 24 + 9 + 4) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.FoldRow.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 24 + 9 + 4 + 3) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.FoldRow.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
 
 /-- **The turns of a round**, from the first. -/
-theorem turns (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem turns (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : FoldRowPre m0) {r : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 51)) (hI : TInv m0 r 0 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 18) ∧ EInv m0 r s.data) st := by
-  refine Sym.loop (fun n s ↦ ∃ i, n = nOf m0 >>> (r + 1) - i ∧ s.pc = Host.addrOf (k + 51) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b10Offset)) (hI : TInv m0 r 0 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b3Offset) ∧ EInv m0 r s.data) st := by
+  refine Sym.loop (fun n s ↦ ∃ i, n = nOf m0 >>> (r + 1) - i ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b10Offset) ∧
     TInv m0 r i s.data) (fun n s ⟨i, hn, hpc, hI⟩ ↦ ?_) ⟨0, rfl, hpc, hI⟩
   have hi := hI.hi
   refine (turn hp hmul hpre hpc hI).mono fun s' h ↦ ?_
@@ -67,11 +69,11 @@ theorem turns (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulP
   · exact .inl h
 
 /-- **A round** from its head. -/
-theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem round (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : FoldRowPre m0) {r : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 24)) (hI : RInv m0 r st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 18) ∧ EInv m0 r s.data) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b4Offset)) (hI : RInv m0 r st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b3Offset) ∧ EInv m0 r s.data) st := by
   have hpre' := hpre
   obtain ⟨hS, hlanes, hrin, hap, hR6⟩ := hpre'
   obtain ⟨hF, hlek, -⟩ := stack_le
@@ -95,11 +97,11 @@ theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
       (by rw [hrb]; unfold rnOf at hr; omega)))
   have hwf : (Env.ofMachine st.data [(stackBelow m0 96, 96 + 8),
       (rpOf m0 + BitVec.ofNat 64 (32 * r), 32)] (fun _ ↦ 0)
-      (Host.addrOf (k + 24 + 9)).toBitVec).WF :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b5Offset)).toBitVec).WF :=
     wf_two (stackOk_mono hS hF) hfr.kept hrd hap1
   have hm : Match (Env.ofMachine st.data [(stackBelow m0 96, 96 + 8),
       (rpOf m0 + BitVec.ofNat 64 (32 * r), 32)] (fun _ ↦ 0)
-      (Host.addrOf (k + 24 + 9)).toBitVec) rdS st.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b5Offset)).toBitVec) rdS st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨hfr.rsp, show reg st.data .rcx = _ + BitVec.ofInt 64 0 by
         rw [show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]; exact hI.rcx, trivial⟩
@@ -120,7 +122,7 @@ theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
   have hrdr := rdOf_eq m0 hr
   have hload1 : ∀ o, o + 8 ≤ 32 → (Env.ofMachine st.data [(stackBelow m0 96, 96 + 8),
       (rpOf m0 + BitVec.ofNat 64 (32 * r), 32)] (fun _ ↦ 0)
-      (Host.addrOf (k + 24 + 9)).toBitVec).load 1 o 8 =
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b5Offset)).toBitVec).load 1 o 8 =
         (wordOf m0.dmem (rpOf m0 + BitVec.ofNat 64 (32 * r) + BitVec.ofNat 64 o)).toBitVec :=
     fun o ho ↦ by rw [load8_eq]; exact congrArg UInt64.toBitVec (hword o ho)
   have ha0 : reg st1.data .r13 = (rdOf m0 r).alpha.c0.toBitVec := by
@@ -151,7 +153,7 @@ theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
       (.ofBitVec (rpOf m0 + BitVec.ofNat 64 (32 * r))) := by
     have := wordAt_of_write hm1 (r := 0) (o := 40) rfl (by decide) (v := .ptr 1 0) hrd1
     rw [show (Sym.ptr 1 0).eval (Env.ofMachine st.data [(stackBelow m0 96, 96 + 8),
-      (rpOf m0 + BitVec.ofNat 64 (32 * r), 32)] (fun _ ↦ 0) (Host.addrOf (k + 24 + 9)).toBitVec) =
+      (rpOf m0 + BitVec.ofNat 64 (32 * r), 32)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b5Offset)).toBitVec) =
         rpOf m0 + BitVec.ofNat 64 (32 * r) from by
           show _ + BitVec.ofInt 64 0 = _
           rw [show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]
@@ -189,8 +191,8 @@ theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
   have hk1v : reg st2.data .rax = (kmul (xOf m0) (rdOf m0 r).beta.c0).toBitVec := by
     rw [hax2, hx1 .rdi (by simp), hb0, UInt64.ofBitVec_toBitVec, UInt64.ofBitVec_toBitVec]
   -- `b5`: `kmul(x, β.c1)`
-  have hpc2' : st2.pc = Host.addrOf (k + 24 + 9) := hpc2
-  have hwf3 := hfr2.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 24 + 9 + 4)).toBitVec) hS hF
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b5Offset) := hpc2
+  have hwf3 := hfr2.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b6Offset)).toBitVec) hS hF
   refine exec_at (hb5 hp) run_b5 hwf3 (fun _ _ ↦ rfl) hpc2' hfr2.mid_match fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hk3, hsp3, hw3, hv3⟩ := after_eq run_b5 ▸ b5_call
   have hrsp3 := rsp_call hm3 hsp3
@@ -228,7 +230,7 @@ theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
       e2 .rbp (by simp), e2 .r15 (by simp), hx1 .rbp (by simp), hb1,
       UInt64.ofBitVec_toBitVec, UInt64.ofBitVec_toBitVec]
   -- `b6`: `β·x`'s second limb, the size halved
-  have hpc4' : st4.pc = Host.addrOf (k + 24 + 9 + 4) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b6Offset) := hpc4
   have hwf5 := hfr4.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb6 hp) run_b6 hwf5 (by intro l h; cases h) hpc4' hfr4.mid_match
     fun st5 hm5 hpc5 ↦ ?_
@@ -278,12 +280,12 @@ theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
     hrbx4, shr_succ (nOf m0) _ hn64, ofNat_beq hsh64 (by decide)] at hpc5
   obtain ⟨hT, hF5⟩ := Arrays.pc_cond hpc5
   by_cases h0 : nOf m0 >>> (r + 1) = 0
-  · refine .done _ ⟨(hT (by rw [decide_eq_true_eq]; exact h0)).trans (hp.label (j := 18) rfl),
+  · refine .done _ ⟨(hT (by rw [decide_eq_true_eq]; exact h0)).trans (hp.label NativeRustcVmX64.Vm.FoldRow.label_2_at),
       hbase5, hr, hrd5, hrbx5, ?_⟩
     rw [lanesAt_succ, h0, foldPart_zero]
     exact hlanes5
   -- `b7`: the factor
-  have hpc5' : st5.pc = Host.addrOf (k + 24 + 9 + 4 + 3) := hF5 (by rw [decide_eq_true_eq]; exact h0)
+  have hpc5' : st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRow.b7Offset) := hF5 (by rw [decide_eq_true_eq]; exact h0)
   have hwf6 := hfr5.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb7 hp) run_b7 hwf6 (by intro l h; cases h) hpc5' hfr5.mid_match
     fun st6 hm6 hpc6 ↦ ?_
@@ -326,7 +328,7 @@ theorem round (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
         (written_region0 rfl hwf6 (k := 24) (by omega)
           (fun w hw ↦ ⟨(hw6 w hw).1, (hw6 w hw).2.2⟩) h)
   simp only [PcOk] at hpc6
-  refine turns hp hmul hpre (hpc6.trans (hp.label (j := 51) rfl)) ⟨⟨hfr6,
+  refine turns hp hmul hpre (hpc6.trans (hp.label NativeRustcVmX64.Vm.FoldRow.label_5_at)) ⟨⟨hfr6,
     hkw6 (by omega) (by omega) hbase5.x, hkw6 (by omega) (by omega) hbase5.ed,
     (Match.reg_eq (r := .r14) hfr5.mid_match hm6 rfl rfl).trans hbase5.r14⟩, hr,
     hkw6 (by omega) (by omega) hrd5, hf0, hf1, Nat.pos_of_ne_zero h0,

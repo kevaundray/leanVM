@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.FrontB
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Ar
+public import NativeRustcVmX64.Code.Vm.FirstClaim.Names
 
 /-!
 # `verify_keccak`: the first claim (x86-64)
@@ -107,14 +108,14 @@ theorem ld_ew {d : MachineData} {rs : List (BitVec 64 × Nat)} {vals : Nat → B
 /-- **The first claim**: at `b9` (`t9`), the claim at frame offset `1000`, its bit weights at the
 scratch's start. -/
 theorem firstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hfc : ∀ inst segment lanePoint output, Spec (Labels.label firstClaimLabel)
+    (hfc : ∀ inst segment lanePoint output, Spec (Labels.label NativeRustcVmX64.Vm.FirstClaim.entryLabel)
       (FirstClaimPre inst segment lanePoint output) (FirstClaimPost inst segment lanePoint output))
     {st : MachineState} {s4 : TState} {seg lp : Array EW} {cm : EW}
-    (hat : At m0 k 62 wrA t2 (vv m0 {}) st) (hts : TStateAt st.data.dmem (reg m0 .rdi) a s4)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b7Offset wrA t2 (vv m0 {}) st) (hts : TStateAt st.data.dmem (reg m0 .rdi) a s4)
     (hseg1 : seg.size = 1) (hseg : NativeRustcVm.EWsAt st.data.dmem (off (fb m0) 152) seg.toList)
     (hlp5 : lp.size = 5) (hlp : NativeRustcVm.EWsAt st.data.dmem (off (fb m0) 328) lp.toList)
     (hcm : NativeRustcVm.EWAt st.data.dmem (off (fb m0) 1000) cm) {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 79 wrA t9 (vv m0 (V1 cm)) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b9Offset wrA t9 (vv m0 (V1 cm)) st' →
       TStateAt st'.data.dmem (reg m0 .rdi) a s4 →
       ClaimAt st'.data.dmem (off (fb m0) 1000) (keccakFirstClaim inst seg lp output cm) →
       WeightsAt st'.data.dmem (off (reg m0 .r9) 0) (keccakFirstClaim inst seg lp output cm) →
@@ -191,8 +192,8 @@ theorem firstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
   rw [hw2] at hwt
   rw [hcm'] at hcl hwt
   rw [NativeRustcVm.Transcript.off_off] at hcl
-  rw [show 62 + b7.length = 76 from rfl] at hpc8
-  refine stepJ (T' := t9) (vals' := vv m0 (V1 cm)) (o := 76) hp c h ⟨hpc8, hB8⟩ b8_in_code
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b7_next] at hpc8
+  refine stepJ (T' := t9) (vals' := vv m0 (V1 cm)) (o := NativeRustcVmX64.Vm.VerifyKeccak.b8Offset) hp c h ⟨hpc8, hB8⟩ b8_in_code
     (by simp [b8]) run_b8 nofun (hB8.mt 0) (by decide) rfl rfl (by vtacJ) (by decide) rfl rfl rfl
     (fun _ _ _ _ _ h ↦ by cases h) rfl fun st9 hpc9 hB9 _ hc9 hk9 ↦ ?_
   simp only [PcOk] at hpc9
@@ -200,7 +201,7 @@ theorem firstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
     at hpc9
   simp only [show ((1 : UInt64) == 0) = false from rfl, Bool.false_eq_true, ↓reduceIte] at hpc9
   have hc := hc8.trans hc9
-  exact cont st9 ⟨hpc9.trans (by rw [show 76 + b8.length = 79 from rfl]), hB9⟩
+  exact cont st9 ⟨hpc9.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b8_next]), hB9⟩
     (Chg.ts c hc (by decide) (by decide) (by decide)
       (NativeRustcVmX64.Transcript.kept_trans hk8 hk9) hts)
     (Chg.claimF c hc9 (by decide) (by decide) (by decide) (by decide) hcl)

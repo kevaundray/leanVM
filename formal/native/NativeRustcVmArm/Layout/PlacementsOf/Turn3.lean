@@ -24,7 +24,7 @@ variable [Host] {k : Nat}
 
 /-- **A stacked column or an output lane** (`b26`, then `b20`, `b21` or `b27`). -/
 theorem rest3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    (hs : slotF c = none) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 105))
+    (hs : slotF c = none) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b26Offset))
     (hI : I3 m0 c st.data) (x11 : st.data.regs.X11.toNat = κ m0 c) :
     Eventually (step1 Host.exe) (Next3 k m0 c) st := by
   have hκ := hF.κ_le hc
@@ -44,7 +44,7 @@ theorem rest3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} 
     exact store27 hp hF hc (pc_of (t1 (by decide)) rfl) hI1 (plF_out hs ho)
   | false =>
     simp only [ho] at f1 t1
-    have hpc2 := (f1 (by decide)).trans (hp.label (j := 85) rfl)
+    have hpc2 := (f1 (by decide)).trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b20Offset) NativeRustcVmArm.Vm.PlacementsOf.label_15_at)
     have hblk : c ∈ blockList := mem_blockList hc (by rw [hs]; rfl) ho
     -- `b20`: the offset
     have hb1 := hI1.body
@@ -84,7 +84,7 @@ theorem rest3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} 
 
 /-- **A turn** of the third loop from `.L17`. -/
 theorem turn3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 94)) (hI : I3 m0 c st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b22Offset)) (hI : I3 m0 c st.data) :
     Eventually (step1 Host.exe) (Next3 k m0 c) st := by
   have hκ := hF.κ_le hc
   -- `b22a`: the slot byte
@@ -136,7 +136,7 @@ theorem turn3 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} 
   cases hs : slotF c with
   | none =>
     have h255 : (NativeRustcVm.Data.slotByte (slotF c)).toNat = 255 := slotByte_255.mpr hs
-    exact rest3 hp hF hc hs ((f2 (decide_eq_true h255)).trans (hp.label (j := 105) rfl)) hI2 x11
+    exact rest3 hp hF hc hs ((f2 (decide_eq_true h255)).trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b26Offset) NativeRustcVmArm.Vm.PlacementsOf.label_20_at)) hI2 x11
   | some s =>
     have hne : ¬(NativeRustcVm.Data.slotByte (slotF c)).toNat = 255 := fun h ↦ by
       rw [slotByte_255.mp h] at hs; cases hs

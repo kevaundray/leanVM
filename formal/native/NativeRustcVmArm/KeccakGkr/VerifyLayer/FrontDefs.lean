@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.Tail
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontModel
 public import NativeRustcVmArm.Tables.Frame
@@ -307,10 +310,10 @@ theorem local_call (h : VerifyLayerPre a s c m0) {l : Label} {P : MachineData �
 
 /-- **`read_scalars(t, frame + o, n)`**. -/
 theorem rs_call (h : VerifyLayerPre a s c m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} {o n : Nat}
     (ho : o + 16 * n ≤ 1936) (hfr : FB m0 st.data)
-    (hpc : st.pc = Labels.label readScalarsLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel ∧ retOf st.data = next)
     (h0 : st.data.regs.X0 = m0.regs.X0) (h1 : st.data.regs.X1.toBitVec = loc m0 o)
     (h2 : st.data.regs.X2.toNat = n) {s1 : TState}
     (hts : TStateAt st.data.dmem (tA m0) a s1)
@@ -349,9 +352,9 @@ theorem rs_call (h : VerifyLayerPre a s c m0)
 
 /-- **`grind(t, bits)`**. -/
 theorem grind_call (h : VerifyLayerPre a s c m0)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (hfr : FB m0 st.data)
-    (hpc : st.pc = Labels.label grindLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel ∧ retOf st.data = next)
     (h0 : st.data.regs.X0 = m0.regs.X0) {bits : Nat} (h1 : grindBits st.data = bits)
     (hb : bits < 64) {s1 : TState} (hts : TStateAt st.data.dmem (tA m0) a s1)
     (cont : ∀ m2, FB m0 m2 →
@@ -380,9 +383,9 @@ theorem grind_call (h : VerifyLayerPre a s c m0)
 
 /-- **`SpongeW::squeeze`** on the `TState`'s sponge. -/
 theorem sq_call (h : VerifyLayerPre a s c m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (hfr : FB m0 st.data)
-    (hpc : st.pc = Labels.label squeezeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel ∧ retOf st.data = next)
     (h0 : st.data.regs.X0 = m0.regs.X0) {s1 : TState} (hts : TStateAt st.data.dmem (tA m0) a s1)
     (cont : ∀ m2 : MachineData, FB m0 m2 →
       TStateAt m2.dmem (tA m0) a (sqS s1).2 →

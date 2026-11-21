@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Bus.Fingerprints.Exec
 public import NativeRustcVmX64.Bus.Common
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.Fingerprints.Names
+public import NativeRustcVmX64.Code.Vm.IndexMleFrom.Names
+public import NativeRustcVmX64.Code.Vm.Kpow.Names
 
 /-!
 # `fingerprints` on x86-64
@@ -73,10 +77,10 @@ variable [Host] {k : Nat}
 
 /-- **`fingerprints`' contract.** -/
 theorem fingerprints_spec (hp : Placed code k)
-    (hkpow : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (himf : Spec (Labels.label indexMleFromLabel) IndexMleFromPre IndexMleFromPost) :
-    Spec (Labels.label fingerprintsLabel) FingerprintsPre FingerprintsPost := by
+    (hkpow : Spec (Labels.label NativeRustcVmX64.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (himf : Spec (Labels.label NativeRustcVmX64.Vm.IndexMleFrom.entryLabel) IndexMleFromPre IndexMleFromPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.Fingerprints.entryLabel) FingerprintsPre FingerprintsPost := by
   rintro m0 ⟨hst, hargs, hW, hM, hML, hBL, hOR, hOS⟩
   have hF : 256 ≤ fingerprintsStack := by rw [stack_eq]; omega
   have hlk : 256 + kpowStack ≤ fingerprintsStack := by decide
@@ -100,9 +104,9 @@ theorem fingerprints_spec (hp : Placed code k)
       alias_arg 7, trivial⟩
   -- `b0`: the prologue, the arguments kept, `kpow(0)`.
   have hwf0 := wf_args (d := m0) hst hF (fun _ h ↦ h) hargs (by decide) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
-  unfold fingerprintsLabel
-  rw [hp.label (j := 0) rfl]
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Fingerprints.b0Offset + b0.length)).toBitVec)
+  unfold NativeRustcVmX64.Vm.Fingerprints.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.Fingerprints.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial (ALI m0 _))
     fun st1 hm1 hpc1 ↦ ?_
@@ -133,9 +137,9 @@ theorem fingerprints_spec (hp : Placed code k)
   have e2bp : reg st2.data .rbp = stackArg m0 3 := (hsv2.1 .rbp rfl).trans e1bp
   -- `b1`: `[1, pc, gpow 0]` at offset `32`, `dot` with the first three weights.
   have hwf2 := wf_args (d := st2.data) hst hF hb2.fr.kept hargs (by decide) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 17 + b1.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Fingerprints.b1Offset + b1.length)).toBitVec)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 (fun _ _ ↦ rfl)
-    (hpc2.trans (by rw [show b0.length = 17 from rfl]))
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Fingerprints.b0_next))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb2.fr.rsp_eval, trivial⟩ trivial trivial (ALI _ _))
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hw3, hwr3, hbd3, hk3, hdi3, hsi3, hdx3, hcx3⟩ := after_eq run_b1 ▸ ok_b1
@@ -181,9 +185,9 @@ theorem fingerprints_spec (hp : Placed code k)
   have FW4 := FrameWords.call hst hb3 hld hc4 (by simp) FW3
   -- `b2`: the first fingerprint's limb `0` at offset `16`, `index_mle_from(memory_low)`.
   have hwf4 := wf_args (d := st4.data) hst hF hb4.fr.kept hargs (by decide) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 28 + b2.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Fingerprints.b2Offset + b2.length)).toBitVec)
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf4 (fun _ _ ↦ rfl)
-    (hpc4.trans (by rw [show b1.length = 11 from rfl]))
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Fingerprints.b1_next))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb4.fr.rsp_eval, trivial⟩ trivial trivial (ALI _ _))
     fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hmid5, hw5, hwr5, hbd5, hk5, hbp5, hdi5, hsi5⟩ := after_eq run_b2 ▸ ok_b2
@@ -226,7 +230,7 @@ theorem fingerprints_spec (hp : Placed code k)
   have hwf6 := wf1 (d := st6.data) hst hF hb6.fr.kept (a := reg m0 .rdx) (n := 32) hM.1 hM.2
     (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of ((infix_take b3 4).trans b3_in_code (by simp [b3])) (by simp [b3]) hp)
-    run_b3a hwf6 nofun (hpc6.trans (congrArg Host.addrOf (by have : b2.length = 5 := rfl; omega)))
+    run_b3a hwf6 nofun (hpc6.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.Fingerprints.b2_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb6.fr.rsp_eval, known_ptr rfl e6_12, trivial⟩ trivial
       trivial trivial)
     fun st7 hm7 hpc7 ↦ ?_
@@ -331,9 +335,9 @@ theorem fingerprints_spec (hp : Placed code k)
   have FW9 := FrameWords.call hst hb8 hld hc9 (by simp) FW8
   -- `b4`: the second fingerprint in R15, R12; `kpow(2)`.
   have hwf9 := wf_args (d := st9.data) hst hF hb9.fr.kept hargs (by decide) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 54 + b4.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Fingerprints.b4Offset + b4.length)).toBitVec)
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf9 (fun _ _ ↦ rfl)
-    (hpc9.trans (congrArg Host.addrOf (by have : (b3.drop 4).length = 17 := rfl; omega)))
+    (hpc9.trans (congrArg Host.addrOf (by have hn := NativeRustcVmX64.Vm.Fingerprints.b3_next; have hl := NativeRustcVmX64.Vm.Fingerprints.b3_length; simp only [NativeRustcVmX64.Vm.Fingerprints.b3Length] at hl; simp only [List.length_drop]; omega)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb9.fr.rsp_eval, trivial⟩ trivial trivial (ALI _ _))
     fun st10 hm10 hpc10 ↦ ?_
   obtain ⟨hmid10, hw10, hk10, h15_10, h12_10, hdi10⟩ := after_eq run_b4 ▸ ok_b4
@@ -355,9 +359,9 @@ theorem fingerprints_spec (hp : Placed code k)
   have e11ax : reg st11.data .rax = (gpowK 2).toBitVec := by rw [hk11, e10di]; rfl
   -- `b5`: `kpow(2)` in R13, `index_mle_from(bytecode_low)`.
   have hwf11 := wf_args (d := st11.data) hst hF hb11.fr.kept hargs (by decide) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 58 + b5.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Fingerprints.b5Offset + b5.length)).toBitVec)
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 hwf11 (fun _ _ ↦ rfl)
-    (hpc11.trans (congrArg Host.addrOf (by have : b4.length = 4 := rfl; omega)))
+    (hpc11.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.Fingerprints.b4_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb11.fr.rsp_eval, trivial⟩ trivial trivial (ALI _ _))
     fun st12 hm12 hpc12 ↦ ?_
   obtain ⟨hmid12, hw12, hk12, h13_12, hdi12, hsi12⟩ := after_eq run_b5 ▸ ok_b5
@@ -383,9 +387,9 @@ theorem fingerprints_spec (hp : Placed code k)
   have FW13 := FrameWords.call hst hb12 hli hc13 (by simp) FW12
   -- `b6`: `[g², index_mle(bytecode_low), bytecode_count]` at offset `80`, `dot`.
   have hwf13 := wf_args (d := st13.data) hst hF hb13.fr.kept hargs (by decide) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 62 + b6.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Fingerprints.b6Offset + b6.length)).toBitVec)
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf13 (fun _ _ ↦ rfl)
-    (hpc13.trans (congrArg Host.addrOf (by have : b5.length = 4 := rfl; omega)))
+    (hpc13.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.Fingerprints.b5_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb13.fr.rsp_eval, trivial⟩ trivial trivial (ALI _ _))
     fun st14 hm14 hpc14 ↦ ?_
   obtain ⟨hmid14, hw14, hwr14, hbd14, hk14, hdi14, hsi14, hdx14, hcx14⟩ := after_eq run_b6 ▸ ok_b6
@@ -442,7 +446,7 @@ theorem fingerprints_spec (hp : Placed code k)
     (ret := 0)
   refine exec_at (infix_of ((infix_take b7 2).trans b7_in_code (by simp [b7])) (by simp [b7]) hp)
     run_b7a hwf15 nofun
-    (hpc15.trans (congrArg Host.addrOf (by have : b6.length = 13 := rfl; omega)))
+    (hpc15.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.Fingerprints.b6_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb15.fr.rsp_eval, trivial⟩ trivial trivial (ALI _ _))
     fun st16 hm16 hpc16 ↦ ?_
   obtain ⟨hmid16, hmem16, hk16, hax16, hdx16⟩ := after_eq run_b7a ▸ ok_b7a

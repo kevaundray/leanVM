@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+
 public import NativeRustcArm.Hasher.UpdateGeom
 
 /-!
@@ -54,13 +56,13 @@ theorem inRange_zero {a p : BitVec 64} : ¬InRange a 0 p := Nat.not_lt_zero _
 variable [Host] {k : Nat}
 
 /-- **Copying into the buffer.** -/
-theorem copy_spec (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+theorem copy_spec (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m0 m1 m : MachineData} (hpre : UpdatePre m0)
     (h01 : SameOutside m0.dmem m1.dmem (InRange (spAt m0 - 64#64) 64)) {c : Nat}
     (hinv : Inv m0 m1 c m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 30) ∧ Copied m0 m1 c (hasher m0 m) st.data)
-      ⟨m, Host.addrOf (k + 17)⟩ := by
+      (fun st => st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b5Offset) ∧ Copied m0 m1 c (hasher m0 m) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨a0, ha0⟩ := hpre.2.2.1
   have hHc := hinv.holds a0 ha0

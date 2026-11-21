@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmArm.Code.Vm.TablePhase.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Call5
 
 /-!
@@ -24,24 +31,24 @@ variable [Host] {k : Nat}
 
 /-- **The bus**, from `b6`: the function returns the walk's rest. -/
 theorem call4 (hp : Placed code k)
-    (hbb : ∀ a s L, Spec (Labels.label verifyBusBalanceLabel) (VerifyBusBalancePre a s L)
+    (hbb : ∀ a s L, Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalance.entryLabel) (VerifyBusBalancePre a s L)
       (VerifyBusBalancePost a s L))
-    (htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+    (htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmArm.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
       (TablePhasePost a s layout bus))
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmArm.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmArm.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 29)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b6Offset)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
     (h22 : st.data.regs.X22 = m0.regs.X3) (h23 : st.data.regs.X23 = m0.regs.X2)
     (h24 : st.data.regs.X24 = m0.regs.X1) {P : Vector UInt64 4}
     (hP : NativeRustcVm.WordsAt m0.dmem m0.regs.X3.toBitVec P.toList) {s : TState}
@@ -138,7 +145,7 @@ theorem call4 (hp : Placed code k)
       · have := g.inW (o := 4416) (n := 107768) (by omega) (by omega) hq; omega
       · have := g.inW (o := 123992) (n := 97288) (by omega) (by omega) hq; omega
       · have := h1.inStk g hN hq; have := g.wS; omega
-  rw [show k + 29 + b6.length = k + 39 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b6Offset + b6.length = k + NativeRustcVmArm.Vm.VerifyExecution.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b6_next]] at hpc2
   rw [walkBus, run_bind_eq]
   generalize hr : (verifyBusBalance L).run s = r at hx0 hres
   have bk := branch_keeps b7 (by simp)
@@ -153,7 +160,7 @@ theorem call4 (hp : Placed code k)
   obtain ⟨hts', hbus, hcl⟩ := hres _ _ rfl
   have hcs := (NativeRustcVm.Top.verifyBusBalance_claims L).gives _ _ _ hr
   have hroots' : s'.roots = s.roots := (verifyBusBalance_roots L).keeps _ _ _ hr
-  rw [show k + 39 + b7.length = k + 40 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b7Offset + b7.length = k + NativeRustcVmArm.Vm.VerifyExecution.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b7_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)

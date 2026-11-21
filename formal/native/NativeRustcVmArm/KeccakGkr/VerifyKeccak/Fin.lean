@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Entry
 
 /-!
@@ -51,7 +52,7 @@ variable [Host] {k : Nat}
 theorem goal_fail (hp : Placed code k) (hn : Nums a inst m0) {m : MachineData} (hfr : VFr m0 m)
     (hr : run0 s inst output m0 = none) :
     Eventually (step1 Host.exe) (Goal a s cs inst output m0)
-      ⟨m, Labels.label ".LVerifyKeccak_31"⟩ :=
+      ⟨m, Labels.label NativeRustcVmArm.Vm.VerifyKeccak.label_31⟩ :=
   exitFail (Q := VerifyKeccakPost a s cs inst output m0) hp hn hfr fun m' _ hsv hx hd ↦
     post_of hfr hd hsv (by rw [hx, hr]; rfl) (fun _ _ _ _ h ↦ by rw [hr] at h; cases h)
 
@@ -62,7 +63,7 @@ theorem goal_exit (hp : Placed code k) (hn : Nums a inst m0) {m : MachineData} (
       TStateAt m.dmem (tA m0) a s' ∧
         NativeRustcVm.Layout.ClaimsWAt m.dmem (clA m0) (cs ++ outs) ∧
         KeccakOutAt m.dmem (oA m0) pt sl) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 445)⟩ :=
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b73Offset)⟩ :=
   exitAt (Q := VerifyKeccakPost a s cs inst output m0) hp hn hfr fun _ _ hsv hx' hd ↦
     post_of hfr hd hsv (hx'.trans hx) hok
 

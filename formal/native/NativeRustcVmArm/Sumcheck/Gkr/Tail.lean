@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfGkrStep.Names
 public import NativeRustcVmArm.Sumcheck.Gkr.Head
 
 /-!
@@ -28,24 +31,24 @@ variable [Host] {a : DecArea} {s : TState} {pt : Array EW} {n : Nat} {m0 : Machi
 
 /-- **A round's challenge and claim**: from `b4`, the next round's head or `.L4`. -/
 theorem tail_spec (hp : Placed code k)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpe : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     (hpre : SumcheckGkrPre a s pt n m0) {i : Nat} {xs msg : Array EW} {s1 : TState}
     {m : MachineData} (hi : Mid a s pt n m0 i xs msg s1 m) :
     Eventually (step1 Host.exe)
       (fun st ↦ Goal a s pt n m0 k st ∨
-        (st.pc = Host.addrOf (k + 22) ∧ Inv a s pt n m0 (i + 1) st.data))
-      ⟨m, Host.addrOf (k + 39)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2Offset) ∧ Inv a s pt n m0 (i + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b7Offset)⟩ := by
   have g := geo hpre
   have hS := hpre.1.1
   have hlt := hi.lt
   have hc5 := g.ok.2.2.2.2.2.1
   unfold maxCount at hc5
-  have hk4 : b7.IsInfixAt Host.prog (k + 39) := b7_in_code.trans hp.1 (by simp [b7])
-  have hk5 : b8.IsInfixAt Host.prog (k + 41) := b8_in_code.trans hp.1 (by simp [b8])
-  have hk6 : b9.IsInfixAt Host.prog (k + 47) := b9_in_code.trans hp.1 (by simp [b9])
-  have hl2 : Labels.label ".LSumcheckOfGkrStep_2" = Host.addrOf (k + 22) :=
-    hp.label (j := 22) rfl
+  have hk4 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b7Offset) := b7_in_code.trans hp.1 (by simp [b7])
+  have hk5 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b8Offset) := b8_in_code.trans hp.1 (by simp [b8])
+  have hk6 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b9Offset) := b9_in_code.trans hp.1 (by simp [b9])
+  have hl2 : Labels.label NativeRustcVmArm.Vm.SumcheckOfGkrStep.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2Offset) NativeRustcVmArm.Vm.SumcheckOfGkrStep.label_2_at
   -- `b4`: `squeeze`.
   have hwf4 := Bus.wf_frame (F := 192) hS (by decide) hi.fr.kept
   have hm4 : Match (Env.ofMachine m [(base m0 192, 192)]) frS m :=

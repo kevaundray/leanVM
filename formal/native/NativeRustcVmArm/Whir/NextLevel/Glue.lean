@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.GlueLevel.Names
 public import NativeRustcVmArm.Whir.NextLevel.Rows
 
 /-!
@@ -103,9 +104,9 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The level glued**, to the return. -/
 theorem glue (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
-    (hgl : ∀ s, Spec (Labels.label glueLevelLabel) (GlueLevelPre s) (GlueLevelPost s))
+    (hgl : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.GlueLevel.entryLabel) (GlueLevelPre s) (GlueLevelPost s))
     {st : MachineState} {xs ood : Array EW} {v lam bt : EW} {qs : Array UInt64} {s9 : TState}
-    (hpc : st.pc = Host.addrOf (k + 202)) (hI : H24 a level m0 xs ood v lam qs bt s9 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b24Offset)) (hI : H24 a level m0 xs ood v lam qs bt s9 st.data)
     (hrun : runN level w rounds m0 s = some (glueLevel w lam m0.regs.X5.toNat ood v qs
       (powers lam qs.size) bt, s9)) :
     Eventually (step1 Host.exe) (Goal a s level w rounds m0) st := by
@@ -147,7 +148,7 @@ theorem glue (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b24_in_code (by simp [b24]) run_b24 (wfF h hf) (mF h hf) (by decide) rfl hf hpc
     fun st1 hm1 hpc1 hf1 hs1 ↦ ?_
   simp only [PcOk] at hpc1
-  rw [show k + 202 + b24.length = k + 217 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b24Offset + b24.length = k + NativeRustcVmArm.Vm.NextLevel.b25Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b24_next]] at hpc1
   have x0 : st1.data.regs.X0 = m0.regs.X6 :=
     (reg_of hm1 (r := .X0) (v := .reg .X19) rfl rfl).trans hI.x19
   have x0' : st1.data.regs.X0.toBitVec = pA m0 := congrArg UInt64.toBitVec x0
@@ -279,7 +280,7 @@ theorem glue (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   have hm2 : Match (envF m0 m2) fS m2 :=
     match_ofMachine ⟨rfl, fun _ ↦ frAligned h, trivial⟩ (by rw [hf2.sp]; simp [Sym.eval]) trivial
       trivial trivial trivial
-  refine exec_at (st := ⟨m2, Host.addrOf (k + 217)⟩) (inf hp b25_in_code (by simp [b25])) run_b25
+  refine exec_at (st := ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b25Offset)⟩) (inf hp b25_in_code (by simp [b25])) run_b25
     hwf2 rfl hm2 fun st3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
   have hd3 : st3.data.dmem = m2.dmem := hm3.dmem_eq hwf2 rfl
@@ -287,7 +288,7 @@ theorem glue (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
     Fr.ofBlock hf2 hm2 hm3 hwf2 rfl rfl rfl (fun _ h ↦ by cases h)
   have y0 : st3.data.regs.X0 = 1 := (reg_of hm3 (r := .X0) (v := .reg .X0) rfl rfl).trans hx0
   -- `b27`: the epilogue.
-  refine Eventually.mono (epi hp h hf3 (hpc3.trans (hp.label (j := 220) rfl)))
+  refine Eventually.mono (epi hp h hf3 (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.NextLevel.b27Offset) NativeRustcVmArm.Vm.NextLevel.label_14_at)))
     fun st' ⟨h1, h2, h3, h4⟩ ↦ ⟨h1, ?_, fun x s' he ↦ ?_, fun w' s' he ↦ ?_, fun q hq ↦ ?_, h4⟩
   · show st'.data.regs.X0 = okWord (runN level w rounds m0 s).isSome
     rw [hrun, h2, y0]

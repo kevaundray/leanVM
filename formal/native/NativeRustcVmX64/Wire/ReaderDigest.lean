@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Wire.ReaderDigest.Exec
 public import NativeRustcVmX64.Wire.Frame
+public import NativeRustcVmX64.Code.Vm.ReaderDigest.Names
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `Reader::digest` meets its contract (x86-64)
@@ -94,13 +96,13 @@ theorem beq_one (x : BitVec 64) : (x == BitVec.ofNat 64 1) = decide (x = 1) := b
 
 variable [Host] {k : Nat}
 
-/-- **The tag's test** (`b1`, at `j`): on to `j + 2` if RAX is `1`, else to `.LReaderDigest_8`. -/
+/-- **The tag's test** (`b1`, at `j`): on to `j + 2` if RAX is `1`, else to `NativeRustcVmX64.Vm.ReaderDigest.label_8`. -/
 theorem tag_step (hp : Placed code k) {j : Nat} (hj : b1.IsInfixAt code j) {m0 : MachineData}
     (hst : StackOk m0 readerDigestStack) {st : MachineState} (hpc : st.pc = Host.addrOf (k + j))
     (hf : Frame m0 48 slots 8 st.data) {R : MachineState → Prop}
     (cont : ∀ st', Frame m0 48 slots 8 st'.data → st'.data.dmem = st.data.dmem →
       (∀ x, reg st'.data x = reg st.data x) →
-      st'.pc = (if reg st.data .rax = 1 then Host.addrOf (k + j + 2) else Host.addrOf (k + 37)) →
+      st'.pc = (if reg st.data .rax = 1 then Host.addrOf (k + j + 2) else Host.addrOf (k + NativeRustcVmX64.Vm.ReaderDigest.b9Offset)) →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   obtain ⟨hmid, hregs, hmem, hsome⟩ := ok_b1
@@ -114,8 +116,8 @@ theorem tag_step (hp : Placed code k) {j : Nat} (hj : b1.IsInfixAt code j) {m0 :
   · obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp (hsome x)
     exact Match.reg_eq hm hm' hv (by rw [SState.reg, hregs]; exact hv)
   · simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64, beq_one] at hpc'
-    rw [hp.label (j := 37) rfl, show b1.length = 2 from rfl] at hpc'
-    change st'.pc = (if (!decide (reg st.data .rax = 1)) = true then Host.addrOf (k + 37)
+    rw [hp.label NativeRustcVmX64.Vm.ReaderDigest.label_8_at, NativeRustcVmX64.Vm.ReaderDigest.b1_length] at hpc'
+    change st'.pc = (if (!decide (reg st.data .rax = 1)) = true then Host.addrOf (k + NativeRustcVmX64.Vm.ReaderDigest.b9Offset)
       else Host.addrOf (k + j + 2)) at hpc'
     by_cases h : reg st.data .rax = 1
     · simp only [h, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc' ⊢
@@ -125,12 +127,12 @@ theorem tag_step (hp : Placed code k) {j : Nat} (hj : b1.IsInfixAt code j) {m0 :
 
 /-- **A call block** (`b2`, `b4`, `b6`, at `j`): RDX kept in `x`, then `Reader::le`. -/
 theorem call_step (hp : Placed code k)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {m0 : MachineData}
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {m0 : MachineData}
     {r bp out : BitVec 64} {B : List UInt8} {c : Nat}
     (g : RGeo m0 48 r bp B.length (NativeRustcVm.InRange out 40)) {bj : List Directive} {j : Nat}
     (hb : bj.IsInfixAt code j) (hne : bj ≠ []) {x : Reg64} (hx : calleeSaved x = true)
     (hrun : exec bj midS = some (after bj midS,
-      .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le"))
+      .call NativeRustcVmX64.Vm.ReaderLe.entryLabel))
     (hok : CallOk (after bj midS) x = true) {st : MachineState}
     (hpc : st.pc = Host.addrOf (k + j)) (hf : Frame m0 48 slots 8 st.data)
     (hr14 : reg st.data .r14 = r) (hR : ReaderAt st.data.dmem r bp B c) {R : MachineState → Prop}
@@ -184,7 +186,7 @@ theorem fail_fin (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : L
     (hR : ReaderAt m0.dmem (reg m0 .rsi) bp B c)
     (hout : NativeRustcVm.Region.Ok m0.dmem ⟨reg m0 .rdi, 40⟩)
     (hoS : NativeRustcVm.Apart (reg m0 .rdi) 40 (stackBelow m0 48) (48 + 8))
-    (hnone : rdDigest B c = none) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 37))
+    (hnone : rdDigest B c = none) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderDigest.b9Offset))
     (hf : Frame m0 48 slots 8 st.data) (hrbx : reg st.data .rbx = reg m0 .rdi)
     (hchg : Chg m0 (reg m0 .rsi) st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
@@ -204,7 +206,7 @@ theorem fail_fin (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : L
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) run_b9 hwf nofun hpc hm
     fun st1 hm1 hpc1 ↦ ?_
   refine exec_at (infix_of b10_in_code (by simp [b10]) hp) (exec_after run_b9 run_b10n) hwf
-    nofun (hpc1.trans (by rw [show b9.length = 2 from rfl])) hm1 fun st2 hm2 hpc2 ↦ ?_
+    nofun (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ReaderDigest.b9_next)) hm1 fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hepi, hw0, hws⟩ := after_eq run_b10n ▸ ok_b10n
   obtain ⟨hsv, hrsp⟩ := Frame.epilogue hf hwf hm2 hepi
   have ht := wordAt_write hm2 (r := 1) (o := 0) (b := out) (sz := 40) rfl (by decide)
@@ -230,7 +232,7 @@ theorem ok_fin (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : Lis
     (hR : ReaderAt m0.dmem (reg m0 .rsi) bp B c)
     (hout : NativeRustcVm.Region.Ok m0.dmem ⟨reg m0 .rdi, 40⟩)
     (hoS : NativeRustcVm.Apart (reg m0 .rdi) 40 (stackBelow m0 48) (48 + 8))
-    (hfit : c + 32 ≤ B.length) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 31))
+    (hfit : c + 32 ≤ B.length) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderDigest.b8Offset))
     (hf : Frame m0 48 slots 8 st.data) (hrbx : reg st.data .rbx = reg m0 .rdi)
     (h12 : reg st.data .r12 = (leAt B c 8).toBitVec)
     (h13 : reg st.data .r13 = (leAt B (c + 8) 8).toBitVec)
@@ -258,7 +260,7 @@ theorem ok_fin (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : Lis
     fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
   refine exec_at (infix_of b10_in_code (by simp [b10]) hp) (exec_after run_b8 run_b10s) hwf
-    nofun (hpc1.trans (hp.label (j := 39) rfl)) hm1 fun st2 hm2 hpc2 ↦ ?_
+    nofun (hpc1.trans (hp.label NativeRustcVmX64.Vm.ReaderDigest.label_9_at)) hm1 fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hepi, hw0, hw8, hw16, hw24, hw32, hws⟩ := after_eq run_b10s ▸ ok_b10s
   obtain ⟨hsv, hrsp⟩ := Frame.epilogue hf hwf hm2 hepi
   have w0 := wordAt_write hm2 (r := 1) (o := 0) (b := out) (sz := 40) rfl (by decide)
@@ -302,17 +304,17 @@ theorem ok_fin (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : Lis
 
 /-- **`Reader::digest` meets its contract.** -/
 theorem readerDigest_spec (hp : Placed code k)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) :
-    Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost := by
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost := by
   intro m0 ⟨hst, hout, bp, B, c, hR, hd⟩
   obtain ⟨g, hoS⟩ := geo hst hout hR hd
   have hreader : ∀ q, NativeRustcVm.InRange (reg m0 .rdi) 40 q →
       ¬ NativeRustcVm.InRange (reg m0 .rsi) 24 q ∧ ¬ NativeRustcVm.InRange bp B.length q :=
     fun q h ↦ ⟨g.wR q h, g.wB q h⟩
-  rw [show Labels.label readerDigestLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.ReaderDigest.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderDigest.b0Offset) from hp.label NativeRustcVmX64.Vm.ReaderDigest.entry_at]
   -- `b0`: the prologue, the first read.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 48) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ReaderDigest.b0Offset + b0.length)).toBitVec)
     ⟨frame_mapped hst (by decide), frame_noWrap hst (by decide)⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
@@ -337,7 +339,7 @@ theorem readerDigest_spec (hp : Placed code k)
   have h14₂ : reg m2 .r14 = reg m0 .rsi := (hcs2 .r14 rfl).trans h14
   have h3₂ : reg m2 .rbx = reg m0 .rdi := (hcs2 .rbx rfl).trans h3
   -- The first tag.
-  refine tag_step hp (j := 11) b1_in_code hst (st := ⟨m2, _⟩) rfl hf2
+  refine tag_step hp (j := NativeRustcVmX64.Vm.ReaderDigest.b1Offset) b1_in_code hst (st := ⟨m2, _⟩) rfl hf2
     fun st3 hf3 hd3 hr3 hpc3 ↦ ?_
   dsimp only at hd3 hr3 hpc3
   have hc3 : Chg m0 (reg m0 .rsi) st3.data := fun q hq ↦ by rw [hd3]; exact hc2 q hq
@@ -353,7 +355,7 @@ theorem readerDigest_spec (hp : Placed code k)
   have h12₄ : reg m4 .r12 = (leAt B c 8).toBitVec := by rw [hx4, hr3, hv1]
   have h14₄ : reg m4 .r14 = reg m0 .rsi := by rw [hk4 .r14 (by simp) (by decide), hr3, h14₂]
   have h3₄ : reg m4 .rbx = reg m0 .rdi := by rw [hk4 .rbx (by simp) (by decide), hr3, h3₂]
-  refine tag_step hp (j := 17) (b3_eq ▸ b3_in_code) hst (st := ⟨m4, _⟩) rfl hf4
+  refine tag_step hp (j := NativeRustcVmX64.Vm.ReaderDigest.b3Offset) (b3_eq ▸ b3_in_code) hst (st := ⟨m4, _⟩) rfl hf4
     fun st5 hf5 hd5 hr5 hpc5 ↦ ?_
   dsimp only at hd5 hr5 hpc5
   have hc5 : Chg m0 (reg m0 .rsi) st5.data := fun q hq ↦ by rw [hd5]; exact hc4 q hq
@@ -371,7 +373,7 @@ theorem readerDigest_spec (hp : Placed code k)
   have h13₆ : reg m6 .r13 = (leAt B (c + 8) 8).toBitVec := by rw [hx6, hr5, hv2]
   have h14₆ : reg m6 .r14 = reg m0 .rsi := by rw [hk6 .r14 (by simp) (by decide), hr5, h14₄]
   have h3₆ : reg m6 .rbx = reg m0 .rdi := by rw [hk6 .rbx (by simp) (by decide), hr5, h3₄]
-  refine tag_step hp (j := 23) (b5_eq ▸ b5_in_code) hst (st := ⟨m6, _⟩) rfl hf6
+  refine tag_step hp (j := NativeRustcVmX64.Vm.ReaderDigest.b5Offset) (b5_eq ▸ b5_in_code) hst (st := ⟨m6, _⟩) rfl hf6
     fun st7 hf7 hd7 hr7 hpc7 ↦ ?_
   dsimp only at hd7 hr7 hpc7
   have hc7 : Chg m0 (reg m0 .rsi) st7.data := fun q hq ↦ by rw [hd7]; exact hc6 q hq
@@ -390,7 +392,7 @@ theorem readerDigest_spec (hp : Placed code k)
     rw [hk8 .r13 (by simp) (by decide), hr7, h13₆]
   have h15₈ : reg m8 .r15 = (leAt B (c + 16) 8).toBitVec := by rw [hx8, hr7, hv3]
   have h3₈ : reg m8 .rbx = reg m0 .rdi := by rw [hk8 .rbx (by simp) (by decide), hr7, h3₆]
-  refine tag_step hp (j := 29) (b7_eq ▸ b7_in_code) hst (st := ⟨m8, _⟩) rfl hf8
+  refine tag_step hp (j := NativeRustcVmX64.Vm.ReaderDigest.b7Offset) (b7_eq ▸ b7_in_code) hst (st := ⟨m8, _⟩) rfl hf8
     fun st9 hf9 hd9 hr9 hpc9 ↦ ?_
   dsimp only at hd9 hr9 hpc9
   have hc9 : Chg m0 (reg m0 .rsi) st9.data := fun q hq ↦ by rw [hd9]; exact hc8 q hq

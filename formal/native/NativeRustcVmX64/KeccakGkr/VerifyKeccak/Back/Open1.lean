@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.OArea
+public import NativeRustcVmX64.Code.Vm.KeccakOpen.Names
 
 /-!
 # `verify_keccak`: the opening of the committed outputs (x86-64)
@@ -25,10 +26,10 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 
 /-- **The first opening** (`b40`, `b41`): at `b42` (`t42`). -/
 theorem open1Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hko : ∀ s c, Spec (Labels.label keccakOpenLabel) (KeccakOpenPre a s c)
+    (hko : ∀ s c, Spec (Labels.label NativeRustcVmX64.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c)
       (KeccakOpenPost a s c))
     {st : MachineState} {V : Vs} {s' : TState} {first cl : KeccakClaimW} {cm : EW}
-    (hat : At m0 k 217 wrA tL (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b40Offset wrA tL (vv m0 V) st)
     (hc0 : V.c0 = cm.c0.toBitVec) (hc1 : V.c1 = cm.c1.toBitVec)
     (hfl : V.fl = BitVec.ofNat 64 first.point.size)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s')
@@ -37,7 +38,7 @@ theorem open1Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
     (hsf : SegmentsFit (reg m0 .rsi).toNat first)
     (hrun : (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s =
       (restOpen (reg m0 .rsi).toNat inst first cm cl).run s')
-    (cont : ∀ st1 sl ws v s1, At m0 k 253 wrA t42 (vv m0 V) st1 →
+    (cont : ∀ st1 sl ws v s1, At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b42Offset wrA t42 (vv m0 V) st1 →
       (keccakOpen (reg m0 .rsi).toNat first 1 1 cm).run s' = some ((sl, ws, v), s1) →
       NativeRustcVm.EWAt st1.data.dmem (off (fb m0) 416) v →
       NativeRustcVm.EWsAt st1.data.dmem (off (fb m0) 232) sl.toList →
@@ -149,8 +150,8 @@ theorem open1Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
     rfl
   obtain ⟨hopt, hsome, -, -⟩ := hq
   rw [rdi, hr0] at hopt
-  rw [show 217 + b40.length = 250 from rfl] at hpc'
-  refine stepJ (T' := t42) (vals' := vv m0 V) (o := 250) hp c h ⟨hpc', hB'⟩ b41_in_code
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b40_next] at hpc'
+  refine stepJ (T' := t42) (vals' := vv m0 V) (o := NativeRustcVmX64.Vm.VerifyKeccak.b41Offset) hp c h ⟨hpc', hB'⟩ b41_in_code
     (by simp [b41]) run_b41 nofun (hB'.mt 0) (by decide) rfl rfl (by vtacJ) (by decide) rfl rfl
     rfl (fun _ _ _ _ _ h ↦ by cases h) rfl fun st2 hpc2 hB2 _ hc2 hk2 ↦ ?_
   simp only [PcOk] at hpc2
@@ -173,7 +174,7 @@ theorem open1Step (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outpu
     rw [rsi] at hts1
     rw [toff, show 408 + 8 = 416 from rfl] at hv
     obtain ⟨h6, h64⟩ := open_weights_size hr
-    refine cont st2 sl ws v s1 ⟨hpc2.trans (by rw [show 250 + b41.length = 253 from rfl]), hB2⟩
+    refine cont st2 sl ws v s1 ⟨hpc2.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b41_next]), hB2⟩
       hr ?_ ?_ ?_ (Chg.ts c hc2 (by decide) (by decide) (by decide) hk2 hts1) ?_
       (NativeRustcVmX64.Transcript.kept_trans hk' hk2)
     · exact NativeRustcVm.Layout.EWAt.of_same hv (Chg.frame c hc2 (by decide) (by decide)

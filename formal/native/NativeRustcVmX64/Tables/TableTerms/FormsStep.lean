@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.Forms
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
 
 /-!
 # `table_terms`: the forms' dot product, run (x86-64)
@@ -145,10 +146,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 /-- **A form block** (`b6`, `b7`, `b8`): from the body, the forms' region in its environment,
 `evaluate` of form `j`, the previous result saved at `o`. -/
 theorem form_blk (h : TableTermsPre a s heights forms m0)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmX64.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
     {i j : Nat} (hi : i < 6) (hj : j < 3) {o0 : Array (Array EW × Array EW)} {xs : Array EW}
     {s' : TState} {ds : List Directive} {kk : Nat} (hk : ds.IsInfixAt Host.prog kk)
-    {Sy : SState} (hx : exec ds formS = some (Sy, .call evaluateLabel))
+    {Sy : SState} (hx : exec ds formS = some (Sy, .call NativeRustcVmX64.Vm.Evaluate.entryLabel))
     {ex : List Nat} (hmiss : missO Sy (UW ex) = true) (hmid : MidOk 272 0 slots Sy = true)
     (hW : WrOk Sy [] = true) {o : Nat} (ho : 8 ≤ o ∧ o + 16 ≤ 280)
     (h0 : WordW 0 o (.reg .rax) Sy) (h1 : WordW 0 (o + 8) (.reg .rdx) Sy)

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Climb.Names
 public import NativeRustcVmArm.Sumcheck.Climb.Frame
 
 /-!
@@ -116,17 +117,17 @@ theorem frame_of_b0 (hpre : ClimbPre N P m0) {S : SState} {m : MachineData}
 climbed. -/
 theorem entry_spec (hp : Placed code k) (hpre : ClimbPre N P m0) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 49) ∧ P.size = 0 ∧ Frame m0 N st.data) ∨
-        (st.pc = Host.addrOf (k + 30) ∧ Inv m0 N P 0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b10Offset) ∧ P.size = 0 ∧ Frame m0 N st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b5Offset) ∧ Inv m0 N P 0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b0Offset)⟩ := by
   have g := geo_of hpre
   have ⟨_, _, _, _, _, _, _⟩ := g
   have hwf := wf_env0 hpre
   have hm : Match (env0 m0) entryS m0 :=
     match_ofMachine ⟨rfl, fun _ ↦ by rw [g.fr]; omega, rfl, by simp, trivial⟩
       (by simp [Sym.eval, fr]) ⟨by simp [Sym.eval]; rfl, trivial⟩ trivial trivial trivial
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk1 : b1.IsInfixAt Host.prog (k + 11) := b1_in_code.trans hp.1 (by simp [b1])
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Climb.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Climb.b1Offset) := b1_in_code.trans hp.1 (by simp [b1])
   have hsize := hpre.2.2.2.1
   refine exec_then hk0 run_b0 hwf hm fun st hm' hpc ↦ ?_
   have hfr : Frame m0 N st.data :=
@@ -138,10 +139,10 @@ theorem entry_spec (hp : Placed code k) (hpre : ClimbPre N P m0) :
     simp only [SBool.eval, CmpOp.apply, Sym.eval, Sym.low_W64]; rfl
   simp only [PcOk] at hpc
   rw [hc] at hpc
-  have hl8 : Labels.label ".LClimb_8" = Host.addrOf (k + 49) := hp.label (j := 49) rfl
-  have hl4 : Labels.label ".LClimb_4" = Host.addrOf (k + 30) := hp.label (j := 30) rfl
+  have hl8 : Labels.label NativeRustcVmArm.Vm.Climb.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b10Offset) := hp.label (j := NativeRustcVmArm.Vm.Climb.b10Offset) NativeRustcVmArm.Vm.Climb.label_8_at
+  have hl4 : Labels.label NativeRustcVmArm.Vm.Climb.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b5Offset) := hp.label (j := NativeRustcVmArm.Vm.Climb.b5Offset) NativeRustcVmArm.Vm.Climb.label_4_at
   by_cases h0 : m0.regs.X4 = 0
-  · have : st.pc = Host.addrOf (k + 49) := by
+  · have : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b10Offset) := by
       have h0' : (m0.regs.X4.toBitVec == 0#64) = true := by rw [h0]; rfl
       simp only [h0', ↓reduceIte] at hpc
       rw [hpc, hl8]

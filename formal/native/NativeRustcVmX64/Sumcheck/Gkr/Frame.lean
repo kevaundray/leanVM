@@ -250,14 +250,14 @@ theorem exit_done (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) {m : 
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         SumcheckGkrPost a s pt n m0 st.data)
-      ⟨m, Host.addrOf (k + 78)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfGkrStep.b11Offset)⟩ := by
   have g := geo hpre
   obtain ⟨xs, sn, hrun, hsz, hxs, hts⟩ := hd.run
   have hwf := wf_envX hpre hd.fr (Mapped.keeps g.outOk.1 hd.fr.frame.kept) g.outOk.2.1 g.outOk.2.2.2.2.1 0
   refine exec_then (infix_of b11_in_code (by simp [b11]) hp) exit_b11 hwf nofun
     (match_outS hd.fr hd.out) fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
-  rw [hp.label (j := 88) rfl] at hpc1
+  rw [hp.label NativeRustcVmX64.Vm.SumcheckOfGkrStep.label_9_at] at hpc1
   refine exec_at (infix_of b13_in_code (by simp [b13]) hp) exit_b13a hwf nofun hpc1 hm1
     fun st2 hm2 hpc2 ↦ Eventually.done _ ?_
   obtain ⟨hepi, hW, hW0, hW8, hW16⟩ := ok_b13a
@@ -280,14 +280,14 @@ theorem exit_fail (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) {m : 
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         SumcheckGkrPost a s pt n m0 st.data)
-      ⟨m, Host.addrOf (k + 85)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfGkrStep.b12Offset)⟩ := by
   have g := geo hpre
   have hwf := wf_envX hpre hf (Mapped.keeps g.outOk.1 hf.frame.kept) g.outOk.2.1 g.outOk.2.2.2.2.1 0
   refine exec_then (infix_of b12_in_code (by simp [b12]) hp) exit_b12 hwf nofun
     (match_outS hf hout) fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
   refine exec_at (infix_of b13_in_code (by simp [b13]) hp) exit_b13b hwf nofun
-    (hpc1.trans (by rw [show b12.length = 3 from rfl])) hm1 fun st2 hm2 hpc2 ↦ Eventually.done _ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfGkrStep.b12_next)) hm1 fun st2 hm2 hpc2 ↦ Eventually.done _ ?_
   obtain ⟨hepi, hW, hW0⟩ := ok_b13b
   refine exit_post hpre hf hm2 hepi hW hpc2 (r := none) hnone.symm (fun _ _ _ h ↦ (nomatch h))
     (fun _ _ h ↦ (nomatch h)) ?_
@@ -299,9 +299,9 @@ theorem exit_fail (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) {m : 
 else `b1` and the loop's head with no round done. -/
 theorem entry_spec (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 78) ∧ Done a s pt n m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 31) ∧ Inv a s pt n m0 0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfGkrStep.b11Offset) ∧ Done a s pt n m0 st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfGkrStep.b2Offset) ∧ Inv a s pt n m0 0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfGkrStep.b0Offset)⟩ := by
   have g := geo hpre
   have hst := g.ok.1
   have hle : 192 ≤ sumcheckGkrStack := by unfold sumcheckGkrStack; omega
@@ -346,13 +346,13 @@ theorem entry_spec (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) :
       show reg st0.data .rcx = reg m0 .rcx from hm0.regs .rcx _ hrcx0]
   by_cases h0 : n = 0
   · simp only [h0, decide_true, ite_true] at hpc0
-    refine .done _ (Or.inl ⟨hpc0.trans (hp.label (j := 78) rfl), hfr0,
+    refine .done _ (Or.inl ⟨hpc0.trans (hp.label NativeRustcVmX64.Vm.SumcheckOfGkrStep.label_8_at), hfr0,
       wordAt_written hm0 (r := 0) (o := 16) rfl (by omega) hW16_0 rfl, ?_⟩)
     rw [hclaim0, h0]
     exact rounds_zero (g.t_keep hs0 (hm0.kept hwf) (fun q hq ↦ Or.inl (g.ctx.inRange_frame hq)) hts0)
   · simp only [h0, decide_false, Bool.false_eq_true, ite_false] at hpc0
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf nofun
-      (hpc0.trans (by rw [show b0.length = 24 from rfl])) hm0 fun st1 hm1 hpc1 ↦ ?_
+      (hpc0.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfGkrStep.b0_next)) hm0 fun st1 hm1 hpc1 ↦ ?_
     obtain ⟨hP1, hall1, hW16, hW24, hW32, hrax1, hrcx1, hrbx1, hr13, hr14, hr15⟩ := ok_b1
     obtain ⟨hfr1, hs1⟩ := hpro hm1 hP1 hall1
     simp only [PcOk] at hpc1
@@ -360,7 +360,7 @@ theorem entry_spec (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) :
       show (⟨_, _⟩ : EW) = ⟨_, _⟩
       rw [show reg st1.data .rax = reg m0 .rdx from hm1.regs .rax _ hrax1,
         show reg st1.data .rcx = reg m0 .rcx from hm1.regs .rcx _ hrcx1]
-    refine .done _ (Or.inr ⟨hpc1.trans (by rw [show b1.length = 7 from rfl]), hfr1,
+    refine .done _ (Or.inr ⟨hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfGkrStep.b1_next), hfr1,
       Nat.pos_of_ne_zero h0,
       ⟨wordAt_written hm1 (r := 0) (o := 16) rfl (by omega) hW16 rfl,
         wordAt_written hm1 (r := 0) (o := 24) rfl (by omega) hW24 rfl,

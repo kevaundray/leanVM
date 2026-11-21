@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfNextLevel.Names
 public import NativeRustcVmArm.Whir.EachRowOfNextLevel.Entry
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.Start
 
@@ -30,8 +31,8 @@ variable [Host] {k : Nat}
 theorem start_step (hp : Placed code k) (hpre : EachRowNextPre rows op m0) {m : MachineData}
     (h : AtB3 m0 m)
     (cont : ∀ m', Inv rows m0 0 m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 63)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 27)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b8Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b3Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨⟨hstk, hrows, hrin, -, -, -, -, -⟩, hcl, -, -, -, -, -, -, -, hapcl, -, haprin, -, -, -,
     -, -⟩ := hpre'
@@ -59,7 +60,7 @@ theorem start_step (hp : Placed code k) (hpre : EachRowNextPre rows op m0) {m : 
       fun i hi ↦ ?_
     rw [NativeRustcVm.addr_add_add]
     exact hsame _ (by rw [NativeRustcVm.length_wordBytes] at hi; omega)
-  have hk3 : b3.IsInfixAt Host.prog (k + 27) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b3Offset) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk3 run_b3 hwf3 hm3 fun st6 hm6 hpc6 ↦ ?_
   have hl3 : EachRow.Lay m0 2000 eachRowNextStack 96 104 := ⟨by decide, by decide, by decide, hS⟩
   have hs6 : SameOutside m.dmem st6.data.dmem (EachRow.Hit m0 2000 eachRowNextStack 96 104) :=
@@ -98,7 +99,7 @@ theorem start_step (hp : Placed code k) (hpre : EachRowNextPre rows op m0) {m : 
   by_cases hz : rows.size = 0
   · -- no rows
     simp only [hz, decide_true, ↓reduceIte] at hpc6
-    rw [show Labels.label ".LEachRowOfNextLevel_13" = Host.addrOf (k + 253) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfNextLevel.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b23Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfNextLevel.b23Offset) NativeRustcVmArm.Vm.EachRowOfNextLevel.label_13_at]
       at hpc6
     obtain ⟨d6, pc6⟩ := st6
     simp only at hpc6
@@ -134,11 +135,11 @@ theorem start_step (hp : Placed code k) (hpre : EachRowNextPre rows op m0) {m : 
     rw [NativeRustcVm.wordOf_congr (d := m0.dmem) fun j hj ↦ by
       rw [NativeRustcVm.addr_add_add]; exact hsame _ (by omega)]
     rfl
-  have hk4 : b4.IsInfixAt Host.prog (k + 30) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b4Offset) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk4 run_b4 hwf4 hpc6 hm4 fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨d7, pc7⟩ := st7
   simp only [PcOk] at hpc7
-  rw [show Labels.label ".LEachRowOfNextLevel_5" = Host.addrOf (k + 63) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfNextLevel.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b8Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfNextLevel.b8Offset) NativeRustcVmArm.Vm.EachRowOfNextLevel.label_5_at]
     at hpc7
   subst hpc7
   have hl4 : EachRow.Lay m0 2000 eachRowNextStack 8 64 := ⟨by decide, by decide, by decide, hS⟩

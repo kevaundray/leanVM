@@ -35,12 +35,12 @@ structure Base (m0 m : MachineData) : Prop where
 
 /-- At the way out with `None`. -/
 def AtNone [Host] (m0 : MachineData) (B : List UInt8) (c k : Nat) (st : MachineState) : Prop :=
-  st.pc = Host.addrOf (k + 64) ∧ Base m0 st.data ∧ phaseM B c = none
+  st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b18Offset) ∧ Base m0 st.data ∧ phaseM B c = none
 
 /-- At the way out after `write_openings`. -/
 def AtDone [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (st : MachineState) : Prop :=
-  st.pc = Host.addrOf (k + 174) ∧ Base m0 st.data ∧ st.data.regs.X0 = 1 ∧
+  st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b37Offset) ∧ Base m0 st.data ∧ st.data.regs.X0 = 1 ∧
     ∃ po c', phaseM B c = some (po, c') ∧ PhaseAt st.data.dmem (outA m0) (phaseW po) ∧
       ReaderAt st.data.dmem (rdr m0) bp B c'
 
@@ -165,7 +165,7 @@ theorem blkW (hp : Placed code k) {b : List Directive} {j : Nat} (hb : b.IsInfix
 
 /-- **The epilogue**: `b19` from a state of the body, X0 the result. -/
 theorem epi_run (hp : Placed code k) (G : Geo m0 bp B) {st : MachineState}
-    (hb : Base m0 st.data) (hpc : st.pc = Host.addrOf (k + 66))
+    (hb : Base m0 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b19Offset))
     (hres : ∀ m' : MachineData, SameOutside st.data.dmem m'.dmem (fun _ ↦ False) →
       m'.regs.X0 = st.data.regs.X0 → ∀ bp' B' c', ReaderAt m0.dmem (rdr m0) bp' B' c' →
       match phaseM B' c' with
@@ -216,7 +216,7 @@ theorem done_run (hp : Placed code k) (G : Geo m0 bp B) {c : Nat}
     fun st1 hfr1 hd1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
   refine epi_run hp G (hb.of_regs hfr1 (regs_of (frEnv_match G.st hb.fr) hm1
-    (by decide))) (hpc1.trans (hp.label (j := 66) rfl)) fun m' hs h0 bp' B' c'' hR'' ↦ ?_
+    (by decide))) (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b19Offset) NativeRustcVmArm.Vm.PhaseM.label_13_at)) fun m' hs h0 bp' B' c'' hR'' ↦ ?_
   obtain ⟨rfl, rfl, rfl⟩ := hR.unique hR''
   rw [hph]
   have hd : m'.dmem = st.data.dmem := by

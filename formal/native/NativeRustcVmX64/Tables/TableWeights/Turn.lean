@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.TableWeights.Loop
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `table_weights`: a whole turn, the entry and the exit (x86-64)
@@ -22,11 +23,11 @@ public section
 variable [Host] {k : Nat}
 
 /-- **A turn of the loop.** -/
-theorem turn (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem turn (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : TableWeightsPre m0) {c : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 123)) (hI : It m0 c st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + 123) ∧ It m0 (c + 1) st'.data) ∨
-      (st'.pc = Host.addrOf (k + 151) ∧ Fin m0 st'.data)) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b10Offset)) (hI : It m0 c st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b10Offset) ∧ It m0 (c + 1) st'.data) ∨
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b13Offset) ∧ Fin m0 st'.data)) st := by
   have hS := hpre.1
   refine Eventually.bind (head_step hp hpre hpc hI) fun st1 ⟨hpc1, h1⟩ ↦ ?_
   refine Eventually.bind (pre3_step hp hmul hpre hpc1 h1) fun st2 ⟨hpc2, h2⟩ ↦ ?_

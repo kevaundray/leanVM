@@ -1,6 +1,10 @@
 module
 
 public import NativeRustcVmX64.Tables.TableSumcheck.Terms
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TableSumcheck.Names
+public import NativeRustcVmX64.Code.Vm.TableTerms.Names
+public import NativeRustcVmX64.Code.Vm.TableWeights.Names
 
 /-!
 # `table_sumcheck` meets its contract (x86-64)
@@ -21,13 +25,13 @@ variable [Host] {k : Nat}
 
 /-- **`table_sumcheck` meets its contract.** -/
 theorem tableSumcheck_spec (hp : Placed code k)
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hw : Spec (Labels.label tableWeightsLabel) TableWeightsPre TableWeightsPost)
-    (htt : ∀ a s heights forms, Spec (Labels.label tableTermsLabel)
+    (hw : Spec (Labels.label NativeRustcVmX64.Vm.TableWeights.entryLabel) TableWeightsPre TableWeightsPost)
+    (htt : ∀ a s heights forms, Spec (Labels.label NativeRustcVmX64.Vm.TableTerms.entryLabel)
       (TableTermsPre a s heights forms) (TableTermsPost a s heights forms))
     {a : DecArea} {s : TState} {heights : Array Nat} {bus : BusResultW} :
-    Spec (Labels.label tableSumcheckLabel) (TableSumcheckPre a s heights bus)
+    Spec (Labels.label NativeRustcVmX64.Vm.TableSumcheck.entryLabel) (TableSumcheckPre a s heights bus)
       (TableSumcheckPost a s heights bus) := by
   intro m0 h
   rw [lbl_entry hp]

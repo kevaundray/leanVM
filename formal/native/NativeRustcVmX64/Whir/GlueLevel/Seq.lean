@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Ring.Seq
 public import NativeRustcVmX64.Basic
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # Functions with stack arguments as sequences of blocks and calls (x86-64)
@@ -583,10 +584,10 @@ theorem exitStepA (h : LayA m0 F A N rs) {T S' : SState} {vals : Nat → BitVec 
 
 /-- **A block ending in a call of `EW::mul`.** -/
 theorem mulStepA (h : LayA m0 F A N rs)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hS : F + ewMulStack ≤ N) {T T' S' : SState} {vals vals' : Nat → BitVec 64}
     {m : MachineData} (hB : BndA m0 F A N rs wr T vals m) {ds : List Directive} {k : Nat}
-    (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', .call ewMulLabel))
+    (hk : ds.IsInfixAt Host.prog k) (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (wr' : Nat → Bool) (hsub : ∀ r, wr' r = true → wr r = true)
     (hwr : S'.mem.all (writeOk F ((F + 8 + A) :: rs.map Prod.snd) wr') = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0))

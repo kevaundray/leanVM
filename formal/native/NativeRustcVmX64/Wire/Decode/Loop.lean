@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Wire.Decode.Stream
+public import NativeRustcVmX64.Code.Vm.Decode.Names
+public import NativeRustcVmX64.Code.Vm.PhaseM.Names
 
 /-!
 # `decode`: the phases (x86-64)
@@ -31,8 +33,8 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 /-- **At `phase_m`'s call** (`b11`), phase `i` of `p`. -/
 structure At11 [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (p i : Nat)
     (done : List PhaseOut) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Labels.label phaseMLabel
-  ret : retOf st.data = Host.addrOf (k + 70)
+  pc : st.pc = Labels.label NativeRustcVmX64.Vm.PhaseM.entryLabel
+  ret : retOf st.data = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b12Offset)
   bod : Bod m0 0 st.data
   pos : 4 ≤ LN m0
   model : decodeM (Bs m0) = tailPh (Bs m0) (streamOf n ws) done (p - i) ci
@@ -52,7 +54,7 @@ structure At11 [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (p i
 /-- **After `phase_m`** (`b12`), phase `i` of `p`: the phases before it kept, `phase_m`'s result. -/
 structure AtR [Labels] [Host] (m0 : MachineData) (k n : Nat) (ws : List K) (p i : Nat)
     (done : List PhaseOut) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 70)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b12Offset)
   bod : Bod m0 8 st.data
   pos : 4 ≤ LN m0
   model : decodeM (Bs m0) = tailPh (Bs m0) (streamOf n ws) done (p - i) ci
@@ -157,14 +159,14 @@ theorem done_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K} {p : 
   refine fblk hp G b9_in_code (by simp [b9]) exit_b9 nofun ok_b9.1 (ok_b9.2 .rbx (by simp))
     (ok_b9.2 .r15 (by simp)) hh.pc hh.bod fun st hbod hd0 hm0 hpc0 ↦ ?_
   have hpc : st.pc = if (SBool.cmp .eq .W64 (.reg .r12) (.reg .rbp)).eval
-      (frameEnv m0 st0.data 80 []) = true then Labels.label ".LDecode_7"
-      else Host.addrOf (k + 59 + b9.length) := hpc0
+      (frameEnv m0 st0.data 80 []) = true then Labels.label NativeRustcVmX64.Vm.Decode.label_7
+      else Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b9Offset + b9.length) := hpc0
   have he : (SBool.cmp .eq .W64 (.reg .r12) (.reg .rbp)).eval (frameEnv m0 st0.data 80 []) =
       true := by
     show CmpOp.apply .eq .W64 (reg st0.data .r12) (reg st0.data .rbp) = true
     rw [eqv_eval, hh.r12, hh.rbp]; simp
   simp only [he, ↓reduceIte] at hpc
-  rw [hp.label (j := 86) rfl] at hpc
+  rw [hp.label NativeRustcVmX64.Vm.Decode.label_7_at] at hpc
   have hpos := hh.pos
   have hmod := hh.model
   have hple := hh.ple
@@ -192,7 +194,7 @@ theorem done_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K} {p : 
       show (reg st.data .r15).toNat = _
       rw [hbod.r15]
     simp only [e1, e2]
-  refine fin hp G (hpc1.trans (hp.label (j := 77) rfl)) hb1 ?_
+  refine fin hp G (hpc1.trans (hp.label NativeRustcVmX64.Vm.Decode.label_10_at)) hb1 ?_
   unfold Res
   rw [hmod, Nat.sub_self, tailPh_zero, length_Bs]
   by_cases hc : ci = LN m0
@@ -245,8 +247,8 @@ theorem pre_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K}
   have rk1 : ∀ x ∈ [Reg64.rbx, .rbp, .r12, .r13, .r14, .r15], reg s1.data x = reg st.data x :=
     fun x hx ↦ hm1.regs x _ (ok_b9.2 x hx)
   have hpc1' : s1.pc = if (SBool.cmp .eq .W64 (.reg .r12) (.reg .rbp)).eval
-      (frameEnv m0 st.data 80 []) = true then Labels.label ".LDecode_7"
-      else Host.addrOf (k + 59 + b9.length) := hpc1
+      (frameEnv m0 st.data 80 []) = true then Labels.label NativeRustcVmX64.Vm.Decode.label_7
+      else Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b9Offset + b9.length) := hpc1
   simp only [SBool.eval, Sym.eval, Env.ofMachine_regs, eqv_eval] at hpc1'
   rw [show st.data.regs.get64 .r12 = reg st.data .r12 from rfl,
     show st.data.regs.get64 .rbp = reg st.data .rbp from rfl, h12, hbp,
@@ -255,7 +257,7 @@ theorem pre_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K}
   -- `b10`: the count, within the room.
   refine fblk hp G b10_in_code (by simp [b10]) exit_b10 nofun ok_b10.1
     (ok_b10.2.2 .rbx (by simp)) (ok_b10.2.2 .r15 (by simp))
-    (hpc1'.trans (by rw [show b9.length = 3 from rfl])) hb1 fun s2 hb2 hd2 hm2 hpc2 ↦ ?_
+    (hpc1'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b9_next)) hb1 fun s2 hb2 hd2 hm2 hpc2 ↦ ?_
   have rk2 : ∀ x ∈ [Reg64.rbx, .r12, .r13, .r14, .r15], reg s2.data x = reg s1.data x :=
     fun x hx ↦ hm2.regs x _ (ok_b10.2.2 x hx)
   have hbp2 : (reg s2.data .rbp).toNat = i + 1 := by
@@ -265,8 +267,8 @@ theorem pre_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K}
     rw [show s1.data.regs.get64 .rbp = reg s1.data .rbp from rfl, rk1 .rbp (by simp), hbp]
     omega
   have hpc2' : s2.pc = if (SBool.cmp .eq .W64 (.reg .r14) (.bin .add .W64 (.reg .rbp) (.lit 1))).eval
-      (frameEnv m0 s1.data 80 []) = true then Labels.label ".LDecode_9"
-      else Host.addrOf (k + 62 + b10.length) := hpc2
+      (frameEnv m0 s1.data 80 []) = true then Labels.label NativeRustcVmX64.Vm.Decode.label_9
+      else Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b10Offset + b10.length) := hpc2
   have hne : (SBool.cmp .eq .W64 (.reg .r14) (.bin .add .W64 (.reg .rbp) (.lit 1))).eval
       (frameEnv m0 s1.data 80 []) = false := by
     show CmpOp.apply .eq .W64 (reg s1.data .r14)
@@ -279,7 +281,7 @@ theorem pre_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K}
   -- `b11`: `phase_m` into phase `i`'s words.
   obtain ⟨hmid11, hw11, hr13_11, hrsi11, hrdi11, hrdx11, hk11⟩ := ok_b11
   refine cblk hp G b11_in_code (by simp [b11]) exit_b11 hmid11 hw11 (hk11 .rbx (by simp))
-    (hk11 .r15 (by simp)) (hpc2'.trans (by rw [show b10.length = 3 from rfl])) hb2
+    (hk11 .r15 (by simp)) (hpc2'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b10_next)) hb2
     fun s3 hb3 hs3 hm3 hpc3 ↦ ?_
   have hsp3 : rspOf s3.data = stackBelow m0 80 := by rw [hb3.fr.sp, off_zero]
   have hPS : phaseMStack = 1216 := rfl
@@ -311,7 +313,7 @@ theorem pre_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K}
   have hl1 : (ws.map K.lane).length = 2 * n := by rw [List.length_map, hdec.wsl]
   have hnle := hdec.nle
   unfold maxStream at hnle
-  refine .done _ ⟨hpc3.1, by rw [hpc3.2, show b11.length = 5 from rfl], hb3, hpos, hmod, hple, hi,
+  refine .done _ ⟨hpc3.1, by rw [hpc3.2, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b11_next, hb3, hpos, hmod, hple, hi,
     hdl, ⟨hdec.nle, hdec.wsl, ?_, ?_, ?_, fun j hj ↦ ?_⟩, hR3, hrsi3, hrdi3, hrdx3, ?_, ?_, ?_, ?_⟩
   · exact wordAt_keep hdec.count hd3 (by rw [hw0]; omega) fun q hq ↦ by
       rw [hw0]; clear * - hq hsD hsp; omega
@@ -337,7 +339,7 @@ theorem pre_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K}
 
 /-- **`phase_m`**, from its call to its return. -/
 theorem call_run (G : Geo m0)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
+    (hpm : Spec (Labels.label NativeRustcVmX64.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
     {p i : Nat} {done : List PhaseOut} {ci : Nat} {s3 : MachineState}
     (h : At11 m0 k n ws p i done ci s3) :
     Eventually (step1 Host.exe) (fun st' ↦ AtR m0 k n ws p i done ci st') s3 := by
@@ -389,7 +391,7 @@ theorem call_run (G : Geo m0)
       simp only [stackR, rcR, phaseBytes_eq, workBytes_eq, length_Bs, hsb3, hPS]
       exact pm_disjoint G.sp hS96 hr' (by rw [hout]; omega) (by rw [hout]; omega) G.cS
         (G.cB (by omega)) G.cD G.cW hsD hsW hsB hbD hbW hdW
-  refine call_then (env := frameEnv m0 s3.data 80 []) (l := phaseMLabel) ⟨hpc3a, hret3⟩ hpm
+  refine call_then (env := frameEnv m0 s3.data 80 []) (l := NativeRustcVmX64.Vm.PhaseM.entryLabel) ⟨hpc3a, hret3⟩ hpm
     hpre fun s4 hpc4 hrsp4 ⟨hres4, hso4, hsv4⟩ ↦ ?_
   rw [hrdi3, hrsi3, hrdx3] at hso4
   simp only [frameR, hsb3, hPS] at hso4
@@ -472,7 +474,7 @@ theorem call_run (G : Geo m0)
 /-- **A phase**: from the loop's head with `i < p`, `phase_m` into phase `i`'s words; back at the
 head with one more phase, or out with `None`. -/
 theorem step_run (hp : Placed code k) (G : Geo m0)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
+    (hpm : Spec (Labels.label NativeRustcVmX64.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
     {p i : Nat} {done : List PhaseOut} {ci : Nat} {st : MachineState}
     (h : Head m0 k n ws p i done ci st) (hi : i < p) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
@@ -487,8 +489,8 @@ theorem step_run (hp : Placed code k) (G : Geo m0)
     fun x hx ↦ hm5.regs x _ (ok_b12.2.2 x hx)
   have hpc5' : s5.pc = if (!CmpOp.apply .eq .W8 (BinOp.apply .and .W8
       (UnOp.apply .trunc .W32 (reg s4.data .rax)) (UnOp.apply .trunc .W32 (reg s4.data .rax)))
-      (BitVec.ofNat 64 0)) = true then Labels.label ".LDecode_6"
-      else Host.addrOf (k + 70 + b12.length) := hpc5
+      (BitVec.ofNat 64 0)) = true then Labels.label NativeRustcVmX64.Vm.Decode.label_6
+      else Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b12Offset + b12.length) := hpc5
   rw [trunc_cond] at hpc5'
   rcases hph : phaseM (Bs m0) ci with _ | ⟨po, c'⟩
   · -- `None`: `b13`, out.
@@ -497,8 +499,8 @@ theorem step_run (hp : Placed code k) (G : Geo m0)
     simp only [hb0, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc5'
     refine fblk hp G b13_in_code (by simp [b13]) exit_b13 nofun ok_b13.1
       (ok_b13.2.2 .rbx (by simp)) (ok_b13.2.2 .r15 (by simp))
-      (hpc5'.trans (by rw [show b12.length = 4 from rfl])) hb5 fun s6 hb6 _ hm6 hpc6 ↦ ?_
-    refine Eventually.mono (fin hp G (hpc6.trans (hp.label (j := 77) rfl)) hb6 (res_none ?_ ?_))
+      (hpc5'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b12_next)) hb5 fun s6 hb6 _ hm6 hpc6 ↦ ?_
+    refine Eventually.mono (fin hp G (hpc6.trans (hp.label NativeRustcVmX64.Vm.Decode.label_10_at)) hb6 (res_none ?_ ?_))
       fun _ h ↦ .inl h
     · rw [hmod, show p - i = (p - i - 1) + 1 by omega, tailPh_none hph]
     · unfold boolRet
@@ -511,7 +513,7 @@ theorem step_run (hp : Placed code k) (G : Geo m0)
   obtain ⟨hb1', hPh, hR4⟩ := hres
   have hb1'' : (reg s4.data .rax).toNat % 256 = 1 := hb1'
   simp only [hb1'', Nat.one_ne_zero, decide_false, Bool.not_false, ↓reduceIte] at hpc5'
-  rw [hp.label (j := 59) rfl] at hpc5'
+  rw [hp.label NativeRustcVmX64.Vm.Decode.label_6_at] at hpc5'
   refine .done _ (.inr ⟨po, c', ⟨hpc5', hb5, hpos, ?_, hple, by omega, by simp [hdl], ⟨hdec.nle,
     hdec.wsl, by rw [hd5]; exact hdec.count, by rw [hd5]; exact hdec.words,
     by rw [hd5]; exact hdec.pcnt, fun j hj ↦ ?_⟩, by rw [hd5]; exact hR4, ?_, ?_, ?_, ?_⟩⟩)
@@ -535,7 +537,7 @@ theorem step_run (hp : Placed code k) (G : Geo m0)
 
 /-- **The loop**: from the head with no phase read, every phase, then the cursor. -/
 theorem loop_run (hp : Placed code k) (G : Geo m0)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
+    (hpm : Spec (Labels.label NativeRustcVmX64.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
     {p : Nat} {ci : Nat} {st : MachineState} (h : Head m0 k n ws p 0 [] ci st) :
     Eventually (step1 Host.exe) (Post m0) st := by
   refine Sym.loop (tr := step1 Host.exe)

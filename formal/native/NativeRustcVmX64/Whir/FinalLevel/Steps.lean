@@ -1,14 +1,15 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Frame
+public import NativeRustcVmX64.Code.Vm.FinalLevel.Names
 
 /-!
 # `final_level`: tests, exits, the first zeroing loop (x86-64)
 
 `test_spec`: a two-instruction block `testb %al, %al; je l` from a state of the body leaves
 registers and memory as they were and goes to `l` when AL is `0`; `cond_spec` any block without
-writes or register changes ending in a branch. The exit at `.LFinalLevel_6` (`exit_spec`: AL the
-low byte of RAX, the registers restored, `ret`), at `.LFinalLevel_5` (`fail_spec`: AL `0`), the
+writes or register changes ending in a branch. The exit at `NativeRustcVmX64.Vm.FinalLevel.label_6` (`exit_spec`: AL the
+low byte of RAX, the registers restored, `ret`), at `NativeRustcVmX64.Vm.FinalLevel.label_5` (`fail_spec`: AL `0`), the
 postcondition from them (`post37`, `none36`). `zero_loop`: `b1` zeroes the folded scalars' buffer
 (`1600` to `2624`), the registers but RAX kept.
 -/
@@ -113,9 +114,9 @@ theorem cond_spec (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {bl 
   exact exec_at (infix_of hb hne hp) hx hwf nofun hpc hm
     fun st' hm' hpc' ↦ .done _ ⟨regs_same hm hm' hok.2, hm'.dmem_eq hwf hok.1, hpc'⟩
 
-/-- **The exit** at `.LFinalLevel_6`: AL RAX's low byte, the registers restored, `ret`. -/
+/-- **The exit** at `NativeRustcVmX64.Vm.FinalLevel.label_6`: AL RAX's low byte, the registers restored, `ret`. -/
 theorem exit_spec (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : MachineState}
-    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + 428)) :
+    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b37Offset)) :
     Eventually (step1 Host.exe)
       (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
         boolRet st'.data = (reg st.data .rax).toNat % 256 ∧ st'.data.dmem = st.data.dmem ∧
@@ -132,9 +133,9 @@ theorem exit_spec (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st 
   rw [boolRet, show reg st'.data .rax = _ from hm'.regs .rax _ hrax]
   rfl
 
-/-- **A failure** at `.LFinalLevel_5`: RAX cleared, then the exit; AL `0`. -/
+/-- **A failure** at `NativeRustcVmX64.Vm.FinalLevel.label_5`: RAX cleared, then the exit; AL `0`. -/
 theorem fail_spec (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : MachineState}
-    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + 426)) :
+    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b36Offset)) :
     Eventually (step1 Host.exe)
       (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
         boolRet st'.data = 0 ∧ st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
@@ -151,9 +152,9 @@ theorem fail_spec (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st 
   exact Eventually.mono (exit_spec hp c hf1 hpc1) fun st' ⟨h1, h2, h3, h4, h5⟩ ↦
     ⟨h1, h2, (by rw [h3, h0]; rfl), h4.trans hd, h5⟩
 
-/-- **The postcondition** from the exit at `.LFinalLevel_6`, AL the verdict. -/
+/-- **The postcondition** from the exit at `NativeRustcVmX64.Vm.FinalLevel.label_6`, AL the verdict. -/
 theorem post37 (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : MachineState}
-    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + 428))
+    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b37Offset))
     (hal : (reg st.data .rax).toNat % 256 =
       (okWord (runF level b w rounds m0 s).isSome).toNat)
     (hnext : NextAt st.data.dmem (tA m0) a (runF level b w rounds m0 s)) :
@@ -162,16 +163,16 @@ theorem post37 (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : M
     ⟨h1, h2, (by show boolRet st'.data = _; rw [h3, hal]), (by rw [h4]; exact hnext),
       (by unfold ChangesIn; rw [h4]; exact changes_of c hf.same), h5⟩
 
-/-- **A rejection** with RAX's low byte `0` at `.LFinalLevel_6`. -/
+/-- **A rejection** with RAX's low byte `0` at `NativeRustcVmX64.Vm.FinalLevel.label_6`. -/
 theorem none37 (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : MachineState}
-    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + 428))
+    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b37Offset))
     (h0 : (reg st.data .rax).toNat % 256 = 0) (hnone : runF level b w rounds m0 s = none) :
     Eventually (step1 Host.exe) (Goal a s level b w rounds m0) st :=
   post37 hp c hf hpc (by rw [h0, hnone]; rfl) (by rw [hnone]; intro _ _ h; cases h)
 
-/-- **A rejection** at `.LFinalLevel_5`. -/
+/-- **A rejection** at `NativeRustcVmX64.Vm.FinalLevel.label_5`. -/
 theorem none36 (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : MachineState}
-    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + 426))
+    (hf : Fr m0 40 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b36Offset))
     (hnone : runF level b w rounds m0 s = none) :
     Eventually (step1 Host.exe) (Goal a s level b w rounds m0) st :=
   Eventually.mono (fail_spec hp c hf hpc) fun st' ⟨h1, h2, h3, h4, h5⟩ ↦ by
@@ -180,12 +181,12 @@ theorem none36 (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : M
       (by rw [hnone]; intro _ _ h; cases h),
       (by unfold ChangesIn; rw [h4]; exact changes_of c hf.same), h5⟩
 
-/-- `.LFinalLevel_5`'s address. -/
-theorem l5 (hp : Placed code k) : Labels.label ".LFinalLevel_5" = Host.addrOf (k + 426) :=
+/-- `NativeRustcVmX64.Vm.FinalLevel.label_5`'s address. -/
+theorem l5 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.FinalLevel.label_5 = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b36Offset) :=
   label_of_infix hp b36_in_code rfl
 
-/-- `.LFinalLevel_6`'s address. -/
-theorem l6 (hp : Placed code k) : Labels.label ".LFinalLevel_6" = Host.addrOf (k + 428) :=
+/-- `NativeRustcVmX64.Vm.FinalLevel.label_6`'s address. -/
+theorem l6 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.FinalLevel.label_6 = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b37Offset) :=
   label_of_infix hp b37_in_code rfl
 
 /-! ## The first zeroing loop -/
@@ -216,16 +217,16 @@ theorem cZero_eval [Labels] (env : Env) {i : Nat} (hi : i < 16)
 
 /-- **One step of the first zeroing loop**: `b1` from iteration `i`. -/
 theorem zero_step (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {d0 : MachineData}
-    {i : Nat} (hi : i < 16) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 12))
+    {i : Nat} (hi : i < 16) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b1Offset))
     (hf : Fr m0 40 st.data) (hrax : reg st.data .rax = BitVec.ofNat 64 (56 + 64 * i))
     (hr : ∀ r, r ≠ .rax → reg st.data r = reg d0 r)
     (hd : NativeRustcVm.SameOutside m0.dmem st.data.dmem (NativeRustcVm.InRange (fa m0) 2672)) :
     Eventually (step1 Host.exe) (fun st' ↦ Fr m0 40 st'.data ∧
       (∀ r, r ≠ .rax → reg st'.data r = reg d0 r) ∧
       NativeRustcVm.SameOutside m0.dmem st'.data.dmem (NativeRustcVm.InRange (fa m0) 2672) ∧
-      ((i + 1 < 16 ∧ st'.pc = Host.addrOf (k + 12) ∧
+      ((i + 1 < 16 ∧ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b1Offset) ∧
           reg st'.data .rax = BitVec.ofNat 64 (56 + 64 * (i + 1))) ∨
-        (i + 1 = 16 ∧ st'.pc = Host.addrOf (k + 24)))) st := by
+        (i + 1 = 16 ∧ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b2Offset)))) st := by
   have g := c.geo
   set x := loc m0 (96 + 64 * i) with hxdef
   have hxn : x.toNat = (rspOf m0).toNat - 2672 + (96 + 64 * i) := c.loc_toNat (by omega)
@@ -310,17 +311,17 @@ theorem zero_step (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {d0 
 /-- **The first zeroing loop**: from `b1` with RAX `56` to `b2`, the frame and the registers but
 RAX kept, the memory changed only in the frame. -/
 theorem zero_loop (hp : Placed code k) (c : Ctx a s level ba b w rounds m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 12)) (hf : Fr m0 40 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b1Offset)) (hf : Fr m0 40 st.data)
     (hrax : reg st.data .rax = BitVec.ofNat 64 56)
     (hd : NativeRustcVm.SameOutside m0.dmem st.data.dmem (NativeRustcVm.InRange (fa m0) 2672)) :
     Eventually (step1 Host.exe) (fun st' ↦ Fr m0 40 st'.data ∧
       (∀ r, r ≠ .rax → reg st'.data r = reg st.data r) ∧
       NativeRustcVm.SameOutside m0.dmem st'.data.dmem (NativeRustcVm.InRange (fa m0) 2672) ∧
-      st'.pc = Host.addrOf (k + 24)) st :=
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b2Offset)) st :=
   loop (Q := fun st' ↦ Fr m0 40 st'.data ∧ (∀ r, r ≠ .rax → reg st'.data r = reg st.data r) ∧
       NativeRustcVm.SameOutside m0.dmem st'.data.dmem (NativeRustcVm.InRange (fa m0) 2672) ∧
-      st'.pc = Host.addrOf (k + 24))
-    (fun n st' ↦ ∃ i, n = 16 - i ∧ i < 16 ∧ st'.pc = Host.addrOf (k + 12) ∧ Fr m0 40 st'.data ∧
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b2Offset))
+    (fun n st' ↦ ∃ i, n = 16 - i ∧ i < 16 ∧ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b1Offset) ∧ Fr m0 40 st'.data ∧
       reg st'.data .rax = BitVec.ofNat 64 (56 + 64 * i) ∧
       (∀ r, r ≠ .rax → reg st'.data r = reg st.data r) ∧
       NativeRustcVm.SameOutside m0.dmem st'.data.dmem (NativeRustcVm.InRange (fa m0) 2672))

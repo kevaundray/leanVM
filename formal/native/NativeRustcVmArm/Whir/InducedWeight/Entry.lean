@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.InducedWeight.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceTable.Names
 public import NativeRustcVmArm.Whir.InducedWeight.Outer
 
 /-!
@@ -176,13 +179,13 @@ structure AtB3 (m0 st : MachineData) : Prop where
 
 /-- **From the entry to `b3`**, or `None` for `μ > 30`. -/
 theorem entry_a (hp : Placed code k)
-    (htab : Spec (label subspaceTableLabel) SubspaceTablePre SubspaceTablePost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
+    (htab : Spec (label NativeRustcVmArm.Vm.SubspaceTable.entryLabel) SubspaceTablePre SubspaceTablePost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m0 : MachineData} (hpre : InducedWeightPre m0)
     (cont : ∀ st, AtB3 m0 st → Eventually (step1 Host.exe)
-      (fun s ↦ s.pc = retOf m0 ∧ InducedWeightPost m0 s.data) ⟨st, Host.addrOf (k + 28)⟩) :
+      (fun s ↦ s.pc = retOf m0 ∧ InducedWeightPost m0 s.data) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b3Offset)⟩) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ InducedWeightPost m0 s.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b0Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, hqin, hwin, hpin, hout⟩ := hpre'
   have hF : 1200 ≤ inducedWeightStack := by decide
@@ -190,7 +193,7 @@ theorem entry_a (hp : Placed code k)
   have hlt := m0.regs.SP.toBitVec.isLt
   have hSP : inducedWeightStack ≤ m0.regs.SP.toBitVec.toNat := hS.2.1
   have hfb : (fbOf m0).toNat = m0.regs.SP.toBitVec.toNat - 1200 := hfe
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env0 := Env.ofMachine m0 [(fbOf m0, 1200)]
   have hwf0 : env0.WF := wf_one hfmap hfnw
   have hm0 : Match env0 entryS m0 :=
@@ -228,8 +231,8 @@ theorem entry_a (hp : Placed code k)
   rw [e1x0, e1x1] at hval
   -- `b1`: the table's tag
   obtain ⟨hwf3, hm3⟩ := fr_env hS hfr2
-  have hk1 : b1.IsInfixAt Host.prog (k + 18) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc2' : s2.pc = Host.addrOf (k + 18) := hpc2
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc2' : s2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b1Offset) := hpc2
   refine exec_at hk1 run_b1 hwf3 hpc2' hm3 fun s3 hm3' hpc3 ↦ ?_
   have hb1 := after_eq run_b1 ▸ b1_keeps
   have hfr3 := hfr2.of_regs hm3 hm3' hwf3 rfl hb1.1 hb1.2
@@ -250,7 +253,7 @@ theorem entry_a (hp : Placed code k)
     simp only [hmu, ↓reduceIte] at hval
     rw [load_fr (rs := []) hval] at hpc3
     simp only [show ((0 : UInt64).toBitVec == 0#64) = true from rfl, ↓reduceIte] at hpc3
-    rw [show Labels.label ".LInducedWeight_9" = Host.addrOf (k + 97) from hp.label rfl] at hpc3
+    rw [show Labels.label NativeRustcVmArm.Vm.InducedWeight.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b16Offset) from hp.label (j := NativeRustcVmArm.Vm.InducedWeight.b16Offset) NativeRustcVmArm.Vm.InducedWeight.label_9_at] at hpc3
     let envN := Env.ofMachine s3.data [(fbOf m0, 1200), (m0.regs.X0.toBitVec, 24)]
     have hwfN : envN.WF :=
       Env.wf_of ⟨⟨(hfr3.readable ⟨hfmap, hfnw⟩).1, hfnw⟩, ⟨(hfr3.readable hout.1).1, hout.1.2⟩,
@@ -262,7 +265,7 @@ theorem entry_a (hp : Placed code k)
         ⟨by
           show s3.data.regs.X20.toBitVec = m0.regs.X0.toBitVec + BitVec.ofInt 64 0
           rw [h20]; simp, trivial⟩ trivial trivial trivial
-    have hk16 : b16.IsInfixAt Host.prog (k + 97) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b16Offset) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_at hk16 run_b16' hwfN hpc3 hmN fun s4 hm4 hpc4 ↦ .done _ ?_
     have hb16 := after_eq run_b16' ▸ b16'_restores
     obtain ⟨hsaved, hx30⟩ := hfr3.ret hm4 hwfN x30_mem hb16.1
@@ -295,8 +298,8 @@ theorem entry_a (hp : Placed code k)
     rwa [NativeRustcVm.Transcript.off, NativeRustcVm.Transcript.off, addr_add, addr_add] at this
   -- `b2`: the output spilled, `memcpy` of the table's pairs
   obtain ⟨hwf4, hm4⟩ := fr_env hS hfr3
-  have hk2' : b2.IsInfixAt Host.prog (k + 20) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc3' : s3.pc = Host.addrOf (k + 20) := hpc3
+  have hk2' : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc3' : s3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b2Offset) := hpc3
   refine exec_at hk2' run_b2 hwf4 hpc3' hm4 fun s4 hm4' hpc4 ↦ ?_
   have hb2 := after_eq run_b2 ▸ b2_keeps
   have hfr4 := fr_block hS hfr3 hm4 hm4' hwf4 hb2.1 hb2.2

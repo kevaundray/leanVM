@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.GlueLevel.Facts
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
 
 /-!
 # `glue_level`: the claim and the first glued claim (x86-64)
@@ -22,7 +23,7 @@ open NativeRustcVm.Transcript (off off_off off_zero toNat_off)
 /-- **At `b6`**: the template `t5`, the count as at the entry, the first glued claim's point. -/
 structure AtB6 [Host] (s : WhirStateW) (m0 : MachineData) (k : Nat) (st : MachineState) :
     Prop where
-  at6 : At s m0 k 59 wrAll t5 (vA s m0) st
+  at6 : At s m0 k NativeRustcVmX64.Vm.GlueLevel.b6Offset wrAll t5 (vA s m0) st
   cnt : Same m0.dmem st.data.dmem (off (pOf m0) 504) 8
   pt : BufEWAt st.data.dmem (off (pOf m0) (o1 s.glued.size + 40)) stackCap
     (slice m0 (reg m0 .r8) (reg m0 .r9)).toList
@@ -46,8 +47,8 @@ variable [Host] {k : Nat}
 
 /-- **From `b3` to `b6`.** -/
 theorem first_step (hp : Placed code k)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hpre : GlueLevelPre s m0) {st : MachineState} (h : At s m0 k 38 noWr t3 (v3 s m0) st) :
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hpre : GlueLevelPre s m0) {st : MachineState} (h : At s m0 k NativeRustcVmX64.Vm.GlueLevel.b3Offset noWr t3 (v3 s m0) st) :
     Eventually (step1 Host.exe) (AtB6 s m0 k) st := by
   obtain ⟨m3, pc3⟩ := st
   obtain ⟨hpc, hB⟩ := h
@@ -77,7 +78,7 @@ theorem first_step (hp : Placed code k)
   obtain ⟨d4, pc4⟩ := st4
   simp only at hpc4 hB4 hloc4
   subst hpc4
-  rw [show k + 38 + b3.length = k + 45 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b3Offset + b3.length = k + NativeRustcVmX64.Vm.GlueLevel.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b3_next]]
   have hc4 : Same m0.dmem d4.dmem (off (pOf m0) 504) 8 :=
     same_trans hc3 (keep_reg hpre hloc4 rs_2 rfl)
   have hal4 : WordAt d4.dmem (off (pOf m0) 16) s.alphas.size.toUInt64 := by
@@ -162,7 +163,7 @@ theorem first_step (hp : Placed code k)
   obtain ⟨d5, pc5⟩ := st5
   simp only at hpc5 hB5 hloc5 hal5 hbuf
   subst hpc5
-  rw [show k + 45 + b4.length = k + 57 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b4Offset + b4.length = k + NativeRustcVmX64.Vm.GlueLevel.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b4_next]]
   refine jumpStepA hl hB5 (b5_in_code.trans hp.1 (by simp [b5])) run_b5 (fun _ h ↦ by cases h)
     ([1, 4].contains ·) (sub_of _ (by simp)) (by rw [rs_sizes]; rfl) (T' := t5) (vals' := vA s m0) rfl rfl
     (fun ret ↦ by vtac0) (by rw [rs_sizes]; rfl) rfl rfl (fun m ret ↦ headA_al rfl m _ ret)

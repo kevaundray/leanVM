@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Tables.TableTerms.Body
 public import NativeRustcVmX64.Code.Vm.TableSumcheck
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TableSumcheck.Names
+public import NativeRustcVmX64.Code.Vm.TableTerms.Names
+public import NativeRustcVmX64.Code.Vm.TableWeights.Names
 public meta import NativeRustcVmX64.Code.Vm.TableSumcheck
 
 /-!
@@ -103,7 +107,7 @@ section
 open NativeRustcVmX64.Transcript (after after_eq)
 
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .cond (gt R13 (.lit 30)) ".LTableSumcheck_11") :=
+    .cond (gt R13 (.lit 30)) NativeRustcVmX64.Vm.TableSumcheck.label_11) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 public theorem ok_b0 : ProOk 736 40 slots (after b0 entryS) = true ∧
     WrOk (after b0 entryS) [] = true ∧
@@ -114,7 +118,7 @@ public theorem ok_b0 : ProOk 736 40 slots (after b0 entryS) = true ∧
   decide +kernel
 
 public theorem exit_b1 : exec b1 argS = some (after b1 argS,
-    .call "_RINvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB6_6TState8sumcheckNCNvB2_14sumcheck_plain0EB8_") :=
+    .call NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : MidOk 736 16 slots (after b1 argS) = true ∧ WrOk (after b1 argS) [] = true ∧
     (∀ w ∈ (after b1 argS).mem, w.r = 0 ∧ w.off + w.n ≤ 88) ∧
@@ -126,14 +130,14 @@ public theorem ok_b1 : MidOk 736 16 slots (after b1 argS) = true ∧ WrOk (after
     Keeps (after b1 argS) [.rbx, .rbp, .r13, .r14] = true := by
   decide +kernel
 
-public theorem exit_b2 : exec b2 retS = some (after b2 retS, .cond c2 ".LTableSumcheck_11") :=
+public theorem exit_b2 : exec b2 retS = some (after b2 retS, .cond c2 NativeRustcVmX64.Vm.TableSumcheck.label_11) :=
   run_b2.trans (by rw [after_eq run_b2]; rfl)
 public theorem ok_b2 : MidOk 736 40 slots (after b2 retS) = true ∧ (after b2 retS).mem = [] ∧
     Keeps (after b2 retS) csR = true := by
   decide +kernel
 
 public theorem exit_b3 : exec b3 sF = some (after b3 sF,
-    .cond (.cmp .eq .W64 (.bin .shr .W64 (.reg .r13) (.lit 1)) (.lit 0)) ".LTableSumcheck_9") :=
+    .cond (.cmp .eq .W64 (.bin .shr .W64 (.reg .r13) (.lit 1)) (.lit 0)) NativeRustcVmX64.Vm.TableSumcheck.label_9) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 736 40 slots (after b3 sF) = true ∧ WrOk (after b3 sF) [] = true ∧
     (∀ w ∈ (after b3 sF).mem, 56 ≤ w.off ∧ w.off + w.n ≤ 80) ∧
@@ -144,7 +148,7 @@ public theorem ok_b3 : MidOk 736 40 slots (after b3 sF) = true ∧ WrOk (after b
   decide +kernel
 
 public theorem exit_b4 : exec b4 sF = some (after b4 sF,
-    .cond (.not (.cmp .eq .W64 (.reg .rdx) (.lit 1))) ".LTableSumcheck_5") :=
+    .cond (.not (.cmp .eq .W64 (.reg .rdx) (.lit 1))) NativeRustcVmX64.Vm.TableSumcheck.label_5) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 736 40 slots (after b4 sF) = true ∧ (after b4 sF).mem = [] ∧
     (after b4 sF).reg .rcx = some (.bin .shl .W64 (.reg .r13) (.lit 4)) ∧
@@ -153,7 +157,7 @@ public theorem ok_b4 : MidOk 736 40 slots (after b4 sF) = true ∧ (after b4 sF)
     (after b4 sF).reg .rdx = some (.reg .rdx) ∧ Keeps (after b4 sF) csR = true := by
   decide +kernel
 
-public theorem exit_b5 : exec b5 sF = some (after b5 sF, .jump ".LTableSumcheck_8") :=
+public theorem exit_b5 : exec b5 sF = some (after b5 sF, .jump NativeRustcVmX64.Vm.TableSumcheck.label_8) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : MidOk 736 40 slots (after b5 sF) = true ∧ (after b5 sF).mem = [] ∧
     (after b5 sF).reg .rcx = some (.lit 0) ∧ (after b5 sF).reg .rax = some (.reg .rax) ∧
@@ -173,7 +177,7 @@ public theorem ok_b6 : MidOk 736 40 slots (after b6 sF) = true ∧ (after b6 sF)
 
 public theorem exit_b7 : exec b7 swapS = some (after b7 swapS,
     .cond (.not (.cmp .eq .W64 (.reg .rdx) (.bin .add .W64 (.lit 2) (.reg .rcx))))
-      ".LTableSumcheck_6") :=
+      NativeRustcVmX64.Vm.TableSumcheck.label_6) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 :
     (∀ w ∈ (after b7 swapS).mem, (w.r = 0 ∧ w.off + w.n ≤ 32) ∨ (w.r = 1 ∧ w.off + w.n ≤ 16) ∨
@@ -191,7 +195,7 @@ public theorem ok_b7 :
   decide +kernel
 
 public theorem exit_b8 : exec b8 sF = some (after b8 sF,
-    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .r13) (.lit 2)) (.lit 0)) ".LTableSumcheck_9") :=
+    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .r13) (.lit 2)) (.lit 0)) NativeRustcVmX64.Vm.TableSumcheck.label_9) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk 736 40 slots (after b8 sF) = true ∧ (after b8 sF).mem = [] ∧
     (after b8 sF).reg .rcx = some (.reg .rcx) ∧ (after b8 sF).reg .rax = some (.reg .rax) ∧
@@ -208,7 +212,7 @@ public theorem ok_b9 :
   decide +kernel
 
 public theorem exit_b10 : exec b10 busS = some (after b10 busS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6tables13table_weights") :=
+    .call NativeRustcVmX64.Vm.TableWeights.entryLabel) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem ok_b10 : MidOk 736 32 slots (after b10 busS) = true ∧
     WrOk (after b10 busS) [] = true ∧
@@ -227,7 +231,7 @@ public theorem ok_b10 : MidOk 736 32 slots (after b10 busS) = true ∧
   decide +kernel
 
 public theorem exit_b11 : exec b11 argS = some (after b11 argS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6tables11table_terms") :=
+    .call NativeRustcVmX64.Vm.TableTerms.entryLabel) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : MidOk 736 0 slots (after b11 argS) = true ∧
     WrOk (after b11 argS) [] = true ∧
@@ -241,13 +245,13 @@ public theorem ok_b11 : MidOk 736 0 slots (after b11 argS) = true ∧
   decide +kernel
 
 public theorem exit_b12 : exec b12 tS = some (after b12 tS,
-    .cond (.cmp .eq .W8 (.load 0 88 1) (.lit 0)) ".LTableSumcheck_11") :=
+    .cond (.cmp .eq .W8 (.load 0 88 1) (.lit 0)) NativeRustcVmX64.Vm.TableSumcheck.label_11) :=
   run_b12.trans (by rw [after_eq run_b12])
 public theorem ok_b12 : MidOk 736 40 slots (after b12 tS) = true ∧ (after b12 tS).mem = [] ∧
     Keeps (after b12 tS) csR = true := by
   decide +kernel
 
-public theorem exit_b13 : exec b13 sF = some (after b13 sF, .jump ".LTableSumcheck_12") :=
+public theorem exit_b13 : exec b13 sF = some (after b13 sF, .jump NativeRustcVmX64.Vm.TableSumcheck.label_12) :=
   run_b13.trans (by rw [after_eq run_b13])
 public theorem ok_b13 : MidOk 736 40 slots (after b13 sF) = true ∧ (after b13 sF).mem = [] ∧
     (after b13 sF).reg .rax = some (.bin .merge .W8 (.bin .xor .W64 (.load 0 48 8) (.load 0 96 8))

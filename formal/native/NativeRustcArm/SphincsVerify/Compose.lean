@@ -89,7 +89,7 @@ what verification gives from layer `l` on. -/
 theorem layers_correct (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) (he : EncodeSpec) (hch : ChainsSpec) (ht : TreeSpec) :
     ∀ n l s m, l + n = 3 → r.AtLayer l s m →
-      Eventually (step1 NativeArm.Host.exe) (r.Done (r.resultFrom l s)) ⟨m, r.pc 1306⟩ := by
+      Eventually (step1 NativeArm.Host.exe) (r.Done (r.resultFrom l s)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b101Offset⟩ := by
   intro n
   induction n with
   | zero =>
@@ -122,7 +122,7 @@ theorem run_correct (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc :
     Eventually (step1 NativeArm.Host.exe) (r.Done (sphincsVerify r.w))
       ⟨r.m0, NativeArm.Host.addrOf r.k⟩ := by
   have e1 := h1 r hp hc hpre r.m0 rfl
-  rw [Nat.add_zero] at e1
+  rw [Sphincs.SphincsVerify.b0Offset, Nat.add_zero] at e1
   refine Eventually.bind e1 (at_pc fun m hm ↦ ?_)
   refine Eventually.bind (h2 r hp hc hpre m hm) (at_pc fun m hm ↦ ?_)
   refine Eventually.bind (h3 r hp hc hpre m hm) (at_pc fun m hm ↦ ?_)

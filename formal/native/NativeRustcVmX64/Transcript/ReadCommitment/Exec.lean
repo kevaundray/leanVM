@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.TStateReadCommitment
+public import NativeRustcVmX64.Code.Vm.TStateReadCommitment.Names
 public meta import NativeRustcVmX64.Code.Vm.TStateReadCommitment
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -85,7 +86,7 @@ public theorem ok_b0 : ProOk 80 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .r15 = some (.reg .rsi) := by
   decide +kernel
 public theorem exit_b1 : exec b1 doneS = some (D1, .cond
-    (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not ".LTStateReadCommitment_5") :=
+    (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not NativeRustcVmX64.Vm.TStateReadCommitment.label_5) :=
   run_b1.trans (by rw [show D1 = _ from after_eq run_b1])
 public theorem ok_b1 : MidOk 80 8 slots D1 = true ∧ D1.mem = [] ∧
     (∀ r ∈ allRegs, calleeSaved r = true → D1.reg r = some (.reg r)) := by
@@ -103,7 +104,7 @@ public theorem exit_b7a : exec b7 (after b6 D1) = some (after b7 (after b6 D1), 
   run_b7a.trans (by rw [after_eq run_b7a])
 public theorem fail_a : FailOk (after b7 (after b6 D1)) := by decide +kernel
 public theorem exit_b3 : exec b3 doneS = some (D3, .cond
-    (SBool.cmp .eq .W8 (.load 0 16 1) (.lit 0)) ".LTStateReadCommitment_5") :=
+    (SBool.cmp .eq .W8 (.load 0 16 1) (.lit 0)) NativeRustcVmX64.Vm.TStateReadCommitment.label_5) :=
   run_b3.trans (by rw [show D3 = _ from after_eq run_b3])
 public theorem ok_b3 : MidOk 80 8 slots D3 = true ∧ D3.mem = [] ∧
     (∀ r ∈ allRegs, calleeSaved r = true → D3.reg r = some (.reg r)) := by
@@ -114,14 +115,14 @@ public theorem exit_b7b : exec b7 (after b6 D3) = some (after b7 (after b6 D3), 
   run_b7b.trans (by rw [after_eq run_b7b])
 public theorem fail_b : FailOk (after b7 (after b6 D3)) := by decide +kernel
 public theorem exit_b4 : exec b4 countS = some (after b4 countS, .cond
-    (SBool.cmp .ult .W64 (.load 1 752 8) (.lit 8)).not ".LTStateReadCommitment_5") :=
+    (SBool.cmp .ult .W64 (.load 1 752 8) (.lit 8)).not NativeRustcVmX64.Vm.TStateReadCommitment.label_5) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 80 8 slots (after b4 countS) = true ∧ (after b4 countS).mem = [] ∧
     (after b4 countS).reg .rax = some (.load 1 752 8) ∧
     (after b4 countS).reg .r14 = some (.ptr 1 0) ∧
     (∀ r ∈ allRegs, calleeSaved r = true → r ≠ .r14 → (after b4 countS).reg r = some (.reg r)) := by
   decide +kernel
-public theorem exit_b5 : exec b5 pushS = some (after b5 pushS, .jump ".LTStateReadCommitment_6") :=
+public theorem exit_b5 : exec b5 pushS = some (after b5 pushS, .jump NativeRustcVmX64.Vm.TStateReadCommitment.label_6) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem exit_b7c : exec b7 (after b5 pushS) =
     some (after b7 (after b5 pushS), .ret (.load 0 80 8)) :=

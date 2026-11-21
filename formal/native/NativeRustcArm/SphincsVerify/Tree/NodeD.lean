@@ -37,8 +37,8 @@ variable {r}
 /-- **`b166` .. `b170` and `memcpy`**: the children into hasher B. -/
 theorem nodeD (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN4 r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2521 ∧ AtN5 r l e z st.data)
-      ⟨m, r.pc 2499⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b171Offset ∧ AtN5 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b166Offset⟩ := by
   obtain ⟨hB, hz, hN, hH, hC⟩ := h
   have hl := hB.1
   have hlT : (r.seed ++ r.nodeAdrs l z).length = 48 := by
@@ -50,13 +50,13 @@ theorem nodeD (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
   have hld : (r.env m).load 0 27104 8 = (Nat.toUInt64 48).toBitVec := load_word hW
   refine exec_then (hb166 hp) run_b166 hwf (match_base hpre hB) fun st1 hm1 hpc1 ↦ ?_
-  have hpc1' : st1.pc = Host.addrOf (r.k + 2508) := hpc1.trans (lbl_77 hp)
+  have hpc1' : st1.pc = Host.addrOf (r.k + NativeRustcArm.Sphincs.SphincsVerify.b168Offset) := hpc1.trans (lbl_77 hp)
   refine exec_at (hb168 hp) (exec_after run_b166 run_b168) hwf hpc1' hm1 fun st2 hm2 hpc2 ↦ ?_
   have hpc2' := pc_cond (b := false) hpc2 (by sym_simp; rw [hld]; decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 7) (j' := 2515) (by rfl) (by decide)] at hpc2'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b168_next] at hpc2'
   refine exec_at (hb169 hp) (exec_after run_b168 run_b169) hwf hpc2' hm2 fun st3 hm3 hpc3 ↦ ?_
   have hpc3' := pc_cond (b := false) hpc3 (by sym_simp; rw [hld]; decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 2) (j' := 2517) (by rfl) (by decide)] at hpc3'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b169_next] at hpc3'
   refine exec_at (hb170 hp) (exec_after run_b169 run_b170) hwf hpc3' hm3 fun st4 hm4 hpc4 ↦ ?_
   have hB4 := Base.of_match hpre hB hm4 hwf rfl rfl (by decide) (by decide) rfl rfl rfl
   have hN4 := hN.of_match hm4 rfl rfl rfl
@@ -94,7 +94,7 @@ theorem nodeD (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     rw [← this, ← hmem]
     exact hcp
   have hlI := length_nodeIn (r := r) (e := e) hl hz
-  refine .done _ ⟨hpc'.trans (pc_after (n := 4) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b170_next),
     hB4.of_call hpre hS (by decide) (by decide) (by decide) hout, hz, hN4.of_saved hS,
     regIs_of_saved rfl h22 hS, regIs_of_saved rfl h28 hS, ?_⟩
   unfold hbytes
@@ -111,8 +111,8 @@ theorem nodeD (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
 /-- **`b171`, `b167`, `b174` and `memcpy`**: `buf_len` 80, B's state into A. -/
 theorem nodeE (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN5 r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2607 ∧ AtN6 r l e z st.data)
-      ⟨m, r.pc 2521⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b175Offset ∧ AtN6 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b171Offset⟩ := by
   obtain ⟨hB, hz, hN, h22, h28, hH⟩ := h
   have hl := hB.1
   have hlI := length_nodeIn (r := r) (e := e) hl hz
@@ -148,7 +148,7 @@ theorem nodeE (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   refine call_then hpc3 hc.1 (r.memcpy_pre hpre hB3.2.1 h0 h1 h2 (by decide) (by decide)
     (by decide)) fun st' hpc' hpost ↦ ?_
   obtain ⟨hcp, hout, hS⟩ := r.memcpy_out h0 h1 h2 hpost
-  refine .done _ ⟨hpc'.trans (pc_after (n := 7) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b174_next),
     hB3.of_call hpre hS (by decide) (by decide) (by decide) hout, hz, hN3.of_saved hS,
     regIs_of_saved rfl h23 hS, ?_,
     r.bytesAt_of_call hpre hB3.2.1 (by decide) (by decide) hout (by omega) (by omega) hT3⟩
@@ -160,8 +160,8 @@ theorem nodeE (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
 /-- **`b175`, `b176` and `memcpy`**: the final block. -/
 theorem nodeF (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN6 r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2631 ∧ AtN7 r l e z st.data)
-      ⟨m, r.pc 2607⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b177Offset ∧ AtN7 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b175Offset⟩ := by
   obtain ⟨hB, hz, hN, h23, hZ, hT⟩ := h
   have hl := hB.1
   have hlI := length_nodeIn (r := r) (e := e) hl hz
@@ -170,7 +170,7 @@ theorem nodeF (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (allOf_append (allOf_keptRegs hB _) ⟨h23, trivial⟩) trivial trivial trivial
   refine exec_then (hb175 hp) run_b175 hwf hm0 fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := false) hpc1 rfl
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 2) (j' := 2609) (by rfl) (by decide)] at hpc1'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b175_next] at hpc1'
   refine exec_at (hb176 hp) (exec_after run_b175 run_b176) hwf hpc1' hm1 fun st2 hm2 hpc2 ↦ ?_
   have hB2 := Base.of_match hpre hB hm2 hwf rfl rfl (by decide) (by decide) rfl rfl rfl
   have hN2 := hN.of_match hm2 rfl rfl rfl
@@ -205,7 +205,7 @@ theorem nodeF (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     rw [hlI] at this
     rw [← this]
     exact hcp
-  refine .done _ ⟨hpc'.trans (pc_after (n := 22) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b176_next),
     hB2.of_call hpre hS (by decide) (by decide) (by decide) hout, hz, hN2.of_saved hS,
     regIs_of_saved rfl h23' hS,
     kc (by rw [List.length_replicate]; decide) (by rw [List.length_replicate]; decide) hZ2,

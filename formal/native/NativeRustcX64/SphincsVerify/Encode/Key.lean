@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcX64.Code.Common.Memset.Names
+public import NativeRustcX64.Code.Sphincs.Names
+
 public import NativeRustcX64.SphincsVerify.Encode.KeyEnv
 public import NativeRustcX64.SphincsVerify.Encode.KeyMath
 
@@ -54,16 +57,16 @@ def wr (S : SState) (o n : Nat) (v : Sym) : Bool :=
 /-- `b104`'s start for layer `l`: `AtLayer`'s registers, the chain values' address at `176`. -/
 def s104 (l : Nat) : SState :=
   init [frameRegion, 16, 24]
-    [(.rsp, .ptr 0 0), (.rcx, .lit (4656 + 1028 * l)), (.rsi, .lit l), (.rdx, .label lhLabel),
+    [(.rsp, .ptr 0 0), (.rcx, .lit (4656 + 1028 * l)), (.rsi, .lit l), (.rdx, .label NativeRustcX64.Sphincs.Symbols.rodata7Label),
       (.rbx, .lit 0), (.r12, .ptr 0 4096), (.rbp, .ptr 0 576), (.r13, .ptr 0 2048),
-      (.r15, .ptr 0 144)] [(lhLabel, 2)] []
+      (.r15, .ptr 0 144)] [(NativeRustcX64.Sphincs.Symbols.rodata7Label, 2)] []
     (Run.frameAliases ++ [(.load 0 176 8, 0, ((25196 + 1028 * l : Nat) : Int))])
 
 /-- `b104` for layer `l` as the executor runs it. -/
 def b104Ok (l : Nat) : Bool :=
   match exec Sphincs.SphincsVerify.b104 (s104 l) with
   | some (S, x) =>
-    x == .call "memset" && S.reg .rdi == some (.ptr 0 4096) && S.reg .rsi == some (.lit 0) &&
+    x == .call NativeRustcX64.Common.Memset.entryLabel && S.reg .rdi == some (.ptr 0 4096) && S.reg .rsi == some (.lit 0) &&
       S.reg .rdx == some (.lit 344) && S.reg .rbx == some (.load 0 (26220 + 1028 * l) 4) &&
       S.reg .rsp == some (.ptr 0 (-8)) && S.reg .r12 == some (.ptr 0 4096) &&
       S.reg .rbp == some (.ptr 0 576) && S.reg .r13 == some (.ptr 0 2048) &&
@@ -170,7 +173,6 @@ theorem write_at {m m' : MachineData} {ret : BitVec 64} {S : SState}
 
 end Run
 
-theorem length_b104 : Sphincs.SphincsVerify.b104.length = 44 := by decide +kernel
 
 namespace Run
 
@@ -207,9 +209,9 @@ variable [Host]
 invariant (the counter in EBX), the encoder's address at `2048` and hasher A new. -/
 theorem b104_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {l : Nat} {s : List UInt8} {m : MachineData} (h : r.AtLayer l s m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1173 ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b105Offset ∧
       r.EncBase l s (r.layerSig l).counter st.data ∧ r.EncAdrs l st.data ∧
-      Keccak.HasherHolds (bytesOf st.data.dmem (r.off 4096) 344) []) ⟨m, r.pc 1129⟩ := by
+      Keccak.HasherHolds (bytesOf st.data.dmem (r.off 4096) 344) []) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b104Offset⟩ := by
   obtain ⟨hl, hs, hF, hI, hcx, hsi, hdx, hbx, h12, hbp, h13, h15, hsm, h176, h568⟩ := h
   have hok := b104Ok_all l hl
   rw [b104Ok] at hok
@@ -221,10 +223,10 @@ theorem b104_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   obtain ⟨rfl, hX0, hX1, hX2, hX19, hsp, hX12, hXbp, hX13, hX15, hfw, k112, k144, k176, k568,
     ksig, w96, w200, w208, w160, w216, w104, w88, w60, a0, a4, a8, a16, a20, a24⟩ := hok
   have hk := Sphincs.SphincsVerify.b104_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  let ret : BitVec 64 := (Host.addrOf (r.k + 1129 + Sphincs.SphincsVerify.b104.length)).toBitVec
+  let ret : BitVec 64 := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b104Offset + Sphincs.SphincsVerify.b104.length)).toBitVec
   have hwf := r.envL_wf hpre hF ret
   have hm := r.match_frameL hF (ret := ret) (known := [(.rcx, .lit (4656 + 1028 * l)),
-      (.rsi, .lit l), (.rdx, .label lhLabel), (.rbx, .lit 0), (.r12, .ptr 0 4096),
+      (.rsi, .lit l), (.rdx, .label NativeRustcX64.Sphincs.Symbols.rodata7Label), (.rbx, .lit 0), (.r12, .ptr 0 4096),
       (.rbp, .ptr 0 576), (.r13, .ptr 0 2048), (.r15, .ptr 0 144)])
     (aliases := [(.load 0 176 8, 0, ((25196 + 1028 * l : Nat) : Int))])
     ⟨hcx, hsi, hdx, hbx, h12.trans (r.ptr_evalL m ret _).symm,
@@ -313,7 +315,7 @@ theorem b104_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   refine Sym.call_then hpc hc.2.1 (r.memset_pre hpre hc1 hR0 hR2 (by decide))
     fun st' hpc' hrsp hpost ↦ .done _ ?_
   obtain ⟨hB, hout, hS⟩ := r.memset_out hR0 hR2 hpost
-  refine ⟨by rw [hpc', length_b104]; rfl,
+  refine ⟨by simpa only [Run.pc, Nat.add_assoc, NativeRustcX64.Sphincs.SphincsVerify.b104_next] using hpc',
     ⟨hl, hs, r.frame_of_call hpre hc1 hS hrsp (by decide) (Nat.zero_le _) hout,
       r.encData_of_call hpre hc1 hdata hs hS (.inl ⟨le_refl _, le_refl _⟩) (Nat.zero_le _) hout⟩,
     r.bytesAt_of_call hpre hc1 (by decide) (Nat.zero_le _) hout

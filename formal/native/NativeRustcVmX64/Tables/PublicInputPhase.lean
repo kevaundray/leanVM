@@ -1,6 +1,11 @@
 module
 
 public import NativeRustcVmX64.Tables.PublicInputPhase.Limbs
+public import NativeRustcVmX64.Code.Vm.LayoutWPlacement.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmX64.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
 # `public_input_phase` on x86-64
@@ -55,10 +60,10 @@ theorem len_max {v : Nat} {x : BitVec 64} (hx : x = BitVec.ofNat 64 v) (hv : v �
 
 /-- **The first limb**: `b3`, its value, `b4`, its claim, `b5`, then `limb1` or the exit. -/
 theorem limb0 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 85)) (hL : LimbAt a s L cs 2 m0 st.data) :
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b3Offset)) (hL : LimbAt a s L cs 2 m0 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
       PublicInputPhasePost a s L pub cs m0 st'.data) st := by
   have p := pre_parts h
@@ -69,7 +74,7 @@ theorem limb0 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hq ⊢
       rcases hq with rfl | rfl | rfl | rfl | rfl | rfl <;> simp)) hmle hpc
     fun st1 st2 hm1 hpc2 fr2 hval hcs2 hkeep2 hs2 hk2 ↦ ?_
-  have hwf1 := wfPub h hL.fr (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 85 + b3.length)).toBitVec)
+  have hwf1 := wfPub h hL.fr (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b3Offset + b3.length)).toBitVec)
   -- the point after `b3`: the challenge in words `0`, `1`
   have hpt1 : PtW m0 st1.data.dmem (chOf s) 0 := by
     intro i h1 h2
@@ -93,7 +98,7 @@ theorem limb0 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
     p.2.2.2.2.2.2.2.2.1 (col := 0) (v := .lit 0) (b4_in_code.trans hp.1 (by simp [b4]))
     run_b4 hm4 h04 hw4 hr4 (by decide) hpush (by rw [hpc2]; rfl)
     fun st3 st4 hm3' hpc4 fr4 hres4 hcs4 hpt4 hs4 hk4 ↦ ?_
-  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 101 + b4.length)).toBitVec)
+  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b4Offset + b4.length)).toBitVec)
   have hts4 : TStateAt st4.data.dmem (reg m0 .rdi) a { s with sponge := s.sponge.squeeze.2 } :=
     tstate_keep h hL.ts (fun p hp ↦ hk4 p (hk2 p hp)) (hs2.trans hs4) fun q hq ↦ by
       rcases hq with hq | hq
@@ -103,13 +108,13 @@ theorem limb0 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
       (.rdi, .reg .rbx), (.rbp, .lit 0), (.r8, .reg .rax), (.r9, .reg .rdx), (.rbx, .reg .rbx),
       (.r12, .reg .r12), (.r13, .reg .r13), (.r14, .reg .r14), (.r15, .reg .r15)] :
         List (Reg64 × Sym)) → reg st3.data r = w.eval
-        (frameEnv m0 st2.data 608 [] (fun _ ↦ 0) (Host.addrOf (k + 101 + b4.length)).toBitVec) :=
+        (frameEnv m0 st2.data 608 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b4Offset + b4.length)).toBitVec) :=
     fun r w hr ↦ hm3'.regs r w (hr4 _ hr)
   -- `b5`: the first claim's result
   obtain ⟨hm5, hmem5, hr5⟩ := after_eq run_b5 ▸ ok_b5
   refine blk h fr4 (b5_in_code.trans hp.1 (by simp [b5])) run_b5 hm5
     (by rw [hmem5]; intro w hw; cases hw) (by rw [hpc4]; rfl) fun st5 fr5 hm5' _ hpc5 ↦ ?_
-  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 109 + b5.length)).toBitVec)
+  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b5Offset + b5.length)).toBitVec)
   have hd5 : st5.data.dmem = st4.data.dmem := hm5'.dmem_eq hwf5 hmem5
   have g5 : ∀ r ∈ [Reg64.rbp, .rbx, .r12, .r13, .r14, .r15], reg st5.data r = reg st4.data r := by
     intro r hr
@@ -134,7 +139,7 @@ theorem limb0 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
     rw [g5 .rbp (by simp), hcs4 .rbp rfl, g3 .rbp (.lit 0) (by simp)]; rfl
   simp only [PcOk] at hpc5
   have hc5 : (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)).eval
-      (frameEnv m0 st4.data 608 [] (fun _ ↦ 0) (Host.addrOf (k + 109 + b5.length)).toBitVec) =
+      (frameEnv m0 st4.data 608 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b5Offset + b5.length)).toBitVec) =
       decide (boolRet st4.data = 0) := by
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
     exact NativeRustcVmX64.Sumcheck.testAl_eq _
@@ -156,7 +161,7 @@ theorem limb0 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
   · simp only [hfit, ↓reduceIte] at hres4
     have hpc5' := hT5 (by rw [hc5, hres4]; decide)
     have hnf : ¬cs.size + 2 ≤ claimCap := by omega
-    refine exit9 hp h (hpc5'.trans (hp.label (j := 133) rfl)) fr5 ?_ (fun _ _ _ hf ↦ absurd hf hnf) ?_
+    refine exit9 hp h (hpc5'.trans (hp.label NativeRustcVmX64.Vm.PublicInputPhase.label_3_at)) fr5 ?_ (fun _ _ _ hf ↦ absurd hf hnf) ?_
     · rw [hrbp5, decide_eq_false hnf, Bool.and_false]; rfl
     · intro x s' hr
       rw [run_eq] at hr
@@ -165,24 +170,24 @@ theorem limb0 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
 
 /-- **`public_input_phase` meets its contract.** -/
 theorem publicInputPhase_spec (hp : Placed code k)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hplace : ∀ L, Spec (Labels.label layoutWPlacementLabel) (LayoutWPlacementPre L)
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hplace : ∀ L, Spec (Labels.label NativeRustcVmX64.Vm.LayoutWPlacement.entryLabel) (LayoutWPlacementPre L)
       (LayoutWPlacementPost L))
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs)) :
-    Spec (Labels.label publicInputPhaseLabel) (PublicInputPhasePre a s L pub cs)
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs)) :
+    Spec (Labels.label NativeRustcVmX64.Vm.PublicInputPhase.entryLabel) (PublicInputPhasePre a s L pub cs)
       (PublicInputPhasePost a s L pub cs) := by
   intro m0 h
-  rw [show Labels.label publicInputPhaseLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.PublicInputPhase.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b0Offset) from hp.label NativeRustcVmX64.Vm.PublicInputPhase.entry_at]
   have p := pre_parts h
   have hS := p.1
   have c := ctx h N_ge
   -- `b0`: the prologue, `squeeze`
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 608) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b0Offset + b0.length)).toBitVec)
     ⟨frame_mapped hS N_ge, frame_noWrap hS N_ge⟩ (by simp) (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 608 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 608 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b0Offset + b0.length)).toBitVec)
       (stO 608) m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨off_frame_F.symm.trans (eval_ptr0 608).symm, trivial⟩ trivial
       trivial trivial
@@ -196,7 +201,7 @@ theorem publicInputPhase_spec (hp : Placed code k)
       belowRet_spec (belowRet_of_pro hpro) w hw (h00 w hw)⟩) hw)
   have g1 : ∀ r w, (r, w) ∈ ([(.rbx, .reg .rcx), (.r14, .reg .rdx), (.r13, .reg .rsi),
       (.rdi, .reg .rdi)] : List (Reg64 × Sym)) → reg st1.data r = w.eval
-        (frameEnv m0 m0 608 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec) :=
+        (frameEnv m0 m0 608 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b0Offset + b0.length)).toBitVec) :=
     fun r w hr ↦ hm1.regs r w (hregs0 _ hr)
   have e1di : reg st1.data .rdi = reg m0 .rdi := g1 .rdi (.reg .rdi) (by simp)
   have hk1 := hm1.kept hwf0
@@ -257,17 +262,17 @@ theorem publicInputPhase_spec (hp : Placed code k)
       · exact (hcS j hj).2 (inRange_mono h' (by decide))
   have hr2 : ∀ r, calleeSaved r = true → ∀ w, (r, w) ∈ ([(.rbx, .reg .rcx), (.r14, .reg .rdx),
       (.r13, .reg .rsi), (.rdi, .reg .rdi)] : List (Reg64 × Sym)) → reg m2 r = w.eval
-        (frameEnv m0 m0 608 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec) :=
+        (frameEnv m0 m0 608 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b0Offset + b0.length)).toBitVec) :=
     fun r hc w hr ↦ (hcs2 r hc).trans (g1 r w hr)
   -- `b1`: the point zeroed, `LayoutW::placement(memory0)`
   obtain ⟨hm1b, h01b, hw1b, hr1b, hz1b⟩ := after_eq run_b1 ▸ ok_b1
   refine blk h fr2 (st := ⟨m2, _⟩) (b1_in_code.trans hp.1 (by simp [b1])) run_b1 hm1b h01b rfl
     fun st3 fr3 hm3 hs3 hpc3 ↦ ?_
-  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 12 + b1.length)).toBitVec)
+  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b1Offset + b1.length)).toBitVec)
   have g3 : ∀ r w, (r, w) ∈ ([(.rsi, .lit 0), (.rdi, .reg .r13), (.rbp, .lit 0), (.r12, .reg .rdx),
       (.r15, .reg .rax), (.rbx, .reg .rbx), (.r14, .reg .r14)] : List (Reg64 × Sym)) →
       reg st3.data r = w.eval (frameEnv m0 m2 608 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 12 + b1.length)).toBitVec) := fun r w hr ↦ hm3.regs r w (hr1b _ hr)
+        (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b1Offset + b1.length)).toBitVec) := fun r w hr ↦ hm3.regs r w (hr1b _ hr)
   have e3di : reg st3.data .rdi = reg m0 .rsi :=
     (g3 .rdi (.reg .r13) (by simp)).trans (hr2 .r13 rfl (.reg .rsi) (by simp))
   have e3si : reg st3.data .rsi = BitVec.ofNat 64 0 := g3 .rsi (.lit 0) (by simp)
@@ -300,7 +305,7 @@ theorem publicInputPhase_spec (hp : Placed code k)
   obtain ⟨hm5, hmem5, hr5⟩ := after_eq run_b2 ▸ ok_b2
   refine blk h fr4 (st := ⟨m4, _⟩) (b2_in_code.trans hp.1 (by simp [b2])) run_b2 hm5
     (by rw [hmem5]; intro w hw; cases hw) rfl fun st5 fr5 hm5' _ hpc5 ↦ ?_
-  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 80 + b2.length)).toBitVec)
+  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b2Offset + b2.length)).toBitVec)
   have hd5 : st5.data.dmem = m4.dmem := hm5'.dmem_eq hwf5 hmem5
   have hvc31 := p.2.2.2.2.2.2.2.2.1
   simp only [PcOk] at hpc5
@@ -313,7 +318,7 @@ theorem publicInputPhase_spec (hp : Placed code k)
       (.ite (.cmp .ult .W64 (.reg .rax) (.lit 1)) (.lit 1) (.lit 0))), (.rbp, .reg .rbp),
       (.rbx, .reg .rbx), (.r12, .reg .r12), (.r14, .reg .r14), (.r15, .reg .r15)] :
         List (Reg64 × Sym)) → reg st5.data r = w.eval (frameEnv m0 m4 608 [] (fun _ ↦ 0)
-          (Host.addrOf (k + 80 + b2.length)).toBitVec) := fun r w hr ↦ hm5'.regs r w (hr5 _ hr)
+          (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b2Offset + b2.length)).toBitVec) := fun r w hr ↦ hm5'.regs r w (hr5 _ hr)
   have hk5 : ∀ r ∈ [Reg64.rbx, .r12, .r14, .r15], reg st5.data r = reg st3.data r := by
     intro r hr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr

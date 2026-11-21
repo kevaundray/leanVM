@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Update.Names
+public import NativeRustcX64.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcX64.XmssVerify.Turn
 public import NativeRustcX64.XmssVerify.Bottom
 
@@ -57,19 +62,19 @@ theorem st9_addr :
     (∀ t < 8, findWrite 0 (32 + t) (after b9 st9).mem = some (.lit 0, t)) := by
   decide +kernel
 
-theorem run_b10' : exec b10 stH = some (after b10 stH, .call updateLabel) := by
+theorem run_b10' : exec b10 stH = some (after b10 stH, .call NativeRustcX64.Common.Update.entryLabel) := by
   rw [after_eq run_b10]; exact run_b10
 
-theorem run_b11' : exec b11 stH = some (after b11 stH, .call updateLabel) := by
+theorem run_b11' : exec b11 stH = some (after b11 stH, .call NativeRustcX64.Common.Update.entryLabel) := by
   rw [after_eq run_b11]; exact run_b11
 
-theorem run_b12' : exec b12 stH = some (after b12 stH, .call "memcpy") := by
+theorem run_b12' : exec b12 stH = some (after b12 stH, .call NativeRustcX64.Common.Memcpy.entryLabel) := by
   rw [after_eq run_b12]; exact run_b12
 
-theorem run_b13' : exec b13 stH1 = some (after b13 stH1, .call updateLabel) := by
+theorem run_b13' : exec b13 stH1 = some (after b13 stH1, .call NativeRustcX64.Common.Update.entryLabel) := by
   rw [after_eq run_b13]; exact run_b13
 
-theorem run_b14' : exec b14 stH1 = some (after b14 stH1, .call finalizeLabel) := by
+theorem run_b14' : exec b14 stH1 = some (after b14 stH1, .call NativeRustcX64.Common.Finalize.entryLabel) := by
   rw [after_eq run_b14]; exact run_b14
 
 theorem f10 : (writesBelow (after b10 stH) [(0, 24)] = true ∧ keepsBut .r13 stH (after b10 stH) = true ∧
@@ -101,7 +106,7 @@ theorem f14 : (writesBelow (after b14 stH1) [(0, 24)] = true ∧
 
 /-- Another turn: `RBP ≠ 16`. -/
 theorem run_b15' : exec b15 st15 = some (after b15 st15,
-    .cond (.not (.cmp .eq .W64 (.reg .rbp) (.lit 16))) ".LXmssVerify_4") := by
+    .cond (.not (.cmp .eq .W64 (.reg .rbp) (.lit 16))) NativeRustcX64.Xmss.XmssVerify.label_4) := by
   rw [after_eq run_b15]; exact run_b15
 
 theorem st15_facts : (after b15 st15).reg .rsp = some (.ptr 0 24) ∧

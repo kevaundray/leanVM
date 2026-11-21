@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsHash.FullIter
 
 /-!
@@ -42,12 +43,12 @@ theorem next_cmp {m0 : MachineData} (g : Geo m0) {b : Nat} (hb : b < nb m0) :
 variable [Host]
 
 /-- **The end of whole block `b`.** -/
-theorem fullEnd (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem fullEnd (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {k : Nat} (hp : Placed code k) {m0 : MachineData}
     (g : Geo m0) (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack)
     {b : Nat} {st : MachineState} (h : FullLaneAt m0 k b 16 147 st) :
     Eventually (step1 Host.exe)
-      (fun st' => FullLaneAt m0 k (b + 1) 0 159 st' ∨ TailStart m0 k st') st := by
+      (fun st' => FullLaneAt m0 k (b + 1) 0 NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset st' ∨ TailStart m0 k st') st := by
   obtain ⟨hc, hl, hx25, hx26, hb, hpc⟩ := h
   obtain ⟨m, pc⟩ := st
   simp only at hc hl hx25 hx26 hpc
@@ -116,7 +117,7 @@ theorem fullEnd (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmA
   -- the next block's branch
   obtain ⟨m3, pc3⟩ := st3
   simp only at hpc3 hc3 hl3 h25'' h26''
-  rw [show b22.length = 6 from rfl] at hpc3
+  rw [NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b22_length, NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b22Length] at hpc3
   subst hpc3
   let env3 := Env.ofMachine m3 [(frame m0, 288)]
   have hwf3 : env3.WF :=
@@ -134,7 +135,7 @@ theorem fullEnd (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmA
   have hlen := g.len
   have hcmp := next_cmp g hb
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, Sym.low_W64] at hpc4
-  have hpc4' : st4.pc = if b + 1 = nb m0 then Host.addrOf (k + 25) else Host.addrOf (k + 159) := by
+  have hpc4' : st4.pc = if b + 1 = nb m0 then Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b2Offset) else Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset) := by
     rw [hpc4]
     show (if ((m3.regs.getXReg .X23).toBitVec == BinOp.apply .add .W64
       (m3.regs.getXReg .X25).toBitVec 17#64) = true then _ else _) = _

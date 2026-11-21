@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.Mid
+public import NativeRustcVmX64.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
 
 /-!
 # `table_terms`: the constraints' dot product (x86-64)
@@ -76,8 +78,8 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 
 /-- **The constraints' dot product.** -/
 theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
-    (hcw : Spec (Labels.label constraintsWLabel) ConstraintsWPre ConstraintsWPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
+    (hcw : Spec (Labels.label NativeRustcVmX64.Vm.ConstraintsW.entryLabel) ConstraintsWPre ConstraintsWPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
     {i : Nat} (hi : i < 6) {acc : Acc} {si : TState} {xs : Array EW} {s' : TState}
     {d : MachineData} (H : Rd a s heights forms m0 i acc si xs s' d)
     (cont : ∀ d', Cm a s heights forms m0 i acc si xs s' d' →
@@ -87,8 +89,8 @@ theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
         (104, .ofBitVec (BitVec.ofNat 64 (cursorAt i)))] →
       reg d' .r12 = BitVec.ofNat 64 (tb i).width → reg d' .rbx = evi m0 i + BitVec.ofNat 64 496 →
       reg d' .r13 = fA m0 + BitVec.ofNat 64 (11864 + 17784 * i) →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + 70)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 41)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b6Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b4Offset)⟩ := by
   have hS := Pre.stack h
   have c0 := ctx h
   have eo := evi_out h hi
@@ -96,7 +98,7 @@ theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   have hwl := width_le hi
   have hxs : xs.size = (tb i).width := NativeRustcVm.Sumcheck.readScalars_size H.rs
   -- `b4`: `constraints_w`'s arguments.
-  let ra4 := (Host.addrOf (k + 41 + b4.length)).toBitVec
+  let ra4 := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b4Offset + b4.length)).toBitVec
   have hwf1 : (E m0 d [(T + BitVec.ofNat 64 (40 * i), 40)] ra4).WF := wf_tab h hi H.bd.fr.kept
   have hm1 : Match (E m0 d [(T + BitVec.ofNat 64 (40 * i), 40)] ra4) tabS d :=
     match_body H.bd ⟨rfl, rfl, trivial⟩ ⟨tabA_eval H.r14 H.rbp, trivial⟩
@@ -178,10 +180,10 @@ theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     omega))
   have cs2 : ∀ r, calleeSaved r = true → reg st2.data r = reg st1.data r := q3.1
   -- `b5`: `dot`'s arguments.
-  let ra5 := (Host.addrOf (k + 53 + b5.length)).toBitVec
+  let ra5 := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b5Offset + b5.length)).toBitVec
   have hwf3 : (E m0 st2.data [] ra5).WF := wf_nil h hb2.fr.kept
   have hm3 : Match (E m0 st2.data [] ra5) sF st2.data := match_body hb2 ⟨rfl, trivial⟩ trivial
-  refine at_pc (hpc2.trans (addr_eq (by rw [show b4.length = 12 from rfl])))
+  refine at_pc (hpc2.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b4_next)))
     (exec_then (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf3 (fun _ _ ↦ rfl) hm3
       fun st3 hm3' hpc3 ↦ ?_)
   obtain ⟨miss3, missR3, mid3, W3, -, w96, w104, rdi3, rsi3, rdx3, rcx3, r15_3, k3⟩ := ok_b5
@@ -281,7 +283,7 @@ theorem cons_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   have kr3 : ∀ r ∈ [Reg64.rbx, .rbp, .r12, .r13, .r14], reg st3.data r = reg st2.data r :=
     fun r hr ↦ keeps_reg hm3' k3 hr
   unfold ewRet ewArg at p0
-  refine at_pc (hpc4.trans (addr_eq (by rw [show b5.length = 17 from rfl])))
+  refine at_pc (hpc4.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b5_next)))
     (cont st4.data ⟨hb4, fw4, it4, H.run, H.cur, H.rs⟩ ?_ ?_ fw96' ?_ ?_ ?_)
   · have := congrArg EW.c0 p0
     simp only at this

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.WeightsHead
+public import NativeRustcVmX64.Code.Vm.VerifyLayer.Names
 
 /-! # Loading the first neighboring equality-kernel value -/
 
@@ -24,8 +25,8 @@ theorem weights_four (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) (hlp 
       (∀ r ∈ [Reg64.rax, .rcx, .rsi], reg d' r = reg d r) →
       reg d' .r14 = ((eqKernel lp).getD (keccakAlong j 4) 0).c0.toBitVec →
       reg d' .r12 = ((eqKernel lp).getD (keccakAlong j 4) 0).c1.toBitVec →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 676)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 666)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b77Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b75Offset)⟩ := by
   have g := geo_of hpre
   have hi : keccakAlong j 4 < 1600 := by rw [along_eq]; have := alongRow_lt j 4 h.lt; omega
   have hwf := wfScratch hpre h.body (p := 107520 + 16 * keccakAlong j 4) (n := 16)
@@ -72,8 +73,8 @@ theorem weights_three_index (hp : Placed code k) (hpre : VerifyLayerPre a s c m0
     (cont : ∀ d', WHead m0 a c ch b pt lp t s6 j d' →
       (∀ r ∈ [Reg64.r14, .r12, .rsi], reg d' r = reg d r) →
       reg d' .rax = BitVec.ofNat 64 (64 * alongRow j 3) →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 610)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 676)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b70Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b77Offset)⟩ := by
   have g := geo_of hpre
   have hwf := wf0 (pre_stack hpre) h.body (vars := fun _ ↦ 0) (ret := 0)
   have hm : Match (envB m0 d [] (fun _ ↦ 0) 0) (fr 24) d :=
@@ -104,7 +105,7 @@ theorem weights_three_index (hp : Placed code k) (hpre : VerifyLayerPre a s c m0
   simp only [PcOk] at hpc
   change st.pc = if (SBool.or (.cmp .ult .W64 threeS (.lit 2047))
       (.cmp .eq .W64 threeS (.lit 2047))).eval (envB m0 d [] (fun _ ↦ 0) 0) = true
-    then Labels.label ".LVerifyLayer_40" else Host.addrOf (k + 676 + b77.length) at hpc
+    then Labels.label NativeRustcVmX64.Vm.VerifyLayer.label_40 else Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b77Offset + b77.length) at hpc
   rw [hcond] at hpc
   simp only [↓reduceIte] at hpc
   rw [lbl hp b70_in_code rfl] at hpc
@@ -117,8 +118,8 @@ theorem weights_three (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) (hlp
     (cont : ∀ d', WHead m0 a c ch b pt lp t s6 j d' →
       reg d' .r14 = reg d .r14 → reg d' .r12 = reg d .r12 →
       ewArg (reg d' .rdx) (reg d' .rcx) = (eqKernel lp).getD (keccakAlong j 3) 0 →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 616)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 610)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b71Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b70Offset)⟩ := by
   have g := geo_of hpre
   have hi : keccakAlong j 3 < 1600 := by rw [along_eq]; have := alongRow_lt j 3 h.lt; omega
   have hwf := wfScratch hpre h.body (p := 107520 + 16 * keccakAlong j 3) (n := 16)

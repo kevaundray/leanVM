@@ -1,5 +1,16 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.BlockForm.Names
+public import NativeRustcVmArm.Code.Vm.BusLayout.Names
+public import NativeRustcVmArm.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmArm.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmArm.Code.Vm.Fingerprints.Names
+public import NativeRustcVmArm.Code.Vm.GkrLayers.Names
+public import NativeRustcVmArm.Code.Vm.GkrStep.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
+public import NativeRustcVmArm.Code.Vm.VerifyGkrGrandProducts.Names
 public import NativeRustcVmArm.Spec.Sumcheck
 public import NativeRustcVmArm.Spec.Layout
 public import NativeRustcVm.Bus.Rep
@@ -55,21 +66,6 @@ open NativeRustcVm (ewsOf wordsOf wordOf ewOf EWsAt EWAt WordAt BufEWAt)
 
 /-! ## Symbols -/
 
-/-- `gkr_step`'s symbol. -/
-def gkrStepLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3gkr8gkr_step"
-/-- `gkr_layers`'s symbol. -/
-def gkrLayersLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3gkr10gkr_layers"
-/-- `verify_gkr_grand_products`'s symbol. -/
-def verifyGkrLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3gkr25verify_gkr_grand_products"
-/-- `fingerprints`'s symbol. -/
-def fingerprintsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3bus12fingerprints"
-/-- `verify_bus_balance::{closure#0}`'s symbol. -/
-def fpClosureLabel : Label := "_RNCNvNtCsemcRClSg8DH_9native_vm3bus18verify_bus_balance0B5_"
-/-- `computed_bytecode_value`'s symbol. -/
-def computedBytecodeValueLabel : Label :=
-  "_RNvNtCsemcRClSg8DH_9native_vm3bus23computed_bytecode_value"
-/-- `bytecode_share`'s symbol. -/
-def bytecodeShareLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3bus14bytecode_share"
 
 /-! ## Stacks -/
 
@@ -284,14 +280,6 @@ end
 
 /-! ## The sides' layouts, forms and totals -/
 
-/-- `bus_layout`'s symbol. -/
-def busLayoutLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3bus10bus_layout"
-/-- `block_form`'s symbol. -/
-def blockFormLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3bus10block_form"
-/-- `accumulate_side`'s symbol. -/
-def accumulateSideLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3bus15accumulate_side"
-/-- `verify_bus_balance`'s symbol. -/
-def verifyBusBalanceLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm3bus18verify_bus_balance"
 
 /-- The stack `bus_layout` uses: its 1840-byte frame and `stack_offsets`'s (`memset`'s and
 `memcpy`'s none). -/

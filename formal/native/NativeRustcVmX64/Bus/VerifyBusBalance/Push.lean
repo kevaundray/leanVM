@@ -1,11 +1,15 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.PushPre
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmX64.Code.Vm.Kpow.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0.Names
 
 /-!
 # `verify_bus_balance`'s push side (x86-64)
 
-From `b43` (`k + 268`), after `computed_bytecode_value`: `b43` writes the closure's environment
+From `b43` (`k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset`), after `computed_bytecode_value`: `b43` writes the closure's environment
 and calls `kpow` for `pc_final`; `b44` empties the bus's forms, keeps `pc_final` and the trees'
 values, and calls `kpow` for `gpow(0)`; `b45` calls the closure for the push side's
 fingerprints; `b46` calls `accumulate_side` on the push side; then the pull side (`push_spec`).
@@ -46,13 +50,13 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The push side** (`b43`, `k + 268`). -/
+/-- **The push side** (`b43`, `k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset`). -/
 theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hkp : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hkp : Spec (Labels.label NativeRustcVmX64.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hfc : Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
     {d : MachineData} {w pt tv mem : Array EW} {beta mf bf share : EW} {bp : Array EW}
     {s' : TState} (fr : St m0 104 d)
     (hrun : (verifyBusBalance L).run s0 = some (resultOf L w beta pt tv mem mf bf share bp, s'))
@@ -62,13 +66,13 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (x12 : reg d .r12 = (min L.logBytecode pt.size).toUInt64.toBitVec)
     (hts : TStateAt d.dmem (reg m0 .rdi) a s')
     (hcl : ClaimsWAt d.dmem (reg m0 .r9) (claimsOf L pt mem mf bf)) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 268)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset)⟩ := by
   have hS := pre_stack h
   have psz := pm.tail.psz
   have lb := (pre_lay h).log_bytecode_le
   have hbus := pre_bus h
   -- `b43`: the closure's environment, `kpow(2^log_bytecode - 1)`.
-  have hwf1 := wf0 h fr.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 268 + b43.length)).toBitVec)
+  have hwf1 := wf0 h fr.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset + b43.length)).toBitVec)
   refine exec_then (infix_of b43_in_code (by simp [b43]) hp) exit_b43 hwf1 (fun _ _ ↦ rfl)
     (match_fS fr) fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hw1, wr1', hrdi1, hrbx1, hk1⟩ := ok_b43
@@ -76,12 +80,12 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have hin1 := writesIn_of_mid hmid1
   have hs1 := blk_same hS hwf1 hm1 hw1 (by omega)
   have ld1 : ∀ {o : Nat} {x : UInt64}, NativeRustcVm.WordAt d.dmem (loc m0 o) x →
-      (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + 268 + b43.length)).toBitVec).load 0 o 8 =
+      (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset + b43.length)).toBitVec).load 0 o 8 =
         x.toBitVec := fun hw ↦ load_loc hw
   have wW1 : ∀ {o : Nat} {v : Sym}, o + 8 ≤ 5520 →
       (∀ t < 8, findWrite 0 (o + t) (after b43 (fS 104)).mem = some (v, t)) →
       NativeRustcVm.WordAt st1.data.dmem (loc m0 o) (UInt64.ofBitVec (v.eval
-        (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + 268 + b43.length)).toBitVec))) :=
+        (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset + b43.length)).toBitVec))) :=
     fun ho hw ↦ wordAt_write hm1 (r := 0) (b := fb m0) (sz := 5520 + 8) rfl (by omega) hw
   have hpm1 : PushMem m0 L w pt tv mem beta mf bf share st1.data.dmem :=
     pm.of_keep (keepIv_block' hwf1 hm1 hin1 (by decide) (by decide +kernel))
@@ -121,8 +125,8 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> rfl)
   -- `b44`: the forms emptied, `kpow(0)`.
   have hwf3 := wfBus h fr2.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 283 + b44.length)).toBitVec)
-  rw [show k + 268 + b43.length = k + 283 from by rw [show b43.length = 15 from rfl]]
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b44Offset + b44.length)).toBitVec)
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset + b43.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b44Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b43_next]]
   refine exec_then (infix_of b44_in_code (by simp [b44]) hp) exit_b44 hwf3 (fun _ _ ↦ rfl)
     (match_bS fr2 hpm2.tail.w112) fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hw3, wr3, wb3, hrdi3, hrbp3, hr12, hr13, hk3⟩ := ok_b44
@@ -133,13 +137,13 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have hin3 := writesIn_of_mid hmid3
   have ld3 : ∀ {o : Nat} {x : UInt64}, NativeRustcVm.WordAt m2.dmem (loc m0 o) x →
       (frameEnv m0 m2 5520 [(reg m0 .r8, busBytes)] (fun _ ↦ 0)
-        (Host.addrOf (k + 283 + b44.length)).toBitVec).load 0 o 8 = x.toBitVec :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b44Offset + b44.length)).toBitVec).load 0 o 8 = x.toBitVec :=
     fun hw ↦ load_loc hw
   have wW3 : ∀ {o : Nat} {v : Sym}, o + 8 ≤ 5520 →
       (∀ t < 8, findWrite 0 (o + t) (after b44 bS).mem = some (v, t)) →
       NativeRustcVm.WordAt st3.data.dmem (loc m0 o) (UInt64.ofBitVec (v.eval
         (frameEnv m0 m2 5520 [(reg m0 .r8, busBytes)] (fun _ ↦ 0)
-          (Host.addrOf (k + 283 + b44.length)).toBitVec))) :=
+          (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b44Offset + b44.length)).toBitVec))) :=
     fun ho hw ↦ wordAt_write hm3 (r := 0) (b := fb m0) (sz := 5520 + 8) rfl (by omega) hw
   have hpm3 : PushMem m0 L w pt tv mem beta mf bf share st3.data.dmem :=
     hpm2.of_keep (keepIv_block' hwf3 hm3 hin3 (by decide) (by decide +kernel))
@@ -151,9 +155,9 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun h1 h2 hw ↦ NativeRustcVm.Layout.WordAt.of_same hw ((keepB hwf1 hm1 hin1 (j := _) (n := 8)
       (by omega) (miss0 hw1 (by omega))).trans (kE (by omega) (by omega))) le_rfl
   have ev3 : ∀ {v : Sym} {x : UInt64}, v.eval (frameEnv m0 m2 5520 [(reg m0 .r8, busBytes)]
-      (fun _ ↦ 0) (Host.addrOf (k + 283 + b44.length)).toBitVec) = x.toBitVec →
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b44Offset + b44.length)).toBitVec) = x.toBitVec →
       UInt64.ofBitVec (v.eval (frameEnv m0 m2 5520 [(reg m0 .r8, busBytes)]
-      (fun _ ↦ 0) (Host.addrOf (k + 283 + b44.length)).toBitVec)) = x :=
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b44Offset + b44.length)).toBitVec)) = x :=
     fun hv ↦ by rw [hv, UInt64.ofBitVec_toBitVec]
   have w128 : NativeRustcVm.WordAt st3.data.dmem (loc m0 128) (gpowK (2 ^ L.logBytecode - 1)) :=
     ev3 (v := .reg .rax) rax2 ▸ wW3 (o := 128) (by omega) (wr3.find (List.Mem.head _))
@@ -211,9 +215,9 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       ((keepB hwf3 hm3 hin3 (j := _) (n := 8) (by omega) fun w hw hr ↦ by
         have := hm44 w hw hr; omega).trans (kE4 (by omega) (by omega)))) le_rfl
   have ev1 : ∀ {v : Sym} {x : BitVec 64}, v.eval (frameEnv m0 d 5520 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 268 + b43.length)).toBitVec) = x →
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset + b43.length)).toBitVec) = x →
       UInt64.ofBitVec (v.eval (frameEnv m0 d 5520 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 268 + b43.length)).toBitVec)) = UInt64.ofBitVec x :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b43Offset + b43.length)).toBitVec)) = UInt64.ofBitVec x :=
     fun hv ↦ by rw [hv]
   have hl4 : SideMem m0 L w pt tv mem beta mf bf share m4.dmem := by
     refine ⟨hpm4.tail, hpm4.pull, hpm4.count, hpm4.hw, hpm4.wsz, hpm4.hmem, hpm4.msz,
@@ -260,8 +264,8 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have x4_13 : reg m4 .r13 = (tv.getD 0 0).c0.toBitVec := (x4 .r13 (by simp)).trans x3_13
   have x4_12 : reg m4 .r12 = (tv.getD 0 0).c1.toBitVec := (x4 .r12 (by simp)).trans x3_12
   -- `b45`: the closure for the push side's fingerprints.
-  rw [show k + 283 + b44.length = k + 315 from by rw [show b44.length = 32 from rfl]]
-  have hwf5 := wf0 h fr4.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 315 + b45.length)).toBitVec)
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b44Offset + b44.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b45Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b44_next]]
+  have hwf5 := wf0 h fr4.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b45Offset + b45.length)).toBitVec)
   refine exec_then (infix_of b45_in_code (by simp [b45]) hp) exit_b45 hwf5 (fun _ _ ↦ rfl)
     (match_fS fr4) fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hmid5, hw5, wr5, hrdi5, hrsi5, hrdx5, hrcx5, hr85, hr95, hk5⟩ := ok_b45
@@ -288,7 +292,7 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have hfp6' : NativeRustcVm.EWsAt m6.dmem (loc m0 624) (fingerprints w mem
       (pt.extract 0 L.logMemory) (pt.extract 0 L.logBytecode) share (gpow 0) 1 1).toList := by
     have e : (Sym.reg .rax).eval (frameEnv m0 m4 5520 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 315 + b45.length)).toBitVec) = (gpowK 0).toBitVec := rax4
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b45Offset + b45.length)).toBitVec) = (gpowK 0).toBitVec := rax4
     rw [e] at hfp6
     exact hfp6
   have hle6 : 5520 - 80 + fpClosureStack ≤ NN := le_fp
@@ -309,8 +313,8 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> exact ⟨rfl, by simp [cs]⟩
     exact (hcs6 r hc.1).trans (k5 r hc.2)
   -- `b46`: the push side's `accumulate_side`.
-  rw [show k + 315 + b45.length = k + 324 from by rw [show b45.length = 9 from rfl]]
-  have hwf7 := wf0 h fr6.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 324 + b46.length)).toBitVec)
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b45Offset + b45.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b46Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b45_next]]
+  have hwf7 := wf0 h fr6.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b46Offset + b46.length)).toBitVec)
   refine exec_then (infix_of b46_in_code (by simp [b46]) hp) exit_b46 hwf7 (fun _ _ ↦ rfl)
     (match_fS fr6) fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hw7, wr7, hrdi7, hrsi7, hrdx7, hrcx7, hr87, hr97, hrbx7, hk7⟩ := ok_b46
@@ -323,16 +327,16 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have hpm7 : PushMem m0 L w pt tv mem beta mf bf share st7.data.dmem :=
     hpm6.of_keep (keepIv_block hwf7 hm7 hin7 (W0.reg0 hw7) (by decide) (by decide))
   have ld7 : ∀ {o : Nat} {x : UInt64}, NativeRustcVm.WordAt m6.dmem (loc m0 o) x →
-      (frameEnv m0 m6 5520 [] (fun _ ↦ 0) (Host.addrOf (k + 324 + b46.length)).toBitVec).load 0 o 8 =
+      (frameEnv m0 m6 5520 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b46Offset + b46.length)).toBitVec).load 0 o 8 =
         x.toBitVec := fun hw ↦ load_loc hw
   have sa : ∀ {i : Nat} {v : Sym}, 8 + 8 * i + 8 ≤ 5520 →
       (∀ t < 8, findWrite 0 (8 + 8 * i + t) (after b46 (fS 88)).mem = some (v, t)) →
       stackArg st7.data i = v.eval (frameEnv m0 m6 5520 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 324 + b46.length)).toBitVec) := fun hle hw ↦
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b46Offset + b46.length)).toBitVec) := fun hle hw ↦
     (stackArg_loc hsp7 (wordAt_write hm7 (r := 0) (b := fb m0) (sz := 5520 + 8) rfl (by omega)
       hw)).trans rfl
   have rg : ∀ {r : Reg64}, (Sym.reg r).eval (frameEnv m0 m6 5520 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 324 + b46.length)).toBitVec) = reg m6 r := rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b46Offset + b46.length)).toBitVec) = reg m6 r := rfl
   have e0 : stackArg st7.data 0 = loc m0 2808 :=
     (sa (i := 0) (by omega) (wr7.find (List.Mem.head _))).trans (eval_ptr0 2808)
   have e1 : stackArg st7.data 1 = loc m0 624 :=
@@ -460,7 +464,7 @@ theorem push_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     · exact .inr (inRange_mono hq hfb)
   have hc8 := ((((((c1.trans c2).trans c3).trans c4).trans c5).trans c6).trans c7).trans c8
   obtain ⟨hts8, hcl8⟩ := hc8.tc h hts hcl
-  rw [show k + 324 + b46.length = k + 346 from by rw [show b46.length = 22 from rfl]]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b46Offset + b46.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b47Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b46_next]]
   exact pull_spec hp h hfc hacc hext fr8 hrun hl8 hopt8 hF8 hfits8
     ((x8 .r14 (by simp)).trans ((hk7.reg hm7 (by simp)).trans ((x6 .r14 (by simp)).trans x4_14)))
     ((x8 .r15 (by simp)).trans ((hk7.reg hm7 (by simp)).trans ((x6 .r15 (by simp)).trans x4_15)))

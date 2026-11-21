@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.Point
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `table_terms`: table `i`'s sum (x86-64)
@@ -37,7 +38,7 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 /-- **Table `i`'s sum**, to the loop head before table `i + 1`. -/
 theorem sum_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {i : Nat} (hi : i < 6) {c : Nat} {f : EW} {o : Array (Array EW × Array EW)} {si : TState}
     {xs : Array EW} {s' : TState} {d : MachineData}
     (hrun : preRun heights forms m0 i s = some ((c, f, o), si)) (hcur : c = cursorAt i)
@@ -54,12 +55,12 @@ theorem sum_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     {R : MachineState → Prop}
     (cont : ∀ acc' d', preRun heights forms m0 (i + 1) s = some (acc', s') →
       Head a s heights forms m0 (i + 1) acc' s' d' →
-      (i + 1 < 6 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 25)⟩) ∧
-      (i + 1 = 6 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 155)⟩)) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 130)⟩ := by
+      (i + 1 < 6 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b1Offset)⟩) ∧
+      (i + 1 = 6 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b14Offset)⟩)) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b12Offset)⟩ := by
   have hS := Pre.stack h
   -- `b12`: `EW::mul`'s arguments.
-  let ra := (Host.addrOf (k + 130 + b12.length)).toBitVec
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b12Offset + b12.length)).toBitVec
   have hwf : (E m0 d [] ra).WF := wf_nil h hb.fr.kept
   have hm : Match (E m0 d [] ra) sF d := match_body hb ⟨rfl, trivial⟩ trivial
   refine exec_then (infix_of b12_in_code (by simp [b12]) hp) exit_b12 hwf (fun _ _ ↦ rfl) hm
@@ -125,10 +126,10 @@ theorem sum_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     rw [stp_run, hrs]
     rfl
   -- `b13`: the sum, the walks.
-  let ra3 := (Host.addrOf (k + 137 + b13.length)).toBitVec
+  let ra3 := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b13Offset + b13.length)).toBitVec
   have hwf3 : (E m0 st2.data [] ra3).WF := wf_nil h hb2.fr.kept
   have hm3 : Match (E m0 st2.data [] ra3) sF st2.data := match_body hb2 ⟨rfl, trivial⟩ trivial
-  refine at_pc (hpc2.trans (addr_eq (by rw [show b12.length = 7 from rfl])))
+  refine at_pc (hpc2.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b12_next)))
     (exec_then (infix_of b13_in_code (by simp [b13]) hp) exit_b13 hwf3 nofun hm3
       fun st3 hm3' hpc3 ↦ ?_)
   obtain ⟨miss3, mid3, W3, -, w16, rcx3, rdx3, r15_3, rax3, r12_3, r13_3, r14_3, rbx3, rbp3⟩ :=
@@ -211,7 +212,7 @@ theorem sum_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   · simp only [h5, decide_true, ↓reduceIte] at hpc3
     exact at_pc (hpc3.trans (lbl_1 hp)) (hc2.1 h5)
   · simp only [h5, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc3
-    exact at_pc (hpc3.trans (addr_eq (by rw [show b13.length = 18 from rfl]))) (hc2.2 (by omega))
+    exact at_pc (hpc3.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b13_next))) (hc2.2 (by omega))
 
 end
 

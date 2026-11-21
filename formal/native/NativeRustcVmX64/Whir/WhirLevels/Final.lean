@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Whir.WhirLevels.Mu
+public import NativeRustcVmX64.Code.Vm.FinalLevel.Names
 
 /-!
 # `whir_levels`: the tail call of `final_level` (x86-64)
 
-`b8` (`.LWhirLevels_6`) passes the `TState`, the last level's index (the frame's word `24`) and
+`b8` (`NativeRustcVmX64.Vm.WhirLevels.label_6`) passes the `TState`, the last level's index (the frame's word `24`) and
 address, `μ`, `laneFolds`, the basis, restores the registers and RSP (`Frame.tail`) and jumps to
 `final_level`, whose stack argument is the function's own (the state's address above the return
 address); its contract ends the function (`final_tail`).
@@ -37,10 +38,10 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **The tail call of `final_level`** at the last level `k`. -/
 theorem final_tail (hp : Placed code k0)
-    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label finalLevelLabel)
+    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label NativeRustcVmX64.Vm.FinalLevel.entryLabel)
       (FinalLevelPre a s level ba b w rounds) (FinalLevelPost a s level b w rounds))
     (c : Ctx a s0 levels ba b claim m0 rate) {k : Nat} {s : TState} {w : WhirStateW}
-    {rs : Array FoldRoundW} {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + 68))
+    {rs : Array FoldRoundW} {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b8Offset))
     (hmm : MidMu a s0 levels b claim m0 rate k s w rs st.data) (hk : k + 1 = levels.length) :
     Eventually (step1 Host.exe) (Goal a s0 levels b claim m0) st := by
   have hm := hmm.mid

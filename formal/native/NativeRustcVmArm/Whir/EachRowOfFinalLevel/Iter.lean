@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfFinalLevel.Names
+public import NativeRustcVmArm.Code.Vm.FoldRow.Names
+public import NativeRustcVmArm.Code.Vm.LanesOf.Names
+public import NativeRustcVmArm.Code.Vm.NovelEval.Names
+public import NativeRustcVmArm.Code.Vm.RowsRow.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceAtTable.Names
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.IterC
 
 /-!
@@ -71,15 +77,15 @@ variable [Host] {k : Nat}
 /-- **An iteration**: from the invariant before row `j`, the exit or the invariant before row
 `j + 1`. -/
 theorem iter_step (hp : Placed code k)
-    (hrow : Spec (label rowsRowLabel) (RowsRowPre op rows) (RowsRowPost op rows))
-    (hlanes : Spec (label lanesOfLabel) LanesOfPre LanesOfPost)
-    (hfold : Spec (label foldRowLabel) FoldRowPre FoldRowPost)
-    (hsat : Spec (label subspaceAtTableLabel) SubspaceAtTablePre SubspaceAtTablePost)
-    (hnov : Spec (label novelEvalLabel) NovelEvalPre NovelEvalPost)
+    (hrow : Spec (label NativeRustcVmArm.Vm.RowsRow.entryLabel) (RowsRowPre op rows) (RowsRowPost op rows))
+    (hlanes : Spec (label NativeRustcVmArm.Vm.LanesOf.entryLabel) LanesOfPre LanesOfPost)
+    (hfold : Spec (label NativeRustcVmArm.Vm.FoldRow.entryLabel) FoldRowPre FoldRowPost)
+    (hsat : Spec (label NativeRustcVmArm.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost)
+    (hnov : Spec (label NativeRustcVmArm.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost)
     (hpre : EachRowFinalPre rows op m0) {m : MachineData} (h : Inv rows m0 j m)
     (cont : ∀ m', Inv rows m0 (j + 1) m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 43)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 43)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset)⟩ := by
   have hl := lay hpre
   have hstk := hpre.1.1
   have hS : 3184 ≤ m0.regs.SP.toNat := hstk.2.1
@@ -92,7 +98,7 @@ theorem iter_step (hp : Placed code k)
   have hrs : rows.size ≤ 256 := hpre.1.2.1.2.1
   -- `b5`
   obtain ⟨hwf, hm⟩ := frame_env hpre h.fr
-  have hk5 : b5.IsInfixAt Host.prog (k + 43) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk5 : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk5 run_b5 hwf hm fun st5 hm5 hpc5 ↦ ?_
   have hfr5 : FR m0 st5.data := Ring.Fr.ofBlock h.fr hm hm5 hwf rfl rfl rfl (by simp)
   have hd5 : st5.data.dmem = m.dmem := hm5.dmem_eq hwf rfl
@@ -105,7 +111,7 @@ theorem iter_step (hp : Placed code k)
       rw [hjn, Nat.sub_self]; rfl
     rw [hc] at hpc5
     simp only [↓reduceIte] at hpc5
-    rw [show Labels.label ".LEachRowOfFinalLevel_9" = Host.addrOf (k + 218) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16Offset) NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_9_at]
       at hpc5
     obtain ⟨d, pc⟩ := st5
     simp only at hpc5
@@ -160,7 +166,7 @@ theorem iter_step (hp : Placed code k)
           (rv hm5 (r := .X23) rfl).trans rfl
         rw [e, h.x23]
         simp [qa], trivial⟩
-  have hk6 : b6.IsInfixAt Host.prog (k + 45) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b6Offset) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk6 run_b6 hwf6 hpc5 hm6 fun st6 hm6' hpc6 ↦ ?_
   have hs6 : SameOutside st5.data.dmem st6.data.dmem (HitF m0) :=
     EachRow.hit_of_block hl hm6' hwf6 (by decide)
@@ -212,9 +218,10 @@ theorem iter_step (hp : Placed code k)
   have hmid7 : Mid rows m0 j d7 := hmid6.call hpre (fun q _ ↦ by rw [hd7]) hsv7
   -- `b7`: `lanes_of`
   obtain ⟨hwf7, hm7⟩ := frame_env hpre hmid7.fr
-  have hk7 : b7.IsInfixAt Host.prog (k + 177) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hb6 : b6.length = 132 := by decide +kernel
-  rw [show k + 45 + b6.length = k + 177 by rw [hb6, Nat.add_assoc]]
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  rw [show k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b6Offset + b6.length =
+      k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b7Offset by
+    rw [Nat.add_assoc, NativeRustcVmArm.Vm.EachRowOfFinalLevel.b6_next]]
   refine exec_then hk7 run_b7 hwf7 hm7 fun st8 hm8 hpc8 ↦ ?_
   have hmid8 : Mid rows m0 j st8.data := hmid7.block hm7 hm8 hwf7 rfl rfl (by decide)
   have hd8 : st8.data.dmem = d7.dmem := hm8.dmem_eq hwf7 rfl

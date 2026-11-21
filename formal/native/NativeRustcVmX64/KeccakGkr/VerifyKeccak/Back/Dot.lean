@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Mle
+public import NativeRustcVmX64.Code.Vm.Dot.Names
 
 /-! # Taking the dot product of the opening weights and slices (block 62) -/
 
@@ -19,13 +20,13 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem dotStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
     {st : MachineState} {V : Vs} {ws sl : Array EW}
-    (hat : At m0 k 444 wrAll t61 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b62Offset wrAll t61 (vv m0 V) st)
     (hw : NativeRustcVm.EWsAt st.data.dmem (off (reg m0 .r9) 140288) ws.toList)
     (hs : NativeRustcVm.EWsAt st.data.dmem (off (keccakOutArg m0) 584) sl.toList)
     (hw64 : ws.size = 64) (hs64 : sl.size = 64) {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 451 wrAll t62 (vv m0 (Vd V (dot ws sl))) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b63Offset wrAll t62 (vv m0 (Vd V (dot ws sl))) st' →
       Chg m0 st.data.dmem st'.data.dmem [(0, 88), (3296, 48)] [] →
       Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
@@ -70,7 +71,7 @@ theorem dotStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
       have he := Chg.ewsR c hch (by decide) rfl (i := 4) (o := 584)
         (by decide) (by decide) rfl (by rw [Array.length_toList, hs64]; decide) hs
       simpa only [ob] using slice_of he (by simp [hs64])
-  · refine cont st' ⟨hpc'.trans (by rw [show 444 + b62.length = 451 from rfl]), hB'⟩ ?_ hk'
+  · refine cont st' ⟨hpc'.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b62_next]), hB'⟩ ?_ hk'
     exact Chg.mono c hc' (by decide) rfl (by decide) rfl (by decide) rfl
 
 end

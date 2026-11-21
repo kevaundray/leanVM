@@ -1,12 +1,13 @@
 module
 
 public import NativeRustcVmX64.Keccak.KeccakF.RoundLanes
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
 
 /-!
 # One turn of `keccak_f`'s round loop (x86-64)
 
 `round_step`: from the loop head after `i < 24` rounds (`At m0 i`), the machine inevitably reaches
-the loop invariant after `i + 1` rounds, back at the loop head (`.LKeccakF_1`) or, after the 24th,
+the loop invariant after `i + 1` rounds, back at the loop head (`NativeRustcVmX64.Vm.KeccakF.label_1`) or, after the 24th,
 at the epilogue. The loop body runs in a fresh environment of the machine at the head (region: the
 frame; the counter's value the variable 0), computes the round (`body_lanes`, the lanes by
 `lane_round`) with the round constant it loads from the frame's copy, and keeps the state pointer,
@@ -23,7 +24,6 @@ open NativeRustcVmX64.Keccak
 
 public section
 
-theorem b2_length : Vm.KeccakF.b2.length = 259 := by decide +kernel
 
 theorem stAfter_succ (m0 : MachineData) {i : Nat} (hi : i < 24) :
     stAfter m0 (i + 1) = Keccak.round (stAfter m0 i) (keccakRC.getD i 0) :=
@@ -36,9 +36,9 @@ theorem round_step {k : Nat} (hp : Placed Vm.KeccakF.code k) {m0 : MachineData}
     (hstk : StackOk m0 NativeRustcVmX64.keccakFStack) {i : Nat} (hi : i < 24) {m : MachineData}
     (hA : At m0 i m) :
     Eventually (step1 Host.exe) (fun st => At m0 (i + 1) st.data ∧
-      st.pc = if i + 1 = 24 then Host.addrOf (k + 314) else Host.addrOf (k + 55))
-      ⟨m, Host.addrOf (k + 55)⟩ := by
-  have hk : Vm.KeccakF.b2.IsInfixAt Host.prog (k + 55) :=
+      st.pc = if i + 1 = 24 then Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b3Offset) else Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b2Offset))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b2Offset)⟩ := by
+  have hk : Vm.KeccakF.b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.KeccakF.b2Offset) :=
     Vm.KeccakF.b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine m [(frame m0, 488)] fun _ => BitVec.ofNat 64 (2 + i)
   have hv : env.vars 0 = BitVec.ofNat 64 (2 + i) := rfl
@@ -84,11 +84,11 @@ theorem round_step {k : Nat} (hp : Placed Vm.KeccakF.code k) {m0 : MachineData}
     · exact allOf_imp (fun p hp h => by
         rw [stAfter_succ m0 hi, lane_round _ _ (hs p hp), par_eq]
         exact h) hslots
-  · have hlab : Labels.label ".LKeccakF_1" = Host.addrOf (k + 55) := hp.label (j := 55) rfl
+  · have hlab : Labels.label NativeRustcVmX64.Vm.KeccakF.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b2Offset) := hp.label NativeRustcVmX64.Vm.KeccakF.label_1_at
     simp only [PcOk] at hpc
     rw [hpc, hlab]
     sym_simp
-    rw [hv, b2_length]
+    rw [hv, NativeRustcVmX64.Vm.KeccakF.b2_length]
     by_cases h : i + 1 = 24
     · obtain rfl : i = 23 := by omega
       rfl

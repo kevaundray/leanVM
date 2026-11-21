@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Top.Seed.Stage1
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `seed` from `memset` on (x86-64)
@@ -59,9 +61,9 @@ variable [Host] {k : Nat}
 
 /-- **`seed` from `memset` on.** -/
 theorem stage2 (hp : Placed code k)
-    (hkf : Spec (Labels.label keccakFLabel) KeccakFPre KeccakFPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {m0 : MachineData}
-    (hpre : SeedPre m0) {st4 : MachineState} (hpc4 : st4.pc = Host.addrOf (k + 20))
+    (hkf : Spec (Labels.label NativeRustcVmX64.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m0 : MachineData}
+    (hpre : SeedPre m0) {st4 : MachineState} (hpc4 : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b2Offset))
     (hS1 : S1 m0 st4.data) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
       SeedPost m0 st.data) st4 := by
@@ -103,7 +105,7 @@ theorem stage2 (hp : Placed code k)
     omega
   -- `b2`: the public input to the frame, `call keccak_f`.
   have hwf4 := frame_wf (m0 := m0) (d := st4.data) (F := 240) (rest := [(pub, 32)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 20 + b2.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b2Offset + b2.length)).toBitVec)
     ⟨hFm _ hf4.kept, hfnw⟩
     (fun x hx ↦ by
       rw [List.mem_singleton] at hx
@@ -161,7 +163,7 @@ theorem stage2 (hp : Placed code k)
         (hwr5 q hq4)
       have hl : (Sym.load 1 (8 * q) 8).eval
           (frameEnv m0 st4.data 240 [(pub, 32)] (fun _ ↦ 0)
-            (Host.addrOf (k + 20 + b2.length)).toBitVec) = P.toList[q].toBitVec :=
+            (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b2Offset + b2.length)).toBitVec) = P.toList[q].toBitVec :=
         load_ofMachine (r := 1) rfl ((wordsAt_iff.mp (hP4 P hP)) q hq)
       rw [hl, UInt64.ofBitVec_toBitVec] at h
       have h' : ∀ o, o = 48 + 8 * q → NativeRustcVm.WordAt st5.data.dmem (off (fb m0) o)
@@ -209,10 +211,10 @@ theorem stage2 (hp : Placed code k)
       slots_le
   -- `b3`: `call memcpy`.
   have hwf6 := frame_wf (m0 := m0) (d := st6.data) (F := 240) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 30 + b3.length)).toBitVec) ⟨hFm _ hf6.kept, hfnw⟩ (by simp)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b3Offset + b3.length)).toBitVec) ⟨hFm _ hf6.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf6 (fun _ _ ↦ rfl)
-    (hpc6.trans (by rw [show k + 20 + b2.length = k + 30 from rfl]))
+    (hpc6.trans (by rw [show k + NativeRustcVmX64.Vm.Seed.b2Offset + b2.length = k + NativeRustcVmX64.Vm.Seed.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Seed.b2_next]]))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hw7, hrdi7, hrsi7, hrdx7⟩ := after_eq run_b3 ▸ ok_b3
@@ -248,7 +250,7 @@ theorem stage2 (hp : Placed code k)
   have hwf8 := frame_wf (m0 := m0) (d := st8.data) (F := 240) (rest := []) (vars := fun _ ↦ 0)
     (ret := 0) ⟨hFm _ hf8.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf8 nofun
-    (hpc8.trans (by rw [show k + 30 + b3.length = k + 34 from rfl]))
+    (hpc8.trans (by rw [show k + NativeRustcVmX64.Vm.Seed.b3Offset + b3.length = k + NativeRustcVmX64.Vm.Seed.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Seed.b3_next]]))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf8.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hepi, hmem9⟩ := after_eq run_b4 ▸ ok_b4

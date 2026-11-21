@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BusLayout.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.HeadCalls
 
 /-!
@@ -104,11 +106,11 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k 
 
 /-- **The three layouts** (`b0` to `b9`): the state at `b10`, or the failure. -/
 theorem head_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hbl : ∀ L bl, Spec (Labels.label busLayoutLabel) (BusLayoutPre L bl) (BusLayoutPost L bl))
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hbl : ∀ L bl, Spec (Labels.label NativeRustcVmArm.Vm.BusLayout.entryLabel) (BusLayoutPre L bl) (BusLayoutPost L bl))
+    (hmc : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     (hg : ∀ m, AtGrind a s0 L m0 m →
-      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 76)⟩) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b10Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b0Offset)⟩ := by
   have hS := pre_stack h
   have hN : verifyBusBalanceStack ≤ m0.regs.SP.toNat := hS.2.1
   have hNv := N_eq

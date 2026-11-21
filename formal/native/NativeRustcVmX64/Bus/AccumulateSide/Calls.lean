@@ -19,18 +19,18 @@ open NativeVm.Model NativeRustcVm.Bus NativeRustcVm.Layout
 
 public section
 
-theorem b2a_in_code : b2a.IsInfixAt code 46 :=
+theorem b2a_in_code : b2a.IsInfixAt code (NativeRustcVmX64.Vm.AccumulateSide.b2Offset) :=
   List.IsInfixAt.trans (infix_take b2 15) b2_in_code (by simp [b2])
-theorem b2b_in_code : b2b.IsInfixAt code 61 :=
-  List.IsInfixAt.trans (infix_drop b2 15) b2_in_code (by simp [b2])
-theorem b18a_in_code : b18a.IsInfixAt code 180 :=
+theorem b2b_in_code : b2b.IsInfixAt code (NativeRustcVmX64.Vm.AccumulateSide.b2Offset + b2a.length) :=
+  List.IsInfixAt.trans (infix_drop b2 15) b2_in_code (by simp [b2b, b2])
+theorem b18a_in_code : b18a.IsInfixAt code (NativeRustcVmX64.Vm.AccumulateSide.b18Offset) :=
   List.IsInfixAt.trans (infix_take b18 4) b18_in_code (by simp [b18])
-theorem b18b_in_code : b18b.IsInfixAt code 184 :=
-  List.IsInfixAt.trans (infix_drop b18 4) b18_in_code (by simp [b18])
-theorem b23a_in_code : b23a.IsInfixAt code 223 :=
+theorem b18b_in_code : b18b.IsInfixAt code (NativeRustcVmX64.Vm.AccumulateSide.b18Offset + b18a.length) :=
+  List.IsInfixAt.trans (infix_drop b18 4) b18_in_code (by simp [b18b, b18])
+theorem b23a_in_code : b23a.IsInfixAt code (NativeRustcVmX64.Vm.AccumulateSide.b23Offset) :=
   List.IsInfixAt.trans (infix_take b23 22) b23_in_code (by simp [b23])
-theorem b23b_in_code : b23b.IsInfixAt code 245 :=
-  List.IsInfixAt.trans (infix_drop b23 22) b23_in_code (by simp [b23])
+theorem b23b_in_code : b23b.IsInfixAt code (NativeRustcVmX64.Vm.AccumulateSide.b23Offset + b23a.length) :=
+  List.IsInfixAt.trans (infix_drop b23 22) b23_in_code (by simp [b23b, b23])
 
 /-- Part of a range apart from another. -/
 theorem apart_sub {a b : BitVec 64} {n N o l : Nat} (h : Apart a n b N)

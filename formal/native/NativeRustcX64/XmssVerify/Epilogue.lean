@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcX64.XmssVerify.Top
 
 /-!
@@ -28,7 +30,7 @@ end
 
 public section
 
-theorem run_b26' : exec b26 (stF []) = some (after b26 (stF []), .jump ".LXmssVerify_9") := by
+theorem run_b26' : exec b26 (stF []) = some (after b26 (stF []), .jump NativeRustcX64.Xmss.XmssVerify.label_9) := by
   rw [after_eq run_b26]; exact run_b26
 
 theorem st26_facts : (after b26 (stF [])).reg .rsp = some (.ptr 0 24) ∧
@@ -71,7 +73,7 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 /-- **The epilogue**: from block 28 with `Common`, the return to the caller, RSP 8 above the
 entry's, RAX kept, memory as at entry outside the stack, the entry's callee-saved registers. -/
 public theorem epilogue {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 248)) (C : Common m₀ st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b28Offset)) (C : Common m₀ st.data)
     (hrsp : rspOf st.data = ad m₀ (fr + 24)) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧
       rspOf st'.data = rspOf m₀ + 8#64 ∧ reg st'.data .rax = reg st.data .rax ∧
@@ -122,7 +124,7 @@ public theorem epilogue {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : Ma
 
 /-- **The failure** (block 27): RAX `0`, then the epilogue. -/
 public theorem fail {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 246)) (h : FailAt w m₀ st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b27Offset)) (h : FailAt w m₀ st.data) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧
       rspOf st'.data = rspOf m₀ + 8#64 ∧ reg st'.data .rax = (if xmssVerify w then 1 else 0) ∧
       SameOutside m₀.dmem st'.data.dmem
@@ -145,7 +147,7 @@ public theorem fail {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : Machin
 
 /-- **The comparison** of the top root with the key's root (block 26), then the epilogue. -/
 public theorem final {k : Nat} (hp : Placed code k) (P : Pre w m₀) {leaf : List UInt8}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 240)) (h : TreeAt1 w m₀ leaf st.data 16) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b26Offset)) (h : TreeAt1 w m₀ leaf st.data 16) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧
       rspOf st'.data = rspOf m₀ + 8#64 ∧
       reg st'.data .rax = (if pf (pp w) 1 (li1 w).toNat (topL w).path leaf 16 == root w then 1
@@ -162,8 +164,8 @@ public theorem final {k : Nat} (hp : Placed code k) (P : Pre w m₀) {leaf : Lis
   refine exec_at (b26_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b26' hwf
     (fun _ h => nomatch h) hpc hm fun st' hm' hpc' => ?_
   have hd : st'.data.dmem = st.data.dmem := hm'.dmem_eq hwf emem
-  have hpc'' : st'.pc = Host.addrOf (k + 248) :=
-    hpc'.trans (hp.label (j := 248) (by decide +kernel))
+  have hpc'' : st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b28Offset) :=
+    hpc'.trans (hp.label NativeRustcX64.Xmss.XmssVerify.label_9_at)
   refine NativeRustcX64.Eventually.mono (epilogue hp P hpc'' (h.common.congr hd)
     ((hm'.regs _ _ esp).trans (eval_ptr0 _))) fun s ⟨h1, h2, h3, h4, h5⟩ => ⟨h1, h2, ?_, h4, h5⟩
   rw [h3, show reg st'.data .rax = _ from hm'.regs _ _ eax, merge_eval, eqRoot_eval]

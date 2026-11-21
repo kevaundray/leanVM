@@ -52,9 +52,9 @@ theorem forsUpTo_succ_eq (r : Run) {c z : Nat} (hc : c < 24) (hz : z < 10) :
 theorem node_tail (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {c z : Nat} {m : MachineData} (h : N2 r c z m) {R : MachineState → Prop}
     (next : z + 1 < 10 → ∀ m', AtNode r c (z + 1) m' →
-      Eventually (step1 Host.exe) R ⟨m', r.pc 730⟩)
-    (done : z + 1 = 10 → ∀ m', AtRoot r c m' → Eventually (step1 Host.exe) R ⟨m', r.pc 1078⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1017⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b65Offset⟩)
+    (done : z + 1 = 10 → ∀ m', AtRoot r c m' → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b96Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b91Offset⟩ := by
   obtain ⟨hK, hz, w64, w104, h13, h15, h12, ha0, hT⟩ := h
   have hc24 := hK.2.1.hc
   have hTl : (r.seed ++ r.nodeAdrsOf c z ++ r.childrenOf c z).length = 80 := by
@@ -62,13 +62,13 @@ theorem node_tail (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
       show (r.nodeAdrsOf c z).length = 32 from length_forsNodeAdrs _ _ _ _,
       r.length_childrenOf hc24 hz]
   -- b91, b92: the block zeroed
-  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc 1024).toBitVec
-  have hm := match_frameS hK.1 (ret := (r.pc 1024).toBitVec)
+  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b93Offset).toBitVec
+  have hm := match_frameS hK.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b93Offset).toBitVec)
     (k := [(.r13, .lit 80), (.r15, .ptr 0 2048), (.r12, .ptr 0 4096)])
     ⟨Chains.known_lit h13, Chains.known_ptr h15, Chains.known_ptr h12, trivial⟩
   refine Chains.blk r hp b91_in_code (List.cons_ne_nil _ _) run_b91 hwf (fun _ h ↦ nomatch h) hm
     fun st₁ hm₁ hpc₁ ↦ ?_
-  refine Chains.pc_at (a := r.pc 1019) (Chains.pc_false hpc₁) ?_
+  refine Chains.pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b92Offset) (Chains.pc_false hpc₁) ?_
   refine Chains.blk r hp b92_in_code (List.cons_ne_nil _ _) (exec_after run_b91 run_b92) hwf
     (fun _ _ ↦ rfl) hm₁ fun st₂ hm₂ hpc₂ ↦ ?_
   have kept₂ : KeptBy r _ m st₂.data := keptBy_of_match hpre hm₂ hwf
@@ -89,8 +89,8 @@ theorem node_tail (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
   have gT := hkc₃ (by rw [hTl]; omega) (by rw [hTl]; omega)
     (kept₂ (by rw [hTl]; omega) (by rw [hTl]; decide +kernel) hT)
   -- b93: B's 80 bytes into the block
-  have hwf₃ := r.frame_wf hpre hK₃.1.2.2.2 (fun _ ↦ 0) (r.pc 1028).toBitVec
-  have hm₃ := match_frameS hK₃.1 (ret := (r.pc 1028).toBitVec)
+  have hwf₃ := r.frame_wf hpre hK₃.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b94Offset).toBitVec
+  have hm₃ := match_frameS hK₃.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b94Offset).toBitVec)
     (k := [(.r13, .lit 80), (.r15, .ptr 0 2048), (.r12, .ptr 0 4096)])
     ⟨Chains.known_lit g13, Chains.known_ptr g15, Chains.known_ptr g12, trivial⟩
   refine Chains.blk r hp b93_in_code (List.cons_ne_nil _ _) run_b93 hwf₃ (fun _ _ ↦ rfl) hm₃
@@ -117,8 +117,8 @@ theorem node_tail (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
       ((r.seed ++ r.nodeAdrsOf c z ++ r.childrenOf c z) ++ List.replicate (136 - 80) 0) :=
     Chains.BytesAt.cat hT₅ gz (by rw [hTl])
   -- b94: the padded block XORed into A, `keccak_f`
-  have hwf₅ := r.frame_wf hpre hK₅.1.2.2.2 (fun _ ↦ 0) (r.pc 1066).toBitVec
-  have hm₅ := match_frameS hK₅.1 (ret := (r.pc 1066).toBitVec)
+  have hwf₅ := r.frame_wf hpre hK₅.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b95Offset).toBitVec
+  have hm₅ := match_frameS hK₅.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b95Offset).toBitVec)
     (k := [(.r13, .lit 80), (.r15, .ptr 0 2048), (.r12, .ptr 0 4096)])
     ⟨Chains.known_lit g13, Chains.known_ptr g15, Chains.known_ptr g12, trivial⟩
   refine Chains.blk r hp b94_in_code (List.cons_ne_nil _ _) run_b94 hwf₅ (fun _ _ ↦ rfl) hm₅

@@ -1,5 +1,21 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.FirstClaim.Names
+public import NativeRustcVmArm.Code.Vm.KeccakOpen.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Out2
 
 /-!
@@ -25,32 +41,32 @@ variable [Host] {k : Nat}
 
 /-- **`verify_keccak`'s contract.** -/
 theorem verifyKeccak_spec (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s)
       (ReadScalarsPost a s))
-    (hfc : ∀ inst segment lanePoint output, Spec (Labels.label firstClaimLabel)
+    (hfc : ∀ inst segment lanePoint output, Spec (Labels.label NativeRustcVmArm.Vm.FirstClaim.entryLabel)
       (FirstClaimPre inst segment lanePoint output) (FirstClaimPost inst segment lanePoint output))
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hvl : ∀ a s c, Spec (Labels.label verifyLayerLabel) (VerifyLayerPre a s c)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hvl : ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.VerifyLayer.entryLabel) (VerifyLayerPre a s c)
       (VerifyLayerPost a s c))
-    (hko : ∀ a s c, Spec (Labels.label keccakOpenLabel) (KeccakOpenPre a s c)
+    (hko : ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c)
       (KeccakOpenPost a s c))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
-    (hpc : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
-    (hsp : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hpc : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hsp : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost) :
-    ∀ a s cs inst output, Spec (Labels.label verifyKeccakLabel)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost) :
+    ∀ a s cs inst output, Spec (Labels.label NativeRustcVmArm.Vm.VerifyKeccak.entryLabel)
       (VerifyKeccakPre a s cs inst output) (VerifyKeccakPost a s cs inst output) := by
   intro a s cs inst output m0 hpre
-  rw [show Labels.label verifyKeccakLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyKeccak.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyKeccak.entryOffset) NativeRustcVmArm.Vm.VerifyKeccak.entry_at]
   have h := P0.of hpre
   have hn := h.nums
   refine stepFront hp h hn hbl hgr hsc hrs fun m s4 seg lp c hc ↦ ?_

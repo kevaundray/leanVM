@@ -1,13 +1,15 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.FormsStep
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
 
 /-!
 # `table_terms`: the three forms and their dot product (x86-64)
 
-`forms_step`: from after the constraints' dot product (`b6` at `k + 70`), `b6` to `b8` evaluate
+`forms_step`: from after the constraints' dot product (`b6` at `k + NativeRustcVmX64.Vm.TableTerms.b6Offset`), `b6` to `b8` evaluate
 table `i`'s three forms, `b9` saves the table's weight and calls `dot` of the form powers with the
-three values; at `b10` (`k + 114`) RAX, RDX hold `dotF`, the frame the constraints' dot product
+three values; at `b10` (`k + NativeRustcVmX64.Vm.TableTerms.b10Offset`) RAX, RDX hold `dotF`, the frame the constraints' dot product
 (`80`), the weight (`72`, `64`).
 -/
 
@@ -82,8 +84,8 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 
 /-- **The forms' dot product.** -/
 theorem forms_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmX64.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
     {i : Nat} (hi : i < 6) {acc : Acc} {si : TState} {xs : Array EW} {s' : TState}
     {d : MachineData} (H : Cm a s heights forms m0 i acc si xs s' d)
     (hrax : reg d .rax = (dotC m0 i (cursorAt i) xs).c0.toBitVec)
@@ -98,8 +100,8 @@ theorem forms_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
       reg d' .rdx = (dotF m0 (forms.getD i #[]) xs).c1.toBitVec →
       reg d' .r12 = BitVec.ofNat 64 (8 * i) →
       reg d' .r13 = fA m0 + BitVec.ofNat 64 (11864 + 17784 * i) →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + 114)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 70)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b10Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b6Offset)⟩ := by
   have hS := Pre.stack h
   have hi' : i < forms.size := by rw [forms_size h]; exact hi
   have hrow := forms_row h hi'
@@ -137,7 +139,7 @@ theorem forms_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     simpa using this
   have h13' : reg d1 .r13 = fA m0 + BitVec.ofNat 64 (11864 + 17784 * i) := r13a.trans h13
   have L1 := le_app (x := dotC m0 i (cursorAt i) xs) L0 (o := 80) (by omega) (by omega)
-  rw [show b6.length = 11 from rfl]
+  rw [Nat.add_assoc, NativeRustcVmX64.Vm.TableTerms.b6_next]
   refine form_blk h hev hi (j := 1) (by omega) (infix_of b7_in_code (by simp [b7]) hp)
     exit_b7 miss7 mid7 W7 (o := 176) ⟨by omega, by omega⟩ w176 w184 rdi7 rsi7 rdx7 rcx7 kk7
     hb1 it1 hxs h13' (rbxa.trans hbx) (r12a.trans h12) ?_ ?_ L1
@@ -160,16 +162,16 @@ theorem forms_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   have h13'' : reg d2 .r13 = fA m0 + BitVec.ofNat 64 (11864 + 17784 * i) := r13b.trans h13'
   have L2 := le_app (x := ((forms.getD i #[]).getD 0 #[]).evaluate xs) L1 (o := 176)
     (by omega) (by omega)
-  rw [show b7.length = 10 from rfl]
+  rw [Nat.add_assoc, NativeRustcVmX64.Vm.TableTerms.b7_next]
   refine form_blk h hev hi (j := 2) (by omega) (infix_of b8_in_code (by simp [b8]) hp)
     exit_b8 miss8 mid8 W8 (o := 192) ⟨by omega, by omega⟩ w192 w200 rdi8 rsi8 rdx8 rcx8 kk8
     hb2 it2 hxs h13'' (rbxb.trans (rbxa.trans hbx)) (r12b.trans (r12a.trans h12)) ?_ ?_ L2
     (by rw [List.map_append, List.map_append, mapL0, map_ewW, map_ewW]; decide) fw2
     (ewRet_c0 ev2) (ewRet_c1 ev2) fun d3 hb3 fw3 it3 ev3 r13c rbxc r12c _ ↦ ?_
   · have hc : (SBool.cmp .ult .W64 (.load 1 11856 8) (.lit 149)).eval
-        (E m0 d2 [(fR m0 i, 17784)] (Host.addrOf (k + 91 + b8.length)).toBitVec) = true := by
+        (E m0 d2 [(fR m0 i, 17784)] (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b8Offset + b8.length)).toBitVec) = true := by
       have := cF_false h hb2 hi' (j := 2) (by omega)
-        (ret := (Host.addrOf (k + 91 + b8.length)).toBitVec)
+        (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b8Offset + b8.length)).toBitVec)
       unfold cF at this
       rw [eval_not'] at this
       simpa using this
@@ -182,8 +184,8 @@ theorem forms_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   -- `b9`: the last value, the weight, `dot`.
   have L3 := le_app (x := ((forms.getD i #[]).getD 1 #[]).evaluate xs) L2 (o := 192)
     (by omega) (by omega)
-  rw [show b8.length = 10 from rfl]
-  let ra := (Host.addrOf (k + 101 + b9.length)).toBitVec
+  rw [Nat.add_assoc, NativeRustcVmX64.Vm.TableTerms.b8_next]
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b9Offset + b9.length)).toBitVec
   have hwf9 : (E m0 d3 [(argA m0, 32), (wA m0 + BitVec.ofNat 64 (16 * i), 16)] ra).WF :=
     wf_w h hi hb3.fr.kept
   have fwA : FW m0 d3 (cws m0 ++ lw m0 i acc.2.1) :=
@@ -213,7 +215,6 @@ theorem forms_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
       show (E m0 d3 _ ra).load 1 (8 * 2) 8 + _ = _
       rw [load_eq_wordOf]
       exact congrArg (· + _) (arg_word h hb3 (j := 2) (by omega))
-  rw [show k + 91 + 10 = k + 101 by omega]
   refine exec_then (infix_of b9_in_code (by simp [b9]) hp) exit_b9 hwf9 (fun _ _ ↦ rfl) hm9
     fun st9 hm9' hpc9 ↦ ?_
   obtain ⟨miss9, mid9, W9, -, w208, w216, w72, w64, rdi9, rsi9, rdx9, rcx9, r12_9, k9⟩ := ok_b9
@@ -303,7 +304,7 @@ theorem forms_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     unfold dotF
     rw [map3 (by rw [NativeVm.Code.P4.getD_eq_getElem' _ _ hi']; exact hrow)]
   have cs10 : ∀ r, calleeSaved r = true → reg st10.data r = reg st9.data r := p2.1
-  refine at_pc (hpc10.trans (addr_eq (by rw [show b9.length = 13 from rfl])))
+  refine at_pc (hpc10.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b9_next)))
     (cont st10.data ⟨hb10, fw10.left.left.left.left.left.left, it10, H.run, H.cur, H.rs⟩
       (FW.append (FW.append fw10.left.left.left.left.left.right fw10.left.left.left.left.right)
         fw10.right) (by rw [hdf]; rfl) (by rw [hdf]; rfl) ?_ ?_)

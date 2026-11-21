@@ -376,9 +376,9 @@ theorem ablk (hp : Placed code k) (G : Geo m0 bp L) {bj : List Directive} {j o n
   · exact .inl (by omega)
   · exact .inr (.inr (.inr (by omega)))
 
-/-- **The epilogue** (`b18`, at `.LPhaseM_24`): the result as it is. -/
+/-- **The epilogue** (`b18`, at `NativeRustcVmX64.Vm.PhaseM.label_24`): the result as it is. -/
 theorem fin (hp : Placed code k) (G : Geo m0 bp L) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 81)) (hfr : Frame m0 160 slots 112 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b18Offset)) (hfr : Frame m0 160 slots 112 st.data)
     (hchg : NativeRustcVm.SameOutside m0.dmem st.data.dmem (Chg m0))
     (hres : ∀ bp' B' c', ReaderAt m0.dmem (RD m0) bp' B' c' → Res m0 bp' B' c' st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
@@ -427,10 +427,10 @@ theorem fin (hp : Placed code k) (G : Geo m0 bp L) {st : MachineState}
         workBytes_eq]
       omega
 
-/-- **The way out with `None`** (`b17`, at `.LPhaseM_23`), the reader as at the entry. -/
+/-- **The way out with `None`** (`b17`, at `NativeRustcVmX64.Vm.PhaseM.label_23`), the reader as at the entry. -/
 theorem none_run (hp : Placed code k) (G : Geo m0 bp B.length)
     (hR : ReaderAt m0.dmem (RD m0) bp B c) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 78)) (hbod : Bod m0 8 st.data) (hn : phaseM B c = none) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b17Offset)) (hbod : Bod m0 8 st.data) (hn : phaseM B c = none) :
     Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hmid, hmem, hrax⟩ := ok_b17
   have hst : StackOk m0 1216 := G.st
@@ -442,7 +442,7 @@ theorem none_run (hp : Placed code k) (G : Geo m0 bp B.length)
   refine exec_at (infix_of b17_in_code (by simp [b17]) hp) exit_b17 hwf nofun hpc hm
     fun st' hm' hpc' ↦ ?_
   have hd : st'.data.dmem = st.data.dmem := hm'.dmem_eq hwf hmem
-  refine fin hp G (hpc'.trans (by rw [show b17.length = 3 from rfl])) (Frame.of_block hbod.fr hwf hm'
+  refine fin hp G (hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b17_next)) (Frame.of_block hbod.fr hwf hm'
     hmid slots_le) (by rw [hd]; exact hbod.chg) fun bp' B' c' hR' ↦ ?_
   obtain ⟨rfl, rfl, rfl⟩ := hR.unique hR'
   unfold Res

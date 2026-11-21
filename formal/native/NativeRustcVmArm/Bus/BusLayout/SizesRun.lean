@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcVmArm.Bus.BusLayout.Heights
 
 /-!
@@ -79,7 +80,7 @@ variable [Host] {k : Nat}
 /-- **From `b5`**: the loop's registers, then the heights' loop to `.LBusLayout_8`. -/
 theorem from_b5 (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 31)) (hI : FwInv L bl m0 (nf m0) st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b5Offset)) (hI : FwInv L bl m0 (nf m0) st.data) :
     Eventually (step1 Host.exe) (Done L bl m0 k) st := by
   have hbl1 : 1 ≤ bl.length := hpre.2.2.2.2.1
   have hx4 : m0.regs.X4.toNat = bl.length := hpre.2.2.2.2.2.2.1
@@ -111,7 +112,7 @@ theorem from_b5 (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
     · rw [h9]
       sym_simp
       rw [Env.ofMachine_regs, hI.regs.x24]
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 41) ∧ ∃ i, bl.length - i = n ∧
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b7Offset) ∧ ∃ i, bl.length - i = n ∧
     LInv L bl m0 i st.data) (fun n st ⟨hpc, i, hn, hL⟩ ↦ ?_) ⟨hpc1, 0, rfl, hL0⟩
   refine Eventually.mono (loop_step hp hpre hpc hL) fun st' h ↦ ?_
   rcases h with h | ⟨hpc', hL'⟩
@@ -120,9 +121,9 @@ theorem from_b5 (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
 
 /-- **The sizes**: from the entry to `.LBusLayout_8`. -/
 theorem sizes_run (hp : Placed code k)
-    (hms : Spec (Labels.label "memset") MemsetPre MemsetPost) {L : LayoutW}
+    (hms : Spec (Labels.label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost) {L : LayoutW}
     {bl : List NativeRustcVm.Data.Block} {m0 : MachineData} (hpre : BusLayoutPre L bl m0) :
-    Eventually (step1 Host.exe) (Done L bl m0 k) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Done L bl m0 k) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b0Offset)⟩ := by
   have hS := hpre.1
   have hN : busLayoutStack ≤ m0.regs.SP.toNat := hS.2.1
   have hF : 1840 ≤ busLayoutStack := by decide

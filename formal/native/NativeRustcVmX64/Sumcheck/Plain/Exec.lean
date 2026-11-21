@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly.Names
 public meta import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -71,7 +75,7 @@ sym_block run_b9a := exec b9 (after b7 outS)
 sym_block run_b9b := exec b9 (after b8 outS)
 
 public theorem exit_b0 : exec b0 entryS =
-    some (after b0 entryS, .cond c0 ".LSumcheckOfSumcheckPlain_5") :=
+    some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_5) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 public theorem ok_b0 : ProOk 176 8 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0) ∧ WordW 0 16 (.reg .rdi) (after b0 entryS) ∧
@@ -95,7 +99,7 @@ public theorem ok_b1 : ProOk 176 8 slots (after b1 (after b0 entryS)) = true ∧
   decide +kernel
 
 public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState19sumcheck_round_poly") :=
+    .call NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.entryLabel) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : MidOk 176 0 slots (after b2 bodyS) = true ∧
     (∀ w ∈ (after b2 bodyS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 104 ≤ w.off ∧ w.off + w.n ≤ 112)) ∧
@@ -106,13 +110,13 @@ public theorem ok_b2 : MidOk 176 0 slots (after b2 bodyS) = true ∧
     Keeps (after b2 bodyS) [.rbx, .rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b3 : exec b3 bodyS =
-    some (after b3 bodyS, .cond cAl ".LSumcheckOfSumcheckPlain_3") :=
+    some (after b3 bodyS, .cond cAl NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_3) :=
   run_b3.trans (by rw [after_eq run_b3]; rfl)
 public theorem ok_b3 : MidOk 176 8 slots (after b3 bodyS) = true ∧ (after b3 bodyS).mem = [] ∧
     Keeps (after b3 bodyS) [.rbx, .rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b4 : exec b4 bodyS = some (after b4 bodyS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW7squeeze") :=
+    .call NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 176 0 slots (after b4 bodyS) = true ∧
     (∀ w ∈ (after b4 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -120,7 +124,7 @@ public theorem ok_b4 : MidOk 176 0 slots (after b4 bodyS) = true ∧
     Keeps (after b4 bodyS) [.rbx, .rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 public theorem exit_b5 : exec b5 slotS = some (after b5 slotS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9poly_eval") :=
+    .call NativeRustcVmX64.Vm.PolyEval.entryLabel) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : MidOk 176 0 slots (after b5 slotS) = true ∧
     (∀ w ∈ (after b5 slotS).mem, (w.r = 0 ∧ w.off + w.n ≤ 8) ∨ (w.r = 1 ∧ w.off + w.n ≤ 16)) ∧
@@ -131,7 +135,7 @@ public theorem ok_b5 : MidOk 176 0 slots (after b5 slotS) = true ∧
     Keeps (after b5 slotS) [.rbx, .rbp, .r12, .r13, .r15] = true := by
   decide +kernel
 public theorem exit_b6 : exec b6 bodyS =
-    some (after b6 bodyS, .cond c6 ".LSumcheckOfSumcheckPlain_2") :=
+    some (after b6 bodyS, .cond c6 NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_2) :=
   run_b6.trans (by rw [after_eq run_b6]; rfl)
 public theorem ok_b6 : MidOk 176 8 slots (after b6 bodyS) = true ∧ (after b6 bodyS).mem = [] ∧
     (after b6 bodyS).reg .rcx = some (.reg .rdx) ∧
@@ -139,7 +143,7 @@ public theorem ok_b6 : MidOk 176 8 slots (after b6 bodyS) = true ∧ (after b6 b
     Keeps (after b6 bodyS) [.rax, .rbx, .rbp, .r12, .r13, .r15] = true := by
   decide +kernel
 
-public theorem exit_b7 : exec b7 outS = some (after b7 outS, .jump ".LSumcheckOfSumcheckPlain_6") :=
+public theorem exit_b7 : exec b7 outS = some (after b7 outS, .jump NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_6) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem exit_b9a : exec b9 (after b7 outS) =
     some (after b9 (after b7 outS), .ret (.load 0 176 8)) :=

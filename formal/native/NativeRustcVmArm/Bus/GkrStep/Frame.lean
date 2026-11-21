@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Bus.GkrStep.Exec
 public import NativeRustcVmArm.Bus.GkrCommon
 public import NativeRustcVmArm.Bus.GkrModel
@@ -284,7 +285,7 @@ theorem exit_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {m : MachineD
     (hx0 : m.regs.X0 = okWord (run0 s0 g0 m0).isSome)
     (hok : ∀ g' s', run0 s0 g0 m0 = some (g', s') →
       TStateAt m.dmem m0.regs.X0.toBitVec a s' ∧ GkrStateWAt m.dmem m0.regs.X3.toBitVec g') :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 268)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b33Offset)⟩ := by
   have hS := pre_stack h
   have hwf := Bus.wf_frame hS N_ge hfr.kept
   have hm := Bus.match_frame hS N_ge rfl hfr.sp
@@ -304,7 +305,7 @@ theorem exit_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {m : MachineD
 /-- **A failed step** (`.LGkrStep_14`, `b32`): X0 = `0`. -/
 theorem fail_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {m : MachineData}
     (hfr : Fr m0 1392 gkrStepStack slots keep (outs m0) m) (hr : run0 s0 g0 m0 = none) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 266)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b32Offset)⟩ := by
   refine Fr.runBlock (pre_stack h) N_ge rfl hfr (b32_in_code.trans hp.1 (by simp [b32])) run_b32
     rfl rfl (by decide) (by decide) fun st hfr' _ hm hpc ↦ ?_
   simp only [PcOk] at hpc
@@ -321,13 +322,13 @@ public section
 theorem squeeze_call [Host] {m0 : MachineData} {t : BitVec 64} {a : DecArea} {N F : Nat}
     {slots : List (Nat × XReg)} {keep : List XReg} {outs : BitVec 64 → Prop}
     (c : Ctx m0 t a N F)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hf : Fr m0 F N slots keep outs st.data) (hrc : ∀ q, outs q → ¬InRange rcAddr 192 q)
     (hle : F + squeezeStack ≤ N) (hkeep : ∀ r ∈ keep, calleeSaved r = true)
     (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F) (hfr : ∀ q, outs q → ¬InRange (base m0 F) F q)
     (hto : ∀ q, InRange t tstateBytes q → outs q)
-    (hpc : st.pc = Labels.label squeezeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0.toBitVec = t) {s : TState} (hts : TStateAt st.data.dmem t a s)
     (cont : ∀ m2 : MachineData, Fr m0 F N slots keep outs m2 →
       TStateAt m2.dmem t a { s with sponge := s.sponge.squeeze.2 } →
@@ -381,7 +382,7 @@ end
 public section
 variable [Labels] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData}
 
-/-- **At `b7`** (`k + 146`): the sumcheck's challenges `xs` at `16`, its claim `cl` at `1032`. -/
+/-- **At `b7`** (`k + NativeRustcVmArm.Vm.GkrStep.b7Offset`): the sumcheck's challenges `xs` at `16`, its claim `cl` at `1032`. -/
 structure AtChildren (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData) (c cl : EW)
     (xs : Array EW) (s2 : TState) (m : MachineData) : Prop where
   fr : Fr m0 1392 gkrStepStack slots keep (outs m0) m
@@ -401,7 +402,7 @@ structure AtChildren (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineD
   ts : TStateAt m.dmem m0.regs.X0.toBitVec a s2
   run : run0 s0 g0 m0 = gkrChildren m0.regs.X1.toNat c cl xs s2
 
-/-- **At `b19`** (`k + 211`): the check passed; the children at `1024`, `1088`, `1152`. -/
+/-- **At `b19`** (`k + NativeRustcVmArm.Vm.GkrStep.b19Offset`): the check passed; the children at `1024`, `1088`, `1152`. -/
 structure AtTail (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData)
     (xs h0 h1 h2 : Array EW) (s3 : TState) (m : MachineData) : Prop where
   fr : Fr m0 1392 gkrStepStack slots keep (outs m0) m
@@ -425,7 +426,7 @@ structure AtTail (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData)
     some (⟨#[multilinearEval h0 y.1, multilinearEval h1 y.1, multilinearEval h2 y.1],
       y.1 ++ xs⟩, y.2)
 
-/-- **At `.LGkrStep_11`** (`k + 260`): the values, the length and the coordinates `y` written;
+/-- **At `.LGkrStep_11`** (`k + NativeRustcVmArm.Vm.GkrStep.b29Offset`): the values, the length and the coordinates `y` written;
 the challenges `xs` to copy. -/
 structure AtCopy (a : DecArea) (s0 : TState) (g0 : GkrStateW) (m0 : MachineData)
     (xs y vs : Array EW) (s' : TState) (m : MachineData) : Prop where

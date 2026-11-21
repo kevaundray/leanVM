@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW36Extend.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Word
 
 /-!
@@ -45,10 +46,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **A block writing the frame's ranges `Lb`, then `extend` of the buffer at 2592.** -/
 theorem extC (hn : Nums a inst m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {ds : List Directive} {i : Nat} {S' : SState} {m : MachineData} {Lb : List (Nat × Nat)}
     {R : MachineState → Prop} {A : BitVec 64} {L xs : List EW}
-    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S', .call bufEW36ExtendLabel))
+    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.BufEW36Extend.entryLabel))
     (hmid : Mid m0 m) (hsp : S'.sp = .ptr 0 0)
     (hw : S'.mem.all (fun w ↦ w.r == 0 &&
       Lb.any (fun p ↦ decide (p.1 ≤ w.off) && decide (w.off + w.n ≤ p.2))) = true)

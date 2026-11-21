@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+
 public import NativeRustcArm.SphincsVerify.Frame
 public import NativeRustc.Sphincs.ParseBytes
 public import NativeRustcArm.FromBytes.Glue
@@ -305,7 +308,7 @@ variable (r : Run) [NativeArm.Host]
 /-- **`memcpy` between frame offsets**: from `b .. b + n` to `a .. a + n`, below the saved
 registers. -/
 theorem memcpy_frame (hpre : r.Pre) (hc : Callees) {env : Env} {st : MachineState} {next : Int64}
-    {R : MachineState → Prop} (hpc : PcOk env (.call "memcpy") next st) (hF : r.Frame st.data)
+    {R : MachineState → Prop} (hpc : PcOk env (.call NativeRustcArm.Common.Memcpy.entryLabel) next st) (hF : r.Frame st.data)
     {a b n : Nat} (h0 : (st.data.regs.getXReg .X0).toBitVec = r.off a)
     (h1 : (st.data.regs.getXReg .X1).toBitVec = r.off b) (h2 : (st.data.regs.getXReg .X2).toNat = n)
     (ha : a + n ≤ 29280) (hb : b + n ≤ 29376) (hab : a + n ≤ b ∨ b + n ≤ a)
@@ -326,7 +329,7 @@ theorem memcpy_frame (hpre : r.Pre) (hc : Callees) {env : Env} {st : MachineStat
 
 /-- **`memset` of frame offsets** `a .. a + n`, below the saved registers. -/
 theorem memset_frame (hpre : r.Pre) (hc : Callees) {env : Env} {st : MachineState} {next : Int64}
-    {R : MachineState → Prop} (hpc : PcOk env (.call "memset") next st) (hF : r.Frame st.data)
+    {R : MachineState → Prop} (hpc : PcOk env (.call NativeRustcArm.Common.Memset.entryLabel) next st) (hF : r.Frame st.data)
     {a n : Nat} (h0 : (st.data.regs.getXReg .X0).toBitVec = r.off a)
     (h2 : (st.data.regs.getXReg .X2).toNat = n) (ha : a + n ≤ 29280)
     (cont : ∀ st', st'.pc = next → r.Frame st'.data → Saved st.data st'.data →

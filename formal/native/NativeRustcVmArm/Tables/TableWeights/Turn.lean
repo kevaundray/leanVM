@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Tables.TableWeights.Steps
 
 /-!
@@ -56,10 +57,10 @@ variable [Host] {k : Nat}
 
 /-- **The first multiplication** of coordinate `c`. -/
 theorem first_step (hp : Placed code k) (hc : Ctx m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
     (h3 : Pre3 m0 c m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 47) ∧ Mid m0 c 0 st.data)
-      ⟨m, Host.addrOf (k + 37)⟩ := by
+    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b4Offset) ∧ Mid m0 c 0 st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b3Offset)⟩ := by
   have hx := hc.ptc h3.lt
   have hwf := hc.wf_in h3.frm hx
   have hcn : c < 2 ^ 64 := Nat.lt_of_lt_of_le h3.lt (UInt64.toNat_lt _).le
@@ -74,7 +75,7 @@ theorem first_step (hp : Placed code k) (hc : Ctx m0)
   refine call_mul hwf rfl (h3.frm.frameOk hc.geo) hm' hpc rfl rfl (v0 := (lo 0).sym)
     (v1 := (hi 0).sym) (v2 := fac2 0 (.load 1 0 8)) (v3 := fac3 0) rfl rfl rfl rfl hmul
     fun st' hpc' hx0 hx1 hsv hsp hwd hsame hkept => .done _
-      ⟨hpc'.trans (addr_eq (by rw [len_b3])), ?_⟩
+      ⟨hpc'.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableWeights.b3_next])), ?_⟩
   have hreg : ∀ r ∈ [XReg.X22, .X23, .X24, .X25, .X26], rg st'.data r = rg m r := by
     intro r hr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
@@ -110,34 +111,34 @@ theorem first_step (hp : Placed code k) (hc : Ctx m0)
 
 /-- **The multiplications** of coordinate `c`. -/
 theorem mults (hp : Placed code k) (hc : Ctx m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
     (h3 : Pre3 m0 c m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 96) ∧ Mid m0 c 5 st.data)
-      ⟨m, Host.addrOf (k + 37)⟩ := by
+    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b9Offset) ∧ Mid m0 c 5 st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b3Offset)⟩ := by
   refine Eventually.bind (first_step hp hc hmul h3) fun ⟨d1, pc1⟩ ⟨e1, h1⟩ => ?_
   cases e1
   refine Eventually.bind (mid_step (j := 1) (by omega) (by omega) (hb4 hp) run_b4
     (after_eq run_b4 ▸ mb4) hmul hc.geo h1) fun ⟨d2, pc2⟩ ⟨e2, h2⟩ => ?_
-  rw [len_b4] at e2; cases e2
+  rw [NativeRustcVmArm.Vm.TableWeights.b4_length, NativeRustcVmArm.Vm.TableWeights.b4Length] at e2; cases e2
   refine Eventually.bind (mid_step (j := 2) (by omega) (by omega) (hb5 hp) run_b5
     (after_eq run_b5 ▸ mb5) hmul hc.geo h2) fun ⟨d3, pc3⟩ ⟨e3, h3⟩ => ?_
-  rw [len_b5] at e3; cases e3
+  rw [NativeRustcVmArm.Vm.TableWeights.b5_length, NativeRustcVmArm.Vm.TableWeights.b5Length] at e3; cases e3
   refine Eventually.bind (mid_step (j := 3) (by omega) (by omega) (hb6 hp) run_b6
     (after_eq run_b6 ▸ mb6) hmul hc.geo h3) fun ⟨d4, pc4⟩ ⟨e4, h4⟩ => ?_
-  rw [len_b6] at e4; cases e4
+  rw [NativeRustcVmArm.Vm.TableWeights.b6_length, NativeRustcVmArm.Vm.TableWeights.b6Length] at e4; cases e4
   refine Eventually.bind (mid_step (j := 4) (by omega) (by omega) (hb7 hp) run_b7
     (after_eq run_b7 ▸ mb7) hmul hc.geo h4) fun ⟨d5, pc5⟩ ⟨e5, h5⟩ => ?_
-  rw [len_b7] at e5; cases e5
+  rw [NativeRustcVmArm.Vm.TableWeights.b7_length, NativeRustcVmArm.Vm.TableWeights.b7Length] at e5; cases e5
   exact Eventually.mono (mid_step (j := 5) (by omega) (by omega) (hb8 hp) run_b8
-    (after_eq run_b8 ▸ mb8) hmul hc.geo h5) fun st ⟨e, h⟩ => ⟨by rw [e, len_b8], h⟩
+    (after_eq run_b8 ▸ mb8) hmul hc.geo h5) fun st ⟨e, h⟩ => ⟨by rw [e, Nat.add_assoc, NativeRustcVmArm.Vm.TableWeights.b8_next], h⟩
 
 /-- **`b9`**: the next coordinate, or the exit. -/
 theorem last_step (hp : Placed code k) (hc : Ctx m0) {c : Nat} {m : MachineData}
     (hmid : Mid m0 c 5 m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 102) ∧ It m0 (c + 1) st.data) ∨
-        (st.pc = Host.addrOf (k + 122) ∧ Fin m0 st.data))
-      ⟨m, Host.addrOf (k + 96)⟩ := by
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b10Offset) ∧ It m0 (c + 1) st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b13Offset) ∧ Fin m0 st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b9Offset)⟩ := by
   have hf := hmid.frm
   have hwf : (Env.ofMachine m [(fb m0, 240)]).WF :=
     Env.wf_of ⟨⟨hf.frameOk hc.geo |>.mapped, hc.geo.hi⟩, trivial⟩ (List.pairwise_singleton _ _)
@@ -173,7 +174,7 @@ theorem last_step (hp : Placed code k) (hc : Ctx m0) {c : Nat} {m : MachineData}
     · rw [← hend]; exact hx9
   · rw [decide_eq_false (show ¬c + 1 = (rg m0 .X5).toNat from hend)] at hpc
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc
-    refine .done _ (Or.inl ⟨hpc.trans (addr_eq (by rw [len_b9])),
+    refine .done _ (Or.inl ⟨hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableWeights.b9_next])),
       ⟨by have := hmid.lt; unfold n at hend this ⊢; omega, hf', ?_, ?_, ?_, hw, hx0, hx9⟩⟩)
     · rw [show rg st.data .X22 = _ from hm'.regs .X22 _ rfl]
       simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, Env.ofMachine_regs]
@@ -186,12 +187,12 @@ theorem last_step (hp : Placed code k) (hc : Ctx m0) {c : Nat} {m : MachineData}
 
 /-- **A turn of the loop.** -/
 theorem turn_step (hp : Placed code k) (hc : Ctx m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
     (hit : It m0 c m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 102) ∧ It m0 (c + 1) st.data) ∨
-        (st.pc = Host.addrOf (k + 122) ∧ Fin m0 st.data))
-      ⟨m, Host.addrOf (k + 102)⟩ := by
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b10Offset) ∧ It m0 (c + 1) st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b13Offset) ∧ Fin m0 st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b10Offset)⟩ := by
   refine Eventually.bind (head_step hp hc hit) fun ⟨d1, pc1⟩ ⟨e1, h1⟩ => ?_
   cases e1
   refine Eventually.bind (mults hp hc hmul h1) fun ⟨d2, pc2⟩ ⟨e2, h2⟩ => ?_
@@ -200,11 +201,11 @@ theorem turn_step (hp : Placed code k) (hc : Ctx m0)
 
 /-- **The loop**: from the loop head with `c` coordinates done, the exit. -/
 theorem loop_spec (hp : Placed code k) (hc : Ctx m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {c : Nat} {m : MachineData}
     (hit : It m0 c m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 122) ∧ Fin m0 st.data)
-      ⟨m, Host.addrOf (k + 102)⟩ := by
-  refine Sym.loop (fun r st => st.pc = Host.addrOf (k + 102) ∧ ∃ c, n m0 - c = r ∧
+    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b13Offset) ∧ Fin m0 st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b10Offset)⟩ := by
+  refine Sym.loop (fun r st => st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TableWeights.b10Offset) ∧ ∃ c, n m0 - c = r ∧
       It m0 c st.data) (fun r st ⟨hpc, c, hr, hi⟩ => ?_) ⟨rfl, c, rfl, hit⟩
   obtain ⟨d, pc⟩ := st
   simp only at hpc

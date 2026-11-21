@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Top.Seed.Basic
 
 /-!
@@ -20,11 +22,11 @@ public section
 variable [Host] {k : Nat}
 
 theorem stage2 (hp : Placed code k)
-    (hkf : Spec (Labels.label keccakFLabel) KeccakFPre KeccakFPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {m0 : MachineData}
-    (hpre : SeedPre m0) {st4 : MachineState} (hpc4 : st4.pc = Host.addrOf (k + 18))
+    (hkf : Spec (Labels.label NativeRustcVmArm.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m0 : MachineData}
+    (hpre : SeedPre m0) {st4 : MachineState} (hpc4 : st4.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Seed.b2Offset))
     (hS1 : S1 m0 st4.data) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 28) ∧ S2 m0 st.data) st4 := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Seed.b4Offset) ∧ S2 m0 st.data) st4 := by
   have g := geo_of hpre
   obtain ⟨⟨-, -, hmap⟩, ⟨hrcW, -, -⟩, -, -, ⟨hpubM, -⟩, ⟨houtM, -⟩, -, -, -⟩ := hpre
   obtain ⟨hs928, hs16, hF, hF8, hF72, hsb0, hpubA, hpubN, houtA, houtN, hrcA, hrcN, -, -, -⟩ := g
@@ -147,7 +149,7 @@ theorem stage2 (hp : Placed code k)
       rw [inRange_below (by rw [hsp5, hF]; omega), hsp5, hF] at hq
       unfold InStack; omega
   -- `b3`: `memcpy`'s arguments.
-  rw [show k + 18 + b2.length = k + 24 from rfl] at hpc6
+  rw [show k + NativeRustcVmArm.Vm.Seed.b2Offset + b2.length = k + NativeRustcVmArm.Vm.Seed.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Seed.b2_next]] at hpc6
   refine exec_at (hb3 hp) run_b3 (Env.wf_nil st6.data) hpc6 (match_nil st6.data)
     fun st7 hm7 hpc7 ↦ ?_
   have hk3 := b3_keeps
@@ -194,7 +196,7 @@ theorem stage2 (hp : Placed code k)
       (by show 240 ≤ m0.regs.SP.toBitVec.toNat; omega) hsame8 hsaved8 fun q hq ↦ ⟨Or.inr hq, ?_⟩
     rw [inRange_nat (by omega)] at hq
     omega
-  rw [show k + 24 + b3.length = k + 28 from rfl] at hpc8
+  rw [show k + NativeRustcVmArm.Vm.Seed.b3Offset + b3.length = k + NativeRustcVmArm.Vm.Seed.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Seed.b3_next]] at hpc8
   refine Eventually.done _ ⟨hpc8, hB8, fun w hw hbc P hP ↦ ?_⟩
   have h5 := hst5 w hw hbc P hP
   rw [← hX0_5] at h5

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
 public import NativeRustcVmArm.Transcript.Callee
 public import NativeRustcVmArm.Transcript.SampleChallenges.Exec
 public import NativeRustcVm.Transcript.Loop
@@ -48,7 +50,7 @@ variable [Host] {k : Nat}
 
 /-- The epilogue (`b4`) and the return (`b5`). -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 sampleChallengesStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 13)) (hf : Frame m0 32 slots st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSampleChallenges.b4Offset)) (hf : Frame m0 32 slots st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.dmem = st.data.dmem ∧
       Saved m0 st'.data) st := by
   have hfnw := frame_noWrap (m := m0) (F := 32) (by
@@ -65,7 +67,7 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 sampleC
   have hx30 : st1.data.regs.X30 = m0.regs.X30 := hsl (0, .X30) (List.mem_cons_self ..)
   have hd1 : st1.data.dmem = st.data.dmem := hm1.dmem_eq hwf hmem
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 (Env.wf_nil _)
-    (hpc1.trans (by rw [show b4.length = 2 from rfl])) (match_nil _) fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateSampleChallenges.b4_next])) (match_nil _) fun st2 hm2 hpc2 => ?_
   obtain ⟨hmem2, hk2, h30⟩ := after_eq run_b5 ▸ ok_b5
   have hx30' : st2.data.regs.X30 = st1.data.regs.X30 := Match.reg_eq (match_nil _) hm2 rfl h30
   exact .done _ ⟨by simp only [PcOk] at hpc2; rw [hpc2]; simp only [retOf, hx30', hx30],
@@ -74,13 +76,13 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 sampleC
 
 /-- **One round of the loop**: a challenge squeezed and stored; the loop goes on or returns. -/
 theorem step (hp : Placed code k)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {a : DecArea} {s : TState} {m0 : MachineData} (hpre : SampleChallengesPre a s m0) {i : Nat}
-    (hi : i < m0.regs.X2.toNat) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 7))
+    (hi : i < m0.regs.X2.toNat) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSampleChallenges.b2Offset))
     (hI : Inv m0 a s i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
       (st'.pc = retOf m0 ∧ SampleChallengesPost a s m0 st'.data) ∨
-      (st'.pc = Host.addrOf (k + 7) ∧ i + 1 < m0.regs.X2.toNat ∧ Inv m0 a s (i + 1) st'.data))
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSampleChallenges.b2Offset) ∧ i + 1 < m0.regs.X2.toNat ∧ Inv m0 a s (i + 1) st'.data))
       st := by
   obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := hpre
   set t := m0.regs.X0.toBitVec with htdef
@@ -211,7 +213,7 @@ theorem step (hp : Placed code k)
       (by rw [hf4.sp]; exact (eval_ptr rfl).symm) ⟨known_ptr rfl hX19₄, trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf4
-    (hpc4.trans (by rw [show b2.length = 3 from rfl])) hm4 fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateSampleChallenges.b2_next])) hm4 fun st5 hm5 hpc5 => ?_
   obtain ⟨hmid5, hw0, hw1, hws5, hx19₅, hx20₅, hx21₅⟩ := after_eq run_b3 ▸ ok_b3
   have hf5 : Frame m0 32 slots st5.data := Frame.of_block hf4 hwf4 hm5 hmid5 slots_le
   have hs5 : SameOutside st4.data.dmem st5.data.dmem (NativeRustcVm.InRange w 16) :=
@@ -279,19 +281,19 @@ theorem step (hp : Placed code k)
   · -- The end: the epilogue.
     simp only [hlast, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
       at hpc5
-    refine Eventually.mono (finish hp hst (hpc5.trans (by rw [show b3.length = 3 from rfl])) hf5)
+    refine Eventually.mono (finish hp hst (hpc5.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateSampleChallenges.b3_next])) hf5)
       fun st' ⟨hpc', hd', hsv'⟩ ↦ Or.inl ⟨hpc', ⟨⟨xs.push c, _, ?_, hd' ▸ hews5, hd' ▸ hts5⟩,
         fun q hq ↦ by rw [hd']; exact hso5 q hq, hsv'⟩⟩
     rw [sampleChallenges_eq, show m0.regs.X2.toNat = i + 1 from hlast.symm]; exact hrun'
   · simp only [hlast, ne_eq, not_false_eq_true, decide_true, ↓reduceIte] at hpc5
-    exact .done _ (Or.inr ⟨hpc5.trans (hp.label (j := 7) rfl), by omega,
+    exact .done _ (Or.inr ⟨hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.TStateSampleChallenges.b2Offset) NativeRustcVmArm.Vm.TStateSampleChallenges.label_2_at), by omega,
       ⟨hf5, hX20₅, hX21₅, hX19₅, ⟨_, _, hrun', hews5, hts5⟩, hso5⟩⟩)
 
 /-- **`TState::sample_challenges` meets its contract.** -/
 theorem sampleChallenges_spec (hp : Placed code k)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s) := by
   intro m0 hpre
   obtain ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, hoR⟩⟩ := id hpre
@@ -306,8 +308,8 @@ theorem sampleChallenges_spec (hp : Placed code k)
   have hTF : NativeRustcVm.Apart t 760 fb 32 := apart_frame htok.1 hn (by decide)
   have hAF : NativeRustcVm.Apart a.words (8 * a.len) fb 32 := apart_frame htok.2.1 hn (by decide)
   -- `b0`: `n = 0`?
-  unfold sampleChallengesLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.TStateSampleChallenges.entryOffset) NativeRustcVmArm.Vm.TStateSampleChallenges.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 (Env.wf_nil m0) (match_nil m0)
     fun st1 hm1 hpc1 => ?_
   obtain ⟨hmem1, hk1⟩ := after_eq run_b0 ▸ ok_b0
@@ -328,7 +330,7 @@ theorem sampleChallenges_spec (hp : Placed code k)
       show m0.regs.X2.toBitVec.toNat = 0
       exact (congrArg BitVec.toNat hc).trans rfl
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 (Env.wf_nil _)
-      (hpc1.trans (hp.label (j := 15) rfl)) (match_nil _) fun st2 hm2 hpc2 => ?_
+      (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.TStateSampleChallenges.b5Offset) NativeRustcVmArm.Vm.TStateSampleChallenges.label_4_at)) (match_nil _) fun st2 hm2 hpc2 => ?_
     obtain ⟨hmem2, hk2, h30⟩ := after_eq run_b5 ▸ ok_b5
     have hd2 : st2.data.dmem = m0.dmem := (hm2.dmem_eq (Env.wf_nil _) hmem2).trans hd1
     have hx30 : st2.data.regs.X30 = m0.regs.X30 :=
@@ -353,7 +355,7 @@ theorem sampleChallenges_spec (hp : Placed code k)
       (by rw [show st1.data.regs.SP = m0.regs.SP from hsv1.2.1]; exact frameBase_add.symm)
       trivial trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1
-    (hpc1.trans (by rw [show b0.length = 2 from rfl])) hm1' fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.TStateSampleChallenges.b0Offset + NativeRustcVmArm.Vm.TStateSampleChallenges.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSampleChallenges.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateSampleChallenges.b0_next])) hm1' fun st2 hm2 hpc2 => ?_
   obtain ⟨hpro, hws2, hx19, hx20, hx21⟩ := after_eq run_b1 ▸ ok_b1
   have hf2 : Frame m0 32 slots st2.data :=
     Frame.of_prologue_from hsv1 (fun p hp ↦ by
@@ -393,10 +395,10 @@ theorem sampleChallenges_spec (hp : Placed code k)
     · exact hts.frame hf2.kept (fun q hq ↦ ⟨fun h ↦ not_inRange_of_apart hTF hTn hfnw h hq,
         fun h ↦ not_inRange_of_apart hAF hAn hfnw h hq⟩) hsame2
     · exact hsame2 q fun h ↦ hq (Or.inr (Or.inr (inRange_frame_stack hn (by decide) h)))
-  refine loop (I := fun j st ↦ ∃ i, j = n - i ∧ i < n ∧ st.pc = Host.addrOf (k + 7) ∧
+  refine loop (I := fun j st ↦ ∃ i, j = n - i ∧ i < n ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSampleChallenges.b2Offset) ∧
       Inv m0 a s i st.data)
     (fun j st ⟨i, hj, hi, hpc, hI⟩ ↦ Eventually.mono (step hp hsq hpre hi hpc hI) fun st' h ↦ ?_)
-    ⟨0, rfl, by omega, hpc2.trans (by rw [show b1.length = 5 from rfl]), hInv⟩
+    ⟨0, rfl, by omega, hpc2.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateSampleChallenges.b1_next]), hInv⟩
   rcases h with h | ⟨hpc', hlt, hI'⟩
   · exact Or.inl h
   · exact Or.inr ⟨n - (i + 1), by omega, i + 1, rfl, hlt, hpc', hI'⟩

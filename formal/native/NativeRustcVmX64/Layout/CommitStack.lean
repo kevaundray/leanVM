@@ -4,6 +4,9 @@ public import NativeRustcVmX64.Layout.CommitStack.Exec
 public import NativeRustcVmX64.Layout.Ladder.Table
 public import NativeRustcVmX64.Layout.Stack.Common
 public import NativeVm.Model.Stack
+public import NativeRustcVmX64.Code.Vm.CommitStack.Names
+public import NativeRustcVmX64.Code.Vm.Ladder.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadCommitment.Names
 
 /-!
 # `commit_stack` on x86-64
@@ -73,11 +76,11 @@ variable [Host] {k : Nat}
 
 /-- **`commit_stack`'s contract.** -/
 theorem commitStack_spec (hp : Placed code k)
-    (hlad : Spec (Labels.label ladderLabel) LadderPre LadderPost)
-    (hrcm : ∀ a s, Spec (Labels.label readCommitmentLabel) (ReadCommitmentPre a s)
+    (hlad : Spec (Labels.label NativeRustcVmX64.Vm.Ladder.entryLabel) LadderPre LadderPost)
+    (hrcm : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s)
       (ReadCommitmentPost a s))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label commitStackLabel) (CommitStackPre a s) (CommitStackPost a s) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.CommitStack.entryLabel) (CommitStackPre a s) (CommitStackPost a s) := by
   rintro m0 ⟨hst, hrc, hro, hts, htok, hroots⟩
   rw [stack_eq] at hst hrc hro htok
   set t := reg m0 .rdi with htdef
@@ -104,13 +107,13 @@ theorem commitStack_spec (hp : Placed code k)
     fun q hq h ↦ not_inRange_of_apart hrc.2.2 hrc.2.1 hsnw h (inRange_mono hq (by omega))
   -- `b0`: the prologue, `call ladder`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 192) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.CommitStack.b0Offset + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
     (by simp) (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 192 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 192 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.CommitStack.b0Offset + b0.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
-  unfold commitStackLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.CommitStack.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.CommitStack.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl) hm0
     fun st0 hm1 hpc1 => ?_
   obtain ⟨hpro, hws0, hx7, hx6, hx2, hx3, hx14⟩ := ok_b0
@@ -180,7 +183,7 @@ theorem commitStack_spec (hp : Placed code k)
   have hm2 : Match (frameEnv m0 st1.data 192 [] (fun _ ↦ 0) 0) retS st1.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hf1.rsp_eval, trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf1 nofun
-    (hpc2.trans (by rw [show b0.length = 8 from rfl])) hm2 fun st2 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.CommitStack.b0_next)) hm2 fun st2 hm3 hpc3 => ?_
   obtain ⟨hmid1, hmem1⟩ := ok_b1
   simp only [PcOk] at hpc3
   -- The common end: memory changed only in the stack.
@@ -201,7 +204,7 @@ theorem commitStack_spec (hp : Placed code k)
     rw [hc1] at hpc3
     simp (config := { decide := true }) only [↓reduceIte] at hpc3
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf1 nofun
-      (hpc3.trans (by rw [show b1.length = 2 from rfl])) hm3 fun st3 hm4 hpc4 => ?_
+      (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.CommitStack.b1_next)) hm3 fun st3 hm4 hpc4 => ?_
     have hn3 := nOf_le (reg m0 .rsi).toNat
     rw [length_ladderW] at hcnt
     have hl168 : (frameEnv m0 st1.data 192 [] (fun _ ↦ 0) 0).load 0 168 8 =
@@ -214,7 +217,7 @@ theorem commitStack_spec (hp : Placed code k)
     simp only [PcOk] at hpc4
     rw [hc2] at hpc4
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
-    rw [hp.label (j := 20) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.CommitStack.label_3_at] at hpc4
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf1 nofun
       hpc4 hm4 fun st4 hm5 hpc5 => ?_
     obtain ⟨hld, hko, hrsp4, hmem4, hrdi, hrsi, hrdx⟩ := end_b4
@@ -283,7 +286,7 @@ theorem commitStack_spec (hp : Placed code k)
       simp only [SBool.eval, Sym.eval, hl16]; decide
     rw [hc1] at hpc3
     simp (config := { decide := true }) only [↓reduceIte] at hpc3
-    rw [hp.label (j := 14) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.CommitStack.label_2_at] at hpc3
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf1 nofun hpc3 hm3
       fun st3 hm4 hpc4 => ?_
     obtain ⟨hepi, hmem3, hrax3⟩ := end_b3

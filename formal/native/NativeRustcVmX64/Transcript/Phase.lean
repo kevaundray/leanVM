@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Transcript.Phase.Exec
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.DecodedPhase.Names
+public import NativeRustcVmX64.Code.Vm.DecodedPhaseCount.Names
 
 /-!
 # `Decoded::phase` on x86-64
@@ -30,10 +32,10 @@ variable [Host] {k : Nat}
 
 /-- **`Decoded::phase` meets its contract.** -/
 theorem phase_spec (hp : Placed code k)
-    (hcount : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hcount : ∀ a stream openings, Spec (Labels.label NativeRustcVmX64.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     (a : DecArea) (stream : Array EW) (openings : Array (Array OpeningW)) :
-    Spec (Labels.label phaseLabel) (PhasePre a stream openings) (PhasePost a openings) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.DecodedPhase.entryLabel) (PhasePre a stream openings) (PhasePost a openings) := by
   rintro m0 ⟨hst, hdf, hmap, hnw, hap, hapS, hreg, hapA, hdec⟩
   set dp := reg m0 .rdi with hdp
   have hn : phaseStack ≤ (rspOf m0).toNat := hst.1
@@ -48,10 +50,10 @@ theorem phase_spec (hp : Placed code k)
   have hph := hdec.phases_le
   -- `b0`: the prologue, `call phase_count`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 32) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) ⟨frame_mapped hst le_rfl, hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.DecodedPhase.b0Offset + b0.length)).toBitVec) ⟨frame_mapped hst le_rfl, hfnw⟩
     (by simp) (List.pairwise_singleton _ _)
-  unfold phaseLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.DecodedPhase.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.DecodedPhase.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 => ?_
@@ -136,7 +138,7 @@ theorem phase_spec (hp : Placed code k)
     rw [hd hmem hm, hd2]
     exact hs1 q hq
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
-    (hpc2.trans (by rw [show b0.length = 7 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.DecodedPhase.b0_next)) hm2 fun st3 hm3 hpc3 => ?_
   simp only [PcOk] at hpc3
   split at hpc3
   · -- `k > 7`: `None`.
@@ -152,11 +154,11 @@ theorem phase_spec (hp : Placed code k)
       have := hc.1
       omega
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (exec_after exit_b1 run_b5_1) hwf2
-      nofun (hpc3.trans (hp.label (j := 22) rfl)) hm3 fun st4 hm4 hpc4 => ?_
+      nofun (hpc3.trans (hp.label NativeRustcVmX64.Vm.DecodedPhase.label_5_at)) hm3 fun st4 hm4 hpc4 => ?_
     exact hfin (after_eq run_b5_1 ▸ end_b5_1) hm4 hpc4 (by simp only [hk, ↓reduceIte]; rfl)
   rename_i hc1
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf2 nofun
-    (hpc3.trans (by rw [show b1.length = 4 from rfl])) hm3 fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.DecodedPhase.b1_next)) hm3 fun st4 hm4 hpc4 => ?_
   simp only [PcOk] at hpc4
   split at hpc4
   · -- `k` not below the count: `None`.
@@ -166,7 +168,7 @@ theorem phase_spec (hp : Placed code k)
       simp only [Env.ofMachine_regs, BitVec.ult, hr14, hr0'] at hc
       simpa using hc
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (exec_after exit_b2 run_b5_2) hwf2
-      nofun (hpc4.trans (hp.label (j := 22) rfl)) hm4 fun st5 hm5 hpc5 => ?_
+      nofun (hpc4.trans (hp.label NativeRustcVmX64.Vm.DecodedPhase.label_5_at)) hm4 fun st5 hm5 hpc5 => ?_
     exact hfin (after_eq run_b5_2 ▸ end_b5_2) hm5 hpc5 (by simp only [hk, ↓reduceIte]; rfl)
   -- `b3`: the phase's end within the slice.
   rename_i hc
@@ -196,7 +198,7 @@ theorem phase_spec (hp : Placed code k)
     omega
   have hpb := phaseBase_add_le (L := a.l) (k := (reg m0 .rsi).toNat) hk8
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf2 nofun
-    (hpc4.trans (by rw [show b2.length = 2 from rfl])) hm4 fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.DecodedPhase.b2_next)) hm4 fun st5 hm5 hpc5 => ?_
   simp only [PcOk] at hpc5
   split at hpc5
   swap
@@ -222,7 +224,7 @@ theorem phase_spec (hp : Placed code k)
       exact Or.inr this
   -- `b6`: the base's address.
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) (exec_after exit_b3 run_b6) hwf2 nofun
-    (hpc5.trans (hp.label (j := 27) rfl)) hm5 fun st6 hm6 hpc6 => ?_
+    (hpc5.trans (hp.label NativeRustcVmX64.Vm.DecodedPhase.label_4_at)) hm5 fun st6 hm6 hpc6 => ?_
   refine hfin (after_eq run_b6 ▸ end_b6) hm6 hpc6 ?_
   simp only [hk, ↓reduceIte]
   sym_simp

@@ -1,11 +1,13 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Entry
+public import NativeRustcVmX64.Code.Vm.SampleQueries.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
 
 /-!
 # `final_level`: the grind and the queries (x86-64)
 
-From `Live` at `b6`: `grind(t, 17)` (`b6`), its verdict (`b7`, `None` to `.LFinalLevel_5`); the
+From `Live` at `b6`: `grind(t, 17)` (`b6`), its verdict (`b7`, `None` to `NativeRustcVmX64.Vm.FinalLevel.label_5`); the
 depth `μ + rate` (RBX) and the query count (RDX) from the level (`b8`, its first part, the level's
 region), `sample_queries(t, depth, count, &w.queries)` (`b8`'s rest, RBP the `WhirW`), its verdict
 (`b9`, always `Some`), to `b10` (`queries`). `Live.step`: `Live` across a block then a call.
@@ -53,17 +55,17 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The grind and the queries.** -/
 theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ a s, Spec (Labels.label sampleQueriesLabel) (SampleQueriesPre a s)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SampleQueries.entryLabel) (SampleQueriesPre a s)
       (SampleQueriesPost a s))
-    {st : MachineState} {folded : Array EW} {s1 : TState} (hpc : st.pc = Host.addrOf (k + 46))
+    {st : MachineState} {folded : Array EW} {s1 : TState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b6Offset))
     (hl : Live level m0 st.data folded)
     (hbx : reg st.data .rbx = level.logInvRate.toUInt64.toBitVec) (hbp : reg st.data .rbp = lA m0)
     (hts : TStateAt st.data.dmem (tA m0) a s1)
     (hrun : runF level b w rounds m0 s = (C1 (reg m0 .rsi).toNat level (mu m0) (reg m0 .r8).toNat
       b w rounds folded).run s1)
     (cont : ∀ (st' : MachineState) (qs : Array UInt64) (s3 : TState),
-      st'.pc = Host.addrOf (k + 60) → Live level m0 st'.data folded → reg st'.data .rbp = pA m0 →
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b10Offset) → Live level m0 st'.data folded → reg st'.data .rbp = pA m0 →
       NativeRustcVm.BufWordsAt st'.data.dmem (qA m0) queryCap qs.toList →
       TStateAt st'.data.dmem (tA m0) a s3 →
       runF level b w rounds m0 s = (C3 (reg m0 .rsi).toNat (mu m0) (reg m0 .r8).toNat b w rounds
@@ -74,7 +76,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hfo : 2 ^ mu m0 + level.fold ≤ 64 := c.fold
   have hmu : mu m0 < 64 := c.mu64
   -- `b6`: `grind(t, 17)`.
-  let env1 := argEnv m0 st.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 49)).toBitVec
+  let env1 := argEnv m0 st.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b7Offset)).toBitVec
   have hwf1 : env1.WF := c.wf0 hl.fr.frame.kept
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf1 (fun _ _ ↦ rfl) hpc
     (match_retS hl.fr) fun st1 hm1 hpc1 ↦ ?_
@@ -110,7 +112,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hl2 : Live level m0 st2.data folded :=
     hl.step hwf1 hm1 (writesIn_of_mid hmid1) hW1 (by decide) hkeep2 (by omega) (by omega) hf2
       (fun r hr ↦ hr2 r (by simp at hr; rcases hr with rfl | rfl | rfl | rfl <;> simp [six])) hfo
-  rw [show k + 46 + b6.length = k + 49 from rfl] at hpc2
+  rw [show k + NativeRustcVmX64.Vm.FinalLevel.b6Offset + b6.length = k + NativeRustcVmX64.Vm.FinalLevel.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.FinalLevel.b6_next]] at hpc2
   -- `b7`: the grind's verdict.
   refine Eventually.bind (test_spec hp c b7_in_code rfl (b_eq.1 ▸ exit_b5) (b_eq.1 ▸ ok_b5) hf2
     hpc2 hok) fun st3 ⟨hr3, hd3, hpc3⟩ ↦ ?_
@@ -121,7 +123,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     exact none36 hp c hf3 (hpc3.trans (l5 hp)) (by rw [hrun, C1]; exact run_bind_none hres)
   rw [hres] at hpc3
   simp only [Option.isSome_some, ite_true] at hpc3
-  have hpc3' : st3.pc = Host.addrOf (k + 51) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b8Offset) := hpc3
   have hl3 : Live level m0 st3.data folded :=
     hl2.keep hf3 (fun r _ ↦ hr3 r) (fun j _ ↦ by rw [hd3]) hfo
   have hts3 : TStateAt st3.data.dmem (tA m0) a s2 := by rw [hd3]; exact hnext () s2 hres
@@ -162,9 +164,9 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     fun r hr ↦ e4 (hkr4 r hr)
   have hl4 : Live level m0 st4.data folded :=
     hl3.keep hf4 hk4 (fun j _ ↦ by rw [hd4]) hfo
-  have hpc4' : st4.pc = Host.addrOf (k + 53) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b8Offset + (b8.take 2).length) := hpc4
   -- `b8`, the rest: `sample_queries(t, depth, count, &w.queries)`.
-  let env5 := argEnv m0 st4.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 58)).toBitVec
+  let env5 := argEnv m0 st4.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b9Offset)).toBitVec
   have hwf5 : env5.WF := c.wf0 hf4.frame.kept
   refine exec_at (infix_of ((infix_drop b8 2).trans b8_in_code (by simp [b8])) (by simp [b8])
     hp) exit_b8b hwf5 (fun _ _ ↦ rfl) hpc4' (match_retS hf4) fun st5 hm5 hpc5 ↦ ?_
@@ -227,11 +229,11 @@ theorem queries (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hl6 : Live level m0 st6.data folded :=
     hl4.step hwf5 hm5 (writesIn_of_mid hmid5) hW5 (by decide) hkeep6 (by omega) (by omega) hf6
       hk56 hfo
-  have hpc6' : st6.pc = Host.addrOf (k + 58) := hpc6
+  have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b9Offset) := hpc6
   -- `b9`: `sample_queries`' `Some`.
   refine Eventually.bind (test_spec hp c b9_in_code rfl (b_eq.2.1 ▸ exit_b5) (b_eq.2.1 ▸ ok_b5)
     hf6 hpc6' hok6) fun st7 ⟨hr7, hd7, hpc7⟩ ↦ ?_
-  have hpc7' : st7.pc = Host.addrOf (k + 60) := hpc7
+  have hpc7' : st7.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b10Offset) := hpc7
   refine cont st7 qs s3 hpc7' (hl6.keep (hf6.congr hr7 hd7) (fun r _ ↦ hr7 r) (fun j _ ↦ by rw [hd7])
     hfo) ((hr7 .rbp).trans ((hcs6 .rbp rfl).trans hbp5)) (by rw [hd7]; exact hbuf)
     (by rw [hd7]; exact hts6) ?_

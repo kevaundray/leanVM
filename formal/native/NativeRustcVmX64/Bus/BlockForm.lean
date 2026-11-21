@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Bus.BlockForm.Lemmas
 public import NativeRustcVm.Tables.Same
+public import NativeRustcVmX64.Code.Vm.BlockForm.Names
+public import NativeRustcVmX64.Code.Vm.FormBufAddScaled.Names
+public import NativeRustcVmX64.Code.Vm.FormTerms.Names
 
 /-!
 # `block_form` on x86-64
@@ -9,7 +12,7 @@ public import NativeRustcVm.Tables.Same
 `b0` pushes RBP, R15, R14, R13, R12, RBX, keeps the weights' count at offset `24` of its frame and
 sets the form at R9 to the constant `side_beta`; the tuple is below `147`, so its branch past
 `TUPLES` is never taken; `b1` reads the tuple's span from `TUPLES`; `b3` keeps the span's end at
-offset `16`, the count in R14, and goes to the loop head `.LBlockForm_4` (`b8`, `Inv`): the form
+offset `16`, the count in R14, and goes to the loop head `NativeRustcVmX64.Vm.BlockForm.label_4` (`b8`, `Inv`): the form
 at R9 is `bf` of the first `j` slots. A turn (`step`): `form_terms` of the span's next form
 (`b9`), its weight from `side_weights` or `0` (`b10`, `b5`/`b11`), `FormBuf::add_scaled` (`b6`);
 a failure (the form outgrows its `FormBuf`) leaves the loop, else back to the head (`b7`). The
@@ -51,7 +54,7 @@ theorem tsp_end {m0 : MachineData} (h : (reg m0 .rdi).toNat < NativeRustcVm.Data
     (tsp m0).start + (tsp m0).len ≤ 593 := by
   rw [tsp_eq h]; exact tuple_end_le _ h
 
-/-- **The loop head** `.LBlockForm_4`, `j` slots added. -/
+/-- **The loop head** `NativeRustcVmX64.Vm.BlockForm.label_4`, `j` slots added. -/
 structure Inv (m0 : MachineData) (j : Nat) (st : MachineData) : Prop where
   fr : Frame m0 80 slots 8 st
   same : Same m0 blockFormStack (fo m0) formBufBytes st.dmem
@@ -113,7 +116,7 @@ theorem keep_block {m0 st st' : MachineData} {vars : Nat → BitVec 64} {ret : B
 
 /-- **The epilogue** `b12`: AL `1` where the loop ran to the end. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : BlockFormPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 59))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b12Offset))
     (hfr : Frame m0 80 slots 8 st.data)
     (hs : Same m0 blockFormStack (fo m0) formBufBytes st.data.dmem)
     (hW : FrameWords m0 80 st.data.dmem (Words m0))
@@ -170,13 +173,13 @@ theorem zero_range {q : BitVec 64} : ¬NativeRustcVm.InRange 0 0 q := by
 /-- **A turn of the loop**: slot `j`'s form added, back at the head; or out of the loop (the
 span's end, or a form outgrowing its `FormBuf`) and returned. -/
 theorem step (hp : Placed code k)
-    (hft : Spec (Labels.label formTermsLabel) FormTermsPre FormTermsPost)
-    (hadd : ∀ f o, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f o)
+    (hft : Spec (Labels.label NativeRustcVmX64.Vm.FormTerms.entryLabel) FormTermsPre FormTermsPost)
+    (hadd : ∀ f o, Spec (Labels.label NativeRustcVmX64.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f o)
       (FormBufAddScaledPost f o))
     {m0 : MachineData} (hpre : BlockFormPre m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 47)) (hI : Inv m0 j st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b8Offset)) (hI : Inv m0 j st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-      (st'.pc = Host.addrOf (k + 47) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b8Offset) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st := by
   have hpre' := hpre
   obtain ⟨hst, hR, htu, hW, hFo, hFA, hFW⟩ := hpre
   have hend := tsp_end htu
@@ -204,7 +207,7 @@ theorem step (hp : Placed code k)
   by_cases hcj : (tsp m0).len = j
   · -- The span's end: return `1`.
     subst hcj
-    rw [ite_eq_left_of_eq_true _ _ (by simp), hp.label (j := 59) rfl] at hpc1
+    rw [ite_eq_left_of_eq_true _ _ (by simp), hp.label NativeRustcVmX64.Vm.BlockForm.label_9_at] at hpc1
     refine Eventually.mono (finish hp hpre' hpc1 hfr1 (by rw [hd1]; exact hI.same)
       (by rw [hd1]; exact hI.words) ?_) fun _ h ↦ Or.inl h
     rw [ite_eq_left_of_eq_true _ _ (eq_true hI.form.len_le)]
@@ -214,9 +217,9 @@ theorem step (hp : Placed code k)
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc1
   -- `b9`: `form_terms` of the span's next form.
   have hwf1 := wf0 (d := st1.data) hst hF hfr1.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 52 + b9.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b9Offset + b9.length)).toBitVec)
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) run_b9 hwf1 (fun _ _ ↦ rfl)
-    (hpc1.trans (congrArg Host.addrOf (by have : b8.length = 5 := rfl; omega)))
+    (hpc1.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BlockForm.b8_next)))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hfr1.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hw2, hdi2, hk2⟩ := after_eq run_b9 ▸ ok_b9
@@ -258,18 +261,18 @@ theorem step (hp : Placed code k)
       rcases hr with rfl | rfl | rfl | rfl | rfl <;> simp)).trans (hk1.reg' hm1 hr))
   have e3_12 : (reg st3.data .r12).toNat = (tsp m0).start + j := by
     exact (congrArg BitVec.toNat ((hsv3.1 .r12 rfl).trans (hk2.reg' hm2 (by simp)))).trans e1_12
-  -- From `.LBlockForm_8` on: `add_scaled`, then `b7`.
-  have tail : ∀ st5 : MachineState, st5.pc = Host.addrOf (k + 39) →
+  -- From `NativeRustcVmX64.Vm.BlockForm.label_8` on: `add_scaled`, then `b7`.
+  have tail : ∀ st5 : MachineState, st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b6Offset) →
       Frame m0 80 slots 8 st5.data → st5.data.dmem = st3.data.dmem →
       (∀ r ∈ [Reg64.rax, .rdx, .rbx, .rbp, .r12, .r13, .r14, .r15],
         reg st5.data r = reg st3.data r) →
       ewArg (reg st5.data .rcx) (reg st5.data .r8) =
         (slice m0 (reg m0 .rsi) (reg m0 .rdx)).getD j 0 →
       Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-        (st'.pc = Host.addrOf (k + 47) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st5 := by
+        (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b8Offset) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st5 := by
     intro st5 hpc5 hfr5 hd5 K5 hw5
     have hwf5 := wf0 (d := st5.data) hst hF hfr5.kept (vars := fun _ ↦ 0)
-      (ret := (Host.addrOf (k + 39 + b6.length)).toBitVec)
+      (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b6Offset + b6.length)).toBitVec)
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf5 (fun _ _ ↦ rfl) hpc5
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hfr5.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st6 hm6 hpc6 ↦ ?_
@@ -316,7 +319,7 @@ theorem step (hp : Placed code k)
     -- `b7`: the next slot; out where `add_scaled` failed.
     have hwf7 := wf0 (d := st7.data) hst hF hfr7.kept (vars := fun _ ↦ 0) (ret := 0)
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) run_b7 hwf7 nofun
-      (hpc7.trans (congrArg Host.addrOf (by have : b6.length = 4 := rfl; omega)))
+      (hpc7.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BlockForm.b6_next)))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hfr7.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st8 hm8 hpc8 ↦ ?_
     obtain ⟨hmid8, hmem8, h15_8, h13_8, hk8⟩ := after_eq run_b7 ▸ ok_b7
@@ -351,8 +354,7 @@ theorem step (hp : Placed code k)
       obtain ⟨hal, hform⟩ := hres7
       rw [hal, decide_eq_false (by decide)] at hpc8
       simp only [Bool.false_eq_true, ↓reduceIte] at hpc8
-      refine .done _ (Or.inr ⟨hpc8.trans (congrArg Host.addrOf (by
-        have : b7.length = 4 := rfl; omega)), ⟨hfr8, by rw [hd8]; exact S7, hjl', ?_, ?_, ?_, ?_,
+      refine .done _ (Or.inr ⟨hpc8.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BlockForm.b7_next)), ⟨hfr8, by rw [hd8]; exact S7, hjl', ?_, ?_, ?_, ?_,
           ?_, by rw [hd8]; exact FW7, by rw [hd8]; exact hform⟩, hjl'⟩)
       · exact (K8 .rbx (by simp)).trans ((K3 .rbx (by simp)).trans hI.rbx)
       · rw [K8 .rbp (by simp), K3 .rbp (by simp)]; exact hI.rbp
@@ -369,7 +371,7 @@ theorem step (hp : Placed code k)
           show st.data.regs.get64 .r15 = _ from hI.r15, BitVec.add_comm, BitVec.add_assoc,
           ← BitVec.ofNat_add, show 16 * j + 8 + 16 = 16 * (j + 1) + 8 by omega]
     · rw [ite_eq_right_of_eq_false _ _ (eq_false hfit)] at hres7
-      rw [hres7, ite_eq_left_of_eq_true _ _ (by simp), hp.label (j := 59) rfl] at hpc8
+      rw [hres7, ite_eq_left_of_eq_true _ _ (by simp), hp.label NativeRustcVmX64.Vm.BlockForm.label_9_at] at hpc8
       refine Eventually.mono (finish hp hpre' hpc8 hfr8 (by rw [hd8]; exact S7)
         (by rw [hd8]; exact FW7) ?_) fun _ h ↦ Or.inl h
       rw [ite_eq_right_of_eq_false _ _ (eq_false fun h ↦ hfit ((size_le_bf _ _ _ hjl').trans h))]
@@ -378,7 +380,7 @@ theorem step (hp : Placed code k)
   -- `b10`: the slot's weight or `0`.
   have hwf3 := wf0 (d := st3.data) hst hF hfr3.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b10_in_code (by simp [b10]) hp) run_b10 hwf3 nofun
-    (hpc3.trans (congrArg Host.addrOf (by have : b9.length = 2 := rfl; omega)))
+    (hpc3.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BlockForm.b9_next)))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hfr3.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hmem4, hk4⟩ := after_eq run_b10 ▸ ok_b10
@@ -396,7 +398,7 @@ theorem step (hp : Placed code k)
       reg st4.data r = reg st3.data r := fun r hr ↦ hk4.reg' hm4 hr
   by_cases hjw : j < (reg m0 .rdx).toNat
   · -- `b5`: the slot's weight.
-    rw [decide_eq_true hjw, ite_eq_left_of_eq_true _ _ (by simp), hp.label (j := 36) rfl] at hpc4
+    rw [decide_eq_true hjw, ite_eq_left_of_eq_true _ _ (by simp), hp.label NativeRustcVmX64.Vm.BlockForm.label_7_at] at hpc4
     obtain ⟨hEr, hEa⟩ := elem_ok hW.1 hW.2 hjw
     have hwf4 := wf1 (d := st4.data) hst hF hfr4.kept hEr hEa (vars := fun _ ↦ 0) (ret := 0)
     have e4_15 : reg st4.data .r15 = (Sym.ptr 1 8).eval
@@ -409,7 +411,7 @@ theorem step (hp : Placed code k)
       fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨hmid5, hmem5, hcx5, h8_5, hk5, h15_5⟩ := after_eq run_b5 ▸ ok_b5
     have hd5 : st5.data.dmem = st4.data.dmem := hm5.dmem_eq hwf4 hmem5
-    refine tail st5 (hpc5.trans (congrArg Host.addrOf (by have : b5.length = 3 := rfl; omega)))
+    refine tail st5 (hpc5.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BlockForm.b5_next)))
       (Frame.of_block hfr4 hwf4 hm5 hmid5 slots_le) (hd5.trans hd4) (fun r hr ↦ ?_) ?_
     · by_cases h15 : r = .r15
       · subst h15
@@ -452,13 +454,13 @@ theorem step (hp : Placed code k)
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc4
     have hwf4 := wf0 (d := st4.data) hst hF hfr4.kept (vars := fun _ ↦ 0) (ret := 0)
     refine exec_at (infix_of b11_in_code (by simp [b11]) hp) run_b11 hwf4 nofun
-      (hpc4.trans (congrArg Host.addrOf (by have : b10.length = 2 := rfl; omega)))
+      (hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BlockForm.b10_next)))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hfr4.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨hmid5, hmem5, hcx5, h8_5, hk5⟩ := after_eq run_b11 ▸ ok_b11
     have hd5 : st5.data.dmem = st4.data.dmem := hm5.dmem_eq hwf4 hmem5
     simp only [PcOk] at hpc5
-    refine tail st5 (hpc5.trans (hp.label (j := 39) rfl))
+    refine tail st5 (hpc5.trans (hp.label NativeRustcVmX64.Vm.BlockForm.label_8_at))
       (Frame.of_block hfr4 hwf4 hm5 hmid5 slots_le) (hd5.trans hd4)
       (fun r hr ↦ (hk5.reg' hm5 hr).trans (K4 r hr)) ?_
     rw [show reg st5.data .rcx = _ from hm5.regs .rcx _ hcx5,
@@ -477,10 +479,10 @@ theorem add_toUInt64 {a b : Nat} (h : a + b < 2 ^ 64) :
 
 /-- **`block_form` meets its contract.** -/
 theorem blockForm_spec (hp : Placed code k)
-    (hft : Spec (Labels.label formTermsLabel) FormTermsPre FormTermsPost)
-    (hadd : ∀ f o, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f o)
+    (hft : Spec (Labels.label NativeRustcVmX64.Vm.FormTerms.entryLabel) FormTermsPre FormTermsPost)
+    (hadd : ∀ f o, Spec (Labels.label NativeRustcVmX64.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f o)
       (FormBufAddScaledPost f o)) :
-    Spec (Labels.label blockFormLabel) BlockFormPre BlockFormPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.BlockForm.entryLabel) BlockFormPre BlockFormPost := by
   intro m0 hpre
   have hpre' := hpre
   obtain ⟨hst, hR, htu, hW, hFo, hFA, hFW⟩ := hpre
@@ -490,8 +492,8 @@ theorem blockForm_spec (hp : Placed code k)
   -- `b0`: the prologue; the form the constant `side_beta`.
   have hwf0 := wf1 (d := m0) hst hF (fun _ h ↦ h) hFo.1 hFo.2 (vars := fun _ ↦ 0)
     (ret := 0)
-  unfold blockFormLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.BlockForm.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.BlockForm.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 nofun
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial) fun st1 hm1 hpc1 ↦ ?_
@@ -554,7 +556,7 @@ theorem blockForm_spec (hp : Placed code k)
     (fun x hx ↦ by rw [List.mem_singleton] at hx; subst hx; exact ⟨hTm, hTn⟩)
     (List.pairwise_pair.mpr (Apart.symm' hTa))
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1 nofun
-    (hpc1.trans (congrArg Host.addrOf (by have : b0.length = 19 := rfl; omega)))
+    (hpc1.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BlockForm.b0_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hfr1.rsp_eval, trivial⟩ ⟨rfl, trivial⟩
       ⟨by show (reg st1.data .rdi).toNat < 147; rw [e1di]; exact htu', trivial⟩ trivial)
     fun st2 hm2 hpc2 ↦ ?_
@@ -591,7 +593,7 @@ theorem blockForm_spec (hp : Placed code k)
   simp only [PcOk] at hpc2
   have hwf2 := wf0 (d := st2.data) hst hF hfr2.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf2 nofun
-    (hpc2.trans (hp.label (j := 28) rfl))
+    (hpc2.trans (hp.label NativeRustcVmX64.Vm.BlockForm.label_3_at))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hfr2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hw3, hwr3, h14_3, h13_3, h15_3, hk3⟩ := after_eq run_b3 ▸ ok_b3
@@ -635,9 +637,9 @@ theorem blockForm_spec (hp : Placed code k)
       rw [show st2.data.regs.get64 .r15 = _ from (hk2.reg' hm2 (by simp)).trans e1_15,
         BitVec.add_comm]
   simp only [PcOk] at hpc3
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 47) ∧ ∃ j, (tsp m0).len - j = n ∧
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BlockForm.b8Offset) ∧ ∃ j, (tsp m0).len - j = n ∧
     Inv m0 j st.data) (fun n st ⟨hpc, j, hn, hI⟩ ↦ ?_)
-    ⟨hpc3.trans (hp.label (j := 47) rfl), 0, rfl, hI0⟩
+    ⟨hpc3.trans (hp.label NativeRustcVmX64.Vm.BlockForm.label_4_at), 0, rfl, hI0⟩
   refine Eventually.mono (step hp hft hadd hpre' hpc hI) fun st' h ↦ ?_
   rcases h with h | ⟨hpc', hI', hlt⟩
   · exact Or.inl h

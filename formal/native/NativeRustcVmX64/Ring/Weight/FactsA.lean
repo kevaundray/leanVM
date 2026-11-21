@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Ring.Weight.Exec
+public import NativeRustcVmX64.Code.Vm.RingWeight.Names
 
 /-!
 # `ring_weight`'s sum and copy loops, checked by the kernel at each turn (x86-64)
@@ -18,13 +19,13 @@ open NativeRustcVmX64.Transcript (after)
 set_option Elab.async false
 
 public theorem f_b4 : ∀ t < 16, JOk b4 (tZ (sz1 1024) cAl t) (tZ (sz1 1024) cAl (t + 1))
-    (.cond (.lit (decide (t < 15))) ".LRingWeight_2") (sz1 1024) (fun _ ↦ false)
+    (.cond (.lit (decide (t < 15))) NativeRustcVmX64.Vm.RingWeight.label_2) (sz1 1024) (fun _ ↦ false)
     [(20, sumX 20 (64 * t)), (9, .var 9), (21, sumX 21 (64 * t + 8))] oL = true := by
   decide +kernel
 
 public theorem f_b7 : ∀ t < 18,
     JOk b7 (tC (sz1 (32 * t + 32)) rAl t) (tC (sz1 (32 * t + 32)) rAl (t + 1))
-      (.cond (.not (.cmp .eq .W64 (.var 25) (.lit (2 * t + 2)))) ".LRingWeight_15")
+      (.cond (.not (.cmp .eq .W64 (.var 25) (.lit (2 * t + 2)))) NativeRustcVmX64.Vm.RingWeight.label_15)
       (sz1 (32 * t + 32)) (fun _ ↦ false)
       [(14, .var 14), (25, .var 25), (10, .var 10), (13, .var 13), (9, .var 9), (11, .var 11),
         (12, .var 12)] oL = true ∧
@@ -38,7 +39,7 @@ public theorem f_b7 : ∀ t < 18,
 
 public theorem f_b8 : ∀ t < 19,
     JOk b8 (tC (sz1 (32 * t)) rAl t) (tL (sz1 (32 * t)) rAl (2 * t))
-      (.cond (.cmp .eq .W8 (.bin .and .W8 (.var 11) (.lit 1)) (.lit 0)) ".LRingWeight_7")
+      (.cond (.cmp .eq .W8 (.bin .and .W8 (.var 11) (.lit 1)) (.lit 0)) NativeRustcVmX64.Vm.RingWeight.label_7)
       (sz1 (32 * t)) (fun _ ↦ false) cpL oL = true ∧
     missR 48 624 (after b8 (tC (sz1 (32 * t)) rAl t)) = true := by
   decide +kernel

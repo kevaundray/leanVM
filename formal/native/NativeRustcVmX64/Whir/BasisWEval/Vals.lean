@@ -5,10 +5,10 @@ public import NativeRustcVmX64.Whir.BasisWEval.Entry
 /-!
 # `BasisW::eval`: the loop's states, the values the blocks compute (x86-64)
 
-`Mid i j`: at `.LBasisWEval_6` (`b11`, `j = i`) before column claim `i`, or at `.LBasisWEval_15`
+`Mid i j`: at `NativeRustcVmX64.Vm.BasisWEval.label_6` (`b11`, `j = i`) before column claim `i`, or at `NativeRustcVmX64.Vm.BasisWEval.label_15`
 (`b10`, `j = i + 1`) after it: the running sum over the weights met after `j` claims, R12 16 bytes
 into claim `i`, RBX the claims' bytes from claim `i` on, RCX the placements' address (kept at the
-frame's `104` too). `End`: after the column claims (`.LBasisWEval_10`, `b21`).
+frame's `104` too). `End`: after the column claims (`NativeRustcVmX64.Vm.BasisWEval.label_10`, `b21`).
 
 The symbolic values of `Exec` evaluated: the counts the blocks clamp to their caps (`rcx4`,
 `r84`, `rcx16`, `r816`, `rdi24`, `rsi24`, `rbx7`, `r127`), the branch conditions (`c7`, `c10`,

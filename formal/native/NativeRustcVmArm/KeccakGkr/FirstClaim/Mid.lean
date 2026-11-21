@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
 public import NativeRustcVmArm.KeccakGkr.FirstClaim.Loop
 
 /-!
@@ -58,12 +61,12 @@ variable [NativeArm.Host] {inst segment lanePoint output : Array EW} {m0 : Machi
 
 /-- **`b5` to `b10`**. -/
 theorem mid (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 75)) (hI : WDone m0 lanePoint s.data) :
+    (heq : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost) {s : MachineState}
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b5Offset)) (hI : WDone m0 lanePoint s.data) :
     Eventually (step1 Host.exe)
-      (fun s' ↦ s'.pc = Host.addrOf (k + 141) ∧ MDone m0 inst segment lanePoint output s'.data)
+      (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b11Offset) ∧ MDone m0 inst segment lanePoint output s'.data)
       s := by
   have hS := hpre.1
   have hA := pre_areas hpre
@@ -167,7 +170,7 @@ theorem mid (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint ou
     show s2.data.regs.X0.toBitVec = _; rw [hr0]; rfl
   refine exec_at (b6_in_code.trans hp.1 (by simp [b6])) e6 (Env.wf_nil _) hpc2 (match_nil _)
     fun s3 hm3 hpc3 ↦ ?_
-  simp only [PcOk, show b6.length = 1 from rfl] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.FirstClaim.b6_length, NativeRustcVmArm.Vm.FirstClaim.b6Length] at hpc3
   sym_simp at hpc3
   simp only [Env.ofMachine_regs, hx0'] at hpc3
   rw [ite_eq_right (by decide)] at hpc3
@@ -375,7 +378,7 @@ theorem mid (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint ou
     show s9.data.regs.X0.toBitVec = _; rw [hr9]; rfl
   refine exec_at (b10_in_code.trans hp.1 (by simp [b10])) e10 (Env.wf_nil _) hpc9 (match_nil _)
     fun s10 hm10 hpc10 ↦ ?_
-  simp only [PcOk, show b10.length = 1 from rfl] at hpc10
+  simp only [PcOk, NativeRustcVmArm.Vm.FirstClaim.b10_length, NativeRustcVmArm.Vm.FirstClaim.b10Length] at hpc10
   sym_simp at hpc10
   simp only [Env.ofMachine_regs, hx0''] at hpc10
   rw [ite_eq_right (by decide)] at hpc10

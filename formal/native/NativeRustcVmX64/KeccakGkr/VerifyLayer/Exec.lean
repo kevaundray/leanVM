@@ -2,6 +2,7 @@ module
 
 public import NativeRustcX64.Sym
 public import NativeRustcVmX64.Code.Vm.VerifyLayer
+public import NativeRustcVmX64.Code.Vm.Names
 public meta import NativeRustcVmX64.Code.Vm.VerifyLayer
 
 /-!
@@ -25,9 +26,9 @@ open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Vm.VerifyLayer
 @[expose] public section
 
 /-- `RMFE_PROJECT`'s label. -/
-def projL : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.0"
+def projL : Label := NativeRustcVmX64.Vm.Symbols.rodata0Label
 /-- `KECCAK_RC`'s label. -/
-def rcL : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.1"
+def rcL : Label := NativeRustcVmX64.Vm.Symbols.rodata1Label
 
 /-- The frame (region 0), RSP at its offset `o`, the regions `ex` beside. -/
 def fr (o : Nat) (ex : List Nat := []) (lb : List (Label × Nat) := []) (bd : List (Sym × Nat) := [])
@@ -47,14 +48,14 @@ def i11 : Sym := .bin .shl .W32 (.bin .sub .W32 (.lit 11) (.load 0 56 4)) (.lit 
 def i23 : Sym := .bin .shl .W32 (.bin .sub .W32 (.lit 23) (.load 0 56 4)) (.lit 3)
 /-- The instance weight `i` (RCX): the frame's word at `48` plus `16 i`. -/
 def a23 : Sym := .bin .add .W64 (.load 0 48 8) (.bin .shl .W64 (.reg .rcx) (.lit 4))
-/-- The kernel's element at `.LVerifyLayer_40`. -/
+/-- The kernel's element at `NativeRustcVmX64.Vm.VerifyLayer.label_40`. -/
 def a70 : Sym := .bin .add .W64 (.bin .shl .W32 (.reg .rsi) (.lit 4))
   (.bin .add .W64 (.load 0 56 8) (.bin .shl .W64 (.reg .rax) (.lit 4)))
 /-- The kernel's element `j`: R15 plus RBX (plus `107520`). -/
 def a71a : Sym := .bin .add .W64 (.reg .r15) (.reg .rbx)
 /-- The scratch (the frame's word at `80`) plus RBX. -/
 def a71b : Sym := .bin .add .W64 (.load 0 80 8) (.reg .rbx)
-/-- The kernel's element at `.LVerifyLayer_42`'s load. -/
+/-- The kernel's element at `NativeRustcVmX64.Vm.VerifyLayer.label_42`'s load. -/
 def a75 : Sym := .bin .add .W64 (.bin .shl .W32 (.un .trunc .W32 (.reg .rsi)) (.lit 4))
   (.bin .add .W64 (.load 0 56 8) (.bin .shl .W64 (.reg .rdi) (.lit 4)))
 

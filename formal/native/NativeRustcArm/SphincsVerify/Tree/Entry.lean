@@ -27,8 +27,8 @@ theorem l_cases {l : Nat} (hl : l < 3) : l = 0 ∨ l = 1 ∨ l = 2 := by omega
 /-- **`b149` .. `b152`**: from the leaf's hash to the loop head. -/
 theorem entry (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List UInt8)}
     {m : MachineData} (h : AtL6 r l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2272 ∧ AtNode r l e 0 st.data)
-      ⟨m, r.pc 2202⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b153Offset ∧ AtNode r l e 0 st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b149Offset⟩ := by
   obtain ⟨hB, hH⟩ := h
   have hl := hB.1
   obtain ⟨-, -, -, h24, -, h40, -, -, -, -, -⟩ := hB.2.2.1.2
@@ -39,21 +39,21 @@ theorem entry (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List UI
   refine exec_then (hb149 hp) run_b149 hwf (match_base hpre hB) fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := false) hpc1 (by
     sym_simp; rw [hld24, hld40]; rcases l_cases hl with rfl | rfl | rfl <;> decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 56) (j' := 2258) (by rfl) (by decide)] at hpc1'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b149_next] at hpc1'
   refine exec_at (hb150 hp) (exec_after run_b149 run_b150) hwf hpc1' hm1 fun st2 hm2 hpc2 ↦ ?_
   have hpc2' := pc_cond (b := false) hpc2 (by
     sym_simp; rw [hld24, hld40]; rcases l_cases hl with rfl | rfl | rfl <;> decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 2) (j' := 2260) (by rfl) (by decide)] at hpc2'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b150_next] at hpc2'
   refine exec_at (hb151 hp) (exec_after run_b150 run_b151) hwf hpc2' hm2 fun st3 hm3 hpc3 ↦ ?_
   have hpc3' := pc_cond (b := false) hpc3 (by
     sym_simp; rw [hld40]; rcases l_cases hl with rfl | rfl | rfl <;> decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 2) (j' := 2262) (by rfl) (by decide)] at hpc3'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b151_next] at hpc3'
   refine exec_at (hb152 hp) (exec_after run_b151 run_b152) hwf hpc3' hm3 fun st4 hm4 hpc4 ↦ ?_
   have hB4 := Base.of_match hpre hB hm4 hwf rfl rfl (by decide) (by decide) rfl rfl rfl
   have hhz : 0 < heightOf l := by rcases l_cases hl with rfl | rfl | rfl <;> decide
   have hhash : (hashBytes (r.seed ++ (r.key l).adrs 1 ++ e.flatten)).length = 32 :=
     NativeRustc.Sphincs.length_hashBytes _
-  refine .done _ ⟨hpc4.trans (pc_after (n := 10) (by rfl) (by decide)), hB4, hhz, ?_, ?_, ?_, ?_, ?_⟩
+  refine .done _ ⟨hpc4.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b152_next), hB4, hhz, ?_, ?_, ?_, ?_, ?_⟩
   · exact hm4.regs .X19 _ rfl
   · unfold Run.RegIs
     rw [hm4.regs .X24 _ rfl]
@@ -83,8 +83,8 @@ theorem entry (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List UI
 /-- **From layer `l`'s chain ends to the fold's end.** -/
 theorem toFold (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {m : MachineData} (h : r.AtWotsPk l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2721 ∧ AtFold r l e st.data)
-      ⟨m, r.pc 2157⟩ :=
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b179Offset ∧ AtFold r l e st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b143Offset⟩ :=
   Eventually.bind (stage1 hp hc hpre h) <| at_pc fun _ h ↦
   Eventually.bind (stage2 hp hc hpre h) <| at_pc fun _ h ↦
   Eventually.bind (stage3 hp hc hpre h) <| at_pc fun _ h ↦

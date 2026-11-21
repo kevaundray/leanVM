@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfNextLevel.IterD
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
 
 /-!
 # `each_row` with `next_level`'s closure: the scaled `novel_eval` (x86-64)
@@ -48,11 +49,11 @@ variable [Host] {k : Nat}
 
 /-- **The scaled `novel_eval`**: from `b21` to `b23`. -/
 theorem iter_e (hp : Placed code k)
-    (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
+    (hkmul : Spec (label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
     (c : Ctx rows op m0) {m : MachineData} (h : AtB21 rows m0 j m)
     (cont : ∀ m', AtB23 rows m0 j m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 153)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 144)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b23Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b21Offset)⟩ := by
   have hl := lay c
   obtain ⟨W, hW⟩ : ∃ W, W = whatJ m0 ((qsOf m0)[j]'h.hjq) := ⟨_, rfl⟩
   obtain ⟨r, hr⟩ : ∃ r, r = novelEval (highOf m0) W := ⟨_, rfl⟩
@@ -60,16 +61,16 @@ theorem iter_e (hp : Placed code k)
     rw [hr, hW]; exact h.nov
   have hrc := NativeRustcVm.ewAt_iff.mp hnov.2
   -- `b21`
-  obtain ⟨hwf, hm⟩ := frame_env c h.fr (Host.addrOf (k + 144 + b21.length)).toBitVec
-  have hk21 : b21.IsInfixAt Host.prog (k + 144) := b21_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf, hm⟩ := frame_env c h.fr (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b21Offset + b21.length)).toBitVec
+  have hk21 : b21.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b21Offset) := b21_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hl136 : (EachRow.envE m0 m 1984 16 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 144 + b21.length)).toBitVec).load 0 136 8 = r.c0.toBitVec := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b21Offset + b21.length)).toBitVec).load 0 136 8 = r.c0.toBitVec := by
     have := hrc.1
     rw [show off (fb m0 + BitVec.ofNat 64 128) 8 = fb m0 + BitVec.ofNat 64 136 from
       addr_add _ _ _] at this
     exact NativeRustcVmX64.Arrays.load_word this
   have hl144 : (EachRow.envE m0 m 1984 16 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 144 + b21.length)).toBitVec).load 0 144 8 = r.c1.toBitVec := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b21Offset + b21.length)).toBitVec).load 0 144 8 = r.c1.toBitVec := by
     have := hrc.2
     rw [show off (fb m0 + BitVec.ofNat 64 128) 8 + BitVec.ofNat 64 8 = fb m0 + BitVec.ofNat 64 144
       by unfold off; rw [addr_add, addr_add]] at this
@@ -85,7 +86,7 @@ theorem iter_e (hp : Placed code k)
     have := NativeRustcVmX64.Transcript.wordAt_write hm1 (r := 0) (o := 104) rfl (by decide)
       (v := .reg .r12) (by decide)
     rw [show (Sym.reg .r12).eval (EachRow.envE m0 m 1984 16 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 144 + b21.length)).toBitVec) = _ from h.r12,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b21Offset + b21.length)).toBitVec) = _ from h.r12,
       UInt64.ofBitVec_toBitVec] at this
     exact this
   have e1rdi : reg st1.data .rdi = (W.getD (reg m0 .r8).toNat 0).toBitVec := by
@@ -103,10 +104,10 @@ theorem iter_e (hp : Placed code k)
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2 hfr2 hs2 hsv2 hval2
   subst hpc2
-  rw [show k + 144 + b21.length = k + 149 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b21Offset + b21.length = k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b22Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfNextLevel.b21_next]]
   -- `b22`
-  obtain ⟨hwf2, hm2⟩ := frame_env c hfr2 (Host.addrOf (k + 149 + b22.length)).toBitVec
-  have hk22 : b22.IsInfixAt Host.prog (k + 149) := b22_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf2, hm2⟩ := frame_env c hfr2 (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b22Offset + b22.length)).toBitVec
+  have hk22 : b22.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b22Offset) := b22_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk22 run_b22 hwf2 (fun _ _ ↦ rfl) hm2 fun st3 hm3 hpc3 ↦ ?_
   have hs3 : SameOutside d2.dmem st3.data.dmem (EachRow.Hit m0 1984 eachRowNextStack 1432 1432) :=
     EachRow.hit_of_block hl le_rfl (by decide) hm3 hwf2 (by decide)
@@ -142,7 +143,7 @@ theorem iter_e (hp : Placed code k)
   obtain ⟨d4, pc4⟩ := st4
   simp only at hpc4 hfr4 hs4 hsv4 hval4
   subst hpc4
-  rw [show k + 149 + b22.length = k + 153 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b22Offset + b22.length = k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b23Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfNextLevel.b22_next]]
   have hall : SameOutside m.dmem d4.dmem (EachRow.Hit m0 1984 eachRowNextStack 104 112) := by
     intro q hq
     have hq' : ¬EachRow.Hit m0 1984 eachRowNextStack 1432 1432 q := fun h' ↦ hq (by

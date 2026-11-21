@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.FoldLoop
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 namespace NativeRustcVmX64.KeccakGkr.KeccakOpen
 
@@ -48,7 +49,7 @@ theorem low64_rows (h : PreOk a s c m0) {d d' : MachineData} {f : Nat → EW}
   rw [off_add, NativeRustcVm.Transcript.toNat_off (by omega), fb_off h (by omega)] at he'
   omega
 
-theorem row_start (hp : Placed code k) (hcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+theorem row_start (hp : Placed code k) (hcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     (h : PreOk a s c m0) {cx : Cx} (hA : cx.a = a) {rows : Array (Array EW)}
     (hrsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
     {t i : Nat} (ht : t < 6) (hi : i < half t)
@@ -60,8 +61,8 @@ theorem row_start (hp : Placed code k) (hcpy : Spec (Labels.label "memcpy") Memc
     (hina : ba.IsInfixAt code ka) (hinb : bb.IsInfixAt code kb) (hini : bi.IsInfixAt code ki)
     (hna : ba ≠ []) (hnb : bb ≠ []) (hni : bi ≠ [])
     (hab : ka + ba.length = kb) (hbi : kb + bb.length = ki)
-    (hxa : exec ba (pS ks0) = some (Sa, .call "memcpy"))
-    (hxb : exec bb (pS ks1) = some (Sb, .call "memcpy"))
+    (hxa : exec ba (pS ks0) = some (Sa, .call NativeRustcVmX64.Vm.Memcpy.entryLabel))
+    (hxb : exec bb (pS ks1) = some (Sb, .call NativeRustcVmX64.Vm.Memcpy.entryLabel))
     (hxi : exec bi (pS ks2) = some (Si, .fall))
     {srcA srcB : Sym} {ib : Reg64} {s0 : Nat}
     (hoa : mOk 112 srcA t ws0 Sa ks1 ws1 = true)

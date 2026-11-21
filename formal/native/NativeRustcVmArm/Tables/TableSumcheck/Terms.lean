@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TableTerms.Names
 public import NativeRustcVmArm.Tables.TableSumcheck.Weights
 public import NativeRustcVmArm.Tables.TableSumcheck.Entry
 
@@ -35,14 +36,14 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat} {bus 
 
 /-- **The terms and the check** (`b7` to `b11`). -/
 theorem terms (hp : Placed code k)
-    (htt : ∀ a s heights forms, Spec (Labels.label tableTermsLabel)
+    (htt : ∀ a s heights forms, Spec (Labels.label NativeRustcVmArm.Vm.TableTerms.entryLabel)
       (TableTermsPre a s heights forms) (TableTermsPost a s heights forms))
     (hpre : TableSumcheckPre a s heights bus m0) (hn30 : n ≤ 30) (hxs : xs.size = n)
     (hres : res s heights bus m0 = ((tableTerms (arrE m0 m0.regs.X3 2) (arrE m0 m0.regs.X4 3)
         xs.reverse (tableRows heights bus.forms (tableWeights heights bus.point xs.reverse))).run
           s1).bind fun q ↦ if q.1.1 == c then some (q.1.2, q.2) else none)
     {m : MachineData} (hW : Wt m0 a n xs c s1 heights bus m) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 99)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b7Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, hrc, hT, hts0, htok, heo, hRt, hRe, hHin, hH, hBin, -, hcpIn, hfpIn⟩ := hpre'
   have hN := hS.2.1
@@ -202,7 +203,7 @@ theorem terms (hp : Placed code k)
         (tableRows heights bus.forms (tableWeights heights bus.point xs.reverse))).run s1 := by
     rw [hcp, hfp, hpt, hws]
   -- `table_terms`.
-  have hpc' : st.pc = Labels.label tableTermsLabel ∧ retOf st.data = Host.addrOf (k + 109) := hpc
+  have hpc' : st.pc = Labels.label NativeRustcVmArm.Vm.TableTerms.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b8Offset) := hpc
   refine Bus.Gkr.Fr.callLocal (o := 600) (n := 24)
     (X := fun q ↦ InRange (fb m0 + BitVec.ofNat 64 600) 24 q ∨ outs m0 q) hfr7 hN hle keep_callee
     (fun p hp ↦ ⟨by have := slots_hi p hp; omega, slots_le p hp⟩) (by omega) hof
@@ -243,7 +244,7 @@ theorem terms (hp : Placed code k)
     rw [hc] at hpc8
     simp only [↓reduceIte] at hpc8
     have hres' : res s heights bus m0 = none := by rw [hres, hT]; rfl
-    exact Bus.Gkr.at_pc (hpc8.trans (hp.label (j := 117) rfl)) (fail10 hp hS hfr8 hres')
+    exact Bus.Gkr.at_pc (hpc8.trans (hp.label (j := NativeRustcVmArm.Vm.TableSumcheck.b10Offset) NativeRustcVmArm.Vm.TableSumcheck.label_7_at)) (fail10 hp hS hfr8 hres')
   | some p =>
     obtain ⟨⟨f, ev⟩, s2⟩ := p
     rw [hT] at q0 q1 q2
@@ -256,7 +257,7 @@ theorem terms (hp : Placed code k)
       rw [hl]; rfl
     rw [hc] at hpc8
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc8
-    rw [show k + 109 + b8.length = k + 111 from rfl] at hpc8
+    rw [show k + NativeRustcVmArm.Vm.TableSumcheck.b8Offset + b8.length = k + NativeRustcVmArm.Vm.TableSumcheck.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableSumcheck.b8_next]] at hpc8
     have hf := NativeRustcVm.ewAt_iff.mp q0b
     -- `b9`: the comparison.
     refine Bus.Gkr.at_pc hpc8 (Bus.Gkr.Fr.runBlock hS N_ge rfl hfr8
@@ -285,7 +286,7 @@ theorem terms (hp : Placed code k)
     have hres' : res s heights bus m0 = if f == c then some (ev, s2) else none := by
       rw [hres, hT]; rfl
     simp only [PcOk] at hpc9
-    refine Bus.Gkr.at_pc (hpc9.trans (hp.label (j := 119) rfl))
+    refine Bus.Gkr.at_pc (hpc9.trans (hp.label (j := NativeRustcVmArm.Vm.TableSumcheck.b11Offset) NativeRustcVmArm.Vm.TableSumcheck.label_8_at))
       (exit11 hp hS hfr9 fun m' hd' hx' ↦ ⟨?_, fun x s' h ↦ ?_, fun x s' h ↦ ?_⟩)
     · rw [hx', hres']
       apply UInt64.toBitVec_inj.mp

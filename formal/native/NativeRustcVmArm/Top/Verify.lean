@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.DecodedPhaseCount.Names
+public import NativeRustcVmArm.Code.Vm.Seed.Names
+public import NativeRustcVmArm.Code.Vm.Verify.Names
+public import NativeRustcVmArm.Code.Vm.VerifyExecution.Names
 public import NativeRustcVmArm.Top.Verify.StageA
 public import NativeRustcVmArm.Top.Verify.StageB
 public import NativeRustcVmArm.Top.Verify.Check
@@ -36,11 +40,11 @@ theorem verify_eq (bcw : List UInt64) (P : Vector UInt64 4) (stream : Array EW)
 
 /-- **After the walk**: from `SB`, `0` when it failed, else the end check. -/
 theorem stageC (hp : Placed code k)
-    (hpcnt : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hpcnt : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     {a : DecArea} {stream : Array EW} {openings : Array (Array OpeningW)} {m0 : MachineData}
     (hpre : VerifyPre a stream openings m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 74)) (hSB : SB a stream openings m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b2Offset)) (hSB : SB a stream openings m0 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       st'.data.regs.X0 = (if NativeVm.Model.verify (bcOf m0).toArray (pubOf m0) stream openings
         then 1 else 0) ∧
@@ -108,18 +112,18 @@ theorem stageC (hp : Placed code k)
       rw [show st.data.regs.getXReg .X0 = okWord true from hx0]
       rfl
     simp only [PcOk, hc, Bool.false_eq_true, ite_false,
-      show k + 74 + b2.length = k + 75 from rfl] at hpc1
+      show k + NativeRustcVmArm.Vm.Verify.b2Offset + b2.length = k + NativeRustcVmArm.Vm.Verify.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Verify.b2_next]] at hpc1
     exact check hp hpcnt g hpc1 hB1 hX19 (by rw [hd1]; exact hnext () s rfl) hdec' hdecM' hFm
 
 /-- **`verify` meets its contract.** -/
 theorem verify_spec (hp : Placed code k)
-    (hseed : Spec (Labels.label seedLabel) SeedPre SeedPost)
-    (hve : ∀ a s, Spec (Labels.label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hseed : Spec (Labels.label NativeRustcVmArm.Vm.Seed.entryLabel) SeedPre SeedPost)
+    (hve : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s))
-    (hpcnt : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hpcnt : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     (a : DecArea) (stream : Array EW) (openings : Array (Array OpeningW)) :
-    Spec (Labels.label verifyLabel) (VerifyPre a stream openings) (VerifyPost stream openings) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.Verify.entryLabel) (VerifyPre a stream openings) (VerifyPost stream openings) := by
   intro m0 hpre
   rw [lbl_entry hp]
   have g := geo_of hpre

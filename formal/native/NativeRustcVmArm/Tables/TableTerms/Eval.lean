@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Evaluate.Names
 public import NativeRustcVmArm.Tables.TableTerms.Body
 
 /-!
@@ -69,9 +70,9 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 /-- **A call of `evaluate`** on form `j` of table `i` (`b6`, `b7`, `b8`): the block saves
 `r1`, `r2` at `o1`, `o2`. -/
 theorem eval_step (h : TableTermsPre a s heights forms m0)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmArm.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
     {ds : List Directive} {j0 : Nat} {S' : SState} (hb : ds.IsInfixAt Host.prog j0)
-    (hx : exec ds formS = some (S', .call evaluateLabel)) {j : Nat} (hj : j < 3)
+    (hx : exec ds formS = some (S', .call NativeRustcVmArm.Vm.Evaluate.entryLabel)) {j : Nat} (hj : j < 3)
     (ha : evalArgs (after ds formS) (5928 * j))
     (hW : wok (after ds formS) [288, 17784] [false, false] = true)
     {os : List Nat} (hos : fok (after ds formS) os = true)

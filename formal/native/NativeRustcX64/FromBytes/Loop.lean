@@ -198,9 +198,9 @@ theorem afterTurn [Labels] {m₀ m m' : MachineData} {i : Nat} (P : Pre m₀)
 /-- **A turn of the loop**: from the head before turn `i`, the head before turn `i + 1`, or the
 loop's end after the last turn. -/
 theorem turn [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (P : Pre m₀) {i : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 24)) (h : LoopAt m₀ st.data i) :
-    Eventually (step1 Host.exe) (fun st' => (st'.pc = Host.addrOf (k + 49) ∧ LoopDone m₀ st'.data) ∨
-      (i + 1 < 29 ∧ st'.pc = Host.addrOf (k + 24) ∧ LoopAt m₀ st'.data (i + 1))) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b2Offset)) (h : LoopAt m₀ st.data i) :
+    Eventually (step1 Host.exe) (fun st' => (st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b5Offset) ∧ LoopDone m₀ st'.data) ∨
+      (i + 1 < 29 ∧ st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b2Offset) ∧ LoopAt m₀ st'.data (i + 1))) st := by
   have hi := h.lt
   have hwf := envL_wf P hi h.common
   have := P.pos
@@ -243,7 +243,7 @@ theorem turn [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (P : Pre
   simp only [PcOk, hc] at hpc₃
   by_cases hlt : i + 1 < 29
   · simp only [hlt, decide_true, ite_true] at hpc₃
-    exact Or.inr ⟨hlt, hpc₃.trans (hp.label (j := 24) (by decide +kernel)),
+    exact Or.inr ⟨hlt, hpc₃.trans (hp.label NativeRustcX64.Xmss.FromBytes.label_2_at),
       ⟨A.common, hlt, A.rbx, A.r14, A.rax, A.rdi, A.rcx, A.rsi, A.cursor, A.chain⟩⟩
   · simp only [hlt, decide_false, Bool.false_eq_true, ite_false] at hpc₃
     have hi' : i = 28 := by omega
@@ -252,10 +252,10 @@ theorem turn [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (P : Pre
 
 /-- **The loop over the chain values**: from its head before turn `0` to its end. -/
 public theorem loop [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (P : Pre m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 24)) (h : LoopAt m₀ st.data 0) :
-    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + 49) ∧ LoopDone m₀ st'.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b2Offset)) (h : LoopAt m₀ st.data 0) :
+    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b5Offset) ∧ LoopDone m₀ st'.data)
       st :=
-  Sym.loop (I := fun n s => ∃ i, i + n = 29 ∧ 0 < n ∧ s.pc = Host.addrOf (k + 24) ∧
+  Sym.loop (I := fun n s => ∃ i, i + n = 29 ∧ 0 < n ∧ s.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b2Offset) ∧
       LoopAt m₀ s.data i)
     (fun n s ⟨i, hn, hn0, hpc, h⟩ => NativeRustcX64.Eventually.mono (turn hp P hpc h)
       fun s' h' => by

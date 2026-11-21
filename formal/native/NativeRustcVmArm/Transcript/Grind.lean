@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWAbsorbNonce.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateNextScalar.Names
 public import NativeRustcVmArm.Transcript.Callee
 public import NativeRustcVmArm.Transcript.Grind.Exec
 public import NativeVm.Equiv.Transcript
@@ -58,10 +61,10 @@ variable [Host] {k : Nat}
 
 /-- **`TState::grind` meets its contract.** -/
 theorem grind_spec (hp : Placed code k)
-    (hns : ∀ a s, Spec (Labels.label nextScalarLabel) (NextScalarPre a s) (NextScalarPost a s))
-    (han : ∀ sp, Spec (Labels.label absorbNonceLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp))
+    (hns : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateNextScalar.entryLabel) (NextScalarPre a s) (NextScalarPost a s))
+    (han : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWAbsorbNonce.entryLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s) := by
   rintro m0 ⟨hst, hrc, hts, htok, hbits⟩
   set t := m0.regs.X0.toBitVec with htdef
   set bits := grindBits m0 with hbdef
@@ -87,8 +90,8 @@ theorem grind_spec (hp : Placed code k)
     fun q hq ↦ ⟨fun h ↦ not_inRange_of_apart htok.1 hTn hsnw h hq,
       fun h ↦ not_inRange_of_apart htok.2.1 hAn hsnw h hq⟩
   -- `b0`: `bits = 0`?
-  unfold grindLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.TStateGrind.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.TStateGrind.entryOffset) NativeRustcVmArm.Vm.TStateGrind.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 (Env.wf_nil m0) (match_nil m0)
     fun st1 hm1 hpc1 => ?_
   obtain ⟨hmem1, hk1⟩ := after_eq run_b0 ▸ ok_b0
@@ -110,7 +113,7 @@ theorem grind_spec (hp : Placed code k)
       exact this
     have hr0 : (grind bits).run s = some ((), s) := by rw [hb0]; rfl
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 (Env.wf_nil _)
-      (hpc1.trans (hp.label (j := 23) rfl)) (match_nil _) fun st2 hm2 hpc2 => ?_
+      (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.TStateGrind.b5Offset) NativeRustcVmArm.Vm.TStateGrind.label_3_at)) (match_nil _) fun st2 hm2 hpc2 => ?_
     obtain ⟨hmem2, hk2, h30, hx0⟩ := after_eq run_b5 ▸ ok_b5
     have hd2 : st2.data.dmem = m0.dmem := (hm2.dmem_eq (Env.wf_nil _) hmem2).trans hd1
     have hx30 : st2.data.regs.X30 = m0.regs.X30 :=
@@ -142,7 +145,7 @@ theorem grind_spec (hp : Placed code k)
       (by rw [show st1.data.regs.SP = m0.regs.SP from hsv1.2.1]; exact frameBase_add.symm)
       trivial trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1
-    (hpc1.trans (by rw [show b0.length = 2 from rfl])) hm1' fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.TStateGrind.b0Offset + NativeRustcVmArm.Vm.TStateGrind.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.TStateGrind.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateGrind.b0_next])) hm1' fun st2 hm2 hpc2 => ?_
   obtain ⟨hpro, hws2, hx0, hx1, hx19, hx20⟩ := after_eq run_b1 ▸ ok_b1
   have hf2 : Frame m0 64 slots st2.data :=
     Frame.of_prologue_from hsv1 (fun p hp ↦ by
@@ -219,7 +222,7 @@ theorem grind_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf3.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf3
-    (hpc3.trans (by rw [show b1.length = 8 from rfl])) hm3 fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateGrind.b1_next])) hm3 fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hmem4, hx19₄, hx20₄⟩ := after_eq run_b2 ▸ ok_b2
   have hf4 : Frame m0 64 slots st4.data := Frame.of_block hf3 hwf3 hm4 hmid4 slots_le
   have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 hmem4
@@ -247,7 +250,7 @@ theorem grind_spec (hp : Placed code k)
       match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
         (by rw [hf4.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf4
-      (hpc4.trans (hp.label (j := 26) rfl)) hm4' fun st5 hm5 hpc5 => ?_
+      (hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.TStateGrind.b6Offset) NativeRustcVmArm.Vm.TStateGrind.label_4_at)) hm4' fun st5 hm5 hpc5 => ?_
     obtain ⟨hepi, hmem5, hx0'⟩ := after_eq run_b6 ▸ ok_b6
     obtain ⟨hsv5, hsl5⟩ := Frame.epilogue hf4 hwf4 hm5 hepi
     have hx30 : st5.data.regs.X30 = m0.regs.X30 := hsl5 (32, .X30) (List.mem_cons_self ..)
@@ -275,7 +278,7 @@ theorem grind_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf4.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf4
-    (hpc4.trans (by rw [show b2.length = 2 from rfl])) hm4' fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateGrind.b2_next])) hm4' fun st5 hm5 hpc5 => ?_
   obtain ⟨hmid5, hmem5, hx0₅, hx1₅, hx2₅, hx19₅⟩ := after_eq run_b3 ▸ ok_b3
   have hf5 : Frame m0 64 slots st5.data := Frame.of_block hf4 hwf4 hm5 hmid5 slots_le
   have hd5 : st5.data.dmem = st4.data.dmem := hm5.dmem_eq hwf4 hmem5
@@ -356,7 +359,7 @@ theorem grind_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf6.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf6
-    (hpc6.trans (by rw [show b3.length = 3 from rfl])) hm6 fun st7 hm7 hpc7 => ?_
+    (hpc6.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateGrind.b3_next])) hm6 fun st7 hm7 hpc7 => ?_
   obtain ⟨hepi, hmem7, hx0₇⟩ := after_eq run_b4 ▸ ok_b4
   obtain ⟨hsv7, hsl7⟩ := Frame.epilogue hf6 hwf6 hm7 hepi
   have hx30 : st7.data.regs.X30 = m0.regs.X30 := hsl7 (32, .X30) (List.mem_cons_self ..)

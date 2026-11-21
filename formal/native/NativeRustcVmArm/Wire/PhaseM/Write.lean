@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmArm.Code.Vm.WriteOpenings.Names
 public import NativeRustcVmArm.Wire.PhaseM.ClimbStep
 
 /-!
@@ -81,7 +83,7 @@ variable [Host] {k : Nat}
 
 /-- **The openings written.** -/
 theorem write_run (hp : Placed code k) (G : Geo m0 bp B)
-    (hwo : Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost) {count : Nat}
+    (hwo : Spec (Labels.label NativeRustcVmArm.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost) {count : Nat}
     {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 : Nat}
     {sl : List (List (Nat × Digest))} {cf : Nat} {st : MachineState}
     (h : Pre36 m0 bp B c k count qs height lw rows c6 sl cf st) :
@@ -263,7 +265,7 @@ theorem write_run (hp : Placed code k) (G : Geo m0 bp B)
 
 /-- **The climb.** -/
 theorem climb_run (hp : Placed code k) (G : Geo m0 bp B)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
+    (hcl : Spec (Labels.label NativeRustcVmArm.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost) {count : Nat}
     {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 : Nat} {st : MachineState}
     (h : Climb0 m0 bp B c k count qs height lw rows c6 st) :
     Eventually (step1 Host.exe) (fun st' ↦ AtNone m0 B c k st' ∨

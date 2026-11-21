@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderWords.Names
 public import NativeRustcVmArm.Wire.RdRows.ZeroB
 public import NativeRustcVmArm.Wire.RdRows.RowA
 
@@ -34,7 +35,7 @@ theorem saved_regsB : ∀ r ∈ (.X8 :: regsB), r ≠ .X8 → calleeSaved r = tr
 
 /-- **Leaf `i`**, no row read after its zeros (`b22` to `b25`). -/
 theorem callB_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
     {rows : List (List K)} {ci : Nat} {st : MachineState} (hI : CallB k m0 bp B c i rows ci st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
       ∃ rows' ci', HeadB k m0 bp B c (i + 1) rows' ci' st') st := by
@@ -95,7 +96,7 @@ theorem callB_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
   have hwf2 := frEnv_wf hst hfr2
   have hm2 := frEnv_match hst hfr2
   refine exec_at (infix_of b23_in_code (by simp [b23]) hp) run_b23 hwf2
-    (by simp only [show b22.length = 5 from rfl]) hm2 fun s2 hm2' hpc2 ↦ ?_
+    (by simp only [Nat.add_assoc, NativeRustcVmArm.Vm.RdRows.b22_next]) hm2 fun s2 hm2' hpc2 ↦ ?_
   have hd2 : s2.data.dmem = m2.dmem := hm2'.dmem_eq hwf2 rfl
   have hfr3 : Frm m0 s2.data := Fr.ofBlock hfr2 hm2 hm2' hwf2 rfl rfl rfl
     fun x hx ↦ absurd hx (by simp)
@@ -105,7 +106,8 @@ theorem callB_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
     simp only [SBool.eval, Sym.eval, CmpOp.apply, Env.ofMachine_regs,
       show m2.regs.getXReg .X0 = m2.regs.X0 from rfl, h0']
     decide
-  simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte, show b23.length = 1 from rfl] at hpc2
+  simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte, Nat.add_assoc,
+    NativeRustcVmArm.Vm.RdRows.b23_next] at hpc2
   obtain ⟨hrl', hrw'⟩ := rdRows_length (B := B) _ _ hI.z.kept.hrows
   have hlvs : LeavesAt s2.data.dmem (lv m0) ((rows ++ [[]]).map fun x ↦ paddedLeaf x (lw m0)) := by
     rw [List.map_append, List.map_singleton, hd2]
@@ -166,7 +168,7 @@ theorem callB_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
     have hd4 : s4.data.dmem = s3.data.dmem := hm4'.dmem_eq hwf4 rfl
     have hfr5 : Frm m0 s4.data := Fr.ofBlock hfr4 hm4 hm4' hwf4 rfl rfl rfl
       fun x hx ↦ absurd hx (by simp)
-    simp only [PcOk, hp.label (j := 12) rfl] at hpc4
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.RdRows.b2Offset) NativeRustcVmArm.Vm.RdRows.label_2_at] at hpc4
     refine Eventually.mono (ret_spec hp G hR hpc4 hfr5 ?_) fun _ h ↦ .inl h
     rw [← hend, hkept.hrows]
     refine ⟨?_, by rw [hd4, hd3]; exact hkept.hlvs, by rw [hd4, hd3]; exact hkept.hrd⟩
@@ -177,7 +179,7 @@ theorem callB_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
     · rcases List.mem_append.mp hx with hx | hx
       · rw [hrw' x hx, hrw]
       · rw [List.mem_singleton.mp hx]; rfl
-  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 85) rfl]
+  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b16Offset) NativeRustcVmArm.Vm.RdRows.label_14_at]
     at hpc3
   have hs4 : ∀ r ∈ [XReg.X20, .X21, .X22, .X23, .X24, .X25, .X26, .X27],
       s3.data.regs.getXReg r = st.data.regs.getXReg r := fun r hr ↦ by
@@ -207,7 +209,7 @@ theorem callB_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
 
 /-- **The loop over the leaves** (`rw = 0`), from leaf `i`. -/
 theorem loopB (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
     {rows : List (List K)} {ci : Nat} {st : MachineState} (hI : HeadB k m0 bp B c i rows ci st) :
     Eventually (step1 Host.exe) (Post m0) st := by
   refine Sym.loop (fun n st ↦ ∃ i rows ci, n = nr m0 - i ∧ HeadB k m0 bp B c i rows ci st)

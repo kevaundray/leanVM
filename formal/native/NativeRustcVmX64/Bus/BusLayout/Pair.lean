@@ -5,10 +5,10 @@ public import NativeRustcVmX64.Bus.BusLayout.Common
 /-!
 # `bus_layout`'s sizes: the blocks' pairs (x86-64)
 
-The loop head `.LBusLayout_7` (`b9`, `SzInv i`): the sizes' first `nf + i` words written, `i`
+The loop head `NativeRustcVmX64.Vm.BusLayout.label_7` (`b9`, `SzInv i`): the sizes' first `nf + i` words written, `i`
 even, RCX `i`, RSI two words past block `i`. A turn (`pair_step`): block `i`'s owner (`b9`), its
 height written (`b10`'s first part), block `i + 1`'s owner (`b10`'s rest), its height (`b7`)
-written (`b8`); out of the loop (to `.LBusLayout_11`) once `i + 2` is the blocks' even count.
+written (`b8`); out of the loop (to `NativeRustcVmX64.Vm.BusLayout.label_11`) once `i + 2` is the blocks' even count.
 Each part runs in an environment of the regions it touches (the blocks' pair, the layout's
 heights, the two sizes' words), which need not be apart from each other.
 -/
@@ -129,7 +129,7 @@ theorem Rg.keep {m0 st st' : MachineData} (h : Rg m0 st)
     (hk .r13 (by simp)).trans h.r13, (hk .r14 (by simp)).trans h.r14,
     (hk .rbp (by simp)).trans h.rbp⟩
 
-/-- **The pairs' loop head** `.LBusLayout_7`, the first `i` blocks' heights written. -/
+/-- **The pairs' loop head** `NativeRustcVmX64.Vm.BusLayout.label_7`, the first `i` blocks' heights written. -/
 structure SzInv (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m0 : MachineData) (i : Nat)
     (st : MachineData) : Prop where
   bd : Body m0 1808 busLayoutStack slots 8 st
@@ -143,7 +143,7 @@ structure SzInv (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m0 : Machine
   r15 : (reg st .r15).toNat = nf m0 + bl.length
   sizes : SizesAt st.dmem L bl m0 (nf m0 + i)
 
-/-- The loop's exit `.LBusLayout_11`: the first `2 ⌊nb / 2⌋` blocks' heights written. -/
+/-- The loop's exit `NativeRustcVmX64.Vm.BusLayout.label_11`: the first `2 ⌊nb / 2⌋` blocks' heights written. -/
 structure SzEnd (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m0 : MachineData)
     (st : MachineData) : Prop where
   bd : Body m0 1808 busLayoutStack slots 8 st
@@ -158,9 +158,9 @@ variable [Host] {k : Nat}
 /-- **A turn of the pairs' loop.** -/
 theorem pair_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 48)) (hI : SzInv L bl m0 i st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + 68) ∧ SzEnd L bl m0 st'.data)
-      ∨ (st'.pc = Host.addrOf (k + 48) ∧ SzInv L bl m0 (i + 2) st'.data)) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b9Offset)) (hI : SzInv L bl m0 i st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b15Offset) ∧ SzEnd L bl m0 st'.data)
+      ∨ (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b9Offset) ∧ SzInv L bl m0 (i + 2) st'.data)) st := by
   have hpre' := hpre
   obtain ⟨hst, hnf3, -, -, hbl2, hblmax, -, hown, -, hBok, -, hLok, -⟩ := hpre
   have hN : 1808 ≤ busLayoutStack := by decide
@@ -269,8 +269,7 @@ theorem pair_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Da
     rw [ho1, htoN (hwk i (by omega))]; exact hwk i (by omega)
   have h12_1 : reg st1.data .r12 = reg m0 .r9 := (hk1.reg' hm1 (by simp)).trans hI.rg.r12
   refine exec_at (infix_of ((infix_take b10 2).trans b10_in_code (by simp [b10])) (by simp [b10])
-    hp) run_b10a hwf2 nofun (hpc1.trans (congrArg Host.addrOf (by
-      have : b9.length = 4 := rfl; omega)))
+    hp) run_b10a hwf2 nofun (hpc1.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b9_next)))
     (match_ofMachine (sregions := [16, 72]) ⟨rfl, rfl, trivial⟩
       ⟨h12_1.trans (eval_ptr rfl).symm, rfl, trivial⟩ trivial ⟨hb1, trivial⟩
       ⟨hkey _ _ _ hrax1 hrcx1 rfl, trivial⟩)
@@ -336,7 +335,7 @@ theorem pair_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Da
   have hb3 : (reg st3.data .rdi).toNat < 6 := by
     rw [ho3, htoN (hwk (i + 1) (by omega))]; exact hwk (i + 1) (by omega)
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) run_b7 hwf4 nofun
-    (hpc3.trans (hp.label (j := 40) rfl))
+    (hpc3.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_5_at))
     (match_ofMachine (sregions := [72]) ⟨rfl, trivial⟩ ⟨h12_3.trans (eval_ptr rfl).symm, rfl, trivial⟩
       trivial ⟨hb3, trivial⟩ trivial)
     fun st4 hm4 hpc4 ↦ ?_
@@ -363,7 +362,7 @@ theorem pair_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Da
       exact (hk4.reg' hm4 (by simp)).trans ((hk3.reg' hm3 (by simp)).trans
         ((hk2.reg' hm2 (by simp)).trans (hk1.reg' hm1 (by simp))))
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) run_b8 hwf5 nofun
-    (hpc4.trans (congrArg Host.addrOf (by have : b7.length = 2 := rfl; omega)))
+    (hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b7_next)))
     (match_ofMachine ⟨rfl, trivial⟩ trivial trivial trivial
       ⟨hkey _ _ _ ((K4 .rax (by simp)).trans hI.rax) ((K4 .rcx (by simp)).trans hI.rcx) rfl,
         trivial⟩)
@@ -423,14 +422,13 @@ theorem pair_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Da
   by_cases hend : 2 * (bl.length / 2) = i + 2
   · rw [decide_eq_true hend] at hpc5
     simp only [↓reduceIte] at hpc5
-    rw [hp.label (j := 68) rfl] at hpc5
+    rw [hp.label NativeRustcVmX64.Vm.BusLayout.label_11_at] at hpc5
     refine .done _ (Or.inl ⟨hpc5, bd5, rg5, hrax5, by rw [hrcx5, hend], hr15, ?_⟩)
     rw [hend, show nf m0 + (i + 2) = i0 + 2 by omega]
     exact hsz5
   · rw [decide_eq_false hend] at hpc5
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc5
-    refine .done _ (Or.inr ⟨hpc5.trans (congrArg Host.addrOf (by
-      have : b8.length = 6 := rfl; omega)), bd5, rg5, by omega, by omega, hrax5, hrcx5,
+    refine .done _ (Or.inr ⟨hpc5.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b8_next)), bd5, rg5, by omega, by omega, hrax5, hrcx5,
       (K5 .rdx (by simp)).trans hI.rdx, hrsi5, hr15, ?_⟩)
     rw [show nf m0 + (i + 2) = i0 + 2 by omega]
     exact hsz5

@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRounds.Exit
+public import NativeRustcVmX64.Code.Vm.FoldRound.Names
+public import NativeRustcVmX64.Code.Vm.FoldRounds.Names
 
 /-!
 # A round of `fold_rounds` (x86-64)
@@ -25,11 +27,11 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {w : WhirStateW} {m0 : Mach
 
 /-- **One round**: from `fold_round`'s call, its tag tested (`T`), its `α`, `β` stored (`S`). -/
 theorem round (hp : Placed code k)
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmX64.Vm.FoldRound.entryLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
     (h : FoldRoundsPre a s w m0) (i : Nat)
     {T S : List Directive} {kt : Nat} {ST SS S0 : SState} {cT : SBool}
     (hT : T.IsInfixAt code kt) (hTne : T ≠ [])
-    (hrunT : exec T midS = some (ST, .cond cT ".LFoldRounds_2")) (hokT : TagOk (after T midS))
+    (hrunT : exec T midS = some (ST, .cond cT NativeRustcVmX64.Vm.FoldRounds.label_2)) (hokT : TagOk (after T midS))
     (hc0 : ∀ d : MachineData, WordAt d.dmem (off (fb m0) 40) 0 →
       cT.eval (frameEnv m0 d 160 []) = true)
     (hc1 : ∀ d : MachineData, WordAt d.dmem (off (fb m0) 40) 1 →
@@ -37,9 +39,9 @@ theorem round (hp : Placed code k)
     (hS : S.IsInfixAt code (kt + T.length)) (hSne : S ≠ [])
     (hS0 : S0 = store0S ∨ (S0 = storeS ∧ 0 < i))
     (hrunS : exec S S0 =
-      some (SS, .cond (.cmp .eq .W64 (.reg .r13) (.lit (i + 1))) ".LFoldRounds_3"))
+      some (SS, .cond (.cmp .eq .W64 (.reg .r13) (.lit (i + 1))) NativeRustcVmX64.Vm.FoldRounds.label_3))
     (hokS : StoreOk i (after S S0)) (hi : i < (reg m0 .rsi).toNat) {st : MachineState}
-    (hpc : st.pc = Labels.label foldRoundLabel ∧ retOf st.data = Host.addrOf (k + kt))
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.FoldRound.entryLabel ∧ retOf st.data = Host.addrOf (k + kt))
     (hI : Inv a s w m0 i 0 st.data) (hdi : reg st.data .rdi = off (fb m0) 40)
     (hsi : reg st.data .rsi = tA m0) (hdx : reg st.data .rdx = pA m0)
     (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + (kt + T.length) + S.length) →
@@ -91,7 +93,7 @@ theorem round (hp : Placed code k)
       exact hres
     rw [hc0 st2.data h0] at hpc3
     simp only [↓reduceIte] at hpc3
-    exact fail20 hp h (hpc3.trans (hp.label (j := 146) rfl)) hw3.fr hw3.same
+    exact fail20 hp h (hpc3.trans (hp.label NativeRustcVmX64.Vm.FoldRounds.label_2_at)) hw3.fr hw3.same
       (foldRounds_none_of hrun hfr2 _ hi)
   | some q2 =>
   obtain ⟨⟨w2, ρ⟩, s2⟩ := q2
@@ -186,21 +188,21 @@ theorem round (hp : Placed code k)
   by_cases he : (reg m0 .rsi).toNat = i + 1
   · rw [decide_eq_true he] at hpc4
     simp only [↓reduceIte] at hpc4
-    exact done hp h (hpc4.trans (hp.label (j := 148) rfl)) (by rw [he]; exact hInv)
+    exact done hp h (hpc4.trans (hp.label NativeRustcVmX64.Vm.FoldRounds.label_3_at)) (by rw [he]; exact hInv)
   · rw [decide_eq_false he] at hpc4
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc4
     exact cont st4 hpc4 he hInv
 
 /-- **A round after the first**: its call block (`C`), then `round`. -/
 theorem step (hp : Placed code k)
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmX64.Vm.FoldRound.entryLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
     (h : FoldRoundsPre a s w m0) (i : Nat)
     {C T S : List Directive} {kc : Nat} {SC ST SS S0 : SState} {cT : SBool}
     (hC : C.IsInfixAt code kc) (hCne : C ≠ [])
-    (hrunC : exec C midS = some (SC, .call "_RNvNtCsemcRClSg8DH_9native_vm4whir10fold_round"))
+    (hrunC : exec C midS = some (SC, .call NativeRustcVmX64.Vm.FoldRound.entryLabel))
     (hokC : CallOk (after C midS))
     (hT : T.IsInfixAt code (kc + C.length)) (hTne : T ≠ [])
-    (hrunT : exec T midS = some (ST, .cond cT ".LFoldRounds_2")) (hokT : TagOk (after T midS))
+    (hrunT : exec T midS = some (ST, .cond cT NativeRustcVmX64.Vm.FoldRounds.label_2)) (hokT : TagOk (after T midS))
     (hc0 : ∀ d : MachineData, WordAt d.dmem (off (fb m0) 40) 0 →
       cT.eval (frameEnv m0 d 160 []) = true)
     (hc1 : ∀ d : MachineData, WordAt d.dmem (off (fb m0) 40) 1 →
@@ -208,7 +210,7 @@ theorem step (hp : Placed code k)
     (hS : S.IsInfixAt code (kc + C.length + T.length)) (hSne : S ≠ [])
     (hS0 : S0 = store0S ∨ (S0 = storeS ∧ 0 < i))
     (hrunS : exec S S0 =
-      some (SS, .cond (.cmp .eq .W64 (.reg .r13) (.lit (i + 1))) ".LFoldRounds_3"))
+      some (SS, .cond (.cmp .eq .W64 (.reg .r13) (.lit (i + 1))) NativeRustcVmX64.Vm.FoldRounds.label_3))
     (hokS : StoreOk i (after S S0)) (hi : i < (reg m0 .rsi).toNat) {st : MachineState}
     (hpc : st.pc = Host.addrOf (k + kc)) (hI : Inv a s w m0 i 8 st.data)
     (cont : ∀ st' : MachineState,

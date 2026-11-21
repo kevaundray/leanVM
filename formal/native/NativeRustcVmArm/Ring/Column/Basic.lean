@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.StackPoint.Names
 public import NativeRustcVmArm.Ring.OptOut
 public import NativeRustcVmArm.Ring.Column.Exec
 public import NativeRustcVmArm.Spec.Layout
@@ -141,12 +142,12 @@ theorem hb {ds : List Directive} {j : Nat} (h : ds.IsInfixAt code j) (hne : ds �
 
 /-- **The prologue and `stack_point`** (`b0`). -/
 theorem stepEntry (hp : Placed code k) (h : ColumnWeightPre m0)
-    (hsp : Spec (Labels.label stackPointLabel) StackPointPre StackPointPost)
+    (hsp : Spec (Labels.label NativeRustcVmArm.Vm.StackPoint.entryLabel) StackPointPre StackPointPost)
     {R : MachineState → Prop}
     (cont : ∀ m2, Mid m0 m2 → (if nOf m0 ≤ 66 then m2.regs.X0 = 1 ∧ m2.regs.X1.toNat = nOf m0 ∧
         NativeRustcVm.EWsAt m2.dmem (fb m0) (zOf m0).toList else m2.regs.X0 = 0) →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 117)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.ColumnWeight.b1Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.ColumnWeight.b0Offset)⟩ := by
   have hfw := fbw h
   have hfN := fbN h
   have hN' := hN h
@@ -197,7 +198,7 @@ theorem stepEntry (hp : Placed code k) (h : ColumnWeightPre m0)
       rw [e5, NativeRustcVm.addr_add_zero] at *
       exact hq.elim (fun hq ↦ .inr (.inl hq)) .inl, hq.2.2⟩)
     fun m2 hfr2 hq hcs ↦ ?_
-  rw [show k + 0 + b0.length = k + 117 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.ColumnWeight.b0Offset + b0.length = k + NativeRustcVmArm.Vm.ColumnWeight.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.ColumnWeight.b0_next]]
   refine cont m2 ⟨hfr2, ?_, ?_, ?_⟩ ?_
   · rw [hcs .X19 rfl]; exact reg_of hm1 (v := .reg .X0) rfl rfl
   · rw [hcs .X20 rfl]; exact reg_of hm1 (v := .reg .X7) rfl rfl

@@ -22,7 +22,7 @@ variable {r : Run} [Host]
 
 /-- **The loop's set-up** (`b59`): from `AtFors`, the first tree's head. -/
 theorem fors_entry (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : r.AtFors m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 727 ∧ AtTree r 0 st.data) ⟨m, r.pc 712⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b60Offset ∧ AtTree r 0 st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b59Offset⟩ := by
   obtain ⟨hF, hIn, h22, h20, h24, h21, h23, hleaves, h392⟩ := h
   have hwf := r.frame_wf hpre hF (fun _ ↦ 0)
   have hm : Match (r.env m) s59 m :=
@@ -52,7 +52,7 @@ theorem fors_entry (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : 
       simp only [Sym.eval, Env.ofMachine_regs]
       rw [h22']
       exact wordBytes_treeW r
-  refine .done _ ⟨hpc1.trans (pc_after (n := 15) rfl), ⟨⟨hB, by decide, fun i hi ↦ by simp at hi⟩,
+  refine .done _ ⟨hpc1.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b59_next), ⟨⟨hB, by decide, fun i hi ↦ by simp at hi⟩,
     hm1.regs .X19 _ rfl, ?_, (hm1.regs .X9 _ rfl).trans (eval_ptr 8244), hm1.regs .X8 _ rfl, ?_,
     hm1.regs .X25 _ rfl, ?_, ?_⟩⟩
   · exact (hm1.regs .X24 _ rfl).trans (eval_ptr 25752)
@@ -70,8 +70,8 @@ theorem fors_entry (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (h : 
 theorem tree_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} {m : MachineData}
     (h : AtTree r c m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc 727 ∧ AtTree r (c + 1) st.data) ∨
-        (c + 1 = 24 ∧ st.pc = r.pc 1243 ∧ r.AtForsKey st.data)) ⟨m, r.pc 727⟩ := by
+      (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b60Offset ∧ AtTree r (c + 1) st.data) ∨
+        (c + 1 = 24 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b94Offset ∧ r.AtForsKey st.data)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b60Offset⟩ := by
   refine Eventually.bind (tree_s1 hp hc hpre h) fun st ⟨hpc, h1⟩ ↦ ev_at hpc ?_
   refine Eventually.bind (tree_s2 hp hc hpre h1) fun st ⟨hpc, h2⟩ ↦ ev_at hpc ?_
   refine Eventually.bind (nodes_spec hp hc hpre 10 0 rfl _ h2) fun st ⟨hpc, h3⟩ ↦ ev_at hpc ?_
@@ -80,8 +80,8 @@ theorem tree_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat}
 /-- **The trees** from tree `c`'s head. -/
 theorem trees_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) :
     ∀ n c, c + n = 24 → ∀ m, AtTree r c m →
-      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1243 ∧ r.AtForsKey st.data)
-        ⟨m, r.pc 727⟩ := by
+      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b94Offset ∧ r.AtForsKey st.data)
+        ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b60Offset⟩ := by
   intro n
   induction n with
   | zero => intro c hn m h; exact absurd h.rs.hc (by omega)

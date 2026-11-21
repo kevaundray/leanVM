@@ -68,8 +68,8 @@ variable {r : Run} [Host]
 theorem tree_end (hp : Placed code r.k) (hpre : r.Pre) {c : Nat} {m : MachineData}
     (h : TEnd r c m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc 727 ∧ AtTree r (c + 1) st.data) ∨
-        (c + 1 = 24 ∧ st.pc = r.pc 1243 ∧ r.AtForsKey st.data)) ⟨m, r.pc 1230⟩ := by
+      (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b60Offset ∧ AtTree r (c + 1) st.data) ∨
+        (c + 1 = 24 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b94Offset ∧ r.AtForsKey st.data)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b93Offset⟩ := by
   obtain ⟨hT, h19, h26, h23, h25, h27, hcur⟩ := h
   have hB := hT.base
   have hc24 := hT.hc
@@ -91,7 +91,7 @@ theorem tree_end (hp : Placed code r.k) (hpre : r.Pre) {c : Nat} {m : MachineDat
       simp
     rw [e, Run.off_add]
   -- `b93b`: the root stored, in the environment of its 16 bytes
-  refine ev_at (hpc1.trans (pc_after (n := 8) rfl)) ?_
+  refine ev_at (hpc1.trans (pc_after (by rfl))) ?_
   have hslot : 27808 + 16 * c + 16 ≤ 29280 := by omega
   have hwf2 : (Env.ofMachine st1.data [(r.off (27808 + 16 * c), 16)]).WF :=
     Env.wf_of ⟨r.frame_mapped hpre hB1.frame (by omega), trivial⟩ (List.pairwise_singleton _ _)
@@ -150,7 +150,7 @@ theorem tree_end (hp : Placed code r.k) (hpre : r.Pre) {c : Nat} {m : MachineDat
       (BitVec.ofNat_add c 1).symm]
     exact ofNat_beq_ofNat (by omega) (by decide)
   -- `b93c`
-  refine ev_at (hpc2.trans (pc_after (n := 1) rfl)) ?_
+  refine ev_at (hpc2.trans (pc_after (by rfl))) ?_
   have hwf3 := r.frame_wf hpre hB2.frame (fun _ ↦ 0)
   have hm3 : Match (r.env st2.data) s93c st2.data := match_frameS hpre hB2 trivial trivial
   refine exec_then (hb93c hp) run_b93c hwf3 hm3 fun st3 hm3' hpc3 ↦ ?_
@@ -168,7 +168,7 @@ theorem tree_end (hp : Placed code r.k) (hpre : r.Pre) {c : Nat} {m : MachineDat
   by_cases hc1 : c + 1 = 24
   · rw [decide_eq_true hc1] at hpc3
     simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc3
-    refine .done _ (Or.inr ⟨hc1, hpc3.trans (pc_after (n := 4) rfl), hB3.frame, hB3.inputs, e27,
+    refine .done _ (Or.inr ⟨hc1, hpc3.trans (pc_after (by rfl)), hB3.frame, hB3.inputs, e27,
       ?_, e23, ?_, hB3.w384, hB3.w392⟩)
     · rw [show st3.data.regs.getXReg .X26 = UInt64.ofBitVec (kpW r) from UInt64.toBitVec_inj.mp e26]
       exact wordBytes_kpW r

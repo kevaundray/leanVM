@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Top.Verify.StageA
 public import NativeRustcVm.Transcript.Update
+public import NativeRustcVmX64.Code.Vm.VerifyExecution.Names
 
 /-!
 # `verify`: `TState::new` and the walk (x86-64)
@@ -105,12 +106,12 @@ theorem tstateAt_start {m0 d st : MachineData} {ret : BitVec 64}
 
 /-- **`TState::new` and the walk.** -/
 theorem stageB (hp : Placed code k)
-    (hve : ∀ a s, Spec (Labels.label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hve : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s))
     {a : DecArea} {stream : Array EW} {openings : Array (Array OpeningW)} {m0 : MachineData}
     (hpre : VerifyPre a stream openings m0) {st1 : MachineState}
-    (hpc1 : st1.pc = Host.addrOf (k + 19)) (hSA : SA m0 st1.data) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 96) ∧
+    (hpc1 : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b1Offset)) (hSA : SA m0 st1.data) :
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b2Offset) ∧
       SB a stream openings m0 st.data) st1 := by
   have g := geo_of hpre
   obtain ⟨hst, hrod, hn32, hdecF, hdecA, ⟨hbcM, -⟩, ⟨hpubM, -⟩, ⟨hdecM, -⟩, ⟨haM, -⟩,
@@ -147,7 +148,7 @@ theorem stageB (hp : Placed code k)
   have hdA := g.decArea
   -- `b1`: `TState::new`, `call verify_execution`.
   have hwf1 := frame_wf (m0 := m0) (d := st1.data) (F := 816) (rest := [(reg m0 .rcx, 24)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 19 + b1.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b1Offset + b1.length)).toBitVec)
     ⟨hFm _ hf1.kept, hfnw⟩
     (fun x hx ↦ by
       rw [List.mem_singleton] at hx
@@ -156,7 +157,7 @@ theorem stageB (hp : Placed code k)
     (List.pairwise_pair.mpr (by
       unfold NativeRustcVm.Apart; dsimp only; rw [hBn]; omega))
   have hm1 : Match (frameEnv m0 st1.data 816 [(reg m0 .rcx, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 19 + b1.length)).toBitVec) initS st1.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b1Offset + b1.length)).toBitVec) initS st1.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf1.rsp_eval, known_ptr rfl hrbx1, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1 (fun _ _ ↦ rfl) hpc1 hm1
@@ -312,7 +313,7 @@ theorem stageB (hp : Placed code k)
     · left; omega
     · rw [inR (by unfold NativeRustcVm.NoWrap; omega)] at h
       omega
-  refine .done _ ⟨hpc3.trans (by rw [show b1.length = 77 from rfl]), ⟨hf3, fun q hq ↦ ?_,
+  refine .done _ ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Verify.b1_next), ⟨hf3, fun q hq ↦ ?_,
     (hsv3.1 .rbx rfl).trans eRbx, (hres3 _ (length_bcOf m0) hbc2 _ hpub2).1,
     (hres3 _ (length_bcOf m0) hbc2 _ hpub2).2⟩⟩
   simp only [not_or] at hq

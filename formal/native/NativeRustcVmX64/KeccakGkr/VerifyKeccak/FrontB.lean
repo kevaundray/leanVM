@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.FrontA
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 
 /-!
 # `verify_keccak`: the samples and the committed value (x86-64)
@@ -24,10 +26,10 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 
 /-- **A sample** of `n` challenges into the frame at `o`, from `t2` to `t2`. -/
 theorem sampleStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hsc : ∀ s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hsc : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
     {ds : List Directive} {p0 n o : Nat} (hds : ds.IsInfixAt code p0) (hne : ds ≠ [])
-    {S' : SState} (hrun : exec ds t2 = some (S', .call sampleChallengesLabel))
+    {S' : SState} (hrun : exec ds t2 = some (S', .call NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel))
     (hw0 : frameW S' = true) (hokS : okL (wsL S') = true) (hsp : S'.reg .rsp = some (.ptr 0 48))
     (hdi : S'.reg .rdi = some (.var 6)) (hsi : S'.reg .rsi = some (.ptr 0 (o : Int)))
     (hdx : S'.reg .rdx = some (.lit n)) (hn : n < 2 ^ 64) (ho : 56 ≤ o) (hon : o + 16 * n ≤ 3344)
@@ -89,14 +91,14 @@ theorem sampleStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst outp
 
 /-- **The samples and the committed value**: at `b7` (`t2`). -/
 theorem frontB (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hsc : ∀ s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hsc : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    {st : MachineState} {s1 : TState} (hat : At m0 k 37 wrA t2 (vv m0 {}) st)
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    {st : MachineState} {s1 : TState} (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b3Offset wrA t2 (vv m0 {}) st)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s1)
     (hrun : (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s =
       (afterGrind (reg m0 .rsi).toNat inst output).run s1)
-    (cont : ∀ st' s4 (seg lp : Array EW) (cm : EW), At m0 k 62 wrA t2 (vv m0 {}) st' →
+    (cont : ∀ st' s4 (seg lp : Array EW) (cm : EW), At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b7Offset wrA t2 (vv m0 {}) st' →
       TStateAt st'.data.dmem (reg m0 .rdi) a s4 →
       seg.size = 1 → NativeRustcVm.EWsAt st'.data.dmem (off (fb m0) 152) seg.toList →
       lp.size = 5 → NativeRustcVm.EWsAt st'.data.dmem (off (fb m0) 328) lp.toList →
@@ -147,9 +149,9 @@ theorem frontB (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
   obtain ⟨hopt, hnext, -, -⟩ := hq
   rw [rdi] at hopt
   rw [rsi] at hnext
-  rw [show 43 + b4.length + b5.length = 60 from rfl] at hpc6
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b4_next, NativeRustcVmX64.Vm.VerifyKeccak.b5_next] at hpc6
   -- `b6`: the value's check.
-  refine stepJ (T' := t2) (vals' := vv m0 {}) (o := 60) hp c h ⟨hpc6, hB6⟩ b6_in_code
+  refine stepJ (T' := t2) (vals' := vv m0 {}) (o := NativeRustcVmX64.Vm.VerifyKeccak.b6Offset) hp c h ⟨hpc6, hB6⟩ b6_in_code
     (by simp [b6]) run_b6 nofun (hB6.mt 0) (by decide) rfl rfl (by vtacJ) (by decide) rfl rfl rfl
     (fun _ _ _ _ _ h ↦ by cases h) rfl fun st7 hpc7 hB7 _ hc7 hk7 ↦ ?_
   simp only [PcOk] at hpc7
@@ -171,7 +173,7 @@ theorem frontB (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
       rwa [NativeRustcVm.Transcript.off_off] at hcm
     have hc := (hc4.trans hc5).trans (hc6.trans hc7)
     have hc' := hc5.trans (hc6.trans hc7)
-    refine cont st7 s4 seg lp cm ⟨hpc7.trans (by rw [show 60 + b6.length = 62 from rfl]), hB7⟩
+    refine cont st7 s4 seg lp cm ⟨hpc7.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b6_next]), hB7⟩
       (Chg.ts c hc7 (by decide) (by decide) (by decide) hk7 (hnext cm s4 rfl)) hsz1
       (Chg.ewsF c hc' (by decide) (by decide) (by rw [Array.length_toList, hsz1]; decide)
         (by rw [Array.length_toList, hsz1]; decide) hseg)

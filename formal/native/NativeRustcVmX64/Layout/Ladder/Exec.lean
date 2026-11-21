@@ -3,6 +3,8 @@ module
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Layout.Stack.Common
 public import NativeRustcVmX64.Code.Vm.Ladder
+public import NativeRustcVmX64.Code.Vm.Ladder.Names
+public import NativeRustcVmX64.Code.Vm.Names
 public meta import NativeRustcVmX64.Code.Vm.Ladder
 public meta import NativeRustcVmX64.Layout.Stack.Common
 
@@ -31,10 +33,6 @@ open NativeRustcVmX64.Layout.Stack (WritesW)
 
 @[expose] public section
 
-/-- `QUERY_LEVELS`' label. -/
-def lvLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.12"
-/-- `QUERY_TABLE`'s label. -/
-def qtLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.11"
 
 /-- The frame's slots. -/
 def slots : Slots := [(64, .rbp), (56, .r15), (48, .r14), (40, .r13), (32, .r12), (24, .rbx)]
@@ -46,12 +44,12 @@ abbrev addS (r : Reg64) (c : Nat) : Sym := .bin .add .W64 (.reg r) (.lit c)
 def lvSym : Sym :=
   .bin .add .W64 (.bin .add .W64 (.bin .add .W64
     (.bin .mul .W64 (addS .rdx 18446744073709551615) (.lit 120))
-    (.label lvLabel)) (.bin .mul .W64 (.reg .rsi) (.lit 8))) (.lit 18446744073709551488)
+    (.label NativeRustcVmX64.Vm.Symbols.rodata12Label)) (.bin .mul .W64 (.reg .rsi) (.lit 8))) (.lit 18446744073709551488)
 
 /-- `QUERY_TABLE`'s entry row `(r - 1, μ - 16)`, as `b9` computes it from R15 = `r - 1` and
 R14 = `μ - 16`. -/
 def qtSym : Sym :=
-  .bin .add .W64 (.bin .mul .W64 (.reg .r15) (.lit 720)) (.bin .add .W64 (.label qtLabel)
+  .bin .add .W64 (.bin .mul .W64 (.reg .r15) (.lit 720)) (.bin .add .W64 (.label NativeRustcVmX64.Vm.Symbols.rodata11Label)
     (.bin .shl .W64 (.bin .add .W64 (.reg .r14) (.bin .mul .W64 (.reg .r14) (.lit 2))) (.lit 4)))
 
 /-- `b0`'s window test: outside. -/
@@ -173,9 +171,9 @@ sym_block run_b16b := exec b16 C15b
 sym_block run_b16c := exec b16 C15c
 sym_block run_b16d := exec b16 C15d
 
-public theorem exit_o0 : exec b0 outS = some (O0, .cond winSym ".LLadder_11") :=
+public theorem exit_o0 : exec b0 outS = some (O0, .cond winSym NativeRustcVmX64.Vm.Ladder.label_11) :=
   run_o0.trans (by rw [show O0 = _ from after_eq run_o0]; rfl)
-public theorem exit_o11 : exec b11 O0 = some (O11, .jump ".LLadder_16") :=
+public theorem exit_o11 : exec b11 O0 = some (O11, .jump NativeRustcVmX64.Vm.Ladder.label_16) :=
   run_o11.trans (by rw [show O11 = _ from after_eq run_o11])
 public theorem exit_o16 : exec b16 O11 = some (after b16 O11, .ret (.load 0 72 8)) :=
   run_o16.trans (by rw [after_eq run_o16])
@@ -185,29 +183,29 @@ public theorem end_o16 : keeps outS (after b16 O11) = true ∧
     WritesW 1 [(0, .lit 0)] (after b16 O11) = true := by
   decide +kernel
 
-public theorem exit_a0 : exec b0 entryA = some (A0, .cond winSym ".LLadder_11") :=
+public theorem exit_a0 : exec b0 entryA = some (A0, .cond winSym NativeRustcVmX64.Vm.Ladder.label_11) :=
   run_a0.trans (by rw [show A0 = _ from after_eq run_a0]; rfl)
-public theorem exit_a1 : exec b1 A0 = some (A1, .cond (geSym 20) ".LLadder_3") :=
+public theorem exit_a1 : exec b1 A0 = some (A1, .cond (geSym 20) NativeRustcVmX64.Vm.Ladder.label_3) :=
   run_a1.trans (by rw [show A1 = _ from after_eq run_a1]; rfl)
-public theorem exit_a2 : exec b2 A1 = some (A2, .jump ".LLadder_8") :=
+public theorem exit_a2 : exec b2 A1 = some (A2, .jump NativeRustcVmX64.Vm.Ladder.label_8) :=
   run_a2.trans (by rw [show A2 = _ from after_eq run_a2])
-public theorem exit_a3 : exec b3 A1 = some (A3, .cond (geSym 24) ".LLadder_5") :=
+public theorem exit_a3 : exec b3 A1 = some (A3, .cond (geSym 24) NativeRustcVmX64.Vm.Ladder.label_5) :=
   run_a3.trans (by rw [show A3 = _ from after_eq run_a3]; rfl)
-public theorem exit_a4 : exec b4 A3 = some (A4, .jump ".LLadder_8") :=
+public theorem exit_a4 : exec b4 A3 = some (A4, .jump NativeRustcVmX64.Vm.Ladder.label_8) :=
   run_a4.trans (by rw [show A4 = _ from after_eq run_a4])
-public theorem exit_a5 : exec b5 A3 = some (A5, .cond (geSym 28) ".LLadder_7") :=
+public theorem exit_a5 : exec b5 A3 = some (A5, .cond (geSym 28) NativeRustcVmX64.Vm.Ladder.label_7) :=
   run_a5.trans (by rw [show A5 = _ from after_eq run_a5]; rfl)
-public theorem exit_a6 : exec b6 A5 = some (A6, .jump ".LLadder_8") :=
+public theorem exit_a6 : exec b6 A5 = some (A6, .jump NativeRustcVmX64.Vm.Ladder.label_8) :=
   run_a6.trans (by rw [show A6 = _ from after_eq run_a6])
 public theorem exit_a7 : exec b7 A5 = some (A7, .fall) :=
   run_a7.trans (by rw [show A7 = _ from after_eq run_a7])
-public theorem exit_a8a : exec b8 A2 = some (H3, .cond (cntSym 3) ".LLadder_11") :=
+public theorem exit_a8a : exec b8 A2 = some (H3, .cond (cntSym 3) NativeRustcVmX64.Vm.Ladder.label_11) :=
   run_a8a.trans (by rw [show H3 = _ from after_eq run_a8a]; rfl)
-public theorem exit_a8b : exec b8 A4 = some (H4, .cond (cntSym 4) ".LLadder_11") :=
+public theorem exit_a8b : exec b8 A4 = some (H4, .cond (cntSym 4) NativeRustcVmX64.Vm.Ladder.label_11) :=
   run_a8b.trans (by rw [show H4 = _ from after_eq run_a8b]; rfl)
-public theorem exit_a8c : exec b8 A6 = some (H5, .cond (cntSym 5) ".LLadder_11") :=
+public theorem exit_a8c : exec b8 A6 = some (H5, .cond (cntSym 5) NativeRustcVmX64.Vm.Ladder.label_11) :=
   run_a8c.trans (by rw [show H5 = _ from after_eq run_a8c]; rfl)
-public theorem exit_a8d : exec b8 A7 = some (H6, .cond (cntSym 6) ".LLadder_11") :=
+public theorem exit_a8d : exec b8 A7 = some (H6, .cond (cntSym 6) NativeRustcVmX64.Vm.Ladder.label_11) :=
   run_a8d.trans (by rw [show H6 = _ from after_eq run_a8d]; rfl)
 public theorem ok_h3 : HeadOk H3 3 := by decide +kernel
 public theorem ok_h4 : HeadOk H4 4 := by decide +kernel
@@ -215,17 +213,17 @@ public theorem ok_h5 : HeadOk H5 5 := by decide +kernel
 public theorem ok_h6 : HeadOk H6 6 := by decide +kernel
 
 public theorem exit_b9 : exec b9 midS = some (B9,
-    .cond (SBool.cmp .eq .W64 nm1 (.lit 2)).not ".LLadder_12") :=
+    .cond (SBool.cmp .eq .W64 nm1 (.lit 2)).not NativeRustcVmX64.Vm.Ladder.label_12) :=
   run_b9.trans (by rw [show B9 = _ from after_eq run_b9]; rfl)
-public theorem exit_b10 : exec b10 B9 = some (B10, .jump ".LLadder_13") :=
+public theorem exit_b10 : exec b10 B9 = some (B10, .jump NativeRustcVmX64.Vm.Ladder.label_13) :=
   run_b10.trans (by rw [show B10 = _ from after_eq run_b10])
 public theorem exit_b12 : exec b12 B9 = some (B12,
-    .cond (SBool.cmp .eq .W32 nm1 (.lit 3)).not ".LLadder_17") :=
+    .cond (SBool.cmp .eq .W32 nm1 (.lit 3)).not NativeRustcVmX64.Vm.Ladder.label_17) :=
   run_b12.trans (by rw [show B12 = _ from after_eq run_b12]; rfl)
 public theorem exit_b17 : exec b17 B12 = some (B17,
-    .cond (SBool.cmp .eq .W32 nm1 (.lit 4)) ".LLadder_14") :=
+    .cond (SBool.cmp .eq .W32 nm1 (.lit 4)) NativeRustcVmX64.Vm.Ladder.label_14) :=
   run_b17.trans (by rw [show B17 = _ from after_eq run_b17]; rfl)
-public theorem exit_b18 : exec b18 B17 = some (B18, .jump ".LLadder_15") :=
+public theorem exit_b18 : exec b18 B17 = some (B18, .jump NativeRustcVmX64.Vm.Ladder.label_15) :=
   run_b18.trans (by rw [show B18 = _ from after_eq run_b18])
 public theorem exit_b13a : exec b13 B10 = some (C13a, .fall) :=
   run_b13a.trans (by rw [show C13a = _ from after_eq run_b13a])

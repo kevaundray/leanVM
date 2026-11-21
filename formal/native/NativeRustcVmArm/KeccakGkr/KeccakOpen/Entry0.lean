@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.Ok
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.Exec0
 
@@ -64,10 +65,10 @@ variable [Host] {k : Nat}
 
 /-- **The prologue and the plain sumcheck**: from the entry to `b1`. -/
 theorem sc_run (hp : Placed code k) (h : KeccakOpenPre a s c m0)
-    (hsc : ∀ a s, Spec (label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s)) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 24) ∧ Sc a s m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b1Offset) ∧ Sc a s m0 st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b0Offset)⟩ := by
   have ok := ok_of h
   have hn := ok.nums
   have rc := rcN_of h
@@ -191,7 +192,7 @@ theorem sc_run (hp : Placed code k) (h : KeccakOpenPre a s c m0)
         · rw [y5, y6] at hp; exact .inr (.inl ⟨_, mem_slot, hp⟩)
         · rw [y1] at hp; exact .inr (.inl ⟨_, mem_ts, hp⟩)
         · exact .inl hp) hsv
-  refine .done _ ⟨hpc3.trans (by rw [show (b0.drop 8).length = 16 from rfl]), hb3, ?_, ?_, ?_,
+  refine .done _ ⟨hpc3.trans (by rw [show (b0.drop 8).length = 16 from rfl, ← b0_next]; simp only [b0_length, b0Length, Nat.add_assoc]), hb3, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, hout⟩
   · exact (hsv.1 .X19 rfl).trans ((regEq (r' := .X0) hm2 rfl).trans (regEq (r' := .X0) hm1 rfl))
   · exact (hsv.1 .X22 rfl).trans ((regEq (r' := .X7) hm2 rfl).trans (regEq (r' := .X7) hm1 rfl))

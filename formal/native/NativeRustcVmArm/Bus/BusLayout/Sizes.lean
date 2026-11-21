@@ -78,7 +78,7 @@ variable [Host] {k : Nat}
 /-- Where the sizes are done: `.LBusLayout_8`. -/
 abbrev Done (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m0 : MachineData) (k : Nat)
     (st : MachineState) : Prop :=
-  st.pc = Host.addrOf (k + 49) ∧ Frm m0 st.data ∧ Regs m0 st.data ∧
+  st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b9Offset) ∧ Frm m0 st.data ∧ Regs m0 st.data ∧
     (st.data.regs.getXReg .X21).toNat = nf m0 + bl.length ∧
     SizesAt st.data.dmem L bl m0 (nf m0 + bl.length)
 

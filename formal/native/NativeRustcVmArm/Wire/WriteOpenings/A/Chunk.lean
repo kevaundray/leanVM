@@ -114,7 +114,7 @@ theorem chunk_loop (hp : Placed code R.k) (G : Geo R) {t : Nat} {st : MachineSta
     simp only [PcOk, hc2] at hpc2
     by_cases he : R.lw = q4 R.lw
     · rw [decide_eq_true he] at hpc2
-      simp only [↓reduceIte, hp.label (j := 81) rfl] at hpc2
+      simp only [↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b13Offset) NativeRustcVmArm.Vm.WriteOpenings.label_12_at] at hpc2
       refine .done _ (.inl (.inl ⟨hpc2, ?_⟩))
       rw [show R.lw = t + 4 by omega]
       exact C2
@@ -125,7 +125,7 @@ theorem chunk_loop (hp : Placed code R.k) (G : Geo R) {t : Nat} {st : MachineSta
       rw [hm2'.regs .X10 _ rfl]
       simp only [Sym.eval, BinOp.apply, Sym.low_W64, Sym.ext_W64, Env.ofMachine_regs]
       rw [C1.cs.x21, and124 (by omega)]
-  · simp only [hl, ne_eq, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 60) rfl]
+  · simp only [hl, ne_eq, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b9Offset) NativeRustcVmArm.Vm.WriteOpenings.label_8_at]
       at hpc1
     refine .done _ (.inr ⟨q4 R.lw - (t + 4), by omega, t + 4, rfl, hpc1, C1, x8, ?_, ?_, ?_,
       by omega, by unfold q4 at *; omega⟩)
@@ -201,7 +201,7 @@ theorem rem_loop (hp : Placed code R.k) (G : Geo R) {t : Nat} {st : MachineState
   · simp only [hl, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
       at hpc1
     exact .done _ (.inl ⟨hpc1.trans (congrArg Host.addrOf rfl), hl ▸ C1⟩)
-  · simp only [hl, ne_eq, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 76) rfl]
+  · simp only [hl, ne_eq, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b12Offset) NativeRustcVmArm.Vm.WriteOpenings.label_11_at]
       at hpc1
     refine .done _ (.inr ⟨R.lw - (t + 1), by omega, t + 1, rfl, hpc1, C1, ?_, ?_, ?_, by omega⟩)
     · rw [hm1.regs .X8 _ rfl]

@@ -5,14 +5,16 @@ public import NativeRustcVmX64.Field.Call
 public import NativeRustcVmX64.Field.W32
 public import NativeRustcVmX64.Field.LinSound
 public import NativeRustcVm.Field.Pow
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
+public import NativeRustcVmX64.Code.Vm.Kpow.Names
 
 /-!
 # `kpow` on x86-64
 
 `kpow_spec`: rustc's `kpow(n)` (its base, `2`, constant-folded by rustc), placed anywhere in the
 program, given `kmul`'s contract, returns `gpowK n`. The loop runs `Field.kpowLoop`
-(`NativeRustcVm.Field.Rust`): at its head `.LKpow_4` (`Head`) R15, R14, RBX hold base, accumulator
-and exponent with `kpowLoop base acc n` the result; at `.LKpow_6` (`Mid`) the accumulator has taken
+(`NativeRustcVm.Field.Rust`): at its head `NativeRustcVmX64.Vm.Kpow.label_4` (`Head`) R15, R14, RBX hold base, accumulator
+and exponent with `kpowLoop base acc n` the result; at `NativeRustcVmX64.Vm.Kpow.label_6` (`Mid`) the accumulator has taken
 the exponent's low bit. `Field.kpow_eq` makes the result the model's.
 -/
 
@@ -65,17 +67,17 @@ theorem hb (hp : Placed code k) {ds : List Directive} {j : Nat} (h : ds.IsInfixA
     (hne : ds ≠ []) : ds.IsInfixAt Host.prog (k + j) :=
   h.trans hp.1 hne
 
-/-- **The loop's head** `.LKpow_4`, exponent `n` left. -/
+/-- **The loop's head** `NativeRustcVmX64.Vm.Kpow.label_4`, exponent `n` left. -/
 structure Head (m0 m1 : MachineData) (k : Nat) (n : BitVec 64) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 18)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Kpow.b5Offset)
   fr : Fr m0 m1 32 kpowStack 8 used st.data
   rbx : reg st.data .rbx = n
   nz : n ≠ 0
   eq : kpowLoop (reg st.data .r15) (reg st.data .r14) n = target m0
 
-/-- **`.LKpow_6`**: the accumulator has taken the low bit of `n`. -/
+/-- **`NativeRustcVmX64.Vm.Kpow.label_6`**: the accumulator has taken the low bit of `n`. -/
 structure Mid (m0 m1 : MachineData) (k : Nat) (n : BitVec 64) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 11)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Kpow.b3Offset)
   fr : Fr m0 m1 32 kpowStack 8 used st.data
   rbx : reg st.data .rbx = n
   nz : n ≠ 0
@@ -90,8 +92,8 @@ omit [Host] in
 theorem geo {m0 : MachineData} (hpre : KpowPre m0) : Geo m0 32 kpowStack :=
   ⟨hpre, by decide, by decide⟩
 
-/-- **From the head to `.LKpow_6`.** -/
-theorem head_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
+/-- **From the head to `NativeRustcVmX64.Vm.Kpow.label_6`.** -/
+theorem head_step (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 m1 : MachineData} (hpre : KpowPre m0) {n : BitVec 64} {st : MachineState}
     (hH : Head m0 m1 k n st) : Eventually (step1 Host.exe) (Mid m0 m1 k n) st := by
   have g := geo hpre
@@ -107,7 +109,7 @@ theorem head_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Km
   have k515 : reg st5.data .r15 = reg d .r15 := hm5.regs .r15 _ rfl
   simp only [PcOk] at hpc5
   have hc : (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rbx) (.lit 1)) (.lit 0)).eval
-      (frameEnv m0 d 32 (fun _ ↦ 0) (Host.addrOf (k + 18 + b5.length)).toBitVec) =
+      (frameEnv m0 d 32 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Kpow.b5Offset + b5.length)).toBitVec) =
       decide (n.toNat % 2 = 0) := by
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs, bit8_zero]
     rw [show d.regs.get64 .rbx = n from hbx]
@@ -116,13 +118,13 @@ theorem head_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Km
   · simp only [hbit, decide_true, ite_true] at hpc5
     rw [ite_eq_right (fun h ↦ by
       have := (NativeRustcVm.Field.and_one_eq_one_iff n).mp h; omega)] at heq
-    refine .done _ ⟨hpc5.trans (hp.label (j := 11) rfl), hF5, k5bx.trans hbx, hnz, ?_⟩
+    refine .done _ ⟨hpc5.trans (hp.label NativeRustcVmX64.Vm.Kpow.label_6_at), hF5, k5bx.trans hbx, hnz, ?_⟩
     rw [k514, k515]
     exact heq
   · simp only [hbit, decide_false, Bool.false_eq_true, ite_false] at hpc5
     rw [ite_eq_left ((NativeRustcVm.Field.and_one_eq_one_iff n).mpr (by omega))] at heq
     obtain ⟨d5, pc5⟩ := st5
-    simp only [show k + 18 + b5.length = k + 21 from rfl] at hpc5
+    simp only [show k + NativeRustcVmX64.Vm.Kpow.b5Offset + b5.length = k + NativeRustcVmX64.Vm.Kpow.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Kpow.b5_next]] at hpc5
     subst hpc5
     simp only at hF5 k5bx k514 k515
     refine block g hF5 (vars := fun _ ↦ 0) (hb hp b6_in_code (List.cons_ne_nil _ _)) run_b6
@@ -137,7 +139,7 @@ theorem head_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Km
     have h'bx : reg st'.data .rbx = reg d5 .rbx := (hq.2.2.1 .rbx rfl).trans h6bx
     have h'15 : reg st'.data .r15 = reg d5 .r15 := (hq.2.2.1 .r15 rfl).trans h615
     obtain ⟨d', pc'⟩ := st'
-    simp only [show k + 21 + b6.length = k + 24 from rfl] at hpc'
+    simp only [show k + NativeRustcVmX64.Vm.Kpow.b6Offset + b6.length = k + NativeRustcVmX64.Vm.Kpow.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Kpow.b6_next]] at hpc'
     subst hpc'
     simp only at hF' hacc h'bx h'15
     refine block g hF' (vars := fun _ ↦ 0) (hb hp b7_in_code (List.cons_ne_nil _ _)) run_b7
@@ -146,13 +148,13 @@ theorem head_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Km
     have h7bx : reg st7.data .rbx = reg d' .rbx := hm7.regs .rbx _ rfl
     have h715 : reg st7.data .r15 = reg d' .r15 := hm7.regs .r15 _ rfl
     simp only [PcOk] at hpc7
-    refine ⟨hpc7.trans (hp.label (j := 11) rfl), hF7, ?_, hnz, ?_⟩
+    refine ⟨hpc7.trans (hp.label NativeRustcVmX64.Vm.Kpow.label_6_at), hF7, ?_, hnz, ?_⟩
     · rw [h7bx, h'bx, k5bx, hbx]
     · rw [h715, h714, hacc, h'15, h6di, h6si, k514, k515]
       exact heq
 
-/-- **From `.LKpow_6`**: the base squared, then back to the head with `n >>> 1` or returned. -/
-theorem mid_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
+/-- **From `NativeRustcVmX64.Vm.Kpow.label_6`**: the base squared, then back to the head with `n >>> 1` or returned. -/
+theorem mid_step (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 m1 : MachineData} (hpre : KpowPre m0) (hsl : Slots m0 m1 32 slots) {n : BitVec 64}
     {st : MachineState} (hM : Mid m0 m1 k n st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨ Head m0 m1 k (n >>> 1) st') st := by
@@ -173,7 +175,7 @@ theorem mid_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmu
   have h'bx : reg st'.data .rbx = reg d .rbx := (hq.2.2.1 .rbx rfl).trans h3bx
   have h'14 : reg st'.data .r14 = reg d .r14 := (hq.2.2.1 .r14 rfl).trans h314
   obtain ⟨d', pc'⟩ := st'
-  simp only [show k + 11 + b3.length = k + 15 from rfl] at hpc'
+  simp only [show k + NativeRustcVmX64.Vm.Kpow.b3Offset + b3.length = k + NativeRustcVmX64.Vm.Kpow.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Kpow.b3_next]] at hpc'
   subst hpc'
   simp only at hF' hbase h'bx h'14
   refine block g hF' (vars := fun _ ↦ 0) (hb hp b4_in_code (List.cons_ne_nil _ _)) run_b4 (o := 8)
@@ -188,7 +190,7 @@ theorem mid_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmu
     rw [show reg st4.data .r15 = reg d' .rax from hm4.regs .r15 _ rfl, hbase, h3di, h3si]
   simp only [PcOk] at hpc4
   have hc : (SBool.cmp .eq .W64 (.bin .shr .W64 (.reg .rbx) (.lit 1)) (.lit 0)).eval
-      (frameEnv m0 d' 32 (fun _ ↦ 0) (Host.addrOf (k + 15 + b4.length)).toBitVec) =
+      (frameEnv m0 d' 32 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Kpow.b4Offset + b4.length)).toBitVec) =
       decide ((n >>> 1).toNat = 0) := by
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs, Lin.shr_apply _ (show 1 < 64 by decide),
       eq64_zero]
@@ -199,7 +201,7 @@ theorem mid_step (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Kmu
     have hz' : n >>> 1 = 0 := BitVec.eq_of_toNat_eq (by rw [hz]; rfl)
     obtain ⟨d4, pc4⟩ := st4
     simp only at hpc4
-    rw [hp.label (j := 28) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.Kpow.label_2_at] at hpc4
     subst hpc4
     simp only at hF4 h414
     refine Eventually.mono (epilogue_ret g hF4 hsl (vars := fun _ ↦ 0)
@@ -221,18 +223,18 @@ theorem shr_lt {n : BitVec 64} (h : n ≠ 0) : (n >>> 1).toNat < n.toNat := by
   omega
 
 /-- **`kpow` computes `2^n`.** -/
-theorem kpow_spec (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost) :
-    Spec (Labels.label kpowLabel) KpowPre KpowPost := by
+theorem kpow_spec (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.Kpow.entryLabel) KpowPre KpowPost := by
   intro m0 hpre
   have g := geo hpre
-  rw [show Labels.label kpowLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.Kpow.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Kpow.b0Offset) from hp.label NativeRustcVmX64.Vm.Kpow.entry_at]
   refine prologue (used := used) (slots := slots) (vars := fun _ ↦ 0) g
     (hb hp b0_in_code (List.cons_ne_nil _ _)) run_b0 (o := 8) rfl (by decide +kernel)
     (by decide +kernel) (by decide +kernel) fun st1 hm1 hpc1 hF1 hsl ↦ ?_
   have h1di : reg st1.data .rdi = reg m0 .rdi := hm1.regs .rdi _ rfl
   simp only [PcOk] at hpc1
   have hc : (SBool.cmp .eq .W64 (.bin .and .W64 (.reg .rdi) (.reg .rdi)) (.lit 0)).eval
-      (frameEnv m0 m0 32 (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec) =
+      (frameEnv m0 m0 32 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Kpow.b0Offset + b0.length)).toBitVec) =
       decide ((reg m0 .rdi).toNat = 0) := by
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs, and_self_apply, eq64_zero]
   rw [hc] at hpc1
@@ -240,14 +242,14 @@ theorem kpow_spec (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Km
   · simp only [hz, decide_true, ite_true] at hpc1
     obtain ⟨d1, pc1⟩ := st1
     simp only at hpc1
-    rw [hp.label (j := 26) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.Kpow.label_1_at] at hpc1
     subst hpc1
     simp only at hF1 hsl
     refine block g hF1 (vars := fun _ ↦ 0) (hb hp b8_in_code (List.cons_ne_nil _ _)) run_b8
       (o := 8) rfl (by decide) (by decide +kernel) fun st8 hm8 hpc8 hF8 ↦ ?_
     have h814 : reg st8.data .r14 = 1#64 := hm8.regs .r14 (.lit 1) rfl
     obtain ⟨d8, pc8⟩ := st8
-    simp only [PcOk, show k + 26 + b8.length = k + 28 from rfl] at hpc8
+    simp only [PcOk, show k + NativeRustcVmX64.Vm.Kpow.b8Offset + b8.length = k + NativeRustcVmX64.Vm.Kpow.b9Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Kpow.b8_next]] at hpc8
     subst hpc8
     simp only at hF8 h814
     refine Eventually.mono (epilogue_ret g hF8 hsl (vars := fun _ ↦ 0)
@@ -257,14 +259,14 @@ theorem kpow_spec (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) Km
     rfl
   · simp only [hz, decide_false, Bool.false_eq_true, ite_false] at hpc1
     obtain ⟨d1, pc1⟩ := st1
-    simp only [show k + 0 + b0.length = k + 6 from rfl] at hpc1
+    simp only [show k + NativeRustcVmX64.Vm.Kpow.b0Offset + b0.length = k + NativeRustcVmX64.Vm.Kpow.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Kpow.b0_next]] at hpc1
     subst hpc1
     simp only at hF1 hsl h1di
     refine block g hF1 (vars := fun _ ↦ 0) (hb hp b1_in_code (List.cons_ne_nil _ _)) run_b1
       (o := 8) rfl (by decide) (by decide +kernel) fun st2 hm2 hpc2 hF2 ↦ ?_
     simp only [PcOk] at hpc2
     have hH : Head m0 d1 k (reg m0 .rdi) st2 := by
-      refine ⟨hpc2.trans (hp.label (j := 18) rfl), hF2, ?_, fun h ↦ hz (by rw [h]; rfl), ?_⟩
+      refine ⟨hpc2.trans (hp.label NativeRustcVmX64.Vm.Kpow.label_4_at), hF2, ?_, fun h ↦ hz (by rw [h]; rfl), ?_⟩
       · rw [show reg st2.data .rbx = reg d1 .rdi from hm2.regs .rbx _ rfl, h1di]
       · rw [show reg st2.data .r15 = _ from hm2.regs .r15 (.lit 2) rfl,
           show reg st2.data .r14 = _ from hm2.regs .r14 (.lit 1) rfl]

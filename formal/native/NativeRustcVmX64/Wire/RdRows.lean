@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Wire.RdRows.CallB
+public import NativeRustcVmX64.Code.Vm.RdRows.Names
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `rd_rows` meets its contract (x86-64)
@@ -47,9 +49,9 @@ variable [Host] {k : Nat}
 
 /-- **From the entry.** -/
 theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost)
+    (hw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost)
     (hR0 : ReaderAt m0.dmem (rdr m0) bp B c) :
-    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b0Offset)⟩ := by
   have hst := g.g.st
   have h0 := g.s0
   have hsb := g.sb_toNat
@@ -88,13 +90,13 @@ theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
     rw [ult64, Bool.eq_iff_iff]
     simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
     omega)
-  rw [ite_t hrl, hp.label (j := 26) rfl] at hpc2
+  rw [ite_t hrl, hp.label NativeRustcVmX64.Vm.RdRows.label_2_at] at hpc2
   have hr15 : reg s1.data .r15 = BinOp.apply .sub .W64 (reg m0 .rdx) (reg m0 .rcx) :=
     hm1.regs .r15 (.bin .sub .W64 (.reg .rdx) (.reg .rcx)) (by
       rw [after_eq exit_b0]; exact (after_eq run_b0).symm ▸ rfl)
   -- `b3`: the set-up.
   obtain ⟨hok3, hrbp3, hr12_3, hr14_3, hK3⟩ := ok_b3
-  refine fr_step hp g (j := 26) b3_in_code (by simp [b3]) exit_b3 nofun hok3 hpc2 hf1
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b3Offset) b3_in_code (by simp [b3]) exit_b3 nofun hok3 hpc2 hf1
     fun s3 hf3 hd3 hr3 hpc3 ↦ ?_
   have hk3 := regs_kept hK3 hr3
   have hkp3 : Kp m0 bp B c 0 [] c s3.data.dmem := by rw [hd3]; exact hkp1
@@ -116,7 +118,7 @@ theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
     rw [hk1 .rcx (by simp), eq64, BitVec.toNat_ofNat])
   by_cases h0w : rw m0 = 0
   · -- `b12`: leaves without a row.
-    rw [ite_t h0w, hp.label (j := 63) rfl] at hpc4
+    rw [ite_t h0w, hp.label NativeRustcVmX64.Vm.RdRows.label_9_at] at hpc4
     obtain ⟨hmid12, hmem12, hr13_12, hrbp12, hr15_12, hK12⟩ := ok_b12
     have hwf := fr_wf g hf3 (vars := fun _ ↦ 0) (ret := 0)
     have hm := fr_match hf3 (vars := fun _ ↦ 0) (ret := 0)
@@ -154,7 +156,7 @@ theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
   · -- `b4`: rows of `rw > 0` words.
     rw [ite_f h0w] at hpc4
     obtain ⟨hok4, hrbx4, hr15_4, hK4⟩ := ok_b4
-    refine fr_step hp g (j := 34) b4_in_code (by simp [b4]) exit_b4 nofun hok4
+    refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b4Offset) b4_in_code (by simp [b4]) exit_b4 nofun hok4
       (hpc4.trans (congrArg Host.addrOf rfl)) hf3 fun s4 hf4 hd4 hr4 hpc5 ↦ ?_
     have hk4 := regs_kept hK4 hr4
     simp only [PcOk] at hpc5
@@ -178,10 +180,10 @@ theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
 
 /-- **`rd_rows` meets its contract.** -/
 theorem rdRows_spec (hp : Placed code k)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) :
-    Spec (Labels.label rdRowsLabel) RdRowsPre RdRowsPost := by
+    (hw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.RdRows.entryLabel) RdRowsPre RdRowsPost := by
   intro m0 ⟨hst, hn0, hn, hlw, hrw, hout, bp, B, c, hR, hd⟩
-  rw [hp.label (j := 0) (l := rdRowsLabel) rfl]
+  rw [hp.label NativeRustcVmX64.Vm.RdRows.entry_at]
   exact entry_spec hp (geo_of hst hn0 hn hlw hrw hout hR hd) hw hR
 
 end

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadCommitment.Names
 public import NativeRustcVmArm.Whir.NextLevel.Keep
 
 /-!
@@ -76,7 +77,7 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The prologue and `read_commitment`.** -/
 theorem entry (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
-    (hrc : ∀ a s, Spec (Labels.label readCommitmentLabel) (ReadCommitmentPre a s)
+    (hrc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s)
       (ReadCommitmentPost a s))
     {R : MachineState → Prop}
     (cont : ∀ m2 : MachineData, NFr m0 m2 → Regs level m0 m2 →
@@ -85,8 +86,8 @@ theorem entry (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
       NextAt m2.dmem (tA m0) a ((readCommitment (m0.regs.X5.toNat - m0.regs.X3.toNat +
         m0.regs.X4.toNat) (2 * 2 ^ m0.regs.X3.toNat)).run s) →
       NativeRustcVm.WordAt m2.dmem (loc m0 88) m0.regs.X5 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 24)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b1Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b0Offset)⟩ := by
   have g := geo h
   have c := ctx h
   have hwf : (envL m0 m0).WF := by

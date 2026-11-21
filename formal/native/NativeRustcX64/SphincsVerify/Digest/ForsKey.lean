@@ -132,8 +132,8 @@ variable [Host]
 /-- **The FORS key's hasher absorbs `PK.seed | ADRS`** (`b97 .. b99`). -/
 theorem forsKey0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : r.AtForsKey m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1108 ∧ FK0 r st.data)
-      ⟨m, r.pc 1088⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b100Offset ∧ FK0 r st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b97Offset⟩ := by
   obtain ⟨hF, hI, h15, hbp, hR, h568, h176⟩ := hA
   have hK : Keep r m := ⟨hF, hI, h176⟩
   have hRl := length_rootsBytes r
@@ -190,8 +190,8 @@ theorem forsKey0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc
 /-- **The roots absorbed, the FORS key's digest** (`b100 .. b102`). -/
 theorem forsKey1_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : FK0 r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1120 ∧ FK1 r st.data)
-      ⟨m, r.pc 1108⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b103Offset ∧ FK1 r st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b100Offset⟩ := by
   obtain ⟨hK, h12, hbx, h13, hR, h568, hH⟩ := hA
   obtain ⟨hb, hbB, hbh⟩ := hH
   have hbl := Keccak.length_of_holds hbh
@@ -235,8 +235,8 @@ theorem forsKey1_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc
 /-- **`signed`, the layer loop's registers** (`b103`). -/
 theorem forsKey2_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     {m : MachineData} (hA : FK1 r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1129 ∧ r.AtLayer 0 r.forsPk st.data)
-      ⟨m, r.pc 1120⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b104Offset ∧ r.AtLayer 0 r.forsPk st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b103Offset⟩ := by
   obtain ⟨hK, h12, hbx, h13, hbp, h568, hD⟩ := hA
   have hw := NativeRustc.length_wordBytes r.idx
   have hP : BytesAt m.dmem (r.off 4096) r.forsPk := by

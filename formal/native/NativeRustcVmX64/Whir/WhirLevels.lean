@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Whir.WhirLevels.Final
 public import NativeRustcVmX64.Whir.WhirLevels.Next
+public import NativeRustcVmX64.Code.Vm.FinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.FoldRounds.Names
+public import NativeRustcVmX64.Code.Vm.NextLevel.Names
+public import NativeRustcVmX64.Code.Vm.WhirLevels.Names
 
 /-!
 # `whir_levels` on x86-64
@@ -9,7 +13,7 @@ public import NativeRustcVmX64.Whir.WhirLevels.Next
 **`whirLevels_spec`**: AL becomes `whirLevels logN laneFolds b 0 levels`'s `Some`/`None`, the
 `TState` its next state, given `fold_rounds`', `next_level`'s and `final_level`'s contracts. The
 prologue (`entry`) keeps the arguments in the frame's words and RBX, R12, R13, R15, RBP; the loop
-at `.LWhirLevels_1` runs a level's fold rounds (`fold_step`), computes `μ` and tests for the last
+at `NativeRustcVmX64.Vm.WhirLevels.label_1` runs a level's fold rounds (`fold_step`), computes `μ` and tests for the last
 level (`mu_step`), then either calls `next_level` and goes on with the next level (`next_step`) or
 restores the registers and jumps to `final_level` (`final_tail`), whose stack argument is the
 function's own; a `None` returns `0` (`none_exit`). Model: `whirLevels_single`,
@@ -28,21 +32,21 @@ variable [Host] {k0 : Nat}
 
 /-- **`whir_levels`' contract.** -/
 theorem whirLevels_spec (hp : Placed code k0)
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundsLabel) (FoldRoundsPre a s w)
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmX64.Vm.FoldRounds.entryLabel) (FoldRoundsPre a s w)
       (FoldRoundsPost a s w))
-    (hnl : ∀ a s level w rounds, Spec (Labels.label nextLevelLabel)
+    (hnl : ∀ a s level w rounds, Spec (Labels.label NativeRustcVmX64.Vm.NextLevel.entryLabel)
       (NextLevelPre a s level w rounds) (NextLevelPost a s level w rounds))
-    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label finalLevelLabel)
+    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label NativeRustcVmX64.Vm.FinalLevel.entryLabel)
       (FinalLevelPre a s level ba b w rounds) (FinalLevelPost a s level b w rounds))
     (a : DecArea) (s : TState) (levels : List Whir.Level) (ba : BasisAddrs) (b : BasisW)
     (claim : EW) :
-    Spec (Labels.label whirLevelsLabel) (WhirLevelsPre a s levels ba b claim)
+    Spec (Labels.label NativeRustcVmX64.Vm.WhirLevels.entryLabel) (WhirLevelsPre a s levels ba b claim)
       (WhirLevelsPost a s levels b claim) := by
   intro m0 h
   obtain ⟨rate, c⟩ := Ctx.of_pre h
-  rw [show Labels.label whirLevelsLabel = Host.addrOf (k0 + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.WhirLevels.entryLabel = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b0Offset) from hp.label NativeRustcVmX64.Vm.WhirLevels.entry_at]
   let I : Nat → MachineState → Prop := fun n st ↦ ∃ kk s' w, n = levels.length - kk ∧
-    st.pc = Host.addrOf (k0 + 27) ∧ Head a s levels b claim m0 kk s' w st.data
+    st.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b1Offset) ∧ Head a s levels b claim m0 kk s' w st.data
   have hloop : ∀ {n : Nat} {st : MachineState}, I n st →
       Eventually (step1 Host.exe) (Goal a s levels b claim m0) st := by
     refine Sym.loop I fun n st ⟨kk, s', w, hn, hpc, hh⟩ ↦ ?_

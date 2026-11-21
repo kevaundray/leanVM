@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Sample
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Branch
 
@@ -60,14 +64,14 @@ theorem ews16 (xs : List EW) : (xs.flatMap NativeRustcVm.ewBytes).length = 16 * 
 
 /-- **Up to the first claim.** -/
 theorem stepFront (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (cont : ∀ m s4 seg lp c, AtC a s cs inst output m0 m s4 seg lp c →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 55)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b7Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b0Offset)⟩ := by
   have hrun0 : run0 s inst output m0 =
       (grind gBits >>= fun _ ↦ afterGrind m0.regs.X1.toNat inst output).run s := by
     unfold run0; rw [verifyKeccak_grind]
@@ -107,7 +111,9 @@ theorem stepFront (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
     have hlp6 : NativeRustcVm.EWsAt m6.dmem (loc m0 112) lp.toList :=
       frame_keep (o' := 112) (n' := 80) hn hk6 (by omega) (by omega) rfl
         (by rw [ews16, Array.length_toList, hls]) hlp
-    rw [show k + 36 + b3.length + b4.length + b5.length = k + 53 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b3Offset + b3.length + b4.length + b5.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b6Offset from by
+      rw [← b5_next, ← b4_next, ← b3_next]
+      simp only [Nat.add_assoc]]
     refine failBranch hp hn (b6_in_code.trans hp.1 (by simp [b6])) run_b6 hmid6 rfl rfl
       (by decide) (by decide) (b := ((readScalar.run s3).map (·.1)).isSome)
       (cond8 (o := 960) (r := (readScalar.run s3).map (·.1)) hv) (fun hf ↦ ?_)

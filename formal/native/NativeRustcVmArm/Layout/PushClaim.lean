@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
 public import NativeRustcVmArm.Layout.PushClaim.Regions
 
 /-!
@@ -123,7 +125,7 @@ theorem full (hp : Placed code k) (cs : Array ColumnClaimW) (m : MachineData)
     (hcm : Mapped m.dmem m.regs.X0.toBitVec claimsBytes)
     (hcn : NoWrap m.regs.X0.toBitVec claimsBytes) (hn : ¬cs.size < claimCap) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧ PushClaimPost cs m st.data)
-      ⟨m, Host.addrOf (k + 0)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.PushClaim.b0Offset)⟩ := by
   have hn160 : cs.size = 160 := by have := hC.len_le; unfold claimCap at *; omega
   let env := Env.ofMachine m [(m.regs.X0.toBitVec, 8)]
   have h8 : 8 ≤ claimsBytes := by decide
@@ -141,7 +143,7 @@ theorem full (hp : Placed code k) (cs : Array ColumnClaimW) (m : MachineData)
   have hc : (!(BitVec.ofNat 64 160).ult (BitVec.ofNat 64 159) &&
       !(BitVec.ofNat 64 160 == BitVec.ofNat 64 159)) = true := by decide
   simp only [hlen, hc, ↓reduceIte] at hpc
-  rw [hp.label (j := 29) rfl] at hpc
+  rw [hp.label (j := NativeRustcVmArm.Vm.PushClaim.b4Offset) NativeRustcVmArm.Vm.PushClaim.label_3_at] at hpc
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) (exec_after run_full run_b4) hwf hpc
     hm1 fun st2 hm2 hpc2 ↦ .done _ ⟨?_, ?_, ?_, ?_⟩
   · simp only [PcOk] at hpc2
@@ -153,10 +155,10 @@ theorem full (hp : Placed code k) (cs : Array ColumnClaimW) (m : MachineData)
 
 /-- **Room**: `b0`, `b1`, the call, then `b2` and `b3` or `b5`. -/
 theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     (m : MachineData) (hpre : PushClaimPre cs m) (hn : cs.size < claimCap) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧ PushClaimPost cs m st.data)
-      ⟨m, Host.addrOf (k + 0)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.PushClaim.b0Offset)⟩ := by
   obtain ⟨hS, hC, ⟨hcm, hcn⟩, hcs, ⟨⟨hpm, hpn⟩, hps⟩, hcp⟩ := hpre
   have hn' : cs.size < 160 := hn
   have hsbm := stack_mapped hS
@@ -185,12 +187,12 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
     match_ofMachine ⟨rfl, fun _ ↦ stack_aligned hS rfl, rfl, nofun, rfl, nofun, trivial⟩
       sp_eq_stackBelow ⟨show _ = (Sym.ptr 1 0).eval env by rw [ptr_zero_eval]; rfl, trivial⟩
       trivial trivial ⟨halias, trivial⟩
-  rw [show k + 0 = k from rfl]
+  rw [show k + NativeRustcVmArm.Vm.PushClaim.b0Offset = k from rfl]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st0 hm0 hpc0 ↦ ?_
   simp only [PcOk] at hpc0
   sym_simp at hpc0
   simp only [hlen, room_cond hn', Bool.false_eq_true, ↓reduceIte] at hpc0
-  rw [show b0.length = 4 from rfl] at hpc0
+  rw [NativeRustcVmArm.Vm.PushClaim.b0_length, NativeRustcVmArm.Vm.PushClaim.b0Length] at hpc0
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) (exec_after run_b0 run_b1) hwf hpc0 hm0
     fun st hm1 hpc1 ↦ ?_
   -- At the call.
@@ -294,7 +296,7 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
     cases r <;> simp [calleeSaved] at hr h19 h20 h21 h22 ⊢ <;>
       exact Match.reg_eq hm hm1 rfl rfl
   have hk : Kept m.dmem st'.data.dmem := fun p h ↦ hk2 p (hk1 p h)
-  have hpc2' : st'.pc = Host.addrOf (k + 18) := hpc2
+  have hpc2' : st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PushClaim.b2Offset) := hpc2
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwfC hpc2' hmC
     fun st2 hm2 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
@@ -325,7 +327,7 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
     obtain ⟨hx0', hbufw⟩ := hres
     have hb0 : envC.regs .X0 = 1#64 := by show st'.data.regs.X0.toBitVec = _; rw [hx0']; rfl
     simp only [hb0] at hpc3
-    rw [show b2.length = 1 from rfl] at hpc3
+    rw [NativeRustcVmArm.Vm.PushClaim.b2_length, NativeRustcVmArm.Vm.PushClaim.b2Length] at hpc3
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) (exec_after run_b2 run_b3) hwfC hpc3
       hm2 fun st3 hm3 hpc4 ↦ ?_
     obtain ⟨hsaved, hret⟩ := restored hframe sp_eq_stackBelow hreg hk hm3 hwfC rfl rfl rfl rfl
@@ -421,7 +423,7 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
     simp only [hif, ↓reduceIte] at hres
     have hb0 : envC.regs .X0 = 0#64 := by show st'.data.regs.X0.toBitVec = _; rw [hres]; rfl
     simp only [hb0] at hpc3
-    rw [hp.label (j := 32) rfl] at hpc3
+    rw [hp.label (j := NativeRustcVmArm.Vm.PushClaim.b5Offset) NativeRustcVmArm.Vm.PushClaim.label_4_at] at hpc3
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (exec_after run_b2 run_b5) hwfC hpc3
       hm2 fun st3 hm3 hpc4 ↦ ?_
     obtain ⟨hsaved, hret⟩ := restored hframe sp_eq_stackBelow hreg hk hm3 hwfC rfl rfl rfl rfl
@@ -436,11 +438,11 @@ theorem room (hp : Placed code k) (cs : Array ColumnClaimW)
 
 /-- **`push_claim`'s contract.** -/
 theorem pushClaim_spec (hp : Placed code k)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     (cs : Array ColumnClaimW) :
-    Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs) := by
   intro m hpre
-  rw [show Labels.label pushClaimLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.PushClaim.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.PushClaim.entryOffset) NativeRustcVmArm.Vm.PushClaim.entry_at]
   by_cases hn : cs.size < claimCap
   · exact room hp cs hext m hpre hn
   · obtain ⟨-, hC, ⟨hcm, hcn⟩, -⟩ := hpre

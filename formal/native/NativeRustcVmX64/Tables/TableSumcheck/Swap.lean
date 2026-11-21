@@ -6,8 +6,8 @@ public import NativeRustcVmX64.Tables.TableSumcheck.Loc
 /-!
 # `table_sumcheck`: the challenges' swaps (x86-64)
 
-The challenges are reversed in place: `b7` (`.LTableSumcheck_6`) swaps two pairs, the challenges
-`2t`, `2t + 1` with `n - 1 - 2t`, `n - 2 - 2t` (`iter`, `loop`), `b9` (`.LTableSumcheck_8`) one
+The challenges are reversed in place: `b7` (`NativeRustcVmX64.Vm.TableSumcheck.label_6`) swaps two pairs, the challenges
+`2t`, `2t + 1` with `n - 1 - 2t`, `n - 2 - 2t` (`iter`, `loop`), `b9` (`NativeRustcVmX64.Vm.TableSumcheck.label_8`) one
 more pair (`one`). `Kp`: what the swaps keep (the body, the words saved at `56` to `88`, the claim
 at `600`, the `TState`, `n`, the heights); `Ch m0 L j`: the challenges after `j` swaps (`rv`).
 -/
@@ -214,10 +214,10 @@ theorem iter (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {L :
     {d : MachineData} (H : Kp a s1 heights m0 c d) (hc : Ch m0 L (2 * t) d)
     (hr : LR m0 (nR heights) t T d)
     (cont : ∀ d' pc, Kp a s1 heights m0 c d' → Ch m0 L (2 * t + 2) d' →
-      LR m0 (nR heights) (t + 1) T d' → (T = t + 1 → pc = Host.addrOf (k + 151)) →
-      (T ≠ t + 1 → pc = Host.addrOf (k + 126)) →
+      LR m0 (nR heights) (t + 1) T d' → (T = t + 1 → pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b8Offset)) →
+      (T ≠ t + 1 → pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b7Offset)) →
       Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', pc⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 126)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b7Offset)⟩ := by
   have hH := Pre.hts h
   have hn30 : nR heights ≤ 30 := foldl_max_le heights hH.1 hH.2.1
   generalize hn : nR heights = n at hL hT hr cont hn30
@@ -337,7 +337,7 @@ theorem iter (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {L :
   rw [hcnd] at hpc7
   refine at_pc rfl (cont st.data st.pc H' hc' hr' (fun e ↦ ?_) (fun e ↦ ?_))
   · rw [decide_eq_true e] at hpc7
-    exact hpc7.trans (addr_eq (by rw [show b7.length = 25 from rfl]))
+    exact hpc7.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b7_next))
   · rw [decide_eq_false e] at hpc7
     exact hpc7.trans (lbl_6 hp)
 
@@ -346,10 +346,10 @@ theorem loop (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {L :
     (hL : L.length = nR heights) {T : Nat} (hT : 4 * T ≤ nR heights)
     (cont : ∀ d', Kp a s1 heights m0 c d' → Ch m0 L (2 * T) d' →
       LR m0 (nR heights) T T d' →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + 151)⟩) :
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b8Offset)⟩) :
     ∀ u t, t + 1 + u = T → ∀ d, Kp a s1 heights m0 c d → Ch m0 L (2 * t) d →
       LR m0 (nR heights) t T d →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 126)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b7Offset)⟩ := by
   intro u
   induction u with
   | zero =>
@@ -371,8 +371,8 @@ theorem one (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {L : 
     (H : Kp a s1 heights m0 c d) (hc : Ch m0 L j d) (hrcx : reg d .rcx = BitVec.ofNat 64 j)
     (hrax : reg d .rax = off (fb m0) (112 + 16 * nR heights))
     (cont : ∀ d', Kp a s1 heights m0 c d' → Ch m0 L (j + 1) d' →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + 166)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 153)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b10Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b9Offset)⟩ := by
   have hH := Pre.hts h
   have hn30 : nR heights ≤ 30 := foldl_max_le heights hH.1 hH.2.1
   generalize hn : nR heights = n at hL hj hrax hn30
@@ -442,7 +442,7 @@ theorem one (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {L : 
     exact ew_keep hwf hm9 hin hL' (by omega) (fun p hp ↦ by
       rcases hmem p hp with rfl | rfl <;> dsimp only <;> omega) (hc i (by omega))
   simp only [PcOk] at hpc9
-  exact at_pc (hpc9.trans (addr_eq (by rw [show b9.length = 13 from rfl]))) (cont st.data H' hc')
+  exact at_pc (hpc9.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b9_next))) (cont st.data H' hc')
 
 end
 

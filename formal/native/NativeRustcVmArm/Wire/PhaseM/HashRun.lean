@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfHashWords.Names
 public import NativeRustcVmArm.Wire.PhaseM.Hash
 
 /-!
@@ -112,7 +113,7 @@ theorem fw_hash (G : Geo m0 bp B) {m m' : MachineData} (hfr : Frm m0 m)
 
 /-- **Leaf `i` hashed and its node stored.** -/
 theorem hash_step (hp : Placed code k) (G : Geo m0 bp B)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre Keccak256WordsHashPost)
+    (hkw : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre Keccak256WordsHashPost)
     {count : Nat} {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 i : Nat}
     {st : MachineState} (h : HashSt m0 bp B c k count qs height lw rows c6 i st) :
     Eventually (step1 Host.exe) (fun st' ↦
@@ -360,7 +361,7 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B)
     rw [List.take_of_length_le (by simp [hl]; omega)] at hnd3
     exact hnd3
   · simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc3
-    refine .inl ⟨hpc3.trans (hp.label (j := 113) rfl), hb3, hM3, hrd3, ex21, ex26, ex5, ?_, ?_, ?_,
+    refine .inl ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b27Offset) NativeRustcVmArm.Vm.PhaseM.label_20_at), hb3, hM3, hrd3, ex21, ex26, ex5, ?_, ?_, ?_,
       ?_, ?_, by omega, hnd3⟩
     · rw [r3 .X28 (by simp), hcs .X28 rfl, r1 .X28 (by simp)]; exact x28
     · rw [r3 .X23 (by simp), hcs .X23 rfl, hm1.regs .X23 _ rfl]
@@ -380,7 +381,7 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B)
 
 /-- **The leaves hashed.** -/
 theorem hash_run (hp : Placed code k) (G : Geo m0 bp B)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre Keccak256WordsHashPost)
+    (hkw : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre Keccak256WordsHashPost)
     {count : Nat} {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 : Nat}
     {st : MachineState} (h : Rows m0 bp B c k count qs height lw rows c6 st) :
     Eventually (step1 Host.exe) (Climb0 m0 bp B c k count qs height lw rows c6) st :=

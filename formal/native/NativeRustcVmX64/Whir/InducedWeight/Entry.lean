@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.InducedWeight.Fin
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceTable.Names
 
 /-!
 # `induced_weight`'s entry (x86-64)
@@ -168,27 +170,27 @@ structure AtB2 (m0 st : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + 0) ∧
-    b0b.IsInfixAt Host.prog (k + 0 + 8) := by
+theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b0Offset) ∧
+    b0b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b0Offset + b0a.length) := by
   have h := b0_in_code.trans hp.1 (by simp [b0])
   rw [← List.take_append_drop 8 b0] at h
   exact h.append
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 15) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 17) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 24) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 29) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.InducedWeight.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
 
 /-- **From the entry to `b2`**, or `None` for `μ > 30`. -/
 theorem entry_a (hp : Placed code k)
-    (htab : Spec (Labels.label subspaceTableLabel) SubspaceTablePre SubspaceTablePost)
+    (htab : Spec (Labels.label NativeRustcVmX64.Vm.SubspaceTable.entryLabel) SubspaceTablePre SubspaceTablePost)
     {m0 : MachineData} (hpre : InducedWeightPre m0)
-    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + 17) → AtB2 m0 st.data →
+    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b2Offset) → AtB2 m0 st.data →
       Eventually (step1 Host.exe) (Post m0) st) :
-    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b0Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, -, -, -, -, -, -⟩ := hpre'
   obtain ⟨hF, hle_t, -, -, -, -⟩ := stack_le
@@ -204,7 +206,7 @@ theorem entry_a (hp : Placed code k)
   have harg : ∀ r ∈ [Reg64.rdi, .rsi, .rdx, .rcx, .r8, .r9], reg st1.data r = reg m0 r :=
     fun r hr ↦ hm1.regs r (.reg r) (hargs0 r hr)
   -- `b0b`: the spills, `subspace_table`
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 0 + 8 + 7)).toBitVec) hS hF
+  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b1Offset)).toBitVec) hS hF
   refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hfr1.mid_match
     fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsig2, hv56, hv64⟩ := after_eq run_b0b ▸ b0b_call
@@ -240,7 +242,7 @@ theorem entry_a (hp : Placed code k)
         exact .inr (.inl (inRange_low_of hS hF (c := 104) (n := 8 + tableBytes) (by omega)
           (by decide) h'))) (fun h ↦ .inr (.inr h)))⟩)
     fun st3 hpc3 hfr3 ⟨hval, hch3, hsv3⟩ ↦ ?_
-  have hpc3' : st3.pc = Host.addrOf (k + 15) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b1Offset) := hpc3
   rw [hrdi2] at hch3
   rw [hrdi2, hrsi2] at hval
   have k3 := fkeep_call hS hrsp2 hle_t (c := 104) (n := 8 + tableBytes) hch3 (by decide)
@@ -267,7 +269,7 @@ theorem entry_a (hp : Placed code k)
         (BitVec.ofNat 64 1)) = true
       rw [load4_of_tag (env := frameEnv m0 st3.data 1168 (fun _ ↦ 0) 0) (r := 0) (.inl rfl) hval]
       rfl
-    exact none_fin hp hpre hmu ((hT4 hc).trans (hp.label (j := 107) rfl)) hfr4
+    exact none_fin hp hpre hmu ((hT4 hc).trans (hp.label NativeRustcVmX64.Vm.InducedWeight.label_3_at)) hfr4
       ((e4 .r14 (by simp)).trans hr14)
   simp only [hmu, ↓reduceIte] at hval
   obtain ⟨htag, htb⟩ := hval
@@ -277,7 +279,7 @@ theorem entry_a (hp : Placed code k)
       (BitVec.ofNat 64 1)) = false
     rw [load4_of_tag (env := frameEnv m0 st3.data 1168 (fun _ ↦ 0) 0) (r := 0) (.inr rfl) htag]
     rfl
-  have hpc4' : st4.pc = Host.addrOf (k + 17) := hF4 (by rw [hc]; exact Bool.false_ne_true)
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b2Offset) := hF4 (by rw [hc]; exact Bool.false_ne_true)
   have htb' : BufPairsAt st3.data.dmem (fbOf m0 + BitVec.ofNat 64 112) rootCap
       (tbOf m0).toList := by
     have := htb
@@ -300,10 +302,10 @@ theorem entry_a (hp : Placed code k)
 
 /-- **From `b2`**: the table's copy, the count; the queries' loop, or the sum `0`. -/
 theorem entry_b (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m0 : MachineData} (hpre : InducedWeightPre m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 17)) (hA : AtB2 m0 st.data)
-    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + 54) → OInv m0 0 st.data →
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b2Offset)) (hA : AtB2 m0 st.data)
+    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset) → OInv m0 0 st.data →
       Eventually (step1 Host.exe) (Post m0) st) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
@@ -317,7 +319,7 @@ theorem entry_b (hp : Placed code k)
   have hts := hA.tlen
   have hfr := hA.fr
   -- `b2`: the output spilled, `memcpy`
-  have hwf5 := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 17 + 7)).toBitVec) hS hF
+  have hwf5 := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b3Offset)).toBitVec) hS hF
   refine exec_at (hb2 hp) run_b2 hwf5 (fun _ _ ↦ rfl) hpc hfr.mid_match fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hk5, hsig5, hv24⟩ := after_eq run_b2 ▸ b2_call
   have hrsp5 := rsp_call hm5 rfl
@@ -359,7 +361,7 @@ theorem entry_b (hp : Placed code k)
       simp only [hrdi5, hrdx5] at h
       exact inRange_low_of hS hF (c := 624) (n := 496) (by omega) (by omega) h)))⟩)
     fun st6 hpc6 hfr6 ⟨_, hcopy, hso6, hsv6⟩ ↦ ?_
-  have hpc6' : st6.pc = Host.addrOf (k + 24) := hpc6
+  have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b3Offset) := hpc6
   simp only [hrdi5, hrsi5, hrdx5] at hcopy hso6
   have k6 := fkeep_range hS (c := 624) (n := 496) hso6 (by omega) (by omega) (lo := 0)
     (hi := 624) (by omega) (.inl le_rfl)
@@ -420,8 +422,8 @@ theorem entry_b (hp : Placed code k)
   obtain ⟨hT7, hF7⟩ := Arrays.pc_cond hpc7
   by_cases hc0 : cntOf m0 = 0
   · exact zero_fin hp hpre hA.mu hc0 ((hT7 (by rw [decide_eq_true_eq]; exact hc0)).trans
-      (hp.label (j := 110) rfl)) hfr7 w24_7
-  have hpc7' : st7.pc = Host.addrOf (k + 29) := hF7 (by rw [decide_eq_true_eq]; exact hc0)
+      (hp.label NativeRustcVmX64.Vm.InducedWeight.label_2_at)) hfr7 w24_7
+  have hpc7' : st7.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b4Offset) := hF7 (by rw [decide_eq_true_eq]; exact hc0)
   -- `b4`: the table's slice, the count, the point
   obtain ⟨hard, hap, -⟩ := args_ok hS hargs
   have hwf8 : (Env.ofMachine st7.data [(stackBelow m0 1168, 1168 + 8), (rspOf m0 + 8#64, 16)]).WF :=
@@ -458,7 +460,7 @@ theorem entry_b (hp : Placed code k)
     ((((k5.mono (by omega) (by omega)).trans (k6.mono (by omega) (by omega))).trans
       (k7a.mono (by omega) (by omega))).trans (k8b.mono le_rfl (by omega)))
   simp only [PcOk] at hpc8
-  refine cont st8 (hpc8.trans (hp.label (j := 54) rfl)) ⟨hfr8, ⟨?_, ?_, ?_⟩, by omega, hA.mu,
+  refine cont st8 (hpc8.trans (hp.label NativeRustcVmX64.Vm.InducedWeight.label_6_at)) ⟨hfr8, ⟨?_, ?_, ?_⟩, by omega, hA.mu,
     (hm8'.regs .rsi _ rfl).trans rfl, ?_, ?_, ?_, ?_⟩
   · exact word_keep w24_7 k8a (by omega) (by omega)
   · exact words5 w32 w40 w48 (word_keep hA.w56 hkA (by omega) (by omega))

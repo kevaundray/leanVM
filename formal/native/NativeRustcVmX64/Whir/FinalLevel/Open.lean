@@ -2,13 +2,14 @@ module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Queries
 public import NativeVm.Equiv.Transcript
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
 
 /-!
 # `final_level`: the openings (x86-64)
 
 From `b10` (`Live`, RBP the `WhirW`, the queries in its buffer): the query count saturated (RBX,
 R8), the queries' address (RBP, RCX), `query_openings(&rows, t, index, queries)` into the frame's
-`Option<Rows>` at `144` (`b10`), its tag tested (`b11`, `None` to `.LFinalLevel_5`): `openings`,
+`Option<Rows>` at `144` (`b10`), its tag tested (`b11`, `None` to `NativeRustcVmX64.Vm.FinalLevel.label_5`): `openings`,
 to `b12`. The query buffer across blocks (`Ctx.q_frame`) and calls (`Ctx.q_call`).
 -/
 
@@ -153,17 +154,17 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The openings**: `b10`, `query_openings`, `b11`, to `b12`. -/
 theorem openings (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hqo : ∀ a s Q, Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q)
+    (hqo : ∀ a s Q, Spec (Labels.label NativeRustcVmX64.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q)
       (QueryOpeningsPost a s Q))
     {st : MachineState} {folded : Array EW} {qs : Array UInt64} {s3 : TState}
-    (hpc : st.pc = Host.addrOf (k + 60)) (hl : Live level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b10Offset)) (hl : Live level m0 st.data folded)
     (hbp : reg st.data .rbp = pA m0)
     (hq : NativeRustcVm.BufWordsAt st.data.dmem (qA m0) queryCap qs.toList)
     (hts : TStateAt st.data.dmem (tA m0) a s3)
     (hrun : runF level b w rounds m0 s = (C3 (reg m0 .rsi).toNat (mu m0) (reg m0 .r8).toNat b w
       rounds folded qs).run s3)
     (cont : ∀ (st' : MachineState) (rws : Array (Array UInt64)) (s4 : TState),
-      st'.pc = Host.addrOf (k + 75) → Live level m0 st'.data folded →
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b12Offset) → Live level m0 st'.data folded →
       reg st'.data .rbp = pA m0 + BitVec.ofNat 64 61360 →
       reg st'.data .rbx = BitVec.ofNat 64 qs.size →
       NativeRustcVm.BufWordsAt st'.data.dmem (qA m0) queryCap qs.toList →
@@ -178,7 +179,7 @@ theorem openings (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hfo : 2 ^ mu m0 + level.fold ≤ 64 := c.fold
   have hqn : qs.size ≤ 230 := by have := hq.1; rwa [Array.length_toList] at this
   -- `b10`: `query_openings(&rows, t, index, queries)`.
-  let ret := (Host.addrOf (k + 73)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b11Offset)).toBitVec
   let env := argEnv m0 st.data 2672 8 [(pA m0, 63200)] (fun _ ↦ 0) ret
   have hwf : env.WF :=
     c.wf1 hl.fr.frame.kept (show NativeRustcVm.Mapped st.data.dmem (pA m0) 63200 from
@@ -252,7 +253,7 @@ theorem openings (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     hl.step hwf hm1 (writesIn_of_mid hmid1) hW1 (by decide) hkeep2 (by omega) (by omega) hf2
       (fun r hr ↦ (hcs2 r (by simp at hr; rcases hr with rfl | rfl | rfl | rfl <;> rfl)).trans
         (hk1 r hr)) hfo
-  have hpc2' : st2.pc = Host.addrOf (k + 73) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b11Offset) := hpc2
   -- `b11`: the openings' tag.
   refine Eventually.bind (cond_spec hp c b11_in_code (by simp [b11]) exit_b11 ok_b11 hf2 hpc2')
     fun st3 ⟨hr3, hd3, hpc3⟩ ↦ ?_
@@ -275,7 +276,7 @@ theorem openings (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     exact hp0
   rw [hne] at hpc3
   simp only [Bool.false_eq_true, ite_false] at hpc3
-  have hpc3' : st3.pc = Host.addrOf (k + 75) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b12Offset) := hpc3
   have hlt := qo_lt hr
   have hpb : phaseBase a.l s3.phase + phaseWords ≤ a.len :=
     Nat.le_trans (phaseBase_add_le (Nat.lt_of_lt_of_le hlt hts1.decoded.phases_le))

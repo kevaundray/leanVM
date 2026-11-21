@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.InstanceWeights.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.Powers.Names
 public import NativeRustcVmArm.KeccakGkr.InstanceWeights.Exec
 public import NativeRustcVmArm.KeccakGkr.InstanceWeights.Items
 public import NativeRustcVmArm.Spec.Arrays
@@ -49,11 +52,11 @@ variable [NativeArm.Host] {k : Nat}
 
 /-- **`instance_weights` meets its contract**, given `powers`' and `memcpy`'s. -/
 theorem instanceWeights_spec (hp : Placed code k)
-    (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) :
-    Spec (Labels.label instanceWeightsLabel) InstanceWeightsPre InstanceWeightsPost := by
+    (hpow : Spec (Labels.label NativeRustcVmArm.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.InstanceWeights.entryLabel) InstanceWeightsPre InstanceWeightsPost := by
   intro m0 hpre
-  have hl : Labels.label instanceWeightsLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hl : Labels.label NativeRustcVmArm.Vm.InstanceWeights.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.InstanceWeights.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.InstanceWeights.entryOffset) NativeRustcVmArm.Vm.InstanceWeights.entry_at
   rw [hl]
   obtain ⟨hS, hA⟩ := hpre
   have h976 : 976 ≤ instanceWeightsStack := by decide
@@ -142,22 +145,22 @@ theorem instanceWeights_spec (hp : Placed code k)
   refine exec_at (b1_in_code.trans hp.1 (by simp [b1])) e1 hwfB hpc2 hmB fun s3 hm3 hpc3 ↦ ?_
   have hm3' : Match (Env.ofMachine s2.data [(fb, 976)]) (it 0) s3.data := by
     rw [it_zero, after_eq e1]; exact hm3
-  simp only [PcOk, show b1.length = 99 from rfl] at hpc3
-  refine (Sym.loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + 301) ∧
+  simp only [PcOk, NativeRustcVmArm.Vm.InstanceWeights.b1_length, NativeRustcVmArm.Vm.InstanceWeights.b1Length] at hpc3
+  refine (Sym.loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InstanceWeights.b3Offset) ∧
       Match (Env.ofMachine s2.data [(fb, 976)]) (it 14) s'.data)
-    (fun n s ↦ ∃ j, n = 14 - j ∧ j < 14 ∧ s.pc = Host.addrOf (k + 144) ∧
+    (fun n s ↦ ∃ j, n = 14 - j ∧ j < 14 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InstanceWeights.b2Offset) ∧
       Match (Env.ofMachine s2.data [(fb, 976)]) (it j) s.data)
     (fun _ s ⟨j, hn, hj, hpc, hm⟩ ↦ exec_at (b2_in_code.trans hp.1 (by simp [b2])) (loop_exec hj)
       hwfB hpc hm fun s' hm' hpc' ↦ by
-        simp only [PcOk, SBool.eval, show b2.length = 157 from rfl] at hpc'
+        simp only [PcOk, SBool.eval, NativeRustcVmArm.Vm.InstanceWeights.b2_length, NativeRustcVmArm.Vm.InstanceWeights.b2Length] at hpc'
         by_cases hlast : j = 13
         · subst hlast
-          exact .done _ (Or.inl ⟨by simpa using hpc', hm'⟩)
+          exact .done _ (Or.inl ⟨by simpa [b2Offset, b3Offset] using hpc', hm'⟩)
         · have hc : (j != 13) = true := by simpa using hlast
           simp only [hc, ite_true] at hpc'
           exact .done _ (Or.inr ⟨14 - (j + 1), by omega, j + 1, rfl, by omega,
-            hpc'.trans (hp.label (j := 144) rfl), hm'⟩))
-    ⟨0, rfl, by decide, by simpa using hpc3, hm3'⟩).bind fun s4 ⟨hpc4, hm4⟩ ↦ ?_
+            hpc'.trans (hp.label (j := NativeRustcVmArm.Vm.InstanceWeights.b2Offset) NativeRustcVmArm.Vm.InstanceWeights.label_1_at), hm'⟩))
+    ⟨0, rfl, by decide, by simpa [b1Offset, b2Offset] using hpc3, hm3'⟩).bind fun s4 ⟨hpc4, hm4⟩ ↦ ?_
   refine exec_at (b3_in_code.trans hp.1 (by simp [b3])) e3 hwfB hpc4 hm4 fun s5 hm5 hpc5 ↦ ?_
   have hm5' : Match (Env.ofMachine s2.data [(fb, 976)]) (after b3 (it 14)) s5.data := by
     rw [after_eq e3]; exact hm5

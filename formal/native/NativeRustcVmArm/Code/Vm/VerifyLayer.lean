@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.Code.Vm.VerifyLayer.Part0
 public import NativeRustcVmArm.Code.Vm.VerifyLayer.Part1
 public import NativeRustcArm.Code.Infix
@@ -18,222 +19,1152 @@ namespace NativeRustcVmArm.Vm.VerifyLayer
 /-- The function's code: its blocks in order. -/
 def code : List Directive := List.flatten [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32, b33, b34, b35, b36, b37, b38, b39, b40, b41, b42, b43, b44, b45, b46, b47, b48, b49, b50, b51, b52, b53, b54, b55, b56, b57, b58, b59, b60, b61, b62, b63, b64, b65, b66, b67, b68, b69, b70]
 
+def codeLength : Nat := 701
+
+def b0Offset : Nat := 0
+
+def b0Length : Nat := 90
+
+def b0End : Nat := 90
+
+def b1Offset : Nat := 90
+
+def b1Length : Nat := 1
+
+def b1End : Nat := 91
+
+def b2Offset : Nat := 91
+
+def b2Length : Nat := 28
+
+def b2End : Nat := 119
+
+def b3Offset : Nat := 119
+
+def b3Length : Nat := 3
+
+def b3End : Nat := 122
+
+def b4Offset : Nat := 122
+
+def b4Length : Nat := 6
+
+def b4End : Nat := 128
+
+def b5Offset : Nat := 128
+
+def b5Length : Nat := 4
+
+def b5End : Nat := 132
+
+def b6Offset : Nat := 132
+
+def b6Length : Nat := 2
+
+def b6End : Nat := 134
+
+def b7Offset : Nat := 134
+
+def b7Length : Nat := 3
+
+def b7End : Nat := 137
+
+def b8Offset : Nat := 137
+
+def b8Length : Nat := 4
+
+def b8End : Nat := 141
+
+def b9Offset : Nat := 141
+
+def b9Length : Nat := 9
+
+def b9End : Nat := 150
+
+def b10Offset : Nat := 150
+
+def b10Length : Nat := 17
+
+def b10End : Nat := 167
+
+def b11Offset : Nat := 167
+
+def b11Length : Nat := 5
+
+def b11End : Nat := 172
+
+def b12Offset : Nat := 172
+
+def b12Length : Nat := 4
+
+def b12End : Nat := 176
+
+def b13Offset : Nat := 176
+
+def b13Length : Nat := 11
+
+def b13End : Nat := 187
+
+def b14Offset : Nat := 187
+
+def b14Length : Nat := 1
+
+def b14End : Nat := 188
+
+def b15Offset : Nat := 188
+
+def b15Length : Nat := 24
+
+def b15End : Nat := 212
+
+def b16Offset : Nat := 212
+
+def b16Length : Nat := 2
+
+def b16End : Nat := 214
+
+def b17Offset : Nat := 214
+
+def b17Length : Nat := 27
+
+def b17End : Nat := 241
+
+def b18Offset : Nat := 241
+
+def b18Length : Nat := 33
+
+def b18End : Nat := 274
+
+def b19Offset : Nat := 274
+
+def b19Length : Nat := 28
+
+def b19End : Nat := 302
+
+def b20Offset : Nat := 302
+
+def b20Length : Nat := 33
+
+def b20End : Nat := 335
+
+def b21Offset : Nat := 335
+
+def b21Length : Nat := 10
+
+def b21End : Nat := 345
+
+def b22Offset : Nat := 345
+
+def b22Length : Nat := 6
+
+def b22End : Nat := 351
+
+def b23Offset : Nat := 351
+
+def b23Length : Nat := 5
+
+def b23End : Nat := 356
+
+def b24Offset : Nat := 356
+
+def b24Length : Nat := 5
+
+def b24End : Nat := 361
+
+def b25Offset : Nat := 361
+
+def b25Length : Nat := 6
+
+def b25End : Nat := 367
+
+def b26Offset : Nat := 367
+
+def b26Length : Nat := 4
+
+def b26End : Nat := 371
+
+def b27Offset : Nat := 371
+
+def b27Length : Nat := 2
+
+def b27End : Nat := 373
+
+def b28Offset : Nat := 373
+
+def b28Length : Nat := 5
+
+def b28End : Nat := 378
+
+def b29Offset : Nat := 378
+
+def b29Length : Nat := 1
+
+def b29End : Nat := 379
+
+def b30Offset : Nat := 379
+
+def b30Length : Nat := 2
+
+def b30End : Nat := 381
+
+def b31Offset : Nat := 381
+
+def b31Length : Nat := 7
+
+def b31End : Nat := 388
+
+def b32Offset : Nat := 388
+
+def b32Length : Nat := 7
+
+def b32End : Nat := 395
+
+def b33Offset : Nat := 395
+
+def b33Length : Nat := 72
+
+def b33End : Nat := 467
+
+def b34Offset : Nat := 467
+
+def b34Length : Nat := 9
+
+def b34End : Nat := 476
+
+def b35Offset : Nat := 476
+
+def b35Length : Nat := 2
+
+def b35End : Nat := 478
+
+def b36Offset : Nat := 478
+
+def b36Length : Nat := 30
+
+def b36End : Nat := 508
+
+def b37Offset : Nat := 508
+
+def b37Length : Nat := 2
+
+def b37End : Nat := 510
+
+def b38Offset : Nat := 510
+
+def b38Length : Nat := 12
+
+def b38End : Nat := 522
+
+def b39Offset : Nat := 522
+
+def b39Length : Nat := 2
+
+def b39End : Nat := 524
+
+def b40Offset : Nat := 524
+
+def b40Length : Nat := 7
+
+def b40End : Nat := 531
+
+def b41Offset : Nat := 531
+
+def b41Length : Nat := 1
+
+def b41End : Nat := 532
+
+def b42Offset : Nat := 532
+
+def b42Length : Nat := 14
+
+def b42End : Nat := 546
+
+def b43Offset : Nat := 546
+
+def b43Length : Nat := 7
+
+def b43End : Nat := 553
+
+def b44Offset : Nat := 553
+
+def b44Length : Nat := 10
+
+def b44End : Nat := 563
+
+def b45Offset : Nat := 563
+
+def b45Length : Nat := 4
+
+def b45End : Nat := 567
+
+def b46Offset : Nat := 567
+
+def b46Length : Nat := 3
+
+def b46End : Nat := 570
+
+def b47Offset : Nat := 570
+
+def b47Length : Nat := 2
+
+def b47End : Nat := 572
+
+def b48Offset : Nat := 572
+
+def b48Length : Nat := 2
+
+def b48End : Nat := 574
+
+def b49Offset : Nat := 574
+
+def b49Length : Nat := 4
+
+def b49End : Nat := 578
+
+def b50Offset : Nat := 578
+
+def b50Length : Nat := 1
+
+def b50End : Nat := 579
+
+def b51Offset : Nat := 579
+
+def b51Length : Nat := 2
+
+def b51End : Nat := 581
+
+def b52Offset : Nat := 581
+
+def b52Length : Nat := 7
+
+def b52End : Nat := 588
+
+def b53Offset : Nat := 588
+
+def b53Length : Nat := 5
+
+def b53End : Nat := 593
+
+def b54Offset : Nat := 593
+
+def b54Length : Nat := 8
+
+def b54End : Nat := 601
+
+def b55Offset : Nat := 601
+
+def b55Length : Nat := 5
+
+def b55End : Nat := 606
+
+def b56Offset : Nat := 606
+
+def b56Length : Nat := 7
+
+def b56End : Nat := 613
+
+def b57Offset : Nat := 613
+
+def b57Length : Nat := 20
+
+def b57End : Nat := 633
+
+def b58Offset : Nat := 633
+
+def b58Length : Nat := 5
+
+def b58End : Nat := 638
+
+def b59Offset : Nat := 638
+
+def b59Length : Nat := 3
+
+def b59End : Nat := 641
+
+def b60Offset : Nat := 641
+
+def b60Length : Nat := 10
+
+def b60End : Nat := 651
+
+def b61Offset : Nat := 651
+
+def b61Length : Nat := 3
+
+def b61End : Nat := 654
+
+def b62Offset : Nat := 654
+
+def b62Length : Nat := 9
+
+def b62End : Nat := 663
+
+def b63Offset : Nat := 663
+
+def b63Length : Nat := 4
+
+def b63End : Nat := 667
+
+def b64Offset : Nat := 667
+
+def b64Length : Nat := 6
+
+def b64End : Nat := 673
+
+def b65Offset : Nat := 673
+
+def b65Length : Nat := 9
+
+def b65End : Nat := 682
+
+def b66Offset : Nat := 682
+
+def b66Length : Nat := 5
+
+def b66End : Nat := 687
+
+def b67Offset : Nat := 687
+
+def b67Length : Nat := 1
+
+def b67End : Nat := 688
+
+def b68Offset : Nat := 688
+
+def b68Length : Nat := 2
+
+def b68End : Nat := 690
+
+def b69Offset : Nat := 690
+
+def b69Length : Nat := 2
+
+def b69End : Nat := 692
+
+def b70Offset : Nat := 692
+
+def b70Length : Nat := 9
+
+def b70End : Nat := 701
+
+def entryOffset : Nat := 0
+
+def label_2Offset : Nat := 119
+
+def label_3Offset : Nat := 122
+
+def label_4Offset : Nat := 132
+
+def label_7Offset : Nat := 141
+
+def label_8Offset : Nat := 150
+
+def label_10Offset : Nat := 172
+
+def label_11Offset : Nat := 176
+
+def label_12Offset : Nat := 188
+
+def label_14Offset : Nat := 241
+
+def label_16Offset : Nat := 302
+
+def label_28Offset : Nat := 588
+
+def label_29Offset : Nat := 593
+
+def label_30Offset : Nat := 613
+
+def label_32Offset : Nat := 638
+
+def label_33Offset : Nat := 641
+
+def label_35Offset : Nat := 654
+
+def label_37Offset : Nat := 690
+
+def label_38Offset : Nat := 692
+
 end
 
 -- One lemma at a time: many kernel checks at once exceed a 60 GB address-space limit.
 set_option Elab.async false
 
-public theorem b0_in_code : b0.IsInfixAt code 0 :=
+public theorem code_length : code.length = codeLength := by decide +kernel
+
+public theorem b0_in_code : b0.IsInfixAt code b0Offset :=
   List.isInfixAt_flatten_of (i := 0) rfl (by decide +kernel)
 
-public theorem b1_in_code : b1.IsInfixAt code 90 :=
+public theorem b0_length : b0.length = b0Length := by decide +kernel
+
+public theorem b0_end : b0Offset + b0.length = b0End := by decide +kernel
+
+public theorem b0_next : b0Offset + b0.length = b1Offset := by decide +kernel
+
+public theorem b1_in_code : b1.IsInfixAt code b1Offset :=
   List.isInfixAt_flatten_of (i := 1) rfl (by decide +kernel)
 
-public theorem b2_in_code : b2.IsInfixAt code 91 :=
+public theorem b1_length : b1.length = b1Length := by decide +kernel
+
+public theorem b1_end : b1Offset + b1.length = b1End := by decide +kernel
+
+public theorem b1_next : b1Offset + b1.length = b2Offset := by decide +kernel
+
+public theorem b2_in_code : b2.IsInfixAt code b2Offset :=
   List.isInfixAt_flatten_of (i := 2) rfl (by decide +kernel)
 
-public theorem b3_in_code : b3.IsInfixAt code 119 :=
+public theorem b2_length : b2.length = b2Length := by decide +kernel
+
+public theorem b2_end : b2Offset + b2.length = b2End := by decide +kernel
+
+public theorem b2_next : b2Offset + b2.length = b3Offset := by decide +kernel
+
+public theorem b3_in_code : b3.IsInfixAt code b3Offset :=
   List.isInfixAt_flatten_of (i := 3) rfl (by decide +kernel)
 
-public theorem b4_in_code : b4.IsInfixAt code 122 :=
+public theorem b3_length : b3.length = b3Length := by decide +kernel
+
+public theorem b3_end : b3Offset + b3.length = b3End := by decide +kernel
+
+public theorem b3_next : b3Offset + b3.length = b4Offset := by decide +kernel
+
+public theorem b4_in_code : b4.IsInfixAt code b4Offset :=
   List.isInfixAt_flatten_of (i := 4) rfl (by decide +kernel)
 
-public theorem b5_in_code : b5.IsInfixAt code 128 :=
+public theorem b4_length : b4.length = b4Length := by decide +kernel
+
+public theorem b4_end : b4Offset + b4.length = b4End := by decide +kernel
+
+public theorem b4_next : b4Offset + b4.length = b5Offset := by decide +kernel
+
+public theorem b5_in_code : b5.IsInfixAt code b5Offset :=
   List.isInfixAt_flatten_of (i := 5) rfl (by decide +kernel)
 
-public theorem b6_in_code : b6.IsInfixAt code 132 :=
+public theorem b5_length : b5.length = b5Length := by decide +kernel
+
+public theorem b5_end : b5Offset + b5.length = b5End := by decide +kernel
+
+public theorem b5_next : b5Offset + b5.length = b6Offset := by decide +kernel
+
+public theorem b6_in_code : b6.IsInfixAt code b6Offset :=
   List.isInfixAt_flatten_of (i := 6) rfl (by decide +kernel)
 
-public theorem b7_in_code : b7.IsInfixAt code 134 :=
+public theorem b6_length : b6.length = b6Length := by decide +kernel
+
+public theorem b6_end : b6Offset + b6.length = b6End := by decide +kernel
+
+public theorem b6_next : b6Offset + b6.length = b7Offset := by decide +kernel
+
+public theorem b7_in_code : b7.IsInfixAt code b7Offset :=
   List.isInfixAt_flatten_of (i := 7) rfl (by decide +kernel)
 
-public theorem b8_in_code : b8.IsInfixAt code 137 :=
+public theorem b7_length : b7.length = b7Length := by decide +kernel
+
+public theorem b7_end : b7Offset + b7.length = b7End := by decide +kernel
+
+public theorem b7_next : b7Offset + b7.length = b8Offset := by decide +kernel
+
+public theorem b8_in_code : b8.IsInfixAt code b8Offset :=
   List.isInfixAt_flatten_of (i := 8) rfl (by decide +kernel)
 
-public theorem b9_in_code : b9.IsInfixAt code 141 :=
+public theorem b8_length : b8.length = b8Length := by decide +kernel
+
+public theorem b8_end : b8Offset + b8.length = b8End := by decide +kernel
+
+public theorem b8_next : b8Offset + b8.length = b9Offset := by decide +kernel
+
+public theorem b9_in_code : b9.IsInfixAt code b9Offset :=
   List.isInfixAt_flatten_of (i := 9) rfl (by decide +kernel)
 
-public theorem b10_in_code : b10.IsInfixAt code 150 :=
+public theorem b9_length : b9.length = b9Length := by decide +kernel
+
+public theorem b9_end : b9Offset + b9.length = b9End := by decide +kernel
+
+public theorem b9_next : b9Offset + b9.length = b10Offset := by decide +kernel
+
+public theorem b10_in_code : b10.IsInfixAt code b10Offset :=
   List.isInfixAt_flatten_of (i := 10) rfl (by decide +kernel)
 
-public theorem b11_in_code : b11.IsInfixAt code 167 :=
+public theorem b10_length : b10.length = b10Length := by decide +kernel
+
+public theorem b10_end : b10Offset + b10.length = b10End := by decide +kernel
+
+public theorem b10_next : b10Offset + b10.length = b11Offset := by decide +kernel
+
+public theorem b11_in_code : b11.IsInfixAt code b11Offset :=
   List.isInfixAt_flatten_of (i := 11) rfl (by decide +kernel)
 
-public theorem b12_in_code : b12.IsInfixAt code 172 :=
+public theorem b11_length : b11.length = b11Length := by decide +kernel
+
+public theorem b11_end : b11Offset + b11.length = b11End := by decide +kernel
+
+public theorem b11_next : b11Offset + b11.length = b12Offset := by decide +kernel
+
+public theorem b12_in_code : b12.IsInfixAt code b12Offset :=
   List.isInfixAt_flatten_of (i := 12) rfl (by decide +kernel)
 
-public theorem b13_in_code : b13.IsInfixAt code 176 :=
+public theorem b12_length : b12.length = b12Length := by decide +kernel
+
+public theorem b12_end : b12Offset + b12.length = b12End := by decide +kernel
+
+public theorem b12_next : b12Offset + b12.length = b13Offset := by decide +kernel
+
+public theorem b13_in_code : b13.IsInfixAt code b13Offset :=
   List.isInfixAt_flatten_of (i := 13) rfl (by decide +kernel)
 
-public theorem b14_in_code : b14.IsInfixAt code 187 :=
+public theorem b13_length : b13.length = b13Length := by decide +kernel
+
+public theorem b13_end : b13Offset + b13.length = b13End := by decide +kernel
+
+public theorem b13_next : b13Offset + b13.length = b14Offset := by decide +kernel
+
+public theorem b14_in_code : b14.IsInfixAt code b14Offset :=
   List.isInfixAt_flatten_of (i := 14) rfl (by decide +kernel)
 
-public theorem b15_in_code : b15.IsInfixAt code 188 :=
+public theorem b14_length : b14.length = b14Length := by decide +kernel
+
+public theorem b14_end : b14Offset + b14.length = b14End := by decide +kernel
+
+public theorem b14_next : b14Offset + b14.length = b15Offset := by decide +kernel
+
+public theorem b15_in_code : b15.IsInfixAt code b15Offset :=
   List.isInfixAt_flatten_of (i := 15) rfl (by decide +kernel)
 
-public theorem b16_in_code : b16.IsInfixAt code 212 :=
+public theorem b15_length : b15.length = b15Length := by decide +kernel
+
+public theorem b15_end : b15Offset + b15.length = b15End := by decide +kernel
+
+public theorem b15_next : b15Offset + b15.length = b16Offset := by decide +kernel
+
+public theorem b16_in_code : b16.IsInfixAt code b16Offset :=
   List.isInfixAt_flatten_of (i := 16) rfl (by decide +kernel)
 
-public theorem b17_in_code : b17.IsInfixAt code 214 :=
+public theorem b16_length : b16.length = b16Length := by decide +kernel
+
+public theorem b16_end : b16Offset + b16.length = b16End := by decide +kernel
+
+public theorem b16_next : b16Offset + b16.length = b17Offset := by decide +kernel
+
+public theorem b17_in_code : b17.IsInfixAt code b17Offset :=
   List.isInfixAt_flatten_of (i := 17) rfl (by decide +kernel)
 
-public theorem b18_in_code : b18.IsInfixAt code 241 :=
+public theorem b17_length : b17.length = b17Length := by decide +kernel
+
+public theorem b17_end : b17Offset + b17.length = b17End := by decide +kernel
+
+public theorem b17_next : b17Offset + b17.length = b18Offset := by decide +kernel
+
+public theorem b18_in_code : b18.IsInfixAt code b18Offset :=
   List.isInfixAt_flatten_of (i := 18) rfl (by decide +kernel)
 
-public theorem b19_in_code : b19.IsInfixAt code 274 :=
+public theorem b18_length : b18.length = b18Length := by decide +kernel
+
+public theorem b18_end : b18Offset + b18.length = b18End := by decide +kernel
+
+public theorem b18_next : b18Offset + b18.length = b19Offset := by decide +kernel
+
+public theorem b19_in_code : b19.IsInfixAt code b19Offset :=
   List.isInfixAt_flatten_of (i := 19) rfl (by decide +kernel)
 
-public theorem b20_in_code : b20.IsInfixAt code 302 :=
+public theorem b19_length : b19.length = b19Length := by decide +kernel
+
+public theorem b19_end : b19Offset + b19.length = b19End := by decide +kernel
+
+public theorem b19_next : b19Offset + b19.length = b20Offset := by decide +kernel
+
+public theorem b20_in_code : b20.IsInfixAt code b20Offset :=
   List.isInfixAt_flatten_of (i := 20) rfl (by decide +kernel)
 
-public theorem b21_in_code : b21.IsInfixAt code 335 :=
+public theorem b20_length : b20.length = b20Length := by decide +kernel
+
+public theorem b20_end : b20Offset + b20.length = b20End := by decide +kernel
+
+public theorem b20_next : b20Offset + b20.length = b21Offset := by decide +kernel
+
+public theorem b21_in_code : b21.IsInfixAt code b21Offset :=
   List.isInfixAt_flatten_of (i := 21) rfl (by decide +kernel)
 
-public theorem b22_in_code : b22.IsInfixAt code 345 :=
+public theorem b21_length : b21.length = b21Length := by decide +kernel
+
+public theorem b21_end : b21Offset + b21.length = b21End := by decide +kernel
+
+public theorem b21_next : b21Offset + b21.length = b22Offset := by decide +kernel
+
+public theorem b22_in_code : b22.IsInfixAt code b22Offset :=
   List.isInfixAt_flatten_of (i := 22) rfl (by decide +kernel)
 
-public theorem b23_in_code : b23.IsInfixAt code 351 :=
+public theorem b22_length : b22.length = b22Length := by decide +kernel
+
+public theorem b22_end : b22Offset + b22.length = b22End := by decide +kernel
+
+public theorem b22_next : b22Offset + b22.length = b23Offset := by decide +kernel
+
+public theorem b23_in_code : b23.IsInfixAt code b23Offset :=
   List.isInfixAt_flatten_of (i := 23) rfl (by decide +kernel)
 
-public theorem b24_in_code : b24.IsInfixAt code 356 :=
+public theorem b23_length : b23.length = b23Length := by decide +kernel
+
+public theorem b23_end : b23Offset + b23.length = b23End := by decide +kernel
+
+public theorem b23_next : b23Offset + b23.length = b24Offset := by decide +kernel
+
+public theorem b24_in_code : b24.IsInfixAt code b24Offset :=
   List.isInfixAt_flatten_of (i := 24) rfl (by decide +kernel)
 
-public theorem b25_in_code : b25.IsInfixAt code 361 :=
+public theorem b24_length : b24.length = b24Length := by decide +kernel
+
+public theorem b24_end : b24Offset + b24.length = b24End := by decide +kernel
+
+public theorem b24_next : b24Offset + b24.length = b25Offset := by decide +kernel
+
+public theorem b25_in_code : b25.IsInfixAt code b25Offset :=
   List.isInfixAt_flatten_of (i := 25) rfl (by decide +kernel)
 
-public theorem b26_in_code : b26.IsInfixAt code 367 :=
+public theorem b25_length : b25.length = b25Length := by decide +kernel
+
+public theorem b25_end : b25Offset + b25.length = b25End := by decide +kernel
+
+public theorem b25_next : b25Offset + b25.length = b26Offset := by decide +kernel
+
+public theorem b26_in_code : b26.IsInfixAt code b26Offset :=
   List.isInfixAt_flatten_of (i := 26) rfl (by decide +kernel)
 
-public theorem b27_in_code : b27.IsInfixAt code 371 :=
+public theorem b26_length : b26.length = b26Length := by decide +kernel
+
+public theorem b26_end : b26Offset + b26.length = b26End := by decide +kernel
+
+public theorem b26_next : b26Offset + b26.length = b27Offset := by decide +kernel
+
+public theorem b27_in_code : b27.IsInfixAt code b27Offset :=
   List.isInfixAt_flatten_of (i := 27) rfl (by decide +kernel)
 
-public theorem b28_in_code : b28.IsInfixAt code 373 :=
+public theorem b27_length : b27.length = b27Length := by decide +kernel
+
+public theorem b27_end : b27Offset + b27.length = b27End := by decide +kernel
+
+public theorem b27_next : b27Offset + b27.length = b28Offset := by decide +kernel
+
+public theorem b28_in_code : b28.IsInfixAt code b28Offset :=
   List.isInfixAt_flatten_of (i := 28) rfl (by decide +kernel)
 
-public theorem b29_in_code : b29.IsInfixAt code 378 :=
+public theorem b28_length : b28.length = b28Length := by decide +kernel
+
+public theorem b28_end : b28Offset + b28.length = b28End := by decide +kernel
+
+public theorem b28_next : b28Offset + b28.length = b29Offset := by decide +kernel
+
+public theorem b29_in_code : b29.IsInfixAt code b29Offset :=
   List.isInfixAt_flatten_of (i := 29) rfl (by decide +kernel)
 
-public theorem b30_in_code : b30.IsInfixAt code 379 :=
+public theorem b29_length : b29.length = b29Length := by decide +kernel
+
+public theorem b29_end : b29Offset + b29.length = b29End := by decide +kernel
+
+public theorem b29_next : b29Offset + b29.length = b30Offset := by decide +kernel
+
+public theorem b30_in_code : b30.IsInfixAt code b30Offset :=
   List.isInfixAt_flatten_of (i := 30) rfl (by decide +kernel)
 
-public theorem b31_in_code : b31.IsInfixAt code 381 :=
+public theorem b30_length : b30.length = b30Length := by decide +kernel
+
+public theorem b30_end : b30Offset + b30.length = b30End := by decide +kernel
+
+public theorem b30_next : b30Offset + b30.length = b31Offset := by decide +kernel
+
+public theorem b31_in_code : b31.IsInfixAt code b31Offset :=
   List.isInfixAt_flatten_of (i := 31) rfl (by decide +kernel)
 
-public theorem b32_in_code : b32.IsInfixAt code 388 :=
+public theorem b31_length : b31.length = b31Length := by decide +kernel
+
+public theorem b31_end : b31Offset + b31.length = b31End := by decide +kernel
+
+public theorem b31_next : b31Offset + b31.length = b32Offset := by decide +kernel
+
+public theorem b32_in_code : b32.IsInfixAt code b32Offset :=
   List.isInfixAt_flatten_of (i := 32) rfl (by decide +kernel)
 
-public theorem b33_in_code : b33.IsInfixAt code 395 :=
+public theorem b32_length : b32.length = b32Length := by decide +kernel
+
+public theorem b32_end : b32Offset + b32.length = b32End := by decide +kernel
+
+public theorem b32_next : b32Offset + b32.length = b33Offset := by decide +kernel
+
+public theorem b33_in_code : b33.IsInfixAt code b33Offset :=
   List.isInfixAt_flatten_of (i := 33) rfl (by decide +kernel)
 
-public theorem b34_in_code : b34.IsInfixAt code 467 :=
+public theorem b33_length : b33.length = b33Length := by decide +kernel
+
+public theorem b33_end : b33Offset + b33.length = b33End := by decide +kernel
+
+public theorem b33_next : b33Offset + b33.length = b34Offset := by decide +kernel
+
+public theorem b34_in_code : b34.IsInfixAt code b34Offset :=
   List.isInfixAt_flatten_of (i := 34) rfl (by decide +kernel)
 
-public theorem b35_in_code : b35.IsInfixAt code 476 :=
+public theorem b34_length : b34.length = b34Length := by decide +kernel
+
+public theorem b34_end : b34Offset + b34.length = b34End := by decide +kernel
+
+public theorem b34_next : b34Offset + b34.length = b35Offset := by decide +kernel
+
+public theorem b35_in_code : b35.IsInfixAt code b35Offset :=
   List.isInfixAt_flatten_of (i := 35) rfl (by decide +kernel)
 
-public theorem b36_in_code : b36.IsInfixAt code 478 :=
+public theorem b35_length : b35.length = b35Length := by decide +kernel
+
+public theorem b35_end : b35Offset + b35.length = b35End := by decide +kernel
+
+public theorem b35_next : b35Offset + b35.length = b36Offset := by decide +kernel
+
+public theorem b36_in_code : b36.IsInfixAt code b36Offset :=
   List.isInfixAt_flatten_of (i := 36) rfl (by decide +kernel)
 
-public theorem b37_in_code : b37.IsInfixAt code 508 :=
+public theorem b36_length : b36.length = b36Length := by decide +kernel
+
+public theorem b36_end : b36Offset + b36.length = b36End := by decide +kernel
+
+public theorem b36_next : b36Offset + b36.length = b37Offset := by decide +kernel
+
+public theorem b37_in_code : b37.IsInfixAt code b37Offset :=
   List.isInfixAt_flatten_of (i := 37) rfl (by decide +kernel)
 
-public theorem b38_in_code : b38.IsInfixAt code 510 :=
+public theorem b37_length : b37.length = b37Length := by decide +kernel
+
+public theorem b37_end : b37Offset + b37.length = b37End := by decide +kernel
+
+public theorem b37_next : b37Offset + b37.length = b38Offset := by decide +kernel
+
+public theorem b38_in_code : b38.IsInfixAt code b38Offset :=
   List.isInfixAt_flatten_of (i := 38) rfl (by decide +kernel)
 
-public theorem b39_in_code : b39.IsInfixAt code 522 :=
+public theorem b38_length : b38.length = b38Length := by decide +kernel
+
+public theorem b38_end : b38Offset + b38.length = b38End := by decide +kernel
+
+public theorem b38_next : b38Offset + b38.length = b39Offset := by decide +kernel
+
+public theorem b39_in_code : b39.IsInfixAt code b39Offset :=
   List.isInfixAt_flatten_of (i := 39) rfl (by decide +kernel)
 
-public theorem b40_in_code : b40.IsInfixAt code 524 :=
+public theorem b39_length : b39.length = b39Length := by decide +kernel
+
+public theorem b39_end : b39Offset + b39.length = b39End := by decide +kernel
+
+public theorem b39_next : b39Offset + b39.length = b40Offset := by decide +kernel
+
+public theorem b40_in_code : b40.IsInfixAt code b40Offset :=
   List.isInfixAt_flatten_of (i := 40) rfl (by decide +kernel)
 
-public theorem b41_in_code : b41.IsInfixAt code 531 :=
+public theorem b40_length : b40.length = b40Length := by decide +kernel
+
+public theorem b40_end : b40Offset + b40.length = b40End := by decide +kernel
+
+public theorem b40_next : b40Offset + b40.length = b41Offset := by decide +kernel
+
+public theorem b41_in_code : b41.IsInfixAt code b41Offset :=
   List.isInfixAt_flatten_of (i := 41) rfl (by decide +kernel)
 
-public theorem b42_in_code : b42.IsInfixAt code 532 :=
+public theorem b41_length : b41.length = b41Length := by decide +kernel
+
+public theorem b41_end : b41Offset + b41.length = b41End := by decide +kernel
+
+public theorem b41_next : b41Offset + b41.length = b42Offset := by decide +kernel
+
+public theorem b42_in_code : b42.IsInfixAt code b42Offset :=
   List.isInfixAt_flatten_of (i := 42) rfl (by decide +kernel)
 
-public theorem b43_in_code : b43.IsInfixAt code 546 :=
+public theorem b42_length : b42.length = b42Length := by decide +kernel
+
+public theorem b42_end : b42Offset + b42.length = b42End := by decide +kernel
+
+public theorem b42_next : b42Offset + b42.length = b43Offset := by decide +kernel
+
+public theorem b43_in_code : b43.IsInfixAt code b43Offset :=
   List.isInfixAt_flatten_of (i := 43) rfl (by decide +kernel)
 
-public theorem b44_in_code : b44.IsInfixAt code 553 :=
+public theorem b43_length : b43.length = b43Length := by decide +kernel
+
+public theorem b43_end : b43Offset + b43.length = b43End := by decide +kernel
+
+public theorem b43_next : b43Offset + b43.length = b44Offset := by decide +kernel
+
+public theorem b44_in_code : b44.IsInfixAt code b44Offset :=
   List.isInfixAt_flatten_of (i := 44) rfl (by decide +kernel)
 
-public theorem b45_in_code : b45.IsInfixAt code 563 :=
+public theorem b44_length : b44.length = b44Length := by decide +kernel
+
+public theorem b44_end : b44Offset + b44.length = b44End := by decide +kernel
+
+public theorem b44_next : b44Offset + b44.length = b45Offset := by decide +kernel
+
+public theorem b45_in_code : b45.IsInfixAt code b45Offset :=
   List.isInfixAt_flatten_of (i := 45) rfl (by decide +kernel)
 
-public theorem b46_in_code : b46.IsInfixAt code 567 :=
+public theorem b45_length : b45.length = b45Length := by decide +kernel
+
+public theorem b45_end : b45Offset + b45.length = b45End := by decide +kernel
+
+public theorem b45_next : b45Offset + b45.length = b46Offset := by decide +kernel
+
+public theorem b46_in_code : b46.IsInfixAt code b46Offset :=
   List.isInfixAt_flatten_of (i := 46) rfl (by decide +kernel)
 
-public theorem b47_in_code : b47.IsInfixAt code 570 :=
+public theorem b46_length : b46.length = b46Length := by decide +kernel
+
+public theorem b46_end : b46Offset + b46.length = b46End := by decide +kernel
+
+public theorem b46_next : b46Offset + b46.length = b47Offset := by decide +kernel
+
+public theorem b47_in_code : b47.IsInfixAt code b47Offset :=
   List.isInfixAt_flatten_of (i := 47) rfl (by decide +kernel)
 
-public theorem b48_in_code : b48.IsInfixAt code 572 :=
+public theorem b47_length : b47.length = b47Length := by decide +kernel
+
+public theorem b47_end : b47Offset + b47.length = b47End := by decide +kernel
+
+public theorem b47_next : b47Offset + b47.length = b48Offset := by decide +kernel
+
+public theorem b48_in_code : b48.IsInfixAt code b48Offset :=
   List.isInfixAt_flatten_of (i := 48) rfl (by decide +kernel)
 
-public theorem b49_in_code : b49.IsInfixAt code 574 :=
+public theorem b48_length : b48.length = b48Length := by decide +kernel
+
+public theorem b48_end : b48Offset + b48.length = b48End := by decide +kernel
+
+public theorem b48_next : b48Offset + b48.length = b49Offset := by decide +kernel
+
+public theorem b49_in_code : b49.IsInfixAt code b49Offset :=
   List.isInfixAt_flatten_of (i := 49) rfl (by decide +kernel)
 
-public theorem b50_in_code : b50.IsInfixAt code 578 :=
+public theorem b49_length : b49.length = b49Length := by decide +kernel
+
+public theorem b49_end : b49Offset + b49.length = b49End := by decide +kernel
+
+public theorem b49_next : b49Offset + b49.length = b50Offset := by decide +kernel
+
+public theorem b50_in_code : b50.IsInfixAt code b50Offset :=
   List.isInfixAt_flatten_of (i := 50) rfl (by decide +kernel)
 
-public theorem b51_in_code : b51.IsInfixAt code 579 :=
+public theorem b50_length : b50.length = b50Length := by decide +kernel
+
+public theorem b50_end : b50Offset + b50.length = b50End := by decide +kernel
+
+public theorem b50_next : b50Offset + b50.length = b51Offset := by decide +kernel
+
+public theorem b51_in_code : b51.IsInfixAt code b51Offset :=
   List.isInfixAt_flatten_of (i := 51) rfl (by decide +kernel)
 
-public theorem b52_in_code : b52.IsInfixAt code 581 :=
+public theorem b51_length : b51.length = b51Length := by decide +kernel
+
+public theorem b51_end : b51Offset + b51.length = b51End := by decide +kernel
+
+public theorem b51_next : b51Offset + b51.length = b52Offset := by decide +kernel
+
+public theorem b52_in_code : b52.IsInfixAt code b52Offset :=
   List.isInfixAt_flatten_of (i := 52) rfl (by decide +kernel)
 
-public theorem b53_in_code : b53.IsInfixAt code 588 :=
+public theorem b52_length : b52.length = b52Length := by decide +kernel
+
+public theorem b52_end : b52Offset + b52.length = b52End := by decide +kernel
+
+public theorem b52_next : b52Offset + b52.length = b53Offset := by decide +kernel
+
+public theorem b53_in_code : b53.IsInfixAt code b53Offset :=
   List.isInfixAt_flatten_of (i := 53) rfl (by decide +kernel)
 
-public theorem b54_in_code : b54.IsInfixAt code 593 :=
+public theorem b53_length : b53.length = b53Length := by decide +kernel
+
+public theorem b53_end : b53Offset + b53.length = b53End := by decide +kernel
+
+public theorem b53_next : b53Offset + b53.length = b54Offset := by decide +kernel
+
+public theorem b54_in_code : b54.IsInfixAt code b54Offset :=
   List.isInfixAt_flatten_of (i := 54) rfl (by decide +kernel)
 
-public theorem b55_in_code : b55.IsInfixAt code 601 :=
+public theorem b54_length : b54.length = b54Length := by decide +kernel
+
+public theorem b54_end : b54Offset + b54.length = b54End := by decide +kernel
+
+public theorem b54_next : b54Offset + b54.length = b55Offset := by decide +kernel
+
+public theorem b55_in_code : b55.IsInfixAt code b55Offset :=
   List.isInfixAt_flatten_of (i := 55) rfl (by decide +kernel)
 
-public theorem b56_in_code : b56.IsInfixAt code 606 :=
+public theorem b55_length : b55.length = b55Length := by decide +kernel
+
+public theorem b55_end : b55Offset + b55.length = b55End := by decide +kernel
+
+public theorem b55_next : b55Offset + b55.length = b56Offset := by decide +kernel
+
+public theorem b56_in_code : b56.IsInfixAt code b56Offset :=
   List.isInfixAt_flatten_of (i := 56) rfl (by decide +kernel)
 
-public theorem b57_in_code : b57.IsInfixAt code 613 :=
+public theorem b56_length : b56.length = b56Length := by decide +kernel
+
+public theorem b56_end : b56Offset + b56.length = b56End := by decide +kernel
+
+public theorem b56_next : b56Offset + b56.length = b57Offset := by decide +kernel
+
+public theorem b57_in_code : b57.IsInfixAt code b57Offset :=
   List.isInfixAt_flatten_of (i := 57) rfl (by decide +kernel)
 
-public theorem b58_in_code : b58.IsInfixAt code 633 :=
+public theorem b57_length : b57.length = b57Length := by decide +kernel
+
+public theorem b57_end : b57Offset + b57.length = b57End := by decide +kernel
+
+public theorem b57_next : b57Offset + b57.length = b58Offset := by decide +kernel
+
+public theorem b58_in_code : b58.IsInfixAt code b58Offset :=
   List.isInfixAt_flatten_of (i := 58) rfl (by decide +kernel)
 
-public theorem b59_in_code : b59.IsInfixAt code 638 :=
+public theorem b58_length : b58.length = b58Length := by decide +kernel
+
+public theorem b58_end : b58Offset + b58.length = b58End := by decide +kernel
+
+public theorem b58_next : b58Offset + b58.length = b59Offset := by decide +kernel
+
+public theorem b59_in_code : b59.IsInfixAt code b59Offset :=
   List.isInfixAt_flatten_of (i := 59) rfl (by decide +kernel)
 
-public theorem b60_in_code : b60.IsInfixAt code 641 :=
+public theorem b59_length : b59.length = b59Length := by decide +kernel
+
+public theorem b59_end : b59Offset + b59.length = b59End := by decide +kernel
+
+public theorem b59_next : b59Offset + b59.length = b60Offset := by decide +kernel
+
+public theorem b60_in_code : b60.IsInfixAt code b60Offset :=
   List.isInfixAt_flatten_of (i := 60) rfl (by decide +kernel)
 
-public theorem b61_in_code : b61.IsInfixAt code 651 :=
+public theorem b60_length : b60.length = b60Length := by decide +kernel
+
+public theorem b60_end : b60Offset + b60.length = b60End := by decide +kernel
+
+public theorem b60_next : b60Offset + b60.length = b61Offset := by decide +kernel
+
+public theorem b61_in_code : b61.IsInfixAt code b61Offset :=
   List.isInfixAt_flatten_of (i := 61) rfl (by decide +kernel)
 
-public theorem b62_in_code : b62.IsInfixAt code 654 :=
+public theorem b61_length : b61.length = b61Length := by decide +kernel
+
+public theorem b61_end : b61Offset + b61.length = b61End := by decide +kernel
+
+public theorem b61_next : b61Offset + b61.length = b62Offset := by decide +kernel
+
+public theorem b62_in_code : b62.IsInfixAt code b62Offset :=
   List.isInfixAt_flatten_of (i := 62) rfl (by decide +kernel)
 
-public theorem b63_in_code : b63.IsInfixAt code 663 :=
+public theorem b62_length : b62.length = b62Length := by decide +kernel
+
+public theorem b62_end : b62Offset + b62.length = b62End := by decide +kernel
+
+public theorem b62_next : b62Offset + b62.length = b63Offset := by decide +kernel
+
+public theorem b63_in_code : b63.IsInfixAt code b63Offset :=
   List.isInfixAt_flatten_of (i := 63) rfl (by decide +kernel)
 
-public theorem b64_in_code : b64.IsInfixAt code 667 :=
+public theorem b63_length : b63.length = b63Length := by decide +kernel
+
+public theorem b63_end : b63Offset + b63.length = b63End := by decide +kernel
+
+public theorem b63_next : b63Offset + b63.length = b64Offset := by decide +kernel
+
+public theorem b64_in_code : b64.IsInfixAt code b64Offset :=
   List.isInfixAt_flatten_of (i := 64) rfl (by decide +kernel)
 
-public theorem b65_in_code : b65.IsInfixAt code 673 :=
+public theorem b64_length : b64.length = b64Length := by decide +kernel
+
+public theorem b64_end : b64Offset + b64.length = b64End := by decide +kernel
+
+public theorem b64_next : b64Offset + b64.length = b65Offset := by decide +kernel
+
+public theorem b65_in_code : b65.IsInfixAt code b65Offset :=
   List.isInfixAt_flatten_of (i := 65) rfl (by decide +kernel)
 
-public theorem b66_in_code : b66.IsInfixAt code 682 :=
+public theorem b65_length : b65.length = b65Length := by decide +kernel
+
+public theorem b65_end : b65Offset + b65.length = b65End := by decide +kernel
+
+public theorem b65_next : b65Offset + b65.length = b66Offset := by decide +kernel
+
+public theorem b66_in_code : b66.IsInfixAt code b66Offset :=
   List.isInfixAt_flatten_of (i := 66) rfl (by decide +kernel)
 
-public theorem b67_in_code : b67.IsInfixAt code 687 :=
+public theorem b66_length : b66.length = b66Length := by decide +kernel
+
+public theorem b66_end : b66Offset + b66.length = b66End := by decide +kernel
+
+public theorem b66_next : b66Offset + b66.length = b67Offset := by decide +kernel
+
+public theorem b67_in_code : b67.IsInfixAt code b67Offset :=
   List.isInfixAt_flatten_of (i := 67) rfl (by decide +kernel)
 
-public theorem b68_in_code : b68.IsInfixAt code 688 :=
+public theorem b67_length : b67.length = b67Length := by decide +kernel
+
+public theorem b67_end : b67Offset + b67.length = b67End := by decide +kernel
+
+public theorem b67_next : b67Offset + b67.length = b68Offset := by decide +kernel
+
+public theorem b68_in_code : b68.IsInfixAt code b68Offset :=
   List.isInfixAt_flatten_of (i := 68) rfl (by decide +kernel)
 
-public theorem b69_in_code : b69.IsInfixAt code 690 :=
+public theorem b68_length : b68.length = b68Length := by decide +kernel
+
+public theorem b68_end : b68Offset + b68.length = b68End := by decide +kernel
+
+public theorem b68_next : b68Offset + b68.length = b69Offset := by decide +kernel
+
+public theorem b69_in_code : b69.IsInfixAt code b69Offset :=
   List.isInfixAt_flatten_of (i := 69) rfl (by decide +kernel)
 
-public theorem b70_in_code : b70.IsInfixAt code 692 :=
+public theorem b69_length : b69.length = b69Length := by decide +kernel
+
+public theorem b69_end : b69Offset + b69.length = b69End := by decide +kernel
+
+public theorem b69_next : b69Offset + b69.length = b70Offset := by decide +kernel
+
+public theorem b70_in_code : b70.IsInfixAt code b70Offset :=
   List.isInfixAt_flatten_of (i := 70) rfl (by decide +kernel)
+
+public theorem b70_length : b70.length = b70Length := by decide +kernel
+
+public theorem b70_end : b70Offset + b70.length = b70End := by decide +kernel
+
+public theorem entry_at : code[entryOffset]? = some (.label entryLabel) := by decide +kernel
+
+public theorem label_2_at : code[label_2Offset]? = some (.label label_2) := by decide +kernel
+
+public theorem label_3_at : code[label_3Offset]? = some (.label label_3) := by decide +kernel
+
+public theorem label_4_at : code[label_4Offset]? = some (.label label_4) := by decide +kernel
+
+public theorem label_7_at : code[label_7Offset]? = some (.label label_7) := by decide +kernel
+
+public theorem label_8_at : code[label_8Offset]? = some (.label label_8) := by decide +kernel
+
+public theorem label_10_at : code[label_10Offset]? = some (.label label_10) := by decide +kernel
+
+public theorem label_11_at : code[label_11Offset]? = some (.label label_11) := by decide +kernel
+
+public theorem label_12_at : code[label_12Offset]? = some (.label label_12) := by decide +kernel
+
+public theorem label_14_at : code[label_14Offset]? = some (.label label_14) := by decide +kernel
+
+public theorem label_16_at : code[label_16Offset]? = some (.label label_16) := by decide +kernel
+
+public theorem label_28_at : code[label_28Offset]? = some (.label label_28) := by decide +kernel
+
+public theorem label_29_at : code[label_29Offset]? = some (.label label_29) := by decide +kernel
+
+public theorem label_30_at : code[label_30Offset]? = some (.label label_30) := by decide +kernel
+
+public theorem label_32_at : code[label_32Offset]? = some (.label label_32) := by decide +kernel
+
+public theorem label_33_at : code[label_33Offset]? = some (.label label_33) := by decide +kernel
+
+public theorem label_35_at : code[label_35Offset]? = some (.label label_35) := by decide +kernel
+
+public theorem label_37_at : code[label_37Offset]? = some (.label label_37) := by decide +kernel
+
+public theorem label_38_at : code[label_38Offset]? = some (.label label_38) := by decide +kernel
 
 end NativeRustcVmArm.Vm.VerifyLayer

@@ -5,6 +5,7 @@ public import NativeRustcVmX64.Spec.Wire
 public import NativeRustcVm.Wire.ReaderFacts
 public import NativeRustcVm.Transcript.Update
 import NativeVm.Wire.Read
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # Memory kept, by numbers (x86-64)
@@ -161,7 +162,7 @@ variable [Host]
 /-- **A call of `Reader::le` for four bytes** from a frame of `F` bytes (its slots from `lo` on),
 with the reader at `r` apart from the call's return address and its cursor apart from the slots
 and the return address. -/
-theorem le4_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+theorem le4_call (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     {m0 : MachineData} {F N lo : Nat} {slots : Slots} (hst : StackOk m0 N) (hFN : F ≤ N)
     (hlo : lo ≤ F) (hsl : ∀ p ∈ slots, lo ≤ p.1 ∧ p.1 + 8 ≤ F) {st : MachineState} {next : Int64}
     {R : MachineState → Prop} (hf : Frame m0 F slots 0 st.data) {r bp : BitVec 64}
@@ -169,7 +170,7 @@ theorem le4_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePo
     (hrsi : (reg st.data .rsi).toNat = 4)
     (hap : (rspOf m0).toNat - F + 8 ≤ r.toNat ∨ r.toNat + 24 ≤ (rspOf m0).toNat - F)
     (hcur : r.toNat + 24 ≤ (rspOf m0).toNat - F + lo ∨ (rspOf m0).toNat + 8 ≤ r.toNat + 16)
-    (hpc : st.pc = Labels.label readerLeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, Frame m0 F slots 8 m2 →
       (∀ x, calleeSaved x = true → reg m2 x = reg st.data x) →
       NativeRustcVm.SameOutside st.data.dmem m2.dmem (NativeRustcVm.InRange (off r 16) 8) →

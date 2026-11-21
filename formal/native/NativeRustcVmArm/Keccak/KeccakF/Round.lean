@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.KeccakF.RoundLanes
 
 /-!
@@ -39,9 +40,9 @@ theorem round_step {k : Nat} (hp : Placed Vm.KeccakF.code k) {m0 : MachineData}
     (hstk : StackOk m0 NativeRustcVmArm.keccakFStack) {i : Nat} (hi : i < 24) {m : MachineData}
     (hA : At m0 i m) :
     Eventually (step1 Host.exe) (fun st => At m0 (i + 1) st.data ∧
-      st.pc = if i + 1 = 24 then Host.addrOf (k + 191) else Host.addrOf (k + 33))
-      ⟨m, Host.addrOf (k + 33)⟩ := by
-  have hk : Vm.KeccakF.b2.IsInfixAt Host.prog (k + 33) :=
+      st.pc = if i + 1 = 24 then Host.addrOf (k + NativeRustcVmArm.Vm.KeccakF.b3Offset) else Host.addrOf (k + NativeRustcVmArm.Vm.KeccakF.b2Offset))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.KeccakF.b2Offset)⟩ := by
+  have hk : Vm.KeccakF.b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KeccakF.b2Offset) :=
     Vm.KeccakF.b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine m [(frame m0, 400)] fun _ => BitVec.ofNat 64 (16 + 8 * i)
   have hwf : env.WF :=
@@ -87,12 +88,12 @@ theorem round_step {k : Nat} (hp : Placed Vm.KeccakF.code k) {m0 : MachineData}
         (by rw [length_rcBytes]; rfl) hA.rc
     · exact fun p hp => (same_region hm' hwf hb0 (by decide) p hp).trans (hA.same p hp)
     · exact fun p h => hm'.kept hwf p (hA.kept p h)
-  · have hlab : Labels.label ".LKeccakF_1" = Host.addrOf (k + 33) := hp.label (j := 33) rfl
+  · have hlab : Labels.label NativeRustcVmArm.Vm.KeccakF.label_1 = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakF.b2Offset) := hp.label (j := NativeRustcVmArm.Vm.KeccakF.b2Offset) NativeRustcVmArm.Vm.KeccakF.label_1_at
     simp only [PcOk] at hpc
     rw [hpc, hlab]
     sym_simp
     rw [show env.vars 0 = BitVec.ofNat 64 (16 + 8 * i) from rfl,
-      show Vm.KeccakF.b2.length = 158 from rfl]
+      Vm.KeccakF.b2_length, Vm.KeccakF.b2Length]
     by_cases h : i + 1 = 24
     · obtain rfl : i = 23 := by omega
       rfl

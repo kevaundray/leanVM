@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+
 public import NativeRustcArm.Hasher.Bytes
 public import NativeRustcArm.Hasher.FinalizeExec
 
@@ -220,29 +222,29 @@ theorem byteOf_ofNat_ofBytes (bs : List UInt8) (hn : bs.length ≤ 8) (t : Nat) 
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 11) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 14) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 16) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 30) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb4ab (hp : Placed code k) : (b4a ++ b4b).IsInfixAt Host.prog (k + 30) := by
+theorem hb4ab (hp : Placed code k) : (b4a ++ b4b).IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b4Offset) := by
   rw [b4a, b4b, List.take_append_drop]
   exact hb4 hp
-theorem hb4a (hp : Placed code k) : b4a.IsInfixAt Host.prog (k + 30) :=
+theorem hb4a (hp : Placed code k) : b4a.IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b4Offset) :=
   (List.IsInfixAt.append (hb4ab hp)).1
-theorem hb4b (hp : Placed code k) : b4b.IsInfixAt Host.prog (k + 33) :=
+theorem hb4b (hp : Placed code k) : b4b.IsInfixAt Host.prog (k + (NativeRustcArm.Common.Finalize.b4Offset + b4a.length)) :=
   (List.IsInfixAt.append (hb4ab hp)).2
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 82) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcArm.Common.Finalize.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
 
 theorem lbl_entry (hp : Placed code k) :
-    Labels.label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize" = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
+    Labels.label NativeRustcArm.Common.Finalize.entryLabel = Host.addrOf (k + NativeRustcArm.Common.Finalize.b0Offset) :=
+  hp.label NativeRustcArm.Common.Finalize.entry_at
 
 end
 

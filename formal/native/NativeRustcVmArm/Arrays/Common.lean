@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcArm.Sym
 public import NativeRustcVmArm.Spec.Arrays
 public import NativeRustcVm.Arrays.ReadLemmas
@@ -701,10 +702,10 @@ theorem ewMulPre_of {m0 st : MachineData} {S : Nat} (hS : StackOk m0 S) (hle : e
 
 /-- **A tail call of `EW::mul`** (`b`, SP and the callee-saved registers and X30 the entry's): the
 callee returns to the entry's caller, the `S` bytes of stack its only other change. -/
-theorem tail_mul [Host] (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {m0 st : MachineData}
+theorem tail_mul [Host] (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {m0 st : MachineData}
     {S : Nat} {pc : Int64} {oa : BitVec 64} {on : Nat} (hS : StackOk m0 S) (hle : ewMulStack ≤ S)
     (hsaved : Saved m0 st) (hx30 : st.regs.X30 = m0.regs.X30) (hc : Changes m0 st S oa on)
-    (hpc : pc = Labels.label ewMulLabel) :
+    (hpc : pc = Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧
       (⟨s.data.regs.X0, s.data.regs.X1⟩ : EW) = EW.mul ⟨st.regs.X0, st.regs.X1⟩ ⟨st.regs.X2, st.regs.X3⟩ ∧
       Changes m0 s.data S oa on ∧ Saved m0 s.data) ⟨st, pc⟩ := by

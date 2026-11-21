@@ -46,15 +46,15 @@ variable (r : Run) [Host]
 /-- **`b23 .. b25`**: the second layer's chain values at `576`, R15D its counter's bytes. -/
 theorem layer1_a (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : MachineData}
     (h : LS1 r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 281 ∧ r.Frame st.data ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b26Offset ∧ r.Frame st.data ∧
       Facts r st.data.dmem (L1 r) ∧
       BytesAt st.data.dmem (r.off 576) (slice (sigBytes r.w) 5400 1024) ∧
       Run.RegIs st.data .rbx (r.off 1760) ∧ Run.RegIs st.data .r14 (r.off 576) ∧
       Low4 (reg st.data .rbp) (be32 (r.w 538).toUInt32) ∧
-      Low4 (reg st.data .r15) (be32 (r.w 683).toUInt32)) ⟨m, r.pc 260⟩ := by
+      Low4 (reg st.data .r15) (be32 (r.w 683).toUInt32)) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b23Offset⟩ := by
   obtain ⟨hF, hL, hbx, hbp⟩ := h
   -- `b23`: the counter's bytes
-  have hk : b23.IsInfixAt Host.prog (r.k + 260) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b23.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b23Offset) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
   have hm₀ : Match (r.env m (fun _ ↦ 0) 0) (fS []) m :=
     r.match_frame hF (known := []) trivial trivial trivial trivial
@@ -66,13 +66,13 @@ theorem layer1_a (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
     (low4_counter_load r (hL.get (raw_mem1 r)) (l := 1) (by decide) rfl).of_eq
       (hm'.regs .r15 _ rfl)
   have hax : Run.RegIs st.data .rax 0 := (hm'.regs .rax _ rfl).trans rfl
-  have hpc' : st.pc = r.pc 263 := pc_next r hpc rfl
+  have hpc' : st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b24Offset := pc_next r hpc rfl
   obtain ⟨m₁, pc⟩ := st
   simp only at hpc'
   subst hpc'
   simp only at hF₁ hd hreg h15 hax
   -- `b24`: the chain values to `20540`
-  refine Eventually.bind (span_loop r hp hpre b24_in_code (jn := 275) rfl (hp.label (j := 263) rfl)
+  refine Eventually.bind (span_loop r hp hpre b24_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b25Offset) rfl (hp.label NativeRustcX64.Sphincs.SphincsVerify.label_13_at)
     .rax 17816 (by decide) (by decide) run_b24 rfl (by decide) (by decide)
     (rs := [.rsp, .rbx, .rbp, .r12, .r13, .r14, .r15]) (by decide) (by simp) (L := L1 r)
     (by facts_dec2) (raw_mem1 r) (P := fun m ↦ Run.RegIs m .rbx (r.off 1760) ∧
@@ -84,7 +84,7 @@ theorem layer1_a (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
   simp only at hpc
   subst hpc
   -- `b25`: to `576`
-  refine memcpy_pure r hp hpre hc b25_in_code (jn := 281) rfl run_b25 (by decide) rfl hF₂ trivial
+  refine memcpy_pure r hp hpre hc b25_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b26Offset) rfl run_b25 (by decide) rfl hF₂ trivial
     hL₂ (by facts_dec2) (a := 576) (s := 20540) (n := 1024) (by facts_dec2) hcv
     (length_slice_sig r.w (by decide)) (by decide) (by decide) (by decide) (by decide)
     fun m₃ hm₃ ↦ ⟨regIs_ptr0 r hm₃ rfl, regIs_ptr0 r hm₃ rfl, rdx_lit hm₃ rfl (by decide),
@@ -100,11 +100,11 @@ theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
       BytesAt m.dmem (r.off 576) (slice (sigBytes r.w) 5400 1024) ∧
       Run.RegIs m .rbx (r.off 1760) ∧ Run.RegIs m .r14 (r.off 576) ∧
       Low4 (reg m .rbp) (be32 (r.w 538).toUInt32) ∧ Low4 (reg m .r15) (be32 (r.w 683).toUInt32)) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 337 ∧ LS2 r st.data) ⟨m, r.pc 281⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b31Offset ∧ LS2 r st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b26Offset⟩ := by
   obtain ⟨hF, hL, hcv, hbx, h14, hbp, h15⟩ := h
   have hl : (slice (sigBytes r.w) 5400 1024).length = 1024 := length_slice_sig r.w (by decide)
   -- `b26`: the path to `1760`, the chain values to `2048`
-  refine memcpy_block r hp hpre hc b26_in_code (jn := 318) rfl run_b26 (by decide) rfl hF
+  refine memcpy_block r hp hpre hc b26_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b27Offset) rfl run_b26 (by decide) rfl hF
     ⟨hbx.trans (eval_base r rfl 1760).symm, h14.trans (eval_base r rfl 576).symm, trivial⟩ trivial
     (a := 2048) (s := 576) (n := 1024) (by decide) (by decide) (by decide) fun m₁ hm₁ ↦
     ⟨regIs_ptr0 r hm₁ rfl, regIs_ptr0 r hm₁ rfl, rdx_lit hm₁ rfl (by decide),
@@ -127,7 +127,7 @@ theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
   have h15₂ := low4_saved hS rfl (h15.of_eq (hm₁.regs .r15 _ rfl))
   have hbx₂ := regIs_saved hS rfl (regIs_ptr0 r hm₁ (y := .rbx) rfl)
   -- `b27`: to `9344`
-  refine memcpy_pure r hp hpre hc b27_in_code (jn := 323) rfl run_b27 (by decide) rfl hF₂
+  refine memcpy_pure r hp hpre hc b27_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b28Offset) rfl run_b27 (by decide) rfl hF₂
     ⟨hbx₂.trans (eval_base r rfl 2048).symm, trivial⟩ hL₂ (by facts_dec2) (a := 9344) (s := 2048)
     (n := 1024) (by facts_dec2) hB' hl (by decide) (by decide) (by decide) (by decide)
     fun m₃ hm₃ ↦ ⟨regIs_ptr0 r hm₃ rfl, regIs_ptr0 r hm₃ rfl, rdx_lit hm₃ rfl (by decide),
@@ -136,7 +136,7 @@ theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
   have h15₄ := low4_saved hS₄ rfl (h15₂.of_eq (hm₃.regs .r15 _ rfl))
   have h14₄ := regIs_saved hS₄ rfl (regIs_ptr0 r hm₃ (y := .r14) rfl)
   -- `b28`: to `3072`
-  refine memcpy_pure r hp hpre hc b28_in_code (jn := 328) rfl run_b28 (by decide) rfl hF₄
+  refine memcpy_pure r hp hpre hc b28_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b29Offset) rfl run_b28 (by decide) rfl hF₄
     ⟨h14₄.trans (eval_base r rfl 9344).symm, trivial⟩ hL₄ (by facts_dec2) (a := 3072) (s := 9344)
     (n := 1024) (by facts_dec2) hB₄ hl (by decide) (by decide) (by decide) (by decide)
     fun m₅ hm₅ ↦ ⟨regIs_ptr0 r hm₅ rfl, regIs_ptr0 r hm₅ rfl, rdx_lit hm₅ rfl (by decide),
@@ -145,7 +145,7 @@ theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
   have h15₆ := low4_saved hS₆ rfl (h15₄.of_eq (hm₅.regs .r15 _ rfl))
   have hbx₆ := regIs_saved hS₆ rfl (regIs_ptr0 r hm₅ (y := .rbx) rfl)
   -- `b29`: to `11392`
-  refine memcpy_pure r hp hpre hc b29_in_code (jn := 333) rfl run_b29 (by decide) rfl hF₆
+  refine memcpy_pure r hp hpre hc b29_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b30Offset) rfl run_b29 (by decide) rfl hF₆
     ⟨hbx₆.trans (eval_base r rfl 3072).symm, trivial⟩ hL₆ (by facts_dec2) (a := 11392) (s := 3072)
     (n := 1024) (by facts_dec2) hB₆ hl (by decide) (by decide) (by decide) (by decide)
     fun m₇ hm₇ ↦ ⟨regIs_ptr0 r hm₇ rfl, regIs_ptr0 r hm₇ rfl, rdx_lit hm₇ rfl (by decide),
@@ -154,7 +154,7 @@ theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
   have h15₈ := low4_saved hS₈ rfl (h15₆.of_eq (hm₇.regs .r15 _ rfl))
   have h14₈ := regIs_saved hS₈ rfl (regIs_ptr0 r hm₇ (y := .r14) rfl)
   -- `b30`: to `10368`
-  refine memcpy_pure r hp hpre hc b30_in_code (jn := 337) rfl run_b30 (by decide) rfl hF₈
+  refine memcpy_pure r hp hpre hc b30_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b31Offset) rfl run_b30 (by decide) rfl hF₈
     ⟨h14₈.trans (eval_base r rfl 11392).symm, trivial⟩ hL₈ (by facts_dec2) (a := 10368)
     (s := 11392) (n := 1024) (by facts_dec2) hB₈ hl (by decide) (by decide) (by decide) (by decide)
     fun m₉ hm₉ ↦ ⟨regIs_ptr0 r hm₉ rfl, regIs_ptr0 r hm₉ rfl, rdx_lit hm₉ rfl (by decide),
@@ -167,7 +167,7 @@ theorem layer1_b (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Machi
 /-- **The second layer**: from `LS1` at `b23` to `LS2` at `b31`. -/
 theorem layer1_spec (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : MachineData}
     (h : LS1 r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 337 ∧ LS2 r st.data) ⟨m, r.pc 260⟩ :=
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b31Offset ∧ LS2 r st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b23Offset⟩ :=
   Eventually.bind (layer1_a r hp hpre hc h) fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ by
     simp only at hpc
     subst hpc

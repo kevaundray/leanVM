@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Tables.TableWeights.Mul
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `table_weights`: a turn of the loop (x86-64)
 
-`.LTableWeights_3` (`b10`, `b11`) computes coordinate `c`'s factor parts (`head_step`); `b3`
+`NativeRustcVmX64.Vm.TableWeights.label_3` (`b10`, `b11`) computes coordinate `c`'s factor parts (`head_step`); `b3`
 multiplies weight `0` (`pre3_step`), `b4` to `b7` the next four (`mid_step`), `b8` weight `5`
 (`last_step`); `b9` moves to the next coordinate or out of the loop (`turn_step`). `turn`: the
 whole turn, from `It c` to `It (c + 1)` or the exit.
@@ -46,15 +47,15 @@ theorem turn_cond {a r9 : BitVec 64} {c : Nat} (hc : c < r9.toNat) (hnw : a.toNa
 variable [Host] {k : Nat}
 
 /-- `b3` and its call: weight `0` multiplied. -/
-theorem pre3_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem pre3_step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : TableWeightsPre m0) {c : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 46)) (hI : Pre3 m0 c st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b3Offset)) (hI : Pre3 m0 c st.data) :
     Eventually (step1 Host.exe)
-      (fun st' ↦ st'.pc = Host.addrOf (k + 46 + 13) ∧ Mid m0 c 1 st'.data) st := by
+      (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b4Offset) ∧ Mid m0 c 1 st'.data) st := by
   obtain ⟨hS, -, -, -, -, hP⟩ := hpre
   have hco := hI.co
   have hc64 : c < 2 ^ 64 := by have := hI.lt; unfold n at this; have := (reg m0 .r9).isLt; omega
-  obtain ⟨hwf, hm0, hval⟩ := hI.body.elem (ret := (Host.addrOf (k + 46 + 13)).toBitVec) hS h256
+  obtain ⟨hwf, hm0, hval⟩ := hI.body.elem (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b4Offset)).toBitVec) hS h256
     (SliceIn.of_ok hP) (i := c) hI.lt (x := .bin .add .W64 (.reg .r8) (.reg .rbp)) (o := 0) (by
       rw [eval_add, eval_reg, eval_reg, Env.ofMachine_regs, Env.ofMachine_regs]
       show reg st.data .r8 + reg st.data .rbp = _
@@ -105,15 +106,15 @@ theorem pre3_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
     exact hI.w i hi2
 
 /-- `b8` and its call: weight `4`'s product stored, weight `5` multiplied. -/
-theorem last_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem last_step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hS : StackOk m0 tableWeightsStack) {c : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 103)) (hI : Mid m0 c 5 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b8Offset)) (hI : Mid m0 c 5 st.data) :
     Eventually (step1 Host.exe)
-      (fun st' ↦ st'.pc = Host.addrOf (k + 103 + 12) ∧ Done m0 c st'.data) st := by
+      (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b9Offset) ∧ Done m0 c st'.data) st := by
   have hco := hI.co
   have hc64 : c < 2 ^ 64 := by have := hI.lt; unfold n at this; have := (reg m0 .r9).isLt; omega
-  have hwf := hI.body.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 103 + 12)).toBitVec) hS h256
-  have hm0 := hI.body.mid_match (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 103 + 12)).toBitVec)
+  have hwf := hI.body.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b9Offset)).toBitVec) hS h256
+  have hm0 := hI.body.mid_match (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b9Offset)).toBitVec)
   obtain ⟨hregs, hw, hwr, hkw⟩ := after_eq run_b8 ▸ b8_ok
   refine exec_at (hb8 hp) run_b8 hwf (fun _ _ ↦ rfl) hpc hm0 fun st1 hm1 hpc1 ↦ ?_
   have hk' : ∀ o ∈ kfo ++ [184] ++ wOthers 4, firstOverlap 0 o 8 _ = none := hkw
@@ -152,11 +153,11 @@ theorem last_step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
       · rw [load_fw rfl rfl]; exact hI.fixed.hoff (by omega)
       · exact hI.r12
 
-/-- **The loop head** `.LTableWeights_3` (`b10`, and `b11` for a coordinate of the equality
+/-- **The loop head** `NativeRustcVmX64.Vm.TableWeights.label_3` (`b10`, and `b11` for a coordinate of the equality
 point): coordinate `c`'s factor parts. -/
 theorem head_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPre m0) {c : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 123)) (hI : It m0 c st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 46) ∧ Pre3 m0 c st'.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b10Offset)) (hI : It m0 c st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b3Offset) ∧ Pre3 m0 c st'.data)
       st := by
   obtain ⟨hS, -, -, -, hE, hP⟩ := hpre
   have hc64 : c < 2 ^ 64 := by have := hI.lt; unfold n at this; have := (reg m0 .r9).isLt; omega
@@ -199,7 +200,7 @@ theorem head_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPr
   by_cases hlt : c < (reg m0 .rcx).toNat
   · -- `b11`: the equality point's coordinate
     have hpc1' := hF (by simp [hlt])
-    simp only [show b10.length = 8 from rfl] at hpc1'
+    simp only [NativeRustcVmX64.Vm.TableWeights.b10_length] at hpc1'
     obtain ⟨hwf2, hm2, hvalE⟩ := hb1.elem (ret := 0) hS h256 (SliceIn.of_ok hE) (i := c) hlt
       (x := .bin .add .W64 (.load 0 104 8) (.reg .rbp)) (o := 0) (by
         rw [eval_add, eval_load, eval_reg, Env.ofMachine_regs, load_fw rfl rfl,
@@ -228,7 +229,7 @@ theorem head_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPr
     · rw [gr2 _ _ (hregs2 (.r8, .reg .r8) (by simp))]; exact h81
     · unfold wE; rw [fw_of_dmem hd, fw_of_dmem hd]; exact hw1 i hi
     · rw [fw_of_dmem hd, fw_of_dmem hd]; exact hw5
-  · -- straight to `.LTableWeights_5`
+  · -- straight to `NativeRustcVmX64.Vm.TableWeights.label_5`
     have hpc1' := hT (by simp [hlt])
     refine .done _ ⟨hpc1'.trans (lbl_5 hp), hb1, hI.lt, ⟨hx1, hp1, h14, ?_⟩, h81, hfx, hw1, hw5⟩
     rw [gr _ _ (hregs (.r15, .lit 1) (by simp)), gr _ _ (hregs (.r13, .load 1 8 8) (by simp))]
@@ -238,9 +239,9 @@ theorem head_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPr
 
 /-- **`b9`**: the next coordinate, or out of the loop after the last. -/
 theorem turn_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPre m0) {c : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 115)) (hI : Done m0 c st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + 123) ∧ It m0 (c + 1) st'.data) ∨
-      (st'.pc = Host.addrOf (k + 151) ∧ Fin m0 st'.data)) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b9Offset)) (hI : Done m0 c st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b10Offset) ∧ It m0 (c + 1) st'.data) ∨
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b13Offset) ∧ Fin m0 st'.data)) st := by
   obtain ⟨hS, -, -, -, -, hP⟩ := hpre
   have hwf := hI.body.wf (vars := fun _ ↦ 0) (ret := 0) hS h256
   have hm0 := hI.body.mid_match (vars := fun _ ↦ 0) (ret := 0)
@@ -273,7 +274,7 @@ theorem turn_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPr
     · rw [← hlast]; exact hw
     · rw [← hlast]; exact hw5
   · have hpc1' := hF (by simp [hlast])
-    simp only [show b9.length = 8 from rfl] at hpc1'
+    simp only [NativeRustcVmX64.Vm.TableWeights.b9_length] at hpc1'
     refine .done _ (Or.inl ⟨hpc1', hb1, by have := hI.lt; omega, ?_, ?_, ?_, hfx, hw, hw5⟩)
     · rw [gr _ _ (hregs (.rbx, .bin .add .W64 (.reg .rbx) (.lit 1)) (by simp)), eval_add, eval_reg,
         eval_lit, Env.ofMachine_regs]

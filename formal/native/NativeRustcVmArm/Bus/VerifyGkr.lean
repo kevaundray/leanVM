@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.GkrLayers.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.VerifyGkrGrandProducts.Names
 public import NativeRustcVmArm.Bus.VerifyGkr.Exec
 public import NativeRustcVmArm.Bus.GkrCommon
 public import NativeRustcVmArm.Bus.GkrModel
@@ -118,7 +121,7 @@ theorem exit_spec (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {m : MachineDa
           (((verifyGkrGrandProducts m0.regs.X2.toNat).run s0).map (·.1.1)) ∧
         (∀ c pt vs s', (verifyGkrGrandProducts m0.regs.X2.toNat).run s0 = some ((c, pt, vs), s') →
           TStateAt d m0.regs.X1.toBitVec a s' ∧ GkrStateWAt d m0.regs.X3.toBitVec ⟨vs, pt⟩)) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + 36)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8Offset)⟩ := by
   have hS := h.1
   have hoo := h.2.2.2.2.2.1
   have hwf : (Env.ofMachine m [(base m0 96, 96), (m0.regs.X0.toBitVec, 24)]).WF :=
@@ -151,7 +154,7 @@ theorem exit_none (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {m : MachineDa
     (hfr : Fr m0 96 verifyGkrStack slots keep (outs m0) m)
     (h19 : m.regs.getXReg .X19 = m0.regs.X0) (h8 : m.regs.getXReg .X8 = 0)
     (hr : (verifyGkrGrandProducts m0.regs.X2.toNat).run s0 = none) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + 36)⟩ :=
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8Offset)⟩ :=
   exit_spec hp h hfr h19 fun d _ _ hw ↦ by
     rw [hr]
     refine ⟨by rw [h8] at hw; exact hw, fun _ _ _ _ he ↦ by cases he⟩
@@ -181,7 +184,7 @@ theorem after_layers (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {sh cnt : E
     (hx0 : m.regs.X0 = okWord ((gkrLayers m0.regs.X2.toNat ⟨#[sh, sh, cnt], #[]⟩).run s2).isSome)
     (hok : ∀ g' s', (gkrLayers m0.regs.X2.toNat ⟨#[sh, sh, cnt], #[]⟩).run s2 = some (g', s') →
       TStateAt m.dmem m0.regs.X1.toBitVec a s' ∧ GkrStateWAt m.dmem m0.regs.X3.toBitVec g') :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + 29)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b5Offset)⟩ := by
   have hS := h.1
   refine Fr.runBlock hS N_ge rfl hfr (b5_in_code.trans hp.1 (by simp [b5])) run_b5 rfl rfl
     (by decide) (by decide) fun st hfr5 hd5 hm5 hpc5 ↦ ?_
@@ -196,7 +199,7 @@ theorem after_layers (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {sh cnt : E
   cases hgl : (gkrLayers m0.regs.X2.toNat ⟨#[sh, sh, cnt], #[]⟩).run s2 with
   | none =>
     simp only [hgl, Option.isSome_none, Bool.not_false, ↓reduceIte] at hpc5
-    refine at_pc (hpc5.trans (hp.label (j := 36) rfl)) (exit_none hp h hfr5 e19 ?_ ?_)
+    refine at_pc (hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8Offset) NativeRustcVmArm.Vm.VerifyGkrGrandProducts.label_5_at)) (exit_none hp h hfr5 e19 ?_ ?_)
     · exact UInt64.toBitVec_inj.mp (reg_lit hm5 (r := .X8) (n := 0) rfl)
     · rw [hr, hgl]; rfl
   | some z =>
@@ -238,7 +241,7 @@ theorem after_layers (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {sh cnt : E
     have e6x19 : st6.data.regs.getXReg .X19 = m0.regs.X0 :=
       UInt64.toBitVec_inj.mp ((hm6'.regs .X19 _ rfl).trans (Transcript.eval_ptr rfl))
     simp only [PcOk] at hpc6
-    refine at_pc (hpc6.trans (hp.label (j := 36) rfl))
+    refine at_pc (hpc6.trans (hp.label (j := NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8Offset) NativeRustcVmArm.Vm.VerifyGkrGrandProducts.label_5_at))
       (exit_spec hp h hfr6 e6x19 fun d hkd hd hw ↦ ?_)
     have e8 : st6.data.regs.getXReg .X8 = 1 :=
       UInt64.toBitVec_inj.mp (reg_lit hm6' (r := .X8) (n := 1) rfl)
@@ -272,7 +275,7 @@ theorem after_layers (hp : Placed code k) (h : VerifyGkrPre a s0 m0) {sh cnt : E
 /-- **After the count root** (`b3`): none, the tag `0` (`b7`); else the state written (`b4`) and
 `gkr_layers` called. -/
 theorem after_count (hp : Placed code k) (h : VerifyGkrPre a s0 m0)
-    (hgl : ∀ s g, Spec (Labels.label gkrLayersLabel) (GkrLayersPre a s g) (GkrLayersPost a s g))
+    (hgl : ∀ s g, Spec (Labels.label NativeRustcVmArm.Vm.GkrLayers.entryLabel) (GkrLayersPre a s g) (GkrLayersPost a s g))
     {sh : EW} {s1 : TState} {m : MachineData}
     (hfr : Fr m0 96 verifyGkrStack slots keep (outs m0) m)
     (h19 : m.regs.getXReg .X19 = m0.regs.X0) (h20 : m.regs.getXReg .X20 = m0.regs.X3)
@@ -284,7 +287,7 @@ theorem after_count (hp : Placed code k) (h : VerifyGkrPre a s0 m0)
           some ((y.1, z.1.point, z.1.values), z.2))
     (hopt : OptEWAt m.dmem (base m0 96 + BitVec.ofNat 64 8) ((readScalar.run s1).map (·.1)))
     (hnext : NextAt m.dmem m0.regs.X1.toBitVec a (readScalar.run s1)) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + 18)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b3Offset)⟩ := by
   have hS := h.1
   have c := ctx h
   refine Fr.runBlock hS N_ge rfl hfr (b3_in_code.trans hp.1 (by simp [b3])) run_b3 rfl rfl
@@ -307,7 +310,7 @@ theorem after_count (hp : Placed code k) (h : VerifyGkrPre a s0 m0)
       rw [hl]
       rfl
     simp only [PcOk, hc, ↓reduceIte] at hpc3
-    refine at_pc (hpc3.trans (hp.label (j := 34) rfl)) (Fr.runBlock hS N_ge rfl hfr3
+    refine at_pc (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b7Offset) NativeRustcVmArm.Vm.VerifyGkrGrandProducts.label_4_at)) (Fr.runBlock hS N_ge rfl hfr3
       (b7_in_code.trans hp.1 (by simp [b7])) run_b7 rfl rfl (by decide) (by decide)
       fun st7 hfr7 _ hm7 hpc7 ↦ ?_)
     simp only [PcOk] at hpc7
@@ -444,16 +447,16 @@ theorem after_count (hp : Placed code k) (h : VerifyGkrPre a s0 m0)
 
 /-- **`verify_gkr_grand_products`'s contract.** -/
 theorem verifyGkr_spec (hp : Placed code k)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hgl : ∀ s g, Spec (Labels.label gkrLayersLabel) (GkrLayersPre a s g) (GkrLayersPost a s g)) :
-    Spec (Labels.label verifyGkrLabel) (VerifyGkrPre a s0) (VerifyGkrPost a s0) := by
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hgl : ∀ s g, Spec (Labels.label NativeRustcVmArm.Vm.GkrLayers.entryLabel) (GkrLayersPre a s g) (GkrLayersPost a s g)) :
+    Spec (Labels.label NativeRustcVmArm.Vm.VerifyGkrGrandProducts.entryLabel) (VerifyGkrPre a s0) (VerifyGkrPost a s0) := by
   intro m0 h
   have hS := h.1
   have hN : verifyGkrStack ≤ m0.regs.SP.toNat := hS.2.1
   have c := ctx h
   have hwf := Bus.wf_env0 hS (F := 96) N_ge
   have hm : Match (Bus.env0 m0 96) entryS m0 := Bus.match_entry hS N_ge rfl
-  rw [show Labels.label verifyGkrLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyGkrGrandProducts.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyGkrGrandProducts.entryOffset) NativeRustcVmArm.Vm.VerifyGkrGrandProducts.entry_at]
   refine exec_then (b0_in_code.trans hp.1 (by simp [b0])) run_b0 hwf hm fun st hm1 hpc ↦ ?_
   have hfr : Fr m0 96 verifyGkrStack slots keep (outs m0) st.data :=
     Fr.ofPrologue hN N_ge hm1 hwf rfl (by decide) slots_le (by decide) (by decide)
@@ -509,7 +512,7 @@ theorem verifyGkr_spec (hp : Placed code k)
       rw [load_eq rfl hopt1]
       rfl
     simp only [PcOk, hc, ↓reduceIte] at hpc1
-    exact at_pc (hpc1.trans (hp.label (j := 36) rfl)) (exit_none hp h hfr1 g19
+    exact at_pc (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.VerifyGkrGrandProducts.b8Offset) NativeRustcVmArm.Vm.VerifyGkrGrandProducts.label_5_at)) (exit_none hp h hfr1 g19
       (reg_load hm1' rfl rfl hopt1) (by rw [verifyGkr_run, hr1]; rfl))
   | some y =>
     obtain ⟨sh, s1⟩ := y

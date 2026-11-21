@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfVerifyLayer.Names
+public import NativeRustcVmArm.Code.Vm.TStateSumcheckRoundPoly.Names
 public import NativeRustcVmArm.Sumcheck.Layer.Tail
 
 /-!
@@ -21,14 +25,14 @@ variable [Host] {k : Nat}
 
 /-- **The loop**: from the head, the exit on a rejection or `.L4` after the last round. -/
 theorem loop_spec (hp : Placed code k)
-    (hrp : ∀ a s e, Spec (Labels.label roundPolyLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+    (hrp : ∀ a s e, Spec (Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.entryLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpe : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     {a : DecArea} {s : TState} {pt : Array EW} {n : Nat} {m0 : MachineData}
     (hpre : LPre a s pt n m0) {i : Nat}
     {m : MachineData} (hi : Inv a s pt n m0 i m) :
-    Eventually (step1 Host.exe) (Goal a s pt n m0 k) ⟨m, Host.addrOf (k + 19)⟩ := by
-  refine Sym.loop (fun r st ↦ st.pc = Host.addrOf (k + 19) ∧
+    Eventually (step1 Host.exe) (Goal a s pt n m0 k) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b2Offset)⟩ := by
+  refine Sym.loop (fun r st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b2Offset) ∧
       ∃ i, n - i = r ∧ Inv a s pt n m0 i st.data) (fun r st ⟨hpc, i, hr, hi⟩ ↦ ?_)
     ⟨rfl, i, rfl, hi⟩
   obtain ⟨d, pc⟩ := st
@@ -48,14 +52,14 @@ theorem loop_spec (hp : Placed code k)
 
 /-- **`sumcheck` with `sumcheck_plain`'s closure: its contract.** -/
 theorem sumcheckLayer_spec (hp : Placed code k)
-    (hrp : ∀ a s e, Spec (Labels.label roundPolyLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+    (hrp : ∀ a s e, Spec (Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.entryLabel) (RoundPolyPre a s e) (RoundPolyPost a s e))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpe : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     (a : DecArea) (s : TState) (pt : Array EW) :
-    Spec (Labels.label sumcheckLayerLabel) (SumcheckLayerPre a s pt) (SumcheckLayerPost a s pt) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.entryLabel) (SumcheckLayerPre a s pt) (SumcheckLayerPost a s pt) := by
   intro m0 hpre0
   have hpre : LPre a s pt m0.regs.X7.toNat m0 := ⟨hpre0, rfl⟩
-  rw [show Labels.label sumcheckLayerLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.entryOffset) NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.entry_at]
   have fin : ∀ st : MachineState, Goal a s pt m0.regs.X7.toNat m0 k st →
       Eventually (step1 Host.exe)
         (fun st' ↦ st'.pc = retOf m0 ∧ SumcheckLayerPost a s pt m0 st'.data) st := by

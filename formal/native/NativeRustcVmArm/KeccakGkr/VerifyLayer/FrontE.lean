@@ -1,14 +1,17 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontD
 
 /-!
 # `verify_layer`'s front: the plain sumcheck, the three values, the local kernel
 
-From `b36` (`k + 478`, `AtK`): the plain sumcheck over the `11` local bits into the frame at
+From `b36` (`k + NativeRustcVmArm.Vm.VerifyLayer.b36Offset`, `AtK`): the plain sumcheck over the `11` local bits into the frame at
 `1712` and `1888` (`sumcheck<sumcheck_plain>`), the three values into the frame at `1888`
 (`read_scalars`), the equality kernel of the local point into the scratch at `107520`
-(`eq_kernel`), to `b42` (`k + 532`, `AtL`, `plain_run`).
+(`eq_kernel`), to `b42` (`k + NativeRustcVmArm.Vm.VerifyLayer.b42Offset`, `AtL`, `plain_run`).
 -/
 
 namespace NativeRustcVmArm.KeccakGkr.VerifyLayer
@@ -21,7 +24,7 @@ open NativeRustcVmArm.Bus.Gkr (Fr.runBlock at_pc)
 
 @[expose] public section
 
-/-- **After the local kernel** (`b42`, `k + 532`): the local point `lp` and its kernel in the
+/-- **After the local kernel** (`b42`, `k + NativeRustcVmArm.Vm.VerifyLayer.b42Offset`): the local point `lp` and its kernel in the
 scratch at `107520` (the frame's word `144`), the three values `tv` in the frame at `1888`, the
 plain sumcheck's claim `val` in X20, X19, the state `s5`. -/
 structure AtL [Labels] (m0 : MachineData) (a : DecArea) (ch : EW) (pt lp tv : Array EW)
@@ -70,14 +73,14 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The plain sumcheck, the values, the local kernel**, from `b36` to `b42`. -/
 theorem plain_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hspl : ∀ s, Spec (label sumcheckPlainLabel) (SumcheckPlainPre a s) (SumcheckPlainPost a s))
-    (hrs : ∀ s, Spec (label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hek : Spec (label eqKernelLabel) EqKernelPre EqKernelPost)
+    (hspl : ∀ s, Spec (label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s) (SumcheckPlainPost a s))
+    (hrs : ∀ s, Spec (label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hek : Spec (label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
     {ch : EW} {pt : Array EW} {v : EW} {s3 : TState} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 478)) (hk : AtK m0 a ch pt v s3 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b36Offset)) (hk : AtK m0 a ch pt v s3 st.data)
     (hrun : runL s c m0 = rest4 c ch pt v s3)
     (cont : ∀ (st' : MachineState) (lp tv : Array EW) (val : EW) (s5 : TState),
-      st'.pc = Host.addrOf (k + 532) → AtL m0 a ch pt lp tv val s5 st'.data →
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b42Offset) → AtL m0 a ch pt lp tv val s5 st'.data →
       runL s c m0 = (if checkB c (sumE (keccakInstanceWeights ch)) lp tv val then
         rest6 ch pt lp tv s5 else none) →
       Eventually (step1 Host.exe) (Goal a s c m0) st') :
@@ -93,7 +96,7 @@ theorem plain_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   refine exec_at (blk hp b36_in_code (by simp [b36])) e36 hwf1 hpc (match_fr h hb0)
     fun st1 hm1 hpc1 ↦ ?_
   have hfb1 := fb_blkW h hk.fb hm1 hwf1 rfl (by decide)
-  rw [show k + 478 + b36.length = k + 508 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b36Offset + b36.length = k + NativeRustcVmArm.Vm.VerifyLayer.b37Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b36_next]] at hpc1
   have y0 : st1.data.regs.X0.toBitVec = loc m0 1888 := by
     show (st1.data.regs.getXReg .X0).toBitVec = _
     rw [hm1.regs .X0 _ rfl, ev_ptr]
@@ -210,7 +213,7 @@ theorem plain_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
       rw [hl]
       rfl
     have hpc3' := pc_false hpc3 hc
-    rw [show k + 508 + b37.length = k + 510 from rfl] at hpc3'
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b37Offset + b37.length = k + NativeRustcVmArm.Vm.VerifyLayer.b38Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b37_next]] at hpc3'
     have hv' := NativeRustcVm.ewAt_iff.mp hv
     rw [NativeRustcVm.Transcript.off, NativeRustcVm.addr_add_add, NativeRustcVm.addr_add_add]
       at hv'
@@ -225,7 +228,7 @@ theorem plain_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     refine exec_at (blk hp b38_in_code (by simp [b38])) e38 hwf4 hpc3' (match_fr h hb3)
       fun st4 hm4 hpc4 ↦ ?_
     have hfb4 := fb_blkW h hfb3 hm4 hwf4 rfl (by decide)
-    rw [show k + 510 + b38.length = k + 522 from rfl] at hpc4
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b38Offset + b38.length = k + NativeRustcVmArm.Vm.VerifyLayer.b39Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b38_next]] at hpc4
     have z20 : st4.data.regs.getXReg .X20 = val.c0 :=
       reg_val hm4 rfl (ldF (by rw [hd3]; exact hv'.1))
     have z19 : st4.data.regs.getXReg .X19 = val.c1 :=
@@ -281,7 +284,7 @@ theorem plain_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     | some w =>
       obtain ⟨tv, s5⟩ := w
       have hpc6' := pc_false hpc6 (by rw [hc6, hr2]; rfl)
-      rw [show k + 522 + b39.length = k + 524 from rfl] at hpc6'
+      rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b39Offset + b39.length = k + NativeRustcVmArm.Vm.VerifyLayer.b40Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b39_next]] at hpc6'
       obtain ⟨tv5, ts5⟩ := hok5 tv s5 hr2
       have htsz : tv.size = 3 := NativeRustcVm.Sumcheck.readScalars_size hr2
       have z21 : (st6.data.regs.getXReg .X21).toBitVec = sA m0 :=
@@ -292,7 +295,7 @@ theorem plain_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
       refine exec_at (blk hp b40_in_code (by simp [b40])) e40 hwf7 hpc6' (match_fr h hb6)
         fun st7 hm7 hpc7 ↦ ?_
       have hfb7 := fb_blkW h hfb6 hm7 hwf7 rfl (by decide)
-      rw [show k + 524 + b40.length = k + 531 from rfl] at hpc7
+      rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b40Offset + b40.length = k + NativeRustcVmArm.Vm.VerifyLayer.b41Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b40_next]] at hpc7
       have u0 : st7.data.regs.X0.toBitVec = loc m0 1712 := by
         show (st7.data.regs.getXReg .X0).toBitVec = _
         rw [hm7.regs .X0 _ rfl, ev_ptr]
@@ -360,7 +363,7 @@ theorem plain_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
         rw [show m8.regs.getXReg .X0 = m8.regs.X0 from rfl, x80]
         rfl
       have hpc9' := pc_false hpc9 hc9
-      rw [show k + 531 + b41.length = k + 532 from rfl] at hpc9'
+      rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b41Offset + b41.length = k + NativeRustcVmArm.Vm.VerifyLayer.b42Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b41_next]] at hpc9'
       have k9 : Bus.KeepRegs [.X19, .X20, .X21, .X22, .X24, .X25, .X26] m8 st9.data :=
         Bus.KeepRegs.of_block hm9 rfl
       have kk : ∀ r ∈ [XReg.X19, .X20, .X22, .X24, .X25, .X26],

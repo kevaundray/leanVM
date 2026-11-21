@@ -46,9 +46,9 @@ variable [Host] {k : Nat}
 
 /-- **A turn of the copy loop**. -/
 theorem copy_step (hp : Placed code k) (h : PreOk m0 ws) {l t : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 24)) (hI : CopyHead m0 ws l t st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (t + 1 < 32 ∧ s'.pc = Host.addrOf (k + 24) ∧
-      CopyHead m0 ws l (t + 1) s'.data) ∨ (t + 1 = 32 ∧ s'.pc = Host.addrOf (k + 43) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b3Offset)) (hI : CopyHead m0 ws l t st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (t + 1 < 32 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b3Offset) ∧
+      CopyHead m0 ws l (t + 1) s'.data) ∨ (t + 1 = 32 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b4Offset) ∧
       LaneEnd m0 ws l s'.data)) st := by
   have hl := hI.l_lt
   have ht := hI.t_lt
@@ -170,7 +170,7 @@ theorem copy_step (hp : Placed code k) (h : PreOk m0 ws) {l t : Nat} {st : Machi
   by_cases hlast : t + 1 = 32
   · rw [decide_eq_true (show 32 + 32 * t = 1024 by omega)] at hpc'
     simp only [Bool.not_true, Bool.false_eq_true, ite_false] at hpc'
-    refine .done _ (Or.inr ⟨hlast, hpc'.trans (by rw [lengths.2.2.2.1]), hctx, hl,
+    refine .done _ (Or.inr ⟨hlast, hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b3_next), hctx, hl,
       (hreg .r13 (by simp)).trans hI.r13, (hreg .rbp (by simp)).trans hI.rbp,
       (hreg .r15 (by simp)).trans hI.r15, (hreg .rbx (by simp)).trans hI.rbx, ?_⟩)
     rw [show 64 * l + 64 = 64 * l + 2 * (t + 1) by omega]; exact hg'

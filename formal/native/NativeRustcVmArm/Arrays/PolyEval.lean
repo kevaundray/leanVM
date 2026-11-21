@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
 public import NativeRustcVmArm.Arrays.PolyEval.Exec
 
 /-!
@@ -60,19 +62,19 @@ structure Inv (m0 : MachineData) (t : Nat) (st : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PolyEval.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 14) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PolyEval.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 19) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PolyEval.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 24) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PolyEval.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label polyEvalLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LPolyEval_1" = Host.addrOf (k + 14) :=
-  hp.label (j := 14) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.PolyEval.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.PolyEval.entryOffset) NativeRustcVmArm.Vm.PolyEval.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.PolyEval.label_1 = Host.addrOf (k + NativeRustcVmArm.Vm.PolyEval.b1Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.PolyEval.b1Offset) NativeRustcVmArm.Vm.PolyEval.label_1_at
 
 /-- The postcondition, reached. -/
 abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
@@ -80,7 +82,7 @@ abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
 
 /-- **The epilogue** `b3`: the accumulator returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : PolyEvalPre m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 24)) (hb : Body m0 64 polyEvalStack slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PolyEval.b3Offset)) (hb : Body m0 64 polyEvalStack slots 0 0 st.data)
     (hacc : (⟨st.data.regs.X0, st.data.regs.X1⟩ : EW) = acc m0 (len m0)) :
     Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hwf, hm⟩ := hb.exit_match hpre.1 (by decide) rfl
@@ -100,11 +102,11 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : PolyEvalPre m0) {
     exact hb.same p hp'
 
 /-- **A turn of the loop**: `acc·point + c`, back at the head or out of the loop and returned. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : PolyEvalPre m0) {t : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 14)) (hI : Inv m0 t st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PolyEval.b1Offset)) (hI : Inv m0 t st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-      (st'.pc = Host.addrOf (k + 14) ∧ Inv m0 (t + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PolyEval.b1Offset) ∧ Inv m0 (t + 1) st'.data)) st := by
   obtain ⟨hS, h1, hrC, hoC⟩ := hpre
   have hlt := hI.lt
   have hL : len m0 = m0.regs.X1.toNat := rfl
@@ -119,7 +121,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       show st.regs.X21.toBitVec = _
       rw [hI.x21, show BitVec.ofInt 64 8 = BitVec.ofNat 64 8 from rfl, addr_add])
     fun st2 hm2' hpc2 hb2' hC e2 ↦ ?_
-  simp only [show b1.length = 5 from rfl] at hpc2
+  simp only [NativeRustcVmArm.Vm.PolyEval.b1_length, NativeRustcVmArm.Vm.PolyEval.b1Length] at hpc2
   refine call_then hpc2 hmul (hb2'.ewMulPre hS (by decide) (by decide)) fun st3 hpc3 hpost ↦ ?_
   have hb3' := hb2'.call hS (by decide) (by decide) hpost
   have hprod : (⟨st3.data.regs.X0, st3.data.regs.X1⟩ : EW) = acc m0 t * pt m0 := by
@@ -183,7 +185,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       omega
   by_cases hlast : t + 1 = len m0
   · have hpc4 := hpc4'.2 (hzero.mpr hlast)
-    simp only [show b2.length = 5 from rfl] at hpc4
+    simp only [NativeRustcVmArm.Vm.PolyEval.b2_length, NativeRustcVmArm.Vm.PolyEval.b2Length] at hpc4
     refine Eventually.mono (finish hp ⟨hS, h1, hrC, hoC⟩ hpc4 hb4' ?_) fun _ h ↦ Or.inl h
     rw [hacc, hlast]
   · have hpc4 := hpc4'.1 (fun h ↦ hlast (hzero.mp h))
@@ -209,8 +211,8 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`poly_eval` meets its contract.** -/
 theorem polyEval_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hS, h1, hrC, hoC⟩ := hpre
@@ -218,7 +220,7 @@ theorem polyEval_spec (hp : Placed code k)
   have h64 : 64 ≤ polyEvalStack := by decide
   obtain ⟨hwf, hm⟩ := entry_match hS h64 rfl
   refine exec_then (hb0 hp) run_b0 hwf hm fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 14 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.PolyEval.b0_length, NativeRustcVmArm.Vm.PolyEval.b0Length] at hpc1
   obtain ⟨hw, hmem, hregs⟩ := after_eq run_b0 ▸ b0_frame
   have hI : Inv m0 0 st1.data := by
     have h0 := hm1.regs .X0 _ rfl
@@ -248,7 +250,7 @@ theorem polyEval_spec (hp : Placed code k)
       unfold acc
       rw [Nat.sub_zero, List.drop_eq_nil_of_le (by simp)]
       rfl
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 14) ∧ ∃ t, len m0 - t = n ∧
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PolyEval.b1Offset) ∧ ∃ t, len m0 - t = n ∧
     Inv m0 t st.data) (fun n st ⟨hpc, t, hn, hI⟩ ↦ ?_) ⟨hpc1, 0, rfl, hI⟩
   refine Eventually.mono (step hp hmul ⟨hS, h1, hrC, hoC⟩ hpc hI) fun st' h ↦ ?_
   rcases h with h | ⟨hpc', hI'⟩

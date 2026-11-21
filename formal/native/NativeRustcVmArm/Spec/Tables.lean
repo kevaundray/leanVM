@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmArm.Code.Vm.TablePhase.Names
+public import NativeRustcVmArm.Code.Vm.TableSumcheck.Names
+public import NativeRustcVmArm.Code.Vm.TableTerms.Names
+public import NativeRustcVmArm.Code.Vm.TableWeights.Names
 public import NativeRustcVmArm.Spec.Sumcheck
 public import NativeRustcVmArm.Spec.Layout
 public import NativeRustcVmArm.Rodata
@@ -50,18 +56,6 @@ open NativeRustcVm (wordsOf wordOf EWsAt)
 
 /-! ## Symbols -/
 
-/-- `table_weights`'s symbol. -/
-def tableWeightsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables13table_weights"
-/-- `table_terms`'s symbol. -/
-def tableTermsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables11table_terms"
-/-- `table_sumcheck`'s symbol. -/
-def tableSumcheckLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables14table_sumcheck"
-/-- `table_phase`'s symbol. -/
-def tablePhaseLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables11table_phase"
-/-- `table_column_claims`'s symbol. -/
-def tableColumnClaimsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables19table_column_claims"
-/-- `public_input_phase`'s symbol. -/
-def publicInputPhaseLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables18public_input_phase"
 
 /-! ## Stacks -/
 

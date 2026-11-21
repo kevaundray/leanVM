@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWDuplex.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWDuplexInput.Names
 public import NativeRustcVmArm.Spec.Transcript
 public import NativeRustcVmArm.Transcript.Duplex.Exec
 
@@ -29,9 +32,9 @@ variable [Host] {k : Nat}
 
 /-- **`SpongeW::duplex` meets its contract.** -/
 theorem duplex_spec (hp : Placed code k)
-    (hdi : ∀ sp, Spec (Labels.label duplexInputLabel) (DuplexInputPre sp) (DuplexInputPost sp))
-    (hkf : Spec (Labels.label keccakFLabel) KeccakFPre KeccakFPost) (sp : SpongeW) :
-    Spec (Labels.label duplexLabel) (DuplexPre sp) (DuplexPost sp) := by
+    (hdi : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWDuplexInput.entryLabel) (DuplexInputPre sp) (DuplexInputPost sp))
+    (hkf : Spec (Labels.label NativeRustcVmArm.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost) (sp : SpongeW) :
+    Spec (Labels.label NativeRustcVmArm.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp) := by
   rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
   set p := m0.regs.X0.toBitVec with hpdef
   have hn : 416 ≤ m0.regs.SP.toNat := hst.2.1
@@ -50,8 +53,8 @@ theorem duplex_spec (hp : Placed code k)
   have hm0 : Match (frameEnv m0 m0 16 [(p, 328)]) entryS m0 :=
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), rfl, nofun, trivial⟩
       frameBase_add.symm ⟨known_ptr rfl rfl, trivial⟩ trivial trivial trivial
-  unfold duplexLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.SpongeWDuplex.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.SpongeWDuplex.entryOffset) NativeRustcVmArm.Vm.SpongeWDuplex.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro, hx0, hx19, hw0⟩ := after_eq run_b0 ▸ ok_b0
   have hf1 : Frame m0 16 slots st1.data := Frame.of_prologue hwf0 hm1 hpro slots_le
@@ -85,7 +88,7 @@ theorem duplex_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf2.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2
-    (hpc2.trans (by rw [show b0.length = 4 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWDuplex.b0Offset + NativeRustcVmArm.Vm.SpongeWDuplex.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWDuplex.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWDuplex.b0_next])) hm2 fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid, hmem3, hx0', hx19'⟩ := after_eq run_b1 ▸ ok_b1
   have hf3 : Frame m0 16 slots st3.data := Frame.of_block hf2 hwf2 hm3 hmid slots_le
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq hwf2 hmem3
@@ -167,7 +170,7 @@ theorem duplex_spec (hp : Placed code k)
       (by rw [hf4.sp]; exact (eval_ptr rfl).symm) ⟨known_ptr rfl hX19'', trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf4
-    (hpc4.trans (by rw [show b1.length = 2 from rfl])) hm4 fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWDuplex.b1_next])) hm4 fun st5 hm5 hpc5 => ?_
   obtain ⟨hepi, hw5, hws5⟩ := after_eq run_b2 ▸ ok_b2
   obtain ⟨hsv5, hsl5⟩ := Frame.epilogue hf4 hwf4 hm5 hepi
   have hx30 : st5.data.regs.X30 = m0.regs.X30 := hsl5 (0, .X30) (List.mem_cons_self ..)

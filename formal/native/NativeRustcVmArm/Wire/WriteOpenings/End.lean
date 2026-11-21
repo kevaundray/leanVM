@@ -24,7 +24,7 @@ variable [Host]
 
 /-- At the epilogue, the result in X0. -/
 structure AtEnd (R : Run) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 223
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b46Offset
   fr : Frm R st.data
   res : (st.data.regs.X0 = 1 ∧ R.Done st.data.dmem R.nq) ∨ (st.data.regs.X0 = 0 ∧ R.Bad)
 
@@ -71,7 +71,7 @@ theorem end_spec (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : AtE
 
 /-- **A rejection** (`b45`): X0 cleared, then the epilogue. -/
 theorem fail_spec (hp : Placed code R.k) (G : Geo R) {st : MachineState}
-    (hpc : st.pc = pcOf R 221) (hfr : Frm R st.data) (hb : R.Bad) :
+    (hpc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b45Offset) (hfr : Frm R st.data) (hb : R.Bad) :
     Eventually (step1 Host.exe) (Post R) st := by
   have hwf := G.wf0 hfr.kept
   refine exec_at (infix_of b45_in_code (by simp [b45]) hp) run_b45 hwf hpc (frMatch G hfr)

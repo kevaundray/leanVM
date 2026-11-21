@@ -94,7 +94,7 @@ variable [Host] {a : DecArea} {s0 : TState} {m1 : MachineData}
 /-- The outer loop's head with measure `n`: `j` challenges done, `n = count - j`. -/
 @[expose] def OuterAt (a : DecArea) (s0 : TState) (m1 : MachineData) (k n : Nat)
     (st : MachineState) : Prop :=
-  ∃ j r s qs, n = cnt m1 - j ∧ st.pc = Host.addrOf (k + 46) ∧ Outer a s0 m1 j r s qs st.data
+  ∃ j r s qs, n = cnt m1 - j ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b9Offset) ∧ Outer a s0 m1 j r s qs st.data
 
 end
 
@@ -135,7 +135,7 @@ theorem cnt_le (h : SampleQueriesPre a s0 m1) : cnt m1 ≤ 230 := h.2.2.1
 
 /-- **`b8`**: the epilogue after the last challenge, else the outer loop's head. -/
 theorem tail_b8 (hp : Placed code k) (h : SampleQueriesPre a s0 m1) {j r nn : Nat} {s : TState}
-    {qs : List UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 40))
+    {qs : List UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b8Offset))
     (hb : AtB8 a s0 m1 j r nn s qs st.data) :
     Eventually (step1 Host.exe)
       (fun st' ↦ Goal a s0 m1 st' ∨ ∃ n' < cnt m1 - j, OuterAt a s0 m1 k n' st') st := by
@@ -185,13 +185,13 @@ theorem tail_b8 (hp : Placed code k) (h : SampleQueriesPre a s0 m1) {j r nn : Na
   rw [hcond] at hpc1
   by_cases hq : j + 1 = cnt m1
   · -- the last challenge: the epilogue
-    simp only [hq, decide_true, ↓reduceIte, hp.label (j := 82) rfl] at hpc1
+    simp only [hq, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b18Offset) NativeRustcVmArm.Vm.SampleQueries.label_14_at] at hpc1
     refine Eventually.mono (finish hp h hpc1 hf1 h0 (qs := qs) (s := s) ?_
       (by rw [hd1]; exact hb.buf) (by rw [hd1]; exact hb.ts)) fun _ hg ↦ Or.inl hg
     rw [hb.model, show cnt m1 - (j + 1) = 0 by omega, auxP_zero_left]
     simp
   · simp only [hq, decide_false, Bool.false_eq_true, ↓reduceIte,
-      show k + 40 + b8.length = k + 46 from rfl] at hpc1
+      show k + NativeRustcVmArm.Vm.SampleQueries.b8Offset + b8.length = k + NativeRustcVmArm.Vm.SampleQueries.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SampleQueries.b8_next]] at hpc1
     refine .done _ (Or.inr ⟨cnt m1 - (j + 1), by omega, j + 1, r - nn, s, qs, rfl, hpc1, ?_⟩)
     exact {
       fr := hf1

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Open2
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # Reading the sixty-four output slices
@@ -23,14 +24,14 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem readStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {st : MachineState} {V : Vs} {s1 : TState} {v : EW}
-    (hat : At m0 k 421 wrAll t59 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b59Offset wrAll t59 (vv m0 V) st)
     (hv : NativeRustcVm.EWAt st.data.dmem (off (fb m0) 104) v)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s1)
     (hfail : (readScalars 64).run s1 = none →
       (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s = none)
-    (cont : ∀ st' sl s2, At m0 k 433 wrAll t60 (vv m0 (Vf V v)) st' →
+    (cont : ∀ st' sl s2, At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b61Offset wrAll t60 (vv m0 (Vf V v)) st' →
       (readScalars 64).run s1 = some (sl, s2) →
       NativeRustcVm.EWsAt st'.data.dmem (off (keccakOutArg m0) 584) sl.toList →
       TStateAt st'.data.dmem (reg m0 .rdi) a s2 →
@@ -95,8 +96,8 @@ theorem readStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
   rw [rsi] at hews
   rw [rdi] at hnext
   simp only [show (64#64).toNat = 64 from rfl] at hal hews hnext
-  rw [show 421 + b59.length = 431 from rfl] at hpc1
-  refine stepJ (T' := t60) (vals' := vv m0 (Vf V v)) (o := 431) hp c h ⟨hpc1, hB1⟩
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b59_next] at hpc1
+  refine stepJ (T' := t60) (vals' := vv m0 (Vf V v)) (o := NativeRustcVmX64.Vm.VerifyKeccak.b60Offset) hp c h ⟨hpc1, hB1⟩
     b60_in_code (by simp [b60]) run_b60 nofun (hB1.mt 0) (by decide) rfl rfl (by vtacJ)
     (by decide) rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) rfl
     fun st2 hpc2 hB2 _ hc2 hk2 ↦ ?_
@@ -117,7 +118,7 @@ theorem readStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
       reg st1.data .rax from rfl, hone, show ¬(1 = 0) from by decide, decide_false,
       Bool.false_eq_true, ↓reduceIte] at hpc2
     have h64 : sl.size = 64 := NativeRustcVm.Sumcheck.readScalars_size hr
-    refine cont st2 sl s2 ⟨hpc2.trans (by rw [show 431 + b60.length = 433 from rfl]), hB2⟩ hr
+    refine cont st2 sl s2 ⟨hpc2.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b60_next]), hB2⟩ hr
       (Chg.ewsR c hc2 (by decide) rfl (i := 4) (o := 584) (by decide) (by decide) rfl
         (by rw [Array.length_toList, h64]; decide) (hews sl s2 hr))
       (Chg.ts c hc2 (by decide) rfl (by decide) hk2 (hnext _ _ rfl)) ?_

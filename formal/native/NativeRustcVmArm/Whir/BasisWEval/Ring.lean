@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingClaimWeight.Names
 public import NativeRustcVmArm.Whir.BasisWEval.Calls
 
 /-!
@@ -25,10 +26,10 @@ variable {m0 : MachineData} {ba : BasisAddrs} {b : BasisW} {v : Vals} [Host] {k 
 /-- **The ring-switched claim's weight**, from `.LBasisWEval_3` to `b5`: `Some` of it at
 `sp + 24`, the rest as `At4`. -/
 theorem ring_call (hp : Placed code k) (h : In m0 ba b v)
-    (hrcw : Spec (Labels.label ringClaimWeightLabel) RingClaimWeightPre RingClaimWeightPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 27)) (ha : At4 m0 ba b v st.data)
+    (hrcw : Spec (Labels.label NativeRustcVmArm.Vm.RingClaimWeight.entryLabel) RingClaimWeightPre RingClaimWeightPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b4Offset)) (ha : At4 m0 ba b v st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 41) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b5Offset) →
       NativeRustcVm.Transcript.OptEWAt st'.data.dmem (base m0 144 + BitVec.ofNat 64 24)
         (some (ringW v (xpt m0))) →
       Fr0 m0 st'.data →
@@ -139,7 +140,7 @@ theorem ring_call (hp : Placed code k) (h : In m0 ba b v)
     rcases hq with hq | hq
     · rw [hx0] at hq; exact .inr (.inl hq)
     · exact .inl hq
-  · refine cont _ (by rw [show k + 27 + b4.length = k + 41 from rfl]) ?_ hf5
+  · refine cont _ (by rw [show k + NativeRustcVmArm.Vm.BasisWEval.b4Offset + b4.length = k + NativeRustcVmArm.Vm.BasisWEval.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b4_next]]) ?_ hf5
       fun r hr ↦ (hcs5 r hr).trans (hk4 r hr)
     have e1 : placementArg st4.data = v.L.placement qkeccak :=
       placementArg_eq (placement_lt h.layout qkeccak) hx1 hx2

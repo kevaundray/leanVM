@@ -7,7 +7,7 @@ public import NativeRustcVm.Arrays.ReadLemmas
 # `bytecode_share`: the point's copy and the result (x86-64)
 
 From `b12` on, the check passed: `bytecode_low` goes to the point's first slots, two elements a
-turn (`b18`, the head `.LBytecodeShare_13`), then the odd one (`b20`), the slot point after them
+turn (`b18`, the head `NativeRustcVmX64.Vm.BytecodeShare.label_13`), then the odd one (`b20`), the slot point after them
 and the result to the output (`b21`), then the epilogue. `Cp j`: the first `j` elements copied,
 nothing else changed since `b12` but the point.
 
@@ -259,7 +259,7 @@ theorem finish (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Machine
     (hsp : NativeRustcVm.EWsAt m.dmem (off (fa m0) 32) sp.toList) (hsz : sp.size = 4)
     (hts : TStateAt m.dmem (tAt m0) a s3)
     (hr : res s0 m0 = some ((sh, slice m0 (bAt m0) (reg m0 .r8) ++ sp, v), s3)) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 151)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b21Offset)⟩ := by
   have c := ctx_of h
   have hlen := nB_le h
   have ho := oOk h
@@ -340,7 +340,7 @@ theorem finish (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Machine
   have hk' : Kept m.dmem st'.data.dmem := kept_trans hcp.kept (hm'.kept hwf)
   have hblL : (slice m0 (bAt m0) (reg m0 .r8)).toList.length = nB m0 := by simp [slice]
   simp only [PcOk] at hpc
-  rw [hp.label (j := 115) rfl] at hpc
+  rw [hp.label NativeRustcVmX64.Vm.BytecodeShare.label_15_at] at hpc
   obtain ⟨d', pc⟩ := st'
   simp only at hpc
   subst hpc
@@ -382,7 +382,7 @@ theorem finish (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Machine
       · exact .inr (.inl hq)
       · exact .inl (pt_sub h (by unfold ptBytes sharePointSlots busPointCap; omega) hq)
 
-/-- The pair loop's head `.LBytecodeShare_13`, `j` elements copied. -/
+/-- The pair loop's head `NativeRustcVmX64.Vm.BytecodeShare.label_13`, `j` elements copied. -/
 structure PH (m0 m : MachineData) (v0 : BitVec 64) (j : Nat) (st : MachineData) : Prop where
   cp : Cp m0 m v0 j st
   even : j % 2 = 0
@@ -394,13 +394,13 @@ structure PH (m0 m : MachineData) (v0 : BitVec 64) (j : Nat) (st : MachineData) 
 /-- What `b21` needs: every element copied. -/
 abbrev Fin' (a : DecArea) (s0 : TState) (m0 m : MachineData) (v0 : BitVec 64) (k : Nat) : Prop :=
   ∀ st, Cp m0 m v0 (nB m0) st →
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 151)⟩
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b21Offset)⟩
 
-/-- **The odd element** (`.LBytecodeShare_10`, `b20`). -/
+/-- **The odd element** (`NativeRustcVmX64.Vm.BytecodeShare.label_10`, `b20`). -/
 theorem odd (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin' a s0 m0 m v0 k)
     {j : Nat} {st : MachineData} (hc : Cp m0 m v0 j st) (hdx : reg st .rdx = BitVec.ofNat 64 j)
     (hj : j + 1 = nB m0) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 145)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b20Offset)⟩ := by
   have c := ctx_of h
   have hlen := nB_le h
   obtain ⟨hbm, hbnw, hbs⟩ := bOk h
@@ -483,7 +483,7 @@ theorem odd (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin' a s0 m
       rw [hs q h1]
       exact hc.same q h2
   simp only [PcOk] at hpc
-  rw [show b20.length = 6 from rfl] at hpc
+  rw [NativeRustcVmX64.Vm.BytecodeShare.b20_length] at hpc
   obtain ⟨d', pc⟩ := st'
   simp only at hpc
   subst hpc

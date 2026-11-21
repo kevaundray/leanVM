@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+
 public import NativeRustcX64.SphincsVerify.Parse.OpenTurn
 
 /-!
@@ -39,7 +41,7 @@ variable (r : Run) [Host]
 theorem memcpy_pure (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {ds : List Directive}
     {jd jn : Nat} (hb : ds.IsInfixAt code jd) (hjn : jd + ds.length = jn)
     {k : List (Reg64 × Sym)} {S' : SState}
-    (hx : exec ds (fS k) = some (S', .call "memcpy")) (hfw : Run.frameWrites S' = true)
+    (hx : exec ds (fS k) = some (S', .call NativeRustcX64.Common.Memcpy.entryLabel)) (hfw : Run.frameWrites S' = true)
     (hrsp : S'.reg .rsp = some (.ptr 0 (-8))) {m : MachineData} (hF : r.Frame m)
     (hk : AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m (fun _ ↦ 0) (r.pc jn).toBitVec)) k)
     {L : List (Nat × Nat × List UInt8)} (hL : Facts r m.dmem L) (hok : factsOK S' L = true)

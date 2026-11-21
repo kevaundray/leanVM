@@ -3,6 +3,8 @@ module
 public import NativeRustcVmX64.Keccak.KeccakF.Prologue
 public import NativeRustcVmX64.Keccak.KeccakF.Round
 public import NativeRustcVmX64.Keccak.KeccakF.Epilogue
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `keccak_f` meets its contract (x86-64)
@@ -27,14 +29,14 @@ variable [Host]
 
 /-- **`keccak_f` meets its contract.** -/
 theorem keccakF_spec {k : Nat} (hp : Placed Vm.KeccakF.code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) :
-    Spec (label keccakFLabel) KeccakFPre KeccakFPost := by
+    (hmemcpy : Spec (label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
+    Spec (label NativeRustcVmX64.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost := by
   intro m0 hpre
-  rw [show label keccakFLabel = Host.addrOf (k + 0) from hp.label rfl, Nat.add_zero]
+  rw [show label NativeRustcVmX64.Vm.KeccakF.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b0Offset) from hp.label NativeRustcVmX64.Vm.KeccakF.entry_at]
   refine Eventually.bind (KeccakF.prologue_step hp hmemcpy hpre) fun st₁ ⟨hA₁, hpc₁⟩ => ?_
   have hloop := Sym.loop (tr := step1 Host.exe)
-    (Q := fun st => KeccakF.At m0 24 st.data ∧ st.pc = Host.addrOf (k + 314))
-    (fun n st => ∃ i, n = 24 - i ∧ i < 24 ∧ st.pc = Host.addrOf (k + 55) ∧ KeccakF.At m0 i st.data)
+    (Q := fun st => KeccakF.At m0 24 st.data ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b3Offset))
+    (fun n st => ∃ i, n = 24 - i ∧ i < 24 ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakF.b2Offset) ∧ KeccakF.At m0 i st.data)
     (fun n st ⟨i, hn, hi, hpc, hA⟩ => by
       obtain ⟨m, pc⟩ := st
       simp only at hpc

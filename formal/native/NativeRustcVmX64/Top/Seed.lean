@@ -1,6 +1,11 @@
 module
 
 public import NativeRustcVmX64.Top.Seed.Stage2
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfFiatShamirIv.Names
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.Seed.Names
 
 /-!
 # `seed` on x86-64
@@ -23,14 +28,14 @@ variable [Host] {k : Nat}
 
 /-- **`seed` meets its contract.** -/
 theorem seed_spec (hp : Placed code k)
-    (hkiv : Spec (Labels.label keccak256WordsIvLabel) Keccak256WordsIvPre Keccak256WordsIvPost)
-    (hmemset : Spec (Labels.label "memset") MemsetPre MemsetPost)
-    (hkf : Spec (Labels.label keccakFLabel) KeccakFPre KeccakFPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) :
-    Spec (Labels.label seedLabel) SeedPre SeedPost := by
+    (hkiv : Spec (Labels.label NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.entryLabel) Keccak256WordsIvPre Keccak256WordsIvPost)
+    (hmemset : Spec (Labels.label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hkf : Spec (Labels.label NativeRustcVmX64.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.Seed.entryLabel) SeedPre SeedPost := by
   intro m0 hpre
-  unfold seedLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.Seed.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.Seed.entry_at]
   exact Eventually.bind (stage1 hp hkiv hmemset hpre) fun st ⟨hpc, hS1⟩ ↦
     stage2 hp hkf hmemcpy hpre hpc hS1
 

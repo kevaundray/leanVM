@@ -69,19 +69,19 @@ variable [Host] {env : Env}
 theorem stepD_ok {d : Directive} {p : Program} {k : Nat} (hdp : (d :: p).IsInfixAt Host.prog k)
     {S S' : SState} {x : Exit} {m : MachineData} (hwf : env.WF) (hm : Match env S m)
     (h : stepD d S = some (S', x))
-    (hret : ∀ l, x = .call l → env.ret = (Host.addrOf (k + 1)).toBitVec) :
+    (hret : ∀ l, x = .call l → env.ret = (Host.addrOf k.succ).toBitVec) :
     Eventually (step1 Host.exe) (fun st => Match env S' st.data ∧
-      PcOk env x (Host.addrOf (k + 1)) st) ⟨m, Host.addrOf k⟩ := by
+      PcOk env x (Host.addrOf k.succ) st) ⟨m, Host.addrOf k⟩ := by
   apply Host.eventually_of_interp hdp
   cases d with
   | label l =>
     cases h
-    exact done_fall (p := ⟨Host.addrOf k, Host.addrOf (k + 1)⟩) hm
+    exact done_fall (p := ⟨Host.addrOf k, Host.addrOf k.succ⟩) hm
   | instr i =>
     cases i with
     | regular aw w op =>
       cases aw with
-      | W64 => exact stepOp_ok op S S' x m ⟨Host.addrOf k, Host.addrOf (k + 1)⟩ hwf hm h hret
+      | W64 => exact stepOp_ok op S S' x m ⟨Host.addrOf k, Host.addrOf k.succ⟩ hwf hm h hret
       | _ => cases h
     | avx _ _ _ => cases h
   | byteArray _ => cases h

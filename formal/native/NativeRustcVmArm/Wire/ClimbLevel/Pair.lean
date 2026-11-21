@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
 public import NativeRustcVmArm.Wire.ClimbLevel.Hash
 
 /-!
@@ -90,7 +91,7 @@ variable [Host] {k : Nat}
 /-- **The count checked** (`b15`), then the parent stored. -/
 theorem b15_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat}
     {sl : List (Nat × Digest × Bool)} {ci : Nat} {q : Nat × Digest × Bool} {H : Digest}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 89))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b15Offset))
     (h : Hashed m0 bp B c ns i sl ci q H st.data) (hkey : q.1 = (ns[i]'h.hi).1)
     (hpar : parentOf (ns[i]'h.hi) q = [((ns[i]'h.hi).1 >>> 1, H)]) :
     Eventually (step1 Host.exe) (Head m0 bp B c ns k (i + 1) (sl ++ [q]) ci) st := by
@@ -110,7 +111,7 @@ theorem b15_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat}
     simp only [SBool.eval, ult_apply, Sym.eval, Env.ofMachine_regs, decide_eq_true_eq]
     rw [UInt64.toNat_toBitVec, h.x19, BitVec.toNat_ofNat]
     exact parents_lt (by have := h.lt; have := G.n256; omega)
-  simp only [PcOk, hc, ↓reduceIte, hp.label (j := 27) rfl] at hpc1
+  simp only [PcOk, hc, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b4Offset) NativeRustcVmArm.Vm.ClimbLevel.label_3_at] at hpc1
   have h' := h.keep hfr1 hd1 hr
   exact store_spec hp G hpc1 h'.fr h'.fx h'.lt h'.hi h'.hs h'.rd h'.sb h'.nx h'.hl h'.hH hpar
     h'.x19 h'.x20 (by rw [h'.x21, hkey]) h'.x23
@@ -118,7 +119,7 @@ theorem b15_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat}
 /-- **The count checked** (`b3`), then the parent stored. -/
 theorem b3_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat}
     {sl : List (Nat × Digest × Bool)} {ci : Nat} {q : Nat × Digest × Bool} {H : Digest}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 25))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b3Offset))
     (h : Hashed m0 bp B c ns i sl ci q H st.data) (hkey : q.1 = (ns[i]'h.hi).1)
     (hpar : parentOf (ns[i]'h.hi) q = [((ns[i]'h.hi).1 >>> 1, H)]) :
     Eventually (step1 Host.exe) (Head m0 bp B c ns k (i + 1) (sl ++ [q]) ci) st := by
@@ -150,10 +151,10 @@ theorem saved_regs : ∀ r ∈ [XReg.X19, .X20, .X21, .X22, .X23, .X25, .X27, .X
 
 /-- **Node `i` first** (`b14`, `hash_pair`, `b15`): an even key, or its sibling carried. -/
 theorem hash14_spec (hp : Placed code k) (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {i : Nat}
     {sl : List (Nat × Digest × Bool)} {ci : Nat} {q : Nat × Digest × Bool} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 84)) (hM : Mid m0 bp B c ns i sl ci q st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b14Offset)) (hM : Mid m0 bp B c ns i sl ci q st.data)
     (hi : i < ns.length)
     (hpar : parentOf ns[i] q = [(ns[i].1 >>> 1, NativeVm.Model.hashPair ns[i].2 q.2.1)]) :
     Eventually (step1 Host.exe) (Head m0 bp B c ns k (i + 1) (sl ++ [q]) ci) st := by
@@ -182,16 +183,16 @@ theorem hash14_spec (hp : Placed code k) (G : Geo m0 bp B)
   have hr2 : ∀ r ∈ [XReg.X19, .X20, .X21, .X22, .X23, .X25, .X27, .X28, .X29],
       m2.regs.getXReg r = st.data.regs.getXReg r := fun r hr ↦
     (hcs r (saved_regs r hr)).trans (hr1 r hr)
-  exact b15_spec hp G (show Host.addrOf (k + 84 + b14.length) = Host.addrOf (k + 89) from
+  exact b15_spec hp G (show Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b14Offset + b14.length) = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b15Offset) from
     congrArg Host.addrOf rfl) (Hashed.of_call G hM hi hfr2 hH (by rw [← hd1]; exact hs2) hr2)
     (hM.key hi) hpar
 
 /-- **The sibling first** (`b2`, `hash_pair`, `b3`): an odd key, its sibling read. -/
 theorem hash2_spec (hp : Placed code k) (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {i : Nat}
     {sl : List (Nat × Digest × Bool)} {ci : Nat} {q : Nat × Digest × Bool} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 20)) (hM : Mid m0 bp B c ns i sl ci q st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b2Offset)) (hM : Mid m0 bp B c ns i sl ci q st.data)
     (hi : i < ns.length)
     (hpar : parentOf ns[i] q = [(ns[i].1 >>> 1, NativeVm.Model.hashPair q.2.1 ns[i].2)]) :
     Eventually (step1 Host.exe) (Head m0 bp B c ns k (i + 1) (sl ++ [q]) ci) st := by
@@ -220,7 +221,7 @@ theorem hash2_spec (hp : Placed code k) (G : Geo m0 bp B)
   have hr2 : ∀ r ∈ [XReg.X19, .X20, .X21, .X22, .X23, .X25, .X27, .X28, .X29],
       m2.regs.getXReg r = st.data.regs.getXReg r := fun r hr ↦
     (hcs r (saved_regs r hr)).trans (hr1 r hr)
-  exact b3_spec hp G (show Host.addrOf (k + 20 + b2.length) = Host.addrOf (k + 25) from
+  exact b3_spec hp G (show Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b2Offset + b2.length) = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b3Offset) from
     congrArg Host.addrOf rfl) (Hashed.of_call G hM hi hfr2 hH (by rw [← hd1]; exact hs2) hr2)
     (hM.key hi) hpar
 

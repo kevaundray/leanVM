@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
 public import NativeRustcVmArm.Layout.BuildLayout.Lemmas
 
 /-!
@@ -84,7 +85,7 @@ theorem and1 (x : UInt64) (h : x = 0 ∨ x = 1) :
 
 /-- **The epilogue** `b21`: X0 (`0` or `1`) returned, the frame popped. -/
 theorem epi (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF : Facts bc m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 97)) (hb : Bd m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b21Offset)) (hb : Bd m0 st.data)
     (hx : st.data.regs.X0 = 0 ∨ st.data.regs.X0 = 1) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ s.data.regs.X0 = st.data.regs.X0 ∧
       Changes m0 s.data SS (ll m0) layoutBytes ∧ Saved m0 s.data ∧ s.data.dmem = st.data.dmem) st := by
@@ -103,7 +104,7 @@ theorem epi (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF : Fa
 
 /-- **A failed check** (`.L11`): `b20`, `b21` return `0`. -/
 theorem fail (hp : Placed code k) {bc : Array UInt64} {m0 : MachineData} (hF : Facts bc m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 95)) (hb : Bd m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b20Offset)) (hb : Bd m0 st.data)
     (hr : buildLayout bc m0.regs.X1.toNat (rowsOf m0) = none) :
     Eventually (step1 Host.exe) (Post bc m0) st := by
   refine exec_at (infix_of b20_in_code (by simp [b20]) hp) run_b20 (Env.wf_nil _) hpc (match_nil _)
@@ -143,9 +144,9 @@ theorem bl_same {st st' : MachineData} (h : BitLengthPost st st') : st'.dmem = s
     exact h.2.1 a fun hr ↦ absurd hr (by unfold InRange bitLengthStack; omega)
 
 /-- **A block storing two words of the layout, then `bit_length` of a row count less one.** -/
-theorem blk (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost) {bc : Array UInt64}
+theorem blk (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) {bc : Array UInt64}
     {m0 : MachineData} (hF : Facts bc m0) {b : List Directive} {kb : Nat} {S₀ S' : SState}
-    (hbk : b.IsInfixAt Host.prog kb) (hx : exec b S₀ = some (S', .call bitLengthLabel))
+    (hbk : b.IsInfixAt Host.prog kb) (hx : exec b S₀ = some (S', .call NativeRustcVmArm.Vm.BitLength.entryLabel))
     (hk : keepsAll S₀ { S' with mem := [] } keptRegs = true) (hin : InR0 S' 120 = true)
     {rs : List XReg} (hkeep : keepR S₀ S' rs = true) (hcs : ∀ r ∈ rs, calleeSaved r = true)
     {ws : List (Nat × UInt64)} (hws : ∀ p ∈ ws, p.1 + 8 ≤ 120)

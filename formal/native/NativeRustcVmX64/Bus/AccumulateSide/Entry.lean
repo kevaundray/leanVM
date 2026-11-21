@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.Arith
 public import NativeRustcVmX64.Bus.AccumulateSide.FactsK
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
 
 /-!
 # `accumulate_side`: the prologue (x86-64)
@@ -98,11 +99,11 @@ theorem holdsDE (h : Pre L rows bl Fm SL m0) {lp : Nat → UInt64} {rest : List 
 known part, the ones' (`b6`). -/
 theorem entry (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (lp : Nat → UInt64) :
     Eventually (step1 Host.exe) (fun st ↦
-      (st.pc = Host.addrOf (k + 46) ∧ 0 < cA SL m0 ∧
+      (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b2Offset) ∧ 0 < cA SL m0 ∧
         St m0 Z (Vt SL m0 (lpK SL m0 0)) DK 8 st.data) ∨
-      (st.pc = Host.addrOf (k + 85) ∧ cA SL m0 = 0 ∧
+      (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b6Offset) ∧ cA SL m0 = 0 ∧
         St m0 Z (Vt SL m0 lp) (D0 ++ E0) 8 st.data))
-      ⟨m0, Labels.label accumulateSideLabel⟩ := by
+      ⟨m0, Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel⟩ := by
   have hfw := h.fw
   have hsl := h.slIn
   have hA := h.argsIn
@@ -121,8 +122,8 @@ theorem entry (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (lp : Nat → UI
       (allOf_append argAliases_ok ⟨by
         show env.load 1 0 8 = stackArg m0 0 + BitVec.ofInt 64 0
         rw [hl0]; simp, trivial⟩)
-  unfold accumulateSideLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.AccumulateSide.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.AccumulateSide.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf nofun hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hpro, hw1, htr1, h12, h13, hdx, hc24⟩ := ok_b0
@@ -157,7 +158,7 @@ theorem entry (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (lp : Nat → UI
   by_cases hc : cA SL m0 = 0
   · refine .done _ (.inr ⟨?_, hc, hst1⟩)
     rw [hpc1, decide_eq_true hc]
-    exact hp.label (j := 85) rfl
+    exact hp.label NativeRustcVmX64.Vm.AccumulateSide.label_4_at
   · rw [decide_eq_false hc] at hpc1
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc1
     have hpos : 0 < cA SL m0 := Nat.pos_of_ne_zero hc
@@ -178,7 +179,7 @@ theorem entry (hp : Placed code k) (h : Pre L rows bl Fm SL m0) (lp : Nat → UI
         hst1.hd.load (by decide : (Sym.load 0 24 8, 28) ∈ D0 ++ E0)]
       rfl
     have hcA : cA SL m0 ≤ 3 := Nat.le_trans (Nat.min_le_right _ _) hfw.1
-    refine .done _ (.inl ⟨by rw [hpc, show b0.length = 40 from rfl, show b1.length = 6 from rfl], hpos, St.sub (St.add (V' := Vt SL m0 (lpK SL m0 0))
+    refine .done _ (.inl ⟨by rw [hpc]; change Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b0Offset + b0.length + b1.length) = _; rw [Nat.add_assoc k NativeRustcVmX64.Vm.AccumulateSide.b0Offset b0.length, NativeRustcVmX64.Vm.AccumulateSide.b0_next, Nat.add_assoc, NativeRustcVmX64.Vm.AccumulateSide.b1_next], hpos, St.sub (St.add (V' := Vt SL m0 (lpK SL m0 0))
       (E := [(Lw 24, 19), (Rg .rbp, 32), (Rg .r15, 33), (Rg .r13, 34)]) hst
       (fun p hp ↦ Vt_lt (by revert p hp; decide)) ?_) (by decide)⟩)
     refine holds_content (e := frameEnv m0 d1 F [] (fun _ ↦ 0) 0) h24 ?_

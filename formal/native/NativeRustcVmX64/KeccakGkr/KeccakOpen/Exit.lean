@@ -63,7 +63,7 @@ theorem wf_out (h : PreOk a s c m0) {d : MachineData} (hk : Kept m0.dmem d.dmem)
 
 /-- The output tag, restored registers, return address and exact memory frame. -/
 theorem tail_run (hp : Placed code k) (h : PreOk a s c m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 577)) (hf : Frame m0 2208 slots 8 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b95Offset)) (hf : Frame m0 2208 slots 8 st.data)
     (hs : NativeRustcVm.SameOutside m0.dmem st.data.dmem (Out m0))
     (hbx : reg st.data .rbx = oA m0) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧

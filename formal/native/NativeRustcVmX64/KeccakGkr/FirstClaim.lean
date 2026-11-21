@@ -1,6 +1,12 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.FirstClaim.Result
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
+public import NativeRustcVmX64.Code.Vm.FirstClaim.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `first_claim` meets its contract (x86-64)
@@ -23,16 +29,16 @@ variable [Host] {k : Nat}
 /-- **`first_claim` meets its contract**, given `eq_kernel`'s, `EW::mul`'s, `dot`'s,
 `Buf<EW, 30>::extend`'s and `memcpy`'s. -/
 theorem firstClaim_spec (hp : Placed code k)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     (inst segment lanePoint output : Array EW) :
-    Spec (Labels.label firstClaimLabel) (FirstClaimPre inst segment lanePoint output)
+    Spec (Labels.label NativeRustcVmX64.Vm.FirstClaim.entryLabel) (FirstClaimPre inst segment lanePoint output)
       (FirstClaimPost inst segment lanePoint output) := by
   intro m0 hpre
-  have hl : Labels.label firstClaimLabel = Host.addrOf (k + 0) := label_of_infix hp b0_in_code rfl
+  have hl : Labels.label NativeRustcVmX64.Vm.FirstClaim.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b0Offset) := label_of_infix hp b0_in_code rfl
   rw [hl]
   exact (prologue hp hpre heq).bind fun _ ⟨hpc, hI⟩ ↦
     (w_loop hp hpre hmul hpc hI).bind fun _ ⟨hpc, hI⟩ ↦

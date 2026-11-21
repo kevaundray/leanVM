@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.CallKit
 
 /-!
@@ -169,13 +170,13 @@ variable [Host] {m0 : MachineData} {L : LayoutW} {rows : Array Nat}
 
 /-- **`b27`**: table block `j`'s selector. -/
 theorem turn27 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) DL m) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L28 m2 → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 244)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 233)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b28Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset)⟩ := by
   have hfr := hst.fr
   have h51 := bl_size h
   have hjt : j < SL.tables.size := by rw [h.sl_size]; exact hj
@@ -214,7 +215,7 @@ theorem turn27 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       UInt64.toNat_ofNat_of_lt' hvc]
   · rw [load_rk rfl, NativeRustcVm.addr_add_add, show 72 + 16 * j + 8 = 80 + 16 * j by omega,
       hwd _ (by omega), hw1, UInt64.toNat_toBitVec, Nat.toUInt64, UInt64.toNat_ofNat_of_lt' hix]
-  · rw [show k + 233 + b27.length = k + 244 from rfl]
+  · rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset + b27.length = k + NativeRustcVmArm.Vm.AccumulateSide.b28Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b27_next]]
     refine cont m2 ⟨hst2.fr, Holds.sub (holds_ewRet hst2.hd (r0 := 94) (x := tsl SL m0 j) ?_ rfl
       rfl) (by decide)⟩ hF
     rw [hret]

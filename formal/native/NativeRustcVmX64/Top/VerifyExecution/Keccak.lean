@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Ring
+public import NativeRustcVmX64.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
 
 /-!
 # `verify_execution`: `KECCAK`'s validity (x86-64)
@@ -160,16 +163,16 @@ variable [Host] {k : Nat}
 
 /-- **`KECCAK`'s validity**, from `b14`: the function returns the walk's rest. -/
 theorem callKeccak (hp : Placed code k)
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 65)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b14Offset)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
     (h12 : reg st.data .r12 = off (reg m0 .r8) 112184)
     (h13 : reg st.data .r13 = off (reg m0 .r8) 123992)
     (hbp : reg st.data .rbp = off (reg m0 .r8) 3912)
@@ -187,7 +190,7 @@ theorem callKeccak (hp : Placed code k)
   have hwN := g.wN
   have hN : keccakPhaseStack = 7024 := rfl
   have hwf := frame_wf (m0 := m0) (d := st.data) (F := 96) (rest := [(reg m0 .r8, 72)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 65 + b14.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b14Offset + b14.length)).toBitVec)
     ⟨Mapped.keeps g.fmapped h.frame.kept, g.fnw⟩
     (fun x hx ↦ by
       rw [List.mem_singleton] at hx; subst hx
@@ -196,7 +199,7 @@ theorem callKeccak (hp : Placed code k)
     (List.pairwise_pair.mpr (by
       unfold NativeRustcVm.Apart; dsimp only; rw [hF]; have := g.wS; omega))
   have hm : Match (frameEnv m0 st.data 96 [(reg m0 .r8, 72)] (fun _ ↦ 0)
-      (Host.addrOf (k + 65 + b14.length)).toBitVec) workS st.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b14Offset + b14.length)).toBitVec) workS st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨h.frame.rsp_eval, known_ptr rfl h.rbx, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b14_in_code (by simp [b14]) hp) run_b14 hwf (fun _ _ ↦ rfl) hpc hm
@@ -219,7 +222,7 @@ theorem callKeccak (hp : Placed code k)
     fun r hr ↦ hm1.regs r (.reg r) (by simpa using List.all_eq_true.mp hk r hr)
   have eRbx : reg st1.data .rbx = reg m0 .r8 := (hm1.regs .rbx _ hrbx).trans (eval_ptr rfl)
   have eptr : ∀ c : Nat, (Sym.ptr 1 (c : Int)).eval (frameEnv m0 st.data 96 [(reg m0 .r8, 72)]
-      (fun _ ↦ 0) (Host.addrOf (k + 65 + b14.length)).toBitVec) = off (reg m0 .r8) c := fun c ↦ by
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b14Offset + b14.length)).toBitVec) = off (reg m0 .r8) c := fun c ↦ by
     show (frameEnv m0 st.data 96 [(reg m0 .r8, 72)] (fun _ ↦ 0) _).base 1 + BitVec.ofInt 64 (c : Int) = _
     rw [BitVec.ofInt_natCast]; rfl
   have eRdi : reg st1.data .rdi = reg m0 .rdi := (hm1.regs .rdi _ hrdi).trans h.r14
@@ -311,7 +314,7 @@ theorem callKeccak (hp : Placed code k)
       (UInt64.ofBitVec (off (reg m0 .r8) 221280)) := by
     have hw := wordAt_write (r := 0) (b := stackBelow m0 96) (sz := 104) hm1 rfl (by decide) hw40
     rw [show (Sym.ptr 1 221280).eval (frameEnv m0 st.data 96 [(reg m0 .r8, 72)] (fun _ ↦ 0)
-      (Host.addrOf (k + 65 + b14.length)).toBitVec) = off (reg m0 .r8) 221280 from eptr 221280] at hw
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b14Offset + b14.length)).toBitVec) = off (reg m0 .r8) 221280 from eptr 221280] at hw
     refine keep_off hw hch fun j h1 h2 hq ↦ ?_
     rw [NativeRustcVm.length_wordBytes] at h2
     have hq' : (off (stackBelow m0 96) j).toNat = vsb m0 + 17792 + j := by
@@ -323,7 +326,7 @@ theorem callKeccak (hp : Placed code k)
   rw [walkKeccak, run_bind_eq]
   generalize hr : (keccakPhase L ev).run s = r at hok hres
   refine branch hp g b15_in_code (by simp [b15]) (by rw [after_eq run_b15]; exact run_b15)
-    (ok_test b15 (by simp)) h2 (hpc2.trans (by rw [show k + 65 + b14.length = k + 73 from rfl]))
+    (ok_test b15 (by simp)) h2 (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b14Offset + b14.length = k + NativeRustcVmX64.Vm.VerifyExecution.b15Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b14_next]]))
     hok (fun hb ↦ by cases r with | none => rfl | some _ => cases hb)
     fun st3 hb h3 hd3 hk3 hpc3 ↦ ?_
   obtain ⟨⟨⟨outs, kp, ks⟩, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
@@ -337,7 +340,7 @@ theorem callKeccak (hp : Placed code k)
     exact NativeRustcVm.Tables.LayoutWAt.of_same (by rw [off_zero]; exact hL)
       (hsC (o := 0) (n := 3912) (by omega) (by omega))
   rw [off_zero] at hL3
-  exact callRing hp hrs hvso g h3 (hpc3.trans (by rw [show k + 73 + b15.length = k + 75 from rfl]))
+  exact callRing hp hrs hvso g h3 (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b15Offset + b15.length = k + NativeRustcVmX64.Vm.VerifyExecution.b16Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b15_next]]))
     (by rw [k15, kr _ (by simp)]; exact h15) (by rw [k13, kr _ (by simp)]; exact h13)
     (by rw [kbp, kr _ (by simp)]; exact hbp) (by rw [hd3]; exact h40') (by rw [hd3]; exact hts')
     (by rw [hroots']; exact hroots) hL3 (by rw [hd3]; exact hko) (by rw [hd3]; exact hcl')

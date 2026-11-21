@@ -40,9 +40,9 @@ else to the loop's exit with all of it. -/
 theorem b1_spec (hp : Placed code k) {m0 m1 m : MachineData} {c t : Nat}
     (hmid : Mid m0 m1 c t m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 17) ∧ Inv m0 m1 (c + t) st.data ∧ 0 < t) ∨
-        (st.pc = Host.addrOf (k + 84) ∧ Inv m0 m1 (nOf m0) st.data))
-      ⟨m, Host.addrOf (k + 13)⟩ := by
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset) ∧ Inv m0 m1 (c + t) st.data ∧ 0 < t) ∨
+        (st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b8Offset) ∧ Inv m0 m1 (nOf m0) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Update.b1Offset)⟩ := by
   have hwf : (Env.ofMachine m []).WF := Env.wf_of trivial List.Pairwise.nil
   have hm : Match (Env.ofMachine m []) regsS m :=
     match_ofMachine trivial rfl trivial trivial trivial trivial
@@ -66,7 +66,7 @@ theorem b1_spec (hp : Placed code k) {m0 m1 m : MachineData} {c t : Nat}
     rw [Match.reg_atom hm' rfl, hH]
     exact hmid.x0
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply, low_W64, ext_W64,
-    Env.ofMachine_regs, hmid.x19, hmid.x22, show b1.length = 4 from rfl] at hpc
+    Env.ofMachine_regs, hmid.x19, hmid.x22, Nat.add_assoc, NativeRustcArm.Common.Update.b1_next] at hpc
   rw [sub_ofNat_ofNat (by have := hmid.le; omega) hn, ofNat_beq_zero (by omega)] at hpc
   refine Eventually.done _ ?_
   by_cases hend : c + t = nOf m0

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingTarget.Names
 public import NativeRustcVmArm.Ring.Switch.Body
 
 /-!
@@ -120,11 +121,11 @@ variable [Host] {k : Nat}
 
 /-- **The target** (`b4`). -/
 theorem stepTarget (hp : Placed code k) (h : RingSwitchPre a s m0)
-    (hrt : Spec (Labels.label ringTargetLabel) RingTargetPre RingTargetPost)
+    (hrt : Spec (Labels.label NativeRustcVmArm.Vm.RingTarget.entryLabel) RingTargetPre RingTargetPost)
     {s2 : TState} {xs : Array EW} {m : MachineData} (hG : G3 a s2 xs m0 m)
     {R : MachineState → Prop}
-    (cont : ∀ m', G4 a s2 xs m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 56)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 52)⟩ := by
+    (cont : ∀ m', G4 a s2 xs m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b5Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b4Offset)⟩ := by
   have hwf := envM_wf h hG.fr
   have hm := matchM h hG.fr
   refine exec_then (hb b4_in_code (by simp [b4]) hp) run_b4 hwf hm fun st hm1 hpc ↦ ?_
@@ -171,7 +172,7 @@ theorem stepTarget (hp : Placed code k) (h : RingSwitchPre a s m0)
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun q hq ↦ hq.elim
       (fun hq ↦ absurd hq (hnil q)) .inl, hq.2.2⟩)
     fun m2 hfr2 hq hcs ↦ ?_
-  rw [show k + 52 + b4.length = k + 56 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingSwitch.b4Offset + b4.length = k + NativeRustcVmArm.Vm.RingSwitch.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingSwitch.b4_next]]
   obtain ⟨htgt, hchg, hS⟩ := hq
   have hs : SameOutside st.data.dmem m2.dmem fun q ↦
       InRange (stackBelow st.data ringTargetStack) ringTargetStack q :=
@@ -201,8 +202,8 @@ theorem stepTarget (hp : Placed code k) (h : RingSwitchPre a s m0)
 /-- **The store** (`b5`). -/
 theorem stepStore (hp : Placed code k) (h : RingSwitchPre a s m0) {s2 : TState} {xs : Array EW}
     {m : MachineData} (hG : G4 a s2 xs m0 m) (hsz : xs.size = 16) {R : MachineState → Prop}
-    (cont : ∀ m', G5 a s2 xs m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 59)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 56)⟩ := by
+    (cont : ∀ m', G5 a s2 xs m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b6Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b5Offset)⟩ := by
   have hfw := fbw h
   have how := o_noWrap h
   have hoF := o_frame h
@@ -232,7 +233,7 @@ theorem stepStore (hp : Placed code k) (h : RingSwitchPre a s m0) {s2 : TState} 
   obtain ⟨d, pc⟩ := st
   simp only at hpc hfr1 hd0 hm1
   subst hpc
-  rw [show k + 56 + b5.length = k + 59 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingSwitch.b5Offset + b5.length = k + NativeRustcVmArm.Vm.RingSwitch.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingSwitch.b5_next]]
   refine cont d ⟨hfr1, hd0, ?_, ?_⟩
   · exact ts_keep h hG.ts (hm1.kept hwf) (hm1.sameOutside hwf) fun q hq ↦ .inr (by
       have := written_r1 hq rfl (by decide)

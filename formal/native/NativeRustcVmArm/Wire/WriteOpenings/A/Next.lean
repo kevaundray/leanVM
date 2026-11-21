@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Find.Names
 public import NativeRustcVmArm.Wire.WriteOpenings.A.Store
 
 /-!
@@ -22,7 +23,7 @@ variable {R : Run} {j : Nat} [Host]
 
 /-- **The levels' loop**, from level `l`. -/
 theorem lev_loop (hp : Placed code R.k) (G : Geo R)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) {l : Nat} {st : MachineState}
+    (hfind : Spec (Labels.label NativeRustcVmArm.Vm.Find.entryLabel) FindPre FindPost) {l : Nat} {st : MachineState}
     (H : LevA R j l st) : Eventually (step1 Host.exe) (fun st' ↦ Post R st' ∨ EndA R j st') st := by
   refine Sym.loop (fun n st ↦ ∃ l, n = R.h - l ∧ LevA R j l st) (fun n st ⟨l, hn, H⟩ ↦ ?_)
     ⟨l, rfl, H⟩
@@ -109,11 +110,11 @@ theorem next_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : En
       rw [show s2.data.regs.X0 = s2.data.regs.getXReg .X0 from rfl,
         Match.reg_eq hm2 hm2' (v := .reg .X0) rfl rfl]
       exact hx0
-    simp only [PcOk, hp.label (j := 223) rfl] at hpc2
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b46Offset) NativeRustcVmArm.Vm.WriteOpenings.label_39_at] at hpc2
     refine Eventually.mono (end_spec hp G ⟨hpc2, hfr2, .inl ⟨hx0', ?_⟩⟩) fun _ h ↦ .inl h
     rw [hd2, hd1, ← hend]
     exact H.done
-  · simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 29) rfl]
+  · simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b2Offset) NativeRustcVmArm.Vm.WriteOpenings.label_2_at]
       at hpc1
     refine .done _ (.inr ⟨hpc1, hfr1, Cs1, ⟨?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, by omega,
       H.h0, by rw [hd1]; exact H.done⟩)

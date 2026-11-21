@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SlotWeights.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.Exit
 public import NativeRustcVm.Top.Phases
 
@@ -77,11 +78,11 @@ variable [Host] {k : Nat}
 
 /-- **`Some` from the plain sumcheck, the slot weights**: from `b1` to `b4`. -/
 theorem sw_run (hp : Placed code k) (h : KeccakOpenPre a s c m0)
-    (hsw : ∀ c, Spec (label slotWeightsLabel) (SlotWeightsPre c) (SlotWeightsPost c))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 24)) (hsc : Sc a s m0 st.data)
+    (hsw : ∀ c, Spec (label NativeRustcVmArm.Vm.SlotWeights.entryLabel) (SlotWeightsPre c) (SlotWeightsPost c))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b1Offset)) (hsc : Sc a s m0 st.data)
     {s1 : TState} {sl : Array EW} {v : EW} (hrun : scRun s m0 = some ((sl, v), s1)) :
     Eventually (step1 Host.exe)
-      (fun st' ↦ st'.pc = Host.addrOf (k + 37) ∧ Sw a c m0 s1 sl v st'.data) st := by
+      (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b4Offset) ∧ Sw a c m0 s1 sl v st'.data) st := by
   have ok := ok_of h
   have hn := ok.nums
   have hS := h.1

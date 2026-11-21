@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.ReaderWords
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 public meta import NativeRustcVmX64.Code.Vm.ReaderWords
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -68,7 +70,7 @@ public theorem ok_b0 : ProOk 48 8 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .rsi = some (.reg .rsi) := by
   decide +kernel
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .cond (.cmp .addC .W64 eightN (.load 1 16 8)) ".LReaderWords_8") :=
+    .cond (.cmp .addC .W64 eightN (.load 1 16 8)) NativeRustcVmX64.Vm.ReaderWords.label_8) :=
   run_b0.trans (by rw [show after b0 entryS = _ from after_eq run_b0]; rfl)
 
 public theorem ok_b1 : MidOk 48 8 slots (after b1 chkS) = true ∧ (after b1 chkS).mem = [] ∧
@@ -78,7 +80,7 @@ public theorem ok_b1 : MidOk 48 8 slots (after b1 chkS) = true ∧ (after b1 chk
   decide +kernel
 public theorem exit_b1 : exec b1 chkS = some (after b1 chkS,
     .cond (.and (.not (.cmp .ult .W64 (.reg .rcx) (.load 1 8 8)))
-      (.not (.cmp .eq .W64 (.reg .rcx) (.load 1 8 8)))) ".LReaderWords_8") :=
+      (.not (.cmp .eq .W64 (.reg .rcx) (.load 1 8 8)))) NativeRustcVmX64.Vm.ReaderWords.label_8) :=
   run_b1.trans (by rw [show after b1 chkS = _ from after_eq run_b1])
 
 /-- A block from `frS` keeping memory, RSP and the callee-saved registers. -/
@@ -89,7 +91,7 @@ public theorem ok_b2 : FrOk (after b2 frS) = true ∧
     (∀ x ∈ [Reg64.rsi, .rdx, .r14, .r15], (after b2 frS).reg x = some (.reg x)) := by
   decide +kernel
 public theorem exit_b2 : exec b2 frS = some (after b2 frS,
-    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rdx) (.reg .rdx)) (.lit 0)) ".LReaderWords_8") :=
+    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rdx) (.reg .rdx)) (.lit 0)) NativeRustcVmX64.Vm.ReaderWords.label_8) :=
   run_b2.trans (by rw [show after b2 frS = _ from after_eq run_b2])
 
 public theorem ok_b3 : FrOk (after b3 frS) = true ∧
@@ -105,14 +107,14 @@ public theorem ok_b4 : MidOk 48 0 slots (after b4 loopS) = true ∧
     (∀ x ∈ [Reg64.rbx, .r12, .r14, .r15], (after b4 loopS).reg x = some (.reg x)) := by
   decide +kernel
 public theorem exit_b4 : exec b4 loopS = some (after b4 loopS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le") :=
+    .call NativeRustcVmX64.Vm.ReaderLe.entryLabel) :=
   run_b4.trans (by rw [show after b4 loopS = _ from after_eq run_b4])
 
 public theorem ok_b5 : FrOk (after b5 frS) = true ∧
     (∀ x ∈ [Reg64.rax, .rdx, .rbx, .r12, .r14, .r15], (after b5 frS).reg x = some (.reg x)) := by
   decide +kernel
 public theorem exit_b5 : exec b5 frS = some (after b5 frS,
-    .cond (.not (.cmp .eq .W64 (.reg .rax) (.lit 1))) ".LReaderWords_5") :=
+    .cond (.not (.cmp .eq .W64 (.reg .rax) (.lit 1))) NativeRustcVmX64.Vm.ReaderWords.label_5) :=
   run_b5.trans (by rw [show after b5 frS = _ from after_eq run_b5])
 
 public theorem ok_b6 : MidOk 48 8 slots (after b6 loopS) = true ∧
@@ -122,13 +124,13 @@ public theorem ok_b6 : MidOk 48 8 slots (after b6 loopS) = true ∧
   decide +kernel
 public theorem exit_b6 : exec b6 loopS = some (after b6 loopS,
     .cond (.not (.cmp .eq .W64 (.reg .r15) (.bin .add .W64 (.lit 8) (.reg .r12))))
-      ".LReaderWords_4") :=
+      NativeRustcVmX64.Vm.ReaderWords.label_4) :=
   run_b6.trans (by rw [show after b6 loopS = _ from after_eq run_b6])
 
 public theorem ok_b7 : FrOk (after b7 frS) = true ∧
     (after b7 frS).reg .rax = some (.bin .merge .W8 (.reg .rax) (.lit 1)) := by
   decide +kernel
-public theorem exit_b7 : exec b7 frS = some (after b7 frS, .jump ".LReaderWords_8") :=
+public theorem exit_b7 : exec b7 frS = some (after b7 frS, .jump NativeRustcVmX64.Vm.ReaderWords.label_8) :=
   run_b7.trans (by rw [show after b7 frS = _ from after_eq run_b7])
 
 public theorem ok_b8 : FrOk (after b8 frS) = true ∧ (after b8 frS).reg .rax = some (.lit 0) := by

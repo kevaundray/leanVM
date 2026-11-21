@@ -1,5 +1,15 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FirstClaim.Names
+public import NativeRustcVmArm.Code.Vm.InstanceWeights.Names
+public import NativeRustcVmArm.Code.Vm.KeccakOpen.Names
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.KeccakPi.Names
+public import NativeRustcVmArm.Code.Vm.LinearTranspose.Names
+public import NativeRustcVmArm.Code.Vm.Names
+public import NativeRustcVmArm.Code.Vm.SlotWeights.Names
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.Spec.Sumcheck
 public import NativeRustcVm.KeccakGkr.Rep
 public import NativeRustcVm.Layout.Rep
@@ -62,28 +72,6 @@ open NativeRustcVm (Region Disjoint InAny)
 
 /-! ## Symbols -/
 
-/-- `keccak_pi`'s symbol. -/
-def keccakPiLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr9keccak_pi"
-/-- `linear_transpose`'s symbol. -/
-def linearTransposeLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr16linear_transpose"
-/-- `instance_weights`'s symbol. -/
-def instanceWeightsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr16instance_weights"
-/-- `slot_weights`'s symbol. -/
-def slotWeightsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr12slot_weights"
-/-- `keccak_open`'s symbol. -/
-def keccakOpenLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr11keccak_open"
-/-- `first_claim`'s symbol. -/
-def firstClaimLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr11first_claim"
-/-- `verify_layer`'s symbol. -/
-def verifyLayerLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr12verify_layer"
-/-- `verify_keccak`'s symbol. -/
-def verifyKeccakLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr13verify_keccak"
-/-- `keccak_phase`'s symbol. -/
-def keccakPhaseLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr12keccak_phase"
-/-- The label of `RMFE_PROJECT` (16 words). -/
-def projectLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.0"
-/-- The label of `KECCAK_RHO` (25 `u32`s). -/
-def rhoLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.2"
 
 /-! ## Stacks -/
 
@@ -119,10 +107,10 @@ variable [Labels]
 /-! ## Read-only data -/
 
 /-- The address of `RMFE_PROJECT`. -/
-def projectAddr : BitVec 64 := (label projectLabel).toBitVec
+def projectAddr : BitVec 64 := (label NativeRustcVmArm.Vm.Symbols.rodata0Label).toBitVec
 
 /-- The address of `KECCAK_RHO`. -/
-def rhoAddr : BitVec 64 := (label rhoLabel).toBitVec
+def rhoAddr : BitVec 64 := (label NativeRustcVmArm.Vm.Symbols.rodata2Label).toBitVec
 
 /-- `KECCAK_RHO`'s bytes: each offset a little-endian `u32` (`RodataAt`'s `.keccakRho` item). -/
 def rhoBytes : List UInt8 := NativeRustcVm.Data.Item.bytes .keccakRho

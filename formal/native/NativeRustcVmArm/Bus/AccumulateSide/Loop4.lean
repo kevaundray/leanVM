@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop3
 
 /-!
@@ -20,13 +21,13 @@ variable [Host] {m0 : MachineData} {L : LayoutW} {rows : Array Nat}
 
 /-- **`b34`**: selector times padding weight. -/
 theorem turn34 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) L34 m) {g : FormW}
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) g) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L35 m2 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) g → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 307)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 302)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b35Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b34Offset)⟩ := by
   have hH0 := St.lift (D := L34) hst (by decide) 0 []
   refine St.mulCall h hmul (.inl rfl) (sz := [12096]) rfl
     (b34_in_code.trans hp.1 (by simp [b34])) run_b34 hst.fr hH0 (wf0 h hst.fr.kept)
@@ -39,19 +40,19 @@ theorem turn34 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     argv (sz := [12096]) rfl hH0 hm' (r := .X2) (a := 106) (by decide),
     argv (sz := [12096]) rfl hH0 hm' (r := .X3) (a := 107) (by decide)] at hret
   change ewRet m2 = sp1 SL m0 (BA L rows bl) j at hret
-  rw [show k + 302 + b34.length = k + 307 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b34Offset + b34.length = k + NativeRustcVmArm.Vm.AccumulateSide.b35Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b34_next]]
   exact cont m2 ⟨hst2.fr, holds_ewRet (Holds.sub hst2.hd (D' := L34c) (by decide)) hret rfl rfl⟩
     (NativeRustcVm.Tables.FormBufAt.of_same hg (hB 152 5928 (by decide) (by decide))) hF
 
 /-- **`b36`**: the padding row's term. -/
 theorem turn36 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) L36 m) {g : FormW}
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) g) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L37 m2 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) g → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 319)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 314)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b37Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b36Offset)⟩ := by
   have hH0 := St.lift (D := L36) hst (by decide) 0 []
   refine St.mulCall h hmul (.inl rfl) (sz := [12096]) rfl
     (b36_in_code.trans hp.1 (by simp [b36])) run_b36 hst.fr hH0 (wf0 h hst.fr.kept)
@@ -73,7 +74,7 @@ theorem turn36 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       ⟨(ev m0 (BA L rows bl) j).c0 ^^^ 1, (ev m0 (BA L rows bl) j).c1 ^^^ 0⟩
     rw [UInt64.xor_zero]
     exact hret
-  rw [show k + 314 + b36.length = k + 319 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b36Offset + b36.length = k + NativeRustcVmArm.Vm.AccumulateSide.b37Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b36_next]]
   exact cont m2 ⟨hst2.fr, holds_ewRet (Holds.sub hst2.hd (D' := L34c) (by decide)) hr rfl rfl⟩
     (NativeRustcVm.Tables.FormBufAt.of_same hg (hB 152 5928 (by decide) (by decide))) hF
 

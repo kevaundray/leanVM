@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldStep
 
 /-!
@@ -108,13 +109,13 @@ variable [NativeArm.Host] {k : Nat} {c : Cx} {m0 : MachineData}
 
 /-- **A turn of an inner loop**: entry `n0` of the rows folded. -/
 theorem innerStep (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (ok : Ok c.a m0) {vars : Nat → BitVec 64} {ks : List (XReg × Sym)} (hw : wfK ks = true)
     {A B CT : XReg} (hA : (A, A0) ∈ ks) (hB : (B, B0) ∈ ks) (h22 : (XReg.X22, V0) ∈ ks)
     (h23 : (XReg.X23, V1) ∈ ks) {cc : EW} (hv0 : vars 0 = cc.c0.toBitVec)
     (hv1 : vars 1 = cc.c1.toBitVec)
     {bL : List Directive} {kL : Nat} (hinL : bL.IsInfixAt code kL) (hneL : bL ≠ [])
-    {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call ewMulLabel))
+    {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     {lo0 lo1 aux : XReg} {auxv : Sym} (hshL : LSh .X22 .X23 lo0 lo1 (loS A B CT) SL = true)
     (hLx : SL.reg aux = some auxv)
     (hLct : SL.reg CT = some (.bin .add .W64 (.reg CT) (.lit 16)))
@@ -220,13 +221,13 @@ theorem innerStep (hp : Placed code k)
 
 /-- **An unrolled round's inner loop** (stores through X21 = `D` + counter, at `1024 i`). -/
 theorem innerD_run (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (ok : Ok c.a m0) {vars : Nat → BitVec 64} {ks : List (XReg × Sym)} (hw : wfK ks = true)
     {A B CT D : XReg} (hA : (A, A0) ∈ ks) (hB : (B, B0) ∈ ks) (h22 : (XReg.X22, V0) ∈ ks)
     (h23 : (XReg.X23, V1) ∈ ks) (hD : (D, P) ∈ ks) {cc : EW} (hv0 : vars 0 = cc.c0.toBitVec)
     (hv1 : vars 1 = cc.c1.toBitVec)
     {bL : List Directive} {kL : Nat} (hinL : bL.IsInfixAt code kL) (hneL : bL ≠ [])
-    {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call ewMulLabel))
+    {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     (hshL : LSh .X22 .X23 .X19 .X20 (loS A B CT) SL = true)
     (hLx : SL.reg .X21 = some (.bin .add .W64 (.reg D) (.reg CT)))
     (hLct : SL.reg CT = some (.bin .add .W64 (.reg CT) (.lit 16)))
@@ -262,14 +263,14 @@ theorem innerD_run (hp : Placed code k)
 
 /-- **A looped round's inner loop** (stores through X24 = row `i` plus the counter `OC`). -/
 theorem innerL_run (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (ok : Ok c.a m0) {vars : Nat → BitVec 64} {ks : List (XReg × Sym)} (hw : wfK ks = true)
     {A B CT OC : XReg} (hA : (A, A0) ∈ ks) (hB : (B, B0) ∈ ks) (h22 : (XReg.X22, V0) ∈ ks)
     (h23 : (XReg.X23, V1) ∈ ks) (h24 : (XReg.X24, .bin .add .W64 P (.var 3)) ∈ ks) {cc : EW}
     (hv0 : vars 0 = cc.c0.toBitVec) (hv1 : vars 1 = cc.c1.toBitVec) {i : Nat}
     (hv3 : vars 3 = BitVec.ofNat 64 (1024 * i))
     {bL : List Directive} {kL : Nat} (hinL : bL.IsInfixAt code kL) (hneL : bL ≠ [])
-    {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call ewMulLabel))
+    {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     (hshL : LSh .X22 .X23 .X20 .X21 (loS A B CT) SL = true)
     (hLx : SL.reg OC = some (.reg CT))
     (hLct : SL.reg CT = some (.bin .add .W64 (.reg CT) (.lit 16)))

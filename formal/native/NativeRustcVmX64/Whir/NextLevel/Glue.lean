@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.NextLevel.Rows
+public import NativeRustcVmX64.Code.Vm.GlueLevel.Names
 
 /-!
 # `next_level`: the level glued, the return (x86-64)
@@ -48,9 +49,9 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The level glued**, to the return. -/
 theorem glue (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (hgl : ∀ s, Spec (Labels.label glueLevelLabel) (GlueLevelPre s) (GlueLevelPost s))
+    (hgl : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.GlueLevel.entryLabel) (GlueLevelPre s) (GlueLevelPost s))
     {xs ood : Array EW} {v lam bt : EW} {qs : Array UInt64} {s9 : TState} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 235))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b24Offset))
     (hH : H24 a level w rounds m0 xs ood v lam qs bt s9 st.data)
     (hrun : runN level w rounds m0 s = some (glueLevel w lam (reg m0 .r9).toNat ood v qs
       (powers lam qs.size) bt, s9)) :
@@ -62,7 +63,7 @@ theorem glue (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have hgl2 := c.glued
   have hfv := hH.ff.fv
   -- `b24`: the arguments, `glue_level`
-  let ret := (Host.addrOf (k + 255)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b25Offset)).toBitVec
   let env := argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) ret
   have hwf : env.WF := c.wf0 hK.fr.frame.kept
   have hm : Match env retS st.data :=
@@ -242,7 +243,7 @@ theorem glue (hp : Placed code k) (c : Ctx a s level w rounds m0)
     rw [inRange_iff' hnw, hro] at hx
     unfold stateBytes at hq
     omega
-  have hpc2' : st2.pc = Host.addrOf (k + 255) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b25Offset) := hpc2
   -- `b25`: RSP back, AL into R15
   have hwf2 := c.wf0 hf2.frame.kept (ret := 0)
   have hm2 : Match (argEnv m0 st2.data 8176 8 []) s8S st2.data :=
@@ -256,7 +257,7 @@ theorem glue (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have h15 : reg st3.data .r15 = UnOp.apply .trunc .W32 (reg st2.data .rax) :=
     hm3.regs .r15 _ hr153
   simp only [PcOk] at hpc3
-  have hpc3' : st3.pc = Host.addrOf (k + 260) := hpc3.trans (hp.label (j := 260) rfl)
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b27Offset) := hpc3.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_14_at)
   -- `b27`: the epilogue
   simp only [runN] at hrun
   refine Eventually.mono (exit_spec hp c hf3 hpc3') fun st' ⟨h1, h2, h3, h4, h5⟩ ↦

@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Bus.BusLayout.Place
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `bus_layout`: the layout copied out, the epilogue (x86-64)
 
-From `.LBusLayout_26` (`finish`): `b33` stores the framework's count at `16` (the layout at `8` is
+From `NativeRustcVmX64.Vm.BusLayout.label_26` (`finish`): `b33` stores the framework's count at `16` (the layout at `8` is
 then `busLayout`'s, `built`) and copies its 888 bytes out with `memcpy`
 (`busLayoutWAt_transfer`); `b34` sets the tag `1`; `b35` returns.
 -/
@@ -121,11 +122,11 @@ theorem part_keep16 {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : Mac
 
 variable [Host] {k : Nat}
 
-/-- **The epilogue**: from `.LBusLayout_26`, every placement pushed, to the return. -/
+/-- **The epilogue**: from `NativeRustcVmX64.Vm.BusLayout.label_26`, every placement pushed, to the return. -/
 theorem finish (hp : Placed code k)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {L : LayoutW}
+    (hmc : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {L : LayoutW}
     {bl : List NativeRustcVm.Data.Block} {m0 : MachineData} (hpre : BusLayoutPre L bl m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 243)) (hE : PEnd L bl m0 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b33Offset)) (hE : PEnd L bl m0 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ BusLayoutPost L bl m0 st'.data) st := by
   have hst := hpre.1
@@ -148,7 +149,7 @@ theorem finish (hp : Placed code k)
   have hbd := hE.bd
   -- `b33`: the framework's count; `memcpy` of the layout.
   have hwf0 := wf0 (d := st.data) hst hN hbd.fr.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 243 + b33.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b33Offset + b33.length)).toBitVec)
   refine exec_at (infix_of b33_in_code (by simp [b33]) hp) run_b33 hwf0 (fun _ _ ↦ rfl) hpc
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hbd.fr.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 ↦ ?_
@@ -237,8 +238,8 @@ theorem finish (hp : Placed code k)
     unfold NativeRustcVm.Apart
     omega
   have hwf3 := wf1 (d := st2.data) hst hN hfr2.kept hOr hOs (vars := fun _ ↦ 0) (ret := 0)
-  have hpc2' : st2.pc = Host.addrOf (k + 249) :=
-    hpc2.trans (congrArg Host.addrOf (by have : b33.length = 6 := rfl; omega))
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b34Offset) :=
+    hpc2.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b33_next))
   refine exec_at (infix_of b34_in_code (by simp [b34]) hp) run_b34 hwf3 nofun hpc2'
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hfr2.rsp_eval, known_ptr rfl hbx2, trivial⟩
       trivial trivial trivial)

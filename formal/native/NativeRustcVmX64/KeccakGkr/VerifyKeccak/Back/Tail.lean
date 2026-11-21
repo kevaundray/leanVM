@@ -2,6 +2,13 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.OutRest
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Claim
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.KeccakOpen.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-! # The input opening, final check, output point, and successful epilogue -/
 
@@ -18,15 +25,15 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 
 theorem tailStep (hp : Placed NativeRustcVmX64.Vm.VerifyKeccak.code k)
     (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hsum : ∀ s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s) (SumcheckPlainPost a s))
-    (hko : ∀ s c, Spec (Labels.label keccakOpenLabel) (KeccakOpenPre a s c) (KeccakOpenPost a s c))
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre MleOfMultilinearEvalPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hsum : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s) (SumcheckPlainPost a s))
+    (hko : ∀ s c, Spec (Labels.label NativeRustcVmX64.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c) (KeccakOpenPost a s c))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre MleOfMultilinearEvalPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {st : MachineState} {V : Vs} {s1 : TState} {cl : KeccakClaimW} {out : ColumnClaimW}
-    (hat : At m0 k 378 wrB t52 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b55Offset wrB t52 (vv m0 V) st)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s1)
     (hcl : ClaimAt st.data.dmem (off (fb m0) 992) cl)
     (hcw : WeightsAt st.data.dmem (off (reg m0 .r9) 25600) cl)

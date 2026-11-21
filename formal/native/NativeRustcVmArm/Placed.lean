@@ -20,281 +20,281 @@ public section
 variable [NativeArm.Host] (hP : NativeArm.Host.prog = Vm.code)
 include hP
 
-theorem placed_SumcheckOfSumcheckPlain : Placed Vm.SumcheckOfSumcheckPlain.code 0 :=
+theorem placed_SumcheckOfSumcheckPlain : Placed Vm.SumcheckOfSumcheckPlain.code Vm.SumcheckOfSumcheckPlain.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SumcheckOfSumcheckPlain.code_at
-theorem placed_SumcheckOfVerifyLayer : Placed Vm.SumcheckOfVerifyLayer.code 52 :=
+theorem placed_SumcheckOfVerifyLayer : Placed Vm.SumcheckOfVerifyLayer.code Vm.SumcheckOfVerifyLayer.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SumcheckOfVerifyLayer.code_at
-theorem placed_SumcheckOfGkrStep : Placed Vm.SumcheckOfGkrStep.code 116 :=
+theorem placed_SumcheckOfGkrStep : Placed Vm.SumcheckOfGkrStep.code Vm.SumcheckOfGkrStep.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SumcheckOfGkrStep.code_at
-theorem placed_EachRowOfNextLevel : Placed Vm.EachRowOfNextLevel.code 184 :=
+theorem placed_EachRowOfNextLevel : Placed Vm.EachRowOfNextLevel.code Vm.EachRowOfNextLevel.programOffset :=
   placed_of_nodup hP labels_nodup Vm.EachRowOfNextLevel.code_at
-theorem placed_EachRowOfFinalLevel : Placed Vm.EachRowOfFinalLevel.code 448 :=
+theorem placed_EachRowOfFinalLevel : Placed Vm.EachRowOfFinalLevel.code Vm.EachRowOfFinalLevel.programOffset :=
   placed_of_nodup hP labels_nodup Vm.EachRowOfFinalLevel.code_at
-theorem placed_EqEvalFnOfEqAbove : Placed Vm.EqEvalFnOfEqAbove.code 680 :=
+theorem placed_EqEvalFnOfEqAbove : Placed Vm.EqEvalFnOfEqAbove.code Vm.EqEvalFnOfEqAbove.programOffset :=
   placed_of_nodup hP labels_nodup Vm.EqEvalFnOfEqAbove.code_at
 theorem placed_MultilinearEvalByOfMultilinearEval :
-    Placed Vm.MultilinearEvalByOfMultilinearEval.code 714 :=
+    Placed Vm.MultilinearEvalByOfMultilinearEval.code Vm.MultilinearEvalByOfMultilinearEval.programOffset :=
   placed_of_nodup hP labels_nodup Vm.MultilinearEvalByOfMultilinearEval.code_at
 theorem placed_MultilinearEvalByOfComputedBytecodeValue :
-    Placed Vm.MultilinearEvalByOfComputedBytecodeValue.code 904 :=
+    Placed Vm.MultilinearEvalByOfComputedBytecodeValue.code Vm.MultilinearEvalByOfComputedBytecodeValue.programOffset :=
   placed_of_nodup hP labels_nodup Vm.MultilinearEvalByOfComputedBytecodeValue.code_at
-theorem placed_Keccak256WordsOfHashWords : Placed Vm.Keccak256WordsOfHashWords.code 1096 :=
+theorem placed_Keccak256WordsOfHashWords : Placed Vm.Keccak256WordsOfHashWords.code Vm.Keccak256WordsOfHashWords.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Keccak256WordsOfHashWords.code_at
-theorem placed_Keccak256WordsOfFiatShamirIv : Placed Vm.Keccak256WordsOfFiatShamirIv.code 1660 :=
+theorem placed_Keccak256WordsOfFiatShamirIv : Placed Vm.Keccak256WordsOfFiatShamirIv.code Vm.Keccak256WordsOfFiatShamirIv.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Keccak256WordsOfFiatShamirIv.code_at
-theorem placed_InsertionSortOfStackOffsets : Placed Vm.InsertionSortOfStackOffsets.code 2325 :=
+theorem placed_InsertionSortOfStackOffsets : Placed Vm.InsertionSortOfStackOffsets.code Vm.InsertionSortOfStackOffsets.programOffset :=
   placed_of_nodup hP labels_nodup Vm.InsertionSortOfStackOffsets.code_at
-theorem placed_VerifyBusBalanceClosure0 : Placed Vm.VerifyBusBalanceClosure0.code 2382 :=
+theorem placed_VerifyBusBalanceClosure0 : Placed Vm.VerifyBusBalanceClosure0.code Vm.VerifyBusBalanceClosure0.programOffset :=
   placed_of_nodup hP labels_nodup Vm.VerifyBusBalanceClosure0.code_at
-theorem placed_SpongeWAbsorbNonce : Placed Vm.SpongeWAbsorbNonce.code 2403 :=
+theorem placed_SpongeWAbsorbNonce : Placed Vm.SpongeWAbsorbNonce.code Vm.SpongeWAbsorbNonce.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SpongeWAbsorbNonce.code_at
-theorem placed_SpongeWDuplexInput : Placed Vm.SpongeWDuplexInput.code 2417 :=
+theorem placed_SpongeWDuplexInput : Placed Vm.SpongeWDuplexInput.code Vm.SpongeWDuplexInput.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SpongeWDuplexInput.code_at
-theorem placed_SpongeWAbsorb : Placed Vm.SpongeWAbsorb.code 2459 :=
+theorem placed_SpongeWAbsorb : Placed Vm.SpongeWAbsorb.code Vm.SpongeWAbsorb.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SpongeWAbsorb.code_at
-theorem placed_SpongeWDuplex : Placed Vm.SpongeWDuplex.code 2487 :=
+theorem placed_SpongeWDuplex : Placed Vm.SpongeWDuplex.code Vm.SpongeWDuplex.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SpongeWDuplex.code_at
-theorem placed_SpongeWSqueeze : Placed Vm.SpongeWSqueeze.code 2496 :=
+theorem placed_SpongeWSqueeze : Placed Vm.SpongeWSqueeze.code Vm.SpongeWSqueeze.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SpongeWSqueeze.code_at
-theorem placed_BufEW30Extend : Placed Vm.BufEW30Extend.code 2510 :=
+theorem placed_BufEW30Extend : Placed Vm.BufEW30Extend.code Vm.BufEW30Extend.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BufEW30Extend.code_at
-theorem placed_BufEW36Extend : Placed Vm.BufEW36Extend.code 2540 :=
+theorem placed_BufEW36Extend : Placed Vm.BufEW36Extend.code Vm.BufEW36Extend.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BufEW36Extend.code_at
-theorem placed_BufEW63Extend : Placed Vm.BufEW63Extend.code 2570 :=
+theorem placed_BufEW63Extend : Placed Vm.BufEW63Extend.code Vm.BufEW63Extend.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BufEW63Extend.code_at
-theorem placed_BufEW230Extend : Placed Vm.BufEW230Extend.code 2600 :=
+theorem placed_BufEW230Extend : Placed Vm.BufEW230Extend.code Vm.BufEW230Extend.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BufEW230Extend.code_at
-theorem placed_BufU64x230Extend : Placed Vm.BufU64x230Extend.code 2630 :=
+theorem placed_BufU64x230Extend : Placed Vm.BufU64x230Extend.code Vm.BufU64x230Extend.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BufU64x230Extend.code_at
-theorem placed_BasisWEval : Placed Vm.BasisWEval.code 2655 :=
+theorem placed_BasisWEval : Placed Vm.BasisWEval.code Vm.BasisWEval.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BasisWEval.code_at
-theorem placed_ReaderLe : Placed Vm.ReaderLe.code 2799 :=
+theorem placed_ReaderLe : Placed Vm.ReaderLe.code Vm.ReaderLe.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ReaderLe.code_at
-theorem placed_ReaderWords : Placed Vm.ReaderWords.code 2852 :=
+theorem placed_ReaderWords : Placed Vm.ReaderWords.code Vm.ReaderWords.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ReaderWords.code_at
-theorem placed_ReaderDigest : Placed Vm.ReaderDigest.code 2885 :=
+theorem placed_ReaderDigest : Placed Vm.ReaderDigest.code Vm.ReaderDigest.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ReaderDigest.code_at
-theorem placed_EWMul : Placed Vm.EWMul.code 2928 :=
+theorem placed_EWMul : Placed Vm.EWMul.code Vm.EWMul.programOffset :=
   placed_of_nodup hP labels_nodup Vm.EWMul.code_at
-theorem placed_EWSqIter : Placed Vm.EWSqIter.code 3339 :=
+theorem placed_EWSqIter : Placed Vm.EWSqIter.code Vm.EWSqIter.programOffset :=
   placed_of_nodup hP labels_nodup Vm.EWSqIter.code_at
-theorem placed_DecodedPhaseCount : Placed Vm.DecodedPhaseCount.code 3356 :=
+theorem placed_DecodedPhaseCount : Placed Vm.DecodedPhaseCount.code Vm.DecodedPhaseCount.programOffset :=
   placed_of_nodup hP labels_nodup Vm.DecodedPhaseCount.code_at
-theorem placed_DecodedStreamElement : Placed Vm.DecodedStreamElement.code 3368 :=
+theorem placed_DecodedStreamElement : Placed Vm.DecodedStreamElement.code Vm.DecodedStreamElement.programOffset :=
   placed_of_nodup hP labels_nodup Vm.DecodedStreamElement.code_at
-theorem placed_DecodedPhase : Placed Vm.DecodedPhase.code 3388 :=
+theorem placed_DecodedPhase : Placed Vm.DecodedPhase.code Vm.DecodedPhase.programOffset :=
   placed_of_nodup hP labels_nodup Vm.DecodedPhase.code_at
-theorem placed_TStateNextScalar : Placed Vm.TStateNextScalar.code 3422 :=
+theorem placed_TStateNextScalar : Placed Vm.TStateNextScalar.code Vm.TStateNextScalar.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateNextScalar.code_at
-theorem placed_TStateReadScalar : Placed Vm.TStateReadScalar.code 3456 :=
+theorem placed_TStateReadScalar : Placed Vm.TStateReadScalar.code Vm.TStateReadScalar.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateReadScalar.code_at
-theorem placed_TStateReadScalars : Placed Vm.TStateReadScalars.code 3488 :=
+theorem placed_TStateReadScalars : Placed Vm.TStateReadScalars.code Vm.TStateReadScalars.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateReadScalars.code_at
-theorem placed_TStateQueryOpenings : Placed Vm.TStateQueryOpenings.code 3520 :=
+theorem placed_TStateQueryOpenings : Placed Vm.TStateQueryOpenings.code Vm.TStateQueryOpenings.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateQueryOpenings.code_at
-theorem placed_TStateReadCommitment : Placed Vm.TStateReadCommitment.code 3572 :=
+theorem placed_TStateReadCommitment : Placed Vm.TStateReadCommitment.code Vm.TStateReadCommitment.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateReadCommitment.code_at
-theorem placed_TStateSampleChallenges : Placed Vm.TStateSampleChallenges.code 3616 :=
+theorem placed_TStateSampleChallenges : Placed Vm.TStateSampleChallenges.code Vm.TStateSampleChallenges.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateSampleChallenges.code_at
-theorem placed_TStateSumcheckRoundPoly : Placed Vm.TStateSumcheckRoundPoly.code 3633 :=
+theorem placed_TStateSumcheckRoundPoly : Placed Vm.TStateSumcheckRoundPoly.code Vm.TStateSumcheckRoundPoly.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateSumcheckRoundPoly.code_at
-theorem placed_TStateGrind : Placed Vm.TStateGrind.code 3718 :=
+theorem placed_TStateGrind : Placed Vm.TStateGrind.code Vm.TStateGrind.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TStateGrind.code_at
-theorem placed_FormBufAddScaled : Placed Vm.FormBufAddScaled.code 3750 :=
+theorem placed_FormBufAddScaled : Placed Vm.FormBufAddScaled.code Vm.FormBufAddScaled.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FormBufAddScaled.code_at
-theorem placed_FormBufAddTerm : Placed Vm.FormBufAddTerm.code 3785 :=
+theorem placed_FormBufAddTerm : Placed Vm.FormBufAddTerm.code Vm.FormBufAddTerm.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FormBufAddTerm.code_at
-theorem placed_LayoutWPlacement : Placed Vm.LayoutWPlacement.code 3844 :=
+theorem placed_LayoutWPlacement : Placed Vm.LayoutWPlacement.code Vm.LayoutWPlacement.programOffset :=
   placed_of_nodup hP labels_nodup Vm.LayoutWPlacement.code_at
-theorem placed_RowsRow : Placed Vm.RowsRow.code 3855 :=
+theorem placed_RowsRow : Placed Vm.RowsRow.code Vm.RowsRow.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RowsRow.code_at
-theorem placed_FirstClaim : Placed Vm.FirstClaim.code 3871 :=
+theorem placed_FirstClaim : Placed Vm.FirstClaim.code Vm.FirstClaim.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FirstClaim.code_at
-theorem placed_KeccakOpen : Placed Vm.KeccakOpen.code 4113 :=
+theorem placed_KeccakOpen : Placed Vm.KeccakOpen.code Vm.KeccakOpen.programOffset :=
   placed_of_nodup hP labels_nodup Vm.KeccakOpen.code_at
-theorem placed_KeccakPhase : Placed Vm.KeccakPhase.code 4706 :=
+theorem placed_KeccakPhase : Placed Vm.KeccakPhase.code Vm.KeccakPhase.programOffset :=
   placed_of_nodup hP labels_nodup Vm.KeccakPhase.code_at
-theorem placed_SlotWeights : Placed Vm.SlotWeights.code 4789 :=
+theorem placed_SlotWeights : Placed Vm.SlotWeights.code Vm.SlotWeights.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SlotWeights.code_at
-theorem placed_VerifyLayer : Placed Vm.VerifyLayer.code 4987 :=
+theorem placed_VerifyLayer : Placed Vm.VerifyLayer.code Vm.VerifyLayer.programOffset :=
   placed_of_nodup hP labels_nodup Vm.VerifyLayer.code_at
-theorem placed_VerifyKeccak : Placed Vm.VerifyKeccak.code 5688 :=
+theorem placed_VerifyKeccak : Placed Vm.VerifyKeccak.code Vm.VerifyKeccak.programOffset :=
   placed_of_nodup hP labels_nodup Vm.VerifyKeccak.code_at
-theorem placed_InstanceWeights : Placed Vm.InstanceWeights.code 6142 :=
+theorem placed_InstanceWeights : Placed Vm.InstanceWeights.code Vm.InstanceWeights.programOffset :=
   placed_of_nodup hP labels_nodup Vm.InstanceWeights.code_at
-theorem placed_LinearTranspose : Placed Vm.LinearTranspose.code 6477 :=
+theorem placed_LinearTranspose : Placed Vm.LinearTranspose.code Vm.LinearTranspose.programOffset :=
   placed_of_nodup hP labels_nodup Vm.LinearTranspose.code_at
-theorem placed_KeccakPi : Placed Vm.KeccakPi.code 6723 :=
+theorem placed_KeccakPi : Placed Vm.KeccakPi.code Vm.KeccakPi.programOffset :=
   placed_of_nodup hP labels_nodup Vm.KeccakPi.code_at
-theorem placed_OpenPhase : Placed Vm.OpenPhase.code 6738 :=
+theorem placed_OpenPhase : Placed Vm.OpenPhase.code Vm.OpenPhase.programOffset :=
   placed_of_nodup hP labels_nodup Vm.OpenPhase.code_at
-theorem placed_Climb : Placed Vm.Climb.code 6832 :=
+theorem placed_Climb : Placed Vm.Climb.code Vm.Climb.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Climb.code_at
-theorem placed_RingSwitch : Placed Vm.RingSwitch.code 6891 :=
+theorem placed_RingSwitch : Placed Vm.RingSwitch.code Vm.RingSwitch.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RingSwitch.code_at
-theorem placed_RingTarget : Placed Vm.RingTarget.code 6956 :=
+theorem placed_RingTarget : Placed Vm.RingTarget.code Vm.RingTarget.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RingTarget.code_at
-theorem placed_RingCoefficients : Placed Vm.RingCoefficients.code 7205 :=
+theorem placed_RingCoefficients : Placed Vm.RingCoefficients.code Vm.RingCoefficients.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RingCoefficients.code_at
-theorem placed_RingPsi : Placed Vm.RingPsi.code 7332 :=
+theorem placed_RingPsi : Placed Vm.RingPsi.code Vm.RingPsi.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RingPsi.code_at
-theorem placed_BlockForm : Placed Vm.BlockForm.code 7446 :=
+theorem placed_BlockForm : Placed Vm.BlockForm.code Vm.BlockForm.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BlockForm.code_at
-theorem placed_BusLayout : Placed Vm.BusLayout.code 7504 :=
+theorem placed_BusLayout : Placed Vm.BusLayout.code Vm.BusLayout.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BusLayout.code_at
-theorem placed_Fingerprints : Placed Vm.Fingerprints.code 7727 :=
+theorem placed_Fingerprints : Placed Vm.Fingerprints.code Vm.Fingerprints.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Fingerprints.code_at
-theorem placed_BytecodeShare : Placed Vm.BytecodeShare.code 7807 :=
+theorem placed_BytecodeShare : Placed Vm.BytecodeShare.code Vm.BytecodeShare.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BytecodeShare.code_at
-theorem placed_AccumulateSide : Placed Vm.AccumulateSide.code 7940 :=
+theorem placed_AccumulateSide : Placed Vm.AccumulateSide.code Vm.AccumulateSide.programOffset :=
   placed_of_nodup hP labels_nodup Vm.AccumulateSide.code_at
-theorem placed_VerifyBusBalance : Placed Vm.VerifyBusBalance.code 8295 :=
+theorem placed_VerifyBusBalance : Placed Vm.VerifyBusBalance.code Vm.VerifyBusBalance.programOffset :=
   placed_of_nodup hP labels_nodup Vm.VerifyBusBalance.code_at
-theorem placed_ComputedBytecodeValue : Placed Vm.ComputedBytecodeValue.code 8980 :=
+theorem placed_ComputedBytecodeValue : Placed Vm.ComputedBytecodeValue.code Vm.ComputedBytecodeValue.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ComputedBytecodeValue.code_at
-theorem placed_GkrLayers : Placed Vm.GkrLayers.code 8997 :=
+theorem placed_GkrLayers : Placed Vm.GkrLayers.code Vm.GkrLayers.programOffset :=
   placed_of_nodup hP labels_nodup Vm.GkrLayers.code_at
-theorem placed_VerifyGkrGrandProducts : Placed Vm.VerifyGkrGrandProducts.code 9051 :=
+theorem placed_VerifyGkrGrandProducts : Placed Vm.VerifyGkrGrandProducts.code Vm.VerifyGkrGrandProducts.programOffset :=
   placed_of_nodup hP labels_nodup Vm.VerifyGkrGrandProducts.code_at
-theorem placed_GkrStep : Placed Vm.GkrStep.code 9095 :=
+theorem placed_GkrStep : Placed Vm.GkrStep.code Vm.GkrStep.programOffset :=
   placed_of_nodup hP labels_nodup Vm.GkrStep.code_at
-theorem placed_FoldRound : Placed Vm.FoldRound.code 9408 :=
+theorem placed_FoldRound : Placed Vm.FoldRound.code Vm.FoldRound.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FoldRound.code_at
-theorem placed_GlueLevel : Placed Vm.GlueLevel.code 9526 :=
+theorem placed_GlueLevel : Placed Vm.GlueLevel.code Vm.GlueLevel.programOffset :=
   placed_of_nodup hP labels_nodup Vm.GlueLevel.code_at
-theorem placed_GluedEval : Placed Vm.GluedEval.code 9614 :=
+theorem placed_GluedEval : Placed Vm.GluedEval.code Vm.GluedEval.programOffset :=
   placed_of_nodup hP labels_nodup Vm.GluedEval.code_at
-theorem placed_NextLevel : Placed Vm.NextLevel.code 9651 :=
+theorem placed_NextLevel : Placed Vm.NextLevel.code Vm.NextLevel.programOffset :=
   placed_of_nodup hP labels_nodup Vm.NextLevel.code_at
-theorem placed_NovelEval : Placed Vm.NovelEval.code 9881 :=
+theorem placed_NovelEval : Placed Vm.NovelEval.code Vm.NovelEval.programOffset :=
   placed_of_nodup hP labels_nodup Vm.NovelEval.code_at
-theorem placed_QueryBits : Placed Vm.QueryBits.code 9967 :=
+theorem placed_QueryBits : Placed Vm.QueryBits.code Vm.QueryBits.programOffset :=
   placed_of_nodup hP labels_nodup Vm.QueryBits.code_at
-theorem placed_FinalLevel : Placed Vm.FinalLevel.code 10000 :=
+theorem placed_FinalLevel : Placed Vm.FinalLevel.code Vm.FinalLevel.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FinalLevel.code_at
-theorem placed_FoldRounds : Placed Vm.FoldRounds.code 10486 :=
+theorem placed_FoldRounds : Placed Vm.FoldRounds.code Vm.FoldRounds.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FoldRounds.code_at
-theorem placed_WhirLevels : Placed Vm.WhirLevels.code 10628 :=
+theorem placed_WhirLevels : Placed Vm.WhirLevels.code Vm.WhirLevels.programOffset :=
   placed_of_nodup hP labels_nodup Vm.WhirLevels.code_at
-theorem placed_InducedWeight : Placed Vm.InducedWeight.code 10800 :=
+theorem placed_InducedWeight : Placed Vm.InducedWeight.code Vm.InducedWeight.programOffset :=
   placed_of_nodup hP labels_nodup Vm.InducedWeight.code_at
-theorem placed_SampleQueries : Placed Vm.SampleQueries.code 10907 :=
+theorem placed_SampleQueries : Placed Vm.SampleQueries.code Vm.SampleQueries.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SampleQueries.code_at
-theorem placed_SubspaceTable : Placed Vm.SubspaceTable.code 10998 :=
+theorem placed_SubspaceTable : Placed Vm.SubspaceTable.code Vm.SubspaceTable.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SubspaceTable.code_at
-theorem placed_SubspaceAtTable : Placed Vm.SubspaceAtTable.code 11171 :=
+theorem placed_SubspaceAtTable : Placed Vm.SubspaceAtTable.code Vm.SubspaceAtTable.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SubspaceAtTable.code_at
-theorem placed_VerifyStackedOpening : Placed Vm.VerifyStackedOpening.code 11220 :=
+theorem placed_VerifyStackedOpening : Placed Vm.VerifyStackedOpening.code Vm.VerifyStackedOpening.programOffset :=
   placed_of_nodup hP labels_nodup Vm.VerifyStackedOpening.code_at
-theorem placed_Ladder : Placed Vm.Ladder.code 11396 :=
+theorem placed_Ladder : Placed Vm.Ladder.code Vm.Ladder.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Ladder.code_at
-theorem placed_FoldRow : Placed Vm.FoldRow.code 11495 :=
+theorem placed_FoldRow : Placed Vm.FoldRow.code Vm.FoldRow.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FoldRow.code_at
-theorem placed_LanesOf : Placed Vm.LanesOf.code 11761 :=
+theorem placed_LanesOf : Placed Vm.LanesOf.code Vm.LanesOf.programOffset :=
   placed_of_nodup hP labels_nodup Vm.LanesOf.code_at
-theorem placed_ClimbLevel : Placed Vm.ClimbLevel.code 11863 :=
+theorem placed_ClimbLevel : Placed Vm.ClimbLevel.code Vm.ClimbLevel.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ClimbLevel.code_at
-theorem placed_WriteOpenings : Placed Vm.WriteOpenings.code 11971 :=
+theorem placed_WriteOpenings : Placed Vm.WriteOpenings.code Vm.WriteOpenings.programOffset :=
   placed_of_nodup hP labels_nodup Vm.WriteOpenings.code_at
-theorem placed_Find : Placed Vm.Find.code 12203 :=
+theorem placed_Find : Placed Vm.Find.code Vm.Find.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Find.code_at
-theorem placed_InsD : Placed Vm.InsD.code 12222 :=
+theorem placed_InsD : Placed Vm.InsD.code Vm.InsD.programOffset :=
   placed_of_nodup hP labels_nodup Vm.InsD.code_at
-theorem placed_Decode : Placed Vm.Decode.code 12261 :=
+theorem placed_Decode : Placed Vm.Decode.code Vm.Decode.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Decode.code_at
-theorem placed_PhaseM : Placed Vm.PhaseM.code 12347 :=
+theorem placed_PhaseM : Placed Vm.PhaseM.code Vm.PhaseM.programOffset :=
   placed_of_nodup hP labels_nodup Vm.PhaseM.code_at
-theorem placed_RdRows : Placed Vm.RdRows.code 12522 :=
+theorem placed_RdRows : Placed Vm.RdRows.code Vm.RdRows.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RdRows.code_at
-theorem placed_BitLength : Placed Vm.BitLength.code 12639 :=
+theorem placed_BitLength : Placed Vm.BitLength.code Vm.BitLength.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BitLength.code_at
-theorem placed_IndexMleFrom : Placed Vm.IndexMleFrom.code 12674 :=
+theorem placed_IndexMleFrom : Placed Vm.IndexMleFrom.code Vm.IndexMleFrom.programOffset :=
   placed_of_nodup hP labels_nodup Vm.IndexMleFrom.code_at
-theorem placed_PaddingWeight : Placed Vm.PaddingWeight.code 12719 :=
+theorem placed_PaddingWeight : Placed Vm.PaddingWeight.code Vm.PaddingWeight.programOffset :=
   placed_of_nodup hP labels_nodup Vm.PaddingWeight.code_at
-theorem placed_SelectorPoint : Placed Vm.SelectorPoint.code 12777 :=
+theorem placed_SelectorPoint : Placed Vm.SelectorPoint.code Vm.SelectorPoint.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SelectorPoint.code_at
-theorem placed_Dot : Placed Vm.Dot.code 12833 :=
+theorem placed_Dot : Placed Vm.Dot.code Vm.Dot.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Dot.code_at
-theorem placed_Kinv : Placed Vm.Kinv.code 12869 :=
+theorem placed_Kinv : Placed Vm.Kinv.code Vm.Kinv.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Kinv.code_at
-theorem placed_Kmul : Placed Vm.Kmul.code 12913 :=
+theorem placed_Kmul : Placed Vm.Kmul.code Vm.Kmul.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Kmul.code_at
-theorem placed_Kpow : Placed Vm.Kpow.code 13027 :=
+theorem placed_Kpow : Placed Vm.Kpow.code Vm.Kpow.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Kpow.code_at
-theorem placed_SumE : Placed Vm.SumE.code 13056 :=
+theorem placed_SumE : Placed Vm.SumE.code Vm.SumE.programOffset :=
   placed_of_nodup hP labels_nodup Vm.SumE.code_at
-theorem placed_Powers : Placed Vm.Powers.code 13142 :=
+theorem placed_Powers : Placed Vm.Powers.code Vm.Powers.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Powers.code_at
-theorem placed_ProdE : Placed Vm.ProdE.code 13165 :=
+theorem placed_ProdE : Placed Vm.ProdE.code Vm.ProdE.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ProdE.code_at
-theorem placed_EqEval : Placed Vm.EqEval.code 13191 :=
+theorem placed_EqEval : Placed Vm.EqEval.code Vm.EqEval.programOffset :=
   placed_of_nodup hP labels_nodup Vm.EqEval.code_at
-theorem placed_EqKernel : Placed Vm.EqKernel.code 13221 :=
+theorem placed_EqKernel : Placed Vm.EqKernel.code Vm.EqKernel.programOffset :=
   placed_of_nodup hP labels_nodup Vm.EqKernel.code_at
-theorem placed_PolyEval : Placed Vm.PolyEval.code 13298 :=
+theorem placed_PolyEval : Placed Vm.PolyEval.code Vm.PolyEval.programOffset :=
   placed_of_nodup hP labels_nodup Vm.PolyEval.code_at
-theorem placed_PushClaim : Placed Vm.PushClaim.code 13327 :=
+theorem placed_PushClaim : Placed Vm.PushClaim.code Vm.PushClaim.programOffset :=
   placed_of_nodup hP labels_nodup Vm.PushClaim.code_at
-theorem placed_RingWeight : Placed Vm.RingWeight.code 13365 :=
+theorem placed_RingWeight : Placed Vm.RingWeight.code Vm.RingWeight.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RingWeight.code_at
-theorem placed_CommitStack : Placed Vm.CommitStack.code 13562 :=
+theorem placed_CommitStack : Placed Vm.CommitStack.code Vm.CommitStack.programOffset :=
   placed_of_nodup hP labels_nodup Vm.CommitStack.code_at
-theorem placed_ColumnWeight : Placed Vm.ColumnWeight.code 13594 :=
+theorem placed_ColumnWeight : Placed Vm.ColumnWeight.code Vm.ColumnWeight.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ColumnWeight.code_at
-theorem placed_RingClaimWeight : Placed Vm.RingClaimWeight.code 13727 :=
+theorem placed_RingClaimWeight : Placed Vm.RingClaimWeight.code Vm.RingClaimWeight.programOffset :=
   placed_of_nodup hP labels_nodup Vm.RingClaimWeight.code_at
-theorem placed_ReadOod : Placed Vm.ReadOod.code 13778 :=
+theorem placed_ReadOod : Placed Vm.ReadOod.code Vm.ReadOod.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ReadOod.code_at
-theorem placed_KeccakF : Placed Vm.KeccakF.code 13813 :=
+theorem placed_KeccakF : Placed Vm.KeccakF.code Vm.KeccakF.programOffset :=
   placed_of_nodup hP labels_nodup Vm.KeccakF.code_at
-theorem placed_HashPair : Placed Vm.HashPair.code 14031 :=
+theorem placed_HashPair : Placed Vm.HashPair.code Vm.HashPair.programOffset :=
   placed_of_nodup hP labels_nodup Vm.HashPair.code_at
-theorem placed_FormTerms : Placed Vm.FormTerms.code 14050 :=
+theorem placed_FormTerms : Placed Vm.FormTerms.code Vm.FormTerms.programOffset :=
   placed_of_nodup hP labels_nodup Vm.FormTerms.code_at
-theorem placed_StackPoint : Placed Vm.StackPoint.code 14073 :=
+theorem placed_StackPoint : Placed Vm.StackPoint.code Vm.StackPoint.programOffset :=
   placed_of_nodup hP labels_nodup Vm.StackPoint.code_at
-theorem placed_BuildLayout : Placed Vm.BuildLayout.code 14128 :=
+theorem placed_BuildLayout : Placed Vm.BuildLayout.code Vm.BuildLayout.programOffset :=
   placed_of_nodup hP labels_nodup Vm.BuildLayout.code_at
-theorem placed_ColumnKappas : Placed Vm.ColumnKappas.code 14235 :=
+theorem placed_ColumnKappas : Placed Vm.ColumnKappas.code Vm.ColumnKappas.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ColumnKappas.code_at
-theorem placed_ConstraintsW : Placed Vm.ConstraintsW.code 14368 :=
+theorem placed_ConstraintsW : Placed Vm.ConstraintsW.code Vm.ConstraintsW.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ConstraintsW.code_at
-theorem placed_PlacementsOf : Placed Vm.PlacementsOf.code 14419 :=
+theorem placed_PlacementsOf : Placed Vm.PlacementsOf.code Vm.PlacementsOf.programOffset :=
   placed_of_nodup hP labels_nodup Vm.PlacementsOf.code_at
-theorem placed_StackOffsets : Placed Vm.StackOffsets.code 14549 :=
+theorem placed_StackOffsets : Placed Vm.StackOffsets.code Vm.StackOffsets.programOffset :=
   placed_of_nodup hP labels_nodup Vm.StackOffsets.code_at
-theorem placed_ReadAnnouncedSizes : Placed Vm.ReadAnnouncedSizes.code 14660 :=
+theorem placed_ReadAnnouncedSizes : Placed Vm.ReadAnnouncedSizes.code Vm.ReadAnnouncedSizes.programOffset :=
   placed_of_nodup hP labels_nodup Vm.ReadAnnouncedSizes.code_at
-theorem placed_Evaluate : Placed Vm.Evaluate.code 14738 :=
+theorem placed_Evaluate : Placed Vm.Evaluate.code Vm.Evaluate.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Evaluate.code_at
-theorem placed_TablePhase : Placed Vm.TablePhase.code 14807 :=
+theorem placed_TablePhase : Placed Vm.TablePhase.code Vm.TablePhase.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TablePhase.code_at
-theorem placed_TableTerms : Placed Vm.TableTerms.code 14857 :=
+theorem placed_TableTerms : Placed Vm.TableTerms.code Vm.TableTerms.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TableTerms.code_at
-theorem placed_TableWeights : Placed Vm.TableWeights.code 14996 :=
+theorem placed_TableWeights : Placed Vm.TableWeights.code Vm.TableWeights.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TableWeights.code_at
-theorem placed_TableSumcheck : Placed Vm.TableSumcheck.code 15138 :=
+theorem placed_TableSumcheck : Placed Vm.TableSumcheck.code Vm.TableSumcheck.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TableSumcheck.code_at
-theorem placed_PublicInputPhase : Placed Vm.PublicInputPhase.code 15266 :=
+theorem placed_PublicInputPhase : Placed Vm.PublicInputPhase.code Vm.PublicInputPhase.programOffset :=
   placed_of_nodup hP labels_nodup Vm.PublicInputPhase.code_at
-theorem placed_TableColumnClaims : Placed Vm.TableColumnClaims.code 15373 :=
+theorem placed_TableColumnClaims : Placed Vm.TableColumnClaims.code Vm.TableColumnClaims.programOffset :=
   placed_of_nodup hP labels_nodup Vm.TableColumnClaims.code_at
-theorem placed_VerifyExecution : Placed Vm.VerifyExecution.code 15570 :=
+theorem placed_VerifyExecution : Placed Vm.VerifyExecution.code Vm.VerifyExecution.programOffset :=
   placed_of_nodup hP labels_nodup Vm.VerifyExecution.code_at
-theorem placed_Seed : Placed Vm.Seed.code 15671 :=
+theorem placed_Seed : Placed Vm.Seed.code Vm.Seed.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Seed.code_at
-theorem placed_Verify : Placed Vm.Verify.code 15703 :=
+theorem placed_Verify : Placed Vm.Verify.code Vm.Verify.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Verify.code_at
-theorem placed_IvWord : Placed Vm.IvWord.code 15806 :=
+theorem placed_IvWord : Placed Vm.IvWord.code Vm.IvWord.programOffset :=
   placed_of_nodup hP labels_nodup Vm.IvWord.code_at
-theorem placed_KinvSq : Placed Vm.KinvSq.code 15839 :=
+theorem placed_KinvSq : Placed Vm.KinvSq.code Vm.KinvSq.programOffset :=
   placed_of_nodup hP labels_nodup Vm.KinvSq.code_at
-theorem placed_LeanvmVerify : Placed Vm.LeanvmVerify.code 15849 :=
+theorem placed_LeanvmVerify : Placed Vm.LeanvmVerify.code Vm.LeanvmVerify.programOffset :=
   placed_of_nodup hP labels_nodup Vm.LeanvmVerify.code_at
-theorem placed_Memcpy : Placed Vm.Memcpy.code 15937 :=
+theorem placed_Memcpy : Placed Vm.Memcpy.code Vm.Memcpy.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Memcpy.code_at
-theorem placed_Memset : Placed Vm.Memset.code 15961 :=
+theorem placed_Memset : Placed Vm.Memset.code Vm.Memset.programOffset :=
   placed_of_nodup hP labels_nodup Vm.Memset.code_at
 
 end

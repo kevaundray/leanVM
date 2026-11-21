@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVm.RodataLemmas
 public import NativeRustcX64.Spec.Keccak
+public import NativeRustcVmX64.Code.Vm.Names
 
 /-!
 # The read-only data of `leanvm_verify`'s x86-64 program
@@ -45,23 +46,23 @@ open NativeRustcX64 NativeRustcVm.Data
 
 /-- Each item's label in the x86-64 program. -/
 def itemLabel : Item → Label
-  | .rmfeProject => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.0"
-  | .keccakRC => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.1"
-  | .keccakRho => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.2"
-  | .tuples => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.3"
-  | .tables => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.4"
-  | .padding => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.5"
-  | .pushBlocks => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.6"
-  | .pullBlocks => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.7"
-  | .countBlocks => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.8"
-  | .one => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.9"
-  | .perChallenge => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.10"
-  | .queryTable => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.11"
-  | .queryLevels => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.12"
-  | .forms => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.13"
-  | .terms => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.14"
-  | .keccakSlot => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.15"
-  | .keccakOutput => ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.16"
+  | .rmfeProject => NativeRustcVmX64.Vm.Symbols.rodata0Label
+  | .keccakRC => NativeRustcVmX64.Vm.Symbols.rodata1Label
+  | .keccakRho => NativeRustcVmX64.Vm.Symbols.rodata2Label
+  | .tuples => NativeRustcVmX64.Vm.Symbols.rodata3Label
+  | .tables => NativeRustcVmX64.Vm.Symbols.rodata4Label
+  | .padding => NativeRustcVmX64.Vm.Symbols.rodata5Label
+  | .pushBlocks => NativeRustcVmX64.Vm.Symbols.rodata6Label
+  | .pullBlocks => NativeRustcVmX64.Vm.Symbols.rodata7Label
+  | .countBlocks => NativeRustcVmX64.Vm.Symbols.rodata8Label
+  | .one => NativeRustcVmX64.Vm.Symbols.rodata9Label
+  | .perChallenge => NativeRustcVmX64.Vm.Symbols.rodata10Label
+  | .queryTable => NativeRustcVmX64.Vm.Symbols.rodata11Label
+  | .queryLevels => NativeRustcVmX64.Vm.Symbols.rodata12Label
+  | .forms => NativeRustcVmX64.Vm.Symbols.rodata13Label
+  | .terms => NativeRustcVmX64.Vm.Symbols.rodata14Label
+  | .keccakSlot => NativeRustcVmX64.Vm.Symbols.rodata15Label
+  | .keccakOutput => NativeRustcVmX64.Vm.Symbols.rodata16Label
 
 section
 variable [Labels]

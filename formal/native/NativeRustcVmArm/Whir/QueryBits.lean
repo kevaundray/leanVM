@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.QueryBits.Names
 public import NativeRustcVmArm.Whir.QueryBits.Exec
 public import NativeRustcVmArm.Spec.Whir
 
@@ -146,9 +147,9 @@ theorem finish {m : MachineData} {S' : SState} {st : MachineState}
 
 /-- **`query_bits`'s contract.** -/
 theorem queryBits_spec (hp : Placed code k) :
-    Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost := by
   intro m _
-  have hentry : Labels.label queryBitsLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hentry : Labels.label NativeRustcVmArm.Vm.QueryBits.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.QueryBits.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.QueryBits.entryOffset) NativeRustcVmArm.Vm.QueryBits.entry_at
   rw [hentry]
   have hwf := Env.wf_nil m
   have hm : Match (envOf m) entryS m := match_nil m
@@ -156,11 +157,11 @@ theorem queryBits_spec (hp : Placed code k) :
       b.IsInfixAt Host.prog (k + j) := fun hb hne ↦ hb.trans hp.1 hne
   refine exec_then (inf b0_in_code (by simp [b0])) run_b0 hwf hm fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
-  have e0 : k + 0 + b0.length = k + 2 := rfl
+  have e0 : k + NativeRustcVmArm.Vm.QueryBits.b0Offset + b0.length = k + NativeRustcVmArm.Vm.QueryBits.b1Offset := by rw [Nat.add_assoc, b0_next]
   by_cases hz : m.regs.X2 = 0
   · -- shift `0`: `b3`
     simp only [SBool.eval, CmpOp.apply, low_W64, Sym.eval, Env.ofMachine_regs, getXReg_X2, beq_zero, hz,
-      decide_true, ↓reduceIte, hp.label (j := 9) rfl] at hpc1
+      decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.QueryBits.b3Offset) NativeRustcVmArm.Vm.QueryBits.label_3_at] at hpc1
     refine exec_at (inf b3_in_code (by simp [b3])) (exec_after run_b0 run_b3z) hwf hpc1 hm1
       fun st hm' hpc ↦ finish hm' hpc rfl (by decide) rfl ?_
     have h0 := hm'.regs .X0 _ rfl
@@ -173,7 +174,7 @@ theorem queryBits_spec (hp : Placed code k) :
   refine exec_at (inf b1_in_code (by simp [b1])) (exec_after run_b0 run_b1) hwf hpc1 hm1
     fun st2 hm2 hpc2 ↦ ?_
   simp only [PcOk] at hpc2
-  have e1 : k + 2 + b1.length = k + 4 := rfl
+  have e1 : k + NativeRustcVmArm.Vm.QueryBits.b1Offset + b1.length = k + NativeRustcVmArm.Vm.QueryBits.b2Offset := by rw [Nat.add_assoc, b1_next]
   by_cases h64 : m.regs.X2.toNat < 64
   · -- `0 < shift < 64`: `b2`, `b3`
     simp only [SBool.eval, CmpOp.apply, low_W64, Sym.eval, Env.ofMachine_regs, getXReg_X2,
@@ -182,7 +183,7 @@ theorem queryBits_spec (hp : Placed code k) :
     refine exec_at (inf b2_in_code (by simp [b2])) (exec_after run_b1 run_b2) hwf hpc2 hm2
       fun st3 hm3 hpc3 ↦ ?_
     simp only [PcOk] at hpc3
-    have e2 : k + 4 + b2.length = k + 9 := rfl
+    have e2 : k + NativeRustcVmArm.Vm.QueryBits.b2Offset + b2.length = k + NativeRustcVmArm.Vm.QueryBits.b3Offset := by rw [Nat.add_assoc, b2_next]
     rw [e2] at hpc3
     refine exec_at (inf b3_in_code (by simp [b3])) (exec_after run_b2 run_b3) hwf hpc3 hm3
       fun st hm' hpc ↦ finish hm' hpc rfl (by decide) rfl ?_
@@ -205,11 +206,11 @@ theorem queryBits_spec (hp : Placed code k) :
     rfl
   simp only [SBool.eval, CmpOp.apply, low_W64, Sym.eval, Env.ofMachine_regs, getXReg_X2,
     ult_ofNat _ (show 64 < 2 ^ 64 by decide), h64, decide_false, Bool.not_false, ↓reduceIte,
-    hp.label (j := 16) rfl] at hpc2
+    hp.label (j := NativeRustcVmArm.Vm.QueryBits.b4Offset) NativeRustcVmArm.Vm.QueryBits.label_4_at] at hpc2
   refine exec_at (inf b4_in_code (by simp [b4])) (exec_after run_b1 run_b4) hwf hpc2 hm2
     fun st4 hm4 hpc4 ↦ ?_
   simp only [PcOk] at hpc4
-  have e4 : k + 16 + b4.length = k + 19 := rfl
+  have e4 : k + NativeRustcVmArm.Vm.QueryBits.b4Offset + b4.length = k + NativeRustcVmArm.Vm.QueryBits.b5Offset := by rw [Nat.add_assoc, b4_next]
   by_cases h128 : m.regs.X2.toNat < 128
   · -- `64 ≤ shift < 128`: `b5`
     simp only [SBool.eval, CmpOp.apply, low_W64, Sym.eval, Env.ofMachine_regs, getXReg_X2,
@@ -233,7 +234,7 @@ theorem queryBits_spec (hp : Placed code k) :
   · -- `128 ≤ shift`: `b6`
     simp only [SBool.eval, CmpOp.apply, low_W64, Sym.eval, Env.ofMachine_regs, getXReg_X2,
       ult_ofNat _ (show 128 < 2 ^ 64 by decide), h128, decide_false, Bool.not_false, ↓reduceIte,
-      hp.label (j := 26) rfl] at hpc4
+      hp.label (j := NativeRustcVmArm.Vm.QueryBits.b6Offset) NativeRustcVmArm.Vm.QueryBits.label_6_at] at hpc4
     refine exec_at (inf b6_in_code (by simp [b6])) (exec_after run_b4 run_b6) hwf hpc4 hm4
       fun st hm' hpc ↦ finish hm' hpc rfl (by decide) rfl ?_
     have h0 := hm'.regs .X0 _ rfl

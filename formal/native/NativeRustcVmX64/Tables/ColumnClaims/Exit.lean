@@ -2,14 +2,15 @@ module
 
 public import NativeRustcVmX64.Tables.ColumnClaims.Defs
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.TableColumnClaims.Names
 
 /-!
 # `table_column_claims`: the exits (x86-64)
 
-The epilogue `b25` (`.LTableColumnClaims_20`) returns AL (`exit_step`); before it, the failure
-`b24` (`.LTableColumnClaims_19`: AL zero, `fail_step`), reached from the tables' failure jumps
+The epilogue `b25` (`NativeRustcVmX64.Vm.TableColumnClaims.label_20`) returns AL (`exit_step`); before it, the failure
+`b24` (`NativeRustcVmX64.Vm.TableColumnClaims.label_19`: AL zero, `fail_step`), reached from the tables' failure jumps
 (`jump19`), or `b30` (table `5`'s failure, AL already zero, `fail30`), and the success `b31`
-(`.LTableColumnClaims_16`: AL one, `done_step`).
+(`NativeRustcVmX64.Vm.TableColumnClaims.label_16`: AL one, `done_step`).
 -/
 
 namespace NativeRustcVmX64.Tables.ColumnClaims
@@ -23,26 +24,26 @@ public section
 variable [Host] {k : Nat} {ev : Array (Array EW × Array EW)} {cs : Array ColumnClaimW}
   {m0 : MachineData}
 
-theorem hb24 (hp : Placed code k) : b24.IsInfixAt Host.prog (k + 177) :=
+theorem hb24 (hp : Placed code k) : b24.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableColumnClaims.b24Offset) :=
   b24_in_code.trans hp.1 (by simp [b24])
-theorem hb25 (hp : Placed code k) : b25.IsInfixAt Host.prog (k + 179) :=
+theorem hb25 (hp : Placed code k) : b25.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableColumnClaims.b25Offset) :=
   b25_in_code.trans hp.1 (by simp [b25])
-theorem hb30 (hp : Placed code k) : b30.IsInfixAt Host.prog (k + 223) :=
+theorem hb30 (hp : Placed code k) : b30.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableColumnClaims.b30Offset) :=
   b30_in_code.trans hp.1 (by simp [b30])
-theorem hb31 (hp : Placed code k) : b31.IsInfixAt Host.prog (k + 224) :=
+theorem hb31 (hp : Placed code k) : b31.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableColumnClaims.b31Offset) :=
   b31_in_code.trans hp.1 (by simp [b31])
 
-theorem lbl_19 (hp : Placed code k) : Labels.label ".LTableColumnClaims_19" = Host.addrOf (k + 177) :=
-  hp.label (j := 177) rfl
-theorem lbl_20 (hp : Placed code k) : Labels.label ".LTableColumnClaims_20" = Host.addrOf (k + 179) :=
-  hp.label (j := 179) rfl
+theorem lbl_19 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableColumnClaims.label_19 = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b24Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_19_at
+theorem lbl_20 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableColumnClaims.label_20 = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b25Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_20_at
 
 omit [Host] in
 theorem h64 : 64 ≤ N := by decide
 
 /-- **The epilogue**: AL returned. -/
 theorem exit_step (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 179)) (hb : Bd m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b25Offset)) (hb : Bd m0 st.data)
     (hal : (reg st.data .rax).toNat % 256 = (okWord (decide (Fits ev cs))).toNat)
     (hc : Fits ev cs → ClaimsWAt st.data.dmem (reg m0 .rsi) (cs ++ tableColumnClaims ev)) :
     Eventually (step1 Host.exe) (Goal ev cs m0) st := by
@@ -60,7 +61,7 @@ theorem exit_step (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {s
 
 /-- **The failure** `b24`: AL zero. -/
 theorem fail_step (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 177)) (hb : Bd m0 st.data) (hn : ¬Fits ev cs) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b24Offset)) (hb : Bd m0 st.data) (hn : ¬Fits ev cs) :
     Eventually (step1 Host.exe) (Goal ev cs m0) st := by
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hk24, -, h24, -⟩ := after_eq run_b24 ▸ ok_exit
   refine exec_at (hb24 hp) run_b24 (Env.wf_nil _) (fun _ h ↦ by cases h) hpc (match_nil _)
@@ -77,7 +78,7 @@ theorem fail_step (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {s
 /-- **A failure jump** to `b24`. -/
 theorem jump19 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {D : List Directive}
     {kk : Nat} (hD : D.IsInfixAt Host.prog kk)
-    (hx : exec D regsS = some (after D regsS, .jump ".LTableColumnClaims_19"))
+    (hx : exec D regsS = some (after D regsS, .jump NativeRustcVmX64.Vm.TableColumnClaims.label_19))
     (hmem : (after D regsS).mem = []) (hk : KeptBut (after D regsS) [])
     {st : MachineState} (hpc : st.pc = Host.addrOf kk) (hb : Bd m0 st.data) (hn : ¬Fits ev cs) :
     Eventually (step1 Host.exe) (Goal ev cs m0) st := by
@@ -89,7 +90,7 @@ theorem jump19 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {D : 
 
 /-- **Table `5`'s failure** `b30`: AL already zero. -/
 theorem fail30 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 223)) (hb : Bd m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b30Offset)) (hb : Bd m0 st.data)
     (hal : (reg st.data .rax).toNat % 256 = 0) (hn : ¬Fits ev cs) :
     Eventually (step1 Host.exe) (Goal ev cs m0) st := by
   obtain ⟨-, -, -, -, h30, -, -, -, -, -, -, hk30, -⟩ := after_eq run_b30 ▸ ok_exit
@@ -105,7 +106,7 @@ theorem fail30 (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {st :
 
 /-- **The success** `b31`: AL one. -/
 theorem done_step (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 224)) (hb : Bd m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b31Offset)) (hb : Bd m0 st.data)
     (hc : ClaimsWAt st.data.dmem (reg m0 .rsi) (cs ++ tableColumnClaims ev)) :
     Eventually (step1 Host.exe) (Goal ev cs m0) st := by
   obtain ⟨-, -, -, -, -, -, h31, -, -, -, -, -, -, hk31, -, hr31⟩ := after_eq run_b31 ▸ ok_exit

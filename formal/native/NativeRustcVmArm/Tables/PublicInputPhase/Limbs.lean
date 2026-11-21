@@ -87,7 +87,7 @@ theorem exit8 (hp : Placed code k) (hS : StackOk m0 publicInputPhaseStack) {m : 
       (∀ x s', (publicInputPhase L pub).run s = some (x, s') → cs.size + 2 ≤ claimCap →
         ClaimsWAt m'.dmem m0.regs.X3.toBitVec (cs ++ x)) ∧
       NextAt m'.dmem m0.regs.X0.toBitVec a ((publicInputPhase L pub).run s)) :
-    Eventually (step1 Host.exe) (Goal a s L pub cs m0) ⟨m, Host.addrOf (k + 92)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s L pub cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.PublicInputPhase.b8Offset)⟩ := by
   have hS1 := StackOk.rebase hS hk
   have hwf := Bus.wf_frame hS1 le_N hfr.kept
   have hm := Bus.match_frame hS1 le_N rfl hfr.sp

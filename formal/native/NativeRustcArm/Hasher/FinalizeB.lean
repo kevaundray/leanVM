@@ -54,8 +54,8 @@ set_option linter.unusedSimpArgs false in
 /-- **`PAD_FIRST`.** -/
 theorem stage3_spec (hp : Placed code k) {m0 m1 m : MachineData} (hpre : FinalizePre m0)
     (hs2 : Stage2 m0 m1 m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 33) ∧ Stage3 m0 m1 st.data)
-      ⟨m, Host.addrOf (k + 30)⟩ := by
+    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + (NativeRustcArm.Common.Finalize.b4Offset + b4a.length)) ∧ Stage3 m0 m1 st.data)
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Finalize.b4Offset)⟩ := by
   have g := geo_of hpre
   have hf := frAt_toNat g
   have hs := g.s

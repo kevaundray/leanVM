@@ -126,8 +126,8 @@ variable [NativeArm.Host]
 /-- **The FORS key's hasher absorbs `PK.seed | ADRS`** (`b94 .. b96`). -/
 theorem forsKey0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : r.AtForsKey m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 1267 ∧ FK0 r st.data)
-      ⟨m, r.pc 1243⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b97Offset ∧ FK0 r st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b94Offset⟩ := by
   obtain ⟨hF, hI, h27, h26, h23, hR, h384, h392⟩ := hA
   have hK : Keep r m := ⟨hF, hI, h392⟩
   have hRl := length_rootsBytes r
@@ -177,8 +177,8 @@ theorem forsKey0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc
 /-- **The roots absorbed, the FORS key's digest** (`b97 .. b99`). -/
 theorem forsKey1_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : FK0 r m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 1288 ∧ FK1 r st.data)
-      ⟨m, r.pc 1267⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b100Offset ∧ FK1 r st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b97Offset⟩ := by
   obtain ⟨hK, h22, hR, h384, hH⟩ := hA
   obtain ⟨hb, hbB, hbh⟩ := hH
   have hbl := Keccak.length_of_holds hbh

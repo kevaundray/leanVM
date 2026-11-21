@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Sumcheck.OpenPhase.Common
 public import NativeRustcVmX64.Code.Vm.OpenPhase
+public import NativeRustcVmX64.Code.Vm.Climb.Names
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmX64.Code.Vm.OpenPhase.Names
 public meta import NativeRustcVmX64.Code.Vm.OpenPhase
 public meta import NativeRustcVmX64.Sumcheck.OpenPhase.Common
 
@@ -105,9 +108,9 @@ sym_block run_b9r := exec b9 (after b21 outS)
 sym_block run_b22 := exec b22 outS
 sym_block run_b9n := exec b9 (after b22 outS)
 
-public theorem b0a_in_code : b0a.IsInfixAt code 0 :=
+public theorem b0a_in_code : b0a.IsInfixAt code (NativeRustcVmX64.Vm.OpenPhase.b0Offset) :=
   (infix_take b0 9).trans b0_in_code (fun h ↦ absurd (congrArg List.length h) (by decide))
-public theorem b0b_in_code : b0b.IsInfixAt code 9 :=
+public theorem b0b_in_code : b0b.IsInfixAt code (NativeRustcVmX64.Vm.OpenPhase.b0Offset + b0a.length) :=
   (infix_drop b0 9).trans b0_in_code (fun h ↦ absurd (congrArg List.length h) (by decide))
 public theorem b0a_ne : b0a ≠ [] := fun h ↦ absurd (congrArg List.length h) (by decide)
 public theorem b0b_ne : b0b ≠ [] := fun h ↦ absurd (congrArg List.length h) (by decide)
@@ -120,7 +123,7 @@ public theorem ok_b0a : ProOk 176 8 slots (after b0a entryS) = true ∧
     KeepBut [.r15] (after b0a entryS) = true := by
   decide +kernel
 public theorem exit_b0b :
-    exec b0b phS = some (after b0b phS, .cond (isZero (.load 1 0 8)) ".LOpenPhase_1") :=
+    exec b0b phS = some (after b0b phS, .cond (isZero (.load 1 0 8)) NativeRustcVmX64.Vm.OpenPhase.label_1) :=
   run_b0b.trans (by rw [after_eq run_b0b])
 public theorem ok_b0b : MidOk 176 8 slots (after b0b phS) = true ∧ (after b0b phS).mem = [] ∧
     (after b0b phS).reg .r13 = some (.load 1 0 8) ∧
@@ -134,19 +137,19 @@ public theorem ok_b0b : MidOk 176 8 slots (after b0b phS) = true ∧ (after b0b 
 public abbrev TestOk (S : SState) : Prop :=
   MidOk 176 8 slots S = true ∧ S.mem = [] ∧ KeepBut [] S = true
 
-public theorem exit_b1 : exec b1 frS = some (after b1 frS, .cond c1 ".LOpenPhase_16") :=
+public theorem exit_b1 : exec b1 frS = some (after b1 frS, .cond c1 NativeRustcVmX64.Vm.OpenPhase.label_16) :=
   run_b1.trans (by rw [after_eq run_b1]; rfl)
 public theorem ok_b1 : TestOk (after b1 frS) := by decide +kernel
-public theorem exit_b2 : exec b2 frS = some (after b2 frS, .cond c2 ".LOpenPhase_2") :=
+public theorem exit_b2 : exec b2 frS = some (after b2 frS, .cond c2 NativeRustcVmX64.Vm.OpenPhase.label_2) :=
   run_b2.trans (by rw [after_eq run_b2]; rfl)
 public theorem ok_b2 : MidOk 176 8 slots (after b2 frS) = true ∧ (after b2 frS).mem = [] ∧
     KeepBut [.rax, .rdx] (after b2 frS) = true := by
   decide +kernel
-public theorem exit_b3 : exec b3 frS = some (after b3 frS, .jump ".LOpenPhase_16") :=
+public theorem exit_b3 : exec b3 frS = some (after b3 frS, .jump NativeRustcVmX64.Vm.OpenPhase.label_16) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : TestOk (after b3 frS) := by decide +kernel
 public theorem exit_b4 :
-    exec b4 frS = some (after b4 frS, .cond (isZero (.reg .r9)).not ".LOpenPhase_16") :=
+    exec b4 frS = some (after b4 frS, .cond (isZero (.reg .r9)).not NativeRustcVmX64.Vm.OpenPhase.label_16) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : TestOk (after b4 frS) := by decide +kernel
 public theorem exit_b5 : exec b5 frS = some (after b5 frS, .fall) :=
@@ -157,10 +160,10 @@ public theorem ok_b5 : MidOk 176 8 slots (after b5 frS) = true ∧ (after b5 frS
     (after b5 frS).reg .rcx = some (.lit 0) ∧
     KeepBut [.rax, .rbp, .rcx] (after b5 frS) = true := by
   decide +kernel
-public theorem exit_b6 : exec b6 frS = some (after b6 frS, .cond c6 ".LOpenPhase_4") :=
+public theorem exit_b6 : exec b6 frS = some (after b6 frS, .cond c6 NativeRustcVmX64.Vm.OpenPhase.label_4) :=
   run_b6.trans (by rw [after_eq run_b6]; rfl)
 public theorem ok_b6 : TestOk (after b6 frS) := by decide +kernel
-public theorem exit_b7 : exec b7 posS = some (after b7 posS, .cond c7 ".LOpenPhase_3") :=
+public theorem exit_b7 : exec b7 posS = some (after b7 posS, .cond c7 NativeRustcVmX64.Vm.OpenPhase.label_3) :=
   run_b7.trans (by rw [after_eq run_b7]; rfl)
 public theorem ok_b7 : MidOk 176 8 slots (after b7 posS) = true ∧ (after b7 posS).mem = [] ∧
     (after b7 posS).reg .rcx = some (.bin .add .W64 (.lit 1544) (.reg .rcx)) ∧
@@ -177,14 +180,14 @@ public theorem ok_b9f : EpiOk 176 slots (after b9 (after b8 fail8S)) = true ∧
     (∀ w ∈ (after b9 (after b8 fail8S)).mem, w.r = 1 ∧ 0 ≤ w.off ∧ w.off + w.n ≤ 32) := by
   decide +kernel
 public theorem exit_b10 :
-    exec b10 frS = some (after b10 frS, .cond (isZero (.reg .r13)) ".LOpenPhase_13") :=
+    exec b10 frS = some (after b10 frS, .cond (isZero (.reg .r13)) NativeRustcVmX64.Vm.OpenPhase.label_13) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem ok_b10 : MidOk 176 8 slots (after b10 frS) = true ∧
     (∀ w ∈ (after b10 frS).mem, w.r = 0 ∧ w.off + w.n ≤ 176) ∧
     WordW 0 16 (.reg .rdi) (after b10 frS) ∧ WordW 0 56 (.reg .r10) (after b10 frS) ∧
     KeepBut [] (after b10 frS) = true := by
   decide +kernel
-public theorem exit_b11 : exec b11 frS = some (after b11 frS, .cond c11 ".LOpenPhase_19") :=
+public theorem exit_b11 : exec b11 frS = some (after b11 frS, .cond c11 NativeRustcVmX64.Vm.OpenPhase.label_19) :=
   run_b11.trans (by rw [after_eq run_b11]; rfl)
 public theorem ok_b11 : TestOk (after b11 frS) := by decide +kernel
 public theorem exit_b12 : exec b12 rootS = some (after b12 rootS, .fall) :=
@@ -197,11 +200,11 @@ public theorem ok_b12 : MidOk 176 8 slots (after b12 rootS) = true ∧
     (after b12 rootS).reg .r15 = some (.bin .add .W64 (.lit 544) (.reg .r15)) ∧
     KeepBut [.rax, .rsi, .r12, .r15] (after b12 rootS) = true := by
   decide +kernel
-public theorem exit_b13 : exec b13 frS = some (after b13 frS, .cond c13 ".LOpenPhase_19") :=
+public theorem exit_b13 : exec b13 frS = some (after b13 frS, .cond c13 NativeRustcVmX64.Vm.OpenPhase.label_19) :=
   run_b13.trans (by rw [after_eq run_b13]; rfl)
 public theorem ok_b13 : TestOk (after b13 frS) := by decide +kernel
 public theorem exit_b14 : exec b14 frS = some (after b14 frS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm6keccak15keccak256_wordsNCNvB2_10hash_words0EB4_") :=
+    .call NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : MidOk 176 0 slots (after b14 frS) = true ∧
     (∀ w ∈ (after b14 frS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -212,7 +215,7 @@ public theorem ok_b14 : MidOk 176 0 slots (after b14 frS) = true ∧
     KeepBut [.rbx, .rcx, .rdx, .rsi, .rdi, .r8] (after b14 frS) = true := by
   decide +kernel
 public theorem exit_b15 : exec b15 hashS = some (after b15 hashS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm10transcript5climb") :=
+    .call NativeRustcVmX64.Vm.Climb.entryLabel) :=
   run_b15.trans (by rw [after_eq run_b15])
 public theorem ok_b15 : MidOk 176 0 slots (after b15 hashS) = true ∧
     (∀ w ∈ (after b15 hashS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -222,13 +225,13 @@ public theorem ok_b15 : MidOk 176 0 slots (after b15 hashS) = true ∧
     (after b15 hashS).reg .r8 = some (.load 0 56 8) ∧
     KeepBut [.rcx, .rdx, .rsi, .rdi, .r8] (after b15 hashS) = true := by
   decide +kernel
-public theorem exit_b16 : exec b16 frS = some (after b16 frS, .cond (cw 0) ".LOpenPhase_19") :=
+public theorem exit_b16 : exec b16 frS = some (after b16 frS, .cond (cw 0) NativeRustcVmX64.Vm.OpenPhase.label_19) :=
   run_b16.trans (by rw [after_eq run_b16]; rfl)
-public theorem exit_b17 : exec b17 frS = some (after b17 frS, .cond (cw 1) ".LOpenPhase_19") :=
+public theorem exit_b17 : exec b17 frS = some (after b17 frS, .cond (cw 1) NativeRustcVmX64.Vm.OpenPhase.label_19) :=
   run_b17.trans (by rw [after_eq run_b17]; rfl)
-public theorem exit_b18 : exec b18 frS = some (after b18 frS, .cond (cw 2) ".LOpenPhase_19") :=
+public theorem exit_b18 : exec b18 frS = some (after b18 frS, .cond (cw 2) NativeRustcVmX64.Vm.OpenPhase.label_19) :=
   run_b18.trans (by rw [after_eq run_b18]; rfl)
-public theorem exit_b19 : exec b19 frS = some (after b19 frS, .cond (cw 3) ".LOpenPhase_19") :=
+public theorem exit_b19 : exec b19 frS = some (after b19 frS, .cond (cw 3) NativeRustcVmX64.Vm.OpenPhase.label_19) :=
   run_b19.trans (by rw [after_eq run_b19]; rfl)
 /-- A word test of `b16` to `b19`: no write, every register but RAX kept. -/
 public abbrev WTestOk (S : SState) : Prop :=
@@ -237,14 +240,14 @@ public theorem ok_b16 : WTestOk (after b16 frS) := by decide +kernel
 public theorem ok_b17 : WTestOk (after b17 frS) := by decide +kernel
 public theorem ok_b18 : WTestOk (after b18 frS) := by decide +kernel
 public theorem ok_b19 : WTestOk (after b19 frS) := by decide +kernel
-public theorem exit_b20 : exec b20 frS = some (after b20 frS, .cond c20 ".LOpenPhase_7") :=
+public theorem exit_b20 : exec b20 frS = some (after b20 frS, .cond c20 NativeRustcVmX64.Vm.OpenPhase.label_7) :=
   run_b20.trans (by rw [after_eq run_b20]; rfl)
 public theorem ok_b20 : MidOk 176 8 slots (after b20 frS) = true ∧ (after b20 frS).mem = [] ∧
     (after b20 frS).reg .r12 = some (.bin .add .W64 (.reg .r12) (.lit 1)) ∧
     (after b20 frS).reg .r15 = some (.bin .add .W64 (.lit 1544) (.reg .r15)) ∧
     KeepBut [.r12, .r15] (after b20 frS) = true := by
   decide +kernel
-public theorem exit_b21 : exec b21 outS = some (after b21 outS, .jump ".LOpenPhase_17") :=
+public theorem exit_b21 : exec b21 outS = some (after b21 outS, .jump NativeRustcVmX64.Vm.OpenPhase.label_17) :=
   run_b21.trans (by rw [after_eq run_b21])
 public theorem exit_b9r : exec b9 (after b21 outS) =
     some (after b9 (after b21 outS), .ret (.load 0 176 8)) :=
@@ -256,7 +259,7 @@ public theorem ok_b9r : EpiOk 176 slots (after b9 (after b21 outS)) = true ∧
     WordW 1 24 (.reg .r14) (after b9 (after b21 outS)) ∧
     (∀ w ∈ (after b9 (after b21 outS)).mem, w.r = 1 ∧ 0 ≤ w.off ∧ w.off + w.n ≤ 32) := by
   decide +kernel
-public theorem exit_b22 : exec b22 outS = some (after b22 outS, .jump ".LOpenPhase_17") :=
+public theorem exit_b22 : exec b22 outS = some (after b22 outS, .jump NativeRustcVmX64.Vm.OpenPhase.label_17) :=
   run_b22.trans (by rw [after_eq run_b22])
 public theorem exit_b9n : exec b9 (after b22 outS) =
     some (after b9 (after b22 outS), .ret (.load 0 176 8)) :=

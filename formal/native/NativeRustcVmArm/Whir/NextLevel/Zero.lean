@@ -39,11 +39,11 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **A turn of the zeroing loop.** -/
 theorem zero_step (hp : Placed code k) (h : NextLevelPre a s level w rounds m0) {i : Nat}
-    (hi : i < 57) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 121))
+    (hi : i < 57) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b17Offset))
     (hI : H17 a level m0 xs ood v lam qs s8 i st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + 121) ∧ i + 1 < 57 ∧
+    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b17Offset) ∧ i + 1 < 57 ∧
         H17 a level m0 xs ood v lam qs s8 (i + 1) st'.data) ∨
-      (st'.pc = Host.addrOf (k + 130) ∧ H17 a level m0 xs ood v lam qs s8 57 st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b18Offset) ∧ H17 a level m0 xs ood v lam qs s8 57 st'.data)) st := by
   have g := geo h
   have hf := hI.fr
   have hmu30 : m0.regs.X5.toNat ≤ 30 := h.2.2.2.2.2.2.2.2.2.2.1
@@ -129,7 +129,7 @@ theorem zero_step (hp : Placed code k) (h : NextLevelPre a s level w rounds m0) 
   · have : BitVec.ofNat 64 (64 * i) + 64#64 = 3648#64 := by
       apply BitVec.eq_of_toNat_eq; simp; omega
     simp only [this, beq_self_eq_true, Bool.not_true, Bool.false_eq_true, ite_false] at hpc'
-    exact .done _ (.inr ⟨hpc'.trans (by rw [show k + 121 + b17.length = k + 130 from rfl]),
+    exact .done _ (.inr ⟨hpc'.trans (by rw [show k + NativeRustcVmArm.Vm.NextLevel.b17Offset + b17.length = k + NativeRustcVmArm.Vm.NextLevel.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b17_next]]),
       hI' 57 (le_refl _) (by rw [x9n]; omega)⟩)
   · have hne : (BitVec.ofNat 64 (64 * i) + 64#64 == 3648#64) = false := by
       rw [beq_eq_false_iff_ne]
@@ -138,16 +138,16 @@ theorem zero_step (hp : Placed code k) (h : NextLevelPre a s level w rounds m0) 
       simp at this
       omega
     simp only [hne, Bool.not_false, ite_true] at hpc'
-    exact .done _ (.inl ⟨hpc'.trans (hp.label (j := 121) rfl), by omega,
+    exact .done _ (.inl ⟨hpc'.trans (hp.label (j := NativeRustcVmArm.Vm.NextLevel.b17Offset) NativeRustcVmArm.Vm.NextLevel.label_9_at), by omega,
       hI' (i + 1) (by omega) x9n⟩)
 
 /-- **The zeroing loop**, to its end. -/
 theorem zero_loop (hp : Placed code k) (h : NextLevelPre a s level w rounds m0) {i : Nat}
-    (hi : i < 57) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 121))
+    (hi : i < 57) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b17Offset))
     (hI : H17 a level m0 xs ood v lam qs s8 i st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 130) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b18Offset) ∧
       H17 a level m0 xs ood v lam qs s8 57 st'.data) st :=
-  Sym.loop (fun n st ↦ ∃ i, n = 57 - i ∧ i < 57 ∧ st.pc = Host.addrOf (k + 121) ∧
+  Sym.loop (fun n st ↦ ∃ i, n = 57 - i ∧ i < 57 ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b17Offset) ∧
       H17 a level m0 xs ood v lam qs s8 i st.data)
     (fun _ st ⟨i, hn, hi, hpc, hI⟩ ↦ (zero_step hp h hi hpc hI).mono fun st' h ↦ by
       rcases h with ⟨hpc', hi', hI'⟩ | h

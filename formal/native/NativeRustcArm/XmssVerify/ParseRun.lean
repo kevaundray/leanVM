@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.FromBytes.Names
+
 public import NativeRustcArm.XmssVerify.Frame
 
 /-!
@@ -104,10 +106,10 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 
 /-- **Parsing**: from the end of the copy to block 5. -/
 public theorem parse {k : Nat} (hp : Placed code k)
-    (hfb : Spec (label fromBytesLabel) FromBytesPre FromBytesPost) (P : Pre w m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 50)) (h : LoopAt w m₀ st.data 75)
+    (hfb : Spec (label NativeRustcArm.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost) (P : Pre w m₀)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b3Offset)) (h : LoopAt w m₀ st.data 75)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 69) → Parsed w m₀ st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b5Offset) → Parsed w m₀ st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have C := h.common

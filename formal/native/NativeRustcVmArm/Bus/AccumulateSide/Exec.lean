@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcArm.Sym
 public import NativeRustcVmArm.Code.Vm.AccumulateSide
 public meta import NativeRustcVmArm.Code.Vm.AccumulateSide
@@ -22,8 +23,6 @@ open NativeRustcArm NativeRustcArm.Sym NativeRustcVmArm.Vm.AccumulateSide
 
 @[expose] public section
 
-/-- `TABLES`' label. -/
-def tablesLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.4"
 
 /-- At the entry: the frame and the stack arguments, SP 12096 bytes in; the side layout at X6. -/
 def s0 : SState := init [(12168, true), (888, false)] (.ptr 0 12096) [(.X6, .ptr 1 0)]
@@ -50,7 +49,7 @@ def sP : SState := init [(12096, true), (16, false)] (.ptr 0 0) [(.X27, .ptr 1 8
 def sB : SState := init [(12096, true), (16, false)] (.ptr 0 0) [(.X28, .ptr 1 8)]
 /-- `TABLES`, the owner X20 below `6`. -/
 def sT : SState :=
-  init [(12096, true), (240, false)] (.ptr 0 0) [] [(tablesLabel, 1)] [(.reg .X20, 6)]
+  init [(12096, true), (240, false)] (.ptr 0 0) [] [(NativeRustcVmArm.Vm.Symbols.rodata4Label, 1)] [(.reg .X20, 6)]
 /-- The layout's heights and rows, through the frame words at 48 and 40; the owner X20 below
 `6`. -/
 def sQ : SState :=

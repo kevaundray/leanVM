@@ -40,13 +40,13 @@ variable [Host] (k : Nat) (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (
 
 /-- The loop's head (`b13`) at leaf `i`. -/
 structure HeadB (i : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 79)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b13Offset)
   rb : RB m0 i st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
 
 /-- The one-zero loop (`b16`) after `t` zeros of leaf `i`. -/
 structure ZB1 (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 89)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b16Offset)
   rb : RB m0 i st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
   rsi : reg st.data .rsi = off (lv m0) (512 * i + 8 * lw m0)
@@ -56,7 +56,7 @@ structure ZB1 (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) 
 
 /-- Before the eight-zero loop (`b18`), `t = lw % 8` zeros written. -/
 structure MB (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 95)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b18Offset)
   rb : RB m0 i st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
   rsi : reg st.data .rsi = off (lv m0) (512 * i + 8 * lw m0)
@@ -67,7 +67,7 @@ structure MB (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) :
 
 /-- The eight-zero loop (`b20`) after `t` zeros of leaf `i`. -/
 structure ZB8 (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 99)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b20Offset)
   rb : RB m0 i st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
   rsi : reg st.data .rsi = off (lv m0) (512 * i + 8 * lw m0)
@@ -78,7 +78,7 @@ structure ZB8 (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) 
 
 /-- The call (`b21`) for leaf `i`, its zeros written. -/
 structure CallB (i : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 111)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b21Offset)
   rb : RB m0 i st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
   rsi : reg st.data .rsi = off (lv m0) (512 * i + 8 * lw m0)
@@ -257,12 +257,12 @@ theorem zB1_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
     simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
     omega)
   by_cases hz : t + 1 ≠ lw m0 % 8
-  · rw [ite_t hz, hp.label (j := 89) rfl] at hpc2
+  · rw [ite_t hz, hp.label NativeRustcVmX64.Vm.RdRows.label_13_at] at hpc2
     exact .done _ (.inr ⟨hpc2, hrb, hkp, hrsi, hrax', by omega, hzs⟩)
   · rw [ite_f hz] at hpc2
     -- `b17`: the address of the next zero.
     obtain ⟨hok17, hrax17, hK17⟩ := ok_b17
-    refine fr_step hp g (j := 94) b17_in_code (by simp [b17]) exit_b17 nofun hok17
+    refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b17Offset) b17_in_code (by simp [b17]) exit_b17 nofun hok17
       (hpc2.trans (congrArg Host.addrOf rfl)) hf' fun s2 hf2 hd2 hr2 hpc3 ↦ ?_
     have hk2 := regs_kept hK17 hr2
     simp only [PcOk] at hpc3

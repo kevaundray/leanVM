@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Transcript.Squeeze.Exec
+public import NativeRustcVmX64.Code.Vm.SpongeWDuplex.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
 # `SpongeW::squeeze` on x86-64
@@ -43,8 +45,8 @@ variable [Host] {k : Nat}
 
 /-- **`SpongeW::squeeze` meets its contract.** -/
 theorem squeeze_spec (hp : Placed code k)
-    (hdup : ∀ sp, Spec (Labels.label duplexLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
-    Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp) := by
+    (hdup : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
+    Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp) := by
   rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
   set p := reg m0 .rdi with hpdef
   have hn : squeezeStack ≤ (rspOf m0).toNat := hst.1
@@ -66,8 +68,8 @@ theorem squeeze_spec (hp : Placed code k)
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 16) (rest := [(p, 328)]) (vars := fun _ ↦ 0)
     (ret := 0) ⟨frame_mapped hst (by decide), hfnw⟩ (hrest m0 fun _ h ↦ h)
     (List.pairwise_pair.mpr (Apart.symm' hapF))
-  unfold squeezeLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.SpongeWSqueeze.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 nofun
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial) fun st1 hm1 hpc1 => ?_
@@ -106,7 +108,7 @@ theorem squeeze_spec (hp : Placed code k)
       (ret := 0) ⟨Mapped.keeps (frame_mapped hst (by decide)) hf1.kept, hfnw⟩ (by simp)
       (List.pairwise_singleton _ _)
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf1 nofun
-      (hpc1.trans (hp.label (j := 12) rfl))
+      (hpc1.trans (hp.label NativeRustcVmX64.Vm.SpongeWSqueeze.label_2_at))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf1.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st' hm' hpc' => ?_
     obtain ⟨hepi, hmem, hrax, hrdx⟩ := after_eq run_b3 ▸ ok_b3
@@ -132,11 +134,11 @@ theorem squeeze_spec (hp : Placed code k)
     rw [with_none hg] at hsp1
     -- `b1`: RBX pushed, `call duplex`.
     have hwf1 := frame_wf (m0 := m0) (d := st1.data) (F := 16) (rest := []) (vars := fun _ ↦ 0)
-      (ret := (Host.addrOf (k + 6 + b1.length)).toBitVec)
+      (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SpongeWSqueeze.b1Offset + b1.length)).toBitVec)
       ⟨Mapped.keeps (frame_mapped hst (by decide)) hf1.kept, hfnw⟩ (by simp)
       (List.pairwise_singleton _ _)
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1 (fun _ _ ↦ rfl)
-      (hpc1.trans (by rw [show b0.length = 6 from rfl]))
+      (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWSqueeze.b0_next))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf1.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st2 hm2 hpc2 => ?_
     obtain ⟨hpro2, hw2, hx7', hx3'⟩ := after_eq run_b1 ▸ ok_b1
@@ -183,7 +185,7 @@ theorem squeeze_spec (hp : Placed code k)
       ⟨Mapped.keeps (frame_mapped hst (by decide)) hf3.kept, hfnw⟩ (hrest _ hf3.kept)
       (List.pairwise_pair.mpr (Apart.symm' hapF))
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf3 nofun
-      (hpc3.trans (by rw [show b1.length = 3 from rfl]))
+      (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWSqueeze.b1_next))
       (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf3.rsp_eval, known_ptr rfl hX3'', trivial⟩ trivial
         trivial trivial) fun st4 hm4 hpc4 => ?_
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) (exec_after run_b2 run_b3') hwf3 nofun

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Sum
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
 
 /-!
 # `final_level`: a `Buf<EW, 30>::extend` call and its test (x86-64)
@@ -117,8 +118,8 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **An `extend` call and its test.** -/
 theorem ext_call (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    {st : MachineState} {jt : Nat} (hpc : st.pc = Labels.label bufEW30ExtendLabel)
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    {st : MachineState} {jt : Nat} (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel)
     (hret : retOf st.data = Host.addrOf (k + jt)) {bt : List Directive}
     (hbt : bt.IsInfixAt code jt) (hb5 : bt = b5)
     (hf : Fr m0 32 st.data) {j : Nat} (hj : 40 ≤ j) (hjn : j + 488 ≤ 2624)

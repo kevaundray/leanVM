@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.XmssVerify.Calls
 
 /-!
@@ -67,36 +71,36 @@ theorem toNat_lit {m : MachineData} {env : Env} {r : Reg64} {n : Nat}
 /-- **A Merkle node's hash**: from blocks like blocks 10 to 14 from `j`, the hash of the public
 parameter `pp` at `56`, the address `A` at `24` and the children `Ch` at `88`, at `184`; the
 frame's bytes from `24` outside the hashers kept. -/
-theorem hashNode (hupd : Spec (label updateLabel) UpdatePre UpdatePost)
-    (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hfin : Spec (label finalizeLabel) FinalizePre FinalizePost) (P : Pre w m₀)
+theorem hashNode (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost)
+    (hcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hfin : Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost) (P : Pre w m₀)
     {d10 d11 d12 d13 d14 : List Directive} {j : Nat} {k12 : List (Reg64 × Sym)} {H X : Reg64}
     {S10 S11 S12 S13 S14 : SState}
     (p10 : d10.IsInfixAt Host.prog j) (p11 : d11.IsInfixAt Host.prog (j + d10.length))
     (p12 : d12.IsInfixAt Host.prog (j + d10.length + d11.length))
     (p13 : d13.IsInfixAt Host.prog (j + d10.length + d11.length + d12.length))
     (p14 : d14.IsInfixAt Host.prog (j + d10.length + d11.length + d12.length + d13.length))
-    (x10 : exec d10 (stF [(.r15, .ptr 0 184)]) = some (S10, .call updateLabel))
+    (x10 : exec d10 (stF [(.r15, .ptr 0 184)]) = some (S10, .call NativeRustcX64.Common.Update.entryLabel))
     (f10 : (writesBelow S10 [(0, 24)] = true ∧ keepsBut X (stF [(.r15, .ptr 0 184)]) S10 = true ∧
       S10.reg .rsp = some (.ptr 0 16)) ∧ S10.reg .rdi = some (.ptr 0 184) ∧
       S10.reg .rsi = some (.ptr 0 56) ∧ S10.reg .rdx = some (.lit 16))
-    (x11 : exec d11 (stF [(.r15, .ptr 0 184)]) = some (S11, .call updateLabel))
+    (x11 : exec d11 (stF [(.r15, .ptr 0 184)]) = some (S11, .call NativeRustcX64.Common.Update.entryLabel))
     (f11 : (writesBelow S11 [(0, 24)] = true ∧ keepsBut X (stF [(.r15, .ptr 0 184)]) S11 = true ∧
       S11.reg .rsp = some (.ptr 0 16)) ∧ S11.reg .rdi = some (.ptr 0 184) ∧
       S11.reg .rsi = some (.ptr 0 24) ∧ S11.reg .rdx = some (.lit 16))
-    (x12 : exec d12 (stF k12) = some (S12, .call "memcpy"))
+    (x12 : exec d12 (stF k12) = some (S12, .call NativeRustcX64.Common.Memcpy.entryLabel))
     (f12 : (writesBelow S12 [(0, 24)] = true ∧ keepsBut X (stF k12) S12 = true ∧
       S12.reg .rsp = some (.ptr 0 16)) ∧ S12.reg .rdi = some (.ptr 0 608) ∧
       S12.reg .rsi = some (.ptr 0 184) ∧ S12.reg .rdx = some (.lit 344) ∧
       S12.reg .r15 = some (.ptr 0 184) ∧ S12.reg H = some (.ptr 0 608))
-    (x13 : exec d13 (stF [(.r15, .ptr 0 184), (H, .ptr 0 608)]) = some (S13, .call updateLabel))
+    (x13 : exec d13 (stF [(.r15, .ptr 0 184), (H, .ptr 0 608)]) = some (S13, .call NativeRustcX64.Common.Update.entryLabel))
     (f13 : (writesBelow S13 [(0, 24)] = true ∧
       keepsBut X (stF [(.r15, .ptr 0 184), (H, .ptr 0 608)]) S13 = true ∧
       S13.reg .rsp = some (.ptr 0 16)) ∧ S13.reg .rdi = some (.ptr 0 608) ∧
       S13.reg .rsi = some (.ptr 0 88) ∧ S13.reg .rdx = some (.lit 32) ∧
       S13.reg H = some (.ptr 0 608))
     (x14 : exec d14 (stF [(.r15, .ptr 0 184), (H, .ptr 0 608)]) =
-      some (S14, .call finalizeLabel))
+      some (S14, .call NativeRustcX64.Common.Finalize.entryLabel))
     (f14 : (writesBelow S14 [(0, 24)] = true ∧
       keepsBut X (stF [(.r15, .ptr 0 184), (H, .ptr 0 608)]) S14 = true ∧
       S14.reg .rsp = some (.ptr 0 16)) ∧ S14.reg .rdi = some (.ptr 0 184) ∧

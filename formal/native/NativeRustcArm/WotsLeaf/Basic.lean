@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.KeccakF.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Common.Update.Names
+
 public import NativeRustcArm.Spec.WotsLeaf
 public import NativeRustcArm.Code.Xmss.WotsLeaf
 
@@ -140,19 +146,13 @@ end Run
 section
 variable [NativeArm.Host]
 
-/-- `Hasher::update`'s label. -/
-def updateLabel : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update"
-/-- `Hasher::finalize`'s label. -/
-def finalizeLabel : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize"
-/-- `keccak_f`'s label. -/
-def keccakFLabel : Label := "_RNvCsndc0WgnAaH_9keccak2568keccak_f"
 
 /-- **The callees' contracts.** -/
 def Callees : Prop :=
-  Spec (label "memcpy") MemcpyPre MemcpyPost ∧ Spec (label "memset") MemsetPre MemsetPost ∧
-    Spec (label updateLabel) UpdatePre UpdatePost ∧
-    Spec (label finalizeLabel) FinalizePre FinalizePost ∧
-    Spec (label keccakFLabel) KeccakFPre KeccakFPost
+  Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost ∧ Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost ∧
+    Spec (label NativeRustcArm.Common.Update.entryLabel) UpdatePre UpdatePost ∧
+    Spec (label NativeRustcArm.Common.Finalize.entryLabel) FinalizePre FinalizePost ∧
+    Spec (label NativeRustcArm.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost
 
 /-- **A region**: placed at `r.k`, given the callees' contracts and the run's precondition, from
 directive `j` of the function in a state `P r` the machine inevitably reaches `Q r`. -/

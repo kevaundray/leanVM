@@ -38,9 +38,9 @@ theorem rootAlias [Labels] {m : MachineData} {c : Nat} (hpre : r.Pre)
 /-- **A tree's end**: from `AtRoot r c` at `b96`, the next tree's head or `b97`. -/
 theorem tree_end (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {c : Nat}
     {m : MachineData} (h : AtRoot r c m) :
-    Eventually (step1 Host.exe) (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc 680 ∧
-      AtTree r (c + 1) st.data) ∨ (c + 1 = 24 ∧ st.pc = r.pc 1088 ∧ r.AtForsKey st.data))
-      ⟨m, r.pc 1078⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b58Offset ∧
+      AtTree r (c + 1) st.data) ∨ (c + 1 = 24 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b97Offset ∧ r.AtForsKey st.data))
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b96Offset⟩ := by
   obtain ⟨⟨hF, hB⟩, h13, h12, h15, hbp, hroot⟩ := h
   have hc24 := hB.hc
   have h13' : m.regs.get64 .r13 = BitVec.ofNat 64 c := h13

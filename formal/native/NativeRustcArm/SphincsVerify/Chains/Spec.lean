@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Sphincs.SphincsVerify.Names
+
 public import NativeRustcArm.SphincsVerify.Chains.Ends
 
 /-!
@@ -60,8 +62,8 @@ theorem seg_b114 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (h0 : Run.RegIs m .X0 (BitVec.ofNat 64 i)) (h8 : Run.RegIs m .X8 (r.off (12900 + 1028 * l)))
     (cont : ∀ m', Keep r l x E m' → Run.RegIs m' .X28 (BitVec.ofNat 64 i) →
       BytesAt m'.dmem (r.off 29248) (chainEnd r l x i) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 1705⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 1715⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Sphincs.SphincsVerify.b113Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b114Offset⟩ := by
   have hF := hK.1
   have hv := r.length_wots_getD hl hi
   have hval : BytesAt m.dmem (r.off (12900 + 1028 * l + 16 * i)) ((r.layerSig l).wots.getD i []) := by
@@ -155,12 +157,12 @@ theorem seg_b114 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     simp only [CmpOp.apply, low_W64]
     rw [ult_ofNat (by omega) (by decide), beq_ofNat (by omega) (by decide)]
     exact digit_cond _
-  have hpc' : st.pc = if decide (2 < (x.getD i 0).toNat) = true then Labels.label ".LSphincsVerify_44"
-      else r.pc (1715 + b114.length) := by
+  have hpc' : st.pc = if decide (2 < (x.getD i 0).toNat) = true then Labels.label NativeRustcArm.Sphincs.SphincsVerify.label_44
+      else r.pc (NativeRustcArm.Sphincs.SphincsVerify.b114Offset + b114.length) := by
     rw [← hcond]
     exact pc_cond hpc
   by_cases hd : (x.getD i 0).toNat ≤ 2
-  · have hp' : st.pc = r.pc 1727 := by
+  · have hp' : st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b115Offset := by
       rw [hpc']
       split
       next h =>
@@ -169,7 +171,7 @@ theorem seg_b114 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
       next => rfl
     exact pc_at hp' (seg_b115 hp hc hpre hx (by omega) hi hd hv hK1 h19 h28 h22 hcell
       fun m' g1 g2 g3 ↦ cont m' g1 g2 g3)
-  · have hp' : st.pc = r.pc 1705 := by
+  · have hp' : st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b113Offset := by
       rw [hpc']
       split
       next => exact labelAt r hp b113_in_code rfl
@@ -188,7 +190,7 @@ theorem chains_loop (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) 
       Keep r l x ((List.range i).map (chainEnd r l x)).flatten m →
       Run.RegIs m .X0 (BitVec.ofNat 64 i) → Run.RegIs m .X8 (r.off (12900 + 1028 * l)) →
       Eventually (step1 NativeArm.Host.exe)
-        (fun st ↦ st.pc = r.pc 2157 ∧ r.AtWotsPk l (r.chainEnds l x) st.data) ⟨m, r.pc 1715⟩
+        (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b143Offset ∧ r.AtWotsPk l (r.chainEnds l x) st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b114Offset⟩
   | 0, _, _, _, hn, _, _, _ => absurd hn (by decide)
   | n + 1, i, m, hin, _, hK, h0, h8 => by
     have hi : i < 64 := by omega

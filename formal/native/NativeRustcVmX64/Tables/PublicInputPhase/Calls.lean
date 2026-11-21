@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Tables.PublicInputPhase.Words
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 
 /-!
 # `public_input_phase`: a limb's value and claim (x86-64)
@@ -75,14 +77,14 @@ theorem mleStep (h : PublicInputPhasePre a s L pub cs m0) {st : MachineState} (f
     (hr14 : reg st.data .r14 = reg m0 .rdx) {ch : EW} (hr15 : reg st.data .r15 = ch.c0.toBitVec)
     (hr12 : reg st.data .r12 = ch.c1.toBitVec) {i : Nat} (hi : i < 2) {D : List Directive}
     {kk : Nat} {S' : SState} (hk : D.IsInfixAt Host.prog kk)
-    (hx : exec D pubS = some (S', .call mleOfMultilinearEvalLabel))
+    (hx : exec D pubS = some (S', .call NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel))
     (hmid : MidOk 608 0 slots S' = true) (hin0 : ∀ w ∈ S'.mem, w.r = 0)
     (hregs : RegsAre S' [(.rcx, .ptr 0 16), (.rdx, .lit 2), (.rsi, .ptr 0 32), (.rdi, .lit 2),
       (.r8, .lit 1), (.rbp, .reg .rbp), (.rbx, .reg .rbx), (.r12, .reg .r12), (.r13, .reg .r13),
       (.r14, .reg .r14), (.r15, .reg .r15)])
     (hwr : WrW 0 S' [(16, .reg .r15), (24, .reg .r12), (32, .load 1 (8 * i) 8), (40, .lit 0),
       (48, .load 1 (8 * i + 16) 8), (56, .lit 0)])
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
     (hpc : st.pc = Host.addrOf kk) {R : MachineState → Prop}
     (cont : ∀ st1 st2 : MachineState, Match (frameEnv m0 st.data 608 [(reg m0 .rdx, 32)] (fun _ ↦ 0)
@@ -186,14 +188,14 @@ theorem pushStep (h : PublicInputPhasePre a s L pub cs m0) {st : MachineState}
     (hrbx : reg st.data .rbx = reg m0 .rcx)
     (hr13 : reg st.data .r13 = BitVec.ofNat 64 (max (vcOf L) 1)) (hvc : vcOf L ≤ 31)
     {col : Nat} {v : Sym} {D : List Directive} {kk : Nat} {S' : SState}
-    (hk : D.IsInfixAt Host.prog kk) (hx : exec D (stO 8) = some (S', .call pushClaimLabel))
+    (hk : D.IsInfixAt Host.prog kk) (hx : exec D (stO 8) = some (S', .call NativeRustcVmX64.Vm.PushClaim.entryLabel))
     (hmid : MidOk 608 0 slots S' = true) (hin0 : ∀ w ∈ S'.mem, w.r = 0)
     (hw8 : ∀ w ∈ S'.mem, w.r = 0 ∧ w.off + w.n ≤ 8)
     (hregs : RegsAre S' [(.rcx, .reg .r13), (.rdx, .ptr 0 64), (.rsi, .lit col),
       (.rdi, .reg .rbx), (.rbp, v), (.r8, .reg .rax), (.r9, .reg .rdx), (.rbx, .reg .rbx),
       (.r12, .reg .r12), (.r13, .reg .r13), (.r14, .reg .r14), (.r15, .reg .r15)])
     (hcol : col < 2 ^ 64)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     (hpc : st.pc = Host.addrOf kk) {R : MachineState → Prop}
     (cont : ∀ st1 st2 : MachineState, Match (frameEnv m0 st.data 608 [] (fun _ ↦ 0)
         (Host.addrOf (kk + D.length)).toBitVec) S' st1.data →

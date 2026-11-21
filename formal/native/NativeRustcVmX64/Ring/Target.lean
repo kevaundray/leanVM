@@ -6,6 +6,12 @@ public import NativeRustcVmX64.Ring.Target.ChainB
 public import NativeRustcVmX64.Ring.Target.ChainC
 public import NativeRustcVmX64.Ring.Target.ChainD
 public import NativeRustcVmX64.Ring.Target.Model
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.RingPsi.Names
+public import NativeRustcVmX64.Code.Vm.RingTarget.Names
 
 /-!
 # `ring_target` on x86-64
@@ -59,19 +65,19 @@ variable [Host] {k : Nat}
 
 /-- **`ring_target` meets its contract.** -/
 theorem ringTarget_spec (hp : Placed code k)
-    (hpsi : Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
-    (hpoly : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ringTargetLabel) RingTargetPre RingTargetPost := by
+    (hpsi : Spec (Labels.label NativeRustcVmX64.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
+    (hpoly : Spec (Labels.label NativeRustcVmX64.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.RingTarget.entryLabel) RingTargetPre RingTargetPost := by
   intro m0 hpre
   have g := geoT hpre
   have hb := g.base
   have hs : 2576 ≤ (rspOf m0).toNat := g.sp
   have ht := g.top
   set fb := stackBelow m0 2352 with hfb
-  rw [show Labels.label ringTargetLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.RingTarget.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.RingTarget.b0Offset) from hp.label NativeRustcVmX64.Vm.RingTarget.entry_at]
   -- `b0`: the prologue.
   have h0 : Bnd m0 2352 NT (rsL m0) noWr t0L (vL m0) m0 :=
     start rfl fun ret ↦ ⟨(Field.frame_rsp 2352 0).trans (BitVec.add_zero _) |>.symm, by
@@ -155,7 +161,7 @@ theorem ringTarget_spec (hp : Placed code k)
         rw [NativeRustcVm.length_ewsBytes, Array.length_toList, imgs_size]; rfl,
       bytesOf_eq hmc] at h
     exact h
-  have h4 : At m0 k 28 (rsC m0) t4 (v4 m0 (tab m0)) (CAt m0) ⟨d', Host.addrOf (k + 28)⟩ :=
+  have h4 : At m0 k NativeRustcVmX64.Vm.RingTarget.b4Offset (rsC m0) t4 (v4 m0 (tab m0)) (CAt m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.RingTarget.b4Offset)⟩ :=
     ⟨rfl, switch hB2, hC⟩
   -- The turns.
   refine Eventually.bind (chainA hp hpre hsq hpoly hmul tab_good h4) fun st h ↦ ?_

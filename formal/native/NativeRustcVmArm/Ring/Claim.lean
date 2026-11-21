@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
+public import NativeRustcVmArm.Code.Vm.RingClaimWeight.Names
+public import NativeRustcVmArm.Code.Vm.RingWeight.Names
 public import NativeRustcVmArm.Ring.Claim.Call
 
 /-!
@@ -46,13 +50,13 @@ variable [Host] {k : Nat}
 
 /-- **`ring_claim_weight`'s contract.** -/
 theorem ringClaimWeight_spec (hp : Placed code k)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
-    (hrw : Spec (Labels.label ringWeightLabel) RingWeightPre RingWeightPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ringClaimWeightLabel) RingClaimWeightPre RingClaimWeightPost := by
+    (hrw : Spec (Labels.label NativeRustcVmArm.Vm.RingWeight.entryLabel) RingWeightPre RingWeightPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.RingClaimWeight.entryLabel) RingClaimWeightPre RingClaimWeightPost := by
   intro m0 h
-  rw [show Labels.label ringClaimWeightLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.RingClaimWeight.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.RingClaimWeight.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.RingClaimWeight.entryOffset) NativeRustcVmArm.Vm.RingClaimWeight.entry_at]
   refine stepEntry hp h hee fun m1 hM1 ↦ stepWeight hp h hrw hM1 fun m2 hM ↦ ?_
   have hwf := envR_wf h hM.fr
   have hm := matchR h hM.fr hM.x19
@@ -62,7 +66,7 @@ theorem ringClaimWeight_spec (hp : Placed code k)
     rw [load_word (env := envR m0 m2) (r := 0) (off := 8) hM.w.1]
     rfl
   simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte] at hpc3
-  rw [show k + 34 + b2.length = k + 36 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.RingClaimWeight.b2Offset + b2.length = k + NativeRustcVmArm.Vm.RingClaimWeight.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingClaimWeight.b2_next]] at hpc3
   refine exec_at (hb b3_in_code (by simp [b3]) hp) run_b3 hwf hpc3 hm3 fun st4 hm4 hpc4 ↦ ?_
   have hfr4 : CFr m0 st4.data :=
     hM.fr.ofBlock hm hm4 hwf rfl rfl rfl fun r hr ↦ by
@@ -91,7 +95,7 @@ theorem ringClaimWeight_spec (hp : Placed code k)
     (fun _ h ↦ h.elim) hmul hpc4 (hfr4.stackOk h.1 (by decide) (by decide))
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.2.1 fun q hq ↦ .inl hq, hq.2.2.2⟩)
     fun m5 hfr5 hq hcs ↦ ?_
-  rw [show k + 36 + b3.length = k + 40 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingClaimWeight.b3Offset + b3.length = k + NativeRustcVmArm.Vm.RingClaimWeight.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingClaimWeight.b3_next]]
   have hval : (⟨m5.regs.getXReg .X0, m5.regs.getXReg .X1⟩ : EW) = eqOf m0 * wOf m0 := by
     show (⟨m5.regs.X0, m5.regs.X1⟩ : EW) = _
     rw [hq.1, hq.2.1, e0, e1, e2, e3]
@@ -100,7 +104,7 @@ theorem ringClaimWeight_spec (hp : Placed code k)
   have hm5 := matchR h hfr5 ((hcs .X19 rfl).trans hx19)
   refine exec_then (hb b4_in_code (by simp [b4]) hp) run_b4 hwf5 hm5 fun st6 hm6 hpc6 ↦ ?_
   simp only [PcOk] at hpc6
-  rw [show k + 40 + b4.length = k + 42 from rfl] at hpc6
+  rw [show k + NativeRustcVmArm.Vm.RingClaimWeight.b4Offset + b4.length = k + NativeRustcVmArm.Vm.RingClaimWeight.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingClaimWeight.b4_next]] at hpc6
   refine exec_at (hb b5_in_code (by simp [b5]) hp) run_b5 hwf5 hpc6 hm6 fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hret, hpost⟩ := post_of h hfr5 hm7 (by decide) (by decide)
     (outSome_at hm7 rfl (by decide)) (by rw [hval]; rfl)

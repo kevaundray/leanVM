@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RdRows.Names
+public import NativeRustcVmArm.Code.Vm.ReaderWords.Names
 public import NativeRustcVmArm.Wire.RdRows.RowB
 
 /-!
@@ -40,8 +42,8 @@ variable [Host] {k : Nat}
 
 /-- **From the entry.** -/
 theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) :
-    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) :
+    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b0Offset)⟩ := by
   have hst := G.g.st
   have hN := hst.2.1
   have hlw := G.lw64
@@ -75,7 +77,7 @@ theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
     simp only [SBool.eval, ult_apply, Sym.eval, Bool.not_eq_true',
       decide_eq_false_iff_not, not_lt]
     exact hrl
-  simp only [PcOk, hc, ↓reduceIte, hp.label (j := 22) rfl] at hpc1
+  simp only [PcOk, hc, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b3Offset) NativeRustcVmArm.Vm.RdRows.label_3_at] at hpc1
   have h8 : (s1.data.regs.getXReg .X8).toNat = zc m0 := by
     show (s1.data.regs.getXReg .X8).toBitVec.toNat = _
     rw [e1 .X8 (.bin .sub .W64 (.reg .X2) (.reg .X3)) (by decide)]
@@ -140,7 +142,7 @@ theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
   simp only [PcOk, hc3] at hpc3
   by_cases hr0 : rw m0 = 0
   · -- no row: `b15`
-    simp only [hr0, decide_true, ↓reduceIte, hp.label (j := 77) rfl] at hpc3
+    simp only [hr0, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b15Offset) NativeRustcVmArm.Vm.RdRows.label_13_at] at hpc3
     have hwf4 := frEnv_wf hst hfr3
     have hm4 := frEnv_match hst hfr3
     refine exec_at (infix_of b15_in_code (by simp [b15]) hp) run_b15 hwf4 hpc3 hm4
@@ -286,11 +288,11 @@ theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
 
 /-- **`rd_rows` meets its contract.** -/
 theorem rdRows_spec (hp : Placed code k)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) :
-    Spec (Labels.label rdRowsLabel) RdRowsPre RdRowsPost := by
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.RdRows.entryLabel) RdRowsPre RdRowsPost := by
   intro m0 hpre
   obtain ⟨-, -, -, -, -, -, bp, B, c, hR, -⟩ := id hpre
-  rw [hp.label (j := 0) (l := rdRowsLabel) rfl]
+  rw [hp.label (j := NativeRustcVmArm.Vm.RdRows.entryOffset) NativeRustcVmArm.Vm.RdRows.entry_at]
   exact entry_spec hp (geo_of hpre hR) hR hw
 
 end

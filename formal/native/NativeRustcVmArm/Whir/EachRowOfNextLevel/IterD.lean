@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EachRowOfNextLevel.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
 public import NativeRustcVmArm.Whir.EachRowOfNextLevel.IterC
 
 /-!
@@ -113,15 +116,15 @@ theorem ew_add_comm (a b : EW) : a + b = b + a := by
 variable [Host] {k : Nat}
 
 /-- **From `b17` to the next iteration or the exit.** -/
-theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+theorem iterD (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hpre : EachRowNextPre rows op m0) {m : MachineData} (h : Mid rows m0 j m) {F r : EW}
     {w : UInt64} (hF : (⟨m.regs.getXReg .X29, m.regs.getXReg .X25⟩ : EW) = F)
     (h27 : m.regs.getXReg .X27 = w) (hr : OptEWAt m.dmem (fb m0 + BitVec.ofNat 64 1880) (some r))
     (hT : parOf rows m0 (j + 1) = parOf rows m0 j + (qwOf m0).getD j 0 * (F + EW.scale w r))
     (cont : ∀ m', Inv rows m0 (j + 1) m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 63)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 234)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b8Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b17Offset)⟩ := by
   have hl := lay hpre
   have hstk := hpre.1.1
   have hS : 3232 ≤ m0.regs.SP.toNat := hstk.2.1
@@ -146,10 +149,10 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
     have := hrc.2
     rwa [show off (fb m0 + BitVec.ofNat 64 1880) 8 + 8#64 = fb m0 + BitVec.ofNat 64 1896 by
         rw [NativeRustcVm.Transcript.off_add]; exact NativeRustcVm.addr_add_add _ _ _] at this
-  have hk17 : b17.IsInfixAt Host.prog (k + 234) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk18 : b18.IsInfixAt Host.prog (k + 236) := b18_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk17 : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b17Offset) := b17_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk18 : b18.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b18Offset) := b18_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk17 run_b17 hwf hm fun st17 hm17 hpc17 ↦ ?_
-  have hpc17' : st17.pc = Host.addrOf (k + 236) := by
+  have hpc17' : st17.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b18Offset) := by
     simp only [PcOk] at hpc17
     sym_simp at hpc17
     rw [htag] at hpc17
@@ -172,7 +175,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
   rw [e18x0, e18x1] at hv19
   -- `b19`: `kmul(w, r.c1)`
   obtain ⟨hwf19, hm19⟩ := frame_env hpre hmid19.fr
-  have hk19 : b19.IsInfixAt Host.prog (k + 240) := b19_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk19 : b19.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b19Offset) := b19_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk19 run_b19 hwf19 hm19 fun st20 hm20 hpc20 ↦ ?_
   have hd20 : st20.data.dmem = d19.dmem := hm20.dmem_eq hwf19 rfl
   have k20 : ∀ r, (after b19 frameS).reg r = some (.reg r) →
@@ -214,7 +217,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
   obtain ⟨hwf21, hm21⟩ := frame_env hpre htail21.fr
   let env21 := Env.ofMachine d21 [(fb m0, 2000)]
   have hl8 : env21.load 0 8 8 = (nextEnv m0 5).toBitVec := Ring.load_word htail21.low.w8
-  have hk20 : b20.IsInfixAt Host.prog (k + 244) := b20_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk20 : b20.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b20Offset) := b20_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk20 run_b20 hwf21 hm21 fun st22 hm22 hpc22 ↦ ?_
   have hd22 : st22.data.dmem = d21.dmem := hm22.dmem_eq hwf21 rfl
   have k22 : ∀ r, (after b20 frameS).reg r = some (.reg r) →
@@ -238,7 +241,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       (⟨d.regs.getXReg .X26, d.regs.X0⟩ : EW) = EW.scale w r →
       (⟨d.regs.getXReg .X29, d.regs.getXReg .X25⟩ : EW) = F →
       (⟨d.regs.getXReg .X8, d.regs.X1⟩ : EW) = (qwOf m0).getD j 0 →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨d, Host.addrOf (k + 49)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨d, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b6Offset)⟩ := by
     intro d ht hsc hFd hq
     have hwf6 : (Env.ofMachine d [(fb m0, 2000), (bOf m0, 16)]).WF :=
       Env.wf_of ⟨⟨fun i hi ↦ ht.fr.kept _ (Ring.frame_mapped hstk (by decide) i hi),
@@ -258,7 +261,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       show WordAt d.dmem (bOf m0 + BitVec.ofNat 64 0) _
       rw [NativeRustcVm.addr_add_zero]; exact hbat.1
     have hb8 : env6.load 1 8 8 = (parOf rows m0 j).c1.toBitVec := Ring.load_word hbat.2
-    have hk6 : b6.IsInfixAt Host.prog (k + 49) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b6Offset) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_then hk6 run_b6 hwf6 hm6 fun st6 hm6' hpc6 ↦ ?_
     have hd6 : st6.data.dmem = d.dmem := hm6'.dmem_eq hwf6 rfl
     have k6 : ∀ r, (after b6 batchS).reg r = some (.reg r) →
@@ -308,7 +311,6 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       rw [hv0, hv1, e6x2, e6x3, hq']
       rfl
     -- `b7`
-    have hb7 : b6.length = 7 := rfl
     have hwf7 : (Env.ofMachine d7 [(fb m0, 2000), (bOf m0, 16)]).WF :=
       Env.wf_of ⟨⟨fun i hi ↦ hfr7.kept _ (Ring.frame_mapped hstk (by decide) i hi),
           Ring.base_noWrap (by omega)⟩, ⟨fun i hi ↦ hfr7.kept _ (hbin.1.1 i hi), hbin.1.2⟩, trivial⟩
@@ -324,8 +326,10 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
           rw [k7 .X20 rfl, hm6'.regs .X20 _ rfl]
           rfl, trivial⟩
         trivial trivial trivial
-    have hk7 : b7.IsInfixAt Host.prog (k + 56) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
-    rw [show k + 49 + b6.length = k + 56 by rw [hb7]]
+    have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    rw [show k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b6Offset + b6.length =
+        k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b7Offset by
+      rw [Nat.add_assoc, NativeRustcVmArm.Vm.EachRowOfNextLevel.b6_next]]
     refine exec_then hk7 run_b7 hwf7 hm7 fun st8 hm8 hpc8 ↦ ?_
     have hfr8 : FR m0 st8.data :=
       Ring.Fr.ofBlockW hfr7 hm7 hm8 hwf7 rfl rfl (by simp) rfl (by decide) hS slots_le
@@ -394,7 +398,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       have hc : (rows.size.toUInt64.toBitVec == (j + 1).toUInt64.toBitVec) = true := by
         rw [hlast]; exact beq_self_eq_true _
       simp only [hc, ↓reduceIte] at hpc8
-      rw [show Labels.label ".LEachRowOfNextLevel_13" = Host.addrOf (k + 253) from hp.label rfl]
+      rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfNextLevel.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b23Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfNextLevel.b23Offset) NativeRustcVmArm.Vm.EachRowOfNextLevel.label_13_at]
         at hpc8
       obtain ⟨d8, pc8⟩ := st8
       simp only at hpc8
@@ -412,8 +416,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
           natCast_toUInt64_toNat hj64] at this
         exact hlast this
       simp only [hc, Bool.false_eq_true, ↓reduceIte] at hpc8
-      have hb7l : b7.length = 7 := rfl
-      rw [hb7l] at hpc8
+      rw [Nat.add_assoc, NativeRustcVmArm.Vm.EachRowOfNextLevel.b7_next] at hpc8
       obtain ⟨d8, pc8⟩ := st8
       simp only at hpc8
       subst hpc8
@@ -466,7 +469,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       simp only [BitVec.ult, UInt64.toNat_toBitVec, natCast_toUInt64_toNat (show j < 2 ^ 64 by omega)]
       simpa using hjw
     simp only [hc, ↓reduceIte] at hpc22
-    rw [show Labels.label ".LEachRowOfNextLevel_3" = Host.addrOf (k + 47) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfNextLevel.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b5Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfNextLevel.b5Offset) NativeRustcVmArm.Vm.EachRowOfNextLevel.label_3_at]
       at hpc22
     obtain ⟨d22, pc22⟩ := st22
     simp only at hpc22
@@ -506,7 +509,7 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       refine NativeRustcVm.ewOf_congr fun i hi ↦ ?_
       rw [hqad, NativeRustcVm.addr_add_add]
       exact input_same' hpre htail22.fr hqw apqw _ (by omega)
-    have hk5 : b5.IsInfixAt Host.prog (k + 47) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk5 : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b5Offset) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_then hk5 run_b5 hwf5 hm5 fun st5 hm5' hpc5 ↦ ?_
     have hd5 : st5.data.dmem = d22.dmem := hm5'.dmem_eq hwf5 rfl
     have k5 : ∀ r, (after b5 weightS).reg r = some (.reg r) →
@@ -543,14 +546,14 @@ theorem iterD (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       simpa using hjw
     simp only [hc, Bool.false_eq_true, ↓reduceIte] at hpc22
     obtain ⟨hwf22, hm22'⟩ := frame_env hpre htail22.fr
-    have hk21 : b21.IsInfixAt Host.prog (k + 247) := b21_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk21 : b21.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b21Offset) := b21_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_at hk21 run_b21 hwf22 hpc22 hm22' fun st5 hm5' hpc5 ↦ ?_
     have hd5 : st5.data.dmem = st22.data.dmem := hm5'.dmem_eq hwf22 rfl
     have k5 : ∀ r, (after b21 frameS).reg r = some (.reg r) →
         st5.data.regs.getXReg r = st22.data.regs.getXReg r := fun r hr ↦
       (rv hm5' (by rw [← after_eq run_b21]; exact hr)).trans rfl
     simp only [PcOk] at hpc5
-    rw [show Labels.label ".LEachRowOfNextLevel_4" = Host.addrOf (k + 49) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfNextLevel.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b6Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfNextLevel.b6Offset) NativeRustcVmArm.Vm.EachRowOfNextLevel.label_4_at]
       at hpc5
     obtain ⟨d5, pc5⟩ := st5
     simp only at hpc5

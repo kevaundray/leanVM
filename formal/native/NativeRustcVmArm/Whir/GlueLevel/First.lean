@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
 public import NativeRustcVmArm.Whir.GlueLevel.Head
 public import NativeRustcVmArm.Whir.GlueLevel.Facts
 
@@ -51,10 +52,10 @@ variable [Host] {k : Nat} {s : WhirStateW} {m0 : MachineData}
 
 /-- **From `b3` to `b5`.** -/
 theorem first_step (hp : Placed code k)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
     (hpre : GlueLevelPre s m0) {m : MachineData} (h : AtB3 s m0 m) {R : MachineState → Prop}
-    (cont : ∀ m', AtB5 s m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 49)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 33)⟩ := by
+    (cont : ∀ m', AtB5 s m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b5Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b3Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hstk, hst, hcap, -, hood, -, -, -, hpin, hoodok, -, -, -, hapO, -, -⟩ := hpre'
   let p := pOf m0
@@ -108,10 +109,10 @@ theorem first_step (hp : Placed code k)
       ⟨by show (m.regs.getXReg .X19).toBitVec = _; rw [h.x19]; simp [Sym.eval]; rfl, trivial⟩
       trivial trivial
       ⟨by show g1Sym.eval env = env.base 1 + BitVec.ofInt 64 0; rw [hg1]; simp; rfl, trivial⟩
-  have hk3 : b3.IsInfixAt Host.prog (k + 33) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk4 : b4.IsInfixAt Host.prog (k + 39) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b3Offset) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b4Offset) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk3 run_b3 hwf hm fun st3 hm3 hpc3 ↦ ?_
-  have hpc3' : st3.pc = Host.addrOf (k + 39) := by
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b4Offset) := by
     simp only [PcOk] at hpc3
     sym_simp at hpc3
     rw [hl504] at hpc3

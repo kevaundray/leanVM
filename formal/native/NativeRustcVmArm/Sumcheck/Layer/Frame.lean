@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfVerifyLayer.Names
 public import NativeRustcVmArm.Sumcheck.Layer.Exec
 public import NativeRustcVmArm.Sumcheck.Loop
 
@@ -114,7 +115,7 @@ theorem exit_of (hp : Placed code k) (hpre : LPre a s pt n m0) {m : MachineData}
     (hf : FrL m0 n m) (hx19 : m.regs.getXReg .X19 = m0.regs.X0) {ds : List Directive} {j : Nat}
     {S1 S2 : SState} {x : Exit} (hk : ds.IsInfixAt Host.prog j) (hx1 : exec ds outS = some (S1, x))
     (hpc1 : ∀ st, PcOk (Env.ofMachine m [(base m0 176, 176), (outL m0, 24)]) x
-      (Host.addrOf (j + ds.length)) st → st.pc = Host.addrOf (k + 56))
+      (Host.addrOf (j + ds.length)) st → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b12Offset))
     (hx2 : exec b12 S1 = some (S2, .ret))
     (hok : exitOk S2 176 slotsL keepL = true) (hW : ∀ w ∈ S2.mem, w.r = 1 ∧ w.off + w.n ≤ 24)
     {r : Option ((Array EW × EW) × TState)}
@@ -130,7 +131,7 @@ theorem exit_of (hp : Placed code k) (hpre : LPre a s pt n m0) {m : MachineData}
   obtain ⟨hpre', rfl⟩ := id hpre
   have g := geo hpre
   have hS := hpre.1.1.1
-  have hk12 : b12.IsInfixAt Host.prog (k + 56) := b12_in_code.trans hp.1 (by simp [b12])
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b12Offset) := b12_in_code.trans hp.1 (by simp [b12])
   have hwf : (Env.ofMachine m [(base m0 176, 176), (outL m0, 24)]).WF :=
     Bus.wf_frame2 hS (by decide) hf.kept ⟨g.outOk.1, g.outOk.2.1⟩ g.outOk.2.2.2.2.1
   have hm : Match (Env.ofMachine m [(base m0 176, 176), (outL m0, 24)]) outS m := by
@@ -160,10 +161,10 @@ theorem exit_done (hp : Placed code k) (hpre : LPre a s pt n m0) {m : MachineDat
     (hd : Done a s pt n m0 m) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ SumcheckLayerPost a s pt m0 st.data)
-      ⟨m, Host.addrOf (k + 50)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10Offset)⟩ := by
   obtain ⟨xs, sn, hrun, hsz, hxs, hts⟩ := hd.run
-  have hk10 : b10.IsInfixAt Host.prog (k + 50) := b10_in_code.trans hp.1 (by simp [b10])
-  refine exit_of hp hpre hd.fr hd.x19 hk10 run_b10 (fun st h ↦ h.trans (hp.label (j := 56) rfl))
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10Offset) := b10_in_code.trans hp.1 (by simp [b10])
+  refine exit_of hp hpre hd.fr hd.x19 hk10 run_b10 (fun st h ↦ h.trans (hp.label (j := NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b12Offset) NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.label_9_at))
     (by rw [← after_eq run_b10]; exact run_b12a) (by decide) (by decide) hrun.symm
     (fun xs' c s' h ↦ by cases h; exact ⟨by simp [hsz], hxs⟩) (fun x s' h ↦ by cases h; exact hts)
     fun st hm' ↦ ?_
@@ -186,8 +187,8 @@ theorem exit_fail (hp : Placed code k) (hpre : LPre a s pt n m0) {m : MachineDat
     (hnone : (sumcheckFn (claimL m0) (3) (fun j ↦ pt[j]?) n).run s = none) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ SumcheckLayerPost a s pt m0 st.data)
-      ⟨m, Host.addrOf (k + 54)⟩ := by
-  have hk11 : b11.IsInfixAt Host.prog (k + 54) := b11_in_code.trans hp.1 (by simp [b11])
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b11Offset)⟩ := by
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b11Offset) := b11_in_code.trans hp.1 (by simp [b11])
   refine exit_of hp hpre hf hx19 hk11 run_b11 (fun st h ↦ h)
     (by rw [← after_eq run_b11]; exact run_b12b) (by decide) (by decide) (r := none) hnone.symm
     (fun _ _ _ h ↦ (nomatch h)) (fun _ _ h ↦ (nomatch h)) fun st hm' ↦ ?_
@@ -209,18 +210,18 @@ theorem shl4 (x : BitVec 64) : x <<< 4 = BitVec.ofNat 64 (16 * x.toNat) := by
 head with no round done. -/
 theorem entry_spec (hp : Placed code k) (hpre : LPre a s pt n m0) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 50) ∧ Done a s pt n m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 19) ∧ Inv a s pt n m0 0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10Offset) ∧ Done a s pt n m0 st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b2Offset) ∧ Inv a s pt n m0 0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b0Offset)⟩ := by
   obtain ⟨hpre', rfl⟩ := id hpre
   have g := geo hpre
   have hS := hpre'.1.1
   have hwf : (Bus.env0 m0 176).WF := Bus.wf_env0 hS (by decide)
   have hm : Match (Bus.env0 m0 176) entryS m0 := Bus.match_entry hS (by decide) (by decide)
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk1 : b1.IsInfixAt Host.prog (k + 13) := b1_in_code.trans hp.1 (by simp [b1])
-  have hl7 : Labels.label ".LSumcheckOfVerifyLayer_7" = Host.addrOf (k + 50) :=
-    hp.label (j := 50) rfl
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b1Offset) := b1_in_code.trans hp.1 (by simp [b1])
+  have hl7 : Labels.label NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.b10Offset) NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.label_7_at
   have hts0 := g.ok.2.2.1
   have hpro : ∀ {S : SState} {st : MachineState}, Match (Bus.env0 m0 176) S st.data →
       S.mem = (after b0 entryS).mem → S.sp = .ptr 0 0 →

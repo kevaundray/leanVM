@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Memset.Names
+
 public import NativeRustcX64.Sym
 public import NativeRustcX64.Code.Xmss.XmssVerify
 public meta import NativeRustcX64.Code.Xmss.XmssVerify
@@ -44,7 +46,7 @@ address and the entry's return address kept. -/
 theorem entry_spec [Host] {k : Nat} (hk : b0.IsInfixAt Host.prog k) {env : Env}
     (hwf : env.WF) (hret : env.ret = (Host.addrOf (k + b0.length)).toBitVec) {m : MachineData}
     (hm : Match env atEntry m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Labels.label "memset" ∧
+    Eventually (step1 Host.exe) (fun st => st.pc = Labels.label NativeRustcX64.Common.Memset.entryLabel ∧
       retOf st.data = Host.addrOf (k + b0.length) ∧
       st.data.regs.get64 .rdi = env.base 0 + 940#64 ∧
       st.data.regs.get64 .rsi = 0#64 ∧

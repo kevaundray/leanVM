@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.Plain.Head
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
 
 /-!
 # `sumcheck` with `sumcheck_plain`'s closure: a round's challenge and claim (x86-64)
@@ -27,22 +30,22 @@ variable [Host] {a : DecArea} {s : TState} {m0 : MachineData} {k : Nat}
 
 /-- **A round's challenge and claim**: from `b4`, the next round's head or `.L5`. -/
 theorem tail_spec (hp : Placed code k)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpe : Spec (Labels.label NativeRustcVmX64.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     (hpre : SumcheckPlainPre a s m0) {i : Nat} {xs msg : Array EW} {s1 : TState}
     {m : MachineData} (hi : Mid a s m0 i xs msg s1 m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ Goal a s m0 k st ∨ (st.pc = Host.addrOf (k + 31) ∧ Inv a s m0 (i + 1) st.data))
-      ⟨m, Host.addrOf (k + 41)⟩ := by
+      (fun st ↦ Goal a s m0 k st ∨ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b2Offset) ∧ Inv a s m0 (i + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b4Offset)⟩ := by
   have g := geo hpre
   have hlt := hi.lt
   have hc5 := g.cnt5
   have hmlen : 24 + (msg.toList.flatMap NativeRustcVm.ewBytes).length ≤ 176 := by
     rw [NativeRustcVm.length_ewsBytes]; simp [hi.msz]; omega
-  have hl2 : Labels.label ".LSumcheckOfSumcheckPlain_2" = Host.addrOf (k + 31) :=
-    hp.label (j := 31) rfl
+  have hl2 : Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_2 = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b2Offset) :=
+    hp.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_2_at
   -- `b4`: `squeeze`.
-  have hwf4 := wf_envB hpre hi.fr (Host.addrOf (k + 41 + b4.length)).toBitVec
+  have hwf4 := wf_envB hpre hi.fr (Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b4Offset + b4.length)).toBitVec
   refine exec_then (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf4 (fun _ _ ↦ rfl)
     (match_bodyS hi.fr _) fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hmid5, hw5, hrdi5, hk5⟩ := ok_b4
@@ -79,7 +82,7 @@ theorem tail_spec (hp : Placed code k)
   -- `b5`: the challenge into slot `i`, `poly_eval`.
   obtain ⟨⟨hslm, hslnw⟩, hslA⟩ := g.slot_ok hlt hf6.frame.kept
   let env := frameEnv m0 st6.data 176 [(off (slP m0) (16 * i), 16)] (fun _ ↦ 0)
-    (Host.addrOf (k + 43 + b5.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b5Offset + b5.length)).toBitVec
   have hwf5 : env.WF :=
     frame_wf ⟨g.ctx.mapped_frame hf6.frame.kept, g.ctx.noWrap_frame⟩
       (fun x hx ↦ by rw [List.mem_singleton] at hx; subst hx; exact ⟨hslm, hslnw⟩)
@@ -89,7 +92,7 @@ theorem tail_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf6.frame.rsp_eval, known_ptr rfl hr14_6, trivial⟩
       trivial trivial trivial
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf5 (fun _ _ ↦ rfl)
-    (hpc6.trans (by rw [show b4.length = 2 from rfl])) hm5' fun st7 hm7 hpc7 ↦ ?_
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b4_next)) hm5' fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hw7, hW0, hW8, hrdi7, hrsi7, hrdx7, hrcx7, hr14_7, hk7⟩ := ok_b5
   have hin7 := writesIn_of_mid hmid7
   have hs7 : NativeRustcVm.SameOutside st6.data.dmem st7.data.dmem (fun q ↦
@@ -147,7 +150,7 @@ theorem tail_spec (hp : Placed code k)
   -- `b6`: the claim, the next round or the end.
   have hwf8 := wf_envB hpre hf8 0
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf8 nofun
-    (hpc8.trans (by rw [show b5.length = 7 from rfl])) (match_bodyS hf8 _) fun st9 hm9 hpc9 ↦ ?_
+    (hpc8.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b5_next)) (match_bodyS hf8 _) fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hmid9, hmem9, hrcx9, hr14_9, hk9⟩ := ok_b6
   have hd9 : st9.data.dmem = st8.data.dmem := hm9.dmem_eq hwf8 hmem9
   have hf9 : FrP m0 8 st9.data := g.block hf8 hwf8 hm9 hmid9 (R := fun _ ↦ False)
@@ -177,7 +180,7 @@ theorem tail_spec (hp : Placed code k)
   rw [hc] at hpc9
   by_cases hlast : i + 1 = nP m0
   · simp only [hlast, beq_self_eq_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc9
-    refine Eventually.done _ (.inl (.inr ⟨hpc9.trans (by rw [show b6.length = 4 from rfl]), hf9,
+    refine Eventually.done _ (.inl (.inr ⟨hpc9.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b6_next), hf9,
       by rw [hd9]; exact out8, ?_⟩))
     rw [← hlast]; exact hrun9
   · have hb : (i + 1 == nP m0) = false := by simpa using hlast

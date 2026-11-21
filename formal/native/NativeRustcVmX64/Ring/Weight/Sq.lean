@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Ring.Weight.Turn
 public import NativeRustcVmX64.Ring.Weight.FactsC
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `ring_weight`: a turn's powers squared (x86-64)
@@ -46,9 +47,9 @@ variable [Host] {k : Nat}
 
 /-- **Power `j` squared** (`r'` not empty). -/
 theorem sqTurn (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {n j c : Nat} {t s : EW}
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {n j c : Nat} {t s : EW}
     (hj : j < nR m0) {st : MachineState}
-    (hA : At m0 k 172 [] noWr (tS sz0 j) (vv m0 0 c t s) (SqI m0 n j) st) :
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b16Offset [] noWr (tS sz0 j) (vv m0 0 c t s) (SqI m0 n j) st) :
     Eventually (step1 Host.exe) (At m0 k (if decide (j + 1 ≠ nR m0) then 172 else 183) [] noWr
       (tS sz0 (j + 1)) (vv m0 0 c t s) (SqI m0 n (j + 1))) st := by
   have hn : nR m0 ≤ 36 := h.2.1
@@ -67,17 +68,17 @@ theorem sqTurn (hp : Placed code k) (h : RingWeightPre m0)
     exact ⟨rfl, rfl⟩
   obtain ⟨hok17, hs, hm0, hm1⟩ := f_b17 j (by omega)
   exact jcond hp (lay0 h.1) b17_in_code (by simp [b17]) (next := 183) rfl
-    (by exact hp.label (j := 172) rfl) hok17 (vals' := vv m0 0 c t s) (I' := SqI m0 n (j + 1))
+    (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_20_at) hok17 (vals' := vv m0 0 c t s) (I' := SqI m0 n (j + 1))
     (fun _ _ _ ↦ cv_slot _ rfl rfl (by omega) hn) (fun _ _ _ _ ↦ by wv) rfl rfl rfl
     (fun _ _ ↦ noAl rfl) rfl
     (fun m m' hB hI hm ↦ sq_store h ((lay0 h.1).wf hB.kept) hm hj hI rfl rfl hs hm0 hm1) h1
 
 /-- **The powers squared** (`r'` not empty), from power `j`. -/
 theorem sqLoop (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {n c : Nat} {t s : EW} :
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {n c : Nat} {t s : EW} :
     ∀ r j, j + r + 1 = nR m0 → ∀ {st : MachineState},
-      At m0 k 172 [] noWr (tS sz0 j) (vv m0 0 c t s) (SqI m0 n j) st →
-      Eventually (step1 Host.exe) (At m0 k 183 [] noWr (tS sz0 (nR m0)) (vv m0 0 c t s)
+      At m0 k NativeRustcVmX64.Vm.RingWeight.b16Offset [] noWr (tS sz0 j) (vv m0 0 c t s) (SqI m0 n j) st →
+      Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingWeight.b18Offset [] noWr (tS sz0 (nR m0)) (vv m0 0 c t s)
         (SqI m0 n (nR m0))) st := by
   intro r
   induction r with
@@ -93,9 +94,9 @@ theorem sqLoop (hp : Placed code k) (h : RingWeightPre m0)
 
 /-- **Power `j` squared** (`r'` empty). -/
 theorem sqTurn2 (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {n j c : Nat} {t s : EW}
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {n j c : Nat} {t s : EW}
     (hj : j < nR m0) {st : MachineState}
-    (hA : At m0 k 202 [] noWr (tS2 sz0 j) (vv m0 0 c t s) (SqI m0 n j) st) :
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b22Offset [] noWr (tS2 sz0 j) (vv m0 0 c t s) (SqI m0 n j) st) :
     Eventually (step1 Host.exe) (At m0 k (if decide (j + 1 ≠ nR m0) then 202 else 213) [] noWr
       (tS2 sz0 (j + 1)) (vv m0 0 c t s) (SqI m0 n (j + 1))) st := by
   have hn : nR m0 ≤ 36 := h.2.1
@@ -114,17 +115,17 @@ theorem sqTurn2 (hp : Placed code k) (h : RingWeightPre m0)
     exact ⟨rfl, rfl⟩
   obtain ⟨hok23, hs, hm0, hm1⟩ := f_b23 j (by omega)
   exact jcond hp (lay0 h.1) b23_in_code (by simp [b23]) (next := 213) rfl
-    (by exact hp.label (j := 202) rfl) hok23 (vals' := vv m0 0 c t s) (I' := SqI m0 n (j + 1))
+    (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_11_at) hok23 (vals' := vv m0 0 c t s) (I' := SqI m0 n (j + 1))
     (fun _ _ _ ↦ cv_slot _ rfl rfl (by omega) hn) (fun _ _ _ _ ↦ by wv) rfl rfl rfl
     (fun _ _ ↦ noAl rfl) rfl
     (fun m m' hB hI hm ↦ sq_store h ((lay0 h.1).wf hB.kept) hm hj hI rfl rfl hs hm0 hm1) h1
 
 /-- **The powers squared** (`r'` empty), from power `j`. -/
 theorem sqLoop2 (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {n c : Nat} {t s : EW} :
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {n c : Nat} {t s : EW} :
     ∀ r j, j + r + 1 = nR m0 → ∀ {st : MachineState},
-      At m0 k 202 [] noWr (tS2 sz0 j) (vv m0 0 c t s) (SqI m0 n j) st →
-      Eventually (step1 Host.exe) (At m0 k 213 [] noWr (tS2 sz0 (nR m0)) (vv m0 0 c t s)
+      At m0 k NativeRustcVmX64.Vm.RingWeight.b22Offset [] noWr (tS2 sz0 j) (vv m0 0 c t s) (SqI m0 n j) st →
+      Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingWeight.b24Offset [] noWr (tS2 sz0 (nR m0)) (vv m0 0 c t s)
         (SqI m0 n (nR m0))) st := by
   intro r
   induction r with

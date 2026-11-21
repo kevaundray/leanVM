@@ -35,7 +35,7 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
     {m : MachineData} (hth : TH L rows bl Fm SL m0 bl.length m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧
       rspOf st.data = rspOf m0 + 8#64 ∧ AccumulateSidePost L rows bl Fm SL m0 st.data)
-      ⟨m, Host.addrOf (k + 282)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b28Offset)⟩ := by
   obtain ⟨hst, hG⟩ := hth
   obtain ⟨hmid28, hw28, _⟩ := ok_b28
   refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := 0) rfl
@@ -48,7 +48,7 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
       obtain ⟨w, hw, _⟩ := hw
       rw [hw28] at hw
       contradiction
-  have hpc1' : st1.pc = Host.addrOf (k + 286) := hpc1.trans (hp.label (j := 286) rfl)
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b30Offset) := hpc1.trans (hp.label NativeRustcVmX64.Vm.AccumulateSide.label_12_at)
   obtain ⟨d1, pc1⟩ := st1
   simp only at hpc1' hs1 hG1
   subst hpc1'

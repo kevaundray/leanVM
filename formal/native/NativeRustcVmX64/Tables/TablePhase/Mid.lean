@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Tables.TablePhase.Tail
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.Powers.Names
+public import NativeRustcVmX64.Code.Vm.TableSumcheck.Names
 
 /-!
 # `table_phase`: `ξ`'s powers and the target (x86-64)
@@ -59,13 +62,13 @@ variable [Host] {a : DecArea} {s : TState} {L : LayoutW} {bus : BusResultW} {m0 
 
 /-- **`ξ`'s powers, the target**, from `b4`, then `tail6`. -/
 theorem mid4 (hp : Placed code k)
-    (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hsum : ∀ a s heights bus, Spec (Labels.label tableSumcheckLabel)
+    (hpow : Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hsum : ∀ a s heights bus, Spec (Labels.label NativeRustcVmX64.Vm.TableSumcheck.entryLabel)
       (TableSumcheckPre a s heights bus) (TableSumcheckPost a s heights bus))
     (h : TablePhasePre a s L bus m0) {s1 : TState}
     (hg : (grind (grindingBits 4)).run s = some ((), s1)) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 24)) (fr : St m0 24 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b4Offset)) (fr : St m0 24 st.data)
     (r12 : reg st.data .r12 = reg m0 .rdi) (r15 : reg st.data .r15 = reg m0 .rsi)
     (r14 : reg st.data .r14 = reg m0 .rdx) (rbx : reg st.data .rbx = reg m0 .rcx)
     (hxi : ewRet st.data = s1.sponge.squeeze.1)
@@ -80,12 +83,12 @@ theorem mid4 (hp : Placed code k)
   obtain ⟨hmid, h0, hw4, hregs⟩ := after_eq run_b4 ▸ ok_b4
   refine blk h fr (b4_in_code.trans hp.1 (by simp [b4])) run_b4 hmid h0 hpc
     fun st1 fr1 hm1 hs1 hpc1 ↦ ?_
-  have hwf := wfF h fr (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 24 + b4.length)).toBitVec)
+  have hwf := wfF h fr (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b4Offset + b4.length)).toBitVec)
   have gr : ∀ r v, (r, v) ∈ ([(.r13, .ptr 0 64), (.rbp, .ptr 0 32), (.rcx, .lit 5),
       (.rdi, .reg .rax), (.rsi, .reg .rdx), (.rdx, .ptr 0 32), (.rbx, .reg .rbx), (.r12, .reg .r12),
       (.r14, .reg .r14), (.r15, .reg .r15)] : List (Reg64 × Sym)) →
       reg st1.data r = v.eval (frameEnv m0 st.data 160 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 24 + b4.length)).toBitVec) := fun r v hr ↦ hm1.regs r v (hregs _ hr)
+        (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b4Offset + b4.length)).toBitVec) := fun r v hr ↦ hm1.regs r v (hregs _ hr)
   have e1dx : reg st1.data .rdx = off (stackBelow m0 160) 32 :=
     (gr .rdx (.ptr 0 32) (by simp)).trans (eval_ptr0 32)
   have e1cx : (reg st1.data .rcx).toNat = 5 := by rw [gr .rcx (.lit 5) (by simp)]; rfl
@@ -131,13 +134,13 @@ theorem mid4 (hp : Placed code k)
   -- `b5`, `dot`
   obtain ⟨hmid5, h05, hw5, hregs5⟩ := after_eq run_b5 ▸ ok_b5
   refine blk h fr2 (st := ⟨m2, _⟩) (b5_in_code.trans hp.1 (by simp [b5])) run_b5 hmid5 h05
-    (by show Host.addrOf (k + 24 + b4.length) = _; rfl) fun st3 fr3 hm3 hs3 hpc3 ↦ ?_
-  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 41 + b5.length)).toBitVec)
+    (by show Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b4Offset + b4.length) = _; rfl) fun st3 fr3 hm3 hs3 hpc3 ↦ ?_
+  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b5Offset + b5.length)).toBitVec)
   have gr3 : ∀ r v, (r, v) ∈ ([(.rdx, .bin .add .W64 (.reg .r14) (.lit 107720)), (.rsi, .lit 3),
       (.rcx, .lit 3), (.rdi, .reg .r13), (.rbp, .reg .rbp), (.r13, .reg .r13), (.rbx, .reg .rbx),
       (.r12, .reg .r12), (.r14, .reg .r14), (.r15, .reg .r15)] : List (Reg64 × Sym)) →
       reg st3.data r = v.eval (frameEnv m0 m2 160 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 41 + b5.length)).toBitVec) := fun r v hr ↦ hm3.regs r v (hregs5 _ hr)
+        (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b5Offset + b5.length)).toBitVec) := fun r v hr ↦ hm3.regs r v (hregs5 _ hr)
   have e3di : reg st3.data .rdi = off (stackBelow m0 160) 64 :=
     (gr3 .rdi (.reg .r13) (by simp)).trans h2r13
   have e3si : (reg st3.data .rsi).toNat = 3 := by rw [gr3 .rsi (.lit 3) (by simp)]; rfl
@@ -197,7 +200,7 @@ theorem mid4 (hp : Placed code k)
     unfold slice
     rw [e3di, e3si, e3dx, e3cx, ewsOf_take hd (by simp [hP5]), List.take_of_length_le (by simp [hP5]),
       extract_drop hP5, htot']
-  refine tail6 hp hsum h hg (st := ⟨m4, _⟩) (by show Host.addrOf (k + 41 + b5.length) = _; rfl) fr4
+  refine tail6 hp hsum h hg (st := ⟨m4, _⟩) (by show Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b5Offset + b5.length) = _; rfl) fr4
     ?_ ?_ ?_ ?_ ?_ ?_ hpw4 htg hts4
   · exact (hcs4 .r12 rfl).trans ((gr3 .r12 (.reg .r12) (by simp)).trans ((hr2 .r12 rfl (by simp)).trans r12))
   · exact (hcs4 .r15 rfl).trans ((gr3 .r15 (.reg .r15) (by simp)).trans ((hr2 .r15 rfl (by simp)).trans r15))

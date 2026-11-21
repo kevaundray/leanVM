@@ -6,8 +6,8 @@ public import NativeRustcVmX64.Sumcheck.OpenPhase.Check
 # `open_phase`: the climbs' start (x86-64)
 
 At `b10` (`Checked`): the output's address and the height stored in the frame; without openings,
-`.LOpenPhase_13` (`exit_rows`); else `b11` (the width bound, never above `192`) and `b12` (the
-root's words into the frame, the counters) reach the climbs' loop head `.LOpenPhase_7` (`CInv`,
+`NativeRustcVmX64.Vm.OpenPhase.label_13` (`exit_rows`); else `b11` (the width bound, never above `192`) and `b12` (the
+root's words into the frame, the counters) reach the climbs' loop head `NativeRustcVmX64.Vm.OpenPhase.label_7` (`CInv`,
 `start_spec`).
 -/
 
@@ -23,7 +23,7 @@ open NativeRustcVm.Sumcheck LeanVM.Protocol LeanVM.Protocol.Compile
 def LowKept (m0 m m' : MachineData) : Prop :=
   ∀ j, 16 ≤ j → j < 64 → m'.dmem.get? (off (fa m0) j) = m.dmem.get? (off (fa m0) j)
 
-/-- **The climbs' invariant** at `.LOpenPhase_7` (`b13`), `j < |P|` climbs checked. -/
+/-- **The climbs' invariant** at `NativeRustcVmX64.Vm.OpenPhase.label_7` (`b13`), `j < |P|` climbs checked. -/
 structure CInv (m0 : MachineData) (P : Array OpeningW) (Q : Array UInt64) (R : Digest)
     (h w j : Nat) (m : MachineData) : Prop where
   fr : FrO m0 8 m
@@ -138,8 +138,8 @@ or the loop head with nothing climbed. -/
 theorem start_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     (hph : PhaseHW m0.dmem (phO m0) P h w) (hc : Checked m0 P Q h w m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + 67) ∧ CInv m0 P Q R h w 0 st.data))
-      ⟨m, Host.addrOf (k + 49)⟩ := by
+      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b13Offset) ∧ CInv m0 P Q R h w 0 st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b10Offset)⟩ := by
   have hst := hpre.1
   have hwm : w ≤ 64 := hph.2.1
   have hsz : P.size ≤ 256 := hph.2.2.1
@@ -166,7 +166,7 @@ theorem start_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   by_cases h0 : P.size = 0
   · simp only [h0, decide_true, ↓reduceIte] at hpc1
     obtain ⟨d1, pc1⟩ := st1
-    have hpc1' : pc1 = Host.addrOf (k + 101) := hpc1.trans (hp.label (j := 101) rfl)
+    have hpc1' : pc1 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b21Offset) := hpc1.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_13_at)
     subst hpc1'
     refine Eventually.mono (exit_rows hp hpre hf1 w16 hph.2.1 hph.2.2.1
       ((hk1' _ (by decide)).trans hc.rbp) ((hk1' _ (by decide)).trans hc.regs.r13)
@@ -174,7 +174,7 @@ theorem start_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     exact climbs_some hph hc.shape hc.pos (by rw [h0]; exact climbsOk_zero R P)
   simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
   obtain ⟨d1, pc1⟩ := st1
-  have hpc1' : pc1 = Host.addrOf (k + 54) := hpc1.trans (by rw [show b10.length = 5 from rfl])
+  have hpc1' : pc1 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b11Offset) := hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b10_next)
   subst hpc1'
   -- `b11`: the width is at most `192`.
   obtain ⟨hmid11, hmem11, hk11⟩ := ok_b11
@@ -192,7 +192,7 @@ theorem start_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     rfl
   simp only [PcOk, hc11, Bool.false_eq_true, ↓reduceIte] at hpc2
   obtain ⟨d2, pc2⟩ := st2
-  have hpc2' : pc2 = Host.addrOf (k + 56) := hpc2.trans (by rw [show b11.length = 2 from rfl])
+  have hpc2' : pc2 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b12Offset) := hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b11_next)
   subst hpc2'
   have hk2' : ∀ r, r ≠ .rsp → reg d2 r = reg m r :=
     fun r h1 ↦ (hk2 r h1 rfl).trans (hk1' r h1)
@@ -237,7 +237,7 @@ theorem start_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     intro o ho w hw _
     have := hW3 w hw
     omega
-  refine .done _ (.inr ⟨hpc3.trans (by rw [show b12.length = 11 from rfl]), ?_⟩)
+  refine .done _ (.inr ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b12_next), ?_⟩)
   refine ⟨hf3, Nat.pos_of_ne_zero h0, hc.shape, hc.pos, climbsOk_zero R P, ?_, ?_, ?_, ?_, ?_,
     keepW hwf12 hm3 hin3 (by omega) (hmiss (.inl (by omega))) (by
       rw [show d2.dmem = d1.dmem from hd2]; exact w16),

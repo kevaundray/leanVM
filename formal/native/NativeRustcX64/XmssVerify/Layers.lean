@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+public import NativeRustcX64.Code.Common.Update.Names
+public import NativeRustcX64.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcX64.XmssVerify.TopRun
 public import NativeRustcX64.XmssVerify.Tree1Run
 public import NativeRustcX64.XmssVerify.Epilogue
@@ -23,12 +29,12 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 /-- **The layers**: from block 5 with the parsed signature, the return with `xmssVerify`'s result
 in RAX. -/
 public theorem layers {k : Nat} (hp : Placed code k)
-    (hset : Spec (label "memset") MemsetPre MemsetPost)
-    (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hupd : Spec (label updateLabel) UpdatePre UpdatePost)
-    (hfin : Spec (label finalizeLabel) FinalizePre FinalizePost)
-    (hwots : Spec (label wotsLeafLabel) WotsLeafPre WotsLeafPost) (P : Pre w m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 66)) (h : Parsed w m₀ st.data) :
+    (hset : Spec (label NativeRustcX64.Common.Memset.entryLabel) MemsetPre MemsetPost)
+    (hcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost)
+    (hfin : Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost)
+    (hwots : Spec (label NativeRustcX64.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost) (P : Pre w m₀)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b5Offset)) (h : Parsed w m₀ st.data) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧
       rspOf st'.data = rspOf m₀ + 8#64 ∧ reg st'.data .rax = (if xmssVerify w then 1 else 0) ∧
       SameOutside m₀.dmem st'.data.dmem

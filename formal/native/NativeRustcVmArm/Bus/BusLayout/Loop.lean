@@ -24,10 +24,10 @@ variable [Host] {k : Nat}
 /-- **A turn of the placements' loop.** -/
 theorem place_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 184)) (hI : PInv L bl m0 j st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b14Offset)) (hI : PInv L bl m0 j st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
-      (st'.pc = Host.addrOf (k + 207) ∧ PEnd L bl m0 st'.data) ∨
-      (st'.pc = Host.addrOf (k + 184) ∧ PInv L bl m0 (j + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b20Offset) ∧ PEnd L bl m0 st'.data) ∨
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b14Offset) ∧ PInv L bl m0 (j + 1) st'.data)) st := by
   have hS := hpre.1
   have hF : 1840 ≤ busLayoutStack := by decide
   have hn := pre_n hpre
@@ -87,10 +87,10 @@ theorem place_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.D
 /-- **The placements' loop**, from the first turn to `.LBusLayout_17`. -/
 theorem place_run (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 184)) (hI : PInv L bl m0 0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b14Offset)) (hI : PInv L bl m0 0 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
-      st'.pc = Host.addrOf (k + 207) ∧ PEnd L bl m0 st'.data) st :=
-  Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 184) ∧
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b20Offset) ∧ PEnd L bl m0 st'.data) st :=
+  Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b14Offset) ∧
       ∃ j, nf m0 + bl.length - j = n ∧ PInv L bl m0 j st.data)
     (fun n st ⟨hpc, j, hn, hI⟩ ↦ (place_step hp hpre hpc hI).mono fun st' h ↦ by
       rcases h with h | ⟨hpc', hI'⟩

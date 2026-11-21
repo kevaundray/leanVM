@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.OpenPhase.Names
 public import NativeRustcVmArm.Sumcheck.OpenPhase.Path
 
 /-!
@@ -28,7 +29,7 @@ theorem test_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Nat
     (hc : Climbed m0 P Q R h w j m) {ds : List Directive} {S' : SState} {a i o : Nat} {r : XReg}
     (hi4 : i < 4) (ho : o = 16 + 8 * i) (hk : ds.IsInfixAt Host.prog a)
     (hx : exec ds frS = some (S', .cond (SBool.not (SBool.cmp CmpOp.eq RegWidth.W64
-      (.load 0 o 8) (.reg r))) ".LOpenPhase_18"))
+      (.load 0 o 8) (.reg r))) NativeRustcVmArm.Vm.OpenPhase.label_18))
     (hmem : S'.mem = []) (hsp : S'.sp = .ptr 0 0)
     (hregs : ∀ r, r ≠ .X8 → S'.reg r = some (.reg r))
     (hr : m.regs.getXReg r = R.toList[i]'(by simpa using hi4)) :
@@ -41,7 +42,7 @@ theorem test_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Nat
       ⟨m, Host.addrOf a⟩ := by
   have hS := hpre.1
   have hlt := hc.inv.lt
-  have hl18 : Labels.label ".LOpenPhase_18" = Host.addrOf (k + 83) := hp.label (j := 83) rfl
+  have hl18 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_18 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b22Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b22Offset) NativeRustcVmArm.Vm.OpenPhase.label_18_at
   have hwf := Bus.wf_frame (F := 176) hS (by decide) hc.inv.fr.kept
   have hm := Bus.match_frame hS (F := 176) (by decide) (by decide) hc.inv.fr.sp
   refine exec_then hk hx hwf hm fun st hm' hpc ↦ ?_
@@ -106,16 +107,16 @@ theorem round_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Na
     (hc : Climbed m0 P Q R h w j m) :
     Eventually (step1 Host.exe)
       (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 47) ∧ CInv m0 P Q R h w (j + 1) st.data))
-      ⟨m, Host.addrOf (k + 61)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b13Offset) ∧ CInv m0 P Q R h w (j + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b16Offset)⟩ := by
   have hS := hpre.1
   have hlt := hc.inv.lt
-  have hk16 : b16.IsInfixAt Host.prog (k + 61) := b16_in_code.trans hp.1 (by simp [b16])
-  have hk17 : b17.IsInfixAt Host.prog (k + 64) := b17_in_code.trans hp.1 (by simp [b17])
-  have hk18 : b18.IsInfixAt Host.prog (k + 67) := b18_in_code.trans hp.1 (by simp [b18])
-  have hk19 : b19.IsInfixAt Host.prog (k + 70) := b19_in_code.trans hp.1 (by simp [b19])
-  have hk20 : b20.IsInfixAt Host.prog (k + 73) := b20_in_code.trans hp.1 (by simp [b20])
-  have hl11 : Labels.label ".LOpenPhase_11" = Host.addrOf (k + 47) := hp.label (j := 47) rfl
+  have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b16Offset) := b16_in_code.trans hp.1 (by simp [b16])
+  have hk17 : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b17Offset) := b17_in_code.trans hp.1 (by simp [b17])
+  have hk18 : b18.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b18Offset) := b18_in_code.trans hp.1 (by simp [b18])
+  have hk19 : b19.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b19Offset) := b19_in_code.trans hp.1 (by simp [b19])
+  have hk20 : b20.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b20Offset) := b20_in_code.trans hp.1 (by simp [b20])
+  have hl11 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_11 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b13Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b13Offset) NativeRustcVmArm.Vm.OpenPhase.label_11_at
   have how : openingWords = 193 := rfl
   have hpw : phaseWords = 49411 := rfl
   have hsz : P.size ≤ 256 := hph.2.2.1

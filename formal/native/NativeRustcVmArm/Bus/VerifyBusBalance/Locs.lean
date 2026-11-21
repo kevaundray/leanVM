@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Acc
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Tail
 
@@ -221,10 +222,10 @@ theorem envWord_eq {m : MachineData} (x1 : m.regs.X1.toBitVec = loc m0 5264) {i 
 frame: the output at `5344`, the environment at `5264`; the three fingerprints in the model's
 terms. -/
 theorem fp_call (h : VerifyBusBalancePre a s0 L m0)
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
+    (hfc : Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label fpClosureLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel ∧ retOf st.data = next)
     {w pt tv mem : Array EW} {beta mf bf share : EW}
     (hl : Locs m0 L w pt tv mem beta mf bf share st.data.dmem)
     (x0 : st.data.regs.X0.toBitVec = loc m0 5344) (x1 : st.data.regs.X1.toBitVec = loc m0 5264)

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.WotsLeaf.Leaf.Exec
 public import NativeRustcArm.WotsLeaf.Codeword.Facts
 
@@ -42,7 +44,7 @@ theorem take_hi16 (h : UInt32) : (u32Bytes (h >>> 16)).take 1 = ((u32Bytes h).dr
   simp [UInt32.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
 
 /-- What `b49` does, from `outOK`. -/
-theorem outOK_spec : ∃ S, exec b49 s49 = some (S, .jump ".LWotsLeaf_6") ∧
+theorem outOK_spec : ∃ S, exec b49 s49 = some (S, .jump NativeRustcArm.Xmss.WotsLeaf.label_6) ∧
     (∀ i < 75, ∃ v t, findWrite 1 i S.mem = some (v, t) ∧ symByte 64 v t = some (outByte i)) ∧
     frameOrOut S = true ∧ Run.inRegions S = true ∧ Run.noWriteIn S 2656 96 = true ∧
     S.sp = .ptr 0 0 := by

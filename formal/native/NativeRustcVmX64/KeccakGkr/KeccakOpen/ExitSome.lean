@@ -24,7 +24,7 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 theorem some_exit (hp : Placed code k) (h : PreOk a s c m0) {s1 : TState}
     {sl : Array EW} {v : EW}
     (hrun : (sumcheckPlain (openValue m0) 3 qkeccakSlotBits).run s = some ((sl, v), s1))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 568))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b93Offset))
     (hm : Mid ⟨a, s1, sl, v⟩ m0 8 st.data)
     (hrw : ElemsAt st.data.dmem (rwA m0) (Fr sl (keccakSlotWeights (reg m0 .rdx).toNat c
       (openFirst m0).toNat (openCount m0).toNat) 6) 4096) :
@@ -67,7 +67,7 @@ theorem some_exit (hp : Placed code k) (h : PreOk a s c m0) {s1 : TState}
     change (frameEnv m0 st.data 2208 [(oA m0, 24)] (fun _ ↦ 0) 0).load 0 64 8 = _
     rw [load_of_wordAt hm.out, UInt64.toBitVec_ofBitVec]
   have hax : reg st2.data .rax = 1#64 := hm2.regs .rax _ f93.2.2.2.2
-  have hpc2' : st2.pc = Host.addrOf (k + 577) := by
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b95Offset) := by
     simp only [PcOk] at hpc2
     exact hpc2.trans (label_of_infix hp b95_in_code rfl)
   refine (tail_run hp h hpc2' hf2 hs2 hbx).mono fun st' ⟨hpc', hrsp, hsv, hwr, htag, hso3, hk3⟩ ↦ ?_

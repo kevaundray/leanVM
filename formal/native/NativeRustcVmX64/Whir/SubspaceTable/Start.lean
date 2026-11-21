@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.SubspaceTable.Outer
+public import NativeRustcVmX64.Code.Vm.Kinv.Names
 
 /-!
 # `subspace_table`: the table's first pair (x86-64)
@@ -40,20 +41,20 @@ theorem pairs_zero {d : DataMem} {a : BitVec 64} {mu : Nat}
 
 variable [Host] {k : Nat}
 
-theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + 81) :=
+theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b11Offset) :=
   b11_in_code.trans hp.1 (by simp [b11])
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 146) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b12Offset) :=
   b12_in_code.trans hp.1 (by simp [b12])
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 150) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b13Offset) :=
   b13_in_code.trans hp.1 (by simp [b13])
 
 /-- **The table's first pair** (`b11` to `b13`): at the turns' head (`OInv 0`) or, `μ = 0`, at
 the copy. -/
-theorem first (hp : Placed code k) (hkinv : Spec (Labels.label kinvLabel) KinvPre KinvPost)
+theorem first (hp : Placed code k) (hkinv : Spec (Labels.label NativeRustcVmX64.Vm.Kinv.entryLabel) KinvPre KinvPost)
     {m0 : MachineData} (hpre : SubspaceTablePre m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 81)) (hI : Init m0 (muOf m0) st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 160) ∧ OInv m0 0 s.data) ∨
-      (s.pc = Host.addrOf (k + 203) ∧ Done m0 s.data)) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b11Offset)) (hI : Init m0 (muOf m0) st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b14Offset) ∧ OInv m0 0 s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b21Offset) ∧ Done m0 s.data)) st := by
   have hpre' := hpre
   obtain ⟨hS, hout⟩ := hpre'
   obtain ⟨hF, hlek, -, -⟩ := stack_le
@@ -69,7 +70,7 @@ theorem first (hp : Placed code k) (hkinv : Spec (Labels.label kinvLabel) KinvPr
   have hil : ((initL (muOf m0)).flatMap NativeRustcVm.wordBytes).length = 248 := by
     rw [NativeRustcVm.length_wordsBytes, initL_length]
   -- `b11`: the table's words zeroed, `kinv(1)`
-  have hwf := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 81 + 65)).toBitVec) hS hF
+  have hwf := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b12Offset)).toBitVec) hS hF
   refine exec_at (hb11 hp) run_b11 hwf (fun _ _ ↦ rfl) hpc hfr.mid_match fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨⟨hk1, hsp1, hw1⟩, hw1'⟩ := after_eq run_b11 ▸ b11_call
   have hrsp1 := rsp_call hm1 hsp1
@@ -101,7 +102,7 @@ theorem first (hp : Placed code k) (hkinv : Spec (Labels.label kinvLabel) KinvPr
   have hr12 : reg st2.data .r12 = BitVec.ofNat 64 1 :=
     (hsv2.1 .r12 rfl).trans (show reg st1.data .r12 = BitVec.ofNat 64 1 from hm1.regs .r12 _ rfl)
   -- `b12`: the pair `(1, kinv 1)`
-  have hpc2' : st2.pc = Host.addrOf (k + 146) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b12Offset) := hpc2
   have hwf3 := hfr2.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb12 hp) run_b12 hwf3 (by intro l h; cases h) hpc2' hfr2.mid_match
     fun st3 hm3 hpc3 ↦ ?_
@@ -141,11 +142,11 @@ theorem first (hp : Placed code k) (hkinv : Spec (Labels.label kinvLabel) KinvPr
   obtain ⟨hT3, hF3⟩ := Arrays.pc_cond hpc3
   by_cases h0 : muOf m0 = 0
   · refine .done _ (.inr ⟨(hT3 (by rw [decide_eq_true_eq]; exact h0)).trans
-      (hp.label (j := 203) rfl), ⟨hfr3, hout3, by omega, ?_, ?_⟩⟩)
+      (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_18_at), ⟨hfr3, hout3, by omega, ?_, ?_⟩⟩)
     · rw [h0]; rw [h0] at htab3; exact htab3
     · rw [h0]; exact (e3 .r12 (by simp)).trans hr12
   -- `b13`: `μ`, `8μ` spilled, the turns' registers
-  have hpc3' : st3.pc = Host.addrOf (k + 150) := hF3 (by rw [decide_eq_true_eq]; exact h0)
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b13Offset) := hF3 (by rw [decide_eq_true_eq]; exact h0)
   have hwf4 := hfr3.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
   refine exec_at (hb13 hp) run_b13 hwf4 (by intro l h; cases h) hpc3' hfr3.mid_match
     fun st4 hm4 hpc4 ↦ ?_
@@ -176,7 +177,7 @@ theorem first (hp : Placed code k) (hkinv : Spec (Labels.label kinvLabel) KinvPr
   have hlay4 : WordsAt st4.data.dmem (fbOf m0 + BitVec.ofNat 64 552) (layerAt (muOf m0) 0) := by
     rw [layerAt, ← initL_take (by omega)]
     exact NativeRustcVm.WordsAt.take (k4 (.inr (by omega)) (by rw [hil]; omega) hlay3) _
-  have hpc4' : st4.pc = Host.addrOf (k + 160) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b14Offset) := hpc4
   refine .done _ (.inl ⟨hpc4', ⟨hfr4, k4 (.inl (by rw [hlw])) (by rw [hlw]; omega) hout3,
     hmu4, hmu8, hmu⟩, by omega, hlay4, k4 (.inr (by omega)) (by rw [hpl]; omega) htab3,
     ?_, ?_, ?_, ?_, ?_⟩)

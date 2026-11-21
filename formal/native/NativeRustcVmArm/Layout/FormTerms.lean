@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FormTerms.Names
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcVmArm.Layout.FormTerms.Exec
 public import NativeRustcVm.Layout.Forms
 
@@ -54,7 +56,7 @@ variable [Host] {k : Nat}
 
 /-- **`form_terms`' contract.** -/
 theorem formTerms_spec (hp : Placed code k) :
-    Spec (Labels.label formTermsLabel) FormTermsPre FormTermsPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.FormTerms.entryLabel) FormTermsPre FormTermsPost := by
   intro m hR
   have hF := hR.bytesAt .forms
   have hT := hR.bytesAt .terms
@@ -71,7 +73,7 @@ theorem formTerms_spec (hp : Placed code k) :
   have hm : Match env entryS m :=
     match_ofMachine ⟨rfl, nofun, trivial⟩ rfl trivial ⟨rfl, trivial⟩ trivial trivial
   have hx30 : env.regs .X30 = m.regs.X30.toBitVec := rfl
-  rw [show Labels.label formTermsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.FormTerms.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.FormTerms.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.FormTerms.entryOffset) NativeRustcVmArm.Vm.FormTerms.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st hm1 hpc ↦ ?_
   simp only [PcOk] at hpc
   sym_simp at hpc
@@ -89,7 +91,7 @@ theorem formTerms_spec (hp : Placed code k) :
       have : m.regs.X0.toNat = 592 := this
       omega
     simp only [hx0, hc, ↓reduceIte] at hpc
-    rw [hp.label (j := 19) rfl] at hpc
+    rw [hp.label (j := NativeRustcVmArm.Vm.FormTerms.b2Offset) NativeRustcVmArm.Vm.FormTerms.label_2_at] at hpc
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) (exec_after run_b0 run_b2) hwf hpc
       hm1 fun st2 hm2 hpc2 ↦ .done _ ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
     · simp only [PcOk] at hpc2
@@ -116,7 +118,7 @@ theorem formTerms_spec (hp : Placed code k) :
       have : ¬ m.regs.X0.toNat < 592 % 2 ^ 64 := h
       omega
     simp only [hx0, hc, Bool.false_eq_true, ↓reduceIte] at hpc
-    rw [show b0.length = 3 from rfl] at hpc
+    rw [NativeRustcVmArm.Vm.FormTerms.b0_length, NativeRustcVmArm.Vm.FormTerms.b0Length] at hpc
     have hm1' : Match env S1 st.data := by
       have := hm1.addBound (x := .reg .X0) (n := 593) (by show m.regs.X0.toNat < 593; omega)
       rwa [← after_eq run_b0] at this
@@ -148,7 +150,7 @@ theorem formTerms_spec (hp : Placed code k) :
         off]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_ofNat, termBytes]
-      rw [show (rodataAddr .terms) = (Labels.label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.14").toBitVec
+      rw [show (rodataAddr .terms) = (Labels.label NativeRustcVmArm.Vm.Symbols.rodata14Label).toBitVec
         from rfl]
       show (formStart m.regs.X0.toNat % 2 ^ 64 * (40 % 2 ^ 64) % 2 ^ 64 +
           (rodataAddr .terms).toNat) % 2 ^ 64 =

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Whir.SampleQueries.Defs
 public import NativeRustcVmArm.Sumcheck.Common
 
@@ -101,9 +102,9 @@ variable [Host] {a : DecArea} {s0 : TState} {m1 : MachineData}
 /-- **`SpongeW::squeeze` on the `TState`'s sponge**: the challenge `(sq s).1` in X0, X1, the
 `TState` then `(sq s).2`, nothing else changed but the sponge and the callee's stack. -/
 theorem squeeze_call (h : SampleQueriesPre a s0 m1)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (hf : SFr m1 st.data)
-    (hpc : st.pc = Labels.label squeezeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0 = m1.regs.X0) {s : TState} (hts : TStateAt st.data.dmem (tA m1) a s)
     (cont : ∀ m2 : MachineData, SFr m1 m2 → TStateAt m2.dmem (tA m1) a (sq s).2 →
       m2.regs.X0 = (sq s).1.c0 → m2.regs.X1 = (sq s).1.c1 →

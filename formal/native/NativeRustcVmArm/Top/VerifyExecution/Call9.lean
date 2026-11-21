@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Call10
 
 /-!
@@ -24,14 +26,14 @@ variable [Host] {k : Nat}
 
 /-- **Ring switching**, from `b16`: the function returns the walk's rest. -/
 theorem call9 (hp : Placed code k)
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 69)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b16Offset)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
     (h22 : st.data.regs.X22 = 221280) (h25 : st.data.regs.X25 = 123992) {s : TState}
     (hts : TStateAt st.data.dmem m0.regs.X0.toBitVec a s) (hroots : s.roots.size ≤ 2)
     {L : LayoutW} (hL : LayoutWAt st.data.dmem m0.regs.X4.toBitVec L) {kp ks : Array EW}
@@ -101,7 +103,7 @@ theorem call9 (hp : Placed code k)
       · rw [r2] at hq; have := g.inW (o := 222888) (n := 1040) (by omega) (by omega) hq; omega
       · rw [r0] at hq; have := g.inT hq; have := g.tw; omega
       · have := h1.inStk g hN hq; have := g.wS; omega
-  rw [show k + 69 + b16.length = k + 76 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b16Offset + b16.length = k + NativeRustcVmArm.Vm.VerifyExecution.b17Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b16_next]] at hpc2
   rw [walkRing, run_bind_eq]
   generalize hr : (ringSwitch kp ks).run s = r at hx0 hres
   have bk := branch_keeps b17 (by simp)
@@ -117,7 +119,7 @@ theorem call9 (hp : Placed code k)
   have hrp : rp = kp := (ringSwitch_point kp ks).gives _ _ _ hr
   have hroots' : s'.roots = s.roots := (NativeRustcVm.Top.ringSwitch_roots kp ks).keeps _ _ _ hr
   subst hrp
-  rw [show k + 76 + b17.length = k + 77 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b17Offset + b17.length = k + NativeRustcVmArm.Vm.VerifyExecution.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b17_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)

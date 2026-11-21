@@ -90,7 +90,7 @@ theorem frame_add [Labels] (m₀ : MachineData) (o : Nat) :
 /-- **The prologue and the randomizer**: from the entry to the loop's head before value `0`. -/
 public theorem head [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData}
     (hpre : FromBytesPre m₀) {R : MachineState → Prop}
-    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + 22) → LoopAt m₀ st.data 0 →
+    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcArm.Xmss.FromBytes.b2Offset) → LoopAt m₀ st.data 0 →
       Eventually (step1 Host.exe) R st) :
     Eventually (step1 Host.exe) R ⟨m₀, Host.addrOf k⟩ := by
   have P := pre_of hpre

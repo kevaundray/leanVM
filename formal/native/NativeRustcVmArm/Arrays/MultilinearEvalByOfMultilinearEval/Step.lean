@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Arrays.MultilinearEvalByOfMultilinearEval.Push
 public import NativeRustcVmArm.Arrays.MultilinearEvalByOfMultilinearEval.Pair
 
@@ -23,12 +24,12 @@ public section
 variable [Host] {k : Nat}
 
 /-- **`full[k]`'s test** (`b7`): an entry waits (`pair`) or not (`push`). -/
-theorem inner (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem inner (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : MleOfMultilinearEvalPre m0) {i kk : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 140)) (hI : Inner m0 i kk s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7Offset)) (hI : Inner m0 i kk s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 123) ∧ Outer m0 (i + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 140) ∧ Inner m0 i (kk + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3Offset) ∧ Outer m0 (i + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7Offset) ∧ Inner m0 i (kk + 1) s'.data)) s := by
   have hS := hpre.1
   have hk64 : kk < 64 := by have := hI.hk; have := hpre.2.2.1; simp only [mm] at *; omega
   obtain ⟨st, pc⟩ := s
@@ -74,19 +75,19 @@ theorem inner (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulP
         0 0 1)).getLsbD 0) = true
       rw [hl]; decide)
     rw [← hd2] at hs
-    simp only [show b7.length = 3 from rfl] at hpc3
+    simp only [NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7Length] at hpc3
     exact Eventually.mono (pair hp hmul hpre hpc3 hI2 hs) fun _ h ↦ by
       rcases h with h | h
       · exact Or.inl h
       · exact Or.inr (Or.inr h)
 
 /-- **The inner loop**: entry `i` carried until it waits (entry `i + 1` next) or is the result. -/
-theorem innerLoop (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem innerLoop (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : MleOfMultilinearEvalPre m0) {i : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 140)) (hI : Inner m0 i 0 s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7Offset)) (hI : Inner m0 i 0 s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 123) ∧ Outer m0 (i + 1) s'.data)) s := by
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 140) ∧ ∃ kk, 64 - kk = n ∧ Inner m0 i kk s.data)
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3Offset) ∧ Outer m0 (i + 1) s'.data)) s := by
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7Offset) ∧ ∃ kk, 64 - kk = n ∧ Inner m0 i kk s.data)
     (fun n s ⟨hpc, kk, hn, hI⟩ ↦ ?_) ⟨hpc, 0, rfl, hI⟩
   refine Eventually.mono (inner hp hmul hpre hpc hI) fun s' h ↦ ?_
   rcases h with h | h | ⟨hpc', hI'⟩
@@ -99,8 +100,8 @@ theorem innerLoop (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
 
 /-- **The outer loop's set-up** (`b3`, `b4`, `b6`): `mle[i]` at level `0`. -/
 theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : MleOfMultilinearEvalPre m0)
-    {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + 123)) (hO : Outer m0 i s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 140) ∧ Inner m0 i 0 s'.data) s := by
+    {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3Offset)) (hO : Outer m0 i s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b7Offset) ∧ Inner m0 i 0 s'.data) s := by
   obtain ⟨hS, h02, h64, hrM, hrP⟩ := hpre
   obtain ⟨fr, hi, hpos, h29, hval⟩ := hO
   obtain ⟨st, pc⟩ := s
@@ -123,7 +124,7 @@ theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : MleOfMultilinearEv
       BitVec.ult_iff_lt.mpr (BitVec.lt_def.mpr (by omega))
     rw [this]
     decide)
-  simp only [show b3.length = 4 from rfl] at hpc1'
+  simp only [NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3Length] at hpc1'
   have k1 := regs_eq_of hm hm1 [.X29] (by decide)
   -- `mle[i]`
   have hfr := frame_piece hS fr1.body.kept (o := 0) (n := 1232) (by omega)
@@ -165,7 +166,7 @@ theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : MleOfMultilinearEv
   obtain ⟨hwf5, hm5⟩ := fr2.body.exit_match hS (by decide) rfl
   refine exec_at (hb6 hp) run_b6 hwf5 (hpc2.trans (lbl_6 hp)) hm5 fun s3 hm3 hpc3 ↦ ?_
   obtain ⟨fr3, hd3⟩ := fr2.block hm5 hm3 hwf5 rfl (after_eq run_b6 ▸ keeps.2.2.1)
-  simp only [PcOk, show b6.length = 6 from rfl] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b6_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b6Length] at hpc3
   have k3 := regs_eq_of hm5 hm3 [.X23, .X24] (by decide)
   refine .done _ ⟨hpc3, fr3, hi, hpos, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · have h := hm3.regs .X19 _ rfl

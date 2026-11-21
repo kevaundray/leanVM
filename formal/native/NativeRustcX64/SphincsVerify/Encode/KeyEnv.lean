@@ -1,12 +1,14 @@
 module
 
+public import NativeRustcX64.Code.Sphincs.Names
+
 public import NativeRustcX64.SphincsVerify.Encode.State
 public import NativeRustcX64.SphincsVerify.Bswap
 
 /-!
 # The frame's environment with `LAYER_HEIGHTS`
 
-`b104` reads `LAYER_HEIGHTS` (the rodata label `lhLabel`, 24 bytes): its environment has the
+`b104` reads `LAYER_HEIGHTS` (the rodata label `NativeRustcX64.Sphincs.Symbols.rodata7Label`, 24 bytes): its environment has the
 frame's two regions and the table as region 2 (`Run.envL`). It is well formed (`Run.envL_wf`), a
 fresh symbolic state with the label at region 2 describes a state of the frame
 (`Run.match_frameL`), a block ending in a call that writes only the frame's places is at the call
@@ -60,7 +62,7 @@ variable (r : Run) [Labels]
 
 /-- The environment of a state of the frame, region 2 `LAYER_HEIGHTS`. -/
 abbrev envL (m : MachineData) (ret : BitVec 64 := 0) : Sym.Env :=
-  Sym.Env.ofMachine m (r.frameRegs ++ [((label lhLabel).toBitVec, 24)]) (fun _ ↦ 0) ret
+  Sym.Env.ofMachine m (r.frameRegs ++ [((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24)]) (fun _ ↦ 0) ret
 
 omit [Labels] in
 theorem length_lhBytes : lhBytes.length = 24 := by decide
@@ -78,7 +80,7 @@ theorem envL_wf (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) (ret : BitVec 
   simp only [sphincsStack_eq] at hA hbw
   refine Sym.Env.wf_of ⟨⟨w0.mapped 0 _ _ rfl, w0.noWrap 0 _ _ rfl⟩,
     ⟨w0.mapped 1 _ _ rfl, w0.noWrap 1 _ _ rfl⟩, ⟨fun i hi ↦ ?_, hw⟩, trivial⟩ ?_
-  · show (m.dmem.get? ((label lhLabel).toBitVec + BitVec.ofNat 64 i)).isSome
+  · show (m.dmem.get? ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec + BitVec.ofNat 64 i)).isSome
     rw [hlh i (by rw [length_lhBytes]; exact hi)]
     rfl
   · have h01 := w0.disjoint 0 1 _ _ _ _ (by decide) rfl rfl
@@ -107,7 +109,7 @@ theorem match_frameL {m : MachineData} {ret : BitVec 64} (hF : r.Frame m)
     (haliases : Sym.AllOf (fun p ↦ p.1.eval (r.envL m ret) =
       (r.envL m ret).base p.2.1 + BitVec.ofInt 64 p.2.2) aliases) :
     Sym.Match (r.envL m ret) (Sym.init [frameRegion, 16, 24] ((.rsp, .ptr 0 0) :: known)
-      [(lhLabel, 2)] [] (frameAliases ++ aliases)) m :=
+      [(NativeRustcX64.Sphincs.Symbols.rodata7Label, 2)] [] (frameAliases ++ aliases)) m :=
   Sym.match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
     ⟨by
       show rspOf m = r.base + BitVec.ofInt 64 0

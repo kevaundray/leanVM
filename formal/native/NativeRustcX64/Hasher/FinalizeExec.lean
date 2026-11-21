@@ -137,7 +137,5 @@ public theorem b6_out : ∀ j < 32, findWrite 1 j (after b6 outS).mem =
 public theorem b6_mem : ∀ w ∈ (after b6 outS).mem, w.r = 1 ∧ w.off + w.n ≤ 32 := by
   decide +kernel
 
-public theorem b5_length : b5.length = 38 := by decide +kernel
-public theorem b6_length : b6.length = 14 := by decide +kernel
 
 end NativeRustcX64.Hasher.Finalize

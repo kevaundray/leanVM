@@ -6,7 +6,7 @@ public import NativeRustcVmArm.Keccak.WordsHash.Tail
 /-!
 # `keccak256_words::<hash_words's closure>`: the whole blocks' loop
 
-`full_loop`: from the loop's head before whole block `b` (`FullLaneAt m0 k b 0 159`), the machine
+`full_loop`: from the loop's head before whole block `b` (`FullLaneAt m0 k b 0 NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset`), the machine
 inevitably reaches the last block's head (`TailStart`) with the lanes the whole blocks' state
 `stA m0`. An iteration: the head's branch (`fullHead_step`), the 16 lanes (`fullStep{j}`, `fullL_step`),
 lane 16's word, its XOR and the call of `keccak_f` (`call_kf`), and the next block's branch
@@ -23,7 +23,7 @@ open NativeRustcVm.Keccak
 
 /-- **At the last block's head**: the lanes the whole blocks' state. -/
 def TailStart [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
-  Ctx m0 st.data ∧ Lanes m0 st.data (Keccak.lane (stA m0)) ∧ st.pc = Host.addrOf (k + 25)
+  Ctx m0 st.data ∧ Lanes m0 st.data (Keccak.lane (stA m0)) ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b2Offset)
 
 end
 
@@ -39,7 +39,7 @@ variable [Host]
 
 /-- The loop head's branch: block `b`'s first word is in the slice. -/
 theorem fullHead_step {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code k) {m0 : MachineData} (g : Geo m0)
-    {b : Nat} {st : MachineState} (h : FullLaneAt m0 k b 0 159 st) :
+    {b : Nat} {st : MachineState} (h : FullLaneAt m0 k b 0 NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset st) :
     Eventually (step1 Host.exe) (FullLaneAt m0 k b 0 162) st := by
   obtain ⟨hc, hl, hx25, hx26, hb, hpc⟩ := h
   obtain ⟨m, pc⟩ := st
@@ -234,7 +234,7 @@ theorem fullStep15 {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code k) {
     ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩ rfl rfl (pos := true) rfl (label_at hp Vm.Keccak256WordsOfHashWords.b21_in_code rfl)
 
 theorem full_lanes {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code k) {m0 : MachineData} (g : Geo m0)
-    {b : Nat} {st : MachineState} (h : FullLaneAt m0 k b 0 159 st) :
+    {b : Nat} {st : MachineState} (h : FullLaneAt m0 k b 0 NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b24Offset st) :
     Eventually (step1 Host.exe) (FullLaneAt m0 k b 16 147) st := by
   refine Eventually.bind (fullHead_step hp g h) fun st0 h0 => ?_
   refine Eventually.bind (fullStep0 hp g h0) fun st1 h1 => ?_

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.TailState
+public import NativeRustcVmX64.Code.Vm.LinearTranspose.Names
 
 /-! # Transposing the layer weights into the claim's bit weights -/
 
@@ -16,20 +17,20 @@ variable [Host] {m0 : MachineData} {a : DecArea} {s s6 : TState} {c : KeccakClai
   {ch b : EW} {pt lp t : Array EW} {k : Nat}
 
 theorem transpose (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hlt : ∀ ws, Spec (Labels.label linearTransposeLabel) (LinearTransposePre ws)
+    (hlt : ∀ ws, Spec (Labels.label NativeRustcVmX64.Vm.LinearTranspose.entryLabel) (LinearTransposePre ws)
       (LinearTransposePost ws)) (hpt : pt.size ≤ 30) (hlp : lp.size = 11)
     {d : MachineData} (hb : Body m0 (wFront m0) 24 d)
     (h : WMem m0 a c ch b pt lp t s6 1600 d.dmem) (h15 : reg d .r15 = sA m0)
     {R : MachineState → Prop}
     (cont : ∀ d', Body m0 (outs m0) 24 d' → TailLive m0 a c ch b pt lp t s6 d'.dmem →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 696)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 689)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b80Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b79Offset)⟩ := by
   have g := geo_of hpre
   have hb0 := hb.mono (wFront_outs hpre)
   have cx := ctx hpre (F := 2000) (by decide)
   have hwf := wf0 (pre_stack hpre) hb0 (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 689 + b79.length)).toBitVec)
-  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + 689 + b79.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b79Offset + b79.length)).toBitVec)
+  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b79Offset + b79.length)).toBitVec)
       (fr 24) d :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb0.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g hb0 hwf (blk hp b79_in_code (by simp [b79])) e79

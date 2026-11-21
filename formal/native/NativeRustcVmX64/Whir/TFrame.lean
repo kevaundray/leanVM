@@ -5,6 +5,10 @@ public import NativeRustcVmX64.Transcript.Callee
 public import NativeRustcVmX64.Spec.Whir
 public import NativeRustcVm.Transcript.Update
 public import NativeRustcVm.Whir.Sample
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
 # Calls from a frame holding a `TState` (x86-64)
@@ -286,13 +290,13 @@ theorem off_not_in {b : BitVec 64} {N x o l : Nat} (hN : b.toNat + N ≤ 2 ^ 64)
 tag `0`) there, the next `TState` at `t`, the callee-saved registers kept, memory changed in the
 stack below the frame, the output and the `TState`. -/
 theorem AtCall.readScalar (c : TCtx m0 F N t a outs)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {s : TState} {st1 : MachineState} (h1 : AtCall m0 F N slots outs t a s st1.data)
     (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F) (hle : F + readScalarStack ≤ N) {ob : Nat} (hob8 : 8 ≤ ob)
     (hob : ob + 24 ≤ F) (hobs : ∀ p ∈ slots, ob + 24 ≤ p.1)
     (hrdi : reg st1.data .rdi = off (stackBelow m0 F) ob) (hrsi : reg st1.data .rsi = t)
     {next : Int64} {R : MachineState → Prop}
-    (hpc : st1.pc = Labels.label readScalarLabel ∧ retOf st1.data = next)
+    (hpc : st1.pc = Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel ∧ retOf st1.data = next)
     (cont : ∀ st2 : MachineState, st2.pc = next → WFr m0 F N slots outs st2.data →
       OptEWAt st2.data.dmem (off (stackBelow m0 F) ob) ((readScalar.run s).map (·.1)) →
       NextAt st2.data.dmem t a (readScalar.run s) →
@@ -333,12 +337,12 @@ theorem AtCall.readScalar (c : TCtx m0 F N t a outs)
 `t`, the callee-saved registers kept, memory changed in the stack below the frame and the
 `TState`. -/
 theorem AtCall.grind (c : TCtx m0 F N t a outs)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     {s : TState} {st1 : MachineState} (h1 : AtCall m0 F N slots outs t a s st1.data)
     (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F) (hle : F + grindStack ≤ N) (hrdi : reg st1.data .rdi = t)
     {bits : Nat} (hbits : grindBits st1.data = bits) (hb : bits < 64)
     {next : Int64} {R : MachineState → Prop}
-    (hpc : st1.pc = Labels.label grindLabel ∧ retOf st1.data = next)
+    (hpc : st1.pc = Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel ∧ retOf st1.data = next)
     (cont : ∀ st2 : MachineState, st2.pc = next → WFr m0 F N slots outs st2.data →
       OkAl st2.data ((NativeVm.Model.grind bits).run s).isSome →
       NextAt st2.data.dmem t a ((NativeVm.Model.grind bits).run s) →
@@ -372,11 +376,11 @@ theorem AtCall.grind (c : TCtx m0 F N t a outs)
 challenge `(sq s).1` in RAX, RDX, the `TState` then `(sq s).2`, the callee-saved registers kept,
 memory changed in the stack below the frame and the `TState`. -/
 theorem AtCall.squeeze (c : TCtx m0 F N t a outs)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {s : TState} {st1 : MachineState} (h1 : AtCall m0 F N slots outs t a s st1.data)
     (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F) (hle : F + squeezeStack ≤ N) (hrdi : reg st1.data .rdi = t)
     {next : Int64} {R : MachineState → Prop}
-    (hpc : st1.pc = Labels.label squeezeLabel ∧ retOf st1.data = next)
+    (hpc : st1.pc = Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel ∧ retOf st1.data = next)
     (cont : ∀ st2 : MachineState, st2.pc = next → WFr m0 F N slots outs st2.data →
       TStateAt st2.data.dmem t a (NativeRustcVm.Whir.sq s).2 →
       reg st2.data .rax = (NativeRustcVm.Whir.sq s).1.c0.toBitVec →
@@ -429,11 +433,11 @@ theorem AtCall.squeeze (c : TCtx m0 F N t a outs)
 /-- **`EW::mul`**, from a state before the call: the product in RAX, RDX, the `TState` kept,
 the callee-saved registers kept, memory changed in the stack below the frame. -/
 theorem AtCall.ewMul (c : TCtx m0 F N t a outs)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {s : TState} {st1 : MachineState} (h1 : AtCall m0 F N slots outs t a s st1.data)
     (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F) (hle : F + ewMulStack ≤ N)
     {next : Int64} {R : MachineState → Prop}
-    (hpc : st1.pc = Labels.label ewMulLabel ∧ retOf st1.data = next)
+    (hpc : st1.pc = Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel ∧ retOf st1.data = next)
     (cont : ∀ st2 : MachineState, st2.pc = next → WFr m0 F N slots outs st2.data →
       TStateAt st2.data.dmem t a s →
       reg st2.data .rax = (EW.mul ⟨.ofBitVec (reg st1.data .rdi), .ofBitVec (reg st1.data .rsi)⟩

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.DecodedPhase.Names
+public import NativeRustcVmArm.Code.Vm.DecodedPhaseCount.Names
 public import NativeRustcVmArm.Spec.Transcript
 public import NativeRustcVmArm.Transcript.Phase.Exec
 public import NativeRustcVmArm.Transcript.Arith
@@ -36,10 +38,10 @@ variable [Host] {k : Nat}
 
 /-- **`Decoded::phase` meets its contract.** -/
 theorem phase_spec (hp : Placed code k)
-    (hcount : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hcount : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     (a : DecArea) (stream : Array EW) (openings : Array (Array OpeningW)) :
-    Spec (Labels.label phaseLabel) (PhasePre a stream openings) (PhasePost a openings) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhase.entryLabel) (PhasePre a stream openings) (PhasePost a openings) := by
   rintro m0 ⟨hst, hdf, hmap, hnw, hap, hapS, hreg, hapA, hdec⟩
   set dp := m0.regs.X0.toBitVec with hdp
   have hn : phaseStack ≤ m0.regs.SP.toNat := hst.2.1
@@ -58,8 +60,8 @@ theorem phase_spec (hp : Placed code k)
   have hm0 : Match (frameEnv m0 m0 32 []) entryS m0 :=
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst le_rfl (by decide), trivial⟩
       frameBase_add.symm trivial trivial trivial trivial
-  unfold phaseLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.DecodedPhase.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.DecodedPhase.entryOffset) NativeRustcVmArm.Vm.DecodedPhase.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro, hws, hx0, hx19, hx20⟩ := after_eq run_b0 ▸ ok_b0
   have hf1 : Frame m0 32 slots st1.data := Frame.of_prologue hwf0 hm1 hpro slots_le
@@ -105,7 +107,7 @@ theorem phase_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst le_rfl (by decide), trivial⟩
       (by rw [hf2.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2
-    (hpc2.trans (by rw [show b0.length = 6 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.DecodedPhase.b0Offset + NativeRustcVmArm.Vm.DecodedPhase.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.DecodedPhase.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.DecodedPhase.b0_next])) hm2 fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hmem3, hx19c, hx20c⟩ := after_eq run_b1 ▸ ok_b1
   have hf3 : Frame m0 32 slots st3.data := Frame.of_block hf2 hwf2 hm3 hmid3 slots_le
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq hwf2 hmem3
@@ -138,7 +140,7 @@ theorem phase_spec (hp : Placed code k)
       match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst le_rfl (by decide), trivial⟩
         (by rw [hf3.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf3
-      (hpc3.trans (by rw [show b1.length = 3 from rfl])) hm3' fun st4 hm4 hpc4 => ?_
+      (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.DecodedPhase.b1_next])) hm3' fun st4 hm4 hpc4 => ?_
     obtain ⟨hepi, hmem4, hx0'⟩ := after_eq run_b2 ▸ ok_b2
     obtain ⟨hsv4, hsl4⟩ := Frame.epilogue hf3 hwf3 hm4 hepi
     have hx30 : st4.data.regs.X30 = m0.regs.X30 := hsl4 (0, .X30) (List.mem_cons_self ..)
@@ -171,7 +173,7 @@ theorem phase_spec (hp : Placed code k)
       ⟨known_ptr rfl (by show st3.data.regs.X19.toBitVec = _; rw [h19']), trivial⟩ trivial trivial
       trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf3
-    (hpc3.trans (hp.label (j := 13) rfl)) hm3' fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.DecodedPhase.b3Offset) NativeRustcVmArm.Vm.DecodedPhase.label_2_at)) hm3' fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hmem4, hx8, hx19'⟩ := after_eq run_b3 ▸ ok_b3
   have hf4 : Frame m0 32 slots st4.data := Frame.of_block hf3 hwf3 hm4 hmid4 slots_le
   have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 hmem4
@@ -221,7 +223,7 @@ theorem phase_spec (hp : Placed code k)
         show (st4.data.regs.getXReg .X19).toBitVec = _
         rw [hm4.regs .X19 _ hx19']; exact eval_ptr rfl), trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 hwf4
-    (hpc4.trans (hp.label (j := 27) rfl)) hm4' fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.DecodedPhase.b5Offset) NativeRustcVmArm.Vm.DecodedPhase.label_4_at)) hm4' fun st5 hm5 hpc5 => ?_
   obtain ⟨hepi, hmem5, hx0'⟩ := after_eq run_b5 ▸ ok_b5
   obtain ⟨hsv5, hsl5⟩ := Frame.epilogue hf4 hwf4 hm5 hepi
   have hx30 : st5.data.regs.X30 = m0.regs.X30 := hsl5 (0, .X30) (List.mem_cons_self ..)

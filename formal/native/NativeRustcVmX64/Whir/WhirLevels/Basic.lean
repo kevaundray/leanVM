@@ -15,7 +15,7 @@ public import NativeRustcVm.Arrays.ReadLemmas
 From the entry `m0` (the `TState` RDI, `logN` RSI, `laneFolds` RDX, the basis RCX, the levels R8,
 their count R9, the state `w` the stack argument): the 112-byte frame (`Fr`: `Frame` and memory
 changed only in the stack and the outputs `outs`), the entry's facts (`Ctx`, the levels the ladder
-`ladderW logN rate`), the loop's invariant at its head `.LWhirLevels_1` before level `k`'s fold
+`ladderW logN rate`), the loop's invariant at its head `NativeRustcVmX64.Vm.WhirLevels.label_1` before level `k`'s fold
 rounds (`Head`): RBX the level, R12 `24` times the levels left, R13 `k - 1`, R15 the `TState`, RBP
 the state, the frame's words (`24` the last index, `32` `laneFolds`, `40` the basis, `48`
 `1 - n`, `56` `logN`), the run so far the model's.
@@ -109,7 +109,7 @@ structure Loop (levels : List Whir.Level) (m0 : MachineData) (k o : Nat) (d : Ma
   w48 : NativeRustcVm.WordAt d.dmem (off (fa m0) 48) (w48 m0)
   w56 : NativeRustcVm.WordAt d.dmem (off (fa m0) 56) (.ofBitVec (reg m0 .rsi))
 
-/-- **Before level `k`'s fold rounds** (at `.LWhirLevels_1`): `Loop`, the `TState` `s` and the
+/-- **Before level `k`'s fold rounds** (at `NativeRustcVmX64.Vm.WhirLevels.label_1`): `Loop`, the `TState` `s` and the
 state `w` (`alphasAt k` `α`s, `2 k` glued claims), room for a root per level left, the run the
 model's from level `k`. -/
 structure Head (a : DecArea) (s0 : TState) (levels : List Whir.Level) (b : BasisW) (claim : EW)

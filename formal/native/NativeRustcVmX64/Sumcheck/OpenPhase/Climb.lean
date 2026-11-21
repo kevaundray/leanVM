@@ -1,11 +1,13 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.OpenPhase.Start
+public import NativeRustcVmX64.Code.Vm.Climb.Names
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfHashWords.Names
 
 /-!
 # `open_phase`: a climb's leaf hash and path (x86-64)
 
-From the loop head `.LOpenPhase_7` (`CInv`), `b13` (the count against `256`, never there) and
+From the loop head `NativeRustcVmX64.Vm.OpenPhase.label_7` (`CInv`), `b13` (the count against `256`, never there) and
 `b14` call `keccak256_words` with `hash_words`' closure on opening `j`'s leaf words: at `b15`, the
 hash at the frame's `96` (`Hashed`, `hash_spec`). `b15` calls `climb` on it with opening `j`'s
 leaf index and path: at `b16`, the path's top at the frame's `64` (`Climbed`, `path_spec`).
@@ -81,15 +83,15 @@ end
 
 variable [Host] {k : Nat}
 
-/-- **A climb's leaf hash**: from `.LOpenPhase_7`, `b15` with opening `j`'s leaf hashed. -/
+/-- **A climb's leaf hash**: from `NativeRustcVmX64.Vm.OpenPhase.label_7`, `b15` with opening `j`'s leaf hashed. -/
 theorem hash_spec (hp : Placed code k)
-    (hkh : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hkh : Spec (Labels.label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
     (hpre : OpenPhasePre P R Q m0) (hph : PhaseHW m0.dmem (phO m0) P h w)
     (hi : CInv m0 P Q R h w j m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ st.pc = Host.addrOf (k + 79) ∧ Hashed m0 P Q R h w j st.data)
-      ⟨m, Host.addrOf (k + 67)⟩ := by
+      (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b15Offset) ∧ Hashed m0 P Q R h w j st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b13Offset)⟩ := by
   have hst := hpre.1
   have hlt := hi.lt
   have hsz : P.size ≤ 256 := hph.2.2.1
@@ -113,10 +115,10 @@ theorem hash_spec (hp : Placed code k)
   have hi1 := hi.keep hf1 (fun r hr ↦ hkr1 r (by rcases hr with h | h | h | h | h <;> subst h <;>
     decide) rfl) (fun j _ _ ↦ by rw [hd1])
   obtain ⟨d1, pc1⟩ := st1
-  have hpc1' : pc1 = Host.addrOf (k + 70) := hpc1.trans (by rw [show b13.length = 3 from rfl])
+  have hpc1' : pc1 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b14Offset) := hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b13_next)
   subst hpc1'
   -- `b14`: the call's arguments.
-  have hwf := wf0 hst hi1.fr (ret := (Host.addrOf (k + 70 + b14.length)).toBitVec)
+  have hwf := wf0 hst hi1.fr (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b14Offset + b14.length)).toBitVec)
   refine exec_then (infix_of b14_in_code (by simp [b14]) hp) exit_b14 hwf (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hi1.fr.frame.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st2 hm2 hpc2 ↦ ?_
@@ -171,7 +173,7 @@ theorem hash_spec (hp : Placed code k)
   rw [hdi] at hs3
   obtain ⟨hf3, hk3⟩ := FrO.call hst hf2 hsv3 hrsp3 (by decide) (o := 96) (by omega) hs3
   have hh := hpost (P[j]'hlt).leaf.toList (by rw [Array.length_toList, ho.1]) hleaf
-  refine .done _ ⟨hpc3.trans (by rw [show b14.length = 9 from rfl]),
+  refine .done _ ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b14_next),
     ⟨hi1.keep hf3 (fun r hr ↦ ?_) (hl2.trans (lowKept_call (o := 96) (by omega) hk3)), ?_, ?_⟩⟩
   · exact (hsv3.1 r (by rcases hr with h | h | h | h | h <;> subst h <;> rfl)).trans
       (hk2 r (by rcases hr with h | h | h | h | h <;> subst h <;> decide)
@@ -181,12 +183,12 @@ theorem hash_spec (hp : Placed code k)
 
 /-- **A climb's path**: from `b15`, `b16` with opening `j`'s path climbed. -/
 theorem path_spec (hp : Placed code k)
-    (hcl : ∀ N P, Spec (Labels.label climbLabel) (ClimbPre N P) (ClimbPost N P))
+    (hcl : ∀ N P, Spec (Labels.label NativeRustcVmX64.Vm.Climb.entryLabel) (ClimbPre N P) (ClimbPost N P))
     (hpre : OpenPhasePre P R Q m0) (hph : PhaseHW m0.dmem (phO m0) P h w)
     (hi : Hashed m0 P Q R h w j m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ st.pc = Host.addrOf (k + 85) ∧ Climbed m0 P Q R h w j st.data)
-      ⟨m, Host.addrOf (k + 79)⟩ := by
+      (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b16Offset) ∧ Climbed m0 P Q R h w j st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b15Offset)⟩ := by
   have hst := hpre.1
   have hc := hi.inv
   have hlt := hc.lt
@@ -203,13 +205,13 @@ theorem path_spec (hp : Placed code k)
     have := ho.2.2.2.1
     rw [show 8 * (3 + j * openingWords) = 24 + 1544 * j by rw [how]; omega] at this
     exact ph_word hpre hc.fr.same (by rw [hpw]; omega) this
-  have hwf := wf1 hst hc.fr (ret := (Host.addrOf (k + 79 + b15.length)).toBitVec)
+  have hwf := wf1 hst hc.fr (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b15Offset + b15.length)).toBitVec)
     (ph_mapped hpre hc.fr.frame.kept (o := 24 + 1544 * j) (n := 8) (by rw [hpw]; omega))
     (ph_noWrap hpre hc24 (by rw [hpw]; omega)) (ph_apart hpre hc24 (by rw [hpw]; omega))
   have hal : (Sym.reg .r15).eval (frameEnv m0 m 176 [(off (phO m0) (24 + 1544 * j), 8)]
-      (fun _ ↦ 0) (Host.addrOf (k + 79 + b15.length)).toBitVec) =
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b15Offset + b15.length)).toBitVec) =
       (frameEnv m0 m 176 [(off (phO m0) (24 + 1544 * j), 8)] (fun _ ↦ 0)
-        (Host.addrOf (k + 79 + b15.length)).toBitVec).base 1 + BitVec.ofInt 64 520 := by
+        (Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b15Offset + b15.length)).toBitVec).base 1 + BitVec.ofInt 64 520 := by
     show reg m .r15 = off (phO m0) (24 + 1544 * j) + BitVec.ofInt 64 520
     rw [hc.r15, show BitVec.ofInt 64 520 = BitVec.ofNat 64 520 from rfl, off_add]
     congr 1
@@ -235,7 +237,7 @@ theorem path_spec (hp : Placed code k)
   have hr8 : (reg st1.data .r8).toNat = h := by
     rw [show reg st1.data .r8 = _ from hm1.regs .r8 _ hr81]
     show ((frameEnv m0 m 176 [(off (phO m0) (24 + 1544 * j), 8)] (fun _ ↦ 0)
-      (Host.addrOf (k + 79 + b15.length)).toBitVec).load 0 56 8).toNat = h
+      (Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b15Offset + b15.length)).toBitVec).load 0 56 8).toNat = h
     rw [load_ofMachine (o := 56) rfl hc.w56, toUInt64_toNat (by omega)]
   have hpl : (pathWords (P[j]'hlt).path).length = 4 * h := by
     have hl : ∀ xs : List Digest, (xs.flatMap (·.toList)).length = 4 * xs.length := by
@@ -276,7 +278,7 @@ theorem path_spec (hp : Placed code k)
   rw [hdi, hdx] at hpost
   rw [hdi] at hs2
   obtain ⟨hf2, hk2⟩ := FrO.call hst hf1 hsv2 hrsp2 (by decide) (o := 64) (by omega) hs2
-  refine .done _ ⟨hpc2.trans (by rw [show b15.length = 6 from rfl]),
+  refine .done _ ⟨hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b15_next),
     ⟨hc.keep hf2 (fun r hr ↦ ?_) (hl1.trans (lowKept_call (o := 64) (by omega) hk2)), hpost⟩⟩
   exact (hsv2.1 r (by rcases hr with h | h | h | h | h <;> subst h <;> rfl)).trans
     (hk1 r (by rcases hr with h | h | h | h | h <;> subst h <;> decide)

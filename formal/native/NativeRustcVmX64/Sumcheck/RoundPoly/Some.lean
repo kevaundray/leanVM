@@ -2,6 +2,11 @@ module
 
 public import NativeRustcVmX64.Sumcheck.RoundPoly.Frame
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.SumE.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly.Names
 
 /-!
 # `sumcheck_round_poly` in equality mode, after `read_scalars` (x86-64)
@@ -86,25 +91,25 @@ variable [Host] {a : DecArea} {s : TState} {ev : EW} {m0 : MachineData} {k : Nat
 
 /-- **After the tail's sum**, at `b4`: the grind's bits, the grind, the product, the result. -/
 theorem some_b4 (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (h : RoundPolyPre a s (some ev) m0) {tail : Array EW} {s1 : TState}
     (hr1 : (readScalars (cnt m0 - 1)).run s = some (tail, s1)) {d : MachineData}
     (hS : SumAt m0 a ev tail s1 d) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         RoundPolyPost a s (some ev) m0 st.data)
-      ⟨d, Host.addrOf (k + 31)⟩ := by
+      ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b4Offset)⟩ := by
   have c := ctx_of h
   have hc2 : 2 ≤ cnt m0 := h.2.2.2.2.1
   have hc5 : cnt m0 ≤ 5 := h.2.2.2.2.2.1
   have htl : tail.size = cnt m0 - 1 := readScalars_size hr1
   have htl' : 16 + 16 * tail.toList.length ≤ 80 := by simp; omega
-  have hl9 : Labels.label ".LTStateSumcheckRoundPoly_9" = Host.addrOf (k + 97) :=
-    hp.label (j := 97) rfl
+  have hl9 : Labels.label NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9 = Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19Offset) :=
+    hp.label NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9_at
   -- `b4`: `bit_length(count - 1)`.
-  have hwf4 := wf_envB h hS.rf.frame.kept (Host.addrOf (k + 31 + b4.length)).toBitVec
+  have hwf4 := wf_envB h hS.rf.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b4Offset + b4.length)).toBitVec
   refine exec_then (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf4 (fun _ _ ↦ rfl)
     (match_bodyS hS.rf _) fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hmid5, hw5, hW24, hrdi5, hr14_5, hk5⟩ := ok_b4
@@ -146,9 +151,9 @@ theorem some_b4 (hp : Placed code k)
     (fun q hq ↦ Or.inr (hq.elim False.elim fun hq ↦ callee_in h hat5 (by decide) hq)) htl'
     (by omega) ts5 tl5
   -- `b5`: `grind(bits)`.
-  have hwf6 := wf_envB h hf6.frame.kept (Host.addrOf (k + 35 + b5.length)).toBitVec
+  have hwf6 := wf_envB h hf6.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b5Offset + b5.length)).toBitVec
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf6 (fun _ _ ↦ rfl)
-    (hpc6.trans (by rw [show b4.length = 4 from rfl])) (match_bodyS hf6 _) fun st7 hm7 hpc7 ↦ ?_
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b4_next)) (match_bodyS hf6 _) fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hw7, hrdi7, hrsi7, hk7⟩ := ok_b5
   obtain ⟨hf7, hs7⟩ := RF.block0 h hf6 hm7 hmid7 (KeepsR.rbx hk7) hw7
   have hin7 := writesIn_of_mid hmid7
@@ -185,9 +190,9 @@ theorem some_b4 (hp : Placed code k)
   have hrbp8 : reg st8.data .rbp = 0 :=
     (hsv8.1 .rbp rfl).trans ((hm7.regs .rbp _ (KeepsR.reg hk7 (by simp))).trans hrbp6)
   -- `b6`: the grind's test.
-  have hwf8 := wf_envB h hf8.frame.kept (Host.addrOf (k + 42 + b7.length)).toBitVec
+  have hwf8 := wf_envB h hf8.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b7Offset + b7.length)).toBitVec
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf8 nofun
-    (hpc8.trans (by rw [show b5.length = 5 from rfl])) (match_bodyS hf8 _) fun st9 hm9 hpc9 ↦ ?_
+    (hpc8.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b5_next)) (match_bodyS hf8 _) fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hmid9, hmem9, hk9⟩ := ok_b6
   have hf9 : RF m0 8 st9.data := (RF.block h hf8 hm9 hmid9 (KeepsR.rbx hk9)).1
   have hd9 : st9.data.dmem = st8.data.dmem := hm9.dmem_eq hwf8 hmem9
@@ -196,7 +201,7 @@ theorem some_b4 (hp : Placed code k)
   | none =>
     rw [hr2] at hok8
     have hal8 : (reg st8.data .rax).toNat % 256 = 0 := hok8
-    have hpc : st9.pc = Host.addrOf (k + 97) := by
+    have hpc : st9.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19Offset) := by
       rw [hpc9, show (envB m0 st8.data _).regs .rax = reg st8.data .rax from rfl, hal8]
       simp [hl9]
     obtain ⟨d9, pc9⟩ := st9
@@ -218,7 +223,7 @@ theorem some_b4 (hp : Placed code k)
         (fun hq ↦ (c.out_not_t (msgOk h) (msg_part h (by omega) (by omega) hin)).1 hq)
         (fun hq ↦ c.out_not_stack (msgOk h) (msg_part h (by omega) (by omega) hin)
           (callee_in h hat7 (by decide) hq))) tl7
-    have hpc : st9.pc = Host.addrOf (k + 42) := by
+    have hpc : st9.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b7Offset) := by
       rw [hpc9, show (envB m0 st8.data _).regs .rax = reg st8.data .rax from rfl, hal8]
       rfl
     -- `b7`: `EW::mul(eq, sum)`.
@@ -272,7 +277,7 @@ theorem some_b4 (hp : Placed code k)
     -- `b8`: the derived coefficient into `msg[0]`, `Some`.
     have hwf11 := wf_envB h hf11.frame.kept 0
     refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf11 nofun
-      (hpc11.trans (by rw [show b7.length = 5 from rfl])) (match_bodyS hf11 _) fun st12 hm12 hpc12 ↦ ?_
+      (hpc11.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b7_next)) (match_bodyS hf11 _) fun st12 hm12 hpc12 ↦ ?_
     obtain ⟨hmid12, hw12, hW0, hW8, hrbp12, hrbx12⟩ := ok_b8
     have hf12 : RF m0 8 st12.data := (RF.block h hf11 hm12 hmid12 hrbx12).1
     have hs12 : NativeRustcVm.SameOutside st11.data.dmem st12.data.dmem
@@ -314,10 +319,10 @@ theorem some_b4 (hp : Placed code k)
 
 /-- **After `read_scalars`**, at `b2`: the tail's sum, or a rejection. -/
 theorem some_tail (hp : Placed code k)
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hsum : Spec (Labels.label NativeRustcVmX64.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (h : RoundPolyPre a s (some ev) m0) {d : MachineData} (hS : SomeAt m0 ev d)
     (hal : (reg d .rax).toNat % 256 =
       (okWord ((readScalars (cnt m0 - 1)).run s).isSome).toNat)
@@ -327,14 +332,14 @@ theorem some_tail (hp : Placed code k)
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         RoundPolyPost a s (some ev) m0 st.data)
-      ⟨d, Host.addrOf (k + 25)⟩ := by
+      ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b2Offset)⟩ := by
   have c := ctx_of h
   have hc2 : 2 ≤ cnt m0 := h.2.2.2.2.1
   have hc5 : cnt m0 ≤ 5 := h.2.2.2.2.2.1
-  have hl9 : Labels.label ".LTStateSumcheckRoundPoly_9" = Host.addrOf (k + 97) :=
-    hp.label (j := 97) rfl
+  have hl9 : Labels.label NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9 = Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19Offset) :=
+    hp.label NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_9_at
   -- `b2`: `read_scalars`' test.
-  have hwf1 := wf_envB h hS.rf.frame.kept (Host.addrOf (k + 28 + b3.length)).toBitVec
+  have hwf1 := wf_envB h hS.rf.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b3Offset + b3.length)).toBitVec
   refine exec_then (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf1 nofun
     (match_bodyS hS.rf _) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hmem2, hrbp2, hk2⟩ := ok_b2
@@ -342,7 +347,7 @@ theorem some_tail (hp : Placed code k)
   cases hr1 : (readScalars (cnt m0 - 1)).run s with
   | none =>
     rw [hr1] at hal
-    have hpc : st2.pc = Host.addrOf (k + 97) := by
+    have hpc : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b19Offset) := by
       rw [hpc2, show (envB m0 d _).regs .rax = reg d .rax from rfl, hal]
       exact (ite_eq_left_iff.mpr (fun h ↦ absurd (by decide) h)).trans hl9
     have hf2 : RF m0 8 st2.data := (RF.block h hS.rf hm2 hmid2 (KeepsR.rbx hk2)).1
@@ -361,7 +366,7 @@ theorem some_tail (hp : Placed code k)
     obtain ⟨htl, hts⟩ := htail tail s1 hr1
     have hsz : tail.size = cnt m0 - 1 := readScalars_size hr1
     have htl' : 16 + 16 * tail.toList.length ≤ 80 := by simp; omega
-    have hpc : st2.pc = Host.addrOf (k + 28) := by
+    have hpc : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b3Offset) := by
       rw [hpc2, show (envB m0 d _).regs .rax = reg d .rax from rfl, hal]
       rfl
     -- `b3`: `sum_e(tail)`.
@@ -410,7 +415,7 @@ theorem some_tail (hp : Placed code k)
     obtain ⟨d4, pc4⟩ := st4
     simp only at hpc4
     subst hpc4
-    rw [show b3.length = 3 from rfl]
+    rw [NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b3_length]
     exact some_b4 hp hbl hgr hmul h hr1 ⟨hf4, (hkeep .r12 (by simp)).trans hS.r12,
       by rw [hkeep .r13 (by simp)]; exact hS.r13, (hkeep .r15 (by simp)).trans hS.r15,
       (hsv4.1 .rbp rfl).trans (hm3.regs .rbp _ hrbp3),

@@ -91,13 +91,13 @@ variable [Host]
 /-- The continuations: `b22` with every element copied, the odd tail with one left. -/
 structure Fin (a : DecArea) (s0 : TState) (m0 m : MachineData) (sh v : EW) (k : Nat) : Prop where
   fin : ∀ st, Cp m0 m sh v m0.regs.X4.toNat st →
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 119)⟩
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b22Offset)⟩
 
 /-- The odd tail `.LBytecodeShare_14` (`b20`, `b21`): the last element copied. -/
 theorem odd (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin a s0 m0 m sh v k)
     {j : Nat} {st : MachineData} (hc : Cp m0 m sh v j st)
     (h10 : (st.regs.getXReg .X10).toNat = j) (hj : j + 1 = m0.regs.X4.toNat) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 106)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b20Offset)⟩ := by
   obtain ⟨hS, -, -, -, -, -, hbl, -, hpo, -⟩ := pre_parts h
   have A := addr_of h
   have hN := A.sp

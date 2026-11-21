@@ -4,6 +4,14 @@ public import NativeRustcVmX64.Spec.Transcript
 public import NativeRustcVmX64.Spec.Arrays
 public import NativeRustcVm.Ring.Rep
 public import NativeVm.Model.Claims
+public import NativeRustcVmX64.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmX64.Code.Vm.RingClaimWeight.Names
+public import NativeRustcVmX64.Code.Vm.RingCoefficients.Names
+public import NativeRustcVmX64.Code.Vm.RingPsi.Names
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.RingTarget.Names
+public import NativeRustcVmX64.Code.Vm.RingWeight.Names
+public import NativeRustcVmX64.Code.Vm.StackPoint.Names
 
 /-!
 # The contracts of ring switching and the stack weights on x86-64
@@ -46,26 +54,6 @@ open NativeRustcVm (ewsOf EWsAt)
 open LeanVM.Protocol.Verifier (Placement)
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `ring_psi`'s symbol. -/
-def ringPsiLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch8ring_psi"
-/-- `ring_coefficients`'s symbol. -/
-def ringCoefficientsLabel : Label :=
-  "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch17ring_coefficients"
-/-- `ring_target`'s symbol. -/
-def ringTargetLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch11ring_target"
-/-- `ring_switch`'s symbol. -/
-def ringSwitchLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch11ring_switch"
-/-- `ring_weight`'s symbol. -/
-def ringWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack11ring_weight"
-/-- `ring_claim_weight`'s symbol. -/
-def ringClaimWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack17ring_claim_weight"
-/-- `column_weight`'s symbol. -/
-def columnWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack13column_weight"
-/-- `stack_point`'s symbol. -/
-def stackPointLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout11stack_point"
 
 /-! ## Stacks -/
 

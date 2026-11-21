@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
 public import NativeRustcVmArm.Tables.TableTerms.Forms
 
 /-!
@@ -144,7 +145,7 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 
 /-- **Table `i`'s point** (`b10`, `Buf::extend`, `b11`). -/
 theorem ext_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
     {R : MachineState → Prop} {i : Nat} (hi : i < 6) {o : Array (Array EW × Array EW)}
     {xs : Array EW} {s' : TState} {m : MachineData} (H : It a m0 i o xs s' m) {f sm fd : EW}
     (hw : FW m0 m (Lb m0 i f sm)) (x19 : rg m .X19 = wp m0 + BitVec.ofNat 64 (8 + 16 * i))
@@ -155,8 +156,8 @@ theorem ext_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
       m'.regs.X23 = (wt m0 i).c1 → (m'.regs.X22).toNat = (tb i).nConstraints →
       m'.regs.X24 = fd.c0 → m'.regs.X25 = fd.c1 →
       BufEWAt m'.dmem (evi m0 i) 30 (pti heights m0 i).toList →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 104)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 92)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b12Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b10Offset)⟩ := by
   have hS := Pre.stack h
   have hN := spN h
   have eo := evi_out h hi
@@ -256,8 +257,8 @@ theorem ext_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     .inr (.inr (evi_in h hi (NativeRustcVm.InRange.mono hq
       (NativeRustcVm.NoWrap.mono (evi_noWrap h hi) (by omega)) (evi_noWrap h hi) le_rfl
       (by omega))))
-  have hpc' : st.pc = Labels.label bufEW30ExtendLabel ∧ retOf st.data = Host.addrOf (k + 103) :=
-    ⟨hpc.1, hpc.2.trans (addr_eq (by rw [len_b10]))⟩
+  have hpc' : st.pc = Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b11Offset) :=
+    ⟨hpc.1, hpc.2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b10_next]))⟩
   have hch : ∀ m', BufEWExtendPost 30 st.data m' → SameOutside st.data.dmem m'.dmem
       (fun q ↦ InRange (stackBelow st.data bufExtendStack) bufExtendStack q ∨
         InRange (evi m0 i) (8 + 16 * 30) q) := fun m' hq ↦ by
@@ -313,7 +314,7 @@ theorem ext_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   have G : ∀ r ∈ [XReg.X19, .X20, .X21, .X22, .X23, .X26, .X27, .X28, .X29],
       st6.data.regs.getXReg r = m.regs.getXReg r := fun r hr ↦ by
     rw [kr r (by revert r hr; simp [cs]), k10r r hr]
-  refine Bus.Gkr.at_pc (hpc6.trans (addr_eq (by rw [len_b11])))
+  refine Bus.Gkr.at_pc (hpc6.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b11_next])))
     (cont st6.data ?_ (FW.of_dmem hd6 fw5) ?_ ?_ ?_ ?_ ?_ ?_ (by rw [hd6]; exact hbuf))
   · exact It.step h hi It5 hfr6 (by rw [hd6]; exact fun _ h ↦ h)
       (NativeRustcVm.SameOutside.of_eq hd6 (fun _ ↦ False)) (fun _ h ↦ h.elim)

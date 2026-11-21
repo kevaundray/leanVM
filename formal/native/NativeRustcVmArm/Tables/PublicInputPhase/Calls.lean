@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
 public import NativeRustcVmArm.Tables.PublicInputPhase.Facts
 public import NativeRustcVmArm.Tables.Common
 
@@ -119,12 +121,12 @@ variable [Host]
 /-- **`multilinear_eval_by`** on the two elements at offset `496` of the frame, the point the one
 at `528`. -/
 theorem mle_call
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
     {m1 : MachineData} (hS1 : StackOk m1 publicInputPhaseStack) {st : MachineState}
     {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m1 608 publicInputPhaseStack slots keep (fun _ ↦ False) st.data)
-    (hpc : st.pc = Labels.label mleOfMultilinearEvalLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel ∧ retOf st.data = next)
     (h0 : st.data.regs.X0.toBitVec = BitVec.ofNat 64 2)
     (h2 : st.data.regs.X2.toBitVec = BitVec.ofNat 64 2)
     (h4 : st.data.regs.X4.toBitVec = BitVec.ofNat 64 1)
@@ -166,12 +168,12 @@ theorem mle_call
 /-- **`push_claim`** of a column at the point of `n` elements at the frame's base, on the claims
 at `cA`. -/
 theorem push_call
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {m1 : MachineData} (hS1 : StackOk m1 publicInputPhaseStack) {cA : BitVec 64}
     (hcR : Readable m1 cA claimsBytes) (hcO : OffStack m1 cA claimsBytes publicInputPhaseStack)
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m1 608 publicInputPhaseStack slots keep (fun _ ↦ False) st.data)
-    (hpc : st.pc = Labels.label pushClaimLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel ∧ retOf st.data = next)
     (h0 : st.data.regs.X0.toBitVec = cA) (h2 : st.data.regs.X2.toBitVec = base m1 608) {n : Nat}
     (h3 : st.data.regs.X3.toNat = n) (hn : n ≤ 31) {cs : Array ColumnClaimW}
     (hcs : ClaimsWAt st.data.dmem cA cs)

@@ -46,10 +46,10 @@ theorem os_regs {c : Nat} {m₁ m₂ : MachineData} (hS : Saved m₁ m₂)
 /-- **`b10` and its `memcpy`**. -/
 theorem open_b10 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} (hc24 : c < 24)
     {m : MachineData} (h : OS r c m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 166 ∧ OS1 r c st.data) ⟨m, r.pc 117⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b11Offset ∧ OS1 r c st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b10Offset⟩ := by
   obtain ⟨hF, hfa, hop, hbp, hbx, h14, h15, h13⟩ := h
   have hraw : BytesAt m.dmem (r.off 12416) (sigBytes r.w) := hfa.get (n := 7740) (by simp [base3])
-  refine memcpy_block r hp hpre hc b10_in_code (jn := 166) rfl run_b10 (by decide) rfl hF
+  refine memcpy_block r hp hpre hc b10_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b11Offset) rfl run_b10 (by decide) rfl hF
     ⟨hbp.trans (eval_base r rfl 20700).symm, h15.trans (eval_base r rfl 592).symm, trivial⟩
     ⟨by
       show (reg m .r13).toNat < 4225
@@ -58,21 +58,21 @@ theorem open_b10 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} 
     (a := 20540) (s := 576) (n := 160) (by decide) (by decide) (by decide) fun m₁ hm₁ ↦ ?_
   refine ⟨(hm₁.regs .rdi _ rfl).trans hbx, (hm₁.regs .rsi _ rfl).trans h14, rdx_lit hm₁ rfl
     (by decide), fun m₂ hF₂ hS hB hout hc₁ ↦ .done _ ⟨rfl, ?_⟩⟩
-  have hidx : ((Sym.reg .r13).eval (r.env m (fun _ ↦ 0) (r.pc 166).toBitVec)).toNat =
+  have hidx : ((Sym.reg .r13).eval (r.env m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b11Offset).toBitVec)).toNat =
       176 * (c + 1) := by
     show (reg m .r13).toNat = _
     rw [show reg m .r13 = _ from h13, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
   have hpath : BytesAt m₁.dmem (r.off 576) (slice (sigBytes r.w) (32 + 176 * c) 160) :=
     copyX hm₁ (r := 0) (o := 576) (r' := 0) (o' := 12272) (I := .reg .r13) (n := 160) rfl
       (by decide) (by decide) (length_slice_sig r.w (by omega)) (by
-        rw [hidx, show (r.env m (fun _ ↦ 0) (r.pc 166).toBitVec).base 0 = r.base from rfl,
+        rw [hidx, show (r.env m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b11Offset).toBitVec).base 0 = r.base from rfl,
           show r.base + BitVec.ofNat 64 (12272 + 176 * (c + 1)) = r.off (12416 + (32 + 176 * c)) by
             simp only [Run.off]; congr 2; omega]
         exact raw_slice r hraw (by omega))
   have hsec : BytesAt m₁.dmem (r.off 20700) (slice (sigBytes r.w) (16 + 176 * c) 16) :=
     copyX hm₁ (r := 0) (o := 20700) (r' := 0) (o' := 12256) (I := .reg .r13) (n := 16) rfl
       (by decide) (by decide) (length_slice_sig r.w (by omega)) (by
-        rw [hidx, show (r.env m (fun _ ↦ 0) (r.pc 166).toBitVec).base 0 = r.base from rfl,
+        rw [hidx, show (r.env m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b11Offset).toBitVec).base 0 = r.base from rfl,
           show r.base + BitVec.ofNat 64 (12256 + 176 * (c + 1)) = r.off (12416 + (16 + 176 * c)) by
             simp only [Run.off]; congr 2; omega]
         exact raw_slice r hraw (by omega))
@@ -100,9 +100,9 @@ theorem open_b10 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} 
 /-- **`b11` and its `memcpy`**: opening `c` from `20540` to `576`. -/
 theorem open_b11 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} (hc24 : c < 24)
     {m : MachineData} (h : OS1 r c m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 170 ∧ OS2 r c st.data) ⟨m, r.pc 166⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b12Offset ∧ OS2 r c st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b11Offset⟩ := by
   obtain ⟨⟨hF, hfa, hop, hbp, hbx, h14, h15, h13⟩, hob⟩ := h
-  refine memcpy_block r hp hpre hc b11_in_code (jn := 170) rfl run_b11 (by decide) rfl hF
+  refine memcpy_block r hp hpre hc b11_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b12Offset) rfl run_b11 (by decide) rfl hF
     ⟨h14.trans (eval_base r rfl 576).symm, hbx.trans (eval_base r rfl 20540).symm, trivial⟩ trivial
     (a := 576) (s := 20540) (n := 176) (by decide) (by decide) (by decide) fun m₁ hm₁ ↦ ?_
   refine ⟨regIs_ptr0 r hm₁ rfl, regIs_ptr0 r hm₁ rfl, rdx_lit hm₁ rfl (by decide),
@@ -125,11 +125,11 @@ theorem open_b11 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} 
 /-- **`b12` and its `memcpy`, then `b13`**: opening `c` to `4096 + 176 c`, the count. -/
 theorem open_b12 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} (hc24 : c < 24)
     {m : MachineData} (h : OS2 r c m) :
-    Eventually (step1 Host.exe) (fun st ↦ (st.pc = r.pc 178 ∧ OS r 24 st.data) ∨
-      (c + 1 < 24 ∧ st.pc = r.pc 117 ∧ OS r (c + 1) st.data)) ⟨m, r.pc 170⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ (st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b14Offset ∧ OS r 24 st.data) ∨
+      (c + 1 < 24 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b10Offset ∧ OS r (c + 1) st.data)) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b12Offset⟩ := by
   obtain ⟨⟨hF, hfa, hop, hbp, hbx, h14, h15, h13⟩, hob⟩ := h
   have h13' : reg m .r13 = BitVec.ofNat 64 (176 * (c + 1)) := h13
-  refine memcpy_block r hp hpre hc b12_in_code (jn := 175) rfl run_b12 (by decide) rfl hF
+  refine memcpy_block r hp hpre hc b12_in_code (jn := NativeRustcX64.Sphincs.SphincsVerify.b13Offset) rfl run_b12 (by decide) rfl hF
     ⟨h14.trans (eval_base r rfl 576).symm, trivial⟩ trivial
     (a := 4096 + 176 * c) (s := 576) (n := 176) (by omega) (by decide) (by right; omega)
     fun m₁ hm₁ ↦ ?_
@@ -138,7 +138,7 @@ theorem open_b12 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} 
   · refine (hm₁.regs .rdi _ rfl).trans ?_
     sym_simp
     simp only [Env.ofMachine_regs]
-    rw [show (r.env m (fun _ ↦ 0) (r.pc 175).toBitVec).base 0 = r.base from rfl]
+    rw [show (r.env m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b13Offset).toBitVec).base 0 = r.base from rfl]
     show BitVec.ofNat 64 3920 + (r.base + BitVec.ofInt 64 0 + reg m .r13) = _
     rw [h13']
     simp only [BitVec.ofInt_ofNat]
@@ -165,7 +165,7 @@ theorem open_b12 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} 
   have hr : OS r c m₂ := os_regs r hS ((hm₁.regs .rbp _ rfl).trans hbp)
     ((hm₁.regs .rbx _ rfl).trans hbx) ((hm₁.regs .r14 _ rfl).trans (eval_base r rfl 576))
     ((hm₁.regs .r15 _ rfl).trans h15) ((hm₁.regs .r13 _ rfl).trans h13) hF₂ hfa₂ hop₂
-  have hk : b13.IsInfixAt Host.prog (r.k + 175) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b13.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk run_b13 (Env.wf_nil m₂) (fun _ h ↦ nomatch h) (match_nil m₂)
     fun st hm' hpc ↦ ?_
   have hd : st.data.dmem = m₂.dmem := hm'.dmem_eq (Env.wf_nil _) rfl
@@ -192,7 +192,7 @@ theorem open_b12 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} 
       exact h15₃
   obtain ⟨hne, heq⟩ := pc_cond hpc hv (by omega) (by decide)
   by_cases hc1 : c + 1 < 24
-  · rw [hp.label (j := 117) rfl] at hne
+  · rw [hp.label NativeRustcX64.Sphincs.SphincsVerify.label_9_at] at hne
     exact .done _ (Or.inr ⟨hc1, hne (by omega), hOS⟩)
   · obtain rfl : c = 23 := by omega
     exact .done _ (Or.inl ⟨pc_next r (heq rfl) rfl, hOS⟩)
@@ -200,8 +200,8 @@ theorem open_b12 (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {c : Nat} 
 /-- **The openings' loop**. -/
 theorem open_loop (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : MachineData}
     (h : OS r 0 m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 178 ∧ OS r 24 st.data) ⟨m, r.pc 117⟩ :=
-  count_loop (σ := MachineState) (P := fun c st ↦ st.pc = r.pc 117 ∧ OS r c st.data) 24
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b14Offset ∧ OS r 24 st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b10Offset⟩ :=
+  count_loop (σ := MachineState) (P := fun c st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b10Offset ∧ OS r c st.data) 24
     (fun c st hc24 ⟨hpc, h⟩ ↦ by
       obtain ⟨m, pc⟩ := st
       simp only at hpc
@@ -212,7 +212,7 @@ theorem open_loop (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {m : Mach
       refine Eventually.bind (open_b11 r hp hpre hc hc24 h) fun ⟨m, pc⟩ ⟨hpc, h⟩ ↦ ?_
       simp only at hpc
       subst hpc
-      exact open_b12 r hp hpre hc hc24 h) (j := 0) (s := ⟨m, r.pc 117⟩) (by decide) ⟨rfl, h⟩
+      exact open_b12 r hp hpre hc hc24 h) (j := 0) (s := ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b10Offset⟩) (by decide) ⟨rfl, h⟩
 
 end
 

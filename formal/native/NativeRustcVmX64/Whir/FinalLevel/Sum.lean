@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Check
 public import NativeRustcVm.Top.Phases
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
 
 /-!
 # `final_level`: the last sumcheck (x86-64)
@@ -9,7 +10,7 @@ public import NativeRustcVm.Top.Phases
 From `b14` (`Live`): the tail's buffer zeroed (`1120` to `1600`), `μ ≤ 30` (RAX); the claim
 loaded from the state `w` and `sumcheck_plain(&out, t, claim, 3, tail)` with the tail's length `μ`
 pushed (`b15`), into the frame's `Option<EW>` at `144` and the tail at `1120`; its tag tested
-(`b16`, `None` to `.LFinalLevel_5`): `sum`, to `b17` with `Core`. `Core` keeps what the end reads:
+(`b16`, `None` to `NativeRustcVmX64.Vm.FinalLevel.label_5`): `sum`, to `b17` with `Core`. `Core` keeps what the end reads:
 the frame, `μ` at `40`, `2 ^ μ` (R14), the folded scalars.
 -/
 
@@ -105,14 +106,14 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The last sumcheck**: `b14`, `b15`, `sumcheck_plain`, `b16`, to `b17`. -/
 theorem sum (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
     {st : MachineState} {folded : Array EW} {s4 : TState}
-    (hpc : st.pc = Host.addrOf (k + 107)) (hl : Live level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b14Offset)) (hl : Live level m0 st.data folded)
     (hts : TStateAt st.data.dmem (tA m0) a s4)
     (hrun : runF level b w rounds m0 s = (C5 (mu m0) (reg m0 .r8).toNat b w folded).run s4)
     (cont : ∀ (st' : MachineState) (tail : Array EW) (claim : EW) (s5 : TState),
-      st'.pc = Host.addrOf (k + 183) → Core level m0 st'.data folded → reg st'.data .rbx = pA m0 →
+      st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b17Offset) → Core level m0 st'.data folded → reg st'.data .rbx = pA m0 →
       NativeRustcVm.WordAt st'.data.dmem (loc m0 48) (.ofBitVec (reg m0 .r8)) →
       NativeRustcVm.WordAt st'.data.dmem (loc m0 56) (.ofBitVec (reg m0 .r9)) →
       tail.size = mu m0 → NativeRustcVm.EWsAt st'.data.dmem (loc m0 1120) tail.toList →
@@ -139,7 +140,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have h40 : env1.load 0 40 8 = reg m0 .rcx := load_ofMachine (r := 0) (o := 40) rfl hl.w40
   simp only [PcOk, cMu30_eval env1 h40 (by show mu m0 ≤ 30; omega), Bool.false_eq_true,
     ite_false] at hpc1
-  have hpc1' : st1.pc = Host.addrOf (k + 170) := hpc1
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b15Offset) := hpc1
   have hk1 : ∀ r ∈ six, reg st1.data r = reg st.data r := fun r hr ↦ hm1.regs r _ (hkr1 r hr)
   have hax1 : reg st1.data .rax = reg m0 .rcx := (hm1.regs .rax _ hrax1).trans h40
   have hl1 : Live level m0 st1.data folded :=
@@ -148,7 +149,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
         simp at hp; subst hp; omega) hfo
   have hts1 := c.ts_frame (hi := 1600) (by omega) (hm1.kept hwf1) hs1 hts
   -- `b15`: `sumcheck_plain(&out, t, claim, 3, tail)`.
-  let ret := (Host.addrOf (k + 180)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b16Offset)).toBitVec
   let env2 := argEnv m0 st1.data 2672 8 [(pA m0, 63200)] (fun _ ↦ 0) ret
   have hwf2 : env2.WF :=
     c.wf1 hf1.frame.kept (show NativeRustcVm.Mapped st1.data.dmem (pA m0) 63200 from
@@ -240,7 +241,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
         omega
       · exact Or.inl (Or.inr hq)) hch'
   have hcs3 : ∀ r, calleeSaved r = true → reg st3.data r = reg st2.data r := hsv.1
-  have hpc3' : st3.pc = Host.addrOf (k + 180) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b16Offset) := hpc3
   -- `b16`: the sumcheck's tag.
   have hwf3 := c.wf0 hf3.frame.kept (ret := 0)
   have hm3 : Match (argEnv m0 st3.data 2672 8 []) s24S st3.data :=
@@ -293,7 +294,7 @@ theorem sum (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     ((argEnv m0 st3.data 2672 8 [] (fun _ ↦ 0) 0).base 0 + BitVec.ofNat 64 144) 1 from hopt1)
   rw [cTag144_eval _ (Or.inr rfl) h1] at hpc4
   simp only [bne_self_eq_false, Bool.false_eq_true, ite_false] at hpc4
-  have hpc4' : st4.pc = Host.addrOf (k + 183) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b17Offset) := hpc4
   refine cont st4 tail claim s5 hpc4' hc4 hbx4 hw48 hw56 (sumcheckPlain_size hr)
     (by rw [hd4]; exact hslots) (by rw [hd4]; rw [off_off] at hopt2; exact hopt2)
     (by rw [hd4]; exact hnext) ?_

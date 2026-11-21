@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Sumcheck.OpenPhase.Common
 public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings
+public import NativeRustcVmX64.Code.Vm.DecodedPhase.Names
+public import NativeRustcVmX64.Code.Vm.OpenPhase.Names
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
 public meta import NativeRustcVmX64.Code.Vm.TStateQueryOpenings
 public meta import NativeRustcVmX64.Sumcheck.OpenPhase.Common
 
@@ -77,14 +80,14 @@ sym_block run_b6 := exec b6 failS
 sym_block run_b7f := exec b7 (after b6 failS)
 
 public theorem exit_b0 :
-    exec b0 entryS = some (after b0 entryS, .cond c0 ".LTStateQueryOpenings_4") :=
+    exec b0 entryS = some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.TStateQueryOpenings.label_4) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 public theorem ok_b0 : ProOk 96 8 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ w.off + w.n ≤ 96) ∧
     (after b0 entryS).reg .r14 = some (.reg .rdi) := by
   decide +kernel
 public theorem exit_b1 : exec b1 (after b0 entryS) = some (after b1 (after b0 entryS),
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5inputNtB2_7Decoded5phase") :=
+    .call NativeRustcVmX64.Vm.DecodedPhase.entryLabel) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : ProOk 96 0 slots (after b1 (after b0 entryS)) = true ∧
     (∀ w ∈ (after b1 (after b0 entryS)).mem, w.r = 0 ∧ w.off + w.n ≤ 96) ∧
@@ -97,13 +100,13 @@ public theorem ok_b1 : ProOk 96 0 slots (after b1 (after b0 entryS)) = true ∧
     (after b1 (after b0 entryS)).reg .r13 = some (.reg .rcx) ∧
     (after b1 (after b0 entryS)).reg .r14 = some (.reg .rdi) := by
   decide +kernel
-public theorem exit_b2 : exec b2 retS = some (after b2 retS, .cond c2 ".LTStateQueryOpenings_4") :=
+public theorem exit_b2 : exec b2 retS = some (after b2 retS, .cond c2 NativeRustcVmX64.Vm.TStateQueryOpenings.label_4) :=
   run_b2.trans (by rw [after_eq run_b2]; rfl)
 public theorem ok_b2 : MidOk 96 8 slots (after b2 retS) = true ∧ (after b2 retS).mem = [] ∧
     KeepAll (after b2 retS) = true := by
   decide +kernel
 public theorem exit_b3 : exec b3 openS = some (after b3 openS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm10transcript10open_phase") :=
+    .call NativeRustcVmX64.Vm.OpenPhase.entryLabel) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 96 0 slots (after b3 openS) = true ∧
     (∀ w ∈ (after b3 openS).mem, w.r = 0 ∧ w.off + w.n ≤ 16) ∧
@@ -115,13 +118,13 @@ public theorem ok_b3 : MidOk 96 0 slots (after b3 openS) = true ∧
     (after b3 openS).reg .r8 = some (.reg .r13) ∧ (after b3 openS).reg .r9 = some (.reg .r12) ∧
     KeepBut [.rcx, .rdx, .rsi, .rdi, .r8, .r9] (after b3 openS) = true := by
   decide +kernel
-public theorem exit_b4 : exec b4 retS = some (after b4 retS, .cond c4 ".LTStateQueryOpenings_4") :=
+public theorem exit_b4 : exec b4 retS = some (after b4 retS, .cond c4 NativeRustcVmX64.Vm.TStateQueryOpenings.label_4) :=
   run_b4.trans (by rw [after_eq run_b4]; rfl)
 public theorem ok_b4 : MidOk 96 8 slots (after b4 retS) = true ∧ (after b4 retS).mem = [] ∧
     KeepAll (after b4 retS) = true := by
   decide +kernel
 public theorem exit_b5 :
-    exec b5 okS = some (after b5 okS, .jump ".LTStateQueryOpenings_5") :=
+    exec b5 okS = some (after b5 okS, .jump NativeRustcVmX64.Vm.TStateQueryOpenings.label_5) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem exit_b7o :
     exec b7 (after b5 okS) = some (after b7 (after b5 okS), .ret (.load 0 96 8)) :=

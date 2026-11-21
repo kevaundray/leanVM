@@ -73,9 +73,9 @@ set_option linter.unusedSimpArgs false in
 theorem count_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m0) {c : Nat}
     {Hc : List UInt8} (hcp : Copied m0 c Hc m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 16) ∧ Mid m0 c (takeN m0 c Hc) st.data) ∨
-        (st.pc = Host.addrOf (k + 40) ∧ Full m0 c Hc st.data))
-      ⟨m, Host.addrOf (k + 35)⟩ := by
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b2Offset) ∧ Mid m0 c (takeN m0 c Hc) st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b7Offset) ∧ Full m0 c Hc st.data))
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b6Offset)⟩ := by
   have g := geo_of hpre
   let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)]
   have hwf : env.WF := wf_head hpre hcp.frame
@@ -122,7 +122,7 @@ theorem count_spec (hp : Placed code k) {m0 m : MachineData} (hpre : UpdatePre m
     omega
   refine exec_then (hb6 hp) run_b6 hwf nofun hm fun st6 hm6 hpc6 => ?_
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply, low_W64, ext_W64,
-    henv, hload, hr12, hV, show b6.length = 5 from rfl] at hpc6
+    henv, hload, hr12, hV, Nat.add_assoc, NativeRustcX64.Common.Update.b6_next] at hpc6
   -- Memory: the new `buf_len`.
   have hmem6 : ∀ j < 344, st6.data.dmem.get? (hAt m0 + BitVec.ofNat 64 j) =
       if 336 ≤ j then some (byteOf (BitVec.ofNat 64 (L + t)) (j - 336))

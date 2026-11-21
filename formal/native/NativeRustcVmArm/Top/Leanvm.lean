@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Decode.Names
+public import NativeRustcVmArm.Code.Vm.LeanvmVerify.Names
+public import NativeRustcVmArm.Code.Vm.Verify.Names
 public import NativeRustcVmArm.Top.Leanvm.Checks
 public import NativeRustcVmArm.Top.Leanvm.Stage3
 
@@ -37,11 +40,11 @@ variable [Host] {k : Nat}
 
 /-- **`leanvm_verify` meets its contract.** -/
 theorem leanvmVerify_spec (hp : Placed code k)
-    (hdec : Spec (Labels.label decodeLabel) DecodePre DecodePost)
-    (hver : ∀ a stream openings, Spec (Labels.label verifyLabel) (VerifyPre a stream openings)
+    (hdec : Spec (Labels.label NativeRustcVmArm.Vm.Decode.entryLabel) DecodePre DecodePost)
+    (hver : ∀ a stream openings, Spec (Labels.label NativeRustcVmArm.Vm.Verify.entryLabel) (VerifyPre a stream openings)
       (VerifyPost stream openings))
     (a : Code.Areas) (bytes : List UInt8) (bytecode : List UInt64) (pub : Vector UInt64 4) :
-    Spec (Labels.label leanvmVerifyLabel) (LeanvmVerifyPre a bytes bytecode pub)
+    Spec (Labels.label NativeRustcVmArm.Vm.LeanvmVerify.entryLabel) (LeanvmVerifyPre a bytes bytecode pub)
       (LeanvmVerifyPost a bytes bytecode pub) := by
   intro m0 hpre
   have hs : leanvmVerifyStack ≤ m0.regs.SP.toBitVec.toNat := hpre.1.2.1

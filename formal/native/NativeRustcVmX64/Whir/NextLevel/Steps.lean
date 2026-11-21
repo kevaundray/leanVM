@@ -7,8 +7,8 @@ public import NativeRustcVmX64.Whir.NextLevel.Frame
 
 Bytes of the frame a block does not write (`Ctx.bytes_blk`) or a call does not change
 (`Ctx.bytes_call`); the environments of the body's blocks (`Ctx.wf0`, `Ctx.wf1`); the exit at
-`.LNextLevel_14` (`exit_spec`: AL R15's low byte, the registers restored, `ret`), at
-`.LNextLevel_13` (`fail_spec`: AL `0`), and the postcondition on a rejection (`post_none`).
+`NativeRustcVmX64.Vm.NextLevel.label_14` (`exit_spec`: AL R15's low byte, the registers restored, `ret`), at
+`NativeRustcVmX64.Vm.NextLevel.label_13` (`fail_spec`: AL `0`), and the postcondition on a rejection (`post_none`).
 -/
 
 namespace NativeRustcVmX64.Whir.Levels.NL
@@ -98,9 +98,9 @@ end
 variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
   {rounds : Array FoldRoundW} {m0 : MachineData} {k : Nat}
 
-/-- **The exit** at `.LNextLevel_14`: AL R15's low byte, the registers restored, `ret`. -/
+/-- **The exit** at `NativeRustcVmX64.Vm.NextLevel.label_14`: AL R15's low byte, the registers restored, `ret`. -/
 theorem exit_spec (hp : Placed code k) (c : Ctx a s level w rounds m0) {st : MachineState}
-    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + 260)) :
+    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b27Offset)) :
     Eventually (step1 Host.exe)
       (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
         boolRet st'.data = (reg st.data .r15).toNat % 256 ∧ st'.data.dmem = st.data.dmem ∧
@@ -118,9 +118,9 @@ theorem exit_spec (hp : Placed code k) (c : Ctx a s level w rounds m0) {st : Mac
   rw [boolRet, show reg st'.data .rax = _ from hm'.regs .rax _ hrax]
   exact al_trunc _
 
-/-- **A failure** at `.LNextLevel_13`: R15 cleared, then the exit; AL `0`. -/
+/-- **A failure** at `NativeRustcVmX64.Vm.NextLevel.label_13`: R15 cleared, then the exit; AL `0`. -/
 theorem fail_spec (hp : Placed code k) (c : Ctx a s level w rounds m0) {st : MachineState}
-    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + 258)) :
+    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b26Offset)) :
     Eventually (step1 Host.exe)
       (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
         boolRet st'.data = 0 ∧ st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
@@ -148,9 +148,9 @@ theorem changes_of {d : MachineData} (hs : Sm m0 d) :
     · exact Or.inl ⟨_, List.mem_cons_self, hq⟩
     · exact Or.inl ⟨_, List.mem_cons_of_mem _ List.mem_cons_self, hq⟩
 
-/-- **A rejection**, from a state of the frame at `.LNextLevel_13`. -/
+/-- **A rejection**, from a state of the frame at `NativeRustcVmX64.Vm.NextLevel.label_13`. -/
 theorem none13 (hp : Placed code k) (c : Ctx a s level w rounds m0) {st : MachineState}
-    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + 258))
+    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b26Offset))
     (hnone : runN level w rounds m0 s = none) :
     Eventually (step1 Host.exe) (Goal a s level w rounds m0) st := by
   simp only [runN] at hnone
@@ -162,9 +162,9 @@ theorem none13 (hp : Placed code k) (c : Ctx a s level w rounds m0) {st : Machin
   · intro x s' h; rw [hnone] at h; cases h
   · unfold ChangesIn; rw [h4]; exact changes_of hf.same
 
-/-- **A rejection**, from a state of the frame at `.LNextLevel_14` with R15 `0`. -/
+/-- **A rejection**, from a state of the frame at `NativeRustcVmX64.Vm.NextLevel.label_14` with R15 `0`. -/
 theorem none14 (hp : Placed code k) (c : Ctx a s level w rounds m0) {st : MachineState}
-    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + 260)) (h15 : reg st.data .r15 = 0)
+    (hf : Fr m0 72 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b27Offset)) (h15 : reg st.data .r15 = 0)
     (hnone : runN level w rounds m0 s = none) :
     Eventually (step1 Host.exe) (Goal a s level w rounds m0) st := by
   simp only [runN] at hnone

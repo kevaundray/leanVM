@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.GlueLevel.Steps
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `glue_level` up to its first store (x86-64)
@@ -42,8 +43,8 @@ variable [Host] {k : Nat}
 
 /-- **From the entry to `b3`.** -/
 theorem head_step (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hpre : GlueLevelPre s m0) :
-    Eventually (step1 Host.exe) (At s m0 k 38 noWr t3 (v3 s m0)) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hpre : GlueLevelPre s m0) :
+    Eventually (step1 Host.exe) (At s m0 k NativeRustcVmX64.Vm.GlueLevel.b3Offset noWr t3 (v3 s m0)) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.GlueLevel.b0Offset)⟩ := by
   have hl := lay hpre
   have h0 : BndG s m0 noWr t0 (fun _ ↦ 0) m0 :=
     startA (by rw [rs_sizes]; rfl)
@@ -70,7 +71,7 @@ theorem head_step (hp : Placed code k)
   obtain ⟨d1, pc1⟩ := st
   simp only at hpc hB
   subst hpc
-  rw [show k + 0 + b0.length = k + 22 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b0Offset + b0.length = k + NativeRustcVmX64.Vm.GlueLevel.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b0_next]]
   refine mulStepA hl hmul (by decide) hB (b1_in_code.trans hp.1 (by simp [b1])) run_b1 noWr
     (fun _ h ↦ h) (by rw [rs_sizes]; rfl) rfl (T' := t2) (vals' := v2 s m0) rfl rfl
     (fun ret ↦ by vtac0)
@@ -85,12 +86,12 @@ theorem head_step (hp : Placed code k)
   obtain ⟨d2, pc2⟩ := st
   simp only at hpc hB
   subst hpc
-  rw [show k + 22 + b1.length = k + 31 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b1Offset + b1.length = k + NativeRustcVmX64.Vm.GlueLevel.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b1_next]]
   refine mulStepA hl hmul (by decide) hB (b2_in_code.trans hp.1 (by simp [b2])) run_b2 noWr
     (fun _ h ↦ h) (by rw [rs_sizes]; rfl) rfl (T' := t3) (vals' := v3 s m0) rfl rfl
     (fun ret ↦ by vtac0)
     (fun i hi mc hR ↦ ?_) (fun i hi mc hR ↦ ?_) (by rw [rs_sizes]; rfl) rfl rfl
-    (fun _ _ ↦ aliasesOk_of fun x r o hx ↦ headA_ok hx) rfl fun st hpc hB _ ↦ .done _ ⟨hpc.trans (by rw [show k + 31 + b2.length = k + 38 from rfl]), hB⟩
+    (fun _ _ ↦ aliasesOk_of fun x r o hx ↦ headA_ok hx) rfl fun st hpc hB _ ↦ .done _ ⟨hpc.trans (by rw [show k + NativeRustcVmX64.Vm.GlueLevel.b2Offset + b2.length = k + NativeRustcVmX64.Vm.GlueLevel.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b2_next]]), hB⟩
   · cases hi
     exact congrArg Prod.fst (mulRes_of (x := l2 m0) (y := batOf m0) hR rfl rfl rfl rfl rfl rfl
       (hl.loadArg hB.same (i := 6) (by decide)) (hl.loadArg hB.same (i := 7) (by decide)))

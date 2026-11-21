@@ -24,7 +24,7 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {w : WhirStateW} {m0 : Mach
 
 /-- **`b21`**: BL the verdict, returned in AL; the outputs as `foldRounds` leaves them. -/
 theorem exit21 (hp : Placed code k) (h : FoldRoundsPre a s w m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 148)) (hf : Frame m0 160 slots 8 st.data) (hs : Sm m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRounds.b21Offset)) (hf : Frame m0 160 slots 8 st.data) (hs : Sm m0 st.data)
     (hbx : (reg st.data .rbx).toNat % 256 =
       (okWord ((foldRounds (reg m0 .rsi).toNat w).run s).isSome).toNat)
     (hout : ∀ w' rs s', (foldRounds (reg m0 .rsi).toNat w).run s = some ((w', rs), s') →
@@ -49,7 +49,7 @@ theorem exit21 (hp : Placed code k) (h : FoldRoundsPre a s w m0) {st : MachineSt
 
 /-- **A rejected round**: `b20` clears EBX, `b21` returns `0`. -/
 theorem fail20 (hp : Placed code k) (h : FoldRoundsPre a s w m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 146)) (hf : Frame m0 160 slots 8 st.data) (hs : Sm m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRounds.b20Offset)) (hf : Frame m0 160 slots 8 st.data) (hs : Sm m0 st.data)
     (hnone : (foldRounds (reg m0 .rsi).toNat w).run s = none) :
     Eventually (step1 Host.exe) (Goal a s w m0) st := by
   have c := ctx h
@@ -59,7 +59,7 @@ theorem fail20 (hp : Placed code k) (h : FoldRoundsPre a s w m0) {st : MachineSt
   obtain ⟨hmid, hmem, hbx⟩ := after_eq run_b20 ▸ ok_b20
   have hd : st1.data.dmem = st.data.dmem := hm1.dmem_eq hwf hmem
   simp only [PcOk] at hpc1
-  refine exit21 hp h (hpc1.trans (by rw [show b20.length = 2 from rfl]))
+  refine exit21 hp h (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FoldRounds.b20_next))
     (Frame.of_block hf hwf hm1 hmid slots_le) (fun q hq ↦ by rw [hd]; exact hs q hq) ?_ ?_
   · rw [show reg st1.data .rbx = _ from hm1.regs .rbx _ hbx, hnone]
     rfl
@@ -69,7 +69,7 @@ theorem fail20 (hp : Placed code k) (h : FoldRoundsPre a s w m0) {st : MachineSt
 
 /-- **All rounds done**: `b21` returns `1`. -/
 theorem done (hp : Placed code k) (h : FoldRoundsPre a s w m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 148))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRounds.b21Offset))
     (hI : Inv a s w m0 (reg m0 .rsi).toNat 8 st.data) :
     Eventually (step1 Host.exe) (Goal a s w m0) st := by
   obtain ⟨w', rs, s', hrun, -, -, hws, hbr, hts⟩ := hI.run

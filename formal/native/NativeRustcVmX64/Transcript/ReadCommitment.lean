@@ -4,6 +4,8 @@ public import NativeRustcVmX64.Transcript.Callee
 public import NativeRustcVmX64.Transcript.ReadCommitment.Exec
 public import NativeRustcVmX64.Transcript.Arith
 public import NativeVm.Equiv.Transcript
+public import NativeRustcVmX64.Code.Vm.TStateReadCommitment.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
 # `TState::read_commitment` on x86-64
@@ -77,11 +79,11 @@ abbrev Out (m0 : MachineData) (q : BitVec 64) : Prop :=
 
 /-- **A call of `read_scalar`** from the frame, its output at `fb + 16`. -/
 theorem call_read
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {a : DecArea} {m0 : MachineData} (hst : StackOk m0 readCommitmentStack)
     (hrc : RcAt m0 readCommitmentStack) (htok : TStateOk m0 (reg m0 .rdi) a readCommitmentStack)
     {s' : TState} {st : MachineState} {env : Env} {next : Int64}
-    (hpc : PcOk env (.call readScalarLabel) next st) (hf : Frame m0 80 slots 0 st.data)
+    (hpc : PcOk env (.call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) next st) (hf : Frame m0 80 slots 0 st.data)
     (hX7 : reg st.data .rdi = off (stackBelow m0 80) 16) (hX6 : reg st.data .rsi = reg m0 .rdi)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s')
     (hso : NativeRustcVm.SameOutside m0.dmem st.data.dmem (Out m0)) {R : MachineState → Prop}
@@ -151,7 +153,7 @@ theorem finish_fail (hp : Placed code k) {m0 d : MachineData} (hst : StackOk m0 
     (h6 : exec b6 S = some (after b6 S, .fall))
     (h7 : exec b7 (after b6 S) = some (after b7 (after b6 S), .ret (.load 0 80 8)))
     (hok : FailOk (after b7 (after b6 S))) {st : MachineState} {ret : BitVec 64}
-    (hpc : st.pc = Host.addrOf (k + 38)) (hm : Match (frameEnv m0 d 80 [] (fun _ ↦ 0) ret) S st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadCommitment.b6Offset)) (hm : Match (frameEnv m0 d 80 [] (fun _ ↦ 0) ret) S st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
       reg st'.data .rax = 0 ∧ st'.data.dmem = d.dmem ∧ Saved m0 st'.data) st := by
   obtain ⟨hepi, hmem, hrax⟩ := hok
@@ -161,7 +163,7 @@ theorem finish_fail (hp : Placed code k) {m0 d : MachineData} (hst : StackOk m0 
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) h6 hwf nofun hpc hm
     fun st1 hm1 hpc1 => ?_
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) h7 hwf nofun
-    (hpc1.trans (by rw [show b6.length = 2 from rfl])) hm1 fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadCommitment.b6_next)) hm1 fun st2 hm2 hpc2 => ?_
   obtain ⟨hsv, hrsp⟩ := Frame.epilogue hf hwf hm2 hepi
   simp only [PcOk] at hpc2
   exact .done _ ⟨by rw [hpc2]; exact hf.load_ret hst (by decide), hrsp, hm2.regs .rax _ hrax,
@@ -226,7 +228,7 @@ theorem push_run (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 readC
     (h15 : reg st.data .r15 = reg m0 .rsi) (h3 : reg st.data .rbx = reg m0 .rdx)
     (hel : NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 80) 24) x1.c0 ∧
       NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 80) 32) x1.c1)
-    (hpc : st.pc = Host.addrOf (k + 25)) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadCommitment.b5Offset)) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ (reg st'.data .rax).toNat % 256 = 1 ∧
       TStateAt st'.data.dmem (reg m0 .rdi) a { s2 with roots := (s2.roots.push
@@ -265,7 +267,7 @@ theorem push_run (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 readC
     fun st8 hm8 hpc8 => ?_
   simp only [PcOk] at hpc8
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) exit_b7c hwf7 nofun
-    (hpc8.trans (hp.label (j := 40) rfl)) hm8 fun st9 hm9 hpc9 => ?_
+    (hpc8.trans (hp.label NativeRustcVmX64.Vm.TStateReadCommitment.label_6_at)) hm8 fun st9 hm9 hpc9 => ?_
   obtain ⟨hepi, hrax9, hw0, hw1, hw2, hw3, hw4, hw5, hwc, hws9⟩ := push_c
   obtain ⟨hsv9, hrsp9⟩ := Frame.epilogue hf hwf7 hm9 hepi
   simp only [PcOk] at hpc9
@@ -323,9 +325,9 @@ theorem push_run (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 readC
 
 /-- **`TState::read_commitment` meets its contract.** -/
 theorem readCommitment_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label readCommitmentLabel) (ReadCommitmentPre a s) (ReadCommitmentPost a s) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s) (ReadCommitmentPost a s) := by
   rintro m0 ⟨hst, hrc, hts, htok, hroots⟩
   set t := reg m0 .rdi
   set fb := stackBelow m0 80
@@ -346,9 +348,9 @@ theorem readCommitment_spec (hp : Placed code k)
     frame_wf ⟨Mapped.keeps (frame_mapped hst (by decide)) hf.kept, hfnw⟩ (by simp)
       (List.pairwise_singleton _ _)
   -- `b0`: the prologue, `call read_scalar`.
-  have hwf0 := hfr (Host.addrOf (k + 0 + b0.length)).toBitVec (Frame.entry (F := 80) (m0 := m0))
-  unfold readCommitmentLabel
-  rw [hp.label (j := 0) rfl]
+  have hwf0 := hfr (Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadCommitment.b0Offset + b0.length)).toBitVec (Frame.entry (F := 80) (m0 := m0))
+  unfold NativeRustcVmX64.Vm.TStateReadCommitment.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.TStateReadCommitment.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 => ?_
@@ -369,12 +371,12 @@ theorem readCommitment_spec (hp : Placed code k)
   have h14₂ : reg st2.data .r14 = t := (hsv2.1 .r14 rfl).trans hX14
   have h15₂ : reg st2.data .r15 = reg m0 .rsi := (hsv2.1 .r15 rfl).trans hX15
   -- `b1`: the first tag; `b2` runs on in the same environment.
-  have hwf2 := hfr (Host.addrOf (k + 15 + b2.length)).toBitVec hf2
-  have hm2 : Match (frameEnv m0 st2.data 80 [] (fun _ ↦ 0) (Host.addrOf (k + 15 + b2.length)).toBitVec)
+  have hwf2 := hfr (Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadCommitment.b2Offset + b2.length)).toBitVec hf2
+  have hm2 : Match (frameEnv m0 st2.data 80 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadCommitment.b2Offset + b2.length)).toBitVec)
       doneS st2.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
-    (hpc2.trans (by rw [show b0.length = 13 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadCommitment.b0_next)) hm2 fun st3 hm3 hpc3 => ?_
   simp only [PcOk] at hpc3
   sym_simp_at hpc3
   cases hr1 : readScalar.run s with
@@ -382,14 +384,14 @@ theorem readCommitment_spec (hp : Placed code k)
     rw [hr1] at hout2
     have h0 : NativeRustcVm.WordAt st2.data.dmem (off fb 16) 0 := hout2
     have ht0 : (frameEnv m0 st2.data 80 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 15 + b2.length)).toBitVec).load 0 16 4 = BitVec.ofNat 64 0 :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadCommitment.b2Offset + b2.length)).toBitVec).load 0 16 4 = BitVec.ofNat 64 0 :=
       load4_of_tag (Or.inl rfl) h0
     simp only [ht0] at hpc3
     simp (config := { decide := true }) only [↓reduceIte] at hpc3
     have hnone : (readCommitment (reg m0 .rsi).toNat (reg m0 .rdx).toNat).run s = none := by
       rw [run_eq, hr1]; rfl
     refine Eventually.mono (finish_fail hp hst hf2 exit_b6a exit_b7a fail_a
-      (hpc3.trans (hp.label (j := 38) rfl)) hm3)
+      (hpc3.trans (hp.label NativeRustcVmX64.Vm.TStateReadCommitment.label_5_at)) hm3)
       fun st' ⟨hpc', hrsp', hrax', hd', hsv'⟩ ↦ ⟨hpc', hrsp', ?_, ?_, ?_, hsv'⟩
     · show (reg st'.data .rax).toNat % 256 =
         (okWord ((readCommitment (reg m0 .rsi).toNat (reg m0 .rdx).toNat).run s).isSome).toNat
@@ -403,13 +405,13 @@ theorem readCommitment_spec (hp : Placed code k)
   rw [ewAt_iff, off_off, off_off] at hel1
   have hts1 : TStateAt st2.data.dmem t a s1 := hnext2 x0 s1 hr1
   have ht1' : (frameEnv m0 st2.data 80 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 15 + b2.length)).toBitVec).load 0 16 4 = BitVec.ofNat 64 1 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateReadCommitment.b2Offset + b2.length)).toBitVec).load 0 16 4 = BitVec.ofNat 64 1 :=
     load4_of_tag (Or.inr rfl) ht1
   simp only [ht1'] at hpc3
   simp (config := { decide := true }) only [↓reduceIte] at hpc3
   -- `b2`: the first element kept in R12, R13, `call read_scalar`.
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf2 (fun _ _ ↦ rfl)
-    (hpc3.trans (by rw [show b1.length = 2 from rfl])) hm3 fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadCommitment.b1_next)) hm3 fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hws4, hx7₄, hx6₄, hx12₄, hx13₄, hcs4⟩ := after_eq run_b2 ▸ ok_b2
   have hf4 : Frame m0 80 slots 0 st4.data := Frame.of_block hf2 hwf2 hm4 hmid4 slots_le
   have hs4 : NativeRustcVm.SameOutside st2.data.dmem st4.data.dmem (NativeRustcVm.InRange fb 8) :=
@@ -443,7 +445,7 @@ theorem readCommitment_spec (hp : Placed code k)
   have hm5 : Match (frameEnv m0 st5.data 80 [] (fun _ ↦ 0) 0) doneS st5.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hf5.rsp_eval, trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf5 nofun
-    (hpc5.trans (by rw [show b2.length = 5 from rfl])) hm5 fun st6 hm6 hpc6 => ?_
+    (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadCommitment.b2_next)) hm5 fun st6 hm6 hpc6 => ?_
   obtain ⟨hmid6, hmem6, hcs6⟩ := ok_b3
   simp only [PcOk] at hpc6
   sym_simp_at hpc6
@@ -458,7 +460,7 @@ theorem readCommitment_spec (hp : Placed code k)
     have hnone : (readCommitment (reg m0 .rsi).toNat (reg m0 .rdx).toNat).run s = none := by
       rw [run_eq, hr1]; show (readScalar.run s1).bind _ = none; rw [hr2]; rfl
     refine Eventually.mono (finish_fail hp hst hf5 exit_b6b exit_b7b fail_b
-      (hpc6.trans (hp.label (j := 38) rfl)) hm6)
+      (hpc6.trans (hp.label NativeRustcVmX64.Vm.TStateReadCommitment.label_5_at)) hm6)
       fun st' ⟨hpc', hrsp', hrax', hd', hsv'⟩ ↦ ⟨hpc', hrsp', ?_, ?_, ?_, hsv'⟩
     · show (reg st'.data .rax).toNat % 256 =
         (okWord ((readCommitment (reg m0 .rsi).toNat (reg m0 .rdx).toNat).run s).isSome).toNat
@@ -497,7 +499,7 @@ theorem readCommitment_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨hf6.rsp_eval, known_ptr rfl ((hk6 .r14 rfl).trans h14₅), trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf6 nofun
-    (hpc6.trans (by rw [show b3.length = 2 from rfl])) hm6' fun st7 hm7 hpc7 => ?_
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadCommitment.b3_next)) hm6' fun st7 hm7 hpc7 => ?_
   obtain ⟨hmid7, hmem7, hx0₇, hx14₇, hcs7⟩ := ok_b4
   have hf7 : Frame m0 80 slots 8 st7.data := Frame.of_block hf6 hwf6 hm7 hmid7 slots_le
   have hd7 : st7.data.dmem = st6.data.dmem := hm7.dmem_eq hwf6 hmem7
@@ -535,7 +537,7 @@ theorem readCommitment_spec (hp : Placed code k)
   refine Eventually.mono (push_run (a := a) hp hst hf7 (by rw [hd7]; exact hts6)
     (by rw [hroots2]; exact hroots) hTF ((hm7.regs .rax _ hx0₇).trans hcnt)
     ((hm7.regs .r14 _ hx14₇).trans (eval_ptr rfl)) h12₇ h13₇ h15₇ h3₇ hel7
-    (hpc7.trans (by rw [show b4.length = 3 from rfl])))
+    (hpc7.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateReadCommitment.b4_next)))
     fun st' ⟨hpc', hrsp', hal, hts', hs', hsv'⟩ ↦ ⟨hpc', hrsp', ?_, ?_, ?_, hsv'⟩
   · show (reg st'.data .rax).toNat % 256 =
       (okWord ((readCommitment (reg m0 .rsi).toNat (reg m0 .rdx).toNat).run s).isSome).toNat

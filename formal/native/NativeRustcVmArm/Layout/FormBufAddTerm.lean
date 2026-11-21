@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FormBufAddTerm.Names
 public import NativeRustcVmArm.Layout.FormBufAddTerm.Exec
 public import NativeRustcVmArm.Layout.FormBufAddTerm.Lemmas
 public import NativeRustcVmArm.Arrays.Common
@@ -217,7 +218,7 @@ theorem pc_of {pc : Int64} {a b : Nat} (h : pc = Host.addrOf a) (e : a = b) : pc
 
 /-- **Room, a new monomial**: `b12` appends the term, the count plus one, returns `1`. -/
 theorem push (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF : Facts f t m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 50)) (hc : Ctx m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b12Offset)) (hc : Ctx m0 st.data)
     (hlt : f.size < 148) (hne : ∀ j (hj : j < f.size), f[j].cols ≠ t.cols)
     (h8 : st.data.regs.X8 = f.size.toUInt64)
     (h9 : st.data.regs.X9.toBitVec = bb m0 + BitVec.ofNat 64 (8 + 40 * f.size))
@@ -352,7 +353,7 @@ theorem push (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF
 
 /-- **No room**: `b11` returns `0`, and the model's form has `149` terms. -/
 theorem full (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 47)) (hc : Ctx m0 st.data) (hn : f.size = 148)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b11Offset)) (hc : Ctx m0 st.data) (hn : f.size = 148)
     (hne : ∀ j (hj : j < f.size), f[j].cols ≠ t.cols) :
     Eventually (step1 Host.exe) (Post f t m0) st := by
   refine exec_at (infix_of b11_in_code (by simp [b11]) hp) run_b11 (Env.wf_nil _) hpc
@@ -374,7 +375,7 @@ theorem full (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} {st
 
 /-- **A term with `t`'s columns**: `b9` adds `c` to its coefficient, returns `1`. -/
 theorem found (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF : Facts f t m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 37)) (hc : Ctx m0 st.data) {i : Nat}
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b9Offset)) (hc : Ctx m0 st.data) {i : Nat}
     (hi : i < f.size) (heq : f[i].cols = t.cols) (hne : ∀ j (hj : j < i), f[j].cols ≠ t.cols)
     (h11 : st.data.regs.X11.toBitVec = bb m0 + BitVec.ofNat 64 (8 + 40 * i)) :
     Eventually (step1 Host.exe) (Post f t m0) st := by
@@ -453,7 +454,7 @@ theorem found (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (h
 
 /-- What a turn of the search reaches: the end, or the head at the next term. -/
 abbrev Turn (f : FormW) (t : TermW) (m0 : MachineData) (i : Nat) (st : MachineState) : Prop :=
-  Post f t m0 st ∨ (st.pc = Host.addrOf (k + 20) ∧ Head f t m0 (i + 1) st.data)
+  Post f t m0 st ∨ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b4Offset) ∧ Head f t m0 (i + 1) st.data)
 
 omit [Host] in
 theorem env_nil_regs (m : MachineData) (r : XReg) :
@@ -461,7 +462,7 @@ theorem env_nil_regs (m : MachineData) (r : XReg) :
 
 /-- **`.L3`**: past the last term, `b10` appends or fails; else the head at the next term. -/
 theorem next (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF : Facts f t m0)
-    {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 16))
+    {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b3Offset))
     (hN : Next f t m0 i st.data) : Eventually (step1 Host.exe) (Turn (k := k) f t m0 i) st := by
   have hb := hF.bnat
   have hn := hF.size_le
@@ -484,7 +485,7 @@ theorem next (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF
   have r14 := Match.reg_eq (match_nil _) hm1 (r := .X14) rfl rfl
   have r15 := Match.reg_eq (match_nil _) hm1 (r := .X15) rfl rfl
   by_cases hend : i + 1 = f.size
-  · have hpc2 := (hpa (by simpa using hend)).trans (hp.label (j := 44) rfl)
+  · have hpc2 := (hpa (by simpa using hend)).trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b10Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_9_at)
     refine exec_at (infix_of b10_in_code (by simp [b10]) hp) run_b10 (Env.wf_nil _) hpc2
       (match_nil _) fun st2 hm2 hpc3 ↦ ?_
     have hc2 := hc1.step (match_nil _) hm2 (Env.wf_nil _) (after_eq run_b10 ▸ b10_ok)
@@ -499,7 +500,7 @@ theorem next (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF
     · refine Eventually.mono (full hp (pc_of (hpb' (by simpa using h148)) rfl) hc2 h148 hne)
         fun _ h ↦ Or.inl h
     · refine Eventually.mono (push hp hF ((hpa' (by simpa using h148)).trans
-        (hp.label (j := 50) rfl)) hc2 (by omega) hne ?_ ?_ ?_) fun _ h ↦ Or.inl h
+        (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b12Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_11_at)) hc2 (by omega) hne ?_ ?_ ?_) fun _ h ↦ Or.inl h
       · rw [show st2.data.regs.X8 = st.data.regs.X8 from
           (Match.reg_eq (match_nil _) hm2 (r := .X8) rfl rfl).trans r8]
         exact hN.x8
@@ -530,7 +531,7 @@ theorem ofNat_sub_one {x : BitVec 64} {n : Nat} (h : x.toNat = n) (hn : 0 < n) :
 /-- **`.L6`**: the columns compared one word a turn; all equal: `found`; one unequal: `next`. -/
 theorem inner (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF : Facts f t m0)
     {i : Nat} : ∀ (fuel j : Nat) {st : MachineState}, t.cols.size - j = fuel →
-    st.pc = Host.addrOf (k + 29) → Inner f t m0 i j st.data →
+    st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b6Offset) → Inner f t m0 i j st.data →
     Eventually (step1 Host.exe) (Turn (k := k) f t m0 i) st := by
   have hb := hF.bnat
   have hpn := hF.pnat
@@ -552,7 +553,7 @@ theorem inner (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (h
     rw [e17] at hpc1
     have hpc2 := (Arrays.pc_cond hpc1).1 (by decide)
     have heq : f[i].cols = t.cols := Array.ext hI.deg fun j' h1 h2 ↦ hI.pre j' (by omega)
-    refine Eventually.mono (found hp hF (hpc2.trans (hp.label (j := 37) rfl)) hc1 hlt heq hI.ne ?_)
+    refine Eventually.mono (found hp hF (hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b9Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_8_at)) hc1 hlt heq hI.ne ?_)
       fun _ h ↦ Or.inl h
     rw [show st1.data.regs.X11 = st.data.regs.X11 from
       Match.reg_eq (match_nil _) hm1 (r := .X11) rfl rfl]
@@ -630,7 +631,7 @@ theorem inner (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (h
     have k15 : st2.data.regs.X15 = st.data.regs.X15 := (r' .X15 rfl rfl).trans (r .X15 rfl rfl)
     by_cases hce : f[i].cols[j] = t.cols[j]
     · -- equal: on to column `j + 1`
-      have hpc4 := (hpa (by simpa using hce)).trans (hp.label (j := 29) rfl)
+      have hpc4 := (hpa (by simpa using hce)).trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b6Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_6_at)
       have h16 := hm2.regs .X16 _ rfl
       have h18 := hm2.regs .X18 _ rfl
       have h17 := hm2.regs .X17 _ rfl
@@ -664,7 +665,7 @@ theorem inner (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (h
       have hc3 := hc2.step (match_nil _) hm3 (Env.wf_nil _) (after_eq run_b8 ▸ b8_ok)
       simp only [PcOk] at hpc5
       have r'' := reg_keep (match_nil _) hm3
-      refine next hp hF (hpc5.trans (hp.label (j := 16) rfl)) ⟨hc3, hlt, fun j' hj' ↦ ?_,
+      refine next hp hF (hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b3Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_3_at)) ⟨hc3, hlt, fun j' hj' ↦ ?_,
         ((r'' .X8 rfl rfl).trans k8).trans hI.x8, tb ((r'' .X9 rfl rfl).trans k9) hI.x9,
         ((r'' .X10 rfl rfl).trans k10).trans hI.x10, tb ((r'' .X13 rfl rfl).trans k13) hI.x13,
         ((r'' .X14 rfl rfl).trans k14).trans hI.x14, tb ((r'' .X15 rfl rfl).trans k15) hI.x15⟩
@@ -677,7 +678,7 @@ theorem inner (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (h
 /-- **`.L4`**: term `i`'s degree against `d` (`b4`): unequal, `next`; equal, `b5` sets up the
 columns' comparison. -/
 theorem head (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF : Facts f t m0)
-    {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 20))
+    {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b4Offset))
     (hH : Head f t m0 i st.data) : Eventually (step1 Host.exe) (Turn (k := k) f t m0 i) st := by
   have hb := hF.bnat
   have hn := hF.size_le
@@ -747,7 +748,7 @@ theorem head (hp : Placed code k) {f : FormW} {t : TermW} {m0 : MachineData} (hF
       show t.cols.size % 2 ^ 64 = _
       omega
   · -- unequal degrees: `.L3`
-    have hpc2 := (hpa (by simpa using hdeq)).trans (hp.label (j := 16) rfl)
+    have hpc2 := (hpa (by simpa using hdeq)).trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b3Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_3_at)
     refine next hp hF hpc2 ⟨hc1, hlt, fun j hj ↦ ?_, (r .X8 rfl rfl).trans hH.x8,
       tb (r .X9 rfl rfl) hH.x9, (r .X10 rfl rfl).trans hH.x10, tb (r .X13 rfl rfl) hH.x13,
       (r .X14 rfl rfl).trans hH.x14, h15⟩
@@ -768,7 +769,7 @@ theorem end_addr (b : BitVec 64) (n : Nat) :
 
 /-- **`FormBuf::add_term`'s contract.** -/
 theorem formBufAddTerm_spec (hp : Placed code k) {f : FormW} {t : TermW} :
-    Spec (Labels.label formBufAddTermLabel) (FormBufAddTermPre f t) (FormBufAddTermPost f t) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddTerm.entryLabel) (FormBufAddTermPre f t) (FormBufAddTermPost f t) := by
   intro m0 hpre
   have hF := Facts.of_pre hpre
   have hb := hF.bnat
@@ -802,7 +803,7 @@ theorem formBufAddTerm_spec (hp : Placed code k) {f : FormW} {t : TermW} :
     rw [addr_add_zero]
     exact hF.term.degree)
   have hc0 : Ctx m0 m0 := ⟨⟨fun _ _ ↦ rfl, rfl, fun _ h ↦ h⟩, rfl, fun _ _ ↦ rfl⟩
-  rw [show Labels.label formBufAddTermLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.FormBufAddTerm.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.entryOffset) NativeRustcVmArm.Vm.FormBufAddTerm.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st0 hm0' hpc0 ↦ ?_
   simp only [PcOk] at hpc0
   sym_simp at hpc0
@@ -825,7 +826,7 @@ theorem formBufAddTerm_spec (hp : Placed code k) {f : FormW} {t : TermW} :
   rw [hlen, ofNat_beq (by omega) (by omega)] at hpc1
   obtain ⟨hpa, hpb⟩ := Arrays.pc_cond hpc1
   by_cases hz : f.size = 0
-  · exact push hp hF ((hpa (by simpa using hz)).trans (hp.label (j := 50) rfl)) hc1 (by omega)
+  · exact push hp hF ((hpa (by simpa using hz)).trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b12Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_11_at)) hc1 (by omega)
       (fun j hj ↦ absurd hj (by omega)) h8 h9 h10
   · refine exec_at (infix_of b2_in_code (by simp [b2]) hp) (exec_after run_b1 run_b2) hwf
       (pc_of (hpb (by simpa using hz)) rfl) hm1 fun st2 hm2 hpc2 ↦ ?_
@@ -845,9 +846,9 @@ theorem formBufAddTerm_spec (hp : Placed code k) {f : FormW} {t : TermW} :
         UInt64.toBitVec_inj.mp ((hm2.regs .X8 _ rfl).trans hlen), h9'.trans (end_addr _ _),
         UInt64.toBitVec_inj.mp ((hm2.regs .X10 _ rfl).trans hdeg), h13, UInt64.toBitVec_inj.mp h14,
         h11, h15⟩
-    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 20) ∧ ∃ i, f.size - i = n ∧
+    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FormBufAddTerm.b4Offset) ∧ ∃ i, f.size - i = n ∧
       Head f t m0 i st.data) (fun n st ⟨hpc, i, hn', hH⟩ ↦ ?_)
-      ⟨hpc2.trans (hp.label (j := 20) rfl), 0, rfl, hH⟩
+      ⟨hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.FormBufAddTerm.b4Offset) NativeRustcVmArm.Vm.FormBufAddTerm.label_4_at), 0, rfl, hH⟩
     refine Eventually.mono (head hp hF hpc hH) fun st' h ↦ ?_
     rcases h with h | ⟨hpc', hH'⟩
     · exact Or.inl h

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.GlueLevel.Second
+public import NativeRustcVmX64.Code.Vm.BufEW230Extend.Names
 
 /-!
 # `glue_level`: the second glued claim's weights and the count (x86-64)
@@ -25,7 +26,7 @@ abbrev wsOf (m0 : MachineData) : List EW := (slice m0 (stackArg m0 4) (stackArg 
 /-- **At `b13`**: the template `t13`, the buffers, AL `1`. -/
 structure AtB13 [Host] (s : WhirStateW) (m0 : MachineData) (k : Nat) (st : MachineState) :
     Prop where
-  at13 : At s m0 k 94 wrAll t13 (vA s m0) st
+  at13 : At s m0 k NativeRustcVmX64.Vm.GlueLevel.b13Offset wrAll t13 (vA s m0) st
   pt : BufEWAt st.data.dmem (off (pOf m0) (o1 s.glued.size + 40)) stackCap
     (slice m0 (reg m0 .r8) (reg m0 .r9)).toList
   qs : BufWordsAt st.data.dmem (off (pOf m0) (o2 s.glued.size + 528)) queryCap (qsOf m0)
@@ -49,7 +50,7 @@ variable [Host] {k : Nat}
 
 /-- **From `b9` to `b13`.** -/
 theorem third_step (hp : Placed code k)
-    (hext : Spec (Labels.label bufEW230ExtendLabel) (BufEWExtendPre 230) (BufEWExtendPost 230))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW230Extend.entryLabel) (BufEWExtendPre 230) (BufEWExtendPost 230))
     (hpre : GlueLevelPre s m0) {st : MachineState} (h : AtB9 s m0 k st) :
     Eventually (step1 Host.exe) (AtB13 s m0 k) st := by
   obtain ⟨⟨hpc, hB⟩, hpt9, hqs9⟩ := h
@@ -140,7 +141,7 @@ theorem third_step (hp : Placed code k)
   obtain ⟨d10, pc10⟩ := st10
   simp only at hpc10 hB10 hloc10 hal10 hbuf
   subst hpc10
-  rw [show k + 80 + b9.length = k + 87 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b9Offset + b9.length = k + NativeRustcVmX64.Vm.GlueLevel.b10Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b9_next]]
   have hpt10 := bufEWAt_keep0 (keep_reg hpre hloc10 rs_4 rfl) (by decide) hpt9
   have hqs10 := bufWordsAt_keep0 (keep_reg hpre hloc10 rs_6 rfl) (by decide) hqs9
   refine jumpStepA hl hB10 (b10_in_code.trans hp.1 (by simp [b10])) run_b10
@@ -154,7 +155,7 @@ theorem third_step (hp : Placed code k)
   obtain ⟨d11, pc11⟩ := st11
   simp only at hpc11 hB11 hloc11
   subst hpc11
-  rw [show k + 87 + b10.length = k + 89 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b10Offset + b10.length = k + NativeRustcVmX64.Vm.GlueLevel.b11Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b10_next]]
   -- `b11`: the count, AL
   refine jumpStepA hl hB11 (b11_in_code.trans hp.1 (by simp [b11])) run_b11
     (fun _ h ↦ by cases h) ([1, 3, 4, 6].contains ·) (sub_of _ (by simp)) (by rw [rs_sizes]; rfl)
@@ -164,7 +165,7 @@ theorem third_step (hp : Placed code k)
     fun st13 hpc13 hB13 hm13 hloc13 ↦ .done _ ⟨⟨?_, hB13⟩, ?_, ?_, ?_, ?_⟩
   · simp only [PcOk] at hpc13
     rw [hpc13]
-    exact hp.label (j := 94) rfl
+    exact hp.label NativeRustcVmX64.Vm.GlueLevel.label_11_at
   · exact bufEWAt_keep0 (same_trans (keep_reg hpre hloc11 rs_4 rfl)
       (keep_reg hpre hloc13 rs_4 rfl)) (by decide) hpt10
   · exact bufWordsAt_keep0 (same_trans (keep_reg hpre hloc11 rs_6 rfl)

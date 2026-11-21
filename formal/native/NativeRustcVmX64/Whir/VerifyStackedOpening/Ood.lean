@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.TgtLoop
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `verify_stacked_opening`: the out-of-domain term (x86-64)
@@ -84,10 +85,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 
 /-- **The out-of-domain term**: `b38`, `b39`, `b41`, `EW::mul`, to `b42`. -/
 theorem ood_b38 (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 173))
+    (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b38Offset))
     (hc : Acc a s layout target cs value m0 cs.size st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 188) →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b42Offset) →
       AtB42 a s layout target cs value m0 st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hok := hc.ok
@@ -118,9 +119,9 @@ theorem ood_b38 (h : Parts a s layout target coefficients point slices cs z valu
   simp only [PcOk] at hpc1
   rw [eval_eq64] at hpc1
   have hne : ¬ (((Sym.reg .r14).eval (frameEnv m0 st.data 512 [(rspOf m0 + 8#64, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 173 + b38.length)).toBitVec)).toNat = ((Sym.reg .r12).eval
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b38Offset + b38.length)).toBitVec)).toNat = ((Sym.reg .r12).eval
         (frameEnv m0 st.data 512 [(rspOf m0 + 8#64, 24)] (fun _ ↦ 0)
-          (Host.addrOf (k + 173 + b38.length)).toBitVec)).toNat) := by
+          (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b38Offset + b38.length)).toBitVec)).toNat) := by
     show ¬ (reg st.data .r14).toNat = (reg st.data .r12).toNat
     have h1 : (scA m0).toNat + (8 + 16 * (1 + placedOf layout cs cs.size)) < 2 ^ 64 := by omega
     rw [hc.r14, hc.r12, toNat_off h1]
@@ -146,7 +147,7 @@ theorem ood_b38 (h : Parts a s layout target coefficients point slices cs z valu
       ⟨by show reg st1.data .r14 = _
           rw [hc1.r14, show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]; rfl, trivial⟩
   have hsj := ew_loads (d := st1.data) (vs := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 177 + b39.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b39Offset + b39.length)).toBitVec)
     (rs := [(stackBelow m0 512, 520), (off (scA m0) (8 + 16 * (1 + placedOf layout cs cs.size)),
       16)])
     (b := off (scA m0) (8 + 16 * (1 + placedOf layout cs cs.size))) (n := 16) (r := 1) (o := 0)
@@ -154,10 +155,10 @@ theorem ood_b38 (h : Parts a s layout target coefficients point slices cs z valu
       rw [off_zero, ← off_off]
       exact hc1.out.scs.getElem hj)
   refine h.run hp b39_in_code (List.cons_ne_nil _ _)
-    (hpc1.trans (by rw [show b38.length = 4 from rfl])) hok1 (hwf2 _) (hm2 _) run_b39 (o := 8)
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b38_next)) hok1 (hwf2 _) (hm2 _) run_b39 (o := 8)
     (by decide +kernel) (by decide) fun st2 hok2 hs2 hm2' hpc2 ↦ ?_
   simp only [PcOk] at hpc2
-  rw [hp.label (j := 183) rfl] at hpc2
+  rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_34_at] at hpc2
   have hc2 := Acc.blk h hc1 (hwf2 _) hm2' hok2 hs2 rfl (by decide +kernel) (by decide +kernel)
   have e2_15 : reg st2.data .r15 = oA m0 := by rw [regKeep hm2' .r15 rfl]; exact e1_15
   -- `b41`: the out-of-domain value, the layout, `EW::mul`
@@ -171,7 +172,7 @@ theorem ood_b38 (h : Parts a s layout target coefficients point slices cs z valu
       ⟨by show reg st2.data .r15 = _
           rw [e2_15, show BitVec.ofInt 64 0 = 0#64 from rfl, BitVec.add_zero]; rfl, trivial⟩
   have hval := ew_loads (d := st2.data) (vs := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 183 + b41.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b41Offset + b41.length)).toBitVec)
     (rs := [(stackBelow m0 512, 520), (oA m0, 504)]) (b := oA m0) (n := 504) (r := 1) (o := 488)
     (x := value) rfl
     (NativeRustcVm.Layout.EWAt.of_same h.ood.2 ((hok2.same_in h mem_ood).sub (o := 488) (k := 16)
@@ -203,7 +204,7 @@ theorem ood_b38 (h : Parts a s layout target coefficients point slices cs z valu
     rw [hsj.1, hsj.2, hval.1, hval.2]
     rfl
   have hfw4 := hfw3.call hfs4 (le_of_map [24, 40, 48, 56, 64, 32, 80, 88, 72] rfl (by decide))
-  refine cont st4 (hpc4.trans (by rw [show b41.length = 5 from rfl]))
+  refine cont st4 (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b41_next))
     ⟨hok4, Outs.keep h hout3 hk4 hs4, hfw4.left, hfw4.right.get List.mem_cons_self,
       by rw [hcs4 .rbx rfl, regKeep hm3' .rbx rfl]; exact hc2.rbx,
       by rw [hprod, ← hclaim], by rw [hcs4 .r14 rfl]; exact e3_14,

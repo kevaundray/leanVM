@@ -54,8 +54,8 @@ theorem step (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre) 
     (hp3 : p < 3) {cur : List UInt8} (hcur : cur.length = 16) {R : MachineState → Prop}
     {m : MachineData} (hA : r.AtStep i p cur m)
     (cont : ∀ m', r.AtStep i (p + 1) (th r.pp (r.tw p) (cur ++ u128Bytes i)) m' →
-      Eventually (step1 Host.exe) R ⟨m', if p + 1 = 3 then r.pc 515 else r.pc 191⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 191⟩ :=
+      Eventually (step1 Host.exe) R ⟨m', if p + 1 = 3 then r.pc NativeRustcX64.Xmss.WotsLeaf.b48Offset else r.pc NativeRustcX64.Xmss.WotsLeaf.b17Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b17Offset⟩ :=
   seg_b17 hp hc hpre hp3 hcur hA fun m' h ↦ cont m' (by rw [← stepOut_eq r i p hcur]; exact h)
 
 /-- **The steps from position `p`**: `k + 1` steps to position 3 leave `chain` from `p`; then
@@ -65,8 +65,8 @@ theorem steps (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre)
     ∀ (k p : Nat) {v : List UInt8} {m : MachineData}, p + (k + 1) = 3 → v.length = 16 →
       r.AtStep i p v m →
       (∀ m', r.AtStep i 3 (chain r.pp r.layer r.e i p (k + 1) v) m' →
-        Eventually (step1 Host.exe) R ⟨m', r.pc 515⟩) →
-      Eventually (step1 Host.exe) R ⟨m, r.pc 191⟩
+        Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Xmss.WotsLeaf.b48Offset⟩) →
+      Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b17Offset⟩
   | 0, p, v, m, hk, hv, hA, cont =>
     step hp hc hpre (by omega) hv hA fun m' h ↦ by
       have h3 : p + 1 = 3 := by omega

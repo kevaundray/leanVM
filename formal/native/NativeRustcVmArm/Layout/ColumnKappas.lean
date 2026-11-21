@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ColumnKappas.Names
 public import NativeRustcVmArm.Layout.ColumnKappas.Exec
 public import NativeRustcVmArm.Layout.Body
 public import NativeVm.Code.Phase1.Math
@@ -39,12 +40,12 @@ theorem srcOf_le (c : Nat) : srcOf c ≤ 8 := by
 
 variable [Host] {k : Nat}
 
-theorem lbl_entry (hp : Placed code k) : Labels.label columnKappasLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.ColumnKappas.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.ColumnKappas.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.ColumnKappas.entryOffset) NativeRustcVmArm.Vm.ColumnKappas.entry_at
 
 /-- **`column_kappas` meets its contract.** -/
 theorem columnKappas_spec (hp : Placed code k) :
-    Spec (Labels.label columnKappasLabel) ColumnKappasPre ColumnKappasPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.ColumnKappas.entryLabel) ColumnKappasPre ColumnKappasPost := by
   rintro m ⟨hro, hrh, hap, hq⟩
   rw [lbl_entry hp]
   let env := Env.ofMachine m [(m.regs.X0.toBitVec, kappasBytes), (m.regs.X3.toBitVec, 48)]

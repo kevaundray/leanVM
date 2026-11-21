@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.SubspaceTable.Layer
+public import NativeRustcVmX64.Code.Vm.Memset.Names
 
 /-!
 # `subspace_table`: from the entry to the turns (x86-64)
@@ -27,12 +28,12 @@ variable [Host] {k : Nat}
 
 /-- From `b9` (`b10` next) with the first `μ - μ % 8` words set: `Init μ` at `b11`. -/
 theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 70))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b9Offset))
     (hI : Init m0 (muOf m0 / 8 * 8) st.data)
     (hr15 : reg st.data .r15 = fbOf m0 + BitVec.ofNat 64 (552 + 8 * (muOf m0 / 8 * 8)))
     (hrdx : reg st.data .rdx = BitVec.ofNat 64 (muOf m0 / 8 * 8))
     (hrax : reg st.data .rax = BitVec.ofNat 64 (muOf m0 % 8)) (h8 : 0 < muOf m0 % 8) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 81) ∧ Init m0 (muOf m0) s.data)
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b11Offset) ∧ Init m0 (muOf m0) s.data)
       st := by
   refine exec_at (hb9 hp) run_b9 (Env.wf_nil _) (by intro l h; cases h) hpc (match_nil _)
     fun st1 hm1 hpc1 ↦ ?_
@@ -46,8 +47,8 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0
       (Match.reg_eq (r := .rax) (match_nil _) hm1 rfl rfl).trans hrax⟩
     · unfold OutAt; rw [hd1]; exact hI.out
     · rw [hd1, Nat.add_zero]; exact hI.layer
-  have hpc1' : st1.pc = Host.addrOf (k + 73) := hpc1
-  refine Sym.loop (fun n s ↦ ∃ j, n = muOf m0 % 8 - j ∧ s.pc = Host.addrOf (k + 73) ∧
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b10Offset) := hpc1
+  refine Sym.loop (fun n s ↦ ∃ j, n = muOf m0 % 8 - j ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b10Offset) ∧
     TInv m0 j s.data) (fun n s ⟨j, hn, hpc, hT⟩ ↦ ?_) ⟨0, rfl, hpc1', hT0⟩
   have hs := hT.hs
   refine (tturn hp hpre hpc hT).mono fun s' h ↦ ?_
@@ -56,11 +57,11 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0
   · exact .inl h
 
 /-- **From the entry to the turns**: `None` (μ ≥ 32) at the epilogue, or the layer at `b11`. -/
-theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") MemsetPre MemsetPost)
+theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
     {m0 : MachineData} (hpre : SubspaceTablePre m0) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 215) ∧ Fr m0 s.data ∧
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b24Offset) ∧ Fr m0 s.data ∧
       WordAt s.data.dmem (reg m0 .rdi) 0 ∧ 32 ≤ muOf m0) ∨
-      (s.pc = Host.addrOf (k + 81) ∧ Init m0 (muOf m0) s.data)) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b11Offset) ∧ Init m0 (muOf m0) s.data)) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b0Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, hout⟩ := hpre'
   obtain ⟨hF, -, -, -⟩ := stack_le
@@ -87,9 +88,9 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
   obtain ⟨hT1, hF1⟩ := Arrays.pc_cond hpc1
   by_cases hbig : 32 ≤ muOf m0
   · -- `b5`: `None`
-    have hpc1' : st1.pc = Host.addrOf (k + 30) :=
+    have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b5Offset) :=
       (hT1 (by rw [Bool.not_eq_true', decide_eq_false_iff_not]; unfold muOf at hbig; omega)).trans
-        (hp.label (j := 30) rfl)
+        (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_1_at)
     have hrd : Readable st1.data (reg m0 .rdi) 8 :=
       Readable.keep (Readable.mono hout.1 (by omega)) hfr1.kept
     have hwf : (Env.ofMachine st1.data [(reg m0 .rdi, 8)]).WF :=
@@ -113,9 +114,9 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
     have htag := wordAt_of_write hm2 (r := 0) (o := 0) rfl (by decide) hv2
     rw [NativeRustcVm.addr_add_zero] at htag
     simp only [PcOk] at hpc2
-    exact .done _ (.inl ⟨hpc2.trans (hp.label (j := 215) rfl), hfr2, htag, hbig⟩)
+    exact .done _ (.inl ⟨hpc2.trans (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_2_at), hfr2, htag, hbig⟩)
   have hmu32 : muOf m0 < 32 := by omega
-  have hpc1' : st1.pc = Host.addrOf (k + 15 + 2) :=
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b2Offset) :=
     hF1 (by rw [Bool.not_eq_true', decide_eq_false_iff_not, not_not]; unfold muOf at hmu32; omega)
   -- `b2`: the output spilled
   have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
@@ -150,9 +151,9 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
   have hinit0 : Init m0 0 st2.data :=
     ⟨hfr2, hout2, hlay2, (e2 .r14 (by simp)).trans hr14, hmu32⟩
   by_cases h0 : muOf m0 = 0
-  · exact .done _ (.inr ⟨(hT2 (by rw [decide_eq_true_eq]; exact h0)).trans (hp.label (j := 81) rfl),
+  · exact .done _ (.inr ⟨(hT2 (by rw [decide_eq_true_eq]; exact h0)).trans (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_11_at),
       h0 ▸ hinit0⟩)
-  have hpc2' : st2.pc = Host.addrOf (k + 15 + 2 + 3) := hF2 (by rw [decide_eq_true_eq]; exact h0)
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b3Offset) := hF2 (by rw [decide_eq_true_eq]; exact h0)
   -- `b3`: `μ - μ % 8` and `μ % 8`
   obtain ⟨hv1, hv2, hv3, hv4⟩ := b3_vals (muOf m0) hmu32 (by omega)
   refine exec_at (hb3 hp) run_b3 (Env.wf_nil _) (by intro l h; cases h) hpc2' (match_nil _)
@@ -190,9 +191,9 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
   obtain ⟨hT3, hF3⟩ := Arrays.pc_cond hpc3
   by_cases hge : 8 ≤ muOf m0
   · -- `b6`, `b7`: eight words at a time
-    have hpc3' : st3.pc = Host.addrOf (k + 33) :=
+    have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b6Offset) :=
       (hT3 (by rw [Bool.not_eq_true', decide_eq_false_iff_not]; omega)).trans
-        (hp.label (j := 33) rfl)
+        (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_6_at)
     have hwf6 := hfr3.wf (vars := fun _ ↦ 0) (ret := 0) hS hF
     refine exec_at (hb6 hp) run_b6 hwf6 (by intro l h; cases h) hpc3' hfr3.mid_match
       fun st4 hm4 hpc4 ↦ ?_
@@ -208,13 +209,13 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
         show BinOp.apply .and .W64 (reg st3.data .rsi) (BitVec.ofNat 64 18446744073709551608) = _
         rw [hrsi3, hv4]
       · exact (Match.reg_eq (r := .rax) hfr3.mid_match hm4 rfl rfl).trans hrax3
-    have hpc4' : st4.pc = Host.addrOf (k + 38) := hpc4
+    have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b7Offset) := hpc4
     have hloop := Sym.loop (tr := step1 Host.exe)
-      (Q := fun s ↦ s.pc = Host.addrOf (k + 38 + 30) ∧ Init m0 (muOf m0 / 8 * 8) s.data ∧
+      (Q := fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b8Offset) ∧ Init m0 (muOf m0 / 8 * 8) s.data ∧
         reg s.data .r15 = fbOf m0 + BitVec.ofNat 64 (552 + 8 * (muOf m0 / 8 * 8)) ∧
         reg s.data .rdx = BitVec.ofNat 64 (muOf m0 / 8 * 8) ∧
         reg s.data .rax = BitVec.ofNat 64 (muOf m0 % 8))
-      (fun n s ↦ ∃ d, n = muOf m0 - d ∧ s.pc = Host.addrOf (k + 38) ∧ VInv m0 d s.data)
+      (fun n s ↦ ∃ d, n = muOf m0 - d ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b7Offset) ∧ VInv m0 d s.data)
       (fun n s ⟨d, hn, hpc, hV⟩ ↦ by
         have := hV.hlt
         refine (vturn hp hpre hpc hV).mono fun s' h ↦ ?_
@@ -236,14 +237,14 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
     obtain ⟨hT6, hF6⟩ := Arrays.pc_cond hpc6
     by_cases hz : muOf m0 % 8 = 0
     · exact .done _ (.inr ⟨(hT6 (by rw [decide_eq_true_eq]; exact hz)).trans
-        (hp.label (j := 81) rfl), (show muOf m0 / 8 * 8 = muOf m0 by omega) ▸ hI6⟩)
+        (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_11_at), (show muOf m0 / 8 * 8 = muOf m0 by omega) ▸ hI6⟩)
     · exact (tail hp hpre (hF6 (by rw [decide_eq_true_eq]; exact hz)) hI6
         ((Match.reg_eq (r := .r15) (match_nil _) hm6 rfl rfl).trans hr155)
         ((Match.reg_eq (r := .rdx) (match_nil _) hm6 rfl rfl).trans hrdx5)
         ((Match.reg_eq (r := .rax) (match_nil _) hm6 rfl rfl).trans hrax5) (by omega)).mono
         fun _ h ↦ .inr h
   · -- `b4`: one word at a time from the first
-    have hpc3' : st3.pc = Host.addrOf (k + 15 + 2 + 3 + 8) :=
+    have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b4Offset) :=
       hF3 (by rw [Bool.not_eq_true', decide_eq_false_iff_not, not_not]; omega)
     refine exec_at (hb4 hp) run_b4 (Env.wf_nil _) (by intro l h; cases h) hpc3' (match_nil _)
       fun st4 hm4 hpc4 ↦ ?_
@@ -251,7 +252,7 @@ theorem entry (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
     have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq (Env.wf_nil _) rfl
     have hq : muOf m0 / 8 * 8 = 0 := by omega
     simp only [PcOk] at hpc4
-    refine (tail hp hpre (hpc4.trans (hp.label (j := 70) rfl)) ?_ ?_ ?_ ?_ (by omega)).mono
+    refine (tail hp hpre (hpc4.trans (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_9_at)) ?_ ?_ ?_ ?_ (by omega)).mono
       fun _ h ↦ .inr h
     · rw [hq]
       exact ⟨hfr4, by unfold OutAt; rw [hd4]; exact hinit3.out, by rw [hd4]; exact hinit3.layer,

@@ -125,12 +125,12 @@ theorem none_step {i : Nat} {st : MachineData} (hl : Loop m0 ba b v i st) (hi : 
 
 /-- From `b12`: the scale. -/
 theorem col_scale (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 75)) (hl : Loop m0 ba b v i st.data) (hi : i < v.cs.size)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b12Offset)) (hl : Loop m0 ba b v i st.data) (hi : i < v.cs.size)
     (hc : v.cs[i].column < 158) {pl : Placement}
     (hgd : (v.L.placements[v.cs[i].column]?).getD none = some pl)
     (hx8 : st.data.regs.X8.toBitVec = pA ba v.cs[i].column)
     {R : MachineState → Prop}
-    (hb15 : ∀ st' : MachineState, ∀ pl, st'.pc = Host.addrOf (k + 83) →
+    (hb15 : ∀ st' : MachineState, ∀ pl, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b15Offset) →
       AtB15 m0 ba b v i pl st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hf := hl.keep.fr
@@ -147,7 +147,7 @@ theorem col_scale (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machin
   have hsz := h.pre.2.1.scales_size
   by_cases hj : ba.count ≤ (ws v (xpt m0) i).size
   · simp only [hj, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 79) rfl] at hpc1
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b14Offset) NativeRustcVmArm.Vm.BasisWEval.label_11_at] at hpc1
     refine hf1.regsBlock (inf hp b14_in_code (by simp [b14])) run_b14 hpc1 rfl rfl (by rfl)
       fun st2 hf2 hd2 hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
@@ -169,7 +169,7 @@ theorem col_scale (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machin
       rw [show st1.data.regs.X29 = st1.data.regs.getXReg .X29 from rfl, hk1 .X29]
       exact hl.acc.x29
   · simp only [hj, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    rw [show k + 75 + b12.length = k + 77 from rfl] at hpc1
+    rw [show k + NativeRustcVmArm.Vm.BasisWEval.b12Offset + b12.length = k + NativeRustcVmArm.Vm.BasisWEval.b13Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b12_next]] at hpc1
     have hj' : (ws v (xpt m0) i).size < ba.count := by omega
     have hsin := h.scaleIn hj'
     let env := Env.ofMachine st1.data
@@ -186,7 +186,7 @@ theorem col_scale (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machin
         trivial trivial trivial
     refine exec_at (inf hp b13_in_code (by simp [b13])) run_b13 hwf hpc1 hm fun st2 hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
-    rw [hp.label (j := 83) rfl] at hpc2
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b15Offset) NativeRustcVmArm.Vm.BasisWEval.label_12_at] at hpc2
     have hf2 : Fr1 m0 st2.data :=
       Fr.ofBlock hf1 hm hm2 hwf rfl rfl rfl (fun _ h ↦ absurd h (by simp))
     have hk2 : ∀ r : XReg, r ≠ .X26 → r ≠ .X27 → r ≠ .X28 →
@@ -209,13 +209,13 @@ theorem col_scale (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machin
 
 /-- From `b11`: the placement entry, then the scale. -/
 theorem col_place (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 70)) (hl : Loop m0 ba b v i st.data) (hi : i < v.cs.size)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b11Offset)) (hl : Loop m0 ba b v i st.data) (hi : i < v.cs.size)
     (hc : v.cs[i].column < 158)
     (hx8 : (st.data.regs.getXReg .X8).toBitVec = BitVec.ofNat 64 v.cs[i].column)
     {R : MachineState → Prop}
-    (hb9 : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 62) → AtB9 m0 ba b v i st'.data →
+    (hb9 : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b9Offset) → AtB9 m0 ba b v i st'.data →
       Eventually (step1 Host.exe) R st')
-    (hb15 : ∀ st' : MachineState, ∀ pl, st'.pc = Host.addrOf (k + 83) →
+    (hb15 : ∀ st' : MachineState, ∀ pl, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b15Offset) →
       AtB15 m0 ba b v i pl st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hf := hl.keep.fr
@@ -262,7 +262,7 @@ theorem col_place (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machin
     rw [Ring.load_word (env := env) hpw', show ((0 : UInt64).toBitVec == 0#64) = true from rfl]
       at hpc2
     simp only [↓reduceIte] at hpc2
-    rw [hp.label (j := 62) rfl] at hpc2
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b9Offset) NativeRustcVmArm.Vm.BasisWEval.label_6_at] at hpc2
     refine hb9 st2 hpc2 (none_step hl2 hi ?_)
     rw [Array.getElem?_eq_getElem hidx, hpl]; rfl
   | some pl =>
@@ -271,7 +271,7 @@ theorem col_place (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machin
     rw [Ring.load_word (env := env) htag, show ((1 : UInt64).toBitVec == 0#64) = false from rfl]
       at hpc2
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc2
-    rw [show k + 70 + b11.length = k + 75 from rfl] at hpc2
+    rw [show k + NativeRustcVmArm.Vm.BasisWEval.b11Offset + b11.length = k + NativeRustcVmArm.Vm.BasisWEval.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b11_next]] at hpc2
     have hx8' : st2.data.regs.X8.toBitVec = pA ba v.cs[i].column := by
       refine (reg_val hm2 (r := .X8) rfl).trans ?_
       show placeSym.eval env = _
@@ -283,11 +283,11 @@ theorem col_place (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machin
 
 /-- **Column claim `i`**, from `b10` to `b9` (no placement) or `b15`. -/
 theorem col_head (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 66)) (hl : Loop m0 ba b v i st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b10Offset)) (hl : Loop m0 ba b v i st.data)
     {R : MachineState → Prop}
-    (hb9 : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 62) → AtB9 m0 ba b v i st'.data →
+    (hb9 : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b9Offset) → AtB9 m0 ba b v i st'.data →
       Eventually (step1 Host.exe) R st')
-    (hb15 : ∀ st' : MachineState, ∀ pl, st'.pc = Host.addrOf (k + 83) →
+    (hb15 : ∀ st' : MachineState, ∀ pl, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b15Offset) →
       AtB15 m0 ba b v i pl st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hf := hl.keep.fr
@@ -339,10 +339,10 @@ theorem col_head (hp : Placed code k) (h : In m0 ba b v) {i : Nat} {st : Machine
     rw [l0]; rfl
   by_cases hc : v.cs[i].column < 158
   · simp only [hc, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc1
-    rw [show k + 66 + b10.length = k + 70 from rfl] at hpc1
+    rw [show k + NativeRustcVmArm.Vm.BasisWEval.b10Offset + b10.length = k + NativeRustcVmArm.Vm.BasisWEval.b11Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b10_next]] at hpc1
     exact col_place hp h hpc1 hl1 hi hc hx8 hb9 hb15
   · simp only [hc, decide_false, Bool.not_false, ↓reduceIte] at hpc1
-    rw [hp.label (j := 62) rfl] at hpc1
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b9Offset) NativeRustcVmArm.Vm.BasisWEval.label_6_at] at hpc1
     have hnone : (v.L.placements[v.cs[i].column]?).getD none = none := by
       rw [Array.getElem?_eq_none (by rw [h.layout.placements_size]; unfold columnCountW; omega)]
       rfl

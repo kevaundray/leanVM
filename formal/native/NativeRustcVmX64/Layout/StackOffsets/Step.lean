@@ -91,7 +91,7 @@ theorem fail_end (hp : Placed code k) (hpre : StackOffsetsPre m0) {st : MachineS
   have hrax1 : reg st1.data .rax = 0#64 :=
     (kp hm1 hK (rs' := [Reg64.rax]) (by simp) .rax (by simp)).trans hrax
   refine hb1.done hst (by decide) (b25_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b25
-    (hpc1.trans (hp.label (j := 121) rfl)) (match0 hb1) hok25 hmem25
+    (hpc1.trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_21_at)) (match0 hb1) hok25 hmem25
     fun st2 hm2 hpc2 hrsp2 hsv2 hd2 ↦ ⟨hpc2, hrsp2, ?_, fun q hq ↦ by
       rw [hd2]; exact hb1.same q hq, hsv2⟩
   split
@@ -100,9 +100,9 @@ theorem fail_end (hp : Placed code k) (hpre : StackOffsetsPre m0) {st : MachineS
 
 /-- **A turn of the main loop** from its head: the end, a failure or one more block placed. -/
 theorem step (hp : Placed code k) (hpre : StackOffsetsPre m0) (hcap : n m0 ≤ cap m0) {j : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 100)) (hL : Loop m0 j st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b18Offset)) (hL : Loop m0 j st.data) :
     Eventually (step1 Host.exe) (fun s ↦ Fail k m0 s ∨ End k m0 s ∨
-      (s.pc = Host.addrOf (k + 100) ∧ Loop m0 (j + 1) s.data)) st := by
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b18Offset) ∧ Loop m0 (j + 1) s.data)) st := by
   have hst : StackOk m0 1344 := hpre.1
   have hn : n m0 ≤ 158 := hpre.2.1
   have hoff : OffStack m0 (out m0) (8 * cap m0) 1344 := hpre.2.2.2.2.2.1
@@ -138,7 +138,7 @@ theorem step (hp : Placed code k) (hpre : StackOffsetsPre m0) (hcap : n m0 ≤ c
     rw [e1, e2])
   by_cases hj : j = n m0
   · subst hj
-    exact .done _ (Or.inr (Or.inl ⟨(hy rfl).trans (hp.label (j := 114) rfl),
+    exact .done _ (Or.inr (Or.inl ⟨(hy rfl).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_22_at),
       ⟨hb1, hR1, hL.le, hsi1, hbp1, hdx1, hax1, hordw1, hout1⟩⟩))
   have hjn : j < n m0 := by have := hL.le; omega
   have hjo : j < (ord m0).size := by rw [ord_size]; exact hjn
@@ -292,7 +292,7 @@ theorem step (hp : Placed code k) (hpre : StackOffsetsPre m0) (hcap : n m0 ≤ c
   -- `b17`: the total plus `2 ^ size`
   obtain ⟨hok17, hmem17, hsx17, hdx17, hK17⟩ := ok_b17
   refine step0 hst (b17_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b17 nofun
-    ((hy4 h63).trans (hp.label (j := 94) rfl)) hb4 hok17 hmem17 fun st5 hm5 hpc5 hb5 hd5 ↦ ?_
+    ((hy4 h63).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_19_at)) hb4 hok17 hmem17 fun st5 hm5 hpc5 hb5 hd5 ↦ ?_
   have hshl : ((Sym.bin .shl .W64 (.lit 1) (.reg .rcx)).eval
       (frameEnv m0 st4.data 1328 [] (fun _ ↦ 0) 0)).toNat = 2 ^ size m0 i := by
     show (BinOp.apply .shl .W64 (BitVec.ofNat 64 1) (reg st4.data .rcx)).toNat = _
@@ -304,7 +304,7 @@ theorem step (hp : Placed code k) (hpre : StackOffsetsPre m0) (hcap : n m0 ≤ c
     rw [addC_eval, hshl, hdx4'])
   have hax5 : reg st5.data .rax = 0#64 := (kreg hm5 hK17 (by simp)).trans hax4
   by_cases hc : 2 ^ 64 ≤ 2 ^ size m0 i + (P m0 j).2
-  · exact .done _ (Or.inl ⟨(hy5 hc).trans (hp.label (j := 112) rfl), hb5, hax5,
+  · exact .done _ (Or.inl ⟨(hy5 hc).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_20_at), hb5, hax5,
       not_fit_sum hjo (by rw [← hsi]; omega)⟩)
   refine .done _ (Or.inr (Or.inr ⟨hno5 hc, ⟨hb5, hR4.keep hm5 hK17 (sub1 _),
     by omega, ?_, (kreg hm5 hK17 (by simp [cs])).trans hbp4, ?_, hax5,

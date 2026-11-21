@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWAbsorb.Names
 public import NativeRustcVmArm.Transcript.FrameRun
 public import NativeRustcVmArm.Code.Vm.SpongeWAbsorb
 public meta import NativeRustcVmArm.Code.Vm.SpongeWAbsorb
@@ -35,7 +36,7 @@ def B0Ok (S : SState) (x : Exit) : Prop :=
   ProOk slots S = true ∧ (∀ w ∈ S.mem, w.r = 0 ∧ 0 ≤ w.off ∧ w.off + w.n ≤ 48) ∧
     S.reg .X8 = some (.load 1 296 8) ∧ S.reg .X19 = some (.reg .X3) ∧
     S.reg .X20 = some (.ptr 1 0) ∧ S.reg .X21 = some (.reg .X2) ∧ S.reg .X22 = some (.reg .X1) ∧
-    x = .cond (.cmp .ult .W64 (.load 1 296 8) (.lit 4)) ".LSpongeWAbsorb_2"
+    x = .cond (.cmp .ult .W64 (.load 1 296 8) (.lit 4)) NativeRustcVmArm.Vm.SpongeWAbsorb.label_2
 
 /-- What `b3` leaves for the count `n`. -/
 def PushOk (n : Nat) (S : SState) : Prop :=

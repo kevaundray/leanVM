@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.Entry0
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.SlotPre
 public import NativeRustcVm.Top.Phases
+public import NativeRustcVmX64.Code.Vm.SlotWeights.Names
 
 /-! # `keccak_open`: successful sumcheck and slot weights -/
 
@@ -37,11 +38,11 @@ public section
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
 theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
-    (hsw : ∀ c, Spec (Labels.label slotWeightsLabel) (SlotWeightsPre c) (SlotWeightsPost c))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 20)) (hsc : Sc a s m0 st.data)
+    (hsw : ∀ c, Spec (Labels.label NativeRustcVmX64.Vm.SlotWeights.entryLabel) (SlotWeightsPre c) (SlotWeightsPost c))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b1Offset)) (hsc : Sc a s m0 st.data)
     {s1 : TState} {sl : Array EW} {v : EW} (hrun : scRun s m0 = some ((sl, v), s1)) :
     Eventually (step1 Host.exe)
-      (fun st' ↦ st'.pc = Host.addrOf (k + 37) ∧ Sw a c m0 s1 sl v st'.data) st := by
+      (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b4Offset) ∧ Sw a c m0 s1 sl v st'.data) st := by
   have hn := nums h
   have := hn.r1; have := hn.r2; have := hn.s; have := hn.t; have := hn.w; have := hn.a
   have := hn.ss; have := hn.st; have := hn.sw; have := hn.sa; have := hn.sw'; have := hn.tw
@@ -65,9 +66,9 @@ theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
   have ht : (SBool.not (.cmp .eq .W32 (.load 0 88 4) (.lit 1))).eval
       (E m0 st.data (fun _ ↦ 0) 0) = false := by
     simp only [SBool.eval, Sym.eval, hl]; decide +kernel
-  have hp1 : st1.pc = Host.addrOf (k + 22) := by
+  have hp1 : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b2Offset) := by
     simp only [PcOk, ht, Bool.false_eq_true, ↓reduceIte] at hpc1
-    exact hpc1.trans (by rw [f1.1])
+    exact hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakOpen.b1_next)
   have hd1 := hm1.dmem_eq hwf f1.2.2.1
   have hb1 := body_unchanged h hsc.body hm1 f1.2.1 f1.2.2.1
   have regs1 : ∀ r ∈ [.rbx, .rbp, .r12, .r13, .r14], reg st1.data r = reg st.data r := by
@@ -76,7 +77,7 @@ theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
       have hh := List.all_eq_true.mp f1.2.2.2 r hr
       simpa only [beq_iff_eq] using hh)
   have hwf1 := wf_fold h hb1.fr.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 22 + b2.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b2Offset + b2.length)).toBitVec)
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) x2 hwf1 (fun _ _ ↦ rfl) hp1
     (body_match h hb1) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨_, hmid2, hwrites, hw8, hw72, hw80, hdi, hsi, hdx, hcx, h8, h9, h15, hkeep⟩ := f2
@@ -88,7 +89,7 @@ theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
   have hv0 : NativeRustcVm.WordAt st2.data.dmem (off (fbA m0) 80) v.c0 := by
     have hh := wordAt_write hm2 (r := 0) (o := 80) (v := .load 0 96 8) rfl (by decide) hw80
     change NativeRustcVm.WordAt _ _ (UInt64.ofBitVec ((E m0 st1.data (fun _ ↦ 0)
-      (Host.addrOf (k + 22 + b2.length)).toBitVec).load 0 96 8)) at hh
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b2Offset + b2.length)).toBitVec).load 0 96 8)) at hh
     rw [load_of_wordAt (w := v.c0) (by
       change NativeRustcVm.WordAt st1.data.dmem (off (fbA m0) 96) v.c0
       rw [hd1]; exact hval'.1), UInt64.ofBitVec_toBitVec] at hh
@@ -96,7 +97,7 @@ theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
   have hv1 : NativeRustcVm.WordAt st2.data.dmem (off (fbA m0) 72) v.c1 := by
     have hh := wordAt_write hm2 (r := 0) (o := 72) (v := .load 0 104 8) rfl (by decide) hw72
     change NativeRustcVm.WordAt _ _ (UInt64.ofBitVec ((E m0 st1.data (fun _ ↦ 0)
-      (Host.addrOf (k + 22 + b2.length)).toBitVec).load 0 104 8)) at hh
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b2Offset + b2.length)).toBitVec).load 0 104 8)) at hh
     rw [load_of_wordAt (w := v.c1) (by
       change NativeRustcVm.WordAt st1.data.dmem (off (fbA m0) 104) v.c1
       rw [hd1]; exact hval'.2), UInt64.ofBitVec_toBitVec] at hh
@@ -122,7 +123,7 @@ theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
   have yw : NativeRustcVm.WordAt st2.data.dmem (off (fbA m0) 8) (UInt64.ofBitVec (rwA m0)) := by
     have hh := wordAt_write hm2 (r := 0) (o := 8) (v := .load 3 40 8) rfl (by decide) hw8
     change NativeRustcVm.WordAt _ _ (UInt64.ofBitVec ((E m0 st1.data (fun _ ↦ 0)
-      (Host.addrOf (k + 22 + b2.length)).toBitVec).load 3 40 8)) at hh
+      (Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b2Offset + b2.length)).toBitVec).load 3 40 8)) at hh
     rw [load_arg h hb1.same (i := 5) (by decide)] at hh
     exact hh
   have hat := hb2.at h
@@ -222,7 +223,7 @@ theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
     · rw [inRange_iff' (by unfold NativeRustcVm.NoWrap; omega)]
       omega
   have hwf3 := wf_fold h hb3.fr.kept (vars := fun _ ↦ 0) (ret := 0)
-  have hp3 : st3.pc = Host.addrOf (k + 35) := hpc3.trans (by rw [f2.1])
+  have hp3 : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b3Offset) := hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakOpen.b2_next)
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) x3 hwf3 nofun hp3
     (body_match h hb3) fun st4 hm4 hpc4 ↦ ?_
   have ht3 : (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)).eval
@@ -238,9 +239,9 @@ theorem sw_run (hp : Placed code k) (h : PreOk a s c m0)
     decide +kernel
   have hd4 := hm4.dmem_eq hwf3 f3.2.2.1
   have hb4 := body_unchanged h hb3 hm4 f3.2.1 f3.2.2.1
-  have hp4 : st4.pc = Host.addrOf (k + 37) := by
+  have hp4 : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b4Offset) := by
     simp only [PcOk, ht3, Bool.false_eq_true, ↓reduceIte] at hpc4
-    exact hpc4.trans (by rw [f3.1])
+    exact hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakOpen.b3_next)
   refine .done _ ⟨hp4, hb4, ?_, ?_, ?_, ?_, hsz, ?_, ?_, ?_⟩
   · exact (hm4.regs .rbx (.reg .rbx) (by rw [after_eq e3]; rfl)).trans ((hsv.1 .rbx rfl).trans ybx)
   · exact (hm4.regs .r15 (.reg .r15) (by rw [after_eq e3]; rfl)).trans ((hsv.1 .r15 rfl).trans y15)

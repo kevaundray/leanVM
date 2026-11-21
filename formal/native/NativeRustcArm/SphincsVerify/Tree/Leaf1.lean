@@ -23,10 +23,10 @@ public section
 section
 variable {r : Run}
 
-/-- The pc after a block of `n` directives from `j`. -/
-theorem pc_after [Host] {k j n j' : Nat} {ds : List Directive} (h : ds.length = n) (hj : j + n = j') :
+/-- The pc after a block, from generated adjacency evidence. -/
+theorem pc_after [Host] {k j j' : Nat} {ds : List Directive} (h : j + ds.length = j') :
     Host.addrOf (k + j + ds.length) = Host.addrOf (k + j') := by
-  rw [h, Nat.add_assoc, hj]
+  rw [Nat.add_assoc, h]
 
 /-- **A write's bytes** in the frame. -/
 theorem write_bytes [Labels] {m m' : MachineData} {vars : Nat → BitVec 64} {S : SState}
@@ -77,8 +77,8 @@ variable {r}
 /-- **`b143` and `memset`.** -/
 theorem stage1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {m : MachineData} (h : r.AtWotsPk l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2173 ∧ AtL1 r l e st.data)
-      ⟨m, r.pc 2157⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b144Offset ∧ AtL1 r l e st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b143Offset⟩ := by
   obtain ⟨hl, hF, hIn, hSp, h21, h25, h26, hE, hElen⟩ := h
   have hB : Base r l m := ⟨hl, hF, ⟨hIn, hSp⟩, h21, h25, h26⟩
   have hwf := r.frame_wf hpre hF (fun _ ↦ 0)
@@ -107,7 +107,7 @@ theorem stage1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
       (by simp only [Sym.eval]; decide)
   refine call_then hpc hc.2.1 (r.memset_pre hpre hB1.2.1 h0 h2 (by decide)) fun st' hpc' hpost ↦ ?_
   obtain ⟨hz, hout, hS⟩ := r.memset_out h0 h2 hpost
-  refine .done _ ⟨hpc'.trans (pc_after (n := 16) (by rfl) (by decide)), hB1.of_call hpre hS (by decide) (by decide)
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b143_next), hB1.of_call hpre hS (by decide) (by decide)
     (by decide) hout, ?_, hElen, ?_, ?_⟩
   · exact r.bytesAt_of_call hpre hB1.2.1 (by decide) (by decide) hout (by omega)
       (by omega) hE1
@@ -119,8 +119,8 @@ theorem stage1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
 /-- **`b144`**: `update` of hasher A with `PK.seed`. -/
 theorem stage2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {m : MachineData} (h : AtL1 r l e m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2179 ∧ AtL2 r l e st.data)
-      ⟨m, r.pc 2173⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b145Offset ∧ AtL2 r l e st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b144Offset⟩ := by
   obtain ⟨hB, hE, hElen, hA, hH⟩ := h
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
   refine exec_then (hb144 hp) run_b144 hwf (match_base hpre hB) fun st hm hpc ↦ ?_
@@ -142,7 +142,7 @@ theorem stage2 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     (by decide) (by decide) (by decide) ⟨_, hH1⟩) fun st' hpc' hpost ↦ ?_
   obtain ⟨hh, hout, hS⟩ := r.update_out h0 h1 h2 hpost
   have hseed := seed_bytes hB1.2.2.1.1
-  refine .done _ ⟨hpc'.trans (pc_after (n := 6) (by rfl) (by decide)), hB1.of_call hpre hS (by decide) (by decide)
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b144_next), hB1.of_call hpre hS (by decide) (by decide)
     (by decide) hout, ?_, hElen, ?_, ?_⟩
   · exact r.bytesAt_of_call hpre hB1.2.1 (by decide) (by decide) hout (by omega)
       (by omega) (hd (by omega) hE)

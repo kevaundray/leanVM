@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RdRows.Names
 public import NativeRustcVmArm.Wire.PhaseM.Checks2
 
 /-!
@@ -52,10 +53,10 @@ variable [Host] {k : Nat}
 
 /-- **The rows.** -/
 theorem rows_run (hp : Placed code k) (G : Geo m0 bp B)
-    (hrows : Spec (Labels.label rdRowsLabel) RdRowsPre RdRowsPost) {count : Nat} {qs : List Nat}
+    (hrows : Spec (Labels.label NativeRustcVmArm.Vm.RdRows.entryLabel) RdRowsPre RdRowsPost) {count : Nat} {qs : List Nat}
     {height lw rw c5 : Nat} {st : MachineState}
-    (h : Chk m0 bp B c k count qs height lw rw c5 ⟨st.data, Host.addrOf (k + 75)⟩)
-    (hpc : st.pc = Host.addrOf (k + 89)) (h32 : height ≤ 32) (h64 : lw ≤ 64) (hrl : rw ≤ lw)
+    (h : Chk m0 bp B c k count qs height lw rw c5 ⟨st.data, Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b20Offset)⟩)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b24Offset)) (h32 : height ≤ 32) (h64 : lw ≤ 64) (hrl : rw ≤ lw)
     (hlast : (sortD qs).getLastD 0 < 2 ^ height) :
     Eventually (step1 Host.exe) (fun st' ↦ AtNone m0 B c k st' ∨
       ∃ rows c6, Rows m0 bp B c k count qs height lw rows c6 st') st := by
@@ -175,7 +176,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B)
       simp only [Env.ofMachine_regs]; rw [x0_bv hpost']; rfl) (.inr (.inr rfl))
     rw [hc] at hpc3
     simp only [true_or, decide_true, ↓reduceIte] at hpc3
-    exact .done _ (.inl ⟨hpc3.trans (hp.label (j := 64) rfl), hb3, by rw [hmod, ← hn, hrr]⟩)
+    exact .done _ (.inl ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb3, by rw [hmod, ← hn, hrr]⟩)
   rw [hrr] at hpost'
   obtain ⟨hflag, hlv, hrd2⟩ := hpost'
   have hmod' : phaseM B c = if 0 < rw ∧ ∀ r ∈ rows, r.getD 0 0 = 0 then none
@@ -198,7 +199,7 @@ theorem rows_run (hp : Placed code k) (G : Geo m0 bp B)
       · rfl
       · next hn' => exact absurd hz.2 hn'
     simp only [this, ↓reduceIte] at hpc3
-    refine .done _ (.inl ⟨hpc3.trans (hp.label (j := 64) rfl), hb3, ?_⟩)
+    refine .done _ (.inl ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at), hb3, ?_⟩)
     rw [hmod']
     split
     · rfl

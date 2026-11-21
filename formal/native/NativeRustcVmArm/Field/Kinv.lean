@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Kinv.Names
+public import NativeRustcVmArm.Code.Vm.KinvSq.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
 public import NativeRustcVmArm.Field.Kinv.Exec
 public import NativeRustcVmArm.Field.Prologue
 public import NativeRustcVmArm.Field.W32
@@ -70,39 +73,39 @@ theorem chain_eq (a : UInt64) : chain a = NativeVm.Model.kinv a := by
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b0Offset) :=
   b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _)
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 6) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b1Offset) :=
   b1_in_code.trans hp.1 (by rw [b1]; exact List.cons_ne_nil _ _)
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 8) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b2Offset) :=
   b2_in_code.trans hp.1 (by rw [b2]; exact List.cons_ne_nil _ _)
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 10) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b3Offset) :=
   b3_in_code.trans hp.1 (by rw [b3]; exact List.cons_ne_nil _ _)
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 12) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b4Offset) :=
   b4_in_code.trans hp.1 (by rw [b4]; exact List.cons_ne_nil _ _)
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 15) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b5Offset) :=
   b5_in_code.trans hp.1 (by rw [b5]; exact List.cons_ne_nil _ _)
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 17) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b6Offset) :=
   b6_in_code.trans hp.1 (by rw [b6]; exact List.cons_ne_nil _ _)
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 20) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b7Offset) :=
   b7_in_code.trans hp.1 (by rw [b7]; exact List.cons_ne_nil _ _)
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 22) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b8Offset) :=
   b8_in_code.trans hp.1 (by rw [b8]; exact List.cons_ne_nil _ _)
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 25) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b9Offset) :=
   b9_in_code.trans hp.1 (by rw [b9]; exact List.cons_ne_nil _ _)
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 27) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b10Offset) :=
   b10_in_code.trans hp.1 (by rw [b10]; exact List.cons_ne_nil _ _)
-theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + 30) :=
+theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b11Offset) :=
   b11_in_code.trans hp.1 (by rw [b11]; exact List.cons_ne_nil _ _)
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 32) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b12Offset) :=
   b12_in_code.trans hp.1 (by rw [b12]; exact List.cons_ne_nil _ _)
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 34) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b13Offset) :=
   b13_in_code.trans hp.1 (by rw [b13]; exact List.cons_ne_nil _ _)
-theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + 36) :=
+theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b14Offset) :=
   b14_in_code.trans hp.1 (by rw [b14]; exact List.cons_ne_nil _ _)
-theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + 38) :=
+theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b15Offset) :=
   b15_in_code.trans hp.1 (by rw [b15]; exact List.cons_ne_nil _ _)
-theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + 40) :=
+theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Kinv.b16Offset) :=
   b16_in_code.trans hp.1 (by rw [b16]; exact List.cons_ne_nil _ _)
 
 /-- The state before block `j`: X0, X19, X20, X21 hold `a0`, `a19`, `a20`, `a21`. -/
@@ -126,9 +129,9 @@ theorem keep [Labels] {d : MachineData} {S : SState} {st : MachineData}
   UInt64.toBitVec_inj.mp (hm.regs r _ h)
 
 /-- **A block calling `kmul`**: X0 times the register `r1` the block moves to X1. -/
-theorem kmul_blk (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost) {m0 m1 : MachineData}
+theorem kmul_blk (hkmul : Spec (Labels.label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost) {m0 m1 : MachineData}
     (hpre : KinvPre m0) {ds : List Directive} {j : Nat} {S' : SState} {r1 : XReg}
-    (hk : ds.IsInfixAt Host.prog (k + j)) (hrun : exec ds regS = some (S', .call kmulLabel))
+    (hk : ds.IsInfixAt Host.prog (k + j)) (hrun : exec ds regS = some (S', .call NativeRustcVmArm.Vm.Kmul.entryLabel))
     (hmem : S'.mem = []) (hsp : S'.sp = .sp) (hkeep : keepsExcept used S' = true)
     (h0 : S'.reg .X0 = some (.reg .X0)) (h1 : S'.reg .X1 = some (.reg r1))
     (h19 : S'.reg .X19 = some (.reg .X19)) (h20 : S'.reg .X20 = some (.reg .X20))
@@ -156,9 +159,9 @@ theorem kmul_blk (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost) {m0 m1
 
 /-- **A block calling `kinv::sq`** with the count `c` in W1, after moving X0 or nothing to each of
 X19, X20, X21. -/
-theorem sq_blk (hsq : Spec (Labels.label kinvSqLabel) KinvSqPre KinvSqPost) {m0 m1 : MachineData}
+theorem sq_blk (hsq : Spec (Labels.label NativeRustcVmArm.Vm.KinvSq.entryLabel) KinvSqPre KinvSqPost) {m0 m1 : MachineData}
     (hpre : KinvPre m0) {ds : List Directive} {j : Nat} {S' : SState} {c : Nat} {r19 r20 r21 : XReg}
-    (hk : ds.IsInfixAt Host.prog (k + j)) (hrun : exec ds regS = some (S', .call kinvSqLabel))
+    (hk : ds.IsInfixAt Host.prog (k + j)) (hrun : exec ds regS = some (S', .call NativeRustcVmArm.Vm.KinvSq.entryLabel))
     (hmem : S'.mem = []) (hsp : S'.sp = .sp) (hkeep : keepsExcept used S' = true)
     (h0 : S'.reg .X0 = some (.reg .X0)) (h1 : S'.reg .X1 = some (.lit c)) (hc : c < 2 ^ 32)
     (hc0 : c ≠ 0)
@@ -199,12 +202,12 @@ theorem sq_blk (hsq : Spec (Labels.label kinvSqLabel) KinvSqPre KinvSqPost) {m0 
   · exact (hq.2.2.1 .X21 rfl).trans e21
 
 /-- **`kinv` computes the inverse.** -/
-theorem kinv_spec (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
-    (hsq : Spec (Labels.label kinvSqLabel) KinvSqPre KinvSqPost) :
-    Spec (Labels.label kinvLabel) KinvPre KinvPost := by
+theorem kinv_spec (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hsq : Spec (Labels.label NativeRustcVmArm.Vm.KinvSq.entryLabel) KinvSqPre KinvSqPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.Kinv.entryLabel) KinvPre KinvPost := by
   intro m0 hpre
   have g := geo hpre
-  rw [show Labels.label kinvLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.Kinv.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Kinv.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.Kinv.entryOffset) NativeRustcVmArm.Vm.Kinv.entry_at]
   refine prologue (used := used) (slots := slots) g (hb0 hp) run_b0 rfl (by decide +kernel)
     (by decide +kernel) (by decide +kernel) fun st1 hm1 hpc1 hF1 hsl ↦ ?_
   have e0 : st1.data.regs.X0 = m0.regs.X0 := UInt64.toBitVec_inj.mp (hm1.regs .X0 _ rfl)

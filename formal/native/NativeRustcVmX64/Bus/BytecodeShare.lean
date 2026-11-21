@@ -1,6 +1,12 @@
 module
 
 public import NativeRustcVmX64.Bus.BytecodeShare.Check
+public import NativeRustcVmX64.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
 # `bytecode_share` on x86-64
@@ -38,10 +44,10 @@ variable [Host] {a : DecArea} {s0 : TState} {m0 : MachineData} {k : Nat}
 /-- **A `read_scalar` call** into the `Option<EW>` at offset `128`: its result there, the next
 `TState`, the frame's bytes outside `128` to `152` kept. -/
 theorem rs_call (h : BytecodeSharePre a s0 m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {s : TState} {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hf : BF m0 (OT m0) 0 st.data)
-    (hpc : st.pc = Labels.label readScalarLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel ∧ retOf st.data = next)
     (hdi : reg st.data .rdi = off (fa m0) 128) (hsi : reg st.data .rsi = tAt m0)
     (hts : TStateAt st.data.dmem (tAt m0) a s)
     (cont : ∀ m2 : MachineData, BF m0 (OT m0) 8 m2 →
@@ -107,10 +113,10 @@ theorem opt_some {d : Mem 64} {x : EW} (h : OptEWAt d (off (fa m0) 128) (some x)
 
 /-- **After the sumcheck** (`b3` to `b5`): the value read; the check. -/
 theorem after_sc (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hek : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {sh : EW} {r : Option ((Array EW × EW) × TState)} {st : MachineData}
     (hf : BF m0 (OT m0) 8 st) (h15 : reg st .r15 = tAt m0)
     (w120 : NativeRustcVm.WordAt st.dmem (off (fa m0) 120) sh.c0)
@@ -122,10 +128,10 @@ theorem after_sc (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     (hres : res s0 m0 = r.bind fun y ↦ (readScalar.run y.2).bind fun z ↦
       if (y.1.2 == dot (eqKernel y.1.1) (wts m0) * z.1) = true then
         some ((sh, slice m0 (bAt m0) (reg m0 .r8) ++ y.1.1, z.1), z.2) else none) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 36)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b3Offset)⟩ := by
   have c := ctx_of h
   have hwB : ∀ x : UInt64, (NativeRustcVm.wordBytes x).length = 8 := NativeRustcVm.length_wordBytes
-  have hl14 : Labels.label ".LBytecodeShare_14" = Host.addrOf (k + 113) := hp.label (j := 113) rfl
+  have hl14 : Labels.label NativeRustcVmX64.Vm.BytecodeShare.label_14 = Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b15Offset) := hp.label NativeRustcVmX64.Vm.BytecodeShare.label_14_at
   have hwf3 := wf_envB h hf.frame.kept 0
   refine exec_then (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf3 nofun (match_bodyS hf 0)
     fun st3 hm3 hpc3 ↦ ?_
@@ -158,9 +164,9 @@ theorem after_sc (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
       show CmpOp.apply .eq .W8 ((envB m0 st 0).load 0 128 1) (BitVec.ofNat 64 0) = false
       rw [ht]; decide
     simp only [hc, Bool.false_eq_true, ↓reduceIte] at hpc3
-    rw [show b3.length = 2 from rfl] at hpc3
+    rw [NativeRustcVmX64.Vm.BytecodeShare.b3_length] at hpc3
     -- `b4`: the claim kept, `read_scalar`.
-    have hwf4 := wf_envB h hf3.frame.kept (Host.addrOf (k + 38 + b4.length)).toBitVec
+    have hwf4 := wf_envB h hf3.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b4Offset + b4.length)).toBitVec
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf4 (fun _ _ ↦ rfl) hpc3
       (match_bodyS hf3 _) fun st4 hm4 hpc4 ↦ ?_
     obtain ⟨hmid4, hrdi4, hrsi4, hk4, hW96, hW104, hws4⟩ := ok_b4
@@ -228,7 +234,7 @@ theorem after_sc (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
         show CmpOp.apply .eq .W8 ((envB m0 m5 0).load 0 128 1) (BitVec.ofNat 64 0) = false
         rw [ht]; decide
       simp only [hc, Bool.false_eq_true, ↓reduceIte] at hpc6
-      rw [show b5.length = 2 from rfl] at hpc6
+      rw [NativeRustcVmX64.Vm.BytecodeShare.b5_length] at hpc6
       obtain ⟨d6, pc6⟩ := st6
       simp only at hpc6 hd6 hf6
       subst hpc6
@@ -238,22 +244,22 @@ theorem after_sc (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
         (by rw [hres, hr]; simp [hr3])
 /-- **After the share** (`b1`, `b2`): the sumcheck over the slot point. -/
 theorem after_share (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hsc : ∀ s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hsc : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hek : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st : MachineData} (hf : BF m0 (OT m0) 8 st) (h15 : reg st .r15 = tAt m0)
     (hout : OptEWAt st.dmem (off (fa m0) 128) ((readScalar.run s0).map (·.1)))
     (hnext : NextAt st.dmem (tAt m0) a (readScalar.run s0)) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 16)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b1Offset)⟩ := by
   have c := ctx_of h
   have hfnw := c.noWrap_frame
   unfold NativeRustcVm.NoWrap at hfnw
   have hfa : (fa m0).toNat = (stackBelow m0 432).toNat := rfl
   have hwB : ∀ x : UInt64, (NativeRustcVm.wordBytes x).length = 8 := NativeRustcVm.length_wordBytes
-  have hl14 : Labels.label ".LBytecodeShare_14" = Host.addrOf (k + 113) := hp.label (j := 113) rfl
+  have hl14 : Labels.label NativeRustcVmX64.Vm.BytecodeShare.label_14 = Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b15Offset) := hp.label NativeRustcVmX64.Vm.BytecodeShare.label_14_at
   have hwf1 := wf_envB h hf.frame.kept 0
   refine exec_then (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf1 nofun (match_bodyS hf 0)
     fun st1 hm1 hpc1 ↦ ?_
@@ -286,9 +292,9 @@ theorem after_share (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     show (!(CmpOp.apply .eq .W32 ((envB m0 st 0).load 0 128 4) (BitVec.ofNat 64 1))) = false
     rw [ht]; decide
   simp only [hc, Bool.false_eq_true, ↓reduceIte] at hpc1
-  rw [show b1.length = 2 from rfl] at hpc1
+  rw [NativeRustcVmX64.Vm.BytecodeShare.b1_length] at hpc1
   -- `b2`: the share kept, the slot point zeroed, the sumcheck.
-  have hwf2 := wf_envB h hf1.frame.kept (Host.addrOf (k + 18 + b2.length)).toBitVec
+  have hwf2 := wf_envB h hf1.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b2Offset + b2.length)).toBitVec
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf2 (fun _ _ ↦ rfl) hpc1
     (match_bodyS hf1 _) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hrdi2, hrsi2, hrdx2, hrcx2, hr8_2, hr9_2, hk2, hW8, hW112, hW120, hws2⟩ := ok_b2
@@ -363,7 +369,7 @@ theorem after_share (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
       · exact not_local h (by omega) (by omega) (by omega) hq
       · exact not_local h (by omega) (by omega) (by omega) hq
       · exact t_not_frame h (by omega) hq) hb
-  rw [show b2.length = 18 from rfl] at hpc3
+  rw [NativeRustcVmX64.Vm.BytecodeShare.b2_length] at hpc3
   obtain ⟨d3, pc3⟩ := st3
   simp only at hpc3 hf3 kc3 hopt3 hsl3 hnext3 hsv3
   subst hpc3
@@ -376,17 +382,17 @@ theorem after_share (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
 
 /-- **`bytecode_share`'s contract.** -/
 theorem bytecodeShare_spec (hp : Placed code k)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hsc : ∀ s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hsc : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label bytecodeShareLabel) (BytecodeSharePre a s0) (BytecodeSharePost a s0) := by
+    (hek : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.BytecodeShare.entryLabel) (BytecodeSharePre a s0) (BytecodeSharePost a s0) := by
   intro m0 h
   have c := ctx_of h
-  rw [show Labels.label bytecodeShareLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
-  let ret := (Host.addrOf (k + 0 + b0.length)).toBitVec
+  rw [show Labels.label NativeRustcVmX64.Vm.BytecodeShare.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b0Offset) from hp.label NativeRustcVmX64.Vm.BytecodeShare.entry_at]
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b0Offset + b0.length)).toBitVec
   have hwf := wf_envB h (m0 := m0) (d := m0) (fun _ h ↦ h) ret
   have hm : Match (envB m0 m0 ret) entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
@@ -405,7 +411,7 @@ theorem bytecodeShare_spec (hp : Placed code k)
   simp only [PcOk] at hpc
   refine rs_call h hrs hf hpc ((hm1.regs .rdi _ hrdi).trans (eval_ptr0 128)) (hm1.regs .rsi _ hrsi)
     hts fun m2 hf2 hopt hnext _ h15 ↦ ?_
-  rw [show b0.length = 16 from rfl]
+  rw [NativeRustcVmX64.Vm.BytecodeShare.b0_length]
   exact after_share hp h hrs hsc hek hdot hmul hf2 (h15.trans (hm1.regs .r15 _ hr15)) hopt hnext
 
 end

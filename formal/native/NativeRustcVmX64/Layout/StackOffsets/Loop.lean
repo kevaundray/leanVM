@@ -1,16 +1,17 @@
 module
 
 public import NativeRustcVmX64.Layout.StackOffsets.Front
+public import NativeRustcVmX64.Code.Vm.InsertionSortOfStackOffsets.Names
 
 /-!
 # `stack_offsets` on x86-64: the sort and the main loop (`b13` to `b21`)
 
 `b13` calls `insertion_sort` on the order array (`sorted`): the order array then holds the
-model's `ord`, and `b14` starts the main loop. At its head `.LStackOffsets_14` (`b18`, `Loop m0 j`)
+model's `ord`, and `b14` starts the main loop. At its head `NativeRustcVmX64.Vm.StackOffsets.label_14` (`b18`, `Loop m0 j`)
 the first `j` blocks of the order are placed (`OutAt`), RDX their total (`P m0 j`), RSI `8 j`.
 A turn (`step`): `b19` loads `i = order[j]`, `b20` stores the total at `offsets[i]`, `b21` loads
 `sizes[i]` and fails past `63` (`Fail`), `b17` adds `2 ^ size`, failing on a carry. With
-`j = n`, `b18` leaves for `.LStackOffsets_22` (`End`).
+`j = n`, `b18` leaves for `NativeRustcVmX64.Vm.StackOffsets.label_22` (`End`).
 -/
 
 namespace NativeRustcVmX64.Layout.StackOffsets
@@ -36,11 +37,11 @@ structure Loop (m0 : MachineData) (j : Nat) (d : MachineData) : Prop where
 
 /-- **A failure**: at `b22`, the blocks not fitting. -/
 abbrev Fail [Host] (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 112) ∧ B m0 8 s.data ∧ reg s.data .rax = 0#64 ∧ ¬OffsetsFit (sizes m0)
+  s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b22Offset) ∧ B m0 8 s.data ∧ reg s.data .rax = 0#64 ∧ ¬OffsetsFit (sizes m0)
 
 /-- **The loop's end**: at `b23`, every block placed. -/
 abbrev End [Host] (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 114) ∧ Loop m0 (n m0) s.data
+  s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b23Offset) ∧ Loop m0 (n m0) s.data
 
 end
 
@@ -95,9 +96,9 @@ variable [Host] {k : Nat}
 
 /-- `b13`, `b14`: the order sorted, the main loop's head. -/
 theorem sorted (hp : Placed code k)
-    (hsort : Spec (label insertionSortLabel) InsertionSortPre InsertionSortPost)
+    (hsort : Spec (label NativeRustcVmX64.Vm.InsertionSortOfStackOffsets.entryLabel) InsertionSortPre InsertionSortPost)
     (hpre : StackOffsetsPre m0) {st : MachineState} (h : At13 k m0 st) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 100) ∧ Loop m0 0 s.data) st := by
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b18Offset) ∧ Loop m0 0 s.data) st := by
   obtain ⟨hpc, hR⟩ := h
   have hst : StackOk m0 1344 := hpre.1
   have hn : n m0 ≤ 158 := hpre.2.1
@@ -106,10 +107,10 @@ theorem sorted (hp : Placed code k)
   have hfb := fb_toNat hst
   have hob := ob_toNat hst
   obtain ⟨hok, hw13, hK⟩ := ok_b13
-  refine run0 (ret := (Host.addrOf (k + 85 + b13.length)).toBitVec) hst
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b13Offset + b13.length)).toBitVec) hst
     (b13_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b13 (fun _ _ ↦ rfl) hpc hR.init.b
     (match0 hR.init.b) hok fun st1 hm1 hpc1 hb1 ↦ ?_
-  have hwf1 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 85 + b13.length)).toBitVec)
+  have hwf1 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b13Offset + b13.length)).toBitVec)
     hR.init.b hst (by decide)
   have hK1 := kp hm1 hK (rs' := [Reg64.rdi, .rsi, .rdx, .rcx]) (by simp)
   have x7 : reg st1.data .rdi = ob m0 := (hK1 .rdi (by simp)).trans hR.rdi
@@ -173,7 +174,7 @@ theorem sorted (hp : Placed code k)
   obtain ⟨hok14, hmem14, hax, hsx, hdx, hK14⟩ := ok_b14
   refine step0 hst (b14_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b14 nofun
     (hpc2.trans rfl) hb2 hok14 hmem14 fun st3 hm3 hpc3 hb3 hd3 ↦ .done _
-      ⟨hpc3.trans (hp.label (j := 100) rfl), hb3, hR2.of (kp hm3 hK14 (by simp [cs])),
+      ⟨hpc3.trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_14_at), hb3, hR2.of (kp hm3 hK14 (by simp [cs])),
         Nat.zero_le _, ?_, ?_, ?_, hm3.regs .rax _ hax, hd3 ▸ hw2, outAt_zero _ _⟩
   · show (st3.data.regs.get64 .rsi).toNat = _
     rw [hm3.regs .rsi _ hsx]; rfl

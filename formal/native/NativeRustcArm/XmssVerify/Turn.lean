@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcArm.XmssVerify.Bytes
 public import NativeRustcArm.XmssVerify.Calls
 
@@ -215,7 +217,7 @@ the rejection if it is `0`, else on. -/
 theorem tagBlock (P : Pre w m₀) {ds : List Directive} {j : Nat} {known : List (XReg × Sym)}
     {S' : SState} (hk : ds.IsInfixAt Host.prog j)
     (hx : exec ds (stF0 known) = some (S', .cond (.cmp .eq .W32 (.load 0 5408 1) (.lit 0))
-      ".LXmssVerify_9"))
+      NativeRustcArm.Xmss.XmssVerify.label_9))
     (hmem : S'.mem = []) (hsp : S'.sp = .ptr 0 0) (h29 : S'.reg .X29 = some (.reg .X29))
     (h29₀ : (stF0 known).reg .X29 = some (.reg .X29)) {st : MachineState}
     (hpc : st.pc = Host.addrOf j) (C : Common m₀ st.data)
@@ -224,7 +226,7 @@ theorem tagBlock (P : Pre w m₀) {ds : List Directive} {j : Nat} {known : List 
     {tag : UInt8} {rest : List UInt8} (htag : BytesAt st.data.dmem (ad m₀ (fb + 5408)) (tag :: rest))
     {R : MachineState → Prop}
     (cont : ∀ st' : MachineState,
-      st'.pc = (if tag = 0 then Labels.label ".LXmssVerify_9" else Host.addrOf (j + ds.length)) →
+      st'.pc = (if tag = 0 then Labels.label NativeRustcArm.Xmss.XmssVerify.label_9 else Host.addrOf (j + ds.length)) →
       Common m₀ st'.data → st'.data.dmem = st.data.dmem →
       (∀ r v, S'.reg r = some v →
         (st'.data.regs.getXReg r).toBitVec = v.eval (Env.ofMachine st.data [(ad m₀ fb, 5872)])) →

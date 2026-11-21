@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.OutFirst
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
 
 /-! # Extensions into the final output point -/
 
@@ -17,10 +18,10 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem outExtendStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {T T' S' : SState} {V : Vs} {ds : List Directive} {p0 : Nat}
     (hds : ds.IsInfixAt code p0) (hne : ds ≠ [])
-    (hrun : exec ds T = some (S', .call bufEW36ExtendLabel))
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.BufEW36Extend.entryLabel))
     (hw0 : frameW S' = true) (hsp : S'.reg .rsp = some (.ptr 0 48))
     (hdi : S'.reg .rdi = some (.load 0 3360 8))
     (hokS : okL (wsL S') = true) (hcov : coverL (wsL S') [(0, 88), (3296, 48)] = true)

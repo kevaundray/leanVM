@@ -1,11 +1,13 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.Keep
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.BufEW63Extend.Names
 
 /-!
 # `verify_bus_balance`'s count side (x86-64)
 
-From `b50` (`k + 380`, RSP at the frame's offset `8` after the pull side's `accumulate_side`):
+From `b50` (`k + NativeRustcVmX64.Vm.VerifyBusBalance.b50Offset`, RSP at the frame's offset `8` after the pull side's `accumulate_side`):
 `b50` checks the pull side's tag; `b51` keeps its total in RBX, R15 and calls `accumulate_side`
 on the count side (no fingerprints, the weights `&[ONE]`, `β = 0`); `b52` checks its tag; then
 the tail (`count_spec`).
@@ -35,11 +37,11 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The count side** (`b50`, `k + 380`). -/
+/-- **The count side** (`b50`, `k + NativeRustcVmX64.Vm.VerifyBusBalance.b50Offset`). -/
 theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
     {d : MachineData} {w pt tv mem : Array EW} {beta mf bf share : EW} {bp : Array EW}
     {s' : TState} (fr : St m0 8 d)
     (hrun : (verifyBusBalance L).run s0 = some (resultOf L w beta pt tv mem mf bf share bp, s'))
@@ -54,7 +56,7 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (xbp : reg d .rbp = (acc0 L w beta pt tv mem share).2.c1.toBitVec)
     (hts : TStateAt d.dmem (reg m0 .rdi) a s')
     (hcl : ClaimsWAt d.dmem (reg m0 .r9) (claimsOf L pt mem mf bf)) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 380)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b50Offset)⟩ := by
   have hS := pre_stack h
   have hbus := pre_bus h
   have psz := tm.psz
@@ -69,9 +71,9 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have k1 : ∀ r ∈ cs, reg st1.data r = reg d r := fun r hr ↦ hk1.reg hm1 hr
   -- `b51`: the count side's `accumulate_side`.
   have hwf2 := wf0 h fr1.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 383 + b51.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b51Offset + b51.length)).toBitVec)
   refine exec_at (infix_of b51_in_code (by simp [b51]) hp) exit_b51 hwf2 (fun _ _ ↦ rfl)
-    (hpc1.trans (by rw [show b50.length = 3 from rfl])) (match_fS fr1) fun st2 hm2 hpc2 ↦ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyBusBalance.b50_next)) (match_fS fr1) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hw2, wr2, hrdi, hrsi, hrdx, hrcx, hr8, hr9, hrbx, hr15, hk2⟩ := ok_b51
   have fr2 : St m0 0 st2.data := St.blk fr1 hS hwf2 hm2 hmid2 fun q hq ↦ wr0 hS hw2 (by omega) hq
   have hin2 := writesIn_of_mid hmid2
@@ -83,12 +85,12 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       (keepB hwf2 hm2 hin2 (j := _) (n := 8) (by omega) (miss0 hw2 (by omega))) le_rfl
   have ld : ∀ {o : Nat} {x : UInt64}, NativeRustcVm.WordAt d.dmem (loc m0 o) x →
       (frameEnv m0 st1.data 5520 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 383 + b51.length)).toBitVec).load 0 o 8 = x.toBitVec :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b51Offset + b51.length)).toBitVec).load 0 o 8 = x.toBitVec :=
     fun hw ↦ load_loc (hd1 ▸ hw)
   have sa : ∀ {i : Nat} {v : Sym}, 8 + 8 * i + 8 ≤ 5520 →
       (∀ t < 8, findWrite 0 (8 + 8 * i + t) (after b51 (fS 104)).mem = some (v, t)) →
       stackArg st2.data i = v.eval (frameEnv m0 st1.data 5520 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 383 + b51.length)).toBitVec) := fun hle hw ↦
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b51Offset + b51.length)).toBitVec) := fun hle hw ↦
     (stackArg_loc hsp2 (wordAt_write hm2 (r := 0) rfl (by omega) hw)).trans rfl
   have e0 : stackArg st2.data 0 = loc m0 4584 :=
     (sa (i := 0) (by omega) (wr2.find (List.Mem.head _))).trans (eval_ptr0 4584)
@@ -184,7 +186,7 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     ((congrArg₂ (slice st2.data) e3 e4).trans (one_slice hone.1)) (by rw [e5, e6]) hptv
     (by rw [e9, e10]) fun m3 fr3 hopt3 hF3 hfits3 hs3 hk3 hcs3 ↦ ?_
   -- `b52`: the count side's tag.
-  rw [show k + 383 + b51.length = k + 406 by rw [show b51.length = 23 from rfl]]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b51Offset + b51.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b52Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b51_next]]
   have hwf4 := wf0 h fr3.frame.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_then (infix_of b52_in_code (by simp [b52]) hp) exit_b52 hwf4 nofun (match_fS fr3)
     fun st4 hm4 hpc4 ↦ ?_
@@ -192,7 +194,6 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have fr4 := (fr3.block0 hS N_ge hwf4 hm4 hmid4 slots_le (by simp [hmem4])).1
   have hd4 : st4.data.dmem = m3.dmem := hm4.dmem_eq hwf4 hmem4
   simp only [PcOk, tag8_false hopt3.1, Bool.false_eq_true, ↓reduceIte] at hpc4
-  rw [show b52.length = 3 from rfl] at hpc4
   have tm4 : TailMem m0 pt st4.data.dmem := by
     rw [hd4]
     refine tm2.of_keep (keepIv_call hS hsp2 (by omega) hle hs3 (by decide) (by decide) fun j hj hq ↦ ?_)
@@ -242,7 +243,7 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     · exact .inl (loc_stack hS (by omega) hq)
     · exact .inr (inRange_mono hq formsBytes_le)
   obtain ⟨hts4, hcl4⟩ := tc_keep h hkept hall hX hts hcl
-  rw [show k + 406 + 3 = k + 409 by omega] at hpc4
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b52Offset + b52.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b53Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b52_next]] at hpc4
   refine at_pc hpc4 (tail_spec hp h hext fr4 hrun rfl tm4.w112 tm4.w104 tm4.w120 psz tm4.hpt
     (r13.trans x13) (rbp.trans xbp) rbx r15 (by rw [hd4]; exact ht2.1)
     (by rw [hd4]; rw [off_off] at ht2; exact ht2.2) (hd4 ▸ hF3) hts4 hcl4)

@@ -42,9 +42,9 @@ variable [NativeArm.Host] {c : KeccakClaimW} {m0 : MachineData} {k : Nat}
 
 /-- **A turn of the zeroing loop**. -/
 theorem zero_step (hp : Placed code k) (hpre : SlotWeightsPre c m0) {r : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 32)) (hI : ZeroInv m0 c r s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 32) ∧
-        ZeroInv m0 c (r + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + 132) ∧ ZeroDone m0 c s'.data))
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b3Offset)) (hI : ZeroInv m0 c r s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b3Offset) ∧
+        ZeroInv m0 c (r + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b4Offset) ∧ ZeroDone m0 c s'.data))
       s := by
   have hS := hpre.1
   have hr := hI.r_lt
@@ -94,7 +94,7 @@ theorem zero_step (hp : Placed code k) (hpre : SlotWeightsPre c m0) {r : Nat} {s
   have h8 := hm'.regs .X8 _ rfl
   have h9 := hm'.regs .X9 _ rfl
   have hx8 : (s.data.regs.getXReg .X8).toBitVec.toNat = 65536 - 1024 * r := hI.x8
-  simp only [PcOk, show b3.length = 100 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.SlotWeights.b3_length, NativeRustcVmArm.Vm.SlotWeights.b3Length] at hpc'
   sym_simp at hpc'
   simp only [Env.ofMachine_regs] at hpc'
   by_cases hlast : r = 63
@@ -110,7 +110,7 @@ theorem zero_step (hp : Placed code k) (hpre : SlotWeightsPre c m0) {r : Nat} {s
       simp at this
       omega
     simp only [hne, Bool.not_false, ite_true] at hpc'
-    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := 32) rfl), hb, hkeep, hloc, by omega, ?_, ?_,
+    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b3Offset) NativeRustcVmArm.Vm.SlotWeights.label_2_at), hb, hkeep, hloc, by omega, ?_, ?_,
       by rw [show 64 * (r + 1) = 64 * r + 64 by omega]; exact hrows⟩)
     · show (s'.data.regs.getXReg .X8).toBitVec.toNat = _
       rw [h8]
@@ -127,10 +127,10 @@ theorem zero_step (hp : Placed code k) (hpre : SlotWeightsPre c m0) {r : Nat} {s
 
 /-- **The zeroing loop**, to its end. -/
 theorem zero_loop (hp : Placed code k) (hpre : SlotWeightsPre c m0) {r : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 32)) (hI : ZeroInv m0 c r s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 132) ∧ ZeroDone m0 c s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b3Offset)) (hI : ZeroInv m0 c r s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b4Offset) ∧ ZeroDone m0 c s'.data)
       s :=
-  Sym.loop (fun n s ↦ ∃ r, n = 64 - r ∧ s.pc = Host.addrOf (k + 32) ∧ ZeroInv m0 c r s.data)
+  Sym.loop (fun n s ↦ ∃ r, n = 64 - r ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b3Offset) ∧ ZeroInv m0 c r s.data)
     (fun _ s ⟨r, hn, hpc, hI⟩ ↦ (zero_step hp hpre hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨64 - (r + 1), by have := hI.r_lt; omega, r + 1, rfl, hpc', hI'⟩
@@ -139,8 +139,8 @@ theorem zero_loop (hp : Placed code k) (hpre : SlotWeightsPre c m0) {r : Nat} {s
 
 /-- **`b4`**: the first segment's loop at bit `0`. -/
 theorem to_segA (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 132)) (hI : ZeroDone m0 c s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 144) ∧ SegA m0 c 0 s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b4Offset)) (hI : ZeroDone m0 c s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b6Offset) ∧ SegA m0 c 0 s'.data)
       s := by
   have hS := hpre.1
   have h176 : 176 ≤ slotWeightsStack := by decide
@@ -162,7 +162,7 @@ theorem to_segA (hp : Placed code k) (hpre : SlotWeightsPre c m0) {s : MachineSt
   have l1 := load_word (env := Env.ofMachine s.data [(fbA m0, 176)]) (r := 0) (off := 16 + 8) w1
   have x21 := hI.keep.x21
   have x22 := hI.keep.x22
-  refine .done _ ⟨hpc'.trans (hp.label (j := 144) rfl), ⟨hb, ⟨(kp .X19 (by simp)).trans hI.keep.x19,
+  refine .done _ ⟨hpc'.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b6Offset) NativeRustcVmArm.Vm.SlotWeights.label_5_at), ⟨hb, ⟨(kp .X19 (by simp)).trans hI.keep.x19,
     (kp .X20 (by simp)).trans hI.keep.x20, (kp .X21 (by simp)).trans x21,
     (kp .X22 (by simp)).trans x22⟩, hloc, by decide, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · apply UInt64.toBitVec_inj.mp

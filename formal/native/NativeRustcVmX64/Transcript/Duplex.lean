@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Transcript.Duplex.Exec
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWDuplex.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWDuplexInput.Names
 
 /-!
 # `SpongeW::duplex` on x86-64
@@ -28,9 +31,9 @@ variable [Host] {k : Nat}
 
 /-- **`SpongeW::duplex` meets its contract.** -/
 theorem duplex_spec (hp : Placed code k)
-    (hdi : ∀ sp, Spec (Labels.label duplexInputLabel) (DuplexInputPre sp) (DuplexInputPost sp))
-    (hkf : Spec (Labels.label keccakFLabel) KeccakFPre KeccakFPost) (sp : SpongeW) :
-    Spec (Labels.label duplexLabel) (DuplexPre sp) (DuplexPost sp) := by
+    (hdi : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplexInput.entryLabel) (DuplexInputPre sp) (DuplexInputPost sp))
+    (hkf : Spec (Labels.label NativeRustcVmX64.Vm.KeccakF.entryLabel) KeccakFPre KeccakFPost) (sp : SpongeW) :
+    Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp) := by
   rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
   set p := reg m0 .rdi with hpdef
   have hn : duplexStack ≤ (rspOf m0).toNat := hst.1
@@ -47,7 +50,7 @@ theorem duplex_spec (hp : Placed code k)
   have hrcnw : NativeRustcVm.NoWrap rcAddr 192 := hrc.2.1
   -- `b0`: the prologue, `call duplex_input`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 16) (rest := [(p, 328)]) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SpongeWDuplex.b0Offset + b0.length)).toBitVec)
     ⟨frame_mapped hst (by decide), hfnw⟩
     (by
       intro x hx
@@ -55,8 +58,8 @@ theorem duplex_spec (hp : Placed code k)
       subst hx
       exact ⟨hmap, hnw⟩)
     (List.pairwise_pair.mpr (Apart.symm' hapF))
-  unfold duplexLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.SpongeWDuplex.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial) fun st1 hm1 hpc1 => ?_
@@ -84,11 +87,11 @@ theorem duplex_spec (hp : Placed code k)
     Frame.call hf1 hsv2 hrsp2 hs2 (fun q hq ↦ hpF q hq) hfnw slots_le
   -- `b1`: `call keccak_f`.
   have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 16) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 4 + b1.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SpongeWDuplex.b1Offset + b1.length)).toBitVec)
     ⟨Mapped.keeps (frame_mapped hst (by decide)) hf2.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 (fun _ _ ↦ rfl)
-    (hpc2.trans (by rw [show b0.length = 4 from rfl]))
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWDuplex.b0_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid, hw3, hrdi3, hrbx3⟩ := after_eq run_b1 ▸ ok_b1
@@ -167,7 +170,7 @@ theorem duplex_spec (hp : Placed code k)
       exact ⟨Mapped.keeps hmap hf4.kept, hnw⟩)
     (List.pairwise_pair.mpr (Apart.symm' hapF))
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf4 nofun
-    (hpc4.trans (by rw [show b1.length = 2 from rfl]))
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWDuplex.b1_next))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf4.rsp_eval, known_ptr rfl hX4, trivial⟩ trivial
       trivial trivial) fun st5 hm5 hpc5 => ?_
   obtain ⟨hepi, hw5, hws5⟩ := after_eq run_b2 ▸ ok_b2

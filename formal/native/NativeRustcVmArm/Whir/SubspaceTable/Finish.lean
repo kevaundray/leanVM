@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceTable.Names
 public import NativeRustcVmArm.Whir.SubspaceTable.Outer
 
 /-!
@@ -64,10 +66,10 @@ theorem epilogue (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 subspa
     {st : MachineData} (hfr : Fr m0 st) :
     Eventually (step1 Host.exe)
       (fun s ↦ s.pc = retOf m0 ∧ s.data.dmem = st.dmem ∧ Saved m0 s.data)
-      ⟨st, Host.addrOf (k + 164)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b24Offset)⟩ := by
   have hF : 864 ≤ subspaceTableStack := by decide
   obtain ⟨hfmap, hfnw, -⟩ := frame_ok hS hF
-  have hk : b24.IsInfixAt Host.prog (k + 164) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b24.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b24Offset) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine st [(fbOf m0, 864)]
   have hwf : env.WF := wf_one (hfr.readable ⟨hfmap, hfnw⟩).1 hfnw
   have hm : Match env frS st :=
@@ -83,12 +85,12 @@ theorem finish_big (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTable
     {st : MachineData} (hfr : Fr m0 st) (hx19 : st.regs.X19 = m0.regs.X0)
     (hmu : 31 < muOf m0) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ SubspaceTablePost m0 s.data)
-      ⟨st, Host.addrOf (k + 26)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b5Offset)⟩ := by
   have hS := hpre.1
   have hF : 864 ≤ subspaceTableStack := by decide
   have hout := hpre.2.1
   let out := m0.regs.X0.toBitVec
-  have hk : b5.IsInfixAt Host.prog (k + 26) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b5Offset) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hrd : Readable st out 8 := hfr.readable (Readable.mono hout (by decide))
   let env := Env.ofMachine st [(out, 8)]
   have hwf : env.WF := wf_one hrd.1 hrd.2
@@ -106,8 +108,8 @@ theorem finish_big (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTable
     have := Match.wordAt_write hm1 (r := 0) (o := 0) rfl (by decide) (v := .lit 0) (by decide)
     rw [NativeRustcVm.addr_add_zero] at this
     exact this
-  have hl : Labels.label ".LSubspaceTable_18" = Host.addrOf (k + 164) := hp.label rfl
-  have hpc1' : s1.pc = Host.addrOf (k + 164) := hpc1.trans hl
+  have hl : Labels.label NativeRustcVmArm.Vm.SubspaceTable.label_18 = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b24Offset) := hp.label (j := NativeRustcVmArm.Vm.SubspaceTable.b24Offset) NativeRustcVmArm.Vm.SubspaceTable.label_18_at
+  have hpc1' : s1.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b24Offset) := hpc1.trans hl
   obtain ⟨d1, pc1⟩ := s1
   simp only at hpc1'
   subst hpc1'
@@ -120,7 +122,7 @@ theorem finish_big (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTable
 theorem finish_full (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0)
     {st : MachineData} (hF : Full m0 st) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ SubspaceTablePost m0 s.data)
-      ⟨st, Host.addrOf (k + 161)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b23Offset)⟩ := by
   have hS := hpre.1
   have hF864 : 864 ≤ subspaceTableStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF864
@@ -145,8 +147,8 @@ theorem finish_full (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTabl
       ⟨by
         show env.load 0 8 8 = out + BitVec.ofInt 64 0
         rw [lo]; simp, trivial⟩
-  have hk23 : b23.IsInfixAt Host.prog (k + 161) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk24 : b24.IsInfixAt Host.prog (k + 164) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk23 : b23.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b23Offset) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk24 : b24.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b24Offset) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk23 run_b23 hwf hm fun s1 hm1 hpc1 ↦ ?_
   refine exec_at hk24 (exec_after run_b23 run_b24') hwf hpc1 hm1 fun s2 hm2 hpc2 ↦ .done _ ?_
   have hb := after_eq run_b24' ▸ b24'_restores
@@ -165,10 +167,10 @@ theorem finish_full (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTabl
     exact hfr.same p hp'
 
 /-- **The table** (`b21`, `b22`): count, copy, tag `1`. -/
-theorem finish_done (hp : Placed code k) (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
+theorem finish_done (hp : Placed code k) (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m0 : MachineData} (hpre : SubspaceTablePre m0) {st : MachineData} (hD : Done m0 st) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ SubspaceTablePost m0 s.data)
-      ⟨st, Host.addrOf (k + 151)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b21Offset)⟩ := by
   have hS := hpre.1
   have hF864 : 864 ≤ subspaceTableStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF864
@@ -181,7 +183,7 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (label "memcpy") Memcpy
   have honw : NativeRustcVm.NoWrap m0.regs.X0.toBitVec 512 := hpre.2.1.2
   have htb : tableBytes = 504 := rfl
   -- `b21`: the count, `memcpy`
-  have hk21 : b21.IsInfixAt Host.prog (k + 151) := b21_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk21 : b21.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b21Offset) := b21_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine st [(fb, 864)]
   have hwf : env.WF := wf_one (hfr.readable ⟨hfmap, hfnw⟩).1 hfnw
   have hm : Match env frS st :=
@@ -245,8 +247,8 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (label "memcpy") Memcpy
     (fun q hq i hi h ↦ slot_not_out hpre (o := 8) (n := 504) (by decide) q hq i hi h)
     (fun r hr _ ↦ hsv2.1 r hr) hsv2.2.1 hsv2.2.2
   -- `b22`: the tag
-  have hk22 : b22.IsInfixAt Host.prog (k + 158) := b22_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc2' : s2.pc = Host.addrOf (k + 158) := hpc2
+  have hk22 : b22.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SubspaceTable.b22Offset) := b22_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc2' : s2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b22Offset) := hpc2
   have hrd : Readable s2.data out 8 := hfr2.readable (Readable.mono hpre.2.1 (by decide))
   let env2 := Env.ofMachine s2.data [(out, 8)]
   have hwf2 : env2.WF := wf_one hrd.1 hrd.2
@@ -276,8 +278,8 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (label "memcpy") Memcpy
       rw [toNat_add_ofNat' (by omega)]
       omega
     · rw [length_bytesOf]; exact NativeRustcVm.NoWrap.sub honw (by omega)
-  have hl : Labels.label ".LSubspaceTable_18" = Host.addrOf (k + 164) := hp.label rfl
-  have hpc3' : s3.pc = Host.addrOf (k + 164) := hpc3.trans hl
+  have hl : Labels.label NativeRustcVmArm.Vm.SubspaceTable.label_18 = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b24Offset) := hp.label (j := NativeRustcVmArm.Vm.SubspaceTable.b24Offset) NativeRustcVmArm.Vm.SubspaceTable.label_18_at
+  have hpc3' : s3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b24Offset) := hpc3.trans hl
   obtain ⟨d3, pc3⟩ := s3
   simp only at hpc3'
   subst hpc3'

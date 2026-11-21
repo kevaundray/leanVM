@@ -11,7 +11,7 @@ public meta import NativeRustcVmX64.Arrays.Common
 Region 0 is the frame (`Field.frameS 48`, `Field.midS 48`): the 40 bytes of pushes, the call's
 return-address slot below them, the return address above.
 - `entryS` at the entry (`b0`, then `b1` or `b5`);
-- the loop head `.LEqEvalFnOfEqAbove_3` (`b2`) in three parts: `p1` loads `right[i]`'s limb `1`
+- the loop head `NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.label_3` (`b2`) in three parts: `p1` loads `right[i]`'s limb `1`
   (`rS`: region 1 the element, RBX its address plus 8); `p2`, the post-pass's expansion of `bt`,
   pushes and pops two words (`btS`: region 0 the 16 bytes around the frame's base); `p3` reads the
   carry, limb `0` and calls `EW::mul` (`rS`);

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.FoldMemory
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.FoldControl
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 namespace NativeRustcVmX64.KeccakGkr.KeccakOpen
 
@@ -44,7 +45,7 @@ theorem sOk_counter {a b c : Reg64} {nib : Sym} {rs : List Reg64} {S : SState}
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
 theorem inner_step (hp : Placed code k) (h : PreOk a s c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {cx : Cx} (hA : cx.a = a) {rows : Array (Array EW)}
     (hrsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
     {t i j : Nat} (ht : t < 6) (hi : i < half t) (hj : j < 64)
@@ -60,7 +61,7 @@ theorem inner_step (hp : Placed code k) (h : PreOk a s c m0)
     (hinl : bl.IsInfixAt code kl) (hins : bs.IsInfixAt code kb) (hnl : bl ≠ []) (hns : bs ≠ [])
     (hseq : kl + bl.length = kb)
     (hlabel : Labels.label label = Host.addrOf (k + kl))
-    (hxl : exec bl (loS ib s0) = some (Sl, .call ewMulLabel))
+    (hxl : exec bl (loS ib s0) = some (Sl, .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hxs : exec bs (stS dr ib so) = some (Ss,
       .cond (notEnd (.bin .add .W64 (.lit 16) (.reg ib)) (s0 + 1024)) label))
     (hol : lOk cx0 cx1 lo0 lo1 (ib :: ks.map Prod.fst) Sl = true)

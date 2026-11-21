@@ -7,7 +7,7 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Iota1
 
 `b26` (from `SG`, after the segment kernel) spills the bit weights' and the point's addresses,
 loads `KECCAK_RC[11 - step]` into R9 and the first segment's weight into RDI, RSI, clears the
-sum and enters `.LVerifyLayer_21` with no bit summed (`IA 0`): `b26Run`. Tools: an element of
+sum and enters `NativeRustcVmX64.Vm.VerifyLayer.label_21` with no bit summed (`IA 0`): `b26Run`. Tools: an element of
 the frame loaded (`frLoad`), the step's low word (`stepLoad`).
 -/
 
@@ -69,8 +69,8 @@ variable [Host] {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 /-- **Into ι's first loop**: `b26`. -/
 theorem b26Run (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : SG m0 a c p s1 d) {R : MachineState → Prop}
-    (cont : ∀ d', IA m0 a c p s1 0 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 288)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 249)⟩ := by
+    (cont : ∀ d', IA m0 a c p s1 0 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b30Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b26Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hst : stepN m0 < 12 := pre_step hpre

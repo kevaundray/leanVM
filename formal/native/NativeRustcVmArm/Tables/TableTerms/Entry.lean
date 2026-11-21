@@ -77,8 +77,8 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 theorem entry (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     {R : MachineState → Prop}
     (cont : ∀ m, Head a s heights forms m0 0 (0, 0, #[]) s m →
-      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 23)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b1Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b0Offset)⟩ := by
   have hS := Pre.stack h
   have hN := spN h
   have hwf := envA_wf h
@@ -97,7 +97,7 @@ theorem entry (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   have ev1 : ∀ {r : XReg} {v : Sym}, (after b0 entryS).reg r = some v →
       rg st.data r = v.eval (envA m0) := fun hr ↦ rv hm' hr
   simp only [PcOk] at hpc
-  refine Bus.Gkr.at_pc (hpc.trans (addr_eq (by rw [len_b0]))) (cont st.data ?_)
+  refine Bus.Gkr.at_pc (hpc.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b0_next]))) (cont st.data ?_)
   have hT : (Sym.bin .add .W64 (.label tablesL) (.lit 8)).eval (envA m0) =
       T + BitVec.ofNat 64 (8 + 40 * 0) := by
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64]; rfl

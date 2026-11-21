@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Copies
 
 /-!
@@ -37,13 +39,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **Layer `j`**: `verify_layer` and its branch. -/
 theorem stepLayer (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hvl : ∀ a s c, Spec (Labels.label verifyLayerLabel) (VerifyLayerPre a s c)
+    (hvl : ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.VerifyLayer.entryLabel) (VerifyLayerPre a s c)
       (VerifyLayerPost a s c))
     {ds bs : List Directive} {i i2 i3 j : Nat} {S1 S2 : SState} {cb : SBool}
     (hj : j < keccakDepth)
-    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S1, .call verifyLayerLabel))
+    (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S1, .call NativeRustcVmArm.Vm.VerifyLayer.entryLabel))
     (hi2 : i + ds.length = i2) (hk2 : bs.IsInfixAt Host.prog i2)
-    (hrun2 : exec bs midS = some (S2, .cond cb ".LVerifyKeccak_31")) (hi3 : i2 + bs.length = i3)
+    (hrun2 : exec bs midS = some (S2, .cond cb NativeRustcVmArm.Vm.VerifyKeccak.label_31)) (hi3 : i2 + bs.length = i3)
     (hS1 : S1.mem = [] ∧ S1.sp = .ptr 0 0 ∧ S1.reg .X0 = some (.reg .X20) ∧
       S1.reg .X1 = some (.reg .X21) ∧ S1.reg .X2 = some (.lit j) ∧
       S1.reg .X3 = some (.ptr 0 960) ∧ S1.reg .X4 = some (.reg .X22) ∧

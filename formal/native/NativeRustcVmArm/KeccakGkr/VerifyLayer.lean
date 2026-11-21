@@ -1,5 +1,21 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
+public import NativeRustcVmArm.Code.Vm.InstanceWeights.Names
+public import NativeRustcVmArm.Code.Vm.LinearTranspose.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.SumE.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfVerifyLayer.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontF
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.Weights
 
@@ -26,29 +42,29 @@ variable [NativeArm.Host] {k : Nat}
 `EW::mul`'s, `eq_kernel`'s, `instance_weights`'s, `linear_transpose`'s, `memcpy`'s,
 `poly_eval`'s, `squeeze`'s, `sum_e`'s, the two sumchecks', `grind`'s and `read_scalars`'s. -/
 theorem verifyLayer_spec (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hiw : Spec (Labels.label instanceWeightsLabel) InstanceWeightsPre InstanceWeightsPost)
-    (hlt : ∀ ws, Spec (Labels.label linearTransposeLabel) (LinearTransposePre ws)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hek : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hiw : Spec (Labels.label NativeRustcVmArm.Vm.InstanceWeights.entryLabel) InstanceWeightsPre InstanceWeightsPost)
+    (hlt : ∀ ws, Spec (Labels.label NativeRustcVmArm.Vm.LinearTranspose.entryLabel) (LinearTransposePre ws)
       (LinearTransposePost ws))
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hspl : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hpe : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsum : Spec (Labels.label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hspl : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hsl : ∀ a s pt, Spec (Labels.label sumcheckLayerLabel) (SumcheckLayerPre a s pt)
+    (hsl : ∀ a s pt, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.entryLabel) (SumcheckLayerPre a s pt)
       (SumcheckLayerPost a s pt))
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s)
       (ReadScalarsPost a s)) :
-    ∀ a s c, Spec (Labels.label verifyLayerLabel) (VerifyLayerPre a s c)
+    ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.VerifyLayer.entryLabel) (VerifyLayerPre a s c)
       (VerifyLayerPost a s c) := by
   intro a s c m0 h
-  have hl : Labels.label verifyLayerLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hl : Labels.label NativeRustcVmArm.Vm.VerifyLayer.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.entryOffset) NativeRustcVmArm.Vm.VerifyLayer.entry_at
   rw [hl]
   refine pro_run hp h (hrs a) fun st p s1 hr hpc hi hfm ↦ ?_
   refine proj_loop hp h hmul (st0 := st.data) (p := p) (fun st' hpc' hfb hs hk hkr hacc ↦ ?_)

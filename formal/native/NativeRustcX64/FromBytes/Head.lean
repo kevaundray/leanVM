@@ -96,7 +96,7 @@ theorem match_envA [Labels] {m₀ : MachineData} (P : Pre m₀) : Match (envA m�
 /-- **The prologue and the randomizer**: from the entry to the loop's head before turn `0`. -/
 public theorem head [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData}
     (hpre : FromBytesPre m₀) {R : MachineState → Prop}
-    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + 24) → LoopAt m₀ st.data 0 →
+    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b2Offset) → LoopAt m₀ st.data 0 →
       Eventually (step1 Host.exe) R st) :
     Eventually (step1 Host.exe) R ⟨m₀, Host.addrOf k⟩ := by
   have P := pre_of hpre

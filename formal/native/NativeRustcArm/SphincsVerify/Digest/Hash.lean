@@ -99,8 +99,8 @@ variable [NativeArm.Host]
 /-- **`h_msg`'s first call** (`b50 .. b52`). -/
 theorem hash0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : Absorbed r m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 582 ∧ Hashed0 r st.data)
-      ⟨m, r.pc 562⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b53Offset ∧ Hashed0 r st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b50Offset⟩ := by
   obtain ⟨hK, h21, hB⟩ := hA
   obtain ⟨hb, hbB, hbh⟩ := hB
   have hbl := Keccak.length_of_holds hbh
@@ -134,8 +134,8 @@ theorem hash0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : 
 /-- **`h_msg`'s second call** (`b53 .. b55`). -/
 theorem hash1_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hH : Hashed0 r m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 609 ∧ Hashed1 r st.data)
-      ⟨m, r.pc 582⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b56Offset ∧ Hashed1 r st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b53Offset⟩ := by
   obtain ⟨hK, h21, h23, hB, hD⟩ := hH
   obtain ⟨hb, hbB, hbh⟩ := hB
   have hbl := Keccak.length_of_holds hbh
@@ -174,7 +174,7 @@ theorem hash1_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : 
 theorem hMsg_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     {m : MachineData} (hH : Hashed1 r m) :
     Eventually (step1 NativeArm.Host.exe)
-      (fun st ↦ st.pc = r.pc 621 ∧ LoopInv r (hMsgBytes r) 0 st.data) ⟨m, r.pc 609⟩ := by
+      (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b57Offset ∧ LoopInv r (hMsgBytes r) 0 st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b56Offset⟩ := by
   obtain ⟨hK, h21, h23, hD0, hD1⟩ := hH
   refine Run.frameFall r hp hpre Sphincs.SphincsVerify.b56_in_code rfl (List.cons_ne_nil _ _)
     run_b56 rfl hK (knownOK_nil m) fun m₁ hm₁ hK₁ hkb₁ ↦ .done _ ⟨rfl, by decide, hK₁,

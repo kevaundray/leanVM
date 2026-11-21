@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Call7
 
 /-!
@@ -24,20 +29,20 @@ variable [Host] {k : Nat}
 
 /-- **The tables' column claims**, from `b10`: the function returns the walk's rest. -/
 theorem call6 (hp : Placed code k)
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmArm.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmArm.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 48)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b10Offset)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
     (h22 : st.data.regs.X22 = m0.regs.X3) (h23 : st.data.regs.X23 = 112184)
     (h25 : st.data.regs.X25 = 123992) {P : Vector UInt64 4}
     (hP : NativeRustcVm.WordsAt m0.dmem m0.regs.X3.toBitVec P.toList) {s : TState}
@@ -109,14 +114,14 @@ theorem call6 (hp : Placed code k)
       rcases hq with hq | hq
       · exact g.notTA_w (o := 123992) (n := 97288) (by omega) (by omega) hq
       · exact h1.notTA_stk g hN hq) hch
-  rw [show k + 48 + b10.length = k + 51 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b10Offset + b10.length = k + NativeRustcVmArm.Vm.VerifyExecution.b11Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b10_next]] at hpc2
   have bk := branch_keeps b11 (by simp)
   have ck := call_keeps b11 (by simp)
   rw [after_eq run_b11] at bk ck
   refine branch hp g (hb11 hp) run_b11 bk ck.1 h2 hpc2 (b := true)
     (by rw [cbz_eval hx0, decide_eq_true hfits]) (fun hb ↦ by cases hb)
     fun _ st3 h3 hreg3 hd3 hpc3 ↦ ?_
-  rw [show k + 51 + b11.length = k + 52 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b11Offset + b11.length = k + NativeRustcVmArm.Vm.VerifyExecution.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b11_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)

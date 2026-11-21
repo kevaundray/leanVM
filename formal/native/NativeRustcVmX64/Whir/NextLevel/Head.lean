@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Whir.NextLevel.Test
 public import NativeRustcVm.Sumcheck.RoundPoly
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadCommitment.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `next_level`: the prologue, the commitment, the high part, the first grind (x86-64)
@@ -149,13 +152,13 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The prologue and `read_commitment`**, to `b2` with `H2`. -/
 theorem head1 (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (hrc : ∀ a s, Spec (Labels.label readCommitmentLabel) (ReadCommitmentPre a s)
+    (hrc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadCommitment.entryLabel) (ReadCommitmentPre a s)
       (ReadCommitmentPost a s)) :
     Eventually (step1 Host.exe) (fun st ↦ Goal a s level w rounds m0 st ∨
-      (st.pc = Host.addrOf (k + 26) ∧ ∃ s1, runN level w rounds m0 s = rest2 level w rounds m0 s1 ∧
-        H2 a level w rounds m0 s1 st.data)) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b2Offset) ∧ ∃ s1, runN level w rounds m0 s = rest2 level w rounds m0 s1 ∧
+        H2 a level w rounds m0 s1 st.data)) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b0Offset)⟩ := by
   have g := c.geo
-  let env0 := frameEnv m0 m0 8176 [(lA m0, 24)] (fun _ ↦ 0) (Host.addrOf (k + 24)).toBitVec
+  let env0 := frameEnv m0 m0 8176 [(lA m0, 24)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b1Offset)).toBitVec
   have hwf0 : env0.WF := c.wfL (fun _ h ↦ h)
   have hm0 : Match env0 entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
@@ -209,7 +212,7 @@ theorem head1 (hp : Placed code k) (c : Ctx a s level w rounds m0)
   obtain ⟨hK2, -⟩ := c.K_call hK1 hle hsv hrsp2 (R := NativeRustcVm.InRange (tA m0) tstateBytes)
     (lo := 8128) (n := 0) (by omega) (by omega) (fun q hq ↦ Or.inl hq) hch
   have hcs2 : ∀ r, calleeSaved r = true → reg st2.data r = reg st1.data r := hsv.1
-  rw [show k + 0 + b0.length = k + 24 from rfl] at hpc2
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b0Offset + b0.length = k + NativeRustcVmX64.Vm.NextLevel.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b0_next]] at hpc2
   have hrun : runN level w rounds m0 s =
       ((readCommitment ((reg m0 .r9).toNat - (reg m0 .rcx).toNat + (reg m0 .r8).toNat)
         (2 * 2 ^ (reg m0 .rcx).toNat)).run s).bind fun p1 ↦ rest2 level w rounds m0 p1.2 :=
@@ -222,7 +225,7 @@ theorem head1 (hp : Placed code k) (c : Ctx a s level w rounds m0)
       (2 * 2 ^ (reg m0 .rcx).toNat)).run s with _ | ⟨⟨⟩, s1⟩
   · rw [hres] at hpc3
     simp only [Option.isSome_none, Bool.false_eq_true, ite_false] at hpc3
-    exact Eventually.mono (none14 hp c hK3.fr (hpc3.trans (hp.label (j := 260) rfl))
+    exact Eventually.mono (none14 hp c hK3.fr (hpc3.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_14_at))
       (by rw [hr3, hcs2 .r15 rfl, h15]) (by rw [hrun, hres]; rfl)) fun _ h ↦ Or.inl h
   · rw [hres] at hpc3
     simp only [Option.isSome_some, ite_true] at hpc3
@@ -233,12 +236,12 @@ theorem head1 (hp : Placed code k) (c : Ctx a s level w rounds m0)
 
 /-- **The high part**: `b2`, `read_scalars`, `b4`, to `b5` with `H5`. -/
 theorem head2 (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 26))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b2Offset))
     (hH : H2 a level w rounds m0 s1 st.data)
     (hrun : runN level w rounds m0 s = rest2 level w rounds m0 s1) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s level w rounds m0 st' ∨
-      (st'.pc = Host.addrOf (k + 47) ∧ ∃ xs s2, runN level w rounds m0 s =
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b5Offset) ∧ ∃ xs s2, runN level w rounds m0 s =
         (((grind Whir.oodGrindingBits).run s2).bind fun p3 ↦
           tail3 (reg m0 .rsi).toNat (reg m0 .r9).toNat level w rounds xs p3.2) ∧
         H5 a level w rounds m0 xs s2 st'.data)) st := by
@@ -262,7 +265,7 @@ theorem head2 (hp : Placed code k) (c : Ctx a s level w rounds m0)
   simp only [PcOk, cFold, SBool.eval, Sym.eval, CmpOp.apply, low_W64, hfold] at hpc1
   rw [not_hi (by rw [hft]; simp; omega)] at hpc1
   simp only [Bool.false_eq_true, ite_false] at hpc1
-  rw [show k + 26 + b2.length = k + 41 from rfl] at hpc1
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b2Offset + b2.length = k + NativeRustcVmX64.Vm.NextLevel.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b2_next]] at hpc1
   have e1 : ∀ {r : Reg64} {v : Sym}, (after b2 levelS).reg r = some v →
       reg st1.data r = v.eval env := fun h ↦ hm1.regs _ _ h
   have hK1 : K level w rounds m0 72 st1.data :=
@@ -274,7 +277,7 @@ theorem head2 (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have h15 : (reg st1.data .r15).toNat = level.fold := by rw [e1 hr15, Sym.eval, hfold]; exact hft
   have hts1 := c.ts_frame (by omega) (hm1.kept hwf) hs1 hH.ts
   -- `b3`: `read_scalars`
-  let env2 := argEnv m0 st1.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + 45)).toBitVec
+  let env2 := argEnv m0 st1.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b4Offset)).toBitVec
   have hwf2 : env2.WF := c.wf0 hK1.fr.frame.kept
   have hm2 : Match env2 retS st1.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨Frame.rsp_evalA hK1.fr.frame, trivial⟩ trivial trivial trivial
@@ -323,14 +326,14 @@ theorem head2 (hp : Placed code k) (c : Ctx a s level w rounds m0)
       · exact Or.inl (Or.inr hq)
       · exact Or.inr hq)
   have hcs3 : ∀ r, calleeSaved r = true → reg st3.data r = reg st2.data r := hsv.1
-  rw [show k + 41 + b3.length = k + 45 from rfl] at hpc3
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b3Offset + b3.length = k + NativeRustcVmX64.Vm.NextLevel.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b3_next]] at hpc3
   refine Eventually.bind (test_spec hp c b4_in_code rfl exit_b4 ok_b4 hK3 hpc3 hok)
     fun st4 ⟨hr4, hd4, hpc4⟩ ↦ ?_
   have hK4 := hK3.congr hr4 hd4
   rcases hres : (readScalars level.fold).run s1 with _ | ⟨xs, s2⟩
   · rw [hres] at hpc4
     simp only [Option.isSome_none, Bool.false_eq_true, ite_false] at hpc4
-    exact Eventually.mono (none13 hp c hK4.fr (hpc4.trans (hp.label (j := 258) rfl))
+    exact Eventually.mono (none13 hp c hK4.fr (hpc4.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_13_at))
       (by rw [hrun, rest2, hres]; rfl)) fun _ h ↦ Or.inl h
   · rw [hres] at hpc4
     simp only [Option.isSome_some, ite_true] at hpc4
@@ -343,18 +346,18 @@ theorem head2 (hp : Placed code k) (c : Ctx a s level w rounds m0)
 
 /-- **The first grind**: `grind(t, 15)`, `b6`, to `b7` with `H7`. -/
 theorem head3 (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    {xs : Array EW} {s2 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 47))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    {xs : Array EW} {s2 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b5Offset))
     (hH : H5 a level w rounds m0 xs s2 st.data)
     (hrun : runN level w rounds m0 s = (((grind Whir.oodGrindingBits).run s2).bind fun p3 ↦
       tail3 (reg m0 .rsi).toNat (reg m0 .r9).toNat level w rounds xs p3.2)) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s level w rounds m0 st' ∨
-      (st'.pc = Host.addrOf (k + 52) ∧ ∃ s3, runN level w rounds m0 s =
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b7Offset) ∧ ∃ s3, runN level w rounds m0 s =
         tail3 (reg m0 .rsi).toNat (reg m0 .r9).toNat level w rounds xs s3 ∧
         H7 a level w rounds m0 xs s3 st'.data)) st := by
   have g := c.geo
   have hK := hH.K
-  let env := argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + 50)).toBitVec
+  let env := argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b6Offset)).toBitVec
   have hwf : env.WF := c.wf0 hK.fr.frame.kept
   have hm : Match env retS st.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨Frame.rsp_evalA hK.fr.frame, trivial⟩ trivial trivial trivial
@@ -395,14 +398,14 @@ theorem head3 (hp : Placed code k) (c : Ctx a s level w rounds m0)
     (R := NativeRustcVm.InRange (tA m0) tstateBytes) (lo := 8128) (n := 0) (by omega) (by omega)
     (fun q hq ↦ Or.inl hq) hch
   have hcs2 : ∀ r, calleeSaved r = true → reg st2.data r = reg st1.data r := hsv.1
-  rw [show k + 47 + b5.length = k + 50 from rfl] at hpc2
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b5Offset + b5.length = k + NativeRustcVmX64.Vm.NextLevel.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b5_next]] at hpc2
   refine Eventually.bind (test_spec hp c b6_in_code rfl (b_eq.1 ▸ exit_b4) (b_eq.1 ▸ ok_b4) hK2
     hpc2 hok) fun st3 ⟨hr3, hd3, hpc3⟩ ↦ ?_
   have hK3 := hK2.congr hr3 hd3
   rcases hres : (grind Whir.oodGrindingBits).run s2 with _ | ⟨⟨⟩, s3⟩
   · rw [hres] at hpc3
     simp only [Option.isSome_none, Bool.false_eq_true, ite_false] at hpc3
-    exact Eventually.mono (none13 hp c hK3.fr (hpc3.trans (hp.label (j := 258) rfl))
+    exact Eventually.mono (none13 hp c hK3.fr (hpc3.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_13_at))
       (by rw [hrun, hres]; rfl)) fun _ h ↦ Or.inl h
   · rw [hres] at hpc3
     simp only [Option.isSome_some, ite_true] at hpc3

@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Field.Kmul.Exec
 public import NativeRustcVmX64.Field.Leaf
 public import NativeRustcVm.Field.Clmul
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
 
 /-!
 # `kmul` on x86-64
@@ -40,14 +41,15 @@ public section
 variable [Host] {k : Nat}
 
 /-- **`kmul` computes `Field.kmul`.** -/
-theorem kmul_spec_rust (hp : Placed code k) : Spec (Labels.label kmulLabel) KmulPre RustPost := by
+theorem kmul_spec_rust (hp : Placed code k) : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre RustPost := by
   intro m hpre
   obtain ⟨l1, l2, l3, l4, l5⟩ := lens
   have hk : b0.IsInfixAt Host.prog k :=
     (b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _) :)
-  rw [show Labels.label kmulLabel = Host.addrOf k from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel = Host.addrOf k from hp.label NativeRustcVmX64.Vm.Kmul.entry_at]
   let env := frameEnv m m 48 (vars (reg m .rdi) (reg m .rsi))
   have hwf : env.WF := frame_wf hpre fun _ h ↦ h
+  -- Phase 2: these semantic b0-interior slices follow the Exec certificates, not generated block boundaries.
   refine exec_then (hk.slice 0 100 (by omega)) r1.run hwf (by rw [r1_exit]; nofun) match_frame
     fun st1 hm1 hpc1 ↦ ?_
   rw [r1_exit, l1] at hpc1
@@ -70,7 +72,7 @@ theorem kmul_spec_rust (hp : Placed code k) : Spec (Labels.label kmulLabel) Kmul
   rfl
 
 /-- **`kmul` computes the model's product.** -/
-theorem kmul_spec (hp : Placed code k) : Spec (Labels.label kmulLabel) KmulPre KmulPost := by
+theorem kmul_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost := by
   intro m hpre
   refine Eventually.mono (kmul_spec_rust hp m hpre) fun st ⟨hpc, hsp, h0, hso, hsv⟩ ↦
     ⟨hpc, hsp, ?_, hso, hsv⟩

@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Arrays.EqKernel.Loop
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `eq_kernel` on x86-64
@@ -43,8 +45,8 @@ variable [Host] {k : Nat}
 
 /-- **`eq_kernel` meets its contract.** -/
 theorem eqKernel_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hpre' := hpre
@@ -63,7 +65,7 @@ theorem eqKernel_spec (hp : Placed code k)
   have hdx1 : reg s1.data .rdx = BitVec.ofNat 64 (2 ^ np m0) := by
     rw [show reg s1.data .rdx = _ from hm1.regs .rdx _ hdx0]
     exact one_shl _ h64
-  simp only [PcOk, show b0.length = 17 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.EqKernel.b0_length] at hpc1
   rw [eval_not, eval_cmp_ult, eval_reg,
     show (Sym.bin .shl .W64 (.lit 1) (.reg .rsi)).eval (frameEnv m0 m0 112) =
       BitVec.ofNat 64 (2 ^ np m0) from one_shl _ h64,
@@ -121,7 +123,7 @@ theorem eqKernel_spec (hp : Placed code k)
       (fun h ↦ frame_not_out hpre' (show t < 120 by omega) (in_out hnO h0 h))
   have hcx2 : reg s2.data .rcx = reg m0 .rsi :=
     (e2 .rcx (by simp)).trans ((hm1.regs .rcx _ hcx0).trans (eval_reg _))
-  simp only [PcOk, show b2.length = 5 from rfl] at hpc2
+  simp only [PcOk, NativeRustcVmX64.Vm.EqKernel.b2_length] at hpc2
   rw [eval_test, eval_reg, show (elemEnv m0 s1.data 112 (out m0) 0).regs .rcx = reg s1.data .rcx
     from rfl, ← e2 .rcx (by simp), hcx2, beq_ofNat _ (by decide)] at hpc2
   obtain ⟨hT2, hF2⟩ := pc_cond hpc2
@@ -181,7 +183,7 @@ theorem eqKernel_spec (hp : Placed code k)
         BitVec.add_comm]
       rfl
     · exact ews_kept hpre' hm3 hwf3 hw3 (by rw [K_zero]; simp; omega) ker0
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 43) ∧ ∃ i, np m0 - i = n ∧ OInv m0 i s.data)
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b6Offset) ∧ ∃ i, np m0 - i = n ∧ OInv m0 i s.data)
     (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc3.trans (lbl_4 hp), 0, rfl, hI0⟩
   refine Eventually.bind (start hp hpre' hle hpc hI) fun s1 ⟨hpc1, hI1⟩ ↦
     Eventually.bind (inner hp hmul hpre' hle hpc1 hI1) fun s2 ⟨hpc2, hR⟩ ↦

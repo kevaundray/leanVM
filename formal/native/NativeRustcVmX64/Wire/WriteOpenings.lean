@@ -5,6 +5,8 @@ public import NativeRustcVmX64.Wire.WriteOpenings.A.Copy
 public import NativeRustcVmX64.Wire.WriteOpenings.A.Lev
 public import NativeRustcVmX64.Wire.WriteOpenings.A.Next
 public import NativeRustcVmX64.Wire.WriteOpenings.B
+public import NativeRustcVmX64.Code.Vm.Find.Names
+public import NativeRustcVmX64.Code.Vm.WriteOpenings.Names
 
 /-!
 # `write_openings` meets its contract (x86-64)
@@ -27,7 +29,7 @@ variable {R : Run} {j : Nat} [Host]
 
 /-- **The levels of opening `j`**, from level `l`: a rejection, or the opening written. -/
 theorem levels (hp : Placed code R.k) (G : Geo R)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) {l : Nat} {st : MachineState}
+    (hfind : Spec (Labels.label NativeRustcVmX64.Vm.Find.entryLabel) FindPre FindPost) {l : Nat} {st : MachineState}
     (H : LevA R j l st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post R st' ∨ NextA R j st') st := by
   refine Sym.loop (fun n st ↦ ∃ l, n = R.h - l ∧ LevA R j l st) (fun n st ⟨l, hn, H⟩ ↦ ?_)
@@ -65,7 +67,7 @@ theorem rems (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineState}
 
 /-- **The path with levels**, from its head at query `j`. -/
 theorem A_loop (hp : Placed code R.k) (G : Geo R)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) {st : MachineState}
+    (hfind : Spec (Labels.label NativeRustcVmX64.Vm.Find.entryLabel) FindPre FindPost) {st : MachineState}
     (H : HeadA R j st) : Eventually (step1 Host.exe) (Post R) st := by
   refine Sym.loop (fun n st ↦ ∃ j, n = R.nq - j ∧ HeadA R j st) (fun n st ⟨j, hn, H⟩ ↦ ?_)
     ⟨j, rfl, H⟩
@@ -93,11 +95,11 @@ theorem A_loop (hp : Placed code R.k) (G : Geo R)
 
 /-- **`write_openings` meets its contract.** -/
 theorem writeOpenings_spec {k : Nat} (hp : Placed code k)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) :
-    Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost := by
+    (hfind : Spec (Labels.label NativeRustcVmX64.Vm.Find.entryLabel) FindPre FindPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost := by
   intro m hpre
   have G : Geo ⟨m, k⟩ := geo_of hpre
-  rw [show Labels.label writeOpeningsLabel = pcOf ⟨m, k⟩ 0 from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.WriteOpenings.entryLabel = pcOf ⟨m, k⟩ 0 from hp.label NativeRustcVmX64.Vm.WriteOpenings.entry_at]
   refine (entry_spec (R := ⟨m, k⟩) hp G).bind fun st h ↦ ?_
   rcases h with ⟨H, h0⟩ | ⟨H, h0⟩
   · exact (start_step hp G H h0).bind fun st' H' ↦ A_loop hp G hfind H'

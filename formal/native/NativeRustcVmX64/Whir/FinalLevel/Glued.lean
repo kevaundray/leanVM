@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.GluedStep
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.GluedEval.Names
 
 /-!
 # `final_level`: the glued claims (x86-64)
@@ -56,10 +58,10 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The glued claims**: `b27`, `b28`, the loop, to `b33`. -/
 theorem glued (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hge : ∀ g, Spec (Labels.label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hge : ∀ g, Spec (Labels.label NativeRustcVmX64.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState}
-    (hpc : st.pc = Host.addrOf (k + 364)) (hc : Core level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b27Offset)) (hc : Core level m0 st.data folded)
     (hbx : reg st.data .rbx = loc m0 640) (h12 : reg st.data .r12 = claim.c0.toBitVec)
     (h15 : reg st.data .r15 = claim.c1.toBitVec)
     (h48 : NativeRustcVm.WordAt st.data.dmem (loc m0 48)
@@ -69,7 +71,7 @@ theorem glued (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
       (weightAt (reg m0 .r8).toNat b w tail 0))
     (htail : NativeRustcVm.EWsAt st.data.dmem (loc m0 1120) tail.toList) (htn : tail.size = mu m0)
     (hts : TStateAt st.data.dmem (tA m0) a s5) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 409) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b33Offset) →
       GB a level m0 folded tail claim (finalWeight (reg m0 .r8).toNat b w tail) s5 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
@@ -123,7 +125,7 @@ theorem glued (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     exact hgb0
   rw [decide_eq_false h0] at hpc1
   simp only [Bool.false_eq_true, ite_false] at hpc1
-  have hpc1' : st1.pc = Host.addrOf (k + 379) := hpc1
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b28Offset) := hpc1
   -- `b28`: the claims' end.
   have hsi1 : reg st1.data .rsi = BitVec.ofNat 64 (6064 * w.glued.size) :=
     (e1 hrsi1).trans (vGs_eval env1 l504 (by omega))
@@ -163,11 +165,11 @@ theorem glued (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
         (hk1.word (by omega) (by omega) (by omega) h48)
     · exact hk2.ews (xs := (w.alphas ++ tail).toList) (by omega) (by omega) (by omega)
         (hk1.ews (xs := (w.alphas ++ tail).toList) (by omega) (by omega) (by omega) hpts)
-  have hpc2' : st2.pc = Host.addrOf (k + 381) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b29Offset) := hpc2
   -- the loop
-  refine Eventually.bind (loop (Q := fun st' ↦ st'.pc = Host.addrOf (k + 409) ∧
+  refine Eventually.bind (loop (Q := fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b33Offset) ∧
       GB a level m0 folded tail claim (finalWeight (reg m0 .r8).toNat b w tail) s5 st'.data)
-    (fun n st' ↦ ∃ i, n = w.glued.size - i ∧ st'.pc = Host.addrOf (k + 381) ∧
+    (fun n st' ↦ ∃ i, n = w.glued.size - i ∧ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b29Offset) ∧
       GInv a level b w m0 folded tail claim s5 i st'.data)
     (fun _ st' ⟨i, hn, hpc', hI⟩ ↦ (gstep hp c hge hmul hpc' htn hI).mono fun st'' h ↦ by
       rcases h with ⟨hlt, hpc'', hI'⟩ | ⟨heq, hpc'', hgb⟩

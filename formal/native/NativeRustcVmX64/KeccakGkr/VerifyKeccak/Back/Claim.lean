@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Push
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 
 /-! # Constructing and pushing the committed output claim (blocks 47–54) -/
 
@@ -31,10 +33,10 @@ theorem claims_bound (hpre : VerifyKeccakPre a s cs inst output m0)
 
 theorem claimStep (hp : Placed NativeRustcVmX64.Vm.VerifyKeccak.code k)
     (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {st : MachineState} {V : Vs} {slot : Array EW} {w : EW} {s1 : TState} {cl : KeccakClaimW}
-    (hat : At m0 k 272 wrA t45 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b47Offset wrA t45 (vv m0 V) st)
     (hw0 : V.w0 = w.c0.toBitVec) (hw1 : V.w1 = w.c1.toBitVec)
     (hslot : NativeRustcVm.EWsAt st.data.dmem (off (fb m0) 232) slot.toList)
     (h6 : slot.size = 6)
@@ -42,7 +44,7 @@ theorem claimStep (hp : Placed NativeRustcVmX64.Vm.VerifyKeccak.code k)
     (hcl : ClaimAt st.data.dmem (off (fb m0) 992) cl)
     (hcw : WeightsAt st.data.dmem (off (reg m0 .r9) 25600) cl)
     {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 378 wrB t52 (vv m0 V) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b55Offset wrB t52 (vv m0 V) st' →
       TStateAt st'.data.dmem (reg m0 .rdi) a s1 →
       ClaimAt st'.data.dmem (off (fb m0) 992) cl →
       WeightsAt st'.data.dmem (off (reg m0 .r9) 25600) cl →
@@ -58,7 +60,7 @@ theorem claimStep (hp : Placed NativeRustcVmX64.Vm.VerifyKeccak.code k)
   refine extSlotStep hp hpre hext hat2 hb2 hslot2 h6 fun st3 hat3 hb3 hc3 hk3 ↦ ?_
   have hc123 := hc12.trans hc3
   have hcls3 := claims_bound hpre hat3
-  have hat3' : At m0 k 364 wrB t52 (vv m0 V) st3 := At.widen hat3 (by
+  have hat3' : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b53Offset wrB t52 (vv m0 V) st3 := At.widen hat3 (by
     intro i hi
     simp only [wrA, wrB, Bool.or_eq_true] at hi ⊢
     exact Or.inl hi)

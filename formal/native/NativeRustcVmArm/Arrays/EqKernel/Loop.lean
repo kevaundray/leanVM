@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Arrays.EqKernel.Basic
 
 /-!
@@ -22,7 +23,7 @@ variable [Host] {k : Nat}
 
 /-- **The epilogue** `b13`: X0 `1`, X1 the size from X8. -/
 theorem finish13 (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
-    (hle : 2 ^ np m0 ≤ len m0) {s : MachineState} (hpc : s.pc = Host.addrOf (k + 67))
+    (hle : 2 ^ np m0 ≤ len m0) {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b13Offset))
     (hb : B m0 s.data) (hx8 : s.data.regs.X8.toNat = 2 ^ np m0) (hx0 : s.data.regs.X0 = 1)
     (hker : EWsAt s.data.dmem (out m0) (K m0 (np m0))) :
     Eventually (step1 Host.exe) (Post m0) s := by
@@ -46,13 +47,13 @@ theorem finish13 (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
 
 /-- **`.LEqKernel_10`** (`b12`): the size loaded, then the epilogue. -/
 theorem finish12 (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
-    (hle : 2 ^ np m0 ≤ len m0) {s : MachineState} (hpc : s.pc = Host.addrOf (k + 64))
+    (hle : 2 ^ np m0 ≤ len m0) {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b12Offset))
     (hb : B m0 s.data) (hf : Frame m0 s.data)
     (hker : EWsAt s.data.dmem (out m0) (K m0 (np m0))) :
     Eventually (step1 Host.exe) (Post m0) s := by
   obtain ⟨hwf, hm⟩ := hb.exit_match hpre.1 (by decide) rfl
   refine exec_at (hb12 hp) run_b12 hwf hpc hm fun s' hm' hpc' ↦ ?_
-  simp only [PcOk, show b12.length = 3 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b12_length, NativeRustcVmArm.Vm.EqKernel.b12Length] at hpc'
   have hdm : s'.data.dmem = s.data.dmem := hm'.dmem_eq hwf rfl
   have h64 : np m0 < 64 := hpre.2.1
   refine finish13 hp hpre hle hpc' (hb.of_block hm hm' hwf rfl (after_eq run_b12 ▸ b12_keeps))
@@ -72,9 +73,9 @@ theorem finish12 (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
 
 /-- **A round's set-up** (`b5`-`b7`): the tests, `point[i]` loaded. -/
 theorem round (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
-    (hle : 2 ^ np m0 ≤ len m0) {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + 33))
+    (hle : 2 ^ np m0 ≤ len m0) {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b5Offset))
     (hI : OInv m0 i s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 44) ∧ IInv m0 i 0 s'.data) s := by
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b8Offset) ∧ IInv m0 i 0 s'.data) s := by
   obtain ⟨hS, h64, ⟨⟨hmP, hnP⟩, hoP⟩, ⟨⟨hmO, hnO⟩, hoO⟩, hap⟩ := id hpre
   obtain ⟨hpos, hpow⟩ := pow_facts hle hI.lt
   have hnO' : (out m0).toNat + 16 * len m0 ≤ 2 ^ 64 := hnO
@@ -85,7 +86,7 @@ theorem round (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
   refine exec_at (hb5 hp) run_b5 (Env.wf_nil _) hpc (match_nil _) fun s5 hm5 hpc5 ↦ ?_
   have bd5 := hI.body.of_block (match_nil _) hm5 (Env.wf_nil _) rfl (after_eq run_b5 ▸ b5_keeps)
   have hdm5 : s5.data.dmem = s.data.dmem := hm5.dmem_eq (Env.wf_nil _) rfl
-  simp only [PcOk, show b5.length = 3 from rfl] at hpc5
+  simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b5_length, NativeRustcVmArm.Vm.EqKernel.b5Length] at hpc5
   sym_simp at hpc5
   have hpc5 := (pc_cond hpc5).2 (by
     simp only [Env.ofMachine_regs, BitVec.ult_iff_lt, BitVec.lt_def, a20, a29]
@@ -106,7 +107,7 @@ theorem round (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
   refine exec_at (hb6 hp) run_b6 (Env.wf_nil _) hpc5 (match_nil _) fun s6 hm6 hpc6 ↦ ?_
   have bd6 := bd5.of_block (match_nil _) hm6 (Env.wf_nil _) rfl (after_eq run_b6 ▸ b6_keeps)
   have hdm6 : s6.data.dmem = s.data.dmem := (hm6.dmem_eq (Env.wf_nil _) rfl).trans hdm5
-  simp only [PcOk, show b6.length = 4 from rfl] at hpc6
+  simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b6_length, NativeRustcVmArm.Vm.EqKernel.b6Length] at hpc6
   sym_simp at hpc6
   have hpc6 := (pc_cond hpc6).2 (by
     simp only [Env.ofMachine_regs, beq_iff_eq]
@@ -140,7 +141,7 @@ theorem round (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
       rw [hI.x22]
       exact (BitVec.add_zero _).symm)
     fun s7 hm7 hpc7 bd7 hR e7 ↦ .done _ ⟨?_, ?_⟩
-  · simp only [PcOk, show b7.length = 4 from rfl] at hpc7
+  · simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b7_length, NativeRustcVmArm.Vm.EqKernel.b7Length] at hpc7
     exact hpc7
   obtain ⟨hmA, hnA⟩ := elem_mapped (n := np m0) ⟨hmP, hnP⟩ bd6.kept hI.lt
   have hdm7 : s7.data.dmem = s.data.dmem :=
@@ -183,12 +184,12 @@ theorem round (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
 
 /-- **A pair** (`b8`, `EW::mul`, `b9`): `out[2^i + j] = K[j]·r`, `out[j] = K[j] + K[j]·r`; back
 at `.LEqKernel_8` or the round done. -/
-theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem pair (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : EqKernelPre m0) (hle : 2 ^ np m0 ≤ len m0) {i j : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 44)) (hI : IInv m0 i j s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b8Offset)) (hI : IInv m0 i j s.data) :
     Eventually (step1 Host.exe) (fun s' ↦
-      (s'.pc = Host.addrOf (k + 44) ∧ IInv m0 i (j + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 59) ∧ RInv m0 i s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b8Offset) ∧ IInv m0 i (j + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b10Offset) ∧ RInv m0 i s'.data)) s := by
   obtain ⟨hS, h64, ⟨⟨hmP, hnP⟩, hoP⟩, ⟨⟨hmO, hnO⟩, hoO⟩, hap⟩ := id hpre
   obtain ⟨hpos, hpow⟩ := pow_facts hle hI.lt
   have hjl := hI.jlt
@@ -227,7 +228,7 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     rw [reg_of hm8' (r := .X2) rfl, reg_of hm8' (r := .X3) rfl]
     simp only [Sym.eval, Env.ofMachine_regs, UInt64.ofBitVec_toBitVec]
     exact hI.r
-  simp only [show b8.length = 7 from rfl] at hpc8
+  simp only [NativeRustcVmArm.Vm.EqKernel.b8_length, NativeRustcVmArm.Vm.EqKernel.b8Length] at hpc8
   refine call_then hpc8 hmul (bd8.ewMulPre hS (by decide) (by decide)) fun s9 hpc9 hpost ↦ ?_
   have bd9 := bd8.call hS (by decide) (by decide) hpost
   have hf9 : Frame m0 s9.data := Frame.call bd8 (hI.frame.of_dmem hdm8) hpost
@@ -364,7 +365,7 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       Option.map_some, Option.getD_some] at h
     rw [h, show BitVec.ofInt 64 24 = BitVec.ofNat 64 24 from rfl, NativeRustcVm.addr_add]
     congr 2
-  simp only [PcOk, show b9.length = 8 from rfl] at hpc10
+  simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b9_length, NativeRustcVmArm.Vm.EqKernel.b9Length] at hpc10
   sym_simp at hpc10
   have hpc10' := pc_ne hpc10
   have r10 : (⟨s10.data.regs.X23, s10.data.regs.X24⟩ : EW) = rr m0 i := by
@@ -406,11 +407,11 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       a19, x28, x21, r10, nlo, nhi⟩)
 
 /-- **A round's pairs**: from `.LEqKernel_8` with no pair done to the round done. -/
-theorem inner (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem inner (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : EqKernelPre m0) (hle : 2 ^ np m0 ≤ len m0) {i : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 44)) (hI : IInv m0 i 0 s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 59) ∧ RInv m0 i s'.data) s :=
-  Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 44) ∧ ∃ j, 2 ^ i - j = n ∧ IInv m0 i j s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b8Offset)) (hI : IInv m0 i 0 s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b10Offset) ∧ RInv m0 i s'.data) s :=
+  Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b8Offset) ∧ ∃ j, 2 ^ i - j = n ∧ IInv m0 i j s.data)
     (fun _ _ ⟨hpc, j, hn, hI⟩ ↦ Eventually.mono (pair hp hmul hpre hle hpc hI) fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨2 ^ i - (j + 1), by have := hI'.jlt; omega, hpc', j + 1, rfl, hI'⟩

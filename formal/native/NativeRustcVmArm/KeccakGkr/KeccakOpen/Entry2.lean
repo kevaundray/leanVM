@@ -66,9 +66,9 @@ variable [Host] {k : Nat}
 
 /-- **The fold's start**: `b4`. -/
 theorem fold_start (hp : Placed code k) (h : KeccakOpenPre a s c m0) {s1 : TState}
-    {sl : Array EW} {v : EW} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 37))
+    {sl : Array EW} {v : EW} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b4Offset))
     (hsw : Sw a c m0 s1 sl v st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 45) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b5Offset) ∧
       AtFold ⟨a, s1, sl, v⟩ m0 (swOf c m0) st'.data) st := by
   have ok := ok_of h
   have hn := ok.nums

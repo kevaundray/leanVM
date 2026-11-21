@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.Grind
+public import NativeRustcVmX64.Code.Vm.BusLayout.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `verify_bus_balance`'s head: what it shares (x86-64)
@@ -146,9 +148,9 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData}
 /-- **`bus_layout(672, fw, n, blocks, len, layout)`** from the frame: the side's layout, of the
 framework sizes `fw`. -/
 theorem bl_call (h : VerifyBusBalancePre a s0 L m0)
-    (hbl : ∀ L bl, Spec (Labels.label busLayoutLabel) (BusLayoutPre L bl) (BusLayoutPost L bl))
+    (hbl : ∀ L bl, Spec (Labels.label NativeRustcVmX64.Vm.BusLayout.entryLabel) (BusLayoutPre L bl) (BusLayoutPost L bl))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (fr : St m0 96 st.data)
-    (hpc : st.pc = Labels.label busLayoutLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.BusLayout.entryLabel ∧ retOf st.data = next)
     {side : Nat} {it : NativeRustcVm.Data.Item}
     (hit : it.bytes = (sideBlocks side).flatMap NativeRustcVm.Data.Block.bytes)
     (hl1 : 2 ≤ (sideBlocks side).length) (hl2 : (sideBlocks side).length ≤ maxBlocks)
@@ -201,9 +203,9 @@ theorem bl_call (h : VerifyBusBalancePre a s0 L m0)
 
 /-- **`memcpy(dst, src, n)`** within the frame. -/
 theorem mc_call (h : VerifyBusBalancePre a s0 L m0)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hmc : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (fr : St m0 96 st.data)
-    (hpc : st.pc = Labels.label "memcpy" ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel ∧ retOf st.data = next)
     {dst src n : Nat} (hd1 : 104 ≤ dst) (hd : dst + n ≤ 5472) (hs1 : 104 ≤ src)
     (hs : src + n ≤ 5472) (hap : dst + n ≤ src ∨ src + n ≤ dst)
     (xdi : reg st.data .rdi = loc m0 dst) (xsi : reg st.data .rsi = loc m0 src)

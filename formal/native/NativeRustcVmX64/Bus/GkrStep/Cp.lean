@@ -5,7 +5,7 @@ public import NativeRustcVmX64.Bus.GkrStep.Tl
 /-!
 # `gkr_step`'s copy of the sumcheck's challenges (x86-64)
 
-From `AtCp` (`.LGkrStep_13`, `b31`): the sumcheck's challenges `xs` (at `352` of the frame) copied
+From `AtCp` (`NativeRustcVmX64.Vm.GkrStep.label_13`, `b31`): the sumcheck's challenges `xs` (at `352` of the frame) copied
 after `y` in the new point, in pairs (`b36`, `b37`) and the odd last one (`b33`/`b38`, `b39`); then
 `Some` (`b40`) and the exit (`cp_spec`).
 -/
@@ -199,7 +199,7 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData}
 theorem fin_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array EW}
     (at0 : AtCp a s0 g0 m0 xs y vs s' d0) {d : MachineData}
     (cs : CpS a m0 xs s' d0 xs.size d) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 256)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b40Offset)⟩ := by
   have lE : ∀ xs : List EW, (xs.flatMap NativeRustcVm.ewBytes).length = 16 * xs.length :=
     NativeRustcVm.length_ewsBytes
   have hcap := at0.size
@@ -211,7 +211,7 @@ theorem fin_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array 
     fun st hm hpc ↦ ?_
   obtain ⟨fr', hd⟩ := FR.block_nil h cs.fr hwf hm hmid hmem
   simp only [PcOk] at hpc
-  refine at_pc (hpc.trans (hp.label (j := 217) rfl)) (exit_spec hp h fr' ?_ ?_)
+  refine at_pc (hpc.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_18_at)) (exit_spec hp h fr' ?_ ?_)
   · rw [at0.run, rv hm hbp]
     exact bpl_one _
   · intro g' s'' hr
@@ -243,7 +243,7 @@ theorem cp_last (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
     (at0 : AtCp a s0 g0 m0 xs y vs s' d0) (hn1 : 1 ≤ xs.size) {d : MachineData}
     (cs : CpS a m0 xs s' d0 (xs.size - 1) d) (hax : reg d .rax = BitVec.ofNat 64 (xs.size - 1))
     (hbx : reg d .rbx = BitVec.ofNat 64 (16 * (reg m0 .rsi).toNat)) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 248)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b39Offset)⟩ := by
   obtain ⟨hpw, hfw, hap⟩ := nums h
   have hcap := at0.size
   unfold busPointCap at hcap
@@ -330,16 +330,16 @@ theorem cp_last (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
     · exact ewKeep h (by omega) hs (.inl (by omega)) (by omega) (cs.cp j hj hj')
     · exact NativeRustcVm.Transcript.ewAt_iff.mpr ⟨wRe0 W0 (by omega), wRe W8 (by omega)⟩
   simp only [PcOk] at hpc
-  exact at_pc (hpc.trans (by rw [show b39.length = 8 from rfl])) (fin_spec hp h at0 cs')
+  exact at_pc (hpc.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b39_next)) (fin_spec hp h at0 cs')
 
 /-- **A round of the pairs' loop** (`b37`). -/
 theorem cp_step (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array EW}
     (at0 : AtCp a s0 g0 m0 xs y vs s' d0) {i : Nat} (hi : 2 * i + 2 ≤ 2 * (xs.size / 2))
     {d : MachineData} (inv : LInv a m0 xs s' d0 i d) :
     Eventually (step1 Host.exe) (fun st ↦ (2 * (i + 1) = 2 * (xs.size / 2) ∧
-      st.pc = Host.addrOf (k + 246) ∧ LInv a m0 xs s' d0 (i + 1) st.data) ∨
-      (2 * (i + 1) < 2 * (xs.size / 2) ∧ st.pc = Host.addrOf (k + 233) ∧
-        LInv a m0 xs s' d0 (i + 1) st.data)) ⟨d, Host.addrOf (k + 233)⟩ := by
+      st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b38Offset) ∧ LInv a m0 xs s' d0 (i + 1) st.data) ∨
+      (2 * (i + 1) < 2 * (xs.size / 2) ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b37Offset) ∧
+        LInv a m0 xs s' d0 (i + 1) st.data)) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b37Offset)⟩ := by
   obtain ⟨hpw, hfw, hap⟩ := nums h
   have hcap := at0.size
   unfold busPointCap at hcap
@@ -435,18 +435,18 @@ theorem cp_step (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
   simp only [PcOk, hc] at hpc
   by_cases he : 2 * (n / 2) = 2 * i + 2
   · simp only [he, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc
-    exact .done _ (.inl ⟨by omega, hpc.trans (by rw [show b37.length = 13 from rfl]), inv'⟩)
+    exact .done _ (.inl ⟨by omega, hpc.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b37_next), inv'⟩)
   · simp only [he, decide_false, Bool.not_false, ↓reduceIte] at hpc
-    exact .done _ (.inr ⟨by omega, hpc.trans (hp.label (j := 233) rfl), inv'⟩)
+    exact .done _ (.inr ⟨by omega, hpc.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_20_at), inv'⟩)
 
 /-- **The pairs' loop** from its first round. -/
 theorem cp_loop (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array EW}
     (at0 : AtCp a s0 g0 m0 xs y vs s' d0) (hn2 : 2 ≤ xs.size) {d : MachineData}
     (inv : LInv a m0 xs s' d0 0 d) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 246) ∧
-      LInv a m0 xs s' d0 (xs.size / 2) st.data) ⟨d, Host.addrOf (k + 233)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b38Offset) ∧
+      LInv a m0 xs s' d0 (xs.size / 2) st.data) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b37Offset)⟩ := by
   refine loop (I := fun m st ↦ ∃ i, m = xs.size / 2 - i ∧ 2 * i + 2 ≤ 2 * (xs.size / 2) ∧
-    st.pc = Host.addrOf (k + 233) ∧ LInv a m0 xs s' d0 i st.data)
+    st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b37Offset) ∧ LInv a m0 xs s' d0 i st.data)
     (fun m st ⟨i, hm, hi, hpc, hinv⟩ ↦ at_pc hpc (Eventually.mono (cp_step hp h at0 hi hinv)
       fun st' hs ↦ ?_)) ⟨0, rfl, by omega, rfl, inv⟩
   rcases hs with ⟨he, hpc', hinv'⟩ | ⟨hlt, hpc', hinv'⟩
@@ -458,7 +458,7 @@ theorem cp_loop (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
 /-- **The copy** (`b31` to `b40`), from `AtCp`. -/
 theorem cp_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array EW}
     {d : MachineData} (at0 : AtCp a s0 g0 m0 xs y vs s' d) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 207)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b31Offset)⟩ := by
   have hcap := at0.size
   unfold busPointCap at hcap
   have hst := pre_step h
@@ -483,14 +483,14 @@ theorem cp_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
   simp only [PcOk, hc1] at hpc1
   by_cases hn0 : n = 0
   · simp only [hn0, decide_true, ↓reduceIte] at hpc1
-    exact at_pc (hpc1.trans (hp.label (j := 256) rfl)) (fin_spec hp h at0
+    exact at_pc (hpc1.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_23_at)) (fin_spec hp h at0
       ⟨c1.fr, c1.r13, c1.fk, c1.pk, c1.ts, fun _ _ hj ↦ absurd hj (by omega)⟩)
   simp only [hn0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
   -- `b32`: `16 step`; one challenge?
   have hwf2 := wf0 h fr1.frame.kept 0
   obtain ⟨hmid2, hmem2, hbx2, hk2⟩ := ok_b32
   refine exec_at (infix_of b32_in_code (by simp [b32]) hp) exit_b32 hwf2 nofun
-    (hpc1.trans (by rw [show b31.length = 3 from rfl])) (match_head fr1 0) fun st2 hm2 hpc2 ↦ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b31_next)) (match_head fr1 0) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨fr2, hd2⟩ := FR.block_nil h fr1 hwf2 hm2 hmid2 hmem2
   have c2 := c1.eq fr2 hd2 (kr hm2 hk2 (by simp))
   have ebx2 : reg st2.data .rbx = BitVec.ofNat 64 (16 * st) := by
@@ -510,11 +510,11 @@ theorem cp_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
     have hwf3 := wf0 h fr2.frame.kept 0
     obtain ⟨hmid3, hmem3, hax3, hk3⟩ := ok_b33
     refine exec_at (infix_of b33_in_code (by simp [b33]) hp) exit_b33 hwf3 nofun
-      (hpc2.trans (by rw [show b32.length = 3 from rfl])) (match_head fr2 0)
+      (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b32_next)) (match_head fr2 0)
       fun st3 hm3 hpc3 ↦ ?_
     obtain ⟨fr3, hd3⟩ := FR.block_nil h fr2 hwf3 hm3 hmid3 hmem3
     simp only [PcOk] at hpc3
-    exact at_pc (hpc3.trans (hp.label (j := 248) rfl)) (cp_last hp h at0 (by omega)
+    exact at_pc (hpc3.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_22_at)) (cp_last hp h at0 (by omega)
       (by rw [← hn, hn1]; exact c2.eq fr3 hd3 (kr hm3 hk3 (by simp)))
       (by rw [rv hm3 hax3, ← hn, hn1]; rfl) ((kr hm3 hk3 (by simp)).trans ebx2))
   simp only [hn1, decide_false, Bool.not_false, ↓reduceIte] at hpc2
@@ -522,7 +522,7 @@ theorem cp_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
   have hwf4 := wf0 h fr2.frame.kept 0
   obtain ⟨hmid4, hmem4, hcx4, h144, hdx4, hax4, hk4⟩ := ok_b36
   refine exec_at (infix_of b36_in_code (by simp [b36]) hp) exit_b36 hwf4 nofun
-    (hpc2.trans (hp.label (j := 227) rfl)) (match_head fr2 0) fun st4 hm4 hpc4 ↦ ?_
+    (hpc2.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_19_at)) (match_head fr2 0) fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨fr4, hd4⟩ := FR.block_nil h fr2 hwf4 hm4 hmid4 hmem4
   have e13'' : reg st2.data .r13 = BitVec.ofNat 64 n := (kr hm2 hk2 (by simp)).trans e13'
   have inv0 : LInv a m0 xs s' d 0 st4.data := by
@@ -535,7 +535,7 @@ theorem cp_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
       show BinOp.apply .add .W64 (reg st2.data .rbx) (reg st2.data .r14) = _
       rw [ebx2, kr hm2 hk2 (by simp), kr hm1 hk1 (by simp), at0.r14, addW, BitVec.add_comm]
   simp only [PcOk] at hpc4
-  refine at_pc (hpc4.trans (by rw [show b36.length = 6 from rfl]))
+  refine at_pc (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b36_next))
     (Eventually.bind (cp_loop hp h at0 (by omega) inv0) fun st5 ⟨hpc5, inv5⟩ ↦ ?_)
   -- `b38`: an odd last challenge?
   have hwf6 := wf0 h inv5.cs.fr.frame.kept 0
@@ -552,10 +552,10 @@ theorem cp_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {y vs : Array E
   simp only [PcOk, hc6] at hpc6
   by_cases ho : n % 2 = 0
   · simp only [ho, decide_true, ↓reduceIte] at hpc6
-    exact at_pc (hpc6.trans (hp.label (j := 256) rfl)) (fin_spec hp h at0
+    exact at_pc (hpc6.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_23_at)) (fin_spec hp h at0
       ⟨c6.fr, c6.r13, c6.fk, c6.pk, c6.ts, fun j hj _ ↦ c6.cp j hj (by omega)⟩)
   · simp only [ho, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc6
-    exact at_pc (hpc6.trans (by rw [show b38.length = 2 from rfl])) (cp_last hp h at0 (by omega)
+    exact at_pc (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b38_next)) (cp_last hp h at0 (by omega)
       ⟨c6.fr, c6.r13, c6.fk, c6.pk, c6.ts, fun j hj hj' ↦ c6.cp j hj (by omega)⟩
       ((kr hm6 hk6 (by simp)).trans (inv5.rax.trans (by congr 1; omega)))
       ((kr hm6 hk6 (by simp)).trans inv5.rbx))

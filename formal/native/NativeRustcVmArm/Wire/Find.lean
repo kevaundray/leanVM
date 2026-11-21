@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Find.Names
 public import NativeRustcVmArm.Wire.Find.Exec
 public import NativeRustcVmArm.Wire.Common
 public import NativeRustcVmArm.Spec.Wire
@@ -80,7 +81,7 @@ variable [Host] (k : Nat) (m)
 
 /-- The loop's head (`b2`) at node `i < n`. -/
 structure HInv (i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 8)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Find.b2Offset)
   sv : Saved m st.data
   d : st.data.dmem = m.dmem
   x0 : st.data.regs.getXReg .X0 = 1
@@ -100,7 +101,7 @@ include hp hok
 
 omit hok in
 /-- **The return** (`b5`) from a state that keeps `m`'s X30, callee-saved registers and SP. -/
-theorem ret_spec {o : Option Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 17))
+theorem ret_spec {o : Option Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Find.b5Offset))
     (hsv : Saved m st.data) (hd : st.data.dmem = m.dmem)
     (h30 : st.data.regs.getXReg .X30 = m.regs.getXReg .X30)
     (ho : match o with
@@ -124,7 +125,7 @@ theorem ret_spec {o : Option Nat} {st : MachineState} (hpc : st.pc = Host.addrOf
 
 omit hok in
 /-- **`None`** (`b4`, then the return): no node's key the key. -/
-theorem none_spec {st : MachineState} (hpc : st.pc = Host.addrOf (k + 15))
+theorem none_spec {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Find.b4Offset))
     (hsv : Saved m st.data) (hd : st.data.dmem = m.dmem)
     (h30 : st.data.regs.getXReg .X30 = m.regs.getXReg .X30) (hM : Miss m (cnt m)) :
     Eventually (step1 Host.exe) (Post m) st := by
@@ -177,7 +178,7 @@ theorem step_spec {i : Nat} {st : MachineState} (hI : HInv m k i st) :
   simp only [PcOk, hc] at hpc2
   by_cases hk : w = m.regs.X2
   · -- found: `b5`
-    simp only [hk, decide_true, ↓reduceIte, hp.label (j := 17) rfl] at hpc2
+    simp only [hk, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Find.b5Offset) NativeRustcVmArm.Vm.Find.label_5_at] at hpc2
     refine Eventually.mono (ret_spec hp (o := some i) hpc2 hsv2 (hd2.trans hI.d) h30
       ⟨hI.lt, hI.miss, fun w' hw' ↦ (hw'.unique hw).trans hk, ?_, ?_⟩) fun _ h ↦ .inl h
     · exact (Match.reg_eq hm hm2 (v := .reg .X0) rfl rfl).trans hI.x0
@@ -216,7 +217,7 @@ theorem step_spec {i : Nat} {st : MachineState} (hI : HInv m k i st) :
       at hpc3
     exact Eventually.mono (none_spec hp (hpc3.trans (congrArg Host.addrOf rfl)) hsv3
       (hd3.trans hI.d) h30' (hend ▸ hM)) fun _ h ↦ .inl h
-  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 8) rfl]
+  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Find.b2Offset) NativeRustcVmArm.Vm.Find.label_2_at]
     at hpc3
   refine .done _ (.inr ⟨_, by omega, i + 1, rfl, ⟨hpc3, hsv3, hd3.trans hI.d, ?_, ?_,
     (Match.reg_eq hm hm3 (v := .reg .X2) rfl rfl).trans hI.x2, ?_, ?_, h30', by omega, hM⟩⟩)
@@ -242,7 +243,7 @@ theorem step_spec {i : Nat} {st : MachineState} (hI : HInv m k i st) :
     omega
 
 /-- **From the entry** (`b0`): `None` for no nodes, else the loop from node `0` (`b1`). -/
-theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + 0)⟩ := by
+theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.Find.b0Offset)⟩ := by
   have hnw : NativeRustcVm.NoWrap (arr m) (40 * cnt m) := hok.2
   have hn40 : 40 * cnt m < 2 ^ 64 := by unfold NativeRustcVm.NoWrap at hnw; omega
   have hwf := Env.wf_nil m
@@ -258,7 +259,7 @@ theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k +
     rfl
   simp only [PcOk, hc] at hpc1
   by_cases h0 : cnt m = 0
-  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := 15) rfl] at hpc1
+  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Find.b4Offset) NativeRustcVmArm.Vm.Find.label_4_at] at hpc1
     exact none_spec hp hpc1 hsv1 hd1 (hr1 .X30) (h0 ▸ fun _ h ↦ absurd h (Nat.not_lt_zero _))
   simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
   have hwf2 := Env.wf_nil s1.data
@@ -296,9 +297,9 @@ theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k +
 end
 
 /-- **`find` meets its contract.** -/
-theorem find_spec (hp : Placed code k) : Spec (Labels.label findLabel) FindPre FindPost := by
+theorem find_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmArm.Vm.Find.entryLabel) FindPre FindPost := by
   intro m ⟨_, hok⟩
-  rw [hp.label (j := 0) (l := findLabel) rfl]
+  rw [hp.label (j := NativeRustcVmArm.Vm.Find.entryOffset) NativeRustcVmArm.Vm.Find.entry_at]
   exact entry_spec hp hok
 
 end

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.SharePre
 
 /-!
@@ -205,10 +207,10 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData}
 
 /-- **`read_scalar(out, t)`** from the frame, the output at `4176`. -/
 theorem rs_call (h : VerifyBusBalancePre a s0 L m0)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label readScalarLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel ∧ retOf st.data = next)
     (x0 : st.data.regs.X0.toBitVec = loc m0 4176) (x1 : st.data.regs.X1 = m0.regs.X0)
     {s : TState} (hts : TStateAt st.data.dmem m0.regs.X0.toBitVec a s)
     (cont : ∀ m2, Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) m2 →
@@ -245,10 +247,10 @@ theorem rs_call (h : VerifyBusBalancePre a s0 L m0)
 
 /-- **`push_claim(claims, id, point[..j], value)`** from the frame, the point at `3136`. -/
 theorem pc_call (h : VerifyBusBalancePre a s0 L m0)
-    (hpcl : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpcl : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label pushClaimLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel ∧ retOf st.data = next)
     {cs : Array ColumnClaimW} (hcl : ClaimsWAt st.data.dmem m0.regs.X5.toBitVec cs)
     (hcs : cs.size < claimCap) {pt : Array EW}
     (hpt : NativeRustcVm.EWsAt st.data.dmem (loc m0 3136) pt.toList) (hpsz : pt.size ≤ 63)

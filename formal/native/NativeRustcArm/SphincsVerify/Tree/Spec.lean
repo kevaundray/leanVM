@@ -63,7 +63,7 @@ theorem fold_end (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List
     {m : MachineData} (h : AtFold r l e m) :
     Eventually (step1 Host.exe) (fun st ↦
       if l = 2 then r.Done (r.layerRoot l e == r.pk.root) st
-      else st.pc = r.pc 1306 ∧ r.AtLayer (l + 1) (r.layerRoot l e) st.data) ⟨m, r.pc 2721⟩ := by
+      else st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b101Offset ∧ r.AtLayer (l + 1) (r.layerRoot l e) st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b179Offset⟩ := by
   obtain ⟨hB, hV⟩ := h
   have hl := hB.1
   rw [← layerRoot_eq r hl] at hV
@@ -76,7 +76,7 @@ theorem fold_end (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List
   have hld0 : (r.env m).load 0 0 8 = (r.addr 26769).toBitVec := load_word h0
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
   refine exec_then (hb179 hp) run_b179 hwf (match_base hpre hB) fun st1 hm1 hpc1 ↦ ?_
-  have hpc1' : st1.pc = Host.addrOf (r.k + 2729) := hpc1.trans (lbl_85 hp)
+  have hpc1' : st1.pc = Host.addrOf (r.k + NativeRustcArm.Sphincs.SphincsVerify.b181Offset) := hpc1.trans (lbl_85 hp)
   refine exec_at (hb181 hp) (exec_after run_b179 run_b181) hwf hpc1' hm1 fun st2 hm2 hpc2 ↦ ?_
   have hlo := load_lo (vars := fun _ ↦ 0) hV hlen
   have hhi := load_hi (vars := fun _ ↦ 0) hV hlen
@@ -90,11 +90,11 @@ theorem fold_end (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List
   · subst h2
     simp only [↓reduceIte]
     have hpc2' := pc_cond (b := false) hpc2 (by sym_simp; rw [hld16]; decide)
-    rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 18) (j' := 2747) (by rfl) (by decide)]
+    rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b181_next]
       at hpc2'
     refine exec_at (hb182 hp) (exec_after run_b181 run_b182) hwf hpc2' hm2 fun st3 hm3 hpc3 ↦ ?_
     have hF3 := Run.Frame.of_match r hpre hB.2.1 hm3 hwf rfl rfl (by decide)
-    have hpc3' : st3.pc = r.pc 2781 := hpc3.trans (lbl_92 hp)
+    have hpc3' : st3.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b188Offset := hpc3.trans (lbl_92 hp)
     have hroot := pkRoot_at hIn
     have hcmp := beq_eq_words hlo hhi
       (load_lo (vars := fun _ ↦ 0) hroot (length_pkRoot r))

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Seed.Names
 public import NativeRustcVmArm.Spec.Top
 public import NativeRustcVmArm.Top.Seed.Exec
 
@@ -56,19 +57,19 @@ theorem slotsIn : SlotsIn slots 208 240 := by simp [SlotsIn, slots]
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Seed.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 14) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Seed.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 18) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Seed.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 24) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Seed.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 28) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Seed.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label seedLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.Seed.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Seed.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.Seed.entryOffset) NativeRustcVmArm.Vm.Seed.entry_at
 
 end
 

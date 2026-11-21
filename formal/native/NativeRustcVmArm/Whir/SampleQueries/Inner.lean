@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.QueryBits.Names
 public import NativeRustcVmArm.Whir.SampleQueries.Outer
 
 /-!
@@ -83,12 +84,12 @@ variable [Host] {a : DecArea} {s0 : TState} {m1 : MachineData} {k : Nat}
 
 /-- **The inner loop's turn.** -/
 theorem inner_step (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
-    (hqb : Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost)
+    (hqb : Spec (Labels.label NativeRustcVmArm.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost)
     {j r : Nat} {s : TState} {qs : List UInt64} {n i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 65)) (hi : Inner a s0 m1 j r s qs n i st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b13Offset)) (hi : Inner a s0 m1 j r s qs n i st.data) :
     Eventually (step1 Host.exe)
-      (fun st' ↦ (st'.pc = Host.addrOf (k + 65) ∧ Inner a s0 m1 j r s qs n (i + 1) st'.data) ∨
-        (st'.pc = Host.addrOf (k + 40) ∧
+      (fun st' ↦ (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b13Offset) ∧ Inner a s0 m1 j r s qs n (i + 1) st'.data) ∨
+        (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b8Offset) ∧
           AtB8 a s0 m1 j r n (sq s).2 (qs ++ (chunk (dep m1) (sq s).1 n).toList) st'.data)) st := by
   have hc := cnt_le h
   have hN := pre_N h
@@ -112,7 +113,7 @@ theorem inner_step (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
     simp only [BitVec.toNat_ofNat] at this
     omega
   rw [hcond1] at hpc1
-  simp only [Bool.false_eq_true, ↓reduceIte, show k + 65 + b13.length = k + 67 from rfl] at hpc1
+  simp only [Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmArm.Vm.SampleQueries.b13Offset + b13.length = k + NativeRustcVmArm.Vm.SampleQueries.b14Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SampleQueries.b13_next]] at hpc1
   -- `b14`: `query_bits`
   refine hf1.regsBlock (inf hp b14_in_code (by simp [b14])) run_b14 hpc1 rfl rfl (by rfl)
     fun st2 hf2 hd2 hm2 hpc2 ↦ ?_
@@ -199,7 +200,7 @@ theorem inner_step (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
     · exact NativeRustcVm.InRange.mono hq (hno'.mono (by omega)) hno' (Nat.le_refl _)
         (by omega)
     · exact NativeRustcVm.InRange.of_sub hq hno' (by omega)
-  refine exec_at (st := ⟨m3, _⟩) (k := k + 72) (inf hp b15_in_code (by simp [b15])) run_b15 hwf6
+  refine exec_at (st := ⟨m3, _⟩) (k := k + NativeRustcVmArm.Vm.SampleQueries.b15Offset) (inf hp b15_in_code (by simp [b15])) run_b15 hwf6
     rfl hm6 fun st7 hm7 hpc7 ↦ ?_
   simp only [PcOk] at hpc7
   have hrs : ∀ w ∈ (after b15 pushS).mem, (w.r = 1 ∨ w.r = 2) ∧ w.off + w.n ≤ 8 := by
@@ -322,7 +323,7 @@ theorem inner_step (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
     · simp only [hc, decide_false]; simp; omega
   rw [hcond7] at hpc7
   by_cases hc : i + 1 < n
-  · simp only [hc, decide_true, ↓reduceIte, hp.label (j := 65) rfl] at hpc7
+  · simp only [hc, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b13Offset) NativeRustcVmArm.Vm.SampleQueries.label_11_at] at hpc7
     refine .done _ (Or.inl ⟨hpc7, ?_⟩)
     exact {
       fr := hf7
@@ -351,14 +352,14 @@ theorem inner_step (hp : Placed code k) (h : SampleQueriesPre a s0 m1)
       model := hi.model }
   · have hn1 : i + 1 = n := by have := hi.ilt; omega
     simp only [hc, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc7
-    rw [show k + 72 + b15.length = k + 79 from rfl] at hpc7
+    rw [show k + NativeRustcVmArm.Vm.SampleQueries.b15Offset + b15.length = k + NativeRustcVmArm.Vm.SampleQueries.b16Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SampleQueries.b15_next]] at hpc7
     refine hf7.regsBlock (inf hp b16_in_code (by simp [b16])) run_b16 hpc7 rfl rfl (by rfl)
       fun st8 hf8 hd8 hm8 hpc8 ↦ ?_
-    simp only [PcOk, hp.label (j := 34) rfl] at hpc8
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.SampleQueries.b7Offset) NativeRustcVmArm.Vm.SampleQueries.label_6_at] at hpc8
     have hwf9 := frame_wf h hf8
     have hm9 := frame_match h hf8
     refine exec_at (inf hp b7_in_code (by simp [b7])) run_b7 hwf9 hpc8 hm9 fun st9 hm9' hpc9 ↦ ?_
-    simp only [PcOk, show k + 34 + b7.length = k + 40 from rfl] at hpc9
+    simp only [PcOk, show k + NativeRustcVmArm.Vm.SampleQueries.b7Offset + b7.length = k + NativeRustcVmArm.Vm.SampleQueries.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SampleQueries.b7_next]] at hpc9
     refine .done _ (Or.inr ⟨hpc9, ?_⟩)
     have hf9 : SFr m1 st9.data :=
       Fr.ofBlock hf8 hm9 hm9' hwf9 rfl rfl rfl (fun _ h ↦ absurd h (by simp))

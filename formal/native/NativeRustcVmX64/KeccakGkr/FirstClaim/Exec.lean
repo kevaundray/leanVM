@@ -2,6 +2,12 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.FirstClaim
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
+public import NativeRustcVmX64.Code.Vm.FirstClaim.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 public meta import NativeRustcVmX64.Code.Vm.FirstClaim
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -87,12 +93,6 @@ sym_block e20 := exec b20 callS
 
 public section
 
-theorem lengths : b0.length = 82 ∧ b1.length = 2 ∧ b2.length = 8 ∧ b3.length = 11 ∧
-    b4.length = 6 ∧ b5.length = 10 ∧ b6.length = 2 ∧ b7.length = 7 ∧ b8.length = 5 ∧
-    b9.length = 44 ∧ b10.length = 2 ∧ b11.length = 70 ∧ b12.length = 2 ∧ b13.length = 4 ∧
-    b14.length = 2 ∧ b15.length = 7 ∧ b16.length = 4 ∧ b17.length = 4 := by
-  decide +kernel
-
 theorem ok_b0 : ProOk 1376 0 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ w.off + w.n ≤ 1376) ∧
     (∀ w ∈ (after b0 entryS).mem, w.off + w.n ≤ 8 ∨ (328 ≤ w.off ∧ w.off + w.n ≤ 840) ∨
@@ -105,14 +105,14 @@ theorem ok_b0 : ProOk 1376 0 slots (after b0 entryS) = true ∧
   rw [after_eq e0]; decide +kernel
 
 theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9eq_kernel") := e0.trans (by rw [after_eq e0])
+    .call NativeRustcVmX64.Vm.EqKernel.entryLabel) := e0.trans (by rw [after_eq e0])
 
 theorem ok_b1 : MidOk 1376 8 slots (after b1 callS) = true ∧ (after b1 callS).mem = [] ∧
     atoms (after b1 callS) [.rbx, .r12, .r13, .r14, .r15] = true := by
   rw [after_eq e1]; decide +kernel
 
 theorem exit_b1 : exec b1 callS = some (after b1 callS,
-    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LFirstClaim_8") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.FirstClaim.label_8) :=
   e1.trans (by rw [after_eq e1])
 
 theorem ok_b2 : MidOk 1376 8 slots (after b2 callS) = true ∧ within (after b2 callS) 16 32 = true ∧
@@ -135,7 +135,7 @@ theorem ok_b3 : MidOk 1376 0 slots (after b3 lanesS) = true ∧ within (after b3
   rw [after_eq e3]; decide +kernel
 
 theorem exit_b3 : exec b3 lanesS = some (after b3 lanesS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") := e3.trans (by rw [after_eq e3])
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) := e3.trans (by rw [after_eq e3])
 
 theorem ok_b4 : MidOk 1376 8 slots (after b4 storeS) = true ∧
     (∀ w ∈ (after b4 storeS).mem, w.r = 1 ∧ 0 ≤ w.off ∧ w.off + w.n ≤ 16) ∧
@@ -148,7 +148,7 @@ theorem ok_b4 : MidOk 1376 8 slots (after b4 storeS) = true ∧
 
 theorem exit_b4 : exec b4 storeS = some (after b4 storeS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .rbp)) (.lit 25608)).not
-      ".LFirstClaim_2") := e4.trans (by rw [after_eq e4])
+      NativeRustcVmX64.Vm.FirstClaim.label_2) := e4.trans (by rw [after_eq e4])
 
 theorem ok_b5 : MidOk 1376 0 slots (after b5 callS) = true ∧ within (after b5 callS) 0 64 = true ∧
     (∀ w ∈ (after b5 callS).mem, w.off + w.n ≤ 8 ∨ 32 ≤ w.off) ∧
@@ -159,7 +159,7 @@ theorem ok_b5 : MidOk 1376 0 slots (after b5 callS) = true ∧ within (after b5 
   rw [after_eq e5]; decide +kernel
 
 theorem exit_b5 : exec b5 callS = some (after b5 callS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9eq_kernel") := e5.trans (by rw [after_eq e5])
+    .call NativeRustcVmX64.Vm.EqKernel.entryLabel) := e5.trans (by rw [after_eq e5])
 
 /-- `b6`, `b10`, `b12`, `b14`: `None` tests, nothing else. -/
 theorem ok_test : ∀ b ∈ [b6, b10, b12, b14], MidOk 1376 8 slots (after b callS) = true ∧
@@ -173,13 +173,13 @@ theorem ok_test : ∀ b ∈ [b6, b10, b12, b14], MidOk 1376 8 slots (after b cal
   · rw [after_eq e12]; decide +kernel
   · rw [after_eq e14]; decide +kernel
 
-theorem exit_b6 : exec b6 callS = some (after b6 callS, .cond test1 ".LFirstClaim_9") :=
+theorem exit_b6 : exec b6 callS = some (after b6 callS, .cond test1 NativeRustcVmX64.Vm.FirstClaim.label_9) :=
   e6.trans (by rw [after_eq e6]; rfl)
-theorem exit_b10 : exec b10 callS = some (after b10 callS, .cond test1 ".LFirstClaim_9") :=
+theorem exit_b10 : exec b10 callS = some (after b10 callS, .cond test1 NativeRustcVmX64.Vm.FirstClaim.label_9) :=
   e10.trans (by rw [after_eq e10]; rfl)
-theorem exit_b12 : exec b12 callS = some (after b12 callS, .cond testA ".LFirstClaim_9") :=
+theorem exit_b12 : exec b12 callS = some (after b12 callS, .cond testA NativeRustcVmX64.Vm.FirstClaim.label_9) :=
   e12.trans (by rw [after_eq e12]; rfl)
-theorem exit_b14 : exec b14 callS = some (after b14 callS, .cond testA ".LFirstClaim_9") :=
+theorem exit_b14 : exec b14 callS = some (after b14 callS, .cond testA NativeRustcVmX64.Vm.FirstClaim.label_9) :=
   e14.trans (by rw [after_eq e14]; rfl)
 
 theorem ok_b7 : MidOk 1376 0 slots (after b7 callS) = true ∧ within (after b7 callS) 0 8 = true ∧
@@ -190,7 +190,7 @@ theorem ok_b7 : MidOk 1376 0 slots (after b7 callS) = true ∧ within (after b7 
   rw [after_eq e7]; decide +kernel
 
 theorem exit_b7 : exec b7 callS = some (after b7 callS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field3dot") := e7.trans (by rw [after_eq e7])
+    .call NativeRustcVmX64.Vm.Dot.entryLabel) := e7.trans (by rw [after_eq e7])
 
 theorem ok_b8 : MidOk 1376 0 slots (after b8 callS) = true ∧ within (after b8 callS) 0 8 = true ∧
     (after b8 callS).reg .rdi = some (.reg .rbp) ∧ (after b8 callS).reg .rsi = some (.reg .r14) ∧
@@ -199,7 +199,7 @@ theorem ok_b8 : MidOk 1376 0 slots (after b8 callS) = true ∧ within (after b8 
   rw [after_eq e8]; decide +kernel
 
 theorem exit_b8 : exec b8 callS = some (after b8 callS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") := e8.trans (by rw [after_eq e8])
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) := e8.trans (by rw [after_eq e8])
 
 theorem ok_b9 : MidOk 1376 0 slots (after b9 callS) = true ∧ within (after b9 callS) 0 328 = true ∧
     (∀ w ∈ (after b9 callS).mem, w.off + w.n ≤ 8 ∨ 64 ≤ w.off) ∧ zeros (after b9 callS) 64 33 = true ∧
@@ -213,7 +213,7 @@ theorem ok_b9 : MidOk 1376 0 slots (after b9 callS) = true ∧ within (after b9 
   rw [after_eq e9]; decide +kernel
 
 theorem exit_b9 : exec b9 callS = some (after b9 callS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9eq_kernel") := e9.trans (by rw [after_eq e9])
+    .call NativeRustcVmX64.Vm.EqKernel.entryLabel) := e9.trans (by rw [after_eq e9])
 
 theorem ok_b11 : MidOk 1376 0 slots (after b11 callS) = true ∧ within (after b11 callS) 0 1328 = true ∧
     (∀ w ∈ (after b11 callS).mem, w.off + w.n ≤ 8 ∨ (64 ≤ w.off ∧ w.off + w.n ≤ 72) ∨ 840 ≤ w.off) ∧
@@ -228,7 +228,7 @@ theorem ok_b11 : MidOk 1376 0 slots (after b11 callS) = true ∧ within (after b
   rw [after_eq e11]; decide +kernel
 
 theorem exit_b11 : exec b11 callS = some (after b11 callS, .call
-    "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj1e_E6extendB4_") :=
+    NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) :=
   e11.trans (by rw [after_eq e11])
 
 theorem ok_b13 : MidOk 1376 0 slots (after b13 callS) = true ∧ within (after b13 callS) 0 8 = true ∧
@@ -238,7 +238,7 @@ theorem ok_b13 : MidOk 1376 0 slots (after b13 callS) = true ∧ within (after b
   rw [after_eq e13]; decide +kernel
 
 theorem exit_b13 : exec b13 callS = some (after b13 callS, .call
-    "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj1e_E6extendB4_") :=
+    NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) :=
   e13.trans (by rw [after_eq e13])
 
 theorem ok_b15 : MidOk 1376 0 slots (after b15 callS) = true ∧ within (after b15 callS) 0 8 = true ∧
@@ -249,7 +249,7 @@ theorem ok_b15 : MidOk 1376 0 slots (after b15 callS) = true ∧ within (after b
     atoms (after b15 callS) [.r15] = true := by
   rw [after_eq e15]; decide +kernel
 
-theorem exit_b15 : exec b15 callS = some (after b15 callS, .call "memcpy") :=
+theorem exit_b15 : exec b15 callS = some (after b15 callS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   e15.trans (by rw [after_eq e15])
 
 theorem ok_b16 : MidOk 1376 0 slots (after b16 callS) = true ∧ within (after b16 callS) 0 8 = true ∧
@@ -258,7 +258,7 @@ theorem ok_b16 : MidOk 1376 0 slots (after b16 callS) = true ∧ within (after b
     atoms (after b16 callS) [.rbp, .r13, .r15] = true := by
   rw [after_eq e16]; decide +kernel
 
-theorem exit_b16 : exec b16 callS = some (after b16 callS, .call "memcpy") :=
+theorem exit_b16 : exec b16 callS = some (after b16 callS, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   e16.trans (by rw [after_eq e16])
 
 theorem ok_b17 : MidOk 1376 8 slots (after b17 outS) = true ∧
@@ -268,7 +268,7 @@ theorem ok_b17 : MidOk 1376 8 slots (after b17 outS) = true ∧
     (∀ t < 8, findWrite 1 (16 + t) (after b17 outS).mem = some (.reg .rbp, t)) := by
   rw [after_eq e17]; decide +kernel
 
-theorem exit_b17 : exec b17 outS = some (after b17 outS, .jump ".LFirstClaim_10") :=
+theorem exit_b17 : exec b17 outS = some (after b17 outS, .jump NativeRustcVmX64.Vm.FirstClaim.label_10) :=
   e17.trans (by rw [after_eq e17])
 
 theorem ok_b20 : EpiOk 1376 slots (after b20 callS) = true ∧ (after b20 callS).mem = [] := by

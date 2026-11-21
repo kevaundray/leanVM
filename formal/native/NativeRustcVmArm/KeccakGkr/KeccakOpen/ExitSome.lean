@@ -47,7 +47,7 @@ theorem row0_at {d : DataMem} {sl : Array EW} {rows : Array (Array EW)}
 /-- **After the fold**: `b93` and the return with tag `1`. -/
 theorem some_exit (hp : Placed code k) (h : KeccakOpenPre a s c m0) {s1 : TState}
     {sl : Array EW} {v : EW} (hrun : scRun s m0 = some ((sl, v), s1))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 576))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b93Offset))
     (hmid : Mid ⟨a, s1, sl, v⟩ m0 st.data)
     (hrw : ElemsAt st.data.dmem (rwA m0) (Fr sl (keccakSlotWeights m0.regs.X2.toNat c
       m0.regs.X6.toNat m0.regs.X7.toNat) 6) 4096) :

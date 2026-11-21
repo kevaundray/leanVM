@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsHash.Pad
 
 /-!
@@ -45,7 +46,7 @@ theorem lane_lastB (m0 : MachineData) {t : Nat} (ht : t = m0.regs.X2.toNat % 136
 variable [Host]
 
 /-- **From the padding to the epilogue.** -/
-theorem pad_run (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem pad_run (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code k)
     {m0 : MachineData} (g : Geo m0)
     (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack)
@@ -82,7 +83,7 @@ theorem pad_run (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmA
     rw [hsub, and_val_aux _ (by omega), memExtE0, add64, ← ht,
       show (8 + 8 * (t : Int)) = ((8 + 8 * t : Nat) : Int) by omega, BitVec.ofInt_natCast,
       show BitVec.ofInt 64 8 = BitVec.ofNat 64 8 from rfl, BitVec.add_assoc, BitVec.ofNat_add]
-  have hk : b76.IsInfixAt Host.prog (k + 534) := b76_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b76.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b76Offset) := b76_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk hx hwf hm fun st1 hm1 hpc1 => ?_
   have hc1 : Ctx m0 st1.data := ctx_step hstk hc hm1 hwf rfl hsp hregs fun w hw => by
     rw [hmem, padMem] at hw
@@ -103,7 +104,7 @@ theorem pad_run (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmA
   have hx0' : st1.data.regs.X0.toBitVec = frame m0 + BitVec.ofNat 64 8 :=
     (hm1.regs .X0 _ hx0).trans (by simp [Sym.eval]; rfl)
   refine call_kf hkf hstk hrc hc1 hl1 hx0' hpc1 fun st2 hpc2 hc2 hl2 _ => .done _ ⟨hc2, hl2, ?_⟩
-  rw [hpc2, show b76.length = 19 from rfl]
+  rw [hpc2, Nat.add_assoc, b76_next]
 
 end
 

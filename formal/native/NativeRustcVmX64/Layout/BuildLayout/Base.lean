@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Layout.BuildLayout.Exec
 public import NativeRustcVmX64.Layout.BuildLayout.Model
 public import NativeRustcVmX64.Arrays.Common
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
 
 /-!
 # `build_layout` on x86-64: the body, words, conditions, the epilogue
@@ -332,8 +333,8 @@ theorem step0 (hF : Facts bc m0) {ds : List Directive} {kk : Nat} {Sy1 : SState}
     cont st' hm' hpc' hb' (hm'.dmem_eq (fr_wf0 hb hF.stack (by decide)) hmem)
 
 /-- **A call of `bit_length`**: memory and the callee-saved registers kept, its result in RAX. -/
-theorem callBL (hbl : Spec (label bitLengthLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
-    {st : MachineState} {next : Int64} {env : Env} (hpc : PcOk env (.call bitLengthLabel) next st)
+theorem callBL (hbl : Spec (label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
+    {st : MachineState} {next : Int64} {env : Env} (hpc : PcOk env (.call NativeRustcVmX64.Vm.BitLength.entryLabel) next st)
     (hb : B m0 0 st.data) {Q : MachineState → Prop}
     (cont : ∀ st', st'.pc = next → B m0 8 st'.data → st'.data.dmem = st.data.dmem →
       (∀ r, calleeSaved r = true → reg st'.data r = reg st.data r) →
@@ -369,7 +370,7 @@ theorem al_bit (x : BitVec 64) :
 
 /-- **The epilogue** `b20`: AL the low bit of RAX. -/
 theorem epi (hp : Placed code k) (hF : Facts bc m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 114)) (hb : B m0 8 st.data) {b : Bool}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b20Offset)) (hb : B m0 8 st.data) {b : Bool}
     (hax : (reg st.data .rax).toNat % 2 = (okWord b).toNat) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ rspOf s.data = rspOf m0 + 8#64 ∧
       OkAl s.data b ∧ Changes m0 s.data buildLayoutStack (ll m0) layoutBytes ∧ Saved m0 s.data ∧
@@ -386,7 +387,7 @@ theorem epi (hp : Placed code k) (hF : Facts bc m0) {st : MachineState}
 
 /-- **A failed check** (`b19`): `0` returned. -/
 theorem fail (hp : Placed code k) (hF : Facts bc m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 112)) (hb : B m0 8 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset)) (hb : B m0 8 st.data)
     (hr : buildLayout bc (lmN m0) (rowsOf m0) = none) :
     Eventually (step1 Host.exe) (Post bc m0) st := by
   obtain ⟨hok, hmem, hrax⟩ := ok_b19

@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Transcript.NextScalar.Exec
 public import NativeVm.Equiv.Transcript
+public import NativeRustcVmX64.Code.Vm.DecodedStreamElement.Names
+public import NativeRustcVmX64.Code.Vm.TStateNextScalar.Names
 
 /-!
 # `TState::next_scalar` on x86-64
@@ -43,10 +45,10 @@ variable [Host] {k : Nat}
 
 /-- **`TState::next_scalar` meets its contract.** -/
 theorem nextScalar_spec (hp : Placed code k)
-    (hse : ∀ a stream openings, Spec (Labels.label streamElementLabel)
+    (hse : ∀ a stream openings, Spec (Labels.label NativeRustcVmX64.Vm.DecodedStreamElement.entryLabel)
       (StreamElementPre a stream openings) (StreamElementPost stream))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label nextScalarLabel) (NextScalarPre a s) (NextScalarPost a s) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.TStateNextScalar.entryLabel) (NextScalarPre a s) (NextScalarPost a s) := by
   rintro m0 ⟨hst, hts, ⟨hapT, hapA, -⟩, ⟨hom, hon, hoT, hoA, hoS, -⟩⟩
   set t := reg m0 .rsi with htdef
   set o := reg m0 .rdi with hodef
@@ -72,14 +74,14 @@ theorem nextScalar_spec (hp : Placed code k)
     (Apart.symm' hoT)
   -- `b0`: the prologue, the ground tag.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 64) (rest := [(t, 760), (o, 24)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 8 + b1.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TStateNextScalar.b1Offset + b1.length)).toBitVec)
     ⟨frame_mapped hst le_rfl, hfnw⟩ (rest2_ok ⟨hTm, hTn⟩ ⟨hom, hon⟩ fun _ h ↦ h) hpw
   have hm0 : Match (frameEnv m0 m0 64 [(t, 760), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 8 + b1.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateNextScalar.b1Offset + b1.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
       ⟨match_rsp, known_ptr rfl rfl, known_ptr rfl rfl, trivial⟩ trivial trivial trivial
-  unfold nextScalarLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.TStateNextScalar.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.TStateNextScalar.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 => ?_
   have hgr := hts.sponge.ground
@@ -92,14 +94,14 @@ theorem nextScalar_spec (hp : Placed code k)
     -- A ground challenge waits: `None`.
     rw [hg] at hgr
     have htag : (frameEnv m0 m0 64 [(t, 760), (o, 24)] (fun _ ↦ 0)
-        (Host.addrOf (k + 8 + b1.length)).toBitVec).load 1 304 1 = BitVec.ofNat 64 1 :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.TStateNextScalar.b1Offset + b1.length)).toBitVec).load 1 304 1 = BitVec.ofNat 64 1 :=
       load1_of_tag (Or.inr rfl) hgr.1
     simp only [htag] at hpc1
     simp (config := { decide := true }) only [↓reduceIte] at hpc1
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4a hwf0 nofun
-      (hpc1.trans (hp.label (j := 26) rfl)) hm1 fun st2 hm2 hpc2 => ?_
+      (hpc1.trans (hp.label NativeRustcVmX64.Vm.TStateNextScalar.label_3_at)) hm1 fun st2 hm2 hpc2 => ?_
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (exec_after run_b4a exit_a) hwf0 nofun
-      (hpc2.trans (by rw [show b4.length = 2 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+      (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateNextScalar.b4_next)) hm2 fun st3 hm3 hpc3 => ?_
     obtain ⟨hk3, hrsp3, hw3, hws3⟩ := ok_a
     have hs3 : NativeRustcVm.SameOutside m0.dmem st3.data.dmem (fun q ↦
         Touch o 24 (fun _ ↦ True) q ∨ Touch fb (64 + 8) (fun j ↦ j < 64) q) :=
@@ -124,13 +126,13 @@ theorem nextScalar_spec (hp : Placed code k)
   | none =>
   rw [hg] at hgr
   have htag : (frameEnv m0 m0 64 [(t, 760), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 8 + b1.length)).toBitVec).load 1 304 1 = BitVec.ofNat 64 0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.TStateNextScalar.b1Offset + b1.length)).toBitVec).load 1 304 1 = BitVec.ofNat 64 0 :=
     load1_of_tag (Or.inl rfl) hgr
   simp only [htag] at hpc1
   simp (config := { decide := true }) only [↓reduceIte] at hpc1
   -- `b1`: `call stream_element`.
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf0 (fun _ _ ↦ rfl)
-    (hpc1.trans (by rw [show b0.length = 8 from rfl])) hm1 fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateNextScalar.b0_next)) hm1 fun st2 hm2 hpc2 => ?_
   obtain ⟨hpro, hws2, hx7, hx6, hx2, hx1, hx14, hx15, hx3⟩ := after_eq run_b1 ▸ ok_b1
   have hf2 : Frame m0 64 slots 0 st2.data :=
     Frame.of_prologue Frame.entry hwf0 hm2 hpro slots_le (by decide)
@@ -211,7 +213,7 @@ theorem nextScalar_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩
       ⟨hf3.rsp_eval, known_ptr rfl h15, known_ptr rfl h3, trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf3 nofun
-    (hpc3.trans (by rw [show b1.length = 8 from rfl])) hm3 fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateNextScalar.b1_next)) hm3 fun st4 hm4 hpc4 => ?_
   simp only [PcOk] at hpc4
   sym_simp_at hpc4
   -- The end of a path: the frame restored.
@@ -230,9 +232,9 @@ theorem nextScalar_spec (hp : Placed code k)
     simp only [ht0] at hpc4
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4b hwf3 nofun
-      (hpc4.trans (hp.label (j := 26) rfl)) hm4 fun st5 hm5 hpc5 => ?_
+      (hpc4.trans (hp.label NativeRustcVmX64.Vm.TStateNextScalar.label_3_at)) hm4 fun st5 hm5 hpc5 => ?_
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (exec_after run_b4b run_b5b) hwf3 nofun
-      (hpc5.trans (by rw [show b4.length = 2 from rfl])) hm5 fun st6 hm6 hpc6 => ?_
+      (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateNextScalar.b4_next)) hm5 fun st6 hm6 hpc6 => ?_
     obtain ⟨hepi, hw6, hws6⟩ := after_eq run_b5b ▸ ok_b
     obtain ⟨hsv6, hrsp6⟩ := Frame.epilogue hf3 hwf3 hm6 hepi
     have hs6 := sameOutside_region hwf3 hm6 (r := 2) rfl hws6
@@ -257,9 +259,9 @@ theorem nextScalar_spec (hp : Placed code k)
   obtain ⟨hlt, hxv⟩ := Array.getElem?_eq_some_iff.mp hx
   rw [ewAt_iff, off_off, off_off] at hel
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf3 nofun
-    (hpc4.trans (by rw [show b2.length = 2 from rfl])) hm4 fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateNextScalar.b2_next)) hm4 fun st5 hm5 hpc5 => ?_
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) (exec_after run_b3 run_b5c) hwf3 nofun
-    (hpc5.trans (hp.label (j := 28) rfl)) hm5 fun st6 hm6 hpc6 => ?_
+    (hpc5.trans (hp.label NativeRustcVmX64.Vm.TStateNextScalar.label_4_at)) hm5 fun st6 hm6 hpc6 => ?_
   obtain ⟨hepi, hwt, hw0, hw1, hwc, hws6⟩ := after_eq run_b5c ▸ ok_c
   obtain ⟨hsv6, hrsp6⟩ := Frame.epilogue hf3 hwf3 hm6 hepi
   have hs6 : NativeRustcVm.SameOutside st3.data.dmem st6.data.dmem (fun q ↦

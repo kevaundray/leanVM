@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.KeccakF.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Common.Update.Names
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.WotsLeaf.Leaf.Out
 public import NativeRustcArm.WotsLeaf.Codeword.Digits58
 
@@ -30,20 +37,20 @@ theorem result_some (r : Run) {x : List UInt8} (h : codeword r.digest16 = some x
 
 /-- **`wots_leaf` meets its contract.** -/
 public theorem wotsLeaf_spec [NativeArm.Host] {k : Nat} (hp : Placed Xmss.WotsLeaf.code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost)
-    (hupdate : Spec (label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") UpdatePre UpdatePost)
-    (hfinalize : Spec (label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") FinalizePre
+    (hmemcpy : Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hmemset : Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost)
+    (hupdate : Spec (label NativeRustcArm.Common.Update.entryLabel) UpdatePre UpdatePost)
+    (hfinalize : Spec (label NativeRustcArm.Common.Finalize.entryLabel) FinalizePre
       FinalizePost)
-    (hkeccakF : Spec (label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost) :
-    Spec (label "_RNvNtCs7Pyp4CbMBld_9lean_xmss4wots9wots_leaf") WotsLeafPre WotsLeafPost := by
+    (hkeccakF : Spec (label NativeRustcArm.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost) :
+    Spec (label NativeRustcArm.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost := by
   intro m₀ hpre
   let r : Run := ⟨m₀, k⟩
   have hp' : Placed Xmss.WotsLeaf.code r.k := hp
   have hc : Callees := ⟨hmemcpy, hmemset, hupdate, hfinalize, hkeccakF⟩
   have hpr : r.Pre := hpre
-  rw [hp.label (j := 0) (by decide +kernel)]
-  show Eventually _ r.Done ⟨m₀, NativeArm.Host.addrOf (r.k + 0)⟩
+  rw [hp.label NativeRustcArm.Xmss.WotsLeaf.entry_at]
+  show Eventually _ r.Done ⟨m₀, NativeArm.Host.addrOf (r.k + NativeRustcArm.Xmss.WotsLeaf.b0Offset)⟩
   refine Eventually.bind (digest_region r hp' hc hpr m₀ rfl) fun st ⟨hpc, hA⟩ ↦ pc_at hpc ?_
   refine Eventually.bind (codeword_region r hp' hc hpr st.data hA) fun st2 h2 ↦ ?_
   rcases h2 with ⟨-, hD⟩ | ⟨hcw, hpc2, hA2⟩

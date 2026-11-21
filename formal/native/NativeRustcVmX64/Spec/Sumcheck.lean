@@ -4,6 +4,14 @@ public import NativeRustcVmX64.Spec.Transcript
 public import NativeRustcVmX64.Spec.Arrays
 public import NativeRustcVm.Sumcheck.Rows
 public import NativeRustcVm.Sumcheck.Model
+public import NativeRustcVmX64.Code.Vm.Climb.Names
+public import NativeRustcVmX64.Code.Vm.OpenPhase.Names
+public import NativeRustcVmX64.Code.Vm.RowsRow.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfGkrStep.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfVerifyLayer.Names
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
+public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly.Names
 
 /-!
 # The contracts of `transcript.rs`'s openings and sumcheck functions on x86-64
@@ -52,30 +60,6 @@ open NativeRustcX64 NativeVm NativeVm.Model LeanVM.Protocol.Compile NativeRustcV
 open NativeRustcVm.Sumcheck
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `Rows::row`'s symbol. -/
-def rowsRowLabel : Label := "_RNvMs_NtCsemcRClSg8DH_9native_vm10transcriptNtB4_4Rows3row"
-/-- `climb`'s symbol. -/
-def climbLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10transcript5climb"
-/-- `open_phase`'s symbol. -/
-def openPhaseLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm10transcript10open_phase"
-/-- `TState::query_openings`'s symbol. -/
-def queryOpeningsLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState14query_openings"
-/-- `TState::sumcheck_round_poly`'s symbol. -/
-def roundPolyLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState19sumcheck_round_poly"
-/-- `TState::sumcheck`'s symbol, with `sumcheck_plain`'s closure. -/
-def sumcheckPlainLabel : Label :=
-  "_RINvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB6_6TState8sumcheckNCNvB2_14sumcheck_plain0EB8_"
-/-- `TState::sumcheck`'s symbol, with `gkr_step`'s closure. -/
-def sumcheckGkrLabel : Label :=
-  "_RINvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB6_6TState8sumcheckNCNvNtB8_3gkr8gkr_step0EB8_"
-/-- `TState::sumcheck`'s symbol, with `verify_layer`'s closure. -/
-def sumcheckLayerLabel : Label :=
-  "_RINvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB6_6TState8sumcheckNCNvNtB8_10keccak_gkr12verify_layers1_0EB8_"
 
 /-! ## Stacks -/
 

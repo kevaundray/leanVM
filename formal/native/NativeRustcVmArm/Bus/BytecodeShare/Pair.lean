@@ -23,8 +23,8 @@ variable [Host] {a : DecArea} {s0 : TState} {m0 m : MachineData} {k : Nat} {sh v
 theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin a s0 m0 m sh v k)
     {j : Nat} {st : MachineData} (hd : PairHead m0 m sh v j st) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s0 m0 st' ∨
-      (st'.pc = Host.addrOf (k + 97) ∧ PairHead m0 m sh v (j + 2) st'.data))
-      ⟨st, Host.addrOf (k + 97)⟩ := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b18Offset) ∧ PairHead m0 m sh v (j + 2) st'.data))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b18Offset)⟩ := by
   obtain ⟨hS, -, -, -, -, -, hbl, -, hpo, -⟩ := pre_parts h
   have A := addr_of h
   have hN := A.sp
@@ -129,7 +129,7 @@ theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin a s0 m
     by_cases he : m0.regs.X4.toNat = m0.regs.X4.toNat - m0.regs.X4.toNat % 2
     · rw [decide_eq_true he] at hpc3
       simp only [↓reduceIte] at hpc3
-      refine at_pc (hpc3.trans (hp.label (j := 119) rfl)) (F.fin _ ?_)
+      refine at_pc (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b22Offset) NativeRustcVmArm.Vm.BytecodeShare.label_16_at)) (F.fin _ ?_)
       rw [show m0.regs.X4.toNat = j + 2 by omega]
       exact hc3
     · rw [decide_eq_false he] at hpc3
@@ -140,7 +140,7 @@ theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin a s0 m
   · have hf : (!decide ((st.regs.getXReg .X13).toNat = 2)) = true := by simp [h2]
     rw [hf] at hpc2
     simp only [↓reduceIte] at hpc2
-    refine .done _ (.inr ⟨hpc2.trans (hp.label (j := 97) rfl), hc2, by omega, by omega, ?_, h13',
+    refine .done _ (.inr ⟨hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b18Offset) NativeRustcVmArm.Vm.BytecodeShare.label_12_at), hc2, by omega, by omega, ?_, h13',
       by rw [e11, show 16 * j + 48 = 16 * (j + 2) + 16 by omega],
       by rw [e12, show 16 * j + 48 = 16 * (j + 2) + 16 by omega]⟩)
     rw [mov_reg hm2 rfl]; exact hd.x10
@@ -149,7 +149,7 @@ theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin a s0 m
 theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : MachineData}
     (F : Fin a s0 m0 st sh v k) (hfr : Fr m0 432 bytecodeShareStack slots keep (outsP m0) st)
     (hr : Regs m0 sh v st) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 74)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b12Offset)⟩ := by
   obtain ⟨hS, -⟩ := pre_parts h
   have A := addr_of h
   have hlen := A.len
@@ -177,7 +177,7 @@ theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Mach
   simp only [PcOk, c12] at hpc1
   by_cases h0 : m0.regs.X4.toNat = 0
   · simp only [h0, decide_true, ↓reduceIte] at hpc1
-    refine at_pc (hpc1.trans (hp.label (j := 119) rfl)) (F.fin _ ?_)
+    refine at_pc (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b22Offset) NativeRustcVmArm.Vm.BytecodeShare.label_16_at)) (F.fin _ ?_)
     rw [h0]; exact hc1
   simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
   refine at_pc hpc1 (Fr.runBlock hS N_ge rfl hfr1 (b13_in_code.trans hp.1 (by simp [b13])) run_b13
@@ -194,12 +194,12 @@ theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Mach
       run_b14 rfl rfl (by decide) (by decide) fun st3 hfr3 hd3 hm3 hpc3 ↦ ?_)
     have hc3 := Cp.ofRun hc2 hfr3 hd3 hm3 (by decide)
     simp only [PcOk] at hpc3
-    refine at_pc (hpc3.trans (hp.label (j := 106) rfl)) (odd hp h F hc3 ?_ (by omega))
+    refine at_pc (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b20Offset) NativeRustcVmArm.Vm.BytecodeShare.label_14_at)) (odd hp h F hc3 ?_ (by omega))
     have := reg_lit hm3 (r := .X10) (n := 0) rfl
     rw [← UInt64.toNat_toBitVec, this]
     rfl
   simp only [h1, decide_false, Bool.not_false, ↓reduceIte] at hpc2
-  refine at_pc (hpc2.trans (hp.label (j := 92) rfl)) (Fr.runBlock hS N_ge rfl hfr2
+  refine at_pc (hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b17Offset) NativeRustcVmArm.Vm.BytecodeShare.label_11_at)) (Fr.runBlock hS N_ge rfl hfr2
     (b17_in_code.trans hp.1 (by simp [b17])) run_b17 rfl rfl (by decide) (by decide)
     fun st3 hfr3 hd3 hm3 hpc3 ↦ ?_)
   have hc3 := Cp.ofRun hc2 hfr3 hd3 hm3 (by decide)
@@ -219,7 +219,7 @@ theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Mach
       omega
     · rw [e11]
     · rw [e12]
-  refine Sym.loop (fun n (s : MachineState) ↦ s.pc = Host.addrOf (k + 97) ∧ ∃ j,
+  refine Sym.loop (fun n (s : MachineState) ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b18Offset) ∧ ∃ j,
       m0.regs.X4.toNat - j = n ∧ PairHead m0 st sh v j s.data)
     (fun n st' ⟨hpc', j, hn, hI'⟩ ↦ ?_) ⟨hpc3, 0, rfl, hI⟩
   obtain ⟨d', pc'⟩ := st'

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Top.Verify.Basic
+public import NativeRustcVmX64.Code.Vm.Seed.Names
 
 /-!
 # `verify` up to `seed` (x86-64)
@@ -19,11 +20,11 @@ public section
 variable [Host] {k : Nat}
 
 /-- **`verify` up to `seed`.** -/
-theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label seedLabel) SeedPre SeedPost)
+theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label NativeRustcVmX64.Vm.Seed.entryLabel) SeedPre SeedPost)
     {a : DecArea} {stream : Array EW} {openings : Array (Array OpeningW)} {m0 : MachineData}
     (hpre : VerifyPre a stream openings m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 19) ∧ SA m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b1Offset) ∧ SA m0 st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b0Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨hst, hrod, -, -, -, ⟨hbcM, -⟩, ⟨hpubM, -⟩, -, -, -, -, -, -⟩ := hpre
   have hS := verifyStack_eq
@@ -52,7 +53,7 @@ theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label seedLabel) SeedP
     omega
   -- `b0`: the prologue, `call seed`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 816) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) ⟨frame_mapped hst (by omega), hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b0Offset + b0.length)).toBitVec) ⟨frame_mapped hst (by omega), hfnw⟩
     (by simp) (List.pairwise_singleton _ _)
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
@@ -141,7 +142,7 @@ theorem stageA (hp : Placed code k) (hseed : Spec (Labels.label seedLabel) SeedP
         rw [show (stackBelow m0 816).toNat = sb m0 + 17888 from hBn]
         omega)) (L := 208)
       (fun p hp ↦ by have := slots_ge p hp; omega) (by decide) hfnw slots_le
-  refine .done _ ⟨hpc2.trans (by rw [show b0.length = 19 from rfl]),
+  refine .done _ ⟨hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Verify.b0_next),
     ⟨hf2, fun q hq ↦ ?_, ?_, ?_, ?_, ?_, ?_, ?_,
       hout2 _ (length_bcOf m0) hbc1 _ hpub1⟩⟩
   · have hq' : ¬ (sb m0 ≤ q.toNat ∧ q.toNat < sb m0 + 18704) :=

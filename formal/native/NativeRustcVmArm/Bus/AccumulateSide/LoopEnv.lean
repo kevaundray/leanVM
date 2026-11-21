@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop6
 
 /-!
@@ -93,7 +94,7 @@ theorem padding_guard {env : Env} {o : Nat} (ho : o < 6)
 theorem padding_addr {env : Env} {o : Nat} (ho : o < 6)
     (h22 : env.regs .X22 =
       (NativeRustcVmArm.Tables.TableTerms.tablesWords.getD (5 * o + 3) 0).toBitVec) :
-    (Sym.bin .add .W64 (.label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.5")
+    (Sym.bin .add .W64 (.label NativeRustcVmArm.Vm.Symbols.rodata5Label)
       (.un (.shift .LSL 4) .W64 (.reg .X22))).eval env =
       NativeRustcVmArm.rodataAddr .padding + BitVec.ofNat 64 (16 *
         (NativeRustcVmArm.Tables.TableTerms.tablesWords.getD (5 * o + 3) 0).toNat) := by

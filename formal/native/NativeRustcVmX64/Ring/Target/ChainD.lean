@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Ring.Target.Wrap
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
 
 /-!
 # `ring_target`: the turns' blocks `b28` to `b35` (x86-64)
@@ -20,11 +23,11 @@ variable {m0 : MachineData} {E : Nat → EW} [Host] {k : Nat}
 
 /-- **The blocks `b28` to `b35`.** -/
 theorem chainD (hp : Placed code k) (hpre : RingTargetPre m0)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
-    (hpoly : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hG : Good m0 E)
-    {st : MachineState} (h : At m0 k 189 (rsC m0) t28 (v28 m0 E) (CAt m0) st) :
-    Eventually (step1 Host.exe) (At m0 k 251 (rsC m0) t36 (v36 m0 E) (CAt m0)) st := by
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
+    (hpoly : Spec (Labels.label NativeRustcVmX64.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hG : Good m0 E)
+    {st : MachineState} (h : At m0 k NativeRustcVmX64.Vm.RingTarget.b28Offset (rsC m0) t28 (v28 m0 E) (CAt m0) st) :
+    Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingTarget.b36Offset (rsC m0) t36 (v36 m0 E) (CAt m0)) st := by
   refine Eventually.bind (mulS hp hpre hmul hG b28_in_code (by simp [b28]) rfl (T' := t29)
     (vals' := v29 m0 E) run_b28 rfl rfl rfl rfl rfl (fun m hB ret ↦ by vtac hpre hG hB)
     (fun mc m' hm hq ↦ mul_res hm hq rfl rfl rfl rfl rfl rfl rfl rfl (hG.mv 3 (by decide)).symm)

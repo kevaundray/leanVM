@@ -2,6 +2,12 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.BytecodeShare
+public import NativeRustcVmX64.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 public meta import NativeRustcVmX64.Code.Vm.BytecodeShare
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -129,7 +135,7 @@ sym_block run_b21 := exec b21 endS
 /-! ## The calls -/
 
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 432 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .rdi = some (.ptr 0 128) ∧
@@ -144,7 +150,7 @@ public theorem ok_b0 : ProOk 432 0 slots (after b0 entryS) = true ∧
   decide +kernel
 
 public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS,
-    .call "_RINvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB6_6TState8sumcheckNCNvB2_14sumcheck_plain0EB8_") :=
+    .call NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : MidOk 432 0 slots (after b2 bodyS) = true ∧
     (after b2 bodyS).reg .rdi = some (.ptr 0 128) ∧
@@ -162,7 +168,7 @@ public theorem ok_b2 : MidOk 432 0 slots (after b2 bodyS) = true ∧
   decide +kernel
 
 public theorem exit_b4 : exec b4 bodyS = some (after b4 bodyS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 432 0 slots (after b4 bodyS) = true ∧
     (after b4 bodyS).reg .rdi = some (.ptr 0 128) ∧
@@ -174,7 +180,7 @@ public theorem ok_b4 : MidOk 432 0 slots (after b4 bodyS) = true ∧
   decide +kernel
 
 public theorem exit_b6 : exec b6 bodyS = some (after b6 bodyS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9eq_kernel") :=
+    .call NativeRustcVmX64.Vm.EqKernel.entryLabel) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : MidOk 432 0 slots (after b6 bodyS) = true ∧
     (after b6 bodyS).reg .rdi = some (.ptr 0 32) ∧
@@ -189,7 +195,7 @@ public theorem ok_b6 : MidOk 432 0 slots (after b6 bodyS) = true ∧
   decide +kernel
 
 public theorem exit_b8 : exec b8 bodyS = some (after b8 bodyS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field3dot") :=
+    .call NativeRustcVmX64.Vm.Dot.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk 432 0 slots (after b8 bodyS) = true ∧
     (after b8 bodyS).reg .rdi = some (.ptr 0 128) ∧
@@ -200,7 +206,7 @@ public theorem ok_b8 : MidOk 432 0 slots (after b8 bodyS) = true ∧
   decide +kernel
 
 public theorem exit_b9 : exec b9 bodyS = some (after b9 bodyS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") :=
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) :=
   run_b9.trans (by rw [after_eq run_b9])
 public theorem ok_b9 : MidOk 432 0 slots (after b9 bodyS) = true ∧
     (after b9 bodyS).reg .rdi = some (.reg .rax) ∧
@@ -212,17 +218,17 @@ public theorem ok_b9 : MidOk 432 0 slots (after b9 bodyS) = true ∧
 
 /-! ## The tests -/
 
-public theorem exit_b1 : exec b1 bodyS = some (after b1 bodyS, .cond c1 ".LBytecodeShare_14") :=
+public theorem exit_b1 : exec b1 bodyS = some (after b1 bodyS, .cond c1 NativeRustcVmX64.Vm.BytecodeShare.label_14) :=
   run_b1.trans (by rw [after_eq run_b1]; rfl)
-public theorem exit_b3 : exec b3 bodyS = some (after b3 bodyS, .cond c3 ".LBytecodeShare_14") :=
+public theorem exit_b3 : exec b3 bodyS = some (after b3 bodyS, .cond c3 NativeRustcVmX64.Vm.BytecodeShare.label_14) :=
   run_b3.trans (by rw [after_eq run_b3]; rfl)
-public theorem exit_b5 : exec b5 bodyS = some (after b5 bodyS, .cond c3 ".LBytecodeShare_14") :=
+public theorem exit_b5 : exec b5 bodyS = some (after b5 bodyS, .cond c3 NativeRustcVmX64.Vm.BytecodeShare.label_14) :=
   run_b5.trans (by rw [after_eq run_b5]; rfl)
-public theorem exit_b7 : exec b7 bodyS = some (after b7 bodyS, .cond c7 ".LBytecodeShare_14") :=
+public theorem exit_b7 : exec b7 bodyS = some (after b7 bodyS, .cond c7 NativeRustcVmX64.Vm.BytecodeShare.label_14) :=
   run_b7.trans (by rw [after_eq run_b7]; rfl)
-public theorem exit_b10 : exec b10 bodyS = some (after b10 bodyS, .cond c10 ".LBytecodeShare_14") :=
+public theorem exit_b10 : exec b10 bodyS = some (after b10 bodyS, .cond c10 NativeRustcVmX64.Vm.BytecodeShare.label_14) :=
   run_b10.trans (by rw [after_eq run_b10]; rfl)
-public theorem exit_b11 : exec b11 bodyS = some (after b11 bodyS, .cond c11 ".LBytecodeShare_14") :=
+public theorem exit_b11 : exec b11 bodyS = some (after b11 bodyS, .cond c11 NativeRustcVmX64.Vm.BytecodeShare.label_14) :=
   run_b11.trans (by rw [after_eq run_b11]; rfl)
 public theorem ok_test : MidOk 432 8 slots (after b1 bodyS) = true ∧ (after b1 bodyS).mem = [] ∧
     KeepsB (after b1 bodyS) six = true ∧
@@ -240,7 +246,7 @@ public theorem ok_test : MidOk 432 8 slots (after b1 bodyS) = true ∧ (after b1
 
 /-! ## The copy -/
 
-public theorem exit_b12 : exec b12 bodyS = some (after b12 bodyS, .cond c12 ".LBytecodeShare_11") :=
+public theorem exit_b12 : exec b12 bodyS = some (after b12 bodyS, .cond c12 NativeRustcVmX64.Vm.BytecodeShare.label_11) :=
   run_b12.trans (by rw [after_eq run_b12]; rfl)
 public theorem ok_b12 : MidOk 432 8 slots (after b12 bodyS) = true ∧ (after b12 bodyS).mem = [] ∧
     KeepsB (after b12 bodyS) six = true ∧
@@ -249,13 +255,13 @@ public theorem ok_b12 : MidOk 432 8 slots (after b12 bodyS) = true ∧ (after b1
       some (.bin .add .W64 (.reg .r12) (.bin .shl .W64 (.reg .rbp) (.lit 4))) := by
   decide +kernel
 
-public theorem exit_b13 : exec b13 bodyS = some (after b13 bodyS, .cond c13 ".LBytecodeShare_12") :=
+public theorem exit_b13 : exec b13 bodyS = some (after b13 bodyS, .cond c13 NativeRustcVmX64.Vm.BytecodeShare.label_12) :=
   run_b13.trans (by rw [after_eq run_b13]; rfl)
-public theorem exit_b14 : exec b14 bodyS = some (after b14 bodyS, .jump ".LBytecodeShare_10") :=
+public theorem exit_b14 : exec b14 bodyS = some (after b14 bodyS, .jump NativeRustcVmX64.Vm.BytecodeShare.label_10) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem exit_b17 : exec b17 bodyS = some (after b17 bodyS, .fall) :=
   run_b17.trans (by rw [after_eq run_b17])
-public theorem exit_b19 : exec b19 bodyS = some (after b19 bodyS, .cond c19 ".LBytecodeShare_11") :=
+public theorem exit_b19 : exec b19 bodyS = some (after b19 bodyS, .cond c19 NativeRustcVmX64.Vm.BytecodeShare.label_11) :=
   run_b19.trans (by rw [after_eq run_b19]; rfl)
 public theorem ok_moves : MidOk 432 8 slots (after b13 bodyS) = true ∧ (after b13 bodyS).mem = [] ∧
     KeepsB (after b13 bodyS) (.rax :: .rcx :: six) = true ∧
@@ -271,7 +277,7 @@ public theorem ok_moves : MidOk 432 8 slots (after b13 bodyS) = true ∧ (after 
     KeepsB (after b19 bodyS) (.rax :: .rcx :: .rdx :: six) = true := by
   decide +kernel
 
-public theorem exit_b18 : exec b18 pairS = some (after b18 pairS, .cond c18 ".LBytecodeShare_13") :=
+public theorem exit_b18 : exec b18 pairS = some (after b18 pairS, .cond c18 NativeRustcVmX64.Vm.BytecodeShare.label_13) :=
   run_b18.trans (by rw [after_eq run_b18]; rfl)
 public theorem ok_b18 : MidOk 432 8 slots (after b18 pairS) = true ∧
     KeepsB (after b18 pairS) (.rax :: .rcx :: .rsi :: six) = true ∧
@@ -289,7 +295,7 @@ public theorem ok_b20 : MidOk 432 8 slots (after b20 oneS) = true ∧
     (∀ w ∈ (after b20 oneS).mem, w.r = 2 ∧ w.off + w.n ≤ 16) := by
   decide +kernel
 
-public theorem exit_b21 : exec b21 endS = some (after b21 endS, .jump ".LBytecodeShare_15") :=
+public theorem exit_b21 : exec b21 endS = some (after b21 endS, .jump NativeRustcVmX64.Vm.BytecodeShare.label_15) :=
   run_b21.trans (by rw [after_eq run_b21])
 public theorem ok_b21 : MidOk 432 8 slots (after b21 endS) = true ∧
     KeepsB (after b21 endS) [.rbp, .r12, .r13, .r14, .r15] = true ∧

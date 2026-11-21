@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 public import NativeRustcVmArm.Bus.GkrStep.Eval
 
 /-!
@@ -24,14 +25,14 @@ theorem len16 (x : EW) : ([x].flatMap NativeRustcVm.ewBytes).length ≤ 16 := by
 
 /-- **The new values** (`b23` to `b26`), then the point (`b27`, `b28`). -/
 theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
     {xs h0 h1 h2 y : Array EW} {s' : TState}
     (hcopy : ∀ m, AtCopy a s0 g0 m0 xs y
       #[multilinearEval h0 y, multilinearEval h1 y, multilinearEval h2 y] s' m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 260)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b29Offset)⟩)
     {m : MachineData} (hi : AtEval a s0 g0 m0 xs h0 h1 h2 y s' m) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 227)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b23Offset)⟩ := by
   have hS := pre_stack h
   have hn := two_pow_le h
   have hxl := xs_le hi.size
@@ -42,7 +43,7 @@ theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   refine Fr.runBlock hS N_ge rfl hi.fr (b23_in_code.trans hp.1 (by simp [b23])) run_b23 rfl rfl
     (by decide) (by decide) fun st hfr hd hm hpc ↦ ?_
   have R1 := R.block hm (by decide +kernel) ((reg_of hm rfl).trans R.x19)
-  simp only [PcOk, show b23.length = 6 from rfl, show k + 227 + 6 = k + 233 by omega] at hpc
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b23_length, NativeRustcVmArm.Vm.GkrStep.b23Length, show k + NativeRustcVmArm.Vm.GkrStep.b23Offset + 6 = k + NativeRustcVmArm.Vm.GkrStep.b24Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b23_length, NativeRustcVmArm.Vm.GkrStep.b23Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b23_next] at hpc
   refine mle_call h hmle (o := 1024) (by omega) hfr hpc (by rw [hd]; exact hi.c0)
     (by rw [hd]; exact hi.ys) hi.s0' hi.ysize
     ((reg_of hm (r := .X0) (r' := .X26) rfl).trans (reg_of hm (r := .X2) (r' := .X26) rfl).symm)
@@ -84,7 +85,7 @@ theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     rw [Array.length_toList, hi.s2']; omega) kc2
   have ky3 := ews_p hm3' hwf3 (by decide +kernel) (o := 1264) (by omega) ky2
   have kt3 := ts_p h hm3' hwf3 (by decide +kernel) kt2
-  simp only [PcOk, show b24.length = 7 from rfl, show k + 233 + 7 = k + 240 by omega] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b24_length, NativeRustcVmArm.Vm.GkrStep.b24Length, show k + NativeRustcVmArm.Vm.GkrStep.b24Offset + 7 = k + NativeRustcVmArm.Vm.GkrStep.b25Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b24_length, NativeRustcVmArm.Vm.GkrStep.b24Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b24_next] at hpc3
   refine mle_call h hmle (o := 1088) (by omega) hfr3 hpc3 kc13 ky3 hi.s1' hi.ysize
     ((reg_of hm3' (r := .X0) (r' := .X26) rfl).trans
       (reg_of hm3' (r := .X2) (r' := .X26) rfl).symm)
@@ -125,7 +126,7 @@ theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     rw [Array.length_toList, hi.s2']; omega) kc24
   have ky5 := ews_p hm5' hwf5 (by decide +kernel) (o := 1264) (by omega) ky4
   have kt5 := ts_p h hm5' hwf5 (by decide +kernel) kt4
-  simp only [PcOk, show b25.length = 7 from rfl, show k + 240 + 7 = k + 247 by omega] at hpc5
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b25_length, NativeRustcVmArm.Vm.GkrStep.b25Length, show k + NativeRustcVmArm.Vm.GkrStep.b25Offset + 7 = k + NativeRustcVmArm.Vm.GkrStep.b26Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b25_length, NativeRustcVmArm.Vm.GkrStep.b25Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b25_next] at hpc5
   refine mle_call h hmle (o := 1152) (by omega) hfr5 hpc5 kc25 ky5 hi.s2' hi.ysize
     ((reg_of hm5' (r := .X0) (r' := .X26) rfl).trans
       (reg_of hm5' (r := .X2) (r' := .X26) rfl).symm)
@@ -191,8 +192,8 @@ theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     by_cases h63 : xs.size + m0.regs.X1.toNat = 63
     · simp [h63]
     · simp [show xs.size + m0.regs.X1.toNat < 63 by omega]
-  simp only [PcOk, hc7, Bool.false_eq_true, ↓reduceIte, show b26.length = 4 from rfl,
-    show k + 247 + 4 = k + 251 by omega] at hpc7
+  simp only [PcOk, hc7, Bool.false_eq_true, ↓reduceIte, NativeRustcVmArm.Vm.GkrStep.b26_length, NativeRustcVmArm.Vm.GkrStep.b26Length,
+    show k + NativeRustcVmArm.Vm.GkrStep.b26Offset + 4 = k + NativeRustcVmArm.Vm.GkrStep.b27Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b26_length, NativeRustcVmArm.Vm.GkrStep.b26Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b26_next] at hpc7
   -- `b27`: the length, `y[0]`.
   have hm8 := match_p h hfr7 R7.x19
   have hwf8 := wf_p h hfr7
@@ -242,7 +243,7 @@ theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     show CmpOp.eq.apply .W64 (st7.data.regs.getXReg .X20).toBitVec (BitVec.ofNat 64 1) = _
     rw [eq_lit64 _ _ (by decide), R7.x20]
     rfl
-  simp only [PcOk, hc8, show b27.length = 6 from rfl, show k + 251 + 6 = k + 257 by omega] at hpc8
+  simp only [PcOk, hc8, NativeRustcVmArm.Vm.GkrStep.b27_length, NativeRustcVmArm.Vm.GkrStep.b27Length, show k + NativeRustcVmArm.Vm.GkrStep.b27Offset + 6 = k + NativeRustcVmArm.Vm.GkrStep.b28Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b27_length, NativeRustcVmArm.Vm.GkrStep.b27Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b27_next] at hpc8
   have hrun : run0 s0 g0 m0 = some (⟨#[multilinearEval h0 y, multilinearEval h1 y,
       multilinearEval h2 y], y ++ xs⟩, s') := hi.run
   have vals : ∀ d : DataMem,
@@ -259,7 +260,7 @@ theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     have hy1 : y.toList = [y.toList[0]'hy0] := by
       obtain ⟨z, hz⟩ := List.length_eq_one_iff.mp (hyl.trans hs1)
       simp [hz]
-    refine at_pc (hpc8.trans (hp.label (j := 260) rfl)) (hcopy st8.data
+    refine at_pc (hpc8.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b29Offset) NativeRustcVmArm.Vm.GkrStep.label_11_at)) (hcopy st8.data
       { fr := hfr8
         x19 := R8.x19
         x20 := R8.x20
@@ -303,7 +304,7 @@ theorem eval_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       apply List.ext_getElem (by rw [hyl, hs2]; rfl)
       intro i h1 _
       rcases (show i = 0 ∨ i = 1 by omega) with rfl | rfl <;> rfl
-    simp only [PcOk, show b28.length = 3 from rfl, show k + 257 + 3 = k + 260 by omega] at hpc9
+    simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b28_length, NativeRustcVmArm.Vm.GkrStep.b28Length, show k + NativeRustcVmArm.Vm.GkrStep.b28Offset + 3 = k + NativeRustcVmArm.Vm.GkrStep.b29Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b28_length, NativeRustcVmArm.Vm.GkrStep.b28Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b28_next] at hpc9
     exact at_pc hpc9 (hcopy st9.data
       { fr := hfr9
         x19 := R9.x19

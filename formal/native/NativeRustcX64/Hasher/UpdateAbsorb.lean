@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.KeccakF.Names
+
 public import NativeRustcX64.Hasher.UpdateCount
 
 /-!
@@ -54,16 +56,16 @@ variable [Host] {k : Nat}
 set_option linter.unusedSimpArgs false in
 /-- **Absorbing a full buffer.** -/
 theorem absorb_spec (hp : Placed code k)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hkf : Spec (Labels.label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m : MachineData} (hpre : UpdatePre m0) {c : Nat} {Hc : List UInt8}
     (hfu : Full m0 c Hc m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 92) ∧ Absorbed m0 c Hc st.data)
-      ⟨m, Host.addrOf (k + 40)⟩ := by
+      (fun st => st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b8Offset) ∧ Absorbed m0 c Hc st.data)
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b7Offset)⟩ := by
   have g := geo_of hpre
   have gr := geoRc_of hpre
   let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)] (fun _ => 0)
-    (Host.addrOf (k + 92)).toBitVec
+    (Host.addrOf (k + NativeRustcX64.Common.Update.b8Offset)).toBitVec
   have hwf : env.WF := wf_head hpre hfu.frame
   have hm : Match env headS m := match_headS hfu.frame
   have hb0 : env.base 0 = hAt m0 := rfl

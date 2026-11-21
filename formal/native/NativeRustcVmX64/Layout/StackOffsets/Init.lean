@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Layout.StackOffsets.Body
 public import NativeRustcX64.Spec.Mem
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.StackOffsets.Names
 
 /-!
 # `stack_offsets` on x86-64: the entry and the order array `0, 1, …, n - 1` (`b0` to `b12`)
@@ -213,11 +215,11 @@ variable [Host] {k : Nat}
 
 /-- **The entry** (`b0`, `b1` or `b2` and `memset`): `None` when `offsets` is shorter than
 `sizes`, else the body at `b3`, R13 the order array. -/
-theorem entry (hp : Placed code k) (hms : Spec (label "memset") MemsetPre MemsetPost)
+theorem entry (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
     (hpre : StackOffsetsPre m0) :
-    Eventually (step1 Host.exe) (fun s ↦ Post m0 s ∨ (s.pc = Host.addrOf (k + 22) ∧
+    Eventually (step1 Host.exe) (fun s ↦ Post m0 s ∨ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset) ∧
       n m0 ≤ cap m0 ∧ B m0 8 s.data ∧ Regs m0 s.data ∧ reg s.data .r13 = ob m0))
-      ⟨m0, label stackOffsetsLabel⟩ := by
+      ⟨m0, label NativeRustcVmX64.Vm.StackOffsets.entryLabel⟩ := by
   have hst : StackOk m0 1344 := hpre.1
   have hfnw := fb_noWrap hst
   unfold NativeRustcVm.NoWrap at hfnw
@@ -225,11 +227,11 @@ theorem entry (hp : Placed code k) (hms : Spec (label "memset") MemsetPre Memset
   have hob := ob_toNat hst
   have hs1 := hst.1
   have hs2 := hst.2.1
-  rw [show Labels.label stackOffsetsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
-  have hwf0 : (frameEnv m0 m0 1328 [] (fun _ ↦ 0) (Host.addrOf (k + 5 + 17)).toBitVec).WF :=
+  rw [show Labels.label NativeRustcVmX64.Vm.StackOffsets.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b0Offset) from hp.label NativeRustcVmX64.Vm.StackOffsets.entry_at]
+  have hwf0 : (frameEnv m0 m0 1328 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset)).toBitVec).WF :=
     frame_wf ⟨frame_mapped hst (by decide), frame_noWrap hst (by decide)⟩ (by simp)
       (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 1328 [] (fun _ ↦ 0) (Host.addrOf (k + 5 + 17)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 1328 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
   refine exec_then (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b0 hwf0 nofun hm0
@@ -240,7 +242,7 @@ theorem entry (hp : Placed code k) (hms : Spec (label "memset") MemsetPre Memset
   by_cases hc : n m0 ≤ cap m0
   · -- `b2`: the prologue, `memset`
     refine exec_at (b2_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b2 hwf0 (fun _ _ ↦ rfl)
-      ((hy (by omega)).trans (hp.label (j := 5) rfl)) hm1 fun st2 hm2 hpc2 ↦ ?_
+      ((hy (by omega)).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_3_at)) hm1 fun st2 hm2 hpc2 ↦ ?_
     obtain ⟨hpro, hx7, hx6, hx2, hx3, hx12, hx13, hx14, hx15, -⟩ := ok_b2
     have hb2 : B m0 0 st2.data :=
       Bd.entry hst (by decide) hwf0 hm2 hpro slots_le slots_cs (by simp)

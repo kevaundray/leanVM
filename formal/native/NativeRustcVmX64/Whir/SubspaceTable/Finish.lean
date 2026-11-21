@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.SubspaceTable.Push
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `subspace_table`'s exits (x86-64)
@@ -68,16 +69,16 @@ theorem out_tag {m0 : MachineData} (hpre : SubspaceTablePre m0) :
 
 variable [Host] {k : Nat}
 
-theorem hb21 (hp : Placed code k) : b21.IsInfixAt Host.prog (k + 203) :=
+theorem hb21 (hp : Placed code k) : b21.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b21Offset) :=
   b21_in_code.trans hp.1 (by simp [b21])
-theorem hb22 (hp : Placed code k) : b22.IsInfixAt Host.prog (k + 210) :=
+theorem hb22 (hp : Placed code k) : b22.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset) :=
   b22_in_code.trans hp.1 (by simp [b22])
-theorem hb24 (hp : Placed code k) : b24.IsInfixAt Host.prog (k + 215) :=
+theorem hb24 (hp : Placed code k) : b24.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b24Offset) :=
   b24_in_code.trans hp.1 (by simp [b24])
 
 /-- **The epilogue** (`b24`). -/
 theorem epi (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 215)) (hfr : Fr m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b24Offset)) (hfr : Fr m0 st.data)
     (hv : Res m0 st.data.dmem) : Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hS, hout⟩ := hpre
   obtain ⟨hF, -, -, -⟩ := stack_le
@@ -90,14 +91,14 @@ theorem epi (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0)
 
 /-- **`μ ≥ 32`**: tag `0` stored, the epilogue. -/
 theorem big (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 215)) (hfr : Fr m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b24Offset)) (hfr : Fr m0 st.data)
     (hw : WordAt st.data.dmem (reg m0 .rdi) 0) (hbig : 32 ≤ muOf m0) :
     Eventually (step1 Host.exe) (Post m0) st :=
   epi hp hpre hpc hfr (res_none (by omega) hw)
 
 /-- **Turn `30`** (`b23`): tag `0`. -/
 theorem finish_none (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTablePre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 212)) (hN : NoneAt m0 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b23Offset)) (hN : NoneAt m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
   obtain ⟨hS, hout⟩ := hpre'
@@ -129,12 +130,12 @@ theorem finish_none (hp : Placed code k) {m0 : MachineData} (hpre : SubspaceTabl
     (out_tag hpre) (slot_not_out hpre)
   have htag := wordAt_of_write hm1 (r := 1) (o := 0) rfl (by decide) hv1
   rw [NativeRustcVm.addr_add_zero] at htag
-  exact epi hp hpre (show st1.pc = Host.addrOf (k + 215) from hpc1) hfr1 (res_none hN.hmu htag)
+  exact epi hp hpre (show st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b24Offset) from hpc1) hfr1 (res_none hN.hmu htag)
 
 /-- **The table** (`b21`, `b22`): the length, the copy, tag `1`. -/
-theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m0 : MachineData} (hpre : SubspaceTablePre m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 203)) (hD : Done m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b21Offset)) (hD : Done m0 st.data) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hpre' := hpre
   obtain ⟨hS, hout⟩ := hpre'
@@ -153,12 +154,12 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy")
   have hpl := pairWords_len (tableAt (muOf m0) (muOf m0))
   rw [tableAt_len' le_rfl] at hpl
   -- `b21`: the length, `memcpy`
-  have hwf := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 203 + 7)).toBitVec) hS hF
+  have hwf := hfr.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset)).toBitVec) hS hF
   refine exec_at (hb21 hp) run_b21 hwf (fun _ _ ↦ rfl) hpc hfr.mid_match fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨⟨hk1, hsp1, hw1⟩, hw1', hv48⟩ := after_eq run_b21 ▸ b21_call
   have hrsp1 := rsp_call hm1 hsp1
   have hkept1 : Kept m0.dmem st1.data.dmem := fun p h ↦ hm1.kept hwf p (hfr.kept p h)
-  have hl8 : (frameEnv m0 st.data 848 (fun _ ↦ 0) (Host.addrOf (k + 203 + 7)).toBitVec).load 0 8 8 =
+  have hl8 : (frameEnv m0 st.data 848 (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset)).toBitVec).load 0 8 8 =
       reg m0 .rdi :=
     load_word (show WordAt st.data.dmem (stackBelow m0 848 + BitVec.ofNat 64 8) _ from hD.out)
   have hcnt : WordAt st1.data.dmem (fbOf m0 + BitVec.ofNat 64 48) (muOf m0 + 1).toUInt64 := by
@@ -205,7 +206,7 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy")
     fun st2 hpc2 hfr2 ⟨_, hcopy, _, hsv2⟩ ↦ ?_
   simp only [hrdi, hrsi, hrdx] at hcopy
   -- `b22`: tag `1`
-  have hpc2' : st2.pc = Host.addrOf (k + 210) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b22Offset) := hpc2
   have hrbx2 : reg st2.data .rbx = reg m0 .rdi := (hsv2.1 .rbx rfl).trans hrbx
   have hrd : Readable st2.data (reg m0 .rdi) 8 :=
     Readable.keep (Readable.mono hout.1 (by decide)) hfr2.kept
@@ -231,7 +232,7 @@ theorem finish_done (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy")
     · rw [length_bytesOf]; unfold NativeRustcVm.NoWrap; rw [h8]; omega
     · unfold NativeRustcVm.NoWrap; omega
   simp only [PcOk] at hpc3
-  refine epi hp hpre (hpc3.trans (hp.label (j := 215) rfl)) hfr3 ?_
+  refine epi hp hpre (hpc3.trans (hp.label NativeRustcVmX64.Vm.SubspaceTable.label_2_at)) hfr3 ?_
   unfold Res
   simp only [hmu, ↓reduceIte]
   have hlen : (((muOf m0 + 1).toUInt64 :: pairWords (tableAt (muOf m0) (muOf m0))).flatMap

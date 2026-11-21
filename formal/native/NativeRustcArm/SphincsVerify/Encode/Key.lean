@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Sphincs.Names
+
 public import NativeRustcArm.SphincsVerify.Encode.KeyEnv
 public import NativeRustcArm.SphincsVerify.Encode.KeyMath
 public meta import NativeRustcArm.Code.Sphincs.SphincsVerify.Part2
@@ -46,15 +49,15 @@ def wr (S : SState) (o n : Nat) (v : Sym) : Bool :=
 /-- `b101`'s start for layer `l`: `AtLayer`'s registers. -/
 def s101 (l : Nat) : SState :=
   init [(29376, true), (24, false)] (.ptr 0 0)
-    [(.X10, .lit l), (.X8, .label lhLabel), (.X11, .ptr 0 ((12900 + 1028 * l : Nat) : Int)),
+    [(.X10, .lit l), (.X8, .label NativeRustcArm.Sphincs.Symbols.rodata7Label), (.X11, .ptr 0 ((12900 + 1028 * l : Nat) : Int)),
       (.X12, .lit (4656 + 1028 * l)), (.X13, .lit 8), (.X22, .lit 16), (.X14, .lit 0x07000000),
-      (.X20, .ptr 0 21648), (.X29, .ptr 0 29280)] [(lhLabel, 1)]
+      (.X20, .ptr 0 21648), (.X29, .ptr 0 29280)] [(NativeRustcArm.Sphincs.Symbols.rodata7Label, 1)]
 
 /-- `b101` for layer `l` as the executor runs it. -/
 def b101Ok (l : Nat) : Bool :=
   match exec Sphincs.SphincsVerify.b101 (s101 l) with
   | some (S, x) =>
-    x == .call "memset" && S.reg .X0 == some (.ptr 0 16400) && S.reg .X1 == some (.lit 0) &&
+    x == .call NativeRustcArm.Common.Memset.entryLabel && S.reg .X0 == some (.ptr 0 16400) && S.reg .X1 == some (.lit 0) &&
       S.reg .X2 == some (.lit 344) && S.reg .X19 == some (.load 0 (13924 + 1028 * l) 4) &&
       S.sp == .ptr 0 0 && S.reg .X29 == some (.ptr 0 29280) &&
       S.reg .X20 == some (.ptr 0 21648) && S.reg .X21 == some (.reg .X21) &&
@@ -145,7 +148,6 @@ theorem ptr_eval (m : MachineData) (o : Nat) : (Sym.ptr 0 (o : Int)).eval (r.env
 
 end Run
 
-theorem length_b101 : Sphincs.SphincsVerify.b101.length = 37 := rfl
 
 theorem zeros4 : (List.range 4).map (byteOf (BitVec.ofNat 64 0)) = [0, 0, 0, 0] := by decide
 theorem zeros8 : (List.range 8).map (byteOf (BitVec.ofNat 64 0)) = List.replicate 8 0 := by decide
@@ -161,9 +163,9 @@ variable [NativeArm.Host]
 invariant (the counter in W19), the encoder's address at `24720` and hasher A new. -/
 theorem b101_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {l : Nat} {s : List UInt8} {m : MachineData} (h : r.AtLayer l s m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 1343 ∧
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b102Offset ∧
       r.EncBase l s (r.layerSig l).counter st.data ∧ r.EncAdrs l st.data ∧
-      Keccak.HasherHolds (bytesOf st.data.dmem (r.off 16400) 344) []) ⟨m, r.pc 1306⟩ := by
+      Keccak.HasherHolds (bytesOf st.data.dmem (r.off 16400) 344) []) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b101Offset⟩ := by
   obtain ⟨hl, hs, hF, hI, h10, h8, h11, h12, h13, h22, h14, h20, h26, h21, h23, h25, hsm, h0,
     h384⟩ := h
   have hok := b101Ok_all l hl
@@ -177,7 +179,7 @@ theorem b101_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     k27792, w8, w16, w24, w32, w40, w392, w408, w416, w424, a0, a4, a8, a16, a20, a24⟩ := hok
   have hk := Sphincs.SphincsVerify.b101_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.envL_wf hpre hF
-  have hm := r.match_frameL hpre hF (known := [(.X10, .lit l), (.X8, .label lhLabel),
+  have hm := r.match_frameL hpre hF (known := [(.X10, .lit l), (.X8, .label NativeRustcArm.Sphincs.Symbols.rodata7Label),
       (.X11, .ptr 0 ((12900 + 1028 * l : Nat) : Int)), (.X12, .lit (4656 + 1028 * l)),
       (.X13, .lit 8), (.X22, .lit 16), (.X14, .lit 0x07000000), (.X20, .ptr 0 21648),
       (.X29, .ptr 0 29280)])
@@ -263,7 +265,7 @@ theorem b101_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   refine Sym.call_then hpc hc.2.1 (r.memset_pre hpre hF1 hR0 hR2 (by decide))
     fun st' hpc' hpost ↦ .done _ ?_
   obtain ⟨hB, hout, hS⟩ := r.memset_out hR0 hR2 hpost
-  refine ⟨by rw [hpc', length_b101]; rfl,
+  refine ⟨by simpa only [Run.pc, Nat.add_assoc, NativeRustcArm.Sphincs.SphincsVerify.b101_next] using hpc',
     Run.EncBase.of_call r hpre hbase hS (.inl ⟨le_refl _, le_refl _⟩) (Nat.zero_le _) hout,
     r.bytesAt_of_call hpre hF1 (by omega) (Nat.zero_le _) hout
       (by rw [length_adrs7]; omega) (by rw [length_adrs7]; omega) hadrs, ?_⟩

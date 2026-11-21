@@ -1,13 +1,14 @@
 module
 
 public import NativeRustcVmX64.Wire.InsD.Rem
+public import NativeRustcVmX64.Code.Vm.InsD.Names
 
 /-!
 # `ins_d` meets its contract (x86-64)
 
-`insD_spec`: an empty list goes straight to `.LInsD_1` (`b0`); else the scan (`b2`, `b3`,
+`insD_spec`: an empty list goes straight to `NativeRustcVmX64.Vm.InsD.label_1` (`b0`); else the scan (`b2`, `b3`,
 `ScInv`) finds the first element at least `x`: `x` itself, the count back (`b5`, `b6`); past the
-last element, `x` at the end (`b4`); else, from `.LInsD_1`, the shift and the store
+last element, `x` at the end (`b4`); else, from `NativeRustcVmX64.Vm.InsD.label_1`, the shift and the store
 (`six_spec`). The elements are those of the words `L` the array holds (`exists_wordsAt`), any list
 the caller gives being theirs (`post_of`).
 -/
@@ -24,7 +25,7 @@ variable [Host] (k : Nat) (m : MachineData) (L : List UInt64)
 
 /-- The scan's head (`b2`) at element `i < n`. -/
 structure ScInv (i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 6)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b2Offset)
   kp : Kp m st.data
   d : st.data.dmem = m.dmem
   rcx : (reg st.data .rcx).toNat = i
@@ -40,7 +41,7 @@ variable (hp : Placed code k) (g : G m L) {gn : UInt64}
 include hp g hgn
 
 /-- **A step of the scan** (`b2`, then `b3` or `b5`): on past element `i`, or `x` found, or the
-end, or `.LInsD_1`. -/
+end, or `NativeRustcVmX64.Vm.InsD.label_1`. -/
 theorem scan_step {i : Nat} {st : MachineState} (hI : ScInv k m L i st) :
     Eventually (step1 Host.exe)
       (fun st' ↦ Post m st' ∨ ScInv k m L (i + 1) st') st := by
@@ -75,8 +76,8 @@ theorem scan_step {i : Nat} {st : MachineState} (hI : ScInv k m L i st) :
     simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
     omega)
   by_cases hge : xv m ≤ L[i].toNat
-  · rw [ite_t hge, hp.label (j := 18) rfl] at hpc2
-    -- `b5`: found, or `.LInsD_1`.
+  · rw [ite_t hge, hp.label NativeRustcVmX64.Vm.InsD.label_11_at] at hpc2
+    -- `b5`: found, or `NativeRustcVmX64.Vm.InsD.label_1`.
     have r5 := run_b5
     rw [after_eq run_b2] at r5
     refine exec_at (Wire.infix_of b5_in_code (by simp [b5]) hp) r5 hwf nofun hpc2 hm1
@@ -92,7 +93,7 @@ theorem scan_step {i : Nat} {st : MachineState} (hI : ScInv k m L i st) :
       rw [eq64, hld, UInt64.toNat_toBitVec, hx, Bool.eq_iff_iff]
       simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq])
     by_cases hne : L[i].toNat ≠ xv m
-    · rw [ite_t hne, hp.label (j := 21) rfl] at hpc4
+    · rw [ite_t hne, hp.label NativeRustcVmX64.Vm.InsD.label_1_at] at hpc4
       exact Eventually.mono (six_spec hp g hgn ⟨hpc4, hk2, hd2,
         by rw [er2 .rcx (by simp)]; exact hI.rcx, by rw [er2 .rax (by simp)]; exact hI.rax,
         le_of_lt hiL, hI.below, fun _ ↦ by omega⟩) fun _ h ↦ .inl h
@@ -121,7 +122,7 @@ theorem scan_step {i : Nat} {st : MachineState} (hI : ScInv k m L i st) :
       simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
       omega)
     by_cases hend : i + 1 ≠ L.length
-    · rw [ite_t hend, hp.label (j := 6) rfl] at hpc4
+    · rw [ite_t hend, hp.label NativeRustcVmX64.Vm.InsD.label_7_at] at hpc4
       exact .done _ (.inr ⟨hpc4, hk2, hd2.trans hd1, hc1, by rw [hrax]; exact hI.rax,
         by omega, hb⟩)
     · rw [ite_f hend] at hpc4
@@ -133,8 +134,8 @@ theorem scan_step {i : Nat} {st : MachineState} (hI : ScInv k m L i st) :
         (fun h ↦ absurd h (Nat.lt_irrefl _)) (gw := gn) (by
           rw [hl_length, hd2, hd1]; exact hgn)) fun _ h ↦ .inl h
 
-/-- **From the entry** (`b0`): the scan, or `.LInsD_1` when the list is empty. -/
-theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + 0)⟩ := by
+/-- **From the entry** (`b0`): the scan, or `NativeRustcVmX64.Vm.InsD.label_1` when the list is empty. -/
+theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b0Offset)⟩ := by
   have hlt := g.lt
   refine run_reg hp b0_in_code (by simp [b0]) run_b0 rfl (by decide) (by decide) nofun rfl
     (Kp.refl m) fun s1 hk1 hd1 hr1 hpc1 ↦ ?_
@@ -147,7 +148,7 @@ theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k +
     rw [eq64, BitVec.toNat_ofNat, ← g.len, Nat.zero_mod])
   have hb0 : Below m L 0 := fun _ h ↦ absurd h (Nat.not_lt_zero _)
   by_cases h0 : L.length = 0
-  · rw [ite_t h0, hp.label (j := 21) rfl] at hpc2
+  · rw [ite_t h0, hp.label NativeRustcVmX64.Vm.InsD.label_1_at] at hpc2
     exact six_spec hp g hgn ⟨hpc2, hk1, hd1, hc0, hax, by omega, hb0, fun h ↦ by omega⟩
   rw [ite_f h0] at hpc2
   refine run_reg hp b1_in_code (by simp [b1]) run_b1 rfl (by decide) (by decide) nofun
@@ -166,7 +167,7 @@ theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k +
 end
 
 /-- **`ins_d` meets its contract.** -/
-theorem insD_spec (hp : Placed code k) : Spec (Labels.label insDLabel) InsDPre InsDPost := by
+theorem insD_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmX64.Vm.InsD.entryLabel) InsDPre InsDPost := by
   intro m ⟨hstk, hn, hok, hdis⟩
   have hok' : NativeRustcVm.Region.Ok m.dmem ⟨arr m, 2048⟩ := hok
   obtain ⟨L, hL, hW⟩ := exists_wordsAt (reg m .rsi).toNat (arr m)
@@ -184,7 +185,7 @@ theorem insD_spec (hp : Placed code k) : Spec (Labels.label insDLabel) InsDPre I
     simp only [insDStack] at this
     unfold NativeRustcVm.Apart at this ⊢
     omega
-  rw [show Labels.label insDLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.InsD.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.InsD.b0Offset) from hp.label NativeRustcVmX64.Vm.InsD.entry_at]
   exact entry_spec hp ⟨hstk, hok', hap, hL, by omega, hW⟩ hW'
 
 end

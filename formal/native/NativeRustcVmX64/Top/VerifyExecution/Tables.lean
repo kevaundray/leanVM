@@ -1,6 +1,12 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Claims
+public import NativeRustcVmX64.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmX64.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmX64.Code.Vm.TablePhase.Names
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
 
 /-!
 # `verify_execution`: the tables (x86-64)
@@ -25,22 +31,22 @@ variable [Host] {k : Nat}
 
 /-- **The tables**, from `b8`: the function returns the walk's rest. -/
 theorem callTables (hp : Placed code k)
-    (htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+    (htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmX64.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
       (TablePhasePost a s layout bus))
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmX64.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmX64.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 44)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b8Offset)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
     (h12 : reg st.data .r12 = off (reg m0 .r8) 4416)
     (h13 : reg st.data .r13 = off (reg m0 .r8) 123992)
     (hbp : reg st.data .rbp = off (reg m0 .r8) 3912)
@@ -60,7 +66,7 @@ theorem callTables (hp : Placed code k)
   have hF := g.F
   have hwN := g.wN
   have hN : tablePhaseStack = 1872 := rfl
-  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + 44 + b8.length)).toBitVec)
+  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b8Offset + b8.length)).toBitVec)
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) run_b8 hwf (fun _ _ ↦ rfl) hpc hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hw1, hrdi, hrsi, hrdx, hrcx, hr12, hk⟩ := after_eq run_b8 ▸ ok_b8
@@ -75,7 +81,7 @@ theorem callTables (hp : Placed code k)
   have kr : ∀ r ∈ [Reg64.rbx, .r13, .r14, .r15, .rbp], reg st1.data r = reg st.data r :=
     fun r hr ↦ hm1.regs r (.reg r) (by simpa using List.all_eq_true.mp hk r hr)
   have eadd : (Sym.bin .add .W64 (.reg .rbx) (.lit 112184)).eval (frameEnv m0 st.data 96 []
-      (fun _ ↦ 0) (Host.addrOf (k + 44 + b8.length)).toBitVec) = off (reg m0 .r8) 112184 := by
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b8Offset + b8.length)).toBitVec) = off (reg m0 .r8) 112184 := by
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64]
     exact congrArg (· + BitVec.ofNat 64 112184) h.rbx
   have eRdi : reg st1.data .rdi = reg m0 .rdi := (hm1.regs .rdi _ hrdi).trans h.r14
@@ -173,7 +179,7 @@ theorem callTables (hp : Placed code k)
   rw [walkTables, run_bind_eq]
   generalize hr : (tablePhase L bus).run s = r at hok hres hnext
   refine branch hp g b9_in_code (by simp [b9]) (by rw [after_eq run_b9]; exact run_b9)
-    (ok_test b9 (by simp)) h2 (hpc2.trans (by rw [show k + 44 + b8.length = k + 51 from rfl]))
+    (ok_test b9 (by simp)) h2 (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b8Offset + b8.length = k + NativeRustcVmX64.Vm.VerifyExecution.b9Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b8_next]]))
     hok (fun hb ↦ by cases r with | none => rfl | some _ => cases hb)
     fun st3 hb h3 hd3 hk3 hpc3 ↦ ?_
   obtain ⟨⟨ev, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
@@ -197,7 +203,7 @@ theorem callTables (hp : Placed code k)
     rw [hd3]
     exact NativeRustcVm.Top.OodAt.of_same hood (hsC (n := 504) (by omega) (by omega) (by omega))
   exact callClaims hp htc hpi hkp hrs hvso g h3
-    (hpc3.trans (by rw [show k + 51 + b9.length = k + 53 from rfl])) (rate := rate)
+    (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b9Offset + b9.length = k + NativeRustcVmX64.Vm.VerifyExecution.b10Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b9_next]])) (rate := rate)
     (by rw [k15, kr _ (by simp)]; exact h15) (by rw [k12]; exact eR12)
     (by rw [k13, kr _ (by simp)]; exact h13) (by rw [kbp, kr _ (by simp)]; exact hbp)
     (by rw [hd3]; exact h40') hP (by rw [hd3]; exact hts') (by rw [hroots']; exact hroots) hL3 hvc

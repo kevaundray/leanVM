@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingCoefficients.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.RingTarget.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
 public import NativeRustcVmArm.Ring.Switch.Tail
 
 /-!
@@ -34,16 +39,16 @@ variable [Host] {k : Nat}
 
 /-- **`ring_switch`'s contract.** -/
 theorem ringSwitch_spec (hp : Placed code k)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrc : Spec (Labels.label ringCoefficientsLabel) RingCoefficientsPre RingCoefficientsPost)
-    (hrt : Spec (Labels.label ringTargetLabel) RingTargetPre RingTargetPost)
+    (hrc : Spec (Labels.label NativeRustcVmArm.Vm.RingCoefficients.entryLabel) RingCoefficientsPre RingCoefficientsPost)
+    (hrt : Spec (Labels.label NativeRustcVmArm.Vm.RingTarget.entryLabel) RingTargetPre RingTargetPost)
     (a : DecArea) (s : TState) (point : Array EW) :
-    Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s) (RingSwitchPost a s point) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s) (RingSwitchPost a s point) := by
   intro m0 h
-  rw [show Labels.label ringSwitchLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
-  have hb6 : b6.IsInfixAt Host.prog (k + 59) := hb b6_in_code (by simp [b6]) hp
+  rw [show Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.RingSwitch.entryOffset) NativeRustcVmArm.Vm.RingSwitch.entry_at]
+  have hb6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.RingSwitch.b6Offset) := hb b6_in_code (by simp [b6]) hp
   refine stepEntry hp h hgr fun m2 hfr2 h19 h20 h21 hx0 hnext ↦ ?_
   cases hg : (grind LeanVM.Parameters.Whir.batchGrindingBits).run s with
   | none =>

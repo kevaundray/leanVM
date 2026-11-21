@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Ring.Target.Steps
 public import NativeRustcVmX64.Ring.Target.Values
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
 
 /-!
 # `ring_target`: the turns' steps (x86-64)
@@ -101,10 +104,10 @@ theorem geoT (hpre : RingTargetPre m0) : NativeRustcVmX64.Field.Geo m0 2352 NT :
 
 /-- **A block and its call of `EW::sq_iter`.** -/
 theorem sqS (hp : Placed code k) (hpre : RingTargetPre m0)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost) (_hG : Good m0 E)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost) (_hG : Good m0 E)
     {ds : List Directive} {off off' : Nat} (hds : ds.IsInfixAt code off) (hne : ds ≠ [])
     (hoff : off + ds.length = off') {T T' S' : SState} {vals vals' : Nat → BitVec 64}
-    (hrun : exec ds T = some (S', .call ewSqIterLabel))
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWSqIter.entryLabel))
     (hwr : S'.mem.all (writeOk 2352 ((2352 + 8) :: (rsC m0).map Prod.snd) noWr) = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0)) (hmiss : missOk 1280 2304 S' = true)
     {L LW : List (Nat × Sym)} (hL : rlinks true S' T' = some L) (hLW : wlinks S' T'.mem = some LW)
@@ -127,10 +130,10 @@ theorem sqS (hp : Placed code k) (hpre : RingTargetPre m0)
 
 /-- **A block and its call of `EW::mul`.** -/
 theorem mulS (hp : Placed code k) (hpre : RingTargetPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (_hG : Good m0 E)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (_hG : Good m0 E)
     {ds : List Directive} {off off' : Nat} (hds : ds.IsInfixAt code off) (hne : ds ≠ [])
     (hoff : off + ds.length = off') {T T' S' : SState} {vals vals' : Nat → BitVec 64}
-    (hrun : exec ds T = some (S', .call ewMulLabel))
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hwr : S'.mem.all (writeOk 2352 ((2352 + 8) :: (rsC m0).map Prod.snd) noWr) = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0)) (hmiss : missOk 1280 2304 S' = true)
     {L LW : List (Nat × Sym)} (hL : rlinks true S' T' = some L) (hLW : wlinks S' T'.mem = some LW)
@@ -171,10 +174,10 @@ theorem copy_at [Labels] (hpre : RingTargetPre m0) {T S' : SState} {vals : Nat �
 
 /-- **A block and its call of `poly_eval`** over the images' copy. -/
 theorem polyS (hp : Placed code k) (hpre : RingTargetPre m0)
-    (hpoly : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost) (_hG : Good m0 E)
+    (hpoly : Spec (Labels.label NativeRustcVmX64.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost) (_hG : Good m0 E)
     {ds : List Directive} {off off' : Nat} (hds : ds.IsInfixAt code off) (hne : ds ≠ [])
     (hoff : off + ds.length = off') {T T' S' : SState} {vals vals' : Nat → BitVec 64}
-    (hrun : exec ds T = some (S', .call polyEvalLabel))
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.PolyEval.entryLabel))
     (hwr : S'.mem.all (writeOk 2352 ((2352 + 8) :: (rsC m0).map Prod.snd) noWr) = true)
     (hsp : S'.reg .rsp = some (.ptr 0 0)) (hmiss : missOk 1280 2304 S' = true)
     (hrdi : S'.reg .rdi = some (.ptr 0 1280)) (hrsi : S'.reg .rsi = some (.lit 64))

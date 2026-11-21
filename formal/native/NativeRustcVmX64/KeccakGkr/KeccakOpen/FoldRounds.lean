@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.FoldR2Tail
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.FoldR34Rows
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 namespace NativeRustcVmX64.KeccakGkr.KeccakOpen
 
@@ -15,13 +17,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
   {cx : Cx} {rows : Array (Array EW)}
 
 theorem round2 (hp : Placed code k) (h : PreOk a s c m0)
-    (hcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hA : cx.a = a)
+    (hcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hA : cx.a = a)
     (hrsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 126))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b18Offset))
     (hm : Mid cx m0 8 st.data)
     (hr : ElemsAt st.data.dmem (rwA m0) (Fr cx.sl rows 2) 4096) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 360) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b58Offset) ∧
       Mid cx m0 8 st'.data ∧ KAt m0 (varsOf cx.sl 3 0) [(.r13, P)] st'.data ∧
       Words m0 (varsOf cx.sl 3 0) W6 st'.data ∧
       ElemsAt st'.data.dmem (rwA m0) (Fr cx.sl rows 3) 4096) st := by
@@ -42,15 +44,15 @@ theorem round2 (hp : Placed code k) (h : PreOk a s c m0)
   rwa [F_half] at hr'
 
 theorem round3 (hp : Placed code k) (h : PreOk a s c m0)
-    (hcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hA : cx.a = a)
+    (hcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hA : cx.a = a)
     (hrsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 360))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b58Offset))
     (hm : Mid cx m0 8 st.data)
     (hk : KAt m0 (varsOf cx.sl 3 0) [(.r13, P)] st.data)
     (hw : Words m0 (varsOf cx.sl 3 0) W6 st.data)
     (hr : ElemsAt st.data.dmem (rwA m0) (Fr cx.sl rows 3) 4096) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 475) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b78Offset) ∧
       Mid cx m0 8 st'.data ∧ KAt m0 (varsOf cx.sl 4 0) [(.r13, P)] st'.data ∧
       Words m0 (varsOf cx.sl 4 0) W6 st'.data ∧
       ElemsAt st'.data.dmem (rwA m0) (Fr cx.sl rows 4) 4096) st := by
@@ -67,15 +69,15 @@ theorem round3 (hp : Placed code k) (h : PreOk a s c m0)
   rwa [F_half] at hr'
 
 theorem round4 (hp : Placed code k) (h : PreOk a s c m0)
-    (hcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hA : cx.a = a)
+    (hcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hA : cx.a = a)
     (hrsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 475))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b78Offset))
     (hm : Mid cx m0 8 st.data)
     (hk : KAt m0 (varsOf cx.sl 4 0) [(.r13, P)] st.data)
     (hw : Words m0 (varsOf cx.sl 4 0) W6 st.data)
     (hr : ElemsAt st.data.dmem (rwA m0) (Fr cx.sl rows 4) 4096) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 535) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b88Offset) ∧
       Mid cx m0 8 st'.data ∧ KAt m0 (varsOf cx.sl 5 0) [(.rbp, P)] st'.data ∧
       Words m0 (varsOf cx.sl 5 0) W6 st'.data ∧
       ElemsAt st'.data.dmem (rwA m0) (Fr cx.sl rows 5) 4096) st := by

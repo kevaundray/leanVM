@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.TurnB
+public import NativeRustcVmX64.Code.Vm.FormBufAddScaled.Names
 
 /-!
 # `accumulate_side`: the table loop's turn, the form added (x86-64)
@@ -70,7 +71,7 @@ theorem tables_in (h : Pre L rows bl Fm SL m0) : In m0 (rodataAddr .tables) 240 
 
 /-- **The table loop's turn `j`, from `b21` to `b23`.** -/
 theorem turnC (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (has : ∀ f g, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f g)
+    (has : ∀ f g, Spec (Labels.label NativeRustcVmX64.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f g)
       (FormBufAddScaledPost f g))
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (outs m0) (VT L rows bl Fm SL m0 j) D20 8 m) (hfb : FB m0 m.dmem (fmA L rows bl m0 j))
@@ -78,8 +79,8 @@ theorem turnC (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (cont : ∀ m2, St m0 (outs m0) (VT L rows bl Fm SL m0 j) (D21c ++ E21) 8 m2 →
       FB m0 m2.dmem (fmA L rows bl m0 j) →
       FormsAt m2.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 (j + 1)).1 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 223)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 196)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b21Offset)⟩ := by
   obtain ⟨-, -, -, -, -, hlo21, hlo22, -⟩ := low_T
   let V := VT L rows bl Fm SL m0 j
   let G := (stA L rows bl Fm SL m0 j).1
@@ -97,7 +98,7 @@ theorem turnC (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   have hsize : (fmA L rows bl m0 j).size ≤ 148 := hfb.len_le
   -- `b21`: the padding span, the call's arguments.
   let env1 := frameEnv m0 m F [(rodataAddr .tables, 240)] (fun _ ↦ 0)
-    (Host.addrOf (k + 196 + b21.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b21Offset + b21.length)).toBitVec
   have hwf1 : env1.WF := wf1 h hst.fr.kept hTIn
   have e_si : env1.regs .rsi = BitVec.ofNat 64 o := hst.hd.reg (r := .rsi) (i := 39) (by decide)
   have g6056 : env1.load 0 6056 8 = BitVec.ofNat 64 (fmA L rows bl m0 j).size :=
@@ -115,7 +116,7 @@ theorem turnC (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
           rw [five_eval env1 e_si, toNat_ofNat_lt (by omega)]; omega, trivial⟩ trivial
   obtain ⟨hmid1, hw1, htr1, h13, hbp, hsi, hdx, hdi, h12, h24⟩ := ok_b21
   refine St.run h (rest := [(rodataAddr .tables, 240)]) (vs := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 196 + b21.length)).toBitVec) rfl
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b21Offset + b21.length)).toBitVec) rfl
     (infix_of b21_in_code (by simp [b21]) hp) exit_b21 (fun _ _ ↦ rfl) hst.fr hst.same
     (hst.hd.reg0 (rs' := (fb m0, F + 8) :: [(rodataAddr .tables, 240)]) (by decide) rfl)
     (by decide) hwf1 hm1 hmid1 hw1 (by decide) htr1 fun st2 hm2 hpc2 hst2 hc2 ↦ ?_
@@ -221,7 +222,7 @@ theorem turnC (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
         (fun h1 ↦ .inl (by change NativeRustcVm.InRange slot formBufBytes q; rw [← edi]; exact h1)) .inr) fun i hi hq ↦
       (forms_out h hi).2 (inRange_callee hsp2 h.sp8 h.spN le_as hq).1
   -- `b22`: `add_scaled`'s failure exit, not taken.
-  show Eventually _ _ (⟨m3, Host.addrOf (k + 221)⟩ : MachineState)
+  show Eventually _ _ (⟨m3, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b22Offset)⟩ : MachineState)
   obtain ⟨-, -, -, hmid4, hw4, htr4⟩ := ok_b19
   refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := 0) rfl
     (infix_of b22_in_code (by simp [b22]) hp) exit_b22 nofun hst3.fr hst3.same
@@ -234,7 +235,7 @@ theorem turnC (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   simp only [PcOk] at hpc4
   rw [hc4] at hpc4
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc4
-  have hpc4' : st4.pc = Host.addrOf (k + 223) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset) := hpc4
   obtain ⟨d4, pc4⟩ := st4
   simp only at hpc4' hst4 hk4
   subst hpc4'

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
 public import NativeRustcVmArm.Arrays.EqEvalFn.Exec
 public import NativeRustcVm.Arrays.Folds
 
@@ -70,25 +72,25 @@ structure Inv (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 7) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 12) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 20) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 23) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 27) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label eqEvalFnOfEqAboveLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LEqEvalFnOfEqAbove_2" = Host.addrOf (k + 12) :=
-  hp.label (j := 12) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LEqEvalFnOfEqAbove_4" = Host.addrOf (k + 27) :=
-  hp.label (j := 27) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryOffset) NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entry_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Offset) NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.label_2_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b5Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b5Offset) NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.label_4_at
 
 /-- The postcondition, reached. -/
 abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
@@ -96,7 +98,7 @@ abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
 
 /-- **The epilogue** `b4`: from the loop's exit, the product returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : EqEvalFnOfEqAbovePre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 23))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b4Offset))
     (hb : Body m0 48 eqEvalFnStack slots 0 0 st.data)
     (hacc : (⟨st.data.regs.X0, st.data.regs.X1⟩ : EW) = acc m0 (cnt m0)) :
     Eventually (step1 Host.exe) (Post m0) st := by
@@ -118,11 +120,11 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : EqEvalFnOfEqAbove
 
 /-- **A turn of the loop**: the accumulator multiplied by `1 + bit_e(selector, i) + right[i]`, back
 at the head or out of the loop and returned. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : EqEvalFnOfEqAbovePre m0) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 12)) (hI : Inv m0 i st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Offset)) (hI : Inv m0 i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-      (st'.pc = Host.addrOf (k + 12) ∧ Inv m0 (i + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Offset) ∧ Inv m0 (i + 1) st'.data)) st := by
   obtain ⟨hS, h64, hrR, hoR⟩ := hpre
   have hlt := hI.lt
   have hiR : i < m0.regs.X3.toNat := Nat.lt_of_lt_of_le hI.lt (Nat.min_le_right _ _)
@@ -137,7 +139,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       show st.regs.X21.toBitVec = _
       rw [hI.x21, show BitVec.ofInt 64 8 = BitVec.ofNat 64 8 from rfl, addr_add])
     fun st2 hm2' hpc2 hb2' hR e2 ↦ ?_
-  simp only [show b2.length = 8 from rfl] at hpc2
+  simp only [NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2_length, NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Length] at hpc2
   have hx22 : (st.regs.getXReg .X22).toBitVec.toNat = i := hI.x22
   have hfac : (⟨st2.data.regs.X2, st2.data.regs.X3⟩ : EW) =
       1 + (lft m0)[i]'(lt_l hlt) + (rgt m0)[i]'(lt_r hlt) := by
@@ -216,7 +218,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       show (st3.data.regs.getXReg .X20).toBitVec = (st3.data.regs.getXReg .X22).toBitVec
       apply BitVec.eq_of_toNat_eq
       rw [hx20, ← hk22, hx22', hlast])
-    simp only [show b3.length = 3 from rfl] at hpc4
+    simp only [NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b3_length, NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b3Length] at hpc4
     refine Eventually.mono (finish hp ⟨hS, h64, hrR, hoR⟩ hpc4 hb4' ?_) fun _ h ↦ Or.inl h
     rw [hacc, hlast]
   · have hpc4 := hpc4'.1 (by
@@ -237,8 +239,8 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`eq_eval_fn` (`eq_above`'s closure) meets its contract.** -/
 theorem eqEvalFn_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hS := hpre.1
@@ -246,7 +248,7 @@ theorem eqEvalFn_spec (hp : Placed code k)
   obtain ⟨hwf, hm⟩ := entry_match hS h48 rfl
   have hcnt := min_toNat (m0.regs.getXReg .X0).toBitVec (m0.regs.getXReg .X3).toBitVec
   refine exec_then (hb0 hp) run_b0 hwf hm fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 7 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0_length, NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b0Length] at hpc1
   sym_simp at hpc1
   have hpc1' := pc_cond hpc1
   have hc : (((if (m0.regs.getXReg .X3).toBitVec.ult (m0.regs.getXReg .X0).toBitVec then
@@ -283,7 +285,7 @@ theorem eqEvalFn_spec (hp : Placed code k)
     have hpc1 := hpc1'.2 (fun h ↦ hz' (hc.mp h))
     have hpos : 0 < cnt m0 := Nat.pos_of_ne_zero hz'
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf hpc1 hm1 fun st2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b1.length = 5 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b1_length, NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b1Length] at hpc2
     obtain ⟨hw, hmem, hregs⟩ := after_eq run_b1 ▸ b1_frame
     have hI : Inv m0 0 st2.data := by
       have h0 := hm2.regs .X0 _ rfl
@@ -307,7 +309,7 @@ theorem eqEvalFn_spec (hp : Placed code k)
       · show (⟨st2.data.regs.getXReg .X0, st2.data.regs.getXReg .X1⟩ : EW) = _
         rw [UInt64.toBitVec_inj.mp (h0.trans rfl), UInt64.toBitVec_inj.mp (h1.trans rfl)]
         rfl
-    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 12) ∧ ∃ i, cnt m0 - i = n ∧
+    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.b2Offset) ∧ ∃ i, cnt m0 - i = n ∧
       Inv m0 i st.data) (fun n st ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc2, 0, rfl, hI⟩
     refine Eventually.mono (step hp hmul hpre hpc hI) fun st' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩

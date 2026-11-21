@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.Ones
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
 
 /-!
 # `accumulate_side`: the known part and the framework ones (x86-64)
@@ -23,15 +26,15 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
 
 /-- **The known part's loop** from turn `i`. -/
 theorem knownLoop (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {i : Nat} (hi : i < cA SL m0) {st : MachineData}
     (hst : St m0 Z (Vt SL m0 (lpK SL m0 i)) DK 8 st) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 81) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b5Offset) ∧
       St m0 Z (Vt SL m0 (lpK SL m0 (cA SL m0))) DK 8 st'.data)
-      ⟨st, Host.addrOf (k + 46)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b2Offset)⟩ := by
   refine Sym.loop (fun n (s : MachineState) ↦ ∃ i, n = cA SL m0 - i ∧ i < cA SL m0 ∧
-      s.pc = Host.addrOf (k + 46) ∧ St m0 Z (Vt SL m0 (lpK SL m0 i)) DK 8 s.data)
+      s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b2Offset) ∧ St m0 Z (Vt SL m0 (lpK SL m0 i)) DK 8 s.data)
     (fun n s ⟨i, hn, hi, hpc, hst⟩ ↦ ?_) ⟨i, rfl, hi, rfl, hst⟩
   obtain ⟨d, pc⟩ := s
   simp only at hpc hst
@@ -48,9 +51,9 @@ theorem knownLoop (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
 /-- `b5`: the known part added to the tree's value. -/
 theorem addKnown (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {st : MachineData}
     (hst : St m0 Z (Vt SL m0 (lpK SL m0 (cA SL m0))) DK 8 st) (lp : Nat → UInt64) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 85) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b6Offset) ∧
       St m0 Z (Vt SL m0 lp) D6 8 st'.data)
-      ⟨st, Host.addrOf (k + 81)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b5Offset)⟩ := by
   obtain ⟨hmid, hw, htr, h64, h72⟩ := ok_b5
   refine St.run h (rest := [(rspOf m0 + 8#64, 88)]) (vs := fun _ ↦ 0) (ret := 0) rfl
     (infix_of b5_in_code (by simp [b5]) hp) exit_b5 nofun hst.fr hst.same
@@ -79,11 +82,11 @@ theorem addKnown (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {st : Machine
 
 /-- **From the entry to `b12`.** -/
 theorem front (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (lp : Nat → UInt64) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 120) ∧
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (lp : Nat → UInt64) :
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b12Offset) ∧
       St m0 Z (Vt SL m0 lp) D12 8 st'.data)
-      ⟨m0, Labels.label accumulateSideLabel⟩ := by
+      ⟨m0, Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel⟩ := by
   refine Eventually.bind (entry hp h lp) fun s hs ↦ ?_
   obtain ⟨d, pc⟩ := s
   rcases hs with ⟨hpc, hpos, hst⟩ | ⟨hpc, hz, hst⟩

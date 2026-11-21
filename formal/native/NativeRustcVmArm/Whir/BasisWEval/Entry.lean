@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LayoutWPlacement.Names
 public import NativeRustcVmArm.Whir.BasisWEval.Defs
 
 /-!
@@ -70,12 +71,12 @@ variable [Host] {k : Nat}
 
 /-- **The entry**, to `.LBasisWEval_3`. -/
 theorem entry (hp : Placed code k) (h : In m0 ba b v)
-    (hpl : ∀ L, Spec (Labels.label layoutWPlacementLabel) (LayoutWPlacementPre L)
+    (hpl : ∀ L, Spec (Labels.label NativeRustcVmArm.Vm.LayoutWPlacement.entryLabel) (LayoutWPlacementPre L)
       (LayoutWPlacementPost L))
     {R : MachineState → Prop}
-    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + 27) → At4 m0 ba b v st.data →
+    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b4Offset) → At4 m0 ba b v st.data →
       Eventually (step1 Host.exe) R st) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b0Offset)⟩ := by
   have hS := h.stackOk
   have hN := h.hN
   obtain ⟨hs1, hs2, hs3, hs4, hs5, hs6⟩ := stack_le
@@ -123,7 +124,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
     fun m2 hf2 hq2 hcs2 ↦ ?_
   obtain ⟨hy0, hy1, -, -⟩ := hq2
   rw [hx1] at hy0 hy1
-  rw [show k + 0 + b0.length = k + 17 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.BasisWEval.b0Offset + b0.length = k + NativeRustcVmArm.Vm.BasisWEval.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b0_next]]
   refine hf2.regsBlock (inf hp b1_in_code (by simp [b1])) run_b1 rfl rfl rfl (by rfl)
     fun st3 hf3 hd3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
@@ -163,7 +164,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
   rw [hz] at hpc3
   by_cases hc0 : ba.count = 0
   · simp only [hc0, decide_true, ↓reduceIte] at hpc3
-    rw [hp.label (j := 23) rfl] at hpc3
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b3Offset) NativeRustcVmArm.Vm.BasisWEval.label_2_at] at hpc3
     refine hf3.regsBlock (inf hp b3_in_code (by simp [b3])) run_b3 hpc3 rfl rfl (by rfl)
       fun st4 hf4 hd4 hm4 hpc4 ↦ ?_
     simp only [PcOk] at hpc4
@@ -172,7 +173,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
       fun r h24 h25 h28 ↦ reg_of hm4 (v := .reg r) (by cases r <;> first | rfl | contradiction) rfl
     have hs0 : sAt b.scales 0 = 0 := by
       rw [sAt, Array.getElem?_eq_none (by omega)]; rfl
-    refine cont st4 (hpc4.trans (by rw [show b3.length = 4 from rfl])) {
+    refine cont st4 (hpc4.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b3_next])) {
       fr := hf4
       x2 := (hk4 .X2 (by decide) (by decide) (by decide)).trans h2
       x6 := (hk4 .X6 (by decide) (by decide) (by decide)).trans h6
@@ -190,7 +191,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
       x25 := by rw [hs0]; exact reg_of hm4 (r := .X25) rfl rfl
       x24 := by rw [hs0]; exact reg_of hm4 (r := .X24) rfl rfl }
   · simp only [decide_eq_false hc0, Bool.false_eq_true, ↓reduceIte] at hpc3
-    rw [show k + 17 + b1.length = k + 20 from rfl] at hpc3
+    rw [show k + NativeRustcVmArm.Vm.BasisWEval.b1Offset + b1.length = k + NativeRustcVmArm.Vm.BasisWEval.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b1_next]] at hpc3
     have hsc := h.scalesAt hf3
     have hm16 := mapped_of hf3 h.scales
     let env2 := Env.ofMachine st3.data [(ba.scales, 16)]
@@ -218,7 +219,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
         b.scales[0].c1 := by simpa using he.2
     have hs0 : sAt b.scales 0 = b.scales[0] := by
       rw [sAt, Array.getElem?_eq_getElem (by omega), Option.getD_some]
-    refine cont st4 (by rw [hpc4, hp.label (j := 27) rfl]) {
+    refine cont st4 (by rw [hpc4, hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b4Offset) NativeRustcVmArm.Vm.BasisWEval.label_3_at]) {
       fr := hf4
       x2 := (hk4 .X2 (by decide) (by decide) (by decide) (by decide)).trans h2
       x6 := (hk4 .X6 (by decide) (by decide) (by decide) (by decide)).trans h6

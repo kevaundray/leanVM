@@ -10,7 +10,7 @@ public import NativeRustcVmX64.Sumcheck.Common
 
 `stepJ`: a block without a call from the template `T` (or a state `S` the machine matches) to the
 template `T'`; `stepC`: a block ending in a call and the call, the callee's outputs `ChgR m0 Lc Oc`;
-both give the change of memory (`Chg`). `failG`: from `.LVerifyKeccak_31` (a failed check) to the
+both give the change of memory (`Chg`). `failG`: from `NativeRustcVmX64.Vm.VerifyKeccak.label_31` (a failed check) to the
 return with AL `0`, the model's `none`; `okG`: from `b71` (the last `extend` done) to the return
 with AL `1`.
 -/

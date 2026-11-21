@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.FoldRound.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Whir.FoldRound.Fin2
 
 /-!
@@ -21,14 +26,14 @@ variable [Host] {k : Nat}
 
 /-- **`fold_round`'s contract.** -/
 theorem foldRound_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (a : DecArea) (s : TState)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (a : DecArea) (s : TState)
     (w : WhirStateW) :
-    Spec (Labels.label foldRoundLabel) (FoldRoundPre a s w) (FoldRoundPost a s w) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.FoldRound.entryLabel) (FoldRoundPre a s w) (FoldRoundPost a s w) := by
   intro m0 h
-  rw [show Labels.label foldRoundLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.FoldRound.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.FoldRound.entryOffset) NativeRustcVmArm.Vm.FoldRound.entry_at]
   exact reads hp h (hrs a) (hgr a) fun st s5 u0 v c0 c1 hpc hb ↦
     squeezes hp h hsq hpc hb fun st' hpc' hb' ↦
       muls hp h hmul hpc' hb' fun st'' hpc'' hb'' ↦ tail hp h hpc'' hb''

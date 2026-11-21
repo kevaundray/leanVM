@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Evaluate.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Padding
 
 /-!
@@ -18,15 +19,15 @@ variable [Host] {m0 : MachineData} {L : LayoutW} {rows : Array Nat}
 
 /-- **`b35`**: the block form evaluated at the owner's padding row. -/
 theorem turn35 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmArm.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) L35 m)
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) (gf m0 (BA L rows bl) j))
     {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L36 m2 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) (gf m0 (BA L rows bl) j) → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 314)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 307)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b36Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b35Offset)⟩ := by
   have hH0 := St.lift (D := L35) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
   have hsz := hg.len_le
@@ -80,7 +81,7 @@ theorem turn35 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       exact ht.2
   · have hr : ewRet m2 = ev m0 (BA L rows bl) j := by
       rw [hq.1, hpad.2]
-    rw [show k + 307 + b35.length = k + 314 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b35Offset + b35.length = k + NativeRustcVmArm.Vm.AccumulateSide.b36Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b35_next]]
     exact cont m2 ⟨hst2.fr, holds_ewRet (r0 := 110) (Holds.sub hst2.hd
       (D' := (Sym.reg .X23, 108) :: (Sym.reg .X24, 109) :: L34c) (by decide)) hr rfl rfl⟩
       (NativeRustcVm.Tables.FormBufAt.of_same hg (hB 152 5928 (by decide) (by decide))) hF

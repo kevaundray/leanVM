@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWAbsorb.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWDuplex.Names
 public import NativeRustcVmArm.Transcript.Absorb.Tail
 
 /-!
@@ -34,8 +36,8 @@ variable [Host] {k : Nat}
 
 /-- **`SpongeW::absorb` meets its contract.** -/
 theorem absorb_spec (hp : Placed code k)
-    (hdup : ∀ sp, Spec (Labels.label duplexLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
-    Spec (Labels.label absorbLabel) (AbsorbPre sp) (AbsorbPost sp) := by
+    (hdup : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
+    Spec (Labels.label NativeRustcVmArm.Vm.SpongeWAbsorb.entryLabel) (AbsorbPre sp) (AbsorbPost sp) := by
   rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
   set p := m0.regs.X0.toBitVec with hpdef
   have hA : absorbStack = 464 := rfl
@@ -57,8 +59,8 @@ theorem absorb_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), rfl, nofun, trivial⟩
       frameBase_add.symm ⟨known_ptr rfl rfl, trivial⟩ trivial trivial trivial
   obtain ⟨x0, hrun0, hpro, hw0, hx8, hx19, hx20, hx21, hx22, rfl⟩ := ok_b0
-  unfold absorbLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.SpongeWAbsorb.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.SpongeWAbsorb.entryOffset) NativeRustcVmArm.Vm.SpongeWAbsorb.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) hrun0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   have hf1 : Frame m0 48 slots st1.data := Frame.of_prologue hwf0 hm1 hpro slots_le
   have hs1 : SameOutside m0.dmem st1.data.dmem (NativeRustcVm.InRange (frameBase m0 48) 48) :=
@@ -88,7 +90,7 @@ theorem absorb_spec (hp : Placed code k)
   by_cases h4 : sp.pending.size < 4
   · -- Below `4`: the push.
     simp only [h4, decide_true, ite_true] at hpc1
-    have := tail hp hst hmap' hnw' hapF (hpc1.trans (hp.label (j := 16) rfl)) hf1 h4 hX8 hX19
+    have := tail hp hst hmap' hnw' hapF (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.SpongeWAbsorb.b3Offset) NativeRustcVmArm.Vm.SpongeWAbsorb.label_2_at)) hf1 h4 hX8 hX19
       hX20 hX21 hX22 hsp1 hso1
     refine Eventually.mono this fun st' ⟨hpc', hsp', hso', hsv'⟩ ↦ ⟨hpc', ?_, hso', hsv'⟩
     rw [absorb_lt (by unfold rateScalars; omega)]
@@ -104,7 +106,7 @@ theorem absorb_spec (hp : Placed code k)
       match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
         (by rw [hf1.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1
-      (hpc1.trans (by rw [show b0.length = 11 from rfl])) hm1' fun st2 hm2 hpc2 => ?_
+      (hpc1.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWAbsorb.b0Offset + NativeRustcVmArm.Vm.SpongeWAbsorb.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWAbsorb.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWAbsorb.b0_next])) hm1' fun st2 hm2 hpc2 => ?_
     obtain ⟨hmid2, hmem2, hx0', hx20', hx19', hx21', hx22'⟩ := after_eq run_b1 ▸ ok_b1
     have hf2 : Frame m0 48 slots st2.data := Frame.of_block hf1 hwf1 hm2 hmid2 slots_le
     have hd2 : st2.data.dmem = st1.data.dmem := hm2.dmem_eq hwf1 hmem2
@@ -156,7 +158,7 @@ theorem absorb_spec (hp : Placed code k)
         (by rw [hf3.sp]; exact (eval_ptr rfl).symm) ⟨known_ptr rfl hX20', trivial⟩ trivial trivial
         trivial
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf3
-      (hpc3.trans (by rw [show b1.length = 2 from rfl])) hm3 fun st4 hm4 hpc4 => ?_
+      (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWAbsorb.b1_next])) hm3 fun st4 hm4 hpc4 => ?_
     obtain ⟨hmid4, hmem4, hx8', hx20'', hx19'', hx21'', hx22''⟩ := after_eq run_b2 ▸ ok_b2
     have hf4 : Frame m0 48 slots st4.data := Frame.of_block hf3 hwf3 hm4 hmid4 slots_le
     have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 hmem4
@@ -172,7 +174,7 @@ theorem absorb_spec (hp : Placed code k)
     rw [hcnt3, hdz] at hpc4
     simp only [show (Nat.toUInt64 0).toBitVec = 0#64 from rfl] at hpc4
     simp (config := { decide := true }) only [↓reduceIte] at hpc4
-    rw [show b2.length = 3 from rfl] at hpc4
+    rw [NativeRustcVmArm.Vm.SpongeWAbsorb.b2_length, NativeRustcVmArm.Vm.SpongeWAbsorb.b2Length] at hpc4
     have hX8' : st4.data.regs.X8.toNat = sp.duplex.pending.size := by
       show (st4.data.regs.getXReg .X8).toBitVec.toNat = _
       rw [hm4.regs .X8 _ hx8', Sym.eval, hcnt3, hdz]; rfl

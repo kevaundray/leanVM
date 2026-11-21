@@ -8,8 +8,7 @@ public import NativeRustcArm.Code.Sphincs.Offsets
 
 In `NativeRustcArm.Sphincs.code`, each function sits where `Code/Sphincs/Offsets.lean` says and
 each of its labels is the first of its name (`placed_of`: the labels checked by the kernel on the
-program, `labelsOk`): `sphincs_verify` from directive 48 (`placed`), `memcpy` 0, `memset` 24,
-`keccak_f` 2864, `Hasher::update` 3094, `Hasher::finalize` 3190.
+program, `labelsOk`); their positions are generated scheme-qualified `programOffset` constants.
 -/
 
 namespace NativeRustcArm.SphincsVerifyProof
@@ -53,32 +52,32 @@ theorem placed_of [NativeArm.Host] (hP : NativeArm.Host.prog = Sphincs.code) {F 
 
 set_option Elab.async false
 
-theorem labelsOk_sphincsVerify : labelsOk Sphincs.code Sphincs.SphincsVerify.code 48 = true := by
+theorem labelsOk_sphincsVerify : labelsOk Sphincs.code Sphincs.SphincsVerify.code NativeRustcArm.Sphincs.SphincsVerify.programOffset = true := by
   decide +kernel
-theorem labelsOk_memcpy : labelsOk Sphincs.code Common.Memcpy.code 0 = true := by decide +kernel
-theorem labelsOk_memset : labelsOk Sphincs.code Common.Memset.code 24 = true := by decide +kernel
-theorem labelsOk_keccakF : labelsOk Sphincs.code Common.KeccakF.code 2864 = true := by
+theorem labelsOk_memcpy : labelsOk Sphincs.code Common.Memcpy.code NativeRustcArm.Sphincs.Memcpy.programOffset = true := by decide +kernel
+theorem labelsOk_memset : labelsOk Sphincs.code Common.Memset.code NativeRustcArm.Sphincs.Memset.programOffset = true := by decide +kernel
+theorem labelsOk_keccakF : labelsOk Sphincs.code Common.KeccakF.code NativeRustcArm.Sphincs.KeccakF.programOffset = true := by
   decide +kernel
-theorem labelsOk_update : labelsOk Sphincs.code Common.Update.code 3094 = true := by
+theorem labelsOk_update : labelsOk Sphincs.code Common.Update.code NativeRustcArm.Sphincs.Update.programOffset = true := by
   decide +kernel
-theorem labelsOk_finalize : labelsOk Sphincs.code Common.Finalize.code 3190 = true := by
+theorem labelsOk_finalize : labelsOk Sphincs.code Common.Finalize.code NativeRustcArm.Sphincs.Finalize.programOffset = true := by
   decide +kernel
 
 variable [NativeArm.Host] (hP : NativeArm.Host.prog = Sphincs.code)
 include hP
 
-/-- **`sphincs_verify` is placed** at directive 48 of its program. -/
-theorem placed : Placed Sphincs.SphincsVerify.code 48 :=
+/-- **`sphincs_verify` is placed** at its generated program position. -/
+theorem placed : Placed Sphincs.SphincsVerify.code NativeRustcArm.Sphincs.SphincsVerify.programOffset :=
   placed_of hP Sphincs.SphincsVerify.code_at labelsOk_sphincsVerify
-theorem placed_memcpy : Placed Common.Memcpy.code 0 :=
+theorem placed_memcpy : Placed Common.Memcpy.code NativeRustcArm.Sphincs.Memcpy.programOffset :=
   placed_of hP Sphincs.Memcpy.code_at labelsOk_memcpy
-theorem placed_memset : Placed Common.Memset.code 24 :=
+theorem placed_memset : Placed Common.Memset.code NativeRustcArm.Sphincs.Memset.programOffset :=
   placed_of hP Sphincs.Memset.code_at labelsOk_memset
-theorem placed_keccakF : Placed Common.KeccakF.code 2864 :=
+theorem placed_keccakF : Placed Common.KeccakF.code NativeRustcArm.Sphincs.KeccakF.programOffset :=
   placed_of hP Sphincs.KeccakF.code_at labelsOk_keccakF
-theorem placed_update : Placed Common.Update.code 3094 :=
+theorem placed_update : Placed Common.Update.code NativeRustcArm.Sphincs.Update.programOffset :=
   placed_of hP Sphincs.Update.code_at labelsOk_update
-theorem placed_finalize : Placed Common.Finalize.code 3190 :=
+theorem placed_finalize : Placed Common.Finalize.code NativeRustcArm.Sphincs.Finalize.programOffset :=
   placed_of hP Sphincs.Finalize.code_at labelsOk_finalize
 
 end

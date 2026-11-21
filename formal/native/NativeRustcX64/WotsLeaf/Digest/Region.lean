@@ -67,13 +67,13 @@ theorem Run.base_add_frame (r : Run) (hpre : r.Pre) :
   omega
 
 /-- **Region 1, the message digest.** -/
-theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) 0 fun r st ↦ st.pc = r.pc 47 ∧
+theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) NativeRustcX64.Xmss.WotsLeaf.b0Offset fun r st ↦ st.pc = r.pc NativeRustcX64.Xmss.WotsLeaf.b6Offset ∧
     r.AtCheck st.data := by
   intro r hp hc hpre m hm0
   subst hm0
   -- The prologue.
-  have hwf0 := r.frame_wf hpre (m := r.m0) (fun _ h ↦ h) (fun _ ↦ 0) (r.pc (0 + b0.length)).toBitVec
-  have hm0 : Match (r.envR r.m0 [] (r.pc (0 + b0.length)).toBitVec) entryS r.m0 :=
+  have hwf0 := r.frame_wf hpre (m := r.m0) (fun _ h ↦ h) (fun _ ↦ 0) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b0Offset + b0.length)).toBitVec
+  have hm0 : Match (r.envR r.m0 [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b0Offset + b0.length)).toBitVec) entryS r.m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨by show rspOf r.m0 = r.base + BitVec.ofInt 64 2760; rw [r.base_add_frame hpre], trivial⟩
       trivial trivial
@@ -106,7 +106,7 @@ theorem digest_region : RegionSpec (fun r m ↦ m = r.m0) 0 fun r st ↦ st.pc =
   have hR3 := hR2.of_block hm3 rfl rfl rfl rfl rfl
   have h104 : BytesAt m3.dmem (r.off 104) (regBytes (reg r.m0 .rsi)) := by
     have := frame_covers hm3 (o := 104) (n := 8) (by decide) (v := .reg .r13) (by decide)
-    rwa [show (Sym.reg .r13).eval (r.envR m2 [] (r.pc (27 + b1.length)).toBitVec) = reg r.m0 .rsi
+    rwa [show (Sym.reg .r13).eval (r.envR m2 [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b1Offset + b1.length)).toBitVec) = reg r.m0 .rsi
       from hR2.2.1] at this
   have hK3' : CallKeep r (r.prologueSlots ++ [(112, 16, r.addr 12 0), (104, 8,
       regBytes (reg r.m0 .rsi))]) m3 :=

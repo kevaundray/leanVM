@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PhaseM.Names
 public import NativeRustcVmArm.Wire.PhaseM.Sort
 
 /-!
@@ -40,7 +41,7 @@ def climbFin (B : List UInt8) (qs : List Nat) (height lw : Nat) (rows : List (Li
 structure Rows [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 : Nat)
     (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 105)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b26Offset)
   base : Base m0 st.data
   model : phaseM B c = climbFin B qs height lw rows c6
   len : qs.length = count
@@ -144,14 +145,14 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 theorem chk_step (hp : Placed code k) (G : Geo m0 bp B) {b : List Directive} {j : Nat}
     (hb : b.IsInfixAt code j) (hne : b ≠ []) {S' : SState} {x y : Sym}
     (hx : exec b frS = some (S', .cond (SBool.and (.not (.cmp .ult .W64 x y))
-      (.not (.cmp .eq .W64 x y))) ".LPhaseM_12")) (hmem : S'.mem = []) (hsp : S'.sp = .ptr 0 0)
+      (.not (.cmp .eq .W64 x y))) NativeRustcVmArm.Vm.PhaseM.label_12)) (hmem : S'.mem = []) (hsp : S'.sp = .ptr 0 0)
     (hk : ∀ r : XReg, r ≠ .X8 → S'.reg r = some (.reg r))
     {st : MachineState} {R : MachineState → Prop} (hb0 : Base m0 st.data)
     (hpc : st.pc = Host.addrOf (k + j)) {a v : Nat}
     (hxv : (x.eval (frEnv m0 st.data)).toNat = a) (hyv : (y.eval (frEnv m0 st.data)).toNat = v)
     (cont : ∀ st', Base m0 st'.data → st'.data.dmem = st.data.dmem →
       (∀ r : XReg, r ≠ .X8 → st'.data.regs.getXReg r = st.data.regs.getXReg r) →
-      st'.pc = (if v < a then Host.addrOf (k + 64) else Host.addrOf (k + j + b.length)) →
+      st'.pc = (if v < a then Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b18Offset) else Host.addrOf (k + j + b.length)) →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   refine blk hp hb hne hx hmem hsp G.st hb0.fr hpc fun s1 hfr1 hd1 hm1 hpc1 ↦ ?_
@@ -164,7 +165,7 @@ theorem chk_step (hp : Placed code k) (G : Geo m0 bp B) {b : List Directive} {j 
   simp only [PcOk, gt_eval, hxv, hyv] at hpc1
   rw [hpc1]
   by_cases h : v < a
-  · simp only [h, decide_true, ↓reduceIte]; exact hp.label (j := 64) rfl
+  · simp only [h, decide_true, ↓reduceIte]; exact hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at
   · simp only [h, decide_false, Bool.false_eq_true, ↓reduceIte]
 
 end

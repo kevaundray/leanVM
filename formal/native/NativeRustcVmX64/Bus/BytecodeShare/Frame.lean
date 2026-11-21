@@ -321,13 +321,13 @@ end
 
 variable [Host] {a : DecArea} {s0 : TState} {m0 : MachineData} {k : Nat}
 
-/-- **The epilogue** `.LBytecodeShare_15` (`b16`): the result as the memory has it. -/
+/-- **The epilogue** `NativeRustcVmX64.Vm.BytecodeShare.label_15` (`b16`): the result as the memory has it. -/
 theorem exit16 (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {d : MachineData}
     (hf : BF m0 (OA m0) 8 d)
     (hout : OptShareAt d.dmem (oAt m0) ((res s0 m0).map (·.1)))
     (hpt : ∀ x s', res s0 m0 = some (x, s') →
       NativeRustcVm.EWsAt d.dmem (pAt m0) x.2.1.toList ∧ TStateAt d.dmem (tAt m0) a s') :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨d, Host.addrOf (k + 115)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b16Offset)⟩ := by
   have c := ctx_of h
   have hwf := wf_envB h hf.frame.kept 0
   refine exec_then (infix_of b16_in_code (by simp [b16]) hp) exit_b16 hwf nofun
@@ -348,10 +348,10 @@ theorem exit16 (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {d : MachineD
     · exact .inr (.inl h')
     · exact .inr (.inr (.inr h'))
 
-/-- **The tag `0`** (`.LBytecodeShare_14`, `b15`): the model failed. -/
+/-- **The tag `0`** (`NativeRustcVmX64.Vm.BytecodeShare.label_14`, `b15`): the model failed. -/
 theorem none15 (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {O : BitVec 64 → Prop}
     {d : MachineData} (hf : BF m0 O 8 d) (hO : ∀ q, O q → OA m0 q) (hr : res s0 m0 = none) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨d, Host.addrOf (k + 113)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b15Offset)⟩ := by
   have c := ctx_of h
   have ho := oOk h
   let env := frameEnv m0 d 432 [(oAt m0, 48)] (fun _ ↦ 0) 0

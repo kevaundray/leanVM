@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPi.Names
 public import NativeRustcArm.Sym
 public import NativeRustcVmArm.Code.Vm.KeccakPi
 public import NativeRustcVmArm.Spec.KeccakGkr
@@ -26,9 +27,9 @@ sym_block run0 := exec b0 (init [] .sp)
 public section
 
 theorem keccakPi_spec [NativeArm.Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost := by
   intro m hpre
-  have hl : Labels.label keccakPiLabel = NativeArm.Host.addrOf k := hp.label (j := 0) rfl
+  have hl : Labels.label NativeRustcVmArm.Vm.KeccakPi.entryLabel = NativeArm.Host.addrOf k := hp.label (j := NativeRustcVmArm.Vm.KeccakPi.entryOffset) NativeRustcVmArm.Vm.KeccakPi.entry_at
   rw [hl]
   refine exec_then (b0_in_code.trans hp.1 (by simp [b0])) run0 (Env.wf_nil m) (match_nil m)
     fun st hm hpc => .done _ ⟨?_, ?_, hm.dmem_eq (Env.wf_nil _) rfl,

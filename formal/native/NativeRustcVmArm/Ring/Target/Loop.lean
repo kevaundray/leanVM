@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingPsi.Names
+public import NativeRustcVmArm.Code.Vm.RingTarget.Names
 public import NativeRustcVmArm.Ring.Target.Ends
 
 /-!
@@ -39,7 +41,7 @@ def storeOk (S : SState) : Bool :=
 
 /-- `b2`'s exit: back to the head unless the counter reached `1024`. -/
 def storeExit : Exit :=
-  .cond (.not (.cmp .eq .W64 (.bin .add .W64 (.reg .X22) (.lit 16)) (.lit 1024))) ".LRingTarget_1"
+  .cond (.not (.cmp .eq .W64 (.bin .add .W64 (.reg .X22) (.lit 16)) (.lit 1024))) NativeRustcVmArm.Vm.RingTarget.label_1
 
 end
 
@@ -98,12 +100,12 @@ theorem stepEntry (h : P m0) {i : Nat} (hk : b0.IsInfixAt Host.prog i) {R : Mach
 
 /-- **The call of `ring_psi`** (`b1`): `Ψ(s_i)` in X0, X1. -/
 theorem stepPsi (hp : Placed code k) (h : P m0)
-    (hpsi : Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost) {i : Nat} {m : MachineData}
+    (hpsi : Spec (Labels.label NativeRustcVmArm.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost) {i : Nat} {m : MachineData}
     (hI : Inv m0 i m) (hi : i < 64) {R : MachineState → Prop}
     (cont : ∀ m2, Inv m0 i m2 → (⟨m2.regs.X0, m2.regs.X1⟩ : EW) =
         (imgs m0).toList[i]'(by rw [imgs_length]; exact hi) →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 19)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 14)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b2Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b1Offset)⟩ := by
   have hsw := h.sw
   unfold NoWrap at hsw
   have hsA : (sA m0 + BitVec.ofNat 64 (16 * i)).toNat = (sA m0).toNat + 16 * i :=
@@ -154,7 +156,7 @@ theorem stepPsi (hp : Placed code k) (h : P m0)
       rw [e2]
       exact ⟨⟨fun j hj ↦ hfr1.kept _ (h.gm j hj), h.gw⟩, hfr1.apart h.hN h.gs (by decide)⟩⟩
     fun m2 hfr2 hq hcs ↦ ?_
-  rw [show k + 14 + b1.length = k + 19 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingTarget.b1Offset + b1.length = k + NativeRustcVmArm.Vm.RingTarget.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingTarget.b1_next]]
   have hc : ∀ r, calleeSaved r = true → m2.regs.getXReg r = st.data.regs.getXReg r := hcs
   have hgl : arr st.data st.data.regs.X2 ringWidth = gl m0 := by
     rw [e2]

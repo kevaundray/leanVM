@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateSumcheckRoundPoly.Names
 public import NativeRustcVmArm.Sumcheck.RoundPoly.SomeTail
 
 /-!
@@ -89,8 +92,8 @@ abbrev runN (m0 : MachineData) (p0 : EW) (s0 : TState) : Option (Array EW × TSt
 
 /-- **After the tail's sum**, at `b14`: the grind's bits, the grind, the result. -/
 theorem none_b14 (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     (hpre : RoundPolyPre a s none m0) {p0 : EW} {s0 : TState}
     (hr0 : runR m0 s none = runN m0 p0 s0) {tail : Array EW} {s1 : TState}
     (hr1 : (readScalars (cnt m0 - 2)).run s0 = some (tail, s1)) {m : MachineData}
@@ -98,19 +101,19 @@ theorem none_b14 (hp : Placed code k)
     (hx0 : m.regs.X0 = (sumE tail).c0) (hx1 : m.regs.X1 = (sumE tail).c1) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ RoundPolyPost a s none m0 st.data)
-      ⟨m, Host.addrOf (k + 61)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b14Offset)⟩ := by
   have c := ctx_of hpre
   have hc2 : 2 ≤ cnt m0 := hpre.2.2.2.2.1
   have hc5 : cnt m0 ≤ maxCount := hpre.2.2.2.2.2.1
   have hmc : maxCount = 5 := rfl
   have htl : tail.size = cnt m0 - 2 := readScalars_size hr1
   have hsz : tail.size + 2 ≤ maxCount := by omega
-  have hk14 : b14.IsInfixAt Host.prog (k + 61) := b14_in_code.trans hp.1 (by simp [b14])
-  have hk15 : b15.IsInfixAt Host.prog (k + 65) := b15_in_code.trans hp.1 (by simp [b15])
-  have hk16 : b16.IsInfixAt Host.prog (k + 69) := b16_in_code.trans hp.1 (by simp [b16])
-  have hk17 : b17.IsInfixAt Host.prog (k + 70) := b17_in_code.trans hp.1 (by simp [b17])
-  have hl9 : Labels.label ".LTStateSumcheckRoundPoly_9" = Host.addrOf (k + 77) :=
-    hp.label (j := 77) rfl
+  have hk14 : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b14Offset) := b14_in_code.trans hp.1 (by simp [b14])
+  have hk15 : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b15Offset) := b15_in_code.trans hp.1 (by simp [b15])
+  have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b16Offset) := b16_in_code.trans hp.1 (by simp [b16])
+  have hk17 : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b17Offset) := b17_in_code.trans hp.1 (by simp [b17])
+  have hl9 : Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_9_at
   -- `b14`: `bit_length(count - 2)`.
   refine exec_then hk14 run_b14 (wf_envB hpre ht.frame) (match_bodyS hpre ht.frame hg.x19)
     fun st4 hm4 hpc4 ↦ ?_
@@ -179,7 +182,7 @@ theorem none_b14 (hp : Placed code k)
   cases hr2 : (grind (grindingBits (cnt m0 - 1))).run s1 with
   | none =>
     rw [hr2] at hok7
-    have hpc : st8.pc = Host.addrOf (k + 77) := by
+    have hpc : st8.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) := by
       rw [hpc8, hok7, Option.isSome_none]
       have hc : (low .W32 (okWord false).toBitVec == low .W32 0#64) = true := by decide
       simp only [hc, ↓reduceIte, hl9]
@@ -197,7 +200,7 @@ theorem none_b14 (hp : Placed code k)
     have ht7 : NTailAt m0 a p0 tail s2 st7.data :=
       ht6.after hpre hsz (Nc := grindStack) (by decide) (R := InRange (tAt m0) tstateBytes)
         (fun _ h ↦ h) hs7 hsv7 hts2
-    have hpc : st8.pc = Host.addrOf (k + 70) := by
+    have hpc : st8.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b17Offset) := by
       rw [hpc8, hok7, Option.isSome_some]
       have hc : (low .W32 (okWord true).toBitVec == low .W32 0#64) = false := by decide
       simp only [hc, Bool.false_eq_true, ↓reduceIte]

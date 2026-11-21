@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.State
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
 
 /-!
 # `verify_layer` on x86-64: the first grind and `s`
@@ -136,15 +139,15 @@ variable [Host] {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
 /-- **The first grind and `s`**, from `b44` to `b48`. -/
 theorem grindSq (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {d : MachineData} (h : AfterA m0 a c p s1 d)
     (hrun : runL s c m0 = ((grind (grindingBits (productBits - 1))).run s1).bind
       fun q ↦ rest2 c p q.2)
     (cont : ∀ ch s2 d', C1 m0 a c p ch s2 d' → runL s c m0 = rest3 c p ch s2 →
-      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d', Host.addrOf (k + 383)⟩) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + 370)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b48Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b44Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hS := pre_stack hpre
@@ -152,8 +155,8 @@ theorem grindSq (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   rw [grindingBits_46] at hrun
   -- `b44`: `bit_length(45)`.
   have hwf := wf0 hS h.body (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 370 + b44.length)).toBitVec)
-  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + 370 + b44.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b44Offset + b44.length)).toBitVec)
+  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b44Offset + b44.length)).toBitVec)
       (fr 24) d :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨h.body.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g h.body hwf (blk hp b44_in_code (by simp [b44])) e44
@@ -170,16 +173,16 @@ theorem grindSq (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   have hfr2' := hfr1.trans hfr2
   have hts2' := hts2 _ hts1
   -- `b45`: `grind(t, 3)`.
-  rw [show k + 370 + b44.length = k + 372 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b44Offset + b44.length = k + NativeRustcVmX64.Vm.VerifyLayer.b45Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b44_next]]
   have hwf3 := wf0 hS hb2 (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 372 + b45.length)).toBitVec)
-  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + 372 + b45.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b45Offset + b45.length)).toBitVec)
+  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b45Offset + b45.length)).toBitVec)
       (fr 24) d2 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb2.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g hb2 hwf3 (blk hp b45_in_code (by simp [b45])) e45
     (fun _ _ ↦ rfl) hm3 (by decide +kernel) (hex0 (by decide +kernel)) fun st3 hm4 hpc4 hb4 _ ↦ ?_
   have e3 : ∀ r, (envB m0 d2 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 372 + b45.length)).toBitVec).regs r = reg d2 r := fun _ ↦ rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b45Offset + b45.length)).toBitVec).regs r = reg d2 r := fun _ ↦ rfl
   have hfr4 := frSame_blk (o := 24) (n := 2000) hwf3 hm4 (by decide +kernel) (by decide)
     (by decide +kernel)
   have hts4 := ts_blk0 hpre hwf3 hm4 (by decide +kernel) (by decide +kernel) hts2'
@@ -215,7 +218,7 @@ theorem grindSq (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   have hwf6 := wf0 hS hb5 (vars := fun _ ↦ 0) (ret := 0)
   have hm6 : Match (envB m0 d5 [] (fun _ ↦ 0) 0) (fr 24) d5 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb5.rsp, trivial⟩ trivial trivial trivial
-  rw [show k + 372 + b45.length = k + 378 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b45Offset + b45.length = k + NativeRustcVmX64.Vm.VerifyLayer.b46Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b45_next]]
   refine Body.blk (o' := 24) g hb5 hwf6 (blk hp b46_in_code (by simp [b46])) e46 nofun hm6
     (by decide +kernel) (hex0 (by decide +kernel)) fun st7 hm7 hpc7 hb7 _ ↦ ?_
   simp only [PcOk] at hpc7
@@ -242,10 +245,10 @@ theorem grindSq (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     subst hpc7
     have hts7 : TStateAt d7.dmem (tA m0) a q.2 := by rw [hd7]; exact hnext q.1 q.2 rfl
     -- `b47`: `squeeze(t)`.
-    rw [show k + 378 + b46.length = k + 380 from rfl]
+    rw [show k + NativeRustcVmX64.Vm.VerifyLayer.b46Offset + b46.length = k + NativeRustcVmX64.Vm.VerifyLayer.b47Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyLayer.b46_next]]
     have hwf8 := wf0 hS hb7 (vars := fun _ ↦ 0)
-      (ret := (Host.addrOf (k + 380 + b47.length)).toBitVec)
-    have hm8 : Match (envB m0 d7 [] (fun _ ↦ 0) (Host.addrOf (k + 380 + b47.length)).toBitVec)
+      (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b47Offset + b47.length)).toBitVec)
+    have hm8 : Match (envB m0 d7 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b47Offset + b47.length)).toBitVec)
         (fr 24) d7 :=
       match_ofMachine ⟨rfl, trivial⟩ ⟨hb7.rsp, trivial⟩ trivial trivial trivial
     have hfw7 : FWs m0 d7.dmem (backWords m0) := by rw [hd7]; exact hfr5.bw hfw4

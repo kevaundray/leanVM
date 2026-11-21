@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyExecution.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Basic
 
 /-!
@@ -120,64 +121,64 @@ end
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 15) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 17) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 23) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 24) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 28) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 29) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 39) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 40) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 47) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 48) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b10Offset) :=
   b10_in_code.trans hp.1 (by simp [b10])
-theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + 51) :=
+theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b11Offset) :=
   b11_in_code.trans hp.1 (by simp [b11])
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 52) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b12Offset) :=
   b12_in_code.trans hp.1 (by simp [b12])
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 57) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b13Offset) :=
   b13_in_code.trans hp.1 (by simp [b13])
-theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + 58) :=
+theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b14Offset) :=
   b14_in_code.trans hp.1 (by simp [b14])
-theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + 68) :=
+theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b15Offset) :=
   b15_in_code.trans hp.1 (by simp [b15])
-theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + 69) :=
+theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b16Offset) :=
   b16_in_code.trans hp.1 (by simp [b16])
-theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + 76) :=
+theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b17Offset) :=
   b17_in_code.trans hp.1 (by simp [b17])
-theorem hb18 (hp : Placed code k) : b18.IsInfixAt Host.prog (k + 77) :=
+theorem hb18 (hp : Placed code k) : b18.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b18Offset) :=
   b18_in_code.trans hp.1 (by simp [b18])
-theorem hb19 (hp : Placed code k) : b19.IsInfixAt Host.prog (k + 90) :=
+theorem hb19 (hp : Placed code k) : b19.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b19Offset) :=
   b19_in_code.trans hp.1 (by simp [b19])
-theorem hb20 (hp : Placed code k) : b20.IsInfixAt Host.prog (k + 91) :=
+theorem hb20 (hp : Placed code k) : b20.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b20Offset) :=
   b20_in_code.trans hp.1 (by simp [b20])
-theorem hb21 (hp : Placed code k) : b21.IsInfixAt Host.prog (k + 93) :=
+theorem hb21 (hp : Placed code k) : b21.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyExecution.b21Offset) :=
   b21_in_code.trans hp.1 (by simp [b21])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label verifyExecutionLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_10 (hp : Placed code k) : Labels.label ".LVerifyExecution_10" = Host.addrOf (k + 91) :=
-  hp.label (j := 91) rfl
-theorem lbl_11 (hp : Placed code k) : Labels.label ".LVerifyExecution_11" = Host.addrOf (k + 93) :=
-  hp.label (j := 93) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyExecution.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyExecution.entryOffset) NativeRustcVmArm.Vm.VerifyExecution.entry_at
+theorem lbl_10 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyExecution.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b20Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyExecution.b20Offset) NativeRustcVmArm.Vm.VerifyExecution.label_10_at
+theorem lbl_11 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyExecution.label_11 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b21Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyExecution.b21Offset) NativeRustcVmArm.Vm.VerifyExecution.label_11_at
 
 
 variable {a : DecArea} {m0 : MachineData}
 
 /-- **The epilogue** at `.LVerifyExecution_11`: X0 and memory kept, the entry's registers back. -/
 theorem exitRet (hp : Placed code k) (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 93)) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b21Offset)) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       st'.data.regs.X0 = st.data.regs.X0 ∧ st'.data.dmem = st.data.dmem ∧
         Saved m0 st'.data) st := by
@@ -203,7 +204,7 @@ theorem exitRet (hp : Placed code k) (g : Geo a m0) {st : MachineState} (h : At 
 
 /-- **The failure path** at `.LVerifyExecution_10`: X0 zero. -/
 theorem fail (hp : Placed code k) (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 91)) : Eventually (step1 Host.exe) (Done a m0 none) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b20Offset)) : Eventually (step1 Host.exe) (Done a m0 none) st := by
   obtain ⟨hwf, hm⟩ := h.env g
   refine exec_at (hb20 hp) run_b20 hwf hpc hm fun st1 hm1 hpc1 ↦ ?_
   have hk := call_keeps b20 (by simp)
@@ -219,7 +220,7 @@ theorem fail (hp : Placed code k) (g : Geo a m0) {st : MachineState} (h : At m0 
 `none`) when `b` is false, else on with the registers, memory and body kept. -/
 theorem branch (hp : Placed code k) (g : Geo a m0) {ds : List Directive} {j : Nat} {S₁ : SState}
     {c : SBool} (hk : ds.IsInfixAt Host.prog (k + j))
-    (hrun : exec ds callS = some (S₁, .cond c ".LVerifyExecution_10"))
+    (hrun : exec ds callS = some (S₁, .cond c NativeRustcVmArm.Vm.VerifyExecution.label_10))
     (hkeep : S₁.regs = callS.regs ∧ S₁.sp = callS.sp ∧ S₁.mem = [])
     (hkept : keepsRegs callS S₁ kept = true) {st : MachineState} (h : At m0 st.data)
     (hpc : st.pc = Host.addrOf (k + j)) {b : Bool} (hc : c.eval (envOf m0 st.data) = !b)

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.NovelEval.Dbl
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
 
 /-!
 # `novel_eval`'s inner doubling loop (x86-64)
@@ -34,12 +35,12 @@ theorem add8 (a : BitVec 64) (n : Nat) :
 variable [Host] {k : Nat}
 
 /-- **A turn of the inner loop.** -/
-theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
+theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hpre : NovelEvalPre m0) (hc : cnt m0 ≤ 64) {j t : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 37)) (hI : IInv m0 j t st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 37) ∧ IInv m0 j (t + 1) s.data) ∨
-      (s.pc = Host.addrOf (k + 29) ∧ OInv m0 (j + 1) s.data) ∨
-      (s.pc = Host.addrOf (k + 50) ∧ Mid m0 s.data)) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b6Offset)) (hI : IInv m0 j t st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b6Offset) ∧ IInv m0 j (t + 1) s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b4Offset) ∧ OInv m0 (j + 1) s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b9Offset) ∧ Mid m0 s.data)) st := by
   obtain ⟨hS, hcs, hwh, hout⟩ := hpre
   have hF : 1104 ≤ novelEvalStack := by decide
   have hle : 1104 + kmulStack ≤ novelEvalStack := by decide
@@ -86,8 +87,8 @@ theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> exact Match.reg_eq hm hm1 rfl rfl
   -- `b6b`: `kmul`
-  have hpc1' : st1.pc = Host.addrOf (k + 37 + 3) := hpc1
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 37 + 3 + 1)).toBitVec) hS hF
+  have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b6Offset + b6a.length) := hpc1
+  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b7Offset)).toBitVec) hS hF
   refine exec_at (hb6 hp).2 run_b6b hwf2 (fun _ _ ↦ rfl) hpc1' hfr1.mid_match fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_b6b ▸ b6b_call
   have hrsp2 := rsp_call hm2 hsp2
@@ -112,7 +113,7 @@ theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
       show reg st2.data .rsi = reg st1.data .rsi from Match.reg_eq hfr1.mid_match hm2 rfl rfl,
       hrdi1, hrsi1, UInt64.ofBitVec_toBitVec, UInt64.ofBitVec_toBitVec, UInt64.ofBitVec_toBitVec]
   -- `b7`: the product stored
-  have hpc3' : st3.pc = Host.addrOf (k + 37 + 3 + 1) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b7Offset) := hpc3
   have hc7 : 32 + 8 * ((basisOf m0 j).size + t) + 8 ≤ 1056 := by omega
   have hrd4 : Readable st3.data
       (fbOf m0 + BitVec.ofNat 64 (32 + 8 * ((basisOf m0 j).size + t))) 8 :=
@@ -198,7 +199,7 @@ theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
     omega
   by_cases hlast : t + 1 = (basisOf m0 j).size
   · -- `b8`: the basis doubled
-    have hpc4' : st4.pc = Host.addrOf (k + 37 + 3 + 1 + 4) :=
+    have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b8Offset) :=
       hF4 (by rw [Bool.not_eq_true, Bool.not_eq_false', decide_eq_true_eq]; omega)
     refine exec_at (hb8 hp) run_b8 (Env.wf_nil _) (by intro l h; cases h) hpc4' (match_nil _)
       fun st5 hm6 hpc5 ↦ ?_
@@ -231,19 +232,19 @@ theorem inner (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPr
     have hcnt : (reg m0 .rdx).toNat = cnt m0 := rfl
     by_cases hmore : 2 * (basisOf m0 j).size < cnt m0
     · refine .done _ (.inr (.inl ⟨(hT5 (by rw [decide_eq_true_eq]; omega)).trans
-        (hp.label (j := 29) rfl), hfr5, hspill5, by unfold EndAt; rw [hd5]; exact hed4, by have := hI.hj; omega,
+        (hp.label NativeRustcVmX64.Vm.NovelEval.label_3_at), hfr5, hspill5, by unfold EndAt; rw [hd5]; exact hed4, by have := hI.hj; omega,
         by omega, ?_, ?_, hr145, hbas5⟩))
       · refine (hm6.regs .r12 _ rfl).trans ?_
         rw [eval_add, eval_lit, eval_reg, Env.ofMachine_regs,
           show st4.data.regs.get64 .r12 = _ from e4 .r12 (by simp), hI.r12, add8]
         congr 2
       · rw [hrbp5, hsize, BitVec.toNat_ofNat]; omega
-    · have hpc5' : st5.pc = Host.addrOf (k + 50) := hF5 (by rw [decide_eq_true_eq]; omega)
+    · have hpc5' : st5.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b9Offset) := hF5 (by rw [decide_eq_true_eq]; omega)
       refine .done _ (.inr (.inr ⟨hpc5', hfr5, hspill5, ?_, hr145, ?_⟩))
       · rw [basisOf_final m0 (j := j + 1) (by have := hI.hj; omega) (by omega), hrbp5, hsize,
           BitVec.toNat_ofNat]; omega
       · rw [basisOf_final m0 (j := j + 1) (by have := hI.hj; omega) (by omega)]; exact hbas5
-  · refine .done _ (.inl ⟨(hT (by rw [Bool.not_eq_true', decide_eq_false_iff_not]; omega)).trans (hp.label (j := 37) rfl), hfr4, hsp4, hed4, hI.hj, hI.lt, by omega, ?_, ?_,
+  · refine .done _ (.inl ⟨(hT (by rw [Bool.not_eq_true', decide_eq_false_iff_not]; omega)).trans (hp.label NativeRustcVmX64.Vm.NovelEval.label_5_at), hfr4, hsp4, hed4, hI.hj, hI.lt, by omega, ?_, ?_,
       ?_, ?_, hr14', hr15', hbas4, hnew4⟩)
     · exact (e4 .r12 (by simp)).trans hI.r12
     · rw [e4 .rbp (by simp)]; exact hI.rbp

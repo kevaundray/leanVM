@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TableWeights.Names
 public import NativeRustcVmArm.Tables.TableSumcheck.Rev
 
 /-!
@@ -95,12 +96,12 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat} {bus 
 /-- **The weights** (`b6`): `table_weights` on the heights, the bus's point and the reversed
 challenges. -/
 theorem weights (hp : Placed code k)
-    (hw : Spec (Labels.label tableWeightsLabel) TableWeightsPre TableWeightsPost)
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.TableWeights.entryLabel) TableWeightsPre TableWeightsPost)
     (hpre : TableSumcheckPre a s heights bus m0) (hn30 : n ≤ 30) (hxs : xs.size = n)
     {m : MachineData} (hR : Rev m0 a n xs.toList c s1 (n / 2) m)
     (cont : ∀ m2, Wt m0 a n xs c s1 heights bus m2 →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m2, Host.addrOf (k + 99)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 82)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b7Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b6Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, hrc, -, hts0, htok, heo, -, -, hHin, -, hBin, -, -, -⟩ := hpre'
   have hN := hS.2.1
@@ -224,7 +225,7 @@ theorem weights (hp : Placed code k)
       by rw [e1]; exact ⟨hht.1, hht.2.1, nofun⟩, ?_, ?_⟩
     · unfold SliceOk; rw [e2, e3]; exact ⟨hbp.1, hbp.2.1⟩
     · unfold SliceOk; rw [e4, e5]; exact hptk
-  have hpc' : st.pc = Labels.label tableWeightsLabel ∧ retOf st.data = Host.addrOf (k + 99) := hpc
+  have hpc' : st.pc = Labels.label NativeRustcVmArm.Vm.TableWeights.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b7Offset) := hpc
   refine Bus.Gkr.Fr.callLocal (o := 504) (n := 96)
     (X := fun q ↦ InRange (fb m0 + BitVec.ofNat 64 504) 96 q) hfr6 hN hle keep_callee
     (fun p hp ↦ ⟨by have := slots_hi p hp; omega, (slots_le p hp)⟩) (by omega) hof

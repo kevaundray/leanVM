@@ -181,8 +181,8 @@ theorem r15_of {m st : MachineData} (hR : RodataAt m 0)
 theorem mid (hp : Placed code k) {m : MachineData} (hR : RodataAt m 0)
     (hO : Readable m m.regs.X0.toBitVec ladderBytes) (hA : RodataApart m.regs.X0.toBitVec ladderBytes)
     (hadm : Whir.Admissible m.regs.X1.toNat m.regs.X2.toNat) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 51)) (h9 : R9 m st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 77) → R15 m st'.data → Eventually (step1 Host.exe) R st') :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Ladder.b9Offset)) (h9 : R9 m st.data) {R : MachineState → Prop}
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Ladder.b15Offset) → R15 m st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hb := admissible_iff.mp hadm
   have hn := nOf_le m.regs.X1.toNat
@@ -217,62 +217,62 @@ theorem mid (hp : Placed code k) {m : MachineData} (hR : RodataAt m 0)
   have c9 := pc_cond hpc1 (x13_not_eval hx13 (by omega) (by omega) 2 (by decide))
   by_cases n3 : nOf m.regs.X1.toNat = 3
   · simp only [n3, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at c9
-    rw [show b9.length = 13 from rfl] at c9
+    rw [NativeRustcVmArm.Vm.Ladder.b9_length, NativeRustcVmArm.Vm.Ladder.b9Length] at c9
     refine exec_at (infix_of b10_in_code (by simp [b10]) hp) (exec_after run_b9 run_b10) hwf c9 hm1
       fun s2 hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
-    rw [hp.label (j := 73) rfl] at hpc2
+    rw [hp.label (j := NativeRustcVmArm.Vm.Ladder.b13Offset) NativeRustcVmArm.Vm.Ladder.label_13_at] at hpc2
     refine exec_at (infix_of b13_in_code (by simp [b13]) hp) (exec_after run_b10 run_b13a) hwf hpc2
       hm2 fun s3 hm3 hpc3 ↦ ?_
     simp only [PcOk] at hpc3
-    rw [show b13.length = 2 from rfl] at hpc3
+    rw [NativeRustcVmArm.Vm.Ladder.b13_length, NativeRustcVmArm.Vm.Ladder.b13Length] at hpc3
     refine exec_at (infix_of b14_in_code (by simp [b14]) hp) (exec_after run_b13a run_b14a) hwf hpc3
       hm3 fun s4 hm4 hpc4 ↦ ?_
     simp only [PcOk] at hpc4
-    rw [show b14.length = 2 from rfl] at hpc4
+    rw [NativeRustcVmArm.Vm.Ladder.b14_length, NativeRustcVmArm.Vm.Ladder.b14Length] at hpc4
     exact cont s4 hpc4 (r15_of hR hadm h9 hwf hm9 hm4 (by decide) rfl rfl rfl rfl rfl rfl rfl
       (fun h ↦ absurd h (by omega)) (fun h ↦ absurd h (by omega)) (fun h ↦ absurd h (by omega))
       (by decide))
   · simp only [n3, decide_false, Bool.not_false, ↓reduceIte] at c9
-    rw [hp.label (j := 69) rfl] at c9
+    rw [hp.label (j := NativeRustcVmArm.Vm.Ladder.b12Offset) NativeRustcVmArm.Vm.Ladder.label_12_at] at c9
     refine exec_at (infix_of b12_in_code (by simp [b12]) hp) (exec_after run_b9 run_b12) hwf c9 hm1
       fun s2 hm2 hpc2 ↦ ?_
     have c12 := pc_cond hpc2 (x13_not_eval hx13 (by omega) (by omega) 3 (by decide))
     by_cases n4 : nOf m.regs.X1.toNat = 4
     · simp only [n4, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at c12
-      rw [show b12.length = 4 from rfl] at c12
+      rw [NativeRustcVmArm.Vm.Ladder.b12_length, NativeRustcVmArm.Vm.Ladder.b12Length] at c12
       refine exec_at (infix_of b13_in_code (by simp [b13]) hp) (exec_after run_b12 run_b13b) hwf
         c12 hm2 fun s3 hm3 hpc3 ↦ ?_
       simp only [PcOk] at hpc3
-      rw [show b13.length = 2 from rfl] at hpc3
+      rw [NativeRustcVmArm.Vm.Ladder.b13_length, NativeRustcVmArm.Vm.Ladder.b13Length] at hpc3
       refine exec_at (infix_of b14_in_code (by simp [b14]) hp) (exec_after run_b13b run_b14b) hwf
         hpc3 hm3 fun s4 hm4 hpc4 ↦ ?_
       simp only [PcOk] at hpc4
-      rw [show b14.length = 2 from rfl] at hpc4
+      rw [NativeRustcVmArm.Vm.Ladder.b14_length, NativeRustcVmArm.Vm.Ladder.b14Length] at hpc4
       exact cont s4 hpc4 (r15_of hR hadm h9 hwf hm9 hm4 (by decide) rfl rfl rfl rfl rfl rfl rfl
         (fun _ ↦ rfl) (fun h ↦ absurd h (by omega)) (fun h ↦ absurd h (by omega)) (by decide))
     · simp only [show (nOf m.regs.X1.toNat = 3 + 1) = False from propext ⟨fun h ↦ n4 h, False.elim⟩,
         decide_false, Bool.not_false, ↓reduceIte] at c12
-      rw [hp.label (j := 93) rfl] at c12
+      rw [hp.label (j := NativeRustcVmArm.Vm.Ladder.b16Offset) NativeRustcVmArm.Vm.Ladder.label_16_at] at c12
       refine exec_at (infix_of b16_in_code (by simp [b16]) hp) (exec_after run_b12 run_b16) hwf
         c12 hm2 fun s3 hm3 hpc3 ↦ ?_
       have c16 := pc_cond hpc3 (x13_eval hx13 (by omega) (by omega) 4 (by decide))
       by_cases n5 : nOf m.regs.X1.toNat = 5
       · simp only [n5, decide_true, ↓reduceIte] at c16
-        rw [hp.label (j := 75) rfl] at c16
+        rw [hp.label (j := NativeRustcVmArm.Vm.Ladder.b14Offset) NativeRustcVmArm.Vm.Ladder.label_14_at] at c16
         refine exec_at (infix_of b14_in_code (by simp [b14]) hp) (exec_after run_b16 run_b14c) hwf
           c16 hm3 fun s4 hm4 hpc4 ↦ ?_
         simp only [PcOk] at hpc4
-        rw [show b14.length = 2 from rfl] at hpc4
+        rw [NativeRustcVmArm.Vm.Ladder.b14_length, NativeRustcVmArm.Vm.Ladder.b14Length] at hpc4
         exact cont s4 hpc4 (r15_of hR hadm h9 hwf hm9 hm4 (by decide) rfl rfl rfl rfl rfl rfl rfl
           (fun _ ↦ rfl) (fun _ ↦ rfl) (fun h ↦ absurd h (by omega)) (by decide))
       · simp only [show (nOf m.regs.X1.toNat = 4 + 1) = False from propext ⟨fun h ↦ n5 h, False.elim⟩,
           decide_false, Bool.false_eq_true, ↓reduceIte] at c16
-        rw [show b16.length = 4 from rfl] at c16
+        rw [NativeRustcVmArm.Vm.Ladder.b16_length, NativeRustcVmArm.Vm.Ladder.b16Length] at c16
         refine exec_at (infix_of b17_in_code (by simp [b17]) hp) (exec_after run_b16 run_b17) hwf
           c16 hm3 fun s4 hm4 hpc4 ↦ ?_
         simp only [PcOk] at hpc4
-        rw [hp.label (j := 77) rfl] at hpc4
+        rw [hp.label (j := NativeRustcVmArm.Vm.Ladder.b15Offset) NativeRustcVmArm.Vm.Ladder.label_15_at] at hpc4
         exact cont s4 hpc4 (r15_of hR hadm h9 hwf hm9 hm4 (by decide) rfl rfl rfl rfl rfl rfl rfl
           (fun _ ↦ rfl) (fun _ ↦ rfl) (fun _ ↦ rfl) (by decide))
 

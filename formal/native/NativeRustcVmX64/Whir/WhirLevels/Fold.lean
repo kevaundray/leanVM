@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.WhirLevels.Entry
+public import NativeRustcVmX64.Code.Vm.FoldRounds.Names
 
 /-!
 # `whir_levels`: a level's fold rounds (x86-64)
@@ -62,20 +63,20 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **A level's fold rounds**: from `Head k`, `None` returned or `Mid k` at `b4`. -/
 theorem fold_step (hp : Placed code k0)
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundsLabel) (FoldRoundsPre a s w)
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmX64.Vm.FoldRounds.entryLabel) (FoldRoundsPre a s w)
       (FoldRoundsPost a s w))
     (c : Ctx a s0 levels ba b claim m0 rate) {k : Nat} {s : TState} {w : WhirStateW}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + 27))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b1Offset))
     (hh : Head a s0 levels b claim m0 k s w st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s0 levels b claim m0 st' ∨
-      (st'.pc = Host.addrOf (k0 + 37) ∧
+      (st'.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b4Offset) ∧
         ∃ s' w' rs, Mid a s0 levels b claim m0 rate k s' w' rs st'.data)) st := by
   have hl := hh.loop
   have hk := hh.lt
   have hl6 := c.len_le
   obtain ⟨hlm, hlnw, hlap⟩ := c.level_region hl.fr.frame.kept hk
   let env := frameEnv m0 st.data 112 [(lvA m0 + BitVec.ofNat 64 (levelBytes * k), 24)]
-    (fun _ ↦ 0) (Host.addrOf (k0 + 35)).toBitVec
+    (fun _ ↦ 0) (Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b3Offset)).toBitVec
   have hwf : env.WF := c.wf hl.fr.frame.kept (fun x hx ↦ by
       rw [List.mem_singleton] at hx; subst hx; exact ⟨hlm, hlnw⟩)
     (List.pairwise_pair.mpr hlap)
@@ -95,7 +96,7 @@ theorem fold_step (hp : Placed code k0)
     simp at this
     omega
   simp only [PcOk, c1_eval env hr12] at hpc1
-  rw [show k0 + 27 + b1.length = k0 + 30 from rfl] at hpc1
+  rw [show k0 + NativeRustcVmX64.Vm.WhirLevels.b1Offset + b1.length = k0 + NativeRustcVmX64.Vm.WhirLevels.b2Offset from rfl] at hpc1
   -- `b2`: `fold_rounds`' call
   refine exec_at (env := env) (infix_of b2_in_code (by simp [b2]) hp)
     (exec_after exit_b1 exit_b2) hwf (fun _ _ ↦ rfl) hpc1 hm1 fun st2 hm2 hpc2 ↦ ?_
@@ -196,7 +197,7 @@ theorem fold_step (hp : Placed code k0)
   have hm3 : Match env3 wS st3.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf3.frame.rsp_eval, known_ptr rfl hloop3.rbp, trivial⟩
       trivial trivial trivial
-  rw [show k0 + 30 + b2.length = k0 + 35 from rfl] at hpc3
+  rw [show k0 + NativeRustcVmX64.Vm.WhirLevels.b2Offset + b2.length = k0 + NativeRustcVmX64.Vm.WhirLevels.b3Offset from rfl] at hpc3
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf3 nofun hpc3 hm3
     fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hmem4, hregs4⟩ := ok_b3
@@ -221,13 +222,13 @@ theorem fold_step (hp : Placed code k0)
     rw [hres] at hal
     simp only [hal, okWord, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, UInt64.toNat_zero,
       decide_true] at hpc4
-    exact Eventually.mono (none_exit hp c hf4 (hpc4.trans (hp.label (j := 58) rfl))
+    exact Eventually.mono (none_exit hp c hf4 (hpc4.trans (hp.label NativeRustcVmX64.Vm.WhirLevels.label_5_at))
       (hrun.trans (run_none (level := lvl (logN m0) rate k) hres))) fun _ h ↦ Or.inl h
   · rw [hres] at hal
     simp only [hal, okWord, Option.isSome_some, ↓reduceIte] at hpc4
     rw [show (decide ((1 : UInt64).toNat = 0)) = false from rfl] at hpc4
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc4
-    rw [show k0 + 35 + b3.length = k0 + 37 from rfl] at hpc4
+    rw [show k0 + NativeRustcVmX64.Vm.WhirLevels.b3Offset + b3.length = k0 + NativeRustcVmX64.Vm.WhirLevels.b4Offset from rfl] at hpc4
     rw [hsi] at hsome
     obtain ⟨hws', hrs', hts'⟩ := hsome w' rs s' hres
     obtain ⟨ha', hg', hr'⟩ := foldRounds_facts hres

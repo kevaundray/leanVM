@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BusLayout.Names
 public import NativeRustcVmArm.Bus.BusLayout.Exec
 public import NativeRustcVmArm.Bus.BusLayout.Model
 public import NativeRustcVmArm.Bus.Frame
@@ -208,22 +209,22 @@ theorem built [Labels] {d : Mem 64} {L : LayoutW} {bl : List NativeRustcVm.Data.
 section
 variable [Host] {k : Nat}
 
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LBusLayout_4" = Host.addrOf (k + 31) :=
-  hp.label (j := 31) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LBusLayout_5" = Host.addrOf (k + 35) :=
-  hp.label (j := 35) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LBusLayout_6" = Host.addrOf (k + 41) :=
-  hp.label (j := 41) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LBusLayout_8" = Host.addrOf (k + 49) :=
-  hp.label (j := 49) rfl
-theorem lbl_10 (hp : Placed code k) : Labels.label ".LBusLayout_10" = Host.addrOf (k + 180) :=
-  hp.label (j := 180) rfl
-theorem lbl_11 (hp : Placed code k) : Labels.label ".LBusLayout_11" = Host.addrOf (k + 184) :=
-  hp.label (j := 184) rfl
-theorem lbl_14 (hp : Placed code k) : Labels.label ".LBusLayout_14" = Host.addrOf (k + 195) :=
-  hp.label (j := 195) rfl
-theorem lbl_17 (hp : Placed code k) : Labels.label ".LBusLayout_17" = Host.addrOf (k + 207) :=
-  hp.label (j := 207) rfl
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b5Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b5Offset) NativeRustcVmArm.Vm.BusLayout.label_4_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b6Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b6Offset) NativeRustcVmArm.Vm.BusLayout.label_5_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b7Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b7Offset) NativeRustcVmArm.Vm.BusLayout.label_6_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b9Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b9Offset) NativeRustcVmArm.Vm.BusLayout.label_8_at
+theorem lbl_10 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b13Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b13Offset) NativeRustcVmArm.Vm.BusLayout.label_10_at
+theorem lbl_11 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_11 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b14Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b14Offset) NativeRustcVmArm.Vm.BusLayout.label_11_at
+theorem lbl_14 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_14 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b17Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b17Offset) NativeRustcVmArm.Vm.BusLayout.label_14_at
+theorem lbl_17 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BusLayout.label_17 = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b20Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BusLayout.b20Offset) NativeRustcVmArm.Vm.BusLayout.label_17_at
 
 end
 

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.TPre
+public import NativeRustcVmX64.Code.Vm.BlockForm.Names
 
 /-!
 # `accumulate_side`: the table loop's turn, the block's form (x86-64)
@@ -47,15 +48,15 @@ theorem blk_in (h : Pre L rows bl Fm SL m0) {j : Nat} (hj : j < bl.length) :
 
 /-- **The table loop's turn `j`, from `eq_above`'s return to `b21`.** -/
 theorem turnB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hbf : Spec (Labels.label blockFormLabel) BlockFormPre BlockFormPost)
+    (hbf : Spec (Labels.label NativeRustcVmX64.Vm.BlockForm.entryLabel) BlockFormPre BlockFormPost)
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (outs m0) (VT L rows bl Fm SL m0 j) D17 8 m) (hret : ewRet m = tsel SL (ptA m0) j)
     (hG : FormsAt m.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 j).1) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (outs m0) (VT L rows bl Fm SL m0 j) D20 8 m2 →
       FB m0 m2.dmem (fmA L rows bl m0 j) →
       FormsAt m2.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 j).1 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 196)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 180)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b21Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b18Offset)⟩ := by
   obtain ⟨-, hlo18a, hlo18b, hlo19, hlo20, -⟩ := low_T
   let V := VT L rows bl Fm SL m0 j
   let blk := off (reg m0 .rcx) (16 * j)
@@ -98,17 +99,17 @@ theorem turnB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     rfl
   have hst2' : St m0 (outs m0) V D18 8 st2.data :=
     St.sub (St.add hst2 (fun _ _ ↦ rfl) (holds_reg e_di (holds_nil _ _ _))) (by decide)
-  have hpc2' : st2.pc = Host.addrOf (k + 184) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b18Offset + b18a.length) := hpc2
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2' hst2' hG2
   subst hpc2'
   -- `b18b`: `block_form`.
   let env3 := frameEnv m0 d2 F [(rspOf m0 + 8#64, 88)] (fun _ ↦ 0)
-    (Host.addrOf (k + 184 + b18b.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b18Offset + b18a.length + b18b.length)).toBitVec
   obtain ⟨hmid3, hw3, htr3, hr93⟩ := ok_b18b
   refine St.run h (rest := [(rspOf m0 + 8#64, 88)]) (vs := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 184 + b18b.length)).toBitVec) rfl
-    (infix_of b18b_in_code (by simp [b18b, b18]) hp) exit_b18b (fun _ _ ↦ rfl) hst2'.fr
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b18Offset + b18a.length + b18b.length)).toBitVec) rfl
+    (infix_of (F := code) (k := k) (j := NativeRustcVmX64.Vm.AccumulateSide.b18Offset + b18a.length) b18b_in_code (by simp [b18b, b18]) hp) exit_b18b (fun _ _ ↦ rfl) hst2'.fr
     hst2'.same ((hst2'.hd.reg0 (rs' := (fb m0, F + 8) :: [(rspOf m0 + 8#64, 88)]) (by decide)
       rfl).append (St.holdsDA h hst2' outs_id)) (by decide) (wf1 h hst2'.fr.kept h.argsIn)
     (St.mt hst2' ⟨rfl, rfl, trivial⟩ trivial trivial argAliases_ok) hmid3 hw3 (by decide) htr3
@@ -160,7 +161,7 @@ theorem turnB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   obtain ⟨hal5, hfb5⟩ := hq51
   rw [e_r9] at hfb5
   -- `b19`: `block_form`'s failure exit, not taken.
-  show Eventually _ _ (⟨m5, Host.addrOf (k + 190)⟩ : MachineState)
+  show Eventually _ _ (⟨m5, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b19Offset)⟩ : MachineState)
   obtain ⟨hmid6, hw6, htr6, -⟩ := ok_b19
   refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := 0) rfl
     (infix_of b19_in_code (by simp [b19]) hp) exit_b19 nofun hst5.fr hst5.same
@@ -173,7 +174,7 @@ theorem turnB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   simp only [PcOk] at hpc6
   rw [hc6] at hpc6
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc6
-  have hpc6' : st6.pc = Host.addrOf (k + 192) := hpc6
+  have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b20Offset) := hpc6
   obtain ⟨d6, pc6⟩ := st6
   simp only at hpc6' hst6 hk6
   subst hpc6'
@@ -211,7 +212,7 @@ theorem turnB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   simp only [PcOk] at hpc8
   rw [hc8] at hpc8
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc8
-  have hpc8' : st8.pc = Host.addrOf (k + 196) := hpc8
+  have hpc8' : st8.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b21Offset) := hpc8
   have e_si8 : st8.data.regs.get64 .rsi = (V 39).toBitVec := by
     rw [hm8.regs .rsi _ hsi7]
     show env7.load 1 0 8 = ((bkA L rows bl j).owner.toUInt64).toBitVec

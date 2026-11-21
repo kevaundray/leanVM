@@ -30,9 +30,9 @@ theorem seg_b147 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hA0 : BytesAt m.dmem (r.off 4096) (List.replicate 200 0))
     (hB : BytesAt m.dmem (r.off 776) T) (hK0 : BytesAt m.dmem (r.off 2048) (List.replicate 136 0))
     (cont : StepCont r l x E i pos T R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1838⟩ := by
-  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc 1842).toBitVec
-  have hm := match_frameS hK.1 hK.2.1 (ret := (r.pc 1842).toBitVec) (k := [(.rbx, .lit 64)])
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b147Offset⟩ := by
+  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b148Offset).toBitVec
+  have hm := match_frameS hK.1 hK.2.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b148Offset).toBitVec) (k := [(.rbx, .lit 64)])
     ⟨known_lit hbx, trivial⟩
   refine blk r hp b147_in_code (List.cons_ne_nil _ _) run_b147 hwf (fun _ _ ↦ rfl) hm
     fun st hm' hpc ↦ ?_
@@ -63,7 +63,7 @@ theorem seg_b147 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     have := BytesAt.slice hK0' 64 72
     rw [Run.off_add, List.drop_replicate, List.take_replicate] at this
     exact kept2 (by len_tac) (by len_tac) this
-  exact pc_at (a := r.pc 1842) (by rw [hpc2]; rfl)
+  exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b148Offset) (by rw [hpc2]; rfl)
     (seg_b148 hp hc hpre hx hE hpos hT hK2 (RegIs.of_saved hS rfl h12')
       (RegIs.of_saved hS rfl hbx')
       (kept2 (by simp [NativeRustc.length_wordBytes]) (by simp [NativeRustc.length_wordBytes]) h64')
@@ -77,13 +77,13 @@ theorem seg_b145 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (h14 : Run.RegIs m .r14 (BitVec.ofNat 64 64)) (h64 : r.WordAt m 64 (pos + 1).toUInt64)
     (hA0 : BytesAt m.dmem (r.off 4096) (List.replicate 200 0))
     (hB : BytesAt m.dmem (r.off 776) T) (cont : StepCont r l x E i pos T R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1830⟩ := by
-  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc 1838).toBitVec
-  have hm := match_frameS hK.1 hK.2.1 (ret := (r.pc 1838).toBitVec) (k := [(.r14, .lit 64)])
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b145Offset⟩ := by
+  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b147Offset).toBitVec
+  have hm := match_frameS hK.1 hK.2.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b147Offset).toBitVec) (k := [(.r14, .lit 64)])
     ⟨known_lit h14, trivial⟩
   refine blk r hp b145_in_code (List.cons_ne_nil _ _) run_b145 hwf (fun _ h ↦ nomatch h) hm
     fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 1833) ((pc_false hpc).trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b146Offset) ((pc_false hpc).trans rfl) ?_
   refine blk r hp b146_in_code (List.cons_ne_nil _ _) (exec_after run_b145 run_b146) hwf
     (fun _ _ ↦ rfl) hm1 fun st2 hm2 hpc2 ↦ ?_
   have hK1 := KeepC.of_block hpre hx hE hK hm2 hwf (by decide +kernel) rfl
@@ -108,7 +108,7 @@ theorem seg_b145 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have kept2 := fun {o : Nat} {bs : List UInt8} (ho : o + bs.length ≤ 29384)
       (hd : o + bs.length ≤ 2048 ∨ 2184 ≤ o) (h : BytesAt st2.data.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hK1.1 (a := 2048) (n := 136) (by decide) (by decide) hout ho hd h
-  exact pc_at (a := r.pc 1838) (by rw [hpc3]; rfl)
+  exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b147Offset) (by rw [hpc3]; rfl)
     (seg_b147 hp hc hpre hx hE hpos hT hK3 (RegIs.of_saved hS rfl h12') (RegIs.of_saved hS rfl hbx)
       (kept2 (by simp [NativeRustc.length_wordBytes]) (by simp [NativeRustc.length_wordBytes]) h64')
       (kept2 (by len_tac) (by len_tac) hA0') (kept2 (by omega) (by omega) hB') hz cont)
@@ -123,17 +123,17 @@ theorem seg_b140 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hB48 : BytesAt m.dmem (r.off 912) ((List.range 8).map (byteOf (BitVec.ofNat 64 48))))
     (hB0 : BytesAt m.dmem (r.off 576) (List.replicate 200 0))
     (hB : BytesAt m.dmem (r.off 776) T) (cont : StepCont r l x E i pos T R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1762⟩ := by
-  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc 1830).toBitVec
-  have hm := match_withLit (match_frameS hK.1 hK.2.1 (ret := (r.pc 1830).toBitVec)
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b140Offset⟩ := by
+  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b145Offset).toBitVec
+  have hm := match_withLit (match_frameS hK.1 hK.2.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b145Offset).toBitVec)
     (k := [(.r15, .lit 16), (.rbx, .ptr 0 1632), (.r12, .lit 16)])
     ⟨known_lit h15, known_ptr hbx, known_lit h12, trivial⟩) rfl hB48
   refine blk r hp b140_in_code (List.cons_ne_nil _ _) run_b140 hwf (fun _ h ↦ nomatch h) hm
     fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 1742) ((pc_true hpc).trans (labelAt r hp b136_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b136Offset) ((pc_true hpc).trans (labelAt r hp b136_in_code rfl)) ?_
   refine blk r hp b136_in_code (List.cons_ne_nil _ _) (exec_after run_b140 run_b136) hwf
     (fun _ h ↦ nomatch h) hm1 fun st2 hm2 hpc2 ↦ ?_
-  refine pc_at (a := r.pc 1822) ((pc_true hpc2).trans (labelAt r hp b144_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b144Offset) ((pc_true hpc2).trans (labelAt r hp b144_in_code rfl)) ?_
   refine blk r hp b144_in_code (List.cons_ne_nil _ _) (exec_after run_b136 run_b144) hwf
     (fun _ _ ↦ rfl) hm2 fun st3 hm3 hpc3 ↦ ?_
   have hK3 := KeepC.of_block hpre hx hE hK hm3 hwf (by decide +kernel) rfl
@@ -157,7 +157,7 @@ theorem seg_b140 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have kept2 := fun {o : Nat} {bs : List UInt8} (ho : o + bs.length ≤ 29384)
       (hd : o + bs.length ≤ 4096 ∨ 4296 ≤ o) (h : BytesAt st3.data.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hK3.1 (a := 4096) (n := 200) (by decide) (by decide) hout ho hd h
-  exact pc_at (a := r.pc 1830) (by rw [hpc4]; rfl)
+  exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b145Offset) (by rw [hpc4]; rfl)
     (seg_b145 hp hc hpre hx hE hpos hT hK4 (RegIs.of_saved hS rfl h12') (RegIs.of_saved hS rfl h14)
       (kept2 (by simp [NativeRustc.length_wordBytes]) (by simp [NativeRustc.length_wordBytes]) h64')
       (copy_slice (c := 0) hc4 (by len_tac) hB0') (kept2 (by omega) (by omega) hB') cont)
@@ -173,19 +173,19 @@ theorem seg_b134 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hB0 : BytesAt m.dmem (r.off 576) (List.replicate 200 0))
     (hBsa : BytesAt m.dmem (r.off 776) SA) (hval : BytesAt m.dmem (r.off 1632) v)
     (cont : StepCont r l x E i pos (SA ++ v) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1737⟩ := by
-  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc 1762).toBitVec
-  have hm := match_withLit (match_frameS hK.1 hK.2.1 (ret := (r.pc 1762).toBitVec) (k := [])
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b134Offset⟩ := by
+  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b140Offset).toBitVec
+  have hm := match_withLit (match_frameS hK.1 hK.2.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b140Offset).toBitVec) (k := [])
     trivial) rfl hB48
   refine blk r hp b134_in_code (List.cons_ne_nil _ _) run_b134 hwf (fun _ h ↦ nomatch h) hm
     fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 1747) (hpc.trans (labelAt r hp b137_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b137Offset) (hpc.trans (labelAt r hp b137_in_code rfl)) ?_
   refine blk r hp b137_in_code (List.cons_ne_nil _ _) (exec_after run_b134 run_b137) hwf
     (fun _ h ↦ nomatch h) hm1 fun st2 hm2 hpc2 ↦ ?_
-  refine pc_at (a := r.pc 1755) ((pc_false hpc2).trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b138Offset) ((pc_false hpc2).trans rfl) ?_
   refine blk r hp b138_in_code (List.cons_ne_nil _ _) (exec_after run_b137 run_b138) hwf
     (fun _ h ↦ nomatch h) hm2 fun st3 hm3 hpc3 ↦ ?_
-  refine pc_at (a := r.pc 1757) ((pc_false hpc3).trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b139Offset) ((pc_false hpc3).trans rfl) ?_
   refine blk r hp b139_in_code (List.cons_ne_nil _ _) (exec_after run_b138 run_b139) hwf
     (fun _ _ ↦ rfl) hm3 fun st4 hm4 hpc4 ↦ ?_
   have hK4 := KeepC.of_block hpre hx hE hK hm4 hwf (by decide +kernel) rfl
@@ -214,7 +214,7 @@ theorem seg_b134 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
       (hd : o + bs.length ≤ 824 ∨ 840 ≤ o) (h : BytesAt st4.data.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hK4.1 (a := 824) (n := 16) (by decide) (by decide) hout ho hd h
   have hv5 : BytesAt st5.data.dmem (r.off 824) v := copy_slice (c := 0) hc5 (by omega) hval'
-  exact pc_at (a := r.pc 1762) (by rw [hpc5]; rfl)
+  exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b140Offset) (by rw [hpc5]; rfl)
     (seg_b140 hp hc hpre hx hE hpos (by simp; omega) hK5 (RegIs.of_saved hS rfl h15)
       (RegIs.of_saved hS rfl hbx) (RegIs.of_saved hS rfl h12)
       (kept2 (by simp [NativeRustc.length_wordBytes]) (by simp [NativeRustc.length_wordBytes]) h64')
@@ -232,17 +232,17 @@ theorem seg_b129 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hA0 : BytesAt m.dmem (r.off 4096) (List.replicate 200 0))
     (hAsa : BytesAt m.dmem (r.off 4296) SA) (hval : BytesAt m.dmem (r.off 1632) v)
     (cont : StepCont r l x E i pos (SA ++ v) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1672⟩ := by
-  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc 1737).toBitVec
-  have hm := match_withLit (match_frameS hK.1 hK.2.1 (ret := (r.pc 1737).toBitVec)
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b129Offset⟩ := by
+  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b134Offset).toBitVec
+  have hm := match_withLit (match_frameS hK.1 hK.2.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b134Offset).toBitVec)
     (k := [(.r15, .lit 32), (.rbx, .ptr 0 8320), (.r12, .lit 32)])
     ⟨known_lit h15, known_ptr hbx, known_lit h12, trivial⟩) rfl hA16
   refine blk r hp b129_in_code (List.cons_ne_nil _ _) run_b129 hwf (fun _ h ↦ nomatch h) hm
     fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 1652) ((pc_true hpc).trans (labelAt r hp b125_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b125Offset) ((pc_true hpc).trans (labelAt r hp b125_in_code rfl)) ?_
   refine blk r hp b125_in_code (List.cons_ne_nil _ _) (exec_after run_b129 run_b125) hwf
     (fun _ h ↦ nomatch h) hm1 fun st2 hm2 hpc2 ↦ ?_
-  refine pc_at (a := r.pc 1732) ((pc_true hpc2).trans (labelAt r hp b133_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b133Offset) ((pc_true hpc2).trans (labelAt r hp b133_in_code rfl)) ?_
   refine blk r hp b133_in_code (List.cons_ne_nil _ _) (exec_after run_b125 run_b133) hwf
     (fun _ _ ↦ rfl) hm2 fun st3 hm3 hpc3 ↦ ?_
   have hK3 := KeepC.of_block hpre hx hE hK hm3 hwf (by decide +kernel) rfl
@@ -267,7 +267,7 @@ theorem seg_b129 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have kept2 := fun {o : Nat} {bs : List UInt8} (ho : o + bs.length ≤ 29384)
       (hd : o + bs.length ≤ 576 ∨ 920 ≤ o) (h : BytesAt st3.data.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hK3.1 (a := 576) (n := 344) (by decide) (by decide) hout ho hd h
-  exact pc_at (a := r.pc 1737) (by rw [hpc4]; rfl)
+  exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b134Offset) (by rw [hpc4]; rfl)
     (seg_b134 hp hc hpre hx hE hpos hSA hv hK4
       (kept2 (by simp [NativeRustc.length_wordBytes]) (by simp [NativeRustc.length_wordBytes]) h64')
       (copy_slice (c := 336) hc4 (by len_tac) hA48) (copy_slice (c := 0) hc4 (by len_tac) hA0')

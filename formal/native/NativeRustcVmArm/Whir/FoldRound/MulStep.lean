@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.FoldRound.Tail1
 
 /-!
@@ -54,9 +55,9 @@ theorem ts_stack (h : FoldRoundPre a s0 w m0) {st : MachineData} (hf : FFr m0 st
 
 /-- **A block of the frame, then `EW::mul`.** -/
 theorem mstep (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {ds : List Directive} {j : Nat}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {ds : List Directive} {j : Nat}
     (hk : ds.IsInfixAt code j) (hne : ds ≠ []) {S' : SState}
-    (hx : exec ds midS = some (S', .call ewMulLabel)) (hsp : S'.sp = .ptr 0 0)
+    (hx : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hsp : S'.sp = .ptr 0 0)
     (hfw : frameWrites S' 208 slots [] = true)
     (hmem : ∀ w ∈ S'.mem, w.r = 0 ∧ w.off + w.n ≤ 208)
     (h19 : S'.reg .X19 = some (.reg .X19)) (h20 : S'.reg .X20 = some (.reg .X20))

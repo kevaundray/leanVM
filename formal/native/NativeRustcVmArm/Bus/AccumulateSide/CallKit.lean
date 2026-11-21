@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Kit
 
 /-!
@@ -71,13 +73,13 @@ theorem St.runCallK (h : Pre L rows bl Fm SL m0) {A : Nat} (hA : A = 0 ∨ A = 7
 /-- **A block calling `eq_eval_fn`** for `eq_above p point`: `n` the point's length, `pa` its
 address, `vs`, `is` the placement's variable count and index. -/
 theorem St.eqCall (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
     {A : Nat} (hA : A = 0 ∨ A = 72) {rs : List (BitVec 64 × Nat)} {sz : List Nat}
     (hsz : ((base m0 F, F + A) :: rs).map Prod.snd = sz) {S S' : SState} {ds : List Directive}
     {i : Nat} {R : MachineState → Prop} {m : MachineData} {V : Nat → UInt64}
     {D D' E : List (Sym × Nat)} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds S = some (S', .call eqEvalFnOfEqAboveLabel))
+    (hrun : exec ds S = some (S', .call NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel))
     (hfr : Fr m0 F N slots keep (outs m0) m) (hH : Holds ((base m0 F, F + A) :: rs) V D m)
     (hwf : (Env.ofMachine m ((base m0 F, F + A) :: rs)).WF)
     (hm : Match (Env.ofMachine m ((base m0 F, F + A) :: rs)) S m)
@@ -140,12 +142,12 @@ theorem St.eqCall (h : Pre L rows bl Fm SL m0)
 
 /-- **A block calling `EW::mul`**. -/
 theorem St.mulCall (h : Pre L rows bl Fm SL m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {A : Nat} (hA : A = 0 ∨ A = 72) {rs : List (BitVec 64 × Nat)} {sz : List Nat}
     (hsz : ((base m0 F, F + A) :: rs).map Prod.snd = sz) {S S' : SState} {ds : List Directive}
     {i : Nat} {R : MachineState → Prop} {m : MachineData} {V : Nat → UInt64}
     {D D' E : List (Sym × Nat)} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds S = some (S', .call ewMulLabel))
+    (hrun : exec ds S = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     (hfr : Fr m0 F N slots keep (outs m0) m) (hH : Holds ((base m0 F, F + A) :: rs) V D m)
     (hwf : (Env.ofMachine m ((base m0 F, F + A) :: rs)).WF)
     (hm : Match (Env.ofMachine m ((base m0 F, F + A) :: rs)) S m)

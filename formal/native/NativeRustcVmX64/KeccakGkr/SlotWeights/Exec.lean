@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.SlotWeights
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
+public import NativeRustcVmX64.Code.Vm.SlotWeights.Names
 public meta import NativeRustcVmX64.Code.Vm.SlotWeights
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -105,19 +108,7 @@ sym_block e15 := exec b15 callS
 
 public section
 
-theorem b0_length : b0.length = 33 := by decide +kernel
-theorem b1_length : b1.length = 3 := by decide +kernel
-theorem b2_length : b2.length = 4 := by decide +kernel
-theorem b3_length : b3.length = 3 := by decide +kernel
-theorem b4_length : b4.length = 12 := by decide +kernel
-theorem b5_length : b5.length = 4 := by decide +kernel
-theorem b8_length : b8.length = 5 := by decide +kernel
-theorem b9_length : b9.length = 13 := by decide +kernel
-theorem b11_length : b11.length = 5 := by decide +kernel
-theorem b12_length : b12.length = 6 := by decide +kernel
-theorem b13_length : b13.length = 6 := by decide +kernel
 theorem p1_length : p1.length = 5 := by decide +kernel
-theorem b14_length : b14.length = 8 := by decide +kernel
 
 /-- The prologue: the slots pushed, `first`, `count`, the weights' address saved, `eq_kernel`'s
 arguments. -/
@@ -131,7 +122,7 @@ theorem ok_b0 : ProOk 160 0 slots (after b0 entryS) = true ∧
   rw [after_eq e0]; decide +kernel
 
 theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9eq_kernel") := e0.trans (by rw [after_eq e0])
+    .call NativeRustcVmX64.Vm.EqKernel.entryLabel) := e0.trans (by rw [after_eq e0])
 
 /-- `eq_kernel`'s result stored at `8`. -/
 theorem ok_b1 : MidOk 160 8 slots (after b1 callS) = true ∧
@@ -140,7 +131,7 @@ theorem ok_b1 : MidOk 160 8 slots (after b1 callS) = true ∧
   rw [after_eq e1]; decide +kernel
 
 theorem exit_b1 : exec b1 callS = some (after b1 callS,
-    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LSlotWeights_11") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.SlotWeights.label_11) :=
   e1.trans (by rw [after_eq e1])
 
 theorem ok_b2 : MidOk 160 8 slots (after b2 callS) = true ∧ (after b2 callS).mem = [] ∧
@@ -169,7 +160,7 @@ theorem ok_b4 : MidOk 160 8 slots (after b4 zeroS) = true ∧
 
 theorem exit_b4 : exec b4 zeroS = some (after b4 zeroS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 64) (.reg .rdx)) (.lit 1024)).not
-      ".LSlotWeights_3") := e4.trans (by rw [after_eq e4])
+      NativeRustcVmX64.Vm.SlotWeights.label_3) := e4.trans (by rw [after_eq e4])
 
 theorem ok_b5 : MidOk 160 8 slots (after b5 callS) = true ∧ (after b5 callS).mem = [] ∧
     (after b5 callS).reg .rax = some (.bin .add .W64 (.lit 1024) (.reg .rax)) ∧
@@ -178,13 +169,13 @@ theorem ok_b5 : MidOk 160 8 slots (after b5 callS) = true ∧ (after b5 callS).m
 
 theorem exit_b5 : exec b5 callS = some (after b5 callS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 1024) (.reg .rcx)) (.lit 65536)).not
-      ".LSlotWeights_2") := e5.trans (by rw [after_eq e5])
+      NativeRustcVmX64.Vm.SlotWeights.label_2) := e5.trans (by rw [after_eq e5])
 
 theorem ok_b6 : MidOk 160 8 slots (after b6 callS) = true ∧ (after b6 callS).mem = [] ∧
     (after b6 callS).reg .rcx = some (.lit 0) := by
   rw [after_eq e6]; decide +kernel
 
-theorem exit_b6 : exec b6 callS = some (after b6 callS, .jump ".LSlotWeights_7") :=
+theorem exit_b6 : exec b6 callS = some (after b6 callS, .jump NativeRustcVmX64.Vm.SlotWeights.label_7) :=
   e6.trans (by rw [after_eq e6])
 
 theorem ok_b8 : MidOk 160 8 slots (after b8 callS) = true ∧ (after b8 callS).mem = [] ∧
@@ -193,7 +184,7 @@ theorem ok_b8 : MidOk 160 8 slots (after b8 callS) = true ∧ (after b8 callS).m
 
 theorem exit_b8 : exec b8 callS = some (after b8 callS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.load 0 32 8) (.lit 1)) (.load 0 24 8))
-      ".LSlotWeights_11") := e8.trans (by rw [after_eq e8])
+      NativeRustcVmX64.Vm.SlotWeights.label_11) := e8.trans (by rw [after_eq e8])
 
 /-- A segment's start: its scale, the row base, the counters, the segment saved at `32`. -/
 theorem ok_b9 : MidOk 160 8 slots (after b9 segS) = true ∧
@@ -205,7 +196,7 @@ theorem ok_b9 : MidOk 160 8 slots (after b9 segS) = true ∧
     (after b9 segS).reg .rbx = some (.lit 0) := by
   rw [after_eq e9]; decide +kernel
 
-theorem exit_b9 : exec b9 segS = some (after b9 segS, .jump ".LSlotWeights_8") :=
+theorem exit_b9 : exec b9 segS = some (after b9 segS, .jump NativeRustcVmX64.Vm.SlotWeights.label_8) :=
   e9.trans (by rw [after_eq e9])
 
 theorem ok_b11 : MidOk 160 8 slots (after b11 callS) = true ∧ (after b11 callS).mem = [] ∧
@@ -217,7 +208,7 @@ theorem ok_b11 : MidOk 160 8 slots (after b11 callS) = true ∧ (after b11 callS
 
 theorem exit_b11 : exec b11 callS = some (after b11 callS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .rbx)) (.lit 25600))
-      ".LSlotWeights_6") := e11.trans (by rw [after_eq e11])
+      NativeRustcVmX64.Vm.SlotWeights.label_6) := e11.trans (by rw [after_eq e11])
 
 theorem ok_b12 : MidOk 160 8 slots (after b12 callS) = true ∧ (after b12 callS).mem = [] ∧
     (after b12 callS).reg .r12 = some rowS ∧
@@ -228,7 +219,7 @@ theorem ok_b12 : MidOk 160 8 slots (after b12 callS) = true ∧ (after b12 callS
 
 theorem exit_b12 : exec b12 callS = some (after b12 callS,
     .cond ((SBool.cmp .ult .W64 rowS (.lit 63)).not.and (SBool.cmp .eq .W64 rowS (.lit 63)).not)
-      ".LSlotWeights_10") := e12.trans (by rw [after_eq e12]; rfl)
+      NativeRustcVmX64.Vm.SlotWeights.label_10) := e12.trans (by rw [after_eq e12]; rfl)
 
 /-- The weight's load and the call of `EW::mul`. -/
 theorem ok_b13 : MidOk 160 0 slots (after b13 mulS) = true ∧
@@ -241,7 +232,7 @@ theorem ok_b13 : MidOk 160 0 slots (after b13 mulS) = true ∧
   rw [after_eq e13]; decide +kernel
 
 theorem exit_b13 : exec b13 mulS = some (after b13 mulS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") := e13.trans (by rw [after_eq e13])
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) := e13.trans (by rw [after_eq e13])
 
 theorem ok_p1 : MidOk 160 8 slots (after p1 callS) = true ∧ (after p1 callS).mem = [] ∧
     (after p1 callS).reg .rcx = some colS ∧
@@ -264,7 +255,7 @@ theorem ok_p2 : MidOk 160 8 slots (after p2 storeS) = true ∧
     (∀ t < 8, findWrite 1 (0 + 8 + t) (after p2 storeS).mem = some (.reg .rdx, t)) := by
   rw [after_eq ep2]; decide +kernel
 
-theorem exit_p2 : exec p2 storeS = some (after p2 storeS, .jump ".LSlotWeights_10") :=
+theorem exit_p2 : exec p2 storeS = some (after p2 storeS, .jump NativeRustcVmX64.Vm.SlotWeights.label_10) :=
   ep2.trans (by rw [after_eq ep2])
 
 /-- The epilogue: AL the low bit of `eq_kernel`'s result. -/

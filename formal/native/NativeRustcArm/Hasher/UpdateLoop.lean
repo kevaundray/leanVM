@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.KeccakF.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+
 public import NativeRustcArm.Hasher.UpdateB1
 public import NativeRustcArm.Hasher.UpdateB7
 
@@ -21,22 +24,22 @@ variable [Host] {k : Nat}
 
 /-- **A turn of the loop.** -/
 theorem turn_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hmemcpy : Spec (Labels.label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hkf : Spec (Labels.label NativeRustcArm.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m1 m : MachineData} (hpre : UpdatePre m0)
     (h01 : SameOutside m0.dmem m1.dmem (InRange (spAt m0 - 64#64) 64)) {c : Nat}
     (hinv : Inv m0 m1 c m) :
     Eventually (step1 Host.exe)
-      (fun st => (st.pc = Host.addrOf (k + 84) ∧ Inv m0 m1 (nOf m0) st.data) ∨
-        ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + 17) ∧
+      (fun st => (st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b8Offset) ∧ Inv m0 m1 (nOf m0) st.data) ∨
+        ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset) ∧
           ∃ c', nOf m0 - c' = n' ∧ Inv m0 m1 c' st.data)
-      ⟨m, Host.addrOf (k + 17)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset)⟩ := by
   -- After a turn, at `.LUpdate_1`.
-  have fin : ∀ (t : Nat) (st : MachineState), st.pc = Host.addrOf (k + 13) →
+  have fin : ∀ (t : Nat) (st : MachineState), st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b1Offset) →
       Mid m0 m1 c t st.data →
       Eventually (step1 Host.exe)
-        (fun st => (st.pc = Host.addrOf (k + 84) ∧ Inv m0 m1 (nOf m0) st.data) ∨
-          ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + 17) ∧
+        (fun st => (st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b8Offset) ∧ Inv m0 m1 (nOf m0) st.data) ∨
+          ∃ n' < nOf m0 - c, st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset) ∧
             ∃ c', nOf m0 - c' = n' ∧ Inv m0 m1 c' st.data) st := by
     intro t st hpc hmid
     obtain ⟨d, pc⟩ := st
@@ -64,15 +67,15 @@ theorem turn_spec (hp : Placed code k)
 
 /-- **The loop**: out of it with the whole input absorbed. -/
 theorem loop_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hmemcpy : Spec (Labels.label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hkf : Spec (Labels.label NativeRustcArm.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m1 m : MachineData} (hpre : UpdatePre m0)
     (h01 : SameOutside m0.dmem m1.dmem (InRange (spAt m0 - 64#64) 64)) {c : Nat}
     (hinv : Inv m0 m1 c m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 84) ∧ Inv m0 m1 (nOf m0) st.data)
-      ⟨m, Host.addrOf (k + 17)⟩ := by
-  refine Sym.loop (fun n st => st.pc = Host.addrOf (k + 17) ∧
+      (fun st => st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b8Offset) ∧ Inv m0 m1 (nOf m0) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset)⟩ := by
+  refine Sym.loop (fun n st => st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset) ∧
       ∃ c', nOf m0 - c' = n ∧ Inv m0 m1 c' st.data) (fun n st ⟨hpc, c', hn, hi⟩ => ?_)
     ⟨rfl, c, rfl, hinv⟩
   obtain ⟨d, pc⟩ := st

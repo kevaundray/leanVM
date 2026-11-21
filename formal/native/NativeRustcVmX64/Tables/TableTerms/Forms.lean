@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.Cons
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
 
 /-!
 # `table_terms`: the forms' dot product (x86-64)
@@ -72,10 +73,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 
 /-- **`evaluate` of table `i`'s form `j`** on the evaluations `xs`. -/
 theorem eval_call (h : TableTermsPre a s heights forms m0)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmX64.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
     {i j : Nat} (hi : i < 6) (hj : j < 3) {o : Array (Array EW × Array EW)} {xs : Array EW}
     {s' : TState} {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label evaluateLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.Evaluate.entryLabel ∧ retOf st.data = next)
     (hb : Bd m0 272 N slots (outs m0) 0 st.data) (H : It a m0 i o xs s' st.data)
     (hxs : xs.size = (tb i).width)
     (hrdi : reg st.data .rdi = off (fA m0) (formBufBytes * (3 * i + j)) + BitVec.ofNat 64 8)

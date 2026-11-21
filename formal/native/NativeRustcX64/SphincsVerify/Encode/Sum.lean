@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Sphincs.SphincsVerify.Names
+
 public import NativeRustcX64.SphincsVerify.Encode.Loop
 public import NativeRustcX64.SphincsVerify.Epilogue
 meta import NativeRustcX64.Code.Sphincs.SphincsVerify.Part2
@@ -83,7 +85,7 @@ def spillsKept (S : SState) : Bool :=
 def b115Ok (S : SState) : Bool :=
   match exec Sphincs.SphincsVerify.b115 S with
   | some (S', x) =>
-    x == .jump ".LSphincsVerify_42" && S'.reg .rax == some (.lit 0) &&
+    x == .jump NativeRustcX64.Sphincs.SphincsVerify.label_42 && S'.reg .rax == some (.lit 0) &&
       S'.reg .r12 == some (.ptr 0 4096) && S'.reg .r13 == some (.ptr 0 2048) &&
       S'.reg .rbp == some (.reg .rbp) && S'.reg .rsp == some (.ptr 0 0) && Run.frameWrites S' &&
       spillsKept S' &&
@@ -94,7 +96,7 @@ def b115Ok (S : SState) : Bool :=
 def sumOk : Bool :=
   match exec Sphincs.SphincsVerify.b114 s114 with
   | some (S, .cond (.not (.cmp .eq .W64 e (.lit 128))) l) =>
-    l == ".LSphincsVerify_84" && ((sumOf e).map isort) == some (List.range' 576 64) &&
+    l == NativeRustcX64.Sphincs.SphincsVerify.label_84 && ((sumOf e).map isort) == some (List.range' 576 64) &&
       S.reg .rsp == some (.ptr 0 0) && Run.frameWrites S && b115Ok S
   | _ => false
 
@@ -144,7 +146,6 @@ theorem sum_value {m : MachineData} (vars : Nat → BitVec 64) (ret : BitVec 64)
 
 end Run
 
-theorem length_b114 : Sphincs.SphincsVerify.b114.length = 182 := by decide +kernel
 
 theorem byteOf_cw (x : BitVec 64) :
     byteOf (UnOp.apply .trunc .W8 (UnOp.apply (.zext .W8) .W32 x)) 0 = byteOf x 0 := by
@@ -157,12 +158,12 @@ theorem byteOf_cw (x : BitVec 64) :
 variable [Host]
 
 theorem label_84 {k : Nat} (hp : Placed Sphincs.SphincsVerify.code k) :
-    Labels.label ".LSphincsVerify_84" = Host.addrOf (k + 2368) :=
-  hp.label (List.isInfixAt_iff_getElem?.mp Sphincs.SphincsVerify.b196_in_code 0 (by decide))
+    Labels.label NativeRustcX64.Sphincs.SphincsVerify.label_84 = Host.addrOf (k + NativeRustcX64.Sphincs.SphincsVerify.b196Offset) :=
+  hp.label NativeRustcX64.Sphincs.SphincsVerify.label_84_at
 
 theorem label_42 {k : Nat} (hp : Placed Sphincs.SphincsVerify.code k) :
-    Labels.label ".LSphincsVerify_42" = Host.addrOf (k + 1548) :=
-  hp.label (List.isInfixAt_iff_getElem?.mp Sphincs.SphincsVerify.b117_in_code 0 (by decide))
+    Labels.label NativeRustcX64.Sphincs.SphincsVerify.label_42 = Host.addrOf (k + NativeRustcX64.Sphincs.SphincsVerify.b117Offset) :=
+  hp.label NativeRustcX64.Sphincs.SphincsVerify.label_42_at
 
 /-- **The sum and the codeword's copy**: from `b114` with the 64 digits of `V` at `576`, the
 machine returns 0 if they do not sum to 128, else reaches the chains (`b117`) with the codeword
@@ -173,8 +174,8 @@ theorem sum_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
     (hd : ∀ t < 64, m.dmem.get? (r.off (576 + t)) = some (digitByte V t)) :
     Eventually (step1 Host.exe) (fun st ↦
       (((digits V).map UInt8.toNat).sum ≠ 128 ∧ r.Done false st) ∨
-      (((digits V).map UInt8.toNat).sum = 128 ∧ st.pc = r.pc 1548 ∧
-        r.AtChains l (digits V) st.data)) ⟨m, r.pc 1234⟩ := by
+      (((digits V).map UInt8.toNat).sum = 128 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset ∧
+        r.AtChains l (digits V) st.data)) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b114Offset⟩ := by
   have hok := sumOk_eq
   unfold sumOk at hok
   have hwf := r.frame_wf hpre hF.2.2.2 (fun _ ↦ 0) 0
@@ -203,7 +204,7 @@ theorem sum_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
         rw [hval, h128]
         rfl
       rw [hc] at hpc1
-      simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, length_b114] at hpc1
+      simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, Nat.add_assoc, NativeRustcX64.Sphincs.SphincsVerify.b114_next] at hpc1
       -- b115
       unfold b115Ok at h115
       have hk2 := Sphincs.SphincsVerify.b115_in_code.trans hp.1 (List.cons_ne_nil _ _)

@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRound.Grind
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
 
 /-!
 # `fold_round` on x86-64: a block and a call of `EW::mul` or `squeeze`
@@ -28,13 +30,13 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : Mac
 
 /-- **A block and `EW::mul`**, the block from `S0` in the frame and the areas `rest`. -/
 theorem mulCall (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {s : TState} {st : MachineState}
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {s : TState} {st : MachineState}
     {j : Nat} (hpc : st.pc = Host.addrOf (k + j)) (hb : Bd m0 a s st.data) {b : List Directive}
     (hbi : b.IsInfixAt code j) (hne : b ≠ []) {rest : List (BitVec 64 × Nat)} {S0 S : SState}
     (hwf : (frameEnv m0 st.data 176 rest (fun _ ↦ 0) (Host.addrOf (k + j + b.length)).toBitVec).WF)
     (hm0 : Match (frameEnv m0 st.data 176 rest (fun _ ↦ 0) (Host.addrOf (k + j + b.length)).toBitVec)
       S0 st.data)
-    (hrun : exec b S0 = some (S, .call ewMulLabel))
+    (hrun : exec b S0 = some (S, .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hmid : MidOk 176 0 slots S = true) (hS : ∀ w ∈ S.mem, w.r = 0 ∧ w.off + w.n ≤ 176)
     (hregs : ∀ st1 : MachineData, Match (frameEnv m0 st.data 176 rest (fun _ ↦ 0)
       (Host.addrOf (k + j + b.length)).toBitVec) S st1 →
@@ -65,11 +67,11 @@ theorem mulCall (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
 
 /-- **A block and `squeeze`.** -/
 theorem sqCall (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {s : TState} {st : MachineState}
     {j : Nat} (hpc : st.pc = Host.addrOf (k + j)) (hb : Bd m0 a s st.data) {b : List Directive}
     (hbi : b.IsInfixAt code j) (hne : b ≠ []) {S : SState}
-    (hrun : exec b midS = some (S, .call squeezeLabel))
+    (hrun : exec b midS = some (S, .call NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel))
     (hmid : MidOk 176 0 slots S = true) (hS : ∀ w ∈ S.mem, w.r = 0 ∧ w.off + w.n ≤ 176)
     (hk : ∀ r ∈ [Reg64.rbx, .r13, .r14], S.reg r = some (.reg r))
     (hdi : S.reg .rdi = some (.reg .r13))

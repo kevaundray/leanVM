@@ -1,6 +1,13 @@
 module
 
 public import NativeRustcVmX64.Tables.TablePhase.Mid
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.Powers.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TablePhase.Names
+public import NativeRustcVmX64.Code.Vm.TableSumcheck.Names
 
 /-!
 # `table_phase` on x86-64
@@ -32,26 +39,26 @@ theorem grind_bits [Labels] {env : Env} (hx : env.regs .rax = BitVec.ofNat 64 2)
 
 /-- **`table_phase` meets its contract.** -/
 theorem tablePhase_spec (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgrind : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hsum : ∀ a s heights bus, Spec (Labels.label tableSumcheckLabel)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgrind : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpow : Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hsum : ∀ a s heights bus, Spec (Labels.label NativeRustcVmX64.Vm.TableSumcheck.entryLabel)
       (TableSumcheckPre a s heights bus) (TableSumcheckPost a s heights bus))
     {a : DecArea} {s : TState} {L : LayoutW} {bus : BusResultW} :
-    Spec (Labels.label tablePhaseLabel) (TablePhasePre a s L bus) (TablePhasePost a s L bus) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.TablePhase.entryLabel) (TablePhasePre a s L bus) (TablePhasePost a s L bus) := by
   intro m0 h
-  rw [show Labels.label tablePhaseLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.TablePhase.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b0Offset) from hp.label NativeRustcVmX64.Vm.TablePhase.entry_at]
   have p := pre_parts h
   have hS := p.1
   have c144 := ctx h (F := 144) (by decide)
   have hfnw : NativeRustcVm.NoWrap (stackBelow m0 160) (160 + 8) := (ctx h N_ge).noWrap_frame
   -- `b0`: the prologue, `bit_length(3)`
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 160) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b0Offset + b0.length)).toBitVec)
     ⟨frame_mapped hS N_ge, frame_noWrap hS N_ge⟩ (by simp) (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 160 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b0Offset + b0.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨off_frame_F.symm.trans (eval_ptr0 160).symm, trivial⟩ trivial
       trivial trivial
@@ -65,7 +72,7 @@ theorem tablePhase_spec (hp : Placed code k)
       belowRet_spec (belowRet_of_pro hpro) w hw (h00 w hw)⟩) hw)
   have g1 : ∀ r v, (r, v) ∈ ([(.rbx, .reg .rcx), (.r14, .reg .rdx), (.r15, .reg .rsi),
       (.r12, .reg .rdi), (.rdi, .lit 3)] : List (Reg64 × Sym)) → reg st1.data r = v.eval
-        (frameEnv m0 m0 160 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec) :=
+        (frameEnv m0 m0 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b0Offset + b0.length)).toBitVec) :=
     fun r v hr ↦ hm1.regs r v (hregs0 _ hr)
   have hts1 : TStateAt st1.data.dmem (reg m0 .rdi) a s :=
     tstate_keep h p.2.2.2.1 (hm1.kept hwf0) hs1 fun q hq ↦ .inl (frame_in h hq)
@@ -88,18 +95,18 @@ theorem tablePhase_spec (hp : Placed code k)
   have hr2 : ∀ r, calleeSaved r = true → ∀ v, (r, v) ∈ ([(.rbx, .reg .rcx), (.r14, .reg .rdx),
       (.r15, .reg .rsi), (.r12, .reg .rdi), (.rdi, .lit 3)] : List (Reg64 × Sym)) →
       reg m2 r = v.eval (frameEnv m0 m0 160 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 0 + b0.length)).toBitVec) :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b0Offset + b0.length)).toBitVec) :=
     fun r hc v hr ↦ (hcs2 r hc).trans (g1 r v hr)
   -- `b1`: `grind(0)`
   obtain ⟨hmid1, h01, hregs1⟩ := after_eq run_b1 ▸ ok_b1
   refine blk h fr2 (st := ⟨m2, _⟩) (b1_in_code.trans hp.1 (by simp [b1])) run_b1 hmid1 h01 rfl
     fun st3 fr3 hm3 hs3 hpc3 ↦ ?_
-  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 14 + b1.length)).toBitVec)
+  have hwf3 := wfF h fr2 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b1Offset + b1.length)).toBitVec)
   have g3 : ∀ r v, (r, v) ∈ ([(.rdi, .reg .r12), (.rbp, .lit 0), (.rsi, .un .trunc .W32 (.ite
       (.cmp .ult .W32 (.reg .rax) (.lit 3)) (.lit 0) (.bin .sub .W32 (.reg .rax) (.lit 3)))),
       (.rbx, .reg .rbx), (.r12, .reg .r12), (.r14, .reg .r14), (.r15, .reg .r15)] :
         List (Reg64 × Sym)) → reg st3.data r = v.eval
-          (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + 14 + b1.length)).toBitVec) :=
+          (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b1Offset + b1.length)).toBitVec) :=
     fun r v hr ↦ hm3.regs r v (hregs1 _ hr)
   have e3di : reg st3.data .rdi = reg m0 .rdi :=
     (g3 .rdi (.reg .r12) (by simp)).trans (hr2 .r12 rfl (.reg .rdi) (by simp))
@@ -141,7 +148,7 @@ theorem tablePhase_spec (hp : Placed code k)
   obtain ⟨hmid2, hmem2, hregs2⟩ := after_eq run_b2 ▸ ok_b2
   refine blk h fr4 (st := ⟨m4, _⟩) (b2_in_code.trans hp.1 (by simp [b2])) run_b2 hmid2
     (by rw [hmem2]; intro w hw; cases hw) rfl fun st5 fr5 hm5 _ hpc5 ↦ ?_
-  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 20 + b2.length)).toBitVec)
+  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b2Offset + b2.length)).toBitVec)
   have hd5 : st5.data.dmem = m4.dmem := hm5.dmem_eq hwf5 hmem2
   have g5 : ∀ r ∈ [Reg64.rbp, .rbx, .r12, .r14, .r15], reg st5.data r = reg m4 r := by
     intro r hr
@@ -153,7 +160,7 @@ theorem tablePhase_spec (hp : Placed code k)
     · exact hm5.regs _ _ (hregs2 (.r14, .reg .r14) (by simp))
     · exact hm5.regs _ _ (hregs2 (.r15, .reg .r15) (by simp))
   have hc5 : (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)).eval
-      (frameEnv m0 m4 160 [] (fun _ ↦ 0) (Host.addrOf (k + 20 + b2.length)).toBitVec) =
+      (frameEnv m0 m4 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b2Offset + b2.length)).toBitVec) =
       !((grind (grindingBits 4)).run s).isSome := by
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
     exact testAl_okAl q40
@@ -164,7 +171,7 @@ theorem tablePhase_spec (hp : Placed code k)
     -- a failed grind: the exit with AL zero
     have hrun : (tablePhase L bus).run s = none := by rw [tablePhase_run, hr]; rfl
     have hpc5' := hT5 (hc5.trans (by rw [hr]; rfl))
-    refine exit8 hp h (hpc5'.trans (hp.label (j := 59) rfl)) fr5 ?_ (fun x s' h' ↦ by
+    refine exit8 hp h (hpc5'.trans (hp.label NativeRustcVmX64.Vm.TablePhase.label_2_at)) fr5 ?_ (fun x s' h' ↦ by
       rw [hrun] at h'; cases h') (fun x s' h' ↦ by rw [hrun] at h'; cases h')
     rw [g5 .rbp (by simp), hrbp4, hrun]
     rfl
@@ -176,11 +183,11 @@ theorem tablePhase_spec (hp : Placed code k)
     obtain ⟨hmid6, h06, hregs6⟩ := after_eq run_b3 ▸ ok_b3
     refine blk h fr5 (b3_in_code.trans hp.1 (by simp [b3])) run_b3 hmid6 h06
       (by rw [hpc5]; rfl) fun st6 fr6 hm6 hs6 hpc6 ↦ ?_
-    have hwf6 := wfF h fr5 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 22 + b3.length)).toBitVec)
+    have hwf6 := wfF h fr5 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b3Offset + b3.length)).toBitVec)
     have g6 : ∀ r v, (r, v) ∈ ([(.rdi, .reg .r12), (.rbp, .reg .rbp), (.rbx, .reg .rbx),
         (.r12, .reg .r12), (.r14, .reg .r14), (.r15, .reg .r15)] : List (Reg64 × Sym)) →
         reg st6.data r = v.eval (frameEnv m0 st5.data 160 [] (fun _ ↦ 0)
-          (Host.addrOf (k + 22 + b3.length)).toBitVec) := fun r v hr ↦ hm6.regs r v (hregs6 _ hr)
+          (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b3Offset + b3.length)).toBitVec) := fun r v hr ↦ hm6.regs r v (hregs6 _ hr)
     have hreg6 : ∀ r ∈ [Reg64.rbx, .r12, .r14, .r15], reg st6.data r = reg m2 r := by
       intro r hr
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
@@ -238,7 +245,7 @@ theorem tablePhase_spec (hp : Placed code k)
           (by rwa [off_zero])
         exact hq (.inl ⟨j, hj, hw.2, hq'⟩)
     refine mid4 hp hpow hdot hsum h hr (st := ⟨m7, _⟩)
-      (by show Host.addrOf (k + 22 + b3.length) = _; rfl) fr7 ?_ ?_ ?_ ?_ ?_ hts7
+      (by show Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b3Offset + b3.length) = _; rfl) fr7 ?_ ?_ ?_ ?_ ?_ hts7
     · exact (hcs7 .r12 rfl).trans ((hreg6 .r12 (by simp)).trans (hr2 .r12 rfl (.reg .rdi) (by simp)))
     · exact (hcs7 .r15 rfl).trans ((hreg6 .r15 (by simp)).trans (hr2 .r15 rfl (.reg .rsi) (by simp)))
     · exact (hcs7 .r14 rfl).trans ((hreg6 .r14 (by simp)).trans (hr2 .r14 rfl (.reg .rdx) (by simp)))

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
 public import NativeRustcVmArm.Tables.ColumnClaims.Exec
 public import NativeRustcVmArm.Tables.Frame
 public import NativeRustcVmArm.Tables.Common
@@ -83,7 +84,7 @@ structure LB [Host] (k : Nat) (R : Regs) where
   inA : A.IsInfixAt Host.prog (k + jH + H.length + B.length)
   fA : k + jH + H.length + B.length + A.length = k + jF
   runH : exec H sF = some (Bus.after H sF, .cond (.cmp .eq .W64 (.reg R.n) (.lit 0)) lN)
-  runB : exec B (bodyOf R.a) = some (Bus.after B (bodyOf R.a), .call pushClaimLabel)
+  runB : exec B (bodyOf R.a) = some (Bus.after B (bodyOf R.a), .call NativeRustcVmArm.Vm.PushClaim.entryLabel)
   runA : exec A sF = some (Bus.after A sF, .cond cA lH)
   lblN : Labels.label lN = Host.addrOf (k + jN)
   lblH : Labels.label lH = Host.addrOf (k + jH)

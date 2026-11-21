@@ -3,6 +3,16 @@ module
 public import NativeRustcVmX64.Spec.Keccak
 public import NativeRustcVmX64.Basic
 public import NativeRustcVm.Wire.Rep
+public import NativeRustcVmX64.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmX64.Code.Vm.Decode.Names
+public import NativeRustcVmX64.Code.Vm.Find.Names
+public import NativeRustcVmX64.Code.Vm.InsD.Names
+public import NativeRustcVmX64.Code.Vm.PhaseM.Names
+public import NativeRustcVmX64.Code.Vm.RdRows.Names
+public import NativeRustcVmX64.Code.Vm.ReaderDigest.Names
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
+public import NativeRustcVmX64.Code.Vm.WriteOpenings.Names
 
 /-!
 # The contracts of `wire.rs`'s functions on x86-64
@@ -49,29 +59,6 @@ open NativeRustcX64 (Spec StackOk Saved stackBelow rspOf reg)
 open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `Reader::le`'s symbol. -/
-def readerLeLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le"
-/-- `Reader::digest`'s symbol. -/
-def readerDigestLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader6digest"
-/-- `Reader::words`'s symbol. -/
-def readerWordsLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader5words"
-/-- `ins_d`'s symbol. -/
-def insDLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4wire5ins_d"
-/-- `find`'s symbol. -/
-def findLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4wire4find"
-/-- `rd_rows`'s symbol. -/
-def rdRowsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4wire7rd_rows"
-/-- `climb_level`'s symbol. -/
-def climbLevelLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4wire11climb_level"
-/-- `write_openings`'s symbol. -/
-def writeOpeningsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4wire14write_openings"
-/-- `phase_m`'s symbol. -/
-def phaseMLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4wire7phase_m"
-/-- `decode`'s symbol. -/
-def decodeLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4wire6decode"
 
 /-! ## Stacks -/
 

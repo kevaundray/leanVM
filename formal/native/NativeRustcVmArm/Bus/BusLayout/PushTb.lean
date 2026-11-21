@@ -23,11 +23,11 @@ variable [Host] {k : Nat}
 /-- **A table placement pushed** (`b17`, `b18`). -/
 theorem push_tb (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 195)) (hI : PInv L bl m0 j st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b17Offset)) (hI : PInv L bl m0 j st.data)
     (h13 : st.data.regs.getXReg .X13 = ((S L bl m0).getD j 0).toUInt64)
     (h12 : st.data.regs.getXReg .X12 = ((O L bl m0).1.getD j 0).toUInt64) (hj : nf m0 ≤ j) :
     Eventually (step1 Host.exe) (fun st' ↦
-      st'.pc = Host.addrOf (k + 180) ∧ PMid L bl m0 j st'.data) st := by
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b13Offset) ∧ PMid L bl m0 j st'.data) st := by
   have hS := hpre.1
   have hN : busLayoutStack ≤ m0.regs.SP.toNat := hS.2.1
   have hF : 1840 ≤ busLayoutStack := by decide

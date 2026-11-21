@@ -48,11 +48,11 @@ variable (r : Run) [NativeArm.Host]
 theorem b8_spec (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 35) {m : MachineData}
     (h : Loop8 r j m) :
     Eventually (step1 NativeArm.Host.exe) (fun st ↦
-      (st.pc = r.pc 100 ∧ AtWords r st.data ∧
+      (st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b9Offset ∧ AtWords r st.data ∧
         BytesAt st.data.dmem (r.off 468) (pre7 r.w ++ wb r.w 684 140)) ∨
-      (j + 1 < 35 ∧ st.pc = r.pc 88 ∧ Loop8 r (j + 1) st.data)) ⟨m, r.pc 88⟩ := by
+      (j + 1 < 35 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b8Offset ∧ Loop8 r (j + 1) st.data)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b8Offset⟩ := by
   obtain ⟨hA, hraw, h8, h9, h10⟩ := h
-  have hk : b8.IsInfixAt NativeArm.Host.prog (r.k + 88) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b8.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b8Offset) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have h8' : (m.regs.getXReg .X8).toBitVec = BitVec.ofNat 64 (32 * j) := h8
   have h9' : (m.regs.getXReg .X9).toBitVec = r.input + BitVec.ofNat 64 (8 * 687) := h9
   have h10' : (m.regs.getXReg .X10).toBitVec = r.off 468 := h10
@@ -101,7 +101,7 @@ theorem b8_spec (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 35) {m
       obtain rfl : j = 34 := by omega
       revert hc
       decide
-    rw [hp.label (j := 88) rfl] at hpc
+    rw [hp.label NativeRustcArm.Sphincs.SphincsVerify.label_7_at] at hpc
     exact .done _ (Or.inr ⟨hj1, hpc, hA', hraw', h8'', h9'', h10''⟩)
   · rename_i hc
     have hj1 : j = 34 := by
@@ -114,10 +114,10 @@ theorem b8_spec (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 35) {m
 
 /-- **The loop `b8`**. -/
 theorem b8_loop (hp : Placed code r.k) (hpre : r.Pre) {st : MachineState}
-    (h : st.pc = r.pc 88 ∧ Loop8 r 0 st.data) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 100 ∧ AtWords r st.data ∧
+    (h : st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b8Offset ∧ Loop8 r 0 st.data) :
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b9Offset ∧ AtWords r st.data ∧
       BytesAt st.data.dmem (r.off 468) (pre7 r.w ++ wb r.w 684 140)) st :=
-  count_loop (P := fun j st ↦ st.pc = r.pc 88 ∧ Loop8 r j st.data) 35
+  count_loop (P := fun j st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b8Offset ∧ Loop8 r j st.data) 35
     (fun j st hj ⟨hpc, h⟩ ↦ by
       obtain ⟨m, pc⟩ := st
       simp only at hpc
@@ -127,9 +127,9 @@ theorem b8_loop (hp : Placed code r.k) (hpre : r.Pre) {st : MachineState}
 /-- **`b9`**: the words 824 .. 827 and the third layer's counter; the loop `b10`'s registers. -/
 theorem b9_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (hA : AtWords r m)
     (hraw : BytesAt m.dmem (r.off 468) (pre7 r.w ++ wb r.w 684 140)) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 116 ∧ Loop10 r 0 st.data)
-      ⟨m, r.pc 100⟩ := by
-  have hk : b9.IsInfixAt NativeArm.Host.prog (r.k + 100) :=
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b10Offset ∧ Loop10 r 0 st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b9Offset⟩ := by
+  have hk : b9.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b9Offset) :=
     b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := straight_wf r hpre hA.1
   have hS := hA.1.2.2.2.1
@@ -162,10 +162,10 @@ theorem b9_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (hA : At
 theorem b10_spec (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 36) {m : MachineData}
     (h : Loop10 r j m) :
     Eventually (step1 NativeArm.Host.exe) (fun st ↦
-      (st.pc = r.pc 126 ∧ AtWords r st.data ∧ BytesAt st.data.dmem (r.off 468) (pre10 r.w)) ∨
-      (j + 1 < 36 ∧ st.pc = r.pc 116 ∧ Loop10 r (j + 1) st.data)) ⟨m, r.pc 116⟩ := by
+      (st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b11Offset ∧ AtWords r st.data ∧ BytesAt st.data.dmem (r.off 468) (pre10 r.w)) ∨
+      (j + 1 < 36 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b10Offset ∧ Loop10 r (j + 1) st.data)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b10Offset⟩ := by
   obtain ⟨hA, hraw, h8, h9, h10, h11⟩ := h
-  have hk : b10.IsInfixAt NativeArm.Host.prog (r.k + 116) :=
+  have hk : b10.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b10Offset) :=
     b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have h8' : (m.regs.getXReg .X8).toBitVec = r.input + BitVec.ofNat 64 (8 * (832 + 4 * j)) := h8
   have h9' : (m.regs.getXReg .X9).toBitVec = BitVec.ofNat 64 (144 - 4 * j) := h9
@@ -224,7 +224,7 @@ theorem b10_spec (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 36) {
       obtain rfl : j = 35 := by omega
       revert hc
       decide
-    rw [hp.label (j := 116) rfl] at hpc
+    rw [hp.label NativeRustcArm.Sphincs.SphincsVerify.label_9_at] at hpc
     exact .done _ (Or.inr ⟨hj1, hpc, hA', hraw', h8'', h9'', h10'', h11''⟩)
   · rename_i hc
     have hj1 : j = 35 := by
@@ -238,10 +238,10 @@ theorem b10_spec (hp : Placed code r.k) (hpre : r.Pre) {j : Nat} (hj : j < 36) {
 /-- **`b9` and the loop `b10`**. -/
 theorem b10_loop (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (hA : AtWords r m)
     (hraw : BytesAt m.dmem (r.off 468) (pre7 r.w ++ wb r.w 684 140)) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 126 ∧ AtWords r st.data ∧
-      BytesAt st.data.dmem (r.off 468) (pre10 r.w)) ⟨m, r.pc 100⟩ :=
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b11Offset ∧ AtWords r st.data ∧
+      BytesAt st.data.dmem (r.off 468) (pre10 r.w)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b9Offset⟩ :=
   Eventually.bind (b9_spec r hp hpre hA hraw) fun _ h ↦
-    count_loop (P := fun j st ↦ st.pc = r.pc 116 ∧ Loop10 r j st.data) 36
+    count_loop (P := fun j st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b10Offset ∧ Loop10 r j st.data) 36
       (fun j st hj ⟨hpc, h⟩ ↦ by
         obtain ⟨m, pc⟩ := st
         simp only at hpc
@@ -251,8 +251,8 @@ theorem b10_loop (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (hA : A
 /-- **The words' blocks `b3 .. b10`**: from `AtWords` at `b3`, the raw signature but its last
 32 bytes, at `b11`. -/
 theorem words_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (hA : AtWords r m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 126 ∧ AtWords r st.data ∧
-      BytesAt st.data.dmem (r.off 468) (pre10 r.w)) ⟨m, r.pc 32⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b11Offset ∧ AtWords r st.data ∧
+      BytesAt st.data.dmem (r.off 468) (pre10 r.w)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b3Offset⟩ := by
   refine Eventually.bind (b4_loop r hp hpre hA) fun st ⟨hpc, hA, hraw⟩ ↦ ?_
   obtain ⟨m, pc⟩ := st
   simp only at hpc

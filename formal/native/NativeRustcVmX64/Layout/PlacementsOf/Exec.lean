@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Layout.BuildFrame
 public import NativeRustcVmX64.Code.Vm.PlacementsOf
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.Names
+public import NativeRustcVmX64.Code.Vm.PlacementsOf.Names
+public import NativeRustcVmX64.Code.Vm.StackOffsets.Names
 public meta import NativeRustcVmX64.Code.Vm.PlacementsOf
 public meta import NativeRustcVmX64.Layout.BuildFrame
 
@@ -48,7 +52,7 @@ def plS : SState := init [24] [(.rbx, .ptr 0 16)]
 
 def b22a : List Directive := b22.take 2
 def b22b : List Directive := b22.drop 2
-/-- `b31` from `.LPlacementsOf_26`. -/
+/-- `b31` from `NativeRustcVmX64.Vm.PlacementsOf.label_26`. -/
 def b31b : List Directive := b31.drop 1
 
 end
@@ -85,7 +89,7 @@ sym_block run_b28 := exec b28 bodyS
 sym_block run_b31 := exec b31b bodyS
 sym_block run_b32 := exec b32 bodyS
 
-public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .call "memset") :=
+public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .call NativeRustcVmX64.Vm.Memset.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 5120 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .rdi = some (.ptr 0 1280) ∧ (after b0 entryS).reg .rsi = some (.lit 0) ∧
@@ -93,7 +97,7 @@ public theorem ok_b0 : ProOk 5120 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .r14 = some (.reg .rdi) ∧ (after b0 entryS).reg .r15 = some (.lit 1264) := by
   decide +kernel
 
-public theorem exit_b1 : exec b1 bodyS = some (after b1 bodyS, .call "memset") :=
+public theorem exit_b1 : exec b1 bodyS = some (after b1 bodyS, .call NativeRustcVmX64.Vm.Memset.entryLabel) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : MidOk 5120 0 slots (after b1 bodyS) = true ∧
     (after b1 bodyS).reg .rdi = some (.ptr 0 2544) ∧ (after b1 bodyS).reg .rsi = some (.lit 0) ∧
@@ -101,18 +105,18 @@ public theorem ok_b1 : MidOk 5120 0 slots (after b1 bodyS) = true ∧
     (∀ w ∈ (after b1 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧ Keeps (after b1 bodyS) cs = true := by
   decide +kernel
 
-public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .jump ".LPlacementsOf_2") :=
+public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .jump NativeRustcVmX64.Vm.PlacementsOf.label_2) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : MidOk 5120 8 slots (after b2 bodyS) = true ∧ (after b2 bodyS).mem = [] ∧
     (after b2 bodyS).reg .rax = some (.lit 0) ∧ (after b2 bodyS).reg .r13 = some (.lit 0) ∧
-    (after b2 bodyS).reg .rbp = some (.label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.15") ∧
-    (after b2 bodyS).reg .r12 = some (.label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.16") ∧
+    (after b2 bodyS).reg .rbp = some (.label NativeRustcVmX64.Vm.Symbols.rodata15Label) ∧
+    (after b2 bodyS).reg .r12 = some (.label NativeRustcVmX64.Vm.Symbols.rodata16Label) ∧
     Keeps (after b2 bodyS) [.rbx, .r14, .r15] = true := by
   decide +kernel
 
 public theorem exit_b4 : exec b4 bodyS = some (after b4 bodyS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 18446744073709551608) (.reg .r15)) (.lit 0))
-      ".LPlacementsOf_6") :=
+      NativeRustcVmX64.Vm.PlacementsOf.label_6) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 5120 8 slots (after b4 bodyS) = true ∧ (after b4 bodyS).mem = [] ∧
     (after b4 bodyS).reg .rax = some (.bin .add .W64 (.reg .rax) (.lit 1)) ∧
@@ -122,27 +126,27 @@ public theorem ok_b4 : MidOk 5120 8 slots (after b4 bodyS) = true ∧ (after b4 
 
 public theorem exit_b5 : exec b5 (tabS .rbp) = some (after b5 (tabS .rbp),
     .cond (SBool.cmp .eq .W8 (.loadx 0 0 (.reg .rax) 1) (.lit 18446744073709551615)).not
-      ".LPlacementsOf_1") :=
+      NativeRustcVmX64.Vm.PlacementsOf.label_1) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : AOk slots (after b5 (tabS .rbp)) = true ∧ (after b5 (tabS .rbp)).mem = [] ∧
     Keeps (after b5 (tabS .rbp)) (.rax :: cs) = true := by
   decide +kernel
 
 public theorem exit_b6 : exec b6 (tabS .r12) = some (after b6 (tabS .r12),
-    .cond (SBool.cmp .eq .W8 (.loadx 0 0 (.reg .rax) 1) (.lit 1)) ".LPlacementsOf_1") :=
+    .cond (SBool.cmp .eq .W8 (.loadx 0 0 (.reg .rax) 1) (.lit 1)) NativeRustcVmX64.Vm.PlacementsOf.label_1) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : AOk slots (after b6 (tabS .r12)) = true ∧ (after b6 (tabS .r12)).mem = [] ∧
     Keeps (after b6 (tabS .r12)) (.rax :: cs) = true := by
   decide +kernel
 
 public theorem exit_b7 : exec b7 bodyS = some (after b7 bodyS,
-    .cond (SBool.cmp .ult .W64 (.reg .r13) (.lit 158)).not ".LPlacementsOf_22") :=
+    .cond (SBool.cmp .ult .W64 (.reg .r13) (.lit 158)).not NativeRustcVmX64.Vm.PlacementsOf.label_22) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 : MidOk 5120 8 slots (after b7 bodyS) = true ∧ (after b7 bodyS).mem = [] ∧
     Keeps (after b7 bodyS) (.rax :: cs) = true := by
   decide +kernel
 
-public theorem exit_b8 : exec b8 colS = some (after b8 colS, .jump ".LPlacementsOf_1") :=
+public theorem exit_b8 : exec b8 colS = some (after b8 colS, .jump NativeRustcVmX64.Vm.PlacementsOf.label_1) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : AOk slots (after b8 colS) = true ∧
     (∀ w ∈ (after b8 colS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 1264 ≤ w.off ∧ w.off + w.n ≤ 1272)) ∧
@@ -152,7 +156,7 @@ public theorem ok_b8 : AOk slots (after b8 colS) = true ∧
     Keeps (after b8 colS) [.rax, .rbx, .rbp, .r12, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b9 : exec b9 bodyS = some (after b9 bodyS, .call "memset") :=
+public theorem exit_b9 : exec b9 bodyS = some (after b9 bodyS, .call NativeRustcVmX64.Vm.Memset.entryLabel) :=
   run_b9.trans (by rw [after_eq run_b9])
 public theorem ok_b9 : MidOk 5120 0 slots (after b9 bodyS) = true ∧
     (after b9 bodyS).reg .rdi = some (.ptr 0 3808) ∧ (after b9 bodyS).reg .rsi = some (.lit 0) ∧
@@ -162,14 +166,14 @@ public theorem ok_b9 : MidOk 5120 0 slots (after b9 bodyS) = true ∧
   decide +kernel
 
 public theorem exit_b10 : exec b10 bodyS = some (after b10 bodyS,
-    .cond (SBool.cmp .ult .W64 (.reg .r13) (.lit 159)).not ".LPlacementsOf_25") :=
+    .cond (SBool.cmp .ult .W64 (.reg .r13) (.lit 159)).not NativeRustcVmX64.Vm.PlacementsOf.label_25) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem ok_b10 : MidOk 5120 8 slots (after b10 bodyS) = true ∧ (after b10 bodyS).mem = [] ∧
     Keeps (after b10 bodyS) cs = true := by
   decide +kernel
 
 public theorem exit_b11 : exec b11 bodyS = some (after b11 bodyS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout13stack_offsets") :=
+    .call NativeRustcVmX64.Vm.StackOffsets.entryLabel) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : MidOk 5120 0 slots (after b11 bodyS) = true ∧
     (after b11 bodyS).reg .rdi = some (.ptr 0 2544) ∧
@@ -180,13 +184,13 @@ public theorem ok_b11 : MidOk 5120 0 slots (after b11 bodyS) = true ∧
   decide +kernel
 
 public theorem exit_b12 : exec b12 bodyS = some (after b12 bodyS,
-    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LPlacementsOf_23") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.PlacementsOf.label_23) :=
   run_b12.trans (by rw [after_eq run_b12])
 public theorem ok_b12 : MidOk 5120 8 slots (after b12 bodyS) = true ∧ (after b12 bodyS).mem = [] ∧
     Keeps (after b12 bodyS) (.rdx :: cs) = true := by
   decide +kernel
 
-public theorem exit_b13 : exec b13 bodyS = some (after b13 bodyS, .call "memset") :=
+public theorem exit_b13 : exec b13 bodyS = some (after b13 bodyS, .call NativeRustcVmX64.Vm.Memset.entryLabel) :=
   run_b13.trans (by rw [after_eq run_b13])
 public theorem ok_b13 : MidOk 5120 0 slots (after b13 bodyS) = true ∧
     (after b13 bodyS).reg .rdi = some (.ptr 0 16) ∧ (after b13 bodyS).reg .rsi = some (.lit 0) ∧
@@ -198,7 +202,7 @@ public theorem ok_b13 : MidOk 5120 0 slots (after b13 bodyS) = true ∧
 
 public theorem exit_b14 : exec b14 bodyS = some (after b14 bodyS,
     .cond (SBool.cmp .eq .W64 (.bin .and .W64 (.reg .r13) (.reg .r13)) (.lit 0))
-      ".LPlacementsOf_13") :=
+      NativeRustcVmX64.Vm.PlacementsOf.label_13) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : MidOk 5120 8 slots (after b14 bodyS) = true ∧ (after b14 bodyS).mem = [] ∧
     Keeps (after b14 bodyS) cs = true := by
@@ -212,7 +216,7 @@ public theorem ok_b15 : MidOk 5120 8 slots (after b15 bodyS) = true ∧ (after b
   decide +kernel
 
 public theorem exit_b16 : exec b16 (rdS (-1272)) = some (after b16 (rdS (-1272)),
-    .cond (SBool.cmp .ult .W64 (.load 0 0 8) (.lit 158)).not ".LPlacementsOf_25") :=
+    .cond (SBool.cmp .ult .W64 (.load 0 0 8) (.lit 158)).not NativeRustcVmX64.Vm.PlacementsOf.label_25) :=
   run_b16.trans (by rw [after_eq run_b16])
 public theorem ok_b16 : AOk slots (after b16 (rdS (-1272))) = true ∧
     (after b16 (rdS (-1272))).mem = [] ∧ (after b16 (rdS (-1272))).reg .rcx = some (.load 0 0 8) ∧
@@ -221,7 +225,7 @@ public theorem ok_b16 : AOk slots (after b16 (rdS (-1272))) = true ∧
 
 public theorem exit_b17 : exec b17 st17 = some (after b17 st17,
     .cond (SBool.cmp .eq .W64 (.reg .r13) (.bin .add .W64 (.reg .rax) (.lit 1))).not
-      ".LPlacementsOf_10") :=
+      NativeRustcVmX64.Vm.PlacementsOf.label_10) :=
   run_b17.trans (by rw [after_eq run_b17])
 public theorem ok_b17 : AOk slots (after b17 st17) = true ∧
     (∀ w ∈ (after b17 st17).mem, w.r = 1) ∧
@@ -237,7 +241,7 @@ public theorem ok_b18 : MidOk 5120 8 slots (after b18 bodyS) = true ∧ (after b
     Keeps (after b18 bodyS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
 
-public theorem exit_b19 : exec b19 bodyS = some (after b19 bodyS, .jump ".LPlacementsOf_16") :=
+public theorem exit_b19 : exec b19 bodyS = some (after b19 bodyS, .jump NativeRustcVmX64.Vm.PlacementsOf.label_16) :=
   run_b19.trans (by rw [after_eq run_b19])
 public theorem ok_b19 : MidOk 5120 8 slots (after b19 bodyS) = true ∧ (after b19 bodyS).mem = [] ∧
     (after b19 bodyS).reg .rax = some (.lit 0) ∧
@@ -255,7 +259,7 @@ public theorem ok_b20 : AOk slots (after b20 (rdS (-8))) = true ∧ (after b20 (
 
 public theorem exit_b21 : exec b21 plS = some (after b21 plS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.reg .rax) (.lit 1)) (.lit 158))
-      ".LPlacementsOf_24") :=
+      NativeRustcVmX64.Vm.PlacementsOf.label_24) :=
   run_b21.trans (by rw [after_eq run_b21])
 public theorem ok_b21 : AOk slots (after b21 plS) = true ∧
     (∀ w ∈ (after b21 plS).mem, w.r = 0) ∧
@@ -276,7 +280,7 @@ public theorem ok_b22a : AOk slots (after b22a kapS) = true ∧ (after b22a kapS
 
 public theorem exit_b22b : exec b22b (tabS .rbp) = some (after b22b (tabS .rbp),
     .cond (SBool.cmp .eq .W64 (.un (.zext .W8) .W32 (.loadx 0 0 (.reg .rax) 1)) (.lit 255))
-      ".LPlacementsOf_19") :=
+      NativeRustcVmX64.Vm.PlacementsOf.label_19) :=
   run_b22b.trans (by rw [after_eq run_b22b])
 public theorem ok_b22b : AOk slots (after b22b (tabS .rbp)) = true ∧
     (after b22b (tabS .rbp)).mem = [] ∧
@@ -285,7 +289,7 @@ public theorem ok_b22b : AOk slots (after b22b (tabS .rbp)) = true ∧
   decide +kernel
 
 public theorem exit_b23 : exec b23 bodyS = some (after b23 bodyS,
-    .cond (SBool.cmp .ult .W64 (.reg .rcx) (.lit 64)).not ".LPlacementsOf_22") :=
+    .cond (SBool.cmp .ult .W64 (.reg .rcx) (.lit 64)).not NativeRustcVmX64.Vm.PlacementsOf.label_22) :=
   run_b23.trans (by rw [after_eq run_b23])
 public theorem ok_b23 : MidOk 5120 8 slots (after b23 bodyS) = true ∧ (after b23 bodyS).mem = [] ∧
     Keeps (after b23 bodyS) (.rax :: .rcx :: .rdx :: cs) = true := by
@@ -293,7 +297,7 @@ public theorem ok_b23 : MidOk 5120 8 slots (after b23 bodyS) = true ∧ (after b
 
 public theorem exit_b24 : exec b24 bodyS = some (after b24 bodyS,
     .cond (SBool.cmp .addC .W64 (.reg .r15) (.bin .shl .W64 (.reg .rdx) (.reg .rcx))).not
-      ".LPlacementsOf_15") :=
+      NativeRustcVmX64.Vm.PlacementsOf.label_15) :=
   run_b24.trans (by rw [after_eq run_b24])
 public theorem ok_b24 : MidOk 5120 8 slots (after b24 bodyS) = true ∧ (after b24 bodyS).mem = [] ∧
     (after b24 bodyS).reg .rdx =
@@ -303,13 +307,13 @@ public theorem ok_b24 : MidOk 5120 8 slots (after b24 bodyS) = true ∧ (after b
   decide +kernel
 
 public theorem exit_b27 : exec b27 (tabS .r12) = some (after b27 (tabS .r12),
-    .cond (SBool.cmp .eq .W8 (.loadx 0 0 (.reg .rax) 1) (.lit 0)) ".LPlacementsOf_14") :=
+    .cond (SBool.cmp .eq .W8 (.loadx 0 0 (.reg .rax) 1) (.lit 0)) NativeRustcVmX64.Vm.PlacementsOf.label_14) :=
   run_b27.trans (by rw [after_eq run_b27])
 public theorem ok_b27 : AOk slots (after b27 (tabS .r12)) = true ∧
     (after b27 (tabS .r12)).mem = [] ∧ Keeps (after b27 (tabS .r12)) (.rax :: .rcx :: cs) = true := by
   decide +kernel
 
-public theorem exit_b28 : exec b28 bodyS = some (after b28 bodyS, .jump ".LPlacementsOf_15") :=
+public theorem exit_b28 : exec b28 bodyS = some (after b28 bodyS, .jump NativeRustcVmX64.Vm.PlacementsOf.label_15) :=
   run_b28.trans (by rw [after_eq run_b28])
 public theorem ok_b28 : MidOk 5120 8 slots (after b28 bodyS) = true ∧ (after b28 bodyS).mem = [] ∧
     (after b28 bodyS).reg .rsi = some (.lit 0) ∧ (after b28 bodyS).reg .rcx = some (.lit 0) ∧
@@ -322,7 +326,7 @@ public theorem ok_b31 : EpiOk 5120 slots (after b31b bodyS) = true ∧ (after b3
     (after b31b bodyS).reg .rax = some (.reg .r15) ∧ Keeps (after b31b bodyS) [.rdx] = true := by
   decide +kernel
 
-public theorem exit_b32 : exec b32 bodyS = some (after b32 bodyS, .jump ".LPlacementsOf_26") :=
+public theorem exit_b32 : exec b32 bodyS = some (after b32 bodyS, .jump NativeRustcVmX64.Vm.PlacementsOf.label_26) :=
   run_b32.trans (by rw [after_eq run_b32])
 public theorem ok_b32 : MidOk 5120 8 slots (after b32 bodyS) = true ∧ (after b32 bodyS).mem = [] ∧
     (after b32 bodyS).reg .r15 = some (.lit 1) ∧

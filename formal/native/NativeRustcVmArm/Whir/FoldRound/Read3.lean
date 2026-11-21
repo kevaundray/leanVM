@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
 public import NativeRustcVmArm.Whir.FoldRound.Read2
 
 /-!
@@ -41,12 +42,12 @@ variable [Host] {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : MachineData} 
 
 /-- **The grind** (`b8`: `c1` into X21, X22, `grind(t, 7)`; `b9`: `None` to the epilogue). -/
 theorem grind_step (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 33)) (hb : Base w m0 st.data) {x : EW}
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b8Offset)) (hb : Base w m0 st.data) {x : EW}
     {s : TState} (hopt : OptEWAt st.data.dmem (loc m0 88) (some x))
     (hts : TStateAt st.data.dmem (tA m0) a s)
     (hnone : (grind 7).run s = none → (foldRound w).run s0 = none)
-    (cont : ∀ s5 st', (grind 7).run s = some ((), s5) → st'.pc = Host.addrOf (k + 38) →
+    (cont : ∀ s5 st', (grind 7).run s = some ((), s5) → st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b10Offset) →
       Base w m0 st'.data → TStateAt st'.data.dmem (tA m0) a s5 →
       st'.data.regs.X21 = x.c0 → st'.data.regs.X22 = x.c1 →
       (∀ r, calleeSaved r = true → r ≠ .X21 → r ≠ .X22 →
@@ -76,7 +77,7 @@ theorem grind_step (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
       rw [hx0, hd1]; exact hts
     · show TStateOk st1.data st1.data.regs.X0.toBitVec a grindStack
       rw [hx0]; exact c.tstateOk hf1 hle
-  rw [show k + 33 + b8.length = k + 37 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.FoldRound.b8Offset + b8.length = k + NativeRustcVmArm.Vm.FoldRound.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FoldRound.b8_next]] at hpc1
   refine Fr.callW hf1 (pre_hN h) hle (fun _ h ↦ by cases h) slots_le c.frame_outs (o := 0)
     (n := 0) (by decide) (by decide)
     (spec_with (hgr s) fun m ↦ m.regs.X0.toBitVec = tA m0 ∧ grindBits m = 7)
@@ -113,7 +114,7 @@ theorem grind_step (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
   cases hr : (grind 7).run s with
   | none =>
     simp only [hr, Option.isSome_none, Bool.not_false, ↓reduceIte,
-      hp.label (j := 106) rfl] at hpc3
+      hp.label (j := NativeRustcVmArm.Vm.FoldRound.b20Offset) NativeRustcVmArm.Vm.FoldRound.label_7_at] at hpc3
     exact none_exit hp h (hnone hr) hpc3 hb3
   | some p =>
     simp only [hr, Option.isSome_some, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc3

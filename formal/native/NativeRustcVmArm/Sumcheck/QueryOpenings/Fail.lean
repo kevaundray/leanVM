@@ -6,7 +6,7 @@ public import NativeRustcVmArm.Spec.Sumcheck
 /-!
 # `TState::query_openings`'s `None` exit
 
-`b7` (`.LTStateQueryOpenings_5`, `k + 44`) stores `0` at the output (X19) and runs the epilogue:
+`b7` (`.LTStateQueryOpenings_5`, `k + NativeRustcVmArm.Vm.TStateQueryOpenings.b7Offset`) stores `0` at the output (X19) and runs the epilogue:
 where the model rejects, the postcondition holds (`finish_fail`). `Out` is what the function may
 change: the output, the `TState`, its stack; `Stk` what it changes before `b6`: its stack, which
 keeps the `TState` (`tstate_stk`) and words apart from the stack (`wordsAt_stk`).
@@ -74,7 +74,7 @@ theorem wordsAt_stk {m0 : MachineData} (hst : StackOk m0 queryOpeningsStack) {d 
 theorem finish_fail (hp : Placed code k) {a : DecArea} {s : TState} {Q : Array UInt64}
     {m0 : MachineData} (hpre : QueryOpeningsPre a s Q m0)
     (hnone : (queryOpenings m0.regs.X2.toNat Q).run s = none) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 44)) (hf : Frame m0 96 slots st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateQueryOpenings.b7Offset)) (hf : Frame m0 96 slots st.data)
     (hx19 : st.data.regs.X19 = m0.regs.X0) (hso : SameOutside m0.dmem st.data.dmem (Out m0)) :
     Eventually (step1 Host.exe)
       (fun st' ↦ st'.pc = retOf m0 ∧ QueryOpeningsPost a s Q m0 st'.data) st := by

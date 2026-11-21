@@ -54,9 +54,9 @@ variable [Host] {k : Nat} {m0 : MachineData}
 
 /-- **`b21`**: column `c`'s placement stored. -/
 theorem store (hp : Placed code k) (hF : Facts m0) {c : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 88)) (hR : Ready3 m0 c st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + 96) ∧
-      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + 132) ∧ I3 m0 158 s.data))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b21Offset)) (hR : Ready3 m0 c st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b22Offset) ∧
+      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b32Offset) ∧ I3 m0 158 s.data))
       st := by
   have hI := hR.i3
   have hc := hR.lt
@@ -167,7 +167,7 @@ theorem store (hp : Placed code k) (hF : Facts m0) {c : Nat} {st : MachineState}
   simp only [PcOk] at hpc1
   obtain ⟨hy, hno⟩ := pc_of (P := c + 1 = 158) hpc1 (by rw [eq_eval, hc1]; rfl)
   by_cases hl : c + 1 = 158
-  · exact .done _ (.inr ⟨hl, (hy hl).trans (hp.label (j := 132) rfl), hl ▸ hI1⟩)
+  · exact .done _ (.inr ⟨hl, (hy hl).trans (hp.label NativeRustcVmX64.Vm.PlacementsOf.label_24_at), hl ▸ hI1⟩)
   · exact .done _ (.inl ⟨by omega, hno hl, hI1⟩)
 
 end

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfHashWords.Names
 public import NativeRustcVmArm.Sumcheck.OpenPhase.Call
 
 /-!
@@ -33,16 +34,16 @@ variable [Host] {P : Array OpeningW} {R : Digest} {Q : Array UInt64} {m0 : Machi
 
 /-- **A climb's leaf hash**: from `.L11`, `b15` with opening `j`'s leaf hashed. -/
 theorem hash_spec (hp : Placed code k)
-    (hkh : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hkh : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
     (hpre : OpenPhasePre P R Q m0) {h w : Nat} (hph : PhaseHW m0.dmem (phO m0) P h w) {j : Nat}
     {m : MachineData} (hi : CInv m0 P Q R h w j m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ st.pc = Host.addrOf (k + 55) ∧ Hashed m0 P Q R h w j st.data)
-      ⟨m, Host.addrOf (k + 47)⟩ := by
+      (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b15Offset) ∧ Hashed m0 P Q R h w j st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b13Offset)⟩ := by
   have hS := hpre.1
-  have hk13 : b13.IsInfixAt Host.prog (k + 47) := b13_in_code.trans hp.1 (by simp [b13])
-  have hk14 : b14.IsInfixAt Host.prog (k + 49) := b14_in_code.trans hp.1 (by simp [b14])
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b13Offset) := b13_in_code.trans hp.1 (by simp [b13])
+  have hk14 : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b14Offset) := b14_in_code.trans hp.1 (by simp [b14])
   have how : openingWords = 193 := rfl
   have hpw : phaseWords = 49411 := rfl
   have hsz : P.size ≤ 256 := hph.2.2.1

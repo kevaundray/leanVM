@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Layout.BuildLayout.Base
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.BuildLayout.Names
 
 /-!
 # `build_layout` on x86-64: the entry and the checks (`b0` to `b8`)
@@ -105,12 +107,12 @@ variable [Host] {k : Nat}
 /-- **A row check** (`b3` to `b7`): row count `t` at most `2 ^ 30`, or a failure. -/
 theorem rowBlk (hF : Facts bc m0) {ds : List Directive} {kk t : Nat} {Sy1 : SState}
     (hk : ds.IsInfixAt Host.prog kk)
-    (hx : exec ds rowS = some (Sy1, .cond (cRow (8 * t)) ".LBuildLayout_17"))
+    (hx : exec ds rowS = some (Sy1, .cond (cRow (8 * t)) NativeRustcVmX64.Vm.BuildLayout.label_17))
     (hok : MidOk 1360 8 slots Sy1 = true) (hmem : Sy1.mem = []) (ht : t < 6)
-    (hL : Labels.label ".LBuildLayout_17" = Host.addrOf (k + 112)) {st : MachineState}
+    (hL : Labels.label NativeRustcVmX64.Vm.BuildLayout.label_17 = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset)) {st : MachineState}
     (hpc : st.pc = Host.addrOf kk) (hb : B m0 8 st.data) (h14 : reg st.data .r14 = rp m0)
     {Q : MachineState → Prop}
-    (hfail : ∀ s : MachineState, s.pc = Host.addrOf (k + 112) → B m0 8 s.data →
+    (hfail : ∀ s : MachineState, s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset) → B m0 8 s.data →
       ¬ (rowW m0 t).toNat ≤ 2 ^ 30 → Eventually (step1 Host.exe) Q s)
     (cont : ∀ st' : MachineState,
       Match (frameEnv m0 st.data 1360 [(rp m0, 48)] (fun _ ↦ 0) 0) Sy1 st'.data →
@@ -150,16 +152,16 @@ structure St3 (m0 d : MachineData) : Prop where
 
 /-- **The entry**, `b0` and `b1`: the power-of-two test, `bit_length(n)`. -/
 theorem entry1 (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0) :
-    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + 17) ∧ St3 m0 s.data))
-      ⟨m0, Labels.label buildLayoutLabel⟩ := by
-  rw [show Labels.label buildLayoutLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0) :
+    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b2Offset) ∧ St3 m0 s.data))
+      ⟨m0, Labels.label NativeRustcVmX64.Vm.BuildLayout.entryLabel⟩ := by
+  rw [show Labels.label NativeRustcVmX64.Vm.BuildLayout.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b0Offset) from hp.label NativeRustcVmX64.Vm.BuildLayout.entry_at]
   have hwf0 : (frameEnv m0 m0 1360 [] (fun _ ↦ 0) 0).WF :=
     frame_wf ⟨frame_mapped hF.stack (by decide), frame_noWrap hF.stack (by decide)⟩ (by simp)
       (List.pairwise_singleton _ _)
   have hm0 : Match (frameEnv m0 m0 1360 [] (fun _ ↦ 0) 0) entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
-  have L17 : Labels.label ".LBuildLayout_17" = Host.addrOf (k + 112) := hp.label (j := 112) rfl
+  have L17 : Labels.label NativeRustcVmX64.Vm.BuildLayout.label_17 = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset) := hp.label NativeRustcVmX64.Vm.BuildLayout.label_17_at
   refine exec_then (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hpro, h14, hK0⟩ := ok_b0
@@ -173,7 +175,7 @@ theorem entry1 (hp : Placed code k)
   · exact fail hp hF ((hy0 hpow).trans L17) hb1 (model_none hF.size fun h ↦ hpow h.1) |>.mono
       fun s h ↦ Or.inl h
   obtain ⟨hok1, -, h1bx, h1r13, hK1⟩ := ok_b1
-  refine run0 (ret := (Host.addrOf (k + 14 + b1.length)).toBitVec) hF
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b1Offset + b1.length)).toBitVec) hF
     (b1_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b1 (fun _ _ ↦ rfl) (hno0 (not_not.mpr hpow))
     hb1 hok1 fun st2 hm2 hpc2 hb2 ↦ ?_
   refine callBL hbl hF hpc2 hb2 fun st3 hpc3 hb3 _ hsv3 hax3 ↦ ?_
@@ -186,10 +188,10 @@ theorem entry1 (hp : Placed code k)
 
 /-- **The log-sizes**, `b2`. -/
 theorem entry2 (hp : Placed code k) (hF : Facts bc m0) {st3 : MachineState}
-    (hpc3 : st3.pc = Host.addrOf (k + 17)) (h3 : St3 m0 st3.data) :
-    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + 25) ∧ St4 m0 s.data))
+    (hpc3 : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b2Offset)) (h3 : St3 m0 st3.data) :
+    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b3Offset) ∧ St4 m0 s.data))
       st3 := by
-  have L17 : Labels.label ".LBuildLayout_17" = Host.addrOf (k + 112) := hp.label (j := 112) rfl
+  have L17 : Labels.label NativeRustcVmX64.Vm.BuildLayout.label_17 = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset) := hp.label NativeRustcVmX64.Vm.BuildLayout.label_17_at
   have hbx3 := h3.rbx
   have hax3' := h3.rax
   have hbl1 : 1 ≤ bitLength (nN m0) := bitLength_pos h3.pow2.1
@@ -234,13 +236,13 @@ theorem entry2 (hp : Placed code k) (hF : Facts bc m0) {st3 : MachineState}
 
 /-- **The first five row counts**, `b3` to `b7`. -/
 theorem rows (hp : Placed code k) (hF : Facts bc m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 25)) (h4 : St4 m0 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + 40) ∧ St8 m0 s.data))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b3Offset)) (h4 : St4 m0 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b8Offset) ∧ St8 m0 s.data))
       st := by
-  have L17 : Labels.label ".LBuildLayout_17" = Host.addrOf (k + 112) := hp.label (j := 112) rfl
-  have hF' : ∀ {s : MachineState} {t : Nat}, s.pc = Host.addrOf (k + 112) → B m0 8 s.data →
+  have L17 : Labels.label NativeRustcVmX64.Vm.BuildLayout.label_17 = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset) := hp.label NativeRustcVmX64.Vm.BuildLayout.label_17_at
+  have hF' : ∀ {s : MachineState} {t : Nat}, s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset) → B m0 8 s.data →
       t < 6 → ¬ (rowW m0 t).toNat ≤ 2 ^ 30 → Eventually (step1 Host.exe)
-        (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + 40) ∧ St8 m0 s.data)) s :=
+        (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b8Offset) ∧ St8 m0 s.data)) s :=
     fun hpc hb ht hr ↦ fail hp hF hpc hb (model_none hF.size fun h ↦ hr (h.2.2.2.2.1 _ ht))
       |>.mono fun s h ↦ Or.inl h
   have r14 : ∀ {d : MachineData} {Sy : SState} {e : Env}, Match e Sy d →
@@ -293,10 +295,10 @@ theorem rows (hp : Placed code k) (hF : Facts bc m0) {st : MachineState}
 
 /-- **The last check**, `b8`: the last row count, the bytecode's log-size. -/
 theorem last (hp : Placed code k) (hF : Facts bc m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 40)) (h8 : St8 m0 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + 47) ∧ St9 m0 s.data))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b8Offset)) (h8 : St8 m0 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b9Offset) ∧ St9 m0 s.data))
       st := by
-  have L17 : Labels.label ".LBuildLayout_17" = Host.addrOf (k + 112) := hp.label (j := 112) rfl
+  have L17 : Labels.label NativeRustcVmX64.Vm.BuildLayout.label_17 = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b19Offset) := hp.label NativeRustcVmX64.Vm.BuildLayout.label_17_at
   have hb := h8.s4.b
   have hpr : NativeRustcVm.Mapped m0.dmem (rp m0) 48 ∧ NativeRustcVm.NoWrap (rp m0) 48 := hF.rr
   have hpf : NativeRustcVm.Apart (stackBelow m0 1360) (1360 + 8) (rp m0) 48 :=
@@ -363,9 +365,9 @@ theorem last (hp : Placed code k) (hF : Facts bc m0) {st : MachineState}
 
 /-- **The entry and the checks.** -/
 theorem checks (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0) :
-    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + 47) ∧ St9 m0 s.data))
-      ⟨m0, Labels.label buildLayoutLabel⟩ :=
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0) :
+    Eventually (step1 Host.exe) (fun s ↦ Post bc m0 s ∨ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b9Offset) ∧ St9 m0 s.data))
+      ⟨m0, Labels.label NativeRustcVmX64.Vm.BuildLayout.entryLabel⟩ :=
   (entry1 hp hbl hF).bind fun _ h ↦ h.elim (fun h ↦ .done _ (Or.inl h)) fun ⟨hpc, h3⟩ ↦
     (entry2 hp hF hpc h3).bind fun _ h ↦ h.elim (fun h ↦ .done _ (Or.inl h)) fun ⟨hpc, h4⟩ ↦
     (rows hp hF hpc h4).bind fun _ h ↦ h.elim (fun h ↦ .done _ (Or.inl h)) fun ⟨hpc, h8⟩ ↦

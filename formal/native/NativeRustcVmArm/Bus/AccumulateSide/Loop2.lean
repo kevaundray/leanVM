@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BlockForm.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop1
 public import NativeRustcVm.Bus.Tuples
 
@@ -22,13 +23,13 @@ variable [Host] {m0 : MachineData} {L : LayoutW} {rows : Array Nat}
 
 /-- **`b28`**: `block_form` for table block `j`. -/
 theorem turn28 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hbf : Spec (Labels.label blockFormLabel) BlockFormPre BlockFormPost)
+    (hbf : Spec (Labels.label NativeRustcVmArm.Vm.BlockForm.entryLabel) BlockFormPre BlockFormPost)
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) L28 m) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L29 m2 → m2.regs.X0 = 1 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) (gf m0 (BA L rows bl) j) →
-      KeepF m0 m m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 251)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 244)⟩ := by
+      KeepF m0 m m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b29Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b28Offset)⟩ := by
   have hfr := hst.fr
   have h51 := bl_size h
   have hok : ROk m0 0 (m0.regs.X3.toBitVec + BitVec.ofNat 64 (16 * j), 16) :=
@@ -95,7 +96,7 @@ theorem turn28 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
   · refine ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun q hq' ↦ ?_, hq.2.2⟩
     rw [ex5] at hq'
     exact hq'.elim (fun h ↦ .inr (.inl h)) .inl
-  · rw [show k + 244 + b28.length = k + 251 from rfl]
+  · rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b28Offset + b28.length = k + NativeRustcVmArm.Vm.AccumulateSide.b29Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b28_next]]
     have hg : blockForm ⟨0, 0, tupleOf st.regs.X0.toNat, 0⟩ (slice st st.regs.X1 st.regs.X2)
         (ewArg st.regs.X3 st.regs.X4) = gf m0 (BA L rows bl) j := by
       rw [ex0, ex1, ex2, ex3, ex4, w_eq h hst'.fr, gf_eq hj, Nat.toUInt64,

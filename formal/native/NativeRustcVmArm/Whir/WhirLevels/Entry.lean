@@ -40,7 +40,7 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **The entry**: the prologue, level `0`'s fold rounds, then `level0`. -/
 theorem entry (hp : Placed code k0) (cs : Callees) (c : Ctx a s0 levels ba b claim m0 rate) :
-    Eventually (step1 Host.exe) (Goal a s0 levels b claim m0) ⟨m0, Host.addrOf (k0 + 0)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 levels b claim m0) ⟨m0, Host.addrOf (k0 + NativeRustcVmArm.Vm.WhirLevels.b0Offset)⟩ := by
   have hv := stack_val.1
   have hN := c.hN
   have hl6 := c.len_le
@@ -71,7 +71,7 @@ theorem entry (hp : Placed code k0) (cs : Callees) (c : Ctx a s0 levels ba b cla
     have : m0.regs.X5.toNat = 0 := h
     omega
   simp only [hx5, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-  rw [show k0 + 0 + b0.length = k0 + 10 from rfl] at hpc1
+  rw [show k0 + NativeRustcVmArm.Vm.WhirLevels.b0Offset + b0.length = k0 + NativeRustcVmArm.Vm.WhirLevels.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.WhirLevels.b0_next]] at hpc1
   -- what `b0` kept: the memory but the frame
   have hw1 : ∀ q, Written env0 (after b0 entryS) q → InRange (base m0 96) 96 q := fun q hq ↦
     written_r0 hwf0 rfl okm hq
@@ -98,7 +98,7 @@ theorem entry (hp : Placed code k0) (cs : Callees) (c : Ctx a s0 levels ba b cla
   refine readBlock hf1 (inf hp b1_in_code (by simp [b1])) run_b1 hpc1 hx4 hmap hnw rfl rfl
     ⟨rfl, rfl⟩ fun st2 hf2 hd2 _ hm2 hpc2 ↦ ?_
   simp only [PcOk] at hpc2
-  rw [show k0 + 10 + b1.length = k0 + 23 from rfl] at hpc2
+  rw [show k0 + NativeRustcVmArm.Vm.WhirLevels.b1Offset + b1.length = k0 + NativeRustcVmArm.Vm.WhirLevels.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.WhirLevels.b1_next]] at hpc2
   have k1 : ∀ r : XReg, r ≠ .X8 → r ≠ .X24 → st1.data.regs.getXReg r = m0.regs.getXReg r :=
     fun r h8 h24 ↦ reg_of hm1 (v := .reg r) (by cases r <;> first | rfl | exact absurd rfl h8 |
       exact absurd rfl h24) rfl
@@ -153,7 +153,7 @@ theorem entry (hp : Placed code k0) (cs : Callees) (c : Ctx a s0 levels ba b cla
     rcases hres with ⟨h, -⟩ | ⟨h, -⟩
     · exact .inl h
     · exact .inr h
-  refine cbz_step hp b2_in_code (st := ⟨m3, Host.addrOf (k0 + 23)⟩) hf3 rfl hx01
+  refine cbz_step hp b2_in_code (st := ⟨m3, Host.addrOf (k0 + NativeRustcVmArm.Vm.WhirLevels.b2Offset)⟩) hf3 rfl hx01
     (fun h0 st' hpc' hf' _ _ ↦ ?_) fun h1 st' hpc' hf' hd' he' ↦ ?_
   · rcases hres with ⟨-, hnone⟩ | ⟨h, -⟩
     · exact exit_none hp c hf' hpc' hnone

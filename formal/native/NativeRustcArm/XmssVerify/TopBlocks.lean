@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcArm.XmssVerify.Node
 public import NativeRustcArm.XmssVerify.Turn
 public import NativeRustcArm.XmssVerify.Fold
@@ -35,7 +38,7 @@ sym_block b18_exec := exec b18 (initL knownT)
 /-- The symbolic state after block 18. -/
 def st18 : SState := ((exec b18 (initL knownT)).getD (initL knownT, .fall)).1
 
-theorem b18_exec' : exec b18 (initL knownT) = some (st18, .call "memset") := by
+theorem b18_exec' : exec b18 (initL knownT) = some (st18, .call NativeRustcArm.Common.Memset.entryLabel) := by
   rw [b18_exec]
   rfl
 
@@ -82,7 +85,7 @@ def st24 : SState := ((exec b24 (stF0 [])).getD (stF0 [], .fall)).1
 /-- Another turn: `x20 + 1 ≠ 17`. -/
 def c24 : SBool := .not (.cmp .eq .W64 (.bin .add .W64 (.reg .X20) (.lit 1)) (.lit 17))
 
-theorem b24_exec' : exec b24 (stF0 []) = some (st24, .cond c24 ".LXmssVerify_7") := by
+theorem b24_exec' : exec b24 (stF0 []) = some (st24, .cond c24 NativeRustcArm.Xmss.XmssVerify.label_7) := by
   rw [b24_exec]
   rfl
 
@@ -98,7 +101,7 @@ sym_block b25_exec := exec b25 (stF0 [])
 /-- The symbolic state after block 25. -/
 def st25 : SState := ((exec b25 (stF0 [])).getD (stF0 [], .fall)).1
 
-theorem b25_exec' : exec b25 (stF0 []) = some (st25, .jump ".LXmssVerify_10") := by
+theorem b25_exec' : exec b25 (stF0 []) = some (st25, .jump NativeRustcArm.Xmss.XmssVerify.label_10) := by
   rw [b25_exec]
   rfl
 

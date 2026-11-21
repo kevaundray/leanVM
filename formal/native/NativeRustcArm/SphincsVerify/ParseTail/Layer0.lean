@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+
 public import NativeRustcArm.SphincsVerify.ParseTail.State
 
 /-!
@@ -105,7 +107,7 @@ theorem s20 : Seg r 244 (fun m ↦ Facts r m ((26768, 1024, wotsRaw r 0) :: base
 /-- **A copy of 1024 bytes `W`** from `b` to `a` by a straight block then `memcpy`, keeping the
 other facts `L` and the registers `K` (`b21 .. b24`, `b29 .. b32`, `b37 .. b39`). -/
 theorem s_copy {ds : List Directive} {j : Nat} (hk : ds.IsInfixAt Sphincs.SphincsVerify.code j)
-    {S' : SState} (hx : exec ds (fs []) = some (S', .call "memcpy"))
+    {S' : SState} (hx : exec ds (fs []) = some (S', .call NativeRustcArm.Common.Memcpy.entryLabel))
     (hw : Run.frameWrites S' = true) (hsp : S'.sp = .ptr 0 0)
     (h29 : S'.reg .X29 = some (.ptr 0 29280)) {a b : Nat}
     (h0 : S'.reg .X0 = some (.ptr 0 a)) (h1 : S'.reg .X1 = some (.ptr 0 b))

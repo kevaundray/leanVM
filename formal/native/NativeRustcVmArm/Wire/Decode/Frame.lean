@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
 public import NativeRustcVmArm.Wire.Decode.Basic
 
 /-!
@@ -162,11 +163,11 @@ theorem same_res {m : MachineData} (h : Frm m0 m) :
 variable [Host]
 
 /-- **A call of `Reader::le` for four bytes** from a state of the frame. -/
-theorem le4_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+theorem le4_call (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (G : Geo m0 B) {c : Nat} {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Frm m0 st.data) (hR : ReaderAt st.data.dmem (rdr m0) (bpA m0) B c)
     (hx0 : st.data.regs.X0.toBitVec = rdr m0) (hx1 : st.data.regs.X1.toNat = 4)
-    (hpc : st.pc = Labels.label readerLeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, Frm m0 m2 →
       (∀ x, calleeSaved x = true → m2.regs.getXReg x = st.data.regs.getXReg x) →
       SameOutside st.data.dmem m2.dmem (InRange (base m0 96 + BitVec.ofNat 64 24) 8) →
@@ -205,7 +206,7 @@ variable {k : Nat}
 
 /-- **The epilogue** (`b15`) with `X0` the result. -/
 theorem exit15 (hp : Placed code k) (G : Geo m0 B) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 70)) (hfr : Frm m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Decode.b15Offset)) (hfr : Frm m0 st.data)
     (hres : match decodeM B with
       | some r => st.data.regs.X0 = 1 ∧ NativeRustcVm.Transcript.DecodedAt st.data.dmem (area m0)
           (streamW r.1) (openingsW r.2)
@@ -225,7 +226,7 @@ theorem exit15 (hp : Placed code k) (G : Geo m0 B) {st : MachineState}
 
 /-- **`None`** from `b14`. -/
 theorem exit14 (hp : Placed code k) (G : Geo m0 B) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 68)) (hfr : Frm m0 st.data) (hn : decodeM B = none) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Decode.b14Offset)) (hfr : Frm m0 st.data) (hn : decodeM B = none) :
     Eventually (step1 Host.exe) (Res m0 B) st := by
   have hwf := frEnv_wf G.st hfr
   have hm := frEnv_match G.st hfr

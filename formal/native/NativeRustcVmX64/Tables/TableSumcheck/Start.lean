@@ -2,13 +2,14 @@ module
 
 public import NativeRustcVmX64.Tables.TableSumcheck.State
 public import NativeRustcVmX64.Tables.TableTerms.Entry
+public import NativeRustcVmX64.Code.Vm.TableSumcheck.Names
 
 /-!
 # `table_sumcheck`: the entry and the exits (x86-64)
 
 `b0` pushes RBP to RBX, keeps the arguments in callee-saved registers and computes the heights'
-maximum `n` in R13 (at most `30`, so it goes on): `start`. `b15` (`.LTableSumcheck_12`) restores
-the registers and returns AL (`exit15`); `b14` (`.LTableSumcheck_11`) clears it first
+maximum `n` in R13 (at most `30`, so it goes on): `start`. `b15` (`NativeRustcVmX64.Vm.TableSumcheck.label_12`) restores
+the registers and returns AL (`exit15`); `b14` (`NativeRustcVmX64.Vm.TableSumcheck.label_11`) clears it first
 (`exit_fail`: the model's run fails).
 -/
 
@@ -75,20 +76,20 @@ theorem foldl_max_lt (H : Array Nat) (h : H.size = 6) (hle : ∀ x ∈ H, x ≤ 
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat} {bus : BusResultW}
   {m0 : MachineData}
 
-theorem lbl_entry (hp : Placed code k) : Labels.label tableSumcheckLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LTableSumcheck_5" = Host.addrOf (k + 119) :=
-  hp.label (j := 119) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LTableSumcheck_6" = Host.addrOf (k + 126) :=
-  hp.label (j := 126) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LTableSumcheck_8" = Host.addrOf (k + 153) :=
-  hp.label (j := 153) rfl
-theorem lbl_9 (hp : Placed code k) : Labels.label ".LTableSumcheck_9" = Host.addrOf (k + 166) :=
-  hp.label (j := 166) rfl
-theorem lbl_11 (hp : Placed code k) : Labels.label ".LTableSumcheck_11" = Host.addrOf (k + 205) :=
-  hp.label (j := 205) rfl
-theorem lbl_12 (hp : Placed code k) : Labels.label ".LTableSumcheck_12" = Host.addrOf (k + 207) :=
-  hp.label (j := 207) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableSumcheck.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableSumcheck.entry_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableSumcheck.label_5 = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b6Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableSumcheck.label_5_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableSumcheck.label_6 = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b7Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableSumcheck.label_6_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableSumcheck.label_8 = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b9Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableSumcheck.label_8_at
+theorem lbl_9 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableSumcheck.label_9 = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b10Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableSumcheck.label_9_at
+theorem lbl_11 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableSumcheck.label_11 = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b14Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableSumcheck.label_11_at
+theorem lbl_12 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableSumcheck.label_12 = Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b15Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableSumcheck.label_12_at
 
 /-- **The epilogue** (`b15`): the registers restored, `ret`, AL kept. -/
 theorem exit15 (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {d : MachineData}
@@ -97,9 +98,9 @@ theorem exit15 (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {d
       OkAl d' (res s heights bus m0).isSome ∧
       (∀ x s', res s heights bus m0 = some (x, s') → TableEvalsAt d'.dmem (ev m0) x) ∧
       NextAt d'.dmem (tA m0) a (res s heights bus m0)) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 207)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b15Offset)⟩ := by
   obtain ⟨hepi, hmem, hrax⟩ := ok_b15
-  refine Bd.done' (st := ⟨d, Host.addrOf (k + 207)⟩) hb (Pre.stack h)
+  refine Bd.done' (st := ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b15Offset)⟩) hb (Pre.stack h)
     (by unfold N tableSumcheckStack; omega) (infix_of b15_in_code (by simp [b15]) hp) exit_b15 rfl
     (match_body hb ⟨rfl, trivial⟩ trivial) hepi hmem fun st' hm' hpc hrsp hsv hd ↦ ?_
   obtain ⟨p1, p2, p3⟩ := hpost st'.data hd (hm'.regs .rax _ hrax)
@@ -114,7 +115,7 @@ theorem okWord_false_toNat : (okWord false).toNat = 0 := rfl
 /-- **A failed run** (`b14`): AL `0`. -/
 theorem exit_fail (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {d : MachineData}
     (hb : Bd m0 736 N slots (outs m0) 40 d) (hr : res s heights bus m0 = none) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 205)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b14Offset)⟩ := by
   have hwf : (E m0 d [] 0).WF := wf_nil h hb.fr.kept
   have hm : Match (E m0 d [] 0) sF d := match_body hb ⟨rfl, trivial⟩ trivial
   refine exec_then (infix_of b14_in_code (by simp [b14]) hp) exit_b14 hwf nofun hm
@@ -124,7 +125,7 @@ theorem exit_fail (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
   have hb1 := (blockB h hb hwf hm1 mid (by rw [WrOk, mem]; rfl)).1
   have hrax : reg st.data .rax = 0 := hm1.regs .rax _ rax
   simp only [PcOk] at hpc
-  refine at_pc (hpc.trans (addr_eq (by rw [show b14.length = 2 from rfl])))
+  refine at_pc (hpc.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b14_next)))
     (exit15 hp h hb1 fun d' _ hra ↦ ⟨?_, fun x s' h' ↦ (by rw [hr] at h'; cases h'),
       fun x s' h' ↦ (by rw [hr] at h'; cases h')⟩)
   unfold OkAl boolRet
@@ -154,8 +155,8 @@ theorem ld_h (h : TableSumcheckPre a s heights bus m0) {i : Nat} (hi : i < 6) {r
 theorem start (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
     {R : MachineState → Prop}
     (cont : ∀ d, Bd m0 736 N slots (outs m0) 40 d → St0 a s heights m0 d →
-      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 90)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b1Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b0Offset)⟩ := by
   have hH := Pre.hts h
   have hsz : heights.size = 6 := hH.1
   have hwf : (E m0 m0 [(hA m0, 48)] 0).WF :=
@@ -199,7 +200,7 @@ theorem start (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
   simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte] at hpc
   have rg : ∀ {r : Reg64} {v : Sym}, (after b0 entryS).reg r = some v →
       reg st.data r = v.eval (E m0 m0 [(hA m0, 48)] 0) := fun hv ↦ hm'.regs _ _ hv
-  refine at_pc (hpc.trans (addr_eq (by rw [show b0.length = 90 from rfl]))) (cont st.data ⟨hfr, hs⟩
+  refine at_pc (hpc.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b0_next))) (cont st.data ⟨hfr, hs⟩
     ⟨(rg r13).trans hn, rg rbp, rg r14, rg rbx, rg r10, rg r8, rg r9, ?_⟩)
   exact (Pre.ts h).frame (hm'.kept hwf) (fun q hq ↦ (ctx h).stack_not_t
     (hq.elim (fr_stack h) False.elim)) hs0

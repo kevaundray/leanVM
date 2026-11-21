@@ -87,7 +87,7 @@ theorem blkPub (h : PublicInputPhasePre a s L pub cs m0) {o' : Nat} {st : Machin
 
 /-- **The epilogue** `b9`: AL is RBP's low byte. -/
 theorem exit9 {k : Nat} (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 133)) (fr : St m0 8 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b9Offset)) (fr : St m0 8 st.data)
     (hal : (reg st.data .rbp).toNat % 256 =
       (okWord (((publicInputPhase L pub).run s).isSome && decide (cs.size + 2 ≤ claimCap))).toNat)
     (hcl : ∀ x s', (publicInputPhase L pub).run s = some (x, s') → cs.size + 2 ≤ claimCap →

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingCoefficients.Names
 public import NativeRustcVmArm.Ring.Switch.Sample
 
 /-!
@@ -136,11 +137,11 @@ variable [Host] {k : Nat}
 
 /-- **The coefficients** (`b3`). -/
 theorem stepCoeff (hp : Placed code k) (h : RingSwitchPre a s m0)
-    (hrc : Spec (Labels.label ringCoefficientsLabel) RingCoefficientsPre RingCoefficientsPost)
+    (hrc : Spec (Labels.label NativeRustcVmArm.Vm.RingCoefficients.entryLabel) RingCoefficientsPre RingCoefficientsPost)
     {s2 : TState} {xs : Array EW} {m : MachineData} (hG : G2 a s2 xs m0 m)
     {R : MachineState → Prop}
-    (cont : ∀ m', G3 a s2 xs m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 52)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 32)⟩ := by
+    (cont : ∀ m', G3 a s2 xs m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b4Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingSwitch.b3Offset)⟩ := by
   have hwf := envM_wf h hG.fr
   have hm := matchM h hG.fr
   refine exec_then (hb b3_in_code (by simp [b3]) hp) run_b3 hwf hm fun st hm1 hpc ↦ ?_
@@ -219,7 +220,7 @@ theorem stepCoeff (hp : Placed code k) (h : RingSwitchPre a s m0)
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun q hq ↦ hq.elim
       (fun hq ↦ .inr (.inl (coef_within (by rw [e2] at hq; exact hq)))) .inl, hq.2.2⟩)
     fun m2 hfr2 hq hcs ↦ ?_
-  rw [show k + 32 + b3.length = k + 52 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingSwitch.b3Offset + b3.length = k + NativeRustcVmArm.Vm.RingSwitch.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingSwitch.b3_next]]
   obtain ⟨hcoef, hchg, hS⟩ := hq
   have hs : SameOutside st.data.dmem m2.dmem fun q ↦
       InRange (stackBelow st.data ringCoefficientsStack) ringCoefficientsStack q ∨ outs m0 q :=

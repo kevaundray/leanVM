@@ -11,7 +11,7 @@ public meta import NativeRustcVmX64.Arrays.Common
 Region 0 is the frame (`Field.frameS 64`, `Field.midS 64`): the 56 bytes of pushes, the call's
 return-address slot below them, the return address above.
 - `entryS` at the entry (`b0`, falling into the loop);
-- `cS` at the loop head `.LPolyEval_1` (`b1`, loading a coefficient and calling `EW::mul`):
+- `cS` at the loop head `NativeRustcVmX64.Vm.PolyEval.label_1` (`b1`, loading a coefficient and calling `EW::mul`):
   region 1 the coefficient, 16 bytes below `r12 + r15`;
 - `regsS` after the call (`b2`): no region;
 - `Field.midS 64` at the epilogue (`b3`).

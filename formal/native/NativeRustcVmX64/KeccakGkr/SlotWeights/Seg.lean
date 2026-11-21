@@ -5,7 +5,7 @@ public import NativeRustcVmX64.KeccakGkr.SlotWeights.Zero
 /-!
 # `slot_weights`: a segment's products (x86-64)
 
-At `.LSlotWeights_7` (`b9`) segment `s` starts: its scale (the segment kernel's element `s`) in
+At `NativeRustcVmX64.Vm.SlotWeights.label_7` (`b9`) segment `s` starts: its scale (the segment kernel's element `s`) in
 R13, RBP, the row base `25 (first + s)` in R14, the bit counter `j` in R15 and its byte offset in
 RBX, `s` saved at `32` (`seg_start`, to `Inner` at `j = 0`). Then for each bit `j` (`inner_step`):
 `b12` computes the row `25 (first + s) + j / 64` (at most `49`: never past the rows), `b13`
@@ -83,8 +83,8 @@ variable [Host] {k : Nat}
 
 /-- `b9`: segment `s`'s start. -/
 theorem seg_start (hp : Placed code k) (h : PreOk m0 c) {s : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 67)) (hI : SegHead m0 c s st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 86) ∧ Inner m0 c s 0 s'.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b9Offset)) (hI : SegHead m0 c s st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b12Offset) ∧ Inner m0 c s 0 s'.data)
       st := by
   have hs1 := hI.s_lt
   have hc2 := h.cnt2

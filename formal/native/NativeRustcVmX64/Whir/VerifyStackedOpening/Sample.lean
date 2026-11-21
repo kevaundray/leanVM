@@ -6,11 +6,11 @@ public import NativeRustcVmX64.Whir.VerifyStackedOpening.Squeeze
 /-!
 # `verify_stacked_opening`: the count, the batching challenge (x86-64)
 
-`tail_b15`: after the pairs, an even count goes to `.LVerifyStackedOpening_16` (`b20`); an odd one
+`tail_b15`: after the pairs, an even count goes to `NativeRustcVmX64.Vm.VerifyStackedOpening.label_16` (`b20`); an odd one
 counts its last claim (`tail_b16`: `b16` reads its column, `b17` its `present` bit or `b18` none,
 `b19` adds it): `AtB20`, every placed claim counted. `sample_b20`: `b20`, `b22` check the count
 (`placed + 2`, at most `162`: never too many), `b21` saves the `TState` and the Keccak output and
-squeezes the challenge, `b23` saves the claims and the rate: `.LVerifyStackedOpening_19` (`b24`,
+squeezes the challenge, `b23` saves the claims and the rate: `NativeRustcVmX64.Vm.VerifyStackedOpening.label_19` (`b24`,
 `AtB24`). With no claim, `b3` does the same, `b4` sets the count `2` (`sample_b3`). `to_b24`:
 from the entry.
 -/
@@ -32,13 +32,13 @@ def fwL (m0 : MachineData) : List (Nat × UInt64) :=
     (48, UInt64.ofBitVec (reg m0 .rdx)), (56, UInt64.ofBitVec (reg m0 .r8)),
     (64, UInt64.ofBitVec (reg m0 .rcx))]
 
-/-- **Every placed claim counted**, at `.LVerifyStackedOpening_16`. -/
+/-- **Every placed claim counted**, at `NativeRustcVmX64.Vm.VerifyStackedOpening.label_16`. -/
 structure AtB20 [Labels] (a : DecArea) (s : TState) (layout : LayoutW) (cs : Array ColumnClaimW)
     (m0 st : MachineData) : Prop where
   cb : CB a s cs m0 st
   rbx : (reg st .rbx).toNat = placedOf layout cs cs.size
 
-/-- **After the squeeze**, at `.LVerifyStackedOpening_19`: the `TState` after it, the challenge
+/-- **After the squeeze**, at `NativeRustcVmX64.Vm.VerifyStackedOpening.label_19`: the `TState` after it, the challenge
 in RAX, RDX, the count in RBX. -/
 structure AtB24 [Labels] (a : DecArea) (s : TState) (layout : LayoutW) (cs : Array ColumnClaimW)
     (m0 st : MachineData) : Prop where
@@ -94,9 +94,9 @@ variable (h : Parts a s layout target coefficients point slices cs z value m0)
 include h hp
 
 /-- **The last claim** of an odd count: `b16`, then `b17` or `b18`, then `b19`. -/
-theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 79))
+theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b16Offset))
     (hA : AtB15 a s layout cs m0 st.data) (hodd : cs.size % 2 = 1) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 93) → AtB20 a s layout cs m0 st'.data →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b20Offset) → AtB20 a s layout cs m0 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hn := h.n_le
@@ -120,11 +120,11 @@ theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 79))
   have hc1 := hc.keep hok1 hd1 fun r hr ↦ hk1 r (List.mem_append_left _ hr)
   -- The last claim's column.
   have hcol : ((Sym.loadx 1 0 (.bin .mul .W64 (.reg .rcx) (.lit 608)) 8).eval
-      (tailEnv m0 st.data (Host.addrOf (k + 79 + b16.length)).toBitVec)).toNat =
+      (tailEnv m0 st.data (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b16Offset + b16.length)).toBitVec)).toNat =
         cs[cs.size - 1].column := by
     have hrc : (reg st.data .rcx).toNat = cs.size - 1 := by rw [hA.rcx]; omega
     have hmul : ((Sym.bin .mul .W64 (.reg .rcx) (.lit 608)).eval
-        (tailEnv m0 st.data (Host.addrOf (k + 79 + b16.length)).toBitVec)).toNat =
+        (tailEnv m0 st.data (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b16Offset + b16.length)).toBitVec)).toNat =
           608 * (cs.size - 1) := by
       simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, BitVec.toNat_mul, BitVec.toNat_ofNat]
       show (reg st.data .rcx).toNat * (608 % 2 ^ 64) % 2 ^ 64 = _
@@ -135,7 +135,7 @@ theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 79))
       rw [off_off]; exact hok.col h hi)]
     exact u64n ((hok.cl h).claims _ hi).column_lt
   have hlast : (cs.size - 1) + 1 = cs.size := by omega
-  have hb19 : ∀ (st2 : MachineState), st2.pc = Host.addrOf (k + 91) → CB a s cs m0 st2.data →
+  have hb19 : ∀ (st2 : MachineState), st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b19Offset) → CB a s cs m0 st2.data →
       (reg st2.data .rbx).toNat = placedOf layout cs (cs.size - 1) →
       (reg st2.data .rcx).toNat = bitAt layout cs (cs.size - 1) →
       Eventually (step1 Host.exe) R st2 := by
@@ -143,7 +143,7 @@ theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 79))
     refine h.cbRun hp b19_in_code (List.cons_ne_nil _ _) hpc2 hc2 run_b19 (by decide +kernel) rfl
       (by decide +kernel) fun st3 hc3 _ hm3 hpc3 ↦ ?_
     simp only [PcOk] at hpc3
-    refine cont st3 (hpc3.trans (by rw [show b19.length = 2 from rfl])) ⟨hc3, ?_⟩
+    refine cont st3 (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b19_next)) ⟨hc3, ?_⟩
     rw [show reg st3.data .rbx = _ from hm3.regs .rbx _ rfl, eval_add64]
     show (reg st2.data .rcx + reg st2.data .rbx).toNat = _
     have hb := placedOf_le_self (layout := layout) (cs := cs) (cs.size - 1)
@@ -156,11 +156,11 @@ theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 79))
     rw [hk1 .rbx (by simp), hA.rbx, ← hie]
   by_cases hgt : 157 < cs[cs.size - 1].column
   · simp only [hgt, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 89) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_14_at] at hpc1
     refine h.cbRun hp b18_in_code (List.cons_ne_nil _ _) hpc1 hc1 run_b18 (by decide +kernel) rfl
       (by decide +kernel) fun st2 hc2 _ hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
-    refine hb19 st2 (hpc2.trans (by rw [show b18.length = 2 from rfl])) hc2 ?_ ?_
+    refine hb19 st2 (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b18_next)) hc2 ?_ ?_
     · rw [show reg st2.data .rbx = _ from hm2.regs .rbx _ rfl]; exact hbx1
     · rw [show reg st2.data .rcx = 0#64 from hm2.regs .rcx _ rfl, hok.bit_eq h hi]
       split
@@ -171,7 +171,7 @@ theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 79))
     have hrcx1 : (reg st1.data .rcx).toNat = cs[cs.size - 1].column := by
       rw [show reg st1.data .rcx = _ from hm1.regs .rcx _ rfl]; exact hcol
     have hm' : Match (cntEnv m0 st1.data (cs.size / 2)
-        (Host.addrOf (k + 84 + b17.length)).toBitVec) tail2S st1.data :=
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b17Offset + b17.length)).toBitVec) tail2S st1.data :=
       match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hok1.fr.rsp_eval, trivial⟩ trivial
         ⟨by show ((t3 (.reg .rcx)).eval _).toNat < 472
             rw [toNat_t3 _ (by show (reg st1.data .rcx).toNat < _; omega)]
@@ -179,23 +179,23 @@ theorem tail_b16 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 79))
             omega, trivial⟩
         ⟨by show reg st1.data .rax = _; rw [hk1 .rax (by simp), hA.rax]; rfl, trivial⟩
     refine h.run hp b17_in_code (List.cons_ne_nil _ _)
-      (hpc1.trans (by rw [show b16.length = 5 from rfl])) hok1 (hok1.cnt_wf' h hj2) hm' run_b17
+      (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b16_next)) hok1 (hok1.cnt_wf' h hj2) hm' run_b17
       (o := 8) (by decide +kernel) (by decide) fun st2 hok2 _ hm2 hpc2 ↦ ?_
     have hd2 := hm2.dmem_eq (hok1.cnt_wf' h hj2) rfl
     have hk2 : ∀ r ∈ cbRegs ++ [.rbx], reg st2.data r = reg st1.data r :=
       fun r hr ↦ kept_reg hm2 (show keeps (cbRegs ++ [.rbx]) (after b17 tail2S) = true by
         rw [after_eq run_b17]; decide) hr
     simp only [PcOk] at hpc2
-    rw [hp.label (j := 91) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_15_at] at hpc2
     refine hb19 st2 hpc2 (hc1.keep hok2 hd2 fun r hr ↦ hk2 r (List.mem_append_left _ hr)) ?_ ?_
     · rw [hk2 .rbx (by simp)]; exact hbx1
     · rw [show reg st2.data .rcx = _ from hm2.regs .rcx _ rfl]
       exact hok1.bit_val h hi (by omega) (.reg .rcx) hrcx1
 
 /-- **After the pairs**: an even count to `b20`, an odd one through its last claim. -/
-theorem tail_b15 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 76))
+theorem tail_b15 {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b15Offset))
     (hA : AtB15 a s layout cs m0 st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 93) → AtB20 a s layout cs m0 st'.data →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b20Offset) → AtB20 a s layout cs m0 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   refine h.cbRun hp b15_in_code (List.cons_ne_nil _ _) hpc hA.cb run_b15 (by decide +kernel) rfl
@@ -209,15 +209,15 @@ theorem tail_b15 {st : MachineState} (hpc : st.pc = Host.addrOf (k + 76))
   simp only [PcOk] at hpc1
   rw [eval_even] at hpc1
   have h15 : ((Sym.reg .r15).eval (frameEnv m0 st.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 76 + b15.length)).toBitVec)).toNat = cs.size := hA.cb.r15
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b15Offset + b15.length)).toBitVec)).toNat = cs.size := hA.cb.r15
   rw [h15] at hpc1
   by_cases he : cs.size % 2 = 0
   · simp only [he, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 93) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_16_at] at hpc1
     refine cont st1 hpc1 ⟨hc1, ?_⟩
     rw [hA1.rbx]; congr 1; omega
   · simp only [he, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    exact tail_b16 h hp (hpc1.trans (by rw [show b15.length = 3 from rfl])) hA1 (by omega) cont
+    exact tail_b16 h hp (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b15_next)) hA1 (by omega) cont
 
 end
 

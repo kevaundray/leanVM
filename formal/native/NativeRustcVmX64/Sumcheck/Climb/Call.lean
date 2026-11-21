@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.Climb.Frame
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
 
 /-!
 # A level of `climb` up to `hash_pair` (x86-64)
@@ -54,22 +55,22 @@ variable [Host] {k : Nat}
 /-- The head's environment: the frame, the level's sibling; `hash_pair` returns to `b5`. -/
 abbrev headEnv (m0 m : MachineData) (l k : Nat) : Env :=
   frameEnv m0 m 160 [(off (reg m0 .rcx) (32 * l), 32)] (fun _ ↦ 0)
-    (Host.addrOf (k + 30 + b4.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b4Offset + b4.length)).toBitVec
 
 /-- **The call**: from a level's state at `call hash_pair` (`CallOk`, `hash_pair`'s arguments at
 `a`, `b` of the frame, the accumulator's and the sibling's offsets), its return, with its output
 `hashPair L R`. -/
-theorem call_level (hhp : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+theorem call_level (hhp : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hpre : ClimbPre N P m0) {l : Nat} {m : MachineData} (hinv : Inv m0 N P l m) {S : SState}
     (hS : CallOk S) {a b : Nat} (ha : S.reg .rsi = some (.ptr 0 a))
     (hb : S.reg .rdx = some (.ptr 0 b)) {L R : Digest}
     (hab : (a = 8 ∧ b = 40 ∧ L = (climbTo N (q0 m0) P l).1 ∧ R = P[l]'hinv.lt) ∨
       (a = 40 ∧ b = 8 ∧ L = P[l]'hinv.lt ∧ R = (climbTo N (q0 m0) P l).1))
     (hwf : (headEnv m0 m l k).WF) {st : MachineState} (hm : Match (headEnv m0 m l k) S st.data)
-    (hpc : PcOk (headEnv m0 m l k) (.call "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair")
-      (Host.addrOf (k + 30 + b4.length)) st) :
+    (hpc : PcOk (headEnv m0 m l k) (.call NativeRustcVmX64.Vm.HashPair.entryLabel)
+      (Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b4Offset + b4.length)) st) :
     Eventually (step1 Host.exe)
-      (fun st' ↦ st'.pc = Host.addrOf (k + 32) ∧ Called m0 m (hashPair L R) st'.data) st := by
+      (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b5Offset) ∧ Called m0 m (hashPair L R) st'.data) st := by
   have g := Geo.of_pre hpre
   have hst := hpre.1
   have hrc := hpre.2.1
@@ -146,7 +147,7 @@ theorem call_level (hhp : Spec (Labels.label hashPairLabel) HashPairPre HashPair
     Frame.call_slots hf hsv hrsp' hso
       (fun p hp i hi ↦ hR _ (by have := slots_le p hp; have := slots_ge p hp; omega))
       (fun j hj ↦ hR _ (by omega))
-  refine .done _ ⟨hpc'.trans (by rw [show b4.length = 2 from rfl]), ⟨hf', ?_, ?_, ?_, ?_⟩⟩
+  refine .done _ ⟨hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Climb.b4_next), ⟨hf', ?_, ?_, ?_, ?_⟩⟩
   · rcases hab with ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩
     · exact hpost _ _ hacc hsib'
     · exact hpost _ _ hsib' hacc

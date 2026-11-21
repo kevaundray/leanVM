@@ -47,7 +47,7 @@ theorem zB8_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
   have hS := g.lvS
   obtain ⟨hmid, hmem, hfw, hrax, hK⟩ := ok_b20
   have hin : 512 * i + 8 * t + 64 ≤ 512 * nr m0 := by omega
-  refine rg_step hp g (j := 99) (y := .reg .rax) (sz := 64) b20_in_code (by simp [b20]) exit_b20
+  refine rg_step hp g (j := NativeRustcVmX64.Vm.RdRows.b20Offset) (y := .reg .rax) (sz := 64) b20_in_code (by simp [b20]) exit_b20
     nofun hmid (fun w hw ↦ by
       obtain ⟨h1, h2, -, -, h5⟩ := hmem w hw
       exact ⟨h1, Nat.zero_le _, by omega⟩) (o := 512 * i + 8 * t) (by decide) hin rfl hI.pc
@@ -87,7 +87,7 @@ theorem zB8_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
     rw [g.off_eq (by omega) (by omega)]
     omega)
   by_cases hz : t + 8 ≠ lw m0
-  · rw [ite_t hz, hp.label (j := 99) rfl] at hpc2
+  · rw [ite_t hz, hp.label NativeRustcVmX64.Vm.RdRows.label_16_at] at hpc2
     exact .done _ (.inr ⟨hpc2, hrb, hkp, hrsi, hrax', by omega, by omega, hzs⟩)
   · rw [ite_f hz] at hpc2
     have he : t + 8 = lw m0 := by omega
@@ -101,7 +101,7 @@ theorem mB_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState
   have ht := hI.ht
   have hpos := hI.pos
   obtain ⟨hok18, hK18⟩ := ok_b18
-  refine fr_step hp g (j := 95) b18_in_code (by simp [b18]) exit_b18 nofun hok18 hI.pc hI.rb.fr
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b18Offset) b18_in_code (by simp [b18]) exit_b18 nofun hok18 hI.pc hI.rb.fr
     fun s1 hf1 hd1 hr1 hpc1 ↦ ?_
   have hk1 := regs_kept hK18 hr1
   have hrb1 : RB m0 i s1.data :=
@@ -114,13 +114,13 @@ theorem mB_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState
     omega)
   have hrsi1 := (hk1 .rsi (by simp)).trans hI.rsi
   by_cases h8 : lw m0 < 8
-  · rw [ite_t h8, hp.label (j := 111) rfl] at hpc2
+  · rw [ite_t h8, hp.label NativeRustcVmX64.Vm.RdRows.label_17_at] at hpc2
     have : t = lw m0 := by omega
     subst this
     exact .done _ ⟨hpc2, hrb1, by rw [hd1]; exact hI.kp, hrsi1, by rw [hd1]; exact hI.zs⟩
   rw [ite_f h8] at hpc2
   obtain ⟨hok19, hK19⟩ := ok_b19
-  refine fr_step hp g (j := 98) b19_in_code (by simp [b19]) exit_b19 nofun hok19
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b19Offset) b19_in_code (by simp [b19]) exit_b19 nofun hok19
     (hpc2.trans (congrArg Host.addrOf rfl)) hf1 fun s2 hf2 hd2 hr2 hpc3 ↦ ?_
   have hk2 := regs_kept hK19 hr2
   simp only [PcOk] at hpc3
@@ -146,7 +146,7 @@ theorem toCallB {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState}
   have hli := hI.rb.lt
   have hlw : lw m0 = (reg m0 .rdx).toNat := rfl
   obtain ⟨hok13, hrsi13, hK13⟩ := ok_b13
-  refine fr_step hp g (j := 79) b13_in_code (by simp [b13]) exit_b13 nofun hok13 hI.pc hI.rb.fr
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b13Offset) b13_in_code (by simp [b13]) exit_b13 nofun hok13 hI.pc hI.rb.fr
     fun s1 hf1 hd1 hr1 hpc1 ↦ ?_
   have hk1 := regs_kept hK13 hr1
   have hrb1 : RB m0 i s1.data :=
@@ -161,13 +161,13 @@ theorem toCallB {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState}
     show CmpOp.apply .eq .W64 ((frameEnv m0 st.data 80 []).load 0 8 8) (BitVec.ofNat 64 0) = _
     rw [hI.kp.hloc.load_lw, eq64, BitVec.toNat_ofNat])
   by_cases h0 : lw m0 = 0
-  · rw [ite_t h0, hp.label (j := 111) rfl] at hpc2
+  · rw [ite_t h0, hp.label NativeRustcVmX64.Vm.RdRows.label_17_at] at hpc2
     exact .done _ ⟨hpc2, hrb1, hkp1, hrsi1, by rw [h0]; exact NativeRustcVm.wordsAt_nil _ _⟩
   rw [ite_f h0] at hpc2
   have hpos : 0 < lw m0 := by omega
   -- `b14`
   obtain ⟨hok14, hrax14, hK14⟩ := ok_b14
-  refine fr_step hp g (j := 84) b14_in_code (by simp [b14]) exit_b14 nofun hok14
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b14Offset) b14_in_code (by simp [b14]) exit_b14 nofun hok14
     (hpc2.trans (congrArg Host.addrOf rfl)) hf1 fun s2 hf2 hd2 hr2 hpc3 ↦ ?_
   have hk2 := regs_kept hK14 hr2
   have hrb2 : RB m0 i s2.data :=
@@ -182,7 +182,7 @@ theorem toCallB {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState}
     simp only [decide_eq_decide]
     omega)
   by_cases hm : lw m0 % 8 = 0
-  · rw [ite_t hm, hp.label (j := 95) rfl] at hpc4
+  · rw [ite_t hm, hp.label NativeRustcVmX64.Vm.RdRows.label_15_at] at hpc4
     exact mB_step hp g (t := 0) ⟨hpc4, hrb2, hkp2, hrsi2, by
       rw [hr2 .rax _ hrax14]
       show reg s1.data .r14 = _
@@ -191,7 +191,7 @@ theorem toCallB {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState}
   rw [ite_f hm] at hpc4
   -- `b15`
   obtain ⟨hok15, hrax15, hK15⟩ := ok_b15
-  refine fr_step hp g (j := 87) b15_in_code (by simp [b15]) exit_b15 nofun hok15
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b15Offset) b15_in_code (by simp [b15]) exit_b15 nofun hok15
     (hpc4.trans (congrArg Host.addrOf rfl)) hf2 fun s3 hf3 hd3 hr3 hpc5 ↦ ?_
   have hk3 := regs_kept hK15 hr3
   simp only [PcOk] at hpc5

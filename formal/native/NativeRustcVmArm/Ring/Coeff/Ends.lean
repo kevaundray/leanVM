@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingCoefficients.Names
 public import NativeRustcVmArm.Ring.Coeff.Steps
 
 /-!
@@ -33,7 +34,7 @@ def tailOk (S : SState) : Bool :=
     S.reg .X27 == some (.ptr 2 24) && S.sp == .ptr 0 0 && S.mem == []
 
 /-- The turn's branch back to the head. -/
-def tailExit : Exit := .cond (.not (.cmp .eq .W64 cntLoc (.lit 1))) ".LRingCoefficients_1"
+def tailExit : Exit := .cond (.not (.cmp .eq .W64 cntLoc (.lit 1))) NativeRustcVmArm.Vm.RingCoefficients.label_1
 
 /-- **After the last turn**: the frame, `out` complete. -/
 structure Done [Labels] (m0 m : MachineData) : Prop where
@@ -135,7 +136,7 @@ theorem stepTail (h : P m0) {i p : Nat} {ds : List Directive} {S' : SState}
     (hk : ds.IsInfixAt Host.prog i) (hrun : exec ds midS = some (S', tailExit))
     (hS : tailOk S' = true) {m : MachineData} (hQ : SqD m0 p 7 m) {R : MachineState → Prop}
     (hnext : ∀ m1, Head m0 (p + 1) m1 →
-      Eventually (step1 Host.exe) R ⟨m1, Labels.label ".LRingCoefficients_1"⟩)
+      Eventually (step1 Host.exe) R ⟨m1, Labels.label NativeRustcVmArm.Vm.RingCoefficients.label_1⟩)
     (hdone : ∀ m1, Done m0 m1 →
       Eventually (step1 Host.exe) R ⟨m1, Host.addrOf (i + ds.length)⟩) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf i⟩ := by

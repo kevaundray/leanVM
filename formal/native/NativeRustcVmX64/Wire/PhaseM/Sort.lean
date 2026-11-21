@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Sizes
+public import NativeRustcVmX64.Code.Vm.InsD.Names
 
 /-!
 # `phase_m`: the distinct positions (x86-64)
@@ -25,7 +26,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 /-- **After the sort** (`b16`): every query inserted. -/
 structure At16 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw rw c5 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 74)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b16Offset)
   bod : Bod m0 8 st.data
   model : phaseM B c = tail B qs height lw rw c5
   len : qs.length = count
@@ -49,7 +50,7 @@ structure At16 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UIn
 /-- **At the size checks** (`b19`): the distinct positions `ps` at the working area's byte 2048. -/
 structure Chk [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw rw c5 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 89)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b19Offset)
   bod : Bod m0 8 st.data
   model : phaseM B c = tail B qs height lw rw c5
   len : qs.length = count
@@ -122,7 +123,7 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 
 /-- **A query inserted**: from the sort's head, `ins_d`; to the next head or past the loop. -/
 theorem sort_step (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hins : Spec (Labels.label insDLabel) InsDPre InsDPost) {count : Nat} {qs : List Nat}
+    (hins : Spec (Labels.label NativeRustcVmX64.Vm.InsD.entryLabel) InsDPre InsDPost) {count : Nat} {qs : List Nat}
     {height lw rw c5 i : Nat} {st : MachineState}
     (h : SortSt m0 bp B c k count qs height lw rw c5 i st) :
     Eventually (step1 Host.exe) (fun st' ↦ SortSt m0 bp B c k count qs height lw rw c5 (i + 1) st' ∨
@@ -145,7 +146,7 @@ theorem sort_step (hp : Placed code k) (G : Geo m0 bp B.length)
   have h15' : reg st.data .r15 = BitVec.ofNat 64 (8 * i) := by
     apply BitVec.eq_of_toNat_eq
     rw [h15, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-  have hm14 : Match (aEnv m0 st.data (8 * i) 8 (Host.addrOf (k + 64 + b14.length)).toBitVec) qS
+  have hm14 : Match (aEnv m0 st.data (8 * i) 8 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b14Offset + b14.length)).toBitVec) qS
       st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hbod.fr.rsp_eval, trivial⟩ trivial trivial
       ⟨by
@@ -160,7 +161,7 @@ theorem sort_step (hp : Placed code k) (G : Geo m0 bp B.length)
     (hk14 .r12 (by simp)) (hk14 .r14 (by simp)) hpc hbod hm14 fun s1 hb1 hs1 hkeep1 hsw1 hm1 hpc1 ↦ ?_
   have hq : (reg s1.data .rdx) = (qs[i].toUInt64).toBitVec := by
     rw [show reg s1.data .rdx = _ from hm1.regs .rdx _ hdx14]
-    show (aEnv m0 st.data (8 * i) 8 (Host.addrOf (k + 64 + b14.length)).toBitVec).load 1 0 8 = _
+    show (aEnv m0 st.data (8 * i) 8 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b14Offset + b14.length)).toBitVec).load 1 0 8 = _
     refine load_ofMachine (o := 0) (b := wa m0 (8 * i)) rfl ?_
     rw [off_zero]
     have := NativeRustcVm.WordsAt.getElem hqW (i := i) (by simp; omega)
@@ -184,8 +185,8 @@ theorem sort_step (hp : Placed code k) (G : Geo m0 bp B.length)
       unfold NativeRustcVm.Apart insDStack
       rw [hcs1, hw2048]; omega
   simp only [PcOk] at hpc1
-  refine call_then (env := aEnv m0 st.data (8 * i) 8 (Host.addrOf (k + 64 + b14.length)).toBitVec)
-    (l := "_RNvNtCsemcRClSg8DH_9native_vm4wire5ins_d") ⟨hpc1.1, hpc1.2⟩ hins hpre
+  refine call_then (env := aEnv m0 st.data (8 * i) 8 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b14Offset + b14.length)).toBitVec)
+    (l := NativeRustcVmX64.Vm.InsD.entryLabel) ⟨hpc1.1, hpc1.2⟩ hins hpre
     fun s2 hpc2 hrsp2 ⟨hres2, hso2, hsv2⟩ ↦ ?_
   rw [hdi1] at hres2 hso2
   have hso2' : NativeRustcVm.SameOutside s1.data.dmem s2.data.dmem
@@ -237,7 +238,7 @@ theorem sort_step (hp : Placed code k) (G : Geo m0 bp B.length)
   -- `b15`: the count, the next query.
   obtain ⟨hok15, hdi15, hbp15, h15_15, hk15⟩ := ok_b15
   refine fblk hp G b15_in_code (by simp [b15]) exit_b15 nofun hok15 (hk15 .r12 (by simp))
-    (hk15 .r14 (by simp)) (st := ⟨s2.data, _⟩) (hpc2.trans (by rw [show b14.length = 5 from rfl]))
+    (hk15 .r14 (by simp)) (st := ⟨s2.data, _⟩) (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b14_next))
     hb2 fun s3 hb3 hd3 hm3 hpc3 ↦ ?_
   have hdi3 : reg s3.data .rdi = wa m0 2048 := by
     rw [show reg s3.data .rdi = reg s2.data .rbx from hm3.regs .rdi _ hdi15]; exact hbx2
@@ -284,19 +285,19 @@ theorem sort_step (hp : Placed code k) (G : Geo m0 bp B.length)
   · simp only [hlast, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc3
     have htk : qs.take (i + 1) = qs := List.take_of_length_le (by omega)
     rw [htk] at hbp3 hpW2
-    exact .done _ (.inr ⟨hpc3.trans (by rw [show b15.length = 5 from rfl]), hb3, hmod, hql, hc0,
+    exact .done _ (.inr ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b15_next), hb3, hmod, hql, hc0,
       hcnt, hqlt, hhl, hlwl, hrwl, hf 40 _ (by omega) (by omega) hf40,
       hf 32 _ (by omega) (by omega) hf32, hf 16 _ (by omega) (by omega) hf16,
       hf 24 _ (by omega) (by omega) hf24, hbp3, hdi3, hbx3, hqW2, hpW2, hR2⟩)
   simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc3
-  exact .done _ (.inl ⟨hpc3.trans (hp.label (j := 64) rfl), hb3, hmod, hql, hc0, hcnt, hqlt, hhl,
+  exact .done _ (.inl ⟨hpc3.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_9_at), hb3, hmod, hql, hc0, hcnt, hqlt, hhl,
     hlwl, hrwl, by omega, hf 40 _ (by omega) (by omega) hf40, hf 32 _ (by omega) (by omega) hf32,
     hf 16 _ (by omega) (by omega) hf16, hf 24 _ (by omega) (by omega) hf24, h13_3, h15_3, hbp3,
     hdi3, hqW2, hpW2, hR2⟩)
 
 /-- **The sort**, then the count's check (`b16`). -/
 theorem sort_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hins : Spec (Labels.label insDLabel) InsDPre InsDPost) {count : Nat} {qs : List Nat} {height lw rw c5 : Nat} {st : MachineState}
+    (hins : Spec (Labels.label NativeRustcVmX64.Vm.InsD.entryLabel) InsDPre InsDPost) {count : Nat} {qs : List Nat} {height lw rw c5 : Nat} {st : MachineState}
     (h : SortSt m0 bp B c k count qs height lw rw c5 0 st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
       Chk m0 bp B c k count qs height lw rw c5 st') st := by
@@ -330,7 +331,7 @@ theorem sort_run (hp : Placed code k) (G : Geo m0 bp B.length)
     hm1.regs x _ (hk16 x (by
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hx ⊢
       rcases hx with rfl | rfl <;> simp))
-  exact .done _ (.inr ⟨hpc1.trans (hp.label (j := 89) rfl), hb1, hmod, hql, hc0, hcnt, hqlt, hhl,
+  exact .done _ (.inr ⟨hpc1.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_11_at), hb1, hmod, hql, hc0, hcnt, hqlt, hhl,
     hlwl, hrwl, hps0, hps256, by rw [hd1]; exact hf40, by rw [hd1]; exact hf32,
     by rw [hd1]; exact hf16, by rw [hd1]; exact hf24, by rw [rk .rbp (by simp)]; exact hbp,
     by rw [rk .rdi (by simp)]; exact hdi,

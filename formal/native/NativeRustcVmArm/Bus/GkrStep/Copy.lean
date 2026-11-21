@@ -197,9 +197,9 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData} 
 theorem pair_step (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Array EW}
     {s' : TState} {j : Nat} {m : MachineData} (hi : PairInv a s0 g0 m0 xs y vs s' j m) :
     Eventually (step1 Host.exe) (fun st ↦
-      (st.pc = Host.addrOf (k + 284) ∧ PairInv a s0 g0 m0 xs y vs s' (j + 1) st.data) ∨
-        (st.pc = Host.addrOf (k + 292) ∧ PairsDone a s0 g0 m0 xs y vs s' st.data))
-      ⟨m, Host.addrOf (k + 284)⟩ := by
+      (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b35Offset) ∧ PairInv a s0 g0 m0 xs y vs s' (j + 1) st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b36Offset) ∧ PairsDone a s0 g0 m0 xs y vs s' st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b35Offset)⟩ := by
   have hS := pre_stack h
   have cp := hi.cp
   have hsz := cp.size
@@ -292,14 +292,14 @@ theorem pair_step (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Ar
     show (!CmpOp.eq.apply .W64 (m.regs.getXReg .X11).toBitVec (BitVec.ofNat 64 2)) = _
     rw [eq_lit64 _ _ (by decide)]
     rw [show (m.regs.getXReg .X11).toBitVec.toNat = (m.regs.getXReg .X11).toNat from rfl, hi.x11]
-  simp only [PcOk, hc, show b35.length = 8 from rfl, show k + 284 + 8 = k + 292 by omega] at hpc
+  simp only [PcOk, hc, NativeRustcVmArm.Vm.GkrStep.b35_length, NativeRustcVmArm.Vm.GkrStep.b35Length, show k + NativeRustcVmArm.Vm.GkrStep.b35Offset + 8 = k + NativeRustcVmArm.Vm.GkrStep.b36Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b35_length, NativeRustcVmArm.Vm.GkrStep.b35Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b35_next] at hpc
   by_cases hd : xs.size / 2 * 2 - 2 * j = 2
   · simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc
     refine .done _ (.inr ⟨hpc, cp', e8, ?_⟩)
     rw [show xs.size / 2 * 2 = 2 * (j + 1) by omega]
     exact hpre
   · simp only [hd, decide_false, Bool.not_false, ↓reduceIte] at hpc
-    refine .done _ (.inl ⟨hpc.trans (hp.label (j := 284) rfl), ⟨cp', e8, ?_, ?_, ?_, by omega, hpre⟩⟩)
+    refine .done _ (.inl ⟨hpc.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b35Offset) NativeRustcVmArm.Vm.GkrStep.label_17_at), ⟨cp', e8, ?_, ?_, ?_, by omega, hpre⟩⟩)
     · rw [hm'.regs .X9 _ rfl]
       show (Env.ofMachine m _).base 0 + BitVec.ofInt 64 48 = _
       rw [Env.base_ofMachine m _ _ rfl, show BitVec.ofInt 64 48 = BitVec.ofNat 64 48 from rfl,

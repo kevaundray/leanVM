@@ -496,10 +496,10 @@ theorem rg_step (hp : Placed code k) (g : Geo m0 bp L) {bj : List Directive} {j 
       (NativeRustcVmX64.Transcript.sameOutside_region hwf hm' (r := 1) rfl hw) hm'
       (fun h ↦ hm'.dmem_eq hwf h) hpc'
 
-/-- **The return** (`b2`, at `.LRdRows_21`) with the result in BL. -/
+/-- **The return** (`b2`, at `NativeRustcVmX64.Vm.RdRows.label_21`) with the result in BL. -/
 theorem fin (hp : Placed code k) (g : Geo m0 bp L) {B : List UInt8} {c : Nat}
     (hR : ReaderAt m0.dmem (rdr m0) bp B c) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 16)) (hf : Frame m0 80 slots 8 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b2Offset)) (hf : Frame m0 80 slots 8 st.data)
     (hres : Res m0 bp B c ((reg st.data .rbx).toNat % 256) st.data.dmem)
     (hchg : Chg m0 st.data.dmem) : Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hepi, hmem, hrax⟩ := ok_b2

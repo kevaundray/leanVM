@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakPhase.Pre
 public import NativeVm.Equiv.KeccakRmfe
 
@@ -32,13 +35,13 @@ variable [Host] {k : Nat}
 
 /-- **`keccak_phase` meets its contract.** -/
 theorem keccakPhase_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hvk : ∀ a s cs inst output, Spec (Labels.label verifyKeccakLabel)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hvk : ∀ a s cs inst output, Spec (Labels.label NativeRustcVmArm.Vm.VerifyKeccak.entryLabel)
       (VerifyKeccakPre a s cs inst output) (VerifyKeccakPost a s cs inst output)) :
-    ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals) := by
   intro a s cs layout evals m0 hpre
-  rw [show Labels.label keccakPhaseLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakPhase.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.KeccakPhase.entryOffset) NativeRustcVmArm.Vm.KeccakPhase.entry_at]
   obtain ⟨hS, hrc, hpj, hrh, hts, hcl, hncs, hev, hlog, hpsz, h40, hA⟩ := hpre
   have hn : Nums a m0 := nums_of hS hA
   have hN := hn.hN
@@ -126,7 +129,7 @@ theorem keccakPhase_spec (hp : Placed code k)
     rw [hL]
     generalize values.size = v at h40 hv92 ⊢
     interval_cases v <;> decide +kernel
-  rw [show Labels.label ".LKeccakPhase_2" = Host.addrOf (k + 45) from hp.label (j := 45) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.KeccakPhase.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakPhase.b2Offset) from hp.label (j := NativeRustcVmArm.Vm.KeccakPhase.b2Offset) NativeRustcVmArm.Vm.KeccakPhase.label_2_at]
     at hpc
   -- `b2`: `memcpy` of the present lanes.
   have hwf1 := wfF hn hS hfr1
@@ -170,8 +173,8 @@ theorem keccakPhase_spec (hp : Placed code k)
     · unfold NoWrap; rw [hfb]; omega
     · unfold NoWrap; rw [hsrc]; omega
     · unfold Apart; rw [hfb, hsrc]; have := hn.eS; omega
-  have hpc2' : st2.pc = Labels.label "memcpy" ∧
-      retOf st2.data = Host.addrOf (k + 62) := hpc2
+  have hpc2' : st2.pc = Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel ∧
+      retOf st2.data = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakPhase.b3Offset) := hpc2
   refine Fr.leafIn hfr2 hS.2.1 (N' := 0) (lo := 0) (n := 16 * pr) (by rw [stack_eq]; decide)
     (by omega) (fun r hr ↦ keep_cs r hr)
     (fun q hq ↦ ⟨slots_le q hq, .inr (by have := slots_ge q hq; omega)⟩) (fun _ h ↦ h.elim)
@@ -278,8 +281,8 @@ theorem keccakPhase_spec (hp : Placed code k)
       exact areas_vk hn hA hfr4 hp30 hip
         (Mapped.kept' (fun i hi ↦ by rw [NativeRustcVm.addr_add_add]; exact hevok _ (by omega))
           hfr4.kept) hfb (Mapped.kept' (fun i hi ↦ hfok.1 i (by omega)) hfr4.kept)
-  have hpc4' : st4.pc = Labels.label verifyKeccakLabel ∧
-      retOf st4.data = Host.addrOf (k + 75) := hpc4
+  have hpc4' : st4.pc = Labels.label NativeRustcVmArm.Vm.VerifyKeccak.entryLabel ∧
+      retOf st4.data = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakPhase.b4Offset) := hpc4
   refine Fr.leafAt (Fr.weaken (outs' := outs m0) hfr4) hS.2.1 (N' := verifyKeccakStack)
     (by rw [stack_eq, vk_stack_eq]) (fun r hr ↦ keep_cs r hr) slots_le (outs_frame hn)
     (hvk a s cs point (lanes values)) hpc4' hpre4

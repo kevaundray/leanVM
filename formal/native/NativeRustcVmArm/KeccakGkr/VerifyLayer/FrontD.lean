@@ -1,15 +1,19 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.InstanceWeights.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.SumE.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfVerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontC
 public import NativeRustcVm.Top.Phases
 
 /-!
 # `verify_layer`'s front: the instance weights and the equality-mode sumcheck
 
-From `b31` (`k + 381`, `AtH`): the instance weights of `s` into the frame at `968`
+From `b31` (`k + NativeRustcVmArm.Vm.VerifyLayer.b31Offset`, `AtH`): the instance weights of `s` into the frame at `968`
 (`instance_weights`), their sum `κ` (`sum_e`), the product at `s` (`poly_eval`), the
 equality-mode sumcheck over the claim's point into the frame at `1232` and `1712`
-(`sumcheck<verify_layer>`), to `b36` (`k + 478`, `AtK`, `layer_run`).
+(`sumcheck<verify_layer>`), to `b36` (`k + NativeRustcVmArm.Vm.VerifyLayer.b36Offset`, `AtK`, `layer_run`).
 -/
 
 namespace NativeRustcVmArm.KeccakGkr.VerifyLayer
@@ -29,7 +33,7 @@ def eWords (m0 : MachineData) : List (Nat × UInt64) :=
     (88, UInt64.ofBitVec (sA m0 + BitVec.ofNat 64 51200)),
     (96, UInt64.ofBitVec (sA m0 + BitVec.ofNat 64 107528))]
 
-/-- **After the equality-mode sumcheck** (`b36`, `k + 478`): its challenges `pt` in the frame at
+/-- **After the equality-mode sumcheck** (`b36`, `k + NativeRustcVmArm.Vm.VerifyLayer.b36Offset`): its challenges `pt` in the frame at
 `1232`, its final claim `v` at `1720`, the instance weights of `ch` at `968`, their sum in X25,
 X26, the state `s3`. -/
 structure AtK [Labels] (m0 : MachineData) (a : DecArea) (ch : EW) (pt : Array EW) (v : EW)
@@ -82,16 +86,16 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The instance weights and the equality-mode sumcheck**, from `b31` to `b36`. -/
 theorem layer_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hiw : Spec (label instanceWeightsLabel) InstanceWeightsPre InstanceWeightsPost)
-    (hsum : Spec (label sumELabel) SumEPre SumEPost)
-    (hpe : Spec (label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hsl : ∀ s pt, Spec (label sumcheckLayerLabel) (SumcheckLayerPre a s pt)
+    (hiw : Spec (label NativeRustcVmArm.Vm.InstanceWeights.entryLabel) InstanceWeightsPre InstanceWeightsPost)
+    (hsum : Spec (label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hpe : Spec (label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hsl : ∀ s pt, Spec (label NativeRustcVmArm.Vm.SumcheckOfVerifyLayer.entryLabel) (SumcheckLayerPre a s pt)
       (SumcheckLayerPost a s pt))
     {p : Array EW} {ch : EW} {s2 : TState} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 381)) (hh : AtH m0 a p ch s2 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b31Offset)) (hh : AtH m0 a p ch s2 st.data)
     (hrun : runL s c m0 = rest3 c p ch s2)
     (cont : ∀ (st' : MachineState) (pt : Array EW) (v : EW) (s3 : TState),
-      st'.pc = Host.addrOf (k + 478) → AtK m0 a ch pt v s3 st'.data →
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b36Offset) → AtK m0 a ch pt v s3 st'.data →
       runL s c m0 = rest4 c ch pt v s3 → Eventually (step1 Host.exe) (Goal a s c m0) st') :
     Eventually (step1 Host.exe) (Goal a s c m0) st := by
   have hS := pre_stack h
@@ -102,7 +106,7 @@ theorem layer_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b31`: `instance_weights(frame + 968, s)`.
   refine at_pc hpc (Fr.runBlock hS N_ge rfl hh.fb (blk hp b31_in_code (by simp [b31])) e31 rfl
     rfl (by decide) (by decide) fun st1 hfb1 hd1 hm1 hpc1 ↦ ?_)
-  rw [show k + 381 + b31.length = k + 388 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b31Offset + b31.length = k + NativeRustcVmArm.Vm.VerifyLayer.b32Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b31_next]] at hpc1
   have x0v : st1.data.regs.X0.toBitVec = loc m0 968 := by
     show (st1.data.regs.getXReg .X0).toBitVec = _
     rw [hm1.regs .X0 _ rfl, ev_ptr]
@@ -168,7 +172,7 @@ theorem layer_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b32`: `κ`, the instance weights' sum.
   refine Fr.runBlock hS N_ge rfl hfb2 (blk hp b32_in_code (by simp [b32])) e32 rfl rfl
     (by decide) (by decide) fun st3 hfb3 hd3 hm3 hpc3 ↦ ?_
-  rw [show k + 388 + b32.length = k + 395 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b32Offset + b32.length = k + NativeRustcVmArm.Vm.VerifyLayer.b33Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b32_next]] at hpc3
   have hsz : (keccakInstanceWeights ch).toList.length = 16 := by
     rw [Array.length_toList, NativeVm.Code.P6.instanceWeights_size]
   have l968 : (Sym.load 0 968 8).eval (Env.ofMachine m2 [(base m0 2032, 2032)]) =
@@ -220,7 +224,7 @@ theorem layer_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   refine exec_at (blk hp b33_in_code (by simp [b33])) e33 hwf5 rfl (match_claim20 h hb4 x20)
     fun st5 hm5 hpc5 ↦ ?_
   have hfb5 := fb_blkW h hfb4 hm5 hwf5 rfl (by decide)
-  rw [show k + 395 + b33.length = k + 467 from rfl] at hpc5
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b33Offset + b33.length = k + NativeRustcVmArm.Vm.VerifyLayer.b34Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b33_next]] at hpc5
   have hc4 := claimAt_fb h hfb4
   have hL := hc4.2.2.1
   rw [Array.length_toList] at hL
@@ -281,7 +285,7 @@ theorem layer_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   -- `b34`: the equality-mode sumcheck.
   refine Fr.runBlock hS N_ge rfl hfb6 (blk hp b34_in_code (by simp [b34])) e34 rfl rfl
     (by decide) (by decide) fun st7 hfb7 hd7 hm7 hpc7 ↦ ?_
-  rw [show k + 467 + b34.length = k + 476 from rfl] at hpc7
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b34Offset + b34.length = k + NativeRustcVmArm.Vm.VerifyLayer.b35Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b34_next]] at hpc7
   have hpt7 : NativeRustcVm.EWsAt st7.data.dmem (cA m0 + BitVec.ofNat 64 288)
       c.point.toList := by
     have := (claimAt_fb h hfb7).2.2.2.2
@@ -421,7 +425,7 @@ theorem layer_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
       rw [sb_cmp, eq_apply, ldF h1, litN 0]
       rfl
     have hpc9' := pc_false hpc9 hc9
-    rw [show k + 476 + b35.length = k + 478 from rfl] at hpc9'
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b35Offset + b35.length = k + NativeRustcVmArm.Vm.VerifyLayer.b36Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b35_next]] at hpc9'
     have hv' := NativeRustcVm.ewAt_iff.mp hv
     rw [NativeRustcVm.Transcript.off, NativeRustcVm.addr_add_add, NativeRustcVm.addr_add_add]
       at hv'

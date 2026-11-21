@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
+public import NativeRustcVmArm.Code.Vm.TableColumnClaims.Names
 public import NativeRustcVmArm.Tables.ColumnClaims.Steps
 public import NativeRustcVmArm.Tables.ColumnClaims.Blocks
 
@@ -34,37 +36,37 @@ variable [Host] {k : Nat}
 
 /-- **`table_column_claims` meets its contract.** -/
 theorem tableColumnClaims_spec (hp : Placed code k)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {ev : Array (Array EW × Array EW)} {cs : Array ColumnClaimW} :
-    Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre ev cs)
+    Spec (Labels.label NativeRustcVmArm.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre ev cs)
       (TableColumnClaimsPost ev cs) := by
   intro m0 hpre
-  rw [show Labels.label tableColumnClaimsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.TableColumnClaims.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.TableColumnClaims.entryOffset) NativeRustcVmArm.Vm.TableColumnClaims.entry_at]
   show Eventually _ (Goal ev cs m0) _
   have h6 : ev.size = 6 := hpre.2.2.1.1
   have t5 : ∀ m, LoopAt R5 ev cs m0 5 0 m →
-      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 174)⟩ := fun m h ↦
+      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b27Offset)⟩ := fun m h ↦
     loop hpush (lb5 hp) hpre (by decide) (fun _ h' ↦ exit31 hp hpre h'.fr (claims_end h6 h'.claims))
       (fun _ hfr h0 hn ↦ fail30 hp hpre hfr h0 hn) _ 0 m rfl h
   have t4 : ∀ m, LoopAt R04 ev cs m0 4 0 m →
-      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 137)⟩ := fun m h ↦
+      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b21Offset)⟩ := fun m h ↦
     loop hpush (lb4 hp) hpre (by decide)
       (fun _ h' ↦ next hpre (i := 4) (by decide) (sb5 hp) rfl t5 h')
       (fun _ hfr _ hn ↦ fail24 hp hpre hfr hn) _ 0 m rfl h
   have t3 : ∀ m, LoopAt R04 ev cs m0 3 0 m →
-      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 107)⟩ := fun m h ↦
+      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b16Offset)⟩ := fun m h ↦
     loop hpush (lb3 hp) hpre (by decide)
       (fun _ h' ↦ next hpre (i := 3) (by decide) (sb4 hp) rfl t4 h')
       (fun _ hfr _ hn ↦ failJ hp hpre (b19_in_code.trans hp.1 (by simp [b19]))
         (by rw [Bus.after_eq run_b19]; exact run_b19) ok_b19 hfr hn) _ 0 m rfl h
   have t2 : ∀ m, LoopAt R04 ev cs m0 2 0 m →
-      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 77)⟩ := fun m h ↦
+      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b11Offset)⟩ := fun m h ↦
     loop hpush (lb2 hp) hpre (by decide)
       (fun _ h' ↦ next hpre (i := 2) (by decide) (sb3 hp) rfl t3 h')
       (fun _ hfr _ hn ↦ failJ hp hpre (b14_in_code.trans hp.1 (by simp [b14]))
         (by rw [Bus.after_eq run_b14]; exact run_b14) ok_b14 hfr hn) _ 0 m rfl h
   have t1 : ∀ m, LoopAt R04 ev cs m0 1 0 m →
-      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + 48)⟩ := fun m h ↦
+      Eventually (step1 Host.exe) (Goal ev cs m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableColumnClaims.b6Offset)⟩ := fun m h ↦
     loop hpush (lb1 hp) hpre (by decide)
       (fun _ h' ↦ next hpre (i := 1) (by decide) (sb2 hp) rfl t2 h')
       (fun _ hfr _ hn ↦ failJ hp hpre (b9_in_code.trans hp.1 (by simp [b9]))

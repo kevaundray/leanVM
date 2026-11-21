@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.CommitStack
+public import NativeRustcVmX64.Code.Vm.CommitStack.Names
+public import NativeRustcVmX64.Code.Vm.Ladder.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadCommitment.Names
 public meta import NativeRustcVmX64.Code.Vm.CommitStack
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -46,7 +49,7 @@ sym_block run_b3 := exec b3 S1
 sym_block run_b4 := exec b4 S2
 
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm4whir6ladder") :=
+    .call NativeRustcVmX64.Vm.Ladder.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 192 0 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0 ∧ w.off + w.n ≤ 192) ∧
@@ -55,12 +58,12 @@ public theorem ok_b0 : ProOk 192 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .r14 = some (.reg .rsi) := by
   decide +kernel
 public theorem exit_b1 : exec b1 retS = some (S1,
-    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not ".LCommitStack_2") :=
+    .cond (SBool.cmp .eq .W32 (.load 0 16 4) (.lit 1)).not NativeRustcVmX64.Vm.CommitStack.label_2) :=
   run_b1.trans (by rw [show S1 = _ from after_eq run_b1])
 public theorem ok_b1 : MidOk 192 8 slots S1 = true ∧ S1.mem = [] := by decide +kernel
 public theorem exit_b2 : exec b2 S1 = some (S2,
     .cond (SBool.cmp .ult .W64 (.bin .add .W64 (.lit 18446744073709551609) (.load 0 168 8))
-      (.lit 18446744073709551610)).not ".LCommitStack_3") :=
+      (.lit 18446744073709551610)).not NativeRustcVmX64.Vm.CommitStack.label_3) :=
   run_b2.trans (by rw [show S2 = _ from after_eq run_b2])
 public theorem ok_b2 : MidOk 192 8 slots S2 = true ∧ S2.mem = [] := by decide +kernel
 public theorem exit_b3 : exec b3 S1 = some (after b3 S1, .ret (.load 0 192 8)) :=
@@ -69,7 +72,7 @@ public theorem end_b3 : EpiOk 192 slots (after b3 S1) = true ∧ (after b3 S1).m
     (after b3 S1).reg .rax = some (.lit 0) := by
   decide +kernel
 public theorem exit_b4 : exec b4 S2 = some (after b4 S2,
-    .jump "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState15read_commitment") :=
+    .jump NativeRustcVmX64.Vm.TStateReadCommitment.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem end_b4 : slotsLoaded slots (after b4 S2) = true ∧
     keepsOthers slots (after b4 S2) = true ∧ (after b4 S2).reg .rsp = some (.ptr 0 192) ∧

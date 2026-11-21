@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.FactsK
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
 public meta import NativeRustcVmX64.Bus.AccumulateSide.Exec
 
 /-!
@@ -31,7 +33,7 @@ def c9 : SBool := .not (.cmp .eq .W64 (.bin .add .W64 (.lit 16) (.reg .r12)) (.r
 
 end
 
-public theorem exit_b6 : exec b6 fS = some (after b6 fS, .cond c6 ".LAccumulateSide_5") :=
+public theorem exit_b6 : exec b6 fS = some (after b6 fS, .cond c6 NativeRustcVmX64.Vm.AccumulateSide.label_5) :=
   run_b6.trans (by rw [after_eq run_b6]; rfl)
 public theorem ok_b6 : MidOk F 8 slots (after b6 fS) = true ∧
     (after b6 fS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -49,7 +51,7 @@ public theorem ok_b7 : MidOk F 8 slots (after b7 fS) = true ∧
   rw [after_eq run_b7]; decide +kernel
 
 public theorem exit_b8 : exec b8 oS = some (after b8 oS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm5field10eq_eval_fnNCNvNtB4_6layout8eq_above0EB4_") :=
+    .call NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk F 0 slots (after b8 oS) = true ∧
     (after b8 oS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -58,7 +60,7 @@ public theorem ok_b8 : MidOk F 0 slots (after b8 oS) = true ∧
     (after b8 oS).reg .rsi = some shrO ∧ (after b8 oS).reg .rdx = some aboveO := by
   rw [after_eq run_b8]; decide +kernel
 
-public theorem exit_b9 : exec b9 aS = some (after b9 aS, .cond c9 ".LAccumulateSide_7") :=
+public theorem exit_b9 : exec b9 aS = some (after b9 aS, .cond c9 NativeRustcVmX64.Vm.AccumulateSide.label_7) :=
   run_b9.trans (by rw [after_eq run_b9]; rfl)
 public theorem ok_b9 : MidOk F 8 slots (after b9 aS) = true ∧
     (after b9 aS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -68,7 +70,7 @@ public theorem ok_b9 : MidOk F 8 slots (after b9 aS) = true ∧
     (after b9 aS).reg .r15 = some (.bin .xor .W64 (.reg .r15) (.reg .rdx)) := by
   rw [after_eq run_b9]; decide +kernel
 
-public theorem exit_b10 : exec b10 fS = some (after b10 fS, .jump ".LAccumulateSide_8") :=
+public theorem exit_b10 : exec b10 fS = some (after b10 fS, .jump NativeRustcVmX64.Vm.AccumulateSide.label_8) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem exit_b11 : exec b11 fS = some (after b11 fS, .fall) :=
   run_b11.trans (by rw [after_eq run_b11])

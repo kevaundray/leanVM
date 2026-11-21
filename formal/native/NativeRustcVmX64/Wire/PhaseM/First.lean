@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Reads
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `phase_m`: the prologue and the query count (x86-64)
@@ -27,11 +28,11 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 
 /-- **From the entry**: the prologue and the query count. -/
 theorem first_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c) :
     Eventually (step1 Host.exe) (fun st ↦ Post m0 st ∨
       (∃ count, AtQ m0 bp B c k count 0 st) ∨ ∃ count qs c2, At7 m0 bp B c k count qs c2 st)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b0Offset)⟩ := by
   have hst : StackOk m0 1216 := G.st
   have hsp := G.sp
   have htop := G.top
@@ -41,10 +42,10 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B.length)
   have hS := stackBelow_toNat (m := m0) (n := 160) (by omega)
   -- `b0`: the prologue.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 160) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b0Offset + b0.length)).toBitVec)
     ⟨frame_mapped hst (by omega), frame_noWrap hst (by omega)⟩ (by simp)
     (List.pairwise_singleton _ _)
-  have hm0 : Match (frameEnv m0 m0 160 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec)
+  have hm0 : Match (frameEnv m0 m0 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b0Offset + b0.length)).toBitVec)
       entryS m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl) hm0
@@ -91,22 +92,22 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B.length)
   simp only [PcOk] at hpc3
   have hR2 : ∀ c', ReaderAt m2.dmem (RD m0) bp B c' → ReaderAt s3.data.dmem (RD m0) bp B c' :=
     fun c' h ↦ reader_keep h hs3 (fun q hq ↦ by omega) (fun q hq ↦ by omega)
-  have ea : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + 13 + b1.length)).toBitVec).regs
+  have ea : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b1Offset + b1.length)).toBitVec).regs
       .rax = reg m2 .rax := rfl
-  have ed : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + 13 + b1.length)).toBitVec).regs
+  have ed : (frameEnv m0 m2 160 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b1Offset + b1.length)).toBitVec).regs
       .rdx = reg m2 .rdx := rfl
   rcases read4_cases hr2 with ⟨hn, h0⟩ | ⟨count, hv, h0, hdx, hcl, hR4⟩
   · -- No count: `None`.
     rw [c1_eval _ (by rw [ea]; exact .inl h0), ea, h0] at hpc3
     simp only [show decide ((0 : BitVec 64) = 1) = false by decide, Bool.and_false,
       Bool.not_false, ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     exact Eventually.mono (none_run hp G hR0 hpc3 hb3 (by rw [phaseM_eq, hn])) fun _ h ↦ .inl h
   rw [c1_eval _ (by rw [ea]; exact .inr h0), ea, h0, ed, hdx] at hpc3
   by_cases hbig : 257 ≤ count
   · simp only [show ¬ count < 257 by omega, decide_false, Bool.false_and, Bool.not_false,
       ↓reduceIte] at hpc3
-    rw [hp.label (j := 78) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.PhaseM.label_23_at] at hpc3
     refine Eventually.mono (none_run hp G hR0 hpc3 hb3 ?_) fun _ h ↦ .inl h
     rw [phaseM_eq, hv]
     simp only [show wireMaxQueries < count by unfold wireMaxQueries; omega, ↓reduceIte]
@@ -121,7 +122,7 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B.length)
   -- `b2`: `8 count`, no query?
   obtain ⟨hok2, h13_2, hk2⟩ := ok_b2
   refine fblk hp G b2_in_code (by simp [b2]) exit_b2 nofun hok2 (hk2 .r12 (by simp))
-    (hk2 .r14 (by simp)) (hpc3.trans (by rw [show b1.length = 6 from rfl])) hb3
+    (hk2 .r14 (by simp)) (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b1_next)) hb3
     fun s4 hb4 hd4 hm4 hpc4 ↦ ?_
   have hl40 : ((frameEnv m0 s3.data 160 []).load 0 40 8).toNat = count := by
     rw [load_ofMachine (o := 40) rfl hf40, UInt64.toNat_toBitVec, toNat_toUInt64 (by omega)]
@@ -143,15 +144,15 @@ theorem first_run (hp : Placed code k) (G : Geo m0 bp B.length)
   · -- No query: past the loop.
     subst hc0
     simp only [decide_true, ↓reduceIte] at hpc4
-    exact .done _ (.inr (.inr ⟨0, [], c + 4, ⟨hpc4.trans (hp.label (j := 37) rfl), hb4, hv,
+    exact .done _ (.inr (.inr ⟨0, [], c + 4, ⟨hpc4.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_5_at), hb4, hv,
       by omega, rfl, hf40', h13, NativeRustcVm.wordsAt_nil _ _, hR4'⟩⟩))
   simp only [hc0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc4
   -- `b3`: the loop's index.
   obtain ⟨hok3, h15_3, hk3⟩ := ok_b3
   refine fblk hp G b3_in_code (by simp [b3]) exit_b3 nofun hok3 (hk3 .r12 (by simp))
-    (hk3 .r14 (by simp)) (hpc4.trans (by rw [show b2.length = 6 from rfl])) hb4
+    (hk3 .r14 (by simp)) (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b2_next)) hb4
     fun s5 hb5 hd5 hm5 hpc5 ↦ ?_
-  refine .done _ (.inr (.inl ⟨count, ⟨hpc5.trans (by rw [show b3.length = 2 from rfl]), hb5, hv,
+  refine .done _ (.inr (.inl ⟨count, ⟨hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b3_next), hb5, hv,
     by omega, by omega, by rw [hd5]; exact hf40', ?_, ?_, [], rfl, NativeRustcVm.wordsAt_nil _ _,
     by rw [hd5]; simpa using hR4'⟩⟩))
   · rw [show reg s5.data .r13 = _ from hm5.regs .r13 _ (hk3 .r13 (by simp))]; exact h13

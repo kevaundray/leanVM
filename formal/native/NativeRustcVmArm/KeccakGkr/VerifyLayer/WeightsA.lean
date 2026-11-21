@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.WMem
 import Mathlib.Tactic.IntervalCases
 
@@ -167,18 +168,18 @@ variable [Host] {k : Nat}
 
 /-- `.LVerifyLayer_33`'s address. -/
 theorem label33 (hp : Placed code k) :
-    Labels.label ".LVerifyLayer_33" = Host.addrOf (k + 641) :=
-  hp.label (j := 641) (by rw [getElem?_of_infix (i := 0) b60_in_code (by decide)]; rfl)
+    Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_33 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b60Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b60Offset) NativeRustcVmArm.Vm.VerifyLayer.label_33_at
 
 /-- `.LVerifyLayer_28`'s address. -/
 theorem label28 (hp : Placed code k) :
-    Labels.label ".LVerifyLayer_28" = Host.addrOf (k + 588) :=
-  hp.label (j := 588) (by rw [getElem?_of_infix (i := 0) b53_in_code (by decide)]; rfl)
+    Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_28 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b53Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b53Offset) NativeRustcVmArm.Vm.VerifyLayer.label_28_at
 
 /-- `.LVerifyLayer_35`'s address. -/
 theorem label35 (hp : Placed code k) :
-    Labels.label ".LVerifyLayer_35" = Host.addrOf (k + 654) :=
-  hp.label (j := 654) (by rw [getElem?_of_infix (i := 0) b62_in_code (by decide)]; rfl)
+    Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_35 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b62Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b62Offset) NativeRustcVmArm.Vm.VerifyLayer.label_35_at
 
 end
 

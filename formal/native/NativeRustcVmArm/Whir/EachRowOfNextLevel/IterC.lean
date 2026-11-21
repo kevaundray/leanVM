@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfNextLevel.Names
+public import NativeRustcVmArm.Code.Vm.NovelEval.Names
 public import NativeRustcVmArm.Whir.EachRowOfNextLevel.IterB
 
 /-!
@@ -50,7 +52,7 @@ theorem Mid.blockE [Labels] {m m' : MachineData} {env : Env} {S S' : SState}
 variable [Host] {k : Nat}
 
 /-- **From `b14` to `b17`.** -/
-theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEvalPre NovelEvalPost)
+theorem iterC (hp : Placed code k) (hnov : Spec (label NativeRustcVmArm.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost)
     (hpre : EachRowNextPre rows op m0) {m : MachineData} (h : Mid rows m0 j m) {F : EW}
     (hF : (⟨m.regs.getXReg .X29, m.regs.getXReg .X25⟩ : EW) = F)
     (hW : BufWordsAt m.dmem (fb m0 + BitVec.ofNat 64 1624) rootCap
@@ -60,8 +62,8 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
         (subspaceAtTable (tableOf m0) ((qsOf m0)[j]'h.hjq)).getD m0.regs.X4.toNat 0 →
       OptEWAt m'.dmem (fb m0 + BitVec.ofNat 64 1880)
         (some (novelEval (highOf m0) (subspaceAtTable (tableOf m0) ((qsOf m0)[j]'h.hjq)))) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 234)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 218)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b17Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b14Offset)⟩ := by
   have hl := lay hpre
   have hstk := hpre.1.1
   have hS : 3232 ≤ m0.regs.SP.toNat := hstk.2.1
@@ -107,7 +109,7 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
     rw [Array.length_toList] at this
     exact Ring.load_word this
   have hl16 : env.load 0 16 8 = fb m0 + BitVec.ofNat 64 1632 := Ring.load_word h.low.w16
-  have hk14 : b14.IsInfixAt Host.prog (k + 218) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk14 : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b14Offset) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk14 run_b14 hwf hm fun st14 hm14 hpc14 ↦ ?_
   have hd14 : st14.data.dmem = m.dmem := hm14.dmem_eq hwf rfl
   have k14 : ∀ r, (after b14 muS).reg r = some (.reg r) →
@@ -137,13 +139,13 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
       d.regs.X3.toBitVec = fb m0 + BitVec.ofNat 64 1632 → d.regs.X4 = W.size.toUInt64 →
       (⟨d.regs.getXReg .X29, d.regs.getXReg .X25⟩ : EW) = F →
       d.regs.getXReg .X27 = W.getD m0.regs.X4.toNat 0 →
-      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 230)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b16Offset)⟩ := by
     intro d hd hdd e3 e4 hFd h27
     obtain ⟨hwf16, hm16⟩ := frame_env hpre hd.fr
     let env16 := Env.ofMachine d [(fb m0, 2000)]
     have hl40 : env16.load 0 40 8 = (nextEnv m0 1).toBitVec := Ring.load_word hd.low.w40
     have hl32 : env16.load 0 32 8 = (nextEnv m0 2).toBitVec := Ring.load_word hd.low.w32
-    have hk16 : b16.IsInfixAt Host.prog (k + 230) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk16 : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b16Offset) := b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_then hk16 run_b16 hwf16 hm16 fun st16 hm16' hpc16 ↦ ?_
     have hmid16 : Mid rows m0 j st16.data := hd.block hm16 hm16' hwf16 rfl rfl (by decide)
     have hd16 : st16.data.dmem = d.dmem := hm16'.dmem_eq hwf16 rfl
@@ -202,7 +204,7 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
       simp only [BitVec.ult, UInt64.toNat_toBitVec, hWs']
       simpa using hlt
     simp only [hc, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc14
-    have hk15 : b15.IsInfixAt Host.prog (k + 229) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk15 : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b15Offset) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
     obtain ⟨hwf15, hm15⟩ := frame_env hpre hmid14.fr
     let env15 := Env.ofMachine st14.data [(fb m0, 2000)]
     have hx8 : env15.regs .X8 = BitVec.ofNat 64 m0.regs.X4.toNat := by
@@ -224,7 +226,7 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
         simp only [loopRegs, List.mem_cons, List.not_mem_nil, or_false] at hr
         rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> rfl)).trans rfl
     simp only [PcOk] at hpc15
-    have hb15 : b15.length = 1 := rfl
+    have hb15 : b15.length = NativeRustcVmArm.Vm.EachRowOfNextLevel.b15Length := NativeRustcVmArm.Vm.EachRowOfNextLevel.b15_length
     rw [hb15] at hpc15
     obtain ⟨d15, pc15⟩ := st15
     simp only at hpc15
@@ -250,7 +252,7 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
       simp only [BitVec.ult, UInt64.toNat_toBitVec, hWs']
       simpa using hlt
     simp only [hc, Bool.not_false, ↓reduceIte] at hpc14
-    rw [show Labels.label ".LEachRowOfNextLevel_9" = Host.addrOf (k + 230) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfNextLevel.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfNextLevel.b16Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfNextLevel.b16Offset) NativeRustcVmArm.Vm.EachRowOfNextLevel.label_9_at]
       at hpc14
     obtain ⟨d14, pc14⟩ := st14
     simp only at hpc14

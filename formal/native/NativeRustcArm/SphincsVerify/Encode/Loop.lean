@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Sphincs.SphincsVerify.Names
+
 public import NativeRustcArm.SphincsVerify.Calls
 public import NativeRustcArm.SphincsVerify.Encode.Digits
 public import NativeRustc.Sphincs.EncodeFacts
@@ -45,7 +47,7 @@ def loopInit (j : Nat) : SState :=
 X29, SP and the callee-saved registers kept, the four digits written. -/
 def loopOk (j : Nat) : Bool :=
   match exec Sphincs.SphincsVerify.b110 (loopInit j) with
-  | some (S, x) => x == .cond (.lit (j + 1 != 16)) ".LSphincsVerify_41" &&
+  | some (S, x) => x == .cond (.lit (j + 1 != 16)) NativeRustcArm.Sphincs.SphincsVerify.label_41 &&
       S.reg .X8 == some (.lit (8 * j + 8)) &&
       S.reg .X11 == some (.ptr 0 ((26773 + 4 * j : Nat) : Int)) &&
       S.reg .X9 == some (.reg .X9) && S.reg .X10 == some (.reg .X10) &&
@@ -106,10 +108,9 @@ def digest128 (m : MachineData) : Nat :=
   (m.regs.getXReg .X9).toBitVec.toNat * 2 ^ 64 + (m.regs.getXReg .X10).toBitVec.toNat
 
 theorem label_41 [NativeArm.Host] {k : Nat} (hp : Placed Sphincs.SphincsVerify.code k) :
-    Labels.label ".LSphincsVerify_41" = NativeArm.Host.addrOf (k + 1392) :=
-  hp.label (List.isInfixAt_iff_getElem?.mp Sphincs.SphincsVerify.b110_in_code 0 (by decide))
+    Labels.label NativeRustcArm.Sphincs.SphincsVerify.label_41 = NativeArm.Host.addrOf (k + NativeRustcArm.Sphincs.SphincsVerify.b110Offset) :=
+  hp.label NativeRustcArm.Sphincs.SphincsVerify.label_41_at
 
-theorem length_b110 : Sphincs.SphincsVerify.b110.length = 49 := rfl
 
 variable [NativeArm.Host]
 
@@ -120,13 +121,13 @@ theorem loop_step (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
     (h8 : Run.RegIs m .X8 (BitVec.ofNat 64 (8 * j)))
     (h11 : Run.RegIs m .X11 (r.off (26769 + 4 * j))) :
     Eventually (step1 NativeArm.Host.exe) (fun st ↦
-      st.pc = (if j + 1 = 16 then r.pc 1441 else r.pc 1392) ∧ r.Frame st.data ∧
+      st.pc = (if j + 1 = 16 then r.pc NativeRustcArm.Sphincs.SphincsVerify.b111Offset else r.pc NativeRustcArm.Sphincs.SphincsVerify.b110Offset) ∧ r.Frame st.data ∧
       Run.RegIs st.data .X8 (BitVec.ofNat 64 (8 * (j + 1))) ∧
       Run.RegIs st.data .X11 (r.off (26769 + 4 * (j + 1))) ∧ digest128 st.data = digest128 m ∧
       Saved m st.data ∧ SameOutside m.dmem st.data.dmem (InRange (r.off (26768 + 4 * j)) 4) ∧
       ∀ t < 4, st.data.dmem.get? (r.off (26768 + 4 * j + t)) =
         some (UInt8.ofNat (digest128 m >>> (126 - 2 * (4 * j + t)) % 4)))
-      ⟨m, r.pc 1392⟩ := by
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b110Offset⟩ := by
   have hok := loopOk_all j hj
   rw [loopOk] at hok
   rcases hx : exec Sphincs.SphincsVerify.b110 (loopInit j) with _ | ⟨S, x⟩
@@ -151,8 +152,8 @@ theorem loop_step (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
     · simp only [Sym.PcOk, SBool.eval] at hpc
       rw [hpc]
       by_cases hj1 : j + 1 = 16
-      · simp only [hj1, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, length_b110]
-        rfl
+      · simp only [hj1, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+        simp only [Run.pc, Nat.add_assoc, NativeRustcArm.Sphincs.SphincsVerify.b110_next]
       · simp only [hj1, ↓reduceIte, bne_iff_ne, ne_eq, not_false_eq_true]
         exact label_41 hp
     · exact Run.Frame.of_match r hpre hF hm' hwf hssp hs29 hfw
@@ -189,11 +190,11 @@ theorem loop_run (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : 
       Run.RegIs m .X8 (BitVec.ofNat 64 (8 * j)) → Run.RegIs m .X11 (r.off (26769 + 4 * j)) →
       digest128 m = V →
       (∀ t < 4 * j, m.dmem.get? (r.off (26768 + t)) = some (digitByte V t)) →
-      Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 1441 ∧ r.Frame st.data ∧
+      Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b111Offset ∧ r.Frame st.data ∧
         Saved m st.data ∧
         SameOutside m.dmem st.data.dmem (InRange (r.off (26768 + 4 * j)) (64 - 4 * j)) ∧
         ∀ t < 64, st.data.dmem.get? (r.off (26768 + t)) = some (digitByte V t))
-      ⟨m, r.pc 1392⟩ := by
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b110Offset⟩ := by
   intro n
   induction n with
   | zero =>

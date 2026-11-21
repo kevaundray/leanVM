@@ -28,7 +28,7 @@ theorem seg_b16 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hR : r.SRegs m pos i) (hA0 : BytesAt m.dmem (r.off 1776) (List.replicate 344 0))
     (hadr : BytesAt m.dmem (r.off 2504) ad) (hpay : BytesAt m.dmem (r.off 1400) P)
     (cont : StepCont r x E pos i (r.pp ++ ad ++ P) R) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 212⟩ := by
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b16Offset⟩ := by
   have hF := hK.1.1
   have hin := r.pre_pp hpre
   have hwf : (r.envR m [(r.m0.regs.X1.toBitVec, 16)]).WF := by
@@ -57,16 +57,16 @@ theorem seg_b16 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     trivial trivial trivial
   have hm := match_withLit hm0 rfl h2112
   refine blk r hp b16_in_code (List.cons_ne_nil _ _) run_b16 hwf hm fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 291) ((pc_true hpc).trans (Run.label_of_block r hp b19_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b19Offset) ((pc_true hpc).trans (Run.label_of_block r hp b19_in_code rfl)) ?_
   refine blk r hp b19_in_code (List.cons_ne_nil _ _) (exec_after run_b16 run_b19) hwf hm1
     fun st2 hm2 hpc2 ↦ ?_
-  refine pc_at (a := r.pc 300) (hpc2.trans (Run.label_of_block r hp b21_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b21Offset) (hpc2.trans (Run.label_of_block r hp b21_in_code rfl)) ?_
   refine blk r hp b21_in_code (List.cons_ne_nil _ _) (exec_after run_b19 run_b21) hwf hm2
     fun st3 hm3 hpc3 ↦ ?_
-  refine pc_at (a := r.pc 307) ((pc_false hpc3).trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b22Offset) ((pc_false hpc3).trans rfl) ?_
   refine blk r hp b22_in_code (List.cons_ne_nil _ _) (exec_after run_b21 run_b22) hwf hm3
     fun st4 hm4 hpc4 ↦ ?_
-  refine pc_at (a := r.pc 309) ((pc_false hpc4).trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b23Offset) ((pc_false hpc4).trans rfl) ?_
   refine blk r hp b23_in_code (List.cons_ne_nil _ _) (exec_after run_b22 run_b23) hwf hm4
     fun st5 hm5 hpc5 ↦ ?_
   have hK5 := CK.of_blockR hpre hK hm5 hwf (by decide +kernel) (by decide +kernel) rfl rfl
@@ -127,7 +127,7 @@ theorem seg_b15 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     {R : MachineState → Prop} {m : MachineData} (hK : r.CK x E m) (hR : r.SRegs m pos i)
     (hval : BytesAt m.dmem (r.off 1384) v)
     (cont : StepCont r x E pos i (r.pp ++ r.addr 1 pos ++ (v ++ u128Bytes i)) R) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 192⟩ := by
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b15Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   have hm := match_frameS hpre hK.1.1 (knownK hR (k := []) trivial)
   refine blk r hp b15_in_code (List.cons_ne_nil _ _) run_b15 hwf hm fun st hm1 hpc ↦ ?_

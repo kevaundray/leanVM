@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.Basic
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `verify_stacked_opening`: blocks and calls in its frame (x86-64)
@@ -139,9 +140,9 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 /-- **`EW::mul`** from a state of the frame at its call: the product in RAX, RDX, the frame's
 bytes unchanged. -/
 theorem Parts.mul (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {env : Env} {st : MachineState} (hok : Ok m0 st.data 0) {next : Int64}
-    (hpc : PcOk env (.call ewMulLabel) next st) {R : MachineState → Prop}
+    (hpc : PcOk env (.call NativeRustcVmX64.Vm.EWMul.entryLabel) next st) {R : MachineState → Prop}
     (cont : ∀ st2 : MachineState, st2.pc = next → Ok m0 st2.data 8 →
       FrameSame m0 st.data.dmem st2.data.dmem →
       ewRet st2.data = EW.mul (ewArg (reg st.data .rdi) (reg st.data .rsi))

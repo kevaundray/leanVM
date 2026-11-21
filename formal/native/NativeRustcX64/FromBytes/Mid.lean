@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+
 public import NativeRustcX64.FromBytes.Inv
 meta import NativeRustcX64.FromBytes.Inv
 meta import NativeRustcX64.Code.Xmss.FromBytes
@@ -65,17 +67,17 @@ theorem Pre.not_stack {m₀ : MachineData} (P : Pre m₀) {o s x : Nat} (hs : o 
 
 /-- **The `memcpy` of the chain values.** -/
 public theorem mid [Host] {k : Nat} (hp : Placed code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 49)) (h : LoopDone m₀ st.data)
+    (hmemcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b5Offset)) (h : LoopDone m₀ st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 56) → MidAt m₀ st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b6Offset) → MidAt m₀ st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have C := h.common
   have := P.pos
   have hB := P.baseNW
   unfold NoWrap at hB
-  let env := Env.ofMachine st.data [(base m₀, 1928)] (fun _ => 0) (Host.addrOf (k + 56)).toBitVec
+  let env := Env.ofMachine st.data [(base m₀, 1928)] (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.FromBytes.b6Offset)).toBitVec
   have hwf : env.WF := Env.wf_of ⟨⟨P.stackMapped.kept C.kept, P.baseNW⟩, trivial⟩
     (List.pairwise_singleton _ _)
   have hm : Match env stM st.data := match_ofMachine ⟨rfl, trivial⟩

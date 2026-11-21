@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Update.Names
+
 public import NativeRustcArm.SphincsVerify.Encode.Key
 public import NativeRustcArm.SphincsVerify.Encode.Num
 public import NativeRustcArm.SphincsVerify.Encode.Loop
@@ -89,7 +93,7 @@ theorem enc_block (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
 
 /-- **`Hasher::update(a, b, n)`** on hasher A or B, from the invariant. -/
 theorem call_update (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label updateLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
+    (hpc : st.pc = Labels.label NativeRustcArm.Common.Update.entryLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
     {c : UInt32} (h : r.EncBase l s c st.data) {a b n : Nat} {x : List UInt8}
     (h0 : Run.RegIs st.data .X0 (r.off a)) (h1 : Run.RegIs st.data .X1 (r.off b))
     (h2 : st.data.regs.X2.toNat = n)
@@ -109,7 +113,7 @@ theorem call_update (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} 
 
 /-- **`memcpy(a, b, 344)`** between the hashers, from the invariant. -/
 theorem call_memcpy (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label "memcpy" ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
+    (hpc : st.pc = Labels.label NativeRustcArm.Common.Memcpy.entryLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
     {c : UInt32} (h : r.EncBase l s c st.data) {a b : Nat}
     (h0 : Run.RegIs st.data .X0 (r.off a)) (h1 : Run.RegIs st.data .X1 (r.off b))
     (h2 : st.data.regs.X2.toNat = 344)
@@ -130,7 +134,7 @@ theorem call_memcpy (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} 
 
 /-- **`Hasher::finalize(o, a)`** of hasher A into hasher B's place, from the invariant. -/
 theorem call_finalize (r : Run) (hc : Callees) (hpre : r.Pre) {st : MachineState} {next : Int64}
-    (hpc : st.pc = Labels.label finalizeLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
+    (hpc : st.pc = Labels.label NativeRustcArm.Common.Finalize.entryLabel ∧ retOf st.data = next) {l : Nat} {s : List UInt8}
     {c : UInt32} (h : r.EncBase l s c st.data)
     (h0 : Run.RegIs st.data .X0 (r.off 26768)) (h1 : Run.RegIs st.data .X1 (r.off 16400))
     {x : List UInt8} (hh : HasherHolds (bytesOf st.data.dmem (r.off 16400) 344) x)
@@ -181,9 +185,9 @@ theorem hash_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     (hpre : r.Pre) {l : Nat} {s : List UInt8} {c : UInt32} {m : MachineData}
     (h : r.EncBase l s c m) (hA : r.EncAdrs l m)
     (hh : HasherHolds (bytesOf m.dmem (r.off 16400) 344) []) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 1392 ∧ r.EncBase l s c st.data ∧
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b110Offset ∧ r.EncBase l s c st.data ∧
       digest128 st.data = beNat (encodeDigest r.seed (r.key l) s c) ∧
-      Run.RegIs st.data .X8 0 ∧ Run.RegIs st.data .X11 (r.off 26769)) ⟨m, r.pc 1343⟩ := by
+      Run.RegIs st.data .X8 0 ∧ Run.RegIs st.data .X11 (r.off 26769)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b102Offset⟩ := by
   have hseed : bytesOf m.dmem (r.off 8208) 16 = r.seed :=
     bytesOf_of_bytesAt' (r.seed_at h.2.2.2.1) r.length_seed
   -- b102, update(A, PK.seed)

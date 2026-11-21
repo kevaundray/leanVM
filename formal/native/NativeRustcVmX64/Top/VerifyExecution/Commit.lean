@@ -1,6 +1,15 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Bus
+public import NativeRustcVmX64.Code.Vm.CommitStack.Names
+public import NativeRustcVmX64.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmX64.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmX64.Code.Vm.ReadOod.Names
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmX64.Code.Vm.TablePhase.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
 
 /-!
 # `verify_execution`: the stack's commitment and the out-of-domain sample (x86-64)
@@ -25,25 +34,25 @@ variable [Host] {k : Nat}
 
 /-- **The out-of-domain sample**, from `b4`: the function returns the walk's rest. -/
 theorem callOod (hp : Placed code k)
-    (hro : ∀ a s, Spec (Labels.label readOodLabel) (ReadOodPre a s) (ReadOodPost a s))
-    (hbb : ∀ a s L, Spec (Labels.label verifyBusBalanceLabel) (VerifyBusBalancePre a s L)
+    (hro : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s))
+    (hbb : ∀ a s L, Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalance.entryLabel) (VerifyBusBalancePre a s L)
       (VerifyBusBalancePost a s L))
-    (htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+    (htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmX64.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
       (TablePhasePost a s layout bus))
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmX64.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmX64.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 25)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b4Offset)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
     (h12 : reg st.data .r12 = reg m0 .rsi) (h13 : reg st.data .r13 = reg m0 .rdx)
     {L : LayoutW} (hbp : (reg st.data .rbp).toNat = L.stackLog)
     (h40 : NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 96) 40)
@@ -59,7 +68,7 @@ theorem callOod (hp : Placed code k)
   have hF := g.F
   have hwN := g.wN
   have hN : readOodStack = 688 := rfl
-  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + 25 + b4.length)).toBitVec)
+  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b4Offset + b4.length)).toBitVec)
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf (fun _ _ ↦ rfl) hpc hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hw1, hrdi, hrsi, hrdx, hrbp, hk⟩ := after_eq run_b4 ▸ ok_b4
@@ -74,7 +83,7 @@ theorem callOod (hp : Placed code k)
   have kr : ∀ r ∈ [Reg64.rbx, .r12, .r13, .r14, .r15], reg st1.data r = reg st.data r :=
     fun r hr ↦ hm1.regs r (.reg r) (by simpa using List.all_eq_true.mp hk r hr)
   have eadd : (Sym.bin .add .W64 (.reg .rbx) (.lit 3912)).eval (frameEnv m0 st.data 96 []
-      (fun _ ↦ 0) (Host.addrOf (k + 25 + b4.length)).toBitVec) = off (reg m0 .r8) 3912 := by
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b4Offset + b4.length)).toBitVec) = off (reg m0 .r8) 3912 := by
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64]
     exact congrArg (· + BitVec.ofNat 64 3912) h.rbx
   have eRdi : reg st1.data .rdi = reg m0 .rdi := (hm1.regs .rdi _ hrdi).trans h.r14
@@ -148,7 +157,7 @@ theorem callOod (hp : Placed code k)
   rw [walkOod, run_bind_eq]
   generalize hr : (readOod L.stackLog).run s = r at hok hres
   refine branch hp g b5_in_code (by simp [b5]) (by rw [after_eq run_b5]; exact run_b5)
-    (ok_test b5 (by simp)) h2 (hpc2.trans (by rw [show k + 25 + b4.length = k + 31 from rfl]))
+    (ok_test b5 (by simp)) h2 (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b4Offset + b4.length = k + NativeRustcVmX64.Vm.VerifyExecution.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b4_next]]))
     hok (fun hb ↦ by cases r with | none => rfl | some _ => cases hb)
     fun st3 hb h3 hd3 hk3 hpc3 ↦ ?_
   obtain ⟨⟨ood, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
@@ -163,7 +172,7 @@ theorem callOod (hp : Placed code k)
     exact NativeRustcVm.Tables.LayoutWAt.of_same (by rw [off_zero]; exact hL) hsC
   rw [off_zero] at hL3
   exact callBus hp hbb htp htc hpi hkp hrs hvso g h3
-    (hpc3.trans (by rw [show k + 31 + b5.length = k + 33 from rfl])) (rate := rate)
+    (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b5Offset + b5.length = k + NativeRustcVmX64.Vm.VerifyExecution.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b5_next]])) (rate := rate)
     (by rw [k15, kr _ (by simp)]; exact h15) (by rw [k12, kr _ (by simp)]; exact h12)
     (by rw [k13, kr _ (by simp)]; exact h13) (by rw [kbp]; exact eRbp)
     (by rw [hd3]; exact h40') hP (by rw [hd3]; exact hts') (by rw [hroots']; exact hroots) hL3 hvc
@@ -171,26 +180,26 @@ theorem callOod (hp : Placed code k)
 
 /-- **The stack's commitment**, from `b2`: the function returns the walk's rest. -/
 theorem callCommit (hp : Placed code k)
-    (hcs : ∀ a s, Spec (Labels.label commitStackLabel) (CommitStackPre a s) (CommitStackPost a s))
-    (hro : ∀ a s, Spec (Labels.label readOodLabel) (ReadOodPre a s) (ReadOodPost a s))
-    (hbb : ∀ a s L, Spec (Labels.label verifyBusBalanceLabel) (VerifyBusBalancePre a s L)
+    (hcs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.CommitStack.entryLabel) (CommitStackPre a s) (CommitStackPost a s))
+    (hro : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.ReadOod.entryLabel) (ReadOodPre a s) (ReadOodPost a s))
+    (hbb : ∀ a s L, Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalance.entryLabel) (VerifyBusBalancePre a s L)
       (VerifyBusBalancePost a s L))
-    (htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+    (htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmX64.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
       (TablePhasePost a s layout bus))
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmX64.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmX64.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 18)) {rate : Nat} (hrdx : (reg st.data .rdx).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b2Offset)) {rate : Nat} (hrdx : (reg st.data .rdx).toNat = rate)
     (h12 : reg st.data .r12 = reg m0 .rsi) (h13 : reg st.data .r13 = reg m0 .rdx)
     (h40 : NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 96) 40)
       (UInt64.ofBitVec (reg m0 .rcx)))
@@ -206,7 +215,7 @@ theorem callCommit (hp : Placed code k)
   have hwN := g.wN
   have hN : commitStackStack = 704 := rfl
   have hwf := frame_wf (m0 := m0) (d := st.data) (F := 96) (rest := [(reg m0 .r8, 72)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 18 + b2.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b2Offset + b2.length)).toBitVec)
     ⟨Mapped.keeps g.fmapped h.frame.kept, g.fnw⟩
     (fun x hx ↦ by
       rw [List.mem_singleton] at hx; subst hx
@@ -215,7 +224,7 @@ theorem callCommit (hp : Placed code k)
     (List.pairwise_pair.mpr (by
       unfold NativeRustcVm.Apart; dsimp only; rw [hF]; have := g.wS; omega))
   have hm : Match (frameEnv m0 st.data 96 [(reg m0 .r8, 72)] (fun _ ↦ 0)
-      (Host.addrOf (k + 18 + b2.length)).toBitVec) workS st.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b2Offset + b2.length)).toBitVec) workS st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨h.frame.rsp_eval, known_ptr rfl h.rbx, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf (fun _ _ ↦ rfl) hpc hm
@@ -236,7 +245,7 @@ theorem callCommit (hp : Placed code k)
   have hsw : NativeRustcVm.WordAt st.data.dmem (off (reg m0 .r8) 16) L.stackLog.toUInt64 :=
     hL.stack_log
   have eload : (Sym.load 1 16 8).eval (frameEnv m0 st.data 96 [(reg m0 .r8, 72)] (fun _ ↦ 0)
-      (Host.addrOf (k + 18 + b2.length)).toBitVec) = L.stackLog.toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b2Offset + b2.length)).toBitVec) = L.stackLog.toUInt64.toBitVec :=
     load_ofMachine (r := 1) (b := reg m0 .r8) (n := 72) rfl hsw
   have hslN : L.stackLog.toUInt64.toNat = L.stackLog := by
     rw [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt (by omega)]
@@ -307,7 +316,7 @@ theorem callCommit (hp : Placed code k)
   rw [walkCommit, run_bind_eq]
   generalize hr : (commitStack L.stackLog rate).run s = r at hok hnext
   refine branch hp g b3_in_code (by simp [b3]) (by rw [after_eq run_b3]; exact run_b3)
-    (ok_test b3 (by simp)) h2 (hpc2.trans (by rw [show k + 18 + b2.length = k + 23 from rfl]))
+    (ok_test b3 (by simp)) h2 (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b2Offset + b2.length = k + NativeRustcVmX64.Vm.VerifyExecution.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b2_next]]))
     hok (fun hb ↦ by cases r with | none => rfl | some _ => cases hb)
     fun st3 hb h3 hd3 hk3 hpc3 ↦ ?_
   obtain ⟨⟨u, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
@@ -323,7 +332,7 @@ theorem callCommit (hp : Placed code k)
     exact NativeRustcVm.Tables.LayoutWAt.of_same (by rw [off_zero]; exact hL) hsC
   rw [off_zero] at hL3
   exact callOod hp hro hbb htp htc hpi hkp hrs hvso g h3
-    (hpc3.trans (by rw [show k + 23 + b3.length = k + 25 from rfl])) (rate := rate)
+    (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b3Offset + b3.length = k + NativeRustcVmX64.Vm.VerifyExecution.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b3_next]])) (rate := rate)
     (by rw [k15]; exact eR15) (by rw [k12, kr _ (by simp)]; exact h12)
     (by rw [k13, kr _ (by simp)]; exact h13) (by rw [kbp]; exact eRbp)
     (by rw [hd3]; exact h40') hP (by rw [hd3]; exact hts') (show s'.roots.size ≤ 2 by omega) hL3 hsl hvc hBn hB

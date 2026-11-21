@@ -1,12 +1,14 @@
 module
 
+public import NativeRustcX64.Code.Xmss.Names
+
 public import NativeRustcX64.Spec.Mem
 public import NativeRustc.Keccak.Hasher
 
 /-!
 # The contracts of `keccak_f`, `Hasher::update` and `Hasher::finalize`
 
-Each reads the round constants, 192 bytes at the label `rcLabel` (`RcAt`), and uses the stack
+Each reads the round constants, 192 bytes at the label `NativeRustcX64.Xmss.Symbols.rodata0Label` (`RcAt`), and uses the stack
 below RSP (`keccakFStack`, `updateStack`, `finalizeStack` bytes: its pushes, its frame, its red
 zone and its callees' stacks with their return addresses; `StackOk` also maps the return address
 at RSP). Each returns with the callee-saved registers kept (and RSP 8 above, `Spec`), and changes no
@@ -26,8 +28,6 @@ open NativeRustc
 
 @[expose] public section
 
-/-- The label of the round constants. -/
-def rcLabel : Label := ".Lanon.5ef9b7c546f4dc64388b910df55ec241.1"
 
 /-- The round constants' bytes: the 24 constants, little-endian. -/
 def rcBytes : List UInt8 := LeanVM.Parameters.keccakRC.flatMap LeanVM.Protocol.KeccakHash.wordBytes
@@ -48,7 +48,7 @@ section
 variable [Labels]
 
 /-- The address of the round constants. -/
-def rcAddr : BitVec 64 := (label rcLabel).toBitVec
+def rcAddr : BitVec 64 := (label NativeRustcX64.Xmss.Symbols.rodata0Label).toBitVec
 
 /-- The round constants are at their label, apart from the `n` bytes below RSP and the return
 address at RSP. -/

@@ -44,7 +44,7 @@ structure Cur (i : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (m : Mach
 /-- **The sibling found** (`b7`): node `j`, the first of node `i`'s key `^^^ 1`, at RAX. -/
 structure Fnd (i : Nat) (sl : List (Nat × Digest × Bool)) (ci j : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 49)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b7Offset)
   cur : Cur m0 bp B c ns i sl ci st.data
   hi : i < ns.length
   hj : j < ns.length
@@ -55,7 +55,7 @@ structure Fnd (i : Nat) (sl : List (Nat × Digest × Bool)) (ci j : Nat) (st : M
 
 /-- **No node is node `i`'s sibling** (`b10`): the sibling read. -/
 structure Rd (i : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 71)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b10Offset)
   cur : Cur m0 bp B c ns i sl ci st.data
   miss : Miss ns i ns.length
 
@@ -220,7 +220,7 @@ theorem scan_step {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st
   have hli := hI.lt
   have hn := g.n256
   obtain ⟨hok5, hK5⟩ := ok_b5
-  refine fr_step hp g (j := 39) b5_in_code (by simp [b5]) exit_b5 nofun hok5 hI.pc hI.fr
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b5Offset) b5_in_code (by simp [b5]) exit_b5 nofun hok5 hI.pc hI.fr
     fun s1 hf1 hd1 hr1 hpc1 ↦ ?_
   have hk1 := regs_kept hK5 hr1
   have hcur : Cur m0 bp B c ns i sl ci s1.data :=
@@ -235,7 +235,7 @@ theorem scan_step {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st
     rw [hI.rcx, and_self_zero (by omega)]
     exact decide_eq_decide.mpr (by omega))
   by_cases hjn : j = cnt m0
-  · rw [ite_t hjn, hp.label (j := 71) rfl] at hpc2
+  · rw [ite_t hjn, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_9_at] at hpc2
     subst hjn
     exact .done _ (.inl ⟨hpc2, hcur, by rw [hl]; exact hI.miss⟩)
   rw [ite_f hjn] at hpc2
@@ -257,7 +257,7 @@ theorem scan_step {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st
       reg st2.data .rax = BinOp.apply .add .W64 (BitVec.ofNat 64 40) (reg s1.data .rax) →
       reg st2.data .rcx = BinOp.apply .add .W64 (BitVec.ofNat 64 18446744073709551576)
         (reg s1.data .rcx) →
-      Miss ns i (j + 1) → st2.pc = Host.addrOf (k + 39) →
+      Miss ns i (j + 1) → st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b5Offset) →
       Scan k m0 bp B c ns i sl ci (j + 1) st2 := by
     intro st2 hc hra hrc hmiss hpc
     refine ⟨hpc, hc.fr, hc.hs, hc.mm, hc.nx, hc.lt, hc.rbp, hc.r12, hc.rbx, hc.r14, hc.r15, ?_, ?_,
@@ -285,7 +285,7 @@ theorem scan_step {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st
         hrax', trivial⟩
     refine exec_at (Wire.infix_of b6_in_code (by simp [b6]) hp) exit_b6s hwf nofun
       (hpc2.trans (congrArg Host.addrOf rfl)) hm fun st2 hm2 hpc3 ↦ ?_
-    simp only [PcOk, SBool.eval, ↓reduceIte, hp.label (j := 39) rfl] at hpc3
+    simp only [PcOk, SBool.eval, ↓reduceIte, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_4_at] at hpc3
     have hk2 := regs_kept hK6 fun r v h ↦ hm2.regs r v h
     refine .done _ (.inr (.inr (hnext st2
       (hcur.keep (Frame.of_block hf1 hwf hm2 hmid slots_le) (hm2.dmem_eq hwf hmem) hk2)
@@ -335,7 +335,7 @@ theorem scan_step {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st
       · rw [decide_eq_true (e.mpr h)]; simp [h]
       · rw [decide_eq_false (fun h' ↦ h (e.mp h'))]; simp [h])
     by_cases hf : (ns[j]'hjl).1 ≠ (ns[i]'hil).1 ^^^ 1
-    · rw [ite_t hf, hp.label (j := 39) rfl] at hpc4
+    · rw [ite_t hf, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_4_at] at hpc4
       refine .done _ (.inr (.inr (hnext st2 hc2 (hm2.regs .rax _ hra6) (hm2.regs .rcx _ hrc6)
         (fun j' hj' hj hi ↦ ?_) hpc4)))
       rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj') with h | rfl

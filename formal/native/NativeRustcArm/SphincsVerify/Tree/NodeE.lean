@@ -38,8 +38,8 @@ variable {r}
 /-- **`b177` and `keccak_f`**: the final absorb. -/
 theorem nodeG (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN7 r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2712 ∧ AtN8 r l e z st.data)
-      ⟨m, r.pc 2631⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b178Offset ∧ AtN8 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b177Offset⟩ := by
   obtain ⟨hB, hz, hN, h23, hZ, hK⟩ := h
   have hl := hB.1
   have hlI := length_nodeIn (r := r) (e := e) hl hz
@@ -64,7 +64,7 @@ theorem nodeG (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   obtain ⟨hk, hout, hS⟩ := r.keccakF_out h0 hpost
   have hlX : (xorBlock (List.replicate 200 0) (finalBlock (nodeIn r l e z))).length = 200 :=
     length_stateBytes _
-  refine .done _ ⟨hpc'.trans (pc_after (n := 81) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b177_next),
     hB1.of_call hpre hS (by decide) (by decide) (by decide) hout, hz, hN1.of_saved hS,
     regIs_of_saved rfl h20 hS, ?_⟩
   have := bytesOf_of_bytesAt hX
@@ -88,9 +88,9 @@ theorem node_value {l z : Nat} {e : List (List UInt8)} (hl : l < 3) (hz : z < he
 /-- **`b178`**: the node's value to `20624`; the loop's test. -/
 theorem nodeH (hp : Placed code r.k) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN8 r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ (z + 1 < heightOf l ∧ st.pc = r.pc 2272 ∧
-      AtNode r l e (z + 1) st.data) ∨ (z + 1 = heightOf l ∧ st.pc = r.pc 2721 ∧ AtFold r l e st.data))
-      ⟨m, r.pc 2712⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ (z + 1 < heightOf l ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b153Offset ∧
+      AtNode r l e (z + 1) st.data) ∨ (z + 1 = heightOf l ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b179Offset ∧ AtFold r l e st.data))
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b178Offset⟩ := by
   obtain ⟨hB, hz, hN, h20, hV⟩ := h
   have hl := hB.1
   have hh := heightOf_le hl
@@ -131,7 +131,7 @@ theorem nodeH (hp : Placed code r.k) (hpre : r.Pre) {l : Nat}
     cases b <;> simp_all
   by_cases hzh : z + 1 = heightOf l
   · have hpc' := pc_cond (b := false) hpc (hc false (by simp [hzh]))
-    rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 9) (j' := 2721) (by rfl) (by decide)] at hpc'
+    rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b178_next] at hpc'
     refine .done _ (Or.inr ⟨hzh, hpc', hB1, ?_⟩)
     rw [← hzh]; exact hVal
   · have hpc' := pc_cond (b := true) hpc (hc true (by simp [hzh]))

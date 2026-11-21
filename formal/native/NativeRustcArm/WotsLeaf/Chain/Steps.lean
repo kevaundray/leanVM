@@ -40,8 +40,8 @@ theorem step (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre)
     (hval : BytesAt m.dmem (r.off 1384) v)
     (cont : ∀ m', r.CK x E m' → r.SRegs m' (pos + 1) i →
       BytesAt m'.dmem (r.off 1384) (th r.pp ((tweak 1 r.hi r.e).withStep pos) (v ++ u128Bytes i)) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc 591 else r.pc 192⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 192⟩ :=
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc NativeRustcArm.Xmss.WotsLeaf.b41Offset else r.pc NativeRustcArm.Xmss.WotsLeaf.b15Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b15Offset⟩ :=
   seg_b15 hp hc hpre hpos hv hK hR hval fun m' h1 h2 h3 ↦ cont m' h1 h2 (by
     have hl : (r.pp ++ r.addr 1 pos ++ (v ++ u128Bytes i)).length < 136 := by
       simp only [List.length_append, length_pp, length_addr, hv, length_u128Bytes]
@@ -57,8 +57,8 @@ theorem steps (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre)
       r.CK x E m → r.SRegs m pos i → BytesAt m.dmem (r.off 1384) v →
       (∀ m', r.CK x E m' → r.SRegs m' 3 i →
         BytesAt m'.dmem (r.off 1384) (chain r.pp r.layer r.e i pos (k + 1) v) →
-        Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 591⟩) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 192⟩
+        Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Xmss.WotsLeaf.b41Offset⟩) →
+      Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b15Offset⟩
   | 0, pos, v, m, hk, hv, hK, hR, hval, cont =>
     step hp hc hpre (by omega) hv hK hR hval fun m' h1 h2 h3 ↦ by
       simp only [show pos + 1 = 3 by omega, ↓reduceIte] at h2 ⊢

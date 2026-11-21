@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfFiatShamirIv.Names
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcVmArm.Top.Seed.Basic
 
 /-!
@@ -20,11 +22,11 @@ public section
 variable [Host] {k : Nat}
 
 theorem stage1 (hp : Placed code k)
-    (hkiv : Spec (Labels.label keccak256WordsIvLabel) Keccak256WordsIvPre Keccak256WordsIvPost)
-    (hmemset : Spec (Labels.label "memset") MemsetPre MemsetPost) {m0 : MachineData}
+    (hkiv : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.entryLabel) Keccak256WordsIvPre Keccak256WordsIvPost)
+    (hmemset : Spec (Labels.label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost) {m0 : MachineData}
     (hpre : SeedPre m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 18) ∧ S1 m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Seed.b2Offset) ∧ S1 m0 st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.Seed.b0Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨⟨-, -, hmap⟩, ⟨hrcW, hrcN, -⟩, -, ⟨hbcM, -⟩, -, -, -, -, -⟩ := hpre
   obtain ⟨hs928, hs16, hF, hF8, hF72, hsb0, -, -, -, -, hrcA, hrcN', hbcA, hbcN, hn32⟩ := g
@@ -154,7 +156,7 @@ theorem stage1 (hp : Placed code k)
         exact wordsAt_keep hbc hB1.same (by rw [hw]; omega) fun q hq ↦ by
           unfold InStack at hq; rw [hw]; omega
   -- `b1`: `memset`'s arguments.
-  rw [show k + 0 + b0.length = k + 14 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.Seed.b0Offset + b0.length = k + NativeRustcVmArm.Vm.Seed.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Seed.b0_next]] at hpc2
   refine exec_at (hb1 hp) run_b1 (Env.wf_nil st2.data) hpc2 (match_nil st2.data)
     fun st3 hm3 hpc3 ↦ ?_
   have hk1 := b1_keeps
@@ -212,7 +214,7 @@ theorem stage1 (hp : Placed code k)
     have h2 : st2.data.regs.X20 = st1.data.regs.X20 := hsaved2.1 .X20 rfl
     have h4 : st4.data.regs.X20 = st3.data.regs.X20 := hsaved4.1 .X20 rfl
     exact h4.trans (h3.trans (h2.trans hX20_1))
-  rw [show k + 14 + b1.length = k + 18 from rfl] at hpc4
+  rw [show k + NativeRustcVmArm.Vm.Seed.b1Offset + b1.length = k + NativeRustcVmArm.Vm.Seed.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.Seed.b1_next]] at hpc4
   exact Eventually.done _ ⟨hpc4, hB4, hX19_4, hX20_4, hiv4, hz4⟩
 
 end

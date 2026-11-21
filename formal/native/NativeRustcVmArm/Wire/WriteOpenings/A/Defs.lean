@@ -77,7 +77,7 @@ variable [Host]
 
 /-- **The queries' loop head** (`b2`) at query `j`. -/
 structure HeadA (R : Run) (j : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 29
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b2Offset
   fr : Frm R st.data
   cs : Cs R st.data
   cr : Cr R j st.data
@@ -91,7 +91,7 @@ structure HeadA (R : Run) (j : Nat) (st : MachineState) : Prop where
 
 /-- **The positions' scan** (`b3`) of query `j` at position `i`. -/
 structure ScanA (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 39
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b3Offset
   fr : Frm R st.data
   cs : Cs R st.data
   cr : Cr R j st.data
@@ -126,7 +126,7 @@ structure CopyA (R : Run) (j i t : Nat) (m : MachineData) : Prop where
 
 /-- **Four words at a time** (`b9`), `t` copied. -/
 structure ChunkA (R : Run) (j i t : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 60
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b9Offset
   c : CopyA R j i t st.data
   x8 : rv st.data .X8 = R.lv + BitVec.ofNat 64 (512 * i)
   x9 : rv st.data .X9 = R.lv + BitVec.ofNat 64 (512 * i + 8 * t + 16)
@@ -137,7 +137,7 @@ structure ChunkA (R : Run) (j i t : Nat) (st : MachineState) : Prop where
 
 /-- **One word at a time** (`b12`), `t` copied. -/
 structure RemA (R : Run) (j i t : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 76
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b12Offset
   c : CopyA R j i t st.data
   x8 : rv st.data .X8 = R.lv + BitVec.ofNat 64 (512 * i + 8 * t)
   x9 : rv st.data .X9 = R.oa (ob j + 8 + 8 * t)
@@ -162,7 +162,7 @@ structure LevS (R : Run) (j l : Nat) (m : MachineData) : Prop where
 
 /-- **The levels' loop head** (`b16`) of opening `j` at level `l`. -/
 structure LevA (R : Run) (j l : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 99
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b16Offset
   s : LevS R j l st.data
 
 end

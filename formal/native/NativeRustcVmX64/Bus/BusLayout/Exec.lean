@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Bus.Facts
 public import NativeRustcVmX64.Code.Vm.BusLayout
+public import NativeRustcVmX64.Code.Vm.BusLayout.Names
 public meta import NativeRustcVmX64.Code.Vm.BusLayout
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -143,15 +144,15 @@ public theorem ok_b8 : (∀ w ∈ (after b8 sT).mem, w.r = 0 ∧ 8 ≤ w.off ∧
   decide +kernel
 
 public theorem exit_b15 : (exec b15 midS).map (·.2) = some (.cond (.cmp .eq .W8
-    (.bin .and .W8 (.reg .rbp) (.lit 1)) (.lit 0)) ".LBusLayout_16") := by
+    (.bin .and .W8 (.reg .rbp) (.lit 1)) (.lit 0)) NativeRustcVmX64.Vm.BusLayout.label_16) := by
   rw [run_b15]; rfl
 
 public theorem exit_b16 : (exec b16 sO).map (·.2) = some (.cond
     ((SBool.cmp .ult .W64 (.load 0 0 8) (.lit 5)).not.and
-      (SBool.cmp .eq .W64 (.load 0 0 8) (.lit 5)).not) ".LBusLayout_14") := by
+      (SBool.cmp .eq .W64 (.load 0 0 8) (.lit 5)).not) NativeRustcVmX64.Vm.BusLayout.label_14) := by
   rw [run_b16]; rfl
 
-public theorem exit_b17 : (exec b17 sH17).map (·.2) = some (.jump ".LBusLayout_15") := by
+public theorem exit_b17 : (exec b17 sH17).map (·.2) = some (.jump NativeRustcVmX64.Vm.BusLayout.label_15) := by
   rw [run_b17]; rfl
 
 public theorem ok_b16 : (after b16 sO).mem = [] ∧ (after b16 sO).reg .rdx = some (.load 0 0 8) ∧

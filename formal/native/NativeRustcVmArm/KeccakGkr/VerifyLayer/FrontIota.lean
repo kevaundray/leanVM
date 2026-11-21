@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontFw
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontBits
 import Mathlib.Tactic.IntervalCases
@@ -7,9 +8,9 @@ import Mathlib.Tactic.IntervalCases
 /-!
 # `verify_layer`'s front: the segment kernel and ι's bit weights
 
-From `.LVerifyLayer_12` (`b15`, `k + 188`, the projection in X21, X22, `AtI`): the segment kernel
+From `.LVerifyLayer_12` (`b15`, `k + NativeRustcVmArm.Vm.VerifyLayer.b15Offset`, the projection in X21, X22, `AtI`): the segment kernel
 of the claim's point into the frame at `904` (`eq_kernel`), the first round constant's bit
-weights (`b17`, `bitsA_loop`), the second's (`b19`, `bitsB_loop`), to `b21` (`k + 335`, `AtJ`,
+weights (`b17`, `bitsA_loop`), the second's (`b19`, `bitsB_loop`), to `b21` (`k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset`, `AtJ`,
 `seg_run`).
 -/
 
@@ -41,7 +42,7 @@ abbrev wA (m0 : MachineData) : UInt64 := keccakRCW.getD (11 - m0.regs.X2.toNat) 
 /-- The second round constant. -/
 abbrev wB (m0 : MachineData) : UInt64 := keccakRCW.getD (23 - m0.regs.X2.toNat) 0
 
-/-- **After the segment kernel** (`b17`, `k + 214`): its first two entries in the frame at
+/-- **After the segment kernel** (`b17`, `k + NativeRustcVmArm.Vm.VerifyLayer.b17Offset`): its first two entries in the frame at
 `904`, the claim's point's address in X19. -/
 structure AtS [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (st : MachineData) : Prop where
@@ -73,7 +74,7 @@ def iWords (m0 : MachineData) : List (Nat × UInt64) :=
 /-- The offsets of `iWords`. -/
 def iOffs : List Nat := 32 :: pOffs
 
-/-- **At the first check's sums** (`b21`, `k + 335`): the projection, the segment kernel's two
+/-- **At the first check's sums** (`b21`, `k + NativeRustcVmArm.Vm.VerifyLayer.b21Offset`): the projection, the segment kernel's two
 entries, the two round constants' bit weights as four accumulators each. -/
 structure AtJ [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (st : MachineData) : Prop where
@@ -208,10 +209,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The segment kernel**, from `b15` to `b17`. -/
 theorem segA_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost) {p : Array EW}
-    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 188))
+    (hek : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost) {p : Array EW}
+    {s1 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b15Offset))
     (hi : AtI m0 a c p s1 st.data) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 214) → AtS m0 a c p s1 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b17Offset) → AtS m0 a c p s1 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hS := pre_stack h
@@ -242,7 +243,7 @@ theorem segA_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
   refine exec_at (blk hp b15_in_code (by simp [b15])) e15 hwf1 hpc hm1 fun st1 hm1' hpc1 ↦ ?_
   have hfb1 := fb_blkW h hi.fb hm1' hwf1 rfl (by decide)
   have hfm1 := FM.blk h hm1' hwf1 (by decide) hi.fm
-  simp only [PcOk, show b15.length = 24 from rfl, show k + 188 + 24 = k + 212 by omega] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.VerifyLayer.b15_length, NativeRustcVmArm.Vm.VerifyLayer.b15Length, show k + NativeRustcVmArm.Vm.VerifyLayer.b15Offset + 24 = k + NativeRustcVmArm.Vm.VerifyLayer.b16Offset by simpa only [NativeRustcVmArm.Vm.VerifyLayer.b15_length, NativeRustcVmArm.Vm.VerifyLayer.b15Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.VerifyLayer.b15_next] at hpc1
   have l280 := ld1 (m := st.data) (b0 := base m0 2032) (n0 := 2032) (n1 := 768) (o := 280) hLw
   have l112 := ld0 (m := st.data) (b1 := cA m0) (n0 := 2032) (n1 := 768) (o := 112) hw112
   have l136 := ld0 (m := st.data) (b1 := cA m0) (n0 := 2032) (n1 := 768) (o := 136) hw136
@@ -338,7 +339,7 @@ theorem segA_run (hp : Placed code k) (h : VerifyLayerPre a s c m0)
     rw [sb_not, sb_cmp, eq_apply, ev_regU, litN 1, show m2.regs.getXReg .X0 = 1 from x0r]
     rfl
   have hpc3' := pc_false hpc3 hc16
-  rw [show k + 212 + b16.length = k + 214 from rfl] at hpc3'
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b16Offset + b16.length = k + NativeRustcVmArm.Vm.VerifyLayer.b17Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b16_next]] at hpc3'
   have k3 : Bus.KeepRegs [.X19, .X21, .X22, .X25] m2 st3.data := Bus.KeepRegs.of_block hm3 rfl
   refine cont st3 hpc3' ⟨hfb3, by rw [hd3]; exact hfm2, ?_, ?_, ?_, by rw [hd3]; exact w0.1,
     by rw [hd3]; exact w0.2, by rw [hd3]; exact w1.1, by rw [hd3]; exact w1.2⟩

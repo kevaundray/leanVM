@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.IvWord.Names
 public import NativeRustcVmArm.Keccak.IvWord.Blocks
 public import NativeRustcVmArm.Keccak.Common
 public import NativeRustcVm.Keccak.Words
@@ -40,14 +41,14 @@ def Ws (m0 : MachineData) (w : List UInt64) : Prop :=
 
 /-- Before `loadWord` (`b7`): X9 is `k - 1`, a word of the bytecode, X8 `top`. -/
 def At7 [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
-  Fr m0 st.data ∧ st.pc = Host.addrOf (k + 22) ∧ 1 ≤ m0.regs.X2.toNat ∧
+  Fr m0 st.data ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.IvWord.b7Offset) ∧ 1 ≤ m0.regs.X2.toNat ∧
     (st.data.regs.getXReg .X9).toNat = m0.regs.X2.toNat - 1 ∧
     m0.regs.X2.toNat - 1 < m0.regs.X1.toNat ∧
     ∀ w, Ws m0 w → st.data.regs.getXReg .X8 = top w m0.regs.X2.toNat
 
 /-- Before `ret8` (`b8`): X8 is the result. -/
 def At8 [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
-  Fr m0 st.data ∧ st.pc = Host.addrOf (k + 25) ∧
+  Fr m0 st.data ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.IvWord.b8Offset) ∧
     ∀ w, Ws m0 w → st.data.regs.getXReg .X8 = ivWord w m0.regs.X2.toNat
 
 end
@@ -256,8 +257,8 @@ theorem top_run {k : Nat} (hp : Placed code k) {m0 : MachineData}
     (hfr : Fr m0 st.data) (hK : 1 ≤ m0.regs.X2.toNat)
     (hx9 : (st.data.regs.getXReg .X9).toNat = m0.regs.X2.toNat - 1)
     (hv : ∀ w, Ws m0 w → st.data.regs.getXReg .X8 = top w m0.regs.X2.toNat)
-    (hpc : st.pc = if m0.regs.X2.toNat - 1 < m0.regs.X1.toNat then Host.addrOf (k + 22)
-      else Host.addrOf (k + 25)) :
+    (hpc : st.pc = if m0.regs.X2.toNat - 1 < m0.regs.X1.toNat then Host.addrOf (k + NativeRustcVmArm.Vm.IvWord.b7Offset)
+      else Host.addrOf (k + NativeRustcVmArm.Vm.IvWord.b8Offset)) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m0 ∧ IvWordPost m0 st'.data) st := by
   by_cases h : m0.regs.X2.toNat - 1 < m0.regs.X1.toNat
   · simp only [h, ↓reduceIte] at hpc
@@ -270,7 +271,7 @@ theorem top_run {k : Nat} (hp : Placed code k) {m0 : MachineData}
 
 /-- `top_run` through a jump to the return (`jmp4`, `jmp10`). -/
 theorem jmp_run {k e : Nat} (hp : Placed code k) {b : List Directive} (hb : b.IsInfixAt code e)
-    (hne : b ≠ []) {S : SState} (hx : exec b start = some (S, .jump ".LIvWord_7"))
+    (hne : b ≠ []) {S : SState} (hx : exec b start = some (S, .jump NativeRustcVmArm.Vm.IvWord.label_7))
     (h8 : S.reg .X8 = some (.reg .X8)) (h9 : S.reg .X9 = some (.reg .X9))
     (hk : keeps start S = true) (hr : ∀ r ∈ [XReg.X0, .X1, .X2, .X30],
       start.reg r = some (.reg r) ∧ S.reg r = some (.reg r)) (hmem : S.mem = [])
@@ -280,7 +281,7 @@ theorem jmp_run {k e : Nat} (hp : Placed code k) {b : List Directive} (hb : b.Is
     (hfr : Fr m0 st.data) (hK : 1 ≤ m0.regs.X2.toNat)
     (hx9 : (st.data.regs.getXReg .X9).toNat = m0.regs.X2.toNat - 1)
     (hv : ∀ w, Ws m0 w → st.data.regs.getXReg .X8 = top w m0.regs.X2.toNat)
-    (hpc : st.pc = if m0.regs.X2.toNat - 1 < m0.regs.X1.toNat then Host.addrOf (k + 22)
+    (hpc : st.pc = if m0.regs.X2.toNat - 1 < m0.regs.X1.toNat then Host.addrOf (k + NativeRustcVmArm.Vm.IvWord.b7Offset)
       else Host.addrOf (k + e)) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m0 ∧ IvWordPost m0 st'.data) st := by
   by_cases h : m0.regs.X2.toNat - 1 < m0.regs.X1.toNat
@@ -297,10 +298,10 @@ theorem jmp_run {k e : Nat} (hp : Placed code k) {b : List Directive} (hb : b.Is
 
 /-- **`iv_word` meets its contract.** -/
 theorem _root_.NativeRustcVmArm.ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
-    Spec (Labels.label ivWordLabel) IvWordPre IvWordPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.IvWord.entryLabel) IvWordPre IvWordPost := by
   intro m0 hpre
   obtain ⟨hmap, hnw⟩ := hpre
-  rw [show Labels.label ivWordLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.IvWord.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.IvWord.b0Offset) from hp.label NativeRustcVmArm.Vm.IvWord.entry_at]
   have hfr0 : Fr m0 m0 := ⟨rfl, ⟨fun _ _ => rfl, rfl, fun _ h => h⟩, rfl, rfl, rfl, rfl⟩
   have hKlt := m0.regs.X2.toNat_lt
   refine exec_then (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) zero (Env.wf_nil m0)
@@ -308,7 +309,7 @@ theorem _root_.NativeRustcVmArm.ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.cod
   have hfr1 := fr_step hfr0 (match_nil m0) hm0 (Env.wf_nil m0) rfl rfl (by decide +kernel)
     (by decide +kernel)
   simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_eq64 _ 0 (by decide),
-    show b0.length = 2 from rfl, Nat.add_zero] at hpc0
+    NativeRustcVmArm.Vm.IvWord.b0_length, NativeRustcVmArm.Vm.IvWord.b0Length, NativeRustcVmArm.Vm.IvWord.b0Offset, Nat.add_zero] at hpc0
   rw [Fr.x2 hfr0] at hpc0
   by_cases hk0 : m0.regs.X2.toNat = 0
   · -- `k = 0`: the tag's first word
@@ -336,7 +337,7 @@ theorem _root_.NativeRustcVmArm.ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.cod
     simp only [Sym.eval, Env.ofMachine_regs]
     rw [sub64_toNat (by rw [Fr.x2 hfr1]; omega), Fr.x2 hfr1]
   simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_eq64 _ 1 (by decide),
-    show b1.length = 2 from rfl] at hpc1
+    NativeRustcVmArm.Vm.IvWord.b1_length, NativeRustcVmArm.Vm.IvWord.b1Length] at hpc1
   rw [Fr.x2 hfr1] at hpc1
   by_cases hk1 : m0.regs.X2.toNat = 1
   · -- `k = 1`: the tag's ninth byte
@@ -353,7 +354,7 @@ theorem _root_.NativeRustcVmArm.ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.cod
       simp only [Sym.eval, ↓reduceIte]
       decide
     · simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_ult64,
-        show b6.length = 4 from rfl, if_not] at hpc2
+        NativeRustcVmArm.Vm.IvWord.b6_length, NativeRustcVmArm.Vm.IvWord.b6Length, if_not] at hpc2
       rw [Fr.x1 hfr2, UInt64.toNat_toBitVec, hx9, label_at hp b8_in_code rfl] at hpc2
       exact hpc2
   simp only [hk1, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
@@ -371,7 +372,7 @@ theorem _root_.NativeRustcVmArm.ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.cod
     rw [sub64_toNat (by rw [Fr.x2 hfr2]; omega), Fr.x2 hfr2, BitVec.toNat_ofNat,
       Nat.mod_eq_of_lt (by omega)]
   simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_ult64,
-    show b2.length = 3 from rfl, if_not] at hpc2
+    NativeRustcVmArm.Vm.IvWord.b2_length, NativeRustcVmArm.Vm.IvWord.b2Length, if_not] at hpc2
   rw [sub64_toNat (by rw [Fr.x2 hfr2]; omega), Fr.x2 hfr2, Fr.x1 hfr2] at hpc2
   by_cases h2 : m0.regs.X2.toNat - 2 < m0.regs.X1.toNat
   · -- the top byte of word `k - 2`
@@ -397,9 +398,9 @@ theorem _root_.NativeRustcVmArm.ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.cod
     have hfr4 := fr_step hfr3 hm hm3 hwf rfl rfl (by decide +kernel) (by decide +kernel)
     have e9 := Match.reg_eq hm hm3 (r := .X9) rfl rfl
     simp only [PcOk, SBool.eval, Sym.eval, env, Env.ofMachine_regs, cmp_ult64,
-      show b3.length = 4 from rfl, decide_eq_true_eq] at hpc3
+      NativeRustcVmArm.Vm.IvWord.b3_length, NativeRustcVmArm.Vm.IvWord.b3Length, decide_eq_true_eq] at hpc3
     rw [Fr.x1 hfr3, UInt64.toNat_toBitVec, hx9', label_at hp b7_in_code rfl,
-      show k + 7 + 4 = k + 11 by omega] at hpc3
+      show k + NativeRustcVmArm.Vm.IvWord.b3Offset + 4 = k + NativeRustcVmArm.Vm.IvWord.b4Offset by simpa only [NativeRustcVmArm.Vm.IvWord.b3_length, NativeRustcVmArm.Vm.IvWord.b3Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.IvWord.b3_next] at hpc3
     refine jmp_run hp b4_in_code (List.cons_ne_nil _ _) jmp4 rfl rfl (by decide +kernel)
       (by decide +kernel) rfl hmap hnw hfr4 (by omega) (by rw [e9]; exact hx9')
       (fun w hw => ?_) hpc3
@@ -419,9 +420,9 @@ theorem _root_.NativeRustcVmArm.ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.cod
       (by decide +kernel)
     have e9 := Match.reg_eq (match_nil _) hm3 (r := .X9) rfl rfl
     simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_ult64,
-      show b9.length = 4 from rfl, decide_eq_true_eq] at hpc3
+      NativeRustcVmArm.Vm.IvWord.b9_length, NativeRustcVmArm.Vm.IvWord.b9Length, decide_eq_true_eq] at hpc3
     rw [Fr.x1 hfr3, UInt64.toNat_toBitVec, hx9', label_at hp b7_in_code rfl,
-      show k + 28 + 4 = k + 32 by omega] at hpc3
+      show k + NativeRustcVmArm.Vm.IvWord.b9Offset + 4 = k + NativeRustcVmArm.Vm.IvWord.b10Offset by simpa only [NativeRustcVmArm.Vm.IvWord.b9_length, NativeRustcVmArm.Vm.IvWord.b9Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.IvWord.b9_next] at hpc3
     refine jmp_run hp b10_in_code (List.cons_ne_nil _ _) jmp10 rfl rfl (by decide +kernel)
       (by decide +kernel) rfl hmap hnw hfr4 (by omega) (by rw [e9]; exact hx9')
       (fun w hw => ?_) hpc3

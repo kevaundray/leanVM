@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LeanvmVerify.Names
+public import NativeRustcVmArm.Code.Vm.Seed.Names
+public import NativeRustcVmArm.Code.Vm.Verify.Names
+public import NativeRustcVmArm.Code.Vm.VerifyExecution.Names
 public import NativeRustcVmArm.Spec.Wire
 public import NativeRustcVmArm.Spec.Transcript
 public import NativeRustcVmArm.Rodata
@@ -40,14 +44,6 @@ open LeanVM.Parameters LeanVM.Semantics LeanVM.Protocol.Compile LeanVM.Protocol.
 
 /-! ## Symbols -/
 
-/-- `seed`'s symbol. -/
-def seedLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify4seed"
-/-- `verify_execution`'s symbol. -/
-def verifyExecutionLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify16verify_execution"
-/-- `verify`'s symbol. -/
-def verifyLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify6verify"
-/-- `leanvm_verify`'s symbol. -/
-def leanvmVerifyLabel : Label := "leanvm_verify"
 
 /-! ## Stacks -/
 

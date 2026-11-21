@@ -12,7 +12,7 @@ Region 0 is the frame (`Field.frameS 112`, `Field.midS 112`): the 48 bytes of pu
 frame (`|point|` at offset `16`, the point's end at `24`, `n` at `32`, the first product at `40`,
 `48`, the next index at `56`), the call's return-address slot below, the return address above.
 - `entryS` at the entry (`b0`, then `b1` or `b6`);
-- `rS` at the loop head `.LPaddingWeight_3` (`b2`, loading a coordinate at R13, region 1, and
+- `rS` at the loop head `NativeRustcVmX64.Vm.PaddingWeight.label_3` (`b2`, loading a coordinate at R13, region 1, and
   calling `EW::mul`);
 - `Field.midS 112` at the second call (`b3`), the loop's end (`b4`) and the epilogue (`b7`,
   ending in a jump to `EW::mul`);

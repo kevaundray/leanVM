@@ -30,7 +30,7 @@ theorem word_write [Labels] {env : Env} {S : SState} {m : MachineData} (hm : Mat
 
 /-- **The end**: `Some` returned. -/
 theorem tail (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {st : MachineState} {s5 : TState}
-    {u0 v c0 c1 : EW} (hpc : st.pc = Host.addrOf (k + 82))
+    {u0 v c0 c1 : EW} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b18Offset))
     (hb : AtB18 a s0 w m0 s5 u0 v c0 c1 st.data) :
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   obtain ⟨g1, g2, g3, g4, g5, hN⟩ := push_geo h
@@ -61,7 +61,7 @@ theorem tail (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {st : MachineStat
       simp [this]
     · rw [show w.alphas.size = 29 by omega]; decide
   rw [hcond] at hpc1
-  simp only [Bool.false_eq_true, ↓reduceIte, show k + 82 + b18.length = k + 97 from rfl] at hpc1
+  simp only [Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmArm.Vm.FoldRound.b18Offset + b18.length = k + NativeRustcVmArm.Vm.FoldRound.b19Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FoldRound.b18_next]] at hpc1
   have hS1 : ∀ w ∈ (after b18 stateS).mem, w.r = 1 ∧ w.off + w.n ≤ 16 := by
     rw [after_eq run_b18]; decide
   rw [after_eq run_b18] at hS1
@@ -119,7 +119,7 @@ theorem tail (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {st : MachineStat
   have hwf2 := push_wf h hf1 hc30
   have hm2 := push_match h hf1 h19 h20 h8
   refine exec_at (inf hp b19_in_code (by simp [b19])) run_b19 hwf2 hpc1 hm2 fun st2 hm2' hpc2 ↦ ?_
-  simp only [PcOk, hp.label (j := 108) rfl] at hpc2
+  simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.FoldRound.b21Offset) NativeRustcVmArm.Vm.FoldRound.label_8_at] at hpc2
   refine exec_at (inf hp b21_in_code (by simp [b21])) (exec_after run_b19 run_b21p) hwf2 hpc2
     hm2' fun st3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3

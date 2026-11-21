@@ -1,12 +1,15 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Tail
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Acc
 
 /-!
 # `verify_bus_balance`'s count side
 
-From `b44` (`k + 629`), after the pull side: `b44` checks its total's tag; `b45` calls
+From `b44` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b44Offset`), after the pull side: `b44` checks its total's tag; `b45` calls
 `accumulate_side` on the count side (no fingerprints, the weights `&[ONE]`, `β = 0`); then the
 tail (`count_spec`).
 -/
@@ -33,11 +36,11 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The count side** (`b44`, `k + 629`). -/
+/-- **The count side** (`b44`, `k + NativeRustcVmArm.Vm.VerifyBusBalance.b44Offset`). -/
 theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
     {w pt tv mem bp : Array EW} {beta mf bf share : EW} {s' : TState} {m : MachineData}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) m)
     (hr : (verifyBusBalance L).run s0 =
@@ -56,7 +59,7 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (x24 : m.regs.getXReg .X24 = (acc0 L w beta pt tv mem share).2.c1)
     (hts : TStateAt m.dmem m0.regs.X0.toBitVec a s')
     (hcl : ClaimsWAt m.dmem m0.regs.X5.toBitVec (claimsOf L pt mem mf bf)) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 629)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b44Offset)⟩ := by
   have hS := pre_stack h
   have hN := hS.2.1
   -- `b44`: the pull side's tag.
@@ -123,7 +126,7 @@ theorem count_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun ho hw ↦ stackArg_of hfr2.sp (frame_write hm2' ho hw)
   have s0' : stackArg st2.data 0 = 0 := sa (o := 0) (v := .lit 0) (by omega) (by decide)
   have s8 : stackArg st2.data 8 = UInt64.ofBitVec (NativeRustcVmArm.rodataAddr .one) :=
-    sa (o := 8) (v := .label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.9") (by omega) (by decide)
+    sa (o := 8) (v := .label NativeRustcVmArm.Vm.Symbols.rodata9Label) (by omega) (by decide)
   have s16 : stackArg st2.data 16 = 1 := sa (o := 16) (v := .lit 1) (by omega) (by decide)
   have s24 : stackArg st2.data 24 = 0 := sa (o := 24) (v := .lit 0) (by omega) (by decide)
   have s32 : stackArg st2.data 32 = 0 := sa (o := 32) (v := .lit 0) (by omega) (by decide)

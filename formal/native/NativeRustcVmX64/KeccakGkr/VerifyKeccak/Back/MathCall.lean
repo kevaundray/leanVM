@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Read
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 
 /-!
 # Arithmetic calls with identified input arrays
@@ -17,9 +19,9 @@ public section
 
 variable [Host]
 
-theorem mleCall (hmle : Spec (Labels.label mleOfMultilinearEvalLabel)
+theorem mleCall (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel)
     MleOfMultilinearEvalPre MleOfMultilinearEvalPost) (xs pt : Array EW) :
-    Spec (Labels.label mleOfMultilinearEvalLabel)
+    Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel)
       (fun m ↦ MleOfMultilinearEvalPre m ∧ slice m (reg m .rsi) (reg m .rdx) = xs ∧
         slice m (reg m .rcx) (reg m .r8) = pt)
       (fun m m' ↦ ewRet m' = multilinearEval xs pt ∧ Changes m m' mleStack 0 0 ∧ Saved m m') := by
@@ -27,8 +29,8 @@ theorem mleCall (hmle : Spec (Labels.label mleOfMultilinearEvalLabel)
   exact (hmle m hp).mono fun st ⟨hpc, hsp, hr, hc, hs⟩ ↦
     ⟨hpc, hsp, by rw [hx, ht] at hr; exact hr, hc, hs⟩
 
-theorem dotCall (hdot : Spec (Labels.label dotLabel) DotPre DotPost) (xs ys : Array EW) :
-    Spec (Labels.label dotLabel)
+theorem dotCall (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost) (xs ys : Array EW) :
+    Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel)
       (fun m ↦ DotPre m ∧ slice m (reg m .rdi) (reg m .rsi) = xs ∧
         slice m (reg m .rdx) (reg m .rcx) = ys)
       (fun m m' ↦ ewRet m' = dot xs ys ∧ Changes m m' dotStack 0 0 ∧ Saved m m') := by

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Ar
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `verify_keccak`'s copies (x86-64)
@@ -53,10 +54,10 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 
 /-- **A block and `memcpy`.** -/
 theorem cpStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {wr : Nat → Bool}
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {wr : Nat → Bool}
     {T T' S' : SState} {vals vals' : Nat → BitVec 64} {o : Nat} {st : MachineState}
     (hat : At m0 k o wr T vals st) {ds : List Directive} (hds : ds.IsInfixAt code o) (hne : ds ≠ [])
-    (hrun : exec ds T = some (S', .call "memcpy")) (hw0 : frameW S' = true)
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.Memcpy.entryLabel)) (hw0 : frameW S' = true)
     (hsp : S'.reg .rsp = some (.ptr 0 48)) {D Sr : BitVec 64} {n : Nat}
     (hdi : ∀ mc, Match (envZ m0 st.data 3344 3368 (rsOf m0) vals
       (Host.addrOf (k + (o + ds.length))).toBitVec) S' mc → reg mc .rdi = D)

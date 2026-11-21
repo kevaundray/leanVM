@@ -35,7 +35,7 @@ def stepOut (T : List UInt8) : List UInt8 :=
 at `b17` for the next step or `b48` after position 2. -/
 def StepCont [Host] (r : Run) (i p : Nat) (T : List UInt8) (R : MachineState → Prop) : Prop :=
   ∀ m', r.AtStep i (p + 1) (stepOut T) m' →
-    Eventually (step1 Host.exe) R ⟨m', if p + 1 = 3 then r.pc 515 else r.pc 191⟩
+    Eventually (step1 Host.exe) R ⟨m', if p + 1 = 3 then r.pc NativeRustcX64.Xmss.WotsLeaf.b48Offset else r.pc NativeRustcX64.Xmss.WotsLeaf.b17Offset⟩
 
 end
 
@@ -62,8 +62,8 @@ theorem seg_b47 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i p : Nat} 
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))), (112, 200, A)]) m)
     (h12 : Run.RegIs m .r12 (r.off 112))
     (cont : ∀ m', r.AtStep i (p + 1) (A.take 16) m' →
-      Eventually (step1 Host.exe) R ⟨m', if p + 1 = 3 then r.pc 515 else r.pc 191⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 504⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', if p + 1 = 3 then r.pc NativeRustcX64.Xmss.WotsLeaf.b48Offset else r.pc NativeRustcX64.Xmss.WotsLeaf.b17Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b47Offset⟩ := by
   obtain ⟨⟨-, -, h56⟩, ⟨-, -, hA112⟩, -⟩ := allOf_right hK.2
   have h464 := (stepSlots_words hK.2).2
   refine frameStep r hp hpre b47_in_code (List.cons_ne_nil _ _) run_b47 (by decide) rfl hK
@@ -91,15 +91,15 @@ theorem seg_b46 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
       (112, 200, List.replicate 200 0), (472, 136, T ++ List.replicate 72 0)]) m)
     (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 64)) (h12 : Run.RegIs m .r12 (r.off 112))
     (cont : StepCont r i p T R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 466⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b46Offset⟩ := by
   obtain ⟨s56, ⟨-, -, hA0⟩, ⟨-, -, hblk⟩, -⟩ := allOf_right hK.2
   have hK' : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1)))]) m :=
     hK.left.add ⟨s56, trivial⟩
-  have hwf := envR_wf hpre hK.1.2.2.2 extraOK_nil (r.pc (466 + b46.length)).toBitVec
+  have hwf := envR_wf hpre hK.1.2.2.2 extraOK_nil (r.pc (NativeRustcX64.Xmss.WotsLeaf.b46Offset + b46.length)).toBitVec
   refine frameCall r hp hpre b46_in_code (List.cons_ne_nil _ _) run_b46 (by decide +kernel) rfl
     hK' trivial extraOK_nil ⟨known_lit h15, known_ptr h12, trivial⟩ trivial trivial hc.2.2.2.2
     fun m₁ hm₁ hK₁ _ ↦ ?_
-  have hblk' : BytesAt (r.envR m [] (r.pc (466 + b46.length)).toBitVec).mem0
+  have hblk' : BytesAt (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b46Offset + b46.length)).toBitVec).mem0
       (r.base + BitVec.ofNat 64 472) (T ++ List.replicate (136 - 64) 0) := hblk
   have hxor := SphincsVerifyProof.InlineTh.xorFinal hm₁ hwf (r := 0) (b := r.base) (sz := 2784)
     rfl (oA := 112) (oK := 472) (L := 64) (by decide) (by decide +kernel) hT (by decide) hblk'
@@ -131,7 +131,7 @@ theorem seg_b45 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
       (112, 200, List.replicate 200 0), (472, 136, List.replicate 136 0), (904, 64, T)]) m)
     (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 64)) (h14 : Run.RegIs m .r14 (r.off 472))
     (h12 : Run.RegIs m .r12 (r.off 112)) (cont : StepCont r i p T R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 462⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b45Offset⟩ := by
   obtain ⟨s56, s112, ⟨-, -, hK0⟩, ⟨-, -, hT904⟩, -⟩ := allOf_right hK.2
   have hz : BytesAt m.dmem (r.off 536) (List.replicate 72 0) := by
     have := BytesAt.sub hK0 64 72
@@ -162,7 +162,7 @@ theorem seg_b42 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hK : Keep r (r.stepSlots i ++ [(56, 8, regBytes (BitVec.ofNat 64 (p + 1))),
       (704, 200, List.replicate 200 0), (904, 64, T)]) m)
     (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 64)) (cont : StepCont r i p T R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 448⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b42Offset⟩ := by
   -- `b42`: `memcpy` of B's state into A.
   refine frameCall r hp hpre b42_in_code (List.cons_ne_nil _ _) run_b42 (by decide) rfl hK
     trivial extraOK_nil trivial trivial trivial hc.1 fun m₁ hm₁ hK₁ _ ↦ ?_

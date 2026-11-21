@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.FromBytes.Names
+
 public import NativeRustcX64.XmssVerify.Parse
 
 /-!
@@ -96,17 +98,17 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 set_option linter.unusedSimpArgs false in
 /-- **Parsing**: from the end of the copy to block 5. -/
 public theorem parse {k : Nat} (hp : Placed code k)
-    (hfb : Spec (label fromBytesLabel) FromBytesPre FromBytesPost) (P : Pre w m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 49)) (h : LoopAt w m₀ st.data 50)
+    (hfb : Spec (label NativeRustcX64.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost) (P : Pre w m₀)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b3Offset)) (h : LoopAt w m₀ st.data 50)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 66) → Parsed w m₀ st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b5Offset) → Parsed w m₀ st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have C := h.common
   have hsig := sig_of h
   have hmsg := msg_of h
   -- Block 3.
-  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) (Host.addrOf (k + 49 + b3.length)).toBitVec
+  let env := Env.ofMachine st.data [frR m₀] (fun _ => 0) (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b3Offset + b3.length)).toBitVec
   have hwf : env.WF := frame_wf P C.kept
   have hm0 : Match env st3 st.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨h.rsp.trans (ad_int m₀ 24).symm, trivial⟩ trivial trivial
@@ -184,7 +186,7 @@ public theorem parse {k : Nat} (hp : Placed code k)
   have hrsp₂' : rspOf st₂.data = ad m₀ (fr + 24) := by rw [hrsp₂, hrsp₁, ad_add]
   -- Block 4.
   let env₃ := Env.ofMachine st₂.data [frR m₀] (fun _ => 0)
-    (Host.addrOf (k + 62 + b4.length)).toBitVec
+    (Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b4Offset + b4.length)).toBitVec
   have hwf₃ : env₃.WF := frame_wf P C₂.kept
   have hm₃ : Match env₃ st4 st₂.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hrsp₂'.trans (ad_int m₀ 24).symm,

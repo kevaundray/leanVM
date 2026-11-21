@@ -9,7 +9,7 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Sums
 
 The prologue (`b0`) pushes the registers, clears the product (47 elements at the frame's `472`)
 and reads it (`read_scalars`); on `None` (`b1`) the exit. `b2` spills the arguments (`spills`)
-and enters the projection's loop at `.LVerifyLayer_4` (`PHead`, no term summed yet): `front`.
+and enters the projection's loop at `NativeRustcVmX64.Vm.VerifyLayer.label_4` (`PHead`, no term summed yet): `front`.
 
 Tools: the frame's words (`FWs`, kept by a block missing them, `FWs.blk`; loaded, `fw_load`); the
 `TState` kept by a block writing the frame only (`ts_blk0`).
@@ -59,7 +59,7 @@ structure PCore [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p 
   lt : j < 47
   psize : p.size = 47
 
-/-- **The projection's loop head** `.LVerifyLayer_4`. -/
+/-- **The projection's loop head** `NativeRustcVmX64.Vm.VerifyLayer.label_4`. -/
 structure PHead [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (j : Nat) (d : MachineData) : Prop where
   core : PCore m0 a c p s1 j d

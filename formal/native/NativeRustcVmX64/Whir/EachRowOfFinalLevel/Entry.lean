@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.Basic
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceTable.Names
 
 /-!
 # `each_row` with `final_level`'s closure: up to `b3` (x86-64)
@@ -47,14 +49,14 @@ variable [Host] {k : Nat}
 
 /-- **From the entry to `b3`.** -/
 theorem entry_a (hp : Placed code k)
-    (htab : Spec (label subspaceTableLabel) SubspaceTablePre SubspaceTablePost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
+    (htab : Spec (label NativeRustcVmX64.Vm.SubspaceTable.entryLabel) SubspaceTablePre SubspaceTablePost)
+    (hmemcpy : Spec (label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     (hpre : EachRowFinalPre rows op m0) {R : MachineState → Prop}
-    (cont : ∀ m, AtB3 m0 m → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 24)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (cont : ∀ m, AtB3 m0 m → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b3Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b0Offset)⟩ := by
   have hl := lay hpre
   have hmu : (reg m0 .r8).toNat ≤ stackCap := hpre.1.2.2.2.2.2.2.1
-  let env0 := EachRow.envE m0 m0 1936 24 [] (fun _ ↦ 0) (Host.addrOf (k + 0 + b0.length)).toBitVec
+  let env0 := EachRow.envE m0 m0 1936 24 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b0Offset + b0.length)).toBitVec
   have hwf0 : env0.WF := EachRow.envE_wf hl le_rfl (fun _ h ↦ h) (fun _ h ↦ by cases h)
     (List.pairwise_singleton _ _)
   have hm0 : Match env0 entryS m0 :=
@@ -64,7 +66,7 @@ theorem entry_a (hp : Placed code k)
         rw [show (1936 : Int) = ((1936 + 0 : Nat) : Int) from rfl,
           NativeRustcVmX64.Field.frame_rsp]
         simp, trivial⟩ trivial trivial trivial
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk0 run_b0 hwf0 (fun _ _ ↦ rfl) hm0 fun st1 hm1 hpc1 ↦ ?_
   have hfr1 : FR m0 0 st1.data :=
     EachRow.Fr.ofPrologue hl le_rfl hm1 rfl (by decide) (by decide)
@@ -98,24 +100,24 @@ theorem entry_a (hp : Placed code k)
   simp only at hpc2 hfr2 hs2 hsv htag htabb
   subst hpc2
   -- `b1`, `b2`
-  obtain ⟨hwf, hm⟩ := frame_env hpre hfr2 (Host.addrOf (k + 18 + b2.length)).toBitVec
-  have hk1 : b1.IsInfixAt Host.prog (k + 16) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk2 : b2.IsInfixAt Host.prog (k + 18) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf, hm⟩ := frame_env hpre hfr2 (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length)).toBitVec
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hl104 : (EachRow.envE m0 d2 1936 24 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 18 + b2.length)).toBitVec).load 0 104 4 = BitVec.ofNat 64 (1 : UInt64).toNat :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length)).toBitVec).load 0 104 4 = BitVec.ofNat 64 (1 : UInt64).toNat :=
     NativeRustcVmX64.Transcript.load4_of_tag (.inr rfl) htag
   have hlen : (tableOf m0).toList.length = (tableOf m0).size := Array.length_toList
   have hl112 : (EachRow.envE m0 d2 1936 24 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 18 + b2.length)).toBitVec).load 0 112 8 =
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length)).toBitVec).load 0 112 8 =
         BitVec.ofNat 64 (tableOf m0).size := by
     have := htabb.2.1
     rw [hlen] at this
     rw [show off (fb m0 + BitVec.ofNat 64 104) 8 = fb m0 + BitVec.ofNat 64 112 from
       NativeRustcVm.addr_add_add _ _ _] at this
     exact NativeRustcVmX64.Arrays.load_word this
-  rw [show (k + 0 + b0.length) = k + 16 from rfl]
+  rw [show (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b0Offset + b0.length) = k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfFinalLevel.b0_next]]
   refine exec_then hk1 run_b1 hwf (fun _ h ↦ by cases h) hm fun st3 hm3 hpc3 ↦ ?_
-  have hpc3' : st3.pc = Host.addrOf (k + 18) := by
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset) := by
     simp only [PcOk] at hpc3
     split at hpc3
     · rename_i hc
@@ -166,7 +168,7 @@ theorem entry_a (hp : Placed code k)
   obtain ⟨d5, pc5⟩ := st5
   simp only at hpc5 hfr5 hs5 hsv5 hcopy
   subst hpc5
-  rw [show k + 18 + b2.length = k + 24 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2Offset + b2.length = k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfFinalLevel.b2_next]]
   -- the table's pairs, kept to the copy
   have hsrcP : PairsAt st4.data.dmem (fb m0 + BitVec.ofNat 64 120) (tableOf m0).toList := by
     have := htabb.2.2

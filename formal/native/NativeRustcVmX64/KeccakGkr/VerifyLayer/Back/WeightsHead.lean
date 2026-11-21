@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.WeightsState
+public import NativeRustcVmX64.Code.Vm.VerifyLayer.Names
 
 /-! # The weights loop's column and row arithmetic -/
 
@@ -47,8 +48,8 @@ theorem weights_head (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
       reg d' .rax = BitVec.ofNat 64 (5 * (j / 320)) →
       reg d' .rdi = BitVec.ofNat 64 (64 * alongRow j 4) →
       reg d' .rsi = BitVec.ofNat 64 (j % 64) →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 666)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 644)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b75Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b74Offset)⟩ := by
   have g := geo_of hpre
   have hwf := wf0 (pre_stack hpre) h.body (vars := fun _ ↦ 0) (ret := 0)
   have hm : Match (envB m0 d [] (fun _ ↦ 0) 0) (fr 24) d :=
@@ -94,7 +95,7 @@ theorem weights_head (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   simp only [PcOk] at hpc
   change st.pc = if (SBool.and (.not (.cmp .ult .W64 fourS (.lit 2047)))
       (.not (.cmp .eq .W64 fourS (.lit 2047)))).eval (envB m0 d [] (fun _ ↦ 0) 0) = true
-    then Labels.label ".LVerifyLayer_44" else Host.addrOf (k + 644 + b74.length) at hpc
+    then Labels.label NativeRustcVmX64.Vm.VerifyLayer.label_44 else Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b74Offset + b74.length) at hpc
   rw [hcond] at hpc
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc
   exact at_pc hpc (cont st.data (h.read hb hd hr) hc ha hdi hsi)

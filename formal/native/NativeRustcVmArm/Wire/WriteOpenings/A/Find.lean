@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Find.Names
 public import NativeRustcVmArm.Wire.WriteOpenings.A.Level
 
 /-!
@@ -63,7 +64,7 @@ variable [Host]
 
 /-- **The call of `find`** (`b17`). -/
 theorem call_step (hp : Placed code R.k) (G : Geo R)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) {st : MachineState}
+    (hfind : Spec (Labels.label NativeRustcVmArm.Vm.Find.entryLabel) FindPre FindPost) {st : MachineState}
     (H : C17 R j l st) : Eventually (step1 Host.exe) (F18 R j l) st := by
   have S := H.s
   have hl := S.llt
@@ -120,8 +121,8 @@ theorem call_step (hp : Placed code R.k) (G : Geo R)
   rw [x2] at hres
   have S2 : LevS R j l m2 := S.keep hfr2 hd2 fun r hr ↦ hk2 r (List.mem_cons_of_mem _ hr)
   have e24 : rv m2 .X24 = (R.cw l).toBitVec := by rw [hk2 .X24 List.mem_cons_self]; exact H.x24
-  have hpc : (⟨m2, Host.addrOf (R.k + 103 + b17.length)⟩ : MachineState).pc = pcOf R 107 :=
-    congrArg Host.addrOf (show R.k + 103 + 4 = R.k + 107 from rfl)
+  have hpc : (⟨m2, Host.addrOf (R.k + NativeRustcVmArm.Vm.WriteOpenings.b17Offset + b17.length)⟩ : MachineState).pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b18Offset :=
+    congrArg Host.addrOf (show R.k + NativeRustcVmArm.Vm.WriteOpenings.b17Offset + 4 = R.k + NativeRustcVmArm.Vm.WriteOpenings.b18Offset from rfl)
   refine .done _ ⟨hpc, S2, e24, hc, fun n hn ↦ ?_, fun hn ↦ ?_⟩
   · rw [hK] at hn; rw [hn] at hres; exact hres
   · rw [hK] at hn; rw [hn] at hres; exact hres

@@ -1,13 +1,14 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Basic
+public import NativeRustcVmX64.Code.Vm.VerifyExecution.Names
 
 /-!
 # `verify_execution`: the blocks between the calls (x86-64)
 
 The blocks' places and labels; between the calls the blocks run from `bodyS` (`At.env`). Bytes of
 the working area outside a call's changes stay the same (`Geo.same`). The failure path at
-`.LVerifyExecution_10` (`fail`: `0`, the epilogue), the test after a call (`branch`: to `fail`
+`NativeRustcVmX64.Vm.VerifyExecution.label_10` (`fail`: `0`, the epilogue), the test after a call (`branch`: to `fail`
 when the callee returned `None`), and the return after `verify_stacked_opening` (`exitVso`).
 -/
 
@@ -56,16 +57,16 @@ end
 
 variable [Host] {k : Nat}
 
-theorem lbl_entry (hp : Placed code k) : Labels.label verifyExecutionLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_10 (hp : Placed code k) : Labels.label ".LVerifyExecution_10" = Host.addrOf (k + 97) :=
-  hp.label (j := 97) rfl
-theorem lbl_11 (hp : Placed code k) : Labels.label ".LVerifyExecution_11" = Host.addrOf (k + 100) :=
-  hp.label (j := 100) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.VerifyExecution.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.VerifyExecution.entry_at
+theorem lbl_10 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.VerifyExecution.label_10 = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b20Offset) :=
+  hp.label NativeRustcVmX64.Vm.VerifyExecution.label_10_at
+theorem lbl_11 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.VerifyExecution.label_11 = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b21Offset) :=
+  hp.label NativeRustcVmX64.Vm.VerifyExecution.label_11_at
 
 /-- **The epilogue** (`b21`), RSP at offset `48`, RAX kept. -/
 theorem exit21 (hp : Placed code k) {a : DecArea} {m0 : MachineData} (g : Geo a m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 100)) (hf : Frame m0 96 slots 48 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b21Offset)) (hf : Frame m0 96 slots 48 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ reg st'.data .rax = reg st.data .rax ∧
       st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
@@ -80,9 +81,9 @@ theorem exit21 (hp : Placed code k) {a : DecArea} {m0 : MachineData} (g : Geo a 
   exact .done _ ⟨by rw [hpc']; exact hf.load_ret g.stackOk (by decide), hrsp, hm.regs .rax _ hrax,
     hm.dmem_eq hwf hmem, hsv⟩
 
-/-- **The failure path** at `.LVerifyExecution_10`: `0`, returned. -/
+/-- **The failure path** at `NativeRustcVmX64.Vm.VerifyExecution.label_10`: `0`, returned. -/
 theorem fail (hp : Placed code k) {a : DecArea} {m0 : MachineData} (g : Geo a m0)
-    {st : MachineState} (h : At m0 st.data) (hpc : st.pc = Host.addrOf (k + 97)) :
+    {st : MachineState} (h : At m0 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b20Offset)) :
     Eventually (step1 Host.exe) (Done a m0 none) st := by
   obtain ⟨hwf, hm⟩ := h.env g (ret := 0)
   refine exec_at (infix_of b20_in_code (by simp [b20]) hp) run_b20 hwf nofun hpc hm
@@ -91,7 +92,7 @@ theorem fail (hp : Placed code k) {a : DecArea} {m0 : MachineData} (g : Geo a m0
   have hf' : Frame m0 96 slots 48 st'.data := Frame.of_block h.frame hwf hm' hmid slots_le
   have hd := hm'.dmem_eq hwf hmem
   simp only [PcOk] at hpc'
-  refine Eventually.mono (exit21 hp g (hpc'.trans (by rw [show b20.length = 3 from rfl])) hf')
+  refine Eventually.mono (exit21 hp g (hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyExecution.b20_next)) hf')
     fun s ⟨h1, h2, h3, h4, h5⟩ ↦ ⟨h1, h2, by
       unfold OkAl boolRet
       rw [h3, show reg st'.data .rax = BitVec.ofNat 64 0 from hm'.regs .rax _ hrax]
@@ -102,7 +103,7 @@ returned `None`, else on, `At` kept, the memory and the callee-saved registers u
 theorem branch (hp : Placed code k) {a : DecArea} {m0 : MachineData} (g : Geo a m0)
     {b : List Directive} {j : Nat} (hin : b.IsInfixAt code j) (hne : b ≠ [])
     (hx : exec b bodyS = some (after b bodyS, .cond (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax)
-      (.reg .rax)) (.lit 0)) ".LVerifyExecution_10"))
+      (.reg .rax)) (.lit 0)) NativeRustcVmX64.Vm.VerifyExecution.label_10))
     (hk : MidOk 96 40 slots (after b bodyS) = true ∧ (after b bodyS).mem = [] ∧
       [Reg64.rbx, .r12, .r13, .r14, .r15, .rbp].all
         (fun r ↦ (after b bodyS).reg r == some (.reg r)) = true)

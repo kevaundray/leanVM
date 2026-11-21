@@ -56,11 +56,11 @@ variable [Host] {k : Nat}
 /-- **`b13`**: the next index; out after the last placement. -/
 theorem b13_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 180))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b13Offset))
     (hI : PMid L bl m0 j st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
-      (st'.pc = Host.addrOf (k + 207) ∧ PEnd L bl m0 st'.data) ∨
-      (st'.pc = Host.addrOf (k + 184) ∧ PInv L bl m0 (j + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b20Offset) ∧ PEnd L bl m0 st'.data) ∨
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b14Offset) ∧ PInv L bl m0 (j + 1) st'.data)) st := by
   have hlt := hI.lt
   have hn := pre_n hpre
   refine exec_at (infix_of b13_in_code (by simp [b13]) hp) run_b13 (Env.wf_nil _) hpc
@@ -103,11 +103,11 @@ theorem b13_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Dat
 /-- **A framework placement pushed** (`b15`, `b16`). -/
 theorem push_fw (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 189)) (hI : PInv L bl m0 j st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b15Offset)) (hI : PInv L bl m0 j st.data)
     (h13 : st.data.regs.getXReg .X13 = ((S L bl m0).getD j 0).toUInt64)
     (h12 : st.data.regs.getXReg .X12 = ((O L bl m0).1.getD j 0).toUInt64) (hj : j < nf m0) :
     Eventually (step1 Host.exe) (fun st' ↦
-      st'.pc = Host.addrOf (k + 180) ∧ PMid L bl m0 j st'.data) st := by
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b13Offset) ∧ PMid L bl m0 j st'.data) st := by
   have hS := hpre.1
   have hN : busLayoutStack ≤ m0.regs.SP.toNat := hS.2.1
   have hF : 1840 ≤ busLayoutStack := by decide

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.Count
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0.Names
 
 /-!
 # The sides' locals, the closure's call (x86-64)
@@ -132,9 +133,9 @@ theorem envWord_eq {m : MachineData} (x1 : reg m .rsi = loc m0 248) {i : Nat} {v
 /-- **`verify_bus_balance::{closure#0}(624, 248, pc, mc, bc)`** from the frame, RSP at `80`: the
 three fingerprints in the model's terms at `624`. -/
 theorem fpCall (h : VerifyBusBalancePre a s0 L m0)
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
+    (hfc : Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (fr : St m0 80 st.data)
-    (hpc : st.pc = Labels.label fpClosureLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel ∧ retOf st.data = next)
     {w pt tv mem : Array EW} {beta mf bf share : EW}
     (hl : SideMem m0 L w pt tv mem beta mf bf share st.data.dmem)
     (x0 : reg st.data .rdi = loc m0 624) (x1 : reg st.data .rsi = loc m0 248)

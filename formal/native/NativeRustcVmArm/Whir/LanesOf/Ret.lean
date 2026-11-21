@@ -63,7 +63,7 @@ theorem toNat_ofNat_lt {n : Nat} (h : n < 2 ^ 64) : (BitVec.ofNat 64 n).toNat = 
 theorem ret19 (hp : Placed code k) {m0 st : MachineData} {f : Nat → EW} {n : Nat}
     (hb : Body m0 f n st) (hx2 : st.regs.X2.toNat = n) (hsz : (lanesM m0).size = n)
     (hf : ∀ j (h : j < (lanesM m0).size), (lanesM m0)[j] = f j) (hn : n ≤ 64) :
-    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + 83)⟩ := by
+    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b19Offset)⟩ := by
   refine exec_then (inf hp b19_in_code (by simp [b19])) run_b19 (Env.wf_nil _) (match_nil _)
     fun s hm hpc ↦ .done _ ?_
   have hk := after_eq run_b19 ▸ b19_keeps
@@ -82,7 +82,7 @@ theorem ret19 (hp : Placed code k) {m0 st : MachineData} {f : Nat → EW} {n : N
 theorem ret14 (hp : Placed code k) {m0 st : MachineData} {f : Nat → EW} {n : Nat}
     (hD : Done m0 f n st) (hsz : (lanesM m0).size = n)
     (hf : ∀ j (h : j < (lanesM m0).size), (lanesM m0)[j] = f j) (hn : n ≤ 64) :
-    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + 62)⟩ := by
+    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b14Offset)⟩ := by
   refine exec_then (inf hp b14_in_code (by simp [b14])) run_b14 (Env.wf_nil _) (match_nil _)
     fun s hm hpc ↦ .done _ ?_
   have hk := after_eq run_b14 ▸ b14_keeps
@@ -101,7 +101,7 @@ theorem ret14 (hp : Placed code k) {m0 st : MachineData} {f : Nat → EW} {n : N
 /-- **`b15`**: `None`. -/
 theorem ret15 (hp : Placed code k) {m0 st : MachineData} (hfr : Fr m0 st)
     (h30 : st.regs.X30 = m0.regs.X30) (hsz : 64 < (lanesM m0).size) :
-    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + 65)⟩ := by
+    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b15Offset)⟩ := by
   refine exec_then (inf hp b15_in_code (by simp [b15])) run_b15 (Env.wf_nil _) (match_nil _)
     fun s hm hpc ↦ .done _ ?_
   have hk := after_eq run_b15 ▸ b15_keeps

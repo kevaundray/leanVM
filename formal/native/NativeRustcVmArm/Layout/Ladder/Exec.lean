@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcVmArm.Layout.Common
 public import NativeRustcVmArm.Code.Vm.Ladder
 public meta import NativeRustcVmArm.Code.Vm.Ladder
@@ -28,19 +29,15 @@ open NativeRustcArm NativeRustcArm.Sym NativeRustcVmArm.Vm.Ladder
 
 @[expose] public section
 
-/-- `QUERY_LEVELS`' label. -/
-def lvLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.12"
-/-- `QUERY_TABLE`'s label. -/
-def qtLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.11"
 
 /-- `r - 1`. -/
 def rm1 : Sym := .bin .sub .W64 (.reg .X2) (.lit 1)
 /-- `μ - 16`. -/
 def mu16 : Sym := .bin .sub .W64 (.reg .X1) (.lit 16)
 /-- Row `r - 1` of `QUERY_LEVELS`, as `b8` computes it. -/
-def lvRow : Sym := .bin .add .W64 (.bin .mul .W64 rm1 (.lit 120)) (.label lvLabel)
+def lvRow : Sym := .bin .add .W64 (.bin .mul .W64 rm1 (.lit 120)) (.label NativeRustcVmArm.Vm.Symbols.rodata12Label)
 /-- Row X16 of `QUERY_TABLE`, as `b9` computes it. -/
-def qtRow : Sym := .bin .add .W64 (.bin .mul .W64 (.reg .X16) (.lit 720)) (.label qtLabel)
+def qtRow : Sym := .bin .add .W64 (.bin .mul .W64 (.reg .X16) (.lit 720)) (.label NativeRustcVmArm.Vm.Symbols.rodata11Label)
 
 /-- Outside the window: the result (region 0, X0). -/
 def outS : SState := init [(160, false)] .sp [(.X0, .ptr 0 0)]

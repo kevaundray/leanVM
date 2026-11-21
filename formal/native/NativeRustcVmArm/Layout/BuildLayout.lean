@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.BuildLayout.Names
+public import NativeRustcVmArm.Code.Vm.ColumnKappas.Names
+public import NativeRustcVmArm.Code.Vm.PlacementsOf.Names
 public import NativeRustcVmArm.Layout.BuildLayout.Checks
 public import NativeRustcVmArm.Layout.BuildLayout.Finish
 
@@ -94,17 +98,17 @@ variable [Host] {k : Nat}
 
 /-- **`build_layout` meets its contract.** -/
 theorem buildLayout_spec (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hck : Spec (Labels.label columnKappasLabel) ColumnKappasPre ColumnKappasPost)
-    (hpl : Spec (Labels.label placementsOfLabel) PlacementsOfPre PlacementsOfPost)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hck : Spec (Labels.label NativeRustcVmArm.Vm.ColumnKappas.entryLabel) ColumnKappasPre ColumnKappasPost)
+    (hpl : Spec (Labels.label NativeRustcVmArm.Vm.PlacementsOf.entryLabel) PlacementsOfPre PlacementsOfPost)
     {bc : Array UInt64} :
-    Spec (Labels.label buildLayoutLabel) (BuildLayoutPre bc) (BuildLayoutPost bc) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.BuildLayout.entryLabel) (BuildLayoutPre bc) (BuildLayoutPost bc) := by
   intro m0 hpre
   have hF := Facts.of_pre hpre
   have hS := hF.stack
   have hsz := hF.size
   obtain ⟨hwf, hm⟩ := Arrays.entry_match hS (F := 1360) (by decide) (by decide)
-  rw [show Labels.label buildLayoutLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.BuildLayout.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.BuildLayout.entryOffset) NativeRustcVmArm.Vm.BuildLayout.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st0 hm0 hpc0 ↦ ?_
   simp only [PcOk] at hpc0
   sym_simp at hpc0
@@ -113,7 +117,7 @@ theorem buildLayout_spec (hp : Placed code k)
   by_cases hpow : Pow2 m0.regs.X0.toNat
   swap
   · -- not a power of two: `b19` returns `0`
-    have hpc1 := (f0 (c0.mpr hpow)).trans (hp.label (j := 91) rfl)
+    have hpc1 := (f0 (c0.mpr hpow)).trans (hp.label (j := NativeRustcVmArm.Vm.BuildLayout.b19Offset) NativeRustcVmArm.Vm.BuildLayout.label_10_at)
     refine exec_at (infix_of b19_in_code (by simp [b19]) hp) (Arrays.exec_after run_b0 run_b19) hwf
       hpc1 hm0 fun st1 hm1 hpc2 ↦ .done _ ?_
     have hnone := model_none (bc := bc) hsz fun h ↦ hpow h.1
@@ -124,7 +128,7 @@ theorem buildLayout_spec (hp : Placed code k)
     · rw [hnone]; exact UInt64.toBitVec_inj.mp (hm1.regs .X0 _ rfl)
     · exact NativeRustcVm.SameOutside.of_eq hdm _
   -- the prologue and `bit_length(n)`
-  have hpc1 := pc_of (t0 fun h ↦ c0.mp h hpow) (show k + 0 + b0.length = k + 5 from rfl)
+  have hpc1 := pc_of (t0 fun h ↦ c0.mp h hpow) (show k + NativeRustcVmArm.Vm.BuildLayout.b0Offset + b0.length = k + NativeRustcVmArm.Vm.BuildLayout.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b0_next])
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) (Arrays.exec_after run_b0 run_b1) hwf hpc1
     hm0 fun st1 hm1 hpc2 ↦ ?_
   obtain ⟨hw, hmem, hregs⟩ := Arrays.after_eq run_b1 ▸ b1_frame

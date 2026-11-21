@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.KeccakGkr.SlotWeights.Pre
 public import NativeRustcVmX64.KeccakGkr.SlotWeights.Arith
 public import NativeRustcVm.Transcript.Loop
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `slot_weights`: the prologue (x86-64)
@@ -62,9 +63,9 @@ variable [Host] {k : Nat}
 
 /-- **The prologue**: from the entry to the zeroing loop's head at row `0`. -/
 theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 40) ∧ ZeroInv m0 c 0 s'.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b3Offset) ∧ ZeroInv m0 c 0 s'.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b0Offset)⟩ := by
   have h := preOk hpre
   have hsz := h.sz
   have hpt := h.ptAt
@@ -83,9 +84,9 @@ theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
   have hptn : (ptA m0).toNat + 16 * n ≤ 2 ^ 64 := h.pt.2
   -- `b0`: the prologue, `call eq_kernel`.
   have hwf0 := wf_body h (d := m0) (fun _ h ↦ h) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b0Offset + b0.length)).toBitVec)
   have hm0 : Match (frameEnv m0 m0 160 [(argA m0, 8)] (fun _ ↦ 0)
-      (Host.addrOf (k + 0 + b0.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b0Offset + b0.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial ⟨arg_alias, trivial⟩
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl) hm0
     fun st1 hm1 hpc1 => ?_
@@ -197,7 +198,7 @@ theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
   -- `b1`: `eq_kernel`'s result saved and checked.
   have hwf2 := wf_body h hf2.kept (d := st2.data) (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
-    (hpc2.trans (by rw [b0_length])) (match_callS hf2) fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b0_next)) (match_callS hf2) fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hws3, hw8⟩ := ok_b1
   have hf3 : Frame m0 160 slots 8 st3.data := Frame.of_block hf2 hwf2 hm3 hmid3 slots_le
   have hs3 : NativeRustcVm.SameOutside st2.data.dmem st3.data.dmem
@@ -236,12 +237,12 @@ theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
   -- `b2`: the zeroing loop's start.
   have hwf3 := wf_body h hf3.kept (d := st3.data) (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf3 nofun
-    (hpc3.trans (by rw [b1_length])) (match_callS hf3) fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b1_next)) (match_callS hf3) fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hmem4, hx0₄, hx1₄⟩ := ok_b2
   have hf4 : Frame m0 160 slots 8 st4.data := Frame.of_block hf3 hwf3 hm4 hmid4 slots_le
   have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 hmem4
   simp only [PcOk] at hpc4
-  refine .done _ ⟨hpc4.trans (by rw [b2_length]), ⟨hf4, hd4 ▸ hso3, hd4 ▸ hloc3⟩, by decide,
+  refine .done _ ⟨hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b2_next), ⟨hf4, hd4 ▸ hso3, hd4 ▸ hloc3⟩, by decide,
     ?_, ?_, fun i hi ↦ absurd hi (by omega)⟩
   · rw [show reg st4.data .rax = _ from hm4.regs .rax _ hx0₄]
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64]

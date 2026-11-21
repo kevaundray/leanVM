@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
 public import NativeRustcVmArm.Whir.NextLevel.Core
 
 /-!
@@ -51,9 +54,9 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **`μ` checked, `sample_challenges`**, to `b9`. -/
 theorem mid1 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    {st : MachineState} {xs : Array EW} {s3 : TState} (hpc : st.pc = Host.addrOf (k + 43))
+    {st : MachineState} {xs : Array EW} {s3 : TState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b7Offset))
     (h7 : H7 a level m0 xs s3 st.data)
     (cont : ∀ (m2 : MachineData) (ood : Array EW) (s4 : TState), NFr m0 m2 → Regs level m0 m2 →
       m2.regs.X21 = level.fold.toUInt64 → m2.regs.X23.toBitVec = loc m0 200 →
@@ -63,7 +66,7 @@ theorem mid1 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
         (192, NativeRustcVm.wordBytes m0.regs.X5)] →
       ood.size = m0.regs.X5.toNat → TStateAt m2.dmem (tA m0) a s4 →
       (sampleChallenges m0.regs.X5.toNat).run s3 = some (ood, s4) →
-      Eventually (step1 Host.exe) (Goal a s level w rounds m0) ⟨m2, Host.addrOf (k + 94)⟩) :
+      Eventually (step1 Host.exe) (Goal a s level w rounds m0) ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b9Offset)⟩) :
     Eventually (step1 Host.exe) (Goal a s level w rounds m0) st := by
   have c := ctx h
   have hf := h7.fr
@@ -91,7 +94,7 @@ theorem mid1 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b7_in_code (by simp [b7]) run_b7 (wfF h hf) (mF h hf) (by decide) rfl hf hpc
     fun st1 hm1 hpc1 hf1 hs1 ↦ ?_
   simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte] at hpc1
-  rw [show k + 43 + b7.length = k + 87 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b7Offset + b7.length = k + NativeRustcVmArm.Vm.NextLevel.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b7_next]] at hpc1
   have e1 := sameRegs_ok (mF h hf) hm1
     (rs := [.X19, .X20, .X21, .X22, .X27, .X28, .X29]) (by decide)
   have hR1 : Regs level m0 st1.data :=
@@ -106,7 +109,7 @@ theorem mid1 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b8_in_code (by simp [b8]) run_b8 (wfF h hf1) (mF h hf1) (by decide) rfl hf1
     hpc1 fun st2 hm2 hpc2 hf2 hs2 ↦ ?_
   simp only [PcOk] at hpc2
-  rw [show k + 87 + b8.length = k + 94 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b8Offset + b8.length = k + NativeRustcVmArm.Vm.NextLevel.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b8_next]] at hpc2
   have e2 := sameRegs_ok (mF h hf1) hm2
     (rs := [.X19, .X20, .X21, .X22, .X26, .X27, .X28, .X29]) (by decide)
   have hR2 : Regs level m0 st2.data :=
@@ -184,8 +187,8 @@ theorem tail3_eq {index mu : Nat} {level : Whir.Level} {w : WhirStateW}
 
 /-- **`read_scalar`, `grind(t, 17)`, their tests**, to `b13`. -/
 theorem mid2 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     {xs ood : Array EW} {s4 : TState}
     (hrun : runN level w rounds m0 s =
       tail4 m0.regs.X1.toNat m0.regs.X5.toNat level w rounds xs ood s4)
@@ -197,12 +200,12 @@ theorem mid2 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
         (192, NativeRustcVm.wordBytes m0.regs.X5)])
     (hsz : xs.size = level.fold) (hos : ood.size = m0.regs.X5.toNat)
     (hts : TStateAt m2.dmem (tA m0) a s4)
-    (cont : ∀ (st : MachineState) (v : EW) (s6 : TState), st.pc = Host.addrOf (k + 105) →
+    (cont : ∀ (st : MachineState) (v : EW) (s6 : TState), st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b13Offset) →
       H13 a level m0 xs ood v s6 st.data →
       runN level w rounds m0 s =
         tail6 m0.regs.X1.toNat m0.regs.X5.toNat level w rounds xs ood v s6 →
       Eventually (step1 Host.exe) (Goal a s level w rounds m0) st) :
-    Eventually (step1 Host.exe) (Goal a s level w rounds m0) ⟨m2, Host.addrOf (k + 94)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s level w rounds m0) ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b9Offset)⟩ := by
   have c := ctx h
   have hmu30 : m0.regs.X5.toNat ≤ 30 := h.2.2.2.2.2.2.2.2.2.2.1
   have hf6 : level.fold ≤ 6 := h.2.2.2.2.2.1
@@ -215,7 +218,7 @@ theorem mid2 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b9_in_code (by simp [b9]) run_b9 (wfF h hf) (mF h hf) (by decide) rfl hf rfl
     fun st1 hm1 hpc1 hf1 hs1 ↦ ?_
   simp only [PcOk] at hpc1
-  rw [show k + 94 + b9.length = k + 97 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b9Offset + b9.length = k + NativeRustcVmArm.Vm.NextLevel.b10Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b9_next]] at hpc1
   have e1 := sameRegs_ok (mF h hf) hm1
     (rs := [.X19, .X20, .X21, .X22, .X23, .X26, .X27, .X28, .X29]) (by decide)
   have hR1 : Regs level m0 st1.data :=
@@ -264,7 +267,7 @@ theorem mid2 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
     have l0 : (envF m0 m3).load 0 680 8 = (0 : UInt64).toBitVec := load_word (by simpa using h0)
     rw [cbz_load l0] at hpc4
     simp only [beq_self_eq_true, ↓reduceIte] at hpc4
-    refine none13 hp h ?_ hf4 (hpc4.trans (hp.label (j := 218) rfl))
+    refine none13 hp h ?_ hf4 (hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.NextLevel.b26Offset) NativeRustcVmArm.Vm.NextLevel.label_13_at))
     rw [hrun]; unfold tail4; rw [hr5]; rfl
   | some p5 =>
   obtain ⟨v, s5⟩ := p5
@@ -274,7 +277,7 @@ theorem mid2 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   have l1 : (envF m0 m3).load 0 680 8 = (1 : UInt64).toBitVec := load_word (by simpa using h1)
   rw [cbz_load l1] at hpc4
   simp only [show ((1 : UInt64) == 0) = false from rfl, Bool.false_eq_true, ↓reduceIte] at hpc4
-  rw [show k + 97 + b10.length = k + 99 from rfl] at hpc4
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b10Offset + b10.length = k + NativeRustcVmArm.Vm.NextLevel.b11Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b10_next]] at hpc4
   obtain ⟨hv0, hv1⟩ := NativeRustcVm.ewAt_iff.mp hv
   have e688 : off (loc m0 680) 8 = loc m0 688 := NativeRustcVm.addr_add_add _ _ _
   have e696 : loc m0 688 + BitVec.ofNat 64 8 = loc m0 696 := NativeRustcVm.addr_add_add _ _ _
@@ -291,7 +294,7 @@ theorem mid2 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
   refine blk hp h b11_in_code (by simp [b11]) run_b11 (wfF h hf4) (mF h hf4) (by decide) rfl hf4
     hpc4 fun st6 hm6 hpc6 hf6' hs6 ↦ ?_
   simp only [PcOk] at hpc6
-  rw [show k + 99 + b11.length = k + 104 from rfl] at hpc6
+  rw [show k + NativeRustcVmArm.Vm.NextLevel.b11Offset + b11.length = k + NativeRustcVmArm.Vm.NextLevel.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.NextLevel.b11_next]] at hpc6
   have e6 := sameRegs_ok (mF h hf4) hm6
     (rs := [.X19, .X20, .X21, .X22, .X23, .X26, .X27, .X28, .X29]) (by decide)
   have hd6 : st6.data.dmem = st4.data.dmem := hm6.dmem_eq (wfF h hf4) rfl
@@ -336,7 +339,7 @@ theorem mid2 (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
       st8.data.regs.getXReg r = m2.regs.getXReg r := by
     intro r hc hr
     rw [hr8 r, hcs7 r hc, e6 r hr, e4 r hr, hcs r hc, e1 r hr]
-  refine cont st8 v s6 (by rw [hpc8]) ⟨hf8, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, hsz,
+  refine cont st8 v s6 (by rw [hpc8, ← b12_next]; simp only [b12_length, b12Length, Nat.add_assoc]) ⟨hf8, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, hsz,
     hos, ?_⟩ ?_
   · exact (cs .X19 rfl (by simp)).trans hR.x19
   · exact (cs .X20 rfl (by simp)).trans hR.x20

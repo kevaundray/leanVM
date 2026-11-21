@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Tables.TableWeights.Places
 
 /-!
@@ -70,8 +71,8 @@ variable [Host]
 /-- **A multiplication of coordinate `c`** after the first: weight `j` updated. -/
 theorem mid_step {j : Nat} (hj1 : 1 ≤ j) (hj5 : j ≤ 5) {ds : List Directive} {kk : Nat}
     (hk : ds.IsInfixAt Host.prog kk) {S' : SState}
-    (hx : exec ds midS = some (S', .call ewMulLabel)) (hb : MidBlock j S')
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) (hg : Geo m0) {c : Nat}
+    (hx : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hb : MidBlock j S')
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hg : Geo m0) {c : Nat}
     {m : MachineData} (hmid : Mid m0 c (j - 1) m) :
     Eventually (step1 Host.exe)
       (fun st => st.pc = Host.addrOf (kk + ds.length) ∧ Mid m0 c j st.data)

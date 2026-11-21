@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Ring.Weight.Square
 public import NativeRustcVmArm.Ring.Weight.Entry
 
@@ -75,12 +76,12 @@ variable [Host] {k : Nat}
 
 /-- **A factor** (`b14`, `EW::mul`, `b15`). -/
 theorem prodTurn (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {P : Array EW}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {P : Array EW}
     (hP : P.size = nR m0) {c : EW} {ref : MachineData} {i : Nat} {m : MachineData}
     (hI : ProdI m0 P c ref i m) :
-    Eventually (step1 Host.exe) (fun st ↦ (st.pc = Host.addrOf (k + 137) ∧ ∃ i',
+    Eventually (step1 Host.exe) (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b14Offset) ∧ ∃ i',
         ProdI m0 P c ref i' st.data ∧ mn m0 - i' < mn m0 - i) ∨
-      (st.pc = Host.addrOf (k + 148) ∧ ProdDone m0 P c ref st.data)) ⟨m, Host.addrOf (k + 137)⟩ := by
+      (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b16Offset) ∧ ProdDone m0 P c ref st.data)) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b14Offset)⟩ := by
   have hn := n36 h
   have hi := hI.lt
   have hmn : mn m0 = min (nR m0) (nQ m0) := rfl
@@ -108,7 +109,7 @@ theorem prodTurn (hp : Placed code k) (h : RingWeightPre m0)
       (qL m0).getD i 0 := elem_q h hI.fr hiQ
   refine mulStep h hmul (hb b14_in_code (by simp [b14]) hp) run_b14 hI.fr hm hwf rfl rfl
     fun st m2 hm1 hfr1 hfr2 hmp hcs ↦ ?_
-  rw [show k + 137 + b14.length = k + 144 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b14Offset + b14.length = k + NativeRustcVmArm.Vm.RingWeight.b15Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b14_next]]
   have hd1 : st.dmem = m.dmem := hm1.dmem_eq hwf rfl
   have L0 := load_c0 (m := m) (rs := rs) (r := 0) rfl 0
   have L0' := load_c1 (m := m) (rs := rs) (r := 0) rfl 0
@@ -159,7 +160,7 @@ theorem prodTurn (hp : Placed code k) (h : RingWeightPre m0)
   by_cases hl : i + 1 = mn m0
   · refine .done _ (.inr ⟨hc.2 (fun e ↦ he.mp e hl), hfr3, hregs, ?_, hpow⟩)
     rw [hacc, hl, prodOf_eq, hP, size_qL]
-  · refine .done _ (.inl ⟨(hc.1 (he.mpr hl)).trans (hp.label (j := 137) rfl), i + 1,
+  · refine .done _ (.inl ⟨(hc.1 (he.mpr hl)).trans (hp.label (j := NativeRustcVmArm.Vm.RingWeight.b14Offset) NativeRustcVmArm.Vm.RingWeight.label_14_at), i + 1,
       ⟨hfr3, by omega, ?_, ?_, ?_, hregs, hacc, hpow⟩, by omega⟩)
     · refine reg_bv hm3 rfl ?_
       simp only [Sym.eval, Env.ofMachine_regs, add_bv]
@@ -174,12 +175,12 @@ theorem prodTurn (hp : Placed code k) (h : RingWeightPre m0)
 
 /-- **The product** (`b14` to `b15`). -/
 theorem prodLoop (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {P : Array EW}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {P : Array EW}
     (hP : P.size = nR m0) {c : EW} {ref : MachineData} {m : MachineData}
     (hI : ProdI m0 P c ref 0 m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 148) ∧
-      ProdDone m0 P c ref st.data) ⟨m, Host.addrOf (k + 137)⟩ :=
-  Sym.loop (I := fun n st ↦ st.pc = Host.addrOf (k + 137) ∧ ∃ i, n = mn m0 - i ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b16Offset) ∧
+      ProdDone m0 P c ref st.data) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b14Offset)⟩ :=
+  Sym.loop (I := fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b14Offset) ∧ ∃ i, n = mn m0 - i ∧
       ProdI m0 P c ref i st.data)
     (fun _ _ ⟨hpc', _, hn, hI⟩ ↦ at_pc hpc' ((prodTurn hp h hmul hP hI).mono fun _ h' ↦
       h'.elim (fun ⟨hp', i', hI', hlt⟩ ↦ .inr ⟨_, hn ▸ hlt, hp', i', rfl, hI'⟩) .inl))

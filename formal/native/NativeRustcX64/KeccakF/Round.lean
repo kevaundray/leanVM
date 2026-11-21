@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.KeccakF.Names
+
 public import NativeRustcX64.KeccakF.RoundLanes
 
 /-!
@@ -23,7 +25,6 @@ theorem stAfter_succ (m0 : MachineData) {i : Nat} (hi : i < 24) :
     stAfter m0 (i + 1) = Keccak.round (stAfter m0 i) (keccakRC.getD i 0) :=
   roundsTo_succ _ hi
 
-theorem b1_length : Common.KeccakF.b1.length = 250 := by decide +kernel
 
 theorem length_rcBytes : rcBytes.length = 192 := by
   rw [show rcBytes = Native.Keccak.wordsBytes keccakRC from rfl,
@@ -56,13 +57,13 @@ variable [Host]
 theorem round_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : MachineData}
     (hpre : KeccakFPre m0) {i : Nat} (hi : i < 24) {m : MachineData} (hA : At m0 i m) :
     Eventually (step1 Host.exe) (fun st => At m0 (i + 1) st.data ∧
-      st.pc = if i + 1 = 24 then Host.addrOf (k + 329) else Host.addrOf (k + 79))
-      ⟨m, Host.addrOf (k + 79)⟩ := by
+      st.pc = if i + 1 = 24 then Host.addrOf (k + NativeRustcX64.Common.KeccakF.b2Offset) else Host.addrOf (k + NativeRustcX64.Common.KeccakF.b1Offset))
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.KeccakF.b1Offset)⟩ := by
   have hstk := hpre.1
   have hrc := rcAt_of_at hpre hA
   have hnw := hpre.2.1.2.1
   have hap := hpre.2.1.2.2
-  have hk : Common.KeccakF.b1.IsInfixAt Host.prog (k + 79) :=
+  have hk : Common.KeccakF.b1.IsInfixAt Host.prog (k + NativeRustcX64.Common.KeccakF.b1Offset) :=
     Common.KeccakF.b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine m [(frame m0, 248), (rcAddr, 192)]
   have hb0 : env.regions[0]? = some (frame m0, 248) := rfl
@@ -110,12 +111,12 @@ theorem round_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : MachineDa
     · exact allOf_imp (fun p hp h => by
         rw [stAfter_succ m0 hi, par_round _ _ (hc p hp)]
         exact h) hpar
-  · have hlab : Labels.label ".LKeccakF_1" = Host.addrOf (k + 79) :=
-      hp.label (j := 79) rfl
+  · have hlab : Labels.label NativeRustcX64.Common.KeccakF.label_1 = Host.addrOf (k + NativeRustcX64.Common.KeccakF.b1Offset) :=
+      hp.label NativeRustcX64.Common.KeccakF.label_1_at
     simp only [PcOk] at hpc
     rw [hpc, hlab]
     sym_simp
-    rw [hctr, b1_length]
+    rw [hctr, Nat.add_assoc, NativeRustcX64.Common.KeccakF.b1_next]
     by_cases h : i + 1 = 24
     · obtain rfl : i = 23 := by omega
       rfl

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Steps
 public import NativeRustcVm.Sumcheck.RoundPoly
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `final_level`: the entry and the folded scalars (x86-64)
@@ -202,15 +203,15 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The entry and the folded scalars**: `b0` to `b5`, to `b6` with `Live`. -/
 theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     (cont : ∀ (st : MachineState) (folded : Array EW) (s1 : TState),
-      st.pc = Host.addrOf (k + 46) → Live level m0 st.data folded →
+      st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b6Offset) → Live level m0 st.data folded →
       reg st.data .rbx = level.logInvRate.toUInt64.toBitVec → reg st.data .rbp = lA m0 →
       TStateAt st.data.dmem (tA m0) a s1 →
       runF level b w rounds m0 s = (C1 (reg m0 .rsi).toNat level (mu m0) (reg m0 .r8).toNat b w
         rounds folded).run s1 →
       Eventually (step1 Host.exe) (Goal a s level b w rounds m0) st) :
-    Eventually (step1 Host.exe) (Goal a s level b w rounds m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s level b w rounds m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b0Offset)⟩ := by
   have g := c.geo
   have hfo : 2 ^ mu m0 + level.fold ≤ 64 := c.fold
   have hmu : mu m0 < 64 := c.mu64
@@ -240,7 +241,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (e1 hrbx).trans (load_ofMachine (o := 8) (r := 1) rfl hlw.2.1)
   have hbp1 : reg st1.data .rbp = lA m0 := (e1 hrbp).trans (eval_ptr rfl)
   simp only [PcOk] at hpc1
-  rw [show k + 0 + b0.length = k + 12 from rfl] at hpc1
+  rw [show k + NativeRustcVmX64.Vm.FinalLevel.b0Offset + b0.length = k + NativeRustcVmX64.Vm.FinalLevel.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.FinalLevel.b0_next]] at hpc1
   -- `b1`: the zeroing loop.
   refine Eventually.bind (zero_loop hp c hpc1 hf1 (e1 hrax) hs1) fun st2 ⟨hf2, hr2, hd2, hpc2⟩ ↦ ?_
   have hk2 : ∀ r ∈ [Reg64.rcx, .rsi, .rdi, .r8, .r9, .r12, .r13, .r14, .r15],
@@ -258,7 +259,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hcx2 : (reg st2.data .rcx).toNat < 64 := by rw [hk2 .rcx (by simp)]; exact hmu
   rw [cMu_eval _ hcx2] at hpc3
   simp only [Bool.false_eq_true, ite_false] at hpc3
-  rw [show k + 24 + b2.length = k + 26 from rfl] at hpc3
+  rw [show k + NativeRustcVmX64.Vm.FinalLevel.b2Offset + b2.length = k + NativeRustcVmX64.Vm.FinalLevel.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.FinalLevel.b2_next]] at hpc3
   have hf3 := hf2.congr hr3 hd3
   have hk3 : ∀ r ∈ [Reg64.rcx, .rsi, .rdi, .r8, .r9, .r12, .r13, .r14, .r15],
       reg st3.data r = reg m0 r := fun r hr ↦ (hr3 r).trans (hk2 r hr)
@@ -285,7 +286,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   simp only [PcOk] at hpc4
   rw [cSize_eval env3 hc3 hl0 hf3'] at hpc4
   simp only [Bool.false_eq_true, ite_false] at hpc4
-  rw [show k + 26 + b3.length = k + 37 from rfl] at hpc4
+  rw [show k + NativeRustcVmX64.Vm.FinalLevel.b3Offset + b3.length = k + NativeRustcVmX64.Vm.FinalLevel.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.FinalLevel.b3_next]] at hpc4
   have e4 : ∀ {r : Reg64} {v : Sym}, (after b3 levelS).reg r = some v →
       reg st4.data r = v.eval env3 := fun h ↦ hm4.regs _ _ h
   have hmu3 : (env3.regs .rcx).toNat = mu m0 := by
@@ -305,7 +306,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     wordAt_written hm4 (r := 0) (o := 40) rfl (by omega) h40 (w := .ofBitVec (reg m0 .rcx)) hrcx3
   have hts4 := c.ts_frame (hi := 48) (by omega) (hm4.kept hwf3) hs4 hts3
   -- `b4`: `read_scalars(t, sp + 1600, 2 ^ μ + fold)`.
-  let env4 := argEnv m0 st4.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 44)).toBitVec
+  let env4 := argEnv m0 st4.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b5Offset)).toBitVec
   have hwf4 : env4.WF := c.wf0 hf4.frame.kept
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf4 (fun _ _ ↦ rfl) hpc4
     (match_retS hf4) fun st5 hm5 hpc5 ↦ ?_
@@ -367,7 +368,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
       · exact Or.inl (Or.inr hq)
       · exact Or.inr hq)
   have hcs6 : ∀ r, calleeSaved r = true → reg st6.data r = reg st5.data r := hsv.1
-  rw [show k + 37 + b4.length = k + 44 from rfl] at hpc6
+  rw [show k + NativeRustcVmX64.Vm.FinalLevel.b4Offset + b4.length = k + NativeRustcVmX64.Vm.FinalLevel.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.FinalLevel.b4_next]] at hpc6
   -- `b5`: the verdict.
   refine Eventually.bind (test_spec hp c b5_in_code rfl exit_b5 ok_b5 hf6 hpc6 hok)
     fun st7 ⟨hr7, hd7, hpc7⟩ ↦ ?_

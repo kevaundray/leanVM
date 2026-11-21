@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.KeccakF.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.Spec.Keccak
 public import NativeRustc.Xmss.Model
 
@@ -97,22 +103,14 @@ def WotsLeafPost (m m' : MachineData) : Prop :=
 
 end
 
-/-- `Hasher::update`'s label. -/
-def updateLabel : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update"
-/-- `Hasher::finalize`'s label. -/
-def finalizeLabel : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize"
-/-- `keccak_f`'s label. -/
-def keccakFLabel : Label := "_RNvCsndc0WgnAaH_9keccak2568keccak_f"
-/-- `wots_leaf`'s label. -/
-def wotsLeafLabel : Label := "_RNvNtCs7Pyp4CbMBld_9lean_xmss4wots9wots_leaf"
 
 /-- **The contracts of `wots_leaf`'s callees**: `memcpy`, `memset`, `Hasher::update`,
 `Hasher::finalize`, `keccak_f`. -/
 def WotsLeafCallees [Host] : Prop :=
-  Spec (label "memcpy") MemcpyPre MemcpyPost ∧ Spec (label "memset") MemsetPre MemsetPost ∧
-    Spec (label updateLabel) UpdatePre UpdatePost ∧
-    Spec (label finalizeLabel) FinalizePre FinalizePost ∧
-    Spec (label keccakFLabel) KeccakFPre KeccakFPost
+  Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost ∧ Spec (label NativeRustcX64.Common.Memset.entryLabel) MemsetPre MemsetPost ∧
+    Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost ∧
+    Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost ∧
+    Spec (label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost
 
 end
 

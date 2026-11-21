@@ -142,10 +142,10 @@ theorem exit_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {D : Digest} {m 
       (fun st ↦ st.pc = retOf m0 ∧ NativeRustcVm.WordsAt st.data.dmem (outAt m0) D.toList ∧
         SameOutside m0.dmem st.data.dmem (fun p ↦ InRange (outAt m0) 32 p ∨
           InRange (stackBelow m0 climbStack) climbStack p) ∧ Saved m0 st.data)
-      ⟨m, Host.addrOf (k + 49)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.Climb.b10Offset)⟩ := by
   have g := geo_of hpre
   have ⟨_, _, _, _, _, _, _⟩ := g
-  have hk : b10.IsInfixAt Host.prog (k + 49) := b10_in_code.trans hp.1 (by simp [b10])
+  have hk : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Climb.b10Offset) := b10_in_code.trans hp.1 (by simp [b10])
   let env := Env.ofMachine m [(fr m0, 144), (outAt m0, 32)]
   have hmo : Mapped m.dmem (outAt m0) 32 := fun i hi ↦ hf.kept _ (hpre.2.2.2.2.2.2.2.2.1 i hi)
   have hwf : env.WF :=

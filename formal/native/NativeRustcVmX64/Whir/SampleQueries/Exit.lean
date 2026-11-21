@@ -23,9 +23,9 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {m0 : MachineData}
 /-- **`b17`, `b8`**: on to `b9`. -/
 theorem exit_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat} {s : TState}
     {qs : List UInt64} {st : MachineData} (hB : AtB17 a s0 m0 j r s qs st) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 40) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b9Offset) ∧
       AtB9 a s0 m0 j r (nOf m0 r) (sq s).2 (qs ++ (chunk (dep m0) (sq s).1 (nOf m0 r)).toList)
-        st'.data) ⟨st, Host.addrOf (k + 96)⟩ := by
+        st'.data) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b17Offset)⟩ := by
   have hcnt := pre_cnt h
   have hlen := hB.len
   have hnle : nOf m0 r ≤ r := Nat.min_le_right _ _
@@ -40,7 +40,7 @@ theorem exit_step (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {j r : Nat
   simp only [PcOk] at hpc1
   have hwf1 := mid_wf (vars := fun _ ↦ 0) (ret := 0) h hc1.fr.kept
   refine exec_at (inf hp b8_in_code (by simp [b8])) run_b8 hwf1 (by intro l h; cases h)
-    (hpc1.trans (hp.label (j := 34) rfl)) (mid_match hc1.fr) fun st2 hm2 hpc2 ↦
+    (hpc1.trans (hp.label NativeRustcVmX64.Vm.SampleQueries.label_9_at)) (mid_match hc1.fr) fun st2 hm2 hpc2 ↦
       .done _ ⟨hpc2.trans rfl, ?_⟩
   obtain ⟨hmid2, hmem2, hbp, hbx, h15, h12, hax, hk2⟩ := after_eq run_b8 ▸ ok_b8
   have hc2 := hc1.block h hm2 (L := 0) (by omega) hmid2 (wr0_nil hmem2 0) (kept_spec hk2 (by simp))

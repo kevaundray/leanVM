@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Layout.ColumnKappas.Exec
 public import NativeVm.Code.Phase1.Math
+public import NativeRustcVmX64.Code.Vm.ColumnKappas.Names
 
 /-!
 # `column_kappas` on x86-64
@@ -42,9 +43,9 @@ variable [Host] {k : Nat}
 
 /-- **`column_kappas` meets its contract.** -/
 theorem columnKappas_spec (hp : Placed code k) :
-    Spec (Labels.label columnKappasLabel) ColumnKappasPre ColumnKappasPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.ColumnKappas.entryLabel) ColumnKappasPre ColumnKappasPost := by
   rintro m ⟨hst, hro, hoo, hrh, hoh, hap, hq⟩
-  rw [show Labels.label columnKappasLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.ColumnKappas.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.ColumnKappas.b0Offset) from hp.label NativeRustcVmX64.Vm.ColumnKappas.entry_at]
   let rest : List (BitVec 64 × Nat) := [(reg m .rdi, kappasBytes), (reg m .rcx, 48)]
   let env := frameEnv m m 8 rest
   have hrest : ∀ x ∈ rest, NativeRustcVm.Mapped m.dmem x.1 x.2 ∧ NativeRustcVm.NoWrap x.1 x.2 := by

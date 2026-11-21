@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
+public import NativeRustcVmArm.Code.Vm.WhirLevels.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.CallPre
 
 /-!
@@ -48,10 +50,10 @@ theorem run_eq [Labels] (h : Parts a s layout target coefficients point slices c
 /-- **From the call of `whir_levels`** to the return. -/
 theorem call_whir (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hwl : ∀ a s levels ba b claim, Spec (Labels.label whirLevelsLabel)
+    (hwl : ∀ a s levels ba b claim, Spec (Labels.label NativeRustcVmArm.Vm.WhirLevels.entryLabel)
       (WhirLevelsPre a s levels ba b claim) (WhirLevelsPost a s levels b claim))
     {st : MachineState} (hc : AtCall a s layout target cs value ls m0 st.data)
-    (hpc : st.pc = Labels.label whirLevelsLabel ∧ retOf st.data = Host.addrOf (k + 164)) :
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.WhirLevels.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b35Offset)) :
     Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0) st := by
   have hF : ∀ q, outsF m0 q → outsF m0 q := fun _ hq ↦ hq
   have cF : TCtx m0 512 verifyStackedOpeningStack (tA m0) a (outsF m0) :=
@@ -75,10 +77,10 @@ theorem call_whir (hp : Placed code k)
   rw [← run_eq h hc] at hx0 hnext
   rw [e0] at hnext
   -- `b35`
-  have hk35 : b35.IsInfixAt Host.prog (k + 164) := b35_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk35 : b35.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b35Offset) := b35_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine hf2.regsBlock (st := ⟨m2, _⟩) hk35 run_b35 rfl rfl rfl rfl fun st3 hf3 hd3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
-  rw [show Labels.label ".LVerifyStackedOpening_28" = Host.addrOf (k + 167) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.label_28 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b37Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyStackedOpening.b37Offset) NativeRustcVmArm.Vm.VerifyStackedOpening.label_28_at]
     at hpc3
   obtain ⟨d3, pc3⟩ := st3
   simp only at hpc3

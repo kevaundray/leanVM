@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldBase
 
 /-!
@@ -30,12 +31,12 @@ variable [NativeArm.Host] {k : Nat} {c : Cx} {m0 : MachineData}
 
 /-- **A row copied** into the buffer at the frame's `D`. -/
 theorem copyRow (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     {ks ks' : List (XReg × Sym)} (hw : wfK ks = true) {t : Nat} (ht : t < c.sl.size)
     {vars : Nat → BitVec 64} (hv0 : vars 0 = (c.sl.getD t 0).c0.toBitVec)
     (hv1 : vars 1 = (c.sl.getD t 0).c1.toBitVec)
     {bC : List Directive} {kC : Nat} (hin : bC.IsInfixAt code kC) (hne : bC ≠ [])
-    {SC : SState} (hx : exec bC (pS ks) = some (SC, .call "memcpy")) {D : Nat}
+    {SC : SState} (hx : exec bC (pS ks) = some (SC, .call NativeRustcVmArm.Vm.Memcpy.entryLabel)) {D : Nat}
     (hD : 56 ≤ D ∧ D + 1024 ≤ 2128) {v : Sym} (hok : CopyOk t ks' D v SC = true) {r : Nat}
     (hr : r < 64) (hv : v.eval (Env.ofMachine m0 (envR m0) vars) =
       rwA m0 + BitVec.ofNat 64 (1024 * r))

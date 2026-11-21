@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcX64.XmssVerify.ParseRun
 public import NativeRustcX64.XmssVerify.Layer
 
@@ -65,7 +67,7 @@ theorem st5_low : ∀ w ∈ (after b5 st5).mem, w.r = 0 ∧ (w.off + w.n ≤ 24 
   decide +kernel
 
 theorem run_b6' : exec b6 stR = some (after b6 stR,
-    .cond (.not (.cmp .eq .W8 (.load 0 184 1) (.lit 1))) ".LXmssVerify_10") := by
+    .cond (.not (.cmp .eq .W8 (.load 0 184 1) (.lit 1))) NativeRustcX64.Xmss.XmssVerify.label_10) := by
   rw [run_b6]
   rfl
 

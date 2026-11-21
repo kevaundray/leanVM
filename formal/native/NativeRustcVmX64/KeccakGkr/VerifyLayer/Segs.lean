@@ -2,11 +2,12 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.ProjLoop
 public import NativeVm.Code.Phase6.Facts
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `verify_layer` on x86-64: the segment kernel
 
-From `.LVerifyLayer_17` (`PEnd`): `b24` spills the point's address and calls `eq_kernel` on the
+From `NativeRustcVmX64.Vm.VerifyLayer.label_17` (`PEnd`): `b24` spills the point's address and calls `eq_kernel` on the
 point's coordinates past the pack's into the frame's four elements at `232`; `b25` (never taken:
 the kernel exists, `SegmentsFit`) continues at `b26` (`SG`): `segs`.
 -/
@@ -105,11 +106,11 @@ theorem test_al1 : CmpOp.apply .eq .W8 (BinOp.apply .and .W8 1#64 (BitVec.ofNat 
 variable [Host] {k : Nat} {p : Array EW} {s1 : TState}
 
 /-- **The segment kernel**: `b24`, `eq_kernel`, `b25`. -/
-theorem segs (hp : Placed code k) (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
+theorem segs (hp : Placed code k) (hek : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
     (hpre : VerifyLayerPre a s c m0) {d : MachineData} (h : PEnd m0 a c p s1 d)
     {R : MachineState → Prop}
-    (cont : ∀ d', SG m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 249)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 218)⟩ := by
+    (cont : ∀ d', SG m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b26Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b24Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hseg := pre_seg hpre
@@ -117,9 +118,9 @@ theorem segs (hp : Placed code k) (hek : Spec (Labels.label eqKernelLabel) EqKer
   have hplen' : c.point.size ≤ 30 := by
     simpa [NativeRustcVm.KeccakGkr.claimPointCap] using hplen
   have hpk := pack_lt hseg hplen'
-  have hwf : (envB m0 d [(cA m0, 768)] (fun _ ↦ 0) (Host.addrOf (k + 218 + b24.length)).toBitVec).WF :=
+  have hwf : (envB m0 d [(cA m0, 768)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b24Offset + b24.length)).toBitVec).WF :=
     wfC hpre h.body
-  have hm : Match (envB m0 d [(cA m0, 768)] (fun _ ↦ 0) (Host.addrOf (k + 218 + b24.length)).toBitVec)
+  have hm : Match (envB m0 d [(cA m0, 768)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b24Offset + b24.length)).toBitVec)
       (claimS (.load 0 96 8)) d :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨h.body.rsp, trivial⟩ trivial trivial
       ⟨by show Env.load _ 0 96 8 = cA m0 + BitVec.ofInt 64 0
@@ -127,15 +128,15 @@ theorem segs (hp : Placed code k) (hek : Spec (Labels.label eqKernelLabel) EqKer
   refine Body.blk (o' := 16) g h.body hwf (blk hp b24_in_code (by simp [b24])) e24 (fun _ _ ↦ rfl)
     hm (by decide +kernel) (hex0 (by decide +kernel)) fun st hm1 hpc1 hb1 hs1 ↦ ?_
   have e1 : ∀ r, (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + 218 + b24.length)).toBitVec).regs r = reg d r := fun _ ↦ rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b24Offset + b24.length)).toBitVec).regs r = reg d r := fun _ ↦ rfl
   have hl280 : (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + 218 + b24.length)).toBitVec).load 1 280 8 = BitVec.ofNat 64 c.point.size := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b24Offset + b24.length)).toBitVec).load 1 280 8 = BitVec.ofNat 64 c.point.size := by
     rw [cload (o := 280) hpw]; simp only [Array.length_toList, Nat.toUInt64]; rfl
   have hl24 : (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + 218 + b24.length)).toBitVec).load 0 24 8 = (packV m0).toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b24Offset + b24.length)).toBitVec).load 0 24 8 = (packV m0).toBitVec :=
     fload8 (sp24 h.sp)
   have hl96 : (envB m0 d [(cA m0, 768)] (fun _ ↦ 0)
-      (Host.addrOf (k + 218 + b24.length)).toBitVec).load 0 96 8 = cA m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b24Offset + b24.length)).toBitVec).load 0 96 8 = cA m0 :=
     fload8 (sp96 h.sp)
   have hpkB : (packV m0).toBitVec = BitVec.ofNat 64 ((reg m0 .rsi).toNat - 4) := rfl
   rw [hpkB] at hl24

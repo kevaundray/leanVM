@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.FirstClaim.Defs
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `first_claim`: the prologue (x86-64)
@@ -59,9 +60,9 @@ variable [Host] {k : Nat}
 
 /-- **The prologue**: from the entry to the bit weights' loop head at bit `0`. -/
 theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 92) ∧
-      WInv m0 lanePoint 0 s'.data) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b3Offset) ∧
+      WInv m0 lanePoint 0 s'.data) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b0Offset)⟩ := by
   have h := preOk hpre
   have hn := nums h
   have hr1 := hn.r1
@@ -71,9 +72,9 @@ theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoi
   have hfb := fbA_toNat h
   -- `b0`: the prologue, `call eq_kernel`.
   have hwf0 := wf_body h (d := m0) (fun _ h ↦ h) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b0Offset + b0.length)).toBitVec)
   have hm0 : Match (frameEnv m0 m0 1376 [(argA m0, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 0 + b0.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b0Offset + b0.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial
       ⟨arg_alias 0, arg_alias 1, arg_alias 2, trivial⟩
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl) hm0
@@ -133,7 +134,7 @@ theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoi
   -- `b1`: `eq_kernel`'s result checked.
   have hwf2 := wf_body h hb2.frame.kept (d := st2.data) (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
-    (hpc2.trans (by rw [lengths.1])) (match_callS hb2.frame) fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b0_next)) (match_callS hb2.frame) fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hmem3, hat3⟩ := ok_b1
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq hwf2 hmem3
   have hb3 : Body m0 st3.data := hb2.of_mem (Frame.of_block hb2.frame hwf2 hm3 hmid3 slots_le') hd3
@@ -146,7 +147,7 @@ theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoi
   -- `b2`: `inst` saved, the loop's start.
   have hwf3 := wf_body h hb3.frame.kept (d := st3.data) (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf3 nofun
-    (hpc3.trans (by rw [lengths.2.1])) (match_callS hb3.frame) fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b1_next)) (match_callS hb3.frame) fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hwi4, hw16, hw24, h15', hbx', h14', hbp', hcx', hat4⟩ := ok_b2
   have hs4 := sameOutside_touch hwf3 hm4 (r := 0) rfl (by decide) (within_spec hwi4)
   have hb4 : Body m0 st4.data :=
@@ -163,7 +164,7 @@ theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoi
     (ekeep .r15 (by simp)).trans (hm1.regs .r15 _ h15)
   have l16 := wordAt_write hm4 (r := 0) (o := 16) (v := .reg .r12) rfl (by decide) hw16
   have l24 := wordAt_write hm4 (r := 0) (o := 24) (v := .reg .r15) rfl (by decide) hw24
-  refine .done _ ⟨hpc4.trans (by rw [lengths.2.2.1]), ⟨hb4,
+  refine .done _ ⟨hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b2_next), ⟨hb4,
     ⟨by rw [← e12]; exact l16, by rw [← e15]; exact l24⟩,
     keep_touch h hs4 (by rw [lanes_len h]; omega) (by rw [lanes_len h]; omega)
       (by show NativeRustcVm.BytesAt st3.data.dmem _ _; rw [hd3]; exact hker),

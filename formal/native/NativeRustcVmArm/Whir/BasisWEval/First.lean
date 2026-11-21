@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.BasisWEval.Ring
 
 /-!
@@ -38,17 +39,17 @@ theorem slots_le : ∀ p ∈ slots, p.1 + 8 ≤ 144 := by decide
 
 /-- **The first product**, from `b5` to `Loop 0` or `End`. -/
 theorem first (hp : Placed code k) (h : In m0 ba b v)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st0 : MachineState} (ha : At4 m0 ba b v st0.data)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 41))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b5Offset))
     (hw : NativeRustcVm.Transcript.OptEWAt st.data.dmem (base m0 144 + BitVec.ofNat 64 24)
       (some (ringW v (xpt m0))))
     (hf : Fr0 m0 st.data)
     (hcs : ∀ r, calleeSaved r = true → st.data.regs.getXReg r = st0.data.regs.getXReg r)
     {R : MachineState → Prop}
-    (hloop : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 66) → Loop m0 ba b v 0 st'.data →
+    (hloop : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b10Offset) → Loop m0 ba b v 0 st'.data →
       Eventually (step1 Host.exe) R st')
-    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 104) → End m0 ba b v st'.data →
+    (hend : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b19Offset) → End m0 ba b v st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hN := h.hN
@@ -155,7 +156,7 @@ theorem first (hp : Placed code k) (h : In m0 ba b v)
     · simp only [Sym.eval]
       rw [l40]
       simp
-  have hpc3 : (⟨m3, Host.addrOf (k + 43 + b6.length)⟩ : MachineState).pc = Host.addrOf (k + 49) :=
+  have hpc3 : (⟨m3, Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b6Offset + b6.length)⟩ : MachineState).pc = Host.addrOf (k + NativeRustcVmArm.Vm.BasisWEval.b7Offset) :=
     rfl
   refine exec_at (inf hp b7_in_code (by simp [b7])) run_b7 hwf3 hpc3 hm3 fun st4 hm4 hpc4 ↦ ?_
   simp only [PcOk] at hpc4
@@ -212,15 +213,15 @@ theorem first (hp : Placed code k) (h : In m0 ba b v)
       BinOp.apply, Sym.ext_W64]
   by_cases hc0 : v.cs.size = 0
   · simp only [hc0, decide_true, ↓reduceIte] at hpc4
-    rw [hp.label (j := 104) rfl] at hpc4
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b19Offset) NativeRustcVmArm.Vm.BasisWEval.label_14_at] at hpc4
     exact hend st4 hpc4 ⟨keep4, by
       rw [show ws v (xpt m0) v.cs.size = ws v (xpt m0) 0 by rw [hc0]]; exact acc4⟩
   · simp only [decide_eq_false hc0, Bool.false_eq_true, ↓reduceIte] at hpc4
-    rw [show k + 49 + b7.length = k + 60 from rfl] at hpc4
+    rw [show k + NativeRustcVmArm.Vm.BasisWEval.b7Offset + b7.length = k + NativeRustcVmArm.Vm.BasisWEval.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BasisWEval.b7_next]] at hpc4
     refine keep4.fr.regsBlock (inf hp b8_in_code (by simp [b8])) run_b8 hpc4 rfl rfl (by rfl)
       fun st5 hf5 hd5 hm5 hpc5 ↦ ?_
     simp only [PcOk] at hpc5
-    rw [hp.label (j := 66) rfl] at hpc5
+    rw [hp.label (j := NativeRustcVmArm.Vm.BasisWEval.b10Offset) NativeRustcVmArm.Vm.BasisWEval.label_7_at] at hpc5
     have hk5 : ∀ r : XReg, r ≠ .X20 → st5.data.regs.getXReg r = st4.data.regs.getXReg r :=
       fun r h20 ↦ reg_of hm5 (v := .reg r) (by cases r <;> first | rfl | contradiction) rfl
     refine hloop st5 hpc5 {

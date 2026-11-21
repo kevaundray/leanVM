@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Layout.StackPoint.Exec
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.SelectorPoint.Names
+public import NativeRustcVmX64.Code.Vm.StackPoint.Names
 
 /-!
 # `stack_point` on x86-64
@@ -321,10 +323,10 @@ variable [Host] {k : Nat}
 
 /-- **A turn of the pair loop** `b5`: `point[i]`, `point[i + 1]` copied. -/
 theorem stepPair (hp : Placed code k) {m0 : MachineData} (hF : Facts m0)
-    {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 31)) (hI : Pair m0 i st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 44) ∧ Copy m0 (E m0) s.data ∧
+    {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b5Offset)) (hI : Pair m0 i st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b6Offset) ∧ Copy m0 (E m0) s.data ∧
         reg s.data .r10 = BitVec.ofNat 64 (E m0)) ∨
-      (s.pc = Host.addrOf (k + 31) ∧ Pair m0 (i + 2) s.data)) st := by
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b5Offset) ∧ Pair m0 (i + 2) s.data)) st := by
   have hlt := hI.lt
   have hE := E_le m0
   have hlen := hF.len64
@@ -382,9 +384,9 @@ theorem stepPair (hp : Placed code k) {m0 : MachineData} (hF : Facts m0)
     NativeRustcX64.Sym.ofNat_beq (by omega) (by omega)] at hy hn
   by_cases hlast : E m0 = 2 + i
   · refine .done _ (Or.inl ⟨(hn (by simp [hlast])).trans (congrArg Host.addrOf
-      (by have : b5.length = 13 := rfl; omega)), by rw [hlast, Nat.add_comm]; exact hcopy,
+      (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.StackPoint.b5_next])), by rw [hlast, Nat.add_comm]; exact hcopy,
       by rw [hr10, hlast, Nat.add_comm]⟩)
-  · refine .done _ (Or.inr ⟨(hy (by simp [hlast])).trans (hp.label (j := 31) rfl), hcopy, ?_,
+  · refine .done _ (Or.inr ⟨(hy (by simp [hlast])).trans (hp.label NativeRustcVmX64.Vm.StackPoint.label_5_at), hcopy, ?_,
       hr10, (e1 .r11 (by simp [keepC])).trans hI.r11, ?_, ?_⟩)
     · have : E m0 % 2 = 0 := by simp [E]
       have := hI.even
@@ -399,9 +401,9 @@ theorem stepPair (hp : Placed code k) {m0 : MachineData} (hF : Facts m0)
 
 /-- **The odd element** (`b7`): `point[len - 1]` copied, on to `.L8`. -/
 theorem odd (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) (hfit : nn m0 ≤ 66)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 46)) (hc : Copy m0 (len m0 - 1) st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b7Offset)) (hc : Copy m0 (len m0 - 1) st.data)
     (hl : 1 ≤ len m0) (hr10 : reg st.data .r10 = BitVec.ofNat 64 (len m0 - 1)) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 52) ∧ Ready m0 s.data) st := by
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b8Offset) ∧ Ready m0 s.data) st := by
   have hlen := hF.len64
   have hon := hF.onw
   have hS := hF.stack
@@ -455,8 +457,7 @@ theorem odd (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) (hfit : nn m
     have := copied_succ (by simp; omega) h0 w0
     rwa [Nat.sub_add_cancel hl] at this
   simp only [PcOk] at hpc2
-  have hl7' : (b7.drop 2).length = 4 := rfl
-  refine .done _ ⟨hpc2.trans (congrArg Host.addrOf (by omega)), ⟨hb2, (e2 .rsi (by simp)).trans hc1.regs.rsi, (e2 .rdi (by simp)).trans hc1.regs.rdi,
+  refine .done _ ⟨hpc2.trans (congrArg Host.addrOf (by have hn := NativeRustcVmX64.Vm.StackPoint.b7_next; have hl := NativeRustcVmX64.Vm.StackPoint.b7_length; simp only [NativeRustcVmX64.Vm.StackPoint.b7Length] at hl; simp only [List.length_drop]; omega)), ⟨hb2, (e2 .rsi (by simp)).trans hc1.regs.rsi, (e2 .rdi (by simp)).trans hc1.regs.rdi,
     (e2 .r8 (by simp)).trans hc1.regs.r8, (e2 .rbx (by simp)).trans hc1.regs.rbx,
     (e2 .rax (by simp)).trans hc1.rax, by rwa [List.take_of_length_le (by simp)] at hcop, hfit⟩⟩
 
@@ -466,7 +467,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
 
 /-- **The epilogue** `b10`: RAX as given, RDX = `n`. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 63)) (hb : Body m0 48 S slots (out m0) outB st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b10Offset)) (hb : Body m0 48 S slots (out m0) outB st.data)
     (hbx : reg st.data .rbx = BitVec.ofNat 64 (nn m0))
     (hres : if nn m0 ≤ stackPointOut then reg st.data .rax = 1#64 ∧
         EWsAt st.data.dmem (out m0) (stackPoint ⟨(reg m0 .rdi).toNat, (reg m0 .rsi).toNat⟩
@@ -498,8 +499,8 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : Mac
 
 /-- **The selector** (`b8`, `selector_point`, `b9`), then the epilogue. -/
 theorem tail (hp : Placed code k)
-    (hsel : Spec (Labels.label selectorPointLabel) SelectorPointPre SelectorPointPost)
-    {m0 : MachineData} (hF : Facts m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 52))
+    (hsel : Spec (Labels.label NativeRustcVmX64.Vm.SelectorPoint.entryLabel) SelectorPointPre SelectorPointPost)
+    {m0 : MachineData} (hF : Facts m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b8Offset))
     (hR : Ready m0 st.data) : Eventually (step1 Host.exe) (Post m0) st := by
   have hS := hF.stack
   have h48 : 48 ≤ S := by decide
@@ -511,7 +512,7 @@ theorem tail (hp : Placed code k)
   have hS1 := hS.1
   have hS2 := hS.2.1
   have hb := hR.body
-  have hwf := hb.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 52 + b8.length)).toBitVec) hS h48
+  have hwf := hb.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b8Offset + b8.length)).toBitVec) hS h48
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) run_b8 hwf (fun _ _ ↦ rfl) hpc
     hb.mid_match fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hk, hkb, hsp, hw, hdi, hsi, hdx⟩ := after_eq run_b8 ▸ b8_call
@@ -608,13 +609,13 @@ theorem tail (hp : Placed code k)
   -- `b9`
   have hwf2 := hb2.wf (vars := fun _ ↦ 0) (ret := 0) hS h48
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) run_b9 hwf2 nofun
-    (hpc2.trans (congrArg Host.addrOf (by have : b8.length = 10 := rfl; omega))) hb2.mid_match
+    (hpc2.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.StackPoint.b8_next))) hb2.mid_match
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hk3, hkb3, hax⟩ := after_eq run_b9 ▸ b9_facts
   have e3' := regs_eq_of hb2.mid_match hm3 hkb3
   have hdm3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq hwf2 (mem_of_keepsAll hk3)
   simp only [PcOk] at hpc3
-  refine finish hp hF (hpc3.trans (congrArg Host.addrOf (by have : b9.length = 1 := rfl; omega)))
+  refine finish hp hF (hpc3.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.StackPoint.b9_next)))
     (hb2.of_block hb2.mid_match hm3 hwf2 rfl hk3) ((e3' .rbx (by simp)).trans hbx2) ?_
   simp only [show nn m0 ≤ stackPointOut from hfit, ↓reduceIte]
   refine ⟨?_, by rw [hdm3]; exact hres2⟩
@@ -622,9 +623,9 @@ theorem tail (hp : Placed code k)
   rfl
 /-- **The copy** (`b2`-`b7`) from `.L8`'s complement: `len ≥ 1` copied, on to the selector. -/
 theorem copyAll (hp : Placed code k)
-    (hsel : Spec (Labels.label selectorPointLabel) SelectorPointPre SelectorPointPost)
+    (hsel : Spec (Labels.label NativeRustcVmX64.Vm.SelectorPoint.entryLabel) SelectorPointPre SelectorPointPost)
     {m0 : MachineData} (hF : Facts m0) (hfit : nn m0 ≤ 66) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 21)) (hc : Copy m0 0 st.data) (hl : 1 ≤ len m0) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b2Offset)) (hc : Copy m0 0 st.data) (hl : 1 ≤ len m0) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hS := hF.stack
   have h48 : 48 ≤ S := by decide
@@ -644,12 +645,12 @@ theorem copyAll (hp : Placed code k)
     have hpc3 := hn (by simp [hr1])
     have hwf2 := hc2.body.wf (vars := fun _ ↦ 0) (ret := 0) hS h48
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf2 nofun
-      (hpc3.trans (congrArg Host.addrOf (by have : b2.length = 2 := rfl; omega)))
+      (hpc3.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.StackPoint.b2_next)))
       hc2.body.mid_match fun st3 hm3 hpc4 ↦ ?_
     obtain ⟨hk3, hkc3, h10⟩ := after_eq run_b3 ▸ b3_facts
     have hc3 := hc2.of_block hc2.body.mid_match hm3 hwf2 rfl hk3 hkc3
     simp only [PcOk] at hpc4
-    refine eventually_trans _ _ _ _ (odd hp hF hfit (hpc4.trans (hp.label (j := 46) rfl))
+    refine eventually_trans _ _ _ _ (odd hp hF hfit (hpc4.trans (hp.label NativeRustcVmX64.Vm.StackPoint.label_7_at))
       (by rw [h1]; exact hc3) hl ?_) fun s h ↦ tail hp hsel hF h.1 h.2
     rw [show reg st3.data .r10 = _ from hm3.regs .r10 _ h10, h1]
     rfl
@@ -658,7 +659,7 @@ theorem copyAll (hp : Placed code k)
       show (reg m0 .rcx).toNat = 1
       rw [h]
       rfl)
-    have hpc3 := (hy (by simp [hr1])).trans (hp.label (j := 25) rfl)
+    have hpc3 := (hy (by simp [hr1])).trans (hp.label NativeRustcVmX64.Vm.StackPoint.label_4_at)
     have hwf2 := hc2.body.wf (vars := fun _ ↦ 0) (ret := 0) hS h48
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf2 nofun hpc3
       hc2.body.mid_match fun st4 hm4 hpc4 ↦ ?_
@@ -671,14 +672,14 @@ theorem copyAll (hp : Placed code k)
       simp only [Sym.eval, Env.ofMachine_regs]
       rw [show st2.data.regs.get64 .rcx = reg m0 .rcx from hc2.regs.rcx]
       exact r11_eval _ hlen
-    refine eventually_trans _ _ _ _ (Sym.loop (Q := fun s ↦ s.pc = Host.addrOf (k + 44) ∧
+    refine eventually_trans _ _ _ _ (Sym.loop (Q := fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b6Offset) ∧
         Copy m0 (E m0) s.data ∧ reg s.data .r10 = BitVec.ofNat 64 (E m0))
-      (fun n st ↦ st.pc = Host.addrOf (k + 31) ∧ ∃ i, E m0 - i = n ∧ Pair m0 i st.data)
+      (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b5Offset) ∧ ∃ i, E m0 - i = n ∧ Pair m0 i st.data)
       (fun n st ⟨hpc, i, hn, hI⟩ ↦ Eventually.mono (stepPair hp hF hpc hI) fun st' h ↦ by
         rcases h with h | ⟨hpc', hI'⟩
         · exact Or.inl h
         · exact Or.inr ⟨E m0 - (i + 2), by have := hI.lt; omega, hpc', i + 2, rfl, hI'⟩)
-      ⟨hpc4.trans (congrArg Host.addrOf (by have : b4.length = 6 := rfl; omega)), 0, rfl, hP⟩)
+      ⟨hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.StackPoint.b4_next)), 0, rfl, hP⟩)
       fun s ⟨hpc6, hc6, h106⟩ ↦ ?_
     have hwf6 := hc6.body.wf (vars := fun _ ↦ 0) (ret := 0) hS h48
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf6 nofun hpc6
@@ -692,18 +693,18 @@ theorem copyAll (hp : Placed code k)
     rw [even_eval _ (n := len m0) (congrArg BitVec.toNat hc6.regs.rcx)] at hy7 hn7
     by_cases hev : len m0 % 2 = 0
     · have hE : E m0 = len m0 := by simp only [E]; omega
-      refine tail hp hsel hF ((hy7 (by simp [hev])).trans (hp.label (j := 52) rfl))
+      refine tail hp hsel hF ((hy7 (by simp [hev])).trans (hp.label NativeRustcVmX64.Vm.StackPoint.label_8_at))
         (Copy.ready (by rw [← hE]; exact hc7) hfit)
     · have hE : E m0 = len m0 - 1 := by simp only [E]; omega
       refine eventually_trans _ _ _ _ (odd hp hF hfit ((hn7 (by simp [hev])).trans (congrArg Host.addrOf
-        (by have : b6.length = 2 := rfl; omega))) (by rw [← hE]; exact hc7) hl ?_)
+        (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.StackPoint.b6_next]))) (by rw [← hE]; exact hc7) hl ?_)
         fun s h ↦ tail hp hsel hF h.1 h.2
       rw [e7 .r10 (by simp [keepC, keepB]), h106, hE]
 
 /-- **`stack_point`'s contract.** -/
 theorem stackPoint_spec (hp : Placed code k)
-    (hsel : Spec (Labels.label selectorPointLabel) SelectorPointPre SelectorPointPost) :
-    Spec (Labels.label stackPointLabel) StackPointPre StackPointPost := by
+    (hsel : Spec (Labels.label NativeRustcVmX64.Vm.SelectorPoint.entryLabel) SelectorPointPre SelectorPointPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.StackPoint.entryLabel) StackPointPre StackPointPost := by
   intro m0 hpre
   have hF := Facts.of_pre hpre
   have hS := hF.stack
@@ -712,7 +713,7 @@ theorem stackPoint_spec (hp : Placed code k)
   have hS48 := stackOk_mono hS h48
   have hwf := frame_wf (m0 := m0) (m := m0) (vars := fun _ ↦ 0) (ret := 0) hS48 fun _ h ↦ h
   have hm : Match (frameEnv m0 m0 48) entryS m0 := match_frame
-  rw [show Labels.label stackPointLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.StackPoint.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.StackPoint.b0Offset) from hp.label NativeRustcVmX64.Vm.StackPoint.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf nofun hm
     fun st0 hm0 hpc0 ↦ ?_
   obtain ⟨hw, hregs, hmem, hsp, hkr, h8, hbx, hax, hzf⟩ := after_eq run_b0 ▸ b0_facts
@@ -724,7 +725,7 @@ theorem stackPoint_spec (hp : Placed code k)
     rw [nS_toNat, BitVec.toNat_ofNat]
     exact congrArg (· % 2 ^ 64) (Nat.add_comm _ _)
   have hok : okS.eval (frameEnv m0 m0 48) = decide (nn m0 ≤ 66) := okS_eval _ hlen
-  simp only [PcOk, show b0.length = 16 from rfl] at hpc0
+  simp only [PcOk, NativeRustcVmX64.Vm.StackPoint.b0_length] at hpc0
   obtain ⟨hy, hn⟩ := pc_cond hpc0
   have hy' : (!(okS.eval (frameEnv m0 m0 48))) = true → _ := hy
   have hn' : ¬(!(okS.eval (frameEnv m0 m0 48))) = true → _ := hn
@@ -740,7 +741,7 @@ theorem stackPoint_spec (hp : Placed code k)
       e0 .r9 (by simp), hbx0⟩
     have hwf0 := hb0.wf (vars := fun _ ↦ 0) (ret := 0) hS h48
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf0 nofun
-      (hpc1.trans (congrArg Host.addrOf (by omega))) hb0.mid_match fun st1 hm1 hpc2 ↦ ?_
+      (hpc1.trans (congrArg Host.addrOf (by rw [← NativeRustcVmX64.Vm.StackPoint.b0_length, Nat.add_assoc, NativeRustcVmX64.Vm.StackPoint.b0_next]))) hb0.mid_match fun st1 hm1 hpc2 ↦ ?_
     obtain ⟨hk1, hkb1, hax1, hz1⟩ := after_eq run_b1 ▸ b1_facts
     have e1 := regs_eq_of hb0.mid_match hm1 hkb1
     have hc1 : Copy m0 0 st1.data := by
@@ -759,11 +760,11 @@ theorem stackPoint_spec (hp : Placed code k)
     obtain ⟨hy2, hn2⟩ := pc_cond hpc2
     rw [zero_eval _ (n := len m0) (congrArg BitVec.toNat hr.rcx)] at hy2 hn2
     by_cases hl0 : len m0 = 0
-    · exact tail hp hsel hF ((hy2 (by simp [hl0])).trans (hp.label (j := 52) rfl))
+    · exact tail hp hsel hF ((hy2 (by simp [hl0])).trans (hp.label NativeRustcVmX64.Vm.StackPoint.label_8_at))
         (Copy.ready (by rw [hl0]; exact hc1) h66)
     · exact copyAll hp hsel hF h66 ((hn2 (by simp [hl0])).trans
-        (congrArg Host.addrOf (by have : b1.length = 5 := rfl; omega))) hc1 (by omega)
-  · have hpc1 := (hy' (by simp [h66])).trans (hp.label (j := 63) rfl)
+        (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.StackPoint.b1_next))) hc1 (by omega)
+  · have hpc1 := (hy' (by simp [h66])).trans (hp.label NativeRustcVmX64.Vm.StackPoint.label_9_at)
     exact finish hp hF hpc1 hb0 hbx0 (by
       simp only [show ¬nn m0 ≤ stackPointOut from h66, ↓reduceIte]
       rw [show reg st0.data .rax = _ from hm0.regs .rax _ hax]

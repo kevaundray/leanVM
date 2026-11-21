@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FoldRounds.Names
 public import NativeRustcVmArm.Whir.WhirLevels.Blocks
 
 /-!
@@ -132,12 +133,12 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **`fold_rounds`** at level `k`: the run rejected (`0`), or `Mid k` (`1`). -/
 theorem fold_call
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundsLabel) (FoldRoundsPre a s w)
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmArm.Vm.FoldRounds.entryLabel) (FoldRoundsPre a s w)
       (FoldRoundsPost a s w))
     (c : Ctx a s0 levels ba b claim m0 rate) {k : Nat} {s : TState} {w : WhirStateW}
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hh : Head a s0 levels b claim m0 k s w st.data)
-    (hpc : st.pc = Labels.label foldRoundsLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.FoldRounds.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0 = m0.regs.X0) (hx1 : st.data.regs.X1.toNat = foldAt k)
     (hx2 : st.data.regs.X2 = m0.regs.X6)
     (hx3 : st.data.regs.X3.toBitVec = pA m0 + BitVec.ofNat 64 roundsOff)

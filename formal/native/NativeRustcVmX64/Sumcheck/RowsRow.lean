@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Sumcheck.RowsRow.Exec
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Spec.Sumcheck
+public import NativeRustcVmX64.Code.Vm.RowsRow.Names
 
 /-!
 # `Rows::row` on x86-64
@@ -38,7 +39,7 @@ variable [Host] {k : Nat}
 
 /-- **`Rows::row`'s contract.** -/
 theorem rowsRow_spec (hp : Placed code k) (p : BitVec 64) (rows : Array (Array UInt64)) :
-    Spec (Labels.label rowsRowLabel) (RowsRowPre p rows) (RowsRowPost p rows) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.RowsRow.entryLabel) (RowsRowPre p rows) (RowsRowPost p rows) := by
   rintro m ⟨hst, ⟨hp0, hsz, w, hw, hhdr, hrow⟩, hnw, hap⟩
   set r := reg m .rdi with hr
   have hfnw := frame_noWrap (m0 := m) (F := 0) hst le_rfl
@@ -50,7 +51,7 @@ theorem rowsRow_spec (hp : Placed code k) (p : BitVec 64) (rows : Array (Array U
   have hm : Match (frameEnv m m 0 [(r, 32)]) entryS m :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial
-  rw [show Labels.label rowsRowLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.RowsRow.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.RowsRow.b0Offset) from hp.label NativeRustcVmX64.Vm.RowsRow.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf nofun hm
     fun st hm' hpc ↦ ?_
   obtain ⟨hrax, hrdx, hrsp, hmem, hkeep⟩ := ok_b0

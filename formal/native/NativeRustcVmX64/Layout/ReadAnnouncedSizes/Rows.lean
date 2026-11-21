@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Layout.ReadAnnouncedSizes.Tail
+public import NativeRustcVmX64.Code.Vm.BuildLayout.Names
 
 /-!
 # `read_announced_sizes` after the high limbs' checks (x86-64)
@@ -23,10 +24,10 @@ variable [Host] {k : Nat} {bc : Array UInt64} {a : DecArea} {s : TState} {m0 : M
 
 /-- **After the checks** (`b10`, `b11`, `build_layout`). -/
 theorem from10 (hp : Placed code k)
-    (hbl : ∀ bc, Spec (Labels.label buildLayoutLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
+    (hbl : ∀ bc, Spec (Labels.label NativeRustcVmX64.Vm.BuildLayout.entryLabel) (BuildLayoutPre bc) (BuildLayoutPost bc))
     (h : ReadAnnouncedSizesPre bc a s m0) {xs : Array EW} {s1 : TState}
     (hrs : (readScalars 8).run s = some (xs, s1)) (hall : (xs.all fun x ↦ x.c1 == 0) = true)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 46)) (hM : Mid a m0 xs s1 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b10Offset)) (hM : Mid a m0 xs s1 st.data) :
     Eventually (step1 Host.exe) (Goal bc a s m0) st := by
   obtain ⟨-, -, -, -, -, -, hsize, hlr, hlo, hlrod, -⟩ := pre_parts h
   have c := ctx h
@@ -70,11 +71,11 @@ theorem from10 (hp : Placed code k)
   swap
   · refine fail75 hp h hb1 ((pc_true hpc1 (hc10.mpr hrate)).trans (lbl_13 hp)) ?_
     rw [hrun, ite_false_of hrate]; rfl
-  have hpc63 : st1.pc = Host.addrOf (k + 63) :=
+  have hpc63 : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b11Offset) :=
     (pc_false hpc1 (Bool.eq_false_iff.mpr fun h' ↦ hc10.mp h' hrate)).trans
-      (addr_eq (by have : b10.length = 17 := rfl; omega))
+      (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b10_next]))
   -- `b11`: `build_layout(bytecode_len, log_memory, rows, layout)`.
-  let ra := (Host.addrOf (k + 63 + b11.length)).toBitVec
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.ReadAnnouncedSizes.b11Offset + b11.length)).toBitVec
   have hwf2 := wf0 h hb1.fr.kept ra
   refine exec_at (infix_of b11_in_code (by simp [b11]) hp) exit_b11 hwf2 (fun _ _ ↦ rfl) hpc63
     (match_mid hb1 ra) fun st2 hm2 hpc2 ↦ ?_
@@ -129,7 +130,7 @@ theorem from10 (hp : Placed code k)
     · exact .inr hq
     · exact .inl (callee_stack h hb2 le_bl hq)
   exact from12 hp h hrs hsz hall hrate
-    (hpc3.trans (addr_eq (by have : b11.length = 4 := rfl; omega))) hb3
+    (hpc3.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReadAnnouncedSizes.b11_next]))) hb3
     ((hsv3.1 .rbx rfl).trans ebx) ((hsv3.1 .r15 rfl).trans e15) hok3 hL3 hts3
 
 end

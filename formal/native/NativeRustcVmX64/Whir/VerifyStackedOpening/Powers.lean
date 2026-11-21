@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.Out
+public import NativeRustcVmX64.Code.Vm.Powers.Names
 
 /-!
 # `verify_stacked_opening`: the scales (x86-64)
 
-`powers_b24`: from `.LVerifyStackedOpening_19` (`AtB24`), `b24` reads the scales' address (the
+`powers_b24`: from `NativeRustcVmX64.Vm.VerifyStackedOpening.label_19` (`AtB24`), `b24` reads the scales' address (the
 stack argument `1`, `argScS`: the stack arguments as region 1), writes the count there and calls
 `powers` (the challenge in RDI, RSI) into the scales: at `b25` (`AtB25`, the outputs `Outs`).
 Helpers: the stack arguments' environment (`Parts.arg_ok`, `argAl_ok`, `Ok.argLoad`), the
@@ -152,10 +153,10 @@ theorem Parts.runOut (h : Parts a s layout target coefficients point slices cs z
 
 /-- **The scales**: `b24` and `powers`, to `b25`. -/
 theorem powers_b24 (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) (hpow : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 104))
+    (hp : Placed code k) (hpow : Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b24Offset))
     (hA : AtB24 a s layout cs m0 st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 113) → AtB25 a s layout cs m0 st'.data →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b25Offset) → AtB25 a s layout cs m0 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hok := hA.ok
@@ -258,7 +259,7 @@ theorem powers_b24 (h : Parts a s layout target coefficients point slices cs z v
       omega
     · exact h.outs_not_stack (.inr (.inl hq0)) (h.callee_stack (Ok.sp hok1) hN hq).1
   have rr : ∀ r, calleeSaved r = true → reg st2.data r = reg st1.data r := hsv.1
-  refine cont st2 (hpc2.trans (by rw [show b24.length = 9 from rfl]))
+  refine cont st2 (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b24_next))
     ⟨hok2, ⟨hts2, hscw2, hews⟩, hfw1.call hfs2 (le_of_map [24, 40, 48, 56, 64] rfl (by decide)),
       by rw [rr .r12 rfl]; exact e_12, by rw [rr .r14 rfl]; exact e_14,
       by rw [rr .rbp rfl, regKeep hm1 .rbp rfl]; exact hA.rbp,

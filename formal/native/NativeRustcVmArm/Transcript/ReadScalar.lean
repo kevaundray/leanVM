@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWAbsorb.Names
+public import NativeRustcVmArm.Code.Vm.TStateNextScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Transcript.Callee
 public import NativeRustcVmArm.Transcript.ReadScalar.Exec
 public import NativeVm.Equiv.Transcript
@@ -33,10 +36,10 @@ variable [Host] {k : Nat}
 
 /-- **`TState::read_scalar` meets its contract.** -/
 theorem readScalar_spec (hp : Placed code k)
-    (hns : ∀ a s, Spec (Labels.label nextScalarLabel) (NextScalarPre a s) (NextScalarPost a s))
-    (habs : ∀ sp, Spec (Labels.label absorbLabel) (AbsorbPre sp) (AbsorbPost sp))
+    (hns : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateNextScalar.entryLabel) (NextScalarPre a s) (NextScalarPost a s))
+    (habs : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWAbsorb.entryLabel) (AbsorbPre sp) (AbsorbPost sp))
     (a : DecArea) (s : TState) :
-    Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s) := by
   rintro m0 ⟨hst, hrc, hts, htok, ⟨hom, hon, hoT, hoA, hoS, -⟩⟩
   set t := m0.regs.X1.toBitVec with htdef
   set o := m0.regs.X0.toBitVec with hodef
@@ -71,8 +74,8 @@ theorem readScalar_spec (hp : Placed code k)
   have hm0 : Match (frameEnv m0 m0 80 []) entryS m0 :=
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       frameBase_add.symm trivial trivial trivial trivial
-  unfold readScalarLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.TStateReadScalar.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.TStateReadScalar.entryOffset) NativeRustcVmArm.Vm.TStateReadScalar.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro, hws1, hx0, hx1, hx19, hx20⟩ := after_eq run_b0 ▸ ok_b0
   have hf1 : Frame m0 80 slots st1.data := Frame.of_prologue hwf0 hm1 hpro slots_le
@@ -129,7 +132,7 @@ theorem readScalar_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf2.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2
-    (hpc2.trans (by rw [show b0.length = 9 from rfl])) hm2 fun st3 hm3 hpc3 => ?_
+    (hpc2.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.TStateReadScalar.b0Offset + NativeRustcVmArm.Vm.TStateReadScalar.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.TStateReadScalar.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadScalar.b0_next])) hm2 fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hmem3, hx19₃, hx20₃⟩ := after_eq run_b1 ▸ ok_b1
   have hf3 : Frame m0 80 slots st3.data := Frame.of_block hf2 hwf2 hm3 hmid3 slots_le
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq hwf2 hmem3
@@ -157,7 +160,7 @@ theorem readScalar_spec (hp : Placed code k)
         ⟨known_ptr rfl (by show st3.data.regs.X19.toBitVec = _; rw [hX19₃]), trivial⟩ trivial
         trivial trivial
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf3
-      (hpc3.trans (hp.label (j := 25) rfl)) hm3' fun st4 hm4 hpc4 => ?_
+      (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.TStateReadScalar.b4Offset) NativeRustcVmArm.Vm.TStateReadScalar.label_2_at)) hm3' fun st4 hm4 hpc4 => ?_
     obtain ⟨hepi, hw0, hws4⟩ := after_eq run_b4 ▸ ok_b4
     obtain ⟨hsv4, hsl4⟩ := Frame.epilogue hf3 hwf3 hm4 hepi
     have hx30 : st4.data.regs.X30 = m0.regs.X30 := hsl4 (32, .X30) (List.mem_cons_self ..)
@@ -193,7 +196,7 @@ theorem readScalar_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf3.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf3
-    (hpc3.trans (by rw [show b1.length = 2 from rfl])) hm3' fun st4 hm4 hpc4 => ?_
+    (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadScalar.b1_next])) hm3' fun st4 hm4 hpc4 => ?_
   obtain ⟨hmid4, hmem4, hx0₄, hx1₄, hx2₄, hx3₄, hx19₄, hx20₄, hx21₄, hx22₄⟩ :=
     after_eq run_b2 ▸ ok_b2
   have hf4 : Frame m0 80 slots st4.data := Frame.of_block hf3 hwf3 hm4 hmid4 slots_le
@@ -284,7 +287,7 @@ theorem readScalar_spec (hp : Placed code k)
       ⟨known_ptr rfl (by show st5.data.regs.X19.toBitVec = _; rw [hX19₅]), trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf5
-    (hpc5.trans (by rw [show b2.length = 7 from rfl])) hm5 fun st6 hm6 hpc6 => ?_
+    (hpc5.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TStateReadScalar.b2_next])) hm5 fun st6 hm6 hpc6 => ?_
   obtain ⟨hepi, hw0, hw1, hw2, hws6⟩ := after_eq run_b3 ▸ ok_b3
   obtain ⟨hsv6, hsl6⟩ := Frame.epilogue hf5 hwf5 hm6 hepi
   have hx30 : st6.data.regs.X30 = m0.regs.X30 := hsl6 (32, .X30) (List.mem_cons_self ..)

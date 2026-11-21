@@ -39,13 +39,13 @@ variable [Host] (k : Nat) (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (
 
 /-- The loop's head (`b5`) at leaf `i`. -/
 structure HeadA (i : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 37)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b5Offset)
   ra : RA m0 i rows st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
 
 /-- The zeros' loop (`b7`) after `t` zeros of leaf `i`. -/
 structure ZA (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 42)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b7Offset)
   ra : RA m0 i rows st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
   rax : reg st.data .rax = BitVec.ofNat 64 (8 * t)
@@ -54,7 +54,7 @@ structure ZA (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) :
 
 /-- The call (`b8`) for leaf `i`, its zeros written. -/
 structure CallA (i : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 47)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RdRows.b8Offset)
   ra : RA m0 i rows st.data
   kp : Kp m0 bp B c i rows ci st.data.dmem
   zs : WordsAt st.data.dmem (off (lv m0) (512 * i)) (List.replicate (zc m0) 0)
@@ -156,7 +156,7 @@ theorem zA_step {i t : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState
     simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
     omega)
   by_cases hz : t + 1 ≠ zc m0
-  · rw [ite_t hz, hp.label (j := 42) rfl] at hpc2
+  · rw [ite_t hz, hp.label NativeRustcVmX64.Vm.RdRows.label_6_at] at hpc2
     exact .done _ (.inr ⟨hpc2, hra, hkp, hrax', by omega, hzs⟩)
   · rw [ite_f hz] at hpc2
     have he : t + 1 = zc m0 := by omega
@@ -168,7 +168,7 @@ theorem toCall {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState}
     (hI : HeadA k m0 bp B c i rows ci st) :
     Eventually (step1 Host.exe) (CallA k m0 bp B c i rows ci) st := by
   obtain ⟨hok5, hK5⟩ := ok_b5
-  refine fr_step hp g (j := 37) b5_in_code (by simp [b5]) exit_b5 nofun hok5 hI.pc hI.ra.fr
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b5Offset) b5_in_code (by simp [b5]) exit_b5 nofun hok5 hI.pc hI.ra.fr
     fun s1 hf1 hd1 hr1 hpc1 ↦ ?_
   have hk1 := regs_kept hK5 hr1
   have hra1 : RA m0 i rows s1.data := hI.ra.keep hf1 fun x hx ↦ hk1 x (by
@@ -184,11 +184,11 @@ theorem toCall {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineState}
     simp only [decide_eq_true_eq]
     omega)
   by_cases hz : zc m0 = 0
-  · rw [ite_t hz, hp.label (j := 47) rfl] at hpc2
+  · rw [ite_t hz, hp.label NativeRustcVmX64.Vm.RdRows.label_7_at] at hpc2
     exact .done _ ⟨hpc2, hra1, hkp1, by rw [hz]; exact NativeRustcVm.wordsAt_nil _ _⟩
   rw [ite_f hz] at hpc2
   obtain ⟨hok6, hrax6, hK6⟩ := ok_b6
-  refine fr_step hp g (j := 40) b6_in_code (by simp [b6]) exit_b6 nofun hok6
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b6Offset) b6_in_code (by simp [b6]) exit_b6 nofun hok6
     (hpc2.trans (congrArg Host.addrOf rfl)) hra1.fr fun s2 hf2 hd2 hr2 hpc3 ↦ ?_
   have hk2 := regs_kept hK6 hr2
   have hra2 : RA m0 i rows s2.data := hra1.keep hf2 fun x hx ↦ hk2 x (by

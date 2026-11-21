@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingWeight.Names
 public import NativeRustcVmArm.Ring.Claim.Basic
 
 /-!
@@ -38,10 +39,10 @@ variable {m0 : MachineData} [Host] {k : Nat}
 
 /-- **`ring_weight`** (`b1`). -/
 theorem stepWeight (hp : Placed code k) (h : RingClaimWeightPre m0)
-    (hrw : Spec (Labels.label ringWeightLabel) RingWeightPre RingWeightPost)
+    (hrw : Spec (Labels.label NativeRustcVmArm.Vm.RingWeight.entryLabel) RingWeightPre RingWeightPost)
     {R : MachineState → Prop} {m1 : MachineData} (hM : Mid1 m0 m1)
-    (cont : ∀ m2, Mid2 m0 m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 34)⟩) :
-    Eventually (step1 Host.exe) R ⟨m1, Host.addrOf (k + 25)⟩ := by
+    (cont : ∀ m2, Mid2 m0 m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.RingClaimWeight.b2Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m1, Host.addrOf (k + NativeRustcVmArm.Vm.RingClaimWeight.b1Offset)⟩ := by
   have hwf := envM_wf h hM.fr
   have hm := matchM h hM.fr
   have hN' := hN h
@@ -87,7 +88,7 @@ theorem stepWeight (hp : Placed code k) (h : RingClaimWeightPre m0)
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.1 fun q hq ↦ hq.elim
       (fun hq ↦ .inr (.inl (e0 ▸ hq))) .inl, hq.2.2⟩)
     fun m2 hfr3 hq hcs ↦ ?_
-  rw [show k + 25 + b1.length = k + 34 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingClaimWeight.b1Offset + b1.length = k + NativeRustcVmArm.Vm.RingClaimWeight.b2Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingClaimWeight.b1_next]]
   refine cont m2 ⟨hfr3, ?_, ?_, ?_, ?_⟩
   · rw [hcs .X19 rfl, ← hM.x19]
     exact Column.reg_of hm2 (v := .reg .X19) rfl rfl

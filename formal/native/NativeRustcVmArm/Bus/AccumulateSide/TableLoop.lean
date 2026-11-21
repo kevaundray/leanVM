@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BlockForm.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
+public import NativeRustcVmArm.Code.Vm.Evaluate.Names
+public import NativeRustcVmArm.Code.Vm.FormBufAddScaled.Names
+public import NativeRustcVmArm.Code.Vm.PaddingWeight.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop3
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop4
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop5
@@ -23,21 +29,21 @@ variable [Host] {m0 : MachineData} {L : LayoutW} {rows : Array Nat}
 
 /-- The table loop reaches its exit with every block accumulated. -/
 theorem tableLoop (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
-    (hbf : Spec (Labels.label blockFormLabel) BlockFormPre BlockFormPost)
-    (has : ∀ f g, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f g) (FormBufAddScaledPost f g))
-    (hpw : Spec (Labels.label paddingWeightLabel) PaddingWeightPre PaddingWeightPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hbf : Spec (Labels.label NativeRustcVmArm.Vm.BlockForm.entryLabel) BlockFormPre BlockFormPost)
+    (has : ∀ f g, Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f g) (FormBufAddScaledPost f g))
+    (hpw : Spec (Labels.label NativeRustcVmArm.Vm.PaddingWeight.entryLabel) PaddingWeightPre PaddingWeightPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmArm.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
     {j : Nat} (hj : j ≤ bl.length) {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) DL m)
     (hG : FormsAt m.dmem m0.regs.X1.toBitVec (sta SL m0 (BA L rows bl) Fm j).1)
     {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm bl.length) DL m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec (sta SL m0 (BA L rows bl) Fm bl.length).1 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 325)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, if j < bl.length then Host.addrOf (k + 233)
-      else Host.addrOf (k + 325)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b38Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, if j < bl.length then Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset)
+      else Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b38Offset)⟩ := by
   by_cases hjlt : j < bl.length
   · simp only [hjlt, ↓reduceIte]
     refine turn27 hp h hee hjlt hst fun m1 hs1 hf1 ↦ ?_

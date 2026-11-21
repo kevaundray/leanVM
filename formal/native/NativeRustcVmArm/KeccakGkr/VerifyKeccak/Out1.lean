@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW36Extend.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Fin2
 
 /-!
@@ -113,12 +114,12 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **`out.point`, `low`** (`b66`, `b67`). -/
 theorem stepOut1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {m : MachineData} {s3 : TState} {cj : KeccakClaimW} {outs : Array ColumnClaimW}
     {low sl xs : Array EW} (hx : AtX a s cs inst output m0 m s3 cj outs low sl xs)
     (cont : ∀ m', AtZ a s cs inst output m0 m' s3 cj outs low sl xs →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 431)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 425)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b68Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b66Offset)⟩ := by
   have hN := hn.hN
   have hwf := envO_wf h hn hx.fr
   have hm0 := matchO hx.fr hn hx.w72
@@ -176,7 +177,7 @@ theorem stepOut1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
       · exact (inRange_zero h1).elim
     have T := hb0.trans hc
     have hk : Kept m.dmem m2.dmem := kept_tr (hm1.kept hwf) hsv.2.2
-    rw [show k + 425 + b66.length = k + 430 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b66Offset + b66.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b67Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b66_next]]
     refine failBranchF hp hn (b67_in_code.trans hp.1 (by simp [b67])) run_b67 hfr2 rfl rfl
       (L := o3L) (by decide) (b := true)
       (condW0 (by rw [Env.ofMachine_regs, gx0, hx0]; rfl)) (fun hf ↦ nomatch hf)
@@ -184,7 +185,7 @@ theorem stepOut1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
     have g : ∀ r ∈ o3L, m3.regs.getXReg r = m2.regs.getXReg r := hk3
     simp only [o3L, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] at g
     obtain ⟨g23, g24⟩ := g
-    rw [show k + 430 + b67.length = k + 431 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b67Offset + b67.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b68Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b67_next]]
     refine cont m3 ⟨hfr3, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hx.psz, hx.lowsz, hx.slsz, ?_, hx.xsz, ?_,
         ?_, hx.run⟩
     · rw [g23, hcs .X23 rfl, Match.reg_eq hm0 hm1 (r := .X23) rfl rfl]; exact hx.x23

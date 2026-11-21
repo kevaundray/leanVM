@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Point
+public import NativeRustcVmX64.Code.Vm.BasisWEval.Names
 
 /-!
 # `final_level`: the basis at the rotated point (x86-64)
@@ -43,9 +44,9 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The basis at the rotated point**: `b25`, `BasisW::eval`, `b26`, to `b27`. -/
 theorem rotate (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hbw : ∀ ba b, Spec (Labels.label basisWEvalLabel) (BasisWEvalPre ba b) (BasisWEvalPost b))
+    (hbw : ∀ ba b, Spec (Labels.label NativeRustcVmX64.Vm.BasisWEval.entryLabel) (BasisWEvalPre ba b) (BasisWEvalPost b))
     {st : MachineState} {folded tail rot : Array EW} {claim : EW} {s5 : TState}
-    (hpc : st.pc = Host.addrOf (k + 351)) (hc : Core level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b25Offset)) (hc : Core level m0 st.data folded)
     (hbx : reg st.data .rbx = loc m0 640) (h12 : reg st.data .r12 = claim.c0.toBitVec)
     (h15 : reg st.data .r15 = claim.c1.toBitVec)
     (h13 : reg st.data .r13 = BitVec.ofNat 64 (w.alphas ++ tail).size)
@@ -54,7 +55,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (hrot : NativeRustcVm.BufEWAt st.data.dmem (loc m0 144) 30 rot.toList)
     (htail : NativeRustcVm.EWsAt st.data.dmem (loc m0 1120) tail.toList) (htn : tail.size = mu m0)
     (hts : TStateAt st.data.dmem (tA m0) a s5) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 364) → Core level m0 st'.data folded →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b27Offset) → Core level m0 st'.data folded →
       reg st'.data .rbx = loc m0 640 → reg st'.data .r12 = claim.c0.toBitVec →
       reg st'.data .r15 = claim.c1.toBitVec →
       NativeRustcVm.WordAt st'.data.dmem (loc m0 48)
@@ -71,7 +72,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hrl : rot.toList.length ≤ 30 := hrot.1
   have htl : tail.toList.length = mu m0 := by rw [Array.length_toList, htn]
   -- `b25`: `BasisW::eval(&out, basis, rotated)`.
-  let env1 := argEnv m0 st.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 362)).toBitVec
+  let env1 := argEnv m0 st.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b26Offset)).toBitVec
   have hwf1 : env1.WF := c.wf0 hf.frame.kept
   refine exec_at (infix_of b25_in_code (by simp [b25]) hp) exit_b25 hwf1 (fun _ _ ↦ rfl) hpc
     (match_retS hf) fun st1 hm1 hpc1 ↦ ?_
@@ -83,7 +84,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     keepF_blk hwf1 hm1 (writesIn_of_mid hmid1) hW1 (by decide)
   have l144 : env1.load 0 144 8 = BitVec.ofNat 64 rot.toList.length := by
     have := load_ofMachine (r := 0) (o := 144) (rs := [(stackBelow m0 2672, 2672 + 8 + 8)])
-      (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + 362)).toBitVec) (m := st.data) rfl hrot.2.1
+      (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b26Offset)).toBitVec) (m := st.data) rfl hrot.2.1
     rw [this]
     rfl
   have hdi1 : reg st1.data .rdi = loc m0 64 := (e1 hrdi1).trans (eval_ptr0A 64)
@@ -137,7 +138,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hts2 := c.ts_call (o := 32) (by omega) hf1 hle hsv
     (fun q hq ↦ c.loc_not_t (by omega) hq) hch'
     (c.ts_frame (hi := 56) (by omega) (hm1.kept hwf1) hs1 hts)
-  have hpc2' : st2.pc = Host.addrOf (k + 362) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b26Offset) := hpc2
   -- `b26`: the tag.
   refine Eventually.bind (cond_spec hp c b26_in_code (by simp [b26]) exit_b26 ok_b26 hf2 hpc2')
     fun st3 ⟨hr3, hd3, hpc3⟩ ↦ ?_
@@ -147,7 +148,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     ((argEnv m0 st2.data 2672 8 [] (fun _ ↦ 0) 0).base 0 + BitVec.ofNat 64 64) 1 from hopt1)
   rw [cTag64_eval _ (Or.inr rfl) h1] at hpc3
   simp only [bne_self_eq_false, Bool.false_eq_true, ite_false] at hpc3
-  have hpc3' : st3.pc = Host.addrOf (k + 364) := hpc3
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b27Offset) := hpc3
   have hcs : ∀ r ∈ [Reg64.rbx, .r12, .r14, .r15], reg st3.data r = reg st.data r := fun r hr ↦
     (hr3 r).trans ((hsv.1 r (by simp at hr; rcases hr with rfl | rfl | rfl | rfl <;> rfl)).trans
       (e1 (hkr1 r (by simp at hr; rcases hr with rfl | rfl | rfl | rfl <;> simp))))

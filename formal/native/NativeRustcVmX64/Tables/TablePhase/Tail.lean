@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Tables.TablePhase.Steps
+public import NativeRustcVmX64.Code.Vm.TableSumcheck.Names
 
 /-!
 # `table_phase`: the table sumcheck and the exit (x86-64)
@@ -69,11 +70,11 @@ variable [Host] {a : DecArea} {s : TState} {L : LayoutW} {bus : BusResultW} {m0 
 
 /-- **The table sumcheck and the exit**, from `b6`. -/
 theorem tail6 (hp : Placed code k)
-    (hsum : ∀ a s heights bus, Spec (Labels.label tableSumcheckLabel)
+    (hsum : ∀ a s heights bus, Spec (Labels.label NativeRustcVmX64.Vm.TableSumcheck.entryLabel)
       (TableSumcheckPre a s heights bus) (TableSumcheckPost a s heights bus))
     (h : TablePhasePre a s L bus m0) {s1 : TState}
     (hg : (grind (grindingBits 4)).run s = some ((), s1)) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 46)) (fr : St m0 24 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b6Offset)) (fr : St m0 24 st.data)
     (r12 : reg st.data .r12 = reg m0 .rdi) (r15 : reg st.data .r15 = reg m0 .rsi)
     (r14 : reg st.data .r14 = reg m0 .rdx) (rbx : reg st.data .rbx = reg m0 .rcx)
     (rbp : reg st.data .rbp = off (stackBelow m0 160) 32)
@@ -94,11 +95,11 @@ theorem tail6 (hp : Placed code k)
   refine blk h fr (b6_in_code.trans hp.1 (by simp [b6])) run_b6 hmid h0 hpc
     fun st1 fr1 hm1 hs1 hpc1 ↦ ?_
   have hwf := wfF h fr (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 46 + b6.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b6Offset + b6.length)).toBitVec)
   have gr : ∀ r v, (r, v) ∈ ([(.rdi, .reg .r12), (.rsi, .bin .add .W64 (.lit 24) (.reg .r15)),
       (.rdx, .reg .r14), (.rcx, .reg .rbp), (.r8, .reg .r13), (.r9, .reg .rax)] :
         List (Reg64 × Sym)) → reg st1.data r = v.eval (frameEnv m0 st.data 160 [] (fun _ ↦ 0)
-          (Host.addrOf (k + 46 + b6.length)).toBitVec) := fun r v hr ↦ hm1.regs r v (hregs _ hr)
+          (Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b6Offset + b6.length)).toBitVec) := fun r v hr ↦ hm1.regs r v (hregs _ hr)
   have e1di : reg st1.data .rdi = reg m0 .rdi := (gr .rdi (.reg .r12) (by simp)).trans r12
   have e1si : reg st1.data .rsi = reg m0 .rsi + BitVec.ofNat 64 24 := by
     rw [gr .rsi (.bin .add .W64 (.lit 24) (.reg .r15)) (by simp)]
@@ -203,7 +204,7 @@ theorem tail6 (hp : Placed code k)
     (by rw [hmem7]; intro w hw; cases hw) rfl fun st3 fr3 hm3 _ hpc3 ↦ ?_
   have hd3 : st3.data.dmem = m2.dmem :=
     hm3.dmem_eq (wfF h fr2 (vars := fun _ ↦ 0) (ret := _)) hmem7
-  refine exit8 hp h (by simp only [PcOk, show b7.length = 2 from rfl] at hpc3; exact hpc3) fr3 ?_ (fun x s' hr ↦ by rw [hd3]; exact q1 x s' hr)
+  refine exit8 hp h (by simp only [PcOk, NativeRustcVmX64.Vm.TablePhase.b7_length] at hpc3; exact hpc3) fr3 ?_ (fun x s' hr ↦ by rw [hd3]; exact q1 x s' hr)
     (fun x s' hr ↦ by rw [hd3]; exact q2 x s' hr)
   rw [show reg st3.data .rbp = _ from hm3.regs _ _ (hr7 (.rbp, .un .trunc .W32 (.reg .rax)) (by simp))]
   exact (NativeRustcVmX64.Transcript.trunc32_mod _).trans q0

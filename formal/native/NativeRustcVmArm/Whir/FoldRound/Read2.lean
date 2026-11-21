@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FoldRound.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Whir.FoldRound.Read1
 
 /-!
@@ -20,9 +22,9 @@ variable [Host] {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : MachineData} 
 
 /-- **A scalar into registers, `read_scalar` again.** -/
 theorem load_rs (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {lb : List Directive} {jl : Nat} (hkl : lb.IsInfixAt code jl) (hne : lb ≠ []) {Sl : SState}
-    (hxl : exec lb midS = some (Sl, .call readScalarLabel)) (hlm : Sl.mem = [])
+    (hxl : exec lb midS = some (Sl, .call NativeRustcVmArm.Vm.TStateReadScalar.entryLabel)) (hlm : Sl.mem = [])
     (hlsp : Sl.sp = .ptr 0 0) {rA rB : XReg} (hA : Sl.reg rA = some (.load 0 96 8))
     (hB : Sl.reg rB = some (.load 0 104 8)) (hcA : calleeSaved rA = true)
     (hcB : calleeSaved rB = true) (h0 : Sl.reg .X0 = some (.ptr 0 88))
@@ -57,7 +59,7 @@ theorem load_rs (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
 /-- **A scalar's tag** (`ldr w8, [sp, #88]; tbz w8, #0, .LFoldRound_7`): `None` to the epilogue. -/
 theorem check4 (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {cb : List Directive}
     {jc : Nat} (hkc : cb.IsInfixAt code jc) (hne : cb ≠ []) {Sc : SState}
-    (hxc : exec cb midS = some (Sc, .cond (.not (.bit .W32 (.load 0 88 4) 0)) ".LFoldRound_7"))
+    (hxc : exec cb midS = some (Sc, .cond (.not (.bit .W32 (.load 0 88 4) 0)) NativeRustcVmArm.Vm.FoldRound.label_7))
     (hcm : Sc.mem = []) (hcsp : Sc.sp = .ptr 0 0)
     (hck : ∀ r, r ≠ .X8 → Sc.reg r = some (.reg r))
     {st : MachineState} (hpc : st.pc = Host.addrOf (k + jc)) (hb : Base w m0 st.data)
@@ -86,7 +88,7 @@ theorem check4 (hp : Placed code k) (h : FoldRoundPre a s0 w m0) {cb : List Dire
   cases hr : readScalar.run s with
   | none =>
     simp only [hr, Option.isSome_none, Bool.not_false, ↓reduceIte,
-      hp.label (j := 106) rfl] at hpc1
+      hp.label (j := NativeRustcVmArm.Vm.FoldRound.b20Offset) NativeRustcVmArm.Vm.FoldRound.label_7_at] at hpc1
     exact none_exit hp h (hnone hr) hpc1 hb1
   | some p =>
     simp only [hr, Option.isSome_some, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc1

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.Exec
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalance.Names
 public meta import NativeRustcVmX64.Bus.VerifyBusBalance.Exec
 
 /-!
@@ -9,9 +10,9 @@ public meta import NativeRustcVmX64.Bus.VerifyBusBalance.Exec
 Both loops run a fixed number of rounds; each round runs from a literal state with RAX its
 counter's value (`l1S k`, `l2S k`), checked for every round at once by the kernel:
 
-- `.LVerifyBusBalance_6` (`b16`, 21 rounds, RAX `40 + 48 k`): six zero words at `672 + 48 k`, the
+- `NativeRustcVmX64.Vm.VerifyBusBalance.label_6` (`b16`, 21 rounds, RAX `40 + 48 k`): six zero words at `672 + 48 k`, the
   loop goes on unless `k = 20` (`of_ok16`);
-- `.LVerifyBusBalance_17` (`b36`, 17 rounds, RAX `56 + 64 k`): six zero words at `672 + 64 k`,
+- `NativeRustcVmX64.Vm.VerifyBusBalance.label_17` (`b36`, 17 rounds, RAX `56 + 64 k`): six zero words at `672 + 64 k`,
   leaves at `k = 16` (`of_ok36`); `b37` (16 rounds): two more at `720 + 64 k` (`of_ok37`).
 -/
 
@@ -32,21 +33,21 @@ def ok16 (k : Nat) : Bool :=
   match exec b16 (l1S k) with
   | some (S, .cond (.lit b) l) => MidOk 5520 104 slots S && decide (W0 (672 + 48 * k) (720 + 48 * k) S) &&
       decide (Wrote 0 (zeros (672 + 48 * k) 6) S) && decide (Keeps cs S) &&
-      (S.reg .rax == some (.lit (88 + 48 * k))) && (b == !decide (k = 20)) && (l == ".LVerifyBusBalance_6")
+      (S.reg .rax == some (.lit (88 + 48 * k))) && (b == !decide (k = 20)) && (l == NativeRustcVmX64.Vm.VerifyBusBalance.label_6)
   | _ => false
 
 def ok36 (k : Nat) : Bool :=
   match exec b36 (l2S k) with
   | some (S, .cond (.lit b) l) => MidOk 5520 104 slots S && decide (W0 (672 + 64 * k) (720 + 64 * k) S) &&
       decide (Wrote 0 (zeros (672 + 64 * k) 6) S) && decide (Keeps cs S) &&
-      (S.reg .rax == some (.lit (56 + 64 * k))) && (b == decide (k = 16)) && (l == ".LVerifyBusBalance_19")
+      (S.reg .rax == some (.lit (56 + 64 * k))) && (b == decide (k = 16)) && (l == NativeRustcVmX64.Vm.VerifyBusBalance.label_19)
   | _ => false
 
 def ok37 (k : Nat) : Bool :=
   match exec b37 (l2S k) with
   | some (S, .jump l) => MidOk 5520 104 slots S && decide (W0 (720 + 64 * k) (736 + 64 * k) S) &&
       decide (Wrote 0 (zeros (720 + 64 * k) 2) S) && decide (Keeps cs S) &&
-      (S.reg .rax == some (.lit (120 + 64 * k))) && (l == ".LVerifyBusBalance_17")
+      (S.reg .rax == some (.lit (120 + 64 * k))) && (l == NativeRustcVmX64.Vm.VerifyBusBalance.label_17)
   | _ => false
 
 end
@@ -60,7 +61,7 @@ public theorem ok37_all : ∀ k < 16, ok37 k = true := by decide +kernel
 public section
 
 theorem of_ok16 {k : Nat} (h : ok16 k = true) : ∃ S, exec b16 (l1S k) =
-    some (S, .cond (.lit (!decide (k = 20))) ".LVerifyBusBalance_6") ∧ Mid 104 S ∧
+    some (S, .cond (.lit (!decide (k = 20))) NativeRustcVmX64.Vm.VerifyBusBalance.label_6) ∧ Mid 104 S ∧
     W0 (672 + 48 * k) (720 + 48 * k) S ∧ Wrote 0 (zeros (672 + 48 * k) 6) S ∧ Keeps cs S ∧
     S.reg .rax = some (.lit (88 + 48 * k)) := by
   unfold ok16 at h
@@ -73,7 +74,7 @@ theorem of_ok16 {k : Nat} (h : ok16 k = true) : ∃ S, exec b16 (l1S k) =
   · cases h
 
 theorem of_ok36 {k : Nat} (h : ok36 k = true) : ∃ S, exec b36 (l2S k) =
-    some (S, .cond (.lit (decide (k = 16))) ".LVerifyBusBalance_19") ∧ Mid 104 S ∧
+    some (S, .cond (.lit (decide (k = 16))) NativeRustcVmX64.Vm.VerifyBusBalance.label_19) ∧ Mid 104 S ∧
     W0 (672 + 64 * k) (720 + 64 * k) S ∧ Wrote 0 (zeros (672 + 64 * k) 6) S ∧ Keeps cs S ∧
     S.reg .rax = some (.lit (56 + 64 * k)) := by
   unfold ok36 at h
@@ -86,7 +87,7 @@ theorem of_ok36 {k : Nat} (h : ok36 k = true) : ∃ S, exec b36 (l2S k) =
   · cases h
 
 theorem of_ok37 {k : Nat} (h : ok37 k = true) : ∃ S, exec b37 (l2S k) =
-    some (S, .jump ".LVerifyBusBalance_17") ∧ Mid 104 S ∧
+    some (S, .jump NativeRustcVmX64.Vm.VerifyBusBalance.label_17) ∧ Mid 104 S ∧
     W0 (720 + 64 * k) (736 + 64 * k) S ∧ Wrote 0 (zeros (720 + 64 * k) 2) S ∧ Keeps cs S ∧
     S.reg .rax = some (.lit (120 + 64 * k)) := by
   unfold ok37 at h

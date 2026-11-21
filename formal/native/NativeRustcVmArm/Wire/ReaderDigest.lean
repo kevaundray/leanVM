@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderDigest.Names
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
 public import NativeRustcVmArm.Wire.ReaderDigest.Exec
 public import NativeRustcVmArm.Wire.Frame
 
@@ -193,12 +195,12 @@ theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : code[j]? = some (.la
   hp.label h
 
 /-- **A call of `Reader::le` for eight bytes** from a state of the frame. -/
-theorem le_call (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {m0 : MachineData}
+theorem le_call (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {m0 : MachineData}
     {bp : BitVec 64} {B : List UInt8} {c : Nat} (g : Geo m0 bp B.length) {st : MachineState}
     {next : Int64} {R : MachineState → Prop} (hM : Mid m0 st.data)
     (hR : ReaderAt st.data.dmem m0.regs.X1.toBitVec bp B c)
     (hx0 : st.data.regs.X0 = m0.regs.X1) (hx1 : st.data.regs.X1.toNat = 8)
-    (hpc : st.pc = Labels.label readerLeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, Mid m0 m2 →
       (∀ r, calleeSaved r = true → m2.regs.getXReg r = st.data.regs.getXReg r) →
       ReadRes m0.regs.X1.toBitVec bp B c m2 → Eventually (step1 Host.exe) R ⟨m2, next⟩) :
@@ -274,9 +276,9 @@ theorem check (hp : Placed code k) {ds : List Directive} {j : Nat} (hds : ds.IsI
     rcases hr with rfl | rfl | rfl | rfl <;> exact Match.reg_eq hm hm1 rfl rfl
 
 /-- **A read's call** (`b2`, `b4`, `b6`): `Reader::le` for eight bytes from the reader (X20). -/
-theorem call_step (hp : Placed code k) (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
+theorem call_step (hp : Placed code k) (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
     {ds : List Directive} {j : Nat} (hds : ds.IsInfixAt code j) (hne : ds ≠ []) {S' : SState}
-    (hrun : exec ds callS = some (S', .call readerLeLabel))
+    (hrun : exec ds callS = some (S', .call NativeRustcVmArm.Vm.ReaderLe.entryLabel))
     (h0 : S'.reg .X0 = some (.reg .X20)) (h1 : S'.reg .X1 = some (.lit 8)) (hmem : S'.mem = [])
     (hsp : S'.sp = .ptr 0 0) (h19 : S'.reg .X19 = some (.ptr 1 0))
     (h20 : S'.reg .X20 = some (.reg .X20)) (hk : ∀ r ∈ keep, S'.reg r = some (.reg r))
@@ -313,7 +315,7 @@ theorem call_step (hp : Placed code k) (hle : Spec (Labels.label readerLeLabel) 
 /-- **All four read** (`b8`): the tag `1`, the digest's words, the reader past them. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat}
     (g : Geo m0 bp B.length) (hR0 : ReaderAt m0.dmem m0.regs.X1.toBitVec bp B c)
-    (hfit : c + 32 ≤ B.length) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 29))
+    (hfit : c + 32 ≤ B.length) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ReaderDigest.b8Offset))
     (hM : Mid m0 st.data) (hR : ReaderAt st.data.dmem m0.regs.X1.toBitVec bp B (c + 32))
     (h22 : st.data.regs.getXReg .X22 = leAt B c 8) (h23 : st.data.regs.getXReg .X23 = leAt B (c + 8) 8)
     (h21 : st.data.regs.getXReg .X21 = leAt B (c + 16) 8)
@@ -355,12 +357,12 @@ theorem regs_eq {m m' : MachineData} {r r' : XReg}
 
 /-- **`Reader::digest` meets its contract.** -/
 theorem readerDigest_spec (hp : Placed code k)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) :
-    Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost := by
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost := by
   intro m0 hpre
   obtain ⟨-, -, bp, B, c, hR, -⟩ := id hpre
   have g := geo_of hpre hR
-  rw [lbl hp (j := 0) (l := readerDigestLabel) rfl]
+  rw [lbl hp (j := 0) (l := NativeRustcVmArm.Vm.ReaderDigest.entryLabel) rfl]
   have hal : (base m0 48).toNat % 16 = 0 := by
     rw [Ring.base_toNat g.st.2.1]; have := g.st.1; omega
   let env0 := Env.ofMachine m0 [(base m0 48, 48)]
@@ -390,10 +392,10 @@ theorem readerDigest_spec (hp : Placed code k)
   refine le_call hle g hM1 hR1 hx0 hx1 hpc1 fun m2 hM2 _ hres2 ↦ ?_
   -- read 1, checked at `b1`
   rcases readRes_cases hres2 with ⟨h20, hf0⟩ | ⟨h21, hv0, hR2, hf0⟩
-  · exact check hp b1_in_code (by simp [b1]) rfl rfl g hR (by simp only [show b0.length = 9 from rfl, Nat.add_zero]) hM2 (.inl h20)
+  · exact check hp b1_in_code (by simp [b1]) rfl rfl g hR (by simpa only [b0Offset, Nat.add_zero, Nat.zero_add] using congrArg (fun j => Host.addrOf (k + j)) b0_next) hM2 (.inl h20)
       (fun _ ↦ by omega) fun h ↦ by rw [h20] at h; cases h
   refine check hp b1_in_code (by simp [b1]) rfl rfl g hR
-    (by simp only [show b0.length = 9 from rfl, Nat.add_zero]) hM2 (.inr h21) (fun h ↦ by
+    (by simpa only [b0Offset, Nat.add_zero, Nat.zero_add] using congrArg (fun j => Host.addrOf (k + j)) b0_next) hM2 (.inr h21) (fun h ↦ by
     rw [h21] at h; cases h) fun _ s3 hpc3 hM3 hd3 hr3 ↦ ?_
   refine call_step hp hle b2_in_code (by simp [b2]) run_b2 rfl rfl rfl rfl rfl rfl
     (by decide) g hpc3 hM3 (by rw [hd3]; exact hR2) fun m4 hM4 hcs4 hres4 ↦ ?_

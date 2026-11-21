@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.BasisWEval.Entry
 
 /-!
@@ -259,9 +260,9 @@ theorem frame_env [Labels] (h : In m0 ba b v)
 
 /-- **`EW::mul`** from a state of the frame. -/
 theorem mul_call [Host] (h : In m0 ba b v) (hsl : ∀ p ∈ sl, p.1 + 8 ≤ 144)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {st : MachineState} {next : Int64}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {st : MachineState} {next : Int64}
     (hf : Fr m0 144 basisWEvalStack sl [] (fun _ ↦ False) st.data)
-    (hpc : st.pc = Labels.label ewMulLabel ∧ retOf st.data = next) {R : MachineState → Prop}
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel ∧ retOf st.data = next) {R : MachineState → Prop}
     (cont : ∀ m2, Fr m0 144 basisWEvalStack sl [] (fun _ ↦ False) m2 →
       m2.regs.X0 = (EW.mul ⟨st.data.regs.X0, st.data.regs.X1⟩
         ⟨st.data.regs.X2, st.data.regs.X3⟩).c0 →

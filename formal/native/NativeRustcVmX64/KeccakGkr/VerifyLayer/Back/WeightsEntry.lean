@@ -18,8 +18,8 @@ variable [Host] {m0 : MachineData} {a : DecArea} {s s6 : TState} {c : KeccakClai
 theorem weights_entry (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
     {d : MachineData} (h : C6 m0 a c ch b pt lp t s6 d) {R : MachineState → Prop}
     (cont : ∀ d', WHead m0 a c ch b pt lp t s6 0 d' →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 644)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 603)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b74Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b69Offset)⟩ := by
   have g := geo_of hpre
   have hwf := wf0 (pre_stack hpre) h.body (vars := fun _ ↦ 0) (ret := 0)
   have hm : Match (envB m0 d [] (fun _ ↦ 0) 0) (fr 24) d :=

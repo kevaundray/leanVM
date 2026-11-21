@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SampleQueries.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
 public import NativeRustcVmArm.Whir.FinalLevel.State
 public import NativeRustcVmArm.Whir.WhirLevels.Calls
 
@@ -38,17 +40,17 @@ theorem two_iff {x y q : BitVec 64} {n m : Nat} :
 
 /-- **The grind and the queries.** -/
 theorem queries (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ a s, Spec (Labels.label sampleQueriesLabel) (SampleQueriesPre a s)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.SampleQueries.entryLabel) (SampleQueriesPre a s)
       (SampleQueriesPost a s))
-    {st : MachineState} {folded : Array EW} {s1 : TState} (hpc : st.pc = Host.addrOf (k + 140))
+    {st : MachineState} {folded : Array EW} {s1 : TState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b6Offset))
     (hl : Live level m0 st.data folded) (hx26 : st.data.regs.X26 = m0.regs.X2)
     (hx25 : st.data.regs.X25.toNat = level.logInvRate)
     (hts : TStateAt st.data.dmem (tA m0) a s1)
     (hrun : runF s0 level b w rounds m0 =
       (C1 m0.regs.X1.toNat level (mu m0) m0.regs.X4.toNat b w rounds folded).run s1)
     (cont : ∀ (st' : MachineState) (qs : Array UInt64) (s3 : TState),
-      st'.pc = Host.addrOf (k + 152) → Live level m0 st'.data folded →
+      st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b10Offset) → Live level m0 st'.data folded →
       (st'.data.regs.X26).toBitVec = qA m0 →
       (st'.data.regs.X29).toBitVec = pA m0 + BitVec.ofNat 64 57344 →
       NativeRustcVm.BufWordsAt st'.data.dmem (qA m0) queryCap qs.toList →
@@ -62,7 +64,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   -- `b6`: `grind(t, 17)`.
   refine c.fblock hp b6_in_code (by simp [b6]) run_b6 rfl rfl hpc hl.fr
     fun st6 hm6 hpc6 hf6 hd6 hk6 ↦ ?_
-  rw [show k + 140 + b6.length = k + 143 from rfl] at hpc6
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b6Offset + b6.length = k + NativeRustcVmArm.Vm.FinalLevel.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b6_next]] at hpc6
   have x0 : st6.data.regs.X0.toBitVec = tA m0 := by
     have := reg_val hm6 (r := .X0) (v := .reg .X22) rfl
     rw [show st6.data.regs.X0.toBitVec = _ from this]
@@ -107,7 +109,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   cases hr : (grind Whir.queryGrindingBits).run s1 with
   | none =>
     simp only [hr, Option.isSome_none, Bool.not_false, ↓reduceIte,
-      hp.label (j := 119) rfl] at hpc7
+      hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b3Offset) NativeRustcVmArm.Vm.FinalLevel.label_3_at] at hpc7
     have hnone : runF s0 level b w rounds m0 = none := by
       rw [hrun, C1]; exact run_bind_none hr
     refine exit3 hp c hpc7 hf7 ?_ ?_
@@ -116,7 +118,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   | some p =>
   obtain ⟨⟨⟩, s2⟩ := p
   simp only [hr, Option.isSome_some, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-    show k + 143 + b7.length = k + 144 from rfl] at hpc7
+    show k + NativeRustcVmArm.Vm.FinalLevel.b7Offset + b7.length = k + NativeRustcVmArm.Vm.FinalLevel.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b7_next]] at hpc7
   have hts2 : TStateAt st7.data.dmem (tA m0) a s2 := by rw [hd7]; exact hnext () s2 hr
   have hrun2 : runF s0 level b w rounds m0 =
       (C2 m0.regs.X1.toNat level (mu m0) m0.regs.X4.toNat b w rounds folded).run s2 := by
@@ -129,7 +131,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hwf8 := c.wf1 hf7 c.lin
   refine exec_at (inf hp b8_in_code (by simp [b8])) run_b8 hwf8 hpc7 (c.match1 hf7 x26)
     fun st8 hm8 hpc8 ↦ ?_
-  rw [show k + 144 + b8.length = k + 151 from rfl] at hpc8
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b8Offset + b8.length = k + NativeRustcVmArm.Vm.FinalLevel.b9Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b8_next]] at hpc8
   have hf8 : FFr m0 st8.data :=
     Fr.ofBlock hf7 (c.match1 hf7 x26) hm8 hwf8 rfl rfl rfl (fun _ h ↦ by cases h)
   have hd8 : st8.data.dmem = st7.data.dmem := hm8.dmem_eq hwf8 rfl
@@ -222,7 +224,7 @@ theorem queries (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   rw [cbz_ok (b := true) (show (fenv m0 m2 []).regs .X0 = _ from congrArg UInt64.toBitVec h0)]
     at hpc9
   simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-    show k + 151 + b9.length = k + 152 from rfl] at hpc9
+    show k + NativeRustcVmArm.Vm.FinalLevel.b9Offset + b9.length = k + NativeRustcVmArm.Vm.FinalLevel.b10Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b9_next]] at hpc9
   have hl9 : Live level m0 st9.data folded :=
     hl2.saved hf9 (fun r hr ↦ hk9 r (kept_of (by decide) r hr)) (fun j _ ↦ by rw [hd9]) hfo
   refine cont st9 qs s3 hpc9 hl9 ?_ ?_ (by rw [hd9]; exact hbuf) (by rw [hd9]; exact hts3) ?_

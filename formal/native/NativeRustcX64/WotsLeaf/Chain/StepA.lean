@@ -87,7 +87,7 @@ theorem seg_b26 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hdi : Run.RegIs m .rdi (BitVec.ofNat 64 16)) (h15 : Run.RegIs m .r15 (BitVec.ofNat 64 16))
     (hbx : Run.RegIs m .rbx (r.off 472)) (h14 : Run.RegIs m .r14 (BitVec.ofNat 64 16))
     (h12 : Run.RegIs m .r12 (r.off 112)) (cont : StepCont r i p (r.pp ++ ad ++ P) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 295⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b26Offset⟩ := by
   -- `b26`: `memcpy` of the address.
   refine frameCall r hp hpre b26_in_code (List.cons_ne_nil _ _) run_b26 (by decide) rfl hK
     trivial extraOK_nil ⟨known_lit hdi, known_lit h15, known_ptr hbx, trivial⟩ trivial trivial
@@ -109,7 +109,7 @@ theorem seg_b26 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
   have h12₂ : Run.RegIs m₂ .r12 (r.off 112) := RegIs.of_saved hS₂ rfl (regIs_reg hm₁ rfl h12)
   -- `b27`: `buf_len` 32.
   have hm₀ := match_seeded (match_frameS hK₂'.1.1 (sextra := []) (extra := [])
-    (ret := (r.pc (300 + b27.length)).toBitVec) (k := [(.r15, .lit 16)]) (bounds := [])
+    (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b27Offset + b27.length)).toBitVec) (k := [(.r15, .lit 16)]) (bounds := [])
     (aliases := []) trivial ⟨known_lit h15₂, trivial⟩ trivial trivial)
     h448
   refine frameStepS r hp hpre b27_in_code (List.cons_ne_nil _ _) run_b27 (by decide) rfl hK₂'
@@ -138,14 +138,14 @@ theorem seg_b21 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
       (312, 16, r.pp), (472, 16, ad), (448, 8, regBytes (BitVec.ofNat 64 16))]) m)
     (hdi : Run.RegIs m .rdi (BitVec.ofNat 64 16)) (h14 : Run.RegIs m .r14 (BitVec.ofNat 64 p))
     (h12 : Run.RegIs m .r12 (r.off 112)) (cont : StepCont r i p (r.pp ++ ad ++ P) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 273⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b21Offset⟩ := by
   refine frameStep r hp hpre b21_in_code (List.cons_ne_nil _ _) run_b21 (by decide) rfl hK
     trivial extraOK_nil trivial trivial trivial fun st1 hm1 hK1 _ hpc1 ↦ ?_
   have h56 : BytesAt st1.data.dmem (r.off 56) (regBytes (BitVec.ofNat 64 (p + 1))) := by
     have := frame_covers hm1 (o := 56) (n := 8) (v := .bin .add .W64 (.reg .r14) (.lit 1))
       (by decide) (by decide +kernel)
     have e : (Sym.bin .add .W64 (.reg .r14) (.lit 1)).eval
-        (r.envR m [] (r.pc (273 + b21.length)).toBitVec) = BitVec.ofNat 64 (p + 1) := by
+        (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b21Offset + b21.length)).toBitVec) = BitVec.ofNat 64 (p + 1) := by
       show BinOp.apply .add .W64 (m.regs.get64 .r14) (BitVec.ofNat 64 1) = _
       rw [show m.regs.get64 .r14 = BitVec.ofNat 64 p from h14]
       simp only [BinOp.apply, low_W64, ext_W64]
@@ -182,11 +182,11 @@ theorem seg_b18 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (h448 : BytesAt m.dmem (r.off 448) (regBytes (BitVec.ofNat 64 0)))
     (h14 : Run.RegIs m .r14 (BitVec.ofNat 64 p)) (h12 : Run.RegIs m .r12 (r.off 112))
     (cont : StepCont r i p (r.pp ++ ad ++ P) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 213⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b18Offset⟩ := by
   have hin := r.pre_pp hpre
   have h104 := (stepSlots_chain hK.2).2.2.2.2.1.2.2
   have hm₀ := match_seeded (match_frameS hK.1.1 (sextra := [16])
-    (extra := [(reg r.m0 .rsi, 16)]) (ret := (r.pc (213 + b18.length)).toBitVec) (k := [])
+    (extra := [(reg r.m0 .rsi, 16)]) (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b18Offset + b18.length)).toBitVec) (k := [])
     (bounds := [])
     (aliases := [(.load 0 104 8, (2, 0))]) ⟨rfl, trivial⟩ trivial trivial ⟨by
       show (r.envR m [(reg r.m0 .rsi, 16)] _).load 0 104 8 = reg r.m0 .rsi + BitVec.ofInt 64 0
@@ -215,7 +215,7 @@ theorem seg_b17 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hp3 : p < 3) {cur : List UInt8} (hcur : cur.length = 16) {R : MachineState → Prop}
     {m : MachineData} (hA : r.AtStep i p cur m)
     (cont : StepCont r i p (r.pp ++ r.addr 1 p ++ (cur ++ u128Bytes i)) R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 191⟩ := by
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b17Offset⟩ := by
   obtain ⟨hK, h80, h14, hdx, h12⟩ := hA
   obtain ⟨s8, s48, s52, -, -, -, -⟩ : SlotsAt r m r.chainSlots :=
     allOf_left (allOf_left (allOf_left hK.2))
@@ -226,13 +226,13 @@ theorem seg_b17 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (by decide +kernel) hcur h80
   have p2 : BytesAt m₁.dmem (r.off 688) (wordBytes i.toUInt64) := by
     have := frame_covers hm₁ (o := 688) (n := 8) (v := .reg .rdx) (by decide) (by decide +kernel)
-    rw [show (Sym.reg .rdx).eval (r.envR m [] (r.pc (191 + b17.length)).toBitVec) =
+    rw [show (Sym.reg .rdx).eval (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b17Offset + b17.length)).toBitVec) =
       BitVec.ofNat 64 i from hdx] at this
     rw [← regBytes_ofNat]
     exact this
   have p3 : BytesAt m₁.dmem (r.off 696) (List.replicate 8 0) := by
     have := frame_covers hm₁ (o := 696) (n := 8) (v := .lit 0) (by decide) (by decide +kernel)
-    rwa [show (Sym.lit 0).eval (r.envR m [] (r.pc (191 + b17.length)).toBitVec) =
+    rwa [show (Sym.lit 0).eval (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b17Offset + b17.length)).toBitVec) =
       BitVec.ofNat 64 0 from rfl, bytes_zero] at this
   have hpay : BytesAt m₁.dmem (r.off 672) (cur ++ u128Bytes i) :=
     BytesAt.cat p1 (BytesAt.cat p2 p3 (by rw [length_wordBytes])) (by rw [hcur])
@@ -243,7 +243,7 @@ theorem seg_b17 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     have := frame_covers hm₁ (o := 476) (n := 2) (v := .un .trunc .W16 (.load 0 8 8)) (by decide)
       (by decide +kernel)
     rw [show (Sym.un .trunc .W16 (.load 0 8 8)).eval
-        (r.envR m [] (r.pc (191 + b17.length)).toBitVec) = UnOp.apply .trunc .W16 r.layerW by
+        (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b17Offset + b17.length)).toBitVec) = UnOp.apply .trunc .W16 r.layerW by
       show UnOp.apply .trunc .W16 ((r.envR m [] _).load 0 8 8) = _
       rw [r.load_word s8.2.2], bytes_layerW16] at this
     exact this
@@ -251,17 +251,17 @@ theorem seg_b17 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     have := frame_covers hm₁ (o := 478) (n := 1) (v := .un .trunc .W8 (.load 0 48 4)) (by decide)
       (by decide +kernel)
     rw [show (Sym.un .trunc .W8 (.load 0 48 4)).eval
-        (r.envR m [] (r.pc (191 + b17.length)).toBitVec) = UnOp.apply .trunc .W8 r.hi16 by
+        (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b17Offset + b17.length)).toBitVec) = UnOp.apply .trunc .W8 r.hi16 by
       show UnOp.apply .trunc .W8 ((r.envR m [] _).load 0 48 4) = _
       rw [load_word4 (hi16_lt r) s48.2.2], byte_hi16] at this
     exact this
   have a4 : BytesAt m₁.dmem (r.off 479) [(1 : UInt8) ||| p.toUInt8 <<< 5] := by
     have := frame_covers hm₁ (o := 479) (n := 1) (v := stepByteSym) (by decide)
       (by decide +kernel)
-    rwa [bytes_step (r.envR m [] (r.pc (191 + b17.length)).toBitVec) hp3 h14] at this
+    rwa [bytes_step (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b17Offset + b17.length)).toBitVec) hp3 h14] at this
   have a5 : BytesAt m₁.dmem (r.off 480) (List.replicate 8 0) := by
     have := frame_covers hm₁ (o := 480) (n := 8) (v := .lit 0) (by decide) (by decide +kernel)
-    rwa [show (Sym.lit 0).eval (r.envR m [] (r.pc (191 + b17.length)).toBitVec) =
+    rwa [show (Sym.lit 0).eval (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b17Offset + b17.length)).toBitVec) =
       BitVec.ofNat 64 0 from rfl, bytes_zero] at this
   have had : BytesAt m₁.dmem (r.off 472) (r.addr 1 p) := by
     rw [Run.addr_eq]

@@ -12,7 +12,7 @@ Region 0 is the frame (`Field.frameS 256`, `Field.midS 256`): the 248 bytes of p
 the call's return-address slot at offset `0`, the return address at `256`. A local at `o(%rsp)`
 is at offset `o + 8`.
 - `entryS` at the entry (`b0`); `htS` for `b1`, the heights at RSI (region 1);
-- `ptS` at the loop head `.LTableWeights_3` (`b10`) and at `.LTableWeights_5` (`b3`): the point's
+- `ptS` at the loop head `NativeRustcVmX64.Vm.TableWeights.label_3` (`b10`) and at `NativeRustcVmX64.Vm.TableWeights.label_5` (`b3`): the point's
   element at `r8 + rbp` (region 1);
 - `eqS` for `b11`: the equality point's element at `[104] + rbp` (region 1);
 - `midS 256` for the other blocks of the loop (`b4` to `b9`) and for `b12`;

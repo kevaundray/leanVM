@@ -27,16 +27,16 @@ theorem seg_b33 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hB32 : BytesAt m.dmem (r.off 1768) ((List.range 8).map (byteOf (BitVec.ofNat 64 32))))
     (hB0 : BytesAt m.dmem (r.off 1432) (List.replicate 200 0))
     (hB : BytesAt m.dmem (r.off 1632) T) (cont : StepCont r x E pos i T R) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 417⟩ := by
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b33Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   have hm := match_withLit (match_frameS hpre hK.1.1
     (knownK hR (k := [(.X24, .ptr 0 1400), (.X25, .lit 32), (.X27, .lit 32)])
       ⟨known_ptr h24, known_lit h25, known_lit h27, trivial⟩)) rfl hB32
   refine blk r hp b33_in_code (List.cons_ne_nil _ _) run_b33 hwf hm fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 400) ((pc_true hpc).trans (Run.label_of_block r hp b29_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b29Offset) ((pc_true hpc).trans (Run.label_of_block r hp b29_in_code rfl)) ?_
   refine blk r hp b29_in_code (List.cons_ne_nil _ _) (exec_after run_b33 run_b29) hwf hm1
     fun st2 hm2 hpc2 ↦ ?_
-  refine pc_at (a := r.pc 495) ((pc_true hpc2).trans (Run.label_of_block r hp b36_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b36Offset) ((pc_true hpc2).trans (Run.label_of_block r hp b36_in_code rfl)) ?_
   refine blk r hp b36_in_code (List.cons_ne_nil _ _) (exec_after run_b29 run_b36) hwf hm2
     fun st3 hm3 hpc3 ↦ ?_
   have hK3 := CK.of_block hpre hK hm3 hwf (by decide +kernel) (by decide +kernel)
@@ -67,17 +67,17 @@ theorem seg_b28 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hB0 : BytesAt m.dmem (r.off 1432) (List.replicate 200 0))
     (hBsa : BytesAt m.dmem (r.off 1632) SA) (hpay : BytesAt m.dmem (r.off 1400) P)
     (cont : StepCont r x E pos i (SA ++ P) R) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 396⟩ := by
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b28Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   have hm := match_withLit (match_frameS hpre hK.1.1 (knownK hR (k := []) trivial)) rfl hB32
   refine blk r hp b28_in_code (List.cons_ne_nil _ _) run_b28 hwf hm fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 404) (hpc.trans (Run.label_of_block r hp b30_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b30Offset) (hpc.trans (Run.label_of_block r hp b30_in_code rfl)) ?_
   refine blk r hp b30_in_code (List.cons_ne_nil _ _) (exec_after run_b28 run_b30) hwf hm1
     fun st2 hm2 hpc2 ↦ ?_
-  refine pc_at (a := r.pc 411) ((pc_false hpc2).trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b31Offset) ((pc_false hpc2).trans rfl) ?_
   refine blk r hp b31_in_code (List.cons_ne_nil _ _) (exec_after run_b30 run_b31) hwf hm2
     fun st3 hm3 hpc3 ↦ ?_
-  refine pc_at (a := r.pc 413) ((pc_false hpc3).trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b32Offset) ((pc_false hpc3).trans rfl) ?_
   refine blk r hp b32_in_code (List.cons_ne_nil _ _) (exec_after run_b31 run_b32) hwf hm3
     fun st4 hm4 hpc4 ↦ ?_
   have hK4 := CK.of_block hpre hK hm4 hwf (by decide +kernel) (by decide +kernel)
@@ -116,16 +116,16 @@ theorem seg_b24 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     (hA0 : BytesAt m.dmem (r.off 1776) (List.replicate 200 0))
     (hAsa : BytesAt m.dmem (r.off 1976) SA) (hpay : BytesAt m.dmem (r.off 1400) P)
     (cont : StepCont r x E pos i (SA ++ P) R) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 313⟩ := by
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b24Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   have hm := match_withLit (match_frameS hpre hK.1.1
     (knownK hR (k := [(.X24, .ptr 0 2504), (.X25, .lit 16), (.X26, .lit 16)])
       ⟨known_ptr h24, known_lit h25, known_lit h26, trivial⟩)) rfl hA16
   refine blk r hp b24_in_code (List.cons_ne_nil _ _) run_b24 hwf hm fun st hm1 hpc ↦ ?_
-  refine pc_at (a := r.pc 296) ((pc_true hpc).trans (Run.label_of_block r hp b20_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b20Offset) ((pc_true hpc).trans (Run.label_of_block r hp b20_in_code rfl)) ?_
   refine blk r hp b20_in_code (List.cons_ne_nil _ _) (exec_after run_b24 run_b20) hwf hm1
     fun st2 hm2 hpc2 ↦ ?_
-  refine pc_at (a := r.pc 391) ((pc_true hpc2).trans (Run.label_of_block r hp b27_in_code rfl)) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Xmss.WotsLeaf.b27Offset) ((pc_true hpc2).trans (Run.label_of_block r hp b27_in_code rfl)) ?_
   refine blk r hp b27_in_code (List.cons_ne_nil _ _) (exec_after run_b20 run_b27) hwf hm2
     fun st3 hm3 hpc3 ↦ ?_
   have hK3 := CK.of_block hpre hK hm3 hwf (by decide +kernel) (by decide +kernel)

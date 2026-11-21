@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.GkrStep.Head
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `gkr_step`'s children (x86-64)
@@ -30,10 +31,10 @@ theorem two_pow_le (h : GkrStepPre a s0 g0 m0) : 2 ^ (reg m0 .rsi).toNat ≤ 4 :
 /-- **A round of the children**: `read_scalars(t, frame + o, 2^step)` from the call, then the test
 of its result (`b10`, at `j`). -/
 theorem rs_round (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {st : MachineState} {j : Nat} (hb : b10.IsInfixAt Host.prog (k + j))
     (fr : FR m0 32 st.data)
-    (hpc : st.pc = Labels.label readScalarsLabel ∧ retOf st.data = Host.addrOf (k + j))
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel ∧ retOf st.data = Host.addrOf (k + j))
     {o : Nat} (ho : 40 ≤ o) (ho' : o + 64 ≤ 1360)
     (hsi : reg st.data .rsi = off (fb m0) o) (hdi : reg st.data .rdi = reg m0 .rdi)
     (hdx : (reg st.data .rdx).toNat = 2 ^ (reg m0 .rsi).toNat) {s : TState}
@@ -103,11 +104,12 @@ theorem rs_round (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   cases hr : (readScalars n).run s with
   | none =>
     simp only [hr, Option.isSome_none, Bool.not_false, ↓reduceIte] at hpc3
-    exact at_pc (hpc3.trans (hp.label (j := 215) rfl)) (fail_spec hp h fr3 (hfail hr))
+    exact at_pc (hpc3.trans (hp.label NativeRustcVmX64.Vm.GkrStep.label_17_at)) (fail_spec hp h fr3 (hfail hr))
   | some r =>
     obtain ⟨ys, s'⟩ := r
     simp only [hr, Option.isSome_some, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc3
-    refine at_pc (hpc3.trans (by rw [show b10.length = 2 from rfl])) (cont st3.data ys s' hr fr3
+    -- This shared test executes at arbitrary j, not only at b10Offset.
+    refine at_pc (hpc3.trans (by rw [NativeRustcVmX64.Vm.GkrStep.b10_length, NativeRustcVmX64.Vm.GkrStep.b10Length])) (cont st3.data ys s' hr fr3
       (fun r hr' ↦ (kr hm3 hk (cs_mem hr')).trans (hcs2 r hr'))
       (by rw [hd3]; exact hok ys s' hr) (by rw [hd3]; exact hnext ys s' hr)
       (by rw [hd3]; exact hgs2) fun {o'} {bs} ho1 ho2 hd hb ↦ ?_)
@@ -149,17 +151,17 @@ theorem keep3240 {d d' : MachineData} {S : SState} {ret : BitVec 64}
 
 /-- **The children** (`b9` to `b14`), from `AtCh`. -/
 theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     (hpr : ∀ c cl xs h0 h1 h2 s3 d, AtPr a s0 g0 m0 c cl xs h0 h1 h2 s3 d →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 124)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b15Offset)⟩)
     {c cl : EW} {xs : Array EW} {s2 : TState} {d : MachineData}
     (at9 : AtCh a s0 g0 m0 c cl xs s2 d) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 78)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b9Offset)⟩ := by
   set n := 2 ^ (reg m0 .rsi).toNat with hndef
   have hn := two_pow_le h
   have hn1 : 1 ≤ n := Nat.one_le_two_pow
   -- `b9`
-  have hwf1 := wf0 h at9.fr.frame.kept (Host.addrOf (k + 78 + b9.length)).toBitVec
+  have hwf1 := wf0 h at9.fr.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b9Offset + b9.length)).toBitVec
   obtain ⟨hmid1, hw1, hw88, hw80, hsi1, hdi1, hdx1, hk1⟩ := ok_b9
   refine exec_then (infix_of b9_in_code (by simp [b9]) hp) exit_b9 hwf1 (fun _ _ ↦ rfl)
     (match_head at9.fr _) fun st1 hm1 hpc1 ↦ ?_
@@ -179,22 +181,22 @@ theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     have := wordAt_write hm1 (r := 0) (o := 88) (b := stackBelow m0 1408) (sz := 1408 + 8) rfl
       (by omega) hw88
     rwa [show (Sym.load 0 120 8).eval (frameEnv m0 d 1408 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 78 + b9.length)).toBitVec) = cl.c0.toBitVec from
+      (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b9Offset + b9.length)).toBitVec) = cl.c0.toBitVec from
       load_ofMachine (rs := [(stackBelow m0 1408, 1408 + 8)]) (r := 0) (o := 120) rfl clw0,
       UInt64.ofBitVec_toBitVec] at this
   have cl80 : NativeRustcVm.WordAt st1.data.dmem (off (fb m0) 80) cl.c1 := by
     have := wordAt_write hm1 (r := 0) (o := 80) (b := stackBelow m0 1408) (sz := 1408 + 8) rfl
       (by omega) hw80
     rwa [show (Sym.load 0 128 8).eval (frameEnv m0 d 1408 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 78 + b9.length)).toBitVec) = cl.c1.toBitVec from
+      (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b9Offset + b9.length)).toBitVec) = cl.c1.toBitVec from
       load_ofMachine (rs := [(stackBelow m0 1408, 1408 + 8)]) (r := 0) (o := 128) rfl clw1,
       UInt64.ofBitVec_toBitVec] at this
   have k1 : ∀ r ∈ cs6, reg st1.data r = reg d r := fun r hr ↦ kr hm1 hk1 hr
   simp only [PcOk] at hpc1
-  have hret1 : retOf st1.data = Host.addrOf (k + 110) := by
-    rw [hpc1.2, show b9.length = 32 from rfl]
+  have hret1 : retOf st1.data = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b10Offset) := by
+    rw [hpc1.2, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b9_next
   -- round 0
-  refine rs_round hp h hrs (j := 110) (infix_of b10_in_code (by simp [b10]) hp) fr1
+  refine rs_round hp h hrs (j := NativeRustcVmX64.Vm.GkrStep.b10Offset) (infix_of b10_in_code (by simp [b10]) hp) fr1
     ⟨hpc1.1, hret1⟩ (o := 112) (by omega) (by omega)
     ((rv hm1 hsi1).trans (eval_ptr0 112)) ((rv hm1 hdi1).trans at9.r15)
     (by rw [rv hm1 hdx1]; exact at9.r12) ts1 gs1
@@ -204,7 +206,7 @@ theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     (hcs2 r (by simp [cs6] at hr; rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> rfl)).trans
       (k1 r hr)
   -- `b11`
-  have hwf3 := wf0 h fr2.frame.kept (Host.addrOf (k + 112 + b11.length)).toBitVec
+  have hwf3 := wf0 h fr2.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b11Offset + b11.length)).toBitVec
   obtain ⟨hmid3, hw3, hsi3, hdi3, hdx3, hk3⟩ := ok_b11
   refine exec_at (st := ⟨d2, _⟩) (infix_of b11_in_code (by simp [b11]) hp) exit_b11 hwf3
     (fun _ _ ↦ rfl) rfl (match_head fr2 _) fun st3 hm3 hpc3 ↦ ?_
@@ -216,10 +218,10 @@ theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       NativeRustcVm.BytesAt st3.data.dmem (off (fb m0) o) bs := fun hle hd hb ↦
     keep3240 hwf3 hm3 hmid3 hw3 hle (fun p hp ↦ by simp at hp; subst hp; simp; omega) hb
   simp only [PcOk] at hpc3
-  have hret3 : retOf st3.data = Host.addrOf (k + 116) := by
-    rw [hpc3.2, show b11.length = 4 from rfl]
+  have hret3 : retOf st3.data = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b12Offset) := by
+    rw [hpc3.2, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b11_next
   have h12 : (reg d .r12).toNat = n := at9.r12
-  have hb12 : b12.IsInfixAt Host.prog (k + 116) := infix_of b12_in_code (by simp [b12]) hp
+  have hb12 : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GkrStep.b12Offset) := infix_of b12_in_code (by simp [b12]) hp
   refine rs_round hp h hrs (j := 116) (b12_eq ▸ hb12)
     fr3 ⟨hpc3.1, hret3⟩ (o := 176) (by omega) (by omega)
     ((rv hm3 hsi3).trans (eval_ptr0 176)) ((rv hm3 hdi3).trans ((k2 .r15 (by simp)).trans at9.r15))
@@ -230,7 +232,7 @@ theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     (hcs4 r (by simp [cs6] at hr; rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> rfl)).trans
       ((kr hm3 hk3 hr).trans (k2 r hr))
   -- `b13`
-  have hwf5 := wf0 h fr4.frame.kept (Host.addrOf (k + 118 + b13.length)).toBitVec
+  have hwf5 := wf0 h fr4.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b13Offset + b13.length)).toBitVec
   obtain ⟨hmid5, hw5, hsi5, hdi5, hdx5, hk5⟩ := ok_b13
   refine exec_at (st := ⟨d4, _⟩) (infix_of b13_in_code (by simp [b13]) hp) exit_b13 hwf5
     (fun _ _ ↦ rfl) rfl (match_head fr4 _) fun st5 hm5 hpc5 ↦ ?_
@@ -242,9 +244,9 @@ theorem ch_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       NativeRustcVm.BytesAt st5.data.dmem (off (fb m0) o) bs := fun hle hd hb ↦
     keep3240 hwf5 hm5 hmid5 hw5 hle (fun p hp ↦ by simp at hp; subst hp; simp; omega) hb
   simp only [PcOk] at hpc5
-  have hret5 : retOf st5.data = Host.addrOf (k + 122) := by
-    rw [hpc5.2, show b13.length = 4 from rfl]
-  have hb14 : b14.IsInfixAt Host.prog (k + 122) := infix_of b14_in_code (by simp [b14]) hp
+  have hret5 : retOf st5.data = Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b14Offset) := by
+    rw [hpc5.2, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b13_next
+  have hb14 : b14.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.GkrStep.b14Offset) := infix_of b14_in_code (by simp [b14]) hp
   refine rs_round hp h hrs (j := 122) (b14_eq ▸ hb14)
     fr5 ⟨hpc5.1, hret5⟩ (o := 240) (by omega) (by omega)
     ((rv hm5 hsi5).trans (eval_ptr0 240)) ((rv hm5 hdi5).trans ((k4 .r15 (by simp)).trans at9.r15))

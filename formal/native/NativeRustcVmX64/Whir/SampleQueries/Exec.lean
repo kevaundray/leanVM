@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Whir.Common
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.SampleQueries
+public import NativeRustcVmX64.Code.Vm.Names
 public meta import NativeRustcVmX64.Code.Vm.SampleQueries
 public meta import NativeRustcVmX64.Whir.Common
 public meta import NativeRustcVmX64.Transcript.Frame
@@ -32,7 +33,7 @@ open NativeRustcVmX64.Transcript (Slots ProOk MidOk EpiOk writesIn)
 def slots : Slots := [(120, .rbp), (112, .r15), (104, .r14), (96, .r13), (88, .r12), (80, .rbx)]
 
 /-- `PER_CHALLENGE`'s label. -/
-def perL : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.10"
+def perL : Label := NativeRustcVmX64.Vm.Symbols.rodata10Label
 
 /-- At the entry: the frame, the buffer's count word at RCX. -/
 def entryS : SState := init [136, 8] [(.rsp, .ptr 0 128), (.rcx, .ptr 1 0)]

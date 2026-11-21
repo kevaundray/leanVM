@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.BasisWEval.Steps
+public import NativeRustcVmX64.Code.Vm.LayoutWPlacement.Names
 
 /-!
 # `BasisW::eval`: the entry (x86-64)
@@ -9,7 +10,7 @@ The prologue (`b0`) pushes the callee-saved registers, keeps the output's addres
 the layout's address in the frame, loads the scales' slice (RBP, R15) and the layout's address
 from the `BasisW` (RSI, kept in RBX) and calls `LayoutW::placement` on `QKECCAK`; `b1` tests the
 scales' count; `b2` takes the first scale (R14, the frame's `24`, R13 past it), `b3` `0` without
-scales: `A4` at `.LBasisWEval_3` (`entry`).
+scales: `A4` at `NativeRustcVmX64.Vm.BasisWEval.label_3` (`entry`).
 -/
 
 namespace NativeRustcVmX64.Whir.BasisWEval
@@ -22,7 +23,7 @@ open LeanVM.Protocol.Verifier (qkeccak Placement)
 
 @[expose] public section
 
-/-- **At `.LBasisWEval_3`** (`b4`): the `BasisW` (RBX), the scales' slice (RBP, R15), the
+/-- **At `NativeRustcVmX64.Vm.BasisWEval.label_3`** (`b4`): the `BasisW` (RBX), the scales' slice (RBP, R15), the
 placement of `QKECCAK` (RAX, RDX), the first scale (R14, the frame's `24`) and the next one's
 address (R13). -/
 structure A4 (m0 : MachineData) (ba : BasisAddrs) (b : BasisW) (v : Vals) (d : MachineData) :
@@ -68,20 +69,20 @@ theorem In.scale0 (h : In m0 ba b v) {o : Nat} {d : MachineData} (hf : Fb m0 o d
 
 variable [Host] {k : Nat}
 
-/-- **The entry**, to `.LBasisWEval_3`. -/
+/-- **The entry**, to `NativeRustcVmX64.Vm.BasisWEval.label_3`. -/
 theorem entry (hp : Placed code k) (h : In m0 ba b v)
-    (hpl : ∀ L, Spec (Labels.label layoutWPlacementLabel) (LayoutWPlacementPre L)
+    (hpl : ∀ L, Spec (Labels.label NativeRustcVmX64.Vm.LayoutWPlacement.entryLabel) (LayoutWPlacementPre L)
       (LayoutWPlacementPost L))
     {R : MachineState → Prop}
-    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + 29) → A4 m0 ba b v st.data →
+    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b4Offset) → A4 m0 ba b v st.data →
       Eventually (step1 Host.exe) R st) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b0Offset)⟩ := by
   have hS := h.stackOk
   have hN := h.hN
   have hN0 := N_ge
   have hcl := count_lt h
   let p := reg m0 .rsi
-  let ret0 := (Host.addrOf (k + 0 + b0.length)).toBitVec
+  let ret0 := (Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b0Offset + b0.length)).toBitVec
   have hbasis : WhirIn m0 p 56 basisWEvalStack := h.basis
   have hwf : (envB m0 m0 [(p, 56)] ret0).WF := h.wf1 (fun _ h ↦ h) hbasis
   have hm : Match (envB m0 m0 [(p, 56)] ret0) entryS m0 :=
@@ -123,7 +124,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
   have hq4 : (4#64 : BitVec 64).toNat = qkeccak := rfl
   rw [hq4] at hy0 hy1
   -- b1
-  rw [show k + 0 + b0.length = k + 18 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b0Offset + b0.length = k + NativeRustcVmX64.Vm.BasisWEval.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b0_next]]
   obtain ⟨hmid1, hmem1, hk1⟩ := ok_b1
   refine h.block hf2 (h.wf0 hf2 (ret := 0)) (inf hp b1_in_code (by simp [b1])) exit_b1 nofun
     (match_body hf2 ⟨rfl, trivial⟩) hmid1 (h0_of_nil hmem1) fun st3 hm3 hpc3 hf3 ↦ ?_
@@ -151,7 +152,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
   · -- no scales: `b3`
     have hd : decide (ba.count = 0) = true := by simpa using hc0
     simp only [hd, ↓reduceIte] at hpc3
-    rw [hp.label (j := 25) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_1_at] at hpc3
     obtain ⟨hmid, h0', w24, hmiss, hr13, hr14, hk⟩ := ok_b3
     refine at_pc hpc3 (h.block hf3 (h.wf0 hf3 (ret := 0)) (inf hp b3_in_code (by simp [b3]))
       exit_b3 nofun (match_body hf3 ⟨rfl, trivial⟩) hmid h0' fun st4 hm4 hpc4 hf4 ↦ ?_)
@@ -159,7 +160,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
       fun r hr ↦ keeps_reg hm4 hk hr
     have hs0 : sAt b.scales 0 = 0 := sAt_ge (by omega)
     simp only [PcOk] at hpc4
-    rw [show k + 25 + b3.length = k + 29 from rfl] at hpc4
+    rw [show k + NativeRustcVmX64.Vm.BasisWEval.b3Offset + b3.length = k + NativeRustcVmX64.Vm.BasisWEval.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b3_next]] at hpc4
     refine cont st4 hpc4 {
       base := base3.block hf4 (h.wf0 hf3) hm4 hmid hmiss
       rbx := (k4 .rbx (by simp)).trans rbx
@@ -173,7 +174,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
   · -- the first scale: `b2`
     have hd : decide (ba.count = 0) = false := by simpa using hc0
     simp only [hd, Bool.false_eq_true, ↓reduceIte] at hpc3
-    rw [show k + 18 + b1.length = k + 20 from rfl] at hpc3
+    rw [show k + NativeRustcVmX64.Vm.BasisWEval.b1Offset + b1.length = k + NativeRustcVmX64.Vm.BasisWEval.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b1_next]] at hpc3
     have hpos : 0 < ba.count := Nat.pos_of_ne_zero hc0
     obtain ⟨hmid, h0', w24, hmiss, hr13, hr14, hr15, hk⟩ := ok_b2
     have hsc := h.scaleIn hpos (j := 0)
@@ -186,7 +187,7 @@ theorem entry (hp : Placed code k) (h : In m0 ba b v)
     refine at_pc hpc3 (h.block hf3 hwf2 (inf hp b2_in_code (by simp [b2])) exit_b2 nofun hm2
       hmid h0' fun st4 hm4 hpc4 hf4 ↦ ?_)
     simp only [PcOk] at hpc4
-    rw [hp.label (j := 29) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_3_at] at hpc4
     have k4 : ∀ r ∈ [Reg64.rax, .rdx, .rbx, .r15], reg st4.data r = reg st3.data r :=
       fun r hr ↦ keeps_reg hm4 hk hr
     refine cont st4 hpc4 {

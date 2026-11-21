@@ -2,6 +2,14 @@ module
 
 public import NativeRustcVmX64.Tables.TableTerms.Body
 public import NativeRustcVmX64.Code.Vm.TableTerms
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmX64.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
+public import NativeRustcVmX64.Code.Vm.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.TableTerms.Names
 public meta import NativeRustcVmX64.Code.Vm.TableTerms
 
 /-!
@@ -40,7 +48,7 @@ open NativeRustcVmX64.Transcript NativeRustcVmX64.Sumcheck NativeRustcVmX64.Tabl
 def slots : Slots := [(264, .rbp), (256, .r15), (248, .r14), (240, .r13), (232, .r12), (224, .rbx)]
 
 /-- `TABLES`' label. -/
-abbrev tablesL : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.4"
+abbrev tablesL : Label := NativeRustcVmX64.Vm.Symbols.rodata4Label
 
 /-- `test %al, %al`, zero. -/
 def cAl : SBool := .cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)
@@ -146,7 +154,7 @@ public theorem ok_b0 : ProOk 272 8 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .rdx = some (.lit 0) ∧ (after b0 entryS).reg .r15 = some (.lit 0) := by
   decide +kernel
 
-public theorem exit_b1 : exec b1 tabS = some (after b1 tabS, .cond c1 ".LTableTerms_6") :=
+public theorem exit_b1 : exec b1 tabS = some (after b1 tabS, .cond c1 NativeRustcVmX64.Vm.TableTerms.label_6) :=
   run_b1.trans (by rw [after_eq run_b1]; rfl)
 public theorem ok_b1 : MidOk 272 8 slots (after b1 tabS) = true ∧ (after b1 tabS).mem = [] ∧
     (after b1 tabS).reg .r12 = some (.load 1 8 8) ∧
@@ -154,7 +162,7 @@ public theorem ok_b1 : MidOk 272 8 slots (after b1 tabS) = true ∧ (after b1 ta
   decide +kernel
 
 public theorem exit_b2 : exec b2 evS = some (after b2 evS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : missO (after b2 evS) (UW [120, 128, 136]) = true ∧
     MidOk 272 0 slots (after b2 evS) = true ∧ WrOk (after b2 evS) [1] = true ∧
@@ -168,14 +176,14 @@ public theorem ok_b2 : missO (after b2 evS) (UW [120, 128, 136]) = true ∧
     Keeps (after b2 evS) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b3 : exec b3 sF = some (after b3 sF, .cond cAl ".LTableTerms_6") :=
+public theorem exit_b3 : exec b3 sF = some (after b3 sF, .cond cAl NativeRustcVmX64.Vm.TableTerms.label_6) :=
   run_b3.trans (by rw [after_eq run_b3]; rfl)
 public theorem ok_b3 : MidOk 272 8 slots (after b3 sF) = true ∧ (after b3 sF).mem = [] ∧
     Keeps (after b3 sF) csR = true := by
   decide +kernel
 
 public theorem exit_b4 : exec b4 tabS = some (after b4 tabS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout13constraints_w") :=
+    .call NativeRustcVmX64.Vm.ConstraintsW.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : missO (after b4 tabS) (UW [112, 144, 152, 160, 168]) = true ∧
     MidOk 272 0 slots (after b4 tabS) = true ∧ WrOk (after b4 tabS) [] = true ∧
@@ -190,7 +198,7 @@ public theorem ok_b4 : missO (after b4 tabS) (UW [112, 144, 152, 160, 168]) = tr
   decide +kernel
 
 public theorem exit_b5 : exec b5 sF = some (after b5 sF,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field3dot") :=
+    .call NativeRustcVmX64.Vm.Dot.entryLabel) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : missO (after b5 sF) (UW [96, 104]) = true ∧
     missR (after b5 sF) 144 176 = true ∧
@@ -204,7 +212,7 @@ public theorem ok_b5 : missO (after b5 sF) (UW [96, 104]) = true ∧
   decide +kernel
 
 public theorem exit_b6 : exec b6 formS = some (after b6 formS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout8evaluate") :=
+    .call NativeRustcVmX64.Vm.Evaluate.entryLabel) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : missO (after b6 formS) (UW [80, 88]) = true ∧
     MidOk 272 0 slots (after b6 formS) = true ∧
@@ -220,7 +228,7 @@ public theorem ok_b6 : missO (after b6 formS) (UW [80, 88]) = true ∧
   decide +kernel
 
 public theorem exit_b7 : exec b7 formS = some (after b7 formS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout8evaluate") :=
+    .call NativeRustcVmX64.Vm.Evaluate.entryLabel) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 : missO (after b7 formS) (UW [176, 184]) = true ∧
     MidOk 272 0 slots (after b7 formS) = true ∧
@@ -235,7 +243,7 @@ public theorem ok_b7 : missO (after b7 formS) (UW [176, 184]) = true ∧
   decide +kernel
 
 public theorem exit_b8 : exec b8 formS = some (after b8 formS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout8evaluate") :=
+    .call NativeRustcVmX64.Vm.Evaluate.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : missO (after b8 formS) (UW [192, 200]) = true ∧
     MidOk 272 0 slots (after b8 formS) = true ∧
@@ -250,7 +258,7 @@ public theorem ok_b8 : missO (after b8 formS) (UW [192, 200]) = true ∧
   decide +kernel
 
 public theorem exit_b9 : exec b9 wS = some (after b9 wS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field3dot") :=
+    .call NativeRustcVmX64.Vm.Dot.entryLabel) :=
   run_b9.trans (by rw [after_eq run_b9])
 public theorem ok_b9 : missO (after b9 wS) (UW [64, 72]) = true ∧
     MidOk 272 0 slots (after b9 wS) = true ∧ WrOk (after b9 wS) [] = true ∧
@@ -265,7 +273,7 @@ public theorem ok_b9 : missO (after b9 wS) (UW [64, 72]) = true ∧
   decide +kernel
 
 public theorem exit_b10 : exec b10 ptS = some (after b10 ptS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj1e_E6extendB4_") :=
+    .call NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem ok_b10 : missO (after b10 ptS) (UW []) = true ∧
     MidOk 272 0 slots (after b10 ptS) = true ∧
@@ -279,14 +287,14 @@ public theorem ok_b10 : missO (after b10 ptS) (UW []) = true ∧
     Keeps (after b10 ptS) [.r12] = true := by
   decide +kernel
 
-public theorem exit_b11 : exec b11 sF = some (after b11 sF, .cond cAl ".LTableTerms_6") :=
+public theorem exit_b11 : exec b11 sF = some (after b11 sF, .cond cAl NativeRustcVmX64.Vm.TableTerms.label_6) :=
   run_b11.trans (by rw [after_eq run_b11]; rfl)
 public theorem ok_b11 : MidOk 272 8 slots (after b11 sF) = true ∧ (after b11 sF).mem = [] ∧
     Keeps (after b11 sF) csR = true := by
   decide +kernel
 
 public theorem exit_b12 : exec b12 sF = some (after b12 sF,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") :=
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) :=
   run_b12.trans (by rw [after_eq run_b12])
 public theorem ok_b12 : missO (after b12 sF) (UW []) = true ∧
     MidOk 272 0 slots (after b12 sF) = true ∧ WrOk (after b12 sF) [] = true ∧
@@ -299,7 +307,7 @@ public theorem ok_b12 : missO (after b12 sF) (UW []) = true ∧
     Keeps (after b12 sF) [.rbx, .rbp, .r12, .r15] = true := by
   decide +kernel
 
-public theorem exit_b13 : exec b13 sF = some (after b13 sF, .cond c13 ".LTableTerms_1") :=
+public theorem exit_b13 : exec b13 sF = some (after b13 sF, .cond c13 NativeRustcVmX64.Vm.TableTerms.label_1) :=
   run_b13.trans (by rw [after_eq run_b13]; rfl)
 public theorem ok_b13 : missO (after b13 sF) (UW [16]) = true ∧
     MidOk 272 8 slots (after b13 sF) = true ∧ WrOk (after b13 sF) [] = true ∧
@@ -316,7 +324,7 @@ public theorem ok_b13 : missO (after b13 sF) (UW [16]) = true ∧
     (after b13 sF).reg .rbp = some (.label tablesL) := by
   decide +kernel
 
-public theorem exit_b14 : exec b14 outS = some (after b14 outS, .jump ".LTableTerms_7") :=
+public theorem exit_b14 : exec b14 outS = some (after b14 outS, .jump NativeRustcVmX64.Vm.TableTerms.label_7) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : missO (after b14 outS) (UW []) = true ∧
     MidOk 272 8 slots (after b14 outS) = true ∧

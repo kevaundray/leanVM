@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Keccak.IvWord.Blocks
 public import NativeRustcVmX64.Keccak.Common
 public import NativeRustcVm.Keccak.Words
 public import NativeRustcVm.MemLemmas
+public import NativeRustcVmX64.Code.Vm.IvWord.Names
 
 /-!
 # `iv_word` meets its contract (x86-64)
@@ -41,13 +42,13 @@ def Ws (m0 : MachineData) (w : List UInt64) : Prop :=
 
 /-- Before `loadWord` (`b7`): RCX is `k - 1`, a word of the bytecode, RAX `top`. -/
 def At7 [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
-  Fr m0 st.data ∧ st.pc = Host.addrOf (k + 20) ∧ 1 ≤ (m0.regs.get64 .rdx).toNat ∧
+  Fr m0 st.data ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.IvWord.b7Offset) ∧ 1 ≤ (m0.regs.get64 .rdx).toNat ∧
     (m0.regs.get64 .rdx).toNat - 1 < (m0.regs.get64 .rsi).toNat ∧
     ∀ w, Ws m0 w → st.data.regs.get64 .rax = (top w (m0.regs.get64 .rdx).toNat).toBitVec
 
 /-- Before `ret8` (`b8`): RAX is the result. -/
 def At8 [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
-  Fr m0 st.data ∧ st.pc = Host.addrOf (k + 24) ∧
+  Fr m0 st.data ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.IvWord.b8Offset) ∧
     ∀ w, Ws m0 w → st.data.regs.get64 .rax = (ivWord w (m0.regs.get64 .rdx).toNat).toBitVec
 
 end
@@ -277,7 +278,7 @@ theorem top_run {k : Nat} (hp : Placed code k) {m0 : MachineData} (hstk : StackO
     (hfr : Fr m0 st.data) (hK : 1 ≤ (m0.regs.get64 .rdx).toNat)
     (hv : ∀ w, Ws m0 w → st.data.regs.get64 .rax = (top w (m0.regs.get64 .rdx).toNat).toBitVec)
     (hpc : st.pc = if (m0.regs.get64 .rdx).toNat - 1 < (m0.regs.get64 .rsi).toNat then
-      Host.addrOf (k + 20) else Host.addrOf (k + 24)) :
+      Host.addrOf (k + NativeRustcVmX64.Vm.IvWord.b7Offset) else Host.addrOf (k + NativeRustcVmX64.Vm.IvWord.b8Offset)) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ IvWordPost m0 st'.data) st := by
   by_cases h : (m0.regs.get64 .rdx).toNat - 1 < (m0.regs.get64 .rsi).toNat
@@ -291,7 +292,7 @@ theorem top_run {k : Nat} (hp : Placed code k) {m0 : MachineData} (hstk : StackO
 
 /-- `top_run` through a jump to the return (`jmp4`, `jmp10`). -/
 theorem jmp_run {k e : Nat} (hp : Placed code k) {b : List Directive} (hb : b.IsInfixAt code e)
-    (hne : b ≠ []) {S : SState} (hx : exec b start = some (S, .jump ".LIvWord_9"))
+    (hne : b ≠ []) {S : SState} (hx : exec b start = some (S, .jump NativeRustcVmX64.Vm.IvWord.label_9))
     (hrax : S.reg .rax = some (.reg .rax)) (hk : keeps start S = true)
     (hr : ∀ r ∈ [Reg64.rsp, .rdi, .rsi, .rdx],
       start.reg r = some (.reg r) ∧ S.reg r = some (.reg r)) (hmem : S.mem = [])
@@ -301,7 +302,7 @@ theorem jmp_run {k e : Nat} (hp : Placed code k) {b : List Directive} (hb : b.Is
     (hfr : Fr m0 st.data) (hK : 1 ≤ (m0.regs.get64 .rdx).toNat)
     (hv : ∀ w, Ws m0 w → st.data.regs.get64 .rax = (top w (m0.regs.get64 .rdx).toNat).toBitVec)
     (hpc : st.pc = if (m0.regs.get64 .rdx).toNat - 1 < (m0.regs.get64 .rsi).toNat then
-      Host.addrOf (k + 20) else Host.addrOf (k + e)) :
+      Host.addrOf (k + NativeRustcVmX64.Vm.IvWord.b7Offset) else Host.addrOf (k + e)) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ IvWordPost m0 st'.data) st := by
   by_cases h : (m0.regs.get64 .rdx).toNat - 1 < (m0.regs.get64 .rsi).toNat
@@ -314,14 +315,14 @@ theorem jmp_run {k e : Nat} (hp : Placed code k) {b : List Directive} (hb : b.Is
       hK (fun w hw => by rw [e0]; exact hv w hw) ?_
     simp only [h, ↓reduceIte, PcOk] at hpc' ⊢
     rw [hpc']
-    exact hp.label (j := 24) rfl
+    exact hp.label NativeRustcVmX64.Vm.IvWord.label_9_at
 
 /-- **`iv_word` meets its contract.** -/
 theorem ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
-    Spec (Labels.label ivWordLabel) IvWordPre IvWordPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.IvWord.entryLabel) IvWordPre IvWordPost := by
   intro m0 hpre
   obtain ⟨hstk, hmap, hnw⟩ := hpre
-  rw [show Labels.label ivWordLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.IvWord.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.IvWord.b0Offset) from hp.label NativeRustcVmX64.Vm.IvWord.entry_at]
   have hfr0 : Fr m0 m0 := ⟨rfl, ⟨fun _ _ => rfl, fun _ h => h⟩, fun _ _ => rfl⟩
   have hKlt := (m0.regs.get64 .rdx).isLt
   refine exec_then (b0_in_code.trans hp.1 (List.cons_ne_nil _ _)) zero (Env.wf_nil m0) nofun
@@ -329,11 +330,11 @@ theorem ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
   have hfr1 := fr_step hfr0 (match_nil m0) hm0 (Env.wf_nil m0) rfl rfl (by decide +kernel)
     (by decide +kernel)
   simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, BinOp.apply, low_W64, ext_W64,
-    BitVec.and_self, cmp_eq64 _ 0 (by decide), show b0.length = 3 from rfl, Nat.add_zero] at hpc0
+    BitVec.and_self, cmp_eq64 _ 0 (by decide), NativeRustcVmX64.Vm.IvWord.b0_length] at hpc0
   by_cases hk0 : (m0.regs.get64 .rdx).toNat = 0
   · -- `k = 0`: the tag's first word
     simp only [show (m0.regs.get64 .rdx).toNat = 0 from hk0, decide_true, ↓reduceIte] at hpc0
-    rw [hp.label (j := 13) rfl] at hpc0
+    rw [hp.label NativeRustcVmX64.Vm.IvWord.label_1_at] at hpc0
     refine Eventually.mono (ret_at (b5_in_code.trans hp.1 (List.cons_ne_nil _ _)) tag rfl rfl
       (by decide +kernel) rfl hpc0 hstk hfr1) fun st' ⟨hpc', hrsp', hd', hs', hrax⟩ =>
         ⟨hpc', hrsp', fun w _ _ => ?_, hd', hs'⟩
@@ -354,13 +355,13 @@ theorem ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
     simp only [Sym.eval, Env.ofMachine_regs]
     rw [sub64_toNat (by rw [hrdx1]; omega), hrdx1]
   simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_eq64 _ 0 (by decide),
-    show b1.length = 3 from rfl] at hpc1
+    NativeRustcVmX64.Vm.IvWord.b1_length] at hpc1
   rw [sub64_toNat (by rw [hrdx1]; omega), hrdx1] at hpc1
   by_cases hk1 : (m0.regs.get64 .rdx).toNat = 1
   · -- `k = 1`: the tag's ninth byte
     simp only [show (m0.regs.get64 .rdx).toNat - 1 = 0 by omega, decide_true,
       ↓reduceIte] at hpc1
-    rw [hp.label (j := 16) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.IvWord.label_3_at] at hpc1
     refine exec_at (b6_in_code.trans hp.1 (List.cons_ne_nil _ _)) first (Env.wf_nil _) nofun hpc1
       (match_nil _) fun st2 hm2 hpc2 => ?_
     have hfr3 := fr_step hfr2 (match_nil _) hm2 (Env.wf_nil _) rfl rfl (by decide +kernel)
@@ -371,8 +372,8 @@ theorem ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
       simp only [Sym.eval, Nat.sub_self, ↓reduceIte]
       decide
     · simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_ult64,
-        show b6.length = 4 from rfl, if_not] at hpc2
-      rw [hrcx, hfr2.reg (r := .rsi) (by simp), hp.label (j := 24) rfl] at hpc2
+        NativeRustcVmX64.Vm.IvWord.b6_length, if_not] at hpc2
+      rw [hrcx, hfr2.reg (r := .rsi) (by simp), hp.label NativeRustcVmX64.Vm.IvWord.label_9_at] at hpc2
       exact hpc2
   simp only [show ¬ (m0.regs.get64 .rdx).toNat - 1 = 0 by omega,
     decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
@@ -386,7 +387,7 @@ theorem ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
   have hrdx2 : st1.data.regs.get64 .rdx = m0.regs.get64 .rdx := hfr2.reg (by simp)
   have hrsi2 : st1.data.regs.get64 .rsi = m0.regs.get64 .rsi := hfr2.reg (by simp)
   simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_ult64,
-    show b2.length = 3 from rfl, if_not] at hpc2
+    NativeRustcVmX64.Vm.IvWord.b2_length, if_not] at hpc2
   rw [addm2_toNat (by rw [hrdx2]; omega), hrdx2, hrsi2] at hpc2
   by_cases h2 : (m0.regs.get64 .rdx).toNat - 2 < (m0.regs.get64 .rsi).toNat
   · -- the top byte of word `k - 2`
@@ -403,9 +404,9 @@ theorem ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
     have hfr4 := fr_step hfr3 hm hm3 hwf rfl rfl (by decide +kernel) (by decide +kernel)
     have e1 := Match.reg_eq hm hm3 (r := .rcx) rfl rfl
     simp only [PcOk, SBool.eval, Sym.eval, env, Env.ofMachine_regs, cmp_ult64,
-      show b3.length = 3 from rfl, decide_eq_true_eq] at hpc3
-    rw [hrcx2, hfr3.reg (r := .rsi) (by simp), hp.label (j := 20) rfl,
-      show k + 9 + 3 = k + 12 by omega] at hpc3
+      decide_eq_true_eq] at hpc3
+    rw [hrcx2, hfr3.reg (r := .rsi) (by simp), hp.label NativeRustcVmX64.Vm.IvWord.label_8_at,
+      show k + NativeRustcVmX64.Vm.IvWord.b3Offset + b3.length = k + NativeRustcVmX64.Vm.IvWord.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.IvWord.b3_next]] at hpc3
     refine jmp_run hp b4_in_code (List.cons_ne_nil _ _) jmp4 rfl (by decide +kernel)
       (by decide +kernel) rfl hstk hmap hnw hfr4 (by omega) (fun w hw => ?_) hpc3
     show st3.data.regs.get64 .rax = _
@@ -416,15 +417,15 @@ theorem ivWord_spec {k : Nat} (hp : Placed Vm.IvWord.code k) :
   · -- past the bytecode: zero
     simp only [show ¬ (m0.regs.get64 .rdx).toNat - 2 < (m0.regs.get64 .rsi).toNat from h2,
       ↓reduceIte] at hpc2
-    rw [hp.label (j := 26) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.IvWord.label_5_at] at hpc2
     refine exec_at (b9_in_code.trans hp.1 (List.cons_ne_nil _ _)) none9 (Env.wf_nil _) nofun
       hpc2 (match_nil _) fun st3 hm3 hpc3 => ?_
     have hfr4 := fr_step hfr3 (match_nil _) hm3 (Env.wf_nil _) rfl rfl (by decide +kernel)
       (by decide +kernel)
     simp only [PcOk, SBool.eval, Sym.eval, Env.ofMachine_regs, cmp_ult64,
-      show b9.length = 4 from rfl, decide_eq_true_eq] at hpc3
-    rw [hrcx2, hfr3.reg (r := .rsi) (by simp), hp.label (j := 20) rfl,
-      show k + 26 + 4 = k + 30 by omega] at hpc3
+      decide_eq_true_eq] at hpc3
+    rw [hrcx2, hfr3.reg (r := .rsi) (by simp), hp.label NativeRustcVmX64.Vm.IvWord.label_8_at,
+      show k + NativeRustcVmX64.Vm.IvWord.b9Offset + b9.length = k + NativeRustcVmX64.Vm.IvWord.b10Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.IvWord.b9_next]] at hpc3
     refine jmp_run hp b10_in_code (List.cons_ne_nil _ _) jmp10 rfl (by decide +kernel)
       (by decide +kernel) rfl hstk hmap hnw hfr4 (by omega) (fun w hw => ?_) hpc3
     show st3.data.regs.get64 .rax = _

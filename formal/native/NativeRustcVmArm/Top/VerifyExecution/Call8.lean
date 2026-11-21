@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Call9
 public import NativeRustcVmArm.Top.VerifyExecution.Areas
 
@@ -38,16 +41,16 @@ variable [Host] {k : Nat}
 
 /-- **`KECCAK`'s validity**, from `b14`: the function returns the walk's rest. -/
 theorem call8 (hp : Placed code k)
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmArm.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmArm.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 58)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b14Offset)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
     (h23 : st.data.regs.X23 = 112184) (h25 : st.data.regs.X25 = 123992) {s : TState}
     (hts : TStateAt st.data.dmem m0.regs.X0.toBitVec a s) (hroots : s.roots.size ≤ 2)
     {L : LayoutW} (hL : LayoutWAt st.data.dmem m0.regs.X4.toBitVec L)
@@ -133,7 +136,7 @@ theorem call8 (hp : Placed code k)
       · have := g.inW (o := 289728) (n := 205824) (by omega) (by omega) hq; omega
       · have := g.inW (o := 123992) (n := 97288) (by omega) (by omega) hq; omega
       · have := g.inW (o := 221280) (n := 1608) (by omega) (by omega) hq; omega
-  rw [show k + 58 + b14.length = k + 68 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b14Offset + b14.length = k + NativeRustcVmArm.Vm.VerifyExecution.b15Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b14_next]] at hpc2
   rw [walkKeccak, run_bind_eq]
   generalize hr : (keccakPhase L ev).run s = r at hx0 hres
   have bk := branch_keeps b15 (by simp)
@@ -147,7 +150,7 @@ theorem call8 (hp : Placed code k)
   obtain ⟨⟨⟨outs, kp, ks⟩, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
   obtain ⟨hts', hcl', hko⟩ := hres _ _ _ _ rfl
   have hroots' : s'.roots = s.roots := (keccakPhase_roots L ev).keeps _ _ _ hr
-  rw [show k + 68 + b15.length = k + 69 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b15Offset + b15.length = k + NativeRustcVmArm.Vm.VerifyExecution.b16Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b15_next]] at hpc3
   have reg : ∀ x : XReg, calleeSaved x = true →
       st3.data.regs.getXReg x = st1.data.regs.getXReg x := fun x hx ↦
     (hreg3 x).trans (hsv.1 x hx)

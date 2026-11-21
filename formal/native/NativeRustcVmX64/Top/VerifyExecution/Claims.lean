@@ -1,6 +1,11 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Public
+public import NativeRustcVmX64.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmX64.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
 
 /-!
 # `verify_execution`: the tables' column claims (x86-64)
@@ -24,20 +29,20 @@ variable [Host] {k : Nat}
 
 /-- **The tables' column claims**, from `b10`: the function returns the walk's rest. -/
 theorem callClaims (hp : Placed code k)
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmX64.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmX64.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 53)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b10Offset)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
     (h12 : reg st.data .r12 = off (reg m0 .r8) 112184)
     (h13 : reg st.data .r13 = off (reg m0 .r8) 123992)
     (hbp : reg st.data .rbp = off (reg m0 .r8) 3912)
@@ -63,7 +68,7 @@ theorem callClaims (hp : Placed code k)
   have hsz := NativeRustcVm.Top.tableColumnClaims_size hsh.1 fun t ht ↦ (hsh.2 t ht).1
   have hfits : cs.size + (tableColumnClaims ev).size ≤ claimCap := by
     rw [hcs, hsz]; decide
-  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + 53 + b10.length)).toBitVec)
+  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b10Offset + b10.length)).toBitVec)
   refine exec_at (infix_of b10_in_code (by simp [b10]) hp) run_b10 hwf (fun _ _ ↦ rfl) hpc hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hw1, hrdi, hrsi, hk⟩ := after_eq run_b10 ▸ ok_b10
@@ -155,7 +160,7 @@ theorem callClaims (hp : Placed code k)
       · right; right; right; omega) h40
   -- `b11`: the test
   refine branch hp g b11_in_code (by simp [b11]) (by rw [after_eq run_b11]; exact run_b11)
-    (ok_test b11 (by simp)) h2 (hpc2.trans (by rw [show k + 53 + b10.length = k + 56 from rfl]))
+    (ok_test b11 (by simp)) h2 (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b10Offset + b10.length = k + NativeRustcVmX64.Vm.VerifyExecution.b11Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b10_next]]))
     hok (fun hb ↦ absurd hb (by simp [hfits])) fun st3 _ h3 hd3 hk3 hpc3 ↦ ?_
   have k12 : reg st3.data .r12 = reg st1.data .r12 := (hk3 .r12 (by simp)).trans (hsv.1 .r12 rfl)
   have k13 : reg st3.data .r13 = reg st1.data .r13 := (hk3 .r13 (by simp)).trans (hsv.1 .r13 rfl)
@@ -174,7 +179,7 @@ theorem callClaims (hp : Placed code k)
     exact NativeRustcVm.Top.OodAt.of_same hood (hsC (n := 504) (by omega) (by omega) (by omega))
   have hk5 := hsh.2 5 (by omega)
   exact callPublic hp hpi hkp hrs hvso g h3
-    (hpc3.trans (by rw [show k + 56 + b11.length = k + 58 from rfl])) (rate := rate)
+    (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b11Offset + b11.length = k + NativeRustcVmX64.Vm.VerifyExecution.b12Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b11_next]])) (rate := rate)
     (by rw [k15, kr _ (by simp)]; exact h15) (by rw [k12, kr _ (by simp)]; exact h12)
     (by rw [k13, kr _ (by simp)]; exact h13) (by rw [kbp, kr _ (by simp)]; exact hbp)
     (by rw [hd3]; exact h40') hP (by rw [hd3]; exact hts2) hroots hL3 hvc hev3 hk5.2

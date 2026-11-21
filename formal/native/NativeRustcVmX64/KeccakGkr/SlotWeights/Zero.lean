@@ -5,8 +5,8 @@ public import NativeRustcVmX64.KeccakGkr.SlotWeights.Pro
 /-!
 # `slot_weights`: the rows zeroed (x86-64)
 
-`.LSlotWeights_2` (`b3`) starts row `r` (RAX its address plus `56`, RCX `1024 r`);
-`.LSlotWeights_3` (`b4`) zeroes four elements at `RAX + RDX - 56`, RDX counting the row's bytes
+`NativeRustcVmX64.Vm.SlotWeights.label_2` (`b3`) starts row `r` (RAX its address plus `56`, RCX `1024 r`);
+`NativeRustcVmX64.Vm.SlotWeights.label_3` (`b4`) zeroes four elements at `RAX + RDX - 56`, RDX counting the row's bytes
 (`zero_in`, `row_loop`); `b5` steps to the next row (`zero_row`, `zero_loop`); after the last,
 `b6` starts the segment loop at segment `0` (`SegHead`).
 -/
@@ -62,8 +62,8 @@ variable [Host] {k : Nat}
 
 /-- `b3`: a row's start. -/
 theorem zero_start (hp : Placed code k) (h : PreOk m0 c) {r : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 40)) (hI : ZeroInv m0 c r s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 43) ∧ ZeroIn m0 c r 0 s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b3Offset)) (hI : ZeroInv m0 c r s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b4Offset) ∧ ZeroIn m0 c r 0 s'.data)
       s := by
   have hwf := wf_body h hI.ctx.frame.kept (d := s.data) (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf nofun hpc
@@ -71,15 +71,15 @@ theorem zero_start (hp : Placed code k) (h : PreOk m0 c) {r : Nat} {s : MachineS
   obtain ⟨hmid, hmem, hrax, hrcx, hrdx⟩ := ok_b3
   have hd : s'.data.dmem = s.data.dmem := hm'.dmem_eq hwf hmem
   simp only [PcOk] at hpc'
-  exact .done _ ⟨hpc'.trans (by rw [b3_length]), ⟨hI.ctx.of_block hwf hm' hmid hmem, hI.r_lt,
+  exact .done _ ⟨hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b3_next), ⟨hI.ctx.of_block hwf hm' hmid hmem, hI.r_lt,
     by omega, (hm'.regs .rax _ hrax).trans hI.rax, (hm'.regs .rcx _ hrcx).trans hI.rcx,
     hm'.regs .rdx _ hrdx, by rw [hd]; exact hI.rows⟩⟩
 
 /-- `b4`: four elements of a row zeroed. -/
 theorem zero_in (hp : Placed code k) (h : PreOk m0 c) {r q : Nat} (hq : q < 16) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 43)) (hI : ZeroIn m0 c r q s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (q + 1 < 16 ∧ s'.pc = Host.addrOf (k + 43) ∧
-      ZeroIn m0 c r (q + 1) s'.data) ∨ (q + 1 = 16 ∧ s'.pc = Host.addrOf (k + 55) ∧
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b4Offset)) (hI : ZeroIn m0 c r q s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (q + 1 < 16 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b4Offset) ∧
+      ZeroIn m0 c r (q + 1) s'.data) ∨ (q + 1 = 16 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b5Offset) ∧
       ZeroIn m0 c r (q + 1) s'.data)) s := by
   have hr := hI.r_lt
   set b1 := off (rowsA m0) (1024 * r + 64 * q) with hb1
@@ -159,17 +159,17 @@ theorem zero_in (hp : Placed code k) (h : PreOk m0 c) {r q : Nat} (hq : q < 16) 
   by_cases hlast : q + 1 = 16
   · rw [show 64 + 64 * q = 1024 by omega] at hpc'
     simp only [decide_true, Bool.not_true, Bool.false_eq_true, ite_false] at hpc'
-    exact .done _ (Or.inr ⟨hlast, hpc'.trans (by rw [b4_length]), hI'⟩)
+    exact .done _ (Or.inr ⟨hlast, hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b4_next), hI'⟩)
   · rw [decide_eq_false (show ¬64 + 64 * q = 1024 by omega)] at hpc'
     simp only [Bool.not_false, ite_true] at hpc'
     exact .done _ (Or.inl ⟨by omega, hpc'.trans (label_of_infix hp b4_in_code rfl), hI'⟩)
 
 /-- **A row zeroed**: from its start to `b5`. -/
 theorem row_loop (hp : Placed code k) (h : PreOk m0 c) {r : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 43)) (hI : ZeroIn m0 c r 0 s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 55) ∧ ZeroIn m0 c r 16 s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b4Offset)) (hI : ZeroIn m0 c r 0 s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b5Offset) ∧ ZeroIn m0 c r 16 s'.data)
       s :=
-  loop (fun n s ↦ ∃ q, n = 16 - q ∧ q < 16 ∧ s.pc = Host.addrOf (k + 43) ∧ ZeroIn m0 c r q s.data)
+  loop (fun n s ↦ ∃ q, n = 16 - q ∧ q < 16 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b4Offset) ∧ ZeroIn m0 c r q s.data)
     (fun _ s ⟨q, hn, hq, hpc, hI⟩ ↦ (zero_in hp h hq hpc hI).mono fun s' h' ↦ by
       rcases h' with ⟨hlt, hpc', hI'⟩ | ⟨hlast, hpc', hI'⟩
       · exact Or.inr ⟨16 - (q + 1), by omega, q + 1, rfl, hlt, hpc', hI'⟩
@@ -178,9 +178,9 @@ theorem row_loop (hp : Placed code k) (h : PreOk m0 c) {r : Nat} {s : MachineSta
 
 /-- `b5`: the next row, or the rows done. -/
 theorem zero_row (hp : Placed code k) (h : PreOk m0 c) {r : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 55)) (hI : ZeroIn m0 c r 16 s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (r + 1 < 64 ∧ s'.pc = Host.addrOf (k + 40) ∧
-      ZeroInv m0 c (r + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + 59) ∧ Ctx m0 c s'.data ∧
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b5Offset)) (hI : ZeroIn m0 c r 16 s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (r + 1 < 64 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b3Offset) ∧
+      ZeroInv m0 c (r + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b6Offset) ∧ Ctx m0 c s'.data ∧
       ElemsAt s'.data.dmem (rowsA m0) (fun _ ↦ 0) 4096)) s := by
   have hr := hI.r_lt
   have hwf := wf_body h hI.ctx.frame.kept (d := s.data) (vars := fun _ ↦ 0) (ret := 0)
@@ -197,7 +197,7 @@ theorem zero_row (hp : Placed code k) (h : PreOk m0 c) {r : Nat} {s : MachineSta
   by_cases hlast : r + 1 = 64
   · rw [show 1024 + 1024 * r = 65536 by omega] at hpc'
     simp only [decide_true, Bool.not_true, Bool.false_eq_true, ite_false] at hpc'
-    refine .done _ (Or.inr ⟨hpc'.trans (by rw [b5_length]), hctx, ?_⟩)
+    refine .done _ (Or.inr ⟨hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b5_next), hctx, ?_⟩)
     rw [show 4096 = 64 * (r + 1) by omega]; exact hrows
   · rw [decide_eq_false (show ¬1024 + 1024 * r = 65536 by omega)] at hpc'
     simp only [Bool.not_false, ite_true] at hpc'
@@ -216,12 +216,12 @@ theorem zero_row (hp : Placed code k) (h : PreOk m0 c) {r : Nat} {s : MachineSta
 
 /-- **The rows zeroed**, then `b6`: the segment loop's head at segment `0`. -/
 theorem zero_loop (hp : Placed code k) (h : PreOk m0 c) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 40)) (hI : ZeroInv m0 c 0 s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 67) ∧ SegHead m0 c 0 s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b3Offset)) (hI : ZeroInv m0 c 0 s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b9Offset) ∧ SegHead m0 c 0 s'.data)
       s := by
-  refine (loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + 59) ∧ Ctx m0 c s'.data ∧
+  refine (loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b6Offset) ∧ Ctx m0 c s'.data ∧
       ElemsAt s'.data.dmem (rowsA m0) (fun _ ↦ 0) 4096)
-    (fun n s ↦ ∃ r, n = 64 - r ∧ r < 64 ∧ s.pc = Host.addrOf (k + 40) ∧ ZeroInv m0 c r s.data)
+    (fun n s ↦ ∃ r, n = 64 - r ∧ r < 64 ∧ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b3Offset) ∧ ZeroInv m0 c r s.data)
     (fun _ s ⟨r, hn, hr, hpc, hI⟩ ↦ (zero_start hp h hpc hI).bind fun s1 ⟨hpc1, hI1⟩ ↦
       (row_loop hp h hpc1 hI1).bind fun s2 ⟨hpc2, hI2⟩ ↦
         (zero_row hp h hpc2 hI2).mono fun s' h' ↦ by

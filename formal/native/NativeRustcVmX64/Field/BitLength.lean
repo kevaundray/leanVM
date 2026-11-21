@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Field.BitLength.Exec
 public import NativeRustcVmX64.Field.Leaf
 public import NativeRustcVmX64.Field.LinSound
 public import NativeRustcVm.Field.BitLength
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
 
 /-!
 # `bit_length` on x86-64
@@ -119,9 +120,9 @@ public section
 
 /-- **`bit_length` returns the bit length.** -/
 theorem bitLength_spec [Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost := by
   intro m hpre
-  rw [show Labels.label bitLengthLabel = Host.addrOf k from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel = Host.addrOf k from hp.label NativeRustcVmX64.Vm.BitLength.entry_at]
   have hk : b0.IsInfixAt Host.prog k :=
     (b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _) :)
   have hwf := frame_wf (m := m) (vars := fun _ ↦ 0) (ret := 0) hpre fun _ h ↦ h

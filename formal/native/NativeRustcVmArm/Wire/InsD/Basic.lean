@@ -201,7 +201,7 @@ variable [Host] (k : Nat)
 
 /-- The scan's head (`b1`) at element `i < n`. -/
 structure SInv (i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 3)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsD.b1Offset)
   kp : Kp m st.data
   d : st.data.dmem = m.dmem
   x8 : (st.data.regs.getXReg .X8).toNat = i
@@ -210,7 +210,7 @@ structure SInv (i : Nat) (st : MachineState) : Prop where
 
 /-- The shift's set-up (`b6`), `x` to go in at `i ≤ n`. -/
 structure SixInv (i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 19)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsD.b6Offset)
   kp : Kp m st.data
   d : st.data.dmem = m.dmem
   x8 : (st.data.regs.getXReg .X8).toNat = i
@@ -220,7 +220,7 @@ structure SixInv (i : Nat) (st : MachineState) : Prop where
 
 /-- The shift's head (`b7`): the elements from `j` moved up one, `i < j ≤ n`, word `g` at `j`. -/
 structure TInv (i j : Nat) (g : UInt64) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 25)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsD.b7Offset)
   kp : Kp m st.data
   x8 : (st.data.regs.getXReg .X8).toNat = i
   x9 : (st.data.regs.getXReg .X9).toNat = j
@@ -232,7 +232,7 @@ structure TInv (i j : Nat) (g : UInt64) (st : MachineState) : Prop where
 
 /-- The store (`b8`): the elements from `i` moved up one. -/
 structure EInv (i : Nat) (g : UInt64) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 34)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsD.b8Offset)
   kp : Kp m st.data
   x8 : (st.data.regs.getXReg .X8).toNat = i
   le : i ≤ L.length

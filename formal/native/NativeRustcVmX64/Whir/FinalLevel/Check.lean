@@ -2,13 +2,14 @@ module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Open
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.EachRowOfFinalLevel.Names
 
 /-!
 # `final_level`: the rows' check (x86-64)
 
 From `b12` (`Live`, the rows at `144`): the rows' header copied to `112`, the rounds' count, the
 folded scalars' address and count pushed, `each_row(index, queries, &rows, μ, rounds, folded)`
-(`b12`), its `bool` tested (`b13`, `false` to `.LFinalLevel_6` with AL `0`): `check`, to `b14`.
+(`b12`), its `bool` tested (`b13`, `false` to `NativeRustcVmX64.Vm.FinalLevel.label_6` with AL `0`): `check`, to `b14`.
 -/
 
 namespace NativeRustcVmX64.Whir.Levels.FL
@@ -126,10 +127,10 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The rows' check**: `b12`, `each_row`, `b13`, to `b14`. -/
 theorem check (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hrow : ∀ rows op, Spec (Labels.label eachRowFinalLabel) (EachRowFinalPre rows op)
+    (hrow : ∀ rows op, Spec (Labels.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.entryLabel) (EachRowFinalPre rows op)
       (EachRowFinalPost rows))
     {st : MachineState} {folded : Array EW} {qs : Array UInt64} {rws : Array (Array UInt64)}
-    {op : BitVec 64} {s4 : TState} (hpc : st.pc = Host.addrOf (k + 75))
+    {op : BitVec 64} {s4 : TState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b12Offset))
     (hl : Live level m0 st.data folded)
     (hbp : reg st.data .rbp = pA m0 + BitVec.ofNat 64 61360)
     (hbx : reg st.data .rbx = BitVec.ofNat 64 qs.size)
@@ -139,7 +140,7 @@ theorem check (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (hts : TStateAt st.data.dmem (tA m0) a s4)
     (hrun : runF level b w rounds m0 s = (C4 (reg m0 .rsi).toNat (mu m0) (reg m0 .r8).toNat b w
       rounds folded qs rws).run s4)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 107) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b14Offset) →
       Live level m0 st'.data folded → TStateAt st'.data.dmem (tA m0) a s4 →
       runF level b w rounds m0 s = (C5 (mu m0) (reg m0 .r8).toNat b w folded).run s4 →
       Eventually (step1 Host.exe) (Goal a s level b w rounds m0) st') :
@@ -156,7 +157,7 @@ theorem check (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hbr := hwa.2
   have hrl : rounds.size ≤ 6 := by have := hbr.1; rwa [Array.length_toList] at this
   -- `b12`: the rows copied, the arguments pushed, `each_row`.
-  let ret := (Host.addrOf (k + 102)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b13Offset)).toBitVec
   let env := argEnv m0 st.data 2672 8 [(pA m0, 63200)] (fun _ ↦ 0) ret
   have hwf : env.WF :=
     c.wf1 hl.fr.frame.kept (show NativeRustcVm.Mapped st.data.dmem (pA m0) 63200 from
@@ -306,7 +307,7 @@ theorem check (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
       Array.toArray_toList]
   rw [eR, eQ, eF, hdi1, h81] at hok
   -- `b13`: the verdict.
-  have hpc2' : st2.pc = Host.addrOf (k + 102) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b13Offset) := hpc2
   have hwf2 := c.wf0 hf2.frame.kept (ret := 0)
   have hm2 : Match (argEnv m0 st2.data 2672 8 []) s8S st2.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨Frame.rsp_evalA hf2.frame, trivial⟩ trivial trivial trivial

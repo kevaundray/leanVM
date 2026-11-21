@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfNextLevel.Start
+public import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel.Names
 
 /-!
 # `each_row` with `next_level`'s closure: clearing the lanes (x86-64)
@@ -40,11 +41,11 @@ theorem clear_step (hp : Placed code k) (c : Ctx rows op m0) {ms m : MachineData
     {R : MachineState → Prop}
     (next : ∀ m', i < 15 → FR m0 8 m' → reg m' .rax = BitVec.ofNat 64 (56 + 64 * (i + 1)) →
       SameOutside ms.dmem m'.dmem (HitL m0) → (∀ r ∈ keepL, reg m' r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 90)⟩)
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b11Offset)⟩)
     (done : ∀ m', FR m0 8 m' → SameOutside ms.dmem m'.dmem (HitL m0) →
       (∀ r ∈ keepL, reg m' r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 102)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 90)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b12Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b11Offset)⟩ := by
   have hl := lay c
   have hsp := hl.sp
   have htop := hl.ok.2.1
@@ -73,7 +74,7 @@ theorem clear_step (hp : Placed code k) (c : Ctx rows op m0) {ms m : MachineData
         toNat_add_ofNat _ _ (by rw [hfb]; omega), hfb]
       simp only [BitVec.toNat_ofInt]
       omega, trivial⟩
-  have hk11 : b11.IsInfixAt Host.prog (k + 90) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b11Offset) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk11 run_b11 hwf (fun _ h ↦ by cases h) hm fun st hm' hpc ↦ ?_
   rw [← after_eq run_b11] at hm'
   have hs' : SameOutside m.dmem st.data.dmem (HitL m0) := by
@@ -107,7 +108,7 @@ theorem clear_step (hp : Placed code k) (c : Ctx rows op m0) {ms m : MachineData
       · obtain rfl : i = 15 := by omega
         simp only [SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply, low_W64, ext_W64, hra] at hc
         exact absurd hc (by decide)
-    rw [show Labels.label ".LEachRowOfNextLevel_7" = Host.addrOf (k + 90) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmX64.Vm.EachRowOfNextLevel.label_7 = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b11Offset) from hp.label NativeRustcVmX64.Vm.EachRowOfNextLevel.label_7_at]
       at hpc
     obtain ⟨d, pc⟩ := st
     simp only at hpc hfr' hso hkeep hm'
@@ -128,10 +129,10 @@ theorem clear_loop (hp : Placed code k) (c : Ctx rows op m0) {ms : MachineData}
     {R : MachineState → Prop}
     (done : ∀ m', FR m0 8 m' → SameOutside ms.dmem m'.dmem (HitL m0) →
       (∀ r ∈ keepL, reg m' r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 102)⟩) :
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b12Offset)⟩) :
     ∀ n i m, 15 - i = n → i ≤ 15 → FR m0 8 m → reg m .rax = BitVec.ofNat 64 (56 + 64 * i) →
       SameOutside ms.dmem m.dmem (HitL m0) → (∀ r ∈ keepL, reg m r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 90)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b11Offset)⟩ := by
   intro n
   induction n with
   | zero =>

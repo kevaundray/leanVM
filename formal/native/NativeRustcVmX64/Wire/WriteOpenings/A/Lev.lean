@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Wire.WriteOpenings.A.Defs
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.Find.Names
 
 /-!
 # `write_openings`' levels (`h > 0`, x86-64)
@@ -142,7 +143,7 @@ theorem leaf_step (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineStat
     · exact fw_write hm1 (o := 72) (by omega) (v := .reg .rdx) (by decide +kernel) |>.congr
         (by rw [show (Sym.reg .rdx).eval _ = reg st.data .rdx from rfl,
           K.rg.get (v := R.pa) (by simp)])
-  refine .done _ ⟨(pc_jump hpc1).trans (hp.label (j := 117) rfl), F1, K.lt, K.h0,
+  refine .done _ ⟨(pc_jump hpc1).trans (hp.label NativeRustcVmX64.Vm.WriteOpenings.label_15_at), F1, K.lt, K.h0,
     G.begun_keepW hs1 hW K.lt K.mem, ⟨i, K.pos, G.leaf_keepW hs1 hW K.lt (le_refl _) H.leaf⟩,
     path_zero, hfw, by keep_regs hm1 K.rg, ?_, hm1.regs .r13 _ rfl, ?_⟩
   · refine (hm1.regs .rbp _ rfl).trans ?_
@@ -191,7 +192,7 @@ theorem cnt_step (hp : Placed code R.k) (G : Geo R) {l : Nat} {st : MachineState
     exact gt256_cond _)
   have hk1 : Regs s1.data (lA R j) := S.rg.keep hm1 (by kdecA)
   by_cases hbad : 256 < (R.cw l).toNat
-  · rw [decide_eq_true hbad, hp.label (j := 278) rfl] at hpc1'
+  · rw [decide_eq_true hbad, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_45_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     exact Eventually.mono (fail_spec hp G hpc1' F1 (.inr ⟨l, hl, hbad⟩)) fun _ h ↦ .inl h
   rw [decide_eq_false hbad] at hpc1'
@@ -204,7 +205,7 @@ theorem cnt_step (hp : Placed code R.k) (G : Geo R) {l : Nat} {st : MachineState
 
 /-- **A level's call** (`b19`, `find`): back from `find`. -/
 theorem call_step (hp : Placed code R.k) (G : Geo R)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) {l : Nat} {st : MachineState}
+    (hfind : Spec (Labels.label NativeRustcVmX64.Vm.Find.entryLabel) FindPre FindPost) {l : Nat} {st : MachineState}
     (H : CntA R j l st) : Eventually (step1 Host.exe) (RetA R j l) st := by
   have S := H.s
   have hl := S.llt
@@ -215,7 +216,7 @@ theorem call_step (hp : Placed code R.k) (G : Geo R)
   have hrbx1 := H.rbx
   have hc := H.cw256
   -- `b19`: the call.
-  have hwf2 := G.wf0 F1.fr.kept (ret := (Host.addrOf (R.k + 122 + b19.length)).toBitVec)
+  have hwf2 := G.wf0 F1.fr.kept (ret := (Host.addrOf (R.k + NativeRustcVmX64.Vm.WriteOpenings.b19Offset + b19.length)).toBitVec)
   refine blk hp b19_in_code (by simp [b19]) run_b19 F1 H.pc
     hwf2 (frMatch F1.fr) (fun _ _ ↦ rfl) (o := 0) (by decide +kernel) (by decide +kernel)
     fun s2 F2 hm2 hpc2 hs2 ↦ ?_
@@ -322,7 +323,7 @@ theorem ret_step (hp : Placed code R.k) (G : Geo R) {l : Nat} {st : MachineState
     refine blk hp b21_in_code (by simp [b21]) run_b21 F4 (hpc4'.trans (congrArg Host.addrOf rfl))
       hwf5 (frMatch F4.fr) nofun (o := 8) (by decide +kernel) (by decide +kernel) fun s5 F5 hm5 hpc5 _ ↦ ?_
     have hd5 : s5.data.dmem = st.data.dmem := (hm5.dmem_eq hwf5 rfl).trans hd4
-    refine .done _ ⟨(pc_jump hpc5).trans (hp.label (j := 107) rfl),
+    refine .done _ ⟨(pc_jump hpc5).trans (hp.label NativeRustcVmX64.Vm.WriteOpenings.label_14_at),
       S4 s5 F5 hd5 fun x hx ↦ by
         rw [← hS4 x hx]
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
@@ -352,7 +353,7 @@ theorem ret_step (hp : Placed code R.k) (G : Geo R) {l : Nat} {st : MachineState
         decide_eq_true (show n < (R.cw l).toBitVec.toNat from hn)]
       rfl)
     simp only [↓reduceIte] at hpc4'
-    rw [hp.label (j := 101) rfl] at hpc4'
+    rw [hp.label NativeRustcVmX64.Vm.WriteOpenings.label_13_at] at hpc4'
     -- `b16`: the node's digest.
     have hrbp4 : reg s4.data .rbp = R.sb + BitVec.ofNat 64 (10240 * l) :=
       (hS4 .rbp (by simp)).trans S.rbp
@@ -445,7 +446,7 @@ theorem dig_step (hp : Placed code R.k) (G : Geo R) {l : Nat} {st : MachineState
       from G.arg_load S.F.chg (i := 0) (by omega), S.r13, ofNat_add, ← ofNat_toNat' (stackArg R.m0 0),
       beq_ofNat (by omega) (by omega), beq_decide])
   by_cases hlast : R.h = l + 1
-  · rw [decide_eq_true hlast, hp.label (j := 139) rfl] at hpc1'
+  · rw [decide_eq_true hlast, hp.label NativeRustcVmX64.Vm.WriteOpenings.label_18_at] at hpc1'
     simp only [↓reduceIte] at hpc1'
     refine .done _ (.inr ⟨hpc1', F1, hj, by omega, ⟨hmem.1.1, fun j' hj' ↦ ?_⟩, hw1,
       hrg1.get (by simp)⟩)

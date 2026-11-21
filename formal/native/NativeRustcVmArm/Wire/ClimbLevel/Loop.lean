@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
+public import NativeRustcVmArm.Code.Vm.ReaderDigest.Names
 public import NativeRustcVmArm.Wire.ClimbLevel.Scan
 
 /-!
@@ -24,8 +26,8 @@ variable [Host] {k : Nat} {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {
 
 section
 variable (hp : Placed code k) (G : Geo m0 bp B)
-  (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-  (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
+  (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+  (hd : Spec (Labels.label NativeRustcVmArm.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
   (hR : ReaderAt m0.dmem (rdr m0) bp B c)
   (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0)
 include hp G hh hd hR hns hlen
@@ -44,7 +46,7 @@ theorem scan_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st
 
 /-- **Node `i`'s set-up** (`b6`): the scan from node `0`. -/
 theorem b6_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 41)) (hfr : Frm m0 st.data) (hfx : Fix m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b6Offset)) (hfr : Frm m0 st.data) (hfx : Fix m0 st.data)
     (hdn : Done m0 bp B c ns i sl ci st.data.dmem) (hlt : i < cnt m0)
     (h19 : (st.data.regs.getXReg .X19).toNat = (parentsOf (ns.take i) sl).length)
     (h20 : (st.data.regs.getXReg .X20).toNat = i)
@@ -131,7 +133,7 @@ theorem head_step {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat} {st :
     simp only [SBool.eval, eq_apply, Sym.eval, Env.ofMachine_regs, hH.x23, hH.fx.x28, key]
   simp only [PcOk, hc] at hpc1
   by_cases hend : i = cnt m0
-  · simp only [hend, decide_true, ↓reduceIte, hp.label (j := 96) rfl] at hpc1
+  · simp only [hend, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b18Offset) NativeRustcVmArm.Vm.ClimbLevel.label_14_at] at hpc1
     subst hend
     exact Eventually.mono (ok_spec hp G hR hns hlen hpc1 hfr1 (by rw [hd1]; exact hH.dn)
       (by rw [e .X19 (by simp)]; exact hH.x19)) fun _ h ↦ .inl h

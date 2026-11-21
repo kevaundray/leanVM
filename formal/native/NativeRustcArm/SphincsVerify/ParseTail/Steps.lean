@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+
 public import NativeRustcArm.SphincsVerify.ParseTail.Loop
 
 /-!
@@ -123,7 +126,7 @@ variable (r : Run) [NativeArm.Host]
 /-- **A block, then `memset`**, on facts. -/
 theorem step_memset (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {ds : List Directive} {j : Nat} (hk : ds.IsInfixAt Sphincs.SphincsVerify.code j)
-    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call "memset"))
+    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call NativeRustcArm.Common.Memset.entryLabel))
     (hw : Run.frameWrites S' = true) (hsp : S'.sp = .ptr 0 0)
     (h29 : S'.reg .X29 = some (.ptr 0 29280))
     {a n : Nat} (h0 : S'.reg .X0 = some (.ptr 0 a)) (h2 : S'.reg .X2 = some (.lit n))
@@ -146,7 +149,7 @@ theorem step_memset (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) 
 /-- **A block, then `memcpy`**, on facts. -/
 theorem step_memcpy (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {ds : List Directive} {j : Nat} (hk : ds.IsInfixAt Sphincs.SphincsVerify.code j)
-    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call "memcpy"))
+    {known : List (XReg × Sym)} {S' : SState} (hx : exec ds (fs known) = some (S', .call NativeRustcArm.Common.Memcpy.entryLabel))
     (hw : Run.frameWrites S' = true) (hsp : S'.sp = .ptr 0 0)
     (h29 : S'.reg .X29 = some (.ptr 0 29280))
     {a b n : Nat} (h0 : S'.reg .X0 = some (.ptr 0 a)) (h1 : S'.reg .X1 = some (.ptr 0 b))

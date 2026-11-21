@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmArm.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Evaluate.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.Tables.TableTerms.Read
 public import NativeRustcVmArm.Tables.TableTerms.Cons
 public import NativeRustcVmArm.Tables.TableTerms.Next
@@ -25,20 +31,20 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 
 /-- The callees' contracts. -/
 structure Callees : Prop where
-  rs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s)
-  cw : Spec (Labels.label constraintsWLabel) ConstraintsWPre ConstraintsWPost
-  dot : Spec (Labels.label dotLabel) DotPre DotPost
-  ev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f)
-  ext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30)
-  mul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost
+  rs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s)
+  cw : Spec (Labels.label NativeRustcVmArm.Vm.ConstraintsW.entryLabel) ConstraintsWPre ConstraintsWPost
+  dot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost
+  ev : ∀ f, Spec (Labels.label NativeRustcVmArm.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f)
+  ext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30)
+  mul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost
 
 /-- **Table `i`**, from the head before it. -/
 theorem body (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6) (C : Callees) {i : Nat} (hi : i < 6)
     (contL : i + 1 < 6 → ∀ acc si m, Head a s heights forms m0 (i + 1) acc si m →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 23)⟩)
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b1Offset)⟩)
     (acc : Acc) (si : TState) (m : MachineData) (H : Head a s heights forms m0 i acc si m) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 23)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b1Offset)⟩ := by
   obtain ⟨c, f, o⟩ := acc
   have hc : c = cursorAt i := H.cur
   subst hc
@@ -60,7 +66,7 @@ theorem body (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
 theorem loop (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6) (C : Callees) :
     ∀ n i, i + n = 5 → ∀ acc si m, Head a s heights forms m0 i acc si m →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 23)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b1Offset)⟩ := by
   intro n
   induction n with
   | zero => exact fun i hi ↦ body hp h hh hf C (by omega) fun h' ↦ absurd h' (by omega)

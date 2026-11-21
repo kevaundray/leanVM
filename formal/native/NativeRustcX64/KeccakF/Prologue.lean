@@ -26,10 +26,10 @@ set_option linter.unusedSimpArgs false in
 /-- **The prologue.** -/
 theorem prologue_step {k : Nat} (hp : Placed Common.KeccakF.code k) {m0 : MachineData}
     (hpre : KeccakFPre m0) :
-    Eventually (step1 Host.exe) (fun st => At m0 0 st.data ∧ st.pc = Host.addrOf (k + 79))
+    Eventually (step1 Host.exe) (fun st => At m0 0 st.data ∧ st.pc = Host.addrOf (k + NativeRustcX64.Common.KeccakF.b1Offset))
       ⟨m0, Host.addrOf k⟩ := by
   obtain ⟨hstk, -, hmap, hnw, hap, -⟩ := hpre
-  have hk : Common.KeccakF.b0.IsInfixAt Host.prog (k + 0) :=
+  have hk : Common.KeccakF.b0.IsInfixAt Host.prog (k + NativeRustcX64.Common.KeccakF.b0Offset) :=
     Common.KeccakF.b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env := Env.ofMachine m0 [(frame m0, 248), (m0.regs.get64 .rdi, 200)]
   have hwf : env.WF :=

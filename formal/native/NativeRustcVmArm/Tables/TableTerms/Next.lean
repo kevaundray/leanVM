@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Tables.TableTerms.Ext
 
 /-!
@@ -66,7 +67,7 @@ variable [Host] {k : Nat} {a : DecArea}
 
 /-- **The product** (`b12`, `EW::mul`). -/
 theorem mul_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
     {i : Nat} (hi : i < 6) {f : EW} {o : Array (Array EW × Array EW)} {s' : TState}
     {xs : Array EW} {m : MachineData} (H : It a m0 i o xs s' m)
     (hw : FW m0 m (Lt m0 i f (smC m0 i xs)))
@@ -81,8 +82,8 @@ theorem mul_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
         m2.regs.getXReg r = m.regs.getXReg r) →
       Fr m0 288 N slots [] (outs m0) m2 →
       ewRet m2 = wt m0 i * (smC m0 i xs + smF forms m0 i xs) →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 112)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 104)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b13Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b12Offset)⟩ := by
   have hS := Pre.stack h
   have hN := spN h
   have c0 := ctx h
@@ -137,8 +138,8 @@ theorem mul_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     rw [show st.data.regs.X3 = UInt64.ofBitVec (rg st.data .X3) from rfl, this, ew_add_c1,
       show UInt64.ofBitVec ((E0 m0 m).regs .X25) = m.regs.X25 from rfl, x25, UInt64.xor_comm]
   have hle := mul_le
-  have hpc' : st.pc = Labels.label ewMulLabel ∧ retOf st.data = Host.addrOf (k + 112) :=
-    ⟨hpc.1, hpc.2.trans (addr_eq (by rw [len_b12]))⟩
+  have hpc' : st.pc = Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b13Offset) :=
+    ⟨hpc.1, hpc.2.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b12_next]))⟩
   refine Bus.Gkr.Fr.callSpec hfr1 hN hle (fun _ h ↦ nomatch h) slots_le (outs_frame h) hmul
     hpc' (hfr1.stackOk hS rfl hle)
     (fun m' hq ↦ ⟨NativeRustcVm.SameOutside.mono hq.2.2.1 fun _ h ↦ .inl h, hq.2.2.2⟩)
@@ -165,7 +166,7 @@ theorem mul_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
 /-- **The end of table `i`** (`b12`, `EW::mul`, `b13`). -/
 theorem next_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {i : Nat} (hi : i < 6) {f : EW} {o : Array (Array EW × Array EW)} {si s' : TState}
     {xs : Array EW} (hrun : preRun heights forms m0 i s = some ((cursorAt i, f, o), si))
     (hr : (readScalars (tb i).width).run si = some (xs, s')) (hosz : o.size = i)
@@ -176,10 +177,10 @@ theorem next_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (x24 : m.regs.X24 = (smF forms m0 i xs).c0) (x25 : m.regs.X25 = (smF forms m0 i xs).c1)
     (hpt : BufEWAt m.dmem (evi m0 i) 30 (pti heights m0 i).toList)
     (contL : i + 1 < 6 → ∀ m', Head a s heights forms m0 (i + 1) (accN heights forms m0 i f o xs)
-      s' m' → Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m', Host.addrOf (k + 23)⟩)
+      s' m' → Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b1Offset)⟩)
     (contE : i = 5 → ∀ m', Head a s heights forms m0 6 (accN heights forms m0 i f o xs) s' m' →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m', Host.addrOf (k + 122)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + 104)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b14Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b12Offset)⟩ := by
   have hS := Pre.stack h
   refine mul_step hp h hmul hi H hw x19 x28 x23 x24 x25 hpt
     fun m2 It2 fw2 pt2 g2 hfr2 hprod ↦ ?_
@@ -272,7 +273,7 @@ theorem next_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     simp only [hd, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc3
     have e6 : i + 1 = 6 := by omega
     rw [e6] at Hn
-    exact Bus.Gkr.at_pc (hpc3.trans (addr_eq (by rw [len_b13]))) (contE h5 st3.data Hn)
+    exact Bus.Gkr.at_pc (hpc3.trans (addr_eq (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableTerms.b13_next]))) (contE h5 st3.data Hn)
   · have hd : decide (i = 5) = false := decide_eq_false h5
     simp only [hd, Bool.not_false, ↓reduceIte] at hpc3
     exact Bus.Gkr.at_pc (hpc3.trans (lbl_1 hp)) (contL (by omega) st3.data Hn)

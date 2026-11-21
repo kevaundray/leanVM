@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.Climb
+public import NativeRustcVmX64.Code.Vm.Climb.Names
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
 public meta import NativeRustcVmX64.Code.Vm.Climb
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -15,10 +17,10 @@ registers from `112`.
 
 - `entryS` at the entry (`b0`, the prologue, the node (region 1, RSI) copied to the accumulator;
   then `b1`, the loop's registers): region 1 the node;
-- `headS` at the loop head `.LClimb_2` (`b6`, then `b7` and `b3` or `b8`, `b11`, then `b4`, the
+- `headS` at the loop head `NativeRustcVmX64.Vm.Climb.label_2` (`b6`, then `b7` and `b3` or `b8`, `b11`, then `b4`, the
   call): region 1 the level's sibling, at `R15 + 8 R13` (`sibS`);
-- `retS` after `hash_pair` (`b5`, the new accumulator, then the head or `.LClimb_9`);
-- `exitS` at `.LClimb_9` (`b12`): region 1 the output, its address the word at `72`.
+- `retS` after `hash_pair` (`b5`, the new accumulator, then the head or `NativeRustcVmX64.Vm.Climb.label_9`);
+- `exitS` at `NativeRustcVmX64.Vm.Climb.label_9` (`b12`): region 1 the output, its address the word at `72`.
 -/
 
 namespace NativeRustcVmX64.Sumcheck.Climb
@@ -106,11 +108,11 @@ namespace NativeRustcVmX64.Sumcheck.Climb
 open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Vm.Climb NativeRustcVmX64.Transcript
 open NativeRustcVmX64.Sumcheck
 
-public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 ".LClimb_9") :=
+public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.Climb.label_9) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 public theorem ok_b0 : EntryOk (after b0 entryS) := by decide +kernel
 public theorem exit_b1 :
-    exec b1 (after b0 entryS) = some (after b1 (after b0 entryS), .jump ".LClimb_2") :=
+    exec b1 (after b0 entryS) = some (after b1 (after b0 entryS), .jump NativeRustcVmX64.Vm.Climb.label_2) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : EntryOk (after b1 (after b0 entryS)) ∧
     (after b1 (after b0 entryS)).reg .r12 = some (.reg .rdx) ∧
@@ -121,26 +123,26 @@ public theorem ok_b1 : EntryOk (after b1 (after b0 entryS)) ∧
     (after b1 (after b0 entryS)).reg .rbx = some (.ptr 0 40) := by
   decide +kernel
 
-public theorem exit_b6 : exec b6 headS = some (after b6 headS, .cond c6 ".LClimb_4") :=
+public theorem exit_b6 : exec b6 headS = some (after b6 headS, .cond c6 NativeRustcVmX64.Vm.Climb.label_4) :=
   run_b6.trans (by rw [after_eq run_b6]; rfl)
 public theorem exit_b7 :
-    exec b7 (after b6 headS) = some (after b7 (after b6 headS), .cond c7 ".LClimb_6") :=
+    exec b7 (after b6 headS) = some (after b7 (after b6 headS), .cond c7 NativeRustcVmX64.Vm.Climb.label_6) :=
   run_b7.trans (by rw [after_eq run_b7]; rfl)
 public theorem exit_b3 : exec b3 (after b7 (after b6 headS)) =
     some (after b3 (after b7 (after b6 headS)), .fall) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem exit_b4l : exec b4 (after b3 (after b7 (after b6 headS))) =
-    some (evenS, .call "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair") :=
+    some (evenS, .call NativeRustcVmX64.Vm.HashPair.entryLabel) :=
   run_b4l.trans (by
     rw [show evenS = after b4 (after b3 (after b7 (after b6 headS))) from rfl, after_eq run_b4l])
 public theorem exit_b8 : exec b8 (after b7 (after b6 headS)) =
-    some (after b8 (after b7 (after b6 headS)), .jump ".LClimb_7") :=
+    some (after b8 (after b7 (after b6 headS)), .jump NativeRustcVmX64.Vm.Climb.label_7) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem exit_b11 : exec b11 (after b8 (after b7 (after b6 headS))) =
-    some (after b11 (after b8 (after b7 (after b6 headS))), .jump ".LClimb_8") :=
+    some (after b11 (after b8 (after b7 (after b6 headS))), .jump NativeRustcVmX64.Vm.Climb.label_8) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem exit_b4r : exec b4 (after b11 (after b8 (after b7 (after b6 headS)))) =
-    some (oddS, .call "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair") :=
+    some (oddS, .call NativeRustcVmX64.Vm.HashPair.entryLabel) :=
   run_b4r.trans (by
     rw [show oddS = after b4 (after b11 (after b8 (after b7 (after b6 headS)))) from rfl,
       after_eq run_b4r])
@@ -151,7 +153,7 @@ public theorem ok_odd : CallOk oddS ∧ oddS.reg .rsi = some (.ptr 0 40) ∧
     oddS.reg .rdx = some (.ptr 0 8) := by
   decide +kernel
 
-public theorem exit_b5 : exec b5 retS = some (after b5 retS, .cond c5 ".LClimb_9") :=
+public theorem exit_b5 : exec b5 retS = some (after b5 retS, .cond c5 NativeRustcVmX64.Vm.Climb.label_9) :=
   run_b5.trans (by rw [after_eq run_b5]; rfl)
 public theorem ok_b5 : MidOk 160 8 slots (after b5 retS) = true ∧
     WordsW 0 8 (fun i ↦ .load 0 (80 + 8 * i) 8) (after b5 retS) ∧

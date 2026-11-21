@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWDuplex.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Spec.Transcript
 public import NativeRustcVmArm.Transcript.Squeeze.Exec
 
@@ -44,7 +46,7 @@ variable [Host] {k : Nat}
 
 /-- What the epilogue leaves, from `.LSpongeWSqueeze_2` with the frame. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 squeezeStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 11)) (hf : Frame m0 16 slots st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWSqueeze.b3Offset)) (hf : Frame m0 16 slots st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.regs.X0 = st.data.regs.X0 ∧
       st'.data.regs.X1 = st.data.regs.X1 ∧ st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
   have hfnw := frame_noWrap (m := m0) (F := 16) (by
@@ -65,8 +67,8 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 squeeze
 
 /-- **`SpongeW::squeeze` meets its contract.** -/
 theorem squeeze_spec (hp : Placed code k)
-    (hdup : ∀ sp, Spec (Labels.label duplexLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
-    Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp) := by
+    (hdup : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
+    Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp) := by
   rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
   set p := m0.regs.X0.toBitVec with hpdef
   have hQ : squeezeStack = 432 := rfl
@@ -83,8 +85,8 @@ theorem squeeze_spec (hp : Placed code k)
   have hm0 : Match (frameEnv m0 m0 16 [(p, 328)]) entryS m0 :=
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), rfl, nofun, trivial⟩
       frameBase_add.symm ⟨known_ptr rfl rfl, trivial⟩ trivial trivial trivial
-  unfold squeezeLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.SpongeWSqueeze.entryOffset) NativeRustcVmArm.Vm.SpongeWSqueeze.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   obtain ⟨hpro, hx0, hx1, hx19, hwt, hws⟩ := after_eq run_b0 ▸ ok_b0
   have hf1 : Frame m0 16 slots st1.data := Frame.of_prologue hwf0 hm1 hpro slots_le
@@ -121,7 +123,7 @@ theorem squeeze_spec (hp : Placed code k)
       load4_of_tag (Or.inr rfl) htag
     rw [htag4] at hpc1
     simp (config := { decide := true }) only [↓reduceIte] at hpc1
-    refine Eventually.mono (finish hp hst (hpc1.trans (hp.label (j := 11) rfl)) hf1)
+    refine Eventually.mono (finish hp hst (hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.SpongeWSqueeze.b3Offset) NativeRustcVmArm.Vm.SpongeWSqueeze.label_2_at)) hf1)
       fun st' ⟨hpc', hx0', hx1', hd', hsv'⟩ ↦ ⟨hpc', ?_, ?_, ?_, ?_, hsv'⟩
     · rw [hx0', squeeze_some hg]
       exact UInt64.toBitVec_inj.mp ((hm1.regs .X0 _ hx0).trans (load_ofMachine (o := 312) rfl hc.1))
@@ -145,7 +147,7 @@ theorem squeeze_spec (hp : Placed code k)
       match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
         (by rw [hf1.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf1
-      (hpc1.trans (by rw [show b0.length = 8 from rfl])) hm1' fun st2 hm2 hpc2 => ?_
+      (hpc1.trans (by change Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWSqueeze.b0Offset + NativeRustcVmArm.Vm.SpongeWSqueeze.b0.length) = Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWSqueeze.b1Offset); rw [Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWSqueeze.b0_next])) hm1' fun st2 hm2 hpc2 => ?_
     obtain ⟨hmid2, hmem2, hx0', hx19'⟩ := after_eq run_b1 ▸ ok_b1
     have hf2 : Frame m0 16 slots st2.data := Frame.of_block hf1 hwf1 hm2 hmid2 slots_le
     have hd2 : st2.data.dmem = st1.data.dmem := hm2.dmem_eq hwf1 hmem2
@@ -200,7 +202,7 @@ theorem squeeze_spec (hp : Placed code k)
         (by rw [hf3.sp]; exact (eval_ptr rfl).symm) ⟨known_ptr rfl hX19'', trivial⟩ trivial trivial
         trivial
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf3
-      (hpc3.trans (by rw [show b1.length = 2 from rfl])) hm3 fun st4 hm4 hpc4 => ?_
+      (hpc3.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWSqueeze.b1_next])) hm3 fun st4 hm4 hpc4 => ?_
     obtain ⟨hmid4, hmem4, hl0, hl1⟩ := after_eq run_b2 ▸ ok_b2
     have hf4 : Frame m0 16 slots st4.data := Frame.of_block hf3 hwf3 hm4 hmid4 slots_le
     have hd4 : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 hmem4
@@ -209,9 +211,9 @@ theorem squeeze_spec (hp : Placed code k)
       hws 0 (by simp)
     have hw1 : NativeRustcVm.WordAt st3.data.dmem (off p 8) (sp.duplex.state.toList[1]'(by simp)) :=
       hws 1 (by simp)
-    have hpc4' : st4.pc = Host.addrOf (k + 11) := by
+    have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWSqueeze.b3Offset) := by
       simp only [PcOk] at hpc4
-      rw [hpc4, show b2.length = 1 from rfl]
+      rw [hpc4, Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWSqueeze.b2_next]
     refine Eventually.mono (finish hp hst hpc4' hf4)
       fun st' ⟨hpc', hx0', hx1', hd', hsv'⟩ ↦ ⟨hpc', ?_, ?_, ?_, ?_, hsv'⟩
     · rw [hx0', squeeze_none hg, challengeOf_c0]

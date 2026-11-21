@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
 public import NativeRustcVmArm.Whir.InducedWeight.Inv
 
 /-!
@@ -30,14 +32,14 @@ theorem slice_get {m0 st : MachineData} (hfr : Fr m0 st) (hS : StackOk m0 induce
 variable [Host] {k : Nat}
 
 /-- **A turn of the product loop.** -/
-theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+theorem inner_step (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : InducedWeightPre m0) {j i : Nat} {st : MachineData}
     (hI : IInv m0 j i st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (Acc m0 j s.data ∧ s.pc = Host.addrOf (k + 46)) ∨
-        (IInv m0 j (i + 1) s.data ∧ s.pc = Host.addrOf (k + 70)))
-      ⟨st, Host.addrOf (k + 70)⟩ := by
+      (fun s ↦ (Acc m0 j s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b5Offset)) ∨
+        (IInv m0 j (i + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b9Offset)))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b9Offset)⟩ := by
   obtain ⟨hS, hqin, hwin, hpin, hout⟩ := hpre
   have hF : 1200 ≤ inducedWeightStack := by decide
   have hkle : 1200 + kmulStack ≤ inducedWeightStack := by decide
@@ -80,7 +82,7 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
           NativeRustcVm.addr_add_zero],
        trivial⟩
       trivial trivial trivial
-  have hk9 : b9.IsInfixAt Host.prog (k + 70) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk9 : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b9Offset) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk9 run_b9 hwf hm fun s1 hm1 hpc1 ↦ ?_
   have hb9 := after_eq run_b9 ▸ b9_keeps
   have hfr1 := hfr.of_regs hm hm1 hwf rfl hb9.1 hb9.2
@@ -112,8 +114,8 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   have hfr2 := hfr1.call hS hkle slots_le hsame2 hsv2
   have hk2 := keep_call hfr1 hkle hS hsame2
   -- `b10`: `kmul((1 ⊕ v), r₁)`
-  have hk10 : b10.IsInfixAt Host.prog (k + 75) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc2' : s2.pc = Host.addrOf (k + 75) := hpc2
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b10Offset) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc2' : s2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b10Offset) := hpc2
   refine exec_at hk10 run_b10 (Env.wf_nil _) hpc2' (match_nil _) fun s3 hm3 hpc3 ↦ ?_
   have hb10 := after_eq run_b10 ▸ b10_keeps
   have hfr3 := hfr2.of_regs (match_nil _) hm3 (Env.wf_nil _) rfl hb10.1 hb10.2
@@ -133,8 +135,8 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   have hfr4 := hfr3.call hS hkle slots_le hsame4 hsv4
   have hk4 := keep_call hfr3 hkle hS hsame4
   -- `b11`: the product times the factor
-  have hk11 : b11.IsInfixAt Host.prog (k + 79) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc4' : s4.pc = Host.addrOf (k + 79) := hpc4
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b11Offset) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc4' : s4.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b11Offset) := hpc4
   refine exec_at hk11 run_b11 (Env.wf_nil _) hpc4' (match_nil _) fun s5 hm5 hpc5 ↦ ?_
   have hb11 := after_eq run_b11 ▸ b11_keeps
   have hfr5 := hfr4.of_regs (match_nil _) hm5 (Env.wf_nil _) rfl hb11.1 hb11.2
@@ -178,8 +180,8 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   have hnext : prodOf m0 j (i + 1) = EW.mul (prodOf m0 j i) (indFactor c v) :=
     indProd_succ _ _ _ (by omega) hiw
   -- `b12`: count
-  have hk12 : b12.IsInfixAt Host.prog (k + 84) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc6' : s6.pc = Host.addrOf (k + 84) := hpc6
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b12Offset) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc6' : s6.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b12Offset) := hpc6
   refine exec_at hk12 run_b12 (Env.wf_nil _) hpc6' (match_nil _) fun s7 hm7 hpc7 ↦ ?_
   have hb12 := after_eq run_b12 ▸ b12_keeps
   have hfr7 := hfr6.of_regs (match_nil _) hm7 (Env.wf_nil _) rfl hb12.1 hb12.2
@@ -221,10 +223,10 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   by_cases hlast : lenOf m0 j - i = 1
   · simp only [hlast, BitVec.toNat_ofNat, Nat.one_mod, decide_true, Bool.not_true,
       Bool.false_eq_true, ↓reduceIte] at hpc7
-    have hk13 : b13.IsInfixAt Host.prog (k + 89) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
-    have hpc7' : s7.pc = Host.addrOf (k + 89) := hpc7
+    have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.InducedWeight.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hpc7' : s7.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InducedWeight.b13Offset) := hpc7
     refine exec_at hk13 run_b13 (Env.wf_nil _) hpc7' (match_nil _) fun s8 hm8 hpc8 ↦ .done _ (.inl ⟨?_,
-      by simp only [PcOk] at hpc8; rw [hpc8]; exact hp.label rfl⟩)
+      by simp only [PcOk] at hpc8; rw [hpc8]; exact hp.label (j := NativeRustcVmArm.Vm.InducedWeight.b5Offset) NativeRustcVmArm.Vm.InducedWeight.label_3_at⟩)
     have hb13 := after_eq run_b13 ▸ b13_keeps
     have hd8 : s8.data.dmem = s7.data.dmem := hm8.dmem_eq (Env.wf_nil _) hb13.2
     have r8 : ∀ r, s8.data.regs.getXReg r = s7.data.regs.getXReg r := fun r ↦
@@ -245,7 +247,7 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   · simp only [show ¬lenOf m0 j - i = 1 % 2 ^ 64 by simpa using hlast, BitVec.toNat_ofNat,
       decide_false, Bool.not_false, ↓reduceIte] at hpc7
     refine .done _ (.inr ⟨⟨hfr7, hsp7, ?_, ?_, ?_, ?_, hI.hj, x25, x26, ?_, ?_, ?_, by omega⟩,
-      hpc7.trans (hp.label rfl)⟩)
+      hpc7.trans (hp.label (j := NativeRustcVmArm.Vm.InducedWeight.b9Offset) NativeRustcVmArm.Vm.InducedWeight.label_6_at)⟩)
     · refine bufWords_keep hI.what (lo := 0) (hi := 1200) (by omega) (by omega) fun i' _ h2 ↦ ?_
       rw [hd7, hk6 i' (by omega) h2, hd5, hk4 i' (by omega) h2, hd3, hk2 i' (by omega) h2, hd1]
     · show (s7.data.regs.getXReg .X22).toNat = _

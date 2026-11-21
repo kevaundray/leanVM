@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Top.Leanvm.Checks
+public import NativeRustcVmX64.Code.Vm.Decode.Names
 
 /-!
 # `leanvm_verify`: the call to `decode` (x86-64)
@@ -58,10 +59,10 @@ theorem rc_len : (NativeRustcVm.Data.Item.bytes .keccakRC).length = 192 := by
 variable [Host] {k : Nat}
 
 /-- **The call to `decode`.** -/
-theorem decodeCall (hdec : Spec (Labels.label decodeLabel) DecodePre DecodePost)
+theorem decodeCall (hdec : Spec (Labels.label NativeRustcVmX64.Vm.Decode.entryLabel) DecodePre DecodePost)
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    {next : Int64} {env : NativeRustcX64.Sym.Env} (hpc : PcOk env (.call decodeLabel) next st)
+    {next : Int64} {env : NativeRustcX64.Sym.Env} (hpc : PcOk env (.call NativeRustcVmX64.Vm.Decode.entryLabel) next st)
     (hf : Frame m0 112 slots 0 st.data)
     (hs : NativeRustcVm.SameOutside m0.dmem st.data.dmem
       (NativeRustcVm.InRange (stackBelow m0 112) 112))

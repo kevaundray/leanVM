@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.WhirLevels.Mu
+public import NativeRustcVmX64.Code.Vm.NextLevel.Names
 
 /-!
 # `whir_levels`: `next_level`'s call (x86-64)
@@ -24,13 +25,13 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **`next_level`** at level `k`: `None` returned, or `Head (k + 1)` at the loop's head. -/
 theorem next_step (hp : Placed code k0)
-    (hnl : ∀ a s level w rounds, Spec (Labels.label nextLevelLabel)
+    (hnl : ∀ a s level w rounds, Spec (Labels.label NativeRustcVmX64.Vm.NextLevel.entryLabel)
       (NextLevelPre a s level w rounds) (NextLevelPost a s level w rounds))
     (c : Ctx a s0 levels ba b claim m0 rate) {k : Nat} {s : TState} {w : WhirStateW}
-    {rs : Array FoldRoundW} {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + 45))
+    {rs : Array FoldRoundW} {st : MachineState} (hpc : st.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b5Offset))
     (hmm : MidMu a s0 levels b claim m0 rate k s w rs st.data) (hk1 : k + 1 < levels.length) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s0 levels b claim m0 st' ∨
-      (st'.pc = Host.addrOf (k0 + 27) ∧
+      (st'.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b1Offset) ∧
         ∃ s' w', Head a s0 levels b claim m0 (k + 1) s' w' st'.data)) st := by
   have hm := hmm.mid
   have hl := hm.loop
@@ -43,7 +44,7 @@ theorem next_step (hp : Placed code k0)
     omega
   have hin2 := whirIn_sub (o := levelBytes * k) (k := 2 * levelBytes) c.lin hlv2
   let base := lvA m0 + BitVec.ofNat 64 (levelBytes * k)
-  let env := frameEnv m0 st.data 112 [(base, 48)] (fun _ ↦ 0) (Host.addrOf (k0 + 55)).toBitVec
+  let env := frameEnv m0 st.data 112 [(base, 48)] (fun _ ↦ 0) (Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b6Offset)).toBitVec
   have hwf : env.WF := c.wf hl.fr.frame.kept (fun x hx ↦ by
       rw [List.mem_singleton] at hx; subst hx
       exact ⟨Mapped.keeps hin2.1.1 hl.fr.frame.kept, hin2.1.2⟩)
@@ -150,7 +151,7 @@ theorem next_step (hp : Placed code k0)
     · rw [hdx, ht]; exact apart_sub c.lt c.lin.1.2 hlv
     · rw [ht]; exact hargT
     · rw [hpa]; exact hargP
-  rw [show k0 + 45 + b5.length = k0 + 55 from rfl] at hpc2
+  rw [show k0 + NativeRustcVmX64.Vm.WhirLevels.b5Offset + b5.length = k0 + NativeRustcVmX64.Vm.WhirLevels.b6Offset from rfl] at hpc2
   refine call_then hpc2 (hnl a s _ w rs) hpre fun st3 hpc3 hrsp3 hq ↦ ?_
   obtain ⟨hok, hnext, hwa', hch, hsv⟩ := hq
   have hrs : ∀ q, NativeRustcVm.InAny [⟨stackArg st2.data 0, whirBytes⟩,
@@ -194,7 +195,7 @@ theorem next_step (hp : Placed code k0)
   · rw [hres] at hal
     simp only [hal, okWord, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, UInt64.toNat_zero,
       decide_true, Bool.not_true] at hpc4
-    rw [show k0 + 55 + b6.length = k0 + 58 from rfl] at hpc4
+    rw [show k0 + NativeRustcVmX64.Vm.WhirLevels.b6Offset + b6.length = k0 + NativeRustcVmX64.Vm.WhirLevels.b7Offset from rfl] at hpc4
     rw [hres] at hrun
     exact Eventually.mono (none_exit hp c hf4 hpc4 hrun) fun _ h ↦ Or.inl h
   · rw [hres] at hal
@@ -207,7 +208,7 @@ theorem next_step (hp : Placed code k0)
     rw [hres] at hrun
     have e4 : ∀ {r : Reg64} {v : Sym}, (after b6 retS).reg r = some v →
         reg st4.data r = v.eval env3 := fun h ↦ hm4.regs _ _ h
-    refine .done _ (Or.inr ⟨hpc4.trans (hp.label (j := 27) rfl), s', w',
+    refine .done _ (Or.inr ⟨hpc4.trans (hp.label NativeRustcVmX64.Vm.WhirLevels.label_1_at), s', w',
       ⟨hf4, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, hk1, ?_, ?_, ?_, ?_⟩)
     · rw [e4 krbx']
       show reg st3.data .r14 = _

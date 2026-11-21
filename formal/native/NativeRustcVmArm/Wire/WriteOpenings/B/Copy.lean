@@ -45,7 +45,7 @@ theorem b29_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : Fou
   have hwf2 := G.wf0 hfr1.kept
   have hm2 := frMatch G hfr1
   by_cases h4 : 4 ≤ R.lw
-  · simp only [h4, decide_true, ↓reduceIte, hp.label (j := 167) rfl] at hpc1
+  · simp only [h4, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b31Offset) NativeRustcVmArm.Vm.WriteOpenings.label_27_at] at hpc1
     refine run_block G hp b31_in_code (by simp [b31]) run_b31 hfr1 hpc1 hwf2 hm2 rfl
       (writesOk_frame (by decide)) fun s2 hfr2 hm2' hpc2 ↦ ?_
     have hd2 : s2.data.dmem = s1.data.dmem := hm2'.dmem_eq hwf2 rfl
@@ -67,7 +67,7 @@ theorem b29_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : Fou
       fun s2 hfr2 hm2' hpc2 ↦ ?_
     have hd2 : s2.data.dmem = s1.data.dmem := hm2'.dmem_eq hwf2 rfl
     have hk2 := regs_keep hm2 hm2' (rs := .X13 :: rbRegs) (by decide)
-    simp only [PcOk, hp.label (j := 181) rfl] at hpc2
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b34Offset) NativeRustcVmArm.Vm.WriteOpenings.label_30_at] at hpc2
     refine .done _ (.inr ⟨hpc2, C1.keep hfr2 hd2 fun r hr ↦ hk2 r (List.mem_cons_of_mem _ hr),
       by rw [hk2 .X13 (by simp), hk1 .X13 (by simp)]; exact H.x13, ?_, H.lw0⟩)
     rw [hm2'.regs .X15 _ rfl]

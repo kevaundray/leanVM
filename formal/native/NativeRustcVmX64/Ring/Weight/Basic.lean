@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Ring.Weight.Exec
 public import NativeRustcVmX64.Ring.Weight.Model
 public import NativeRustcVmX64.Ring.Stack
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `ring_weight`: its layout, its values, its steps (x86-64)
@@ -129,7 +130,7 @@ theorem JOk.spec {ds : List Directive} {T T' : SState} {x : Exit} {sizes : List 
 
 theorem COk.spec {ds : List Directive} {T T' : SState} {sizes : List Nat}
     {L LW : List (Nat × Sym)} (h : COk ds T T' sizes L LW = true) :
-    exec ds T = some (after ds T, .call ewMulLabel) ∧
+    exec ds T = some (after ds T, .call NativeRustcVmX64.Vm.EWMul.entryLabel) ∧
       (after ds T).mem.all (writeOk 672 sizes fun _ ↦ false) = true ∧
       (after ds T).reg .rsp = some (.ptr 0 0) ∧
       rlinks true (after ds T) T' = some L ∧ wlinks (after ds T) T'.mem = some LW := by
@@ -314,7 +315,7 @@ theorem jcond (hp : Placed code k) {rs : List (BitVec 64 × Nat)} {wr : Nat → 
 
 /-- **A block and its call of `EW::mul`**, the product in RAX, RDX (`hres`), the invariant
 carried through the block and the callee (`hI`). -/
-theorem mstep (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem mstep (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {rs : List (BitVec 64 × Nat)} (h : Lay m0 672 NW rs) {ds : List Directive} {off next : Nat}
     (hds : ds.IsInfixAt code off) (hne : ds ≠ []) (hnext : off + ds.length = next) {T T' : SState}
     {vals vals' : Nat → BitVec 64} {L LW : List (Nat × Sym)}

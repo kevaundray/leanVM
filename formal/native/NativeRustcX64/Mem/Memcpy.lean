@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+
 public import NativeRustcX64.Mem.MemcpyBlocks
 
 /-!
@@ -30,7 +32,7 @@ abbrev len : Nat := (m.regs.get64 .rdx).toNat
 
 /-- `memcpy` done, at `.LMemcpy_7`. -/
 structure Done (k : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 30)
+  pc : st.pc = Host.addrOf (k + NativeRustcX64.Common.Memcpy.b8Offset)
   rax : st.data.regs.get64 .rax = dst m
   rsp : st.data.regs.get64 .rsp = rspOf m
   saved : Saved m st.data
@@ -51,12 +53,12 @@ structure Loop (k i : Nat) (st : MachineState) : Prop where
 
 /-- The word loop's head after `i` bytes. -/
 structure WInv (k i : Nat) (st : MachineState) : Prop extends Loop m k i st where
-  pc : st.pc = Host.addrOf (k + 24)
+  pc : st.pc = Host.addrOf (k + NativeRustcX64.Common.Memcpy.b7Offset)
   i8 : i % 8 = 0
 
 /-- The byte loop's head after `i` bytes. -/
 structure BInv (k i : Nat) (st : MachineState) : Prop extends Loop m k i st where
-  pc : st.pc = Host.addrOf (k + 12)
+  pc : st.pc = Host.addrOf (k + NativeRustcX64.Common.Memcpy.b3Offset)
 
 /-- `memcpy`'s postcondition, reached. -/
 abbrev Post (st : MachineState) : Prop :=
@@ -235,7 +237,7 @@ theorem word_step (hp : Placed code k) (hpre : MemcpyPre m) (h8 : len m % 8 = 0)
     refine .done _ (Or.inr ⟨⟨hlt, hrax, hrsi, hrdx, hrcx, hrsp, hsaved, hc', hs'⟩, ?_,
       by have := hI.i8; omega⟩)
     rw [hpc']
-    exact hp.label (j := 24) rfl
+    exact hp.label NativeRustcX64.Common.Memcpy.label_6_at
   · rename_i hc
     have hn : i + 8 = len m := by
       rw [hce] at hc
@@ -331,7 +333,7 @@ theorem byte_step (hp : Placed code k) (hpre : MemcpyPre m) {i : Nat} {st : Mach
       omega
     refine .done _ (Or.inr ⟨⟨hlt, hrax, hrsi, hrdx, hrcx, hrsp, hsaved, hc', hs'⟩, ?_⟩)
     rw [hpc']
-    exact hp.label (j := 12) rfl
+    exact hp.label NativeRustcX64.Common.Memcpy.label_3_at
   · rename_i hc
     have hn : i + 1 = len m := by
       rw [hce] at hc
@@ -344,7 +346,7 @@ theorem byte_step (hp : Placed code k) (hpre : MemcpyPre m) {i : Nat} {st : Mach
     refine Eventually.mono (finish hp hpre ⟨?_, ?_, ?_, ?_, ?_, ?_⟩) fun _ h => Or.inl h
     · simp only [PcOk] at hpc''
       rw [hpc'']
-      exact hp.label (j := 30) rfl
+      exact hp.label NativeRustcX64.Common.Memcpy.label_7_at
     · exact (keep (match_nil _) hm'' .rax rfl rfl).trans hrax
     · exact (keep (match_nil _) hm'' .rsp rfl rfl).trans hrsp
     · exact hsaved.trans (Match.saved (match_nil _) hm'' (Env.wf_nil _) rfl (by decide))
@@ -371,9 +373,9 @@ theorem byte_loop (hp : Placed code k) (hpre : MemcpyPre m) {i : Nat} {st : Mach
     ⟨i, rfl, hI⟩
 
 /-- **`memcpy` meets its contract.** -/
-theorem memcpy_spec (hp : Placed code k) : Spec (label "memcpy") MemcpyPre MemcpyPost := by
+theorem memcpy_spec (hp : Placed code k) : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost := by
   intro m hpre
-  rw [hp.label (j := 0) rfl]
+  rw [hp.label NativeRustcX64.Common.Memcpy.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) e0 (Env.wf_nil m)
     (fun _ h => nomatch h) (match_nil m) fun st0 hm0 hpc0 => ?_
   have hd0 : st0.data.dmem = m.dmem := hm0.dmem_eq (Env.wf_nil _) rfl
@@ -413,7 +415,7 @@ theorem memcpy_spec (hp : Placed code k) : Spec (label "memcpy") MemcpyPre Memcp
       st0.data.regs.get64 .rdx = m.regs.get64 .rdx ∧ st0.data.regs.get64 .rsp = rspOf m ∧
       Saved m st0.data ∧ st0.data.dmem = m.dmem := ⟨hax, hx1, hx2, hsp, hs0, hd0⟩
   /- The length zero: done. -/
-  have zero {st : MachineState} (hpc : st.pc = Host.addrOf (k + 30)) (hn : len m = 0)
+  have zero {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Common.Memcpy.b8Offset)) (hn : len m = 0)
       (hst : st.data.regs.get64 .rax = dst m ∧ st.data.regs.get64 .rsi = src m ∧
         st.data.regs.get64 .rdx = m.regs.get64 .rdx ∧ st.data.regs.get64 .rsp = rspOf m ∧
         Saved m st.data ∧ st.data.dmem = m.dmem) :
@@ -442,12 +444,12 @@ theorem memcpy_spec (hp : Placed code k) : Spec (label "memcpy") MemcpyPre Memcp
     rename_i hal
     have h8 : len m % 8 = 0 := align_or hal
     refine step (infix_of b5_in_code (by simp [b5]) hp) e5 (fun _ h => nomatch h) rfl rfl rfl
-      rfl rfl (by decide) (hpc0.trans (hp.label (j := 19) rfl)) hst0 fun st5 hm5 hpc5 hst5 => ?_
+      rfl rfl (by decide) (hpc0.trans (hp.label NativeRustcX64.Common.Memcpy.label_4_at)) hst0 fun st5 hm5 hpc5 hst5 => ?_
     simp only [PcOk] at hpc5
     split at hpc5
     · rename_i hc
       rw [hz hst0.2.2.1] at hc
-      exact zero (hpc5.trans (hp.label (j := 30) rfl)) (by simpa using hc) hst5
+      exact zero (hpc5.trans (hp.label NativeRustcX64.Common.Memcpy.label_7_at)) (by simpa using hc) hst5
     · rename_i hc
       rw [hz hst0.2.2.1] at hc
       have hn : len m ≠ 0 := by simpa using hc
@@ -466,7 +468,7 @@ theorem memcpy_spec (hp : Placed code k) : Spec (label "memcpy") MemcpyPre Memcp
     split at hpc1
     · rename_i hc
       rw [hz hst0.2.2.1] at hc
-      exact zero (hpc1.trans (hp.label (j := 30) rfl)) (by simpa using hc) hst1
+      exact zero (hpc1.trans (hp.label NativeRustcX64.Common.Memcpy.label_7_at)) (by simpa using hc) hst1
     · rename_i hc
       rw [hz hst0.2.2.1] at hc
       have hn : len m ≠ 0 := by simpa using hc

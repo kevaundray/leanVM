@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcX64.Code.Common.KeccakF.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.Hasher.UpdateLoop
 
 /-!
@@ -65,9 +69,9 @@ variable [Host] {k : Nat}
 set_option linter.unusedSimpArgs false in
 /-- **`Hasher::update` meets its contract.** -/
 theorem update_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost) :
-    Spec (Labels.label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") UpdatePre
+    (hmemcpy : Spec (Labels.label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hkf : Spec (Labels.label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost) :
+    Spec (Labels.label NativeRustcX64.Common.Update.entryLabel) UpdatePre
       UpdatePost := by
   intro m0 hpre
   have g := geo_of hpre

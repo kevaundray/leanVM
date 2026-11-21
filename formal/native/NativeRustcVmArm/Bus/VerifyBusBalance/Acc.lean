@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Common
 public import NativeRustcVm.Bus.SideFits
 public import NativeRustcVmArm.Bus.BusLayout.Model
@@ -194,11 +195,11 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData}
 frame: the output at `o`, the side's layout at `ol`, the blocks the read-only data's `it`, the
 fingerprints (`n` of them) at X7, the weights at `wa`, the point at `3136`. -/
 theorem acc_call (h : VerifyBusBalancePre a s0 L m0)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label accumulateSideLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel ∧ retOf st.data = next)
     {side : Nat} (hside : side < 3) {it : NativeRustcVm.Data.Item}
     (hit : it.bytes = (sideBlocks side).flatMap NativeRustcVm.Data.Block.bytes)
     {o ol : Nat} (ho : o + 24 ≤ 5392) (hol : ol + 888 ≤ 5392)

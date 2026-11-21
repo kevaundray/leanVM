@@ -92,8 +92,8 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} (h
     (hdx : Run.RegIs m .rdx (BitVec.ofNat 64 i)) (h12 : Run.RegIs m .r12 (r.off 112))
     (cont : ∀ m', Keep r (r.chainSlots ++ [(1080, 16 * (i + 1), r.endsPre i ++ e)]) m' →
       Run.RegIs m' .rdx (BitVec.ofNat 64 (i + 1)) → Run.RegIs m' .r12 (r.off 112) →
-      Eventually (step1 Host.exe) R ⟨m', if i + 1 = 58 then r.pc 525 else r.pc 177⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 168⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', if i + 1 = 58 then r.pc NativeRustcX64.Xmss.WotsLeaf.b51Offset else r.pc NativeRustcX64.Xmss.WotsLeaf.b15Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b14Offset⟩ := by
   have hF := hK.1
   obtain ⟨⟨hEl0, -, hE⟩, -⟩ := allOf_right (allOf_left hK.2)
   have hEl : (r.endsPre i).length = 16 * i := hEl0
@@ -108,7 +108,7 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} (h
   obtain ⟨m3, w3⟩ := r.frame_mapped hpre hF (a := 1080 + 16 * i) (n := 16) (by omega)
   obtain ⟨m1, w1⟩ := r.slot_mapped hpre hF.2.2.2
   have hwf : (Env.ofMachine m (r.regions14 i) (fun _ ↦ 0)
-      (r.pc (168 + b14.length)).toBitVec).WF := by
+      (r.pc (NativeRustcX64.Xmss.WotsLeaf.b14Offset + b14.length)).toBitVec).WF := by
     refine Env.wf_of ⟨⟨m0, w0⟩, ⟨m1, w1⟩, ⟨m2, w2⟩, ⟨m3, w3⟩, trivial⟩ ?_
     refine List.Pairwise.cons ?_ (List.Pairwise.cons ?_ (List.Pairwise.cons ?_
       (List.pairwise_singleton _ _)))
@@ -116,7 +116,7 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} (h
       intro x hx
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
       rcases hx with rfl | rfl | rfl <;> (unfold Apart; dsimp only; omega)
-  have hm : Match (Env.ofMachine m (r.regions14 i) (fun _ ↦ 0) (r.pc (168 + b14.length)).toBitVec)
+  have hm : Match (Env.ofMachine m (r.regions14 i) (fun _ ↦ 0) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b14Offset + b14.length)).toBitVec)
       s14 m := by
     refine match_ofMachine ⟨rfl, rfl, rfl, rfl, trivial⟩ ⟨?_, trivial⟩ trivial trivial
       ⟨?_, ?_, trivial⟩
@@ -127,7 +127,7 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} (h
       rw [off_add_ofInt 0 (b := 456) (by simp), off_add_ofInt 456 (b := 456) (by simp)]
     · show BinOp.apply .add .W64 (r.off 0 + BitVec.ofInt 64 0)
         ((Env.ofMachine m (r.regions14 i) (fun _ ↦ 0)
-          (r.pc (168 + b14.length)).toBitVec).load 2 0 8) =
+          (r.pc (NativeRustcX64.Xmss.WotsLeaf.b14Offset + b14.length)).toBitVec).load 2 0 8) =
           r.off (1080 + 16 * i) + BitVec.ofInt 64 (-1080)
       rw [Env.load_of_bytesAt (length_regBytes _) (by rw [BitVec.add_zero]; exact h456),
         ofInt_regBytes, off_add_ofInt 0 (b := 0) (by simp),
@@ -167,7 +167,7 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {i : Nat} (h
     simp only [BinOp.apply, low_W64, ext_W64]
     rw [BitVec.ofNat_add]
   have hc : (SBool.cmp .eq .W64 (.bin .add .W64 (.reg .rdx) (.lit 1)) (.lit 58)).eval
-      (Env.ofMachine m (r.regions14 i) (fun _ ↦ 0) (r.pc (168 + b14.length)).toBitVec) =
+      (Env.ofMachine m (r.regions14 i) (fun _ ↦ 0) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b14Offset + b14.length)).toBitVec) =
         decide (i + 1 = 58) := by
     show CmpOp.apply .eq .W64 (BinOp.apply .add .W64 (m.regs.get64 .rdx) (BitVec.ofNat 64 1))
       (BitVec.ofNat 64 58) = _

@@ -59,9 +59,9 @@ theorem exit_b37 (hp : Placed code k)
     {R : MachineState → Prop} {st : MachineData} (hf : OFr m0 O st)
     (cont : ∀ m', m'.regs.X0 = st.regs.X0 → m'.dmem = st.dmem → Saved m0 m' →
       R ⟨m', retOf m0⟩) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 167)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b37Offset)⟩ := by
   obtain ⟨hwf, hm⟩ := h.frame_envO hf
-  have hk37 : b37.IsInfixAt Host.prog (k + 167) := b37_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk37 : b37.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b37Offset) := b37_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk37 run_b37 hwf hm fun st1 hm1 hpc1 ↦ Eventually.done _ ?_
   obtain ⟨hret, hsaved⟩ := Ring.Fr.exit hf hm1 hwf (by decide)
   have hpc : st1.pc = retOf m0 := hpc1.trans hret
@@ -75,12 +75,12 @@ theorem fail_b36 (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0)
     {R : MachineState → Prop} {st : MachineData} (hf : OFr m0 O st)
     (cont : ∀ m', m'.regs.X0 = 0 → m'.dmem = st.dmem → Saved m0 m' → R ⟨m', retOf m0⟩) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 165)⟩ := by
-  have hk36 : b36.IsInfixAt Host.prog (k + 165) := b36_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b36Offset)⟩ := by
+  have hk36 : b36.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b36Offset) := b36_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine hf.regsBlock (st := ⟨st, _⟩) hk36 run_b36 rfl rfl rfl rfl
     fun st1 hf1 hd1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
-  have hb : b36.length = 2 := rfl
+  have hb : b36.length = NativeRustcVmArm.Vm.VerifyStackedOpening.b36Length := NativeRustcVmArm.Vm.VerifyStackedOpening.b36_length
   rw [hb] at hpc1
   obtain ⟨d1, pc1⟩ := st1
   simp only at hpc1

@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmArm.Code.Vm.TableSumcheck.Names
+public import NativeRustcVmArm.Code.Vm.TableTerms.Names
+public import NativeRustcVmArm.Code.Vm.TableWeights.Names
 public import NativeRustcVmArm.Tables.TableSumcheck.Sum
 public import NativeRustcVmArm.Tables.TableSumcheck.Terms
 
@@ -23,16 +27,16 @@ variable [Host] {k : Nat}
 
 /-- **`table_sumcheck` meets its contract.** -/
 theorem tableSumcheck_spec (hp : Placed code k)
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hw : Spec (Labels.label tableWeightsLabel) TableWeightsPre TableWeightsPost)
-    (htt : ∀ a s heights forms, Spec (Labels.label tableTermsLabel)
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.TableWeights.entryLabel) TableWeightsPre TableWeightsPost)
+    (htt : ∀ a s heights forms, Spec (Labels.label NativeRustcVmArm.Vm.TableTerms.entryLabel)
       (TableTermsPre a s heights forms) (TableTermsPost a s heights forms))
     {a : DecArea} {s : TState} {heights : Array Nat} {bus : BusResultW} :
-    Spec (Labels.label tableSumcheckLabel) (TableSumcheckPre a s heights bus)
+    Spec (Labels.label NativeRustcVmArm.Vm.TableSumcheck.entryLabel) (TableSumcheckPre a s heights bus)
       (TableSumcheckPost a s heights bus) := by
   intro m0 hpre
-  rw [show Labels.label tableSumcheckLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.TableSumcheck.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.TableSumcheck.entryOffset) NativeRustcVmArm.Vm.TableSumcheck.entry_at]
   have hpre' := hpre
   obtain ⟨hS, hrc, -, hts0, htok, -, -, -, -, hH, -⟩ := hpre'
   have cx : Ctx m0 m0.regs.X0.toBitVec a tableSumcheckStack 720 :=

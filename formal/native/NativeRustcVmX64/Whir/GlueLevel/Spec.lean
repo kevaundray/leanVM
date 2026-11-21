@@ -1,6 +1,11 @@
 module
 
 public import NativeRustcVmX64.Whir.GlueLevel.Exit
+public import NativeRustcVmX64.Code.Vm.BufEW230Extend.Names
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmX64.Code.Vm.BufU64x230Extend.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.GlueLevel.Names
 
 /-!
 # `glue_level` meets its contract (x86-64)
@@ -24,15 +29,15 @@ variable [Host] {k : Nat}
 
 /-- **`glue_level`'s contract.** -/
 theorem glueLevel_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hext30 : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hextU : Spec (Labels.label bufU64x230ExtendLabel) (BufU64ExtendPre 230)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hext30 : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hextU : Spec (Labels.label NativeRustcVmX64.Vm.BufU64x230Extend.entryLabel) (BufU64ExtendPre 230)
       (BufU64ExtendPost 230))
-    (hext230 : Spec (Labels.label bufEW230ExtendLabel) (BufEWExtendPre 230)
+    (hext230 : Spec (Labels.label NativeRustcVmX64.Vm.BufEW230Extend.entryLabel) (BufEWExtendPre 230)
       (BufEWExtendPost 230))
-    (s : WhirStateW) : Spec (Labels.label glueLevelLabel) (GlueLevelPre s) (GlueLevelPost s) := by
+    (s : WhirStateW) : Spec (Labels.label NativeRustcVmX64.Vm.GlueLevel.entryLabel) (GlueLevelPre s) (GlueLevelPost s) := by
   intro m0 hpre
-  rw [show Labels.label glueLevelLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.GlueLevel.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.GlueLevel.b0Offset) from hp.label NativeRustcVmX64.Vm.GlueLevel.entry_at]
   exact Eventually.bind (head_step hp hmul hpre) fun _ h3 ↦
     Eventually.bind (first_step hp hext30 hpre h3) fun _ h6 ↦
       Eventually.bind (second_step hp hextU hpre h6) fun _ h9 ↦

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Find.Names
 public import NativeRustcVmArm.Wire.WriteOpenings.Entry
 
 /-!
@@ -37,7 +38,7 @@ variable [Host]
 
 /-- **With levels** (`b1`): the queries' loop head at the first query. -/
 theorem b1_step (hp : Placed code R.k) (G : Geo R) {st : MachineState}
-    (hpc : st.pc = pcOf R 18) (E : Ent R st.data) (hh : 0 < R.h) :
+    (hpc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b1Offset) (E : Ent R st.data) (hh : 0 < R.h) :
     Eventually (step1 Host.exe) (HeadA R 0) st := by
   have hwf : (Env.ofMachine st.data [(base R.m0 176, 192)]).WF :=
     Env.wf_of ⟨⟨fun t ht ↦ E.fr.kept _ (G.args_mapped t ht), G.args_noWrap⟩, trivial⟩
@@ -87,7 +88,7 @@ theorem b1_step (hp : Placed code R.k) (G : Geo R) {st : MachineState}
 
 /-- **Without levels** (`b23`, then `b24` or `b38`): the epilogue. -/
 theorem b23_step (hp : Placed code R.k) (G : Geo R) {st : MachineState}
-    (hpc : st.pc = pcOf R 136) (E : Ent R st.data) (hh : R.h = 0) :
+    (hpc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b23Offset) (E : Ent R st.data) (hh : R.h = 0) :
     Eventually (step1 Host.exe) (Post R) st := by
   have hlw := G.lw64
   have hwf := G.wf0 E.fr.kept
@@ -104,7 +105,7 @@ theorem b23_step (hp : Placed code R.k) (G : Geo R) {st : MachineState}
   have hwf2 := G.wf0 hfr1.kept
   have hm2 := frMatch G hfr1
   by_cases hl : R.lw = 0
-  · simp only [hl, decide_true, ↓reduceIte, hp.label (j := 198) rfl] at hpc1
+  · simp only [hl, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b38Offset) NativeRustcVmArm.Vm.WriteOpenings.label_33_at] at hpc1
     refine run_block G hp b38_in_code (by simp [b38]) run_b38 hfr1 hpc1 hwf2 hm2 rfl
       (writesOk_frame (by decide)) fun s2 hfr2 hm2' hpc2 ↦ queryZ_loop (j := 0) hp G ?_
     have hk := regs_keep hm2 hm2' (rs := [.X1, .X2, .X3, .X5, .X19]) (by decide)
@@ -138,8 +139,8 @@ theorem b23_step (hp : Placed code R.k) (G : Geo R) {st : MachineState}
 
 /-- **From the entry**: the postcondition. -/
 theorem entry_spec (hp : Placed code R.k) (G : Geo R)
-    (hfind : Spec (Labels.label findLabel) FindPre FindPost) :
-    Eventually (step1 Host.exe) (Post R) ⟨R.m0, Host.addrOf (R.k + 0)⟩ :=
+    (hfind : Spec (Labels.label NativeRustcVmArm.Vm.Find.entryLabel) FindPre FindPost) :
+    Eventually (step1 Host.exe) (Post R) ⟨R.m0, Host.addrOf (R.k + NativeRustcVmArm.Vm.WriteOpenings.b0Offset)⟩ :=
   b0_step hp G (fun _ hpc E hh ↦ eventually_trans _ _ _ _ (b1_step hp G hpc E hh)
     fun _ H ↦ query_loop hp G hfind H) fun _ hpc E hh ↦ b23_step hp G hpc E hh
 

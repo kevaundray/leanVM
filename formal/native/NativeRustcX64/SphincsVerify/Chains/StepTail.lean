@@ -27,7 +27,7 @@ def StepCont (r : Run) (l : Nat) (x E : List UInt8) (i pos : Nat) (T : List UInt
   ∀ m', Keep r l x E i m' → Regs r m' (pos + 1) →
     BytesAt m'.dmem (r.off 184)
       ((Keccak.keccakF (Keccak.xorBlock (List.replicate 200 0) (Keccak.finalBlock T))).take 16) →
-    Eventually (step1 Host.exe) R ⟨m', if pos + 1 = 3 then r.pc 1892 else r.pc 1565⟩
+    Eventually (step1 Host.exe) R ⟨m', if pos + 1 = 3 then r.pc NativeRustcX64.Sphincs.SphincsVerify.b150Offset else r.pc NativeRustcX64.Sphincs.SphincsVerify.b119Offset⟩
 
 end
 
@@ -41,8 +41,8 @@ theorem seg_b149 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (hK : Keep r l x E i m) (h12 : Run.RegIs m .r12 (r.off 4096))
     (h64 : r.WordAt m 64 (pos + 1).toUInt64) (hA : BytesAt m.dmem (r.off 4096) A)
     (cont : ∀ m', Keep r l x E i m' → Regs r m' (pos + 1) → BytesAt m'.dmem (r.off 184) (A.take 16) →
-      Eventually (step1 Host.exe) R ⟨m', if pos + 1 = 3 then r.pc 1892 else r.pc 1565⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1881⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', if pos + 1 = 3 then r.pc NativeRustcX64.Sphincs.SphincsVerify.b150Offset else r.pc NativeRustcX64.Sphincs.SphincsVerify.b119Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b149Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) 0
   have hm := match_frameS hK.1 hK.2.1 (ret := 0) (k := []) trivial
   refine blk r hp b149_in_code (List.cons_ne_nil _ _) run_b149 hwf (fun _ h ↦ nomatch h) hm
@@ -72,9 +72,9 @@ theorem seg_b148 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hA0 : BytesAt m.dmem (r.off 4096) (List.replicate 200 0))
     (hblk : BytesAt m.dmem (r.off 2048) (T ++ List.replicate 72 0))
     (cont : StepCont r l x E i pos T R) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1842⟩ := by
-  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc 1881).toBitVec
-  have hm := match_frameS hK.1 hK.2.1 (ret := (r.pc 1881).toBitVec)
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b148Offset⟩ := by
+  have hwf := r.frame_wf hpre hK.1.2.2.2 (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b149Offset).toBitVec
+  have hm := match_frameS hK.1 hK.2.1 (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b149Offset).toBitVec)
     (k := [(.rbx, .lit 64), (.r12, .ptr 0 4096)]) ⟨known_lit hbx, known_ptr h12, trivial⟩
   refine blk r hp b148_in_code (List.cons_ne_nil _ _) run_b148 hwf (fun _ _ ↦ rfl) hm
     fun st hm' hpc ↦ ?_
@@ -100,7 +100,7 @@ theorem seg_b148 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have hlen : (Keccak.xorBlock (List.replicate 200 0) (Keccak.finalBlock T)).length = 200 :=
     Keccak.length_stateBytes _
   rw [← hlen, bytesOf_of_bytesAt hxor'] at hk2
-  exact pc_at (a := r.pc 1881) (by rw [hpc2]; rfl)
+  exact pc_at (a := r.pc NativeRustcX64.Sphincs.SphincsVerify.b149Offset) (by rw [hpc2]; rfl)
     (seg_b149 hp hpre hx hE hpos (by rw [Keccak.keccakF, Keccak.length_stateBytes]; decide) hK2
       (RegIs.of_saved hS rfl h12')
       (r.bytesAt_of_call hpre hK1.1 (a := 4096) (n := 200) (by decide) (by decide) hout

@@ -5,6 +5,12 @@ public import NativeRustcVmX64.Spec.Layout
 public import NativeRustcVmX64.Rodata
 public import NativeRustcVm.Tables.Rep
 public import NativeVm.Model.PublicInput
+public import NativeRustcVmX64.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmX64.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmX64.Code.Vm.TablePhase.Names
+public import NativeRustcVmX64.Code.Vm.TableSumcheck.Names
+public import NativeRustcVmX64.Code.Vm.TableTerms.Names
+public import NativeRustcVmX64.Code.Vm.TableWeights.Names
 
 /-!
 # The contracts of `tables.rs`'s functions on x86-64 (phases 4 and 5)
@@ -55,21 +61,6 @@ open NativeRustcVm.Tables
 open NativeRustcVm (wordsOf wordOf EWsAt)
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `table_weights`'s symbol. -/
-def tableWeightsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables13table_weights"
-/-- `table_terms`'s symbol. -/
-def tableTermsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables11table_terms"
-/-- `table_sumcheck`'s symbol. -/
-def tableSumcheckLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables14table_sumcheck"
-/-- `table_phase`'s symbol. -/
-def tablePhaseLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables11table_phase"
-/-- `table_column_claims`'s symbol. -/
-def tableColumnClaimsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables19table_column_claims"
-/-- `public_input_phase`'s symbol. -/
-def publicInputPhaseLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6tables18public_input_phase"
 
 /-! ## Stacks -/
 

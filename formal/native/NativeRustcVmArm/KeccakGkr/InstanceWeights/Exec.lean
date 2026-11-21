@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.InstanceWeights.Names
 public import NativeRustcArm.Sym
 public import NativeRustcVmArm.Code.Vm.InstanceWeights
 public import NativeRustcVmArm.KeccakGkr.InstanceWeights.Mask
@@ -61,7 +62,7 @@ theorem it_zero : it 0 = after b1 bodyS := rfl
 
 /-- **A turn of the loop**: back at the head but after the last. -/
 theorem loop_exec {j : Nat} (hj : j < 14) :
-    exec b2 (it j) = some (it (j + 1), .cond (.lit (j != 13)) ".LInstanceWeights_1") := by
+    exec b2 (it j) = some (it (j + 1), .cond (.lit (j != 13)) NativeRustcVmArm.Vm.InstanceWeights.label_1) := by
   show exec b2 (it j) = some (after b2 (it j), _)
   interval_cases j
   · rw [after_eq l0]; exact l0

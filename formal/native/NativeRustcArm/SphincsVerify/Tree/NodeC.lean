@@ -41,8 +41,8 @@ theorem length_nodeIn {l z : Nat} {e : List (List UInt8)} (hl : l < 3) (hz : z <
 /-- **`b162`, `b158`, `b165` and `memcpy`**: the clone. -/
 theorem nodeC (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN3 r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2499 ∧ AtN4 r l e z st.data)
-      ⟨m, r.pc 2413⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b166Offset ∧ AtN4 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b162Offset⟩ := by
   obtain ⟨hB, hz, hN, h22, h23, hZ, hSA, hZ88, hW, hC⟩ := h
   have hl := hB.1
   have hwf := r.frame_wf hpre hB.2.1 (fun _ ↦ 0)
@@ -83,7 +83,7 @@ theorem nodeC (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   obtain ⟨hcp, hout, hS⟩ := r.memcpy_out h0 h1 h2 hpost
   have hlen : (hbytes (r.seed ++ r.nodeAdrs l z) 48).length = 344 := by
     simp only [hbytes, List.length_append, List.length_replicate, hlT, length_wordBytes]
-  refine .done _ ⟨hpc'.trans (pc_after (n := 7) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b165_next),
     hB3.of_call hpre hS (by decide) (by decide) (by decide) hout, hz, hN3.of_saved hS, ?_,
     r.bytesAt_of_call hpre hB3.2.1 (by decide) (by decide) hout (by omega) (by omega) hC3⟩
   have := bytesOf_of_bytesAt hA3

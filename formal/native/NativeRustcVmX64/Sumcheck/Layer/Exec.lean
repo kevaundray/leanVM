@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.SumcheckOfVerifyLayer
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfVerifyLayer.Names
+public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly.Names
 public meta import NativeRustcVmX64.Code.Vm.SumcheckOfVerifyLayer
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -88,7 +92,7 @@ sym_block run_b13a := exec b13 (after b11 outS)
 sym_block run_b13b := exec b13 (after b12 outS)
 
 
-public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 ".LSumcheckOfVerifyLayer_8") :=
+public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.SumcheckOfVerifyLayer.label_8) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 public theorem ok_b0 : ProOk 192 8 slots (after b0 entryS) = true ∧
     (∀ w ∈ (after b0 entryS).mem, w.r = 0) ∧ WordW 0 16 (.reg .rdi) (after b0 entryS) ∧
@@ -112,12 +116,12 @@ public theorem ok_b1 : ProOk 192 8 slots (after b1 (after b0 entryS)) = true ∧
     (after b1 (after b0 entryS)).reg .r14 = some (.lit 0) := by
   decide +kernel
 
-public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .cond c2 ".LSumcheckOfVerifyLayer_3") :=
+public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .cond c2 NativeRustcVmX64.Vm.SumcheckOfVerifyLayer.label_3) :=
   run_b2.trans (by rw [after_eq run_b2]; rfl)
 public theorem ok_b2 : MidOk 192 8 slots (after b2 bodyS) = true ∧ (after b2 bodyS).mem = [] ∧
     Keeps (after b2 bodyS) [.rax, .rcx, .rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
-public theorem exit_b3 : exec b3 ptS = some (after b3 ptS, .jump ".LSumcheckOfVerifyLayer_5") :=
+public theorem exit_b3 : exec b3 ptS = some (after b3 ptS, .jump NativeRustcVmX64.Vm.SumcheckOfVerifyLayer.label_5) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 192 8 slots (after b3 ptS) = true ∧
     (∀ w ∈ (after b3 ptS).mem, w.r = 0 ∧ 48 ≤ w.off ∧ w.off + w.n ≤ 64) ∧
@@ -132,7 +136,7 @@ public theorem ok_b5 : MidOk 192 8 slots (after b5 bodyS) = true ∧ (after b5 b
     Keeps (after b5 bodyS) [.rax, .rcx, .rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
 public theorem exit_b6 : exec b6 bodyS = some (after b6 bodyS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState19sumcheck_round_poly") :=
+    .call NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.entryLabel) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : MidOk 192 0 slots (after b6 bodyS) = true ∧
     (∀ w ∈ (after b6 bodyS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 40 ≤ w.off ∧ w.off + w.n ≤ 48)) ∧
@@ -142,13 +146,13 @@ public theorem ok_b6 : MidOk 192 0 slots (after b6 bodyS) = true ∧
     (after b6 bodyS).reg .r8 = some (.ptr 0 40) ∧ (after b6 bodyS).reg .r9 = some (.reg .rbp) ∧
     Keeps (after b6 bodyS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
-public theorem exit_b7 : exec b7 bodyS = some (after b7 bodyS, .cond cAl ".LSumcheckOfVerifyLayer_6") :=
+public theorem exit_b7 : exec b7 bodyS = some (after b7 bodyS, .cond cAl NativeRustcVmX64.Vm.SumcheckOfVerifyLayer.label_6) :=
   run_b7.trans (by rw [after_eq run_b7]; rfl)
 public theorem ok_b7 : MidOk 192 8 slots (after b7 bodyS) = true ∧ (after b7 bodyS).mem = [] ∧
     Keeps (after b7 bodyS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
 public theorem exit_b8 : exec b8 bodyS = some (after b8 bodyS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW7squeeze") :=
+    .call NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk 192 0 slots (after b8 bodyS) = true ∧
     (∀ w ∈ (after b8 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -157,7 +161,7 @@ public theorem ok_b8 : MidOk 192 0 slots (after b8 bodyS) = true ∧
     Keeps (after b8 bodyS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
 public theorem exit_b9 : exec b9 slotS = some (after b9 slotS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9poly_eval") :=
+    .call NativeRustcVmX64.Vm.PolyEval.entryLabel) :=
   run_b9.trans (by rw [after_eq run_b9])
 public theorem ok_b9 : MidOk 192 0 slots (after b9 slotS) = true ∧
     (∀ w ∈ (after b9 slotS).mem, (w.r = 0 ∧ w.off + w.n ≤ 8) ∨ (w.r = 1 ∧ w.off + w.n ≤ 16)) ∧
@@ -168,7 +172,7 @@ public theorem ok_b9 : MidOk 192 0 slots (after b9 slotS) = true ∧
     Keeps (after b9 slotS) [.rbx, .rbp, .r12, .r13, .r14] = true := by
   decide +kernel
 public theorem exit_b10 : exec b10 bodyS =
-    some (after b10 bodyS, .cond c10 ".LSumcheckOfVerifyLayer_2") :=
+    some (after b10 bodyS, .cond c10 NativeRustcVmX64.Vm.SumcheckOfVerifyLayer.label_2) :=
   run_b10.trans (by rw [after_eq run_b10]; rfl)
 public theorem ok_b10 : MidOk 192 8 slots (after b10 bodyS) = true ∧ (after b10 bodyS).mem = [] ∧
     (after b10 bodyS).reg .rcx = some (.reg .rdx) ∧
@@ -177,7 +181,7 @@ public theorem ok_b10 : MidOk 192 8 slots (after b10 bodyS) = true ∧ (after b1
     Keeps (after b10 bodyS) [.rax, .rbx, .rbp, .r12] = true := by
   decide +kernel
 
-public theorem exit_b11 : exec b11 outS = some (after b11 outS, .jump ".LSumcheckOfVerifyLayer_9") :=
+public theorem exit_b11 : exec b11 outS = some (after b11 outS, .jump NativeRustcVmX64.Vm.SumcheckOfVerifyLayer.label_9) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem exit_b13a : exec b13 (after b11 outS) =
     some (after b13 (after b11 outS), .ret (.load 0 192 8)) :=

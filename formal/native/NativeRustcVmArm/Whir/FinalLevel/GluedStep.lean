@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.GluedEval.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Rotate
 
 /-!
@@ -147,15 +149,15 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **One glued claim.** -/
 theorem gstep (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hge : ∀ g, Spec (Labels.label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hge : ∀ g, Spec (Labels.label NativeRustcVmArm.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState} {i : Nat}
-    (hpc : st.pc = Host.addrOf (k + 446)) (hi : i < w.glued.size)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b29Offset)) (hi : i < w.glued.size)
     (h : GInv a level b w m0 st.data folded tail claim s5 i)
-    (next : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 446) → i + 1 < w.glued.size →
+    (next : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b29Offset) → i + 1 < w.glued.size →
       GInv a level b w m0 st'.data folded tail claim s5 (i + 1) →
       Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st')
-    (done : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 469) →
+    (done : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b33Offset) →
       GBase a level w m0 st'.data folded tail claim s5 →
       st'.data.regs.X21 = (weightAt m0.regs.X4.toNat b w tail w.glued.size).c0 →
       st'.data.regs.X23 = (weightAt m0.regs.X4.toNat b w tail w.glued.size).c1 →
@@ -178,7 +180,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hm1 := c.match1 (n := 24) hf (r := .X24) h.x24
   refine exec_at (inf hp b29_in_code (by simp [b29])) run_b29 hwf1 hpc hm1
     fun st1 hm1' hpc1 ↦ ?_
-  rw [show k + 446 + b29.length = k + 457 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b29Offset + b29.length = k + NativeRustcVmArm.Vm.FinalLevel.b30Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b29_next]] at hpc1
   have hf1 : FFr m0 st1.data := Fr.ofBlock hf hm1 hm1' hwf1 rfl rfl rfl (fun _ h ↦ by cases h)
   have hd1 : st1.data.dmem = st.data.dmem := hm1'.dmem_eq hwf1 rfl
   obtain ⟨hsc, hfs_lt, hfs, -⟩ := id hga
@@ -285,7 +287,7 @@ theorem gstep (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   simp only [PcOk] at hpc3
   rw [cbz_load (load_of_wordAt hopt.1)] at hpc3
   simp only [show ((1 : UInt64) == 0) = false from rfl, Bool.false_eq_true, ↓reduceIte,
-    show k + 457 + b30.length = k + 459 from rfl] at hpc3
+    show k + NativeRustcVmArm.Vm.FinalLevel.b30Offset + b30.length = k + NativeRustcVmArm.Vm.FinalLevel.b31Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b30_next]] at hpc3
   have hd3' : st3.data.dmem = m2.dmem := hd3
   -- `b31`: `EW::mul(g.scalar, value)`.
   set v := g.weight.eval (pt.extract g.foldStart pt.size)
@@ -363,11 +365,11 @@ theorem gstep (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   by_cases hn : i + 1 = w.glued.size
   · rw [← hn] at hpc6
     simp only [beq_self_eq_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-      show k + 464 + b32.length = k + 469 from rfl] at hpc6
+      show k + NativeRustcVmArm.Vm.FinalLevel.b32Offset + b32.length = k + NativeRustcVmArm.Vm.FinalLevel.b33Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b32_next]] at hpc6
     exact done st6 hpc6 hB6 (by rw [← hn]; exact y21) (by rw [← hn]; exact y23)
   · rw [beq_eq_false_iff_ne.mpr (ofNat_ne (pA m0) (x := 512 + 6064 * (i + 1))
       (y := 512 + 6064 * w.glued.size) (by omega) (by omega) (by omega))] at hpc6
-    simp only [Bool.not_false, ↓reduceIte, hp.label (j := 446) rfl] at hpc6
+    simp only [Bool.not_false, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b29Offset) NativeRustcVmArm.Vm.FinalLevel.label_18_at] at hpc6
     refine next st6 hpc6 (by omega) ⟨hB6, y21, y23, y24, ?_, ?_⟩
     · exact (congrArg UInt64.toBitVec ((hk6 .X27 rfl).trans (k5 .X27 (by simp [sRegs])))).trans
         h.x27

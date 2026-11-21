@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
+public import NativeRustcVmArm.Code.Vm.StackOffsets.Names
 public import NativeRustcVmArm.Layout.PlacementsOf.Entry
 
 /-!
@@ -123,11 +125,11 @@ end
 variable [Host] {k : Nat}
 
 /-- **`b8` to `b14`**: the offsets of the stacked columns; at `.L10`. -/
-theorem mid (hp : Placed code k) (hms : Spec (Labels.label "memset") MemsetPre MemsetPost)
-    (hso : Spec (Labels.label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost)
-    {m0 : MachineData} (hF : Facts m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 46))
+theorem mid (hp : Placed code k) (hms : Spec (Labels.label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hso : Spec (Labels.label NativeRustcVmArm.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost)
+    {m0 : MachineData} (hF : Facts m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b8Offset))
     (hI : I1 m0 158 158 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 69) ∧ I2 m0 0 s.data) st := by
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b15Offset) ∧ I2 m0 0 s.data) st := by
   have hS := hF.stack
   have hbl : below 158 = blockList := below_158
   have hn : blockList.length = 94 := blockList_length
@@ -162,7 +164,7 @@ theorem mid (hp : Placed code k) (hms : Spec (Labels.label "memset") MemsetPre M
   rw [show (Env.ofMachine st2.data []).regs .X22 = _ from e22, ofNat_ult' (by omega) (by decide)]
     at hpc3
   have hpc3' := pc_of ((Arrays.pc_cond hpc3).2 (by decide))
-    (show k + 51 + b9.length = k + 53 from rfl)
+    (show k + NativeRustcVmArm.Vm.PlacementsOf.b9Offset + b9.length = k + NativeRustcVmArm.Vm.PlacementsOf.b10Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b9_next])
   -- `b10`: `stack_offsets`
   refine regs_step (infix_of b10_in_code (by simp [b10]) hp) run_b10 (rk run_b10) hb3 hpc3'
     fun st4 hm4 hpc4 hb4 hd4 hr4 ↦ ?_
@@ -241,7 +243,7 @@ theorem mid (hp : Placed code k) (hms : Spec (Labels.label "memset") MemsetPre M
   have e0 : (Env.ofMachine st5.data []).regs .X0 = 1#64 := congrArg UInt64.toBitVec r0
   rw [e0] at hpc6
   have hpc6' := pc_of ((Arrays.pc_cond hpc6).2 (by decide))
-    (show k + 58 + b11.length = k + 60 from rfl)
+    (show k + NativeRustcVmArm.Vm.PlacementsOf.b11Offset + b11.length = k + NativeRustcVmArm.Vm.PlacementsOf.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b11_next])
   -- `b12`: the total's log-size kept, `offsets` zeroed
   refine regs_step (infix_of b12_in_code (by simp [b12]) hp) run_b12 (rk run_b12) hb6 hpc6'
     fun st7 hm7 hpc7 hb7 hd7 hr7 ↦ ?_
@@ -271,7 +273,7 @@ theorem mid (hp : Placed code k) (hms : Spec (Labels.label "memset") MemsetPre M
   sym_simp at hpc9
   rw [show (Env.ofMachine st8.data []).regs .X22 = _ from e22'] at hpc9
   have hpc9' := pc_of ((Arrays.pc_cond hpc9).2 (by decide))
-    (show k + 66 + b13.length = k + 67 from rfl)
+    (show k + NativeRustcVmArm.Vm.PlacementsOf.b13Offset + b13.length = k + NativeRustcVmArm.Vm.PlacementsOf.b14Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.PlacementsOf.b13_next])
   -- `b14`: to `.L10`
   refine regs_step (infix_of b14_in_code (by simp [b14]) hp) run_b14 (rk run_b14) hb9 hpc9'
     fun st10 hm10 hpc10 hb10 hd10 hr10 ↦ ?_

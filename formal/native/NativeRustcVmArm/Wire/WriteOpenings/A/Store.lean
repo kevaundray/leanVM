@@ -48,7 +48,7 @@ theorem dig_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : F18
     have h0 := H.none hn
     rw [show (st.data.regs.getXReg .X0).toBitVec = st.data.regs.X0.toBitVec from rfl, h0] at hpc1
     simp only [show (!decide ((UInt64.toBitVec 0).toNat = (1#64).toNat)) = true from rfl,
-      ↓reduceIte, hp.label (j := 87) rfl] at hpc1
+      ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b14Offset) NativeRustcVmArm.Vm.WriteOpenings.label_13_at] at hpc1
     exact zero_step hp G hpc1 S1 h8 hn
   | some n =>
     obtain ⟨h0, h1⟩ := H.some n hn
@@ -159,7 +159,7 @@ theorem store_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : D
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr ⊢
     rcases hr with h | h | h | h | h | h <;> simp [h])
   by_cases hend : l + 1 = R.h
-  · simp only [hend, decide_true, ↓reduceIte, hp.label (j := 121) rfl] at hpc1
+  · simp only [hend, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b21Offset) NativeRustcVmArm.Vm.WriteOpenings.label_19_at] at hpc1
     refine .done _ (.inl ⟨hpc1, hfr1, Cs1, hj, by omega, w1, w2, hmem.1.1, fun j' hj' ↦ ?_⟩)
     rcases Nat.lt_succ_iff_lt_or_eq.mp hj' with h' | rfl
     · exact hmem.1.2 j' h'

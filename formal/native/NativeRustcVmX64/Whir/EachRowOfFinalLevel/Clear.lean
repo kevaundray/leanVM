@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.Mid
+public import NativeRustcVmX64.Code.Vm.EachRowOfFinalLevel.Names
 
 /-!
 # `each_row` with `final_level`'s closure: clearing the lanes (x86-64)
@@ -37,11 +38,11 @@ theorem clear_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {ms 
     {R : MachineState → Prop}
     (next : ∀ m', i < 15 → FR m0 8 m' → reg m' .rax = BitVec.ofNat 64 (56 + 64 * (i + 1)) →
       SameOutside ms.dmem m'.dmem (HitL m0) → (∀ r ∈ keepL, reg m' r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 48)⟩)
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b7Offset)⟩)
     (done : ∀ m', FR m0 8 m' → SameOutside ms.dmem m'.dmem (HitL m0) →
       (∀ r ∈ keepL, reg m' r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 60)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 48)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b8Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b7Offset)⟩ := by
   have hl := lay hpre
   have hsp := hl.sp
   have htop := hl.ok.2.1
@@ -66,7 +67,7 @@ theorem clear_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {ms 
       rw [show m.regs.get64 .rsp = _ from hfr.rsp, show m.regs.get64 .rax = _ from hrax, addr_add,
         show 8 + (56 + 64 * i) = 64 + 64 * i by omega]
       exact (BitVec.add_zero _).symm, trivial⟩
-  have hk7 : b7.IsInfixAt Host.prog (k + 48) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk7 run_b7 hwf (fun _ h ↦ by cases h) hm fun st hm' hpc ↦ ?_
   rw [← after_eq run_b7] at hm'
   have hs' : SameOutside m.dmem st.data.dmem (HitL m0) := by
@@ -100,7 +101,7 @@ theorem clear_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {ms 
       · obtain rfl : i = 15 := by omega
         simp only [SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply, low_W64, ext_W64, hra] at hc
         exact absurd hc (by decide)
-    rw [show Labels.label ".LEachRowOfFinalLevel_5" = Host.addrOf (k + 48) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_5 = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b7Offset) from hp.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.label_5_at]
       at hpc
     obtain ⟨d, pc⟩ := st
     simp only at hpc hfr' hso hkeep hm'
@@ -121,10 +122,10 @@ theorem clear_loop (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {ms 
     {R : MachineState → Prop}
     (done : ∀ m', FR m0 8 m' → SameOutside ms.dmem m'.dmem (HitL m0) →
       (∀ r ∈ keepL, reg m' r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 60)⟩) :
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b8Offset)⟩) :
     ∀ n i m, 15 - i = n → i ≤ 15 → FR m0 8 m → reg m .rax = BitVec.ofNat 64 (56 + 64 * i) →
       SameOutside ms.dmem m.dmem (HitL m0) → (∀ r ∈ keepL, reg m r = reg ms r) →
-      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 48)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b7Offset)⟩ := by
   intro n
   induction n with
   | zero =>

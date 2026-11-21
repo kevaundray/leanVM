@@ -107,7 +107,7 @@ bytes of the digest `D` at 2128; the function returns with its postcondition. -/
 theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {x E D : List UInt8}
     (hDl : D.length = 32) {m : MachineData} (hK : r.CK x E m)
     (hD : BytesAt m.dmem (r.off 2128) D) (hres : r.result = some (x, D.take 16)) :
-    Eventually (step1 NativeArm.Host.exe) r.Done ⟨m, r.pc 631⟩ := by
+    Eventually (step1 NativeArm.Host.exe) r.Done ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b49Offset⟩ := by
   obtain ⟨S, hx49, hbytes, hfo, hin, hn, hsp⟩ := outOK_spec
   have hF := hK.1.1
   have hwf := outEnv_wf hpre hF (fun _ ↦ 0)

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
 public import NativeRustcVmArm.Tables.TableSumcheck.Entry
 public import NativeRustcVmArm.Bus.GkrModel
 
@@ -27,7 +28,7 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat} {bus 
 /-- **The sumcheck** (`b1`, `b2`): on `Some`, its challenges at `24` of the frame, its claim at
 `512`, the `TState` the next state. -/
 theorem sum (hp : Placed code k)
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
     (hpre : TableSumcheckPre a s heights bus m0) {n : Nat} (hn : heights.foldl max 0 = n)
     (hn30 : n ≤ 30) {m : MachineData}
@@ -41,8 +42,8 @@ theorem sum (hp : Placed code k)
       TStateAt m3.dmem m0.regs.X0.toBitVec a s1 → xs.size = n →
       (∀ i (h : i < xs.size), ewOf m3.dmem (fb m0 + BitVec.ofNat 64 (24 + 16 * i)) = xs[i]) →
       ewOf m3.dmem (fb m0 + BitVec.ofNat 64 512) = c →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m3, Host.addrOf (k + 70)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + 53)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m3, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b3Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b1Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hS, hrc, -, hts0, htok, heo, -, -, -, -, -⟩ := hpre'
   have hN := hS.2.1
@@ -99,8 +100,8 @@ theorem sum (hp : Placed code k)
     unfold Apart
     rw [fb_add hS N_ge (by omega), fb_add hS N_ge (by omega)]
     omega
-  have hpc1' : st.pc = Labels.label sumcheckPlainLabel ∧
-      retOf st.data = Host.addrOf (k + 68) := hpc1
+  have hpc1' : st.pc = Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel ∧
+      retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.TableSumcheck.b2Offset) := hpc1
   refine Bus.Gkr.Fr.callLocal (o := 24) (n := 504)
     (X := fun q ↦ InRange (fb m0 + BitVec.ofNat 64 504) 24 q ∨
       InRange (fb m0 + BitVec.ofNat 64 24) (16 * n) q ∨ InRange m0.regs.X0.toBitVec tstateBytes q)
@@ -146,7 +147,7 @@ theorem sum (hp : Placed code k)
       ↓reduceIte] at hpc3
     have hres : res s heights bus m0 = none := by
       rw [res, tableSumcheck_run, hn, hr]; rfl
-    exact Bus.Gkr.at_pc (hpc3.trans (hp.label (j := 117) rfl)) (fail10 hp hS hfr3 hres)
+    exact Bus.Gkr.at_pc (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.TableSumcheck.b10Offset) NativeRustcVmArm.Vm.TableSumcheck.label_7_at)) (fail10 hp hS hfr3 hres)
   | some p =>
     obtain ⟨⟨xs, c⟩, s1⟩ := p
     rw [hr] at o1 o2 o3
@@ -154,7 +155,7 @@ theorem sum (hp : Placed code k)
     rw [htag 1 o1a] at hpc3
     simp only [show ((1 : UInt64).toBitVec == BitVec.ofNat 64 0) = false from rfl,
       Bool.false_eq_true, ↓reduceIte] at hpc3
-    rw [show k + 68 + b2.length = k + 70 from rfl] at hpc3
+    rw [show k + NativeRustcVmArm.Vm.TableSumcheck.b2Offset + b2.length = k + NativeRustcVmArm.Vm.TableSumcheck.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.TableSumcheck.b2_next]] at hpc3
     have hsz : xs.size = n := by
       have h' : NativeRustcVm.Sumcheck.sumcheckFn ⟨m0.regs.X5, m0.regs.X6⟩ 4 (fun _ ↦ none) n s =
           some ((xs, c), s1) := by

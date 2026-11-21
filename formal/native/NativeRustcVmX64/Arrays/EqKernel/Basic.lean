@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Arrays.EqKernel.Exec
 public import NativeRustcVm.Arrays.EqKernel
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `eq_kernel` on x86-64: the state
@@ -239,7 +240,7 @@ theorem same12 [Labels] {st m : MachineData} {a0 a1 a2 : BitVec 64} {n0 n1 n2 : 
 
 /-! ## The invariants -/
 
-/-- **The outer loop's head** `.LEqKernel_4`, `i` coordinates done. -/
+/-- **The outer loop's head** `NativeRustcVmX64.Vm.EqKernel.label_4`, `i` coordinates done. -/
 structure OInv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
   body : B m0 s
   loc : Loc m0 s.dmem i
@@ -249,7 +250,7 @@ structure OInv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
   r15 : reg s .r15 = out m0 + BitVec.ofNat 64 8
   ker : EWsAt s.dmem (out m0) (K m0 i)
 
-/-- **The inner loop's head** `.LEqKernel_8`, `j` pairs of round `i` done. -/
+/-- **The inner loop's head** `NativeRustcVmX64.Vm.EqKernel.label_8`, `j` pairs of round `i` done. -/
 structure IInv (m0 : MachineData) (i j : Nat) (s : MachineData) : Prop where
   body : B m0 s
   loc : Loc m0 s.dmem i
@@ -286,49 +287,49 @@ theorem pow_facts {m0 : MachineData} (hle : 2 ^ np m0 ≤ len m0) {i : Nat} (h :
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 0 + 17) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 19) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 19 + 5) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 33) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 43) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 43 + 4) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 43 + 4 + 5) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 63) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 63 + 8) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b10Offset) :=
   b10_in_code.trans hp.1 (by simp [b10])
-theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + 63 + 8 + 9) :=
+theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b11Offset) :=
   b11_in_code.trans hp.1 (by simp [b11])
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 85) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b13Offset) :=
   b13_in_code.trans hp.1 (by simp [b13])
-theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + 88) :=
+theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b14Offset) :=
   b14_in_code.trans hp.1 (by simp [b14])
-theorem hb1314 (hp : Placed code k) : (b13 ++ b14).IsInfixAt Host.prog (k + 85) :=
+theorem hb1314 (hp : Placed code k) : (b13 ++ b14).IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EqKernel.b13Offset) :=
   isInfixAt_concat (hb13 hp) (hb14 hp)
 
-theorem lbl_entry (hp : Placed code k) : Labels.label eqKernelLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LEqKernel_2" = Host.addrOf (k + 19) :=
-  hp.label (j := 19) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LEqKernel_4" = Host.addrOf (k + 43) :=
-  hp.label (j := 43) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LEqKernel_8" = Host.addrOf (k + 63) :=
-  hp.label (j := 63) rfl
-theorem lbl_9 (hp : Placed code k) : Labels.label ".LEqKernel_9" = Host.addrOf (k + 33) :=
-  hp.label (j := 33) rfl
-theorem lbl_10 (hp : Placed code k) : Labels.label ".LEqKernel_10" = Host.addrOf (k + 85) :=
-  hp.label (j := 85) rfl
-theorem lbl_11 (hp : Placed code k) : Labels.label ".LEqKernel_11" = Host.addrOf (k + 88) :=
-  hp.label (j := 88) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.EqKernel.entry_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.EqKernel.label_2 = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b2Offset) :=
+  hp.label NativeRustcVmX64.Vm.EqKernel.label_2_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.EqKernel.label_4 = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b6Offset) :=
+  hp.label NativeRustcVmX64.Vm.EqKernel.label_4_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.EqKernel.label_8 = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b9Offset) :=
+  hp.label NativeRustcVmX64.Vm.EqKernel.label_8_at
+theorem lbl_9 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.EqKernel.label_9 = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b5Offset) :=
+  hp.label NativeRustcVmX64.Vm.EqKernel.label_9_at
+theorem lbl_10 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.EqKernel.label_10 = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b13Offset) :=
+  hp.label NativeRustcVmX64.Vm.EqKernel.label_10_at
+theorem lbl_11 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.EqKernel.label_11 = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b14Offset) :=
+  hp.label NativeRustcVmX64.Vm.EqKernel.label_11_at
 
 end
 

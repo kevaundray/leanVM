@@ -2,11 +2,20 @@ module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.ClaimsA
 public import NativeRustcVm.Transcript.Loop
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmX64.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmX64.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmX64.Code.Vm.Kpow.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0.Names
 
 /-!
 # `verify_bus_balance`'s scalars (x86-64)
 
-`AtScal`: the state at `b21` (`k + 150`), the GKR walk done, its count root not zero. `b21`
+`AtScal`: the state at `b21` (`k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset`), the GKR walk done, its count root not zero. `b21`
 computes the points' lengths and calls `read_scalars` for the memory's two scalars; `b22` checks
 it; `b23` calls `read_scalar` for the final memory counter; `b24` checks its tag; then
 `claimsA_spec` (`scal_spec`).
@@ -110,29 +119,29 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The scalars** (`b21`, `k + 150`). -/
+/-- **The scalars** (`b21`, `k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset`). -/
 theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hrss : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hpc : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
-    (hbs : ∀ s, Spec (Labels.label bytecodeShareLabel) (BytecodeSharePre a s) (BytecodeSharePost a s))
-    (hcbv : Spec (Labels.label computedBytecodeValueLabel) ComputedBytecodeValuePre
+    (hrss : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hpc : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hbs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.BytecodeShare.entryLabel) (BytecodeSharePre a s) (BytecodeSharePost a s))
+    (hcbv : Spec (Labels.label NativeRustcVmX64.Vm.ComputedBytecodeValue.entryLabel) ComputedBytecodeValuePre
       ComputedBytecodeValuePost)
-    (hkp : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hkp : Spec (Labels.label NativeRustcVmX64.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hfc : Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
     {w pt tv : Array EW} {beta : EW} {s : TState} {d : MachineData}
     (A : AtScal a s0 L m0 w pt tv beta s d) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 150)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset)⟩ := by
   have hS := pre_stack h
   have psz := A.sm.psz
   have lm := (pre_lay h).log_memory_le
   have lb := (pre_lay h).log_bytecode_le
   -- `b21`: the points' lengths, `read_scalars(t, 216, 2)`.
   have hwf1 := wf0 h A.fr.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 150 + b21.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec)
   refine exec_then (infix_of b21_in_code (by simp [b21]) hp) exit_b21 hwf1 (fun _ _ ↦ rfl)
     (match_fS A.fr) fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hw1, wr21, hrdi1, hrsi1, hrdx1, hrbp1, hr121, hk1⟩ := ok_b21
@@ -140,14 +149,14 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have hin1 := writesIn_of_mid hmid1
   have hs1 := blk_same hS hwf1 hm1 hw1 (by omega)
   have hsp1 : rspOf st1.data = loc m0 96 := fr1.frame.sp
-  have e1792 : (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + 150 + b21.length)).toBitVec).load
+  have e1792 : (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec).load
       0 1792 8 = BitVec.ofNat 64 pt.size := load_loc A.sm.w1792
   have hlen : lenS.eval (frameEnv m0 d 5520 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 150 + b21.length)).toBitVec) = BitVec.ofNat 64 pt.size := by
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec) = BitVec.ofNat 64 pt.size := by
     show (if CmpOp.apply .ult .W64 ((frameEnv m0 d 5520 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 150 + b21.length)).toBitVec).load 0 1792 8) (BitVec.ofNat 64 64) = true
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec).load 0 1792 8) (BitVec.ofNat 64 64) = true
       then (frameEnv m0 d 5520 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 150 + b21.length)).toBitVec).load 0 1792 8 else BitVec.ofNat 64 0) = _
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec).load 0 1792 8 else BitVec.ofNat 64 0) = _
     rw [e1792]
     simp only [CmpOp.apply, low_W64, ult_toNat, BitVec.toNat_ofNat]
     split
@@ -158,17 +167,17 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have wW1 : ∀ {o : Nat} {v : Sym}, o + 8 ≤ 5520 →
       (∀ t < 8, findWrite 0 (o + t) (after b21 (fS 104)).mem = some (v, t)) →
       NativeRustcVm.WordAt st1.data.dmem (loc m0 o) (UInt64.ofBitVec (v.eval
-        (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + 150 + b21.length)).toBitVec))) :=
+        (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec))) :=
     fun ho hw ↦ wordAt_write hm1 (r := 0) (b := fb m0) (sz := 5520 + 8) rfl (by omega) hw
   have w104 : NativeRustcVm.WordAt st1.data.dmem (loc m0 104) (UInt64.ofBitVec (loc m0 1800)) := by
     have := wW1 (o := 104) (by omega) (wr21.find (List.Mem.head _))
     have e : (Sym.ite (.cmp .ult .W64 (.load 0 1792 8) (.lit 64)) (.ptr 0 1800) (.lit 8)).eval
-        (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + 150 + b21.length)).toBitVec) =
+        (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec) =
         loc m0 1800 := by
       show (if CmpOp.apply .ult .W64 ((frameEnv m0 d 5520 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 150 + b21.length)).toBitVec).load 0 1792 8) (BitVec.ofNat 64 64) = true
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec).load 0 1792 8) (BitVec.ofNat 64 64) = true
         then (Sym.ptr 0 1800).eval (frameEnv m0 d 5520 [] (fun _ ↦ 0)
-          (Host.addrOf (k + 150 + b21.length)).toBitVec) else BitVec.ofNat 64 8) = _
+          (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec) else BitVec.ofNat 64 8) = _
       rw [e1792]
       simp only [CmpOp.apply, low_W64, ult_toNat, BitVec.toNat_ofNat]
       split
@@ -183,15 +192,15 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have xbp1 : reg st1.data .rbp = (min L.logMemory pt.size).toUInt64.toBitVec := by
     rw [show reg st1.data .rbp = _ from hm1.regs .rbp _ hrbp1]
     show (if (!CmpOp.apply .ult .W64 (reg d .rbp) (lenS.eval (frameEnv m0 d 5520 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 150 + b21.length)).toBitVec))) = true then lenS.eval (frameEnv m0 d 5520 []
-        (fun _ ↦ 0) (Host.addrOf (k + 150 + b21.length)).toBitVec) else reg d .rbp) = _
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec))) = true then lenS.eval (frameEnv m0 d 5520 []
+        (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec) else reg d .rbp) = _
     rw [hlen, A.xbp, toU64_bv, toU64_bv]
     exact ite_min1 (by omega) (by omega)
   have x121 : reg st1.data .r12 = (min L.logBytecode pt.size).toUInt64.toBitVec := by
     rw [show reg st1.data .r12 = _ from hm1.regs .r12 _ hr121]
     show (if CmpOp.apply .ult .W64 (reg d .r13) (lenS.eval (frameEnv m0 d 5520 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 150 + b21.length)).toBitVec)) = true then reg d .r13 else
-        lenS.eval (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + 150 + b21.length)).toBitVec)) = _
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec)) = true then reg d .r13 else
+        lenS.eval (frameEnv m0 d 5520 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length)).toBitVec)) = _
     rw [hlen, A.x13, toU64_bv, toU64_bv]
     exact ite_min2 (by omega) (by omega)
   have x1di : reg st1.data .rdi = reg m0 .rdi := (hm1.regs .rdi _ hrdi1).trans A.xbx
@@ -240,11 +249,11 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     keepIv_call hS hsp1 (by omega) hle hs2 (by decide) (by decide) (hXg (by omega) (by decide)
       (by decide))
   -- `b22`: `read_scalars`' result.
-  rw [show k + 150 + b21.length = k + 171 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset + b21.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b22Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b21_next]]
   cases hr1 : (readScalars 2).run s with
   | none =>
     rw [hr1] at hal2
-    refine test_spec hp h (j := 171) (n := 2) (infix_of b22_in_code (by simp [b22]) hp) rfl
+    refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b22Offset) (n := b22.length) (infix_of b22_in_code (by simp [b22]) hp) rfl
       exit_b22 ok_b22 fr2 (fun _ ↦ by rw [A.run]; simp only [tailRun, hr1, Option.bind_none])
       fun _ _ _ _ hc ↦ ?_
     rw [alZ_true (show boolRet m2 = 0 from hal2)] at hc
@@ -256,7 +265,7 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have hts2 := hnx2 _ _ hr1
   have hmsz : mem.size = 2 := NativeRustcVm.Transcript.pushes_size
     (show (pushes readScalar 2).run s = some (mem, s1) from hr1)
-  refine test_spec hp h (j := 171) (n := 2) (infix_of b22_in_code (by simp [b22]) hp) rfl
+  refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b22Offset) (n := b22.length) (infix_of b22_in_code (by simp [b22]) hp) rfl
     exit_b22 ok_b22 fr2 (fun hc ↦ by rw [alZ_false (show boolRet m2 = 1 from hal2)] at hc; cases hc)
     fun d3 fr3 hd3 hk3 _ ↦ ?_
   have sm2 := A.sm.of_keep (kv1.trans kv2)
@@ -275,9 +284,9 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hr' ⊢
       rcases hr' with h' | h' | h' | h' <;> simp [h'])).trans (hk1.reg hm1 hr')
   -- `b23`: `read_scalar(672, t)`.
-  rw [show k + 171 + 2 = k + 173 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b22Offset + b22.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b23Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b22_next]]
   have hwf4 := wf0 h fr3.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 173 + b23.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b23Offset + b23.length)).toBitVec)
   refine exec_then (infix_of b23_in_code (by simp [b23]) hp) exit_b23 hwf4 (fun _ _ ↦ rfl)
     (match_fS fr3) fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hw4, hrdi4, hrsi4, hk4⟩ := ok_b23
@@ -316,11 +325,11 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     keepIv_call hS hsp4 (by omega) hle4 hs5 (by decide) (by decide) (hXg (by omega) (by decide)
       (by decide))
   -- `b24`: the final memory counter's tag.
-  rw [show k + 173 + b23.length = k + 176 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b23Offset + b23.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b24Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b23_next]]
   cases hr2 : readScalar.run s1 with
   | none =>
     rw [hr2] at hout5
-    refine test_spec hp h (j := 176) (n := 2) (infix_of b24_in_code (by simp [b24]) hp) rfl
+    refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b24Offset) (n := b24.length) (infix_of b24_in_code (by simp [b24]) hp) rfl
       exit_b24 ok_b24 fr5
       (fun _ ↦ by rw [A.run]; simp only [tailRun, hr1, hr2, Option.bind_some, Option.bind_none])
       fun _ _ _ _ hc' ↦ ?_
@@ -330,7 +339,7 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   obtain ⟨mf, s2⟩ := y
   rw [hr2] at hout5
   have hts5 := hnext5 _ _ hr2
-  refine test_spec hp h (j := 176) (n := 2) (infix_of b24_in_code (by simp [b24]) hp) rfl
+  refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b24Offset) (n := b24.length) (infix_of b24_in_code (by simp [b24]) hp) rfl
     exit_b24 ok_b24 fr5 (fun hc' ↦ by rw [tag8_false hout5.1] at hc'; cases hc')
     fun d6 fr6 hd6 hk6 _ ↦ ?_
   have g6 : ∀ r ∈ clRegs, reg d6 r = reg d3 r := fun r hr' ↦
@@ -346,7 +355,7 @@ theorem scal_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       (g6 .rbp (by simp)).trans ((g3 .rbp (by simp)).trans xbp1),
       (g6 .r12 (by simp)).trans ((g3 .r12 (by simp)).trans x121),
       by rw [hd6]; exact hts5⟩
-  rw [show k + 176 + 2 = k + 178 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b24Offset + b24.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b25Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b24_next]]
   exact claimsA_spec hp h hrs hpc hbs hcbv hkp hfc hacc hext A6
     (by rw [A.run]; simp only [tailRun, hr1, hr2, Option.bind_some])
 

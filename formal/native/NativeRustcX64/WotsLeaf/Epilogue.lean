@@ -97,14 +97,14 @@ theorem epilogue (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre)
     (hs : SameOutside r.m0.dmem m.dmem r.Changed) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf r.m0 ∧
       rspOf st.data = rspOf r.m0 + 8#64 ∧ Saved r.m0 st.data ∧
-      ∀ p, st.data.dmem.get? p = m.dmem.get? p) ⟨m, r.pc 158⟩ := by
-  have hwf := r.frame_wf hpre hk (fun _ ↦ 0) (r.pc (158 + b12.length)).toBitVec
-  have hm : Match (r.envR m [] (r.pc (158 + b12.length)).toBitVec) (frameS []) m :=
+      ∀ p, st.data.dmem.get? p = m.dmem.get? p) ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b12Offset⟩ := by
+  have hwf := r.frame_wf hpre hk (fun _ ↦ 0) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b12Offset + b12.length)).toBitVec
+  have hm : Match (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b12Offset + b12.length)).toBitVec) (frameS []) m :=
     match_frameS hsp (extra := []) (sextra := []) (k := []) (bounds := []) (aliases := [])
       trivial trivial trivial trivial
   refine blk r hp b12_in_code (List.cons_ne_nil _ _) run_b12 hwf rfl hm fun st hm' hpc ↦
     .done _ ?_
-  have ls := fun j o ho x hx ↦ r.load_saved hsv [] (r.pc (158 + b12.length)).toBitVec j o ho x hx
+  have ls := fun j o ho x hx ↦ r.load_saved hsv [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b12Offset + b12.length)).toBitVec j o ho x hx
   have hreg : ∀ x : Reg64, calleeSaved x = true → reg st.data x = reg r.m0 x := by
     intro x hx
     unfold reg

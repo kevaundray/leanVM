@@ -17,7 +17,6 @@ open LeanVM.Protocol.KeccakHash
 
 public section
 
-theorem length_b8 : b8.length = 5 := rfl
 
 theorem regIs_u64 {m : MachineData} {x : XReg} {v : UInt64} (h : Run.RegIs m x v.toBitVec) :
     m.regs.getXReg x = v := UInt64.toBitVec_inj.mp h
@@ -27,11 +26,11 @@ variable [NativeArm.Host]
 /-- `b8`, then the loop's first turn's state. -/
 theorem b8_step (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m : MachineData)
     (hA : r.AtB8 m) {R : MachineState → Prop}
-    (k : ∀ m', r.AtDigits 0 m' → Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 102⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 97⟩ := by
+    (k : ∀ m', r.AtDigits 0 m' → Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Xmss.WotsLeaf.b9Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b8Offset⟩ := by
   obtain ⟨hK, h52, hcw, h8, h9, h19, h20, h22⟩ := hA
   refine frameStep r hp hpre b8_in_code (List.cons_ne_nil _ _) run_b8 (by decide) rfl hK trivial
-    fun st hm hK' hkb hpc ↦ pc_at (by simpa [PcOk, length_b8] using hpc) (k st.data ?_)
+    fun st hm hK' hkb hpc ↦ pc_at (by simpa [PcOk, NativeRustcArm.Xmss.WotsLeaf.b8_next] using hpc) (k st.data ?_)
   have hb := r.base_toNat hpre
   have := r.m0.regs.SP.toNat_lt
   have hout : BytesAt st.data.dmem (r.off 0) (wordBytes r.m0.regs.X0) := by
@@ -56,7 +55,7 @@ theorem b8_step (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m
 theorem b10_step (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (m : MachineData)
     (hA : r.AtDigits 14 m) (h52 : r.hiW.toNat < 2 ^ 52) :
     Eventually (step1 NativeArm.Host.exe)
-      (fun st ↦ st.pc = r.pc 184 ∧ r.AtChain (digits r.dNum) 0 [] st.data) ⟨m, r.pc 146⟩ := by
+      (fun st ↦ st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b14Offset ∧ r.AtChain (digits r.dNum) 0 [] st.data) ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b10Offset⟩ := by
   obtain ⟨hK, hD, h8, h9, h10, h11, h12, h19, h20, h22⟩ := hA
   refine frameStep r hp hpre b10_in_code (List.cons_ne_nil _ _) run_b10 (by decide) rfl hK trivial
     fun st hm hK' hkb hpc ↦ .done _ ⟨?_, ?_⟩
@@ -98,9 +97,9 @@ theorem b10_step (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) (
 
 /-- **Region 2, the codeword**: from `AtCheck` at `b6`, no codeword and the return, or the
 codeword's digits and the chain loop's state for chain 0 at `b14` (directive 184). -/
-theorem codeword_region : RegionSpec Run.AtCheck 48 fun r st ↦
+theorem codeword_region : RegionSpec Run.AtCheck NativeRustcArm.Xmss.WotsLeaf.b6Offset fun r st ↦
     (r.result = none ∧ r.Done st) ∨
-      (codeword r.digest16 = some (digits r.dNum) ∧ st.pc = r.pc 184 ∧
+      (codeword r.digest16 = some (digits r.dNum) ∧ st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b14Offset ∧
         r.AtChain (digits r.dNum) 0 [] st.data) := by
   intro r hp hc hpre m hA
   refine NativeRustcArm.Eventually.bind (tests_region r hp hc hpre m hA) fun st h ↦ ?_

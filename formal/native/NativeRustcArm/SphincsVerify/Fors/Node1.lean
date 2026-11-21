@@ -185,7 +185,7 @@ variable [Host]
 /-- **A node's inputs** (`b67` and `memset`): from a node's head, `N1` at `b68`. -/
 theorem node_s1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat} {m : MachineData}
     (h : AtNode r c z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 814 ∧ N1 r c z st.data) ⟨m, r.pc 774⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b68Offset ∧ N1 r c z st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b67Offset⟩ := by
   obtain ⟨hT, hz, h19, h28, h23, h25, h27, h26, hcur⟩ := h
   have hB := hT.base
   have hc24 := hT.hc
@@ -249,12 +249,12 @@ theorem node_s1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
     · exact hcopy
     · exact bytesAt_pathNode hB1.inputs hc24 hz
   -- piece b: the left child's words
-  refine ev_at (hpc1.trans (pc_after (n := 18) rfl))
+  refine ev_at (hpc1.trans (pc_after (by rfl)))
     (ldp_child hpre hB1.frame hoffL hx8 (hb67b hp) run_b67b rfl fun st2 hm2 hpc2 hd2 ↦ ?_)
   have hB2 : Base r st2.data := hB1.of_eq hd2 (sp_of hm2 rfl) (reg_of hm2 rfl) (reg_of hm2 rfl)
     (reg_of hm2 rfl) (reg_of hm2 rfl)
   -- piece c: the address's first words, the left child's first word
-  refine ev_at (hpc2.trans (pc_after (n := 1) rfl)) ?_
+  refine ev_at (hpc2.trans (pc_after (by rfl))) ?_
   have hwf2 := r.frame_wf hpre hB2.frame (fun _ ↦ 0)
   have h11 : Run.RegIs st2.data .X11 (r.off 20480) := by
     rw [Run.RegIs, reg_of hm2 rfl]; exact (hm1.regs .X11 _ rfl).trans (eval_ptr 20480)
@@ -274,12 +274,12 @@ theorem node_s1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
     split
     · exact bytesAt_pathNode hB3.inputs hc24 hz
     · exact keep_blk hpre hm3 hwf2 hcurl (by decide) rfl (hd2 ▸ hcopy)
-  refine ev_at (hpc3.trans (pc_after (n := 5) rfl))
+  refine ev_at (hpc3.trans (pc_after (by rfl)))
     (ldp_child hpre hB3.frame hoffR hx10' (hb67d hp) run_b67d rfl fun st4 hm4 hpc4 hd4 ↦ ?_)
   have hB4 : Base r st4.data := hB3.of_eq hd4 (sp_of hm4 rfl) (reg_of hm4 rfl) (reg_of hm4 rfl)
     (reg_of hm4 rfl) (reg_of hm4 rfl)
   -- piece e: the rest of the children and of the address, `memset`
-  refine ev_at (hpc4.trans (pc_after (n := 1) rfl)) ?_
+  refine ev_at (hpc4.trans (pc_after (by rfl))) ?_
   have hwf4 := r.frame_wf hpre hB4.frame (fun _ ↦ 0)
   have h11' : Run.RegIs st4.data .X11 (r.off 22672) := by
     rw [Run.RegIs, reg_of hm4 rfl]; exact (hm3.regs .X11 _ rfl).trans (eval_ptr 22672)
@@ -374,7 +374,7 @@ theorem node_s1 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
       ho hd h
   have hchl : (r.childrenOf c z).length = 32 := by rw [hch]; simp [hLl, hRl]
   have hadl : (r.nodeAdrsOf c z).length = 32 := by rw [nodeAdrsOf_eq]; rfl
-  refine .done _ ⟨hpc6.trans (pc_after (n := 15) rfl), TreeSt.of_keep hT hB6 hkeep, hz, ?_, ?_, ?_, ?_, ?_,
+  refine .done _ ⟨hpc6.trans (pc_after (by rfl)), TreeSt.of_keep hT hB6 hkeep, hz, ?_, ?_, ?_, ?_, ?_,
     hkc (by rw [hchl]; omega) (by rw [hchl]; omega) hch5,
     hkc (by rw [hadl]; omega) (by rw [hadl]; omega) had5⟩
   · rw [Run.RegIs, hS6.1 .X19 rfl, e19]; exact h19

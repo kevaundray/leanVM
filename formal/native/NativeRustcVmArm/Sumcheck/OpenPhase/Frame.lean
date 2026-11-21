@@ -95,7 +95,7 @@ theorem exit_of (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {m : Machine
     (hf : FrO m0 m) (hx19 : m.regs.getXReg .X19 = m0.regs.X0) {ds : List Directive} {j : Nat}
     {S1 S2 : SState} {x : Exit} (hk : ds.IsInfixAt Host.prog j) (hx1 : exec ds outS = some (S1, x))
     (hpc1 : ∀ st, PcOk (Env.ofMachine m [(base m0 176, 176), (outO m0, 32)]) x
-      (Host.addrOf (j + ds.length)) st → st.pc = Host.addrOf (k + 85))
+      (Host.addrOf (j + ds.length)) st → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b23Offset))
     (hx2 : exec b23 S1 = some (S2, .ret))
     (hok : exitOk S2 176 slotsO [] = true) (hW : ∀ w ∈ S2.mem, w.r = 1 ∧ w.off + w.n ≤ 32)
     (hout : ∀ st : MachineState,
@@ -105,7 +105,7 @@ theorem exit_of (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {m : Machine
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ⟨m, Host.addrOf j⟩ := by
   have hS := hpre.1
-  have hk23 : b23.IsInfixAt Host.prog (k + 85) := b23_in_code.trans hp.1 (by simp [b23])
+  have hk23 : b23.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b23Offset) := b23_in_code.trans hp.1 (by simp [b23])
   obtain ⟨-, -, -, -, -, -, -, -, -, -, hmo, hnwo, -, -, -, haso, -⟩ := hpre
   have hwf : (Env.ofMachine m [(base m0 176, 176), (outO m0, 32)]).WF :=
     Bus.wf_frame2 hS (by decide) hf.kept ⟨hmo, hnwo⟩ haso
@@ -132,8 +132,8 @@ theorem exit_fail (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {m : Machi
     (hr : openPhase R m0.regs.X2.toNat m0.regs.X3.toNat Q P = none) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data)
-      ⟨m, Host.addrOf (k + 83)⟩ := by
-  have hk22 : b22.IsInfixAt Host.prog (k + 83) := b22_in_code.trans hp.1 (by simp [b22])
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b22Offset)⟩ := by
+  have hk22 : b22.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b22Offset) := b22_in_code.trans hp.1 (by simp [b22])
   refine exit_of hp hpre hf hx19 hk22 run_b22 (fun st h ↦ h)
     (by rw [← after_eq run_b22]; exact run_b23b) (by decide) (by decide) fun st hm' ↦ ?_
   rw [hr]
@@ -155,8 +155,8 @@ theorem exit_rows (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {m : Machi
     (hr : openPhase R m0.regs.X2.toNat m0.regs.X3.toNat Q P = some (P.map (·.leaf))) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data)
-      ⟨m, Host.addrOf (k + 77)⟩ := by
-  have hk21 : b21.IsInfixAt Host.prog (k + 77) := b21_in_code.trans hp.1 (by simp [b21])
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b21Offset)⟩ := by
+  have hk21 : b21.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b21Offset) := b21_in_code.trans hp.1 (by simp [b21])
   obtain ⟨-, -, -, -, -, -, -, hnwp, -, -, hmo, hnwo, -, -, -, haso, hop, -⟩ := id hpre
   have hpw : phaseWords = 49411 := rfl
   have how : openingWords = 193 := rfl
@@ -168,7 +168,7 @@ theorem exit_rows (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {m : Machi
   have hnwo' : (outO m0).toNat + 32 ≤ 2 ^ 64 := hnwo
   have hsz' : P.size ≤ 256 := hsz
   have hw' : w ≤ 64 := hw
-  refine exit_of hp hpre hf hx19 hk21 run_b21 (fun st h ↦ h.trans (hp.label (j := 85) rfl))
+  refine exit_of hp hpre hf hx19 hk21 run_b21 (fun st h ↦ h.trans (hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b23Offset) NativeRustcVmArm.Vm.OpenPhase.label_19_at))
     (by rw [← after_eq run_b21]; exact run_b23a) (by decide) (by decide) fun st hm' ↦ ?_
   rw [hr]
   have hb0 : (Env.ofMachine m [(base m0 176, 176), (outO m0, 32)]).base 0 = base m0 176 := rfl

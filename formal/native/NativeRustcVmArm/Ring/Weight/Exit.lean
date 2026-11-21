@@ -31,7 +31,7 @@ variable {m0 : MachineData} [Host] {k : Nat}
 /-- **The epilogue** (`b26`): `ring_weight`'s postcondition, back at the caller. -/
 theorem stepExit (hp : Placed code k) (h : RingWeightPre m0) {m : MachineData} (hD : Done m0 m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ RingWeightPost m0 st.data)
-      ⟨m, Host.addrOf (k + 184)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset)⟩ := by
   have hfr := hD.fr
   have ho := h.2.2.2.2.2
   have hap : Apart m0.regs.X0.toBitVec 24 (fb m0) 688 := apart_frame (hN h) (by decide) ho.2

@@ -1,5 +1,11 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.KeccakF.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.SphincsVerify.Fors.Glue
 public import NativeRustcX64.SphincsVerify.Digest.Call
 
@@ -38,7 +44,7 @@ theorem kc_of [Labels] (hpre : r.Pre) {m₁ m₂ : MachineData} (hc : r.AtCall m
 
 /-- **`memset(a, 0, n)`** at a call, then on at `next`. -/
 theorem memset_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : Int64}
-    {st : MachineState} (hpc : PcOk env (.call "memset") next st) (hK : KeepC r c st.data)
+    {st : MachineState} (hpc : PcOk env (.call NativeRustcX64.Common.Memset.entryLabel) next st) (hK : KeepC r c st.data)
     {a n : Nat} (h0 : Run.RegIs st.data .rdi (r.off a)) (h1 : (reg st.data .rsi).toNat = 0)
     (h2 : (reg st.data .rdx).toNat = n) (ha : Scratch a n) {R : MachineState → Prop}
     (k : ∀ m₂, Keep r c m₂ → Saved st.data m₂ → KC r st.data m₂ a n →
@@ -53,7 +59,7 @@ theorem memset_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : 
 
 /-- **`memcpy(a, b, n)`** at a call, the bytes `bs` at `b`, then on at `next`. -/
 theorem memcpy_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : Int64}
-    {st : MachineState} (hpc : PcOk env (.call "memcpy") next st) (hK : KeepC r c st.data)
+    {st : MachineState} (hpc : PcOk env (.call NativeRustcX64.Common.Memcpy.entryLabel) next st) (hK : KeepC r c st.data)
     {a b n : Nat} (h0 : Run.RegIs st.data .rdi (r.off a)) (h1 : Run.RegIs st.data .rsi (r.off b))
     (h2 : (reg st.data .rdx).toNat = n) (ha : Scratch a n) (hb : b + n ≤ 29384)
     (hd : a + n ≤ b ∨ b + n ≤ a) {bs : List UInt8} (hl : bs.length = n)
@@ -70,7 +76,7 @@ theorem memcpy_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : 
 
 /-- **`memcpy(a, b, n)`** at a call, then on at `next` with the copy. -/
 theorem memcpy_then' (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : Int64}
-    {st : MachineState} (hpc : PcOk env (.call "memcpy") next st) (hK : KeepC r c st.data)
+    {st : MachineState} (hpc : PcOk env (.call NativeRustcX64.Common.Memcpy.entryLabel) next st) (hK : KeepC r c st.data)
     {a b n : Nat} (h0 : Run.RegIs st.data .rdi (r.off a)) (h1 : Run.RegIs st.data .rsi (r.off b))
     (h2 : (reg st.data .rdx).toNat = n) (ha : Scratch a n) (hb : b + n ≤ 29384)
     (hd : a + n ≤ b ∨ b + n ≤ a) {R : MachineState → Prop}
@@ -87,7 +93,7 @@ theorem memcpy_then' (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next :
 /-- **`Hasher::update(a, b, n)`** at a call, the hasher at `a` having absorbed `x`, the bytes
 `bs` at `b`, then on at `next`. -/
 theorem update_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : Int64}
-    {st : MachineState} (hpc : PcOk env (.call updateLabel) next st) (hK : KeepC r c st.data)
+    {st : MachineState} (hpc : PcOk env (.call NativeRustcX64.Common.Update.entryLabel) next st) (hK : KeepC r c st.data)
     {a b n : Nat} (h0 : Run.RegIs st.data .rdi (r.off a)) (h1 : Run.RegIs st.data .rsi (r.off b))
     (h2 : (reg st.data .rdx).toNat = n) (ha : Scratch a 344) (hb : b + n ≤ 29384)
     (hd : a + 344 ≤ b ∨ b + n ≤ a) {x bs : List UInt8} (hl : bs.length = n)
@@ -110,7 +116,7 @@ theorem update_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : 
 /-- **`Hasher::finalize(o, a)`** at a call, the hasher at `a` having absorbed `x`, then on at
 `next`. -/
 theorem finalize_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : Int64}
-    {st : MachineState} (hpc : PcOk env (.call finalizeLabel) next st) (hK : KeepC r c st.data)
+    {st : MachineState} (hpc : PcOk env (.call NativeRustcX64.Common.Finalize.entryLabel) next st) (hK : KeepC r c st.data)
     {o a : Nat} (h0 : Run.RegIs st.data .rdi (r.off o)) (h1 : Run.RegIs st.data .rsi (r.off a))
     (ho : Scratch o 32) (ha : a + 344 ≤ 29384) (hd : o + 32 ≤ a ∨ a + 344 ≤ o) {x : List UInt8}
     (hH : HasherAt r st.data a x) {R : MachineState → Prop}
@@ -127,7 +133,7 @@ theorem finalize_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next 
 
 /-- **`keccak_f(a)`** at a call, then on at `next`. -/
 theorem keccakF_then (hpre : r.Pre) (hc : Callees) {c : Nat} {env : Env} {next : Int64}
-    {st : MachineState} (hpc : PcOk env (.call keccakFLabel) next st) (hK : KeepC r c st.data)
+    {st : MachineState} (hpc : PcOk env (.call NativeRustcX64.Common.KeccakF.entryLabel) next st) (hK : KeepC r c st.data)
     {a : Nat} (h0 : Run.RegIs st.data .rdi (r.off a)) (ha : Scratch a 200)
     {R : MachineState → Prop}
     (k : ∀ m₂, Keep r c m₂ → Saved st.data m₂ → KC r st.data m₂ a 200 →

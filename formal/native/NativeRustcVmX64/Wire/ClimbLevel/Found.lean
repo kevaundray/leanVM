@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.ClimbLevel.Pair
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
 
 /-!
 # `climb_level`'s sibling found (x86-64)
@@ -145,7 +146,7 @@ include hp g hl
 
 /-- **The sibling found** (`b7`, node `j`): written; an odd key's parent none, the next node's
 check; an even key's (`b8`) the parent. -/
-theorem found_spec (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+theorem found_spec (hh : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st : MachineState}
     (hF : Fnd k m0 bp B c ns i sl ci j st) :
     Eventually (step1 Host.exe) (fun st' ↦ ∃ sl' ci', Nxt k m0 bp B c ns (i + 1) sl' ci' st') st := by
@@ -196,7 +197,7 @@ theorem found_spec (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairP
   have hr15 := (hk1 .r15 (by simp [loopRegs])).trans hcur.r15
   by_cases hod : (ns[i]).1 % 2 = 1
   · -- An odd key, its sibling a node: no parent.
-    rw [ite_t hod, hp.label (j := 26) rfl] at hpc2
+    rw [ite_t hod, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_7_at] at hpc2
     have hpar : parentsOf (ns.take (i + 1)) (sl ++ [((ns[i]).1, (ns[j]).2, true)]) =
         parentsOf (ns.take i) sl := by
       rw [take_succ_eq hi, parentsOf_snoc (by rw [take_length_of_le (by omega), hsl]),
@@ -204,9 +205,9 @@ theorem found_spec (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairP
     refine .done _ ⟨_, _, hpc2, hf1, hs', by rw [hpar]; exact hmm1, hnx1, by omega, by omega,
       by rw [hpar]; exact hrbx, hr14, hr15⟩
   · rw [ite_f hod] at hpc2
-    refine fr_step hp g (j := 69) b8_in_code (by simp [b8]) exit_b8 nofun ok_b8.1
+    refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b8Offset) b8_in_code (by simp [b8]) exit_b8 nofun ok_b8.1
       (hpc2.trans (congrArg Host.addrOf rfl)) hf1 fun st2 hf2 hd2 hr2 hpc3 ↦ ?_
-    simp only [PcOk, hp.label (j := 99) rfl] at hpc3
+    simp only [PcOk, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_13_at] at hpc3
     have hk2 := regs_kept ok_b8.2 hr2
     have hM : Mid m0 bp B c ns i sl ci ((ns[i]).1, (ns[j]).2, true) st2.data :=
       ⟨hf2, hs', hd2 ▸ hmm1, hd2 ▸ hnx1, hd2 ▸ hdg1, hlt, hsl, fun _ ↦ rfl,

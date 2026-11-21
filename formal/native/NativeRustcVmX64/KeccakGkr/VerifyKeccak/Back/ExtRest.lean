@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.ExtFirst
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
 
 /-!
 # The output claim's remaining coordinates
@@ -21,11 +22,11 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem extHighStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
-    {st : MachineState} {V : Vs} (hat : At m0 k 351 wrA t45 (vv m0 V) st)
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    {st : MachineState} {V : Vs} (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b49Offset wrA t45 (vv m0 V) st)
     (hbuf : NativeRustcVm.BufEWAt st.data.dmem (off (fb m0) 408) 36 (inst.toList.take 4))
     {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 357 wrA t45 (vv m0 V) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b51Offset wrA t45 (vv m0 V) st' →
       NativeRustcVm.BufEWAt st'.data.dmem (off (fb m0) 408) 36 inst.toList →
       Chg m0 st.data.dmem st'.data.dmem [(0, 152), (408, 584), (3296, 48)] [] →
       Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
@@ -52,18 +53,18 @@ theorem extHighStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst out
       (Chg.frame c hch (n := 584) (by decide) rfl (by decide) (by decide)) (by decide),
       high_ews hsize (Chg.instAt c hch (by decide) rfl hi0), by simp⟩
   · intro st' hat' hbuf' hchg hkept
-    rw [show 351 + b49.length + b50.length = 357 from rfl] at hat'
+    rw [NativeRustcVmX64.Vm.VerifyKeccak.b49_next, NativeRustcVmX64.Vm.VerifyKeccak.b50_next] at hat'
     rw [List.take_append_drop] at hbuf'
     exact cont st' hat' hbuf' hchg hkept
 
 theorem extSlotStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {st : MachineState} {V : Vs} {slot : Array EW}
-    (hat : At m0 k 357 wrA t45 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b51Offset wrA t45 (vv m0 V) st)
     (hbuf : NativeRustcVm.BufEWAt st.data.dmem (off (fb m0) 408) 36 inst.toList)
     (hslot : NativeRustcVm.EWsAt st.data.dmem (off (fb m0) 232) slot.toList)
     (h6 : slot.size = 6) {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 364 wrA t52 (vv m0 V) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b53Offset wrA t52 (vv m0 V) st' →
       NativeRustcVm.BufEWAt st'.data.dmem (off (fb m0) 408) 36 (inst.toList ++ slot.toList) →
       Chg m0 st.data.dmem st'.data.dmem [(0, 152), (408, 584), (3296, 48)] [] →
       Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
@@ -87,7 +88,7 @@ theorem extSlotStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst out
       sepF0 c (by decide) (by decide) (by decide),
       (sepSF0 c ca (by rw [vk_eq]; decide) (by decide) (by decide)).symm⟩
   · intro st' hat' hbuf' hchg hkept
-    rw [show 357 + b51.length + b52.length = 364 from rfl] at hat'
+    rw [NativeRustcVmX64.Vm.VerifyKeccak.b51_next, NativeRustcVmX64.Vm.VerifyKeccak.b52_next] at hat'
     exact cont st' hat' hbuf' hchg hkept
 
 end

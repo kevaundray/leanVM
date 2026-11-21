@@ -4,6 +4,9 @@ public import NativeRustcVmX64.Field.Kinv.Exec
 public import NativeRustcVmX64.Field.Call
 public import NativeRustcVmX64.Field.W32
 public import NativeRustcVm.Field.Pow
+public import NativeRustcVmX64.Code.Vm.Kinv.Names
+public import NativeRustcVmX64.Code.Vm.KinvSq.Names
+public import NativeRustcVmX64.Code.Vm.Kmul.Names
 
 /-!
 # `kinv` on x86-64
@@ -90,9 +93,9 @@ theorem geo {m0 : MachineData} (hpre : KinvPre m0) : Geo m0 32 kinvStack :=
   ⟨hpre, by decide, by decide⟩
 
 /-- **A block calling `kmul`**: RAX times the register `r1` the block moves to RSI. -/
-theorem kmul_blk (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost) {m0 m1 : MachineData}
+theorem kmul_blk (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost) {m0 m1 : MachineData}
     (hpre : KinvPre m0) {ds : List Directive} {j : Nat} {S' : SState} {r1 : Reg64}
-    (hk : ds.IsInfixAt Host.prog (k + j)) (hrun : exec ds (midS 32) = some (S', .call kmulLabel))
+    (hk : ds.IsInfixAt Host.prog (k + j)) (hrun : exec ds (midS 32) = some (S', .call NativeRustcVmX64.Vm.Kmul.entryLabel))
     (hsp : S'.reg .rsp = some (.ptr 0 ((0 : Nat) : Int)))
     (hw : ∀ w ∈ S'.mem, w.r = 0 ∧ w.off + w.n ≤ 8) (hkeep : keepsExcept used S' = true)
     (h0 : S'.reg .rdi = some (.reg .rax)) (h1 : S'.reg .rsi = some (.reg r1))
@@ -122,10 +125,10 @@ theorem kmul_blk (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost) {m0 m1
 
 /-- **A block calling `kinv::sq`** with the count `c` in ESI, after moving RAX or nothing to each
 of RBX, R14, R15. -/
-theorem sq_blk (hsq : Spec (Labels.label kinvSqLabel) KinvSqPre KinvSqPost) {m0 m1 : MachineData}
+theorem sq_blk (hsq : Spec (Labels.label NativeRustcVmX64.Vm.KinvSq.entryLabel) KinvSqPre KinvSqPost) {m0 m1 : MachineData}
     (hpre : KinvPre m0) {ds : List Directive} {j : Nat} {S' : SState} {c : Nat}
     {rbx' r14' r15' : Reg64} (hk : ds.IsInfixAt Host.prog (k + j))
-    (hrun : exec ds (midS 32) = some (S', .call kinvSqLabel))
+    (hrun : exec ds (midS 32) = some (S', .call NativeRustcVmX64.Vm.KinvSq.entryLabel))
     (hsp : S'.reg .rsp = some (.ptr 0 ((0 : Nat) : Int)))
     (hw : ∀ w ∈ S'.mem, w.r = 0 ∧ w.off + w.n ≤ 8) (hkeep : keepsExcept used S' = true)
     (h0 : S'.reg .rdi = some (.reg .rax)) (h1 : S'.reg .rsi = some (.lit c)) (hc : c < 2 ^ 32)
@@ -161,12 +164,12 @@ theorem sq_blk (hsq : Spec (Labels.label kinvSqLabel) KinvSqPre KinvSqPost) {m0 
   · exact (hq.2.2.1 .r15 rfl).trans e15
 
 /-- **`kinv` computes the inverse.** -/
-theorem kinv_spec (hp : Placed code k) (hkmul : Spec (Labels.label kmulLabel) KmulPre KmulPost)
-    (hsq : Spec (Labels.label kinvSqLabel) KinvSqPre KinvSqPost) :
-    Spec (Labels.label kinvLabel) KinvPre KinvPost := by
+theorem kinv_spec (hp : Placed code k) (hkmul : Spec (Labels.label NativeRustcVmX64.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.KinvSq.entryLabel) KinvSqPre KinvSqPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.Kinv.entryLabel) KinvPre KinvPost := by
   intro m0 hpre
   have g := geo hpre
-  rw [show Labels.label kinvLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.Kinv.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Kinv.b0Offset) from hp.label NativeRustcVmX64.Vm.Kinv.entry_at]
   refine prologue (used := used) (slots := slots) (vars := fun _ ↦ 0) g
     (hb hp b0_in_code (List.cons_ne_nil _ _)) run_b0 (o := 0) rfl (by decide +kernel)
     (by decide +kernel) (by decide +kernel) fun st1 hm1 hpc1 hF1 hsl ↦ ?_

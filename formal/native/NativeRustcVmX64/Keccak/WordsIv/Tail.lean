@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Keccak.WordsIv.Full
+public import NativeRustcVmX64.Code.Vm.IvWord.Names
 
 /-!
 # `keccak256_words::<fiat_shamir_iv's closure>` (x86-64): the last block's words
@@ -71,11 +72,11 @@ theorem rbx16 [Labels] {m0 m m' : MachineData} {B : Nat} {S : SState}
 
 variable [Host]
 
-theorem tail0 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail0 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RL m0 .rbx (bT m0) []) (stA m0) (bT m0) 0 32 385 st) :
+    {st : MachineState} (h : LaneAt m0 k (RL m0 .rbx (bT m0) []) (stA m0) (bT m0) 0 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b3Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b78Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 1) (stA m0) (bT m0) 1 391 40) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 1) (stA m0) (bT m0) 1 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b79Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b5Offset) st :=
   lane2_step hiv g (j := 0) (R := RL m0 .rbx (bT m0) []) (by decide) (by have := tail_small g; omega) (fun _ h => h) (fun _ h => h.2.2.2.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b3_in_code (List.cons_ne_nil _ _)) tailC0 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -84,11 +85,11 @@ theorem tail0 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b78_in_code (List.cons_ne_nil _ _)) tailZ0 rfl rfl rfl (by decide +kernel)
     (posZ := false) rfl (label_at hp b5_in_code rfl) rfl h
 
-theorem tail1 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail1 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 1) (stA m0) (bT m0) 1 391 40 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 1) (stA m0) (bT m0) 1 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b79Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b5Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 2) (stA m0) (bT m0) 2 399 46) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 2) (stA m0) (bT m0) 2 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b81Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b6Offset) st :=
   lane2_step hiv g (j := 1) (R := RD m0 .rbx (bT m0) [] 1) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b79_in_code (List.cons_ne_nil _ _)) tailC1 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -97,11 +98,11 @@ theorem tail1 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b5_in_code (List.cons_ne_nil _ _)) tailZ1 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b81_in_code rfl) rfl h
 
-theorem tail2 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail2 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 2) (stA m0) (bT m0) 2 399 46 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 2) (stA m0) (bT m0) 2 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b81Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b6Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 3) (stA m0) (bT m0) 3 407 52) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 3) (stA m0) (bT m0) 3 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b83Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b7Offset) st :=
   lane2_step hiv g (j := 2) (R := RD m0 .rbx (bT m0) [] 2) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b81_in_code (List.cons_ne_nil _ _)) tailC2 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -110,11 +111,11 @@ theorem tail2 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b6_in_code (List.cons_ne_nil _ _)) tailZ2 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b83_in_code rfl) rfl h
 
-theorem tail3 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail3 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 3) (stA m0) (bT m0) 3 407 52 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 3) (stA m0) (bT m0) 3 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b83Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b7Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 4) (stA m0) (bT m0) 4 415 58) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 4) (stA m0) (bT m0) 4 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b85Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b8Offset) st :=
   lane2_step hiv g (j := 3) (R := RD m0 .rbx (bT m0) [] 3) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b83_in_code (List.cons_ne_nil _ _)) tailC3 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -123,11 +124,11 @@ theorem tail3 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b7_in_code (List.cons_ne_nil _ _)) tailZ3 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b85_in_code rfl) rfl h
 
-theorem tail4 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail4 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 4) (stA m0) (bT m0) 4 415 58 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 4) (stA m0) (bT m0) 4 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b85Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b8Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 5) (stA m0) (bT m0) 5 423 64) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 5) (stA m0) (bT m0) 5 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b87Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b9Offset) st :=
   lane2_step hiv g (j := 4) (R := RD m0 .rbx (bT m0) [] 4) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b85_in_code (List.cons_ne_nil _ _)) tailC4 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -136,11 +137,11 @@ theorem tail4 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b8_in_code (List.cons_ne_nil _ _)) tailZ4 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b87_in_code rfl) rfl h
 
-theorem tail5 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail5 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 5) (stA m0) (bT m0) 5 423 64 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 5) (stA m0) (bT m0) 5 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b87Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b9Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 6) (stA m0) (bT m0) 6 431 70) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 6) (stA m0) (bT m0) 6 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b89Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b10Offset) st :=
   lane2_step hiv g (j := 5) (R := RD m0 .rbx (bT m0) [] 5) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b87_in_code (List.cons_ne_nil _ _)) tailC5 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -149,11 +150,11 @@ theorem tail5 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b9_in_code (List.cons_ne_nil _ _)) tailZ5 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b89_in_code rfl) rfl h
 
-theorem tail6 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail6 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 6) (stA m0) (bT m0) 6 431 70 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 6) (stA m0) (bT m0) 6 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b89Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b10Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 7) (stA m0) (bT m0) 7 439 76) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 7) (stA m0) (bT m0) 7 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b91Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b11Offset) st :=
   lane2_step hiv g (j := 6) (R := RD m0 .rbx (bT m0) [] 6) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b89_in_code (List.cons_ne_nil _ _)) tailC6 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -162,11 +163,11 @@ theorem tail6 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b10_in_code (List.cons_ne_nil _ _)) tailZ6 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b91_in_code rfl) rfl h
 
-theorem tail7 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail7 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 7) (stA m0) (bT m0) 7 439 76 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 7) (stA m0) (bT m0) 7 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b91Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b11Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 8) (stA m0) (bT m0) 8 447 82) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 8) (stA m0) (bT m0) 8 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b93Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b12Offset) st :=
   lane2_step hiv g (j := 7) (R := RD m0 .rbx (bT m0) [] 7) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b91_in_code (List.cons_ne_nil _ _)) tailC7 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -175,11 +176,11 @@ theorem tail7 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b11_in_code (List.cons_ne_nil _ _)) tailZ7 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b93_in_code rfl) rfl h
 
-theorem tail8 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail8 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 8) (stA m0) (bT m0) 8 447 82 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 8) (stA m0) (bT m0) 8 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b93Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b12Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 9) (stA m0) (bT m0) 9 455 88) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 9) (stA m0) (bT m0) 9 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b95Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b13Offset) st :=
   lane2_step hiv g (j := 8) (R := RD m0 .rbx (bT m0) [] 8) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b93_in_code (List.cons_ne_nil _ _)) tailC8 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -188,11 +189,11 @@ theorem tail8 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b12_in_code (List.cons_ne_nil _ _)) tailZ8 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b95_in_code rfl) rfl h
 
-theorem tail9 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail9 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 9) (stA m0) (bT m0) 9 455 88 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 9) (stA m0) (bT m0) 9 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b95Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b13Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 10) (stA m0) (bT m0) 10 463 94) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 10) (stA m0) (bT m0) 10 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b97Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b14Offset) st :=
   lane2_step hiv g (j := 9) (R := RD m0 .rbx (bT m0) [] 9) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b95_in_code (List.cons_ne_nil _ _)) tailC9 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -201,11 +202,11 @@ theorem tail9 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.
     (ic hp b13_in_code (List.cons_ne_nil _ _)) tailZ9 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b97_in_code rfl) rfl h
 
-theorem tail10 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail10 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 10) (stA m0) (bT m0) 10 463 94 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 10) (stA m0) (bT m0) 10 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b97Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b14Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 11) (stA m0) (bT m0) 11 471 100) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 11) (stA m0) (bT m0) 11 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b99Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b15Offset) st :=
   lane2_step hiv g (j := 10) (R := RD m0 .rbx (bT m0) [] 10) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b97_in_code (List.cons_ne_nil _ _)) tailC10 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -214,11 +215,11 @@ theorem tail10 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64
     (ic hp b14_in_code (List.cons_ne_nil _ _)) tailZ10 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b99_in_code rfl) rfl h
 
-theorem tail11 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail11 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 11) (stA m0) (bT m0) 11 471 100 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 11) (stA m0) (bT m0) 11 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b99Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b15Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 12) (stA m0) (bT m0) 12 479 106) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 12) (stA m0) (bT m0) 12 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b101Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b16Offset) st :=
   lane2_step hiv g (j := 11) (R := RD m0 .rbx (bT m0) [] 11) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b99_in_code (List.cons_ne_nil _ _)) tailC11 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -227,11 +228,11 @@ theorem tail11 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64
     (ic hp b15_in_code (List.cons_ne_nil _ _)) tailZ11 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b101_in_code rfl) rfl h
 
-theorem tail12 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail12 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 12) (stA m0) (bT m0) 12 479 106 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 12) (stA m0) (bT m0) 12 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b101Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b16Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 13) (stA m0) (bT m0) 13 487 112) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 13) (stA m0) (bT m0) 13 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b103Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b17Offset) st :=
   lane2_step hiv g (j := 12) (R := RD m0 .rbx (bT m0) [] 12) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b101_in_code (List.cons_ne_nil _ _)) tailC12 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -240,11 +241,11 @@ theorem tail12 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64
     (ic hp b16_in_code (List.cons_ne_nil _ _)) tailZ12 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b103_in_code rfl) rfl h
 
-theorem tail13 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail13 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 13) (stA m0) (bT m0) 13 487 112 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 13) (stA m0) (bT m0) 13 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b103Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b17Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 14) (stA m0) (bT m0) 14 495 118) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 14) (stA m0) (bT m0) 14 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b105Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b18Offset) st :=
   lane2_step hiv g (j := 13) (R := RD m0 .rbx (bT m0) [] 13) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b103_in_code (List.cons_ne_nil _ _)) tailC13 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -253,11 +254,11 @@ theorem tail13 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64
     (ic hp b17_in_code (List.cons_ne_nil _ _)) tailZ13 rfl rfl rfl (by decide +kernel)
     (posZ := true) rfl (label_at hp b105_in_code rfl) rfl h
 
-theorem tail14 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail14 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 14) (stA m0) (bT m0) 14 495 118 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 14) (stA m0) (bT m0) 14 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b105Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b18Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 15) (stA m0) (bT m0) 15 503 124) st :=
+      (LaneAt m0 k (RD m0 .rbx (bT m0) [] 15) (stA m0) (bT m0) 15 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b107Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b19Offset) st :=
   lane2_step hiv g (j := 14) (R := RD m0 .rbx (bT m0) [] 14) (by decide) (by have := tail_small g; omega) (fun _ h => h.2) (fun _ h => h.1)
     (names := [.r13, .r12, .r15, .rbx]) rfl (by decide)
     (ic hp b105_in_code (List.cons_ne_nil _ _)) tailC14 rfl rfl rfl rfl rfl (by decide +kernel) rfl
@@ -267,11 +268,11 @@ theorem tail14 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64
     (posZ := true) rfl (label_at hp b107_in_code rfl) rfl h
 
 /-- **Lane 15**: its blocks advance RBX to `B + 16` and branch on it. -/
-theorem tail15 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail15 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 15) (stA m0) (bT m0) 15 503 124 st) :
+    {st : MachineState} (h : LaneAt m0 k (RD m0 .rbx (bT m0) [] 15) (stA m0) (bT m0) 15 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b107Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b19Offset st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 511 130) st := by
+      (LaneAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b109Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b20Offset) st := by
   have hB := tail_small g
   refine lane_two (fun m hc hl hin => ?_) (fun m hc hl hz => ?_) h
   · have hRL := hc.regs.2
@@ -289,10 +290,10 @@ theorem tail15 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64
       (label_at hp b109_in_code rfl) rfl
 
 /-- **Lane 16's word in RAX**: `iv_word`'s (`b109`) or zero (`b20`), at the padding block. -/
-theorem tail16 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail16 (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 511 130 st) :
-    Eventually (step1 Host.exe) (ValAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 516) st := by
+    {st : MachineState} (h : LaneAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b109Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b20Offset st) :
+    Eventually (step1 Host.exe) (ValAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b110Offset) st := by
   refine lane_two (fun m hc hl hin => ?_) (fun m hc hl hz => ?_) h
   · exact call_step hiv g hc hl (ic hp b109_in_code (List.cons_ne_nil _ _)) tailC16 rfl rfl rfl rfl
       rfl hc.regs.2.1 hc.regs.2.2.1 hc.regs.2.2.2.1 hin hc.regs
@@ -311,10 +312,10 @@ theorem tail16 (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64
 
 /-- **The last block's words**: from its first lane to the padding block, lane 16's word in
 RAX. -/
-theorem tail_run (hiv : Spec (label NativeRustcVmX64.ivWordLabel) NativeRustcVmX64.IvWordPre
+theorem tail_run (hiv : Spec (label NativeRustcVmX64.Vm.IvWord.entryLabel) NativeRustcVmX64.IvWordPre
       NativeRustcVmX64.IvWordPost) {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
-    {st : MachineState} (h : LaneAt m0 k (RL m0 .rbx (bT m0) []) (stA m0) (bT m0) 0 32 385 st) :
-    Eventually (step1 Host.exe) (ValAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 516) st := by
+    {st : MachineState} (h : LaneAt m0 k (RL m0 .rbx (bT m0) []) (stA m0) (bT m0) 0 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b3Offset NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b78Offset st) :
+    Eventually (step1 Host.exe) (ValAt m0 k (RL m0 .rbx (bT m0 + 16) []) (stA m0) (bT m0) 16 NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.b110Offset) st := by
   refine Eventually.bind (tail0 hiv hp g h) fun st h => ?_
   refine Eventually.bind (tail1 hiv hp g h) fun st h => ?_
   refine Eventually.bind (tail2 hiv hp g h) fun st h => ?_

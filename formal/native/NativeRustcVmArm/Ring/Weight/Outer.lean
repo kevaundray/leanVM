@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Ring.Weight.Prod
 public import NativeRustcVmArm.Ring.Weight.Odd
 public import NativeRustcVmArm.Ring.Weight.Exit
@@ -92,11 +93,11 @@ variable [Host] {k : Nat}
 
 /-- **A turn of the coefficients' loop** (`b13` to `b20`). -/
 theorem outTurn (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {m : MachineData}
     (hI : OutI m0 j m) (hQ : 0 < nQ m0) (hR : 0 < nR m0) :
-    Eventually (step1 Host.exe) (fun st ↦ (st.pc = Host.addrOf (k + 131) ∧ ∃ j',
+    Eventually (step1 Host.exe) (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b13Offset) ∧ ∃ j',
         OutI m0 j' st.data ∧ 64 - j' < 64 - j) ∨
-      (st.pc = Host.addrOf (k + 184) ∧ Done m0 st.data)) ⟨m, Host.addrOf (k + 131)⟩ := by
+      (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset) ∧ Done m0 st.data)) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b13Offset)⟩ := by
   have hn := n36 h
   have hj := hI.lt
   have hmn : mn m0 = min (nR m0) (nQ m0) := rfl
@@ -106,7 +107,7 @@ theorem outTurn (hp : Placed code k) (h : RingWeightPre m0)
   refine exec_then (hb b13_in_code (by simp [b13]) hp) run_b13 hwf hm fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
   refine at_pc hpc1 ?_
-  rw [show k + 131 + b13.length = k + 137 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b13Offset + b13.length = k + NativeRustcVmArm.Vm.RingWeight.b14Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b13_next]]
   have hfr1 : WFr m0 st1.data := hI.fr.ofBlock hm hm1 hwf rfl rfl rfl fun r hr ↦ by simp at hr
   have k1 := regs_eq_of hm hm1 prodKeep (by decide)
   have hce := coef_ew h hI.fr hj
@@ -123,7 +124,7 @@ theorem outTurn (hp : Placed code k) (h : RingWeightPre m0)
     fun st3 hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
   refine at_pc hpc3 ?_
-  rw [show k + 148 + b16.length = k + 151 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b16Offset + b16.length = k + NativeRustcVmArm.Vm.RingWeight.b17Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b16_next]]
   have k3 := regs_eq_of (match_nil _) hm3 prodKeep (by decide)
   have hfr3 := regs_fr hD.fr hm3 rfl rfl
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq (Env.wf_nil _) rfl
@@ -137,9 +138,9 @@ theorem outTurn (hp : Placed code k) (h : RingWeightPre m0)
       rw [hD.fr.sp]
     · rw [hd3]; exact hD.pow l hl
   refine (sqLoop h hmul rfl h22 (by decide) (hb b17_in_code (by simp [b17]) hp) run_b17
-    (by decide) (show k + 151 + b17.length = k + 156 from rfl) (hb b18_in_code (by simp [b18]) hp) run_b18 (by decide)
-    (hp.label (j := 151) rfl) hsI).bind fun st4 ⟨hpc4, hS⟩ ↦ at_pc hpc4 ?_
-  rw [show k + 156 + b18.length = k + 159 from rfl]
+    (by decide) (show k + NativeRustcVmArm.Vm.RingWeight.b17Offset + b17.length = k + NativeRustcVmArm.Vm.RingWeight.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b17_next]) (hb b18_in_code (by simp [b18]) hp) run_b18 (by decide)
+    (hp.label (j := NativeRustcVmArm.Vm.RingWeight.b17Offset) NativeRustcVmArm.Vm.RingWeight.label_16_at) hsI).bind fun st4 ⟨hpc4, hS⟩ ↦ at_pc hpc4 ?_
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b18Offset + b18.length = k + NativeRustcVmArm.Vm.RingWeight.b19Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b18_next]]
   -- `b19`: the product added
   refine exec_then (hb b19_in_code (by simp [b19]) hp) run_b19 (Env.wf_nil _) (match_nil _)
     fun st5 hm5 hpc5 ↦ ?_
@@ -207,14 +208,14 @@ theorem outTurn (hp : Placed code k) (h : RingWeightPre m0)
     omega
   by_cases hl : j + 1 = 64
   · refine at_pc (hc.2 (fun e ↦ he.mp e hl)) ?_
-    rw [show k + 159 + b19.length = k + 164 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.RingWeight.b19Offset + b19.length = k + NativeRustcVmArm.Vm.RingWeight.b20Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b19_next]]
     refine exec_then (hb b20_in_code (by simp [b20]) hp) run_b20 (Env.wf_nil _) (match_nil _)
       fun st6 hm6 hpc6 ↦ ?_
     simp only [PcOk] at hpc6
-    refine .done _ (.inr ⟨hpc6.trans (hp.label (j := 184) rfl), regs_fr hfr5 hm6 rfl rfl, ?_⟩)
+    refine .done _ (.inr ⟨hpc6.trans (hp.label (j := NativeRustcVmArm.Vm.RingWeight.b26Offset) NativeRustcVmArm.Vm.RingWeight.label_22_at), regs_fr hfr5 hm6 rfl rfl, ?_⟩)
     rw [Match.reg_eq (match_nil _) hm6 (r := .X21) rfl rfl,
       Match.reg_eq (match_nil _) hm6 (r := .X23) rfl rfl, htot', A_done, hl]
-  · refine .done _ (.inl ⟨(hc.1 (he.mpr hl)).trans (hp.label (j := 131) rfl), j + 1,
+  · refine .done _ (.inl ⟨(hc.1 (he.mpr hl)).trans (hp.label (j := NativeRustcVmArm.Vm.RingWeight.b13Offset) NativeRustcVmArm.Vm.RingWeight.label_13_at), j + 1,
       ⟨hfr5, by omega, ?_, by rw [kS .X20 (by simp)]; exact hI.x20, ?_, ?_, h25, ?_, htot', hpow'⟩,
       by omega⟩)
     · rw [kS .X19 (by simp)]; exact hI.x19

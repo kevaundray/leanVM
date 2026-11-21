@@ -31,7 +31,7 @@ variable [Host] {k : Nat}
 theorem tail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 absorbStack)
     (hmap : Mapped m0.dmem m0.regs.X0.toBitVec 328) (hnw : m0.regs.X0.toBitVec.toNat + 328 ≤ 2 ^ 64)
     (hapF : NativeRustcVm.Apart m0.regs.X0.toBitVec 328 (frameBase m0 48) 48) {sp0 : SpongeW}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 16)) (hf : Frame m0 48 slots st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SpongeWAbsorb.b3Offset)) (hf : Frame m0 48 slots st.data)
     (hlt : sp0.pending.size < 4) (hx8 : st.data.regs.X8.toNat = sp0.pending.size)
     (hx19 : st.data.regs.X19 = m0.regs.X3) (hx20 : st.data.regs.X20.toBitVec = m0.regs.X0.toBitVec)
     (hx21 : st.data.regs.X21 = m0.regs.X2) (hx22 : st.data.regs.X22 = m0.regs.X1)
@@ -95,7 +95,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 absorbSta
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hst (by decide) (by decide), trivial⟩
       (by rw [hf4.sp]; exact (eval_ptr rfl).symm) trivial trivial trivial trivial
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf4
-    (hpc4.trans (by rw [show b3.length = 7 from rfl])) hm4' fun st5 hm5 hpc5 => ?_
+    (hpc4.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.SpongeWAbsorb.b3_next])) hm4' fun st5 hm5 hpc5 => ?_
   obtain ⟨hepi, hmem5⟩ := after_eq run_b4 ▸ ok_b4
   obtain ⟨hsv5, hsl5⟩ := Frame.epilogue hf4 hwf4 hm5 hepi
   have hx30 : st5.data.regs.X30 = m0.regs.X30 := hsl5 (0, .X30) (List.mem_cons_self ..)

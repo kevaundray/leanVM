@@ -65,7 +65,7 @@ theorem blk (h : TablePhasePre a s L bus m0) {o o' : Nat} {st : MachineState} (f
 
 /-- **The epilogue** `b8`: AL is RBP's low byte. -/
 theorem exit8 {k : Nat} (hp : Placed code k) (h : TablePhasePre a s L bus m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 59)) (fr : St m0 24 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TablePhase.b8Offset)) (fr : St m0 24 st.data)
     (hal : (reg st.data .rbp).toNat % 256 = (okWord ((tablePhase L bus).run s).isSome).toNat)
     (hev : ∀ x s', (tablePhase L bus).run s = some (x, s') →
       TableEvalsAt st.data.dmem (reg m0 .rcx) x)

@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.CheckA
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.State
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
+public import NativeRustcVmX64.Code.Vm.SumE.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `verify_layer` on x86-64: from the entry to the first check passed
@@ -33,16 +37,16 @@ theorem backWords_of {p : Array EW} {s1 : TState} {d : MachineData}
 /-- **From the entry to the first check passed**, given `read_scalars`'s, `EW::mul`'s,
 `eq_kernel`'s and `sum_e`'s contracts. -/
 theorem toAfterA (hp : Placed code k)
-    (hrs : Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
+    (hrs : Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hek : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hsum : Spec (Labels.label NativeRustcVmX64.Vm.SumE.entryLabel) SumEPre SumEPost)
     (hpre : VerifyLayerPre a s c m0)
     (cont : ∀ p s1 d, AfterA m0 a c p s1 d →
       runL s c m0 = ((grind (grindingBits (productBits - 1))).run s1).bind
         (fun q ↦ rest2 c p q.2) →
-      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + 370)⟩) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b44Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b0Offset)⟩ := by
   refine front hp hrs hpre fun p s1 d hr hh ↦ ?_
   have hrun1 : runL s c m0 = rest1 (reg m0 .rsi).toNat (stepN m0) c p s1 := by
     unfold runL

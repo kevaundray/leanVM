@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Field.EWMul.Exec
 public import NativeRustcVmX64.Field.Leaf
 public import NativeRustcVm.Field.EW
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `EW::mul` on x86-64
@@ -63,15 +64,16 @@ variable [Host] {k : Nat}
 
 /-- **`EW::mul` computes `Field.ewMul`.** -/
 theorem ewMul_spec_rust (hp : Placed code k) :
-    Spec (Labels.label ewMulLabel) EWMulPre RustPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre RustPost := by
   intro m hpre
   obtain ⟨x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11⟩ := exits
   obtain ⟨l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11⟩ := lens
   have hk : b0.IsInfixAt Host.prog k :=
     (b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _) :)
-  rw [show Labels.label ewMulLabel = Host.addrOf k from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel = Host.addrOf k from hp.label NativeRustcVmX64.Vm.EWMul.entry_at]
   let env := frameEnv m m 144 (vars (reg m .rdi) (reg m .rsi) (reg m .rdx) (reg m .rcx))
   have hwf : env.WF := frame_wf hpre fun _ h ↦ h
+  -- Phase 2: these semantic b0-interior slices follow the Exec certificates, not generated block boundaries.
   refine exec_then (hk.slice 0 125 (by omega)) r1.run hwf (by rw [x1]; nofun) match_frame
     fun st hm hpc ↦ ?_
   rw [x1, l1] at hpc
@@ -111,7 +113,7 @@ theorem ewMul_spec_rust (hp : Placed code k) :
     (hm.reg_check c12).trans (congrArg Prod.snd he), hso, hsv⟩
 
 /-- **`EW::mul` computes the model's product.** -/
-theorem ewMul_spec (hp : Placed code k) : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost := by
+theorem ewMul_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost := by
   intro m hpre
   refine Eventually.mono (ewMul_spec_rust hp m hpre) fun st ⟨hpc, hsp, h0, h1, hso, hsv⟩ ↦
     ⟨hpc, hsp, ?_, ?_, hso, hsv⟩

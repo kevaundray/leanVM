@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Sphincs.SphincsVerify.Names
+
 public import NativeRustcArm.SphincsVerify.Compose
 public import NativeRustc.Sphincs.Verify
 
@@ -26,14 +28,10 @@ theorem verify_correct_of {k : Nat} (hp : Placed Sphincs.SphincsVerify.code k) (
     Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = retOf m ∧
       st.data.regs.X0 = (if _root_.Sphincs.verifyWithKeccak pk msg sig then 1 else 0) ∧
       SameOutside m.dmem st.data.dmem (InRange (stackBelow m sphincsStack) sphincsStack) ∧
-      Saved m st.data) ⟨m, label "sphincs_verify"⟩ := by
-  have h0 : Sphincs.SphincsVerify.code[0]? = some (.label "sphincs_verify") := by
-    obtain ⟨t, hct⟩ := Sphincs.SphincsVerify.b0_in_code
-    rw [List.drop_zero] at hct
-    rw [← hct]
-    rfl
-  have hl : label "sphincs_verify" = NativeArm.Host.addrOf (k + 0) := hp.label h0
-  rw [hl, Nat.add_zero]
+      Saved m st.data) ⟨m, label NativeRustcArm.Sphincs.SphincsVerify.entryLabel⟩ := by
+  have h0 := NativeRustcArm.Sphincs.SphincsVerify.entry_at
+  have hl : label NativeRustcArm.Sphincs.SphincsVerify.entryLabel = NativeArm.Host.addrOf (k + NativeRustcArm.Sphincs.SphincsVerify.b0Offset) := hp.label h0
+  rw [hl, NativeRustcArm.Sphincs.SphincsVerify.b0Offset, Nat.add_zero]
   have := run_correct ⟨m, Native.SphincsVerifier.encode pk msg sig, k⟩ hp hc hpre h1 h2 h3 h4 he hch
     ht
   rw [NativeRustc.Sphincs.verify_eq] at this

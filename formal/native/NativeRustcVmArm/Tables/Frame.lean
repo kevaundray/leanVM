@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Bus.GkrCommon
 public import NativeRustcVmArm.Spec.Tables
 public import NativeRustcVm.Tables.Same
@@ -80,13 +81,13 @@ theorem same_in {m0 m : MachineData} {F N : Nat} {slots : List (Nat × XReg)} {k
 theorem squeeze_call [Host] {m0 : MachineData} {t : BitVec 64} {a : DecArea} {N F : Nat}
     {slots : List (Nat × XReg)} {keep : List XReg} {outs : BitVec 64 → Prop}
     (c : Ctx m0 t a N F)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hf : Fr m0 F N slots keep outs st.data) (hrc : ∀ q, outs q → ¬InRange rcAddr 192 q)
     (hle : F + squeezeStack ≤ N) (hkeep : ∀ r ∈ keep, calleeSaved r = true)
     (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F) (hfr : ∀ q, outs q → ¬InRange (base m0 F) F q)
     (hto : ∀ q, InRange t tstateBytes q → outs q)
-    (hpc : st.pc = Labels.label squeezeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0.toBitVec = t) {s : TState} (hts : TStateAt st.data.dmem t a s)
     (cont : ∀ m2 : MachineData, Fr m0 F N slots keep outs m2 →
       TStateAt m2.dmem t a { s with sponge := s.sponge.squeeze.2 } →

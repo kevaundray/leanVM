@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Ring.Weight.Exec
+public import NativeRustcVmX64.Code.Vm.RingWeight.Names
 
 /-!
 # `ring_weight`'s product loop, checked by the kernel at each factor (x86-64)
@@ -28,7 +29,7 @@ public theorem f_b13 : ∀ i < 36,
 
 public theorem f_b14 : ∀ i < 36,
     JOk b14 (tP (sz1 (16 * i + 16)) qAl i) (tP (sz1 (16 * i + 16)) qAl (i + 1))
-      (.cond (.not (.cmp .eq .W64 (.var 17) (.lit (16 * i + 16)))) ".LRingWeight_18")
+      (.cond (.not (.cmp .eq .W64 (.var 17) (.lit (16 * i + 16)))) NativeRustcVmX64.Vm.RingWeight.label_18)
       (sz1 (16 * i + 16)) (fun _ ↦ false) ((6, .var 6) :: (15, .var 15) :: (7, .var 7) ::
         [(20, .var 20), (17, .var 17), (21, .var 21), (12, .var 12)]) ockL = true ∧
     missR 48 624 (after b14 (tP (sz1 (16 * i + 16)) qAl i)) = true := by

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.Ext
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
 
 /-!
 # `final_level`: the point and the rotated point (x86-64)
@@ -127,9 +128,9 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {ba : BasisAddrs
 
 /-- **The point and the rotated point**: `b17` to `b24`, to `b25`. -/
 theorem point (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState}
-    (hpc : st.pc = Host.addrOf (k + 183)) (hc : Core level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b17Offset)) (hc : Core level m0 st.data folded)
     (hbx : reg st.data .rbx = pA m0)
     (h48 : NativeRustcVm.WordAt st.data.dmem (loc m0 48) (.ofBitVec (reg m0 .r8)))
     (h56 : NativeRustcVm.WordAt st.data.dmem (loc m0 56) (.ofBitVec (reg m0 .r9)))
@@ -137,7 +138,7 @@ theorem point (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (hcl : NativeRustcVm.EWAt st.data.dmem (loc m0 152) claim)
     (hts : TStateAt st.data.dmem (tA m0) a s5)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 351) → Core level m0 st'.data folded →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b25Offset) → Core level m0 st'.data folded →
       reg st'.data .rbx = loc m0 640 → reg st'.data .r12 = claim.c0.toBitVec →
       reg st'.data .r15 = claim.c1.toBitVec →
       reg st'.data .r13 = BitVec.ofNat 64 (w.alphas ++ tail).size →
@@ -159,7 +160,7 @@ theorem point (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have htl : tail.toList.length = mu m0 := by rw [Array.length_toList, htn]
   have hal' : w.alphas.toList.length = w.alphas.size := Array.length_toList
   -- `b17`: the claim kept, the point zeroed, `extend(&point, alphas)`.
-  let ret1 := (Host.addrOf (k + 255)).toBitVec
+  let ret1 := (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b18Offset)).toBitVec
   let env1 := argEnv m0 st.data 2672 8 [(pA m0, 63200)] (fun _ ↦ 0) ret1
   have hwf1 : env1.WF :=
     c.wf1 hf.frame.kept (show NativeRustcVm.Mapped st.data.dmem (pA m0) 63200 from
@@ -218,8 +219,8 @@ theorem point (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
   have hc2 : Core level m0 st2.data folded :=
     hc.keep hf2 ((hcs2 .r14 rfl).trans (hm1'.regs .r14 _ (hkr1 .r14 (by simp))))
       (fun j hj ↦ hk1.trans hk2 (by omega) (by omega) (by omega) (by omega)) hfo
-  have hpc2' : st2.pc = Host.addrOf (k + 257) := hpc2
-  let env3 := argEnv m0 st2.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 261)).toBitVec
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b19Offset) := hpc2
+  let env3 := argEnv m0 st2.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b20Offset)).toBitVec
   have hwf3 : env3.WF := c.wf0 hf2.frame.kept
   refine exec_at (infix_of b19_in_code (by simp [b19]) hp) exit_b19 hwf3 (fun _ _ ↦ rfl) hpc2'
     (match_retS hf2) fun st3 hm3 hpc3 ↦ ?_
@@ -260,8 +261,8 @@ theorem point (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     hk4.word (by omega) (by omega) (by omega) (hk3.word (by omega) (by omega) (by omega)
       (hk2.word (by omega) (by omega) (by omega) (hk1.word (by omega) (by omega) (by omega) h56)))
   have htail4 := hk4.ews (by omega) (by omega) (by omega) htail3
-  have hpc4' : st4.pc = Host.addrOf (k + 263) := hpc4
-  let env5 := argEnv m0 st4.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 341)).toBitVec
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b21Offset) := hpc4
+  let env5 := argEnv m0 st4.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b22Offset)).toBitVec
   have hwf5 : env5.WF := c.wf0 hf4.frame.kept
   refine exec_at (infix_of b21_in_code (by simp [b21]) hp) exit_b21 hwf5 (fun _ _ ↦ rfl) hpc4'
     (match_retS hf4) fun st5 hm5 hpc5 ↦ ?_
@@ -273,7 +274,7 @@ theorem point (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     keepF_blk hwf5 hm5 (writesIn_of_mid hmid5) hW5 (by decide)
   have l632 : env5.load 0 632 8 = BitVec.ofNat 64 P.size := by
     have := load_ofMachine (r := 0) (o := 632) (rs := [(stackBelow m0 2672, 2672 + 8 + 8)])
-      (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + 341)).toBitVec) (m := st4.data) rfl hbuf4.2.1
+      (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b22Offset)).toBitVec) (m := st4.data) rfl hbuf4.2.1
     rw [this, hPl]
     rfl
   have l48 : env5.load 0 48 8 = reg m0 .r8 := load_ofMachine (r := 0) (o := 48) rfl hw48
@@ -333,8 +334,8 @@ theorem point (hp : Placed code k) (c : Ctx a s level ba b w rounds m0)
     (by simp only [List.length_nil]; omega) fun st6 hpc6 hf6 hbuf6 hcs6 hk6 hts6 ↦ ?_
   rw [List.nil_append] at hbuf6
   -- `b23`: `extend(&rotated, point[..lf])`.
-  have hpc6' : st6.pc = Host.addrOf (k + 343) := hpc6
-  let env7 := argEnv m0 st6.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + 349)).toBitVec
+  have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b23Offset) := hpc6
+  let env7 := argEnv m0 st6.data 2672 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b24Offset)).toBitVec
   have hwf7 : env7.WF := c.wf0 hf6.frame.kept
   refine exec_at (infix_of b23_in_code (by simp [b23]) hp) exit_b23 hwf7 (fun _ _ ↦ rfl) hpc6'
     (match_retS hf6) fun st7 hm7 hpc7 ↦ ?_

@@ -26,14 +26,12 @@ end
 
 public section
 
-theorem length_b6 : b6.length = 3 := rfl
-theorem length_b7 : b7.length = 46 := rfl
 
 variable [NativeArm.Host]
 
 /-- **The codeword's tests.** -/
-theorem tests_region : RegionSpec Run.AtCheck 48 fun r st ↦
-    (r.result = none ∧ r.Done st) ∨ (st.pc = r.pc 97 ∧ r.AtB8 st.data) := by
+theorem tests_region : RegionSpec Run.AtCheck NativeRustcArm.Xmss.WotsLeaf.b6Offset fun r st ↦
+    (r.result = none ∧ r.Done st) ∨ (st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b8Offset ∧ r.AtB8 st.data) := by
   intro r hp hc hpre m ⟨hK, h19, h20, h22⟩
   have hD : BytesAt m.dmem (r.off 1776) r.digest32 := hK.2.2.2.1.2.2
   refine frameStep r hp hpre b6_in_code (List.cons_ne_nil _ _) run_b6 (by decide) rfl hK trivial
@@ -48,7 +46,7 @@ theorem tests_region : RegionSpec Run.AtCheck 48 fun r st ↦
     exact load_hi hD
   by_cases h52 : r.hiW.toNat < 2 ^ 52
   · rw [decide_eq_true h52] at hpc1'
-    simp only [Bool.not_true, Bool.false_eq_true, ite_false, length_b6] at hpc1'
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false, NativeRustcArm.Xmss.WotsLeaf.b6_next] at hpc1'
     refine pc_at hpc1' ?_
     have hD1 : BytesAt st.data.dmem (r.off 1776) r.digest32 := hK1.2.2.2.1.2.2
     refine frameStep r hp hpre b7_in_code (List.cons_ne_nil _ _) run_b7 (by decide) rfl hK1 trivial
@@ -57,7 +55,7 @@ theorem tests_region : RegionSpec Run.AtCheck 48 fun r st ↦
     by_cases hcw : isCodeword r.dNum = true
     · rw [show r.dNum = 2 ^ 64 * r.hiW.toNat + r.lo.toNat from rfl] at hcw
       rw [hcw] at hpc2'
-      simp only [Bool.not_true, Bool.false_eq_true, ite_false, length_b7] at hpc2'
+      simp only [Bool.not_true, Bool.false_eq_true, ite_false, NativeRustcArm.Xmss.WotsLeaf.b7_next] at hpc2'
       refine .done _ (.inr ⟨hpc2', hK2, h52, hcw, regIs_reg hm2 rfl g8, ?_, regIs_reg hm2 rfl g19,
         regIs_reg hm2 rfl g20, regIs_reg hm2 rfl g22⟩)
       unfold Run.RegIs

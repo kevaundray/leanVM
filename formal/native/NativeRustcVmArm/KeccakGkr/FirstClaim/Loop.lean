@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.FirstClaim.Pro
 
 /-!
@@ -64,10 +65,10 @@ variable [NativeArm.Host] {inst segment lanePoint output : Array EW} {m0 : Machi
 
 /-- **A turn of the bit weights' loop**. -/
 theorem w_step (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 63)) (hI : WInv m0 lanePoint j s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 63) ∧
-        WInv m0 lanePoint (j + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + 75) ∧
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b3Offset)) (hI : WInv m0 lanePoint j s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b3Offset) ∧
+        WInv m0 lanePoint (j + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b5Offset) ∧
         WDone m0 lanePoint s'.data)) s := by
   have hS := hpre.1
   have hA := pre_areas hpre
@@ -191,7 +192,7 @@ theorem w_step (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint
   have h28 := hm3'.regs .X28 _ rfl
   have hx28 : (s2.data.regs.getXReg .X28).toBitVec.toNat = 25600 - 16 * j := by
     rw [hk2 .X28 (by simp)]; exact hI.x28
-  simp only [PcOk, show b4.length = 4 from rfl] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.FirstClaim.b4_length, NativeRustcVmArm.Vm.FirstClaim.b4Length] at hpc3
   sym_simp at hpc3
   simp only [Env.ofMachine_regs] at hpc3
   have hargs : Args m0 s3.data :=
@@ -215,7 +216,7 @@ theorem w_step (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint
       simp at this
       omega
     simp only [hne, Bool.not_false, ite_true] at hpc3
-    refine .done _ (Or.inl ⟨hpc3.trans (hp.label (j := 63) rfl), hb3, hargs, h21, h25, ?_, ?_, ?_,
+    refine .done _ (Or.inl ⟨hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.FirstClaim.b3Offset) NativeRustcVmArm.Vm.FirstClaim.label_2_at), hb3, hargs, h21, h25, ?_, ?_, ?_,
       ?_, ?_, by omega, hlanes3, hc13, hw3⟩)
     · show (s3.data.regs.getXReg .X26).toBitVec = _
       rw [k3 .X26 (by simp), hk2 .X26 (by simp)]; exact hI.x26
@@ -246,11 +247,11 @@ theorem w_step (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint
 
 /-- **The bit weights' loop**, to its end. -/
 theorem w_loop (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 63)) (hI : WInv m0 lanePoint j s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 75) ∧
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b3Offset)) (hI : WInv m0 lanePoint j s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b5Offset) ∧
       WDone m0 lanePoint s'.data) s :=
-  Sym.loop (fun n s ↦ ∃ j, n = 1600 - j ∧ s.pc = Host.addrOf (k + 63) ∧ WInv m0 lanePoint j s.data)
+  Sym.loop (fun n s ↦ ∃ j, n = 1600 - j ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b3Offset) ∧ WInv m0 lanePoint j s.data)
     (fun _ s ⟨j, hn, hpc, hI⟩ ↦ (w_step hp hpre hmul hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨1600 - (j + 1), by have := hI.j_lt; omega, j + 1, rfl, hpc', hI'⟩

@@ -2,6 +2,16 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.GkrStep
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.GkrStep.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.ProdE.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfGkrStep.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 public meta import NativeRustcVmX64.Code.Vm.GkrStep
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -134,7 +144,7 @@ sym_block run_b40 := exec b40 headS
 /-! ## The prologue to the sumcheck -/
 
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 1408 32 slots (after b0 entryS) = true ∧
     W0 (after b0 entryS) [(32, 40), (1360, 1408)] = true ∧
@@ -144,7 +154,7 @@ public theorem ok_b0 : ProOk 1408 32 slots (after b0 entryS) = true ∧
   decide +kernel
 
 public theorem exit_b1 : exec b1 headS = some (after b1 headS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState5grind") :=
+    .call NativeRustcVmX64.Vm.TStateGrind.entryLabel) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : MidOk 1408 32 slots (after b1 headS) = true ∧
     W0 (after b1 headS) [(32, 40)] = true ∧
@@ -153,14 +163,14 @@ public theorem ok_b1 : MidOk 1408 32 slots (after b1 headS) = true ∧
     Keeps (after b1 headS) [.rbx, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b2 : exec b2 headS = some (after b2 headS, .cond cAl ".LGkrStep_18") :=
+public theorem exit_b2 : exec b2 headS = some (after b2 headS, .cond cAl NativeRustcVmX64.Vm.GkrStep.label_18) :=
   run_b2.trans (by rw [after_eq run_b2]; rfl)
 public theorem ok_b2 : MidOk 1408 40 slots (after b2 headS) = true ∧ (after b2 headS).mem = [] ∧
     Keeps (after b2 headS) cs6 = true := by
   decide +kernel
 
 public theorem exit_b3 : exec b3 headS = some (after b3 headS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW7squeeze") :=
+    .call NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 1408 32 slots (after b3 headS) = true ∧
     W0 (after b3 headS) [(32, 40), (44, 48)] = true ∧
@@ -169,7 +179,7 @@ public theorem ok_b3 : MidOk 1408 32 slots (after b3 headS) = true ∧
   decide +kernel
 
 public theorem exit_b4 : exec b4 headS = some (after b4 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9poly_eval") :=
+    .call NativeRustcVmX64.Vm.PolyEval.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 1408 32 slots (after b4 headS) = true ∧
     W0 (after b4 headS) [(32, 40), (104, 112)] = true ∧ WordW 0 104 (.reg .rax) (after b4 headS) ∧
@@ -188,7 +198,7 @@ public theorem ok_b5 : MidOk 1408 40 slots (after b5 headS) = true ∧ (after b5
 
 public theorem exit_b6 : exec b6 zS = some (after b6 zS,
     .cond (SBool.cmp .eq .W64 (.bin .add .W64 (.lit 48) (.reg .rcx)) (.lit 1048)).not
-      ".LGkrStep_2") :=
+      NativeRustcVmX64.Vm.GkrStep.label_2) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : (∀ w ∈ (after b6 zS).mem, w.r = 0 ∧ w.off + w.n ≤ 48) ∧
     (after b6 zS).reg .rcx = some (.bin .add .W64 (.lit 48) (.reg .rcx)) ∧
@@ -196,7 +206,7 @@ public theorem ok_b6 : (∀ w ∈ (after b6 zS).mem, w.r = 0 ∧ w.off + w.n ≤
   decide +kernel
 
 public theorem exit_b7 : exec b7 sS = some (after b7 sS,
-    .call "_RINvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB6_6TState8sumcheckNCNvNtB8_3gkr8gkr_step0EB8_") :=
+    .call NativeRustcVmX64.Vm.SumcheckOfGkrStep.entryLabel) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 : MidOk 1408 0 slots (after b7 sS) = true ∧
     W0 (after b7 sS) [(0, 40), (96, 104)] = true ∧
@@ -212,7 +222,7 @@ public theorem ok_b7 : MidOk 1408 0 slots (after b7 sS) = true ∧
   decide +kernel
 
 public theorem exit_b8 : exec b8 s8S = some (after b8 s8S,
-    .cond (SBool.cmp .eq .W32 (.load 0 112 4) (.lit 1)).not ".LGkrStep_17") :=
+    .cond (SBool.cmp .eq .W32 (.load 0 112 4) (.lit 1)).not NativeRustcVmX64.Vm.GkrStep.label_17) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk 1408 40 slots (after b8 s8S) = true ∧ (after b8 s8S).mem = [] ∧
     Keeps (after b8 s8S) cs6 = true := by
@@ -221,7 +231,7 @@ public theorem ok_b8 : MidOk 1408 40 slots (after b8 s8S) = true ∧ (after b8 s
 /-! ## The children -/
 
 public theorem exit_b9 : exec b9 headS = some (after b9 headS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) :=
   run_b9.trans (by rw [after_eq run_b9])
 public theorem ok_b9 : MidOk 1408 32 slots (after b9 headS) = true ∧
     W0 (after b9 headS) [(32, 40), (80, 96), (112, 304)] = true ∧
@@ -230,7 +240,7 @@ public theorem ok_b9 : MidOk 1408 32 slots (after b9 headS) = true ∧
     (after b9 headS).reg .rdx = some (.reg .r12) ∧ Keeps (after b9 headS) cs6 = true := by
   decide +kernel
 
-public theorem exit_b10 : exec b10 headS = some (after b10 headS, .cond cAl ".LGkrStep_17") :=
+public theorem exit_b10 : exec b10 headS = some (after b10 headS, .cond cAl NativeRustcVmX64.Vm.GkrStep.label_17) :=
   run_b10.trans (by rw [after_eq run_b10]; rfl)
 public theorem ok_b10 : MidOk 1408 40 slots (after b10 headS) = true ∧
     (after b10 headS).mem = [] ∧ Keeps (after b10 headS) cs6 = true := by
@@ -242,7 +252,7 @@ public theorem b14_eq : b14 = b10 := by decide
 public theorem b23_eq : b23 = b10 := by decide
 
 public theorem exit_b11 : exec b11 headS = some (after b11 headS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : MidOk 1408 32 slots (after b11 headS) = true ∧
     W0 (after b11 headS) [(32, 40)] = true ∧
@@ -251,7 +261,7 @@ public theorem ok_b11 : MidOk 1408 32 slots (after b11 headS) = true ∧
   decide +kernel
 
 public theorem exit_b13 : exec b13 headS = some (after b13 headS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars") :=
+    .call NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) :=
   run_b13.trans (by rw [after_eq run_b13])
 public theorem ok_b13 : MidOk 1408 32 slots (after b13 headS) = true ∧
     W0 (after b13 headS) [(32, 40)] = true ∧
@@ -262,7 +272,7 @@ public theorem ok_b13 : MidOk 1408 32 slots (after b13 headS) = true ∧
 /-! ## The products and the check -/
 
 public theorem exit_b15 : exec b15 headS = some (after b15 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field6prod_e") :=
+    .call NativeRustcVmX64.Vm.ProdE.entryLabel) :=
   run_b15.trans (by rw [after_eq run_b15])
 public theorem ok_b15 : MidOk 1408 32 slots (after b15 headS) = true ∧
     W0 (after b15 headS) [(32, 40)] = true ∧
@@ -271,7 +281,7 @@ public theorem ok_b15 : MidOk 1408 32 slots (after b15 headS) = true ∧
   decide +kernel
 
 public theorem exit_b16 : exec b16 headS = some (after b16 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field6prod_e") :=
+    .call NativeRustcVmX64.Vm.ProdE.entryLabel) :=
   run_b16.trans (by rw [after_eq run_b16])
 public theorem ok_b16 : MidOk 1408 32 slots (after b16 headS) = true ∧
     W0 (after b16 headS) [(32, 40), (304, 320)] = true ∧
@@ -281,7 +291,7 @@ public theorem ok_b16 : MidOk 1408 32 slots (after b16 headS) = true ∧
   decide +kernel
 
 public theorem exit_b17 : exec b17 headS = some (after b17 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field6prod_e") :=
+    .call NativeRustcVmX64.Vm.ProdE.entryLabel) :=
   run_b17.trans (by rw [after_eq run_b17])
 public theorem ok_b17 : MidOk 1408 32 slots (after b17 headS) = true ∧
     W0 (after b17 headS) [(32, 40), (320, 336)] = true ∧
@@ -291,7 +301,7 @@ public theorem ok_b17 : MidOk 1408 32 slots (after b17 headS) = true ∧
   decide +kernel
 
 public theorem exit_b18 : exec b18 headS = some (after b18 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field9poly_eval") :=
+    .call NativeRustcVmX64.Vm.PolyEval.entryLabel) :=
   run_b18.trans (by rw [after_eq run_b18])
 public theorem ok_b18 : MidOk 1408 32 slots (after b18 headS) = true ∧
     W0 (after b18 headS) [(32, 40), (336, 352)] = true ∧
@@ -302,14 +312,14 @@ public theorem ok_b18 : MidOk 1408 32 slots (after b18 headS) = true ∧
   decide +kernel
 
 public theorem exit_b19 : exec b19 headS = some (after b19 headS,
-    .cond (SBool.cmp .eq .W64 (.load 0 88 8) (.reg .rax)).not ".LGkrStep_17") :=
+    .cond (SBool.cmp .eq .W64 (.load 0 88 8) (.reg .rax)).not NativeRustcVmX64.Vm.GkrStep.label_17) :=
   run_b19.trans (by rw [after_eq run_b19])
 public theorem ok_b19 : MidOk 1408 40 slots (after b19 headS) = true ∧
     (after b19 headS).mem = [] ∧ Keeps (after b19 headS) (.rdx :: cs6) = true := by
   decide +kernel
 
 public theorem exit_b20 : exec b20 headS = some (after b20 headS,
-    .cond (SBool.cmp .eq .W64 (.load 0 80 8) (.reg .rdx)).not ".LGkrStep_17") :=
+    .cond (SBool.cmp .eq .W64 (.load 0 80 8) (.reg .rdx)).not NativeRustcVmX64.Vm.GkrStep.label_17) :=
   run_b20.trans (by rw [after_eq run_b20])
 public theorem ok_b20 : MidOk 1408 40 slots (after b20 headS) = true ∧
     (after b20 headS).mem = [] ∧ Keeps (after b20 headS) cs6 = true := by
@@ -318,7 +328,7 @@ public theorem ok_b20 : MidOk 1408 40 slots (after b20 headS) = true ∧
 /-! ## The second grind, the coordinates, the new values -/
 
 public theorem exit_b21 : exec b21 headS = some (after b21 headS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b21.trans (by rw [after_eq run_b21])
 public theorem ok_b21 : MidOk 1408 32 slots (after b21 headS) = true ∧
     W0 (after b21 headS) [(32, 40)] = true ∧
@@ -328,7 +338,7 @@ public theorem ok_b21 : MidOk 1408 32 slots (after b21 headS) = true ∧
   decide +kernel
 
 public theorem exit_b22 : exec b22 headS = some (after b22 headS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState5grind") :=
+    .call NativeRustcVmX64.Vm.TStateGrind.entryLabel) :=
   run_b22.trans (by rw [after_eq run_b22])
 public theorem ok_b22 : MidOk 1408 32 slots (after b22 headS) = true ∧
     W0 (after b22 headS) [(32, 40)] = true ∧
@@ -337,7 +347,7 @@ public theorem ok_b22 : MidOk 1408 32 slots (after b22 headS) = true ∧
   decide +kernel
 
 public theorem exit_b24 : exec b24 headS = some (after b24 headS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState17sample_challenges") :=
+    .call NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) :=
   run_b24.trans (by rw [after_eq run_b24])
 public theorem ok_b24 : MidOk 1408 32 slots (after b24 headS) = true ∧
     W0 (after b24 headS) [(32, 40), (48, 80)] = true ∧
@@ -347,7 +357,7 @@ public theorem ok_b24 : MidOk 1408 32 slots (after b24 headS) = true ∧
   decide +kernel
 
 public theorem exit_b25 : exec b25 headS = some (after b25 headS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm5field19multilinear_eval_byNCNvB2_16multilinear_eval0EB4_") :=
+    .call NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) :=
   run_b25.trans (by rw [after_eq run_b25])
 public theorem ok_b25 : MidOk 1408 32 slots (after b25 headS) = true ∧
     W0 (after b25 headS) [(32, 40)] = true ∧
@@ -357,7 +367,7 @@ public theorem ok_b25 : MidOk 1408 32 slots (after b25 headS) = true ∧
   decide +kernel
 
 public theorem exit_b26 : exec b26 sS = some (after b26 sS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm5field19multilinear_eval_byNCNvB2_16multilinear_eval0EB4_") :=
+    .call NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) :=
   run_b26.trans (by rw [after_eq run_b26])
 public theorem ok_b26 : MidOk 1408 32 slots (after b26 sS) = true ∧
     W01 (after b26 sS) [(32, 40)] 0 16 = true ∧
@@ -369,7 +379,7 @@ public theorem ok_b26 : MidOk 1408 32 slots (after b26 sS) = true ∧
   decide +kernel
 
 public theorem exit_b27 : exec b27 sS = some (after b27 sS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm5field19multilinear_eval_byNCNvB2_16multilinear_eval0EB4_") :=
+    .call NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) :=
   run_b27.trans (by rw [after_eq run_b27])
 public theorem ok_b27 : MidOk 1408 32 slots (after b27 sS) = true ∧
     W01 (after b27 sS) [(32, 40)] 16 32 = true ∧
@@ -380,7 +390,7 @@ public theorem ok_b27 : MidOk 1408 32 slots (after b27 sS) = true ∧
     Keeps (after b27 sS) [.rbx, .rbp, .r12, .r13, .r15] = true := by
   decide +kernel
 
-public theorem exit_b28 : exec b28 sS = some (after b28 sS, .cond c28 ".LGkrStep_17") :=
+public theorem exit_b28 : exec b28 sS = some (after b28 sS, .cond c28 NativeRustcVmX64.Vm.GkrStep.label_17) :=
   run_b28.trans (by rw [after_eq run_b28]; rfl)
 public theorem ok_b28 : MidOk 1408 40 slots (after b28 sS) = true ∧
     W01 (after b28 sS) [] 32 48 = true ∧
@@ -393,7 +403,7 @@ public theorem ok_b28 : MidOk 1408 40 slots (after b28 sS) = true ∧
 /-! ## The point -/
 
 public theorem exit_b29 : exec b29 sS = some (after b29 sS,
-    .cond (.cmp .eq .W64 (.reg .rbx) (.lit 1)) ".LGkrStep_13") :=
+    .cond (.cmp .eq .W64 (.reg .rbx) (.lit 1)) NativeRustcVmX64.Vm.GkrStep.label_13) :=
   run_b29.trans (by rw [after_eq run_b29])
 public theorem ok_b29 : MidOk 1408 40 slots (after b29 sS) = true ∧
     W01 (after b29 sS) [] 48 72 = true ∧
@@ -412,14 +422,14 @@ public theorem ok_b30 : MidOk 1408 40 slots (after b30 sS) = true ∧
   decide +kernel
 
 public theorem exit_b31 : exec b31 headS = some (after b31 headS,
-    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .r13) (.reg .r13)) (.lit 0)) ".LGkrStep_23") :=
+    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .r13) (.reg .r13)) (.lit 0)) NativeRustcVmX64.Vm.GkrStep.label_23) :=
   run_b31.trans (by rw [after_eq run_b31])
 public theorem ok_b31 : MidOk 1408 40 slots (after b31 headS) = true ∧
     (after b31 headS).mem = [] ∧ Keeps (after b31 headS) cs6 = true := by
   decide +kernel
 
 public theorem exit_b32 : exec b32 headS = some (after b32 headS,
-    .cond (SBool.cmp .eq .W64 (.reg .r13) (.lit 1)).not ".LGkrStep_19") :=
+    .cond (SBool.cmp .eq .W64 (.reg .r13) (.lit 1)).not NativeRustcVmX64.Vm.GkrStep.label_19) :=
   run_b32.trans (by rw [after_eq run_b32])
 public theorem ok_b32 : MidOk 1408 40 slots (after b32 headS) = true ∧
     (after b32 headS).mem = [] ∧
@@ -427,7 +437,7 @@ public theorem ok_b32 : MidOk 1408 40 slots (after b32 headS) = true ∧
     Keeps (after b32 headS) [.rbp, .r12, .r13, .r14, .r15] = true := by
   decide +kernel
 
-public theorem exit_b33 : exec b33 headS = some (after b33 headS, .jump ".LGkrStep_22") :=
+public theorem exit_b33 : exec b33 headS = some (after b33 headS, .jump NativeRustcVmX64.Vm.GkrStep.label_22) :=
   run_b33.trans (by rw [after_eq run_b33])
 public theorem ok_b33 : MidOk 1408 40 slots (after b33 headS) = true ∧
     (after b33 headS).mem = [] ∧ (after b33 headS).reg .rax = some (.lit 0) ∧
@@ -458,7 +468,7 @@ public theorem ok_b36 : MidOk 1408 40 slots (after b36 headS) = true ∧
 
 public theorem exit_b37 : exec b37 cS = some (after b37 cS,
     .cond (SBool.cmp .eq .W64 (.reg .rcx) (.bin .add .W64 (.lit 2) (.reg .rax))).not
-      ".LGkrStep_20") :=
+      NativeRustcVmX64.Vm.GkrStep.label_20) :=
   run_b37.trans (by rw [after_eq run_b37])
 public theorem ok_b37 : (∀ w ∈ (after b37 cS).mem, w.r = 0 ∧ w.off + w.n ≤ 32) ∧
     WordW 0 0 (.load 1 0 8) (after b37 cS) ∧ WordW 0 8 (.load 1 8 8) (after b37 cS) ∧
@@ -469,7 +479,7 @@ public theorem ok_b37 : (∀ w ∈ (after b37 cS).mem, w.r = 0 ∧ w.off + w.n �
   decide +kernel
 
 public theorem exit_b38 : exec b38 headS = some (after b38 headS,
-    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .r13) (.lit 1)) (.lit 0)) ".LGkrStep_23") :=
+    .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .r13) (.lit 1)) (.lit 0)) NativeRustcVmX64.Vm.GkrStep.label_23) :=
   run_b38.trans (by rw [after_eq run_b38])
 public theorem ok_b38 : MidOk 1408 40 slots (after b38 headS) = true ∧
     (after b38 headS).mem = [] ∧ Keeps (after b38 headS) (.rax :: cs6) = true := by
@@ -482,7 +492,7 @@ public theorem ok_b39 : (∀ w ∈ (after b39 tS).mem, w.r = 2 ∧ w.off + w.n �
     Keeps (after b39 tS) (.rsp :: cs6) = true := by
   decide +kernel
 
-public theorem exit_b40 : exec b40 headS = some (after b40 headS, .jump ".LGkrStep_18") :=
+public theorem exit_b40 : exec b40 headS = some (after b40 headS, .jump NativeRustcVmX64.Vm.GkrStep.label_18) :=
   run_b40.trans (by rw [after_eq run_b40])
 public theorem ok_b40 : MidOk 1408 40 slots (after b40 headS) = true ∧
     (after b40 headS).mem = [] ∧

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.Known
 public import NativeRustcVmX64.Code.Vm.KeccakOpen
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `keccak_open`: a block around the fold, a row's copy (x86-64)
@@ -99,10 +100,10 @@ theorem blk_run {k : Nat} (hp : Placed code k) (h : PreOk a s c m0) (hA : cx.a =
 /-- **A row copied** into the frame's buffer at `dst`: a block calling `memcpy` with row `r` of
 the rows. -/
 theorem copy_run {k : Nat} (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (h : PreOk a s c m0)
+    (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (h : PreOk a s c m0)
     (hA : cx.a = a) {t : Nat} (hv : VarsOk cx t vars) (hwk : wfK ks = true) (hws : wfW ws = true)
     {b : List Directive} {kb : Nat} (hin : b.IsInfixAt code kb) (hne : b ≠ [])
-    {S : SState} (hx : exec b (pS ks) = some (S, .call "memcpy"))
+    {S : SState} (hx : exec b (pS ks) = some (S, .call NativeRustcVmX64.Vm.Memcpy.entryLabel))
     {dst : Nat} {src : Sym} (hok : mOk dst src t ws S ks' ws' = true)
     (hdst : 112 ≤ dst ∧ dst + 1024 ≤ 2160) {r : Nat} (hr : r < 64)
     (hsv : src.eval (envK m0 vars) = rwA m0 + BitVec.ofNat 64 (1024 * r))

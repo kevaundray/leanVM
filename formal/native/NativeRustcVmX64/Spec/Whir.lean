@@ -7,6 +7,25 @@ public import NativeRustcVmX64.Spec.Ring
 public import NativeRustcVmX64.Rodata
 public import NativeRustcVm.Whir.Model
 public import NativeRustcVm.Whir.Basis
+public import NativeRustcVmX64.Code.Vm.BasisWEval.Names
+public import NativeRustcVmX64.Code.Vm.EachRowOfFinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel.Names
+public import NativeRustcVmX64.Code.Vm.FinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.FoldRound.Names
+public import NativeRustcVmX64.Code.Vm.FoldRounds.Names
+public import NativeRustcVmX64.Code.Vm.FoldRow.Names
+public import NativeRustcVmX64.Code.Vm.GlueLevel.Names
+public import NativeRustcVmX64.Code.Vm.GluedEval.Names
+public import NativeRustcVmX64.Code.Vm.InducedWeight.Names
+public import NativeRustcVmX64.Code.Vm.LanesOf.Names
+public import NativeRustcVmX64.Code.Vm.NextLevel.Names
+public import NativeRustcVmX64.Code.Vm.NovelEval.Names
+public import NativeRustcVmX64.Code.Vm.QueryBits.Names
+public import NativeRustcVmX64.Code.Vm.SampleQueries.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceAtTable.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceTable.Names
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
+public import NativeRustcVmX64.Code.Vm.WhirLevels.Names
 
 /-!
 # The contracts of `whir.rs`'s functions on x86-64
@@ -75,50 +94,6 @@ open NativeRustcVm.Whir NativeRustcVm.Sumcheck
 open NativeRustcVm (ewsOf wordsOf wordOf BufEWAt BufWordsAt EWAt)
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `query_bits`'s symbol. -/
-def queryBitsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir10query_bits"
-/-- `sample_queries`'s symbol. -/
-def sampleQueriesLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir14sample_queries"
-/-- `lanes_of`'s symbol. -/
-def lanesOfLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir8lanes_of"
-/-- `subspace_table`'s symbol. -/
-def subspaceTableLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir14subspace_table"
-/-- `subspace_at_table`'s symbol. -/
-def subspaceAtTableLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir17subspace_at_table"
-/-- `novel_eval`'s symbol. -/
-def novelEvalLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir10novel_eval"
-/-- `fold_row`'s symbol. -/
-def foldRowLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir8fold_row"
-/-- `induced_weight`'s symbol. -/
-def inducedWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir14induced_weight"
-/-- `glued_eval`'s symbol. -/
-def gluedEvalLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir10glued_eval"
-/-- `glue_level`'s symbol. -/
-def glueLevelLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir10glue_level"
-/-- `fold_round`'s symbol. -/
-def foldRoundLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir10fold_round"
-/-- `fold_rounds`'s symbol. -/
-def foldRoundsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir11fold_rounds"
-/-- `each_row` with `final_level`'s closure: its symbol. -/
-def eachRowFinalLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm4whir8each_rowNCNvB2_11final_level0EB4_"
-/-- `each_row` with `next_level`'s closure: its symbol. -/
-def eachRowNextLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm4whir8each_rowNCNvB2_10next_level0EB4_"
-/-- `BasisW::eval`'s symbol. -/
-def basisWEvalLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm4whirNtB2_6BasisW4eval"
-/-- `final_level`'s symbol. -/
-def finalLevelLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir11final_level"
-/-- `next_level`'s symbol. -/
-def nextLevelLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir10next_level"
-/-- `whir_levels`'s symbol. -/
-def whirLevelsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir11whir_levels"
-/-- `verify_stacked_opening`'s symbol. -/
-def verifyStackedOpeningLabel : Label :=
-  "_RNvNtCsemcRClSg8DH_9native_vm4whir22verify_stacked_opening"
 
 /-! ## Stacks -/
 

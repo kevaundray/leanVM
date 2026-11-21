@@ -3,6 +3,8 @@ module
 public import NativeRustcVmX64.Keccak.HashPair.Blocks
 public import NativeRustcVmX64.Keccak.Common
 public import NativeRustcVm.MemLemmas
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfHashWords.Names
 
 /-!
 # `hash_pair` meets its contract (x86-64)
@@ -67,12 +69,12 @@ variable [Host]
 set_option linter.unusedSimpArgs false in
 /-- **`hash_pair` meets its contract.** -/
 theorem hashPair_spec {k : Nat} (hp : Placed Vm.HashPair.code k)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hkw : Spec (Labels.label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost) :
-    Spec (Labels.label hashPairLabel) HashPairPre HashPairPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost := by
   intro m0 hpre
   obtain ⟨hstk, hrc, hml, hnl, hmr, hnr, hmo, hno, hapl, hapr, hapo, hapor⟩ := hpre
-  rw [show Labels.label hashPairLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.HashPair.b0Offset) from hp.label NativeRustcVmX64.Vm.HashPair.entry_at]
   have hK : hashPairStack = 848 := rfl
   have hK' : keccak256WordsStack = 768 := rfl
   obtain ⟨hle, hsnw, hsm⟩ := hstk
@@ -107,8 +109,8 @@ theorem hashPair_spec {k : Nat} (hp : Placed Vm.HashPair.code k)
   rw [show b0 = partLCode ++ (partRCode ++ partSCode) from rfl] at hb0
   obtain ⟨hbL, hbRS⟩ := List.IsInfixAt.append hb0
   obtain ⟨hbR, hbS⟩ := List.IsInfixAt.append hbRS
-  rw [show k + 0 + partLCode.length = k + 6 from rfl] at hbR hbS
-  rw [show k + 6 + partRCode.length = k + 10 from rfl] at hbS
+  rw [show k + NativeRustcVmX64.Vm.HashPair.b0Offset + partLCode.length = k + NativeRustcVmX64.Vm.HashPair.b0Offset + partLCode.length from rfl] at hbR hbS
+  rw [show k + NativeRustcVmX64.Vm.HashPair.b0Offset + partLCode.length + partRCode.length = k + NativeRustcVmX64.Vm.HashPair.b0Offset + partLCode.length + partRCode.length from rfl] at hbS
   let envA := Env.ofMachine m0 [(reg m0 .rsi, 32)]
   have hwfA : envA.WF := Env.wf_of ⟨⟨hml, hnl⟩, trivial⟩ (List.pairwise_singleton _ _)
   have hmA : Match envA startL m0 :=
@@ -141,7 +143,7 @@ theorem hashPair_spec {k : Nat} (hp : Placed Vm.HashPair.code k)
       Width.bits]
     omega
   -- `partS`
-  let retA := (Host.addrOf (k + 10 + partSCode.length)).toBitVec
+  let retA := (Host.addrOf (k + NativeRustcVmX64.Vm.HashPair.b0Offset + partLCode.length + partRCode.length + partSCode.length)).toBitVec
   let envC := Env.ofMachine st2.data [(frame m0, 88)] (fun _ => 0) retA
   have hwfC : envC.WF := Env.wf_of ⟨⟨hfm _ (fun p h => hs2.2 p h), hfnw⟩, trivial⟩
     (List.pairwise_singleton _ _)
@@ -248,7 +250,7 @@ theorem hashPair_spec {k : Nat} (hp : Placed Vm.HashPair.code k)
   have hmD : Match envD startS st4.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨show rspOf st4.data = _ by rw [hrsp4, hrsp3]; rfl, trivial⟩
       trivial trivial trivial
-  have hpc4' : st4.pc = Host.addrOf (k + 23) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.HashPair.b1Offset) := hpc4
   -- the return address, as at the entry
   have hslot : ∀ i < 8, st4.data.dmem.get? (rspOf m0 + BitVec.ofNat 64 i) =
       m0.dmem.get? (rspOf m0 + BitVec.ofNat 64 i) := fun i hi => by

@@ -1,6 +1,18 @@
 module
 
 public import NativeRustcVmX64.Whir.FinalLevel.End
+public import NativeRustcVmX64.Code.Vm.BasisWEval.Names
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EachRowOfFinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.FinalLevel.Names
+public import NativeRustcVmX64.Code.Vm.GluedEval.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmX64.Code.Vm.SampleQueries.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `final_level` on x86-64
@@ -20,27 +32,27 @@ variable [Host] {k : Nat}
 
 /-- `final_level`'s contract, using its callees' contracts. -/
 theorem finalLevel_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ a s, Spec (Labels.label sampleQueriesLabel) (SampleQueriesPre a s)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SampleQueries.entryLabel) (SampleQueriesPre a s)
       (SampleQueriesPost a s))
-    (hqo : ∀ a s Q, Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q)
+    (hqo : ∀ a s Q, Spec (Labels.label NativeRustcVmX64.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q)
       (QueryOpeningsPost a s Q))
-    (hrow : ∀ rows op, Spec (Labels.label eachRowFinalLabel) (EachRowFinalPre rows op)
+    (hrow : ∀ rows op, Spec (Labels.label NativeRustcVmX64.Vm.EachRowOfFinalLevel.entryLabel) (EachRowFinalPre rows op)
       (EachRowFinalPost rows))
-    (hsc : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hbw : ∀ ba b, Spec (Labels.label basisWEvalLabel) (BasisWEvalPre ba b) (BasisWEvalPost b))
-    (hge : ∀ g, Spec (Labels.label gluedEvalLabel) (GluedEvalPre g) (GluedEvalPost g))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hbw : ∀ ba b, Spec (Labels.label NativeRustcVmX64.Vm.BasisWEval.entryLabel) (BasisWEvalPre ba b) (BasisWEvalPost b))
+    (hge : ∀ g, Spec (Labels.label NativeRustcVmX64.Vm.GluedEval.entryLabel) (GluedEvalPre g) (GluedEvalPost g))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost) :
-    ∀ a s level ba b w rounds, Spec (Labels.label finalLevelLabel)
+    ∀ a s level ba b w rounds, Spec (Labels.label NativeRustcVmX64.Vm.FinalLevel.entryLabel)
       (FinalLevelPre a s level ba b w rounds) (FinalLevelPost a s level b w rounds) := by
   intro a s level ba b w rounds m0 hpre
   have c := Ctx.of_pre hpre
-  rw [show Labels.label finalLevelLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.FinalLevel.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.FinalLevel.b0Offset) from hp.label NativeRustcVmX64.Vm.FinalLevel.entry_at]
   refine entry hp c hrs fun st1 folded s1 hpc1 hl1 hbx1 hbp1 hts1 hr1 ↦ ?_
   refine queries hp c hgr hsq hpc1 hl1 hbx1 hbp1 hts1 hr1
     fun st2 qs s3 hpc2 hl2 hbp2 hq2 hts2 hr2 ↦ ?_

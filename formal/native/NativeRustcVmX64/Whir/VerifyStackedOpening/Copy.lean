@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.Ladder
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 /-!
 # `verify_stacked_opening`: the levels copied (x86-64)
@@ -61,10 +62,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 
 /-- **The levels copied**: `b44` to `b48`. -/
 theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 209))
+    (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b44Offset))
     (hA : AtB44 a s layout target cs value ls m0 st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 223) →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b48Offset) →
       AtB48 a s layout target cs value ls m0 st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hok := hA.ok
@@ -148,11 +149,11 @@ theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z val
     (hsv.1 r hr).trans (regKeep hm1 r (by cases r <;> first | rfl | exact absurd hr (by decide)))
   -- `b45`
   refine h.run hp b45_in_code (List.cons_ne_nil _ _)
-    (hpc2.trans (by rw [show b44.length = 4 from rfl])) hok2 (vars := fun _ ↦ 0) (hok2.wf0 h)
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b44_next)) hok2 (vars := fun _ ↦ 0) (hok2.wf0 h)
     hok2.m_reg run_b45 (o := 8) (by decide +kernel) (by decide) fun st3 hok3 hs3 hm3 hpc3 ↦ ?_
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq (hok2.wf0 h) rfl
   have hl312 : (frameEnv m0 st2.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 213 + b45.length)).toBitVec).load 0 312 8 = ls.length.toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b45Offset + b45.length)).toBitVec).load 0 312 8 = ls.length.toUInt64.toBitVec :=
     load_ofMachine (r := 0) rfl hc312
   have e3_r9 : (reg st3.data .r9).toNat = ls.length := by
     rw [show reg st3.data .r9 = _ from hm3.regs .r9 _ rfl]
@@ -162,7 +163,7 @@ theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z val
   simp only [PcOk] at hpc3
   rw [eval_not_ult _ (by decide)] at hpc3
   rw [show ((Sym.load 0 312 8).eval (frameEnv m0 st2.data 512 [] (fun _ ↦ 0)
-    (Host.addrOf (k + 213 + b45.length)).toBitVec)).toNat = ls.length from by
+    (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b45Offset + b45.length)).toBitVec)).toNat = ls.length from by
       show ((frameEnv m0 st2.data 512 [] (fun _ ↦ 0) _).load 0 312 8).toNat = _
       rw [hl312]; exact u64n (by omega)] at hpc3
   simp only [show ls.length < 7 by omega, decide_true, Bool.not_true, Bool.false_eq_true,
@@ -184,7 +185,7 @@ theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z val
       (le_of_map [72] rfl (by decide))).get List.mem_cons_self
   obtain ⟨hx0, hx1⟩ := xor_c0 hA.sum
   refine h.run hp b46_in_code (List.cons_ne_nil _ _)
-    (hpc3.trans (by rw [show b45.length = 3 from rfl])) hok3 (hwf4 _) (hm4 _) run_b46 (o := 8)
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b45_next)) hok3 (hwf4 _) (hm4 _) run_b46 (o := 8)
     (by decide +kernel) (by decide) fun st4 hok4 hs4 hm4' hpc4 ↦ ?_
   have hd4 : st4.data.dmem = st3.data.dmem := hm4'.dmem_eq (hwf4 _) rfl
   have e4_rax : reg st4.data .rax = pA m0 := by
@@ -209,11 +210,11 @@ theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z val
   simp only [PcOk] at hpc4
   rw [eval_test0] at hpc4
   rw [show ((Sym.reg .r9).eval (frameEnv m0 st3.data 512 [(rspOf m0 + 8#64, 24)] (fun _ ↦ 0)
-    (Host.addrOf (k + 216 + b46.length)).toBitVec)).toNat = ls.length from e3_r9] at hpc4
+    (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b46Offset + b46.length)).toBitVec)).toNat = ls.length from e3_r9] at hpc4
   cases hls : ls with
   | nil =>
     simp only [hls, List.length_nil, decide_true, ↓reduceIte] at hpc4
-    rw [hp.label (j := 223) rfl] at hpc4
+    rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_38_at] at hpc4
     refine cont st4 hpc4 ⟨hok4, hout4, hfw4, hA.lad, hlen, hlv4, e4_rax, e4_r12, e4_r13, e4_r14,
       e4_r9, ?_⟩
     rw [e4_rdx, hls]
@@ -223,7 +224,7 @@ theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z val
       Bool.false_eq_true, ↓reduceIte] at hpc4
     -- `b47`: the first fold
     refine h.run hp b47_in_code (List.cons_ne_nil _ _)
-      (hpc4.trans (by rw [show b46.length = 6 from rfl])) hok4 (vars := fun _ ↦ 0) (hok4.wf0 h)
+      (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b46_next)) hok4 (vars := fun _ ↦ 0) (hok4.wf0 h)
       hok4.m_reg run_b47 (o := 8) (by decide +kernel) (by decide) fun st5 hok5 hs5 hm5 hpc5 ↦ ?_
     have hd5 : st5.data.dmem = st4.data.dmem := hm5.dmem_eq (hok4.wf0 h) rfl
     simp only [PcOk] at hpc5
@@ -235,7 +236,7 @@ theorem copy_b44 (h : Parts a s layout target coefficients point slices cs z val
     obtain ⟨hf, -, -, hws⟩ := hl0
     have hw0 := (NativeRustcVm.wordsAt_cons_iff.mp hws).1
     rw [Nat.mul_zero, off_zero] at hw0
-    refine cont st5 (hpc5.trans (by rw [show b47.length = 1 from rfl]))
+    refine cont st5 (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b47_next))
       ⟨hok5, by rw [hd5]; exact hout4, by rw [hd5]; exact hfw4, hA.lad, hlen,
         by rw [hd5]; exact hlv4, by rw [k5 .rax (by simp)]; exact e4_rax,
         by rw [k5 .r12 (by simp)]; exact e4_r12, by rw [k5 .r13 (by simp)]; exact e4_r13,

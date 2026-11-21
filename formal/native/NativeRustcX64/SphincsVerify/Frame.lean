@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Sphincs.Names
+
 public import NativeRustcX64.SphincsVerify.Basic
 public import NativeRustcX64.Sym.Run
 
@@ -177,7 +179,7 @@ theorem apart_rc (hpre : r.Pre) {a n : Nat} (ha : a + n ≤ 29384) :
 
 /-- `LAYER_HEIGHTS` in any state of the frame. -/
 theorem lh (hpre : r.Pre) {d : DataMem} (hs : SameOutside r.m0.dmem d r.StackArea) :
-    BytesAt d (label lhLabel).toBitVec lhBytes :=
+    BytesAt d (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec lhBytes :=
   have hlen : lhBytes.length = 24 := by decide
   r.bytesAt_entry hpre hs hpre.2.2.1 (hlen ▸ hpre.2.2.2.2.1) (hlen ▸ hpre.2.2.2.1)
 

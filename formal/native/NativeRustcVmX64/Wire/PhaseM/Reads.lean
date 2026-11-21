@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Basic
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `phase_m`: the reads (x86-64)
@@ -28,7 +29,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 /-- **The queries' loop** (`b4`), query `i` of `count`. -/
 structure AtQ [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 27)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b4Offset)
   bod : Bod m0 8 st.data
   h1 : rdU32 B c = some (count, c + 4)
   cnt : count ≤ 256
@@ -43,7 +44,7 @@ structure AtQ [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt
 /-- **After the queries** (`b7`). -/
 structure At7 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (c2 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 37)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b7Offset)
   bod : Bod m0 8 st.data
   h1 : rdU32 B c = some (count, c + 4)
   cnt : count ≤ 256
@@ -57,7 +58,7 @@ structure At7 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt
 start, the distinct positions of the first `i` at its byte 2048. -/
 structure SortSt [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw rw c5 i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 64)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b14Offset)
   bod : Bod m0 8 st.data
   model : phaseM B c = tail B qs height lw rw c5
   len : qs.length = count
@@ -120,10 +121,10 @@ variable [Host] {k : Nat}
 /-- **A block ending in a call of `Reader::le` for four bytes**, and the call: the block writes
 the call's slot only, RDI R12, RSI `4`. -/
 theorem le4 (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {bj : List Directive}
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {bj : List Directive}
     {j : Nat} (hb : bj.IsInfixAt code j) (hne : bj ≠ [])
     (hrun : exec bj frS = some (after bj frS,
-      .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le"))
+      .call NativeRustcVmX64.Vm.ReaderLe.entryLabel))
     (hok : MidOk 160 0 slots (after bj frS) = true)
     (hw : ∀ w ∈ (after bj frS).mem, w.r = 0 ∧ w.off + w.n ≤ 8)
     (hsi : (after bj frS).reg .rsi = some (.lit 4)) (hdi : (after bj frS).reg .rdi = some (.reg .r12))

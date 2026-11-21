@@ -4,6 +4,7 @@ public import NativeRustcVmX64.KeccakGkr.KeccakPi.Exec
 public import NativeRustcVmX64.Field.Leaf
 public import NativeRustcVmX64.Spec.KeccakGkr
 import Mathlib.Tactic.IntervalCases
+public import NativeRustcVmX64.Code.Vm.KeccakPi.Names
 
 /-!
 # `keccak_pi` on x86-64
@@ -21,9 +22,9 @@ public section
 
 /-- **`keccak_pi` meets its contract.** -/
 theorem keccakPi_spec [Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost := by
   intro m hpre
-  rw [show Labels.label keccakPiLabel = Host.addrOf k from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.KeccakPi.entryLabel = Host.addrOf k from hp.label NativeRustcVmX64.Vm.KeccakPi.entry_at]
   have hk : b0.IsInfixAt Host.prog k :=
     (b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _) :)
   have hwf := frame_wf (m := m) (vars := fun _ ↦ 0) (ret := 0) hpre.1 fun _ h ↦ h

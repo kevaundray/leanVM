@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.XmssVerify.Head
 
 /-!
@@ -125,8 +130,8 @@ theorem callBlock (P : Pre w m₀) {X : Reg64} {ds : List Directive} {j : Nat}
     fun r v h => hm'.regs r v h
 
 /-- **`memset`** of `n` bytes at the frame offset `dst`. -/
-theorem memsetCall (hset : Spec (label "memset") MemsetPre MemsetPost) (P : Pre w m₀)
-    {env : Env} {st : MachineState} {next : Int64} (hpc : PcOk env (.call "memset") next st)
+theorem memsetCall (hset : Spec (label NativeRustcX64.Common.Memset.entryLabel) MemsetPre MemsetPost) (P : Pre w m₀)
+    {env : Env} {st : MachineState} {next : Int64} (hpc : PcOk env (.call NativeRustcX64.Common.Memset.entryLabel) next st)
     (C : Common m₀ st.data) (hrsp : rspOf st.data = ad m₀ (fr + 16)) {dst n : Nat}
     (h0 : reg st.data .rdi = ad m₀ (fr + dst)) (h2 : (reg st.data .rdx).toNat = n)
     (hd : 24 ≤ dst) (hdr : dst + n ≤ 5760) (hn : 0 < n) {R : MachineState → Prop}
@@ -147,8 +152,8 @@ theorem memsetCall (hset : Spec (label "memset") MemsetPre MemsetPost) (P : Pre 
     (C.callR P hs hrsp (by decide) (by decide) hdr hsame') hs hb hsame'
 
 /-- **`memcpy`** of `n` bytes from the frame offset `src` to `dst`. -/
-theorem memcpyCall (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) (P : Pre w m₀)
-    {env : Env} {st : MachineState} {next : Int64} (hpc : PcOk env (.call "memcpy") next st)
+theorem memcpyCall (hcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) (P : Pre w m₀)
+    {env : Env} {st : MachineState} {next : Int64} (hpc : PcOk env (.call NativeRustcX64.Common.Memcpy.entryLabel) next st)
     (C : Common m₀ st.data) (hrsp : rspOf st.data = ad m₀ (fr + 16)) {dst src n : Nat}
     (h0 : reg st.data .rdi = ad m₀ (fr + dst)) (h1 : reg st.data .rsi = ad m₀ (fr + src))
     (h2 : (reg st.data .rdx).toNat = n) (hd : 24 ≤ dst) (hdr : dst + n ≤ 5760)
@@ -172,8 +177,8 @@ theorem memcpyCall (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) (P : Pre 
     (C.callR P hs hrsp (by decide) (by decide) hdr hsame') hs hb hsame'
 
 /-- **`Hasher::update`** of the hasher at the frame offset `h` with the bytes `data` at `d`. -/
-theorem updateCall (hupd : Spec (label updateLabel) UpdatePre UpdatePost) (P : Pre w m₀)
-    {env : Env} {st : MachineState} {next : Int64} (hpc : PcOk env (.call updateLabel) next st)
+theorem updateCall (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost) (P : Pre w m₀)
+    {env : Env} {st : MachineState} {next : Int64} (hpc : PcOk env (.call NativeRustcX64.Common.Update.entryLabel) next st)
     (C : Common m₀ st.data) (hrsp : rspOf st.data = ad m₀ (fr + 16)) {h d : Nat}
     {a data : List UInt8} (h0 : reg st.data .rdi = ad m₀ (fr + h))
     (h1 : reg st.data .rsi = ad m₀ (fr + d)) (h2 : (reg st.data .rdx).toNat = data.length)
@@ -198,9 +203,9 @@ theorem updateCall (hupd : Spec (label updateLabel) UpdatePre UpdatePost) (P : P
     (C.callR P hs hrsp (by decide) (by decide) hhr hsame) hs this hsame
 
 /-- **`Hasher::finalize`** of the hasher at the frame offset `h` to the 32 bytes at `o`. -/
-theorem finalizeCall (hfin : Spec (label finalizeLabel) FinalizePre FinalizePost)
+theorem finalizeCall (hfin : Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost)
     (P : Pre w m₀) {env : Env} {st : MachineState} {next : Int64}
-    (hpc : PcOk env (.call finalizeLabel) next st) (C : Common m₀ st.data)
+    (hpc : PcOk env (.call NativeRustcX64.Common.Finalize.entryLabel) next st) (C : Common m₀ st.data)
     (hrsp : rspOf st.data = ad m₀ (fr + 16)) {o h : Nat} {a : List UInt8}
     (h0 : reg st.data .rdi = ad m₀ (fr + o)) (h1 : reg st.data .rsi = ad m₀ (fr + h))
     (hh : Keccak.HasherHolds (bytesOf st.data.dmem (ad m₀ (fr + h)) 344) a) (hol : 24 ≤ o)

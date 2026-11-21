@@ -1,12 +1,13 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Layer
 
 /-!
 # `verify_keccak`: the twelve layers
 
-`b16` to `b39`: `stepLayer` for `j` from `0` to `11`, from `AtL 0` (`k + 108`) to `AtL 12`
-(`k + 192`), `stepLayers`.
+`b16` to `b39`: `stepLayer` for `j` from `0` to `11`, from `AtL 0` (`k + NativeRustcVmArm.Vm.VerifyKeccak.b16Offset`) to `AtL 12`
+(`k + NativeRustcVmArm.Vm.VerifyKeccak.b40Offset`), `stepLayers`.
 -/
 
 namespace NativeRustcVmArm.KeccakGkr.VerifyKeccak
@@ -21,13 +22,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **Layers `0` to `5`.** -/
 theorem stepLayers0 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hvl : ∀ a s c, Spec (Labels.label verifyLayerLabel) (VerifyLayerPre a s c)
+    (hvl : ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.VerifyLayer.entryLabel) (VerifyLayerPre a s c)
       (VerifyLayerPost a s c))
     {m : MachineData} {sj : TState} {cj first : KeccakClaimW} {c : EW}
     (hl : AtL a s cs inst output m0 m 0 sj cj first c)
     (cont : ∀ m' sj' cj', AtL a s cs inst output m0 m' 6 sj' cj' first c →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 150)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 108)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b28Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b16Offset)⟩ := by
   refine stepLayer hp h hn hvl (j := 0) (by decide) (b16_in_code.trans hp.1 (by simp [b16]))
     run_b16 rfl (b17_in_code.trans hp.1 (by simp [b17])) run_b17 rfl
     ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, by decide⟩ ⟨rfl, rfl, by decide, by decide⟩
@@ -55,13 +56,13 @@ theorem stepLayers0 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nu
 
 /-- **Layers `6` to `11`.** -/
 theorem stepLayers6 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hvl : ∀ a s c, Spec (Labels.label verifyLayerLabel) (VerifyLayerPre a s c)
+    (hvl : ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.VerifyLayer.entryLabel) (VerifyLayerPre a s c)
       (VerifyLayerPost a s c))
     {m : MachineData} {sj : TState} {cj first : KeccakClaimW} {c : EW}
     (hl : AtL a s cs inst output m0 m 6 sj cj first c)
     (cont : ∀ m' sj' cj', AtL a s cs inst output m0 m' 12 sj' cj' first c →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 192)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 150)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b40Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b28Offset)⟩ := by
   refine stepLayer hp h hn hvl (j := 6) (by decide) (b28_in_code.trans hp.1 (by simp [b28]))
     run_b28 rfl (b29_in_code.trans hp.1 (by simp [b29])) run_b29 rfl
     ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, by decide⟩ ⟨rfl, rfl, by decide, by decide⟩

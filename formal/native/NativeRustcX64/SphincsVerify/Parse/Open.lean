@@ -62,8 +62,8 @@ theorem raw_slice {d : DataMem} (h : BytesAt d (r.off 12416) (sigBytes r.w)) {k 
 /-- **`b9`**: the key at `112`, the openings' loop's registers. -/
 theorem b9_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData}
     (h : WS r (sigBytes r.w) m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 117 ∧ OS r 0 st.data) ⟨m, r.pc 106⟩ := by
-  have hk : b9.IsInfixAt Host.prog (r.k + 106) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b10Offset ∧ OS r 0 st.data) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b9Offset⟩ := by
+  have hk : b9.IsInfixAt Host.prog (r.k + NativeRustcX64.Sphincs.SphincsVerify.b9Offset) := b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.frame_wf hpre h.1.2.2.2 (fun _ ↦ 0) 0
   have hm : Match (r.env m (fun _ ↦ 0) 0) (fS []) m :=
     r.match_frame h.1 (known := []) trivial trivial trivial trivial

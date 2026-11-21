@@ -35,7 +35,7 @@ theorem eval_cmp2 [Labels] (env : Env) (a b c d : Sym) :
 
 /-- **The comparison** of the top root with the key's root, and the return. -/
 theorem final {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 262)) {r : List UInt8} (h : TopAt w m₀ st.data 16 r) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b25Offset)) {r : List UInt8} (h : TopAt w m₀ st.data 16 r) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧
       st'.data.regs.X0 = (if r == root w then 1 else 0) ∧
       SameOutside m₀.dmem st'.data.dmem (InRange (stackBelow m₀ xmssVerifyStack) xmssVerifyStack) ∧
@@ -48,8 +48,8 @@ theorem final {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState
     fun st' hm' hpc' => ?_
   have C' := Common.block P C hwf hm hm' (by rw [gsp]; rfl) rfl g29 (by simp [writesIn, gmem])
     (fun x _ _ => by rw [gmem]; rfl)
-  have hpc'' : st'.pc = Host.addrOf (k + 270) :=
-    hpc'.trans (hp.label (j := 270) (by decide +kernel))
+  have hpc'' : st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b27Offset) :=
+    hpc'.trans (hp.label NativeRustcArm.Xmss.XmssVerify.label_10_at)
   refine NativeRustcArm.Eventually.mono (epilogue hp P hpc'' C')
     fun s ⟨h1, h2, h3, h4⟩ => ⟨h1, ?_, h3, h4⟩
   rw [h2]
@@ -85,7 +85,7 @@ theorem final {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState
 /-- **The layers**: from block 5 with the parsed signature, the return with `xmssVerify`'s result
 in X0. -/
 theorem layers {k : Nat} (hp : Placed code k) (Cs : Callees) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 69)) (h : Parsed w m₀ st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b5Offset)) (h : Parsed w m₀ st.data) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧
       st'.data.regs.X0 = (if Xmss.xmssVerify w then 1 else 0) ∧
       SameOutside m₀.dmem st'.data.dmem (InRange (stackBelow m₀ xmssVerifyStack) xmssVerifyStack) ∧

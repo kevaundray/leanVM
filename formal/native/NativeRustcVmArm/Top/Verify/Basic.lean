@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Verify.Names
 public import NativeRustcVmArm.Spec.Top
 public import NativeRustcVmArm.Rodata.Keccak
 public import NativeRustcVmArm.Top.Verify.Exec
@@ -176,35 +177,35 @@ theorem rodataAt_body [Labels] {m0 st : MachineData} {F N N' : Nat} {slots : Lis
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 16) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 74) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 75) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 78) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 80) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 83) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 86) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 88) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 95) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Verify.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label verifyLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LVerify_3" = Host.addrOf (k + 80) :=
-  hp.label (j := 80) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LVerify_5" = Host.addrOf (k + 88) :=
-  hp.label (j := 88) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LVerify_6" = Host.addrOf (k + 95) :=
-  hp.label (j := 95) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.Verify.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.Verify.entryOffset) NativeRustcVmArm.Vm.Verify.entry_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.Verify.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b5Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.Verify.b5Offset) NativeRustcVmArm.Vm.Verify.label_3_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.Verify.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b8Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.Verify.b8Offset) NativeRustcVmArm.Vm.Verify.label_5_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.Verify.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b9Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.Verify.b9Offset) NativeRustcVmArm.Vm.Verify.label_6_at
 
 end
 

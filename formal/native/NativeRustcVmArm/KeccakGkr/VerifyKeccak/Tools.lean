@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Layers
 
 /-!
@@ -153,7 +154,7 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 registers `L` kept. -/
 theorem failBranchF (hp : Placed code k) (hn : Nums a inst m0) {ds : List Directive} {i : Nat}
     {S' : SState} {c : SBool} {m : MachineData} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .cond c ".LVerifyKeccak_31")) (hfr : VFr m0 m)
+    (hrun : exec ds midS = some (S', .cond c NativeRustcVmArm.Vm.VerifyKeccak.label_31)) (hfr : VFr m0 m)
     (hmem : S'.mem = []) (hsp : S'.sp = .ptr 0 0) {L : List XReg}
     (hrk : L.all (fun r ↦ (midS.reg r).isSome && S'.reg r == midS.reg r) = true)
     {b : Bool} (hc : c.eval (envM m0 m) = !b) (hfail : b = false → run0 s inst output m0 = none)

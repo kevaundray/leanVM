@@ -470,7 +470,7 @@ theorem exit_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {m : 
     (hok : ∀ res s', (verifyBusBalance L).run s0 = some (res, s') →
       TStateAt m.dmem m0.regs.X0.toBitVec a s' ∧ BusWAt m.dmem m0.regs.X4.toBitVec res ∧
         ClaimsWAt m.dmem m0.regs.X5.toBitVec res.claims) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 675)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b51Offset)⟩ := by
   have hS := pre_stack h
   have hwf := Bus.wf_frame hS N_ge hfr.kept
   have hm := Bus.match_frame hS N_ge rfl hfr.sp
@@ -492,7 +492,7 @@ theorem exit_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {m : 
 theorem fail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {m : MachineData}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) m)
     (hr : (verifyBusBalance L).run s0 = none) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 673)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b50Offset)⟩ := by
   refine Fr.runBlock (pre_stack h) N_ge rfl hfr (b50_in_code.trans hp.1 (by simp [b50])) run_b50
     rfl rfl (by decide) (by decide) fun st hfr' _ hm hpc ↦ ?_
   simp only [PcOk] at hpc

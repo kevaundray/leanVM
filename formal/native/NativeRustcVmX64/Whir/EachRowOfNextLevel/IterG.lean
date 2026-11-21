@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfNextLevel.IterF
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `each_row` with `next_level`'s closure: row `j`'s term (x86-64)
@@ -37,9 +38,9 @@ theorem qw_getD_none (hj : (qwOf m0).size ≤ j) : (qwOf m0).getD j 0 = 0 := by
 variable [Host] {k : Nat}
 
 /-- **`EW::mul` called** at the end of `b7`, then `b8_step`. -/
-theorem mul_then (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
-    (c : Ctx rows op m0) {st : MachineState} (hpc : st.pc = Labels.label ewMulLabel)
-    (hret : retOf st.data = Host.addrOf (k + 73)) (hfr : FR m0 0 st.data)
+theorem mul_then (hp : Placed code k) (hmul : Spec (label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (c : Ctx rows op m0) {st : MachineState} (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel)
+    (hret : retOf st.data = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b8Offset)) (hfr : FR m0 0 st.data)
     (hj : j < rows.size) (hjq : j < (qsOf m0).size) (hmm : MidN rows m0 j st.data.dmem)
     (hq : (⟨UInt64.ofBitVec (reg st.data .rdi), UInt64.ofBitVec (reg st.data .rsi)⟩ : EW) =
       (qwOf m0).getD j 0)
@@ -51,7 +52,7 @@ theorem mul_then (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre E
     (h15 : reg st.data .r15 = reg m0 .rsi + BitVec.ofNat 64 (8 * (j + 1)))
     (h14 : reg st.data .r14 = bOf m0)
     (cont : ∀ m', Inv rows m0 (j + 1) m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 82)⟩) :
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b9Offset)⟩) :
     Eventually (step1 Host.exe) (Done rows m0) st := by
   have hl := lay c
   refine Eventually.bind (Spec.apply hmul hpc (hfr.stackOk hl (by decide)))

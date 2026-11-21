@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfNextLevel.Mid
+public import NativeRustcVmX64.Code.Vm.LanesOf.Names
+public import NativeRustcVmX64.Code.Vm.RowsRow.Names
 
 /-!
 # `each_row` with `next_level`'s closure: a row's lanes (x86-64)
@@ -63,12 +65,12 @@ variable [Host] {k : Nat}
 
 /-- **A row's lanes**: from `b12` to `b15`. -/
 theorem iter_b (hp : Placed code k)
-    (hrow : Spec (label rowsRowLabel) (RowsRowPre op rows) (RowsRowPost op rows))
-    (hlanes : Spec (label lanesOfLabel) LanesOfPre LanesOfPost)
+    (hrow : Spec (label NativeRustcVmX64.Vm.RowsRow.entryLabel) (RowsRowPre op rows) (RowsRowPost op rows))
+    (hlanes : Spec (label NativeRustcVmX64.Vm.LanesOf.entryLabel) LanesOfPre LanesOfPost)
     (c : Ctx rows op m0) {m : MachineData} (h : AtB12 rows m0 j m)
     (cont : ∀ m', AtB15 rows m0 j m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 111)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 102)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b15Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b12Offset)⟩ := by
   have hl := lay c
   have hsp := hl.sp
   have htop := hl.ok.2.1
@@ -81,8 +83,8 @@ theorem iter_b (hp : Placed code k)
   have hjo : j * openingWords ≤ 255 * 193 := by
     rw [show openingWords = 193 from rfl]; exact Nat.mul_le_mul_right _ (by omega)
   -- `b12`: `Rows::row(j)`
-  obtain ⟨hwf, hm⟩ := frame_env c h.fr (Host.addrOf (k + 102 + b12.length)).toBitVec
-  have hk12 : b12.IsInfixAt Host.prog (k + 102) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf, hm⟩ := frame_env c h.fr (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b12Offset + b12.length)).toBitVec
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b12Offset) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk12 run_b12 hwf (fun _ _ ↦ rfl) hm fun st8 hm8 hpc8 ↦ ?_
   have hs8 : SameOutside m.dmem st8.data.dmem (EachRow.Hit m0 1984 eachRowNextStack 1432 1432) :=
     EachRow.hit_of_block hl le_rfl (by decide) hm8 hwf (by decide)
@@ -109,7 +111,7 @@ theorem iter_b (hp : Placed code k)
   obtain ⟨d9, pc9⟩ := st9
   simp only at hpc9 hfr9 hd9 hsv9 hrdx9 hrax9
   subst hpc9
-  rw [show k + 102 + b12.length = k + 104 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b12Offset + b12.length = k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b13Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfNextLevel.b12_next]]
   have hmm9 : MidN rows m0 j d9.dmem := by
     rw [hd9]
     exact h.mm.keep c le_rfl (by decide) (by decide) (by decide) hs8
@@ -117,8 +119,8 @@ theorem iter_b (hp : Placed code k)
     rw [sv hsv9 r hc]
     exact hm8.regs r (.reg r) (by revert hc; cases r <;> decide)
   -- `b13`: `lanes_of`
-  obtain ⟨hwf9, hm9⟩ := frame_env c hfr9 (Host.addrOf (k + 104 + b13.length)).toBitVec
-  have hk13 : b13.IsInfixAt Host.prog (k + 104) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf9, hm9⟩ := frame_env c hfr9 (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b13Offset + b13.length)).toBitVec
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk13 run_b13 hwf9 (fun _ _ ↦ rfl) hm9 fun st10 hm10 hpc10 ↦ ?_
   have hs10 : SameOutside d9.dmem st10.data.dmem (EachRow.Hit m0 1984 eachRowNextStack 1432 1432) :=
     EachRow.hit_of_block hl le_rfl (by decide) hm10 hwf9 (by decide)
@@ -190,14 +192,14 @@ theorem iter_b (hp : Placed code k)
   obtain ⟨d11, pc11⟩ := st11
   simp only at hpc11 hfr11 hs11 hsv11 hax hdx hew
   subst hpc11
-  rw [show k + 104 + b13.length = k + 109 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b13Offset + b13.length = k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b14Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfNextLevel.b13_next]]
   have k11 : ∀ r, calleeSaved r = true → r ≠ .r12 → reg d11 r = reg m r := fun r hc hr ↦ by
     rw [sv hsv11 r hc]
     have := hm10.regs r (.reg r) (by revert hc hr; cases r <;> decide)
     exact this.trans (k9 r hc)
   -- `b14`
   obtain ⟨hwf11, hm11⟩ := frame_env c hfr11 0
-  have hk14 : b14.IsInfixAt Host.prog (k + 109) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk14 : b14.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b14Offset) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk14 run_b14 hwf11 (fun _ h ↦ by cases h) hm11 fun st12 hm12 hpc12 ↦ ?_
   have hd12 : st12.data.dmem = d11.dmem := hm12.dmem_eq hwf11 rfl
   have hfr12 : FR m0 8 st12.data := hfr11.ofBlock hwf11 hm12 rfl (by decide)

@@ -20,7 +20,7 @@ open NativeRustcVmX64.Arrays (eval_reg eval_lit eval_add pc_cond)
 
 @[expose] public section
 
-/-- **The loop's head** `.LLanesOf_16`, `2j` lanes copied. -/
+/-- **The loop's head** `NativeRustcVmX64.Vm.LanesOf.label_16`, `2j` lanes copied. -/
 structure CpLoop (m0 : MachineData) (j : Nat) (st : MachineData) : Prop where
   body : Body m0 (pairL m0) (2 * j) st
   hj : j < nOf m0 / 2
@@ -34,7 +34,7 @@ structure CpLoop (m0 : MachineData) (j : Nat) (st : MachineData) : Prop where
   rax : reg st .rax = 1#64
   rdx : (reg st .rdx).toNat = nOf m0
 
-/-- **The last pair** `.LLanesOf_13`: `e = n - 1` lanes copied. -/
+/-- **The last pair** `NativeRustcVmX64.Vm.LanesOf.label_13`: `e = n - 1` lanes copied. -/
 structure CpTail (m0 : MachineData) (e : Nat) (st : MachineData) : Prop where
   body : Body m0 (pairL m0) e st
   he : e + 1 = nOf m0
@@ -94,7 +94,7 @@ theorem shl4_eval {st : MachineData} {e : Nat} (h : (reg st .rdi).toNat = e) (he
 /-- **The last pair** copied, and the return. -/
 theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     (h0 : (reg m0 .rdi).toNat ≠ 0) {e : Nat} {st : MachineData} (hT : CpTail m0 e st) :
-    Eventually (step1 Host.exe) (Post m0) ⟨st, Host.addrOf (k + 65)⟩ := by
+    Eventually (step1 Host.exe) (Post m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b15Offset)⟩ := by
   have hb := hT.body
   have he := hT.he
   have hn := hT.hn
@@ -156,7 +156,7 @@ abbrev envB (m0 st : MachineData) (j : Nat) : Env :=
 theorem cp_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     (h0 : (reg m0 .rdi).toNat ≠ 0) {j : Nat} {st : MachineData} (hL : CpLoop m0 j st) :
     Eventually (step1 Host.exe) (fun s ↦ Post m0 s ∨ (CpLoop m0 (j + 1) s.data ∧
-      s.pc = Host.addrOf (k + 50))) ⟨st, Host.addrOf (k + 50)⟩ := by
+      s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b13Offset))) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b13Offset)⟩ := by
   have hb := hL.body
   have hj := hL.hj
   have hn := hL.hn
@@ -225,7 +225,7 @@ theorem cp_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hmore : 2 * (j + 1) ≠ 2 * (nOf m0 / 2)
   · -- back at the head
-    have hpc := (hT (decide_eq_true hmore)).trans (hp.label (j := 50) rfl)
+    have hpc := (hT (decide_eq_true hmore)).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_16_at)
     refine .done _ (.inr ⟨⟨hb1, by omega, hn, (hm1.regs .rsi _ rfl).trans hL.rsi,
       (hm1.regs .rcx _ rfl).trans hL.rcx, hrdi, ?_, hr9 ▸ hL.r9,
       (congrArg BitVec.toNat (hm1.regs .r8 _ rfl)).trans hL.r8,
@@ -238,7 +238,7 @@ theorem cp_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     omega
   · -- `b14`: an even count returns, an odd one copies the last pair
     have hpc := hF fun h ↦ hmore (of_decide_eq_true h)
-    simp only [show k + 50 + b13.length = k + 63 from rfl] at hpc
+    simp only [show k + NativeRustcVmX64.Vm.LanesOf.b13Offset + b13.length = k + NativeRustcVmX64.Vm.LanesOf.b14Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LanesOf.b13_next]] at hpc
     have hwf1 := wf1 (st := st1.data) (vars := fun _ ↦ 0) (ret := 0) hpre hb1.fr.kept
     have hm2 : Match (frameEnv m0 st1.data 8 [] (fun _ ↦ 0) 0) midS0 st1.data :=
       match_ofMachine ⟨rfl, trivial⟩ ⟨hb1.fr.rsp_eval, trivial⟩ trivial trivial trivial
@@ -262,12 +262,12 @@ theorem cp_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     obtain ⟨hsz, hf⟩ := lanes_pair h0
     by_cases hev : lenOf m0 / 2 % 2 = 0
     · have hpc' := (hT2 (decide_eq_true (by rw [hr8]; exact hev))).trans
-        (hp.label (j := 37) rfl)
+        (hp.label NativeRustcVmX64.Vm.LanesOf.label_14_at)
       have hcnt : 2 * (j + 1) = nOf m0 := by omega
       exact at_pc (P := fun d ↦ d = st2.data) (fun d hd ↦ hd ▸ done hp hpre hb2
         (hsz.trans hcnt.symm) hf (by omega) hrax (hrdx.trans hcnt.symm)) ⟨rfl, hpc'⟩
     · have hpc' := hF2 fun h ↦ hev (by rw [← hr8]; exact of_decide_eq_true h)
-      simp only [show k + 63 + b14.length = k + 65 from rfl] at hpc'
+      simp only [show k + NativeRustcVmX64.Vm.LanesOf.b14Offset + b14.length = k + NativeRustcVmX64.Vm.LanesOf.b15Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LanesOf.b14_next]] at hpc'
       exact at_pc (P := fun d ↦ d = st2.data) (fun d hd ↦ hd ▸ tail hp hpre h0
         ⟨hb2, by omega, hn, (hm2'.regs .rsi _ rfl).trans ((hm1.regs .rsi _ rfl).trans hL.rsi),
           (hm2'.regs .rcx _ rfl).trans ((hm1.regs .rcx _ rfl).trans hL.rcx),
@@ -278,7 +278,7 @@ theorem cp_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
 /-- **A later level**: from `b1`, the entry's environment. -/
 theorem pairs (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     (h0 : (reg m0 .rdi).toNat ≠ 0) {st : MachineState}
-    (hm : Match (frameEnv m0 m0 8 []) s0 st.data) (hpc : st.pc = Host.addrOf (k + 4)) :
+    (hm : Match (frameEnv m0 m0 8 []) s0 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b1Offset)) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hwf := wf1 (st := m0) (vars := fun _ ↦ 0) (ret := 0) hpre fun _ h ↦ h
   have hl : lenOf m0 = (reg m0 .rdx).toNat := rfl
@@ -299,7 +299,7 @@ theorem pairs (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     obtain ⟨hT2, hF2⟩ := pc_cond hpc2
     by_cases hz : lenOf m0 / 2 = 0
     · -- no pair: `b10`
-      have hpc2 := (hT2 (decide_eq_true hz)).trans (hp.label (j := 37) rfl)
+      have hpc2 := (hT2 (decide_eq_true hz)).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_14_at)
       refine exec_at (inf hp b10_in_code (by simp [b10])) (exec_after run_b2 run_b10z) hwf
         (by intro l h; cases h) hpc2 hm2 fun st3 hm3 hpc3 ↦ ?_
       obtain ⟨he, hw⟩ := after_eq run_b10z ▸ epi_b10z
@@ -322,7 +322,7 @@ theorem pairs (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
         have hpc3 := hF3 (by simpa using h1)
         refine exec_at (inf hp b4_in_code (by simp [b4])) (exec_after run_b3 run_b4) hwf
           (by intro l h; cases h) hpc3 hm3 fun st4 hm4 hpc4 ↦ ?_
-        simp only [PcOk, hp.label (j := 65) rfl] at hpc4
+        simp only [PcOk, hp.label NativeRustcVmX64.Vm.LanesOf.label_13_at] at hpc4
         obtain ⟨hpro, hw⟩ := after_eq run_b4 ▸ pro_b4
         have hfr := Transcript.Frame.of_prologue Transcript.Frame.entry hwf hm4 hpro slots_le
           slots_cs
@@ -331,10 +331,10 @@ theorem pairs (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
             hm4.regs .rcx _ rfl, by rw [show reg st4.data .rdi = _ from hm4.regs .rdi _ rfl]; rfl,
             hm4.regs .rax _ rfl, hrdx hm4 rfl⟩) ⟨rfl, hpc4⟩
       · -- the loop: `b12`
-        have hpc3 := (hT3 (by simpa using h1)).trans (hp.label (j := 44) rfl)
+        have hpc3 := (hT3 (by simpa using h1)).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_15_at)
         refine exec_at (inf hp b12_in_code (by simp [b12])) (exec_after run_b3 run_b12) hwf
           (by intro l h; cases h) hpc3 hm3 fun st4 hm4 hpc4 ↦ ?_
-        simp only [PcOk, show k + 44 + b12.length = k + 50 from rfl] at hpc4
+        simp only [PcOk, show k + NativeRustcVmX64.Vm.LanesOf.b12Offset + b12.length = k + NativeRustcVmX64.Vm.LanesOf.b13Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.LanesOf.b12_next]] at hpc4
         obtain ⟨hpro, hw⟩ := after_eq run_b12 ▸ pro_b12
         have hfr := Transcript.Frame.of_prologue Transcript.Frame.entry hwf hm4 hpro slots_le
           slots_cs
@@ -351,7 +351,7 @@ theorem pairs (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
         exact at_pc (fun d hd ↦ run_loop (L := CpLoop m0) (nOf m0 / 2) (fun i _ h ↦ h.hj)
           (fun i d hd ↦ cp_turn hp hpre h0 hd) hd) ⟨hL, hpc4⟩
   · -- past 129 words: `b11`
-    have hpc1 := (hT (by simpa using h130)).trans (hp.label (j := 40) rfl)
+    have hpc1 := (hT (by simpa using h130)).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_2_at)
     refine exec_at (inf hp b11_in_code (by simp [b11])) (exec_after run_b1 run_b11p) hwf
       (by intro l h; cases h) hpc1 hm1 fun st2 hm2 hpc2 ↦ ?_
     obtain ⟨he, hw⟩ := after_eq run_b11p ▸ epi_b11p

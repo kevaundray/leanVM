@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Ring.Coeff.Entry
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EWSqIter.Names
+public import NativeRustcVmX64.Code.Vm.RingCoefficients.Names
 
 /-!
 # `ring_coefficients` on x86-64
@@ -29,7 +32,7 @@ def Head (m0 : MachineData) (k p : Nat) (st : MachineState) : Prop :=
 
 /-- After the last turn, before the epilogue: the coefficients written. -/
 def Last (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
-  ∃ m F g G', Mem m0 m ∧ st.pc = Host.addrOf (k + 151) ∧
+  ∃ m F g G', Mem m0 m ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.RingCoefficients.b18Offset) ∧
     Bnd (own m0 m) 176 NC (rsP m0 7) wrRow tX (bvG m0 7 F g G' 17) st.data ∧
     NativeRustcVm.EWsAt st.data.dmem (oA m0) (rc m0 8).1.toList
 
@@ -113,8 +116,8 @@ theorem prods_eq {p : Nat} {g : Nat → EW} (hg : ∀ b < 8, g b = gG m0 p b) :
 variable [Host] {k : Nat}
 
 /-- **A turn**: from turn `p`'s head to the next, or past the last. -/
-theorem turn (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost) (h : P m0) {p : Nat}
+theorem turn (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost) (h : P m0) {p : Nat}
     (hpl : p < 8) {st : MachineState} (hH : Head m0 k p st) :
     Eventually (step1 Host.exe) (fun st' ↦ (p < 7 ∧ Head m0 k (p + 1) st') ∨
       (p = 7 ∧ Last m0 k st')) st := by
@@ -135,11 +138,11 @@ theorem turn (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     · show frobenius8 (g b) 1 = _
       rw [hg b hb, gG_succ hpl hb]
     · rw [hpc, ite_eq_right h7]
-      exact hp.label (j := 40) rfl
+      exact hp.label NativeRustcVmX64.Vm.RingCoefficients.label_1_at
 
 /-- **The turns**, from turn `p`'s head. -/
-theorem turns (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost) (h : P m0) :
+theorem turns (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost) (h : P m0) :
     ∀ n p, p + n = 7 → ∀ {st : MachineState}, Head m0 k p st →
       Eventually (step1 Host.exe) (Last m0 k) st := by
   intro n
@@ -159,12 +162,12 @@ theorem turns (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulP
 
 /-- **`ring_coefficients` writes the coefficients.** -/
 theorem ringCoefficients_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost) :
-    Spec (Labels.label ringCoefficientsLabel) RingCoefficientsPre RingCoefficientsPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hsq : Spec (Labels.label NativeRustcVmX64.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.RingCoefficients.entryLabel) RingCoefficientsPre RingCoefficientsPost := by
   intro m0 hpre
   have h := P.intro hpre
-  rw [show Labels.label ringCoefficientsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.RingCoefficients.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.RingCoefficients.b0Offset) from hp.label NativeRustcVmX64.Vm.RingCoefficients.entry_at]
   refine Eventually.bind (enter hp h) fun st ⟨hpc, hM, hB⟩ ↦ ?_
   have hH : Head m0 k 0 st :=
     ⟨g0 m0, fun _ hb ↦ g0_eq hb, hM, ⟨hpc, hB⟩, NativeRustcVm.ewsAt_nil _ _⟩

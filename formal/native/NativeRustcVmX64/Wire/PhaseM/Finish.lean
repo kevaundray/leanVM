@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Wide
+public import NativeRustcVmX64.Code.Vm.WriteOpenings.Names
 
 /-! # `phase_m`: write the openings, restore the frame, and return -/
 
@@ -22,8 +23,8 @@ variable [Host] {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c k : Nat}
 structure OpenCall (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k count : Nat)
     (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 : Nat)
     (sl : List (List (Nat × Digest))) (cf : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Labels.label writeOpeningsLabel
-  ret : retOf st.data = Host.addrOf (k + 199)
+  pc : st.pc = Labels.label NativeRustcVmX64.Vm.WriteOpenings.entryLabel
+  ret : retOf st.data = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b37Offset)
   fr : Frame m0 192 slotsW 0 st.data
   chg : NativeRustcVm.SameOutside m0.dmem st.data.dmem (Chg m0)
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
@@ -60,9 +61,9 @@ theorem openings_args (hp : Placed code k) (G : Geo m0 bp B.length)
   have hcnt := hM.cnt
   have hps := hM.ps256
   have hfr := frame_widen G (by omega) hbod.fr
-  have hwf := wide_wf G hbod.fr.kept (Host.addrOf (k + 187 + b36.length)).toBitVec
+  have hwf := wide_wf G hbod.fr.kept (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b36Offset + b36.length)).toBitVec
   have hm : Match (frameEnv m0 st.data 192 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 187 + b36.length)).toBitVec) woS st.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b36Offset + b36.length)).toBitVec) woS st.data :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hfr.rsp_eval, trivial⟩ trivial trivial trivial
   obtain ⟨hmid, hw, w8, w16, w24, w32, rdi, rsi, rdx, rcx, r8, r9⟩ := ok_b36
   refine exec_at (infix_of b36_in_code (by simp [b36]) hp) exit_b36 hwf
@@ -121,13 +122,13 @@ theorem openings_args (hp : Placed code k) (G : Geo m0 bp B.length)
   have hchg1 : NativeRustcVm.SameOutside m0.dmem s1.data.dmem (Chg m0) :=
     (hbod.chg.trans hs1).mono fun q hq ↦ hq.elim id (fun hq ↦ .inl (by omega))
   simp only [PcOk] at hpc1
-  exact .done _ ⟨hpc1.1, hpc1.2.trans (by rw [show b36.length = 12 from rfl]), hf1, hchg1,
+  exact .done _ ⟨hpc1.1, hpc1.2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b36_next), hf1, hchg1,
     hM1, hmod, hsl, hsb1, hrd1, hdi1, hsi1, hdx1, hcx1, hr81, hr91, ha0n, ha1, ha2, ha3⟩
 
 /-- Apply `write_openings` and restore the caller's frame. -/
 theorem openings_return (hp : Placed code k) (G : Geo m0 bp B.length)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c)
-    (hwo : Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost)
+    (hwo : Spec (Labels.label NativeRustcVmX64.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost)
     {count : Nat} {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 : Nat}
     {sl : List (List (Nat × Digest))} {cf : Nat} {s1 : MachineState}
     (h : OpenCall m0 bp B c k count qs height lw rows c6 sl cf s1) :
@@ -196,7 +197,7 @@ theorem openings_return (hp : Placed code k) (G : Geo m0 bp B.length)
   have hf3 := Frame.of_block hf2 hwf2 hm3 hmid37 slotsW_le
   have hd3 : s3.data.dmem = s2.data.dmem := hm3.dmem_eq hwf2 hmem37
   have ha3' : reg s3.data .rax = reg s2.data .rax := hm3.regs .rax _ hrax37
-  refine fin hp G (hpc3.trans (hp.label (j := 81) rfl))
+  refine fin hp G (hpc3.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_24_at))
     (frame_narrow G (o := 112) (by omega) hf3)
     (by rw [hd3]; exact hchg2) fun bp' B' c' hR' ↦ ?_
   obtain ⟨rfl, rfl, rfl⟩ := hR0.unique hR'
@@ -211,7 +212,7 @@ theorem openings_return (hp : Placed code k) (G : Geo m0 bp B.length)
 /-- The successful climb's openings, followed by the common epilogue. -/
 theorem openings_run (hp : Placed code k) (G : Geo m0 bp B.length)
     (hR0 : ReaderAt m0.dmem (RD m0) bp B c)
-    (hwo : Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost)
+    (hwo : Spec (Labels.label NativeRustcVmX64.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost)
     {count : Nat} {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 : Nat}
     {sl : List (List (Nat × Digest))} {cf : Nat} {st : MachineState}
     (h : Pre36 m0 bp B c k count qs height lw rows c6 sl cf st) :

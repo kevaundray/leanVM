@@ -25,7 +25,7 @@ include hp hpre h0
 
 /-- **From the tail** (`b20`) to the return. -/
 theorem from_tail {e : Nat} {st : MachineData} (hT : CpTail m0 e st) :
-    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + 87)⟩ := by
+    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b20Offset)⟩ := by
   obtain ⟨hsz, hf⟩ := lanes_pair h0
   have hn64 : nOf m0 ≤ 64 := by have := hT.hn; unfold nOf; omega
   refine (cp_tail hp hT).bind fun s h ↦ goto h.2 ?_
@@ -35,7 +35,7 @@ theorem from_tail {e : Nat} {st : MachineData} (hT : CpTail m0 e st) :
 
 /-- **From the two-lane turns** (`b17`) to the return. -/
 theorem from_loop {st : MachineData} (hL : CpLoop m0 0 st) :
-    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + 74)⟩ := by
+    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b17Offset)⟩ := by
   obtain ⟨hsz, hf⟩ := lanes_pair h0
   have hn64 : nOf m0 ≤ 64 := by have := hL.hn; unfold nOf; omega
   refine (run_loop (L := CpLoop m0) (nOf m0 / 2) (fun _ _ h ↦ h.hj)
@@ -56,7 +56,7 @@ theorem from_loop {st : MachineData} (hL : CpLoop m0 0 st) :
     by_cases h : nOf m0 % 2 = 1 <;> simp [h] <;> omega
   by_cases hodd : nOf m0 % 2 = 1
   · have hpc' := pc_taken hpc (by rw [hc]; simp [hodd])
-    rw [hp.label (j := 87) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b20Offset) NativeRustcVmArm.Vm.LanesOf.label_20_at] at hpc'
     exact goto hpc' (from_tail hp hpre h0 ⟨hb2, by rw [e2]; exact hx2, by rw [e8]; exact hx8,
       by omega, hn⟩)
   · have hpc' := pc_fall hpc (by rw [hc]; simp [hodd])
@@ -66,7 +66,7 @@ theorem from_loop {st : MachineData} (hL : CpLoop m0 0 st) :
 
 /-- **A later level**: from `b1`, the row's pairs. -/
 theorem pairs {st : MachineData} (hb : Body m0 (pairL m0) 0 st) (hx2 : st.regs.X2 = m0.regs.X2) :
-    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + 2)⟩ := by
+    Eventually (step1 Host.exe) (Q m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.LanesOf.b1Offset)⟩ := by
   obtain ⟨hsz, hf⟩ := lanes_pair h0
   have hl2 : (st.regs.getXReg .X2).toBitVec.toNat = lenOf m0 := by
     show st.regs.X2.toNat = _
@@ -86,7 +86,7 @@ theorem pairs {st : MachineData} (hb : Body m0 (pairL m0) 0 st) (hx2 : st.regs.X
     · simp [h]; omega
   by_cases hbig : 130 ≤ lenOf m0
   · have hpc' := pc_taken hpc1 (by rw [hc1]; simp [hbig])
-    rw [hp.label (j := 65) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b15Offset) NativeRustcVmArm.Vm.LanesOf.label_15_at] at hpc'
     exact goto hpc' (ret15 hp hb1.fr hb1.x30 (by rw [hsz]; unfold nOf; omega))
   have hpc1' := pc_fall hpc1 (by rw [hc1]; simp [hbig])
   refine goto hpc1' ?_
@@ -111,7 +111,7 @@ theorem pairs {st : MachineData} (hb : Body m0 (pairL m0) 0 st) (hx2 : st.regs.X
     rfl
   by_cases hz : nOf m0 = 0
   · have hpc' := pc_taken hpc2 (by rw [hc2]; simp [hz])
-    rw [hp.label (j := 83) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b19Offset) NativeRustcVmArm.Vm.LanesOf.label_19_at] at hpc'
     exact goto hpc' (ret19 hp (n := nOf m0) (by rw [hz]; exact hb2) x2 hsz hf (by omega))
   have hpc2' := pc_fall hpc2 (by rw [hc2]; simp [hz])
   refine goto hpc2' ?_
@@ -138,7 +138,7 @@ theorem pairs {st : MachineData} (hb : Body m0 (pairL m0) 0 st) (hx2 : st.regs.X
     have hk4 := after_eq run_b4 ▸ b4_keeps
     have hb4 := hb3.of_regsS hm4 hk4.1 hk4.2 rfl rfl rfl
     simp only [PcOk] at hpc4
-    rw [hp.label (j := 87) rfl] at hpc4
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b20Offset) NativeRustcVmArm.Vm.LanesOf.label_20_at] at hpc4
     refine goto hpc4 (from_tail hp hpre h0 ⟨hb4, ?_, ?_, by omega, hn130⟩)
     · rw [show s4.data.regs.X2 = s3.data.regs.X2 from reg_kept hm4 (r := .X2) rfl, e3]
       exact x2
@@ -146,7 +146,7 @@ theorem pairs {st : MachineData} (hb : Body m0 (pairL m0) 0 st) (hx2 : st.regs.X
       exact toNat_of_eq h (toNat_ofNat_lt (by decide))
   · -- `b16`: the two-lane turns
     have hpc' := pc_taken hpc3 (by rw [hc3]; simp [h1])
-    rw [hp.label (j := 69) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.LanesOf.b16Offset) NativeRustcVmArm.Vm.LanesOf.label_16_at] at hpc'
     refine goto hpc' ?_
     refine exec_then (inf hp b16_in_code (by simp [b16])) run_b16 (Env.wf_nil _) (match_nil _)
       fun s4 hm4 hpc4 ↦ ?_

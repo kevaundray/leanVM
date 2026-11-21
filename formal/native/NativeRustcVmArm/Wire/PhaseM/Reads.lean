@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
 public import NativeRustcVmArm.Wire.PhaseM.Steps
 
 /-!
@@ -25,7 +26,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 the distinct positions of the first `i` at its byte 2048. -/
 structure SortSt [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (height lw rw c5 i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 52)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b15Offset)
   base : Base m0 st.data
   model : phaseM B c = tail B qs height lw rw c5
   len : qs.length = count
@@ -51,7 +52,7 @@ structure SortSt [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c 
 /-- After the queries. -/
 structure At30 [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count : Nat) (qs : List Nat) (c2 : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 30)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b7Offset)
   base : Base m0 st.data
   x21 : (st.data.regs.getXReg .X21).toNat = count
   x27 : (st.data.regs.getXReg .X27).toNat = 8 * count
@@ -64,7 +65,7 @@ structure At30 [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k 
 /-- The queries' loop, query `i`. -/
 structure AtQ [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k : Nat)
     (count i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 22)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b4Offset)
   base : Base m0 st.data
   x21 : (st.data.regs.getXReg .X21).toNat = count
   x27 : (st.data.regs.getXReg .X27).toNat = 8 * count
@@ -137,7 +138,7 @@ variable {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {c : Nat} [Host] {
 
 /-- **The queries' loop.** -/
 theorem qloop (hp : Placed code k) (G : Geo m0 bp B)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {count i : Nat}
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {count i : Nat}
     {st : MachineState} (h : AtQ m0 bp B c k count i st) :
     Eventually (step1 Host.exe) (fun st' ↦ AtNone m0 B c k st' ∨
       ∃ qs c2, At30 m0 bp B c k count qs c2 st') st := by
@@ -173,7 +174,7 @@ theorem qloop (hp : Placed code k) (G : Geo m0 bp B)
       simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
       rw [show m2.regs.getXReg .X0 = m2.regs.X0 from rfl, h0, bit0_zero]; rfl
     simp only [hcz, ↓reduceIte] at hpc3
-    rw [hp.label (j := 64) rfl] at hpc3
+    rw [hp.label (j := NativeRustcVmArm.Vm.PhaseM.b18Offset) NativeRustcVmArm.Vm.PhaseM.label_12_at] at hpc3
     refine .done _ (.inl (.inl ⟨hpc3, hb2.of_regs hfr3 fun x hx ↦ r3 x (by
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
       rcases hx with rfl | rfl | rfl <;> simp), ?_⟩))
@@ -277,7 +278,7 @@ theorem qloop (hp : Placed code k) (G : Geo m0 bp B)
   · simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc4
     refine .done _ (.inr ⟨count - (i + 1), by omega, i + 1, rfl, ⟨?_, hb4, ?_, ?_, ?_, ?_, h1, hcnt,
       by omega, qs ++ [v], hqs', hqW4, hrd4⟩⟩)
-    · rw [hpc4]; exact hp.label (j := 22) rfl
+    · rw [hpc4]; exact hp.label (j := NativeRustcVmArm.Vm.PhaseM.b4Offset) NativeRustcVmArm.Vm.PhaseM.label_3_at
     · rw [r4 .X21 (by simp), r3 .X21 (by simp), e21, r1 .X21 (by simp)]; exact x21
     · rw [r4 .X27 (by simp), r3 .X27 (by simp), e27, r1 .X27 (by simp)]; exact x27
     · show (s4.data.regs.getXReg .X23).toBitVec.toNat = _

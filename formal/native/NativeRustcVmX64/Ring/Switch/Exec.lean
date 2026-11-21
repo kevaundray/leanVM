@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.RingSwitch
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
 public meta import NativeRustcVmX64.Code.Vm.RingSwitch
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -54,7 +55,7 @@ public theorem ok_b0 : ProOk 432 0 slots (after b0 entryS) = true ∧
   decide +kernel
 
 public theorem exit_b1 : exec b1 gS = some (G1, .cond (SBool.cmp .eq .W8
-    (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) ".LRingSwitch_2") :=
+    (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) NativeRustcVmX64.Vm.RingSwitch.label_2) :=
   run_b1.trans (by rw [show G1 = _ from after_eq run_b1])
 
 /-- `None`: the epilogue, AL the grind's. -/

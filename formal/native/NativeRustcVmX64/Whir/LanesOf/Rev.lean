@@ -19,7 +19,7 @@ open NativeRustcVmX64.Arrays (eval_reg eval_lit eval_add eval_cmp_eq eval_test p
 
 @[expose] public section
 
-/-- **The loop's head** `.LLanesOf_10`, `i` lanes reversed. -/
+/-- **The loop's head** `NativeRustcVmX64.Vm.LanesOf.label_10`, `i` lanes reversed. -/
 structure RvLoop (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
   body : Body m0 (revL m0) i st
   hi : i < lenOf m0
@@ -46,7 +46,7 @@ abbrev envA (m0 st : MachineData) (i : Nat) : Env :=
 theorem rv_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     (h0 : (reg m0 .rdi).toNat = 0) {i : Nat} {st : MachineData} (hL : RvLoop m0 i st) :
     Eventually (step1 Host.exe) (fun s ↦ Post m0 s ∨ (RvLoop m0 (i + 1) s.data ∧
-      s.pc = Host.addrOf (k + 27))) ⟨st, Host.addrOf (k + 27)⟩ := by
+      s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b8Offset))) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b8Offset)⟩ := by
   have hb := hL.body
   have hi := hL.hi
   have hn := hL.hn
@@ -101,7 +101,7 @@ theorem rv_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hlast : i + 1 = lenOf m0
   · -- the last lane: return
-    have hpc := (hT (decide_eq_true hlast)).trans (hp.label (j := 37) rfl)
+    have hpc := (hT (decide_eq_true hlast)).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_14_at)
     obtain ⟨hcs, hls⟩ := hlanes hm1 hl0 hl1 hwr
     have hb1 : Body m0 (revL m0) (i + 1) st1.data :=
       ⟨Transcript.Frame.of_block hb.fr hwf hm1 hmid slots_le, hcs, hls⟩
@@ -126,7 +126,7 @@ theorem rv_turn (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
       simp
       omega
     rw [hc2] at hpc2
-    have hpc2 := ((pc_cond hpc2).1 rfl).trans (hp.label (j := 27) rfl)
+    have hpc2 := ((pc_cond hpc2).1 rfl).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_10_at)
     refine .done _ (.inr ⟨⟨⟨Transcript.Frame.of_block hb.fr hwf hm2 hmid2 slots_le, hcs, hls⟩,
       by omega, hn, ?_, ?_, ?_, ?_, ?_, ?_⟩, hpc2⟩)
     · exact (hm2.regs .rsi _ rfl).trans hL.rsi
@@ -203,7 +203,7 @@ theorem rv_none {m0 : MachineData} (hpre : LanesOfPre m0) (h0 : (reg m0 .rdi).to
 /-- **Level `0`**: from `b5`, the entry's environment. -/
 theorem rev (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     (h0 : (reg m0 .rdi).toNat = 0) {st : MachineState}
-    (hm : Match (frameEnv m0 m0 8 []) s0 st.data) (hpc : st.pc = Host.addrOf (k + 14)) :
+    (hm : Match (frameEnv m0 m0 8 []) s0 st.data) (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b5Offset)) :
     Eventually (step1 Host.exe) (Post m0) st := by
   have hwf := wf1 (st := m0) (vars := fun _ ↦ 0) (ret := 0) hpre fun _ h ↦ h
   have hx : ∀ r, (frameEnv m0 m0 8 []).regs r = reg m0 r := fun _ ↦ rfl
@@ -220,7 +220,7 @@ theorem rev (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
     rw [eval_test, eval_reg, hx, bv_beq_ofNat _ (by decide)] at hpc2
     obtain ⟨hT2, hF2⟩ := pc_cond hpc2
     by_cases hz : lenOf m0 = 0
-    · have hpc2 := (hT2 (decide_eq_true hz)).trans (hp.label (j := 73) rfl)
+    · have hpc2 := (hT2 (decide_eq_true hz)).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_8_at)
       exact exec_at (inf hp b16_in_code (by simp [b16])) (exec_after run_b6 run_b16) hwf
         (by intro l h; cases h) hpc2 hm2 fun st3 hm3 hpc3 ↦
           .done _ (rv_zero hpre h0 hz (after_eq run_b16 ▸ hm3) hpc3)
@@ -231,7 +231,7 @@ theorem rev (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0)
       exact at_pc (fun d hd ↦ run_loop (L := RvLoop m0) (lenOf m0) (fun i _ h ↦ h.hi)
         (fun i d hd ↦ rv_turn hp hpre h0 hd) hd)
         ⟨rv_init hpre h65 hz (after_eq run_b7 ▸ hm3), hpc3⟩
-  · have hpc1 := (hT (by simpa using h65)).trans (hp.label (j := 40) rfl)
+  · have hpc1 := (hT (by simpa using h65)).trans (hp.label NativeRustcVmX64.Vm.LanesOf.label_2_at)
     exact exec_at (inf hp b11_in_code (by simp [b11])) (exec_after run_b5 run_b11r) hwf
       (by intro l h; cases h) hpc1 hm1 fun st2 hm2 hpc2 ↦
         .done _ (rv_none hpre h0 h65 (after_eq run_b11r ▸ hm2) hpc2)

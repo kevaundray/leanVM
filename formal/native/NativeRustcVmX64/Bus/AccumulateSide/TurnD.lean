@@ -49,8 +49,8 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
       FormsAt m2.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 (j + 1)).1 →
       reg m2 .rsi = BitVec.ofNat 64 (bkA L rows bl j).logRows →
       reg m2 .rdx = BitVec.ofNat 64 (bkA L rows bl j).rows →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 245)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 223)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset + b23a.length)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset)⟩ := by
   let V := VT L rows bl Fm SL m0 j
   let o := (bkA L rows bl j).owner
   have hbx : bkA L rows bl j = blockW L.tableLogHeights rows bl[j] := BA_getD L rows bl hj
@@ -149,7 +149,7 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
     rw [hm'.regs .rdx _ hdx]
     change env.load 1 (72 + (BinOp.apply .mul .W64 (env.load 0 48 8) (BitVec.ofNat 64 8)).toNat) 8 = _
     rw [hidx]; exact hrows
-  have hpc' : st.pc = Host.addrOf (k + 245) := hpc
+  have hpc' : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset + b23a.length) := hpc
   obtain ⟨d, pc⟩ := st
   simp only at hpc' hst2 hk esi edx
   subst hpc'

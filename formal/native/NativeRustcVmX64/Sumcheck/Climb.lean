@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.Climb.Loop
+public import NativeRustcVmX64.Code.Vm.Climb.Names
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
 
 /-!
 # `climb` on x86-64
@@ -40,9 +42,9 @@ theorem fr_entry (hpre : ClimbPre N P m0) (hwf : (entryEnv m0).WF) {S : SState}
 the head of level `0`. -/
 theorem entry_spec (hp : Placed code k) (hpre : ClimbPre N P m0) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 72) ∧ P.size = 0 ∧ Fr m0 N st.data) ∨
-        (st.pc = Host.addrOf (k + 44) ∧ Inv m0 N P 0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b12Offset) ∧ P.size = 0 ∧ Fr m0 N st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b6Offset) ∧ Inv m0 N P 0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b0Offset)⟩ := by
   have g := Geo.of_pre hpre
   have hst := hpre.1
   have hsz : P.size = (reg m0 .r8).toNat := hpre.2.2.2.1
@@ -69,13 +71,13 @@ theorem entry_spec (hp : Placed code k) (hpre : ClimbPre N P m0) :
   simp only [PcOk, hc0] at hpc0
   by_cases h0 : P.size = 0
   · simp only [h0, decide_true, ite_true] at hpc0
-    exact .done _ (Or.inl ⟨hpc0.trans (hp.label (j := 72) rfl), h0, fr_entry hpre hwf ok_b0 hm0⟩)
+    exact .done _ (Or.inl ⟨hpc0.trans (hp.label NativeRustcVmX64.Vm.Climb.label_9_at), h0, fr_entry hpre hwf ok_b0 hm0⟩)
   · simp only [h0, decide_false, Bool.false_eq_true, ite_false] at hpc0
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf nofun
-      (hpc0.trans (by rw [show b0.length = 20 from rfl])) hm0 fun st1 hm1 hpc1 ↦ ?_
+      (hpc0.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Climb.b0_next)) hm0 fun st1 hm1 hpc1 ↦ ?_
     obtain ⟨hok, hr12, hr13, hr14, hr15, hrbp, hrbx⟩ := ok_b1
     simp only [PcOk] at hpc1
-    refine .done _ (Or.inr ⟨hpc1.trans (hp.label (j := 44) rfl), fr_entry hpre hwf hok hm1,
+    refine .done _ (Or.inr ⟨hpc1.trans (hp.label NativeRustcVmX64.Vm.Climb.label_2_at), fr_entry hpre hwf hok hm1,
       by omega, hm1.regs .r12 _ hr12, ?_, ?_, hm1.regs .r15 _ hr15,
       (hm1.regs .rbp _ hrbp).trans (eval_ptr0 8), (hm1.regs .rbx _ hrbx).trans (eval_ptr0 40)⟩)
     · rw [show reg st1.data .r13 = _ from hm1.regs .r13 _ hr13]; rfl
@@ -90,7 +92,7 @@ theorem exit_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {D : Digest} {m 
         NativeRustcVm.SameOutside m0.dmem st.data.dmem (fun p ↦
           NativeRustcVm.InRange (reg m0 .rdi) 32 p ∨
             NativeRustcVm.InRange (stackBelow m0 climbStack) climbStack p) ∧ Saved m0 st.data)
-      ⟨m, Host.addrOf (k + 72)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b12Offset)⟩ := by
   have g := Geo.of_pre hpre
   have hst := hpre.1
   have hfnw := frame_noWrap (F := 160) hst (by rw [climbStack_eq]; omega)
@@ -130,12 +132,12 @@ theorem exit_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {D : Digest} {m 
 
 /-- **`climb`'s contract.** -/
 theorem climb_spec (hp : Placed code k)
-    (hhp : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost) (N : Digest)
-    (P : Array Digest) : Spec (Labels.label climbLabel) (ClimbPre N P) (ClimbPost N P) := by
+    (hhp : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost) (N : Digest)
+    (P : Array Digest) : Spec (Labels.label NativeRustcVmX64.Vm.Climb.entryLabel) (ClimbPre N P) (ClimbPost N P) := by
   intro m0 hpre
-  rw [show Labels.label climbLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.Climb.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b0Offset) from hp.label NativeRustcVmX64.Vm.Climb.entry_at]
   have fin : ∀ (D : Digest), D = climb N (q0 m0) P → ∀ st : MachineState,
-      st.pc = Host.addrOf (k + 72) → Fr m0 D st.data →
+      st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b12Offset) → Fr m0 D st.data →
       Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
         rspOf st'.data = rspOf m0 + 8#64 ∧ ClimbPost N P m0 st'.data) st := by
     intro D hD st hpc hfr

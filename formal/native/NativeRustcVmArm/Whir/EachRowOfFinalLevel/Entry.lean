@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceTable.Names
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.Basic
 
 /-!
@@ -67,11 +69,11 @@ variable [Host] {k : Nat}
 
 /-- **From the entry to `b3`.** -/
 theorem entry_a (hp : Placed code k)
-    (htab : Spec (label subspaceTableLabel) SubspaceTablePre SubspaceTablePost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
+    (htab : Spec (label NativeRustcVmArm.Vm.SubspaceTable.entryLabel) SubspaceTablePre SubspaceTablePost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     (hpre : EachRowFinalPre rows op m0) {R : MachineState → Prop}
-    (cont : ∀ m, AtB3 m0 m → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 29)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (cont : ∀ m, AtB3 m0 m → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b3Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b0Offset)⟩ := by
   have hstk := hpre.1.1
   have hmu : m0.regs.X4.toNat ≤ stackCap := hpre.1.2.2.2.2.2.1
   have hl := lay hpre
@@ -83,7 +85,7 @@ theorem entry_a (hp : Placed code k)
   have hm0 : Match env0 entryS m0 :=
     match_ofMachine ⟨rfl, fun _ ↦ Ring.frame_aligned hstk (by decide) rfl, trivial⟩
       (by simp [Sym.eval, base]) trivial trivial trivial trivial
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk0 run_b0 hwf0 hm0 fun st1 hm1 hpc1 ↦ ?_
   have hfr1 : FR m0 st1.data :=
     Ring.Fr.ofPrologue hstk.2.1 (by decide) hm1 hwf0 rfl (by decide) slots_le (by decide) (by simp)
@@ -124,8 +126,8 @@ theorem entry_a (hp : Placed code k)
         show (d2.regs.getXReg .X19).toBitVec = _
         rw [hs2 .X19 rfl, e1x19]
         rfl, trivial⟩ trivial trivial trivial
-  have hk1 : b1.IsInfixAt Host.prog (k + 20) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk2 : b2.IsInfixAt Host.prog (k + 22) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hl552 : env1.load 0 552 8 = (1 : UInt64).toBitVec := Ring.load_word htag
   have hlen : (tableOf m0).toList.length = (tableOf m0).size := Array.length_toList
   have hl560 : env1.load 0 560 8 = (tableOf m0).size.toUInt64.toBitVec := by
@@ -135,7 +137,7 @@ theorem entry_a (hp : Placed code k)
     rw [hlen, e] at this
     exact Ring.load_word this
   refine exec_then hk1 run_b1 hwf1 hm1' fun st3 hm3 hpc3 ↦ ?_
-  have hpc3' : st3.pc = Host.addrOf (k + 22) := by
+  have hpc3' : st3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b2Offset) := by
     simp only [PcOk] at hpc3
     sym_simp at hpc3
     rw [hl552] at hpc3

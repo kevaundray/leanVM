@@ -39,7 +39,7 @@ variable [Host]
 
 /-- **The queries' loop head** without words (`b39`) at query `j`. -/
 structure HeadZ (R : Run) (j : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 202
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b39Offset
   fr : Frm R st.data
   x0 : rv st.data .X0 = BitVec.ofNat 64 1
   x1 : rv st.data .X1 = BitVec.ofNat 64 (8 * R.np)
@@ -56,7 +56,7 @@ structure HeadZ (R : Run) (j : Nat) (st : MachineState) : Prop where
 
 /-- **The positions' scan** (`b40`) of query `j` at position `i`. -/
 structure ScanZ (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 209
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b40Offset
   fr : Frm R st.data
   rz : RZ R j st.data
   x10 : rv st.data .X10 = BitVec.ofNat 64 i
@@ -147,7 +147,7 @@ theorem headZ_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : H
 
 /-- **Query `j` found** (`b43`, `b44`): the next query, or the epilogue. -/
 theorem b43_step (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineState}
-    (hpc : st.pc = pcOf R 217) (hfr : Frm R st.data) (rz : RZ R j st.data) (hj : j < R.nq)
+    (hpc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b43Offset) (hfr : Frm R st.data) (rz : RZ R j st.data) (hj : j < R.nq)
     (hz : R.h = 0) (hlw0 : R.lw = 0) (hpos : R.pos (R.qw j) = some i)
     (hmem : Begun R j st.data.dmem) :
     Eventually (step1 Host.exe) (fun st' ↦ Post R st' ∨ HeadZ R (j + 1) st') st := by
@@ -179,11 +179,11 @@ theorem b43_step (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineState
       rw [show s2.data.regs.X0 = s2.data.regs.getXReg .X0 from rfl,
         Match.reg_eq hm2 hm2' (v := .reg .X0) rfl rfl, rz1.x0]
       rfl
-    simp only [PcOk, hp.label (j := 223) rfl] at hpc2
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b46Offset) NativeRustcVmArm.Vm.WriteOpenings.label_39_at] at hpc2
     refine Eventually.mono (end_spec hp G ⟨hpc2, hfr2, .inl ⟨hx0, ?_⟩⟩) fun _ h ↦ .inl h
     rw [hd2, ← hend]
     exact hdone
-  · simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 202) rfl]
+  · simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b39Offset) NativeRustcVmArm.Vm.WriteOpenings.label_34_at]
       at hpc1
     exact .done _ (.inr ⟨hpc1, hfr1, rz1.x0, rz1.x1, rz1.x2, rz1.x3, rz1.x5, rz1.x8, rz1.x9,
       rz1.x19, by omega, hz, hlw0, hdone⟩)
@@ -228,7 +228,7 @@ theorem scanZ_loop (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineSta
   have rz1 : RZ R j s1.data :=
     H.rz.keep fun r hr ↦ hk1 r (by simp only [List.mem_cons] at hr ⊢; tauto)
   by_cases he : R.pw i = R.qw j
-  · simp only [he, decide_true, ↓reduceIte, hp.label (j := 217) rfl] at hpc1
+  · simp only [he, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b43Offset) NativeRustcVmArm.Vm.WriteOpenings.label_37_at] at hpc1
     refine Eventually.mono (b43_step hp G hpc1 hfr1 rz1 H.lt H.hz H.lw0 (pos_some hi he H.miss)
       (by rw [hd1]; exact H.mem)) fun _ h ↦ .inl h
   simp only [he, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
@@ -262,10 +262,10 @@ theorem scanZ_loop (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineSta
     refine run_block G hp b42_in_code (by simp [b42]) run_b42 hfr2
       (hpc2.trans (congrArg Host.addrOf rfl)) hwf3 (frMatch G hfr2) rfl
       (writesOk_frame (by decide)) fun s3 hfr3 _ hpc3 ↦ ?_
-    simp only [PcOk, hp.label (j := 221) rfl] at hpc3
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b45Offset) NativeRustcVmArm.Vm.WriteOpenings.label_38_at] at hpc3
     exact Eventually.mono (fail_spec hp G hpc3 hfr3 (bad_of_none H.lt fun i' hi' ↦
       miss i' (by omega))) fun _ h ↦ .inl (.inl h)
-  simp only [ne_eq, hl, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 209) rfl]
+  simp only [ne_eq, hl, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b40Offset) NativeRustcVmArm.Vm.WriteOpenings.label_35_at]
     at hpc2
   refine .done _ (.inr ⟨R.np - (i + 1), by omega, i + 1, rfl, hpc2, hfr2,
     rz1.keep fun r hr ↦ hk2 r (List.mem_cons_of_mem _ hr), ?_,

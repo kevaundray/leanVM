@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.WotsLeaf.Chain.Steps
 
 /-!
@@ -18,7 +20,7 @@ public section
 
 /-- What `b13` does, from `ok13`. -/
 theorem ok13_spec {i : Nat} (h : ok13 i = true) : ∃ S, exec b13 (s13 i) =
-      some (S, .cond (.lit (i + 1 == 58)) ".LWotsLeaf_27") ∧
+      some (S, .cond (.lit (i + 1 == 58)) NativeRustcArm.Xmss.WotsLeaf.label_27) ∧
     covers S.mem 0 (440 + 16 * i) 8 (.load 0 1384 8) = true ∧
     covers S.mem 0 (448 + 16 * i) 8 (.load 0 1392 8) = true ∧ blockOK S = true ∧
     Run.noWriteIn S 0 (440 + 16 * i) = true ∧ S.reg .X19 = some (.lit 136) ∧
@@ -50,8 +52,8 @@ theorem seg_b13 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {x E : List 
     (h21 : Run.RegIs m .X21 (r.off 1976)) (h23 : Run.RegIs m .X23 (r.off 1632))
     (h28 : Run.RegIs m .X28 (BitVec.ofNat 64 i)) (hcell : BytesAt m.dmem (r.off 1384) e)
     (cont : ∀ m', r.AtChain x (i + 1) (E ++ e) m' →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', if i + 1 = 58 then r.pc 603 else r.pc 184⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 173⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', if i + 1 = 58 then r.pc NativeRustcArm.Xmss.WotsLeaf.b44Offset else r.pc NativeRustcArm.Xmss.WotsLeaf.b14Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b13Offset⟩ := by
   obtain ⟨S, hx, c1, c2, hok, hnw, s19, s20, s21, s23, s28, s22, s9⟩ := ok13_spec (ok13_all i hi)
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   have hk : KnownOK r m ([(XReg.X28, Sym.lit i)] ++ keptK) :=
@@ -90,8 +92,8 @@ theorem seg_b41 (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre) {x E : List 
     {m : MachineData} (hK : r.CK x E m) (hR : r.SRegs m pos i)
     (hcell : BytesAt m.dmem (r.off 1384) e)
     (cont : ∀ m', r.CK x E m' → r.SRegs m' pos i → BytesAt m'.dmem (r.off 1384) e →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 173⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 591⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Xmss.WotsLeaf.b13Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b41Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1.1 (fun _ ↦ 0)
   have hm := match_frameS hpre hK.1.1 (knownK hR (k := []) trivial)
   refine blk r hp b41_in_code (List.cons_ne_nil _ _) run_b41 hwf hm fun st hm1 hpc ↦ ?_

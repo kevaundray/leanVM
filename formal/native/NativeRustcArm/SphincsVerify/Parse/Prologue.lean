@@ -99,9 +99,9 @@ variable [NativeArm.Host]
 
 /-- **`b0`**: the saved registers, X29 and SP at `29280`, X9 `608`. -/
 theorem b0_spec (hp : Placed code r.k) (hpre : r.Pre) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 9 ∧ Probe r 0 st.data)
-      ⟨r.m0, r.pc 0⟩ := by
-  have hk : b0.IsInfixAt NativeArm.Host.prog (r.k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b1Offset ∧ Probe r 0 st.data)
+      ⟨r.m0, r.pc NativeRustcArm.Sphincs.SphincsVerify.b0Offset⟩ := by
+  have hk : b0.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hfm := frame_mapped0 r hpre (Kept.refl _) (a := 0) (n := 29376) (by decide)
   rw [Run.off_zero] at hfm
   have hwf : (Env.ofMachine r.m0 [(r.base, 29376)]).WF :=
@@ -141,14 +141,14 @@ theorem b0_spec (hp : Placed code r.k) (hpre : r.Pre) :
 /-- **The probe loop**: from `t ≤ 6` turns, the next turn; after the seventh, `b2`. -/
 theorem b1_spec (hp : Placed code r.k) (hpre : r.Pre) {t : Nat} (ht : t ≤ 6) {m : MachineData}
     (h : Probe r t m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc 14 ∧ Probe r 7 st.data) ∨
-      ∃ n' < 6 - t, ∃ t', t' ≤ 6 ∧ n' = 6 - t' ∧ st.pc = r.pc 9 ∧ Probe r t' st.data)
-      ⟨m, r.pc 9⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b2Offset ∧ Probe r 7 st.data) ∨
+      ∃ n' < 6 - t, ∃ t', t' ≤ 6 ∧ n' = 6 - t' ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b1Offset ∧ Probe r t' st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b1Offset⟩ := by
   obtain ⟨-, hsp, h9, h29, h0, hsv, hso, hkp⟩ := h
   obtain ⟨a, ha⟩ : ∃ a, 29280 - 4096 * (t + 1) = a := ⟨_, rfl⟩
   have ha' : a + 4096 = 29280 - 4096 * t := by omega
   have ha16 : a % 16 = 0 := by omega
-  have hk : b1.IsInfixAt NativeArm.Host.prog (r.k + 9) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b1.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hfm := frame_mapped0 r hpre hkp (a := a) (n := 16) (by omega)
   have hwf : (Env.ofMachine m [(r.off a, 16)]).WF :=
     Env.wf_of ⟨hfm, trivial⟩ (List.pairwise_singleton _ _)
@@ -193,17 +193,17 @@ theorem b1_spec (hp : Placed code r.k) (hpre : r.Pre) {t : Nat} (ht : t ≤ 6) {
     exact .done _ (Or.inl ⟨hpc, hP⟩)
   · have h6' : (!decide (t = 6)) = true := by simpa using h6
     simp only [h6', ↓reduceIte] at hpc
-    rw [hp.label (j := 9) rfl] at hpc
+    rw [hp.label NativeRustcArm.Sphincs.SphincsVerify.label_1_at] at hpc
     exact .done _ (Or.inr ⟨6 - (t + 1), by omega, t + 1, by omega, rfl, hpc, hP⟩)
 
 /-- **`b2` and the signature's `memset`**. -/
 theorem b2_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {m : MachineData}
     (h : Probe r 7 m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 32 ∧ AtWords r st.data)
-      ⟨m, r.pc 14⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b3Offset ∧ AtWords r st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b2Offset⟩ := by
   obtain ⟨-, hsp, -, h29, h0, hsv, hso, hkp⟩ := h
   have hS : SameOutside r.m0.dmem m.dmem r.StackArea := hso.mono fun _ ↦ saved_area r hpre
-  have hk : b2.IsInfixAt NativeArm.Host.prog (r.k + 14) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b2.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := wf_frame_input r hpre hS hkp (a := 0) (n := 29376) (s := 0) (k := 7816) (by decide)
     (by decide) (by decide) (fun _ ↦ 0)
   have hm : Match (Env.ofMachine m [(r.off 0, 29376), (r.input + BitVec.ofNat 64 (8 * 0), 7816)])
@@ -258,12 +258,12 @@ theorem b2_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {m : Machin
 
 /-- **The parse's first part**: from the entry, `AtWords` at `b3`. -/
 theorem prologue_spec (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 32 ∧ AtWords r st.data)
-      ⟨r.m0, r.pc 0⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b3Offset ∧ AtWords r st.data)
+      ⟨r.m0, r.pc NativeRustcArm.Sphincs.SphincsVerify.b0Offset⟩ := by
   refine Eventually.bind (b0_spec r hp hpre) fun st ⟨hpc, h0⟩ ↦ ?_
   have hloop := loop (tr := step1 NativeArm.Host.exe)
-    (Q := fun st : MachineState ↦ st.pc = r.pc 14 ∧ Probe r 7 st.data)
-    (fun n st ↦ ∃ t, t ≤ 6 ∧ n = 6 - t ∧ st.pc = r.pc 9 ∧ Probe r t st.data)
+    (Q := fun st : MachineState ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b2Offset ∧ Probe r 7 st.data)
+    (fun n st ↦ ∃ t, t ≤ 6 ∧ n = 6 - t ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b1Offset ∧ Probe r t st.data)
     (fun n st ⟨t, ht, hn, hpc, hP⟩ ↦ by
       obtain ⟨m, pc⟩ := st
       simp only at hpc

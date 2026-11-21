@@ -37,8 +37,8 @@ theorem l_cases {l : Nat} (hl : l < 3) : l = 0 ∨ l = 1 ∨ l = 2 := by omega
 theorem entry (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List UInt8)}
     {m : MachineData} (h : LeafC r l e m)
     (hV : BytesAt m.dmem (r.off 9408) (wotsLeafHash r.seed (r.key l) e)) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1985 ∧ AtNode r l e 0 st.data)
-      ⟨m, r.pc 1950⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b162Offset ∧ AtNode r l e 0 st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b158Offset⟩ := by
   have hl := h.1.1
   have hwf := frame_wf' hpre h.1 0
   have hld96 : (r.env m (fun _ ↦ 0) 0).load 0 96 8 = l.toUInt64.toBitVec := load_word h.2.1.2.2
@@ -48,22 +48,22 @@ theorem entry (hp : Placed code r.k) (hpre : r.Pre) {l : Nat} {e : List (List UI
     fun st1 hm1 hpc1 ↦ ?_
   have hpc1' := pc_cond (b := false) hpc1 (by
     sym_simp; rw [hld96, hld160]; rcases l_cases hl with rfl | rfl | rfl <;> decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (j' := 1969) (by rfl) (by decide)] at hpc1'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcX64.Sphincs.SphincsVerify.b158_next] at hpc1'
   refine exec_at (hb159 hp) (exec_after run_b158 run_b159) hwf (fun _ h ↦ nomatch h) hpc1' hm1
     fun st2 hm2 hpc2 ↦ ?_
   have hpc2' := pc_cond (b := false) hpc2 (by
     sym_simp; rw [hld96, hld160]; rcases l_cases hl with rfl | rfl | rfl <;> decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (j' := 1971) (by rfl) (by decide)] at hpc2'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcX64.Sphincs.SphincsVerify.b159_next] at hpc2'
   refine exec_at (hb160 hp) (exec_after run_b159 run_b160) hwf (fun _ h ↦ nomatch h) hpc2' hm2
     fun st3 hm3 hpc3 ↦ ?_
   have hpc3' := pc_cond (b := false) hpc3 (by
     sym_simp; rw [hld160]; rcases l_cases hl with rfl | rfl | rfl <;> decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (j' := 1973) (by rfl) (by decide)] at hpc3'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcX64.Sphincs.SphincsVerify.b160_next] at hpc3'
   refine exec_at (hb161 hp) (exec_after run_b160 run_b161) hwf (fun _ h ↦ nomatch h) hpc3' hm3
     fun st4 hm4 hpc4 ↦ ?_
   have hB4 := Base.of_match hpre h.1 hm4 hwf rfl (by decide) (by decide) rfl
   have hlen : (wotsLeafHash r.seed (r.key l) e).length = 16 := length_th _ _ _
-  refine .done _ ⟨hpc4.trans (pc_after (by rfl) (by decide)), hB4, heightOf_pos hl,
+  refine .done _ ⟨hpc4.trans (pc_after NativeRustcX64.Sphincs.SphincsVerify.b161_next), hB4, heightOf_pos hl,
     hm4.regs .rcx _ rfl, (hm4.regs .r12 _ rfl).trans (eval_ptr 4096), ?_, ?_, ?_⟩
   · refine write_eval hm4 (o := 72) (n := 8) (v := pathSym) (w := r.off (24764 + 16 * pathStart l)) (by decide)
       (by decide) ?_ (bytes_word _)

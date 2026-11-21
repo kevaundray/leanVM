@@ -87,7 +87,7 @@ theorem epi_run {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code k) {m0 
   have t : ∀ {o : Nat} {r : XReg}, WordAt m.dmem (frame m0 + BitVec.ofNat 64 o)
       (m0.regs.getXReg r).toBitVec → env.load 0 o 8 = (m0.regs.getXReg r).toBitVec :=
     fun h => load_of_wordAt (r := 0) h
-  have hk : b77.IsInfixAt Host.prog (k + 553) := b77_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b77.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b77Offset) := b77_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk epi hwf hm fun st hm' hpc => .done _ ⟨?_, ?_, ?_, ?_⟩
   · have hx30 : st.data.regs.getXReg .X30 = m0.regs.getXReg .X30 :=
       UInt64.toBitVec_inj.mp ((hm'.regs .X30 _ rfl).trans (t s216))

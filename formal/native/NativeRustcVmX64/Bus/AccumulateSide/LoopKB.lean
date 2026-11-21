@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.LoopKA
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `accumulate_side`: the known part's turn, from `eq_above` (x86-64)
@@ -30,18 +31,18 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
 
 /-- **The known part's turn `i`, from `eq_above`'s return.** -/
 theorem turnKB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {i : Nat} (hi : i < cA SL m0) {st : MachineData}
     (hst : St m0 Z (Vt SL m0 (lpK SL m0 i)) DKc 8 st) (hret : ewRet st = fsel SL (ptA m0) i) :
     Eventually (step1 Host.exe) (fun st' ↦
       St m0 Z (Vt SL m0 (lpK SL m0 (i + 1))) DK 8 st'.data ∧
-      ((st'.pc = Host.addrOf (k + 46) ∧ i + 1 < cA SL m0) ∨
-        (st'.pc = Host.addrOf (k + 81) ∧ i + 1 = cA SL m0)))
-      ⟨st, Host.addrOf (k + 67)⟩ := by
+      ((st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b2Offset) ∧ i + 1 < cA SL m0) ∨
+        (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b5Offset) ∧ i + 1 = cA SL m0)))
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b3Offset)⟩ := by
   let V := Vt SL m0 (lpK SL m0 i)
   have hcA : cA SL m0 ≤ 3 := Nat.le_trans (Nat.min_le_right _ _) h.fw.1
   obtain ⟨hmid, hw, htr⟩ := ok_b3
-  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + 67 + b3.length)).toBitVec)
+  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b3Offset + b3.length)).toBitVec)
     rfl (infix_of b3_in_code (by simp [b3]) hp) exit_b3 (fun _ _ ↦ rfl) hst.fr hst.same
     ((hst.hd.append (holds_reg (V := V) (i := 40) (ewRet_c0 hret)
       (holds_reg (i := 41) (ewRet_c1 hret) (holds_nil _ _ _)))).reg0 (by decide) rfl) (by decide)
@@ -68,7 +69,7 @@ theorem turnKB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     rw [r_di, r_si, r_dx, r_cx]
     rfl
   -- `b4`: the product added, the next turn.
-  show Eventually _ _ (⟨m6, Host.addrOf (k + 72)⟩ : MachineState)
+  show Eventually _ _ (⟨m6, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b4Offset)⟩ : MachineState)
   obtain ⟨hmid4, hw4, htr4, hbp4, h154, h134⟩ := ok_b4
   refine St.run h (rest := [(rspOf m0 + 8#64, 88)]) (vs := fun _ ↦ 0) (ret := 0) rfl
     (infix_of b4_in_code (by simp [b4]) hp) exit_b4 nofun hst6.fr hst6.same
@@ -131,7 +132,7 @@ theorem turnKB (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       at hpc7
     exact .done _ ⟨hnext, .inr ⟨by rw [hpc7]; rfl, hlast⟩⟩
   · simp only [hlast, ne_eq, not_false_eq_true, decide_true, ↓reduceIte] at hpc7
-    exact .done _ ⟨hnext, .inl ⟨by rw [hpc7]; exact hp.label (j := 46) rfl, by omega⟩⟩
+    exact .done _ ⟨hnext, .inl ⟨by rw [hpc7]; exact hp.label NativeRustcVmX64.Vm.AccumulateSide.label_2_at, by omega⟩⟩
 
 end
 

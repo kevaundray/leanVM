@@ -1,11 +1,13 @@
 module
 
 public import NativeRustcVmX64.Bus.BusLayout.SizesRun
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.StackOffsets.Names
 
 /-!
 # `bus_layout`'s offsets (x86-64)
 
-From `.LBusLayout_16` to the placements' loop (`offsets_run`): `memset` of the offsets (`b20`),
+From `NativeRustcVmX64.Vm.BusLayout.label_16` to the placements' loop (`offsets_run`): `memset` of the offsets (`b20`),
 `stack_offsets` of the sizes (`b21`; it succeeds, `b22`), the layout's start in the frame
 (`b23`: its depth, no placement): `PInv 0`.
 -/
@@ -18,7 +20,7 @@ open NativeRustcVmX64.Vm.BusLayout
 
 public section
 
-/-- **The placements' loop head** `.LBusLayout_19`, `j` placements pushed. -/
+/-- **The placements' loop head** `NativeRustcVmX64.Vm.BusLayout.label_19`, `j` placements pushed. -/
 structure PInv (L : LayoutW) (bl : List NativeRustcVm.Data.Block) (m0 : MachineData) (j : Nat)
     (st : MachineData) : Prop where
   bd : Body m0 1808 busLayoutStack slots 8 st
@@ -140,14 +142,14 @@ theorem frame_ok {m0 d : MachineData} (hst : StackOk m0 busLayoutStack)
 
 variable [Host] {k : Nat}
 
-/-- **The offsets, the layout's start**: from `.LBusLayout_16` to the placements' loop. -/
+/-- **The offsets, the layout's start**: from `NativeRustcVmX64.Vm.BusLayout.label_16` to the placements' loop. -/
 theorem offsets_run (hp : Placed code k)
-    (hms : Spec (Labels.label "memset") MemsetPre MemsetPost)
-    (hso : Spec (Labels.label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost)
+    (hms : Spec (Labels.label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hso : Spec (Labels.label NativeRustcVmX64.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost)
     {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : MachineData}
-    (hpre : BusLayoutPre L bl m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 82))
+    (hpre : BusLayoutPre L bl m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b20Offset))
     (hD : SzDone L bl m0 st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 215) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b26Offset) ∧
       PInv L bl m0 0 st'.data) st := by
   have hst := hpre.1
   have hN : 1808 ≤ busLayoutStack := by decide
@@ -160,7 +162,7 @@ theorem offsets_run (hp : Placed code k)
   have hbd := hD.bd
   -- `b20`: `memset` of the offsets.
   have hwf0 := wf0 (d := st.data) hst hN hbd.fr.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 82 + b20.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b20Offset + b20.length)).toBitVec)
   refine exec_at (infix_of b20_in_code (by simp [b20]) hp) run_b20 hwf0 (fun _ _ ↦ rfl) hpc
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hbd.fr.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 ↦ ?_
@@ -200,9 +202,9 @@ theorem offsets_run (hp : Placed code k)
       hn54 (.inr (by omega)) (by omega) hso2
   -- `b21`: `stack_offsets`.
   have hwf2 := wf0 (d := st2.data) hst hN bd2.fr.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 88 + b21.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b21Offset + b21.length)).toBitVec)
   refine exec_at (infix_of b21_in_code (by simp [b21]) hp) run_b21 hwf2 (fun _ _ ↦ rfl)
-    (hpc2.trans (congrArg Host.addrOf (by have : b20.length = 6 := rfl; omega)))
+    (hpc2.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b20_next)))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨bd2.fr.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hw3, hdi3, hcx3, hsi3, hdx3, hk3⟩ := after_eq run_b21 ▸ ok_b21
@@ -271,7 +273,7 @@ theorem offsets_run (hp : Placed code k)
   -- `b22`: it succeeded.
   have hwf4 := wf0 (d := st4.data) hst hN bd4.fr.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b22_in_code (by simp [b22]) hp) run_b22 hwf4 nofun
-    (hpc4.trans (congrArg Host.addrOf (by have : b21.length = 5 := rfl; omega)))
+    (hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b21_next)))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨bd4.fr.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hmid5, hmem5, hk5⟩ := after_eq run_b22 ▸ ok_b22
@@ -292,7 +294,7 @@ theorem offsets_run (hp : Placed code k)
   -- `b23`: the layout's start.
   have hwf5 := wf0 (d := st5.data) hst hN bd5.fr.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b23_in_code (by simp [b23]) hp) run_b23 hwf5 nofun
-    (hpc5.trans (congrArg Host.addrOf (by have : b22.length = 2 := rfl; omega)))
+    (hpc5.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b22_next)))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨bd5.fr.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st6 hm6 hpc6 ↦ ?_
   obtain ⟨hmid6, hw6, hwr6, hbd6, hax6, hcx6, hdx6, hk6⟩ := after_eq run_b23 ▸ ok_b23
@@ -307,7 +309,7 @@ theorem offsets_run (hp : Placed code k)
       rcases hr with h | h | h <;> simp [h])).trans ((hk5.reg' hm5 (by
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hr ⊢
       rcases hr with h | h | h <;> simp [h])).trans (e4 r hr))
-  refine .done _ ⟨hpc6.trans (hp.label (j := 215) rfl), bd6, ?_, ?_, ?_,
+  refine .done _ ⟨hpc6.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_19_at), bd6, ?_, ?_, ?_,
     (hm6.regs .rax _ hax6).trans (eval_ptr0 24), hm6.regs .rcx _ hcx6,
     (hm6.regs .rdx _ hdx6).trans rfl, by omega, ?_, ?_, ?_⟩
   · exact (K6 .rbx (by simp)).trans hD.rg.rbx

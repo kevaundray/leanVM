@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PlacementsOf.Names
 public import NativeRustcVmArm.Layout.BuildLayout.Kappas
 
 /-!
@@ -105,11 +106,11 @@ theorem cols_lt {lm lb : Nat} {rows : Array Nat} (hrs : rows.size = 6) (hlm : lm
 
 /-- **`placements_of`, the stack's log-size, the return.** -/
 theorem finish (hp : Placed code k)
-    (hpl : Spec (Labels.label placementsOfLabel) PlacementsOfPre PlacementsOfPost)
+    (hpl : Spec (Labels.label NativeRustcVmArm.Vm.PlacementsOf.entryLabel) PlacementsOfPre PlacementsOfPost)
     {bc : Array UInt64} {m0 : MachineData} (hF : Facts bc m0) {lm lb : Nat} {rows : Array Nat}
     (hrs : rows.size = 6) (hlm : lm ≤ 30) (hlb : lb ≤ 30) (hr : ∀ t < 6, rows.getD t 0 ≤ 2 ^ 30)
     (hres : buildLayout bc m0.regs.X1.toNat (rowsOf m0) = some (layoutF bc lm lb rows))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 84)) (hbd : Bd m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BuildLayout.b16Offset)) (hbd : Bd m0 st.data)
     (h22 : st.data.regs.getXReg .X22 = m0.regs.X3)
     (h21 : (st.data.regs.getXReg .X21).toBitVec = ll m0 + BitVec.ofInt 64 24)
     (hW : Ws st.data.dmem (ll m0) (wsK lm lb rows))
@@ -194,7 +195,7 @@ theorem finish (hp : Placed code k)
   sym_simp at hpc3
   have e0 : (Env.ofMachine st2.data []).regs .X0 = 1#64 := congrArg UInt64.toBitVec h0
   rw [e0] at hpc3
-  have hpc4 := pc_of ((Arrays.pc_cond hpc3).2 (by decide)) (show k + 87 + b17.length = k + 89 from rfl)
+  have hpc4 := pc_of ((Arrays.pc_cond hpc3).2 (by decide)) (show k + NativeRustcVmArm.Vm.BuildLayout.b17Offset + b17.length = k + NativeRustcVmArm.Vm.BuildLayout.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.BuildLayout.b17_next])
   -- `b18`
   have h22' : st3.data.regs.getXReg .X22 = m0.regs.X3 := by
     rw [hk3 .X22 (by simp [cs]), hs2.1 .X22 rfl, hk1 .X22 (by simp [cs])]; exact h22
@@ -221,7 +222,7 @@ theorem finish (hp : Placed code k)
   have k40 : st4.data.regs.X0 = st3.data.regs.X0 := Match.reg_eq hm hm4 (r := .X0) rfl rfl
   simp only [PcOk] at hpc5
   -- the epilogue
-  refine Eventually.mono (epi hp hF (hpc5.trans (hp.label (j := 97) rfl)) hb4
+  refine Eventually.mono (epi hp hF (hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.BuildLayout.b21Offset) NativeRustcVmArm.Vm.BuildLayout.label_12_at)) hb4
     (.inr (k40.trans (k30.trans h0)))) fun s ⟨hs1, hsx, hsc, hss, hsd⟩ ↦ ⟨hs1, ?_, ?_, hsc, hss⟩
   · rw [hsx, k40, k30, h0, hres]; rfl
   · intro L hL

@@ -1,6 +1,12 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.RoundPoly.NoneRead
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.SumE.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
 
 /-!
 # `sumcheck_round_poly`'s entry (x86-64)
@@ -73,16 +79,16 @@ variable [Host] {a : DecArea} {s : TState} {m0 : MachineData} {k : Nat}
 /-- **Equality mode**: `b0`, `b1` saves the claim and the factor and calls `read_scalars` for
 `msg[1..count]`, then `some_tail`. -/
 theorem some_entry (hp : Placed code k)
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hsum : Spec (Labels.label NativeRustcVmX64.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {ev : EW} (h : RoundPolyPre a s (some ev) m0) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         RoundPolyPost a s (some ev) m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b0Offset)⟩ := by
   have c := ctx_of h
   have hc2 : 2 ≤ cnt m0 := h.2.2.2.2.1
   have hc5 : cnt m0 ≤ 5 := h.2.2.2.2.2.1
@@ -91,7 +97,7 @@ theorem some_entry (hp : Placed code k)
   rw [off_off] at hev'
   have hmap : NativeRustcVm.Mapped m0.dmem (reg m0 .r8) 24 :=
     NativeRustcVm.mapped_append_iff (n := 8) (m := 16) |>.2 ⟨htag.mapped, hev.mapped⟩
-  let R := (Host.addrOf (k + 14 + b1.length)).toBitVec
+  let R := (Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b1Offset + b1.length)).toBitVec
   have hwf := wf_env0 h le_rfl hmap R
   have hm : Match (env0 m0 24 R) entryS m0 := match_env0 24 R
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf nofun hm
@@ -107,7 +113,7 @@ theorem some_entry (hp : Placed code k)
   rw [hc0] at hpc0
   simp (config := { decide := true }) only [↓reduceIte] at hpc0
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf (fun _ _ ↦ rfl)
-    (hpc0.trans (by rw [show b0.length = 14 from rfl])) hm0 fun st1 hm1 hpc1 ↦ ?_
+    (hpc0.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b0_next)) hm0 fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hpro, hrdi, hrsi, hrdx, hrbx, hr12, hr13, hr14, hr15, hW8, hW16, hW32, hall⟩ := ok_some
   obtain ⟨hf1, hs1⟩ := rf_entry h hwf hm1 hpro hall hrbx
   have hat1 := hf1.at h
@@ -159,7 +165,7 @@ theorem some_entry (hp : Placed code k)
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2
   subst hpc2
-  rw [show b1.length = 11 from rfl]
+  rw [NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b1_length]
   refine some_tail hp hsum hbl hgr hmul h
     ⟨hf2, (hsv2.1 .r12 rfl).trans (hm1.regs .r12 _ hr12), ?_,
       (hsv2.1 .r14 rfl).trans hr14_1,
@@ -172,19 +178,19 @@ theorem some_entry (hp : Placed code k)
 /-- **Plain mode**: `b0`, `b9` calls `read_scalar` into the frame's `Option<EW>` at `40`, then
 `none_b10`. -/
 theorem none_entry (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hrss : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hsum : Spec (Labels.label sumELabel) SumEPre SumEPost)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrss : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hsum : Spec (Labels.label NativeRustcVmX64.Vm.SumE.entryLabel) SumEPre SumEPost)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
     (h : RoundPolyPre a s none m0) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         RoundPolyPost a s none m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b0Offset)⟩ := by
   have c := ctx_of h
   have htag : NativeRustcVm.WordAt m0.dmem (reg m0 .r8) 0 := h.2.2.2.2.2.2.1
-  let R := (Host.addrOf (k + 53 + b9.length)).toBitVec
+  let R := (Host.addrOf (k + NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b9Offset + b9.length)).toBitVec
   have hwf := wf_env0 h (n := 8) (by omega) htag.mapped R
   have hm : Match (env0 m0 8 R) entryN m0 := match_env0 8 R
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0n hwf nofun hm
@@ -199,7 +205,7 @@ theorem none_entry (hp : Placed code k)
   simp only [PcOk] at hpc0
   rw [hc0] at hpc0
   simp (config := { decide := true }) only [↓reduceIte] at hpc0
-  rw [hp.label (j := 53) rfl] at hpc0
+  rw [hp.label NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.label_4_at] at hpc0
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9 hwf (fun _ _ ↦ rfl) hpc0 hm0
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hpro, hrdi, hrsi, hrbx, hr12, hr13, hr14, hr15, hall⟩ := ok_none
@@ -236,7 +242,7 @@ theorem none_entry (hp : Placed code k)
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2
   subst hpc2
-  rw [show b9.length = 5 from rfl]
+  rw [NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.b9_length]
   exact none_b10 hp hrss hsum hbl hgr h
     ⟨hf2, (hsv2.1 .r12 rfl).trans (hm1.regs .r12 _ hr12),
       by rw [show reg d2 .r13 = _ from (hsv2.1 .r13 rfl).trans (hm1.regs .r13 _ hr13)]; rfl,

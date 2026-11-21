@@ -263,7 +263,7 @@ theorem finish (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Machine
     (hsp : NativeRustcVm.EWsAt m.dmem (base m0 432 + BitVec.ofNat 64 16) sp.toList)
     (hsz : sp.size = 4) (hts : TStateAt m.dmem m0.regs.X1.toBitVec a s3)
     (hr : res s0 m0 = some ((sh, slice m0 m0.regs.X3 m0.regs.X4 ++ sp, v), s3)) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 119)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b22Offset)⟩ := by
   obtain ⟨hS, -, hts0, -, -, -, hbl, hoo, hpo, -⟩ := pre_parts h
   have A := addr_of h
   have hlen := A.len
@@ -312,7 +312,7 @@ theorem finish (hp : Placed code k) (h : BytecodeSharePre a s0 m0) {st : Machine
   have hblL : (slice m0 m0.regs.X3 m0.regs.X4).toList.length = m0.regs.X4.toNat := by simp [slice]
   have hk : Kept m.dmem st'.data.dmem := kept_trans hcp.kept (hm'.kept hwf)
   simp only [PcOk] at hpc
-  refine at_pc (hpc.trans (hp.label (j := 83) rfl)) (exit16 hp h hfr ⟨?_, fun x s' hx ↦ ?_⟩)
+  refine at_pc (hpc.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b16Offset) NativeRustcVmArm.Vm.BytecodeShare.label_10_at)) (exit16 hp h hfr ⟨?_, fun x s' hx ↦ ?_⟩)
   · rw [hr]
     simp only [Option.map_some, OptShareAt, off]
     refine ⟨w0, NativeRustcVm.ewAt_iff.mpr ⟨w8, ?_⟩, ?_, NativeRustcVm.ewAt_iff.mpr ⟨w32, ?_⟩⟩

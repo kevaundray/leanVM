@@ -1,6 +1,14 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.FactsZ
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.BlockForm.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
+public import NativeRustcVmX64.Code.Vm.FormBufAddScaled.Names
+public import NativeRustcVmX64.Code.Vm.Names
+public import NativeRustcVmX64.Code.Vm.PaddingWeight.Names
 public meta import NativeRustcVmX64.Bus.AccumulateSide.Exec
 
 /-!
@@ -89,7 +97,7 @@ def okP : SBool := .cmp .eq .W8
       (.ite (.not (.cmp .ult .W64 sumP (.reg .r12))) (.lit 1) (.lit 0)))
     (.bin .merge .W8 sumP (.ite (.cmp .ult .W64 sumP (.lit 154)) (.lit 1) (.lit 0)))) (.lit 0)
 def r12P : Sym := .ite okP (.lit 8)
-  (.bin .add .W64 (.label ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.5")
+  (.bin .add .W64 (.label NativeRustcVmX64.Vm.Symbols.rodata5Label)
     (.bin .shl .W64 (.reg .r12) (.lit 4)))
 def lenP : Sym := .ite okP (.lit 0) (.load 0 24 8)
 
@@ -108,7 +116,7 @@ public theorem low_T : lowW' (after b17 pS) ∧ lowW' (after b18a bS) ∧ lowW' 
   decide +kernel
 
 public theorem exit_b17 : exec b17 pS = some (after b17 pS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm5field10eq_eval_fnNCNvNtB4_6layout8eq_above0EB4_") :=
+    .call NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) :=
   run_b17.trans (by rw [after_eq run_b17])
 public theorem ok_b17 : MidOk F 0 slots (after b17 pS) = true ∧
     (after b17 pS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -127,7 +135,7 @@ public theorem ok_b18a : MidOk F 8 slots (after b18a bS) = true ∧
   rw [after_eq run_b18a]; decide +kernel
 
 public theorem exit_b18b : exec b18b aS = some (after b18b aS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm3bus10block_form") :=
+    .call NativeRustcVmX64.Vm.BlockForm.entryLabel) :=
   run_b18b.trans (by rw [after_eq run_b18b])
 public theorem ok_b18b : MidOk F 0 slots (after b18b aS) = true ∧
     (after b18b aS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -136,9 +144,9 @@ public theorem ok_b18b : MidOk F 0 slots (after b18b aS) = true ∧
     (after b18b aS).reg .r9 = some (.ptr 0 6056) := by
   rw [after_eq run_b18b]; decide +kernel
 
-public theorem exit_b19 : exec b19 fS = some (after b19 fS, .cond cAl ".LAccumulateSide_13") :=
+public theorem exit_b19 : exec b19 fS = some (after b19 fS, .cond cAl NativeRustcVmX64.Vm.AccumulateSide.label_13) :=
   run_b19.trans (by rw [after_eq run_b19]; rfl)
-public theorem exit_b22 : exec b22 fS = some (after b22 fS, .cond cAl ".LAccumulateSide_13") :=
+public theorem exit_b22 : exec b22 fS = some (after b22 fS, .cond cAl NativeRustcVmX64.Vm.AccumulateSide.label_13) :=
   run_b22.trans (by rw [after_eq run_b22]; rfl)
 public theorem ok_b19 : MidOk F 8 slots (after b19 fS) = true ∧
     (after b19 fS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -148,7 +156,7 @@ public theorem ok_b19 : MidOk F 8 slots (after b19 fS) = true ∧
     trackOk [12040] (after b22 fS) (D21c ++ E21) (D21c ++ E21) = true := by
   rw [after_eq run_b19, after_eq run_b22]; decide +kernel
 
-public theorem exit_b20 : exec b20 bS = some (after b20 bS, .cond c20 ".LAccumulateSide_17") :=
+public theorem exit_b20 : exec b20 bS = some (after b20 bS, .cond c20 NativeRustcVmX64.Vm.AccumulateSide.label_17) :=
   run_b20.trans (by rw [after_eq run_b20]; rfl)
 public theorem ok_b20 : MidOk F 8 slots (after b20 bS) = true ∧
     (after b20 bS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -157,7 +165,7 @@ public theorem ok_b20 : MidOk F 8 slots (after b20 bS) = true ∧
   rw [after_eq run_b20]; decide +kernel
 
 public theorem exit_b21 : exec b21 tS = some (after b21 tS,
-    .call "_RNvMs0_NtCsemcRClSg8DH_9native_vm6layoutNtB5_7FormBuf10add_scaled") :=
+    .call NativeRustcVmX64.Vm.FormBufAddScaled.entryLabel) :=
   run_b21.trans (by rw [after_eq run_b21])
 public theorem ok_b21 : MidOk F 0 slots (after b21 tS) = true ∧
     (after b21 tS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -183,7 +191,7 @@ public theorem ok_b23a : MidOk F 8 slots (after b23a hS) = true ∧
   rw [after_eq run_b23a]; decide +kernel
 
 public theorem exit_b23b : exec b23b aS = some (after b23b aS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field14padding_weight") :=
+    .call NativeRustcVmX64.Vm.PaddingWeight.entryLabel) :=
   run_b23b.trans (by rw [after_eq run_b23b])
 public theorem ok_b23b : MidOk F 0 slots (after b23b aS) = true ∧
     (after b23b aS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -195,7 +203,7 @@ public theorem ok_b23b : MidOk F 0 slots (after b23b aS) = true ∧
   rw [after_eq run_b23b]; decide +kernel
 
 public theorem exit_b24 : exec b24 fS = some (after b24 fS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") :=
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) :=
   run_b24.trans (by rw [after_eq run_b24])
 public theorem ok_b24 : MidOk F 0 slots (after b24 fS) = true ∧
     (after b24 fS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -204,7 +212,7 @@ public theorem ok_b24 : MidOk F 0 slots (after b24 fS) = true ∧
   rw [after_eq run_b24]; decide +kernel
 
 public theorem exit_b25 : exec b25 fS = some (after b25 fS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout8evaluate") :=
+    .call NativeRustcVmX64.Vm.Evaluate.entryLabel) :=
   run_b25.trans (by rw [after_eq run_b25])
 public theorem ok_b25 : MidOk F 0 slots (after b25 fS) = true ∧
     (after b25 fS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -213,7 +221,7 @@ public theorem ok_b25 : MidOk F 0 slots (after b25 fS) = true ∧
   rw [after_eq run_b25]; decide +kernel
 
 public theorem exit_b26 : exec b26 fS = some (after b26 fS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") :=
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) :=
   run_b26.trans (by rw [after_eq run_b26])
 public theorem ok_b26 : MidOk F 0 slots (after b26 fS) = true ∧
     (after b26 fS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -222,7 +230,7 @@ public theorem ok_b26 : MidOk F 0 slots (after b26 fS) = true ∧
     (after b26 fS).reg .rdx = some (.bin .xor .W64 (.reg .rax) (.lit 1)) := by
   rw [after_eq run_b26]; decide +kernel
 
-public theorem exit_b27 : exec b27 aS = some (after b27 aS, .cond c27 ".LAccumulateSide_15") :=
+public theorem exit_b27 : exec b27 aS = some (after b27 aS, .cond c27 NativeRustcVmX64.Vm.AccumulateSide.label_15) :=
   run_b27.trans (by rw [after_eq run_b27]; rfl)
 public theorem ok_b27 : MidOk F 8 slots (after b27 aS) = true ∧
     (after b27 aS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -232,7 +240,7 @@ public theorem ok_b27 : MidOk F 8 slots (after b27 aS) = true ∧
     (after b27 aS).reg .r12 = some (.bin .add .W64 (.lit 16) (.load 0 120 8)) := by
   rw [after_eq run_b27]; decide +kernel
 
-public theorem exit_b28 : exec b28 fS = some (after b28 fS, .jump ".LAccumulateSide_12") :=
+public theorem exit_b28 : exec b28 fS = some (after b28 fS, .jump NativeRustcVmX64.Vm.AccumulateSide.label_12) :=
   run_b28.trans (by rw [after_eq run_b28])
 public theorem exit_b29 : exec b29 fS = some (after b29 fS, .fall) :=
   run_b29.trans (by rw [after_eq run_b29])

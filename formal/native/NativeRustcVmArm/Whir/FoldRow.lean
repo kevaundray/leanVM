@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.FoldRow.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
 public import NativeRustcVmArm.Whir.FoldRow.Entry
 public import NativeRustcVmArm.Whir.FoldRow.Round1
 public import NativeRustcVmArm.Whir.FoldRow.Round2
@@ -59,60 +62,60 @@ theorem at_pc {P : MachineData → Prop} {R : MachineState → Prop} {pc : Int64
 
 /-- The end, `Fin`'s. -/
 abbrev FinQ (m0 : MachineData) (k : Nat) : MachineState → Prop :=
-  fun s ↦ Fin m0 s.data ∧ s.pc = Host.addrOf (k + 252)
+  fun s ↦ Fin m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b55Offset)
 
 section
-variable (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
-  (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {m0 : MachineData} (hpre : FoldRowPre m0)
+variable (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+  (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {m0 : MachineData} (hpre : FoldRowPre m0)
 include hp hkmul hmul hpre
 
-theorem from5 : ∀ st, Head m0 5 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 213)⟩ :=
+theorem from5 : ∀ st, Head m0 5 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b46Offset)⟩ :=
   fun _ h ↦ (head6 hp hkmul hpre h).bind fun _ h ↦ h.elim (fun h ↦ .done _ h)
     (at_pc fun _ h ↦ run_loop (L := Loop6 m0) _ (fun _ _ h ↦ h.hi)
       (fun _ _ h ↦ turn6 hp hmul hpre h) h)
 
-theorem fromChk5 : ∀ st, Chk m0 5 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 209)⟩ :=
+theorem fromChk5 : ∀ st, Chk m0 5 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b45Offset)⟩ :=
   fun _ h ↦ (chk5 hp hpre h).bind fun _ h ↦ h.elim (fun h ↦ .done _ h)
     (at_pc (from5 hp hkmul hmul hpre))
 
-theorem from4 : ∀ st, Head m0 4 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 173)⟩ :=
+theorem from4 : ∀ st, Head m0 4 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b37Offset)⟩ :=
   fun _ h ↦ (head5 hp hkmul hpre h).bind fun _ h ↦ h.elim (at_pc (fromChk5 hp hkmul hmul hpre))
     (at_pc fun _ h ↦ (run_loop (L := Loop m0 5) _ (fun _ _ h ↦ h.hi)
       (fun _ _ h ↦ turn5 hp hmul hpre h) h).bind fun _ h ↦ at_pc (fromChk5 hp hkmul hmul hpre) h)
 
-theorem fromChk4 : ∀ st, Chk m0 4 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 169)⟩ :=
+theorem fromChk4 : ∀ st, Chk m0 4 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b36Offset)⟩ :=
   fun _ h ↦ (chk4 hp hpre h).bind fun _ h ↦ h.elim (fun h ↦ .done _ h)
     (at_pc (from4 hp hkmul hmul hpre))
 
-theorem from3 : ∀ st, Head m0 3 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 133)⟩ :=
+theorem from3 : ∀ st, Head m0 3 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b28Offset)⟩ :=
   fun _ h ↦ (head4 hp hkmul hpre h).bind fun _ h ↦ h.elim (at_pc (fromChk4 hp hkmul hmul hpre))
     (at_pc fun _ h ↦ (run_loop (L := Loop m0 4) _ (fun _ _ h ↦ h.hi)
       (fun _ _ h ↦ turn4 hp hmul hpre h) h).bind fun _ h ↦ at_pc (fromChk4 hp hkmul hmul hpre) h)
 
-theorem fromChk3 : ∀ st, Chk m0 3 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 129)⟩ :=
+theorem fromChk3 : ∀ st, Chk m0 3 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b27Offset)⟩ :=
   fun _ h ↦ (chk3 hp hpre h).bind fun _ h ↦ h.elim (fun h ↦ .done _ h)
     (at_pc (from3 hp hkmul hmul hpre))
 
-theorem from2 : ∀ st, Head m0 2 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 93)⟩ :=
+theorem from2 : ∀ st, Head m0 2 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b19Offset)⟩ :=
   fun _ h ↦ (head3 hp hkmul hpre h).bind fun _ h ↦ h.elim (at_pc (fromChk3 hp hkmul hmul hpre))
     (at_pc fun _ h ↦ (run_loop (L := Loop m0 3) _ (fun _ _ h ↦ h.hi)
       (fun _ _ h ↦ turn3 hp hmul hpre h) h).bind fun _ h ↦ at_pc (fromChk3 hp hkmul hmul hpre) h)
 
-theorem fromChk2 : ∀ st, Chk m0 2 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 89)⟩ :=
+theorem fromChk2 : ∀ st, Chk m0 2 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b18Offset)⟩ :=
   fun _ h ↦ (chk2 hp hpre h).bind fun _ h ↦ h.elim (fun h ↦ .done _ h)
     (at_pc (from2 hp hkmul hmul hpre))
 
-theorem from1 : ∀ st, Head m0 1 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 53)⟩ :=
+theorem from1 : ∀ st, Head m0 1 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b10Offset)⟩ :=
   fun _ h ↦ (head2 hp hkmul hpre h).bind fun _ h ↦ h.elim (at_pc (fromChk2 hp hkmul hmul hpre))
     (at_pc fun _ h ↦ (run_loop (L := Loop m0 2) _ (fun _ _ h ↦ h.hi)
       (fun _ _ h ↦ turn2 hp hmul hpre h) h).bind fun _ h ↦ at_pc (fromChk2 hp hkmul hmul hpre) h)
 
-theorem fromChk1 : ∀ st, Chk m0 1 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + 49)⟩ :=
+theorem fromChk1 : ∀ st, Chk m0 1 st → Eventually (step1 Host.exe) (FinQ m0 k) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b9Offset)⟩ :=
   fun _ h ↦ (chk1 hp hpre h).bind fun _ h ↦ h.elim (fun h ↦ .done _ h)
     (at_pc (from1 hp hkmul hmul hpre))
 
 /-- **To the end block.** -/
-theorem to_fin : Eventually (step1 Host.exe) (FinQ m0 k) ⟨m0, Host.addrOf (k + 0)⟩ :=
+theorem to_fin : Eventually (step1 Host.exe) (FinQ m0 k) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b0Offset)⟩ :=
   (entry hp hkmul hpre).bind fun _ h ↦ h.elim (fun h ↦ .done _ h) fun h ↦
     h.elim (at_pc (fromChk1 hp hkmul hmul hpre))
       (at_pc fun _ h ↦ (run_loop (L := Loop m0 1) _ (fun _ _ h ↦ h.hi)
@@ -138,7 +141,7 @@ theorem foldRow_fin {m0 : MachineData} (hpre : FoldRowPre m0) :
 theorem exit (hp : Placed code k) {m0 : MachineData} (hpre : FoldRowPre m0) {st : MachineData}
     (hF : Fin m0 st) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ FoldRowPost m0 s.data)
-      ⟨st, Host.addrOf (k + 252)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b55Offset)⟩ := by
   obtain ⟨hS, hvin, -, -, -⟩ := pre_parts hpre
   have hF128 : 128 ≤ foldRowStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF128
@@ -162,7 +165,7 @@ theorem exit (hp : Placed code k) {m0 : MachineData} (hpre : FoldRowPre m0) {st 
       ⟨by
         show env.load 0 24 8 = vOf m0 + BitVec.ofInt 64 0
         rw [lv]; simp [vOf], trivial⟩
-  have hk : b55.IsInfixAt Host.prog (k + 252) := b55_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk : b55.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.FoldRow.b55Offset) := b55_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk run_b55 hwf hm fun s1 hm1 hpc1 ↦ .done _ ?_
   have hb := after_eq run_b55 ▸ b55_restores
   obtain ⟨hsaved, hx30⟩ := hfr.ret hm1 hwf x30_mem hb.1
@@ -204,11 +207,11 @@ theorem exit (hp : Placed code k) {m0 : MachineData} (hpre : FoldRowPre m0) {st 
 
 /-- **`fold_row`'s contract.** -/
 theorem foldRow_spec (hp : Placed code k)
-    (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (label foldRowLabel) FoldRowPre FoldRowPost := by
+    (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (label NativeRustcVmArm.Vm.FoldRow.entryLabel) FoldRowPre FoldRowPost := by
   intro m0 hpre
-  rw [show Labels.label foldRowLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.FoldRow.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b0Offset) from hp.label NativeRustcVmArm.Vm.FoldRow.entry_at]
   exact (to_fin hp hkmul hmul hpre).bind fun _ h ↦ at_pc (fun _ h ↦ exit hp hpre h) h
 
 end

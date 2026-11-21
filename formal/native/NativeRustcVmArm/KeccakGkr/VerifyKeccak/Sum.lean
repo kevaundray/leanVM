@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Point2
 
 /-!
@@ -44,13 +45,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The sumcheck** (`b55`, `b56`). -/
 theorem stepSum (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hsp : ∀ a s, Spec (Labels.label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hsp : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s))
     {m : MachineData} {s1 : TState} {cj : KeccakClaimW} {outs : Array ColumnClaimW}
     (hw : AtS a s cs inst output m0 m s1 cj outs)
     (cont : ∀ m' s' low v, AtU a s cs inst output m0 m' s' cj outs low v →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 366)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 348)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b57Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b55Offset)⟩ := by
   have hwf := envM_wf hn hw.mid.fr
   have hN := hn.hN
   have ec := load_ew (env := envM m0 m) (r := 0) (o := 960) hw.claim.1
@@ -97,7 +98,7 @@ theorem stepSum (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a
     have hT := hb.trans hc
     have hmid2 : Mid m0 m2 := Mid.chg hn hw.mid hfr2
       (regs_kept (matchM hn hw.mid.fr) hm1 (by decide) hcs) hT (by decide) (by decide)
-    rw [show k + 348 + b55.length = k + 364 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b55Offset + b55.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b56Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b55_next]]
     refine failBranch hp hn (b56_in_code.trans hp.1 (by simp [b56])) run_b56 hmid2 rfl rfl
       (by decide) (by decide)
       (b := ((sumcheckPlain cj.value 3 4).run s1 |>.map (·.1.2)).isSome)
@@ -115,7 +116,7 @@ theorem stepSum (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a
         have h1 := hr
         rw [← NativeRustcVm.Sumcheck.sumcheckFn_none] at h1
         exact Bus.Gkr.sumcheckFn_size _ _ _ _ h1
-      rw [show k + 364 + b56.length = k + 366 from rfl]
+      rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b56Offset + b56.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b57Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b56_next]]
       refine cont m3 s2 low v ⟨hmid3, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hw.psz, hlow, ?_, ?_,
         by rw [hw.run, restSum_some hr]⟩ <;> rw [hd3]
       · exact hT.word hn (by decide) (by decide) (by decide) hw.w40

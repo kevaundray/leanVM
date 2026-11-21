@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Decode.Names
+public import NativeRustcVmArm.Code.Vm.LeanvmVerify.Names
+public import NativeRustcVmArm.Code.Vm.VerifyExecution.Names
 public import NativeRustcVmArm.Top.End
 public import NativeRustcVmArm.Top.Leanvm
 public import NativeRustcVmArm.Top.Verify
@@ -31,11 +34,11 @@ variable [NativeArm.Host]
 
 /-- **`leanvm_verify`'s contract** from those of `decode` and `verify_execution`. -/
 theorem leanvmVerify_spec_of (hP : NativeArm.Host.prog = Vm.code)
-    (hdec : Spec (label decodeLabel) DecodePre DecodePost)
-    (hve : ∀ a s, Spec (label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hdec : Spec (label NativeRustcVmArm.Vm.Decode.entryLabel) DecodePre DecodePost)
+    (hve : ∀ a s, Spec (label NativeRustcVmArm.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s)) (a : Code.Areas) (bytes : List UInt8) (bytecode : List UInt64)
     (pub : Vector UInt64 4) :
-    Spec (label leanvmVerifyLabel) (LeanvmVerifyPre a bytes bytecode pub)
+    Spec (label NativeRustcVmArm.Vm.LeanvmVerify.entryLabel) (LeanvmVerifyPre a bytes bytecode pub)
       (LeanvmVerifyPost a bytes bytecode pub) := by
   have hmemcpy := NativeRustcVmArm.Mem.memcpy_spec (placed_Memcpy hP)
   have hmemset := NativeRustcVmArm.Mem.memset_spec (placed_Memset hP)
@@ -49,8 +52,8 @@ theorem leanvmVerify_spec_of (hP : NativeArm.Host.prog = Vm.code)
 
 /-- **The end theorem, from the contracts of `decode` and `verify_execution`.** -/
 theorem verify_correct_of_specs (hP : NativeArm.Host.prog = Vm.code)
-    (hdec : Spec (label decodeLabel) DecodePre DecodePost)
-    (hve : ∀ a s, Spec (label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hdec : Spec (label NativeRustcVmArm.Vm.Decode.entryLabel) DecodePre DecodePost)
+    (hve : ∀ a s, Spec (label NativeRustcVmArm.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s))
     {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4} {a : Code.Areas}
     {m : MachineData}
@@ -68,7 +71,7 @@ theorem verify_correct_of_specs (hP : NativeArm.Host.prog = Vm.code)
       NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
         [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
           ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmArm.stackR m leanvmVerifyStack]) ∧
-      Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
+      Saved m st.data) ⟨m, label NativeRustcVmArm.Vm.LeanvmVerify.entryLabel⟩ :=
   verify_correct_of (leanvmVerify_spec_of hP hdec hve) hin hal hstack hrod hapS hapR
 
 end

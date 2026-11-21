@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FoldRow.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
 public import NativeRustcVmArm.Whir.FoldRow.Common
 
 /-!
@@ -47,19 +49,19 @@ theorem spills_of {m0 st : MachineData}
 variable [Host] {k : Nat}
 
 /-- **The entry and round 1's head.** -/
-theorem entry (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
+theorem entry (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hpre : FoldRowPre m0) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (Fin m0 s.data ∧ s.pc = Host.addrOf (k + 252)) ∨
-        (Chk m0 1 s.data ∧ s.pc = Host.addrOf (k + 49)) ∨
-        (Loop m0 1 0 s.data ∧ s.pc = Host.addrOf (k + 37)))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun s ↦ (Fin m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b55Offset)) ∨
+        (Chk m0 1 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b9Offset)) ∨
+        (Loop m0 1 0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b6Offset)))
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b0Offset)⟩ := by
   obtain ⟨hS, hvin, hrin, hap, hR6⟩ := pre_parts hpre
   have hF : 128 ≤ foldRowStack := by decide
   have hkle : 128 + kmulStack ≤ foldRowStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
   let fb := fbOf m0
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.FoldRow.b0Offset) := b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env0 := Env.ofMachine m0 [(fb, 128)]
   have hwf0 : env0.WF := wf_one hfmap hfnw
   have hm0 : Match env0 entryS m0 :=
@@ -86,12 +88,12 @@ theorem entry (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
   by_cases hr0 : rnOf m0 = 0
   · -- no round
     simp only [hr0, decide_true, ↓reduceIte] at hpc1
-    rw [show Labels.label ".LFoldRow_37" = Host.addrOf (k + 252) from hp.label rfl] at hpc1
+    rw [show Labels.label NativeRustcVmArm.Vm.FoldRow.label_37 = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b55Offset) from hp.label (j := NativeRustcVmArm.Vm.FoldRow.b55Offset) NativeRustcVmArm.Vm.FoldRow.label_37_at] at hpc1
     refine .done _ (.inl ⟨⟨hfr1, w24, ?_, by rw [hr0]; exact hl1⟩, hpc1⟩)
     rw [x26, hr0, Nat.shiftRight_zero]
     exact ⟨fun h ↦ by rw [nOf, h]; rfl, fun h ↦ UInt64.toNat.inj h⟩
   simp only [hr0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-  have hpc1' : s1.pc = Host.addrOf (k + 11) := hpc1
+  have hpc1' : s1.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b1Offset) := hpc1
   -- `b1`: round 1's words, `kmul(x, β₀)`
   have hrd : Readable s1.data m0.regs.X3.toBitVec 32 :=
     hfr1.readable (Readable.mono hrin.1 (by omega))
@@ -101,7 +103,7 @@ theorem entry (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
     rw [hm1.regs .X3 _ rfl]
     simp [Sym.eval, env0]
     rfl
-  have hk1 : b1.IsInfixAt Host.prog (k + 11) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.FoldRow.b1Offset) := b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk1 run_b1 hwf1 hpc1' hm2 fun s2 hm3 hpc2 ↦ ?_
   have hb1 := after_eq run_b1 ▸ b1_keeps
   have hfr2 := hfr1.of_regs hm2 hm3 hwf1 rfl hb1.1 hb1.2
@@ -138,8 +140,8 @@ theorem entry (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
     (by rw [NativeRustcVm.length_wordBytes]; omega) (show NativeRustcVm.WordAt _ _ _ from hd2 ▸ w24)
   have g24 : s3.data.regs.X0 = kmul m0.regs.X2 (rdOf m0 0).beta.c0 := hk0.trans (by rw [f0, f1])
   -- `b2`: spill `x`, `kmul(x, β₁)`
-  have hk2 : b2.IsInfixAt Host.prog (k + 17) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc3' : s3.pc = Host.addrOf (k + 17) := hpc3
+  have hk2 : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.FoldRow.b2Offset) := b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc3' : s3.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b2Offset) := hpc3
   let env3 := Env.ofMachine s3.data [(fb, 128)]
   have hwf3 : env3.WF := wf_one (hfr3.readable ⟨hfmap, hfnw⟩).1 hfnw
   have hm4 : Match env3 frS s3.data :=
@@ -190,8 +192,8 @@ theorem entry (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
   have u24 := bc (by omega) w24''
   have k25 : s5.data.regs.X0 = kmul m0.regs.X2 (rdOf m0 0).beta.c1 := hk1.trans (by rw [g0, g1])
   -- `b3`: spill `n`, the turns' count
-  have hk3 : b3.IsInfixAt Host.prog (k + 22) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc5' : s5.pc = Host.addrOf (k + 22) := hpc5
+  have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.FoldRow.b3Offset) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc5' : s5.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b3Offset) := hpc5
   let env5 := Env.ofMachine s5.data [(fb, 128)]
   have hwf5 : env5.WF := wf_one (hfr5.readable ⟨hfmap, hfnw⟩).1 hfnw
   have hm6 : Match env5 frS s5.data :=
@@ -259,14 +261,14 @@ theorem entry (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
   have hr1 : 1 ≤ rnOf m0 := by omega
   by_cases hz : nOf m0 >>> 1 = 0
   · simp only [hz, decide_true, ↓reduceIte] at hpc6
-    rw [show Labels.label ".LFoldRow_6" = Host.addrOf (k + 49) from hp.label rfl] at hpc6
+    rw [show Labels.label NativeRustcVmArm.Vm.FoldRow.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b9Offset) from hp.label (j := NativeRustcVmArm.Vm.FoldRow.b9Offset) NativeRustcVmArm.Vm.FoldRow.label_6_at] at hpc6
     refine .done _ (.inr (.inl ⟨⟨hfr6, hsp6, y22, h26, ?_, hr1⟩, hpc6⟩))
     rw [memOf_succ, show nOf m0 >>> (0 + 1) = 0 from hz, foldPart_zero]
     exact hl6
   simp only [hz, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc6
   -- `b4`: the pointers
-  have hk4 : b4.IsInfixAt Host.prog (k + 25) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc6' : s6.pc = Host.addrOf (k + 25) := hpc6
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.FoldRow.b4Offset) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc6' : s6.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b4Offset) := hpc6
   let env6 := Env.ofMachine s6.data [(fb, 128)]
   have hwf6 : env6.WF := wf_one (hfr6.readable ⟨hfmap, hfnw⟩).1 hfnw
   have hm8 : Match env6 frS s6.data :=
@@ -284,10 +286,10 @@ theorem entry (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
     intro r hr
     simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr
     rcases hr with rfl | rfl | rfl | rfl | rfl <;> exact Match.reg_eq hm8 hm9 rfl rfl
-  have hpc7' : s7.pc = Host.addrOf (k + 37) := by
+  have hpc7' : s7.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRow.b6Offset) := by
     simp only [PcOk] at hpc7
     rw [hpc7]
-    exact hp.label rfl
+    exact hp.label (j := NativeRustcVmArm.Vm.FoldRow.b6Offset) NativeRustcVmArm.Vm.FoldRow.label_4_at
   refine .done _ (.inr (.inr ⟨⟨hfr7, hsp6.of_dmem hd7, (r7 .X22 (by simp)).trans y22, ?_, ?_, ?_,
     by omega, ?_, ?_, ?_, hr1⟩, hpc7'⟩))
   · -- the factor

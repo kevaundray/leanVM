@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Xmss.FromBytes.Names
+
 public import NativeRustcArm.FromBytes.Head
 public import NativeRustcArm.FromBytes.Loop
 public import NativeRustcArm.FromBytes.Path
@@ -21,11 +24,11 @@ open NativeArm
 
 /-- **`from_bytes`'s closure meets its contract.** -/
 public theorem fromBytes_spec [Host] {k : Nat} (hp : Placed code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) :
-    Spec (label fromBytesLabel) FromBytesPre FromBytesPost := by
+    (hmemcpy : Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
+    Spec (label NativeRustcArm.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost := by
   intro m₀ hpre
   have P := pre_of hpre
-  rw [hp.label (j := 0) (by decide +kernel), Nat.add_zero]
+  rw [hp.label NativeRustcArm.Xmss.FromBytes.entry_at, NativeRustcArm.Xmss.FromBytes.entryOffset, Nat.add_zero]
   exact head hp hpre fun st hpc h =>
     Eventually.bind (loop hp P hpc h) fun st' ⟨hpc', h'⟩ =>
       mid hp hmemcpy P hpc' h' fun st'' hpc'' h'' =>

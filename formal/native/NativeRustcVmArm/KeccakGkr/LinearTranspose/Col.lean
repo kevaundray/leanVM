@@ -161,9 +161,9 @@ theorem ofInt_neg1024 : BitVec.ofInt 64 (-1024) = BitVec.ofNat 64 (2 ^ 64 - 1024
 
 /-- **One element of column `2`'s loop** (`b15`). -/
 theorem col2_step (hp : Placed code k) (hpre : LinearTransposePre ws m0) {z : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 113)) (hI : Col2 m0 ws z s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 113) ∧ Col2 m0 ws (z + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 138) ∧ ColDone m0 ws 2 s'.data)) s := by
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b15Offset)) (hI : Col2 m0 ws z s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b15Offset) ∧ Col2 m0 ws (z + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b16Offset) ∧ ColDone m0 ws 2 s'.data)) s := by
   have hS := hpre.1
   have hA := pre_areas hpre
   have hz := hI.z_lt
@@ -218,7 +218,7 @@ theorem col2_step (hp : Placed code k) (hpre : LinearTransposePre ws m0) {z : Na
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h
       simp only [BitVec.toNat_ofNat] at this; omega
     simp only [hc, Bool.not_false, ite_true] at hpc'
-    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := 113) rfl), hctx, hmem', by omega, ?_, ?_⟩)
+    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b15Offset) NativeRustcVmArm.Vm.LinearTranspose.label_12_at), hctx, hmem', by omega, ?_, ?_⟩)
     · show (s'.data.regs.getXReg .X8).toBitVec = _
       rw [hr8]; exact hI.x8
     · show (s'.data.regs.getXReg .X9).toBitVec = _

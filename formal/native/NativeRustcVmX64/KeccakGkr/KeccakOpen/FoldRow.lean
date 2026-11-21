@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.FoldPrep
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
 
 namespace NativeRustcVmX64.KeccakGkr.KeccakOpen
 
@@ -23,8 +25,8 @@ public section
 
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
-theorem row_run (hp : Placed code k) (hcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem row_run (hp : Placed code k) (hcpy : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (h : PreOk a s c m0) {cx : Cx} (hA : cx.a = a) {rows : Array (Array EW)}
     (hrsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
     {t i : Nat} (ht : t < 6) (hi : i < half t)
@@ -40,11 +42,11 @@ theorem row_run (hp : Placed code k) (hcpy : Spec (Labels.label "memcpy") Memcpy
     (hab : ka + ba.length = kb) (hbi : kb + bb.length = ki)
     (hil : ki + bi.length = kl) (hls : kl + bl.length = kbStore)
     {label : Label} (hlabel : Labels.label label = Host.addrOf (k + kl))
-    (hxa : exec ba (pS ks0) = some (Sa, .call "memcpy"))
-    (hxb : exec bb (pS ks1) = some (Sb, .call "memcpy"))
+    (hxa : exec ba (pS ks0) = some (Sa, .call NativeRustcVmX64.Vm.Memcpy.entryLabel))
+    (hxb : exec bb (pS ks1) = some (Sb, .call NativeRustcVmX64.Vm.Memcpy.entryLabel))
     (hxi : exec bi (pS ks2) = some (Si, .fall))
     {ib cx0 cx1 lo0 lo1 dr : Reg64} {s0 so dst : Nat}
-    (hxl : exec bl (loS ib s0) = some (Sl, .call ewMulLabel))
+    (hxl : exec bl (loS ib s0) = some (Sl, .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hxs : exec bs (stS dr ib so) = some (Ss,
       .cond (notEnd (.bin .add .W64 (.lit 16) (.reg ib)) (s0 + 1024)) label))
     {srcA srcB : Sym}

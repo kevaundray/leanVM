@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memset.Names
+
 public import NativeRustcArm.XmssVerify.Head
 
 /-!
@@ -63,9 +65,9 @@ theorem base1_regs0 {m : MachineData} (t : Nat) :
 
 /-- **The prologue**: from the entry to the loop copying the signature's words. -/
 public theorem head {k : Nat} (hp : Placed code k)
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost) (P : Pre w m₀)
+    (hmemset : Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost) (P : Pre w m₀)
     {R : MachineState → Prop}
-    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + 34) → LoopAt w m₀ st.data 0 →
+    (cont : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b2Offset) → LoopAt w m₀ st.data 0 →
       Eventually (step1 Host.exe) R st) :
     Eventually (step1 Host.exe) R ⟨m₀, Host.addrOf k⟩ := by
   have hwf := regs0_wf P (Kept.refl m₀.dmem)

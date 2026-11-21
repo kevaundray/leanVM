@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.Exec
 public import NativeRustcVmX64.Bus.AccumulateSide.Vals
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
 public meta import NativeRustcVmX64.Bus.AccumulateSide.Exec
 
 /-!
@@ -51,7 +54,7 @@ def D5 : List (Sym × Nat) :=
 
 end
 
-public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 ".LAccumulateSide_4") :=
+public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.AccumulateSide.label_4) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 public theorem ok_b0 : ProOk F 8 slots (after b0 entryS) = true ∧
     (after b0 entryS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -81,7 +84,7 @@ public theorem ok_b2a : MidOk F 8 slots (after b2a kAS) = true ∧
   rw [after_eq run_b2a]; decide +kernel
 
 public theorem exit_b2b : exec b2b kBS = some (after b2b kBS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm5field10eq_eval_fnNCNvNtB4_6layout8eq_above0EB4_") :=
+    .call NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) :=
   run_b2b.trans (by rw [after_eq run_b2b])
 public theorem ok_b2b : MidOk F 0 slots (after b2b kBS) = true ∧
     (after b2b kBS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -92,7 +95,7 @@ public theorem ok_b2b : MidOk F 0 slots (after b2b kBS) = true ∧
   rw [after_eq run_b2b]; decide +kernel
 
 public theorem exit_b3 : exec b3 fS = some (after b3 fS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") :=
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk F 0 slots (after b3 fS) = true ∧
     (after b3 fS).mem.all (fun w ↦ w.r == 0) = true ∧
@@ -100,7 +103,7 @@ public theorem ok_b3 : MidOk F 0 slots (after b3 fS) = true ∧
       (DKc ++ [(Rg .rdi, 40), (Rg .rsi, 41), (Rg .rdx, 38), (Rg .rcx, 39)]) = true := by
   rw [after_eq run_b3]; decide +kernel
 
-public theorem exit_b4 : exec b4 aS = some (after b4 aS, .cond c4 ".LAccumulateSide_2") :=
+public theorem exit_b4 : exec b4 aS = some (after b4 aS, .cond c4 NativeRustcVmX64.Vm.AccumulateSide.label_2) :=
   run_b4.trans (by rw [after_eq run_b4]; rfl)
 public theorem ok_b4 : MidOk F 8 slots (after b4 aS) = true ∧
     (after b4 aS).mem.all (fun w ↦ w.r == 0) = true ∧

@@ -40,7 +40,7 @@ theorem ofBitVec_zero : UInt64.ofBitVec (BitVec.ofNat 64 0) = 0 := rfl
 variable [Host]
 
 /-- **No sibling** (`b14`): zeros. -/
-theorem zero_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (hpc : st.pc = pcOf R 87)
+theorem zero_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (hpc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b14Offset)
     (S : LevS R j l st.data) (h8 : rv st.data .X8 = 0#64)
     (hn : (R.keys l).findIdx? (· == skey (R.qw j) l) = none) :
     Eventually (step1 Host.exe) (DigA R j l) st := by
@@ -77,7 +77,7 @@ theorem node_word (G : Geo R) (hl : l < R.h) {n : Nat} (hn : n < 256) {m : Machi
 
 /-- **The sibling `n`** (`b20`): its digest's words. -/
 theorem node_step (hp : Placed code R.k) (G : Geo R) {st : MachineState}
-    (hpc : st.pc = pcOf R 115) (S : LevS R j l st.data) {n : Nat}
+    (hpc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b20Offset) (S : LevS R j l st.data) {n : Nat}
     (hx1 : (rv st.data .X1).toNat = n) (hc : (R.cw l).toNat ≤ 256) (hnc : n < (R.cw l).toNat)
     (hn : (R.keys l).findIdx? (· == skey (R.qw j) l) = some n) :
     Eventually (step1 Host.exe) (DigA R j l) st := by
@@ -115,7 +115,7 @@ theorem node_step (hp : Placed code R.k) (G : Geo R) {st : MachineState}
     rw [hm1.regs _ _ hx]
     simp only [Sym.eval]
     rw [envLoad (a := R.na l n) (sz := 40) rfl, node_word G hl (by omega) S.fr hu]
-  refine ⟨hpc1.trans (by rw [hp.label (j := 91) rfl]), S.keep hfr1 hd1 hk1, ?_⟩
+  refine ⟨hpc1.trans (by rw [hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b15Offset) NativeRustcVmArm.Vm.WriteOpenings.label_14_at]), S.keep hfr1 hd1 hk1, ?_⟩
   rw [digest_some hn, e .X11 0 (by omega) rfl, e .X10 1 (by omega) rfl, e .X9 2 (by omega) rfl,
     e .X8 3 (by omega) rfl]
 

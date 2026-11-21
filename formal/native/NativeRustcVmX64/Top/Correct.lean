@@ -8,6 +8,9 @@ public import NativeRustcVmX64.Keccak
 public import NativeRustcVmX64.Mem
 public import NativeRustcVmX64.Transcript.PhaseCount
 public import NativeRustcVmX64.Placed
+public import NativeRustcVmX64.Code.Vm.Decode.Names
+public import NativeRustcVmX64.Code.Vm.LeanvmVerify.Names
+public import NativeRustcVmX64.Code.Vm.VerifyExecution.Names
 
 /-!
 # The x86-64 end theorem from the contracts of `decode` and `verify_execution`
@@ -31,11 +34,11 @@ variable [Host]
 
 /-- **`leanvm_verify`'s contract** from those of `decode` and `verify_execution`. -/
 theorem leanvmVerify_spec_of (hP : Host.prog = Vm.code)
-    (hdec : Spec (label decodeLabel) DecodePre DecodePost)
-    (hve : ∀ a s, Spec (label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hdec : Spec (label NativeRustcVmX64.Vm.Decode.entryLabel) DecodePre DecodePost)
+    (hve : ∀ a s, Spec (label NativeRustcVmX64.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s)) (a : Code.Areas) (bytes : List UInt8) (bytecode : List UInt64)
     (pub : Vector UInt64 4) :
-    Spec (label leanvmVerifyLabel) (LeanvmVerifyPre a bytes bytecode pub)
+    Spec (label NativeRustcVmX64.Vm.LeanvmVerify.entryLabel) (LeanvmVerifyPre a bytes bytecode pub)
       (LeanvmVerifyPost a bytes bytecode pub) := by
   have hmemcpy := NativeRustcVmX64.Mem.memcpy_spec (placed_Memcpy hP)
   have hmemset := NativeRustcVmX64.Mem.memset_spec (placed_Memset hP)
@@ -49,8 +52,8 @@ theorem leanvmVerify_spec_of (hP : Host.prog = Vm.code)
 
 /-- **The end theorem, from the contracts of `decode` and `verify_execution`.** -/
 theorem verify_correct_of_specs (hP : Host.prog = Vm.code)
-    (hdec : Spec (label decodeLabel) DecodePre DecodePost)
-    (hve : ∀ a s, Spec (label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hdec : Spec (label NativeRustcVmX64.Vm.Decode.entryLabel) DecodePre DecodePost)
+    (hve : ∀ a s, Spec (label NativeRustcVmX64.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s))
     {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4} {a : Code.Areas}
     {m : MachineData}
@@ -68,7 +71,7 @@ theorem verify_correct_of_specs (hP : Host.prog = Vm.code)
       NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
         [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
           ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmX64.frameR m leanvmVerifyStack]) ∧
-      Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
+      Saved m st.data) ⟨m, label NativeRustcVmX64.Vm.LeanvmVerify.entryLabel⟩ :=
   verify_correct_of (leanvmVerify_spec_of hP hdec hve) hin hal hstack hrod hapS hapR
 
 end

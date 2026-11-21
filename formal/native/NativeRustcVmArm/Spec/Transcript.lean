@@ -1,5 +1,19 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.DecodedPhase.Names
+public import NativeRustcVmArm.Code.Vm.DecodedPhaseCount.Names
+public import NativeRustcVmArm.Code.Vm.DecodedStreamElement.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWAbsorb.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWAbsorbNonce.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWDuplex.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWDuplexInput.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateNextScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadCommitment.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmArm.Code.Vm.TStateSampleChallenges.Names
 public import NativeRustcVmArm.Spec.Keccak
 public import NativeRustcVm.Transcript.Rep
 
@@ -46,42 +60,6 @@ open NativeRustcArm NativeVm.Model NativeRustcVm.Transcript
 
 /-! ## Symbols -/
 
-/-- `SpongeW::duplex_input`'s symbol. -/
-def duplexInputLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW12duplex_input"
-/-- `SpongeW::duplex`'s symbol. -/
-def duplexLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW6duplex"
-/-- `SpongeW::absorb`'s symbol. -/
-def absorbLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW6absorb"
-/-- `SpongeW::squeeze`'s symbol. -/
-def squeezeLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW7squeeze"
-/-- `SpongeW::absorb_nonce`'s symbol. -/
-def absorbNonceLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm10transcriptNtB2_7SpongeW12absorb_nonce"
-/-- `Decoded::stream_element`'s symbol. -/
-def streamElementLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm5inputNtB2_7Decoded14stream_element"
-/-- `Decoded::phase_count`'s symbol. -/
-def phaseCountLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm5inputNtB2_7Decoded11phase_count"
-/-- `Decoded::phase`'s symbol. -/
-def phaseLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm5inputNtB2_7Decoded5phase"
-/-- `TState::next_scalar`'s symbol. -/
-def nextScalarLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11next_scalar"
-/-- `TState::read_scalar`'s symbol. -/
-def readScalarLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState11read_scalar"
-/-- `TState::read_scalars`'s symbol. -/
-def readScalarsLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState12read_scalars"
-/-- `TState::sample_challenges`'s symbol. -/
-def sampleChallengesLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState17sample_challenges"
-/-- `TState::grind`'s symbol. -/
-def grindLabel : Label := "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState5grind"
-/-- `TState::read_commitment`'s symbol. -/
-def readCommitmentLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm10transcriptNtB5_6TState15read_commitment"
 
 /-! ## Stacks -/
 

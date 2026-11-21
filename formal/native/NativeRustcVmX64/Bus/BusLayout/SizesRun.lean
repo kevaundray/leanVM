@@ -1,13 +1,14 @@
 module
 
 public import NativeRustcVmX64.Bus.BusLayout.Sizes
+public import NativeRustcVmX64.Code.Vm.Memset.Names
 
 /-!
 # `bus_layout`'s sizes, from the entry (x86-64)
 
 `sizes_run`: the prologue and `memset` of the sizes (`b0`), the framework's sizes copied (`b1` to
 `b4`), the pairs' loop set up (`b5`) and run (`pair_step`), the odd block (`odd_run`): at
-`.LBusLayout_16` every size written. A callee writing a range of the frame and its stack keeps
+`NativeRustcVmX64.Vm.BusLayout.label_16` every size written. A callee writing a range of the frame and its stack keeps
 the body (`Body.call_frame`).
 -/
 
@@ -111,12 +112,12 @@ theorem fw_copy {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : Machine
     (hwr.find (by simp)) hv
   exact this
 
-/-- **From `.LBusLayout_4`**: the pairs' loop set up and run, the odd block. -/
+/-- **From `NativeRustcVmX64.Vm.BusLayout.label_4`**: the pairs' loop set up and run, the odd block. -/
 theorem from_b5 (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 30)) (hb : Body m0 1808 busLayoutStack slots 8 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b5Offset)) (hb : Body m0 1808 busLayoutStack slots 8 st.data)
     (hrg : Rg m0 st.data) (hsz : SizesAt st.data.dmem L bl m0 (nf m0)) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 82) ∧
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b20Offset) ∧
       SzDone L bl m0 st'.data) st := by
   have hst := hpre.1
   have hN : 1808 ≤ busLayoutStack := by decide
@@ -167,24 +168,24 @@ theorem from_b5 (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data
         show (st.data.regs.get64 .rbp).toNat = bl.length from ebp]
       omega
   simp only [PcOk] at hpc1
-  have hloop : Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 68) ∧
+  have hloop : Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b15Offset) ∧
       SzEnd L bl m0 st'.data) st1 :=
-    Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 48) ∧ ∃ i, bl.length - i = n ∧
+    Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b9Offset) ∧ ∃ i, bl.length - i = n ∧
       SzInv L bl m0 i st.data) (fun n st ⟨hpc, i, hn, hI⟩ ↦ Eventually.mono
         (pair_step hp hpre hpc hI) fun st' h ↦ by
           rcases h with h | ⟨hpc', hI'⟩
           · exact Or.inl h
           · exact Or.inr ⟨bl.length - (i + 2), by have := hI.lt; omega, hpc', i + 2, rfl, hI'⟩)
-      ⟨hpc1.trans (hp.label (j := 48) rfl), 0, rfl, hI0⟩
+      ⟨hpc1.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_7_at), 0, rfl, hI0⟩
   exact Eventually.bind hloop fun st' ⟨hpc', hE⟩ ↦ odd_run hp hpre hpc' hE
 
-/-- **The sizes**: from the entry to `.LBusLayout_16`. -/
+/-- **The sizes**: from the entry to `NativeRustcVmX64.Vm.BusLayout.label_16`. -/
 theorem sizes_run (hp : Placed code k)
-    (hms : Spec (Labels.label "memset") MemsetPre MemsetPost)
+    (hms : Spec (Labels.label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
     {L : LayoutW} {bl : List NativeRustcVm.Data.Block} {m0 : MachineData}
     (hpre : BusLayoutPre L bl m0) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 82) ∧
-      SzDone L bl m0 st'.data) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b20Offset) ∧
+      SzDone L bl m0 st'.data) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b0Offset)⟩ := by
   have hst := hpre.1
   have hN : 1808 ≤ busLayoutStack := by decide
   have hnf3 : nf m0 ≤ 3 := hpre.2.1
@@ -194,7 +195,7 @@ theorem sizes_run (hp : Placed code k)
   have hbase : (fb m0).toNat = (rspOf m0).toNat - 1808 := stackBelow_toNat (by omega)
   -- `b0`: the prologue, `memset` of the sizes.
   have hwf0 := wf0 (d := m0) hst hN (fun _ h ↦ h) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BusLayout.b0Offset + b0.length)).toBitVec)
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 ↦ ?_
@@ -231,7 +232,7 @@ theorem sizes_run (hp : Placed code k)
   -- `b1`: no framework size?
   have hwf2 := wf0 (d := st2.data) hst hN bd2.fr.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 nofun
-    (hpc2.trans (congrArg Host.addrOf (by have : b0.length = 18 := rfl; omega)))
+    (hpc2.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b0_next)))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨bd2.fr.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hmem3, hk3⟩ := after_eq run_b1 ▸ ok_b1
@@ -248,7 +249,7 @@ theorem sizes_run (hp : Placed code k)
   by_cases h0 : nf m0 = 0
   · rw [decide_eq_true h0] at hpc3
     simp only [↓reduceIte] at hpc3
-    exact from_b5 hp hpre (hpc3.trans (hp.label (j := 30) rfl)) bd3 rg3
+    exact from_b5 hp hpre (hpc3.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_4_at)) bd3 rg3
       (fun j hj ↦ absurd hj (by omega))
   rw [decide_eq_false h0] at hpc3
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc3
@@ -264,7 +265,7 @@ theorem sizes_run (hp : Placed code k)
   -- `b2`: the first.
   have hwf4 := fwR 0 (by omega) st3.data bd3.fr.kept
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf4 nofun
-    (hpc3.trans (congrArg Host.addrOf (by have : b1.length = 2 := rfl; omega)))
+    (hpc3.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b1_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨bd3.fr.rsp_eval, known_ptr rfl e15_3, trivial⟩
       trivial trivial trivial)
     fun st4 hm4 hpc4 ↦ ?_
@@ -283,13 +284,13 @@ theorem sizes_run (hp : Placed code k)
   by_cases h1 : nf m0 = 1
   · rw [decide_eq_true h1] at hpc4
     simp only [↓reduceIte] at hpc4
-    exact from_b5 hp hpre (hpc4.trans (hp.label (j := 30) rfl)) bd4 rg4 (by rw [h1]; exact hsz4)
+    exact from_b5 hp hpre (hpc4.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_4_at)) bd4 rg4 (by rw [h1]; exact hsz4)
   rw [decide_eq_false h1] at hpc4
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc4
   -- `b3`: the second.
   have hwf5 := fwR 1 (by omega) st4.data bd4.fr.kept
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf5 nofun
-    (hpc4.trans (congrArg Host.addrOf (by have : b2.length = 4 := rfl; omega)))
+    (hpc4.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b2_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨bd4.fr.rsp_eval, known_ptr rfl e15_4, trivial⟩
       trivial trivial trivial)
     fun st5 hm5 hpc5 ↦ ?_
@@ -305,13 +306,13 @@ theorem sizes_run (hp : Placed code k)
   by_cases h2 : nf m0 = 2
   · rw [decide_eq_true h2] at hpc5
     simp only [↓reduceIte] at hpc5
-    exact from_b5 hp hpre (hpc5.trans (hp.label (j := 30) rfl)) bd5 rg5 (by rw [h2]; exact hsz5)
+    exact from_b5 hp hpre (hpc5.trans (hp.label NativeRustcVmX64.Vm.BusLayout.label_4_at)) bd5 rg5 (by rw [h2]; exact hsz5)
   rw [decide_eq_false h2] at hpc5
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc5
   -- `b4`: the third.
   have hwf6 := fwR 2 (by omega) st5.data bd5.fr.kept
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf6 nofun
-    (hpc5.trans (congrArg Host.addrOf (by have : b3.length = 4 := rfl; omega)))
+    (hpc5.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b3_next)))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨bd5.fr.rsp_eval, known_ptr rfl e15_5, trivial⟩
       trivial trivial trivial)
     fun st6 hm6 hpc6 ↦ ?_
@@ -320,7 +321,7 @@ theorem sizes_run (hp : Placed code k)
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr ⊢
     rcases hr with h | h | h | h | h <;> simp [h])
   simp only [PcOk] at hpc6
-  exact from_b5 hp hpre (hpc6.trans (congrArg Host.addrOf (by have : b4.length = 2 := rfl; omega)))
+  exact from_b5 hp hpre (hpc6.trans (congrArg Host.addrOf (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.BusLayout.b4_next)))
     bd6 rg6 (by rw [show nf m0 = 3 by omega]; exact hsz6)
 
 end

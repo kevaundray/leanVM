@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.ColumnWeight
+public import NativeRustcVmX64.Code.Vm.ColumnWeight.Names
 public meta import NativeRustcVmX64.Code.Vm.ColumnWeight
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -60,7 +61,7 @@ public theorem exit_b0 : exec b0 entryS = some (L 0, .fall) :=
 
 /-- **The zeroing loop's turns.** -/
 public theorem loop_step : ∀ i < 22,
-    exec b1 (L i) = some (L (i + 1), .cond (.lit (decide (i < 21))) ".LColumnWeight_1") := by
+    exec b1 (L i) = some (L (i + 1), .cond (.lit (decide (i < 21))) NativeRustcVmX64.Vm.ColumnWeight.label_1) := by
   decide +kernel
 
 end NativeRustcVmX64.Ring.Column

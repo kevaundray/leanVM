@@ -31,14 +31,14 @@ def NextA (R : Run) (j : Nat) (st : MachineState) : Prop := Post R st ∨ HeadA 
 
 /-- The call of `find` (`b17`), the level's count in X24. -/
 structure C17 (R : Run) (j l : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 103
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b17Offset
   s : LevS R j l st.data
   x24 : rv st.data .X24 = (R.cw l).toBitVec
   cle : (R.cw l).toNat ≤ 256
 
 /-- Back from `find` (`b18`). -/
 structure F18 (R : Run) (j l : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 107
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b18Offset
   s : LevS R j l st.data
   x24 : rv st.data .X24 = (R.cw l).toBitVec
   cle : (R.cw l).toNat ≤ 256
@@ -48,14 +48,14 @@ structure F18 (R : Run) (j l : Nat) (st : MachineState) : Prop where
 
 /-- The level's digest in X11, X10, X9, X8 (`b15`). -/
 structure DigA (R : Run) (j l : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 91
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b15Offset
   s : LevS R j l st.data
   dg : R.digest l (R.qw j) = [UInt64.ofBitVec (rv st.data .X11), UInt64.ofBitVec (rv st.data .X10),
     UInt64.ofBitVec (rv st.data .X9), UInt64.ofBitVec (rv st.data .X8)]
 
 /-- Opening `j` written (`b21`). -/
 structure EndA (R : Run) (j : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 121
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b21Offset
   fr : Frm R st.data
   cs : Cs R st.data
   lt : j < R.nq
@@ -124,7 +124,7 @@ theorem b16_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : Lev
   have hk := regs_keep hm hm' (rs := levRegs) (by decide)
   split at hpc'
   · rename_i hc
-    rw [hp.label (j := 221) rfl] at hpc'
+    rw [hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b45Offset) NativeRustcVmArm.Vm.WriteOpenings.label_38_at] at hpc'
     have hbad : 256 < (R.cw l).toNat := by simp at hc; omega
     exact Eventually.mono (fail_spec hp G hpc' hfr' (.inr ⟨l, hl, hbad⟩)) fun _ h ↦ .inl h
   · rename_i hc

@@ -2,6 +2,13 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.PhaseM
+public import NativeRustcVmX64.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmX64.Code.Vm.InsD.Names
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmX64.Code.Vm.PhaseM.Names
+public import NativeRustcVmX64.Code.Vm.RdRows.Names
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.WriteOpenings.Names
 public meta import NativeRustcVmX64.Code.Vm.PhaseM
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -166,7 +173,7 @@ sym_block run_b36 := exec b36 woS
 sym_block run_b37 := exec b37 woS'
 
 
-public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le") :=
+public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .call NativeRustcVmX64.Vm.ReaderLe.entryLabel) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 160 0 slots (after b0 entryS) = true ∧
     WordW 0 48 (.reg .rsi) (after b0 entryS) ∧
@@ -176,7 +183,7 @@ public theorem ok_b0 : ProOk 160 0 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .r12 = some (.reg .rdi) ∧ (after b0 entryS).reg .r14 = some (.reg .rdx) := by
   decide +kernel
 
-public theorem exit_b1 : exec b1 frS = some (after b1 frS, .cond c1 ".LPhaseM_23") :=
+public theorem exit_b1 : exec b1 frS = some (after b1 frS, .cond c1 NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b1.trans (by rw [after_eq run_b1]; rfl)
 public theorem ok_b1 : MidOk 160 8 slots (after b1 frS) = true ∧
     (after b1 frS).mem = [⟨0, 40, 8, .reg .rdx⟩] ∧ WordW 0 40 (.reg .rdx) (after b1 frS) ∧
@@ -185,7 +192,7 @@ public theorem ok_b1 : MidOk 160 8 slots (after b1 frS) = true ∧
 
 public theorem exit_b2 : exec b2 frS = some (after b2 frS,
     .cond (SBool.cmp .eq .W64 (.bin .and .W64 (.load 0 40 8) (.load 0 40 8)) (.lit 0))
-      ".LPhaseM_5") :=
+      NativeRustcVmX64.Vm.PhaseM.label_5) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : FrOk (after b2 frS) = true ∧ (after b2 frS).reg .r13 = some eightC ∧
     (∀ x ∈ [Reg64.r12, .r14], (after b2 frS).reg x = some (.reg x)) := by
@@ -198,12 +205,12 @@ public theorem ok_b3 : FrOk (after b3 frS) = true ∧ (after b3 frS).reg .r15 = 
   decide +kernel
 
 
-public theorem exit_b4 : exec b4 frS = some (after b4 frS, .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le") :=
+public theorem exit_b4 : exec b4 frS = some (after b4 frS, .call NativeRustcVmX64.Vm.ReaderLe.entryLabel) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : LeOk (after b4 frS) := by decide +kernel
 
 public theorem exit_b5 : exec b5 frS = some (after b5 frS,
-    .cond (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.lit 1)) (.lit 0)) ".LPhaseM_23") :=
+    .cond (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.lit 1)) (.lit 0)) NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : FrOk (after b5 frS) = true ∧
     (∀ x ∈ [Reg64.rdx, .r12, .r13, .r14, .r15], (after b5 frS).reg x = some (.reg x)) := by
@@ -211,7 +218,7 @@ public theorem ok_b5 : FrOk (after b5 frS) = true ∧
 
 public theorem exit_b6 : exec b6 qS = some (after b6 qS,
     .cond (SBool.cmp .eq .W64 (.reg .r13) (.bin .add .W64 (.lit 8) (.reg .r15))).not
-      ".LPhaseM_3") :=
+      NativeRustcVmX64.Vm.PhaseM.label_3) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : MidOk 160 8 slots (after b6 qS) = true ∧
     (after b6 qS).mem = [⟨1, 0, 8, .reg .rdx⟩] ∧ WordW 1 0 (.reg .rdx) (after b6 qS) ∧
@@ -219,31 +226,31 @@ public theorem ok_b6 : MidOk 160 8 slots (after b6 qS) = true ∧
     (∀ x ∈ [Reg64.r12, .r13, .r14], (after b6 qS).reg x = some (.reg x)) := by
   decide +kernel
 
-public theorem exit_b7 : exec b7 frS = some (after b7 frS, .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le") :=
+public theorem exit_b7 : exec b7 frS = some (after b7 frS, .call NativeRustcVmX64.Vm.ReaderLe.entryLabel) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 : LeOk (after b7 frS) := by decide +kernel
 
 public theorem exit_b8 : exec b8 frS = some (after b8 frS,
-    .cond (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.lit 1)) (.lit 0)) ".LPhaseM_23") :=
+    .cond (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.lit 1)) (.lit 0)) NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk 160 8 slots (after b8 frS) = true ∧
     (after b8 frS).mem = [⟨0, 32, 8, .reg .rdx⟩] ∧ WordW 0 32 (.reg .rdx) (after b8 frS) ∧
     (∀ x ∈ [Reg64.r12, .r13, .r14], (after b8 frS).reg x = some (.reg x)) := by
   decide +kernel
 
-public theorem exit_b9 : exec b9 frS = some (after b9 frS, .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le") :=
+public theorem exit_b9 : exec b9 frS = some (after b9 frS, .call NativeRustcVmX64.Vm.ReaderLe.entryLabel) :=
   run_b9.trans (by rw [after_eq run_b9])
 public theorem ok_b9 : LeOk (after b9 frS) := by decide +kernel
 
 public theorem exit_b10 : exec b10 frS = some (after b10 frS,
-    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LPhaseM_23") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem ok_b10 : MidOk 160 8 slots (after b10 frS) = true ∧
     (after b10 frS).mem = [⟨0, 16, 8, .reg .rdx⟩] ∧ WordW 0 16 (.reg .rdx) (after b10 frS) ∧
     (∀ x ∈ [Reg64.r12, .r13, .r14], (after b10 frS).reg x = some (.reg x)) := by
   decide +kernel
 
-public theorem exit_b11 : exec b11 frS = some (after b11 frS, .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader2le") :=
+public theorem exit_b11 : exec b11 frS = some (after b11 frS, .call NativeRustcVmX64.Vm.ReaderLe.entryLabel) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : MidOk 160 0 slots (after b11 frS) = true ∧
     (∀ w ∈ (after b11 frS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -253,7 +260,7 @@ public theorem ok_b11 : MidOk 160 0 slots (after b11 frS) = true ∧
     (∀ x ∈ [Reg64.r12, .r13, .r14], (after b11 frS).reg x = some (.reg x)) := by
   decide +kernel
 
-public theorem exit_b12 : exec b12 frS = some (after b12 frS, .cond c12 ".LPhaseM_23") :=
+public theorem exit_b12 : exec b12 frS = some (after b12 frS, .cond c12 NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b12.trans (by rw [after_eq run_b12]; rfl)
 public theorem ok_b12 : FrOk (after b12 frS) = true ∧
     (∀ x ∈ [Reg64.rdx, .r12, .r13, .r14], (after b12 frS).reg x = some (.reg x)) := by
@@ -269,7 +276,7 @@ public theorem ok_b13 : MidOk 160 8 slots (after b13 frS) = true ∧
   decide +kernel
 
 public theorem exit_b14 : exec b14 qS = some (after b14 qS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm4wire5ins_d") :=
+    .call NativeRustcVmX64.Vm.InsD.entryLabel) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : MidOk 160 0 slots (after b14 qS) = true ∧
     (∀ w ∈ (after b14 qS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -280,7 +287,7 @@ public theorem ok_b14 : MidOk 160 0 slots (after b14 qS) = true ∧
 
 public theorem exit_b15 : exec b15 frS = some (after b15 frS,
     .cond (SBool.cmp .eq .W64 (.reg .r13) (.bin .add .W64 (.lit 8) (.reg .r15))).not
-      ".LPhaseM_9") :=
+      NativeRustcVmX64.Vm.PhaseM.label_9) :=
   run_b15.trans (by rw [after_eq run_b15])
 public theorem ok_b15 : FrOk (after b15 frS) = true ∧
     (after b15 frS).reg .rdi = some (.reg .rbx) ∧ (after b15 frS).reg .rbp = some (.reg .rax) ∧
@@ -290,7 +297,7 @@ public theorem ok_b15 : FrOk (after b15 frS) = true ∧
 
 public theorem exit_b16 : exec b16 frS = some (after b16 frS,
     .cond (SBool.cmp .ult .W64 (.bin .add .W64 (.reg .rbp) (.lit 18446744073709551359))
-      (.lit 18446744073709551360)).not ".LPhaseM_11") :=
+      (.lit 18446744073709551360)).not NativeRustcVmX64.Vm.PhaseM.label_11) :=
   run_b16.trans (by rw [after_eq run_b16])
 public theorem ok_b16 : FrOk (after b16 frS) = true ∧
     (after b16 frS).reg .r15 = some (.load 0 24 8) ∧
@@ -310,7 +317,7 @@ public theorem ok_b18 : EpiOk 160 slots (after b18 epiS) = true ∧ (after b18 e
   decide +kernel
 
 public theorem exit_b19 : exec b19 lastS = some (after b19 lastS,
-    .cond (gtC (.load 0 32 8) (.lit 32)) ".LPhaseM_23") :=
+    .cond (gtC (.load 0 32 8) (.lit 32)) NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b19.trans (by rw [after_eq run_b19]; rfl)
 public theorem ok_b19 : MidOk 160 8 slots (after b19 lastS) = true ∧ (after b19 lastS).mem = [] ∧
     (after b19 lastS).reg .rax = some (.bin .shr .W64 (.load 1 0 8) (.load 0 32 8)) ∧
@@ -318,14 +325,14 @@ public theorem ok_b19 : MidOk 160 8 slots (after b19 lastS) = true ∧ (after b1
   decide +kernel
 
 public theorem exit_b20 : exec b20 frS = some (after b20 frS,
-    .cond (gtC (.load 0 16 8) (.lit 64)) ".LPhaseM_23") :=
+    .cond (gtC (.load 0 16 8) (.lit 64)) NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b20.trans (by rw [after_eq run_b20]; rfl)
 public theorem ok_b20 : FrOk (after b20 frS) = true ∧
     (∀ x ∈ [Reg64.rax, .rdi, .rbp, .r12, .r14, .r15], (after b20 frS).reg x = some (.reg x)) := by
   decide +kernel
 
 public theorem exit_b21 : exec b21 frS = some (after b21 frS,
-    .cond (gtC (.reg .r15) (.load 0 16 8)) ".LPhaseM_23") :=
+    .cond (gtC (.reg .r15) (.load 0 16 8)) NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b21.trans (by rw [after_eq run_b21]; rfl)
 public theorem ok_b21 : FrOk (after b21 frS) = true ∧
     (∀ x ∈ [Reg64.rax, .rdi, .rbp, .r12, .r14, .r15], (after b21 frS).reg x = some (.reg x)) := by
@@ -333,14 +340,14 @@ public theorem ok_b21 : FrOk (after b21 frS) = true ∧
 
 public theorem exit_b22 : exec b22 frS = some (after b22 frS,
     .cond (SBool.cmp .eq .W64 (.bin .and .W64 (.reg .rax) (.reg .rax)) (.lit 0)).not
-      ".LPhaseM_23") :=
+      NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b22.trans (by rw [after_eq run_b22])
 public theorem ok_b22 : FrOk (after b22 frS) = true ∧
     (∀ x ∈ [Reg64.rdi, .rbp, .r12, .r14, .r15], (after b22 frS).reg x = some (.reg x)) := by
   decide +kernel
 
 public theorem exit_b23 : exec b23 frS = some (after b23 frS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm4wire7rd_rows") :=
+    .call NativeRustcVmX64.Vm.RdRows.entryLabel) :=
   run_b23.trans (by rw [after_eq run_b23])
 public theorem ok_b23 : MidOk 160 0 slots (after b23 frS) = true ∧
     (∀ w ∈ (after b23 frS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 56 ≤ w.off ∧ w.off + w.n ≤ 64)) ∧
@@ -351,7 +358,7 @@ public theorem ok_b23 : MidOk 160 0 slots (after b23 frS) = true ∧
     (∀ x ∈ [Reg64.rdi, .rbp, .r12, .r14, .r15], (after b23 frS).reg x = some (.reg x) ∨ x = .rdi) := by
   decide +kernel
 
-public theorem exit_b24 : exec b24 frS = some (after b24 frS, .cond c24 ".LPhaseM_23") :=
+public theorem exit_b24 : exec b24 frS = some (after b24 frS, .cond c24 NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b24.trans (by rw [after_eq run_b24]; rfl)
 public theorem ok_b24 : FrOk (after b24 frS) = true ∧
     (∀ x ∈ [Reg64.rbp, .r12, .r14, .r15], (after b24 frS).reg x = some (.reg x)) := by
@@ -369,7 +376,7 @@ public theorem ok_b25 : MidOk 160 8 slots (after b25 frS) = true ∧
   decide +kernel
 
 public theorem exit_b26 : exec b26 posS = some (after b26 posS,
-    .call "_RINvNtCsemcRClSg8DH_9native_vm6keccak15keccak256_wordsNCNvB2_10hash_words0EB4_") :=
+    .call NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) :=
   run_b26.trans (by rw [after_eq run_b26])
 public theorem ok_b26 : MidOk 160 0 slots (after b26 posS) = true ∧
     (∀ w ∈ (after b26 posS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 24 ≤ w.off ∧ w.off + w.n ≤ 32 ∨
@@ -383,7 +390,7 @@ public theorem ok_b26 : MidOk 160 0 slots (after b26 posS) = true ∧
   decide +kernel
 
 public theorem exit_b27 : exec b27 nodeS = some (after b27 nodeS,
-    .cond (SBool.cmp .eq .W64 (.reg .rbp) (.reg .r15)).not ".LPhaseM_17") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rbp) (.reg .r15)).not NativeRustcVmX64.Vm.PhaseM.label_17) :=
   run_b27.trans (by rw [after_eq run_b27])
 public theorem ok_b27 : MidOk 160 8 slots (after b27 nodeS) = true ∧
     (∀ w ∈ (after b27 nodeS).mem, w.r = 1 ∧ w.off + w.n ≤ 40) ∧
@@ -396,7 +403,7 @@ public theorem ok_b27 : MidOk 160 8 slots (after b27 nodeS) = true ∧
   decide +kernel
 
 public theorem exit_b28 : exec b28 frS = some (after b28 frS,
-    .cond (SBool.cmp .eq .W64 (.load 0 32 8) (.lit 0)) ".LPhaseM_19") :=
+    .cond (SBool.cmp .eq .W64 (.load 0 32 8) (.lit 0)) NativeRustcVmX64.Vm.PhaseM.label_19) :=
   run_b28.trans (by rw [after_eq run_b28])
 public theorem ok_b28 : FrOk (after b28 frS) = true ∧
     (after b28 frS).reg .r11 = some (.bin .add .W64 (.reg .r14) (.lit 24832)) ∧
@@ -411,7 +418,7 @@ public theorem ok_b29 : FrOk (after b29 frS) = true ∧ (after b29 frS).reg .rdx
   decide +kernel
 
 public theorem exit_b30 : exec b30 frS = some (after b30 frS,
-    .cond (SBool.cmp .ult .W64 (.reg .rdx) (.lit 257)).not ".LPhaseM_23") :=
+    .cond (SBool.cmp .ult .W64 (.reg .rdx) (.lit 257)).not NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b30.trans (by rw [after_eq run_b30])
 public theorem ok_b30 : FrOk (after b30 frS) = true ∧
     (∀ x ∈ [Reg64.rbx, .rbp, .rdx, .rdi, .r11, .r12, .r13, .r14], (after b30 frS).reg x =
@@ -419,7 +426,7 @@ public theorem ok_b30 : FrOk (after b30 frS) = true ∧
   decide +kernel
 
 public theorem exit_b31 : exec b31 frS = some (after b31 frS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm4wire11climb_level") :=
+    .call NativeRustcVmX64.Vm.ClimbLevel.entryLabel) :=
   run_b31.trans (by rw [after_eq run_b31])
 public theorem ok_b31 : MidOk 160 0 slots (after b31 frS) = true ∧
     (∀ w ∈ (after b31 frS).mem, w.r = 0 ∧ (w.off + w.n ≤ 8 ∨ 24 ≤ w.off ∧ w.off + w.n ≤ 32)) ∧
@@ -435,7 +442,7 @@ public theorem ok_b31 : MidOk 160 0 slots (after b31 frS) = true ∧
   decide +kernel
 
 public theorem exit_b32 : exec b32 frS = some (after b32 frS,
-    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LPhaseM_23") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.PhaseM.label_23) :=
   run_b32.trans (by rw [after_eq run_b32])
 public theorem ok_b32 : FrOk (after b32 frS) = true ∧ (after b32 frS).reg .rdi = some (.load 0 24 8) ∧
     (after b32 frS).reg .r11 = some (.bin .add .W64 (.reg .r14) (.lit 24832)) ∧
@@ -445,7 +452,7 @@ public theorem ok_b32 : FrOk (after b32 frS) = true ∧ (after b32 frS).reg .rdi
 
 public theorem exit_b33 : exec b33 cntS = some (after b33 cntS,
     .cond (SBool.cmp .eq .W64 (.load 0 32 8) (.bin .add .W64 (.reg .r13) (.lit 1))).not
-      ".LPhaseM_22") :=
+      NativeRustcVmX64.Vm.PhaseM.label_22) :=
   run_b33.trans (by rw [after_eq run_b33])
 public theorem ok_b33 : MidOk 160 8 slots (after b33 cntS) = true ∧
     (after b33 cntS).mem = [⟨1, 0, 8, .reg .r15⟩] ∧ WordW 1 0 (.reg .r15) (after b33 cntS) ∧
@@ -455,7 +462,7 @@ public theorem ok_b33 : MidOk 160 8 slots (after b33 cntS) = true ∧
     (∀ x ∈ [Reg64.rbx, .rbp, .rdx, .r11, .r12, .r14], (after b33 cntS).reg x = some (.reg x)) := by
   decide +kernel
 
-public theorem exit_b34 : exec b34 frS = some (after b34 frS, .jump ".LPhaseM_20") :=
+public theorem exit_b34 : exec b34 frS = some (after b34 frS, .jump NativeRustcVmX64.Vm.PhaseM.label_20) :=
   run_b34.trans (by rw [after_eq run_b34])
 public theorem ok_b34 : FrOk (after b34 frS) = true ∧ (after b34 frS).reg .rcx = some (.reg .rbx) ∧
     (after b34 frS).reg .r9 = some (.load 0 16 8) ∧ (after b34 frS).reg .r15 = some (.load 0 48 8) ∧
@@ -470,7 +477,7 @@ public theorem ok_b35 : FrOk (after b35 frS) = true ∧ (after b35 frS).reg .rcx
   decide +kernel
 
 public theorem exit_b36 : exec b36 woS = some (after b36 woS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm4wire14write_openings") :=
+    .call NativeRustcVmX64.Vm.WriteOpenings.entryLabel) :=
   run_b36.trans (by rw [after_eq run_b36])
 public theorem ok_b36 : MidOk 192 0 slotsW (after b36 woS) = true ∧
     (∀ w ∈ (after b36 woS).mem, w.r = 0 ∧ w.off + w.n ≤ 40) ∧
@@ -482,7 +489,7 @@ public theorem ok_b36 : MidOk 192 0 slotsW (after b36 woS) = true ∧
     (after b36 woS).reg .r8 = some (.load 0 88 8) ∧ (after b36 woS).reg .r9 = some (.reg .r9) := by
   decide +kernel
 
-public theorem exit_b37 : exec b37 woS' = some (after b37 woS', .jump ".LPhaseM_24") :=
+public theorem exit_b37 : exec b37 woS' = some (after b37 woS', .jump NativeRustcVmX64.Vm.PhaseM.label_24) :=
   run_b37.trans (by rw [after_eq run_b37])
 public theorem ok_b37 : MidOk 192 144 slotsW (after b37 woS') = true ∧ (after b37 woS').mem = [] ∧
     (after b37 woS').reg .rax = some (.reg .rax) := by

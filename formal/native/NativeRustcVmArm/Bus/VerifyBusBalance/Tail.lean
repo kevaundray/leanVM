@@ -1,11 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Common
 
 /-!
 # `verify_bus_balance`'s tail
 
-From `b46` (`k + 653`), after the count side: `b46` checks its total's tag; `b47` empties the bus's
+From `b46` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b46Offset`), after the count side: `b46` checks its total's tag; `b47` empties the bus's
 point and calls `Buf<EW, 63>::extend` with the GKR point; `b48` checks it; `b49` writes the three
 totals and jumps to the epilogue with X0 = `1` (`tail_spec`).
 -/
@@ -55,10 +56,10 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The tail** (`b46`, `k + 653`): the count side's total at `5344`, the GKR point at `3136`,
+/-- **The tail** (`b46`, `k + NativeRustcVmArm.Vm.VerifyBusBalance.b46Offset`): the count side's total at `5344`, the GKR point at `3136`,
 the forms at the bus. -/
 theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
     {m : MachineData} {res : BusResultW} {s' : TState} {t0 t1 t2 : EW}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) m)
     (hr : (verifyBusBalance L).run s0 = some (res, s')) (htot : res.totals = #[t0, t1, t2])
@@ -72,7 +73,7 @@ theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (hF : FormsAt m.dmem m0.regs.X4.toBitVec res.forms)
     (hts : TStateAt m.dmem m0.regs.X0.toBitVec a s')
     (hcl : ClaimsWAt m.dmem m0.regs.X5.toBitVec res.claims) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 653)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b46Offset)⟩ := by
   have hS := pre_stack h
   have hN := hS.2.1
   have hbus := pre_bus h

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+
 public import NativeRustcArm.FromBytes.Mid
 meta import NativeRustcArm.Code.Xmss.FromBytes
 
@@ -146,9 +148,9 @@ theorem memBytes_takeLayer (m₀ : MachineData) :
 
 /-- **The output**: from the call of the path's `memcpy` to the return. -/
 public theorem tail [Host] {k : Nat} (hp : Placed code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
-    {st : MachineState} (hpc : st.pc = Labels.label "memcpy")
-    (hret : retOf st.data = Host.addrOf (k + 172)) (h : PathCall m₀ st.data) :
+    (hmemcpy : Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m₀ : MachineData} (P : Pre m₀)
+    {st : MachineState} (hpc : st.pc = Labels.label NativeRustcArm.Common.Memcpy.entryLabel)
+    (hret : retOf st.data = Host.addrOf (k + NativeRustcArm.Xmss.FromBytes.b22Offset)) (h : PathCall m₀ st.data) :
     Eventually (step1 Host.exe) (fun st' => st'.pc = retOf m₀ ∧ FromBytesPost m₀ st'.data) st := by
   have hpre : MemcpyPre st.data := by
     have hx0 : st.data.regs.X0.toBitVec = out m₀ := h.common.x19 ▸ h.x0

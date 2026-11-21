@@ -6,8 +6,8 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.IotaDefs
 # `verify_layer` on x86-64: ι's first segment
 
 `b26` loads the round constant `KECCAK_RC[11 - step]` and the first segment's weight; the loop
-`.LVerifyLayer_21` (`b30`, the expanded `bt` of bit `2 i`; `b28` or `b31` the term; `b29` the
-next bit and the sum) sums the bit weights it selects (`IA i`): `iota1`, to `.LVerifyLayer_23`
+`NativeRustcVmX64.Vm.VerifyLayer.label_21` (`b30`, the expanded `bt` of bit `2 i`; `b28` or `b31` the term; `b29` the
+next bit and the sum) sums the bit weights it selects (`IA i`): `iota1`, to `NativeRustcVmX64.Vm.VerifyLayer.label_23`
 with `bitsOf` in RDX, RAX (`IX`).
 -/
 
@@ -42,7 +42,7 @@ structure IB [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : A
   base : IA m0 a c p s1 i d
   t : ewArg (reg d .rbx) (reg d .r11) = bitSel c.weights (rcW (11 - stepN m0)) (2 * i)
 
-/-- **The first segment done**, at `.LVerifyLayer_23`. -/
+/-- **The first segment done**, at `NativeRustcVmX64.Vm.VerifyLayer.label_23`. -/
 structure IX [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (d : MachineData) : Prop where
   k0 : K0 m0 a c p s1 (spillsI m0 c) d
@@ -74,8 +74,8 @@ theorem IA.keep {d d' : MachineData} (h : IA m0 a c p s1 i d)
 /-- `b30`, then `b28` or `b31`: the term `2 i`. -/
 theorem iaStep (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : IA m0 a c p s1 i d) {R : MachineState → Prop}
-    (cont : ∀ d', IB m0 a c p s1 i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 270)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 288)⟩ := by
+    (cont : ∀ d', IB m0 a c p s1 i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b29Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b30Offset)⟩ := by
   have g := geo_of hpre
   have hk := h.k0
   have hst := pre_step hpre
@@ -152,9 +152,9 @@ theorem bits_xs (w : Array EW) (k : UInt64) : xs (bitSel w k) (2 * 32) = bitsOf 
 /-- `b29`: the term `2 i + 1`, the sum; the next head or out. -/
 theorem iaStep2 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : IB m0 a c p s1 i d) {R : MachineState → Prop}
-    (hnext : ∀ d', IA m0 a c p s1 (i + 1) d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 288)⟩)
-    (hout : ∀ d', IX m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 297)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 270)⟩ := by
+    (hnext : ∀ d', IA m0 a c p s1 (i + 1) d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b30Offset)⟩)
+    (hout : ∀ d', IX m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b32Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b29Offset)⟩ := by
   have g := geo_of hpre
   have hia := h.base
   have hk := hia.k0
@@ -231,9 +231,9 @@ theorem iaStep2 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machi
 /-- **The first segment's loop.** -/
 theorem iotaLoop1 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : IA m0 a c p s1 0 d) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 297) ∧ IX m0 a c p s1 st.data)
-      ⟨d, Host.addrOf (k + 288)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 288) ∧ ∃ i, 32 - i = n ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b32Offset) ∧ IX m0 a c p s1 st.data)
+      ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b30Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b30Offset) ∧ ∃ i, 32 - i = n ∧
     IA m0 a c p s1 i st.data) (fun n st ⟨hpc, i, hn, hi⟩ ↦ ?_) ⟨rfl, 0, rfl, h⟩
   obtain ⟨d', pc⟩ := st
   simp only at hpc hi

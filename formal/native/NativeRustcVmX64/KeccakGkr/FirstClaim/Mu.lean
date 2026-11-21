@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.FirstClaim.Last
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `first_claim`: the instance weights (x86-64)
@@ -68,9 +69,9 @@ variable [Host] {k : Nat}
 
 /-- **`b9`, `b10`**: the instance weights. -/
 theorem mu (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 133)) (hI : LDone m0 segment lanePoint output st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 179) ∧
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost) {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b9Offset)) (hI : LDone m0 segment lanePoint output st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b11Offset) ∧
       MDone m0 inst segment lanePoint output s'.data) st := by
   have h := preOk hpre
   have hn := nums h
@@ -80,7 +81,7 @@ theorem mu (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint out
   have hfmap := frame_mapped h.st (F := 1376) (by rw [stack_eq]; decide)
   -- `b9`: `mu` zeroed, `call eq_kernel`.
   have hwf := wf_body h hI.body.frame.kept (d := st.data) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 133 + b9.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b9Offset + b9.length)).toBitVec)
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9 hwf (fun _ _ ↦ rfl) hpc
     (match_callS hI.body.frame) fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hwi1, -, -, hrdi, hrsi, hrdx, hrcx, hrbx, hr14, hr13, hrbp, hat1⟩ := ok_b9
@@ -90,10 +91,10 @@ theorem mu (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint out
   have hso1 : NativeRustcVm.SameOutside m0.dmem st1.data.dmem (Out m0) := fun q hq ↦
     (hs1 q fun ht ↦ hq (touch_out h (fun _ hj ↦ by omega) ht)).trans (hI.body.same q hq)
   have l16 : (frameEnv m0 st.data 1376 [(argA m0, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 133 + b9.length)).toBitVec).load 0 16 8 = reg m0 .rsi :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b9Offset + b9.length)).toBitVec).load 0 16 8 = reg m0 .rsi :=
     load_frame hI.il.ip
   have l24 : (frameEnv m0 st.data 1376 [(argA m0, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 133 + b9.length)).toBitVec).load 0 24 8 = reg m0 .rdx :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FirstClaim.b9Offset + b9.length)).toBitVec).load 0 24 8 = reg m0 .rdx :=
     load_frame hI.il.il
   have e7 : reg st1.data .rdi = reg m0 .rsi := (hm1.regs .rdi _ hrdi).trans l16
   have e6 : (reg st1.data .rsi).toNat = min 4 inst.size := by
@@ -144,7 +145,7 @@ theorem mu (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint out
   -- `b10`: `eq_kernel`'s result checked.
   have hwf2 := wf_body h hb2.frame.kept (d := st2.data) (vars := fun _ ↦ 0) (ret := 0)
   refine exec_at (infix_of b10_in_code (by simp [b10]) hp) exit_b10 hwf2 nofun
-    (hpc2.trans (by rw [lengths.2.2.2.2.2.2.2.2.2.1])) (match_callS hb2.frame) fun st3 hm3 hpc3 ↦ ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b9_next)) (match_callS hb2.frame) fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hmem3, hat3⟩ := ok_test b10 (by simp)
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq hwf2 hmem3
   have hb3 : Body m0 st3.data := hb2.of_mem (Frame.of_block hb2.frame hwf2 hm3 hmid3 slots_le') hd3
@@ -163,7 +164,7 @@ theorem mu (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint out
     have w1 := w_keep h hs1 (stk_w h fun _ hq ↦ touch_stk h (fun _ hj ↦ by omega) hq) hI.w
     rw [hd3]
     exact w_keep h hch2 (stk_w h fun _ hq ↦ hq.elim (fd_stk h (by decide)) (low_stk h)) w1
-  refine .done _ ⟨hpc3.trans (by rw [lengths.2.2.2.2.2.2.2.2.2.2.1]), hb3, hw3,
+  refine .done _ ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.FirstClaim.b10_next), hb3, hw3,
     by rw [hd3]; exact hker, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [a3 .rdx (by simp), hrdx2, mu_size inst]
   · exact (a3 .rbx (by simp)).trans ((hsv2.1 .rbx rfl).trans ((hm1.regs .rbx _ hrbx).trans l24))

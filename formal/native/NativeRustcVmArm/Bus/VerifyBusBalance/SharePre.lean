@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalance.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Push
 public import NativeRustcVmArm.Bus.VerifyBusBalance.ShareModel
 
@@ -7,7 +8,7 @@ public import NativeRustcVmArm.Bus.VerifyBusBalance.ShareModel
 # `verify_bus_balance`'s bytecode share: what it starts from
 
 - `ShareMem`: the frame's locals at `b32`; `ShareMem.of_keep`, `ShareMem.push`.
-- `AtShare`: the state at `b32` (`k + 341`).
+- `AtShare`: the state at `b32` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b32Offset`).
 - `fail_at`, `fail_cond`: a branch to `.LVerifyBusBalance_22` on a failed phase.
 - `eq_lit_word`, `ult_lit_word`, `okW_eq0`: conditions on words.
 - `bc_words`: the bytecode's words read as at the entry.
@@ -108,13 +109,13 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k 
 
 /-- `.LVerifyBusBalance_22`'s address. -/
 theorem fail_at (hp : Placed code k) :
-    Labels.label ".LVerifyBusBalance_22" = Host.addrOf (k + 673) :=
+    Labels.label NativeRustcVmArm.Vm.VerifyBusBalance.label_22 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b50Offset) :=
   hp.label (label_of_infix b50_in_code rfl)
 
 /-- **A branch to `.LVerifyBusBalance_22` taken** on a failed phase. -/
 theorem fail_cond (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {env : Env}
     {c : SBool} {next : Int64} {st : MachineState}
-    (hpc : PcOk env (.cond c ".LVerifyBusBalance_22") next st) (hc : c.eval env = true)
+    (hpc : PcOk env (.cond c NativeRustcVmArm.Vm.VerifyBusBalance.label_22) next st) (hc : c.eval env = true)
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) st.data)
     (hr : (verifyBusBalance L).run s0 = none) :
     Eventually (step1 Host.exe) (Goal a s0 L m0) st :=
@@ -122,7 +123,7 @@ theorem fail_cond (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {env 
 
 /-- A branch to `.LVerifyBusBalance_22` not taken. -/
 theorem pass_cond {env : Env} {c : SBool} {next : Int64} {st : MachineState}
-    (hpc : PcOk env (.cond c ".LVerifyBusBalance_22") next st) (hc : c.eval env = false) :
+    (hpc : PcOk env (.cond c NativeRustcVmArm.Vm.VerifyBusBalance.label_22) next st) (hc : c.eval env = false) :
     st.pc = next :=
   (pc_of_cond hpc).2 hc
 
@@ -151,7 +152,7 @@ end
 public section
 variable [Labels]
 
-/-- **At `b32`** (`k + 341`): the claims pushed; the share and the bytecode's value to check. -/
+/-- **At `b32`** (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b32Offset`): the claims pushed; the share and the bytecode's value to check. -/
 structure AtShare (a : DecArea) (s0 : TState) (L : LayoutW) (m0 : MachineData)
     (w pt tv mem : Array EW) (beta mf bf : EW) (s3 : TState) (m : MachineData) : Prop where
   fr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) m

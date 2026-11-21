@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Open1
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
 
 /-!
 # `verify_keccak`: the committed word and its check (x86-64)
@@ -81,17 +83,17 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 
 /-- **The committed word and its check** (`b42` to `b46`): at `b47` (`t45`). -/
 theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {st : MachineState} {V : Vs} {s1 : TState} {cl : KeccakClaimW} {sl ws : Array EW} {v : EW}
-    (hat : At m0 k 253 wrA t42 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b42Offset wrA t42 (vv m0 V) st)
     (hv : NativeRustcVm.EWAt st.data.dmem (off (fb m0) 416) v)
     (hws64 : ws.size = 64)
     (hws : NativeRustcVm.EWsAt st.data.dmem (off (reg m0 .r9) 140288) ws.toList)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s1)
     (hrun : (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s =
       (restWord (reg m0 .rsi).toNat inst sl ws v cl).run s1)
-    (cont : ∀ st2 w s2, At m0 k 272 wrA t45 (vv m0 (Vw V v w)) st2 →
+    (cont : ∀ st2 w s2, At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b47Offset wrA t45 (vv m0 (Vw V v w)) st2 →
       TStateAt st2.data.dmem (reg m0 .rdi) a s2 →
       (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s =
         (restSum (reg m0 .rsi).toNat cl #[outClaim inst sl w]).run s2 →
@@ -137,9 +139,9 @@ theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
   obtain ⟨hopt, hnext, -, -⟩ := hq
   rw [rdi] at hopt
   rw [rsi] at hnext
-  rw [show 253 + b42.length = 258 from rfl] at hpc3
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b42_next] at hpc3
   -- `b43`: the tag.
-  refine stepJ (T' := t44) (vals' := vv m0 (Vo V v)) (o := 258) hp c h ⟨hpc3, hB3⟩ b43_in_code
+  refine stepJ (T' := t44) (vals' := vv m0 (Vo V v)) (o := NativeRustcVmX64.Vm.VerifyKeccak.b43Offset) hp c h ⟨hpc3, hB3⟩ b43_in_code
     (by simp [b43]) run_b43 nofun (hB3.mt 0) (by decide) rfl rfl (by vtacJ) (by decide) rfl rfl
     rfl (al44 rfl) rfl fun st4 hpc4 hB4 _ hc4 hk4 ↦ ?_
   simp only [PcOk] at hpc4
@@ -173,7 +175,7 @@ theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
       simpa [Array.getD_eq_getD_getElem?, hws64] using this
     have hr0 := fun ret ↦ ld_ewR (vals := vv m0 (Vo V v)) (ret := ret) h0
     have hw0 := fun ret ↦ ld_ew (rs := rsOf m0) (vals := vv m0 (Vo V v)) (ret := ret) hw4
-    rw [show 258 + b43.length = 260 from rfl] at hpc4
+    rw [NativeRustcVmX64.Vm.VerifyKeccak.b43_next] at hpc4
     -- `b44`: `EW::mul`.
     refine stepC (T' := t45) (vals' := vv m0 (Vw V v w)) hp c h ⟨hpc4, hB4⟩ b44_in_code
       (by simp [b44]) run_b44 hB4.mt (by decide) (oc := 48) (by decide) rfl hmul
@@ -199,9 +201,9 @@ theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
       rw [rdi, rsi, rdx, rcx, ew_mk, ew_mk] at hax hdx
       rw [hax, hdx]
       rfl
-    rw [show 260 + b44.length = 268 from rfl] at hpc5
+    rw [NativeRustcVmX64.Vm.VerifyKeccak.b44_next] at hpc5
     -- `b45`: the low limbs.
-    refine stepJ (T' := t45) (vals' := vv m0 (Vw V v w)) (o := 268) hp c h ⟨hpc5, hB5⟩ b45_in_code
+    refine stepJ (T' := t45) (vals' := vv m0 (Vw V v w)) (o := NativeRustcVmX64.Vm.VerifyKeccak.b45Offset) hp c h ⟨hpc5, hB5⟩ b45_in_code
       (by simp [b45]) run_b45 nofun (hB5.mt 0) (by decide) rfl rfl (by vtacJ) (by decide) rfl rfl
       rfl (fun _ _ _ _ _ h ↦ by cases h) rfl fun st6 hpc6 hB6 hm6 hc6 hk6 ↦ ?_
     simp only [PcOk] at hpc6
@@ -218,11 +220,11 @@ theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
     have hk46 := NativeRustcVmX64.Transcript.kept_trans hk5 hk6
     by_cases hc0 : (ws.getD 0 0 * w).c0 = v.c0
     · simp only [hc0, beq_self_eq_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc6
-      rw [show 268 + b45.length = 270 from rfl] at hpc6
+      rw [NativeRustcVmX64.Vm.VerifyKeccak.b45_next] at hpc6
       have hdx6 : reg st6.data .rdx = (ws.getD 0 0 * w).c1.toBitVec :=
         (hm6.regs .rdx _ rfl).trans hdx5
       -- `b46`: the high limbs.
-      refine stepJ (T' := t45) (vals' := vv m0 (Vw V v w)) (o := 270) hp c h ⟨hpc6, hB6⟩
+      refine stepJ (T' := t45) (vals' := vv m0 (Vw V v w)) (o := NativeRustcVmX64.Vm.VerifyKeccak.b46Offset) hp c h ⟨hpc6, hB6⟩
         b46_in_code (by simp [b46]) run_b46 nofun (hB6.mt 0) (by decide) rfl rfl (by vtacJ)
         (by decide) rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) rfl
         fun st7 hpc7 hB7 _ hc7 hk7 ↦ ?_
@@ -235,7 +237,7 @@ theorem wordStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output
       · simp only [hc1, beq_self_eq_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc7
         have hok : (ws.getD 0 0 * w == v) = true := by
           rw [ew_beq, hc0, hc1, beq_self_eq_true, beq_self_eq_true, Bool.and_self]
-        refine cont st7 w s2 ⟨hpc7.trans (by rw [show 270 + b46.length = 272 from rfl]), hB7⟩
+        refine cont st7 w s2 ⟨hpc7.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b46_next]), hB7⟩
           (Chg.ts c (hc5.trans (hc6.trans hc7)) (by decide) (by decide) (by decide)
             (NativeRustcVmX64.Transcript.kept_trans hk46 hk7) hts2)
           (hrun.trans (restWord_ok hr hok)) ?_

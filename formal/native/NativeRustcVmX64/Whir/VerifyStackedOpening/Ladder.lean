@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.Window
+public import NativeRustcVmX64.Code.Vm.Ladder.Names
 
 /-!
 # `verify_stacked_opening`: the ladder (x86-64)
@@ -79,10 +80,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 
 /-- **The ladder**: `b42`, `ladder`, `b43`; `None` fails. -/
 theorem ladder_b42 (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) (hlad : Spec (Labels.label ladderLabel) LadderPre LadderPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 188))
+    (hp : Placed code k) (hlad : Spec (Labels.label NativeRustcVmX64.Vm.Ladder.entryLabel) LadderPre LadderPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b42Offset))
     (hA : AtB42 a s layout target cs value m0 st.data)
-    (cont : ∀ ls st', st'.pc = Host.addrOf (k + 209) →
+    (cont : ∀ ls st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b44Offset) →
       AtB44 a s layout target cs value ls m0 st'.data →
       Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0) st') :
     Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0) st := by
@@ -170,7 +171,7 @@ theorem ladder_b42 (h : Parts a s layout target coefficients point slices cs z v
     (le_of_map [72] rfl (by decide))
   -- `b43`
   refine h.run hp b43_in_code (List.cons_ne_nil _ _)
-    (hpc2.trans (by rw [show b42.length = 19 from rfl])) hok2 (vars := fun _ ↦ 0) (hok2.wf0 h)
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b42_next)) hok2 (vars := fun _ ↦ 0) (hok2.wf0 h)
     hok2.m_reg run_b43 (o := 8) (by decide +kernel) (by decide) fun st3 hok3 hs3 hm3 hpc3 ↦ ?_
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq (hok2.wf0 h) rfl
   simp only [PcOk] at hpc3
@@ -178,15 +179,15 @@ theorem ladder_b42 (h : Parts a s layout target coefficients point slices cs z v
   | none =>
     rw [hls] at hlat
     have hl1 := load1_of_tag (env := frameEnv m0 st2.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 207 + b43.length)).toBitVec) (r := 0) (o := 160) (Or.inl rfl) hlat
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b43Offset + b43.length)).toBitVec) (r := 0) (o := 160) (Or.inl rfl) hlat
     have hc : (SBool.cmp .eq .W8 (.load 0 160 1) (.lit 0)).eval (frameEnv m0 st2.data 512 []
-        (fun _ ↦ 0) (Host.addrOf (k + 207 + b43.length)).toBitVec) = true := by
+        (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b43Offset + b43.length)).toBitVec) = true := by
       simp only [SBool.eval, Sym.eval, CmpOp.apply]
       rw [hl1]
       decide
     rw [hc] at hpc3
     simp only [↓reduceIte] at hpc3
-    rw [hp.label (j := 235) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_40_at] at hpc3
     refine fail_b50 h hp hpc3 hok3 ?_
     unfold runOf
     rw [vso_run _ _ _ (size_claims_le h.n_le target point coefficients z value), hls]
@@ -194,9 +195,9 @@ theorem ladder_b42 (h : Parts a s layout target coefficients point slices cs z v
   | some ls =>
     rw [hls] at hlat
     have hl1 := load1_of_tag (env := frameEnv m0 st2.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 207 + b43.length)).toBitVec) (r := 0) (o := 160) (Or.inr rfl) hlat.1
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b43Offset + b43.length)).toBitVec) (r := 0) (o := 160) (Or.inr rfl) hlat.1
     have hc : (SBool.cmp .eq .W8 (.load 0 160 1) (.lit 0)).eval (frameEnv m0 st2.data 512 []
-        (fun _ ↦ 0) (Host.addrOf (k + 207 + b43.length)).toBitVec) = false := by
+        (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b43Offset + b43.length)).toBitVec) = false := by
       simp only [SBool.eval, Sym.eval, CmpOp.apply]
       rw [hl1]
       decide
@@ -204,7 +205,7 @@ theorem ladder_b42 (h : Parts a s layout target coefficients point slices cs z v
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc3
     have k3 : ∀ r, calleeSaved r = true → reg st3.data r = reg st1.data r := fun r hr ↦
       (regKeep hm3 r (by cases r <;> first | rfl | exact absurd hr (by decide))).trans (hsv.1 r hr)
-    refine cont ls st3 (hpc3.trans (by rw [show b43.length = 2 from rfl]))
+    refine cont ls st3 (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b43_next))
       ⟨hok3, by rw [hd3]; exact hout2, by rw [hd3]; exact hfw2,
         by rw [hd3]; exact h722.get List.mem_cons_self, by rw [k3 .rbx rfl]; exact e1_rbx,
         by rw [k3 .r12 rfl, k3 .r13 rfl]; exact e1_sum, by rw [k3 .r14 rfl]; exact e1_r14,

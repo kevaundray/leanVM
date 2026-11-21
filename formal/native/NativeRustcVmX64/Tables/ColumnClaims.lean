@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Tables.ColumnClaims.Entry
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
+public import NativeRustcVmX64.Code.Vm.TableColumnClaims.Names
 
 /-!
 # `table_column_claims` on x86-64
@@ -30,12 +32,12 @@ theorem base_lit (t : Nat) (ht : t < 6) : base t = #[5, 18, 31, 38, 52, 66][t]! 
 
 /-- **`table_column_claims` meets its contract.** -/
 theorem tableColumnClaims_spec (hp : Placed code k)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {ev : Array (Array EW × Array EW)} {cs : Array ColumnClaimW} :
-    Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre ev cs)
+    Spec (Labels.label NativeRustcVmX64.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre ev cs)
       (TableColumnClaimsPost ev cs) := by
   intro m0 hpre
-  rw [show Labels.label tableColumnClaimsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.TableColumnClaims.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b0Offset) from hp.label NativeRustcVmX64.Vm.TableColumnClaims.entry_at]
   show Eventually _ (Goal ev cs m0) _
   have h6 := size_ev hpre
   obtain ⟨s1, s2, s3, s4, s5, m5, m10, m15, m20, m26, r5, r10, r15, r20, r26⟩ := ok_set
@@ -56,12 +58,12 @@ theorem tableColumnClaims_spec (hp : Placed code k)
   have hx5 : ∀ env : Env, ((Sym.un .trunc .W32 (.reg .rax)).eval env).toNat % 256 =
       (env.regs .rax).toNat % 256 := fun _ ↦ NativeRustcVmX64.Transcript.trunc32_mod _
   -- the success, after table `5`
-  have d5 : ∀ st : MachineState, st.pc = Labels.label ".LTableColumnClaims_16" →
+  have d5 : ∀ st : MachineState, st.pc = Labels.label NativeRustcVmX64.Vm.TableColumnClaims.label_16 →
       LoopAt ev cs m0 R5 5 (cnt ev 5) st.data → Eventually (step1 Host.exe) (Goal ev cs m0) st :=
-    fun st hpc hL ↦ done_step hp hpre (hpc.trans (hp.label (j := 224) rfl)) hL.body
+    fun st hpc hL ↦ done_step hp hpre (hpc.trans (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_16_at)) hL.body
       (claims_end h6 hL.claims)
   -- table `5`
-  have t5 : ∀ st : MachineState, st.pc = Host.addrOf (k + 205) →
+  have t5 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b27Offset) →
       LoopAt ev cs m0 R5 5 0 st.data → Eventually (step1 Host.exe) (Goal ev cs m0) st :=
     fun st hpc hL ↦ loop hpush hpre (by decide) hR5 hRa5 (b27_in_code.trans hp.1 (by simp [b27]))
       rfl (by rw [after_eq run_b27]; exact run_b27) tm27 tk27
@@ -70,9 +72,9 @@ theorem tableColumnClaims_spec (hp : Placed code k)
       (ar29 (R5.a, .reg .r14) (by simp)) am29 ak29 hx5
       (fun st st' hm _ ↦ by
         rw [show reg st' .rax = _ from hm.regs _ _ (ar29 (.rax, .lit 0) (by simp))]; rfl)
-      (hp.label (j := 205) rfl) (fun st hpc hb hal hn ↦ fail30 hp hpre hpc hb hal hn) d5 0 st hpc hL
+      (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_15_at) (fun st hpc hb hal hn ↦ fail30 hp hpre hpc hb hal hn) d5 0 st hpc hL
   -- table `4`
-  have t4 : ∀ st : MachineState, st.pc = Host.addrOf (k + 161) →
+  have t4 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b21Offset) →
       LoopAt ev cs m0 R04 4 0 st.data → Eventually (step1 Host.exe) (Goal ev cs m0) st :=
     fun st hpc hL ↦ loop hpush hpre (by decide) hR04 hRa04 (b21_in_code.trans hp.1 (by simp [b21]))
       rfl (by rw [after_eq run_b21]; exact run_b21) tm21 tk21
@@ -81,12 +83,12 @@ theorem tableColumnClaims_spec (hp : Placed code k)
       (ar23 (R04.a, .reg .r14) (by simp)) am23 ak23 hx04
       (fun st st' hm h ↦ by
         rw [show reg st' .rax = _ from hm.regs _ _ (ar23 (.rax, .reg .rax) (by simp))]; exact h)
-      (hp.label (j := 161) rfl) (fun st hpc hb _ hn ↦ fail_step hp hpre hpc hb hn)
+      (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_12_at) (fun st hpc hb _ hn ↦ fail_step hp hpre hpc hb hn)
       (fun st hpc hL ↦ next (t := 4) hpre (by decide) (by rw [base_lit 5 (by decide)]; rfl)
         (b26_in_code.trans hp.1 (by simp [b26])) (by rw [after_eq run_b26]; exact run_b26)
-        (Or.inr s5) m26 k26 r26 t5 (hpc.trans (hp.label (j := 188) rfl)) hL) 0 st hpc hL
+        (Or.inr s5) m26 k26 r26 t5 (hpc.trans (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_14_at)) hL) 0 st hpc hL
   -- table `3`
-  have t3 : ∀ st : MachineState, st.pc = Host.addrOf (k + 127) →
+  have t3 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b16Offset) →
       LoopAt ev cs m0 R04 3 0 st.data → Eventually (step1 Host.exe) (Goal ev cs m0) st :=
     fun st hpc hL ↦ loop hpush hpre (by decide) hR04 hRa04 (b16_in_code.trans hp.1 (by simp [b16]))
       rfl (by rw [after_eq run_b16]; exact run_b16) tm16 tk16
@@ -95,14 +97,14 @@ theorem tableColumnClaims_spec (hp : Placed code k)
       (ar18 (R04.a, .reg .r14) (by simp)) am18 ak18 hx04
       (fun st st' hm h ↦ by
         rw [show reg st' .rax = _ from hm.regs _ _ (ar18 (.rax, .reg .rax) (by simp))]; exact h)
-      (hp.label (j := 127) rfl)
+      (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_9_at)
       (fun st hpc hb _ hn ↦ jump19 hp hpre (b19_in_code.trans hp.1 (by simp [b19]))
         (by rw [after_eq run_b19]; exact run_b19) em19 ek19 hpc hb hn)
       (fun st hpc hL ↦ next (t := 3) hpre (by decide) (by rw [base_lit 4 (by decide)]; rfl)
         (b20_in_code.trans hp.1 (by simp [b20])) (by rw [after_eq run_b20]; exact run_b20)
-        (Or.inl s4) m20 k20 r20 t4 (hpc.trans (hp.label (j := 144) rfl)) hL) 0 st hpc hL
+        (Or.inl s4) m20 k20 r20 t4 (hpc.trans (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_11_at)) hL) 0 st hpc hL
   -- table `2`
-  have t2 : ∀ st : MachineState, st.pc = Host.addrOf (k + 93) →
+  have t2 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b11Offset) →
       LoopAt ev cs m0 R04 2 0 st.data → Eventually (step1 Host.exe) (Goal ev cs m0) st :=
     fun st hpc hL ↦ loop hpush hpre (by decide) hR04 hRa04 (b11_in_code.trans hp.1 (by simp [b11]))
       rfl (by rw [after_eq run_b11]; exact run_b11) tm11 tk11
@@ -111,14 +113,14 @@ theorem tableColumnClaims_spec (hp : Placed code k)
       (ar13 (R04.a, .reg .r14) (by simp)) am13 ak13 hx04
       (fun st st' hm h ↦ by
         rw [show reg st' .rax = _ from hm.regs _ _ (ar13 (.rax, .reg .rax) (by simp))]; exact h)
-      (hp.label (j := 93) rfl)
+      (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_6_at)
       (fun st hpc hb _ hn ↦ jump19 hp hpre (b14_in_code.trans hp.1 (by simp [b14]))
         (by rw [after_eq run_b14]; exact run_b14) em14 ek14 hpc hb hn)
       (fun st hpc hL ↦ next (t := 2) hpre (by decide) (by rw [base_lit 3 (by decide)]; rfl)
         (b15_in_code.trans hp.1 (by simp [b15])) (by rw [after_eq run_b15]; exact run_b15)
-        (Or.inl s3) m15 k15 r15 t3 (hpc.trans (hp.label (j := 110) rfl)) hL) 0 st hpc hL
+        (Or.inl s3) m15 k15 r15 t3 (hpc.trans (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_8_at)) hL) 0 st hpc hL
   -- table `1`
-  have t1 : ∀ st : MachineState, st.pc = Host.addrOf (k + 59) →
+  have t1 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b6Offset) →
       LoopAt ev cs m0 R04 1 0 st.data → Eventually (step1 Host.exe) (Goal ev cs m0) st :=
     fun st hpc hL ↦ loop hpush hpre (by decide) hR04 hRa04 (b6_in_code.trans hp.1 (by simp [b6]))
       rfl (by rw [after_eq run_b6]; exact run_b6) tm6 tk6
@@ -127,14 +129,14 @@ theorem tableColumnClaims_spec (hp : Placed code k)
       (ar8 (R04.a, .reg .r14) (by simp)) am8 ak8 hx04
       (fun st st' hm h ↦ by
         rw [show reg st' .rax = _ from hm.regs _ _ (ar8 (.rax, .reg .rax) (by simp))]; exact h)
-      (hp.label (j := 59) rfl)
+      (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_3_at)
       (fun st hpc hb _ hn ↦ jump19 hp hpre (b9_in_code.trans hp.1 (by simp [b9]))
         (by rw [after_eq run_b9]; exact run_b9) em9 ek9 hpc hb hn)
       (fun st hpc hL ↦ next (t := 1) hpre (by decide) (by rw [base_lit 2 (by decide)]; rfl)
         (b10_in_code.trans hp.1 (by simp [b10])) (by rw [after_eq run_b10]; exact run_b10)
-        (Or.inl s2) m10 k10 r10 t2 (hpc.trans (hp.label (j := 76) rfl)) hL) 0 st hpc hL
+        (Or.inl s2) m10 k10 r10 t2 (hpc.trans (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_5_at)) hL) 0 st hpc hL
   -- table `0`
-  have t0 : ∀ st : MachineState, st.pc = Host.addrOf (k + 25) →
+  have t0 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b1Offset) →
       LoopAt ev cs m0 R04 0 0 st.data → Eventually (step1 Host.exe) (Goal ev cs m0) st :=
     fun st hpc hL ↦ loop hpush hpre (by decide) hR04 hRa04 (b1_in_code.trans hp.1 (by simp [b1]))
       rfl (by rw [after_eq run_b1]; exact run_b1) tm1 tk1
@@ -143,12 +145,12 @@ theorem tableColumnClaims_spec (hp : Placed code k)
       (ar3 (R04.a, .reg .r14) (by simp)) am3 ak3 hx04
       (fun st st' hm h ↦ by
         rw [show reg st' .rax = _ from hm.regs _ _ (ar3 (.rax, .reg .rax) (by simp))]; exact h)
-      (hp.label (j := 25) rfl)
+      (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_1_at)
       (fun st hpc hb _ hn ↦ jump19 hp hpre (b4_in_code.trans hp.1 (by simp [b4]))
         (by rw [after_eq run_b4]; exact run_b4) em4 ek4 hpc hb hn)
       (fun st hpc hL ↦ next (t := 0) hpre (by decide) (by rw [base_lit 1 (by decide)]; rfl)
         (b5_in_code.trans hp.1 (by simp [b5])) (by rw [after_eq run_b5]; exact run_b5)
-        (Or.inl s1) m5 k5 r5 t1 (hpc.trans (hp.label (j := 42) rfl)) hL) 0 st hpc hL
+        (Or.inl s1) m5 k5 r5 t1 (hpc.trans (hp.label NativeRustcVmX64.Vm.TableColumnClaims.label_2_at)) hL) 0 st hpc hL
   exact Eventually.bind (entry hp hpre) fun st h ↦ t0 st h.1 h.2
 
 end

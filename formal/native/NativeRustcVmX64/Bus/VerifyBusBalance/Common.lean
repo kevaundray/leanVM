@@ -5,6 +5,7 @@ public import NativeRustcVmX64.Bus.VerifyBusBalance.Model
 public import NativeRustcVmX64.Bus.GkrCommon
 public import NativeRustcVmX64.Bus.Common
 public import NativeRustcVm.Tables.Same
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalance.Names
 
 /-!
 # `verify_bus_balance`'s frame, its exits (x86-64)
@@ -292,12 +293,12 @@ abbrev Goal (a : DecArea) (s0 : TState) (L : LayoutW) (m0 : MachineData) (st : M
   st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧ VerifyBusBalancePost a s0 L m0 st.data
 
 /-- The failure's address. -/
-theorem lF_eq (hp : Placed code k) : Labels.label lF = Host.addrOf (k + 428) :=
+theorem lF_eq (hp : Placed code k) : Labels.label lF = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b56Offset) :=
   hp.label (label_of_infix b56_in_code rfl)
 
 /-- The epilogue's address. -/
 theorem l28_eq (hp : Placed code k) :
-    Labels.label ".LVerifyBusBalance_28" = Host.addrOf (k + 430) :=
+    Labels.label NativeRustcVmX64.Vm.VerifyBusBalance.label_28 = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b57Offset) :=
   hp.label (label_of_infix b57_in_code rfl)
 
 /-- A state of the body in the frame's environment. -/
@@ -308,13 +309,13 @@ theorem match_fS {d : MachineData} {o : Nat} (fr : St m0 o d) {rest : List (BitV
       cases rest <;> trivial)
     ⟨fr.frame.rsp_eval, trivial⟩ trivial trivial trivial
 
-/-- **The epilogue** (`.LVerifyBusBalance_28`, `b57`): AL the result, the outputs its values. -/
+/-- **The epilogue** (`NativeRustcVmX64.Vm.VerifyBusBalance.label_28`, `b57`): AL the result, the outputs its values. -/
 theorem exit_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {d : MachineData}
     (fr : St m0 104 d) (hal : OkAl d ((verifyBusBalance L).run s0).isSome)
     (hok : ∀ res s', (verifyBusBalance L).run s0 = some (res, s') →
       TStateAt d.dmem (reg m0 .rdi) a s' ∧ BusWAt d.dmem (reg m0 .r8) res ∧
         ClaimsWAt d.dmem (reg m0 .r9) res.claims) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 430)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b57Offset)⟩ := by
   have hwf := wf0 h fr.frame.kept (vars := fun _ ↦ 0) (ret := 0)
   obtain ⟨hepi, hmem, hk⟩ := ok_b57
   refine fr.exit (pre_stack h) N_ge (infix_of b57_in_code (by simp [b57]) hp) exit_b57 hwf rfl
@@ -334,17 +335,17 @@ theorem exit_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {d : 
       · exact .inr (.inl hq)
       · exact .inr (.inr (.inl hq))
 
-/-- **A failure** (`.LVerifyBusBalance_27`, `b56`): AL = `0`. -/
+/-- **A failure** (`NativeRustcVmX64.Vm.VerifyBusBalance.label_27`, `b56`): AL = `0`. -/
 theorem fail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {d : MachineData}
     (fr : St m0 104 d) (hr : (verifyBusBalance L).run s0 = none) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 428)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b56Offset)⟩ := by
   have hwf := wf0 h fr.frame.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_then (infix_of b56_in_code (by simp [b56]) hp) exit_b56 hwf nofun (match_fS fr)
     fun st hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hmem, hrax, -⟩ := ok_b56
   have fr1 := (fr.block0 (pre_stack h) N_ge hwf hm1 hmid slots_le (by simp [hmem])).1
   simp only [PcOk] at hpc1
-  refine at_pc (hpc1.trans (by rw [show b56.length = 2 from rfl])) (exit_spec hp h fr1 ?_
+  refine at_pc (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyBusBalance.b56_next)) (exit_spec hp h fr1 ?_
     fun _ _ he ↦ by rw [hr] at he; cases he)
   rw [hr]
   unfold OkAl boolRet

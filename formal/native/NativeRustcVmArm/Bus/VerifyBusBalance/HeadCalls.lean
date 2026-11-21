@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BusLayout.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.SharePre
 public import NativeRustcVmArm.Bus.BusLayout.Common
 
@@ -134,10 +136,10 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData}
 /-- **`bus_layout(out, fw, n, blocks, len, layout)`** from the frame, the output at `4176`: the
 side's layout, of the framework sizes `fw`. -/
 theorem bl_call (h : VerifyBusBalancePre a s0 L m0)
-    (hbl : ∀ L bl, Spec (Labels.label busLayoutLabel) (BusLayoutPre L bl) (BusLayoutPost L bl))
+    (hbl : ∀ L bl, Spec (Labels.label NativeRustcVmArm.Vm.BusLayout.entryLabel) (BusLayoutPre L bl) (BusLayoutPost L bl))
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label busLayoutLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.BusLayout.entryLabel ∧ retOf st.data = next)
     {side : Nat} {it : NativeRustcVm.Data.Item}
     (hit : it.bytes = (sideBlocks side).flatMap NativeRustcVm.Data.Block.bytes)
     (hl1 : 1 ≤ (sideBlocks side).length) (hl2 : (sideBlocks side).length ≤ maxBlocks)
@@ -192,10 +194,10 @@ theorem bl_call (h : VerifyBusBalancePre a s0 L m0)
 
 /-- **`memcpy(loc dst, loc src, n)`** within the frame, below the slots. -/
 theorem mc_call (h : VerifyBusBalancePre a s0 L m0)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hmc : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hfr : Fr m0 5488 verifyBusBalanceStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label "memcpy" ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel ∧ retOf st.data = next)
     {dst src n : Nat} (hd : dst + n ≤ 5392) (hs : src + n ≤ 5488)
     (hap : dst + n ≤ src ∨ src + n ≤ dst)
     (x0 : st.data.regs.X0.toBitVec = loc m0 dst) (x1 : st.data.regs.X1.toBitVec = loc m0 src)

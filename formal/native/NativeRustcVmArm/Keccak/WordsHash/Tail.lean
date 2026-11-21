@@ -33,7 +33,7 @@ theorem label_at [Host] {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code
 @[expose] def PadAt (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   Ctx m0 st.data ∧ Lanes m0 st.data (pre (stA m0) (word m0) (base m0) 16) ∧
     (st.data.regs.getXReg .X8).toBitVec = (word m0 (base m0 + 16)).toBitVec ∧
-    st.pc = Host.addrOf (k + 534)
+    st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.b76Offset)
 
 theorem tail0 {k : Nat} (hp : Placed Vm.Keccak256WordsOfHashWords.code k) {m0 : MachineData} (g : Geo m0)
     {st : MachineState} (h : TailAt m0 k 0 28 405 st) :

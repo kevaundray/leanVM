@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FormBufAddScaled.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.LoopUpdate
 
 /-!
@@ -29,7 +30,7 @@ private theorem eval_true {env : Env} {c : SBool} {a b : Sym} (hc : SBool.eval e
 
 /-- **`b31`**: the owner's form is updated and the block form stays intact. -/
 theorem turn31 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (has : ∀ f g, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f g) (FormBufAddScaledPost f g))
+    (has : ∀ f g, Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f g) (FormBufAddScaledPost f g))
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) L31 m)
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) (gf m0 (BA L rows bl) j))
@@ -38,8 +39,8 @@ theorem turn31 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L32 m2 → m2.regs.X0 = 1 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) (gf m0 (BA L rows bl) j) →
       FormsAt m2.dmem m0.regs.X1.toBitVec (sta SL m0 (BA L rows bl) Fm (j + 1)).1 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 275)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 256)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b32Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b31Offset)⟩ := by
   have hh := St.lift (D := L31) hst (by decide) 0 [(NativeRustcVmArm.rodataAddr .tables, 240)]
   have hwf := wf1 h hst.fr.kept (tables_ok h)
   have hol : (blk (BA L rows bl) j).owner < 6 := by
@@ -180,7 +181,7 @@ theorem turn31 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
           have := le_as
           have := h.stack.2.1
           omega) hi
-    rw [show k + 256 + b31.length = k + 275 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b31Offset + b31.length = k + NativeRustcVmArm.Vm.AccumulateSide.b32Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b31_next]]
     refine cont m2 ⟨hst2.fr, Holds.sub hst2.hd (by decide)⟩ hif.1
       (NativeRustcVm.Tables.FormBufAt.of_same hg hb) ?_
     change FormsAt m2.dmem m0.regs.X1.toBitVec (stAt Fm m0.regs.X2.toNat (BA L rows bl) SL

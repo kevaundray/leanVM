@@ -75,9 +75,9 @@ theorem x15_eval [Labels] (env : Env) (hl : (env.regs .X8).toNat < 25) :
 variable [NativeArm.Host] {ws : Array EW} {m0 : MachineData} {k : Nat}
 
 /-- **The output's set-up** (`b20`): from the columns done, lane `0`'s head. -/
-theorem out_setup (hp : Placed code k) {s : MachineState} (hpc : s.pc = Host.addrOf (k + 193))
+theorem out_setup (hp : Placed code k) {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b20Offset))
     (hI : ColDone m0 ws 4 s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 200) ∧ OutHead m0 ws 0 s'.data)
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b21Offset) ∧ OutHead m0 ws 0 s'.data)
       s := by
   refine exec_at (b20_in_code.trans hp.1 (by simp [b20])) e20 (Env.wf_nil _) hpc (match_nil _)
     fun s' hm' hpc' ↦ .done _ ⟨hpc', ?_⟩
@@ -110,8 +110,8 @@ theorem out_setup (hp : Placed code k) {s : MachineState} (hpc : s.pc = Host.add
 
 /-- **A lane's head** (`b21`): its two columns, the loop's pointers at position `0`. -/
 theorem out_head (hp : Placed code k) {l : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 200)) (hI : OutHead m0 ws l s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 218) ∧ Out m0 ws l 0 s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b21Offset)) (hI : OutHead m0 ws l s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b22Offset) ∧ Out m0 ws l 0 s'.data)
       s := by
   have hl := hI.regs.lt
   have hm : Match (Env.ofMachine s.data []) outHeadS s.data :=
@@ -146,10 +146,10 @@ theorem out_head (hp : Placed code k) {l : Nat} {s : MachineState}
 
 /-- **A lane of the output loop**, to its end. -/
 theorem out_lane (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 218)) (hI : Out m0 ws l z s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 235) ∧ OutRegs m0 s'.data l ∧
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b22Offset)) (hI : Out m0 ws l z s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b23Offset) ∧ OutRegs m0 s'.data l ∧
       OutMem m0 ws (64 * l + 64) s'.data) s :=
-  Sym.loop (fun c s ↦ ∃ z, c = 64 - z ∧ s.pc = Host.addrOf (k + 218) ∧ Out m0 ws l z s.data)
+  Sym.loop (fun c s ↦ ∃ z, c = 64 - z ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b22Offset) ∧ Out m0 ws l z s.data)
     (fun _ s ⟨z, hc, hpc, hI⟩ ↦ (out_step hp hpre hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨64 - (z + 1), by have := hI.z_lt; omega, z + 1, rfl, hpc', hI'⟩
@@ -158,10 +158,10 @@ theorem out_lane (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : N
 
 /-- **The next lane** (`b23`): lane `l + 1`'s head, or the output done. -/
 theorem out_next (hp : Placed code k) {l : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 235)) (hr : OutRegs m0 s.data l)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b23Offset)) (hr : OutRegs m0 s.data l)
     (hmem : OutMem m0 ws (64 * l + 64) s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + 200) ∧
-      OutHead m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + 240) ∧ OutDone m0 ws s'.data)) s := by
+    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b21Offset) ∧
+      OutHead m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b24Offset) ∧ OutDone m0 ws s'.data)) s := by
   have hl := hr.lt
   refine exec_at (b23_in_code.trans hp.1 (by simp [b23])) e23 (Env.wf_nil _) hpc (match_nil _)
     fun s1 hm1 hpc1 ↦ ?_
@@ -188,13 +188,13 @@ theorem out_next (hp : Placed code k) {l : Nat} {s : MachineState}
   by_cases hlast : l = 24
   · subst hlast
     simp only [show (BitVec.ofNat 64 (24 + 1) == 25#64) = true from rfl, Bool.not_true,
-      Bool.false_eq_true, ite_false, show b23.length = 5 from rfl] at hpc1
+      Bool.false_eq_true, ite_false, NativeRustcVmArm.Vm.LinearTranspose.b23_length, NativeRustcVmArm.Vm.LinearTranspose.b23Length] at hpc1
     exact .done _ (Or.inr ⟨hpc1, hctx, by rw [hdm]; exact hmem.o⟩)
   · have hc : (BitVec.ofNat 64 (l + 1) == 25#64) = false := by
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h
       simp at this; omega
     simp only [hc, Bool.not_false, ite_true] at hpc1
-    refine .done _ (Or.inl ⟨by omega, hpc1.trans (hp.label (j := 200) rfl),
+    refine .done _ (Or.inl ⟨by omega, hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b21Offset) NativeRustcVmArm.Vm.LinearTranspose.label_18_at),
       ⟨hctx, by omega, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩)
     · show (s1.data.regs.getXReg .X8).toBitVec.toNat = _
       rw [h8, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
@@ -216,11 +216,11 @@ theorem out_next (hp : Placed code k) {l : Nat} {s : MachineState}
 
 /-- **The output**: from the columns done, every element of the output, at the epilogue. -/
 theorem output (hp : Placed code k) (hpre : LinearTransposePre ws m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 193)) (hI : ColDone m0 ws 4 s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 240) ∧ OutDone m0 ws s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b20Offset)) (hI : ColDone m0 ws 4 s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b24Offset) ∧ OutDone m0 ws s'.data)
       s :=
   (out_setup hp hpc hI).bind fun s1 ⟨hpc1, hI1⟩ ↦
-    Sym.loop (fun n s ↦ ∃ l, n = 25 - l ∧ s.pc = Host.addrOf (k + 200) ∧ OutHead m0 ws l s.data)
+    Sym.loop (fun n s ↦ ∃ l, n = 25 - l ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b21Offset) ∧ OutHead m0 ws l s.data)
       (fun _ s ⟨l, hn, hpc, hI⟩ ↦ (out_head hp hpc hI).bind fun s2 ⟨hpc2, hI2⟩ ↦
         (out_lane hp hpre hpc2 hI2).bind fun s3 ⟨hpc3, hr3, hm3⟩ ↦
           (out_next hp hpc3 hr3 hm3).mono fun s' h ↦ by

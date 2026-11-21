@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Arrays.Powers.Exec
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Powers.Names
 
 /-!
 # `powers` on x86-64
@@ -43,7 +45,7 @@ theorem length_P (b : EW) (n : Nat) : (P b n).1.toList.length = n := by
 
 theorem powers_eq (b : EW) (n : Nat) : powers b n = (P b n).1 := rfl
 
-/-- **The loop head** `.LPowers_2`, `i` powers stored. -/
+/-- **The loop head** `NativeRustcVmX64.Vm.Powers.label_2`, `i` powers stored. -/
 structure Inv (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
   body : Body m0 48 powersStack slots (out m0) (16 * len m0) st
   lt : i < len m0
@@ -56,29 +58,29 @@ structure Inv (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.Powers.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 3) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.Powers.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : s1.IsInfixAt Host.prog (k + 17) ∧
-    s2.IsInfixAt Host.prog (k + 17 + 3) := by
+theorem hb2 (hp : Placed code k) : s1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.Powers.b2Offset) ∧
+    s2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.Powers.b2Offset + s1.length) := by
   have h := b2_in_code.trans hp.1 (by simp [b2])
   rw [← List.take_append_drop 3 b2] at h
   exact h.append
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 17 + 3 + 5) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.Powers.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb45 (hp : Placed code k) : b45.IsInfixAt Host.prog (k + 17 + 3 + 5 + 3) :=
+theorem hb45 (hp : Placed code k) : b45.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.Powers.b4Offset) :=
   isInfixAt_concat (b4_in_code.trans hp.1 (by simp [b4]))
     (b5_in_code.trans hp.1 (by simp [b5]))
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 33) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.Powers.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label powersLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LPowers_2" = Host.addrOf (k + 17) :=
-  hp.label (j := 17) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LPowers_4" = Host.addrOf (k + 33) :=
-  hp.label (j := 33) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.Powers.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.Powers.entry_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.Powers.label_2 = Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b2Offset) :=
+  hp.label NativeRustcVmX64.Vm.Powers.label_2_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.Powers.label_4 = Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b5Offset) :=
+  hp.label NativeRustcVmX64.Vm.Powers.label_4_at
 
 /-- `powers`' postcondition, reached. -/
 abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
@@ -86,7 +88,7 @@ abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
 
 /-- **The epilogue** `b4`, `b5`: from a body with every power stored, returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : PowersPre m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 17 + 3 + 5 + 3))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b4Offset))
     (hb : Body m0 48 powersStack slots (out m0) (16 * len m0) st.data)
     (hw : EWsAt st.data.dmem (out m0) (P (base m0) (len m0)).1.toList) :
     Eventually (step1 Host.exe) (Post m0) st := by
@@ -109,11 +111,11 @@ theorem sixteen_add (a : BitVec 64) (i : Nat) :
 
 /-- **A turn of the loop**: the power stored in `out[i]`, multiplied by the base, back at the head
 or out of the loop and returned. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : PowersPre m0) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 17)) (hI : Inv m0 i st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b2Offset)) (hI : Inv m0 i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-      (st'.pc = Host.addrOf (k + 17) ∧ Inv m0 (i + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b2Offset) ∧ Inv m0 (i + 1) st'.data)) st := by
   obtain ⟨hS, hr, ho⟩ := hpre
   have h48 : 48 ≤ powersStack := by decide
   have hlt := hI.lt
@@ -151,7 +153,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> exact Match.reg_eq hm1 hm1' rfl rfl
   -- `s2`: the call
-  have hwf2 := hb1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 17 + 3 + 5)).toBitVec) hS h48
+  have hwf2 := hb1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b3Offset)).toBitVec) hS h48
   refine exec_at (hb2 hp).2 run_s2 hwf2 (fun _ _ ↦ rfl) hpc1 hb1.mid_match fun st2 hm2' hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_s2 ▸ s2_call
   have hprodArgs : EW.mul (ewArg (reg st2.data .rdi) (reg st2.data .rsi))
@@ -214,7 +216,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   obtain ⟨hT, hF⟩ := pc_cond hpc4
   by_cases hlast : 16 * (i + 1) = 16 * len m0
   · have hpc4' := hF (by simp [hlast])
-    simp only [show b3.length = 3 from rfl] at hpc4'
+    simp only [NativeRustcVmX64.Vm.Powers.b3_length] at hpc4'
     refine Eventually.mono (finish hp ⟨hS, hr, ho⟩ hpc4' hb4' ?_) fun _ h ↦ Or.inl h
     rw [hdm4, show len m0 = i + 1 by omega]
     exact hwritten3
@@ -223,8 +225,8 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`powers` meets its contract.** -/
 theorem powers_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label powersLabel) PowersPre PowersPost := by
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hS := hpre.1
@@ -237,7 +239,7 @@ theorem powers_spec (hp : Placed code k)
     rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
   have hm : Match (frameEnv m0 m0 48) entryS m0 := match_frame
   refine exec_then (hb0 hp) run_b0 hwf (by intro l h; cases h) hm fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 3 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.Powers.b0_length] at hpc1
   rw [eval_test, eval_reg, Env.ofMachine_regs,
     ← hx,
     ofNat_beq (by omega) (by decide)] at hpc1
@@ -258,7 +260,7 @@ theorem powers_spec (hp : Placed code k)
     have hpc1 := hF (fun h ↦ hz (of_decide_eq_true h))
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf (by intro l h; cases h) hpc1 hm1
       fun st2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b1.length = 14 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmX64.Vm.Powers.b1_length] at hpc2
     obtain ⟨hw, hregs, hmem, hsp⟩ := after_eq run_b1 ▸ b1_entry
     have hI : Inv m0 0 st2.data := by
       have hbx := hm2.regs .rbx _ rfl
@@ -279,7 +281,7 @@ theorem powers_spec (hp : Placed code k)
       · show ewArg (st2.data.regs.get64 .rax) (st2.data.regs.get64 .rdx) = _
         rw [hm2.regs .rax _ rfl, hm2.regs .rdx _ rfl]
         rfl
-    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 17) ∧ ∃ i, len m0 - i = n ∧
+    refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Powers.b2Offset) ∧ ∃ i, len m0 - i = n ∧
       Inv m0 i st.data) (fun n st ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc2, 0, rfl, hI⟩
     refine Eventually.mono (step hp hmul hpre hpc hI) fun st' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩

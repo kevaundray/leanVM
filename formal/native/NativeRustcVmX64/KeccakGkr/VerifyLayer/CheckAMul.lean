@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Iota2
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `verify_layer` on x86-64: ι's two terms
 
-From `.LVerifyLayer_28` (`JX`): `b38` multiplies the first segment's weight by its bits, `b39` the
+From `NativeRustcVmX64.Vm.VerifyLayer.label_28` (`JX`): `b38` multiplies the first segment's weight by its bits, `b39` the
 second's (from the frame's `24`, `72`) by theirs (`EW::mul` twice): `mulPair`, to `b40` with the
 two products in R14, RBP and RAX, RDX (`CB`). ι's state across a leaf call (`K0.leaf`).
 -/
@@ -79,19 +80,19 @@ variable [Host] {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
   {p : Array EW} {s1 : TState} {k : Nat}
 
 /-- **ι's two terms**: `b38`, `EW::mul`, `b39`, `EW::mul`. -/
-theorem mulPair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem mulPair (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hpre : VerifyLayerPre a s c m0) {d : MachineData} (h : JX m0 a c p s1 d)
     {R : MachineState → Prop}
-    (cont : ∀ d', CB m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 352)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 342)⟩ := by
+    (cont : ∀ d', CB m0 a c p s1 d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b40Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b38Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hk := h.k0
   have cx := ctx hpre (F := 2000) (by decide)
   -- `b38`
   have hwf := wf0 (pre_stack hpre) hk.body (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 342 + b38.length)).toBitVec)
-  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + 342 + b38.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b38Offset + b38.length)).toBitVec)
+  have hm : Match (envB m0 d [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b38Offset + b38.length)).toBitVec)
       (fr 24) d :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hk.body.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g hk.body hwf (blk hp b38_in_code (by simp [b38])) e38 (fun _ _ ↦ rfl)
@@ -119,8 +120,8 @@ theorem mulPair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMu
   subst hpc2
   -- `b39`
   have hwf3 := wf0 (pre_stack hpre) hk2.body (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 345 + b39.length)).toBitVec)
-  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + 345 + b39.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b39Offset + b39.length)).toBitVec)
+  have hm3 : Match (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b39Offset + b39.length)).toBitVec)
       (fr 24) d2 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hk2.body.rsp, trivial⟩ trivial trivial trivial
   refine Body.blk (o' := 16) g hk2.body hwf3 (blk hp b39_in_code (by simp [b39])) e39
@@ -142,9 +143,9 @@ theorem mulPair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMu
     rw [show reg st.data .rdx = _ from hm4.regs .rdx _ rfl,
       show reg st.data .rcx = _ from hm4.regs .rcx _ rfl]
     simp only [Sym.eval]
-    rw [show (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + 345 + b39.length)).toBitVec).regs .r15 =
+    rw [show (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b39Offset + b39.length)).toBitVec).regs .r15 =
         reg d2 .r15 from rfl,
-      show (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + 345 + b39.length)).toBitVec).regs .rbx =
+      show (envB m0 d2 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b39Offset + b39.length)).toBitVec).regs .rbx =
         reg d2 .rbx from rfl, hcs2 .r15 (by simp), hcs2 .rbx (by simp)]
     exact h.b2
   have h14 : reg st.data .r14 = reg d2 .rax := hm4.regs .r14 _ rfl

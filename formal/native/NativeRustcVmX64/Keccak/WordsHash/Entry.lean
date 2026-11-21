@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Keccak.WordsHash.Lane
 public import NativeRustcVmX64.Keccak.WordsHash.Vals
+public import NativeRustcVmX64.Code.Vm.Memset.Names
 
 /-!
 # `keccak256_words::<hash_words's closure>` (x86-64): the entry
@@ -46,18 +47,18 @@ variable [Host]
 else at the last block's head. -/
 def SetupAt (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   HCtx m0 (lenR m0) 8 st.data ∧ Lanes m0 st.data.dmem (fun _ => 0) ∧
-    st.pc = if 136 ≤ (m0.regs.get64 .rdx).toNat then Host.addrOf (k + 42) else Host.addrOf (k + 27)
+    st.pc = if 136 ≤ (m0.regs.get64 .rdx).toNat then Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b5Offset) else Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b2Offset)
 
 /-- **At the head of whole block `b`.** -/
 def FullHead (m0 : MachineData) (k b : Nat) (st : MachineState) : Prop :=
   HCtx m0 ((.rbx, BitVec.ofNat 64 (17 * b)) :: fullR m0) 8 st.data ∧
     Lanes m0 st.data.dmem (Keccak.lane (wordBlocks (word m0) b)) ∧ b < nb m0 ∧
-    st.pc = Host.addrOf (k + 60)
+    st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b10Offset)
 
 /-- **At the last block's head**: the lanes the whole blocks' state. -/
 def TailStart (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   HCtx m0 (lenR m0) 8 st.data ∧ Lanes m0 st.data.dmem (Keccak.lane (stA m0)) ∧
-    st.pc = Host.addrOf (k + 27)
+    st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b2Offset)
 
 end
 
@@ -104,14 +105,14 @@ theorem label_at {k : Nat} (hp : Placed code k) {b : List Directive} {j : Nat}
 
 set_option linter.unusedSimpArgs false in
 /-- **The entry and the setup.** -/
-theorem setup_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
+theorem setup_run (hms : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost) {k : Nat}
     (hp : Placed code k) {m0 : MachineData} (g : Geo m0) :
-    Eventually (step1 Host.exe) (SetupAt m0 k) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (SetupAt m0 k) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b0Offset)⟩ := by
   have hstk := g.stk
   have hs := stack_facts hstk
   have h40 : (frame m0 + BitVec.ofNat 64 40).toNat = (frame m0).toNat + 40 :=
     frame_add_toNat hstk (by decide)
-  let env0 := Env.ofMachine m0 [(frame m0, 296)] (fun _ => 0) (Host.addrOf (k + 0 + 17)).toBitVec
+  let env0 := Env.ofMachine m0 [(frame m0, 296)] (fun _ => 0) (Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b1Offset)).toBitVec
   have hwf0 : env0.WF := frame_wf hstk fun _ h => h
   have hm0 : Match env0 startEntry m0 :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨rsp_eval (frame_add m0).symm rfl, trivial⟩ trivial trivial
@@ -160,7 +161,7 @@ theorem setup_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
     rw [r2 .rbp rfl, hm1.regs .rbp _ rfl]
     show m0.regs.get64 .rsi = _
     rw [bv_eq_ofNat (m0.regs.get64 .rsi), g.cnt]
-  have hpc2' : st2.pc = Host.addrOf (k + 17) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b1Offset) := hpc2
   refine exec_at (b1_in_code.trans hp.1 (List.cons_ne_nil _ _)) setup hwf2 (fun _ h => by cases h)
     hpc2' hm2 fun st3 hm3 hpc3 => .done _ ⟨?_, ?_, ?_⟩
   · -- a slot `entry` wrote, kept by `memset` and `setup`
@@ -237,10 +238,10 @@ theorem nb_pos {m0 : MachineData} (h : 136 ≤ (m0.regs.get64 .rdx).toNat) : 0 <
   omega
 
 /-- **The entry**: to the head of the first whole block, or with none, of the last block. -/
-theorem entry_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
+theorem entry_run (hms : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost) {k : Nat}
     (hp : Placed code k) {m0 : MachineData} (g : Geo m0) :
     Eventually (step1 Host.exe) (fun st => FullHead m0 k 0 st ∨ TailStart m0 k st)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b0Offset)⟩ := by
   refine Eventually.bind (setup_run hms hp g) fun st h => ?_
   obtain ⟨hc, hl, hpc⟩ := h
   obtain ⟨m, pc⟩ := st
@@ -280,7 +281,7 @@ theorem entry_run (hms : Spec (label "memset") MemsetPre MemsetPost) {k : Nat}
 theorem fullHead_step {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0) {b : Nat}
     {st : MachineState} (h : FullHead m0 k b st) :
     Eventually (step1 Host.exe)
-      (LaneAt m0 k .rbx (fullR m0) (wordBlocks (word m0) b) (17 * b) 0 63 160) st := by
+      (LaneAt m0 k .rbx (fullR m0) (wordBlocks (word m0) b) (17 * b) 0 NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b11Offset NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b29Offset) st := by
   obtain ⟨hc, hl, hb, hpc⟩ := h
   obtain ⟨m, pc⟩ := st
   simp only at hc hl hb hpc
@@ -308,7 +309,7 @@ theorem fullHead_step {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo
 /-- **The last block's head**: to its first lane, loaded if word `17 nb` is in the slice. -/
 theorem tail_head {k : Nat} (hp : Placed code k) {m0 : MachineData} (g : Geo m0)
     {st : MachineState} (h : TailStart m0 k st) :
-    Eventually (step1 Host.exe) (LaneAt m0 k .rax (tailR m0) (stA m0) (17 * nb m0) 0 34 259) st := by
+    Eventually (step1 Host.exe) (LaneAt m0 k .rax (tailR m0) (stA m0) (17 * nb m0) 0 NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b3Offset NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b46Offset) st := by
   obtain ⟨hc, hl, hpc⟩ := h
   obtain ⟨m, pc⟩ := st
   simp only at hc hl hpc

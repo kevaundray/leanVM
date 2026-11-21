@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
+public import NativeRustcVmArm.Code.Vm.ReaderDigest.Names
 public import NativeRustcVmArm.Wire.ClimbLevel.Carry
 public import NativeRustcVmArm.Wire.ClimbLevel.Ret
 
@@ -29,10 +31,10 @@ theorem saved10 : ∀ r ∈ [XReg.X19, .X20, .X22, .X23, .X24, .X25, .X26, .X27,
 
 /-- **The sibling written** (`b13`) from the digest at SP+32, then the parent hashed. -/
 theorem b13_spec (hp : Placed code k) (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {i : Nat}
     {sl : List (Nat × Digest × Bool)} {ci : Nat} {dg : Digest} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 73)) (hfr : Frm m0 st.data) (hfx : Fix m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b13Offset)) (hfr : Frm m0 st.data) (hfx : Fix m0 st.data)
     (hlt : i < cnt m0) (hi : i < ns.length)
     (hs : sibsM B ns (ns.take (i + 1)) c = some (sl ++ [(ns[i].1, dg, false)], ci))
     (hrd : ReaderAt st.data.dmem (rdr m0) bp B ci)
@@ -135,7 +137,7 @@ theorem b13_spec (hp : Placed code k) (G : Geo m0 bp B)
     rw [bit0_low, hl1, UInt64.toNat_toBitVec, toNat_toUInt64_of_lt hkey]
   simp only [PcOk, hc] at hpc1
   by_cases hodd : ns[i].1 % 2 = 1
-  · simp only [hodd, decide_true, ↓reduceIte, hp.label (j := 20) rfl] at hpc1
+  · simp only [hodd, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b2Offset) NativeRustcVmArm.Vm.ClimbLevel.label_2_at] at hpc1
     exact hash2_spec hp G hh hns hlen hpc1 hM hi (parent_odd hodd rfl)
   · simp only [hodd, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
     exact hash14_spec hp G hh hns hlen (hpc1.trans (congrArg Host.addrOf rfl)) hM hi
@@ -144,12 +146,12 @@ theorem b13_spec (hp : Placed code k) (G : Geo m0 bp B)
 /-- **No node of key `k ^^^ 1`** (`b11`): the sibling read by `Reader::digest`; `None`, or the
 loop's head after node `i`. -/
 theorem carry_spec (hp : Placed code k) (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-    (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+    (hd : Spec (Labels.label NativeRustcVmArm.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
     (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {i : Nat}
     {sl : List (Nat × Digest × Bool)} {ci : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 67)) (hC : Cur m0 bp B c ns i sl ci st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b11Offset)) (hC : Cur m0 bp B c ns i sl ci st.data)
     (hi : i < ns.length) (hmiss : Miss ns i ns.length) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
       ∃ sl' ci', Head m0 bp B c ns k (i + 1) sl' ci' st') st := by
@@ -221,7 +223,7 @@ theorem carry_spec (hp : Placed code k) (G : Geo m0 bp B)
     have hc : (SBool.bit .W32 (.load 0 24 4) 0).not.eval (frEnv m0 m2) = true := by
       show (!(Sym.low .W32 ((frEnv m0 m2).load 0 24 4)).getLsbD 0) = true
       rw [hl]; rfl
-    simp only [PcOk, hc, ↓reduceIte, hp.label (j := 91) rfl] at hpc2
+    simp only [PcOk, hc, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b16Offset) NativeRustcVmArm.Vm.ClimbLevel.label_12_at] at hpc2
     exact Eventually.mono (none_spec hp G hR hns hlen hpc2 hfr3
       (sibsM_none hC.dn.hs hi (by rw [sibStep_read hi hmiss, hrd]; rfl))) fun _ h ↦ .inl h
   | some p =>

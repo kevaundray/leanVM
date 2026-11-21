@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.WhirLevels.Names
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.Copy
 public import NativeRustcVmArm.Whir.VerifyStackedOpening.Exec2
 
@@ -50,14 +51,14 @@ theorem Parts.arg_same [Labels]
 theorem b34_step (hp : Placed code k)
     (h : Parts a s layout target coefficients point slices cs z value m0) {R : MachineState → Prop}
     (cont : ∀ st : MachineState, AtCall a s layout target cs value ls m0 st.data →
-      st.pc = Labels.label whirLevelsLabel ∧ retOf st.data = Host.addrOf (k + 164) →
+      st.pc = Labels.label NativeRustcVmArm.Vm.WhirLevels.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b35Offset) →
       Eventually (step1 Host.exe) R st)
     {st : MachineData} (hb : AtB34 a s layout target cs value ls m0 st) :
-    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + 150)⟩ := by
+    Eventually (step1 Host.exe) R ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b34Offset)⟩ := by
   have hc := hb.com
   have hS := h.hS
   have hN := h.hN
-  have h34 : (b34a ++ b34b).IsInfixAt Host.prog (k + 150) := by
+  have h34 : (b34a ++ b34b).IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyStackedOpening.b34Offset) := by
     rw [← b34_split]; exact b34_in_code.trans hp.1 (List.cons_ne_nil _ _)
   obtain ⟨hka, hkb⟩ := List.IsInfixAt.append h34
   have hwB : whirBytes = 63200 := rfl
@@ -227,7 +228,11 @@ theorem b34_step (hp : Placed code k)
     · sym_simp at w8
       exact w8
   simp only [PcOk] at hpcB
-  rw [show k + 150 + b34a.length + b34b.length = k + 164 from rfl] at hpcB
+  rw [show k + NativeRustcVmArm.Vm.VerifyStackedOpening.b34Offset + b34a.length + b34b.length = k + NativeRustcVmArm.Vm.VerifyStackedOpening.b35Offset from by
+    have hsplit : b34a.length + b34b.length = b34.length := by
+      rw [← List.length_append]
+      rfl
+    rw [Nat.add_assoc (k + b34Offset), hsplit, Nat.add_assoc, b34_next]] at hpcB
   exact cont stB ⟨hfB, hts, hscs, hfwb, hb.lad, hlen, hlv, hws, e0, e1, e2, e3, e4,
     (kB .X5 (by simp)).trans ex5, e6'⟩ hpcB
 

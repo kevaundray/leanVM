@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.GlueLevel.First
+public import NativeRustcVmX64.Code.Vm.BufU64x230Extend.Names
 
 /-!
 # `glue_level`: the second glued claim's header and queries (x86-64)
@@ -26,7 +27,7 @@ abbrev qsOf (m0 : MachineData) : List UInt64 :=
 /-- **At `b9`**: the template `t8`, the first glued claim's point, the second's queries. -/
 structure AtB9 [Host] (s : WhirStateW) (m0 : MachineData) (k : Nat) (st : MachineState) :
     Prop where
-  at9 : At s m0 k 80 wrAll t8 (vA s m0) st
+  at9 : At s m0 k NativeRustcVmX64.Vm.GlueLevel.b9Offset wrAll t8 (vA s m0) st
   pt : BufEWAt st.data.dmem (off (pOf m0) (o1 s.glued.size + 40)) stackCap
     (slice m0 (reg m0 .r8) (reg m0 .r9)).toList
   qs : BufWordsAt st.data.dmem (off (pOf m0) (o2 s.glued.size + 528)) queryCap (qsOf m0)
@@ -48,7 +49,7 @@ variable [Host] {k : Nat}
 
 /-- **From `b6` to `b9`.** -/
 theorem second_step (hp : Placed code k)
-    (hext : Spec (Labels.label bufU64x230ExtendLabel) (BufU64ExtendPre 230) (BufU64ExtendPost 230))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufU64x230Extend.entryLabel) (BufU64ExtendPre 230) (BufU64ExtendPost 230))
     (hpre : GlueLevelPre s m0) {st : MachineState} (h : AtB6 s m0 k st) :
     Eventually (step1 Host.exe) (AtB9 s m0 k) st := by
   obtain ⟨⟨hpc, hB⟩, hc6, hpt6⟩ := h
@@ -77,7 +78,7 @@ theorem second_step (hp : Placed code k)
   obtain ⟨d7, pc7⟩ := st7
   simp only at hpc7 hB7 hloc7
   subst hpc7
-  rw [show k + 59 + b6.length = k + 64 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b6Offset + b6.length = k + NativeRustcVmX64.Vm.GlueLevel.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b6_next]]
   have hpt7 := bufEWAt_keep0 (keep_reg hpre hloc7 rs_4 rfl) (by decide) hpt6
   have hr7 := reg_info hpre rs_6
   -- `b7`: the second glued claim's header, `extend` of its queries
@@ -155,7 +156,7 @@ theorem second_step (hp : Placed code k)
   obtain ⟨d8, pc8⟩ := st8
   simp only at hpc8 hB8 hloc8 hal8 hbuf
   subst hpc8
-  rw [show k + 64 + b7.length = k + 78 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.GlueLevel.b7Offset + b7.length = k + NativeRustcVmX64.Vm.GlueLevel.b8Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.GlueLevel.b7_next]]
   refine jumpStepA hl hB8 (b8_in_code.trans hp.1 (by simp [b8])) run_b8 (fun _ h ↦ by cases h)
     ([1, 3, 4, 6].contains ·) (sub_of _ (by simp)) (by rw [rs_sizes]; rfl) (T' := t8) (vals' := vA s m0)
     rfl rfl (fun ret ↦ by vtac0) (by rw [rs_sizes]; rfl) rfl rfl t8_al

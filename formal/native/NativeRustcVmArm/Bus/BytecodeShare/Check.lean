@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
 public import NativeRustcVmArm.Bus.BytecodeShare.Pair
 public import NativeRustcVm.Arrays.EqKernel
 
@@ -90,9 +93,9 @@ abbrev wts (m0 : MachineData) : Array EW := (NativeRustcVm.ewsOf m0.dmem m0.regs
 
 /-- **From `b6` to the copy or the tag `0`.** -/
 theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hek : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {sh cl v : EW} {sp : Array EW} {st : MachineData}
     (hfr : Fr m0 432 bytecodeShareStack slots keep (outsT m0) st) (hR : R6 m0 sh cl st)
     (hv : NativeRustcVm.EWAt st.dmem (base m0 432 + BitVec.ofNat 64 88) v)
@@ -100,7 +103,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     (hsz : sp.size = 4) (hts : TStateAt st.dmem m0.regs.X1.toBitVec a s3)
     (hres : res s0 m0 = if (cl == dot (eqKernel sp) (wts m0) * v) = true then
       some ((sh, slice m0 m0.regs.X3 m0.regs.X4 ++ sp, v), s3) else none) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 39)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b6Offset)⟩ := by
   obtain ⟨hS, hrc, hts0, htok, hw, hlen, hbl, hoo, hpo, hop, hpb, hwt, hbt⟩ := pre_parts h
   have hN := hS.2.1
   have c : Ctx m0 m0.regs.X1.toBitVec a bytecodeShareStack 432 :=
@@ -275,7 +278,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   have hprod1 : m4.regs.X1 = (dot (eqKernel sp) (wts m0) * v).c1 := by rw [← hprod]
   have none_of : (cl == dot (eqKernel sp) (wts m0) * v) = false → ∀ {st : MachineData},
       Fr m0 432 bytecodeShareStack slots keep (outsT m0) st → st.regs.getXReg .X19 = m0.regs.X0 →
-      Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 81)⟩ := fun hf st hfr h19 ↦
+      Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.BytecodeShare.b15Offset)⟩ := fun hf st hfr h19 ↦
     none15 hp h (Bus.Fr.mono hfr fun q hq ↦ outsP_all q (outsT_P q hq)) h19 (by
       rw [hres, hf]; rfl)
   by_cases h0 : cl.c0 = (dot (eqKernel sp) (wts m0) * v).c0
@@ -316,7 +319,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
         exact fun h' ↦ h1 (UInt64.toNat_inj.mp h')
       rw [hf1] at hpc11
       simp only [↓reduceIte] at hpc11
-      refine at_pc (hpc11.trans (hp.label (j := 81) rfl)) (none_of ?_ hfr11 hR11.x19)
+      refine at_pc (hpc11.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b15Offset) NativeRustcVmArm.Vm.BytecodeShare.label_9_at)) (none_of ?_ hfr11 hR11.x19)
       rw [beq_ew]; simp [h1]
   · have hf : (!decide (cl.c0.toNat = m4.regs.X0.toNat)) = true := by
       rw [← hprod0] at h0
@@ -324,7 +327,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
       exact fun h' ↦ h0 (UInt64.toNat_inj.mp h')
     rw [hf] at hpc10
     simp only [↓reduceIte] at hpc10
-    refine at_pc (hpc10.trans (hp.label (j := 81) rfl)) (none_of ?_ hfr10
+    refine at_pc (hpc10.trans (hp.label (j := NativeRustcVmArm.Vm.BytecodeShare.b15Offset) NativeRustcVmArm.Vm.BytecodeShare.label_9_at)) (none_of ?_ hfr10
       (R6.block hR4 hm10 (by decide)).x19)
     rw [beq_ew]; simp [h0]
 

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.OpenPhase.Names
 public import NativeRustcVmArm.Sumcheck.OpenPhase.Entry
 
 /-!
@@ -90,15 +91,15 @@ theorem start_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Na
     (hph : PhaseHW m0.dmem (phO m0) P h w) {m : MachineData} (hc : Checked m0 P Q h w m) :
     Eventually (step1 Host.exe)
       (fun st ↦ (st.pc = retOf m0 ∧ OpenPhasePost P R Q m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 47) ∧ CInv m0 P Q R h w 0 st.data))
-      ⟨m, Host.addrOf (k + 34)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b13Offset) ∧ CInv m0 P Q R h w 0 st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset)⟩ := by
   have hS := hpre.1
   obtain ⟨-, -, -, hrw, -, -, -, hnwp, hnwr, -, -, -, -, hapr, -⟩ := id hpre
-  have hk10 : b10.IsInfixAt Host.prog (k + 34) := b10_in_code.trans hp.1 (by simp [b10])
-  have hk11 : b11.IsInfixAt Host.prog (k + 38) := b11_in_code.trans hp.1 (by simp [b11])
-  have hk12 : b12.IsInfixAt Host.prog (k + 40) := b12_in_code.trans hp.1 (by simp [b12])
-  have hl17 : Labels.label ".LOpenPhase_17" = Host.addrOf (k + 77) := hp.label (j := 77) rfl
-  have hl18 : Labels.label ".LOpenPhase_18" = Host.addrOf (k + 83) := hp.label (j := 83) rfl
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b10Offset) := b10_in_code.trans hp.1 (by simp [b10])
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b11Offset) := b11_in_code.trans hp.1 (by simp [b11])
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b12Offset) := b12_in_code.trans hp.1 (by simp [b12])
+  have hl17 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_17 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b21Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b21Offset) NativeRustcVmArm.Vm.OpenPhase.label_17_at
+  have hl18 : Labels.label NativeRustcVmArm.Vm.OpenPhase.label_18 = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b22Offset) := hp.label (j := NativeRustcVmArm.Vm.OpenPhase.b22Offset) NativeRustcVmArm.Vm.OpenPhase.label_18_at
   have hml : wireMaxLeafWords = 64 := rfl
   have hmq : wireMaxQueries = 256 := rfl
   have hw64 : w ≤ 64 := hph.2.1
@@ -134,7 +135,7 @@ theorem start_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0) {h w : Na
   by_cases h0 : P.size = 0
   · simp only [h0, beq_self_eq_true, ↓reduceIte] at hpc
     obtain ⟨d, pc⟩ := st
-    have hpc' : pc = Host.addrOf (k + 77) := hpc.trans hl17
+    have hpc' : pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b21Offset) := hpc.trans hl17
     subst hpc'
     refine Eventually.mono (exit_rows hp hpre hfr ((hsame .X19 (by decide)).trans hc.regs.x19)
       hph.2.1 hph.2.2.1 hw0 ((hsame .X23 (by decide)).trans hc.regs.x23)

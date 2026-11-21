@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Field.EWMul.Exec
 public import NativeRustcVmArm.Field.Leaf
 public import NativeRustcVmArm.Field.LinSound
@@ -70,10 +71,10 @@ theorem ewMul_val [Labels] {env : Env} {m : MachineData} {S' : SState} {x : Exit
 
 /-- **`EW::mul` computes `Field.ewMul`.** -/
 theorem ewMul_spec_rust [Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label ewMulLabel) EWMulPre RustPost := by
-  have hk : b0.IsInfixAt Host.prog (k + 0) :=
+    Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre RustPost := by
+  have hk : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EWMul.b0Offset) :=
     b0_in_code.trans hp.1 (by rw [b0]; exact List.cons_ne_nil _ _)
-  have hl : Labels.label ewMulLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hl : Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.EWMul.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.EWMul.entryOffset) NativeRustcVmArm.Vm.EWMul.entry_at
   refine leaf_spec (Q := fun m m' ↦
     m'.regs.X0.toBitVec = (NativeRustcVm.Field.ewMul m.regs.X0.toBitVec m.regs.X1.toBitVec
       m.regs.X2.toBitVec m.regs.X3.toBitVec).1 ∧
@@ -89,7 +90,7 @@ theorem ewMul_spec_rust [Host] {k : Nat} (hp : Placed code k) :
 
 /-- **`EW::mul` computes the model's product.** -/
 theorem ewMul_spec [Host] {k : Nat} (hp : Placed code k) :
-    Spec (Labels.label ewMulLabel) EWMulPre EWMulPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost := by
   intro m hpre
   refine Eventually.mono (ewMul_spec_rust hp m hpre) fun st ⟨hpc, ⟨h0, h1⟩, hso, hsv⟩ ↦
     ⟨hpc, ?_, ?_, hso, hsv⟩

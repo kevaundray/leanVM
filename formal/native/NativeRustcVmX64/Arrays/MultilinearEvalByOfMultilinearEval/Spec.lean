@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Arrays.MultilinearEvalByOfMultilinearEval.Exec
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 
 /-!
 # `multilinear_eval_by` (`multilinear_eval`'s closure) on x86-64
@@ -45,81 +47,81 @@ theorem ofNat_toNat (x : BitVec 64) : BitVec.ofNat 64 x.toNat = x := by
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 11) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 23) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 33) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 35) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 41) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 45) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 55) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 61) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b10Offset) :=
   b10_in_code.trans hp.1 (by simp [b10])
-theorem hb11 (hp : Placed code k) : s11a.IsInfixAt Host.prog (k + 64) ∧
-    s11b.IsInfixAt Host.prog (k + 64 + s11a.length) := by
+theorem hb11 (hp : Placed code k) : s11a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b11Offset) ∧
+    s11b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b11Offset + s11a.length) := by
   have h := b11_in_code.trans hp.1 (by simp [b11])
   rw [← List.take_append_drop 9 b11] at h
   exact h.append
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 74) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b12Offset) :=
   b12_in_code.trans hp.1 (by simp [b12])
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 81) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b13Offset) :=
   b13_in_code.trans hp.1 (by simp [b13])
-theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + 90) :=
+theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b14Offset) :=
   b14_in_code.trans hp.1 (by simp [b14])
-theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + 92) :=
+theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b16Offset) :=
   b16_in_code.trans hp.1 (by simp [b16])
-theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + 101) :=
+theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b17Offset) :=
   b17_in_code.trans hp.1 (by simp [b17])
-theorem hb18 (hp : Placed code k) : b18.IsInfixAt Host.prog (k + 102) :=
+theorem hb18 (hp : Placed code k) : b18.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b18Offset) :=
   b18_in_code.trans hp.1 (by simp [b18])
-theorem hb19 (hp : Placed code k) : b19.IsInfixAt Host.prog (k + 105) :=
+theorem hb19 (hp : Placed code k) : b19.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b19Offset) :=
   b19_in_code.trans hp.1 (by simp [b19])
-theorem hb20 (hp : Placed code k) : b20.IsInfixAt Host.prog (k + 108) :=
+theorem hb20 (hp : Placed code k) : b20.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b20Offset) :=
   b20_in_code.trans hp.1 (by simp [b20])
-theorem hb21 (hp : Placed code k) : b21.IsInfixAt Host.prog (k + 111) :=
+theorem hb21 (hp : Placed code k) : b21.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b21Offset) :=
   b21_in_code.trans hp.1 (by simp [b21])
 
 theorem lbl_entry (hp : Placed code k) :
-    Labels.label mleOfMultilinearEvalLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b0Offset) := hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entry_at
 theorem lbl_1 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_1" = Host.addrOf (k + 11) :=
-  hp.label (j := 11) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b1Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_1_at
 theorem lbl_3 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_3" = Host.addrOf (k + 108) :=
-  hp.label (j := 108) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b20Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_3_at
 theorem lbl_6 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_6" = Host.addrOf (k + 41) :=
-  hp.label (j := 41) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_6 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b5Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_6_at
 theorem lbl_9 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_9" = Host.addrOf (k + 55) :=
-  hp.label (j := 55) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_9 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b9Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_9_at
 theorem lbl_10 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_10" = Host.addrOf (k + 61) :=
-  hp.label (j := 61) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_10 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b10Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_10_at
 theorem lbl_11 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_11" = Host.addrOf (k + 92) :=
-  hp.label (j := 92) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_11 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b16Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_11_at
 theorem lbl_13 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_13" = Host.addrOf (k + 102) :=
-  hp.label (j := 102) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_13 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b18Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_13_at
 theorem lbl_15 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfMultilinearEval_15" = Host.addrOf (k + 111) :=
-  hp.label (j := 111) rfl
+    Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_15 = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b21Offset) :=
+  hp.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.label_15_at
 
 /-- **The outer loop's set-up** (`b5`, `b6`, `b9`): `mle[i]` at level `0`. -/
 theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : MleOfMultilinearEvalPre m0)
-    {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + 41))
+    {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b5Offset))
     (hO : Outer (ents m0) m0 i s.data) :
     Eventually (step1 Host.exe)
-      (fun s' ↦ s'.pc = Host.addrOf (k + 61) ∧ Inner (ents m0) R1 m0 i 0 s'.data) s := by
+      (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b10Offset) ∧ Inner (ents m0) R1 m0 i 0 s'.data) s := by
   obtain ⟨hS, h02, h64, hrM, hrP⟩ := hpre
   have hi := hO.hi
   have hiN : i < 2 ^ 64 := by have := (reg m0 .rdx).isLt; simp only [nn] at hi; omega
@@ -169,8 +171,8 @@ theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : MleOfMultilinearEv
 
 /-- **`multilinear_eval_by` (`multilinear_eval`'s closure) meets its contract.** -/
 theorem mleOfMultilinearEval_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost := by
   intro m0 hpre
   rw [lbl_entry hp]
@@ -254,24 +256,30 @@ theorem mleOfMultilinearEval_spec (hp : Placed code k)
         (after_eq run_b4 ▸ init_ok).2.2.2 (after_eq run_b4 ▸ b4_args) (Nat.pos_of_ne_zero hz)
         (Nat.pos_of_ne_zero hz4) h64
       simp only [PcOk] at hpc5
-      refine Eventually.bind (loops R1 (kO := k + 41) (kI := k + 61) (kEnd := k + 111)
+      refine Eventually.bind (loops R1 (kO := k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b5Offset) (kI := k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b10Offset) (kEnd := k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b21Offset)
         (fun i s hpc hO ↦ outer hp hpre' hpc hO) (fun i kk s hpc hI ↦ ?_)
         (pc_len (n := 6) hpc5 rfl rfl) hO) fun s6 ⟨hpc6, hE⟩ ↦
         Eventually.mono (finish_step R1 hS (hb21 hp) run_b21 (after_eq run_b21 ▸ b21_ok) hpc6 hE)
           fun _ h ↦ post_of h
+      have h11next : k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b11Offset + s11a.length + s11b.length =
+          k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b12Offset := by
+        change k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b11Offset + b11.length = _
+        rw [Nat.add_assoc, NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b11_next]
+      have h12next : k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b12Offset + b12.length = k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b13Offset := by
+        rw [Nat.add_assoc, NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b12_next]
+      have h13next : k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b13Offset + b13.length = k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b14Offset := by
+        rw [Nat.add_assoc, NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b13_next]
       exact inner_turn R1 R1_saved hmul hS h02 (by simp only [ents, NativeRustcVm.length_ewsOf]) hrP
         (hb10 hp) run_b10 (after_eq run_b10 ▸ b10_ok) (lbl_11 hp)
         (hb16 hp) run_b16 (after_eq run_b16 ▸ b16_ok) (lbl_6 hp)
         (hb17 hp) rfl run_b17 (after_eq run_b17 ▸ jumps_ok.2)
-        (k1 := k + 64) rfl (hb11 hp).1 run_s11a (after_eq run_s11a ▸ s11a_ok)
+        (k1 := k + NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.b11Offset) rfl (hb11 hp).1 run_s11a (after_eq run_s11a ▸ s11a_ok)
         (hb11 hp).2 run_s11b (after_eq run_s11b ▸ s11b_ok)
-        (by rw [show s11a.length = 9 from rfl, show s11b.length = 1 from rfl]; exact hb12 hp)
+        (by rw [h11next]; exact hb12 hp)
         run_b12 (after_eq run_b12 ▸ b12_ok)
-        (by rw [show s11a.length = 9 from rfl, show s11b.length = 1 from rfl,
-          show b12.length = 7 from rfl]; exact hb13 hp)
+        (by rw [h11next, h12next]; exact hb13 hp)
         run_b13 (after_eq run_b13 ▸ b13_ok) (lbl_10 hp)
-        (hb14 hp) (by rw [show s11a.length = 9 from rfl, show s11b.length = 1 from rfl,
-          show b12.length = 7 from rfl, show b13.length = 9 from rfl])
+        (hb14 hp) (by rw [h11next, h12next, h13next])
         run_b14 (after_eq run_b14 ▸ jumps_ok.1) (lbl_15 hp) hpc hI
 
 end

@@ -1,6 +1,11 @@
 module
 
 public import NativeRustcVmX64.Ring.Switch.Basic
+public import NativeRustcVmX64.Code.Vm.RingCoefficients.Names
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.RingTarget.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 
 /-!
 # `ring_switch` on x86-64
@@ -33,13 +38,13 @@ variable [Host] {k : Nat}
 
 /-- **`ring_switch` meets its contract.** -/
 theorem ringSwitch_spec (hp : Placed code k)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrc : Spec (Labels.label ringCoefficientsLabel) RingCoefficientsPre RingCoefficientsPost)
-    (hrt : Spec (Labels.label ringTargetLabel) RingTargetPre RingTargetPost)
+    (hrc : Spec (Labels.label NativeRustcVmX64.Vm.RingCoefficients.entryLabel) RingCoefficientsPre RingCoefficientsPost)
+    (hrt : Spec (Labels.label NativeRustcVmX64.Vm.RingTarget.entryLabel) RingTargetPre RingTargetPost)
     (a : DecArea) (s : TState) (point : Array EW) :
-    Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s) (RingSwitchPost a s point) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s) (RingSwitchPost a s point) := by
   intro m0 hpre
   have h := P.intro hpre
   have hst := h.st
@@ -119,13 +124,13 @@ theorem ringSwitch_spec (hp : Placed code k)
       NativeRustcVm.InRange (stackBelow m0 ringSwitchStack) ringSwitchStack q :=
     fun q hq ↦ frame_in hst (by decide) hq
   -- `b0`: the prologue, `call grind(13)`.
-  have hwf0 := hwfE m0 (Host.addrOf (k + 0 + b0.length)).toBitVec fun _ h ↦ h
+  have hwf0 := hwfE m0 (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b0Offset + b0.length)).toBitVec fun _ h ↦ h
   have hm0 : Match (frameEnv m0 m0 432 [(o, 1040)] (fun _ ↦ 0)
-      (Host.addrOf (k + 0 + b0.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b0Offset + b0.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial
-  unfold ringSwitchLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.RingSwitch.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.RingSwitch.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl) hm0
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hpro, hws1, hrsi, hrbx, hr12, hr14, hrdi⟩ := after_eq run_b0 ▸ ok_b0
@@ -169,15 +174,15 @@ theorem ringSwitch_spec (hp : Placed code k)
       (fun h' ↦ hcallee st1.data _ hsp1 (by decide) q h'))).trans (hs1' q hq)
   have e2bx : reg st2.data .rbx = o := (hsv2.1 .rbx rfl).trans e1bx
   -- `b1`: AL's test.
-  have hwf2 := hwfE st2.data (Host.addrOf (k + 14 + b2.length)).toBitVec hf2.kept
+  have hwf2 := hwfE st2.data (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b2Offset + b2.length)).toBitVec hf2.kept
   have hm2 : Match (frameEnv m0 st2.data 432 [(o, 1040)] (fun _ ↦ 0)
-      (Host.addrOf (k + 14 + b2.length)).toBitVec) gS st2.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b2Offset + b2.length)).toBitVec) gS st2.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf2.rsp_eval, known_ptr rfl e2bx, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf2 nofun
-    (hpc2.trans (by rw [show b0.length = 12 from rfl])) hm2 fun st3 hm3 hpc3 ↦ ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingSwitch.b0_next)) hm2 fun st3 hm3 hpc3 ↦ ?_
   have hc3 : (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)).eval
-      (frameEnv m0 st2.data 432 [(o, 1040)] (fun _ ↦ 0) (Host.addrOf (k + 14 + b2.length)).toBitVec) =
+      (frameEnv m0 st2.data 432 [(o, 1040)] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b2Offset + b2.length)).toBitVec) =
       decide ((reg st2.data .rax).toNat % 256 = 0) := by
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
     exact al_test _
@@ -192,7 +197,7 @@ theorem ringSwitch_spec (hp : Placed code k)
     simp (config := { decide := true }) only [hz,
       ↓reduceIte] at hpc3
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6n hwf2 nofun
-      (hpc3.trans (hp.label (j := 97) rfl)) hm3 fun st4 hm4 hpc4 ↦ ?_
+      (hpc3.trans (hp.label NativeRustcVmX64.Vm.RingSwitch.label_2_at)) hm3 fun st4 hm4 hpc4 ↦ ?_
     obtain ⟨hepi, hmem4, hrax4⟩ := after_eq run_b6n ▸ ok_n
     obtain ⟨hsv4, hrsp4⟩ := Frame.epilogue hf2 hwf2 hm4 hepi
     have hs4 : SameOutside m0.dmem st4.data.dmem (Ch m0) := fun q hq ↦
@@ -215,7 +220,7 @@ theorem ringSwitch_spec (hp : Placed code k)
     ↓reduceIte] at hpc3
   -- `b2`: the challenges zeroed, `call sample_challenges(16)`.
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf2 (fun _ _ ↦ rfl)
-    (hpc3.trans (by rw [show b1.length = 2 from rfl])) hm3 fun st5 hm5 hpc5 ↦ ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingSwitch.b1_next)) hm3 fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨hmid5, hws5, h5di, h5si, h5dx, h5bx, h5bp, h5r14, h5r15⟩ := after_eq run_b2 ▸ ok_b2
   have hf5 : Frame m0 432 slots 0 st5.data := Frame.of_block hf2 hwf2 hm5 hmid5 slots_le
   have hsp5 : rspOf st5.data = fb := by rw [hf5.sp, off_zero]
@@ -274,14 +279,14 @@ theorem ringSwitch_spec (hp : Placed code k)
   have e6bp : reg st6.data .rbp = UnOp.apply .trunc .W32 (reg st2.data .rax) :=
     (hsv6.1 .rbp rfl).trans f5bp
   -- `b3`: `g` copied, `call ring_coefficients`.
-  have hwf6 := hwfE st6.data (Host.addrOf (k + 52 + b3.length)).toBitVec hf6.kept
+  have hwf6 := hwfE st6.data (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b3Offset + b3.length)).toBitVec hf6.kept
   have hm6 : Match (frameEnv m0 st6.data 432 [(o, 1040)] (fun _ ↦ 0)
-      (Host.addrOf (k + 52 + b3.length)).toBitVec) cS st6.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b3Offset + b3.length)).toBitVec) cS st6.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨hf6.rsp_eval, known_ptr rfl e6bx, e6r15.trans (eval_ptr0 8).symm, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf6 (fun _ _ ↦ rfl)
-    (hpc6.trans (by rw [show b2.length = 38 from rfl])) hm6 fun st7 hm7 hpc7 ↦ ?_
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingSwitch.b2_next)) hm6 fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hws7, hcopy, h7di, h7si, h7dx, h7bx, h7r12, h7r15, h7r14, h7bp⟩ :=
     after_eq run_b3 ▸ ok_b3
   have hf7 : Frame m0 432 slots 0 st7.data := Frame.of_block hf6 hwf6 hm7 hmid7 slots_le
@@ -380,14 +385,14 @@ theorem ringSwitch_spec (hp : Placed code k)
   have e8bp : reg st8.data .rbp = UnOp.apply .trunc .W32 (reg st2.data .rax) :=
     (hsv8.1 .rbp rfl).trans f7bp
   -- `b4`: `call ring_target(s, f, g)`.
-  have hwf8 := hwfE st8.data (Host.addrOf (k + 89 + b4.length)).toBitVec hf8.kept
+  have hwf8 := hwfE st8.data (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b4Offset + b4.length)).toBitVec hf8.kept
   have hm8 : Match (frameEnv m0 st8.data 432 [(o, 1040)] (fun _ ↦ 0)
-      (Host.addrOf (k + 89 + b4.length)).toBitVec) tS st8.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.RingSwitch.b4Offset + b4.length)).toBitVec) tS st8.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
       ⟨hf8.rsp_eval, known_ptr rfl e8bx, e8r15.trans (eval_ptr0 8).symm,
         e8r12.trans (eval_ptr0 264).symm, trivial⟩ trivial trivial trivial
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf8 (fun _ _ ↦ rfl)
-    (hpc8.trans (by rw [show b3.length = 37 from rfl])) hm8 fun st9 hm9 hpc9 ↦ ?_
+    (hpc8.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingSwitch.b3_next)) hm8 fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hmid9, hws9, h9di, h9si, h9dx, h9bx, h9bp⟩ := after_eq run_b4 ▸ ok_b4
   have hf9 : Frame m0 432 slots 0 st9.data := Frame.of_block hf8 hwf8 hm9 hmid9 slots_le
   have hsp9 : rspOf st9.data = fb := by rw [hf9.sp, off_zero]
@@ -453,10 +458,10 @@ theorem ringSwitch_spec (hp : Placed code k)
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf10.rsp_eval, known_ptr rfl e10bx, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 hwf10 nofun
-    (hpc10.trans (by rw [show b4.length = 4 from rfl])) hm10 fun st11 hm11 hpc11 ↦ ?_
+    (hpc10.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingSwitch.b4_next)) hm10 fun st11 hm11 hpc11 ↦ ?_
   simp only [PcOk] at hpc11
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) (exec_after run_b5 run_b6s) hwf10 nofun
-    (hpc11.trans (by rw [show b5.length = 4 from rfl])) hm11 fun st12 hm12 hpc12 ↦ ?_
+    (hpc11.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.RingSwitch.b5_next)) hm11 fun st12 hm12 hpc12 ↦ ?_
   obtain ⟨hepi, hw0, hw1, hws12, hrax12⟩ := after_eq run_b6s ▸ ok_s
   obtain ⟨hsv12, hrsp12⟩ := Frame.epilogue hf10 hwf10 hm12 hepi
   have hs12 : SameOutside st10.data.dmem st12.data.dmem (NativeRustcVm.InRange o 16) :=

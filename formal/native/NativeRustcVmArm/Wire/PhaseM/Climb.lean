@@ -30,7 +30,7 @@ structure ClimbSt [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c
     (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 l : Nat)
     (acc : List (List (Nat × Digest))) (ns : List (Nat × Digest)) (cl : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 142)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b31Offset)
   base : Base m0 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   accl : acc.length = l
@@ -55,7 +55,7 @@ structure ClimbSt [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c
 structure Pre36 [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (c k count : Nat)
     (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 : Nat)
     (sl : List (List (Nat × Digest))) (cf : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 165)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b36Offset)
   base : Base m0 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   model : climbM B height (nodes0 qs lw rows) c6 = some (sl, cf)
@@ -124,7 +124,7 @@ theorem climb_entry (hp : Placed code k) (G : Geo m0 bp B) {count : Nat} {qs : L
   by_cases h0 : height = 0
   · simp only [h0, decide_true, ↓reduceIte] at hpc1
     subst h0
-    refine .done _ (.inl ⟨[], c6, ⟨hpc1.trans (hp.label (j := 165) rfl), hb1, by rw [hd1]; exact hM,
+    refine .done _ (.inl ⟨[], c6, ⟨hpc1.trans (hp.label (j := NativeRustcVmArm.Vm.PhaseM.b36Offset) NativeRustcVmArm.Vm.PhaseM.label_27_at), hb1, by rw [hd1]; exact hM,
       rfl, rfl, fun j hj ↦ absurd hj (by simp), by rw [hd1]; exact hrd,
       by rw [r1 .X21 (by simp)]; exact x21, x24, by rw [r1 .X26 (by simp)]; exact x26,
       by rw [r1 .X5 (by simp)]; exact x5, ?_, x29⟩⟩)

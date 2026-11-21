@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Layout.BuildLayout.Checks
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
 
 /-!
 # `build_layout` on x86-64: the sizes, rows and heights (`b9` to `b14`)
@@ -131,9 +132,9 @@ end
 variable [Host] {k : Nat}
 
 /-- **A store-and-height block** (`b10` to `b14`): two words stored, `bit_length` called. -/
-theorem stepL (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
+theorem stepL (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
     {ds : List Directive} {kk n o1 o2 : Nat} {Sy1 : SState} {v1 : Sym} {u1 u2 : UInt64}
-    (hk : ds.IsInfixAt Host.prog kk) (hx : exec ds layS = some (Sy1, .call bitLengthLabel))
+    (hk : ds.IsInfixAt Host.prog kk) (hx : exec ds layS = some (Sy1, .call NativeRustcVmX64.Vm.BitLength.entryLabel))
     (hok : MidOk 1360 0 slots Sy1 = true) (h0 : ∀ w ∈ Sy1.mem, w.r = 0 → w.off + w.n ≤ 8)
     (hmiss : Misses 1 (((wsK0 m0).take n).map (·.1)) Sy1 = true)
     (hw1 : W1 Sy1 o1 v1) (hw2 : W1 Sy1 o2 (.reg .rax)) (h13 : Sy1.reg .r13 = some (.ptr 1 0))
@@ -173,13 +174,13 @@ abbrev Ht (m0 d : MachineData) (n t : Nat) : Prop :=
   SL m0 d n ∧ (reg d .rax).toNat = bitLength ((rowW m0 t).toNat - 1)
 
 /-- **`b9`**: the log-sizes stored, rows `3` to `5` kept in the frame, `bit_length(r0 - 1)`. -/
-theorem s9 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 47)) (h9 : St9 m0 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 58) ∧ Ht m0 s.data 2 0 ∧
+theorem s9 (hp : Placed code k) (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b9Offset)) (h9 : St9 m0 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b10Offset) ∧ Ht m0 s.data 2 0 ∧
       reg s.data .r12 = (rowW m0 0).toBitVec ∧ reg s.data .rbp = (rowW m0 1).toBitVec ∧
       reg s.data .r15 = (rowW m0 2).toBitVec) st := by
   have hb := h9.b
-  have hwf := wfL (ret := (Host.addrOf (k + 47 + b9.length)).toBitVec) hF hb
+  have hwf := wfL (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b9Offset + b9.length)).toBitVec) hF hb
   obtain ⟨hok, h0, w0, w8, w16, w24, w32, w40, hdi, h13, hK⟩ := ok_b9
   refine exec_at (b9_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b9 hwf (fun _ _ ↦ rfl) hpc
     (matchL hb h9.r13) fun st1 hm1 hpc1 ↦ ?_
@@ -199,7 +200,7 @@ theorem s9 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLen
     · exact w_write hm1 (r := 0) rfl (by decide) w32 (by show (reg st.data .rsi).toNat = _; rw [h9.rsi]; rfl)
     · exact w_write hm1 (r := 0) rfl (by decide) w40 (by
         show (reg st.data .rax).toNat = _; rw [h9.rax, toNat_toUInt64 hlb])
-  have hz : ((Sym.lit 0).eval (envL m0 st.data (Host.addrOf (k + 47 + b9.length)).toBitVec)).toNat = 0 :=
+  have hz : ((Sym.lit 0).eval (envL m0 st.data (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b9Offset + b9.length)).toBitVec)).toNat = 0 :=
     lit_eval _ (by decide)
   have hrdi : (reg st1.data .rdi).toNat = (rowW m0 0).toNat - 1 := by
     rw [show reg st1.data .rdi = _ from hm1.regs .rdi _ hdi, sat_eval _ _ _ hz]
@@ -215,11 +216,11 @@ theorem s9 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLen
   · rw [hsv' .r15 rfl, k1 .r15 (by simp)]; exact h9.r15
 
 /-- **`b10`**: row `0` and its height stored, `bit_length(r1 - 1)`. -/
-theorem s10 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 58))
+theorem s10 (hp : Placed code k) (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b10Offset))
     (hs : Ht m0 st.data 2 0) (h12 : reg st.data .r12 = (rowW m0 0).toBitVec)
     (hbp : reg st.data .rbp = (rowW m0 1).toBitVec) (h15 : reg st.data .r15 = (rowW m0 2).toBitVec) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 65) ∧ Ht m0 s.data 4 1 ∧
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b11Offset) ∧ Ht m0 s.data 4 1 ∧
       reg s.data .rbp = (rowW m0 1).toBitVec ∧ reg s.data .r15 = (rowW m0 2).toBitVec) st := by
   obtain ⟨hok, h0, hmiss, w1, w2, hdi, h13, hK⟩ := ok_b10
   refine stepL hbl hF (n := 2) (b10_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b10 hok h0
@@ -227,7 +228,7 @@ theorem s10 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLe
     (by show (reg st.data .r12).toNat = _; rw [h12, row_toNat (by decide)]; rfl)
     (by rw [hs.2, hgt_toNat (by decide)]) fun st1 st' hm1 hpc' hs' hsv' hax' ↦ ?_
   have k1 := fun r (hr : r ∈ [Reg64.rbx, .rbp, .r12, .r14, .r15]) ↦ kreg hm1 hK hr
-  have hz : ((Sym.lit 0).eval (envL m0 st.data (Host.addrOf (k + 58 + b10.length)).toBitVec)).toNat = 0 :=
+  have hz : ((Sym.lit 0).eval (envL m0 st.data (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b10Offset + b10.length)).toBitVec)).toNat = 0 :=
     lit_eval _ (by decide)
   refine .done _ ⟨hpc'.trans rfl, ⟨hs', ?_⟩, ?_, ?_⟩
   · rw [hax', show reg st1.data .rdi = _ from hm1.regs .rdi _ hdi, sat_eval _ _ _ hz]
@@ -237,11 +238,11 @@ theorem s10 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLe
   · rw [hsv' .r15 rfl, k1 .r15 (by simp)]; exact h15
 
 /-- **`b11`**: row `1` and its height stored, `bit_length(r2 - 1)`. -/
-theorem s11 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 65))
+theorem s11 (hp : Placed code k) (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b11Offset))
     (hs : Ht m0 st.data 4 1) (hbp : reg st.data .rbp = (rowW m0 1).toBitVec)
     (h15 : reg st.data .r15 = (rowW m0 2).toBitVec) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 72) ∧ Ht m0 s.data 6 2 ∧
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b12Offset) ∧ Ht m0 s.data 6 2 ∧
       reg s.data .r15 = (rowW m0 2).toBitVec ∧ reg s.data .r12 = 0#64) st := by
   obtain ⟨hok, h0, hmiss, w1, w2, hdi, h12, h13, hK⟩ := ok_b11
   refine stepL hbl hF (n := 4) (b11_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b11 hok h0
@@ -249,7 +250,7 @@ theorem s11 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLe
     (by show (reg st.data .rbp).toNat = _; rw [hbp, row_toNat (by decide)]; rfl)
     (by rw [hs.2, hgt_toNat (by decide)]) fun st1 st' hm1 hpc' hs' hsv' hax' ↦ ?_
   have k1 := fun r (hr : r ∈ [Reg64.rbx, .rbp, .r14, .r15]) ↦ kreg hm1 hK hr
-  have hz : ((Sym.lit 0).eval (envL m0 st.data (Host.addrOf (k + 65 + b11.length)).toBitVec)).toNat = 0 :=
+  have hz : ((Sym.lit 0).eval (envL m0 st.data (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b11Offset + b11.length)).toBitVec)).toNat = 0 :=
     lit_eval _ (by decide)
   refine .done _ ⟨hpc'.trans rfl, ⟨hs', ?_⟩, ?_, ?_⟩
   · rw [hax', show reg st1.data .rdi = _ from hm1.regs .rdi _ hdi, sat_eval _ _ _ hz]
@@ -260,9 +261,9 @@ theorem s11 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLe
 
 /-- **`b12` to `b14`**: row `t - 1` (R15) and its height stored, row `t` loaded from the frame,
 `bit_length(r_t - 1)`. -/
-theorem sF (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
+theorem sF (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
     {ds : List Directive} {kk n o1 o2 fo t : Nat} {Sy1 : SState} {u1 u2 : UInt64}
-    (hk : ds.IsInfixAt Host.prog kk) (hx : exec ds layS = some (Sy1, .call bitLengthLabel))
+    (hk : ds.IsInfixAt Host.prog kk) (hx : exec ds layS = some (Sy1, .call NativeRustcVmX64.Vm.BitLength.entryLabel))
     (hok : MidOk 1360 0 slots Sy1 = true) (h0 : ∀ w ∈ Sy1.mem, w.r = 0 → w.off + w.n ≤ 8)
     (hmiss : Misses 1 (((wsK0 m0).take n).map (·.1)) Sy1 = true)
     (hw1 : W1 Sy1 o1 (.reg .r15)) (hw2 : W1 Sy1 o2 (.reg .rax))
@@ -292,11 +293,11 @@ theorem sF (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
   · rw [hsv' r hr]; exact hm1.regs r _ h
 
 /-- **`b12`**. -/
-theorem s12 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 72))
+theorem s12 (hp : Placed code k) (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b12Offset))
     (hs : Ht m0 st.data 6 2) (h15 : reg st.data .r15 = (rowW m0 2).toBitVec)
     (h12 : reg st.data .r12 = 0#64) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 80) ∧ Ht m0 s.data 8 3 ∧
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b13Offset) ∧ Ht m0 s.data 8 3 ∧
       reg s.data .r15 = (rowW m0 3).toBitVec ∧ reg s.data .r12 = 0#64) st := by
   obtain ⟨hok, h0, hmiss, w1, w2, hdi, h15', h12', h13, hK⟩ := ok_b12
   refine (sF hbl hF (n := 6) (t := 3) (b12_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b12 hok
@@ -305,11 +306,11 @@ theorem s12 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLe
     fun s ⟨h1, h2, h3, h4⟩ ↦ ⟨h1.trans rfl, h2, h3, (h4 .r12 rfl _ h12').trans rfl⟩
 
 /-- **`b13`**. -/
-theorem s13 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 80))
+theorem s13 (hp : Placed code k) (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b13Offset))
     (hs : Ht m0 st.data 8 3) (h15 : reg st.data .r15 = (rowW m0 3).toBitVec)
     (h12 : reg st.data .r12 = 0#64) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 87) ∧ Ht m0 s.data 10 4 ∧
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b14Offset) ∧ Ht m0 s.data 10 4 ∧
       reg s.data .r15 = (rowW m0 4).toBitVec ∧ reg s.data .r12 = 0#64) st := by
   obtain ⟨hok, h0, hmiss, w1, w2, hdi, h15', h13, hK⟩ := ok_b13
   refine (sF hbl hF (n := 8) (t := 4) (b13_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b13 hok
@@ -319,11 +320,11 @@ theorem s13 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLe
       (h4 .r12 rfl _ (keeps_reg_some hK (by simp))).trans h12⟩
 
 /-- **`b14`**. -/
-theorem s14 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 87))
+theorem s14 (hp : Placed code k) (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hF : Facts bc m0) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b14Offset))
     (hs : Ht m0 st.data 10 4) (h15 : reg st.data .r15 = (rowW m0 4).toBitVec)
     (h12 : reg st.data .r12 = 0#64) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 94) ∧ Ht m0 s.data 12 5 ∧
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b15Offset) ∧ Ht m0 s.data 12 5 ∧
       reg s.data .r15 = (rowW m0 5).toBitVec) st := by
   obtain ⟨hok, h0, hmiss, w1, w2, hdi, h15', h13, hK⟩ := ok_b14
   refine (sF hbl hF (n := 10) (t := 5) (b14_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b14 hok
@@ -333,9 +334,9 @@ theorem s14 (hp : Placed code k) (hbl : Spec (Labels.label bitLengthLabel) BitLe
 
 /-- **`b9` to `b14`**. -/
 theorem stores (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 47)) (h9 : St9 m0 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 94) ∧ Ht m0 s.data 12 5 ∧
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) (hF : Facts bc m0)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b9Offset)) (h9 : St9 m0 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b15Offset) ∧ Ht m0 s.data 12 5 ∧
       reg s.data .r15 = (rowW m0 5).toBitVec) st :=
   (s9 hp hbl hF hpc h9).bind fun _ ⟨h1, h2, h3, h4, h5⟩ ↦
     (s10 hp hbl hF h1 h2 h3 h4 h5).bind fun _ ⟨h1, h2, h3, h4⟩ ↦

@@ -39,7 +39,7 @@ variable [Host] (k : Nat) (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (
 
 /-- **The loop's head** (`b4`) after `i` nodes. -/
 structure Head (i : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 31)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b4Offset)
   fr : Frame m0 208 slots 8 st.data
   hs : sibsM B ns (ns.take i) c = some (sl, ci)
   mm : MemS m0 bp B ns (sn sl) (parentsOf (ns.take i) sl) ci st.data.dmem
@@ -53,7 +53,7 @@ structure Head (i : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (st : Ma
 /-- **The scan** (`b5`) for node `i`'s sibling, at node `j`. -/
 structure Scan (i : Nat) (sl : List (Nat × Digest × Bool)) (ci j : Nat) (st : MachineState) :
     Prop where
-  pc : st.pc = Host.addrOf (k + 39)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b5Offset)
   fr : Frame m0 208 slots 8 st.data
   hs : sibsM B ns (ns.take i) c = some (sl, ci)
   mm : MemS m0 bp B ns (sn sl) (parentsOf (ns.take i) sl) ci st.data.dmem
@@ -89,7 +89,7 @@ structure Mid (i : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (q : Nat 
 
 /-- **The next node's check** (`b3`) after `j` nodes. -/
 structure Nxt (j : Nat) (sl : List (Nat × Digest × Bool)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 26)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b3Offset)
   fr : Frame m0 208 slots 8 st.data
   hs : sibsM B ns (ns.take j) c = some (sl, ci)
   mm : MemS m0 bp B ns (sn sl) (parentsOf (ns.take j) sl) ci st.data.dmem
@@ -261,10 +261,10 @@ theorem fr_step (hp : Placed code k) (g : Geo m0 bp B.length) {bj : List Directi
     fun st' hm' hpc' ↦ cont st' (Frame.of_block hf hwf hm' hok.1 slots_le)
       (hm'.dmem_eq hwf hok.2) (fun r v h ↦ hm'.regs r v h) hpc'
 
-/-- **The return** (`b24`, at `.LClimbLevel_11`): RAX, the parents' count from RBX. -/
+/-- **The return** (`b24`, at `NativeRustcVmX64.Vm.ClimbLevel.label_11`): RAX, the parents' count from RBX. -/
 theorem fin (hp : Placed code k) (g : Geo m0 bp B.length) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hl : ns.length = cnt m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 142)) (hf : Frame m0 208 slots 8 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b24Offset)) (hf : Frame m0 208 slots 8 st.data)
     (hres : Res m0 bp B c ns (reg st.data .rax) (reg st.data .rbx) st.data.dmem)
     (hchg : Chg m0 st.data.dmem) : Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hepi, hmem, hrdx, hK⟩ := ok_b24

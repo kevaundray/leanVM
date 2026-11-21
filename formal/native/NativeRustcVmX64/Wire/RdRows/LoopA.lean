@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.RdRows.RowA
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `rd_rows`' loop over rows of `rw > 0` words (x86-64)
@@ -72,7 +73,7 @@ variable [Host] {k : Nat}
 
 section
 variable (hp : Placed code k) (g : Geo m0 bp B.length)
-  (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost)
+  (hw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost)
   (hR0 : ReaderAt m0.dmem (rdr m0) bp B c)
 include hp g hw hR0
 
@@ -93,7 +94,7 @@ theorem callA_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
   have h0 := g.s0
   obtain ⟨hmid8, hlow8, hrdi8, hrsi8, hrdx8, hr13, hK8⟩ := ok_b8
   have hin : 512 * i + 8 * zc m0 + 8 * rw m0 ≤ 512 * nr m0 := by omega
-  refine call_block hp hw g (j := 47) b8_in_code (by simp [b8]) exit_b8 hmid8 hlow8 hrdi8 hrsi8
+  refine call_block hp hw g (j := NativeRustcVmX64.Vm.RdRows.b8Offset) b8_in_code (by simp [b8]) exit_b8 hmid8 hlow8 hrdi8 hrsi8
     hrdx8 hI.pc hI.ra.fr hI.kp.hloc hI.kp.hrd hin (by
       show BinOp.apply .add .W64 (reg st.data .r14) (reg st.data .r15) = _
       rw [hI.ra.r14, hI.ra.r15]
@@ -125,7 +126,7 @@ theorem callA_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
     · exact .inr (.inl ((g.cur_iff).mpr h))
   -- `b9`: the tag.
   obtain ⟨hok9, hK9⟩ := ok_b9
-  refine fr_step hp g (j := 53) b9_in_code (by simp [b9]) exit_b9 nofun hok9 rfl hf2
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b9Offset) b9_in_code (by simp [b9]) exit_b9 nofun hok9 rfl hf2
     fun s9 hf9 hd9 hr9 hpc9 ↦ ?_
   have hk9 := regs_kept hK9 hr9
   have hpc9' := pc_cond hpc9 (P := boolRet m2 = 0) (by
@@ -135,9 +136,9 @@ theorem callA_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
   cases hrd : rdWords B (rw m0) ci with
   | none =>
     rw [hrd] at hres2
-    rw [ite_t hres2, hp.label (j := 14) rfl] at hpc9'
+    rw [ite_t hres2, hp.label NativeRustcVmX64.Vm.RdRows.label_20_at] at hpc9'
     obtain ⟨hok1, hrbx1⟩ := ok_b1
-    refine Eventually.mono (fr_step hp g (j := 14) b1_in_code (by simp [b1]) exit_b1 nofun hok1
+    refine Eventually.mono (fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b1Offset) b1_in_code (by simp [b1]) exit_b1 nofun hok1
       hpc9' hf9 fun s1 hf1 hd1 hr1 hpc1 ↦ ?_) fun _ h ↦ .inl h
     simp only [PcOk] at hpc1
     refine fin hp g hR0 hpc1 hf1 (res_none hI.kp hrd hli ?_) (by rw [hd1, hd9]; exact hchg2)
@@ -157,7 +158,7 @@ theorem callA_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
     -- `b10`: the flag, the next leaf.
     obtain ⟨hmid10, hmem10, hrbx10, hr14_10, hK10⟩ := ok_b10
     have hin8 : 512 * i + 8 * zc m0 + 8 ≤ 512 * nr m0 := by omega
-    refine rg_step hp g (j := 55) (y := .reg .r13) (sz := 8) b10_in_code (by simp [b10])
+    refine rg_step hp g (j := NativeRustcVmX64.Vm.RdRows.b10Offset) (y := .reg .r13) (sz := 8) b10_in_code (by simp [b10])
       exit_b10 nofun hmid10 (fun w hw ↦ by
         have h' : w ∈ (after b10 rowS).mem := hw
         rw [hmem10] at h'
@@ -217,7 +218,7 @@ theorem callA_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
       rw [g.off_eq (by omega) (by omega)]
       omega)
     by_cases hlast : i + 1 ≠ nr m0
-    · rw [ite_t hlast, hp.label (j := 37) rfl] at hpc11
+    · rw [ite_t hlast, hp.label NativeRustcVmX64.Vm.RdRows.label_4_at] at hpc11
       exact .done _ (.inr ⟨_, _, hpc11, ⟨hf10, hr14,
         (hk10 .r12 (by simp)).trans ((hkk .r12 (by simp)).trans hI.ra.r12),
         (hk10 .rbp (by simp)).trans ((hkk .rbp (by simp)).trans hI.ra.rbp),
@@ -226,11 +227,11 @@ theorem callA_step {i : Nat} {rows : List (List K)} {ci : Nat} {st : MachineStat
     · rw [ite_f hlast] at hpc11
       have hn : i + 1 = nr m0 := by omega
       obtain ⟨hok11, hK11⟩ := ok_b11
-      refine Eventually.mono (fr_step hp g (j := 62) b11_in_code (by simp [b11]) exit_b11 nofun
+      refine Eventually.mono (fr_step hp g (j := NativeRustcVmX64.Vm.RdRows.b11Offset) b11_in_code (by simp [b11]) exit_b11 nofun
         hok11 (hpc11.trans (congrArg Host.addrOf rfl)) hf10 fun s11 hf11 hd11 hr11 hpc12 ↦ ?_)
         fun _ h ↦ .inl h
       simp only [PcOk] at hpc12
-      rw [hp.label (j := 16) rfl] at hpc12
+      rw [hp.label NativeRustcVmX64.Vm.RdRows.label_21_at] at hpc12
       rw [hn] at hkp
       refine fin hp g hR0 hpc12 hf11 (res_some (by rw [hd11]; exact hkp) ?_)
         (by rw [hd11, hd10']; exact hchg2)

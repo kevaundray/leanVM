@@ -7,6 +7,9 @@ public meta import NativeRustcVmX64.Code.Vm.InstanceWeights
 public meta import NativeRustcVmX64.Transcript.Frame
 public meta import NativeRustcVmX64.KeccakGkr.InstanceWeights.Mask
 import Mathlib.Tactic.IntervalCases
+public import NativeRustcVmX64.Code.Vm.InstanceWeights.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.Powers.Names
 
 /-!
 # `instance_weights`' blocks, run by the symbolic executor (x86-64)
@@ -66,10 +69,6 @@ public section
 
 theorem it_zero : it 0 = after b1 bodyS := rfl
 
-theorem b0_length : b0.length = 63 := by decide +kernel
-theorem b1_length : b1.length = 145 := by decide +kernel
-theorem b2_length : b2.length = 319 := by decide +kernel
-theorem b3_length : b3.length = 20 := by decide +kernel
 theorem b2_ne : b2 ≠ [] := List.ne_nil_of_length_pos (by rw [b2_length]; decide)
 
 /-- The prologue: the slots pushed, the result's address saved at `512`, `powers`' arguments. -/
@@ -82,14 +81,14 @@ theorem ok_b0 : ProOk 1048 8 slots (after b0 entryS) = true ∧
   decide +kernel
 
 theorem exit_b0 : exec b0 entryS =
-    some (after b0 entryS, .call "_RNvNtCsemcRClSg8DH_9native_vm5field6powers") :=
+    some (after b0 entryS, .call NativeRustcVmX64.Vm.Powers.entryLabel) :=
   e0.trans (by rw [after_eq e0])
 
 theorem exit_b1 : exec b1 bodyS = some (it 0, .fall) := e1.trans (by rw [it_zero, after_eq e1])
 
 /-- **A turn of the loop**: back at the head but after the last. -/
 theorem loop_exec {j : Nat} (hj : j < 14) :
-    exec b2 (it j) = some (it (j + 1), .cond (.lit (j != 13)) ".LInstanceWeights_1") := by
+    exec b2 (it j) = some (it (j + 1), .cond (.lit (j != 13)) NativeRustcVmX64.Vm.InstanceWeights.label_1) := by
   show exec b2 (it j) = some (after b2 (it j), _)
   interval_cases j
   · rw [after_eq l0]; exact l0
@@ -107,7 +106,7 @@ theorem loop_exec {j : Nat} (hj : j < 14) :
   · rw [after_eq l12]; exact l12
   · rw [after_eq l13]; exact l13
 
-theorem exit_b3 : exec b3 (it 14) = some (after b3 (it 14), .call "memcpy") :=
+theorem exit_b3 : exec b3 (it 14) = some (after b3 (it 14), .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   e3.trans (by rw [after_eq e3])
 
 /-- The tail leaves the `Buf` `itemsOk` checks, writes only the frame's locals and calls `memcpy`

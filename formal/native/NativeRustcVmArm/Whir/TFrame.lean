@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Whir.Block
 public import NativeRustcVmArm.Spec.Whir
 public import NativeRustcVmArm.Sumcheck.Common
@@ -179,11 +180,11 @@ theorem sponge_le' : spongeBytes ≤ tstateBytes := by decide
 theorem tsqueeze [Host] {m0 : MachineData} {F N : Nat} {t : BitVec 64} {a : DecArea}
     {outs : BitVec 64 → Prop} {slots : List (Nat × XReg)} {keep : List XReg}
     (c : TCtx m0 F N t a outs)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hf : Fr m0 F N slots keep outs st.data) (hle : F + squeezeStack ≤ N)
     (hkeep : ∀ r ∈ keep, calleeSaved r = true) (hsl : ∀ p ∈ slots, p.1 + 8 ≤ F)
-    (hpc : st.pc = Labels.label squeezeLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0.toBitVec = t) {s : TState} (hts : TStateAt st.data.dmem t a s)
     (cont : ∀ m2 : MachineData, Fr m0 F N slots keep outs m2 →
       TStateAt m2.dmem t a (NativeRustcVm.Whir.sq s).2 →

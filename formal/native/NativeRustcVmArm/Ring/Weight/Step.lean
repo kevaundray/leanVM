@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Ring.Weight.Basic
 
 /-!
@@ -189,10 +190,10 @@ theorem hb {k : Nat} {ds : List Directive} {j : Nat} (h : ds.IsInfixAt Vm.RingWe
 
 /-- **A block ending in a call of `EW::mul`**, writing nothing: the call's contract, the frame
 after it. -/
-theorem mulStep (h : RingWeightPre m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem mulStep (h : RingWeightPre m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {rs : List (BitVec 64 × Nat)} {S S' : SState} {ds : List Directive} {i : Nat}
     {m : MachineData} {R : MachineState → Prop} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds S = some (S', .call ewMulLabel)) (hfr : WFr m0 m)
+    (hrun : exec ds S = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hfr : WFr m0 m)
     (hm : Match (Env.ofMachine m rs) S m) (hwf : (Env.ofMachine m rs).WF) (hmem : S'.mem = [])
     (hsp : S'.sp = S.sp)
     (cont : ∀ st m2 : MachineData, Match (Env.ofMachine m rs) S' st → WFr m0 st → WFr m0 m2 →

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.KeccakOpen.FoldLoad
 public import NativeRustcVmX64.Code.Vm.KeccakOpen
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-! # `keccak_open`: loading an inner-loop element and multiplying its difference -/
 
@@ -17,11 +18,11 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- Load the two buffer elements, call `EW::mul`, and preserve the fold's frame. -/
 theorem load_mul (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (h : PreOk a s c m0) {cx : Cx} (ha : cx.a = a)
     {j s0 : Nat} (hj : j < 64) {ib cx0 cx1 lo0 lo1 : Reg64} {keep : List Reg64}
     {b : List Directive} {kb : Nat} (hin : b.IsInfixAt code kb) (hne : b ≠ [])
-    {S : SState} (hex : exec b (loS ib s0) = some (S, .call ewMulLabel))
+    {S : SState} (hex : exec b (loS ib s0) = some (S, .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hok : lOk cx0 cx1 lo0 lo1 keep S = true)
     {fa fb : Nat → EW} {cc : EW} {st : MachineState}
     (hpc : st.pc = Host.addrOf (k + kb)) (hm : Mid cx m0 8 st.data)

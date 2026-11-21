@@ -103,8 +103,8 @@ variable [NativeArm.Host]
 /-- **A turn of the loop**: leaf `c` stored, then the next turn or `b58`. -/
 theorem loop_step (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     {H : List UInt8} (hH : H.length = 64) {c : Nat} {m : MachineData} (hI : LoopInv r H c m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc 692 ∧ AfterLoop r H st.data) ∨
-      (st.pc = r.pc 621 ∧ LoopInv r H (c + 1) st.data)) ⟨m, r.pc 621⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b58Offset ∧ AfterLoop r H st.data) ∨
+      (st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b57Offset ∧ LoopInv r H (c + 1) st.data)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b57Offset⟩ := by
   obtain ⟨hc, hK, h8, h9, h10, h21, h23, hHb, hL⟩ := hI
   have hF : r.Frame m := hK.1
   have hwf := wf_frame2 hpre hF (a := 24720) (n := 64) (a' := 16400 + 8 * c) (n' := 8)
@@ -181,9 +181,9 @@ theorem loop_step (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre :
 /-- **The loop**: from turn `c`, the machine reaches `b58` with the 24 leaves. -/
 theorem loop_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre)
     {H : List UInt8} (hH : H.length = 64) {c : Nat} {m : MachineData} (hI : LoopInv r H c m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 692 ∧ AfterLoop r H st.data)
-      ⟨m, r.pc 621⟩ := by
-  refine Sym.loop (fun n st ↦ ∃ c, n = 24 - c ∧ st.pc = r.pc 621 ∧ LoopInv r H c st.data)
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b58Offset ∧ AfterLoop r H st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b57Offset⟩ := by
+  refine Sym.loop (fun n st ↦ ∃ c, n = 24 - c ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b57Offset ∧ LoopInv r H c st.data)
     (fun n st ⟨c, hn, hpc, hI⟩ ↦ ?_) ⟨c, rfl, rfl, hI⟩
   obtain ⟨m, pc⟩ := st
   simp only at hpc

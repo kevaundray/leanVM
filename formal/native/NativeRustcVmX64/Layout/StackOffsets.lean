@@ -1,6 +1,10 @@
 module
 
 public import NativeRustcVmX64.Layout.StackOffsets.End
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.InsertionSortOfStackOffsets.Names
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.StackOffsets.Names
 
 /-!
 # `stack_offsets` on x86-64
@@ -25,10 +29,10 @@ variable [Host] {k : Nat}
 
 /-- **`stack_offsets` meets its contract.** -/
 theorem stackOffsets_spec (hp : Placed code k)
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost)
-    (hsort : Spec (label insertionSortLabel) InsertionSortPre InsertionSortPost)
-    (hbl : Spec (label bitLengthLabel) BitLengthPre BitLengthPost) :
-    Spec (label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost := by
+    (hmemset : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hsort : Spec (label NativeRustcVmX64.Vm.InsertionSortOfStackOffsets.entryLabel) InsertionSortPre InsertionSortPost)
+    (hbl : Spec (label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) :
+    Spec (label NativeRustcVmX64.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost := by
   intro m0 hpre
   refine Eventually.bind (entry hp hmemset hpre) fun s h ↦ ?_
   rcases h with h | h

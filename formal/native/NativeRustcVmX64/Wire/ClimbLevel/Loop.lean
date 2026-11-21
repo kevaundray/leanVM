@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Wire.ClimbLevel.Read
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
+public import NativeRustcVmX64.Code.Vm.ReaderDigest.Names
 
 /-!
 # `climb_level`'s loop over the nodes (x86-64)
@@ -38,8 +40,8 @@ theorem scan_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci j : Nat} {st
   · exact .inl (.inr h)
   · exact .inr ⟨_, by have := h.le; omega, j + 1, rfl, h⟩
 
-variable (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-  (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
+variable (hh : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+  (hd : Spec (Labels.label NativeRustcVmX64.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
   (hR : ReaderAt m0.dmem (rdr m0) bp B c) (hns : NodesAt m0.dmem (nodes m0) ns)
 include hh hd hR hns
 

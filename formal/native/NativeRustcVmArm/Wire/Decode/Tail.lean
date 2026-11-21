@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PhaseM.Names
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
 public import NativeRustcVmArm.Wire.Decode.Head
 
 /-!
@@ -25,7 +27,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile
 the stream's count and words stored. -/
 structure At7 [Host] (k0 : Nat) (m0 : MachineData) (B : List UInt8) (n : Nat) (ws : List K)
     (c1 p cs : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k0 + 32)
+  pc : st.pc = Host.addrOf (k0 + NativeRustcVmArm.Vm.Decode.b7Offset)
   fr : Frm m0 st.data
   x1 : (st.data.regs.getXReg .X1).toNat = p
   x19 : st.data.regs.getXReg .X19 = m0.regs.X4
@@ -41,7 +43,7 @@ structure At7 [Host] (k0 : Nat) (m0 : MachineData) (B : List UInt8) (n : Nat) (w
 /-- **At the phase count's store** (`b8`): the stream's end in X8. -/
 structure At8 [Host] (k0 : Nat) (m0 : MachineData) (B : List UInt8) (n : Nat) (ws : List K)
     (c1 p cs : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k0 + 36)
+  pc : st.pc = Host.addrOf (k0 + NativeRustcVmArm.Vm.Decode.b8Offset)
   fr : Frm m0 st.data
   x1 : (st.data.regs.getXReg .X1).toNat = p
   x8 : (st.data.regs.getXReg .X8).toBitVec.toNat = streamEnd (Ln m0)
@@ -173,7 +175,7 @@ variable [Host] {k0 : Nat}
 
 /-- **From the stream's count to the phase count's bound.** -/
 theorem tail_a (hp : Placed code k0) (G : Geo m0 B)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost) {n : Nat} {ws : List K}
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost) {n : Nat} {ws : List K}
     {c1 : Nat} {st : MachineState} (hM : Mid k0 m0 B n ws c1 st) :
     Eventually (step1 Host.exe) (fun s ↦ Res m0 B s ∨ ∃ p cs, At7 k0 m0 B n ws c1 p cs s) st := by
   obtain ⟨hpc, hfr, x19, x20, x21, x22, x23, h1, h2, hR, hws⟩ := hM
@@ -265,7 +267,7 @@ theorem tail_a (hp : Placed code k0) (G : Geo m0 B)
       simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
       rw [show m2.regs.getXReg .X0 = 0 from hr2]
       exact and_zero_cmp _
-    simp only [hc, ↓reduceIte, hp.label (j := 68) rfl] at hpc3
+    simp only [hc, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Decode.b14Offset) NativeRustcVmArm.Vm.Decode.label_9_at] at hpc3
     exact Eventually.mono (exit14 hp G hpc3 hfr3 (decode_none_3 h1 h2 h3)) fun _ h ↦ .inl h
   rw [h3] at hr2
   obtain ⟨h0, hpv, hR3⟩ := hr2
@@ -283,7 +285,7 @@ theorem tail_a (hp : Placed code k0) (G : Geo m0 B)
       rfl
   rw [hc] at hpc3
   by_cases h9 : 9 ≤ p
-  · simp only [h9, decide_true, ↓reduceIte, hp.label (j := 68) rfl] at hpc3
+  · simp only [h9, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Decode.b14Offset) NativeRustcVmArm.Vm.Decode.label_9_at] at hpc3
     exact Eventually.mono (exit14 hp G hpc3 hfr3 (decode_none_4 h1 h2 h3
       (by unfold wireMaxPhases; omega))) fun _ h ↦ .inl h
   simp only [h9, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc3
@@ -365,7 +367,7 @@ private theorem slots_after {env : Env} {m : MachineData}
 
 /-- **From the phase count's store to the phases** (`b8`, the loop). -/
 theorem tail_c (hp : Placed code k0) (G : Geo m0 B)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
+    (hpm : Spec (Labels.label NativeRustcVmArm.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
     {c1 p cs : Nat} (h1 : rdU32 B 0 = some (n, 4)) (h2 : rdWords B (2 * n) 4 = some (ws, c1))
     {s4 : MachineState} (hA : At8 k0 m0 B n ws c1 p cs s4) :
     Eventually (step1 Host.exe) (Res m0 B) s4 := by
@@ -458,8 +460,8 @@ theorem tail_c (hp : Placed code k0) (G : Geo m0 B)
 
 /-- **From the stream's count to the phases.** -/
 theorem tail_spec (hp : Placed code k0) (G : Geo m0 B)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
+    (hpm : Spec (Labels.label NativeRustcVmArm.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) {n : Nat} {ws : List K}
     {c1 : Nat} {st : MachineState} (hM : Mid k0 m0 B n ws c1 st) :
     Eventually (step1 Host.exe) (Res m0 B) st :=
   Eventually.bind (tail_a hp G hle hM) fun _ h ↦ h.elim (.done _) fun ⟨_, _, hA⟩ ↦

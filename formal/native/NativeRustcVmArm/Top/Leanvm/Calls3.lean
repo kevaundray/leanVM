@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Decode.Names
 public import NativeRustcVmArm.Top.Leanvm.Calls2
 
 /-!
@@ -21,10 +22,10 @@ variable [Host] {k : Nat}
 
 /-- **An empty wire**: from `b15`. -/
 theorem decodeEmpty (hp : Placed code k)
-    (hdec : Spec (Labels.label decodeLabel) DecodePre DecodePost)
+    (hdec : Spec (Labels.label NativeRustcVmArm.Vm.Decode.entryLabel) DecodePre DecodePost)
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 65)) (h1 : C1 a bytes bytecode pub m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b15Offset)) (h1 : C1 a bytes bytecode pub m0 st.data)
     (hL0 : bytes.length = 0) :
     Eventually (step1 Host.exe) (Decoded k a bytes bytecode pub m0) st := by
   have g := geo_of hpre
@@ -41,7 +42,7 @@ theorem decodeEmpty (hp : Placed code k)
   have hFm0 : Mapped m0.dmem (frameOf m0) 128 :=
     Mapped.within hmap (by rw [hsb]; omega) (by rw [hsb, hF]; omega) (by rw [hsb, hF]; omega)
   obtain ⟨hwf, hm⟩ := frameEnv h1.body hs128 hal16 (Mapped.kept hFm0 h1.body.kept)
-  refine exec_at (hb 65 hp b15_in_code (by simp [b15])) run_b15 hwf hpc hm
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b15Offset hp b15_in_code (by simp [b15])) run_b15 hwf hpc hm
     fun st15 hm15 hpc15 ↦ ?_
   have hk := b15_keeps
   rw [after_eq run_b15] at hk
@@ -58,9 +59,9 @@ theorem decodeEmpty (hp : Placed code k)
     exact NativeRustcVm.BytesAt.nil _ _
   have hX1n : st15.data.regs.X1.toNat = bytes.length := by rw [hX1, hL0]; rfl
   refine callDecode hdec hpre hpc15 hP hD hBy hX1n fun st16 hpc16 hres hB16 hpub16 hsaved ↦ ?_
-  rw [show k + 65 + b15.length = k + 74 from rfl] at hpc16
+  rw [show k + NativeRustcVmArm.Vm.LeanvmVerify.b15Offset + b15.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b16Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b15_next]] at hpc16
   -- `b16`: the verdict's test.
-  refine exec_at (hb 74 hp b16_in_code (by simp [b16])) run_b16 (Env.wf_nil _) hpc16
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b16Offset hp b16_in_code (by simp [b16])) run_b16 (Env.wf_nil _) hpc16
     (match_nil _) fun st17 hm17 hpc17 ↦ ?_
   have hk17 := none_keeps b16 (by simp)
   rw [after_eq run_b16] at hk17
@@ -82,22 +83,22 @@ theorem decodeEmpty (hp : Placed code k)
     simp only [PcOk, evalBit0 (Env.ofMachine st16.data []) (x := 1)
       (congrArg UInt64.toBitVec hres.1)] at hpc17
     simp only [show ((1 : UInt64).toBitVec.getLsbD 0) = true from rfl, Bool.not_true,
-      Bool.false_eq_true, ite_false, show k + 74 + b16.length = k + 75 from rfl] at hpc17
+      Bool.false_eq_true, ite_false, show k + NativeRustcVmArm.Vm.LeanvmVerify.b16Offset + b16.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b17Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b16_next]] at hpc17
     exact Eventually.done _ (Or.inr ⟨r, hr, hpc17,
       hc2.step hs128 hm17 hk17.1 hk17.2 rfl rfl rfl rfl rfl rfl⟩)
 
 /-- **The decoder**, from `.LLeanvmVerify_10`. -/
 theorem stage2 (hp : Placed code k)
-    (hdec : Spec (Labels.label decodeLabel) DecodePre DecodePost)
+    (hdec : Spec (Labels.label NativeRustcVmArm.Vm.Decode.entryLabel) DecodePre DecodePost)
     {a : Code.Areas} {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4}
     {m0 : MachineData} (hpre : LeanvmVerifyPre a bytes bytecode pub m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 52)) (h1 : C1 a bytes bytecode pub m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b10Offset)) (h1 : C1 a bytes bytecode pub m0 st.data) :
     Eventually (step1 Host.exe) (Decoded k a bytes bytecode pub m0) st := by
   have g := geo_of hpre
   have hs := g.s
   have hL := hpre.2.2.1.L32
   have hs128 : 128 ≤ m0.regs.SP.toBitVec.toNat := by omega
-  refine exec_at (hb 52 hp b10_in_code (by simp [b10])) run_b10 (Env.wf_nil _) hpc (match_nil _)
+  refine exec_at (hb NativeRustcVmArm.Vm.LeanvmVerify.b10Offset hp b10_in_code (by simp [b10])) run_b10 (Env.wf_nil _) hpc (match_nil _)
     fun st10 hm10 hpc10 ↦ ?_
   have hk10 := none_keeps b10 (by simp)
   rw [after_eq run_b10] at hk10
@@ -109,7 +110,7 @@ theorem stage2 (hp : Placed code k)
     rw [lbl_13 hp] at hpc10
     exact decodeEmpty hp hdec hpre hpc10 h10 hL0
   · simp only [hL0, decide_false, Bool.false_eq_true, ite_false,
-      show k + 52 + b10.length = k + 54 from rfl] at hpc10
+      show k + NativeRustcVmArm.Vm.LeanvmVerify.b10Offset + b10.length = k + NativeRustcVmArm.Vm.LeanvmVerify.b11Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.LeanvmVerify.b10_next]] at hpc10
     exact decodeWire hp hdec hpre hpc10 h10 (by omega)
 
 end

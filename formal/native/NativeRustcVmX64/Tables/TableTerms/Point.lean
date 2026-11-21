@@ -1,13 +1,14 @@
 module
 
 public import NativeRustcVmX64.Tables.TableTerms.FormsRun
+public import NativeRustcVmX64.Code.Vm.BufEW30Extend.Names
 
 /-!
 # `table_terms`: table `i`'s point (x86-64)
 
 `b10` clears entry `i`'s point and calls `Buf::extend` with the point's first `min h |point|`
 coordinates (`h` the table's log-height, at most `30`): it succeeds, the entry's point becomes
-`point.extract 0 h`; `b11` goes on (`point_step`, to `b12` at `k + 130`).
+`point.extract 0 h`; `b11` goes on (`point_step`, to `b12` at `k + NativeRustcVmX64.Vm.TableTerms.b12Offset`).
 -/
 
 namespace NativeRustcVmX64.Tables.TableTerms
@@ -66,7 +67,7 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {heights : Array Nat}
 
 /-- **Table `i`'s point.** -/
 theorem point_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
     {i : Nat} (hi : i < 6) {acc : Acc} {si : TState} {xs : Array EW} {s' : TState}
     {d : MachineData} (H : Cm a s heights forms m0 i acc si xs s' d) {f g : EW}
     (hfw : FW m0 d (ncW i ++ ewW 80 g ++ wW (wt m0 i)))
@@ -81,15 +82,15 @@ theorem point_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
       reg d' .r15 = fA m0 + BitVec.ofNat 64 (11864 + 17784 * i) →
       reg d' .rbx = evi m0 i → reg d' .rbp = BitVec.ofNat 64 (16 + 40 * i) →
       reg d' .r12 = BitVec.ofNat 64 (8 * i) →
-      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + 130)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 114)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b12Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b10Offset)⟩ := by
   have hS := Pre.stack h
   have eo := evi_out h hi
   have fwA : FW m0 d (LA m0 i acc.2.1) := H.fw
   obtain ⟨hw8, hh30⟩ := height_word h H.bd hi
   have hlen := Pre.r9 h
   unfold tablePointCap at hlen
-  let ra := (Host.addrOf (k + 114 + b10.length)).toBitVec
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b10Offset + b10.length)).toBitVec
   let env := E m0 d [(argA m0, 32), (evi m0 i, 8), (hA m0 + BitVec.ofNat 64 (8 * i), 8)] ra
   have hwf : env.WF := wf_pt h hi H.bd.fr.kept
   have w16 := lw16 (FW.right (FW.left fwA))
@@ -223,10 +224,10 @@ theorem point_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     exact this
   have cs2 : ∀ r, calleeSaved r = true → reg st2.data r = reg st1.data r := q2.1
   -- `b11`: the result.
-  let ra3 := (Host.addrOf (k + 128 + b11.length)).toBitVec
+  let ra3 := (Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b11Offset + b11.length)).toBitVec
   have hwf3 : (E m0 st2.data [] ra3).WF := wf_nil h hb2.fr.kept
   have hm3 : Match (E m0 st2.data [] ra3) sF st2.data := match_body hb2 ⟨rfl, trivial⟩ trivial
-  refine at_pc (hpc2.trans (addr_eq (by rw [show b10.length = 14 from rfl])))
+  refine at_pc (hpc2.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b10_next)))
     (exec_then (infix_of b11_in_code (by simp [b11]) hp) exit_b11 hwf3 nofun hm3
       fun st3 hm3' hpc3 ↦ ?_)
   obtain ⟨mid3, mem3, k3⟩ := ok_b11
@@ -241,7 +242,7 @@ theorem point_step (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
   have kr : ∀ r ∈ csR, reg st3.data r = reg st1.data r := fun r hr ↦ by
     rw [keeps_reg hm3' k3 hr]
     exact cs2 r (by simp at hr; rcases hr with rfl | rfl | rfl | rfl | rfl | rfl <;> rfl)
-  refine at_pc (hpc3.trans (addr_eq (by rw [show b11.length = 2 from rfl])))
+  refine at_pc (hpc3.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b11_next)))
     (cont st3.data hb3 (FW.of_dmem hd3 fw2) ?_ (by rw [hd3]; exact hbuf') ?_ ?_ ?_ ?_ ?_ ?_)
   · exact ⟨by rw [hd3]; exact it2.ts, by rw [hd3]; exact it2.vals,
       fun j hj ↦ by rw [hd3]; exact it2.evs j hj, it2.osz⟩

@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Wire.ClimbLevel.Loop
+public import NativeRustcVmX64.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
+public import NativeRustcVmX64.Code.Vm.ReaderDigest.Names
 
 /-!
 # `climb_level` meets its contract (x86-64)
@@ -110,11 +113,11 @@ variable [Host] {k : Nat} {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {
 
 /-- **From the entry.** -/
 theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-    (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
+    (hh : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+    (hd : Spec (Labels.label NativeRustcVmX64.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
     (hR : ReaderAt m0.dmem (rdr m0) bp B c)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hl : ns.length = cnt m0) :
-    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b0Offset)⟩ := by
   have hst := g.g.st
   have h0 := g.s0
   have hsp := sp_eq m0
@@ -149,13 +152,13 @@ theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
     rw [eq64, BitVec.toNat_ofNat])
   by_cases h0n : cnt m0 = 0
   · -- `b20`: no node, `Some 0`.
-    rw [ite_t h0n, hp.label (j := 131) rfl] at hpc2
+    rw [ite_t h0n, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_1_at] at hpc2
     obtain rfl : ns = [] := List.eq_nil_of_length_eq_zero (hl.trans h0n)
     obtain ⟨hok20, hrbx20, hK20⟩ := ok_b20
-    refine fr_step hp g (j := 131) b20_in_code (by simp [b20]) exit_b20 nofun hok20 hpc2 hf1
+    refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b20Offset) b20_in_code (by simp [b20]) exit_b20 nofun hok20 hpc2 hf1
       fun s2 hf2 hd2 hr2 hpc3 ↦ ?_
     simp only [PcOk] at hpc3
-    rw [hp.label (j := 142) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.ClimbLevel.label_11_at] at hpc3
     refine fin hp g hR hns hl hpc3 hf2 ?_ (by rw [hd2]; exact chg1)
     unfold Res
     rw [show sibsM B [] [] c = some ([], c) from rfl]
@@ -167,10 +170,10 @@ theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
   · -- `b1`: the locals, then the loop's head after no node.
     rw [ite_f h0n] at hpc2
     obtain ⟨hmid1, hfw1, hw48, hw56, hw64, hrbx1, hr12_1, hrbp1, hr14_1, hr15_1⟩ := ok_b1
-    refine fw_step hp g (j := 12) b1_in_code (by simp [b1]) exit_b1 nofun hmid1 hfw1
+    refine fw_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b1Offset) b1_in_code (by simp [b1]) exit_b1 nofun hmid1 hfw1
       (hpc2.trans (congrArg Host.addrOf rfl)) hf1 fun s2 hf2 hs2 hm2 hpc3 ↦ ?_
     simp only [PcOk] at hpc3
-    rw [hp.label (j := 31) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.ClimbLevel.label_3_at] at hpc3
     have ersi : (Sym.reg .rsi).eval (frameEnv m0 s1.data 208 []) = reg m0 .rsi :=
       hk1 .rsi (by simp)
     have erdx : (Sym.reg .rdx).eval (frameEnv m0 s1.data 208 []) = reg m0 .rdx :=
@@ -212,13 +215,13 @@ theorem entry_spec (hp : Placed code k) (g : Geo m0 bp B.length)
 
 /-- **`climb_level` meets its contract.** -/
 theorem climbLevel_spec (hp : Placed code k)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-    (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost) :
-    Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost := by
+    (hh : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+    (hd : Spec (Labels.label NativeRustcVmX64.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost := by
   intro m0 hpre
   obtain ⟨-, -, -, ⟨hnm, -⟩, -, -, bp, B, c, hR, -⟩ := id hpre
   obtain ⟨ns, hlen, hns⟩ := exists_nodesAt (d := m0.dmem) (a := nodes m0) (cnt m0) hnm
-  rw [hp.label (j := 0) (l := climbLevelLabel) rfl]
+  rw [hp.label NativeRustcVmX64.Vm.ClimbLevel.entry_at]
   exact entry_spec hp (geo_of hpre hR) hh hd hR hns hlen
 
 end

@@ -59,7 +59,7 @@ variable [Host] {k : Nat}
 /-- **A turn of the pairs' copy.** -/
 theorem copyTurn (hp : Placed code k) (h : RingWeightPre m0) {t : Nat}
     (ht : 2 * t + 2 ≤ nR m0) {st : MachineState}
-    (hA : At m0 k 115 (rsR m0 (32 * t + 32)) noWr (tC (sz1 (32 * t + 32)) rAl t) (V0 m0)
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b7Offset (rsR m0 (32 * t + 32)) noWr (tC (sz1 (32 * t + 32)) rAl t) (V0 m0)
       (CopyI m0 (2 * t)) st) :
     Eventually (step1 Host.exe) (At m0 k (if decide (nR m0 / 2 * 2 ≠ 2 * t + 2) then 115 else 128)
       (rsR m0 (32 * t + 32)) noWr (tC (sz1 (32 * t + 32)) rAl (t + 1)) (V0 m0)
@@ -68,7 +68,7 @@ theorem copyTurn (hp : Placed code k) (h : RingWeightPre m0) {t : Nat}
   have e : nR m0 = (reg m0 .rdx).toNat := rfl
   obtain ⟨hok, hs0, hs1, hm0, hm1⟩ := f_b7 t (by omega)
   have hl := layR h (n := 32 * t + 32) (by omega)
-  refine jcond hp hl b7_in_code (by simp [b7]) rfl (by exact hp.label (j := 115) rfl) hok
+  refine jcond hp hl b7_in_code (by simp [b7]) rfl (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_15_at) hok
     (fun _ _ _ ↦ cv_ne _ rfl (by omega) (by omega)) (fun _ _ _ _ ↦ by wv) rfl rfl rfl
     (fun _ _ ↦ oneAl rfl (al0 _)) rfl (fun m m' hB hI hm ↦ ?_) hA
   have hwf := hl.wf hB.kept (vals := V0 m0) (ret := 0)
@@ -91,9 +91,9 @@ theorem copyTurn (hp : Placed code k) (h : RingWeightPre m0) {t : Nat}
 /-- **The pairs' copy**, from turn `t`. -/
 theorem copyLoop (hp : Placed code k) (h : RingWeightPre m0) (h2 : 2 ≤ nR m0) :
     ∀ n t, t + n + 1 = nR m0 / 2 → ∀ {st : MachineState},
-      At m0 k 115 (rsR m0 (32 * t + 32)) noWr (tC (sz1 (32 * t + 32)) rAl t) (V0 m0)
+      At m0 k NativeRustcVmX64.Vm.RingWeight.b7Offset (rsR m0 (32 * t + 32)) noWr (tC (sz1 (32 * t + 32)) rAl t) (V0 m0)
         (CopyI m0 (2 * t)) st →
-      Eventually (step1 Host.exe) (At m0 k 128 (rsR m0 (32 * (nR m0 / 2))) noWr
+      Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingWeight.b8Offset (rsR m0 (32 * (nR m0 / 2))) noWr
         (tC (sz1 (32 * (nR m0 / 2))) rAl (nR m0 / 2)) (V0 m0) (CopyI m0 (2 * (nR m0 / 2)))) st := by
   have hn : nR m0 ≤ 36 := h.2.1
   have e : nR m0 = (reg m0 .rdx).toNat := rfl
@@ -116,9 +116,9 @@ theorem copyLoop (hp : Placed code k) (h : RingWeightPre m0) (h2 : 2 ≤ nR m0) 
 /-- **The last element's copy** (`b9`), element `c`. -/
 theorem copyLast (hp : Placed code k) (h : RingWeightPre m0) {c : Nat} (hc : c + 1 = nR m0)
     {st : MachineState}
-    (hA : At m0 k 130 (rsR m0 (16 * c + 16)) noWr (tL (sz1 (16 * c + 16)) rAl c) (V0 m0)
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b9Offset (rsR m0 (16 * c + 16)) noWr (tL (sz1 (16 * c + 16)) rAl c) (V0 m0)
       (CopyI m0 c) st) :
-    Eventually (step1 Host.exe) (At m0 k 136 [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0))) st := by
+    Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingWeight.b10Offset [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0))) st := by
   have hn : nR m0 ≤ 36 := h.2.1
   have e : nR m0 = (reg m0 .rdx).toNat := rfl
   obtain ⟨hok, hs, hm0, hm1⟩ := f_b9 c (by omega)
@@ -137,14 +137,14 @@ theorem copyLast (hp : Placed code k) (h : RingWeightPre m0) {c : Nat} (hc : c +
 
 /-- **The parity test** (`b8`) after the pairs, and the last element if `|r|` is odd. -/
 theorem copyEnd (hp : Placed code k) (h : RingWeightPre m0) {st : MachineState}
-    (hA : At m0 k 128 (rsR m0 (32 * (nR m0 / 2))) noWr (tC (sz1 (32 * (nR m0 / 2))) rAl (nR m0 / 2))
+    (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b8Offset (rsR m0 (32 * (nR m0 / 2))) noWr (tC (sz1 (32 * (nR m0 / 2))) rAl (nR m0 / 2))
       (V0 m0) (CopyI m0 (2 * (nR m0 / 2))) st) :
-    Eventually (step1 Host.exe) (At m0 k 136 [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0))) st := by
+    Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingWeight.b10Offset [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0))) st := by
   have hn : nR m0 ≤ 36 := h.2.1
   have e : nR m0 = (reg m0 .rdx).toNat := rfl
   obtain ⟨hok, hmiss⟩ := f_b8 (nR m0 / 2) (by omega)
   have hl := layR h (n := 32 * (nR m0 / 2)) (by omega)
-  refine Eventually.bind (jcond hp hl b8_in_code (by simp [b8]) rfl (by exact hp.label (j := 136) rfl)
+  refine Eventually.bind (jcond hp hl b8_in_code (by simp [b8]) rfl (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_7_at)
     hok (vals' := V0 m0) (I' := CopyI m0 (2 * (nR m0 / 2))) (fun _ _ _ ↦ cv_odd (x := reg m0 .rdx) _ rfl (by omega)) (fun _ _ _ _ ↦ by wv) rfl rfl rfl
     (fun _ _ ↦ oneAl rfl (al0 _)) rfl
     (fun m m' hB hI hm ↦ slotsAt_keep h.1 (hl.wf hB.kept) hm (by omega) hI hmiss) hA)
@@ -163,13 +163,13 @@ theorem copyEnd (hp : Placed code k) (h : RingWeightPre m0) {st : MachineState}
 
 /-- **`r` copied**, from `b1` (`|r| ≥ 1`). -/
 theorem copyAll (hp : Placed code k) (h : RingWeightPre m0) (h0 : nR m0 ≠ 0) {I : MachineData → Prop}
-    {st : MachineState} (hA : At m0 k 83 [] noWr (tA sz0 []) (V0 m0) I st) :
-    Eventually (step1 Host.exe) (At m0 k 136 [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0))) st := by
+    {st : MachineState} (hA : At m0 k NativeRustcVmX64.Vm.RingWeight.b1Offset [] noWr (tA sz0 []) (V0 m0) I st) :
+    Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingWeight.b10Offset [] noWr (tD sz0 []) (V0 m0) (CopyI m0 (nR m0))) st := by
   have hn : nR m0 ≤ 36 := h.2.1
   have e : nR m0 = (reg m0 .rdx).toNat := rfl
   obtain ⟨hok1, -⟩ := f_b1
   refine Eventually.bind (jcond hp (lay0 h.1) b1_in_code (by simp [b1]) (next := 89) rfl
-    (by exact hp.label (j := 109) rfl) hok1 (b := decide (nR m0 ≠ 1)) (I' := fun _ ↦ True) (vals' := V0 m0)
+    (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_14_at) hok1 (b := decide (nR m0 ≠ 1)) (I' := fun _ ↦ True) (vals' := V0 m0)
     (fun _ _ _ ↦ cv_ne (x := nR m0) _ (ofNat_toNat' _).symm (by omega) (by decide))
     (fun _ _ _ _ ↦ by wv; exact ev_shl4 _ rfl hn) rfl rfl rfl (fun _ _ ↦ noAl rfl) rfl
     (fun _ _ _ _ _ ↦ trivial) hA) fun st h1 ↦ ?_
@@ -177,7 +177,7 @@ theorem copyAll (hp : Placed code k) (h : RingWeightPre m0) (h0 : nR m0 ≠ 0) {
   · rw [if_df (by omega)] at h1
     obtain ⟨hok2, -⟩ := f_b2
     refine Eventually.bind (jjump hp (lay0 h.1) b2_in_code (by simp [b2])
-      (by exact hp.label (j := 130) rfl) hok2 (I' := CopyI m0 0) (vals' := V0 m0) (fun _ _ _ _ ↦ by wv) rfl rfl rfl
+      (by exact hp.label NativeRustcVmX64.Vm.RingWeight.label_6_at) hok2 (I' := CopyI m0 0) (vals' := V0 m0) (fun _ _ _ _ ↦ by wv) rfl rfl rfl
       (fun _ _ ↦ noAl rfl) rfl (fun _ _ _ _ _ ↦ copyI_zero) h1) fun st h2 ↦ ?_
     have h3 := h2.sw sw_one (rs' := rsR m0 (16 * 0 + 16)) (wr' := noWr) rfl
       (fun _ _ ↦ oneAl rfl (al0 _)) outs_noWr

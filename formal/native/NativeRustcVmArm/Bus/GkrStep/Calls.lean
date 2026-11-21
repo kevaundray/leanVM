@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.Bus.GkrStep.Frame
 
 /-!
@@ -68,10 +69,10 @@ theorem two_pow_le (h : GkrStepPre a s0 g0 m0) : 16 * 2 ^ m0.regs.X1.toNat ≤ 6
 
 /-- **`read_scalars(t, frame + o, 2^step)`**. -/
 theorem rs_call (h : GkrStepPre a s0 g0 m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} {o : Nat} (ho : o + 64 ≤ 1296)
     (hfr : Fr m0 1392 gkrStepStack slots keep (outs m0) st.data)
-    (hpc : st.pc = Labels.label readScalarsLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel ∧ retOf st.data = next)
     (h0 : st.data.regs.X0 = m0.regs.X0) (h1 : st.data.regs.X1.toBitVec = loc m0 o)
     (h2 : st.data.regs.X2.toNat = 2 ^ m0.regs.X1.toNat) {s : TState}
     (hts : TStateAt st.data.dmem m0.regs.X0.toBitVec a s)

@@ -34,7 +34,7 @@ theorem frame_match {m0 st : MachineData} {R : BitVec 64 → Prop}
 /-- **The epilogue at `.LVerify_5`**: X0 kept. -/
 theorem exit8 (hp : Placed code k) {m0 : MachineData} {R : BitVec 64 → Prop}
     (hs : 832 ≤ m0.regs.SP.toBitVec.toNat) (hal : m0.regs.SP.toBitVec.toNat % 16 = 0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 88)) (hB : Body m0 832 slots R st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b8Offset)) (hB : Body m0 832 slots R st.data)
     (hFm : Mapped st.data.dmem (frameOf m0) 832) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       st'.data.regs.X0 = st.data.regs.X0 ∧ SameOutside m0.dmem st'.data.dmem R ∧
@@ -50,7 +50,7 @@ theorem exit8 (hp : Placed code k) {m0 : MachineData} {R : BitVec 64 → Prop}
 /-- **The epilogue at `.LVerify_6`**: X0 zero. -/
 theorem exit9 (hp : Placed code k) {m0 : MachineData} {R : BitVec 64 → Prop}
     (hs : 832 ≤ m0.regs.SP.toBitVec.toNat) (hal : m0.regs.SP.toBitVec.toNat % 16 = 0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 95)) (hB : Body m0 832 slots R st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Verify.b9Offset)) (hB : Body m0 832 slots R st.data)
     (hFm : Mapped st.data.dmem (frameOf m0) 832) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.regs.X0 = 0 ∧
       SameOutside m0.dmem st'.data.dmem R ∧ Saved m0 st'.data) st := by

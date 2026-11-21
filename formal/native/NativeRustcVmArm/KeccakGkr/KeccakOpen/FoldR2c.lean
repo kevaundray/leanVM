@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldR2
 
 /-!
@@ -17,13 +19,13 @@ variable [NativeArm.Host] {k : Nat} {c : Cx} {m0 : MachineData} {rows : Array (A
 
 /-- **Round 2's rows 4 and 5.** -/
 theorem round2c (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     (hsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 245)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b38Offset)) (hmid : Mid c m0 s.data)
     (hk : KAt m0 (varsOf c.sl 2 0) k38 s.data)
     (hrw : ElemsAt s.data.dmem (rwA m0) (F c.sl rows 2 4 0) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 306) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b48Offset) ∧ Mid c m0 s'.data ∧
       KAt m0 (varsOf c.sl 2 0) k38 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (F c.sl rows 2 6 0) 4096) s := by
   refine (rowD hp hmul hmemcpy ok hsz hrow (t := 2) (i := 4) (vars := varsOf c.sl 2 0)
@@ -53,13 +55,13 @@ theorem round2c (hp : Placed code k)
 
 /-- **Round 2's rows 6 and 7.** -/
 theorem round2d (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     (hsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 306)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b48Offset)) (hmid : Mid c m0 s.data)
     (hk : KAt m0 (varsOf c.sl 2 0) k38 s.data)
     (hrw : ElemsAt s.data.dmem (rwA m0) (F c.sl rows 2 6 0) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 367) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b58Offset) ∧ Mid c m0 s'.data ∧
       KAt m0 (varsOf c.sl 2 0) k38 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (F c.sl rows 2 8 0) 4096) s := by
   refine (rowD hp hmul hmemcpy ok hsz hrow (t := 2) (i := 6) (vars := varsOf c.sl 2 0)
@@ -89,13 +91,13 @@ theorem round2d (hp : Placed code k)
 
 /-- **Round 2**: eight rows from `b18` to `b58`. -/
 theorem round2 (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     (hsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 124)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b18Offset)) (hmid : Mid c m0 s.data)
     (hk : KAt m0 (varsOf c.sl 2 0) kP s.data)
     (hrw : ElemsAt s.data.dmem (rwA m0) (Fr c.sl rows 2) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 367) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b58Offset) ∧ Mid c m0 s'.data ∧
       KAt m0 (varsOf c.sl 2 0) k38 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (Fr c.sl rows 3) 4096) s := by
   rw [← F_zero] at hrw

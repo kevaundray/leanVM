@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.HashPair.Names
 public import NativeRustcVmArm.Wire.ClimbLevel.Sib
 
 /-!
@@ -26,7 +27,7 @@ variable [Host] {k : Nat} {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {
 /-- **No parent**: the loop's head after node `i`. -/
 theorem Mid.head {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat} {q : Nat × Digest × Bool}
     {st : MachineState} (h : Mid m0 bp B c ns i sl ci q st.data) (hi : i < ns.length)
-    (hpc : st.pc = Host.addrOf (k + 38)) (hpar : parentOf ns[i] q = []) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b5Offset)) (hpar : parentOf ns[i] q = []) :
     Head m0 bp B c ns k (i + 1) (sl ++ [q]) ci st := by
   have htl : (ns.take i).length = sl.length := by rw [List.length_take, h.hl]; omega
   have hp : parentsOf (ns.take (i + 1)) (sl ++ [q]) = parentsOf (ns.take i) sl := by
@@ -49,10 +50,10 @@ theorem sibAddr_eval {m : MachineData} {rs : List (BitVec 64 × Nat)} {i : Nat} 
 
 /-- **The sibling found** (`b9`): node `j` of key node `i`'s `^^^ 1`, the first. -/
 theorem found_spec (hp : Placed code k) (G : Geo m0 bp B)
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hh : Spec (Labels.label NativeRustcVmArm.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hns : NodesAt m0.dmem (nodes m0) ns) (hlen : ns.length = cnt m0) {i j : Nat}
     {sl : List (Nat × Digest × Bool)} {ci : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 56)) (hC : Cur m0 bp B c ns i sl ci st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ClimbLevel.b9Offset)) (hC : Cur m0 bp B c ns i sl ci st.data)
     (hj : j < cnt m0) (hx8 : (st.data.regs.getXReg .X8).toBitVec = nd m0 j)
     (hi : i < ns.length) (hjl : j < ns.length) (hk : ns[j].1 = ns[i].1 ^^^ 1)
     (hmiss : Miss ns i j) (h21 : (st.data.regs.getXReg .X21).toNat = ns[i].1) :
@@ -140,7 +141,7 @@ theorem found_spec (hp : Placed code k) (G : Geo m0 bp B)
     rw [bit0_low, UInt64.toNat_toBitVec, h21]
   simp only [PcOk, hc] at hpc1
   by_cases hodd : ns[i].1 % 2 = 1
-  · simp only [hodd, decide_true, ↓reduceIte, hp.label (j := 38) rfl] at hpc1
+  · simp only [hodd, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b5Offset) NativeRustcVmArm.Vm.ClimbLevel.label_4_at] at hpc1
     exact .done _ ⟨_, _, hM.head hi hpc1 (parent_none hodd rfl)⟩
   · simp only [hodd, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
     have hwf2 := G.frEnv_wf hfr1
@@ -153,7 +154,7 @@ theorem found_spec (hp : Placed code k) (G : Geo m0 bp B)
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
       rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
         exact Match.reg_eq hm2 hm2' rfl rfl
-    simp only [PcOk, hp.label (j := 84) rfl] at hpc2
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.ClimbLevel.b14Offset) NativeRustcVmArm.Vm.ClimbLevel.label_11_at] at hpc2
     exact Eventually.mono (hash14_spec hp G hh hns hlen hpc2 hM2 hi (parent_even (by omega)))
       fun _ h ↦ ⟨_, _, h⟩
 

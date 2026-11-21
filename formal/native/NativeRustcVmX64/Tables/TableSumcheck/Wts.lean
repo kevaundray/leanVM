@@ -2,11 +2,12 @@ module
 
 public import NativeRustcVmX64.Tables.TableSumcheck.Rev
 public import NativeRustcVmX64.Tables.TableTerms.Blocks
+public import NativeRustcVmX64.Code.Vm.TableWeights.Names
 
 /-!
 # `table_sumcheck`: the tables' weights (x86-64)
 
-From the reversed challenges: `b10` (`.LTableSumcheck_9`) saves the claim's `c0` at `48`, keeps
+From the reversed challenges: `b10` (`NativeRustcVmX64.Vm.TableSumcheck.label_9`) saves the claim's `c0` at `48`, keeps
 its `c1` in R14 and calls `table_weights` on the heights, the bus's GKR point and the reversed
 challenges, its six weights at `592` of the frame (`weights`). What follows reads the state `Wt`.
 -/
@@ -87,12 +88,12 @@ variable [Host] {k : Nat} {a : DecArea} {s s1 : TState} {heights : Array Nat} {b
 
 /-- **The weights** (`b10`). -/
 theorem weights (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
-    (hw : Spec (Labels.label tableWeightsLabel) TableWeightsPre TableWeightsPost)
+    (hw : Spec (Labels.label NativeRustcVmX64.Vm.TableWeights.entryLabel) TableWeightsPre TableWeightsPost)
     (hsz : xs.size = nR heights) {d : MachineData} (K : Kp a s1 heights m0 c d)
     (hpt : NativeRustcVm.EWsAt d.dmem (off (fb m0) 112) xs.toList.reverse)
     (cont : ∀ d', Wt a s1 heights bus m0 xs c d' →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + 185)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 166)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b11Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b10Offset)⟩ := by
   have hS := Pre.stack h
   have hH := Pre.hts h
   have hn30 : nR heights ≤ 30 := foldl_max_le heights hH.1 hH.2.1
@@ -107,7 +108,7 @@ theorem weights (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
     have := rin_sub (Pre.bs h) (o := 0) (k := 106712) (by rw [busBytes_eq]; omega)
     rwa [NativeRustcVm.addr_add_zero] at this
   -- `b10`.
-  let ra := (Host.addrOf (k + 166 + b10.length)).toBitVec
+  let ra := (Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b10Offset + b10.length)).toBitVec
   have hwf : (E m0 d [(bA m0, 106712)] ra).WF :=
     wf_one h K.bd.fr.kept hbr.1.1 hbr.1.2 (frame_ap h hbr.2.1)
   have hm : Match (E m0 d [(bA m0, 106712)] ra) busS d := by
@@ -227,7 +228,7 @@ theorem weights (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0)
       (by omega)]
     exact Array.toList_inj.mp (by simp)
   rw [hh, sp1, sp2] at q1
-  refine at_pc (hpc2.trans (addr_eq (by rw [show b10.length = 19 from rfl])))
+  refine at_pc (hpc2.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b10_next)))
     (cont st2.data ⟨hb2, kbw (by omega) (by omega) w48', kbw (by omega) (by omega) (kw (by omega)
       (by omega) K.w56), kbw (by omega) (by omega) (kw (by omega) (by omega) K.w64),
       kbw (by omega) (by omega) (kw (by omega) (by omega) K.w80), ?_, ?_, q1, ?_, ?_, ?_, ?_, ?_,

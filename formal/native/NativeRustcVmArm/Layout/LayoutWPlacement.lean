@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LayoutWPlacement.Names
 public import NativeRustcVmArm.Layout.LayoutWPlacement.Exec
 public import NativeRustcVmArm.Layout.Common
 
@@ -28,7 +29,7 @@ variable [Host] {k : Nat}
 
 /-- **`LayoutW::placement`'s contract.** -/
 theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
-    Spec (Labels.label layoutWPlacementLabel) (LayoutWPlacementPre L)
+    Spec (Labels.label NativeRustcVmArm.Vm.LayoutWPlacement.entryLabel) (LayoutWPlacementPre L)
       (LayoutWPlacementPost L) := by
   rintro m ⟨hc, hL, hmap, hnw⟩
   have hcs : m.regs.X1.toNat < L.placements.size := by rw [hL.placements_size]; exact hc
@@ -61,7 +62,7 @@ theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
   have hload : ∀ {o' : Nat} {v : UInt64}, NativeRustcVm.WordAt m.dmem
       (m.regs.X0.toBitVec + BitVec.ofNat 64 (24 * m.regs.X1.toNat) + BitVec.ofNat 64 o') v →
       env.load 0 o' 8 = v.toBitVec := fun h ↦ load_word h
-  rw [show Labels.label layoutWPlacementLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.LayoutWPlacement.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.LayoutWPlacement.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.LayoutWPlacement.entryOffset) NativeRustcVmArm.Vm.LayoutWPlacement.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st hm1 hpc ↦ ?_
   simp only [PcOk] at hpc
   sym_simp at hpc
@@ -70,7 +71,7 @@ theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
   | none =>
     have h0 : env.load 0 120 8 = 0#64 := hload hP
     simp only [h0, show (0#64 == BitVec.ofNat 64 0) = true from rfl, ↓reduceIte] at hpc
-    rw [hp.label (j := 7) rfl] at hpc
+    rw [hp.label (j := NativeRustcVmArm.Vm.LayoutWPlacement.b2Offset) NativeRustcVmArm.Vm.LayoutWPlacement.label_2_at] at hpc
     refine exec_at (infix_of b2_in_code (by simp [b2]) hp) (exec_after run_b0 run_b2) hwf hpc
       hm1 fun st2 hm2 hpc2 ↦ .done _ ⟨?_, ?_, ?_, ?_, ?_⟩
     · simp only [PcOk] at hpc2
@@ -91,7 +92,7 @@ theorem layoutWPlacement_spec (hp : Placed code k) (L : LayoutW) :
     rw [off, NativeRustcVm.addr_add_add] at hwvc hwix
     simp only [h0, show (1#64 == BitVec.ofNat 64 0) = false from rfl, Bool.false_eq_true,
       ↓reduceIte] at hpc
-    rw [show b0.length = 5 from rfl] at hpc
+    rw [NativeRustcVmArm.Vm.LayoutWPlacement.b0_length, NativeRustcVmArm.Vm.LayoutWPlacement.b0Length] at hpc
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) (exec_after run_b0 run_b1) hwf hpc
       hm1 fun st2 hm2 hpc2 ↦ .done _ ⟨?_, ?_, ?_, ?_, ?_⟩
     · simp only [PcOk] at hpc2

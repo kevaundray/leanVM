@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Bus.VerifyBusBalance.Calls
 public import NativeRustcVmX64.Bus.VerifyBusBalanceClosure0
 public import NativeRustcVm.Bus.SideFits
 public import NativeVm.Code.Phase1.Math
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
 
 /-!
 # `accumulate_side` called from `verify_bus_balance`'s frame (x86-64)
@@ -146,10 +147,10 @@ open NativeRustcVmX64.Bus.FpClosure (stackArg_eq)
 point, pn, tree)`** from the frame's base: the output at `o`, the side's layout at `ol`, the
 blocks the read-only data's `it`, the point at `1800`. -/
 theorem accCall (h : VerifyBusBalancePre a s0 L m0)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (fr : St m0 0 st.data)
-    (hpc : st.pc = Labels.label accumulateSideLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel ∧ retOf st.data = next)
     {side : Nat} (hside : side < 3) {it : NativeRustcVm.Data.Item}
     (hit : it.bytes = (sideBlocks side).flatMap NativeRustcVm.Data.Block.bytes)
     {o ol : Nat} (ho8 : 96 ≤ o) (ho : o + 24 ≤ 5472) (hol8 : 96 ≤ ol) (hol : ol + 888 ≤ 5472)

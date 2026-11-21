@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.AccumulateSide
+public import NativeRustcVmX64.Code.Vm.Names
 
 /-!
 # `accumulate_side`'s symbolic states (x86-64)
@@ -40,8 +41,6 @@ abbrev F : Nat := 12032
 def slots : Slots :=
   [(12024, .rbp), (12016, .r15), (12008, .r14), (12000, .r13), (11992, .r12), (11984, .rbx)]
 
-/-- `TABLES`' label. -/
-def tablesLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.4"
 
 /-- The stack arguments' aliases: frame offset `12040 + 8 i` is region 1's `8 i`. -/
 def argAliases : List (Sym × Nat × Int) :=
@@ -79,7 +78,7 @@ def bS : SState :=
   init [12040, 16] [(.rsp, .ptr 0 8)] [] [] [(.bin .add .W64 (.load 0 96 8) (.reg .r12), 1, 0)]
 /-- The owner times five, as `leaq (%rsi,%rsi,4)` computes it. -/
 def five : Sym := .bin .add .W64 (.reg .rsi) (.bin .mul .W64 (.reg .rsi) (.lit 4))
-def tS : SState := init [12040, 240] [(.rsp, .ptr 0 8)] [(tablesLabel, 1)] [(five, 26)]
+def tS : SState := init [12040, 240] [(.rsp, .ptr 0 8)] [(NativeRustcVmX64.Vm.Symbols.rodata4Label, 1)] [(five, 26)]
 def hS : SState :=
   init [12040, 120] [(.rsp, .ptr 0 8)] [] [(.load 0 48 8, 6)] [(.load 0 104 8, 1, 0)]
 def outS : SState := init [12040, 24] [(.rsp, .ptr 0 8)] [] [] [(.load 0 80 8, 1, 0)]

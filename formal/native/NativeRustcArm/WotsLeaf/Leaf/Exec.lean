@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.WotsLeaf.Steps
 public import NativeRustcArm.SphincsVerify.InlineTh.ByteNF
 public import NativeRustcArm.Code.Xmss.WotsLeaf
@@ -41,7 +43,7 @@ def outOK : Bool :=
       | some (v, t) => symByte 64 v t == some (outByte i)
       | none => false) &&
     frameOrOut S && Run.inRegions S && Run.noWriteIn S 2656 96 && S.sp == .ptr 0 0 &&
-    x == .jump ".LWotsLeaf_6"
+    x == .jump NativeRustcArm.Xmss.WotsLeaf.label_6
   | none => false
 
 end

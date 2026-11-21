@@ -170,7 +170,7 @@ theorem exit_done (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) {m : Mac
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         SumcheckPlainPost a s m0 st.data)
-      ⟨m, Host.addrOf (k + 54)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b7Offset)⟩ := by
   obtain ⟨xs, sn, hrun, hsz, hxs, hts⟩ := hd.run
   have hr : (sumcheckPlain (claimArg m0) (reg m0 .r8).toNat (stackArg m0 0).toNat).run s =
       some ((xs, claimR m), sn) := by
@@ -179,7 +179,7 @@ theorem exit_done (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) {m : Mac
   refine exec_then (infix_of b7_in_code (by simp [b7]) hp) exit_b7 hwf nofun
     (match_outS hd.fr hd.out) fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
-  rw [hp.label (j := 63) rfl] at hpc1
+  rw [hp.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_6_at] at hpc1
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9a hwf nofun hpc1 hm1
     fun st2 hm2 hpc2 ↦ Eventually.done _ ?_
   obtain ⟨hepi, hW, hW0, hW8, hW16⟩ := ok_b9a
@@ -202,13 +202,13 @@ theorem exit_fail (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) {m : Mac
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ rspOf st.data = rspOf m0 + 8#64 ∧
         SumcheckPlainPost a s m0 st.data)
-      ⟨m, Host.addrOf (k + 60)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b8Offset)⟩ := by
   have hwf := wf_envO hpre hf
   refine exec_then (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf nofun
     (match_outS hf hout) fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9b hwf nofun
-    (hpc1.trans (by rw [show b8.length = 3 from rfl])) hm1 fun st2 hm2 hpc2 ↦ Eventually.done _ ?_
+    (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b8_next)) hm1 fun st2 hm2 hpc2 ↦ Eventually.done _ ?_
   obtain ⟨hepi, hW, hW0⟩ := ok_b9b
   refine exit_post hpre hf hm2 hepi hW hpc2 (r := none)
     (by rw [← sumcheckFn_none]; exact hnone.symm) (fun _ _ _ h ↦ (nomatch h))
@@ -221,9 +221,9 @@ theorem exit_fail (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) {m : Mac
 else `b1` and the loop's head with no round done. -/
 theorem entry_spec (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 54) ∧ Done a s m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 31) ∧ Inv a s m0 0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b7Offset) ∧ Done a s m0 st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b2Offset) ∧ Inv a s m0 0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b0Offset)⟩ := by
   have g := geo hpre
   have hargs := hpre.1
   have hst := g.ok.1
@@ -274,12 +274,12 @@ theorem entry_spec (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) :
       show reg st0.data .rcx = reg m0 .rcx from hm0.regs .rcx _ hrcx0]
   by_cases h0 : nP m0 = 0
   · simp only [h0, decide_true, ite_true] at hpc0
-    refine .done _ (Or.inl ⟨hpc0.trans (hp.label (j := 54) rfl), hfr0, hout0, ?_⟩)
+    refine .done _ (Or.inl ⟨hpc0.trans (hp.label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.label_5_at), hfr0, hout0, ?_⟩)
     rw [hclaim0, h0]
     exact rounds_zero hts0'
   · simp only [h0, decide_false, Bool.false_eq_true, ite_false] at hpc0
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf nofun
-      (hpc0.trans (by rw [show b0.length = 23 from rfl])) hm0 fun st1 hm1 hpc1 ↦ ?_
+      (hpc0.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b0_next)) hm0 fun st1 hm1 hpc1 ↦ ?_
     obtain ⟨hP1, hall1, hW1, hrax1, hrcx1, hrbx1, hrbp1, hr12, hr13, hr14, hr15⟩ := ok_b1
     obtain ⟨hfr1, hout1, hts1⟩ := hpro hm1 hP1 hall1 hW1
     simp only [PcOk] at hpc1
@@ -287,7 +287,7 @@ theorem entry_spec (hp : Placed code k) (hpre : SumcheckPlainPre a s m0) :
       show (⟨_, _⟩ : EW) = ⟨_, _⟩
       rw [show reg st1.data .rax = reg m0 .rdx from hm1.regs .rax _ hrax1,
         show reg st1.data .rcx = reg m0 .rcx from hm1.regs .rcx _ hrcx1]
-    refine .done _ (Or.inr ⟨hpc1.trans (by rw [show b1.length = 8 from rfl]), hfr1,
+    refine .done _ (Or.inr ⟨hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.b1_next), hfr1,
       Nat.pos_of_ne_zero h0, hout1, hm1.regs .r12 _ hr12,
       (hm1.regs .r13 _ hr13).trans (eval_ptr0 104), ?_, hm1.regs .r15 _ hr15, ?_,
       (hm1.regs .rbp _ hrbp1).trans (eval_ptr0 24), ?_⟩)

@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmArm.Code.Vm.RingClaimWeight.Names
+public import NativeRustcVmArm.Code.Vm.RingCoefficients.Names
+public import NativeRustcVmArm.Code.Vm.RingPsi.Names
+public import NativeRustcVmArm.Code.Vm.RingSwitch.Names
+public import NativeRustcVmArm.Code.Vm.RingTarget.Names
+public import NativeRustcVmArm.Code.Vm.RingWeight.Names
 public import NativeRustcVmArm.Spec.Transcript
 public import NativeRustcVmArm.Spec.Arrays
 public import NativeRustcVm.Ring.Rep
@@ -43,21 +50,6 @@ open LeanVM.Protocol.Verifier (Placement)
 
 /-! ## Symbols -/
 
-/-- `ring_psi`'s symbol. -/
-def ringPsiLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch8ring_psi"
-/-- `ring_coefficients`'s symbol. -/
-def ringCoefficientsLabel : Label :=
-  "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch17ring_coefficients"
-/-- `ring_target`'s symbol. -/
-def ringTargetLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch11ring_target"
-/-- `ring_switch`'s symbol. -/
-def ringSwitchLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm11ring_switch11ring_switch"
-/-- `ring_weight`'s symbol. -/
-def ringWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack11ring_weight"
-/-- `ring_claim_weight`'s symbol. -/
-def ringClaimWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack17ring_claim_weight"
-/-- `column_weight`'s symbol. -/
-def columnWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack13column_weight"
 
 /-! ## Stacks -/
 

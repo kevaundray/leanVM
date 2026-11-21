@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Arrays.EqKernel.Basic
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `eq_kernel` on x86-64: the loops
@@ -87,9 +88,9 @@ variable [Host] {k : Nat}
 
 /-- **A round's set-up** (`b6`-`b8`): the tests, `point[i]` into the frame. -/
 theorem start (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
-    (hle : 2 ^ np m0 ≤ len m0) {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + 43))
+    (hle : 2 ^ np m0 ≤ len m0) {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b6Offset))
     (hI : OInv m0 i s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 63) ∧ IInv m0 i 0 s'.data) s := by
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b9Offset) ∧ IInv m0 i 0 s'.data) s := by
   have hpre' := hpre
   obtain ⟨hS, h64, hP, hO, hap⟩ := hpre
   obtain ⟨hpos, hpow⟩ := pow_facts hle hI.lt
@@ -105,7 +106,7 @@ theorem start (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
   obtain ⟨bd6, hdm6, e6⟩ := B.of_regs hpre' hI.body hm6 b6_keeps
   have hr8 : reg s.data .r8 = reg m0 .rcx := hI.r8
   have hrdx : reg s.data .rdx = BitVec.ofNat 64 (2 ^ i) := hI.rdx
-  simp only [PcOk, show b6.length = 4 from rfl] at hpc6
+  simp only [PcOk, NativeRustcVmX64.Vm.EqKernel.b6_length] at hpc6
   rw [eval_cmp_ult, eval_reg, eval_reg] at hpc6
   rw [show (Env.ofMachine s.data []).regs .r8 = reg s.data .r8 from rfl,
     show (Env.ofMachine s.data []).regs .rdx = reg s.data .rdx from rfl, hr8, hrdx,
@@ -147,7 +148,7 @@ theorem start (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
       rw [BitVec.ult, ofNat_toNat_lt (by omega), ofNat_toNat_lt hi64]
       simp; omega
     simp [hc]
-  simp only [PcOk, show b7.length = 5 from rfl] at hpc7
+  simp only [PcOk, NativeRustcVmX64.Vm.EqKernel.b7_length] at hpc7
   rw [eval_cmp_eq, eval_reg, eval_reg,
     show (frameEnv m0 s6.data 112).regs .r8 = reg s6.data .r8 from rfl,
     show (frameEnv m0 s6.data 112).regs .rdx = reg s6.data .rdx from rfl, hr86, hdx6] at hpc7
@@ -167,7 +168,7 @@ theorem start (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
   have bd8 := bd7.of_frame (L := 64) hS h112 hwf8 hm8 hm8' (keepsRegs_rsp hk8) hw8 (by decide)
     slots_ok
   have e8 := regs_eq_of hm8 hm8' hk8
-  simp only [PcOk, show b8.length = 11 from rfl] at hpc8
+  simp only [PcOk, NativeRustcVmX64.Vm.EqKernel.b8_length] at hpc8
   have hr : ewArg ((elemEnv m0 s7.data 112 (pt m0) i).load 1 0 8)
       ((elemEnv m0 s7.data 112 (pt m0) i).load 1 8 8) = rr m0 i := hval.trans (rr_eq m0 hI.lt).symm
   have hr15 : reg s8.data .r15 = out m0 + BitVec.ofNat 64 8 :=
@@ -200,13 +201,13 @@ theorem start (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
     exact NativeRustcVm.ewsAt_nil _ _
 
 /-- **A pair** (`b9`, `EW::mul`, `b10`): `out[2^i + j] = K[j]·r`, `out[j] = K[j] + K[j]·r`; back
-at `.LEqKernel_8` or the round done. -/
-theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+at `NativeRustcVmX64.Vm.EqKernel.label_8` or the round done. -/
+theorem pair (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : EqKernelPre m0) (hle : 2 ^ np m0 ≤ len m0) {i j : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 63)) (hI : IInv m0 i j s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b9Offset)) (hI : IInv m0 i j s.data) :
     Eventually (step1 Host.exe) (fun s' ↦
-      (s'.pc = Host.addrOf (k + 63) ∧ IInv m0 i (j + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 63 + 8 + 9) ∧ RInv m0 i s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b9Offset) ∧ IInv m0 i (j + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b11Offset) ∧ RInv m0 i s'.data)) s := by
   have hpre' := hpre
   obtain ⟨hS, h64, hP, hO, hap⟩ := hpre
   obtain ⟨hpos, hpow⟩ := pow_facts hle hI.lt
@@ -232,7 +233,7 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     NativeRustcVm.ewsAt_singleton, lA, List.length_singleton, NativeRustcVm.addr_add] at hlo
   obtain ⟨hloA, hloB, hloC⟩ := hlo
   -- `b9`: `out[j]`, `r`, `EW::mul`
-  obtain ⟨hwf9, hm9⟩ := hI.body.at_elem (ret := (Host.addrOf (k + 63 + 8)).toBitVec) hS h112
+  obtain ⟨hwf9, hm9⟩ := hI.body.at_elem (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b10Offset)).toBitVec) hS h112
     hO.1 hO.2 hjL (x := .bin .add .W64 (.reg .r15) (.reg .rbx)) (o := 8) (by
       rw [eval_add, eval_reg, eval_reg]
       show reg s.data .r15 + reg s.data .rbx = _
@@ -372,7 +373,7 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     show _ + reg s10.data .rbx = _
     rw [q .rbx (by simp), hI.rbx, ← BitVec.ofNat_add]
     exact congrArg _ (by omega)
-  simp only [PcOk, show b10.length = 9 from rfl] at hpc11
+  simp only [PcOk, NativeRustcVmX64.Vm.EqKernel.b10_length] at hpc11
   rw [eval_not, eval_cmp_eq, eval_add, eval_lit, eval_reg, eval_reg,
     show (Env.ofMachine s10.data [(fb m0, 120), (out m0 + BitVec.ofNat 64 (16 * j), 16),
       (out m0 + BitVec.ofNat 64 (16 * (2 ^ i + j)), 16)]).regs .rbp = reg s10.data .rbp from rfl,
@@ -398,12 +399,12 @@ theorem pair (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       (r11 .rbp (by simp)).trans hI.rbp, (r11 .r12 (by simp)).trans hI.r12,
       (r11 .r15 (by simp)).trans hI.r15, nlo, nhi⟩)
 
-/-- **A round's pairs**: from `.LEqKernel_8` with no pair done to the round done. -/
-theorem inner (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+/-- **A round's pairs**: from `NativeRustcVmX64.Vm.EqKernel.label_8` with no pair done to the round done. -/
+theorem inner (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : EqKernelPre m0) (hle : 2 ^ np m0 ≤ len m0) {i : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 63)) (hI : IInv m0 i 0 s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 63 + 8 + 9) ∧ RInv m0 i s'.data) s :=
-  Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 63) ∧ ∃ j, 2 ^ i - j = n ∧ IInv m0 i j s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b9Offset)) (hI : IInv m0 i 0 s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b11Offset) ∧ RInv m0 i s'.data) s :=
+  Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b9Offset) ∧ ∃ j, 2 ^ i - j = n ∧ IInv m0 i j s.data)
     (fun _ _ ⟨hpc, j, hn, hI⟩ ↦ Eventually.mono (pair hp hmul hpre hle hpc hI) fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨2 ^ i - (j + 1), by have := hI'.jlt; omega, hpc', j + 1, rfl, hI'⟩
@@ -413,7 +414,7 @@ theorem inner (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulP
 /-- **The return with the size** (`b13`, `b14`): from the body, `out` the kernel, the size in the
 frame. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
-    (hle : 2 ^ np m0 ≤ len m0) {s : MachineState} (hpc : s.pc = Host.addrOf (k + 85))
+    (hle : 2 ^ np m0 ≤ len m0) {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b13Offset))
     (hb : B m0 s.data) (hl : Loc m0 s.data.dmem (np m0))
     (hker : EWsAt s.data.dmem (out m0) (K m0 (np m0))) :
     Eventually (step1 Host.exe) (Post m0) s := by
@@ -437,9 +438,9 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
 /-- **A round's end** (`b11`, `b5`): the next round, or out of the loop and returned. -/
 theorem next (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
     (hle : 2 ^ np m0 ≤ len m0) {i : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 63 + 8 + 9)) (hR : RInv m0 i s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b11Offset)) (hR : RInv m0 i s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 43) ∧ OInv m0 (i + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EqKernel.b6Offset) ∧ OInv m0 (i + 1) s'.data)) s := by
   have hpre' := hpre
   obtain ⟨hS, h64, hP, hO, hap⟩ := hpre
   have hL : len m0 = (reg m0 .rcx).toNat := rfl
@@ -478,7 +479,7 @@ theorem next (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
   have ker5 : EWsAt s5.data.dmem (out m0) (K m0 (i + 1)) := by
     refine ews_kept hpre' hm5 hwf5 hw5 ?_ (by rw [hdm11]; exact hR.ker)
     rw [length_K m0 (by omega)]; omega
-  simp only [PcOk, show b5.length = 10 from rfl] at hpc5
+  simp only [PcOk, NativeRustcVmX64.Vm.EqKernel.b5_length] at hpc5
   rw [eval_cmp_eq, hpt', eval_load, load_fw loc11.pend, UInt64.toBitVec_ofBitVec, beq_add_left,
     ofNat_beq (by omega) (by omega)] at hpc5
   obtain ⟨hT, hFl⟩ := pc_cond hpc5

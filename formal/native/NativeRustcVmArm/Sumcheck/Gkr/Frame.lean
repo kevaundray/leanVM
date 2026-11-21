@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumcheckOfGkrStep.Names
 public import NativeRustcVmArm.Sumcheck.Gkr.Exec
 public import NativeRustcVmArm.Sumcheck.Loop
 
@@ -111,7 +112,7 @@ theorem exit_of (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) {m : Ma
     (hf : FrG m0 n m) (hx19 : m.regs.getXReg .X19 = m0.regs.X0) {ds : List Directive} {j : Nat}
     {S1 S2 : SState} {x : Exit} (hk : ds.IsInfixAt Host.prog j) (hx1 : exec ds outS = some (S1, x))
     (hpc1 : ∀ st, PcOk (Env.ofMachine m [(base m0 192, 192), (outG m0, 24)]) x
-      (Host.addrOf (j + ds.length)) st → st.pc = Host.addrOf (k + 59))
+      (Host.addrOf (j + ds.length)) st → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b12Offset))
     (hx2 : exec b12 S1 = some (S2, .ret))
     (hok : exitOk S2 192 slotsG keepG = true) (hW : ∀ w ∈ S2.mem, w.r = 1 ∧ w.off + w.n ≤ 24)
     {r : Option ((Array EW × EW) × TState)}
@@ -126,7 +127,7 @@ theorem exit_of (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) {m : Ma
       (fun st ↦ st.pc = retOf m0 ∧ SumcheckGkrPost a s pt n m0 st.data) ⟨m, Host.addrOf j⟩ := by
   have g := geo hpre
   have hS := hpre.1.1
-  have hk12 : b12.IsInfixAt Host.prog (k + 59) := b12_in_code.trans hp.1 (by simp [b12])
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b12Offset) := b12_in_code.trans hp.1 (by simp [b12])
   have hwf : (Env.ofMachine m [(base m0 192, 192), (outG m0, 24)]).WF :=
     Bus.wf_frame2 hS (by decide) hf.kept ⟨g.outOk.1, g.outOk.2.1⟩ g.outOk.2.2.2.2.1
   have hm : Match (Env.ofMachine m [(base m0 192, 192), (outG m0, 24)]) outS m := by
@@ -156,10 +157,10 @@ theorem exit_done (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) {m : 
     (hd : Done a s pt n m0 m) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ SumcheckGkrPost a s pt n m0 st.data)
-      ⟨m, Host.addrOf (k + 53)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10Offset)⟩ := by
   obtain ⟨xs, sn, hrun, hsz, hxs, hts⟩ := hd.run
-  have hk10 : b10.IsInfixAt Host.prog (k + 53) := b10_in_code.trans hp.1 (by simp [b10])
-  refine exit_of hp hpre hd.fr hd.x19 hk10 run_b10 (fun st h ↦ h.trans (hp.label (j := 59) rfl))
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10Offset) := b10_in_code.trans hp.1 (by simp [b10])
+  refine exit_of hp hpre hd.fr hd.x19 hk10 run_b10 (fun st h ↦ h.trans (hp.label (j := NativeRustcVmArm.Vm.SumcheckOfGkrStep.b12Offset) NativeRustcVmArm.Vm.SumcheckOfGkrStep.label_9_at))
     (by rw [← after_eq run_b10]; exact run_b12a) (by decide) (by decide) hrun.symm
     (fun xs' c s' h ↦ by cases h; exact ⟨by simp [hsz], hxs⟩) (fun x s' h ↦ by cases h; exact hts)
     fun st hm' ↦ ?_
@@ -182,8 +183,8 @@ theorem exit_fail (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) {m : 
     (hnone : (sumcheckFn (claimG m0) (cntG m0) (fun j ↦ pt[j]?) n).run s = none) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ SumcheckGkrPost a s pt n m0 st.data)
-      ⟨m, Host.addrOf (k + 57)⟩ := by
-  have hk11 : b11.IsInfixAt Host.prog (k + 57) := b11_in_code.trans hp.1 (by simp [b11])
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b11Offset)⟩ := by
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b11Offset) := b11_in_code.trans hp.1 (by simp [b11])
   refine exit_of hp hpre hf hx19 hk11 run_b11 (fun st h ↦ h)
     (by rw [← after_eq run_b11]; exact run_b12b) (by decide) (by decide) (r := none) hnone.symm
     (fun _ _ _ h ↦ (nomatch h)) (fun _ _ h ↦ (nomatch h)) fun st hm' ↦ ?_
@@ -205,9 +206,9 @@ theorem shl4 (x : BitVec 64) : x <<< 4 = BitVec.ofNat 64 (16 * x.toNat) := by
 the loop's head with no round done. -/
 theorem entry_spec (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 53) ∧ Done a s pt n m0 st.data) ∨
-        (st.pc = Host.addrOf (k + 22) ∧ Inv a s pt n m0 0 st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10Offset) ∧ Done a s pt n m0 st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b2Offset) ∧ Inv a s pt n m0 0 st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b0Offset)⟩ := by
   have g := geo hpre
   have hS := hpre.1.1
   obtain ⟨-, -, -, -, -, -, -, hn64, hwn, hnw8⟩ := hpre
@@ -232,10 +233,10 @@ theorem entry_spec (hp : Placed code k) (hpre : SumcheckGkrPre a s pt n m0) :
       trivial⟩ (by simp only [Sym.eval, Env.base_ofMachine_eq, List.getElem?_cons_zero,
         Option.map_some, Option.getD_some]; rw [show BitVec.ofInt 64 192 = BitVec.ofNat 64 192
           from rfl, hsp192]) trivial trivial trivial trivial
-  have hk0 : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
-  have hk1 : b1.IsInfixAt Host.prog (k + 15) := b1_in_code.trans hp.1 (by simp [b1])
-  have hl7 : Labels.label ".LSumcheckOfGkrStep_7" = Host.addrOf (k + 53) :=
-    hp.label (j := 53) rfl
+  have hk0 : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk1 : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b1Offset) := b1_in_code.trans hp.1 (by simp [b1])
+  have hl7 : Labels.label NativeRustcVmArm.Vm.SumcheckOfGkrStep.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.SumcheckOfGkrStep.b10Offset) NativeRustcVmArm.Vm.SumcheckOfGkrStep.label_7_at
   have hts0 := g.ok.2.2.1
   have hb0 : (Env.ofMachine m0 [(base m0 192, 200)]).base 0 = base m0 192 := rfl
   have hload : (Env.ofMachine m0 [(base m0 192, 200)]).load 0 192 8 = n.toUInt64.toBitVec :=

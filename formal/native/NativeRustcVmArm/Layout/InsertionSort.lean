@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.InsertionSortOfStackOffsets.Names
 public import NativeRustcVmArm.Layout.InsertionSort.Exec
 public import NativeRustcVmArm.Layout.Body
 
@@ -165,29 +166,29 @@ theorem reg_of {st st' : MachineData} {rs : List (BitVec 64 × Nat)} {S1 : SStat
   Arrays.reg_of hm h
 
 theorem lbl_entry (hp : Placed code k) :
-    Labels.label insertionSortLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.entryOffset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.entry_at
 theorem lbl_2 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_2" = Host.addrOf (k + 4) := hp.label (j := 4) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_2_at
 theorem lbl_3 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_3" = Host.addrOf (k + 8) := hp.label (j := 8) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_3_at
 theorem lbl_5 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_5" = Host.addrOf (k + 12) := hp.label (j := 12) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_5_at
 theorem lbl_7 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_7" = Host.addrOf (k + 20) := hp.label (j := 20) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b7Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b7Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_7_at
 theorem lbl_8 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_8" = Host.addrOf (k + 23) := hp.label (j := 23) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_8_at
 theorem lbl_9 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_9" = Host.addrOf (k + 27) := hp.label (j := 27) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_9_at
 theorem lbl_10 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_10" = Host.addrOf (k + 31) := hp.label (j := 31) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_10_at
 theorem lbl_12 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_12" = Host.addrOf (k + 38) := hp.label (j := 38) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_12 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_12_at
 theorem lbl_13 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_13" = Host.addrOf (k + 42) := hp.label (j := 42) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_13_at
 theorem lbl_14 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_14" = Host.addrOf (k + 45) := hp.label (j := 45) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_14 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_14_at
 theorem lbl_16 (hp : Placed code k) :
-    Labels.label ".LInsertionSortOfStackOffsets_16" = Host.addrOf (k + 55) := hp.label (j := 55) rfl
+    Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_16 = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b18Offset) := hp.label (j := NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b18Offset) NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.label_16_at
 
 /-! ## The comparison `lt a b` (`b5`-`b14`) -/
 
@@ -226,8 +227,8 @@ theorem Cmp.step [Labels] {m0 st st' : MachineData} {D : Mem 64} {i j : Nat} {a 
 /-- Where the comparison ends: `.L2` when `lt a b` fails, the swap `b15` when it holds. -/
 def Q (k : Nat) (m0 : MachineData) (D : Mem 64) (i j : Nat) (a b : UInt64) (s : MachineState) :
     Prop :=
-  (s.pc = Host.addrOf (k + 4) ∧ Cmp m0 D i j a b s.data ∧ lt m0 a.toNat b.toNat = false) ∨
-  (s.pc = Host.addrOf (k + 45) ∧ Cmp m0 D i j a b s.data ∧ lt m0 a.toNat b.toNat = true)
+  (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Offset) ∧ Cmp m0 D i j a b s.data ∧ lt m0 a.toNat b.toNat = false) ∨
+  (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15Offset) ∧ Cmp m0 D i j a b s.data ∧ lt m0 a.toNat b.toNat = true)
 
 omit [Host] in
 theorem lt_def (m0 : MachineData) (a b : Nat) : lt m0 a b =
@@ -269,7 +270,7 @@ theorem load0 {st : MachineData} {a : BitVec 64} {sz' : Nat} :
 
 /-- `b12`: `lt a b` fails. -/
 theorem l12 (hp : Placed code k) {m0 : MachineData} {D : Mem 64} {i j : Nat} {a b : UInt64}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 37)) (hc : Cmp m0 D i j a b st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b12Offset)) (hc : Cmp m0 D i j a b st.data)
     (hlt : lt m0 a.toNat b.toNat = false) : Eventually (step1 Host.exe) (Q k m0 D i j a b) st :=
   run_regs (infix_of b12_in_code (by simp [b12]) hp) run_b12 rfl hpc fun st' hm hpc' _ ↦
     .done _ (Or.inl ⟨by simp only [PcOk] at hpc'; exact hpc'.trans (lbl_2 hp),
@@ -277,13 +278,13 @@ theorem l12 (hp : Placed code k) {m0 : MachineData} {D : Mem 64} {i j : Nat} {a 
 
 /-- `b14`: `a < b`, the sizes compared for equality. -/
 theorem l14 (hp : Placed code k) {m0 : MachineData} {D : Mem 64} {i j : Nat} {a b : UInt64}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 42)) (hc : Cmp m0 D i j a b st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14Offset)) (hc : Cmp m0 D i j a b st.data)
     (h13 : st.data.regs.X13.toNat = sz m0 a.toNat) (h14 : st.data.regs.X14.toNat = sz m0 b.toNat)
     (hns : ¬sz m0 b.toNat < sz m0 a.toNat) (hab : a.toNat < b.toNat) :
     Eventually (step1 Host.exe) (Q k m0 D i j a b) st :=
   run_regs (infix_of b14_in_code (by simp [b14]) hp) run_b14 rfl hpc fun st' hm hpc' _ ↦ by
     have hc' := hc.step (match_nil _) hm (Env.wf_nil _) rfl rfl rfl
-    simp only [PcOk, show b14.length = 3 from rfl] at hpc'
+    simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b14Length] at hpc'
     sym_simp at hpc'
     obtain ⟨hy, hn⟩ := pc_ne' hpc'
     simp only [Env.ofMachine_regs] at hy hn
@@ -297,12 +298,12 @@ theorem l14 (hp : Placed code k) {m0 : MachineData} {D : Mem 64} {i j : Nat} {a 
 
 /-- `b13`: `b` past `sizes`, `a` compared with `b`. -/
 theorem l13 (hp : Placed code k) {m0 : MachineData} {D : Mem 64} {i j : Nat} {a b : UInt64}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 38)) (hc : Cmp m0 D i j a b st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13Offset)) (hc : Cmp m0 D i j a b st.data)
     (h13 : st.data.regs.X13.toNat = sz m0 a.toNat) (hns : ¬sz m0 b.toNat < sz m0 a.toNat)
     (hbn : ns m0 ≤ b.toNat) : Eventually (step1 Host.exe) (Q k m0 D i j a b) st :=
   run_regs (infix_of b13_in_code (by simp [b13]) hp) run_b13 rfl hpc fun st' hm hpc' _ ↦ by
     have hc' := hc.step (match_nil _) hm (Env.wf_nil _) rfl rfl rfl
-    simp only [PcOk, show b13.length = 4 from rfl] at hpc'
+    simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b13Length] at hpc'
     sym_simp at hpc'
     obtain ⟨hy, hn⟩ := pc_nult hpc'
     simp only [Env.ofMachine_regs] at hy hn
@@ -321,7 +322,7 @@ theorem l13 (hp : Placed code k) {m0 : MachineData} {D : Mem 64} {i j : Nat} {a 
 
 /-- `b11`: `b` in `sizes`, its size read, `a` compared with `b`. -/
 theorem l11 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {D : Mem 64}
-    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 34))
+    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b11Offset))
     (hc : Cmp m0 D i j a b st.data) (h13 : st.data.regs.X13.toNat = sz m0 a.toNat)
     (hns : ¬sz m0 b.toNat < sz m0 a.toNat) (hbn : b.toNat < ns m0) :
     Eventually (step1 Host.exe) (Q k m0 D i j a b) st := by
@@ -330,7 +331,7 @@ theorem l11 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0)
     (congrArg UInt64.toBitVec hc.base.x2) (by show st.data.regs.X12.toNat = _; rw [hc.x12]) hrd
   refine exec_at (infix_of b11_in_code (by simp [b11]) hp) run_b11 hwf hpc hm fun st' hm' hpc' ↦ ?_
   have hc' := hc.step hm hm' hwf rfl rfl rfl
-  simp only [PcOk, show b11.length = 3 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b11_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b11Length] at hpc'
   sym_simp at hpc'
   obtain ⟨hy, hn⟩ := pc_ult hpc'
   simp only [Env.ofMachine_regs] at hy hn
@@ -366,7 +367,7 @@ theorem x3_toNat {m0 st : MachineData} {D : Mem 64} {i j : Nat} {a b : UInt64}
 
 /-- `b10`: is `b` in `sizes`? -/
 theorem l10 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {D : Mem 64}
-    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 31))
+    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10Offset))
     (hc : Cmp m0 D i j a b st.data) (h13 : st.data.regs.X13.toNat = sz m0 a.toNat)
     (hns : ¬sz m0 b.toNat < sz m0 a.toNat) : Eventually (step1 Host.exe) (Q k m0 D i j a b) st :=
   run_regs (infix_of b10_in_code (by simp [b10]) hp) run_b10 rfl hpc fun st' hm hpc' _ ↦ by
@@ -374,7 +375,7 @@ theorem l10 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0)
     have h13' : st'.data.regs.X13.toNat = sz m0 a.toNat := by
       rw [show st'.data.regs.X13 = st.data.regs.X13 from
         Match.reg_eq (match_nil _) hm (r := .X13) rfl rfl]; exact h13
-    simp only [PcOk, show b10.length = 3 from rfl] at hpc'
+    simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b10Length] at hpc'
     sym_simp at hpc'
     obtain ⟨hy, hn⟩ := pc_nult hpc'
     simp only [Env.ofMachine_regs, x12_toNat hc, x3_toNat hc] at hy hn
@@ -384,7 +385,7 @@ theorem l10 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0)
 
 /-- `b9`: `a` in `sizes`, its size read, compared with `b`'s. -/
 theorem l9 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {D : Mem 64}
-    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 27))
+    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9Offset))
     (hc : Cmp m0 D i j a b st.data) (h14 : st.data.regs.X14.toNat = sz m0 b.toNat)
     (han : a.toNat < ns m0) : Eventually (step1 Host.exe) (Q k m0 D i j a b) st := by
   obtain ⟨hrd, hw⟩ := size_word hpre hc.base han
@@ -397,7 +398,7 @@ theorem l9 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) 
       reg_of hm' (r := .X13) rfl]
     simp only [Sym.eval, load0, UInt64.toNat_ofBitVec]
     rfl
-  simp only [PcOk, show b9.length = 4 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b9Length] at hpc'
   sym_simp at hpc'
   obtain ⟨hy, hn⟩ := pc_ult hpc'
   simp only [Env.ofMachine_regs, load0] at hy hn
@@ -412,7 +413,7 @@ theorem l9 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) 
 
 /-- `b7`: `a` past `sizes`, its size `0`. -/
 theorem l7 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {D : Mem 64}
-    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 20))
+    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b7Offset))
     (hc : Cmp m0 D i j a b st.data) (han : ns m0 ≤ a.toNat) :
     Eventually (step1 Host.exe) (Q k m0 D i j a b) st :=
   run_regs (infix_of b7_in_code (by simp [b7]) hp) run_b7 rfl hpc fun st' hm hpc' _ ↦ by
@@ -424,12 +425,12 @@ theorem l7 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) 
 
 /-- `b8`: `b` past `sizes`, its size `0`; is `a` in `sizes`? -/
 theorem l8 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {D : Mem 64}
-    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 23))
+    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8Offset))
     (hc : Cmp m0 D i j a b st.data) (hbn : ns m0 ≤ b.toNat) :
     Eventually (step1 Host.exe) (Q k m0 D i j a b) st :=
   run_regs (infix_of b8_in_code (by simp [b8]) hp) run_b8 rfl hpc fun st' hm hpc' _ ↦ by
     have hc' := hc.step (match_nil _) hm (Env.wf_nil _) rfl rfl rfl
-    simp only [PcOk, show b8.length = 4 from rfl] at hpc'
+    simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b8Length] at hpc'
     sym_simp at hpc'
     obtain ⟨hy, hn⟩ := pc_nult hpc'
     simp only [Env.ofMachine_regs, x9_toNat hc, x3_toNat hc] at hy hn
@@ -441,7 +442,7 @@ theorem l8 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) 
 
 /-- `b6`: `b` in `sizes`, its size read; is `a` in `sizes`? -/
 theorem l6 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {D : Mem 64}
-    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 17))
+    {i j : Nat} {a b : UInt64} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b6Offset))
     (hc : Cmp m0 D i j a b st.data) (hbn : b.toNat < ns m0) :
     Eventually (step1 Host.exe) (Q k m0 D i j a b) st := by
   obtain ⟨hrd, hw⟩ := size_word hpre hc.base hbn
@@ -454,7 +455,7 @@ theorem l6 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) 
       reg_of hm' (r := .X14) rfl]
     simp only [Sym.eval, load0, UInt64.toNat_ofBitVec]
     rfl
-  simp only [PcOk, show b6.length = 3 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b6_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b6Length] at hpc'
   sym_simp at hpc'
   obtain ⟨hy, hn⟩ := pc_ult hpc'
   simp only [Env.ofMachine_regs, x9_toNat hc, x3_toNat hc] at hy hn
@@ -485,7 +486,7 @@ structure Done (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
 
 /-- `b5`: `b = order[j - 1]` loaded, on to the comparison. -/
 theorem l5 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {i j : Nat}
-    {cur : Array Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 12))
+    {cur : Array Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset))
     (hI : Inner m0 i j cur st.data) :
     Eventually (step1 Host.exe) (Q k m0 st.data.dmem i j cur[j]!.toUInt64
       (cur[j - 1]!.toUInt64)) st := by
@@ -529,7 +530,7 @@ theorem l5 (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) 
       simp only [Env.ofMachine_regs]
       rw [show (st.data.regs.getXReg .X0).toBitVec = ord m0 from congrArg UInt64.toBitVec hI.base.x0,
         show (st.data.regs.getXReg .X10).toBitVec.toNat = j from hI.x10]
-  simp only [PcOk, show b5.length = 5 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Length] at hpc'
   sym_simp at hpc'
   obtain ⟨hy, hn⟩ := pc_nult hpc'
   simp only [Env.ofMachine_regs, load0, hw] at hy hn
@@ -583,10 +584,10 @@ theorem Arr.swap {m0 : MachineData} {cur : Array Nat} {d d' : Mem 64} (h : Arr m
 
 /-- **A turn of the inner loop**: `b` compared, swapped or not. -/
 theorem inner (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {i j : Nat}
-    {cur : Array Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 12))
+    {cur : Array Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset))
     (hI : Inner m0 i j cur st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 4) ∧ Done m0 i s.data) ∨
-      (s.pc = Host.addrOf (k + 12) ∧ ∃ cur', Inner m0 i (j - 1) cur' s.data)) st := by
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Offset) ∧ Done m0 i s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset) ∧ ∃ cur', Inner m0 i (j - 1) cur' s.data)) st := by
   have hsz := hI.arr.size
   have hjl : j < cur.size := by have := hI.le; have := hI.ilt; omega
   have hj1 : j - 1 < cur.size := by omega
@@ -655,7 +656,7 @@ theorem inner (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m
     have hgoal : swapDown (lt m0) (acc m0 i) i =
         swapDown (lt m0) (cur.swapIfInBounds j (j - 1)) (j - 1) := by
       rw [hI.goal, hsd, ← hlt, ht]; rfl
-    simp only [PcOk, show b15.length = 5 from rfl] at hpc''
+    simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b15Length] at hpc''
     sym_simp at hpc''
     obtain ⟨hy, hn⟩ := pc_eq hpc''
     simp only [Env.ofMachine_regs] at hy hn
@@ -678,7 +679,7 @@ theorem inner (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m
         simp only [Env.ofMachine_regs]
         rw [BitVec.toNat_sub_of_le (by rw [BitVec.le_def, h10]; simp; omega), h10]
         rfl
-      simp only [PcOk, show b16.length = 4 from rfl] at hpc2
+      simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b16_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b16Length] at hpc2
       sym_simp at hpc2
       obtain ⟨hy2, -⟩ := pc_ult hpc2
       simp only [Env.ofMachine_regs] at hy2
@@ -711,10 +712,10 @@ theorem inner (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m
 
 /-- **The inner loop**, to `.L2`. -/
 theorem innerLoop (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {i j : Nat}
-    {cur : Array Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 12))
+    {cur : Array Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset))
     (hI : Inner m0 i j cur st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 4) ∧ Done m0 i s.data) st := by
-  refine Sym.loop (fun j s ↦ s.pc = Host.addrOf (k + 12) ∧ ∃ cur, Inner m0 i j cur s.data)
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Offset) ∧ Done m0 i s.data) st := by
+  refine Sym.loop (fun j s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b5Offset) ∧ ∃ cur, Inner m0 i j cur s.data)
     (fun j s ⟨hpc, cur, hI⟩ ↦ ?_) ⟨hpc, cur, hI⟩
   refine Eventually.mono (inner hp hpre hpc hI) fun s' h ↦ ?_
   rcases h with h | ⟨hpc', cur', hI'⟩
@@ -730,12 +731,12 @@ structure Outer (m0 : MachineData) (i : Nat) (st : MachineData) : Prop where
 
 /-- `b3`, `b4`: element `i` taken, swapped down. -/
 theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m0) {i : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 8)) (hO : Outer m0 i st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 4) ∧ Done m0 i s.data) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3Offset)) (hO : Outer m0 i st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Offset) ∧ Done m0 i s.data) st := by
   refine run_regs (infix_of b3_in_code (by simp [b3]) hp) run_b3 rfl hpc fun s1 hm1 hpc1 hd1 ↦ ?_
   have hb1 := hO.base.step (match_nil _) hm1 (Env.wf_nil _) rfl rfl fun p _ ↦ by rw [hd1]
   have h8 : s1.data.regs.X8 = st.data.regs.X8 := Match.reg_eq (match_nil _) hm1 (r := .X8) rfl rfl
-  simp only [PcOk, show b3.length = 2 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3Length] at hpc1
   sym_simp at hpc1
   obtain ⟨hy, hn⟩ := pc_eq hpc1
   have hx8 : (st.data.regs.getXReg .X8).toBitVec.toNat = i := hO.x8
@@ -754,7 +755,7 @@ theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : InsertionSortPre m
     obtain ⟨hwf, hm⟩ := ld_match (p := .X0) (r := .X8) (st := s1.data)
       (congrArg UInt64.toBitVec hb1.x0) (by show s1.data.regs.X8.toNat = i; rw [h8]; exact hO.x8) hrd
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf hpc2 hm fun s2 hm2 hpc3 ↦ ?_
-    simp only [PcOk, show b4.length = 2 from rfl] at hpc3
+    simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b4_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b4Length] at hpc3
     have hd2 : s2.data.dmem = s1.data.dmem := hm2.dmem_eq hwf rfl
     have hil' : i < (acc m0 i).size := by omega
     refine innerLoop hp hpre hpc3 ⟨hb1.step hm hm2 hwf rfl rfl fun p _ ↦ by rw [hd2], ?_, ?_, ?_,
@@ -776,7 +777,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
 
 /-- `b18`: the return. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 55)) (hb : Base m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b18Offset)) (hb : Base m0 st.data)
     (ha : Arr m0 (acc m0 (n m0)) st.data.dmem) : Eventually (step1 Host.exe) (Post m0) st :=
   run_regs (infix_of b18_in_code (by simp [b18]) hp) run_b18 rfl hpc fun s hm hpc' hd ↦ by
     have hb' := hb.step (match_nil _) hm (Env.wf_nil _) rfl rfl fun p _ ↦ by rw [hd]
@@ -803,14 +804,14 @@ theorem arr0 {m0 : MachineData} (hpre : InsertionSortPre m0) : Arr m0 (acc m0 0)
 
 /-- **`insertion_sort` meets its contract.** -/
 theorem insertionSort_spec (hp : Placed code k) :
-    Spec (Labels.label insertionSortLabel) InsertionSortPre InsertionSortPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.entryLabel) InsertionSortPre InsertionSortPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hb0 : Base m0 m0 := ⟨fun _ _ ↦ rfl, rfl, fun _ _ ↦ rfl, fun _ h ↦ h⟩
   refine run_regs (st := ⟨m0, _⟩) (infix_of b0_in_code (by simp [b0]) hp) run_b0 rfl rfl
     fun s hm hpc hd ↦ ?_
   have hb := hb0.step (match_nil _) hm (Env.wf_nil _) rfl rfl fun p _ ↦ by rw [hd]
-  simp only [PcOk, show b0.length = 2 from rfl] at hpc
+  simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b0_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b0Length] at hpc
   sym_simp at hpc
   obtain ⟨hy, hn⟩ := pc_eq hpc
   simp only [Env.ofMachine_regs] at hy hn
@@ -826,7 +827,7 @@ theorem insertionSort_spec (hp : Placed code k) :
     have hO : Outer m0 0 s1.data := ⟨hb1, by
       show (s1.data.regs.getXReg .X8).toBitVec.toNat = 0
       rw [hm1.regs .X8 _ rfl]; rfl, by omega, by rw [hd1, hd]; exact arr0 hpre⟩
-    refine Sym.loop (fun r s ↦ s.pc = Host.addrOf (k + 8) ∧ ∃ i, n m0 - i = r ∧ Outer m0 i s.data)
+    refine Sym.loop (fun r s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b3Offset) ∧ ∃ i, n m0 - i = r ∧ Outer m0 i s.data)
       (fun r s ⟨hpc, i, hr, hO⟩ ↦ ?_) ⟨hpc1.trans (lbl_3 hp), 0, rfl, hO⟩
     refine Eventually.bind (outer hp hpre hpc hO) fun s2 ⟨hpc2, hD⟩ ↦ ?_
     -- `b2`: the next element, or the end
@@ -839,7 +840,7 @@ theorem insertionSort_spec (hp : Placed code k) :
         show (s2.data.regs.getXReg .X8).toBitVec.toNat = i from hD.x8]
       have := hD.ilt
       simp; omega
-    simp only [PcOk, show b2.length = 4 from rfl] at hpc3
+    simp only [PcOk, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2_length, NativeRustcVmArm.Vm.InsertionSortOfStackOffsets.b2Length] at hpc3
     sym_simp at hpc3
     obtain ⟨hy3, hn3⟩ := pc_eq hpc3
     simp only [Env.ofMachine_regs] at hy3 hn3

@@ -28,7 +28,7 @@ variable [Host]
 
 /-- The leaf's copy set up (`b7`), none copied. -/
 structure AtB7 (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 54
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b7Offset
   c : CopyA R j i 0 st.data
   x8 : rv st.data .X8 = R.lv + BitVec.ofNat 64 (512 * i)
   x9 : rv st.data .X9 = R.lv + BitVec.ofNat 64 (512 * i + 16)
@@ -36,7 +36,7 @@ structure AtB7 (R : Run) (j i : Nat) (st : MachineState) : Prop where
 
 /-- The last words, one at a time (`b11`), `t` copied. -/
 structure AtB11 (R : Run) (j i t : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 71
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b11Offset
   c : CopyA R j i t st.data
   x8 : rv st.data .X8 = R.lv + BitVec.ofNat 64 (512 * i)
   x10 : rv st.data .X10 = BitVec.ofNat 64 t
@@ -44,7 +44,7 @@ structure AtB11 (R : Run) (j i t : Nat) (st : MachineState) : Prop where
 
 /-- The leaf copied (`b13`). -/
 structure AtB13 (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 81
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b13Offset
   c : CopyA R j i R.lw st.data
 
 end
@@ -133,7 +133,7 @@ theorem found_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : F
     rw [H.cs.x21, ofNat_toNat (by omega), ofNat_toNat (by omega)]
   simp only [PcOk, hc] at hpc1
   by_cases hl0 : R.lw = 0
-  · simp only [hl0, decide_true, ↓reduceIte, hp.label (j := 81) rfl] at hpc1
+  · simp only [hl0, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b13Offset) NativeRustcVmArm.Vm.WriteOpenings.label_12_at] at hpc1
     exact .done _ (.inr ⟨hpc1, C _ (by rw [hl0]; exact leaf_zero) (le_refl _)⟩)
   · simp only [hl0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
     exact .done _ (.inl ⟨hpc1.trans (congrArg Host.addrOf rfl), C 0 leaf_zero (Nat.zero_le _),
@@ -161,7 +161,7 @@ theorem b7_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : AtB7
     · rw [decide_eq_true (by omega : R.lw < 4), decide_eq_false h]; rfl
   simp only [PcOk, hc] at hpc1
   by_cases h4 : 4 ≤ R.lw
-  · simp only [h4, decide_true, ↓reduceIte, hp.label (j := 60) rfl] at hpc1
+  · simp only [h4, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b9Offset) NativeRustcVmArm.Vm.WriteOpenings.label_8_at] at hpc1
     refine .done _ (.inl ⟨hpc1, C1, by rw [hk1 .X8 (by simp)]; exact H.x8, ?_, ?_, ?_, rfl,
       by show 0 + 4 ≤ R.lw / 4 * 4; omega⟩)
     · rw [hk1 .X9 (by simp), H.x9, Nat.mul_zero, Nat.add_zero]
@@ -179,7 +179,7 @@ theorem b7_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : AtB7
       fun s2 hfr2 hm2' hpc2 ↦ ?_
     have hd2 : s2.data.dmem = s1.data.dmem := hm2'.dmem_eq hwf2 rfl
     have hk2 := regs_keep hm2 hm2' (rs := .X8 :: cpRegs) (by decide)
-    simp only [PcOk, hp.label (j := 71) rfl] at hpc2
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b11Offset) NativeRustcVmArm.Vm.WriteOpenings.label_10_at] at hpc2
     refine .done _ (.inr ⟨hpc2, C1.keep hfr2 hd2 fun r hr ↦ hk2 r (List.mem_cons_of_mem _ hr),
       by rw [hk2 .X8 (by simp), hk1 .X8 (by simp)]; exact H.x8, ?_, H.lw0⟩)
     rw [hm2'.regs .X10 _ rfl]
@@ -243,7 +243,7 @@ theorem b13_step (hp : Placed code R.k) (G : Geo R) {st : MachineState} (H : AtB
       G.fw_keepF hs (by omega) (by omega) (by omega) C.w1.w56,
       G.fw_keepF hs (by omega) (by omega) (by omega) C.w1.w64,
       G.fw_keepF hs (by omega) (by omega) (by omega) C.w1.w72⟩
-  simp only [PcOk, hp.label (j := 99) rfl] at hpc1
+  simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b16Offset) NativeRustcVmArm.Vm.WriteOpenings.label_15_at] at hpc1
   refine ⟨hpc1, hfr1, C.cs.keep fun r hr ↦ hk1 r (by
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hr ⊢
       rcases hr with h | h | h | h | h | h <;> simp [h]), ?_,

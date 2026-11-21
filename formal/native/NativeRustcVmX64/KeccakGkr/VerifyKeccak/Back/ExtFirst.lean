@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Inst
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
 
 /-!
 # The output claim's first extension
@@ -22,10 +23,10 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem extFirstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
-    {st : MachineState} {V : Vs} (hat : At m0 k 272 wrA t45 (vv m0 V) st)
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    {st : MachineState} {V : Vs} (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b47Offset wrA t45 (vv m0 V) st)
     {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 351 wrA t45 (vv m0 V) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b49Offset wrA t45 (vv m0 V) st' →
       NativeRustcVm.BufEWAt st'.data.dmem (off (fb m0) 408) 36 (inst.toList.take 4) →
       Chg m0 st.data.dmem st'.data.dmem [(0, 152), (408, 584), (3296, 48)] [] →
       Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
@@ -55,7 +56,7 @@ theorem extFirstStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst ou
       inst_slice_footprint c ca (j := 0) (n := min inst.size 4) (by omega)
         (by simpa using BitVec.isLt (reg m0 .rdx))
   · intro st' hat' hbuf hchg hkept
-    rw [show 272 + b47.length + b48.length = 351 from rfl] at hat'
+    rw [NativeRustcVmX64.Vm.VerifyKeccak.b47_next, NativeRustcVmX64.Vm.VerifyKeccak.b48_next] at hat'
     exact cont st' hat' hbuf hchg hkept
 
 end

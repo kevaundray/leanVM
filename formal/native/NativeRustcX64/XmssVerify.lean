@@ -1,5 +1,13 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+public import NativeRustcX64.Code.Common.Update.Names
+public import NativeRustcX64.Code.Xmss.FromBytes.Names
+public import NativeRustcX64.Code.Xmss.WotsLeaf.Names
+public import NativeRustcX64.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcX64.XmssVerify.HeadRun
 public import NativeRustcX64.XmssVerify.ParseRun
 public import NativeRustcX64.XmssVerify.Layers
@@ -38,16 +46,16 @@ public theorem words_at {d : DataMem} {a : BitVec 64} (f : Nat → UInt64) :
 
 /-- **`xmss_verify` meets its contract.** -/
 public theorem xmssVerify_spec [Host] {k : Nat} (hp : Placed code k) {w : Nat → UInt64}
-    (hset : Spec (label "memset") MemsetPre MemsetPost)
-    (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hupd : Spec (label updateLabel) UpdatePre UpdatePost)
-    (hfin : Spec (label finalizeLabel) FinalizePre FinalizePost)
-    (hwots : Spec (label wotsLeafLabel) WotsLeafPre WotsLeafPost)
-    (hfb : Spec (label fromBytesLabel) FromBytesPre FromBytesPost) :
-    Spec (label "xmss_verify") (XmssVerifyPre w) (XmssVerifyPost w) := by
+    (hset : Spec (label NativeRustcX64.Common.Memset.entryLabel) MemsetPre MemsetPost)
+    (hcpy : Spec (label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hupd : Spec (label NativeRustcX64.Common.Update.entryLabel) UpdatePre UpdatePost)
+    (hfin : Spec (label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre FinalizePost)
+    (hwots : Spec (label NativeRustcX64.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost)
+    (hfb : Spec (label NativeRustcX64.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost) :
+    Spec (label NativeRustcX64.Xmss.XmssVerify.entryLabel) (XmssVerifyPre w) (XmssVerifyPost w) := by
   intro m₀ hpre
   have P := pre_of hpre
-  rw [hp.label (j := 0) (by decide +kernel), Nat.add_zero]
+  rw [hp.label NativeRustcX64.Xmss.XmssVerify.entry_at, NativeRustcX64.Xmss.XmssVerify.entryOffset, Nat.add_zero]
   exact head hp hset P fun st hpc h =>
     Eventually.bind (copy hp P hpc h) fun _ ⟨hpc', h'⟩ =>
       parse hp hfb P hpc' h' fun _ hpc'' h'' =>

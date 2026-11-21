@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LeanvmVerify.Names
 public import NativeRustcVmArm.Spec.Top
 
 /-!
@@ -24,7 +25,7 @@ variable [NativeArm.Host]
 
 /-- **The end theorem, from `leanvm_verify`'s contract.** -/
 theorem verify_correct_of
-    (hspec : ∀ a bytes bytecode pub, Spec (label leanvmVerifyLabel)
+    (hspec : ∀ a bytes bytecode pub, Spec (label NativeRustcVmArm.Vm.LeanvmVerify.entryLabel)
       (LeanvmVerifyPre a bytes bytecode pub) (LeanvmVerifyPost a bytes bytecode pub))
     {bytes : List UInt8} {bytecode : List UInt64} {pub : Vector UInt64 4} {a : Code.Areas}
     {m : MachineData}
@@ -42,7 +43,7 @@ theorem verify_correct_of
       NativeRustcVm.SameOutside m.dmem st.data.dmem (NativeRustcVm.InAny
         [⟨a.decoded.toBitVec, 8 * NativeVm.decodedWords bytes.length⟩,
           ⟨a.work.toBitVec, NativeRustcVm.Top.workAreaBytes⟩, NativeRustcVmArm.stackR m leanvmVerifyStack]) ∧
-      Saved m st.data) ⟨m, label "leanvm_verify"⟩ :=
+      Saved m st.data) ⟨m, label NativeRustcVmArm.Vm.LeanvmVerify.entryLabel⟩ :=
   NativeRustcArm.Eventually.mono (hspec a bytes bytecode pub m ⟨hstack, hrod, hin, hal, hapS, hapR⟩)
     fun _ ⟨hpc, hx, ho, hs⟩ ↦ ⟨hpc, hx, ho, hs⟩
 

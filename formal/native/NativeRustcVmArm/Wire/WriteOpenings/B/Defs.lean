@@ -44,7 +44,7 @@ variable [Host]
 
 /-- **The queries' loop head** without levels (`b25`) at query `j`. -/
 structure HeadB (R : Run) (j : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 143
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b25Offset
   fr : Frm R st.data
   x1 : rv st.data .X1 = BitVec.ofNat 64 (8 * R.np)
   x2 : rv st.data .X2 = R.qa + BitVec.ofNat 64 (8 * j)
@@ -65,7 +65,7 @@ structure HeadB (R : Run) (j : Nat) (st : MachineState) : Prop where
 
 /-- **The positions' scan** (`b26`) of query `j` at position `i`. -/
 structure ScanB (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 152
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b26Offset
   fr : Frm R st.data
   rb : RB R j st.data
   x13 : rv st.data .X13 = R.lv + BitVec.ofNat 64 (512 * i)
@@ -82,7 +82,7 @@ structure ScanB (R : Run) (j i : Nat) (st : MachineState) : Prop where
 
 /-- **Query `j` found at position `i`** (`b29`). -/
 structure FoundB (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 162
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b29Offset
   fr : Frm R st.data
   rb : RB R j st.data
   x13 : rv st.data .X13 = R.lv + BitVec.ofNat 64 (512 * i)
@@ -108,7 +108,7 @@ structure CopyB (R : Run) (j i t : Nat) (m : MachineData) : Prop where
 
 /-- **Four words at a time** (`b32`), `t` copied. -/
 structure ChunkB (R : Run) (j i t : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 170
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b32Offset
   c : CopyB R j i t st.data
   x13 : rv st.data .X13 = R.lv + BitVec.ofNat 64 (512 * i)
   x14 : rv st.data .X14 = R.lv + BitVec.ofNat 64 (512 * i + 8 * t + 16)
@@ -119,7 +119,7 @@ structure ChunkB (R : Run) (j i t : Nat) (st : MachineState) : Prop where
 
 /-- The last words, one at a time (`b34`), `t` copied. -/
 structure AtB34 (R : Run) (j i t : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 181
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b34Offset
   c : CopyB R j i t st.data
   x13 : rv st.data .X13 = R.lv + BitVec.ofNat 64 (512 * i)
   x15 : rv st.data .X15 = BitVec.ofNat 64 t
@@ -127,7 +127,7 @@ structure AtB34 (R : Run) (j i t : Nat) (st : MachineState) : Prop where
 
 /-- **One word at a time** (`b35`), `t` copied. -/
 structure RemB (R : Run) (j i t : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 186
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b35Offset
   c : CopyB R j i t st.data
   x13 : rv st.data .X13 = R.lv + BitVec.ofNat 64 (512 * i + 8 * t)
   x14 : rv st.data .X14 = R.oa (ob j + 8 + 8 * t)
@@ -136,7 +136,7 @@ structure RemB (R : Run) (j i t : Nat) (st : MachineState) : Prop where
 
 /-- The leaf copied (`b36`). -/
 structure AtB36 (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 191
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b36Offset
   c : CopyB R j i R.lw st.data
 
 end

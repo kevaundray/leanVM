@@ -1,12 +1,14 @@
 module
 
 public import NativeRustcVmX64.Whir.BasisWEval.Loop
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqEval.Names
 
 /-!
 # `BasisW::eval`: the out-of-domain claim and the result (x86-64)
 
 From `End` (`b21`): the next scale (`b22`), or `0` once the scales run out (`b23`): `A24` at
-`.LBasisWEval_19` (`ood_scale`). `b24` calls `eq_eval` on the out-of-domain point (at most 30
+`NativeRustcVmX64.Vm.BasisWEval.label_19` (`ood_scale`). `b24` calls `eq_eval` on the out-of-domain point (at most 30
 coordinates) and the point, `b25` multiplies its weight by the scale, `b26` adds the product to
 the sum and stores it at the output, `b27` stores `Some`'s tag, restores the registers and returns
 (`finish`). The sum is `BasisW.eval` (`In.eval_eq`).
@@ -22,7 +24,7 @@ open LeanVM.Protocol.Verifier (qkeccak Placement)
 
 @[expose] public section
 
-/-- **At `.LBasisWEval_19`** (`b24`): the sum over the weights met (the frame's `24`, `64`), the
+/-- **At `NativeRustcVmX64.Vm.BasisWEval.label_19`** (`b24`): the sum over the weights met (the frame's `24`, `64`), the
 next scale (R14, R15). -/
 structure A24 (m0 : MachineData) (ba : BasisAddrs) (b : BasisW) (v : Vals) (d : MachineData) :
     Prop where
@@ -56,8 +58,8 @@ variable [Host] {k : Nat}
 
 /-- **The out-of-domain claim's scale**, from `End` at `b21` to `b24`. -/
 theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 127)) (he : End m0 ba b v st.data) {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 136) → A24 m0 ba b v st'.data →
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b21Offset)) (he : End m0 ba b v st.data) {R : MachineState → Prop}
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b24Offset) → A24 m0 ba b v st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hf := he.base.fr
@@ -74,7 +76,7 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
   have hsz := h.pre.2.1.scales_size
   by_cases hj : ba.count ≤ (ws v (xpt m0) v.cs.size).size
   · simp only [hj, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 133) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_11_at] at hpc1
     obtain ⟨hmid3, hmem3, hr14, hr15⟩ := ok_b23
     have hwf3 := h.wf0 hf1 (ret := 0)
     refine at_pc hpc1 (h.block hf1 hwf3 (inf hp b23_in_code (by simp [b23])) exit_b23 nofun
@@ -86,7 +88,7 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
     · rw [reg_eval hm2 hr14, hs0]; rfl
     · rw [reg_eval hm2 hr15, hs0]; rfl
   · simp only [hj, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    rw [show k + 127 + b21.length = k + 130 from rfl] at hpc1
+    rw [show k + NativeRustcVmX64.Vm.BasisWEval.b21Offset + b21.length = k + NativeRustcVmX64.Vm.BasisWEval.b22Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b21_next]] at hpc1
     have hlt : (ws v (xpt m0) v.cs.size).size < ba.count := by omega
     obtain ⟨hmid3, hmem3, hr14, hr15⟩ := ok_b22
     have hwf3 := h.wf1 (ret := 0) hf1.frame.kept (h.scaleIn hlt)
@@ -100,7 +102,7 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
     refine at_pc hpc1 (h.block hf1 hwf3 (inf hp b22_in_code (by simp [b22])) exit_b22 nofun hm3
       hmid3 (h0_of_nil hmem3) fun st2 hm2 hpc2 hf2 ↦ ?_)
     simp only [PcOk] at hpc2
-    rw [hp.label (j := 136) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.BasisWEval.label_19_at] at hpc2
     exact cont st2 hpc2 ⟨base1.nil hf2 hwf3 hm2 hmem3, u56.nil hwf3 hm2 hmem3,
       u24.nil hwf3 hm2 hmem3, u64.nil hwf3 hm2 hmem3,
       (reg_eval hm2 hr14).trans (load_ofMachine (r := 1) (o := 0) rfl s0),
@@ -108,9 +110,9 @@ theorem ood_scale (hp : Placed code k) (h : In m0 ba b v) {st : MachineState}
 
 /-- **The out-of-domain claim's weight and the result**, from `b24` to the return. -/
 theorem finish (hp : Placed code k) (h : In m0 ba b v)
-    (heq : Spec (Labels.label eqEvalLabel) EqEvalPre EqEvalPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 136)) (ha : A24 m0 ba b v st.data) :
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqEval.entryLabel) EqEvalPre EqEvalPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b24Offset)) (ha : A24 m0 ba b v st.data) :
     Eventually (step1 Host.exe) (Goal m0 b) st := by
   have hS := h.stackOk
   have hf := ha.base.fr
@@ -121,7 +123,7 @@ theorem finish (hp : Placed code k) (h : In m0 ba b v)
   have hbo : NativeRustcVm.Apart (reg m0 .rsi) 56 ba.ood 8 :=
     NativeRustcVm.Apart.mono h.aparts.2.2.1 (Nat.le_refl _) (by unfold basisBytes; omega)
       (Nat.le_refl _) (by unfold eqClaimBytes; omega)
-  let ret := (Host.addrOf (k + 136 + b24.length)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b24Offset + b24.length)).toBitVec
   have hwf : (envB m0 st.data [(reg m0 .rsi, 56), (ba.ood, 8)] ret).WF :=
     h.wf2 hf.frame.kept h.basis ho8 hbo
   have hZ : NativeRustcVm.BufEWAt st.data.dmem ba.ood NativeRustcVm.Layout.stackCap v.z.toList :=
@@ -184,10 +186,10 @@ theorem finish (hp : Placed code k) (h : In m0 ba b v)
     (hcs2 .r14 rfl).trans ((keeps_reg hm1 hk (by simp)).trans ha.r14)
   have e15 : reg m2 .r15 = (sAt b.scales W.size).c1.toBitVec :=
     (hcs2 .r15 rfl).trans ((keeps_reg hm1 hk (by simp)).trans ha.r15)
-  rw [show k + 136 + b24.length = k + 149 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b24Offset + b24.length = k + NativeRustcVmX64.Vm.BasisWEval.b25Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b24_next]]
   -- b25
   obtain ⟨hmid5, h05, hmiss5, hrcx5, hrdx5, hrsi5, hrdi5⟩ := ok_b25
-  let ret5 := (Host.addrOf (k + 149 + b25.length)).toBitVec
+  let ret5 := (Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b25Offset + b25.length)).toBitVec
   have hwf5 := h.wf0 hf2 (ret := ret5)
   refine h.block hf2 hwf5 (inf hp b25_in_code (by simp [b25])) exit_b25 (fun _ _ ↦ rfl)
     (match_body hf2 ⟨rfl, trivial⟩) hmid5 h05 fun st3 hm3 hpc3 hf3 ↦ ?_
@@ -212,7 +214,7 @@ theorem finish (hp : Placed code k) (h : In m0 ba b v)
   have q24 := kp2 f24 (by simp)
   have q32 := kp2 f32 (by simp)
   have q64 := kp2 f64 (by simp)
-  rw [show k + 149 + b25.length = k + 154 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b25Offset + b25.length = k + NativeRustcVmX64.Vm.BasisWEval.b26Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b25_next]]
   -- b26, b27
   let o := reg m0 .rdi
   have hwf6 : (envB m0 m4 [(o, 24)] 0).WF := h.wf1 hf4.frame.kept h.out

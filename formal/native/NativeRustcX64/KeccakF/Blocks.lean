@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.Names
+
 public import NativeRustcX64.Sym
 public import NativeRustcX64.Code.Common.KeccakF
 public import NativeRustcX64.Spec.Keccak
@@ -35,7 +37,7 @@ def startPro : SState := init [248, 200] [(.rsp, .ptr 0 240), (.rdi, .ptr 1 0)]
 
 /-- The loop head's. -/
 def startBody : SState :=
-  init [248, 192] [(.rsp, .ptr 0 128)] [(rcLabel, 1)] [(.load 0 152 8, 185)]
+  init [248, 192] [(.rsp, .ptr 0 128)] [(NativeRustcX64.Xmss.Symbols.rodata0Label, 1)] [(.load 0 152 8, 185)]
 
 /-- The loop exit's. -/
 def startEpi : SState := init [248, 200] [(.rsp, .ptr 0 128)] [] [] [(.load 0 160 8, 1, 0)]

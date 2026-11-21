@@ -1,15 +1,16 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyLayer.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontA
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.WeightsA
 
 /-!
 # `verify_layer`'s front: the instance weights' masked sum
 
-At `.LVerifyLayer_4` (`b6`, `k + 132`) with bit `j` of the projection (`MaskIn`): the sum of the
+At `.LVerifyLayer_4` (`b6`, `k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset`) with bit `j` of the projection (`MaskIn`): the sum of the
 claim's instance weights whose `RMFE_PROJECT` mask has bit `j` set, two entries a turn (`b9`,
 `b10`, `PairI`, `pair_loop`), then the odd one left (`b12`, `b13`, `one_run`); at
-`.LVerifyLayer_3` (`b4`, `k + 122`) it is in X0, X1 (`masked_run`).
+`.LVerifyLayer_3` (`b4`, `k + NativeRustcVmArm.Vm.VerifyLayer.b4Offset`) it is in X0, X1 (`masked_run`).
 -/
 
 namespace NativeRustcVmArm.KeccakGkr.VerifyLayer
@@ -92,25 +93,25 @@ theorem wf_two [Labels] {m0 : MachineData} {m : MachineData} (pg : PGeo m0) (g :
 
 variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
-theorem label2 (hp : Placed code k) : Labels.label ".LVerifyLayer_2" = Host.addrOf (k + 119) :=
-  hp.label (j := 119) (by rw [getElem?_of_infix (i := 0) b3_in_code (by decide)]; rfl)
+theorem label2 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b3Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b3Offset) NativeRustcVmArm.Vm.VerifyLayer.label_2_at
 
-theorem label3 (hp : Placed code k) : Labels.label ".LVerifyLayer_3" = Host.addrOf (k + 122) :=
-  hp.label (j := 122) (by rw [getElem?_of_infix (i := 0) b4_in_code (by decide)]; rfl)
+theorem label3 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b4Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b4Offset) NativeRustcVmArm.Vm.VerifyLayer.label_3_at
 
-theorem label7 (hp : Placed code k) : Labels.label ".LVerifyLayer_7" = Host.addrOf (k + 141) :=
-  hp.label (j := 141) (by rw [getElem?_of_infix (i := 0) b9_in_code (by decide)]; rfl)
+theorem label7 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b9Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b9Offset) NativeRustcVmArm.Vm.VerifyLayer.label_7_at
 
-theorem label8 (hp : Placed code k) : Labels.label ".LVerifyLayer_8" = Host.addrOf (k + 150) :=
-  hp.label (j := 150) (by rw [getElem?_of_infix (i := 0) b10_in_code (by decide)]; rfl)
+theorem label8 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b10Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b10Offset) NativeRustcVmArm.Vm.VerifyLayer.label_8_at
 
-theorem label10 (hp : Placed code k) : Labels.label ".LVerifyLayer_10" = Host.addrOf (k + 172) :=
-  hp.label (j := 172) (by rw [getElem?_of_infix (i := 0) b12_in_code (by decide)]; rfl)
+theorem label10 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.VerifyLayer.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b12Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.VerifyLayer.b12Offset) NativeRustcVmArm.Vm.VerifyLayer.label_10_at
 
 /-- **The odd entry left** (`b12`, `b13`, `b14`): from `.LVerifyLayer_10` with `n - 1` entries
 summed to `.LVerifyLayer_3` with all `n`. -/
 theorem one_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (hj : j < 47)
-    {st0 : MachineData} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 172))
+    {st0 : MachineData} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b12Offset))
     (hb : FB m0 st.data) (hdm : st.data.dmem = st0.dmem) (hk : Bus.KeepRegs regsL st0 st.data)
     (hn : 1 ≤ c.mu.size) (h25 : st0.regs.X25.toNat = c.mu.size)
     (h24 : st0.regs.X24.toBitVec = projectAddr)
@@ -118,7 +119,7 @@ theorem one_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (hj
     (h11 : st.data.regs.X11.toNat = c.mu.size - 1) (h8 : st.data.regs.X8.toNat = 2 ^ j)
     (h01 : (⟨st.data.regs.X0, st.data.regs.X1⟩ : EW) = xs (muSel c.mu j) (c.mu.size - 1))
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 122) → FB m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b4Offset) → FB m0 st'.data →
       st'.data.dmem = st0.dmem → Bus.KeepRegs regsL st0 st'.data →
       (⟨st'.data.regs.X0, st'.data.regs.X1⟩ : EW) = xs (muSel c.mu j) c.mu.size →
       Eventually (step1 Host.exe) R st') :
@@ -131,7 +132,7 @@ theorem one_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (hj
   refine at_pc hpc (Fr.runBlock hS N_ge rfl hb (blk hp b12_in_code (by simp [b12])) e12 rfl rfl
     (by decide) (by decide) fun st1 hb1 hd1 hm1 hpc1 ↦ ?_)
   simp only [PcOk] at hpc1
-  rw [show k + 172 + b12.length = k + 176 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b12Offset + b12.length = k + NativeRustcVmArm.Vm.VerifyLayer.b13Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b12_next]] at hpc1
   have k1 : Bus.KeepRegs (regsL ++ [.X0, .X1, .X8]) st.data st1.data :=
     Bus.KeepRegs.of_block hm1 rfl
   have r24 : (st.data.regs.getXReg .X24).toBitVec = projectAddr := by
@@ -192,7 +193,7 @@ theorem one_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (hj
     rw [sb_not, sb_cmp, eq_apply, regN .X11 e11, ev_lit, BitVec.toNat_ofNat]
     rfl
   have hpc2' := pc_false hpc2 hc13
-  rw [show k + 176 + b13.length = k + 187 from rfl] at hpc2'
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b13Offset + b13.length = k + NativeRustcVmArm.Vm.VerifyLayer.b14Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b13_next]] at hpc2'
   have k2 : Bus.KeepRegs regsL st1.data st2.data := Bus.KeepRegs.of_block hm2' rfl
   -- `b14`: back to `.LVerifyLayer_3`.
   refine at_pc hpc2' (Fr.runBlock hS N_ge rfl hb2 (blk hp b14_in_code (by simp [b14])) e14 rfl rfl
@@ -212,7 +213,7 @@ theorem one_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (hj
 /-- **The pair loop**, `i` pairs summed, to `b11` with all of them. -/
 theorem pair_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (hj : j < 47)
     {st0 : MachineData} {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 167) → FB m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b11Offset) → FB m0 st'.data →
       st'.data.dmem = st0.dmem → Bus.KeepRegs regsL st0 st'.data →
       st'.data.regs.X8.toNat = 2 ^ j →
       (⟨st'.data.regs.X9, st'.data.regs.X11⟩ : EW) =
@@ -220,7 +221,7 @@ theorem pair_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (
       (⟨st'.data.regs.X10, st'.data.regs.X12⟩ : EW) =
         xs (fun l ↦ muSel c.mu j (2 * l + 1)) (c.mu.size / 2) →
       Eventually (step1 Host.exe) R st') :
-    ∀ r i (st : MachineState), c.mu.size / 2 - i = r → st.pc = Host.addrOf (k + 150) →
+    ∀ r i (st : MachineState), c.mu.size / 2 - i = r → st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b10Offset) →
       PairI m0 c j i st0 st.data → Eventually (step1 Host.exe) R st := by
   have g := geo_of h
   have pg := pgeo_of h
@@ -339,16 +340,16 @@ theorem pair_loop (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat} (
         rw [show BitVec.ofInt 64 48 = BitVec.ofNat 64 48 from rfl, NativeRustcVm.addr_add_add]
         exact addr_eq (by omega)
     · have hpc1' := pc_false hpc1 (by rw [hc10, decide_eq_false hl])
-      rw [show k + 150 + b10.length = k + 167 from rfl] at hpc1'
+      rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b10Offset + b10.length = k + NativeRustcVmArm.Vm.VerifyLayer.b11Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b10_next]] at hpc1'
       have hp2 : i + 1 = c.mu.size / 2 := by omega
       rw [hp2] at hev hod
       exact cont st1 hpc1' hb1 hdm hkeep h8 hev hod
 
 /-- **The masked sum of bit `j`**: from `b6` to `.LVerifyLayer_3` with it in X0, X1. -/
 theorem masked_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 132)) (hi : MaskIn m0 c j st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset)) (hi : MaskIn m0 c j st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 122) → FB m0 st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b4Offset) → FB m0 st'.data →
       st'.data.dmem = st.data.dmem → Bus.KeepRegs regsL st.data st'.data →
       (⟨st'.data.regs.X0, st'.data.regs.X1⟩ : EW) = maskedOf c.mu j →
       Eventually (step1 Host.exe) R st') :
@@ -371,7 +372,7 @@ theorem masked_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat}
     refine at_pc hpc1' (Fr.runBlock hS N_ge rfl hb1 (blk hp b3_in_code (by simp [b3])) e3 rfl rfl
       (by decide) (by decide) fun st2 hb2 hd2 hm2 hpc2 ↦ ?_)
     simp only [PcOk] at hpc2
-    rw [show k + 119 + b3.length = k + 122 from rfl] at hpc2
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b3Offset + b3.length = k + NativeRustcVmArm.Vm.VerifyLayer.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b3_next]] at hpc2
     have k2 : Bus.KeepRegs regsL st1.data st2.data := Bus.KeepRegs.of_block hm2 rfl
     refine cont st2 hpc2 hb2 (hd2.trans hd1) (hk1.trans k2) ?_
     rw [hn0, xs_zero]
@@ -379,7 +380,7 @@ theorem masked_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat}
     rw [reg_val hm2 rfl (x := 0) (by rw [ev_lit]; rfl),
       reg_val hm2 rfl (x := 0) (by rw [ev_lit]; rfl)]
   have hpc1' := pc_false hpc1 (by rw [hc6, decide_eq_false hn0])
-  rw [show k + 132 + b6.length = k + 134 from rfl] at hpc1'
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b6Offset + b6.length = k + NativeRustcVmArm.Vm.VerifyLayer.b7Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b6_next]] at hpc1'
   -- `b7`: the bit; one entry?
   refine at_pc hpc1' (Fr.runBlock hS N_ge rfl hb1 (blk hp b7_in_code (by simp [b7])) e7 rfl rfl
     (by decide) (by decide) fun st2 hb2 hd2 hm2 hpc2 ↦ ?_)
@@ -403,7 +404,7 @@ theorem masked_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat}
   by_cases hn1 : c.mu.size = 1
   · -- `b8`: nothing summed yet, then the one entry.
     have hpc2' := pc_false hpc2 (by rw [hc7, decide_eq_true hn1]; rfl)
-    rw [show k + 134 + b7.length = k + 137 from rfl] at hpc2'
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b7Offset + b7.length = k + NativeRustcVmArm.Vm.VerifyLayer.b8Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b7_next]] at hpc2'
     refine at_pc hpc2' (Fr.runBlock hS N_ge rfl hb2 (blk hp b8_in_code (by simp [b8])) e8 rfl rfl
       (by decide) (by decide) fun st3 hb3 hd3 hm3 hpc3 ↦ ?_)
     simp only [PcOk] at hpc3
@@ -424,7 +425,7 @@ theorem masked_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat}
   refine at_pc hpc2' (Fr.runBlock hS N_ge rfl hb2 (blk hp b9_in_code (by simp [b9])) e9 rfl rfl
     (by decide) (by decide) fun st3 hb3 hd3 hm3 hpc3 ↦ ?_)
   simp only [PcOk] at hpc3
-  rw [show k + 141 + b9.length = k + 150 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b9Offset + b9.length = k + NativeRustcVmArm.Vm.VerifyLayer.b10Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b9_next]] at hpc3
   have k3 : Bus.KeepRegs (regsL ++ [.X8]) st2.data st3.data := Bus.KeepRegs.of_block hm3 rfl
   have hk3 : Bus.KeepRegs regsL st.data st3.data :=
     hk2.trans fun r hr ↦ k3 r (List.mem_append_left _ hr)
@@ -484,7 +485,7 @@ theorem masked_run (hp : Placed code k) (h : VerifyLayerPre a s c m0) {j : Nat}
     refine cont st5 hpc5' hb5 (hd5.trans hd4) hk5 ?_
     rw [h01, show 2 * (c.mu.size / 2) = c.mu.size by omega]
   · have hpc5' := pc_false hpc5 (by rw [hc11, decide_eq_false he])
-    rw [show k + 167 + b11.length = k + 172 from rfl] at hpc5'
+    rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b11Offset + b11.length = k + NativeRustcVmArm.Vm.VerifyLayer.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b11_next]] at hpc5'
     refine one_run hp h hj hpc5' hb5 (hd5.trans hd4) hk5 (by omega) hi.x25 hi.x24 hi.x19 ?_ ?_ ?_
       cont
     · show (st5.data.regs.getXReg .X11).toBitVec.toNat = _

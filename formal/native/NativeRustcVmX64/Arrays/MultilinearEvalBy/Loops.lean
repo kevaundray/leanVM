@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Arrays.MultilinearEvalBy.Pair
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `multilinear_eval_by`: the loops, for both instances (x86-64)
@@ -97,7 +98,7 @@ theorem enter_step (R : Regs) {es : List EW} {m0 : MachineData} (hS : StackOk m0
 /-- **A turn of the inner loop**: `full[k]`'s test, then the value waits (`push_step`) or pairs
 (`pair_step`). -/
 theorem inner_turn (R : Regs) (hR : R.Saved)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {es : List EW} {m0 : MachineData}
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {es : List EW} {m0 : MachineData}
     (hS : StackOk m0 mleStack) (h02 : reg m0 .rdi = reg m0 .rdx) (hes : es.length = nn m0)
     (hP : SliceOk m0 (reg m0 .rcx) (reg m0 .r8) mleStack)
     {t p a c1 c2 d e e' : List Directive} {kI kP kO k1 kE kE' kEnd : Nat}
@@ -118,9 +119,9 @@ theorem inner_turn (R : Regs) (hR : R.Saved)
     (hka : a.IsInfixAt Host.prog k1) (hxa : exec a (pairS R.rf R.ri) = some (Sa, .fall))
     (hca : PairOk R Sa)
     (hkc1 : c1.IsInfixAt Host.prog (k1 + a.length))
-    (hxc1 : exec c1 (midS 1216) = some (Sc1, .call ewMulLabel)) (hcc1 : Call1Ok R Sc1)
+    (hxc1 : exec c1 (midS 1216) = some (Sc1, .call NativeRustcVmX64.Vm.EWMul.entryLabel)) (hcc1 : Call1Ok R Sc1)
     (hkc2 : c2.IsInfixAt Host.prog (k1 + a.length + c1.length))
-    (hxc2 : exec c2 (midS 1216) = some (Sc2, .call ewMulLabel)) (hcc2 : Call2Ok R Sc2)
+    (hxc2 : exec c2 (midS 1216) = some (Sc2, .call NativeRustcVmX64.Vm.EWMul.entryLabel)) (hcc2 : Call2Ok R Sc2)
     (hkd : d.IsInfixAt Host.prog (k1 + a.length + c1.length + c2.length))
     (hxd : exec d (midS 1216) = some (Sd,
       .cond (.not (.cmp .eq .W64 (.load 0 48 8) (.bin .add .W64 (.lit 16) (.reg R.ri)))) lI))

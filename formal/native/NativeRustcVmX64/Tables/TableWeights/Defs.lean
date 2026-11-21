@@ -10,9 +10,9 @@ public import NativeRustcVm.Tables.Weights
 From the entry `m0` (`out` RDI, the heights RSI, `equality_point` RDX, RCX, `point` R8, R9): the
 frame's base `fb m0` (`256` below the entry's RSP, `Field.frameEnv`'s region 0) and its words
 (`fw`); the words the loop keeps (`kf`, `Fixed`); the weights' words (`wE`). The states: the
-loop head `.LTableWeights_3` after `c` coordinates (`It`), `.LTableWeights_5` with coordinate
+loop head `NativeRustcVmX64.Vm.TableWeights.label_3` after `c` coordinates (`It`), `NativeRustcVmX64.Vm.TableWeights.label_5` with coordinate
 `c`'s factor parts (`Pre3`), the return of the multiplication of weight `j - 1` (`Mid`), of
-weight `5` (`Done`), the exit `.LTableWeights_6` (`Fin`).
+weight `5` (`Done`), the exit `NativeRustcVmX64.Vm.TableWeights.label_6` (`Fin`).
 -/
 
 namespace NativeRustcVmX64.Tables.TableWeights
@@ -71,7 +71,7 @@ def wE (st : MachineData) (i : Nat) : EW := ewArg (fw m0 st (wlo i)) (fw m0 st (
 /-- A body of the function. -/
 abbrev Bd (st : MachineData) : Prop := Body m0 256 tableWeightsStack slots 0 0 st
 
-/-- **The loop head** `.LTableWeights_3`, `c` coordinates done, weight `5` in RAX, RDX. -/
+/-- **The loop head** `NativeRustcVmX64.Vm.TableWeights.label_3`, `c` coordinates done, weight `5` in RAX, RDX. -/
 structure It (c : Nat) (st : MachineData) : Prop where
   body : Bd m0 st
   lt : c < n m0
@@ -90,7 +90,7 @@ structure Co (c : Nat) (st : MachineData) : Prop where
   r14 : reg st .r14 = (ch m0 c).c1.toBitVec
   tall : ewArg (reg st .r15 ^^^ (ch m0 c).c0.toBitVec) (reg st .r13) = fac m0 c
 
-/-- **`.LTableWeights_5`**: coordinate `c`'s factor parts, weight `5` in the frame. -/
+/-- **`NativeRustcVmX64.Vm.TableWeights.label_5`**: coordinate `c`'s factor parts, weight `5` in the frame. -/
 structure Pre3 (c : Nat) (st : MachineData) : Prop where
   body : Bd m0 st
   lt : c < n m0
@@ -124,7 +124,7 @@ structure Done (c : Nat) (st : MachineData) : Prop where
   w : ∀ i < 5, wE m0 st i = (W m0 (c + 1)).getD i 0
   w5 : ewRet st = (W m0 (c + 1)).getD 5 0
 
-/-- **The exit** `.LTableWeights_6`: the weights after the whole point. -/
+/-- **The exit** `NativeRustcVmX64.Vm.TableWeights.label_6`: the weights after the whole point. -/
 structure Fin (st : MachineData) : Prop where
   body : Bd m0 st
   out : fw m0 st 96 = reg m0 .rdi

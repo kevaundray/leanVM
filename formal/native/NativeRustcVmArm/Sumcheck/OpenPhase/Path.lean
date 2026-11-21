@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Climb.Names
 public import NativeRustcVmArm.Sumcheck.OpenPhase.Hash
 
 /-!
@@ -32,14 +33,14 @@ variable [Host] {P : Array OpeningW} {R : Digest} {Q : Array UInt64} {m0 : Machi
 
 /-- **A climb's path**: from `b15`, `b16` with opening `j`'s path climbed. -/
 theorem path_spec (hp : Placed code k)
-    (hcl : ∀ N P, Spec (Labels.label climbLabel) (ClimbPre N P) (ClimbPost N P))
+    (hcl : ∀ N P, Spec (Labels.label NativeRustcVmArm.Vm.Climb.entryLabel) (ClimbPre N P) (ClimbPost N P))
     (hpre : OpenPhasePre P R Q m0) {h w : Nat} (hph : PhaseHW m0.dmem (phO m0) P h w) {j : Nat}
     {m : MachineData} (hi : Hashed m0 P Q R h w j m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ st.pc = Host.addrOf (k + 61) ∧ Climbed m0 P Q R h w j st.data)
-      ⟨m, Host.addrOf (k + 55)⟩ := by
+      (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b16Offset) ∧ Climbed m0 P Q R h w j st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.OpenPhase.b15Offset)⟩ := by
   have hS := hpre.1
-  have hk15 : b15.IsInfixAt Host.prog (k + 55) := b15_in_code.trans hp.1 (by simp [b15])
+  have hk15 : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.OpenPhase.b15Offset) := b15_in_code.trans hp.1 (by simp [b15])
   have hc := hi.inv
   have hlt := hc.lt
   have ho := hph.2.2.2.2.2.2 j hlt

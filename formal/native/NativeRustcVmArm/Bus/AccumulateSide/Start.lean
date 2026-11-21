@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.StartOnes
 
 /-!
@@ -10,7 +14,7 @@ After the ones (`QZ` at `b22`), `b22`, `b23` zero the frame's 5920 bytes from `6
 `FormBuf`'s terms at `160` (`memcpy`); `b25` takes the table blocks' count (`bl.length`, at most
 `51`); `b26` sets the table loop's registers and frame words.
 
-**`start_spec`**: from the entry to the table loop's head before turn `0` (`b27`, `k + 233`):
+**`start_spec`**: from the entry to the table loop's head before turn `0` (`b27`, `k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset`):
 `St m0 (TT … 0) DL` and the forms at X1 still `Fm`.
 -/
 
@@ -145,11 +149,11 @@ theorem zturn (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {t : Nat} (ht : 
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
       (m2.regs.getXReg .X9).toBitVec = base m0 F + BitVec.ofNat 64 6080 →
       m2.regs.getXReg .X8 = x8v (t + 1) → t + 1 < 37 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 178)⟩)
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b23Offset)⟩)
     (cexit : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QZ m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 202)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 178)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b24Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b23Offset)⟩ := by
   have hN := h.stack.2.1
   have hFl := F_le h
   have hb := base_toNat (m0 := m0) (F := F) hFl
@@ -209,8 +213,8 @@ theorem zturn (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {t : Nat} (ht : 
     · rw [show t + 1 = 37 by omega, x8v_37]
       rfl
   simp only [PcOk, hc] at hpc
-  rw [hp.label (j := 178) (l := ".LAccumulateSide_14") rfl,
-    show k + 178 + b23.length = k + 202 from rfl] at hpc
+  rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b23Offset) NativeRustcVmArm.Vm.AccumulateSide.label_14_at,
+    show k + NativeRustcVmArm.Vm.AccumulateSide.b23Offset + b23.length = k + NativeRustcVmArm.Vm.AccumulateSide.b24Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b23_next]] at hpc
   by_cases h1 : t + 1 < 37
   · exact Gkr.at_pc (by simpa [h1] using hpc) (cnext _ hst2 hF2 h9' h8' h1)
   · exact Gkr.at_pc (by simpa [h1] using hpc) (cexit _ hst2 hF2)
@@ -219,11 +223,11 @@ theorem zturn (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {t : Nat} (ht : 
 theorem zloop (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {R : MachineState → Prop}
     (cexit : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QZ m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 202)⟩) :
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b24Offset)⟩) :
     ∀ n t, t + n = 36 → ∀ m, St m0 (TT SL m0 L rows bl Fm 0) QZ m →
       FormsAt m.dmem m0.regs.X1.toBitVec Fm →
       (m.regs.getXReg .X9).toBitVec = base m0 F + BitVec.ofNat 64 6080 →
-      m.regs.getXReg .X8 = x8v t → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 178)⟩
+      m.regs.getXReg .X8 = x8v t → Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b23Offset)⟩
   | 0, t, ht, m, hst, hF, h9, h8 =>
     zturn hp h (by omega) hst hF h9 h8 (fun _ _ _ _ _ h1 ↦ absurd h1 (by omega)) cexit
   | n + 1, t, ht, m, hst, hF, h9, h8 =>
@@ -237,8 +241,8 @@ theorem zero (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) QZ m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 202)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 174)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b24Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset)⟩ := by
   have hH0 := St.lift (D := QZ) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
@@ -246,7 +250,7 @@ theorem zero (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     rfl (by decide) (D' := QZ) (E := []) (by decide) (by decide)
     (fun _ _ ↦ holds_nil _ _ _) fun st hm' hpc hst' ↦ ?_
   simp only [PcOk] at hpc
-  rw [show k + 174 + b22.length = k + 178 from rfl] at hpc
+  rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset + b22.length = k + NativeRustcVmArm.Vm.AccumulateSide.b23Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b22_next]] at hpc
   refine Gkr.at_pc hpc (zloop hp h cont 36 0 rfl st.data ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
     (forms_wrOk h (.inl rfl) hm' hwf (by decide) hF) ?_ ?_)
   · rw [hm'.regs .X9 _ rfl, ptr0_eval (oi := 6080) (o := 6080) _ _ _ _ rfl]
@@ -258,13 +262,13 @@ theorem zero (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
 
 /-- **`b24`**: the ones in the frame; `memcpy` of the zeroed bytes to the `FormBuf`'s terms. -/
 theorem s24 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+    (hmc : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m : MachineData} (hst : St m0 (TT SL m0 L rows bl Fm 0) QZ m)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q25 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 211)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 202)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b25Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b24Offset)⟩ := by
   have hH0 : Holds [(base m0 F, F + 0)] (TT SL m0 L rows bl Fm 0)
       ((.reg .X25, 90) :: (.reg .X20, 91) :: QZ) m :=
     Holds.dup (s := .reg .X25) (Holds.dup (s := .reg .X20) (St.lift hst (by decide) 0 [])
@@ -306,7 +310,7 @@ theorem s24 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     refine ⟨NativeRustcVm.SameOutside.mono hs fun q hq' ↦ ?_, hsv⟩
     rw [ex0, ex2] at hq'
     exact .inr (.inl hq')
-  · rw [show k + 202 + b24.length = k + 211 from rfl]
+  · rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b24Offset + b24.length = k + NativeRustcVmArm.Vm.AccumulateSide.b25Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b24_next]]
     refine cont m2 ⟨hst2.fr, Holds.sub hst2.hd (by decide)⟩ ?_
     obtain ⟨-, -, hs, -⟩ := hq
     refine forms_frame h hst'.fr.sp (N' := 0) (lo := 160) (n := 5920) (by decide) (by decide)
@@ -321,8 +325,8 @@ theorem s25 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) Q26 m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 217)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 211)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b26Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b25Offset)⟩ := by
   have hfr := hst.fr
   have h51 := bl_size h
   have h1 := h.blen
@@ -381,7 +385,7 @@ theorem s25 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       · simp [h50]
       · simp [show bl.length - 1 = 50 by omega]
     simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte] at hpc
-    rw [show k + 211 + b25.length = k + 217 from rfl] at hpc
+    rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b25Offset + b25.length = k + NativeRustcVmArm.Vm.AccumulateSide.b26Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b25_next]] at hpc
     exact Gkr.at_pc hpc (cont _ ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
       (forms_wrOk h (.inl rfl) hm' hwf (by decide) hF))
 
@@ -391,8 +395,8 @@ theorem s26 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     (hF : FormsAt m.dmem m0.regs.X1.toBitVec Fm) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm 0) DL m2 →
       FormsAt m2.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 233)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 217)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b26Offset)⟩ := by
   have hH0 := St.lift (D := Q26) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
@@ -428,26 +432,26 @@ theorem s26 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
         TT_sv (by decide)]
       rfl
   · simp only [PcOk] at hpc
-    rw [show k + 217 + b26.length = k + 233 from rfl] at hpc
+    rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b26Offset + b26.length = k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b26_next]] at hpc
     exact Gkr.at_pc hpc (cont _ ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
       (forms_wrOk h (.inl rfl) hm' hwf (by decide) hF))
 
 /-! ## From the entry to the table loop -/
 
-/-- **`accumulate_side` from its entry to the table loop's head** (`b27`, `k + 233`) before turn
+/-- **`accumulate_side` from its entry to the table loop's head** (`b27`, `k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset`) before turn
 `0`: the description `DL` of turn `0`'s table, the forms at X1 still `Fm`. -/
 theorem start_spec (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre
+    (hee : Spec (Labels.label NativeRustcVmArm.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre
       EqEvalFnOfEqAbovePost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {R : MachineState → Prop}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmc : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {R : MachineState → Prop}
     (cont : ∀ m, St m0 (TT SL m0 L rows bl Fm 0) DL m →
       FormsAt m.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 233)⟩) :
-    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b0Offset)⟩ := by
   have tail : ∀ m, St m0 (TT SL m0 L rows bl Fm 0) QZ m →
       FormsAt m.dmem m0.regs.X1.toBitVec Fm →
-      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 174)⟩ := fun m hs hF ↦
+      Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b22Offset)⟩ := fun m hs hF ↦
     zero hp h hs hF fun m2 hs2 hF2 ↦ s24 hp h hmc hs2 hF2 fun m3 hs3 hF3 ↦
       s25 hp h hs3 hF3 fun m4 hs4 hF4 ↦ s26 hp h hs4 hF4 cont
   exact start0 hp h

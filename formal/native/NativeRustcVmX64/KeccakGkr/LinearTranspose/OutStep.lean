@@ -23,9 +23,9 @@ variable {ws : Array EW} {m0 : MachineData} [Host] {k : Nat}
 
 /-- **A turn of the output loop**. -/
 theorem out_step (hp : Placed code k) (h : PreOk m0 ws) {l z : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 170)) (hI : OutHead m0 ws l z st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (z + 1 < 64 ∧ s'.pc = Host.addrOf (k + 170) ∧
-      OutHead m0 ws l (z + 1) s'.data) ∨ (z + 1 = 64 ∧ s'.pc = Host.addrOf (k + 186) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b17Offset)) (hI : OutHead m0 ws l z st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (z + 1 < 64 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b17Offset) ∧
+      OutHead m0 ws l (z + 1) s'.data) ∨ (z + 1 = 64 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b18Offset) ∧
       OutLane m0 ws l s'.data ∧ ElemsAt s'.data.dmem (oA m0) (oF ws) (64 * l + 64))) st := by
   have hl := hI.lane.regs.l_lt
   have hz := hI.z_lt
@@ -180,7 +180,7 @@ theorem out_step (hp : Placed code k) (h : PreOk m0 ws) {l z : Nat} {st : Machin
   by_cases hlast : z + 1 = 64
   · rw [decide_eq_true (show 16 + 16 * z = 1024 by omega)] at hpc'
     simp only [Bool.not_true, Bool.false_eq_true, ite_false] at hpc'
-    refine .done _ (Or.inr ⟨hlast, hpc'.trans (by rw [lengths.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1]),
+    refine .done _ (Or.inr ⟨hlast, hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b17_next),
       ⟨hregs, hg', hc', hol⟩, ?_⟩)
     rw [show 64 * l + 64 = 64 * l + (z + 1) by omega]; exact ho'
   · rw [decide_eq_false (show ¬16 + 16 * z = 1024 by omega)] at hpc'

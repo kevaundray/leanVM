@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Arrays.SelectorPoint.Exec
+public import NativeRustcVmX64.Code.Vm.SelectorPoint.Names
 
 /-!
 # `selector_point` on x86-64
@@ -228,39 +229,39 @@ theorem Frame.regs_block [Labels] {m0 s s' : MachineData} {S' : SState} {rs : Li
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 3) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 3 + 4) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 12) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 12 + 32) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 12 + 32 + 2) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 59) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 61) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 64) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb78 (hp : Placed code k) : (b7 ++ b8).IsInfixAt Host.prog (k + 61) :=
+theorem hb78 (hp : Placed code k) : (b7 ++ b8).IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b7Offset) :=
   isInfixAt_concat (hb7 hp) (hb8 hp)
-theorem hb678 (hp : Placed code k) : (b6 ++ b7 ++ b8).IsInfixAt Host.prog (k + 59) :=
+theorem hb678 (hp : Placed code k) : (b6 ++ b7 ++ b8).IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SelectorPoint.b6Offset) :=
   isInfixAt_concat (isInfixAt_concat (hb6 hp) (hb7 hp)) (hb8 hp)
 
-theorem lbl_entry (hp : Placed code k) : Labels.label selectorPointLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LSelectorPoint_2" = Host.addrOf (k + 59) :=
-  hp.label (j := 59) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LSelectorPoint_4" = Host.addrOf (k + 12) :=
-  hp.label (j := 12) rfl
-theorem lbl_7 (hp : Placed code k) : Labels.label ".LSelectorPoint_7" = Host.addrOf (k + 61) :=
-  hp.label (j := 61) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LSelectorPoint_8" = Host.addrOf (k + 64) :=
-  hp.label (j := 64) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.SelectorPoint.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.SelectorPoint.entry_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.SelectorPoint.label_2 = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b6Offset) :=
+  hp.label NativeRustcVmX64.Vm.SelectorPoint.label_2_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.SelectorPoint.label_4 = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b3Offset) :=
+  hp.label NativeRustcVmX64.Vm.SelectorPoint.label_4_at
+theorem lbl_7 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.SelectorPoint.label_7 = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b7Offset) :=
+  hp.label NativeRustcVmX64.Vm.SelectorPoint.label_7_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.SelectorPoint.label_8 = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b8Offset) :=
+  hp.label NativeRustcVmX64.Vm.SelectorPoint.label_8_at
 
 /-- The postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
@@ -268,7 +269,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
 
 /-- **The return without a last entry** (`b8`), every entry stored. -/
 theorem finish8 (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 64)) (hF : Frame m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b8Offset)) (hF : Frame m0 s.data)
     (hE : EWsAt s.data.dmem (out m0) (pt m0)) : Eventually (step1 Host.exe) (Post m0) s := by
   have hS : StackOk m0 16 := hpre.1
   have hwf := frame_wf (m := s.data) (vars := fun _ ↦ 0) (ret := 0) hS hF.kept
@@ -379,7 +380,7 @@ theorem finishLast {bb : List Directive} {kb : Nat} {S : SState} {v : Sym}
       exact a
   · exact (regs_eq_of hm hm' hkeep r (mem_calleeRegs hr)).trans (hF.regs r hr)
 
-/-- **The pair loop's head** `.LSelectorPoint_4`, `t` pairs stored. -/
+/-- **The pair loop's head** `NativeRustcVmX64.Vm.SelectorPoint.label_4`, `t` pairs stored. -/
 structure Inv (m0 : MachineData) (t : Nat) (s : MachineData) : Prop where
   frame : Frame m0 s
   lt : 2 * t + 2 ≤ len m0
@@ -394,7 +395,7 @@ structure Inv (m0 : MachineData) (t : Nat) (s : MachineData) : Prop where
 /-- **After the pairs** (`b4`): the return for an even `|out|`, else the last entry (`b5`, `b7`,
 `b8`). -/
 theorem afterPairs (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 12 + 32)) (hF : Frame m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b4Offset)) (hF : Frame m0 s.data)
     (hlen : len m0 < 2 ^ 60)
     (hr8 : reg s.data .r8 = BitVec.ofNat 64 (2 * (len m0 / 2)))
     (hrdi : reg s.data .rdi = reg m0 .rdi)
@@ -405,7 +406,7 @@ theorem afterPairs (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPoint
   refine exec_at (hb4 hp) run_b4 (Env.wf_nil _) (by intro l h; cases h) hpc (match_nil _)
     fun s4 hm4 hpc4 ↦ ?_
   obtain ⟨hF4, e4, hdm4⟩ := hF.regs_block hm4 b4_keeps
-  simp only [PcOk, show b4.length = 2 from rfl] at hpc4
+  simp only [PcOk, NativeRustcVmX64.Vm.SelectorPoint.b4_length] at hpc4
   rw [eval_not] at hpc4
   rw [show (SBool.cmp .eq .W8 (.bin .and .W8 (.reg .rdx) (.lit 1)) (.lit 0)).eval
     (Env.ofMachine s.data []) = CmpOp.apply .eq .W8 (BinOp.apply .and .W8 (reg s.data .rdx)
@@ -467,9 +468,9 @@ theorem afterPairs (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPoint
 /-- **A turn of the pair loop**: entries `2t`, `2t + 1` stored, back at the head or past the
 pairs. -/
 theorem step (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0) {t : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 12)) (hI : Inv m0 t s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b3Offset)) (hI : Inv m0 t s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 12) ∧ Inv m0 (t + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b3Offset) ∧ Inv m0 (t + 1) s'.data)) s := by
   obtain ⟨hS, ⟨hmO, hnO⟩, hoO⟩ := hpre
   have hS16 : StackOk m0 16 := hS
   have hS1 := hS16.1
@@ -579,7 +580,7 @@ theorem step (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0
     rw [show BitVec.ofInt 64 32 = BitVec.ofNat 64 32 from rfl, addr_add]
     exact congrArg _ (congrArg _ (by omega))
   -- the loop test
-  simp only [PcOk, show b3.length = 32 from rfl] at hpc3
+  simp only [PcOk, NativeRustcVmX64.Vm.SelectorPoint.b3_length] at hpc3
   rw [eval_not, eval_cmp_eq, eval_add, eval_lit, eval_reg, eval_reg] at hpc3
   rw [show (Env.ofMachine s.data [(stackBelow m0 16, 24),
       (out m0 + BitVec.ofNat 64 (32 * t), 32)]).regs .r8 = reg s.data .r8 from rfl,
@@ -600,7 +601,7 @@ theorem step (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0
 
 /-- **`selector_point` meets its contract.** -/
 theorem selectorPoint_spec (hp : Placed code k) :
-    Spec (Labels.label selectorPointLabel) SelectorPointPre SelectorPointPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.SelectorPoint.entryLabel) SelectorPointPre SelectorPointPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   have hpre' := hpre
@@ -623,7 +624,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
       by rw [hdm1]; exact fun _ h ↦ h, fun p _ ↦ by rw [hdm1]⟩
   have r1 : ∀ r ∈ [Reg64.rdx, .rsi, .rdi], reg s1.data r = reg m0 r :=
     fun r h ↦ e1 r (List.mem_cons_of_mem _ (List.mem_append_left _ h))
-  simp only [PcOk, show b0.length = 3 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.SelectorPoint.b0_length] at hpc1
   rw [eval_test, eval_reg, Env.ofMachine_regs, beq_ofNat _ (by decide)] at hpc1
   obtain ⟨hT, hFl⟩ := pc_cond hpc1
   by_cases hz : len m0 = 0
@@ -656,7 +657,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
       Nat.mod_eq_of_lt (show 1152921504606846975 < 2 ^ 64 by decide), Nat.and_comm, ← hc,
       Nat.and_two_pow_sub_one_eq_mod]
     omega
-  simp only [PcOk, show b1.length = 4 from rfl] at hpc2
+  simp only [PcOk, NativeRustcVmX64.Vm.SelectorPoint.b1_length] at hpc2
   rw [eval_cmp_eq, eval_lit, ← show reg s2.data .rax = (Sym.bin .and .W64
       (.lit 1152921504606846975) (.bin .add .W64 (.lit 1152921504606846975) (.reg .rdx))).eval
       (Env.ofMachine s1.data []) from hm2.regs .rax _ (by decide +kernel),
@@ -676,7 +677,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
   refine exec_at (hb2 hp) run_b2 (Env.wf_nil _) (by intro l h; cases h) hpc3 (match_nil _)
     fun s3 hm3 hpc3' ↦ ?_
   obtain ⟨hF3, e3, hdm3⟩ := hF2.regs_block hm3 b2_keeps
-  simp only [PcOk, show b2.length = 5 from rfl] at hpc3'
+  simp only [PcOk, NativeRustcVmX64.Vm.SelectorPoint.b2_length] at hpc3'
   have hI : Inv m0 0 s3.data := by
     refine ⟨hF3, by omega, ?_, hm3.regs .r8 (.lit 0) (by decide +kernel),
       hm3.regs .rcx (.lit 0) (by decide +kernel), ?_, ?_, ?_, ?_⟩
@@ -694,7 +695,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
     · rw [e3 .rsi (by simp), e2 .rsi (by simp), r1 .rsi (by simp)]; simp
     · rw [e3 .rdx (by simp), hdx]
     · rw [hdm3, hdm2, hdm1]; exact NativeRustcVm.ewsAt_nil _ _
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 12) ∧ ∃ t, len m0 / 2 - t = n ∧
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SelectorPoint.b3Offset) ∧ ∃ t, len m0 / 2 - t = n ∧
     Inv m0 t s.data) (fun n s ⟨hpc, t, hn, hI⟩ ↦ ?_) ⟨hpc3', 0, rfl, hI⟩
   refine Eventually.mono (step hp hpre' hpc hI) fun s' h ↦ ?_
   rcases h with h | ⟨hpc', hI'⟩

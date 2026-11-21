@@ -29,8 +29,8 @@ theorem varsOf_ok (cx : Cx) {t i : Nat} (ht : t < 6) : VarsOk cx t (varsOf cx.sl
 
 theorem fold_start (hp : Placed code k) (h : PreOk a s c m0) {s1 : TState}
     {sl : Array EW} {v : EW} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 37)) (hs : Sw a c m0 s1 sl v st.data) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 44) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b4Offset)) (hs : Sw a c m0 s1 sl v st.data) :
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.KeccakOpen.b5Offset) ∧
       Mid ⟨a, s1, sl, v⟩ m0 8 st'.data ∧ KAt m0 (varsOf sl 0 0) kR0 st'.data ∧
       ElemsAt st'.data.dmem (rwA m0) (Fr sl (swOf c m0) 0) 4096) st := by
   have hn := nums h
@@ -140,7 +140,7 @@ theorem fold_start (hp : Placed code k) (h : PreOk a s c m0) {s1 : TState}
     omega
   refine .done _ ⟨?_, hmid, hk', ?_⟩
   · simp only [PcOk] at hpc1
-    exact hpc1.trans (by rw [f4.1])
+    exact hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.KeccakOpen.b4_next)
   · intro i hi
     have hrowN := NativeVm.Code.P6.slotWeights_size (reg m0 .rdx).toNat c
       (openFirst m0).toNat (openCount m0).toNat

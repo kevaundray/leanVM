@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
+public import NativeRustcVmArm.Code.Vm.NovelEval.Names
 public import NativeRustcVmArm.Whir.NovelEval.Inv
 
 /-!
@@ -31,13 +33,13 @@ theorem stAddr_eval [Labels] (env : Env) :
 variable [Host] {k : Nat}
 
 /-- **A turn of the inner loop.** -/
-theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
+theorem inner_step (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
     {m0 : MachineData} (hS : StackOk m0 novelEvalStack) (hc : cnt m0 ≤ 64) {j t : Nat}
     (ht : t < (basisOf m0 j).size) {st : MachineData} (hI : IInv m0 j t st) :
     Eventually (step1 Host.exe)
-      (fun s ↦ (Post8 m0 j s.data ∧ s.pc = Host.addrOf (k + 40)) ∨
-        (IInv m0 j (t + 1) s.data ∧ s.pc = Host.addrOf (k + 32) ∧ t + 1 < (basisOf m0 j).size))
-      ⟨st, Host.addrOf (k + 32)⟩ := by
+      (fun s ↦ (Post8 m0 j s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b8Offset)) ∨
+        (IInv m0 j (t + 1) s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b6Offset) ∧ t + 1 < (basisOf m0 j).size))
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b6Offset)⟩ := by
   have hF : 1120 ≤ novelEvalStack := by decide
   have hkle : 1120 + kmulStack ≤ novelEvalStack := by decide
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
@@ -47,7 +49,7 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   let v := (whatOf m0).getD j 0
   have hBs : B.size = (basisOf m0 j).size := rfl
   -- `b6`: load the word, call `kmul`
-  have hk6 : b6.IsInfixAt Host.prog (k + 32) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b6Offset) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hrd : Readable st (fbOf m0 + BitVec.ofNat 64 (8 * t)) 8 :=
     hfr.readable (Readable.sub ⟨hfmap, hfnw⟩ (by omega))
   let env6 := Env.ofMachine st [(fbOf m0 + BitVec.ofNat 64 (8 * t), 8)]
@@ -84,8 +86,8 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
       ((B.toList.take t).map (kmul · v)) :=
     hfr1.bytes_call hS hkle hsame2 (by rw [hlenN]; omega) (hd1 ▸ hI.new)
   -- `b7`: store the product, count
-  have hk7 : b7.IsInfixAt Host.prog (k + 36) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hpc2' : s2.pc = Host.addrOf (k + 36) := hpc2
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.NovelEval.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hpc2' : s2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b7Offset) := hpc2
   have e2 : ∀ r ∈ [XReg.X19, .X20, .X21, .X22, .X23, .X24, .X25, .X26, .X27],
       s2.data.regs.getXReg r = st.regs.getXReg r := by
     intro r hr
@@ -164,7 +166,7 @@ theorem inner_step (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre 
   simp only [PcOk] at hpc3
   sym_simp at hpc3
   simp only [env7, Env.ofMachine_regs, e2 .X27 (by simp)] at hpc3
-  have hl5 : Labels.label ".LNovelEval_5" = Host.addrOf (k + 32) := hp.label rfl
+  have hl5 : Labels.label NativeRustcVmArm.Vm.NovelEval.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.NovelEval.b6Offset) := hp.label (j := NativeRustcVmArm.Vm.NovelEval.b6Offset) NativeRustcVmArm.Vm.NovelEval.label_5_at
   by_cases hlast : B.size - t = 1
   · have hx : (st.regs.getXReg .X27).toBitVec = BitVec.ofNat 64 1 := by
       apply BitVec.eq_of_toNat_eq

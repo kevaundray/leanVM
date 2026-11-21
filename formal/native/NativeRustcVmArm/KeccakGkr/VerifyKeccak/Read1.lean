@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Open1
 
 /-!
@@ -33,12 +34,12 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The committed outputs' word** (`b42`, `b43`). -/
 theorem stepRead1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hrs : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {m : MachineData} {s1 : TState} {cj : KeccakClaimW} {sl ws : Array EW} {v : EW}
     (ho : AtO a s cs inst output m0 m s1 cj sl ws v)
     (cont : ∀ m' s' w, AtR a s cs inst output m0 m' s' cj sl ws v w →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 236)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 229)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b44Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b42Offset)⟩ := by
   have ev := ho.val.2
   rw [show off (loc m0 2592) 8 = loc m0 2600 from loc_add m0 2592 8] at ev
   have ec := load_ew (env := envM m0 m) (r := 0) (o := 2600) ev
@@ -52,7 +53,7 @@ theorem stepRead1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
     rw [hcs2 .X19 rfl]; exact reg_of hm1 (r := .X19) (v := .load 0 2608 8) rfl ec.2
   have x28 : (m2.regs.getXReg .X28).toBitVec = scA m0 + BitVec.ofNat 64 139264 := by
     rw [hcs2 .X28 rfl, Match.reg_eq (matchM hn ho.mid.fr) hm1 (r := .X28) rfl rfl]; exact ho.x28
-  rw [show k + 229 + b42.length = k + 234 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b42Offset + b42.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b43Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b42_next]]
   refine failBranch hp hn (b43_in_code.trans hp.1 (by simp [b43])) run_b43 hmid2 rfl rfl
     (by decide) (by decide) (b := ((readScalar.run s1).map (·.1)).isSome)
     (cond4 (o := 2592) (r := (readScalar.run s1).map (·.1)) hv) (fun hf ↦ ?_)
@@ -65,7 +66,7 @@ theorem stepRead1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
       | none => rw [hq] at ht; cases ht
       | some q => exact ⟨q, rfl⟩
     rw [hr] at hv hnx
-    rw [show k + 234 + b43.length = k + 236 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b43Offset + b43.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b44Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b43_next]]
     refine cont m3 s2 w ⟨hmid3, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ho.psz, ho.slsz, ?_,
       ho.wsz, ?_, ?_, ?_⟩
     · rw [hcs3 .X28 rfl]; exact x28

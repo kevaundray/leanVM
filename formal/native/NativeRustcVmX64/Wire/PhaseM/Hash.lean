@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Wire.PhaseM.Rows
 public import NativeRustcVmX64.Spec.Keccak
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfHashWords.Names
 
 /-!
 # `phase_m`: the first level's nodes (x86-64)
@@ -29,7 +30,7 @@ open LeanVM.Parameters LeanVM.Protocol LeanVM.Protocol.Compile LeanVM.Protocol.K
 structure Climb0 [Labels] [Host] (m0 : MachineData) (bp : BitVec 64) (B : List UInt8)
     (c k count : Nat) (qs : List Nat) (height lw : Nat) (rows : List (List K)) (c6 : Nat)
     (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 149)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b28Offset)
   bod : Bod m0 8 st.data
   mid : Mid m0 B c count qs height lw rows c6 st.data.dmem
   rd : ReaderAt st.data.dmem (RD m0) bp B c6
@@ -73,7 +74,7 @@ theorem reader_sw [Labels] (G : Geo m0 bp B.length) {d d' : Mem 64} {c' : Nat}
 
 /-- **A leaf hashed**: from leaf `i`'s head, to the next one's or to the climb's set-up. -/
 theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hkw : Spec (Labels.label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
     {count : Nat} {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 i : Nat}
     {st : MachineState} (h : HashSt m0 bp B c k count qs height lw rows c6 i st) :
@@ -101,7 +102,7 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
   have h15' : reg st.data .r15 = BitVec.ofNat 64 i := by
     apply BitVec.eq_of_toNat_eq
     rw [h15, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-  have hm26 : Match (aEnv m0 st.data (8 * i) 2056 (Host.addrOf (k + 122 + b26.length)).toBitVec)
+  have hm26 : Match (aEnv m0 st.data (8 * i) 2056 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b26Offset + b26.length)).toBitVec)
       posS st.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hbod.fr.rsp_eval, trivial⟩ trivial trivial
       ⟨by
@@ -127,10 +128,10 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
     have := hw26 w hw
     rcases h with ⟨-, h1, h2⟩ | ⟨h, -⟩ <;> omega
   have env26 : ∀ x, (aEnv m0 st.data (8 * i) 2056
-      (Host.addrOf (k + 122 + b26.length)).toBitVec).regs x = reg st.data x := fun _ ↦ rfl
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b26Offset + b26.length)).toBitVec).regs x = reg st.data x := fun _ ↦ rfl
   have h9' : (reg st.data .r9).toNat = lw := h9
   have hl64 : ((aEnv m0 st.data (8 * i) 2056
-      (Host.addrOf (k + 122 + b26.length)).toBitVec).load 0 64 8) = (8 * lw).toUInt64.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b26Offset + b26.length)).toBitVec).load 0 64 8) = (8 * lw).toUInt64.toBitVec :=
     load_ofMachine (o := 64) rfl hf64
   have hdi1 : reg s1.data .rdi = off (stackBelow m0 160) 80 :=
     (hm1.regs .rdi _ hdi26).trans (eval_ptr0 80)
@@ -147,7 +148,7 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
   have hpos : NativeRustcVm.WordAt s1.data.dmem (off (stackBelow m0 160) 72)
       ((sortD qs)[i]'hi).toUInt64 := by
     refine wordAt_written hm1 (r := 0) rfl (by omega) hp72 ?_
-    show (aEnv m0 st.data (8 * i) 2056 (Host.addrOf (k + 122 + b26.length)).toBitVec).load 1 2048 8
+    show (aEnv m0 st.data (8 * i) 2056 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b26Offset + b26.length)).toBitVec).load 1 2048 8
       = _
     refine load_ofMachine (o := 2048) (b := wa m0 (8 * i)) rfl ?_
     have := NativeRustcVm.WordsAt.getElem hM.psW (i := i) (by simp; omega)
@@ -181,8 +182,8 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
     refine wordsAt_keep this hs1 (by rw [hlen, hwl]; omega) fun q hq ↦ ?_
     rw [hlen, hwl]; omega
   simp only [PcOk] at hpc1
-  refine call_then (env := aEnv m0 st.data (8 * i) 2056 (Host.addrOf (k + 122 + b26.length)).toBitVec)
-    (l := "_RINvNtCsemcRClSg8DH_9native_vm6keccak15keccak256_wordsNCNvB2_10hash_words0EB4_")
+  refine call_then (env := aEnv m0 st.data (8 * i) 2056 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b26Offset + b26.length)).toBitVec)
+    (l := NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel)
     ⟨hpc1.1, hpc1.2⟩ hkw hpre fun s2 hpc2 hrsp2 ⟨hpost, hso2, hsv2⟩ ↦ ?_
   rw [hdi1, hcx1, hr81] at hpost
   rw [hdi1] at hso2
@@ -246,7 +247,7 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
       hm1.regs .rbx (.reg .rbx) (by decide +kernel)]
     exact hbx
   -- `b27`: the node.
-  have hm27 : Match (aEnv m0 s2.data (4096 + 40 * i) 40 (Host.addrOf (k + 133 + b27.length)).toBitVec)
+  have hm27 : Match (aEnv m0 s2.data (4096 + 40 * i) 40 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b27Offset + b27.length)).toBitVec)
       nodeS s2.data :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hb2.fr.rsp_eval, trivial⟩ trivial trivial
       ⟨by
@@ -259,11 +260,11 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
           BitVec.toNat_ofNat, hb2.r14, e13, hwnd]
         omega, trivial⟩
   have hwf27 := aEnv_wf G hb2.fr.kept (o := 4096 + 40 * i) (n := 40) (by omega) (by omega)
-    (Host.addrOf (k + 133 + b27.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b27Offset + b27.length)).toBitVec
   obtain ⟨hmid27, hw27, hkey27, hdg27, hcx27, hr927, h1327, hk27⟩ := ok_b27
   refine ablk hp G b27_in_code (by simp [b27]) exit_b27 (by omega) (by omega) hmid27
     (fun w hw ↦ .inr (hw27 w hw)) (hk27 .r12 (by simp)) (hk27 .r14 (by simp))
-    (hpc2.trans (by rw [show b26.length = 11 from rfl])) hb2 hm27
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b26_next)) hb2 hm27
     fun s3 hb3 _ _ hsw3 hm3 hpc3 ↦ ?_
   have hs3 : NativeRustcVm.SameOutside s2.data.dmem s3.data.dmem (fun q ↦
       (WK m0).toNat + (4096 + 40 * i) ≤ q.toNat ∧ q.toNat < (WK m0).toNat + (4096 + 40 * i) + 40) :=
@@ -271,7 +272,7 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
       have := hw27 w hw
       rcases h with ⟨h, -⟩ | ⟨-, h1, h2⟩ <;> omega
   have env27 : ∀ o v, FW m0 s2.data.dmem o v → (aEnv m0 s2.data (4096 + 40 * i) 40
-      (Host.addrOf (k + 133 + b27.length)).toBitVec).load 0 o 8 = v.toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b27Offset + b27.length)).toBitVec).load 0 o 8 = v.toBitVec :=
     fun o v h ↦ load_ofMachine (o := o) rfl h
   have hdl : (NativeVm.Model.hashWords (((leavesOf lw rows)[i]'(by simp [hl]; omega)).map
       K.lane).toArray).toList.length = 4 := by simp
@@ -326,35 +327,35 @@ theorem hash_step (hp : Placed code k) (G : Geo m0 bp B.length)
   have hcx2 : FW m0 s2.data.dmem 24 (UInt64.ofBitVec (wa m0 (352512 + 512 * i))) := by
     have h24' := wordAt_write hm1 (r := 0) (o := 24) rfl (by omega) h24
     have e : (Sym.reg .rcx).eval (aEnv m0 st.data (8 * i) 2056
-        (Host.addrOf (k + 122 + b26.length)).toBitVec) = wa m0 (352512 + 512 * i) := hcx
+        (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b26Offset + b26.length)).toBitVec) = wa m0 (352512 + 512 * i) := hcx
     rw [e] at h24'
     exact FW.keep G (by omega) h24' hso2' fun q hq ↦ by omega
   have ecx : reg s3.data .rcx = wa m0 (352512 + 512 * (i + 1)) := by
     rw [show reg s3.data .rcx = _ from hm3.regs .rcx _ hcx27]
     show BinOp.apply .add .W64 (BitVec.ofNat 64 512) ((aEnv m0 s2.data (4096 + 40 * i) 40
-      (Host.addrOf (k + 133 + b27.length)).toBitVec).load 0 24 8) = _
+      (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b27Offset + b27.length)).toBitVec).load 0 24 8) = _
     rw [env27 24 _ hcx2, add_off']
     show off (wa m0 (352512 + 512 * i)) 512 = _
     rw [off_off, show 352512 + 512 * i + 512 = 352512 + 512 * (i + 1) by omega]
   simp only [PcOk] at hpc3
   have hc : (SBool.cmp .eq .W64 (.reg .rbp) (.reg .r15)).not.eval (aEnv m0 s2.data
-      (4096 + 40 * i) 40 (Host.addrOf (k + 133 + b27.length)).toBitVec) = !decide (n = i + 1) := by
+      (4096 + 40 * i) 40 (Host.addrOf (k + NativeRustcVmX64.Vm.PhaseM.b27Offset + b27.length)).toBitVec) = !decide (n = i + 1) := by
     show (!CmpOp.apply .eq .W64 (reg s2.data .rbp) (reg s2.data .r15)) = _
     rw [eqv_eval, ebp, e15]
   rw [hc] at hpc3
   by_cases hlast : n = i + 1
   · simp only [hlast, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc3
     rw [List.take_of_length_le (by rw [length_nodes0 hl]; omega)] at hnd3
-    exact .done _ (.inr ⟨hpc3.trans (by rw [show b27.length = 16 from rfl]), hb3, hM3, hrd3,
+    exact .done _ (.inr ⟨hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.PhaseM.b27_next), hb3, hM3, hrd3,
       by rw [rk3 .rbp (by simp)]; exact ebp, ebx3, e9, hnd3⟩)
   · simp only [hlast, decide_false, Bool.not_false, ↓reduceIte] at hpc3
-    exact .done _ (.inl ⟨hpc3.trans (hp.label (j := 122) rfl), hb3, hM3, hrd3,
+    exact .done _ (.inl ⟨hpc3.trans (hp.label NativeRustcVmX64.Vm.PhaseM.label_17_at), hb3, hM3, hrd3,
       by rw [rk3 .rbp (by simp)]; exact ebp, ebx3, e9, e13', by rw [rk3 .r15 (by simp)]; exact e15,
       ecx, hf64'', by omega, hnd3⟩)
 
 /-- **The leaves hashed.** -/
 theorem hash_run (hp : Placed code k) (G : Geo m0 bp B.length)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hkw : Spec (Labels.label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
     {count : Nat} {qs : List Nat} {height lw : Nat} {rows : List (List K)} {c6 : Nat}
     {st : MachineState} (h : HashSt m0 bp B c k count qs height lw rows c6 0 st) :

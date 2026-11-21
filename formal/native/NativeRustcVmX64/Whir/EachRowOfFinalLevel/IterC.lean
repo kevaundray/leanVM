@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfFinalLevel.IterB
+public import NativeRustcVmX64.Code.Vm.FoldRow.Names
+public import NativeRustcVmX64.Code.Vm.SubspaceAtTable.Names
 
 /-!
 # `each_row` with `final_level`'s closure: folding a row, its `What`s (x86-64)
@@ -64,12 +66,12 @@ theorem ewArg_ewRet (m : MachineData) : ewArg (reg m .rax) (reg m .rdx) = ewRet 
 variable [Host] {k : Nat}
 
 /-- **Folding a row and its `What`s**: from `b11` to `b13`. -/
-theorem iter_c (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPre FoldRowPost)
-    (hsat : Spec (label subspaceAtTableLabel) SubspaceAtTablePre SubspaceAtTablePost)
+theorem iter_c (hp : Placed code k) (hfold : Spec (label NativeRustcVmX64.Vm.FoldRow.entryLabel) FoldRowPre FoldRowPost)
+    (hsat : Spec (label NativeRustcVmX64.Vm.SubspaceAtTable.entryLabel) SubspaceAtTablePre SubspaceAtTablePost)
     (hpre : EachRowFinalPre rows op m0) {m : MachineData} (h : AtB11 rows m0 j m)
     (cont : ∀ m', AtB13 rows m0 j m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 87)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 69)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11Offset)⟩ := by
   have hl := lay hpre
   have hsp := hl.sp
   have htop := hl.ok.2.1
@@ -78,10 +80,10 @@ theorem iter_c (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPr
   have hjr := h.hj
   have hjq := h.hjq
   -- `b11`: `fold_row`
-  obtain ⟨hwf, hm⟩ := frame_env hpre h.fr (Host.addrOf (k + 69 + b11.length)).toBitVec
-  have hk11 : b11.IsInfixAt Host.prog (k + 69) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf, hm⟩ := frame_env hpre h.fr (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11Offset + b11.length)).toBitVec
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11Offset) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hq72 : (EachRow.envE m0 m 1936 24 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 69 + b11.length)).toBitVec).load 0 72 8 = ((qsOf m0)[j]'hjq).toBitVec :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11Offset + b11.length)).toBitVec).load 0 72 8 = ((qsOf m0)[j]'hjq).toBitVec :=
     NativeRustcVmX64.Arrays.load_word h.mm.w72
   refine exec_then hk11 run_b11 hwf (fun _ _ ↦ rfl) hm fun st1 hm1 hpc1 ↦ ?_
   have hs1 : SameOutside m.dmem st1.data.dmem (EachRow.Hit m0 1936 eachRowFinalStack 48 64) :=
@@ -94,13 +96,13 @@ theorem iter_c (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPr
     have := NativeRustcVmX64.Transcript.wordAt_write hm1 (r := 0) (o := 48) rfl (by decide)
       (v := .reg .rbp) (by decide)
     rwa [show (Sym.reg .rbp).eval (EachRow.envE m0 m 1936 24 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 69 + b11.length)).toBitVec) = _ from h.rbp] at this
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11Offset + b11.length)).toBitVec) = _ from h.rbp] at this
   have w56 : WordAt st1.data.dmem (fb m0 + BitVec.ofNat 64 56)
       (UInt64.ofBitVec (BitVec.ofNat 64 (rows.size - (j + 1)))) := by
     have := NativeRustcVmX64.Transcript.wordAt_write hm1 (r := 0) (o := 56) rfl (by decide)
       (v := .reg .r13) (by decide)
     rwa [show (Sym.reg .r13).eval (EachRow.envE m0 m 1936 24 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 69 + b11.length)).toBitVec) = _ from h.r13] at this
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11Offset + b11.length)).toBitVec) = _ from h.r13] at this
   have hmm1 := h.mm.keep hl (by decide) (by decide) (by decide) (by decide) hs1
   have hlanes1 : EWsAt st1.data.dmem (fb m0 + BitVec.ofNat 64 104) (lanesJ m0 (rows[j]'hjr)).toList :=
     EachRow.keep_frame hl (by decide) (by decide) hs1 (by decide)
@@ -156,12 +158,12 @@ theorem iter_c (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPr
   obtain ⟨d2, pc2⟩ := st2
   simp only at hpc2 hfr2 hs2 hsv hfoldv
   subst hpc2
-  rw [show k + 69 + b11.length = k + 78 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11Offset + b11.length = k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b12Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfFinalLevel.b11_next]]
   have k2 : ∀ r, calleeSaved r = true → reg d2 r = reg st1.data r := fun r hc ↦ sv hsv r hc
   have hmm2 := hmm1.keep hl (by decide) (by decide) (by decide) (by decide) hs2
   -- `b12`: `subspace_at_table`
-  obtain ⟨hwf2, hm2⟩ := frame_env hpre hfr2 (Host.addrOf (k + 78 + b12.length)).toBitVec
-  have hk12 : b12.IsInfixAt Host.prog (k + 78) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  obtain ⟨hwf2, hm2⟩ := frame_env hpre hfr2 (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b12Offset + b12.length)).toBitVec
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b12Offset) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk12 run_b12 hwf2 (fun _ _ ↦ rfl) hm2 fun st3 hm3 hpc3 ↦ ?_
   have hs3 : SameOutside d2.dmem st3.data.dmem (EachRow.Hit m0 1936 eachRowFinalStack 1384 1384) :=
     EachRow.hit_of_block hl le_rfl (by decide) hm3 hwf2 (by decide)
@@ -227,7 +229,7 @@ theorem iter_c (hp : Placed code k) (hfold : Spec (label foldRowLabel) FoldRowPr
   obtain ⟨d4, pc4⟩ := st4
   simp only at hpc4 hfr4 hs4 hsv4 hval4
   subst hpc4
-  rw [show k + 78 + b12.length = k + 87 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b12Offset + b12.length = k + NativeRustcVmX64.Vm.EachRowOfFinalLevel.b13Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.EachRowOfFinalLevel.b12_next]]
   refine cont d4 ⟨hfr4, hjr, hjq,
     (hmm2.keep hl le_rfl (by decide) (by decide) (by decide) hs3).keep hl (by decide) (by decide)
       (by decide) (by decide) hs4, h.ok, ?_, ?_, ?_, hval4, ?_, ?_⟩

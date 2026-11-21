@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.SlotWeights.Step
 
 /-!
@@ -23,10 +24,10 @@ variable [NativeArm.Host] {c : KeccakClaimW} {m0 : MachineData} {k : Nat}
 
 /-- **A turn of the first segment's loop**. -/
 theorem segA_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 144)) (hI : SegA m0 c j s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 144) ∧ SegA m0 c (j + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 157) ∧
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b6Offset)) (hI : SegA m0 c j s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b6Offset) ∧ SegA m0 c (j + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b9Offset) ∧
         SegDone m0 c (1600 * m0.regs.X4.toNat + 1600) s'.data)) s := by
   have hS := hpre.1
   have hj := hI.j_lt
@@ -189,7 +190,7 @@ theorem segA_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
   -- `b5`: the counters
   simp only [PcOk] at hpc4
   refine exec_at (b5_in_code.trans hp.1 (by simp [b5])) e5 (Env.wf_nil _)
-    (hpc4.trans (hp.label (j := 139) rfl)) (match_nil _) fun s5 hm5 hpc5 ↦ ?_
+    (hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b5Offset) NativeRustcVmArm.Vm.SlotWeights.label_4_at)) (match_nil _) fun s5 hm5 hpc5 ↦ ?_
   have hb5 : Body m0 s5.data :=
     hb4.of_block (match_nil _) hm5 (Env.wf_nil _) rfl all_slots (by decide)
   have k5 := KeccakGkr.Match.regs_keep (match_nil _) hm5
@@ -214,12 +215,12 @@ theorem segA_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
     have hc : ((s4.data.regs.getXReg .X29).toBitVec == 16#64) = true := by
       rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; rw [hx29]; rfl
     simp only [hc, ite_true] at hpc5
-    exact .done _ (Or.inr ⟨hpc5.trans (hp.label (j := 157) rfl), hb5, hkeep5, hloc5,
+    exact .done _ (Or.inr ⟨hpc5.trans (hp.label (j := NativeRustcVmArm.Vm.SlotWeights.b9Offset) NativeRustcVmArm.Vm.SlotWeights.label_7_at), hb5, hkeep5, hloc5,
       by rw [hd5]; exact hrows4⟩)
   · have hc : ((s4.data.regs.getXReg .X29).toBitVec == 16#64) = false := by
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h; rw [hx29] at this
       simp at this; omega
-    simp only [hc, Bool.false_eq_true, ite_false, show b5.length = 5 from rfl] at hpc5
+    simp only [hc, Bool.false_eq_true, ite_false, NativeRustcVmArm.Vm.SlotWeights.b5_length, NativeRustcVmArm.Vm.SlotWeights.b5Length] at hpc5
     refine .done _ (Or.inl ⟨hpc5, hb5, hkeep5, hloc5, by omega, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩)
     · rw [show s5.data.regs.X24 = s5.data.regs.getXReg .X24 from rfl, k5 .X24 (by simp),
         k4 .X24 (by simp), hk3 .X24 (by simp)]; exact hI.x24
@@ -242,11 +243,11 @@ theorem segA_step (hp : Placed code k) (hpre : SlotWeightsPre c m0)
 
 /-- **The first segment's loop**, to its end. -/
 theorem segA_loop (hp : Placed code k) (hpre : SlotWeightsPre c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 144)) (hI : SegA m0 c j s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 157) ∧
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {j : Nat} {s : MachineState}
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b6Offset)) (hI : SegA m0 c j s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b9Offset) ∧
       SegDone m0 c (1600 * m0.regs.X4.toNat + 1600) s'.data) s :=
-  Sym.loop (fun n s ↦ ∃ j, n = 1600 - j ∧ s.pc = Host.addrOf (k + 144) ∧ SegA m0 c j s.data)
+  Sym.loop (fun n s ↦ ∃ j, n = 1600 - j ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b6Offset) ∧ SegA m0 c j s.data)
     (fun _ s ⟨j, hn, hpc, hI⟩ ↦ (segA_step hp hpre hmul hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨1600 - (j + 1), by have := hI.j_lt; omega, j + 1, rfl, hpc', hI'⟩

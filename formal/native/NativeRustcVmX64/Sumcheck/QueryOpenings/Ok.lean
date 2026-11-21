@@ -6,7 +6,7 @@ public import NativeRustcVm.Sumcheck.PhaseUpdate
 /-!
 # `TState::query_openings`'s `Some` exit (x86-64)
 
-`b5` (`k + 40`) copies `open_phase`'s `Rows` (the frame's 32 bytes at `16`) to the output (R14),
+`b5` (`k + NativeRustcVmX64.Vm.TStateQueryOpenings.b5Offset`) copies `open_phase`'s `Rows` (the frame's 32 bytes at `16`) to the output (R14),
 stores the phase index plus one at `t + 360` (RBX, R15) and `b7` runs the epilogue: the rows,
 read in the phase's openings, at the output and the `TState` at its next phase (`finish_ok`).
 -/
@@ -48,7 +48,7 @@ theorem finish_ok (hp : Placed code k) {a : DecArea} {s : TState} {Q : Array UIn
     (hrun : (queryOpenings (reg m0 .rdx).toNat Q).run s =
       some (rows, { s with phase := s.phase + 1 }))
     (hlt : s.phase < s.openings.size) (hrowsP : rows = s.openings[s.phase].map (·.leaf))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 40)) (hf : Frame m0 96 slots 8 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TStateQueryOpenings.b5Offset)) (hf : Frame m0 96 slots 8 st.data)
     (h14 : reg st.data .r14 = reg m0 .rdi) (h3 : reg st.data .rbx = reg m0 .rsi)
     (h15 : reg st.data .r15 = s.phase.toUInt64.toBitVec)
     (hts : TStateAt st.data.dmem (reg m0 .rsi) a s)
@@ -79,7 +79,7 @@ theorem finish_ok (hp : Placed code k) {a : DecArea} {s : TState} {Q : Array UIn
       ⟨hf.rsp_eval, known_ptr rfl h14, known_ptr rfl h3, trivial⟩ trivial trivial trivial)
     fun st1 hm1 hpc1 => ?_
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) exit_b7o hwf nofun
-    (hpc1.trans (hp.label (j := 53) rfl)) hm1 fun st2 hm2 hpc2 => ?_
+    (hpc1.trans (hp.label NativeRustcVmX64.Vm.TStateQueryOpenings.label_5_at)) hm1 fun st2 hm2 hpc2 => ?_
   obtain ⟨hepi, hw0, hw1, hw2, hw3, hwp, hws⟩ := ok_ok
   obtain ⟨hsv, hrsp⟩ := Frame.epilogue hf hwf hm2 hepi
   -- The header copied.

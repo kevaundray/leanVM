@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Layout.Common
 public import NativeRustcVmX64.Code.Vm.FormTerms
+public import NativeRustcVmX64.Code.Vm.Names
 public meta import NativeRustcVmX64.Code.Vm.FormTerms
 public meta import NativeRustcVmX64.Layout.Common
 
@@ -22,14 +23,10 @@ open NativeRustcVmX64.Transcript (after after_eq exec_after EpiOk)
 
 @[expose] public section
 
-/-- `FORMS`' label. -/
-def formsLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.13"
 
-/-- `TERMS`' label. -/
-def termsLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.14"
 
 /-- At the entry: the return address (region 0, RSP), `FORMS` (region 1) at its label. -/
-def entryS : SState := init [8, 9488] [(.rsp, .ptr 0 0)] [(formsLabel, 1)]
+def entryS : SState := init [8, 9488] [(.rsp, .ptr 0 0)] [(NativeRustcVmX64.Vm.Symbols.rodata13Label, 1)]
 
 /-- `b1`'s shift of the form. -/
 def b1a : List Directive := b1.take 1
@@ -39,7 +36,7 @@ def b1b : List Directive := b1.drop 1
 
 /-- The form's byte offset: the form (variable `0`, below `593`) times `16`. -/
 def idxS : SState :=
-  init [8, 9488] [(.rsp, .ptr 0 0), (.rdi, .bin .mul .W64 (.var 0) (.lit 16))] [(formsLabel, 1)]
+  init [8, 9488] [(.rsp, .ptr 0 0), (.rdi, .bin .mul .W64 (.var 0) (.lit 16))] [(NativeRustcVmX64.Vm.Symbols.rodata13Label, 1)]
     [(.var 0, 593)]
 
 /-- The span's start. -/
@@ -60,7 +57,7 @@ def condS : SBool :=
 
 /-- The slice's address: `TERMS` plus `40` times the start, or `8` (dangling). -/
 def raxOut : Sym :=
-  .ite condS (.bin .add .W64 (.label termsLabel)
+  .ite condS (.bin .add .W64 (.label NativeRustcVmX64.Vm.Symbols.rodata14Label)
     (.bin .mul .W64 (.bin .add .W64 startS (.bin .mul .W64 startS (.lit 4))) (.lit 8))) (.lit 8)
 
 /-- The slice's length, or `0`. -/

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalar.Names
 public import NativeRustcVmArm.Whir.FoldRound.Exit
 
 /-!
@@ -130,9 +131,9 @@ variable [Host] {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : MachineData}
 
 /-- **`read_scalar`** into the frame's `Option<EW>` at 88, from the `TState`'s state `s`. -/
 theorem rs_call (h : FoldRoundPre a s0 w m0)
-    (hrs : ∀ s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (hb : Base w m0 st.data)
-    (hpc : st.pc = Labels.label readScalarLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.TStateReadScalar.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0.toBitVec = loc m0 88) (hx1 : st.data.regs.X1 = m0.regs.X1)
     {s : TState} (hts : TStateAt st.data.dmem (tA m0) a s)
     (cont : ∀ m2, Base w m0 m2 → OptEWAt m2.dmem (loc m0 88) ((readScalar.run s).map (·.1)) →

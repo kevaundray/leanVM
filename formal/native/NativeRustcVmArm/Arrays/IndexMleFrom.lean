@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.IndexMleFrom.Names
 public import NativeRustcVmArm.Arrays.IndexMleFrom.Exec
 public import NativeRustcVm.Arrays.Folds
 
@@ -57,33 +59,33 @@ structure Inv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 6) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 12) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 17) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 22) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 29) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 33) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 34) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 37) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.IndexMleFrom.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label indexMleFromLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LIndexMleFrom_2" = Host.addrOf (k + 12) :=
-  hp.label (j := 12) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LIndexMleFrom_3" = Host.addrOf (k + 34) :=
-  hp.label (j := 34) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LIndexMleFrom_4" = Host.addrOf (k + 37) :=
-  hp.label (j := 37) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.IndexMleFrom.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.IndexMleFrom.entryOffset) NativeRustcVmArm.Vm.IndexMleFrom.entry_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.IndexMleFrom.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b2Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.IndexMleFrom.b2Offset) NativeRustcVmArm.Vm.IndexMleFrom.label_2_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.IndexMleFrom.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b7Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.IndexMleFrom.b7Offset) NativeRustcVmArm.Vm.IndexMleFrom.label_3_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.IndexMleFrom.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b8Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.IndexMleFrom.b8Offset) NativeRustcVmArm.Vm.IndexMleFrom.label_4_at
 
 /-- The postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
@@ -91,7 +93,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
 
 /-- **The epilogue** `b8`: the accumulator (X21, X19) returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : IndexMleFromPre m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 37)) (hb : Body m0 64 indexMleFromStack slots 0 0 s.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b8Offset)) (hb : Body m0 64 indexMleFromStack slots 0 0 s.data)
     (hacc : (⟨s.data.regs.X21, s.data.regs.X19⟩ : EW) = (st m0 (len m0)).1) :
     Eventually (step1 Host.exe) (Post m0) s := by
   obtain ⟨hwf, hm⟩ := hb.exit_match hpre.1 (by decide) rfl
@@ -113,11 +115,11 @@ theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : IndexMleFromPre m
 
 /-- **A turn of the loop**: `r·(1 + power)`, `acc·(1 + ·)`, `power²`, back at the head or out of
 the loop and returned. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : IndexMleFromPre m0) {i : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 12)) (hI : Inv m0 i s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b2Offset)) (hI : Inv m0 i s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 12) ∧ Inv m0 (i + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b2Offset) ∧ Inv m0 (i + 1) s'.data)) s := by
   obtain ⟨hS, hrP, hoP⟩ := hpre
   have hlt := hI.lt
   have hL : len m0 = m0.regs.X1.toNat := rfl
@@ -132,7 +134,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       rw [hI.x20]
       exact (BitVec.add_zero _).symm)
     fun s2 hm2 hpc2 bd2 hR e2 ↦ ?_
-  simp only [show b2.length = 5 from rfl] at hpc2
+  simp only [NativeRustcVmArm.Vm.IndexMleFrom.b2_length, NativeRustcVmArm.Vm.IndexMleFrom.b2Length] at hpc2
   have hpow : (⟨s2.data.regs.X2, s2.data.regs.X3⟩ : EW) = 1 + (st m0 i).2 := by
     rw [← hI.pow, one_add]
     have h2 := reg_of hm2 (r := .X2) rfl
@@ -151,7 +153,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   -- `acc·(1 + t)`
   refine exec_at (hb3 hp) run_b3 (Env.wf_nil _) hpc3 (match_nil _) fun s4 hm4 hpc4 ↦ ?_
   have bd4 := bd3.of_block (match_nil _) hm4 (Env.wf_nil _) rfl (after_eq run_b3 ▸ b3_keeps)
-  simp only [show b3.length = 5 from rfl] at hpc4
+  simp only [NativeRustcVmArm.Vm.IndexMleFrom.b3_length, NativeRustcVmArm.Vm.IndexMleFrom.b3Length] at hpc4
   refine call_then hpc4 hmul (bd4.ewMulPre hS (by decide) (by decide)) fun s5 hpc5 hpost5 ↦ ?_
   have bd5 := bd4.call hS (by decide) (by decide) hpost5
   have e19 : s3.data.regs.getXReg .X19 = s.regs.getXReg .X19 :=
@@ -188,7 +190,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   -- `power²`
   refine exec_at (hb4 hp) run_b4 (Env.wf_nil _) hpc5 (match_nil _) fun s6 hm6 hpc6 ↦ ?_
   have bd6 := bd5.of_block (match_nil _) hm6 (Env.wf_nil _) rfl (after_eq run_b4 ▸ b4_keeps)
-  simp only [show b4.length = 7 from rfl] at hpc6
+  simp only [NativeRustcVmArm.Vm.IndexMleFrom.b4_length, NativeRustcVmArm.Vm.IndexMleFrom.b4Length] at hpc6
   refine call_then hpc6 hmul (bd6.ewMulPre hS (by decide) (by decide)) fun s7 hpc7 hpost7 ↦ ?_
   have bd7 := bd6.call hS (by decide) (by decide) hpost7
   have e4 : ∀ r ∈ [XReg.X22, .X23, .X24], s5.data.regs.getXReg r = s.regs.getXReg r := by
@@ -273,7 +275,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     rcases hr with rfl | rfl <;> exact Match.reg_eq (match_nil _) hm8 rfl rfl
   by_cases hlast : i + 1 = len m0
   · have hpc8 := hpc8'.2 (heq.mpr hlast)
-    simp only [show b5.length = 4 from rfl] at hpc8
+    simp only [NativeRustcVmArm.Vm.IndexMleFrom.b5_length, NativeRustcVmArm.Vm.IndexMleFrom.b5Length] at hpc8
     refine exec_at (hb6 hp) run_b6 (Env.wf_nil _) hpc8 (match_nil _) fun s9 hm9 hpc9 ↦ ?_
     have bd9 := bd8.of_block (match_nil _) hm9 (Env.wf_nil _) rfl (after_eq run_b6 ▸ b6_keeps)
     simp only [PcOk] at hpc9
@@ -292,15 +294,15 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`index_mle_from` meets its contract.** -/
 theorem indexMleFrom_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label indexMleFromLabel) IndexMleFromPre IndexMleFromPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.IndexMleFrom.entryLabel) IndexMleFromPre IndexMleFromPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hS, hrP, hoP⟩ := hpre
   have h64 : 64 ≤ indexMleFromStack := by decide
   obtain ⟨hwf, hm⟩ := entry_match hS h64 rfl
   refine exec_then (hb0 hp) run_b0 hwf hm fun s1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 6 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.IndexMleFrom.b0_length, NativeRustcVmArm.Vm.IndexMleFrom.b0Length] at hpc1
   sym_simp at hpc1
   have hpc1' := pc_cond hpc1
   by_cases hz : len m0 = 0
@@ -312,7 +314,7 @@ theorem indexMleFrom_spec (hp : Placed code k)
       exact hz)
     refine exec_at (hb7 hp) (exec_after run_b0 run_b7) hwf (hpc1.trans (lbl_3 hp)) hm1
       fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b7.length = 3 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmArm.Vm.IndexMleFrom.b7_length, NativeRustcVmArm.Vm.IndexMleFrom.b7Length] at hpc2
     obtain ⟨hw, hmem, hregs⟩ := after_eq run_b7 ▸ b7_frame
     refine finish hp ⟨hS, hrP, hoP⟩ hpc2 (Body.of_entry hS h64 hm2 rfl hw hregs hmem) ?_
     have h21 := reg_of hm2 (r := .X21) rfl
@@ -328,7 +330,7 @@ theorem indexMleFrom_spec (hp : Placed code k)
       intro h
       exact hz (congrArg BitVec.toNat h))
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf hpc1 hm1 fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b1.length = 6 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmArm.Vm.IndexMleFrom.b1_length, NativeRustcVmArm.Vm.IndexMleFrom.b1Length] at hpc2
     obtain ⟨hw, hmem, hregs⟩ := after_eq run_b1 ▸ b1_frame
     have hI : Inv m0 0 s2.data := by
       have h19 := reg_of hm2 (r := .X19) rfl
@@ -353,7 +355,7 @@ theorem indexMleFrom_spec (hp : Placed code k)
       · show (⟨s2.data.regs.getXReg .X23, s2.data.regs.getXReg .X22⟩ : EW) = _
         rw [h23, h22]
         rfl
-    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 12) ∧ ∃ i, len m0 - i = n ∧
+    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.IndexMleFrom.b2Offset) ∧ ∃ i, len m0 - i = n ∧
       Inv m0 i s.data) (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc2, 0, rfl, hI⟩
     refine Eventually.mono (step hp hmul ⟨hS, hrP, hoP⟩ hpc hI) fun s' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩

@@ -7,8 +7,8 @@ public import NativeRustcVmX64.Whir.VerifyStackedOpening.First
 
 `Acc` across a block keeping its registers and words (`Acc.blk`) and across a call (`Acc.call`),
 for an equal count of placed claims (`Acc.congr`). `Done i`: claim `i` done, at
-`.LVerifyStackedOpening_25` (`b33`); `mid_b33` steps to the next claim (`Tgt (i + 1)`) or after the
-last to `.LVerifyStackedOpening_30` (`b38`). The claim's environment (`clEnv`, `Ok.cl_wf`,
+`NativeRustcVmX64.Vm.VerifyStackedOpening.label_25` (`b33`); `mid_b33` steps to the next claim (`Tgt (i + 1)`) or after the
+last to `NativeRustcVmX64.Vm.VerifyStackedOpening.label_30` (`b38`). The claim's environment (`clEnv`, `Ok.cl_wf`,
 `Tgt.m_claim`), its column (`Ok.col_load`).
 -/
 
@@ -19,7 +19,7 @@ open NativeRustcVmX64.Transcript NativeRustcVm.Whir NativeRustcVmX64.Vm.VerifySt
 
 @[expose] public section
 
-/-- **Claim `i` done**, at `.LVerifyStackedOpening_25`. -/
+/-- **Claim `i` done**, at `NativeRustcVmX64.Vm.VerifyStackedOpening.label_25`. -/
 structure Done [Labels] (a : DecArea) (s : TState) (layout : LayoutW) (target : EW)
     (cs : Array ColumnClaimW) (value : EW) (m0 : MachineData) (i : Nat) (st : MachineData) :
     Prop where
@@ -135,11 +135,11 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 
 /-- **`b33`**: to the next claim, or after the last to `b38`. -/
 theorem mid_b33 (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 155))
+    (hp : Placed code k) {i : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b33Offset))
     (hM : Done a s layout target cs value m0 i st.data) {R : MachineState → Prop}
-    (cont1 : ∀ st', st'.pc = Host.addrOf (k + 159) →
+    (cont1 : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b34Offset) →
       Tgt a s layout target cs value m0 (i + 1) st'.data → Eventually (step1 Host.exe) R st')
-    (cont2 : ∀ st', st'.pc = Host.addrOf (k + 173) →
+    (cont2 : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b38Offset) →
       Acc a s layout target cs value m0 cs.size st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hok := hM.acc.ok
@@ -162,20 +162,20 @@ theorem mid_b33 (h : Parts a s layout target coefficients point slices cs z valu
   simp only [PcOk] at hpc1
   rw [eval_eq64] at hpc1
   have hc : ((Sym.reg .r15).eval (frameEnv m0 st.data 512 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 155 + b33.length)).toBitVec)).toNat =
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b33Offset + b33.length)).toBitVec)).toNat =
       ((Sym.bin .add .W64 (.lit 608) (.reg .rbp)).eval (frameEnv m0 st.data 512 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 155 + b33.length)).toBitVec)).toNat ↔ i + 1 = cs.size := by
+        (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b33Offset + b33.length)).toBitVec)).toNat ↔ i + 1 = cs.size := by
     rw [← show reg st1.data .rbp = _ from hm1.regs .rbp _ rfl, hrbp]
     show (reg st.data .r15).toNat = _ ↔ _
     rw [hM.r15]
     omega
   by_cases he : i + 1 = cs.size
   · simp only [hc.mpr he, decide_true, ↓reduceIte] at hpc1
-    rw [hp.label (j := 173) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_30_at] at hpc1
     exact cont2 st1 hpc1 (he ▸ hacc1)
   · have hne := mt hc.mp he
     simp only [hne, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    exact cont1 st1 (hpc1.trans (by rw [show b33.length = 4 from rfl]))
+    exact cont1 st1 (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyStackedOpening.b33_next))
       ⟨hacc1, hw96, by omega, hrbp, h15⟩
 
 end

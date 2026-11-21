@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Top.Seed.Exec
 public import NativeRustcVmX64.Top.Basic
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfFiatShamirIv.Names
+public import NativeRustcVmX64.Code.Vm.Memset.Names
 
 /-!
 # `seed` up to `memset` (x86-64)
@@ -48,11 +50,11 @@ theorem lenSym_eval {env : Env} (h : 9 + 8 * (env.regs .rdx).toNat < 2 ^ 32) :
 
 /-- **`seed` up to `memset`.** -/
 theorem stage1 (hp : Placed code k)
-    (hkiv : Spec (Labels.label keccak256WordsIvLabel) Keccak256WordsIvPre Keccak256WordsIvPost)
-    (hmemset : Spec (Labels.label "memset") MemsetPre MemsetPost) {m0 : MachineData}
+    (hkiv : Spec (Labels.label NativeRustcVmX64.Vm.Keccak256WordsOfFiatShamirIv.entryLabel) Keccak256WordsIvPre Keccak256WordsIvPost)
+    (hmemset : Spec (Labels.label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost) {m0 : MachineData}
     (hpre : SeedPre m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 20) ∧ S1 m0 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b2Offset) ∧ S1 m0 st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b0Offset)⟩ := by
   obtain ⟨hst, hrc, hn32, ⟨hbcM, hbcN⟩, -, -, -, -, hbcA⟩ := hpre
   have hbcN' : (reg m0 .rsi).toNat + 8 * (reg m0 .rdx).toNat ≤ 2 ^ 64 := hbcN
   have hss : seedStack = 1008 := rfl
@@ -72,7 +74,7 @@ theorem stage1 (hp : Placed code k)
   rw [hsbn, hss] at hrcA
   -- `b0`: the prologue, `call keccak256_words`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 240) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b0Offset + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
     (by simp) (List.pairwise_singleton _ _)
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, trivial⟩ ⟨match_rsp, trivial⟩ trivial trivial trivial)
@@ -141,10 +143,10 @@ theorem stage1 (hp : Placed code k)
       slots_le
   -- `b1`: `call memset`.
   have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 240) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 16 + b1.length)).toBitVec) ⟨hFm _ hf2.kept, hfnw⟩ (by simp)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Seed.b1Offset + b1.length)).toBitVec) ⟨hFm _ hf2.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 (fun _ _ ↦ rfl)
-    (hpc2.trans (by rw [show b0.length = 16 from rfl]))
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Seed.b0_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨hmid3, hw3, hrdi3, hrdx3, hrsi3, hrbx3, hr143, hr153⟩ := after_eq run_b1 ▸ ok_b1
@@ -178,7 +180,7 @@ theorem stage1 (hp : Placed code k)
   have hf4 : Frame m0 240 slots 8 st4.data :=
     Frame.call_low hf3 hsv4 hrsp4 hs4 (fun q h ↦ Or.inl (hR4 q h).2) (by decide) (by decide) hfnw
       slots_le
-  refine .done _ ⟨hpc4.trans (by rw [show b1.length = 4 from rfl]), ⟨hf4, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine .done _ ⟨hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Seed.b1_next), ⟨hf4, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · -- every change in the stack
     have hst' : ∀ q, (fb m0).toNat ≤ q.toNat → q.toNat < (fb m0).toNat + 240 →
         NativeRustcVm.InRange (stackBelow m0 seedStack) seedStack q := by

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.DecodedPhaseCount.Names
 public import NativeRustcVmArm.Spec.Transcript
 public import NativeRustcVmArm.Transcript.PhaseCount.Exec
 public import NativeRustcVmArm.Transcript.Arith
@@ -32,7 +33,7 @@ variable [Host] {k : Nat}
 /-- **`Decoded::phase_count` meets its contract.** -/
 theorem phaseCount_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     (openings : Array (Array OpeningW)) :
-    Spec (Labels.label phaseCountLabel) (PhaseCountPre a stream openings)
+    Spec (Labels.label NativeRustcVmArm.Vm.DecodedPhaseCount.entryLabel) (PhaseCountPre a stream openings)
       (PhaseCountPost openings) := by
   rintro m0 ⟨-, hdf, hmap, hnw, hap, ⟨hrm, hrn⟩, hdec⟩
   have hl64 := hdec.l_lt
@@ -52,8 +53,8 @@ theorem phaseCount_spec (hp : Placed code k) (a : DecArea) (stream : Array EW)
     load_of_wordAt hdf.2.2
   have hN : (Env.ofMachine m0 [(m0.regs.X0.toBitVec, 24)]).load 0 8 8 = a.len.toUInt64.toBitVec :=
     load_of_wordAt hdf.2.1
-  unfold phaseCountLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmArm.Vm.DecodedPhaseCount.entryLabel
+  rw [hp.label (j := NativeRustcVmArm.Vm.DecodedPhaseCount.entryOffset) NativeRustcVmArm.Vm.DecodedPhaseCount.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 => ?_
   have hd1 : st1.data.dmem = m0.dmem := hm1.dmem_eq hwf0 rfl
   have hs1 : Saved m0 st1.data := Match.saved hm0 hm1 hwf0 rfl (after_eq run_b0 ▸ keeps_b0)

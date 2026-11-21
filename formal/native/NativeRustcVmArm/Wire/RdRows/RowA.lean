@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ReaderWords.Names
 public import NativeRustcVmArm.Wire.RdRows.Call
 
 /-!
@@ -24,7 +25,7 @@ variable [Host] {k : Nat} {m0 : MachineData} {bp : BitVec 64} {B : List UInt8} {
 
 /-- **`None`** (`b1`, then the return): a row could not be read. -/
 theorem none_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 10)) (hfr : Frm m0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b1Offset)) (hfr : Frm m0 st.data)
     (hnone : rdRows B (rw m0) (nr m0) c = none) : Eventually (step1 Host.exe) (Post m0) st := by
   have hst := G.g.st
   have hwf := frEnv_wf hst hfr
@@ -44,7 +45,7 @@ theorem saved_regs : ∀ r ∈ (.X26 :: regsA), calleeSaved r = true := by decid
 
 /-- **Row `i`**, read after its zeros (`b11` to `b14`). -/
 theorem callA_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
     {rows : List (List K)} {ci : Nat} {st : MachineState} (hI : CallA k m0 bp B c i rows ci st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
       ∃ rows' ci', HeadA k m0 bp B c (i + 1) rows' ci' st') st := by
@@ -109,7 +110,7 @@ theorem callA_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
   have hwf2 := frEnv_wf hst hfr2
   have hm2 := frEnv_match hst hfr2
   refine exec_at (infix_of b12_in_code (by simp [b12]) hp) run_b12 hwf2
-    (by simp only [show b11.length = 5 from rfl]) hm2 fun s2 hm2' hpc2 ↦ ?_
+    (by rw [Nat.add_assoc, b11_next]) hm2 fun s2 hm2' hpc2 ↦ ?_
   have hd2 : s2.data.dmem = m2.dmem := hm2'.dmem_eq hwf2 rfl
   have hfr3 : Frm m0 s2.data := Fr.ofBlock hfr2 hm2 hm2' hwf2 rfl rfl rfl
     fun x hx ↦ absurd hx (by simp)
@@ -122,7 +123,7 @@ theorem callA_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
       simp only [SBool.eval, Sym.eval, CmpOp.apply, Env.ofMachine_regs,
         show m2.regs.getXReg .X0 = m2.regs.X0 from rfl, hres']
       decide
-    simp only [PcOk, hc, ↓reduceIte, hp.label (j := 10) rfl] at hpc2
+    simp only [PcOk, hc, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b1Offset) NativeRustcVmArm.Vm.RdRows.label_1_at] at hpc2
     exact Eventually.mono (none_spec hp G hR hpc2 hfr3 (rdRows_none hI.z.kept.hrows hrd hi))
       fun _ h ↦ .inl h
   | some p =>
@@ -133,7 +134,7 @@ theorem callA_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
       simp only [SBool.eval, Sym.eval, CmpOp.apply, Env.ofMachine_regs,
         show m2.regs.getXReg .X0 = m2.regs.X0 from rfl, h0']
       decide
-    simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte, show b12.length = 1 from rfl] at hpc2
+    simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte, NativeRustcVmArm.Vm.RdRows.b12_length, NativeRustcVmArm.Vm.RdRows.b12Length] at hpc2
     have hwl := rdWords_length hrd
     obtain ⟨hrl', hrw'⟩ := rdRows_length (B := B) _ _ hI.z.kept.hrows
     -- the leaves, the reader, the frame's word after the call
@@ -239,13 +240,13 @@ theorem callA_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
       have hd4 : s4.data.dmem = s3.data.dmem := hm4'.dmem_eq hwf4 rfl
       have hfr5 : Frm m0 s4.data := Fr.ofBlock hfr4 hm4 hm4' hwf4 rfl rfl rfl
         fun x hx ↦ absurd hx (by simp)
-      simp only [PcOk, hp.label (j := 12) rfl] at hpc4
+      simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.RdRows.b2Offset) NativeRustcVmArm.Vm.RdRows.label_2_at] at hpc4
       refine Eventually.mono (ret_spec hp G hR hpc4 hfr5 ?_) fun _ h ↦ .inl h
       rw [← hend, hkept.hrows]
       refine ⟨?_, by rw [hd4]; exact hkept.hlvs, by rw [hd4]; exact hkept.hrd⟩
       rw [Match.reg_eq hm4 hm4' (v := .reg .X23) rfl rfl]
       exact h23
-    simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 39) rfl]
+    simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b5Offset) NativeRustcVmArm.Vm.RdRows.label_5_at]
       at hpc3
     have hs4 : ∀ r ∈ [XReg.X20, .X21, .X22, .X24, .X25, .X28, .X29],
         s3.data.regs.getXReg r = st.data.regs.getXReg r := fun r hr ↦ by
@@ -270,7 +271,7 @@ theorem callA_step (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
 
 /-- **The loop over the leaves** (`rw > 0`), from leaf `i`. -/
 theorem loopA (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
+    (hw : Spec (Labels.label NativeRustcVmArm.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) {i : Nat}
     {rows : List (List K)} {ci : Nat} {st : MachineState} (hI : HeadA k m0 bp B c i rows ci st) :
     Eventually (step1 Host.exe) (Post m0) st := by
   refine Sym.loop (fun n st ↦ ∃ i rows ci, n = nr m0 - i ∧ HeadA k m0 bp B c i rows ci st)

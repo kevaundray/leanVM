@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.Word
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmX64.Code.Vm.VerifyKeccak.Names
 
 /-!
 # `verify_keccak`: extending the frame's output point (x86-64)
@@ -49,10 +51,10 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
 
 /-- **An extension of the frame's buffer** and its verdict. -/
 theorem extStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {wr : Nat → Bool} {T T' S' S2 : SState} {vals : Nat → BitVec 64}
     {ds dt : List Directive} {p0 : Nat} (hds : ds.IsInfixAt code p0) (hne : ds ≠ [])
-    (hrun : exec ds T = some (S', .call bufEW36ExtendLabel)) (hw0 : frameW S' = true)
+    (hrun : exec ds T = some (S', .call NativeRustcVmX64.Vm.BufEW36Extend.entryLabel)) (hw0 : frameW S' = true)
     (hokS : okL (wsL S') = true)
     (hcov : coverL (wsL S') [(0, 152), (408, 584), (3296, 48)] = true)
     (hsp : S'.reg .rsp = some (.ptr 0 48)) (hdi : S'.reg .rdi = some (.ptr 0 408))
@@ -65,7 +67,7 @@ theorem extStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output 
     (hal : T'.aliases = []) (hbd : T'.bounds = [])
     (hdt : dt.IsInfixAt code (p0 + ds.length)) (hnet : dt ≠ [])
     (hrt : exec dt T' = some (S2, .cond (.cmp .eq .W8 (.bin .and .W8 (.reg .rax) (.reg .rax))
-      (.lit 0)) ".LVerifyKeccak_31"))
+      (.lit 0)) NativeRustcVmX64.Vm.VerifyKeccak.label_31))
     (hw2 : frameW S2 = true) (hok2 : okL (wsL S2) = true)
     (hcov2 : coverL (wsL S2) [(0, 152), (408, 584), (3296, 48)] = true)
     (hmiss2 : missL (wsL S2) 408 584 = true)

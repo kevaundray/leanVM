@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Layout.PlacementsOf.Turn1
+public import NativeRustcVmX64.Code.Vm.Memset.Names
+public import NativeRustcVmX64.Code.Vm.StackOffsets.Names
 
 /-!
 # `placements_of` on x86-64: `stack_offsets` (`b9` to `b15`)
@@ -94,10 +96,10 @@ end
 variable [Host] {k : Nat} {m0 : MachineData}
 
 /-- **`b9` to `b15`**: the stacked columns placed, the second loop's head. -/
-theorem mid (hp : Placed code k) (hms : Spec (label "memset") MemsetPre MemsetPost)
-    (hso : Spec (label stackOffsetsLabel) StackOffsetsPre StackOffsetsPost) (hF : Facts m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 44)) (hI : I1 m0 158 158 st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 70) ∧ I2 m0 0 s.data) st := by
+theorem mid (hp : Placed code k) (hms : Spec (label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hso : Spec (label NativeRustcVmX64.Vm.StackOffsets.entryLabel) StackOffsetsPre StackOffsetsPost) (hF : Facts m0)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b9Offset)) (hI : I1 m0 158 158 st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b16Offset) ∧ I2 m0 0 s.data) st := by
   have hrsp := hF.rsp
   have h158 : below 158 = blockList := below_158
   have hn94 : (below 158).length = 94 := by rw [h158, blockList_length]
@@ -114,10 +116,10 @@ theorem mid (hp : Placed code k) (hms : Spec (label "memset") MemsetPre MemsetPo
     have := h q (by omega); simp only [h158] at this; exact this
   -- `b9`: `memset(block_offsets)`
   obtain ⟨hok9, h97, h96, h92, hw9, hK9⟩ := ok_b9
-  refine run0 (ret := (Host.addrOf (k + 44 + b9.length)).toBitVec) hF
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b9Offset + b9.length)).toBitVec) hF
     (b9_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b9 (fun _ _ ↦ rfl) hpc hI.b hok9
     fun st1 hm1 hpc1 hb1 ↦ ?_
-  have hwf1 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 44 + b9.length)).toBitVec)
+  have hwf1 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b9Offset + b9.length)).toBitVec)
     hI.b hF.stack (by decide)
   have hs1 := sameOutside_low hwf1 hm1 (r := 0) rfl (by decide) hw9
   have hrdi1 : reg st1.data .rdi = off (fb m0) 3808 := (hm1.regs .rdi _ h97).trans (eval_ptr0 3808)
@@ -155,10 +157,10 @@ theorem mid (hp : Placed code k) (hms : Spec (label "memset") MemsetPre MemsetPo
     rw [e]; rfl)
   -- `b11`: `stack_offsets`
   obtain ⟨hok11, h117, h116, h112, h111, hw11, hK11⟩ := ok_b11
-  refine run0 (ret := (Host.addrOf (k + 52 + b11.length)).toBitVec) hF
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b11Offset + b11.length)).toBitVec) hF
     (b11_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b11 (fun _ _ ↦ rfl)
     ((hno3 (by omega)).trans rfl) hb3 hok11 fun st4 hm4 hpc4 hb4 ↦ ?_
-  have hwf4 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 52 + b11.length)).toBitVec)
+  have hwf4 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b11Offset + b11.length)).toBitVec)
     hb3 hF.stack (by decide)
   have hs4 := sameOutside_low hwf4 hm4 (r := 0) rfl (by decide) hw11
   have hd23 : st3.data.dmem = st2.data.dmem := hd3
@@ -239,10 +241,10 @@ theorem mid (hp : Placed code k) (hms : Spec (label "memset") MemsetPre MemsetPo
     rw [e]; rfl)
   -- `b13`: the stack's log-size kept, `memset(offsets)`
   obtain ⟨hok13, h137, h136, h132, hw13, hv13, hK13⟩ := ok_b13
-  refine run0 (ret := (Host.addrOf (k + 59 + b13.length)).toBitVec) hF
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b13Offset + b13.length)).toBitVec) hF
     (b13_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b13 (fun _ _ ↦ rfl)
     ((hno6 (by omega)).trans rfl) hb6 hok13 fun st7 hm7 hpc7 hb7 ↦ ?_
-  have hwf7 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 59 + b13.length)).toBitVec)
+  have hwf7 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PlacementsOf.b13Offset + b13.length)).toBitVec)
     hb6 hF.stack (by decide)
   have hs7 := sameOutside_low hwf7 hm7 (r := 0) rfl (by decide) hw13
   have htot7 : WordAt st7.data.dmem (off (fb m0) 8) (log2Ceil (sumF (κ m0) 0)).toUInt64 := by

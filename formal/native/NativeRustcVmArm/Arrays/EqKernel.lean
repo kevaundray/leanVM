@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
 public import NativeRustcVmArm.Arrays.EqKernel.Loop
 
 /-!
@@ -26,10 +28,10 @@ variable [Host] {k : Nat}
 
 /-- **A round's end** (`b10`, `b4`): the next coordinate, or out of the loop and returned. -/
 theorem next (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
-    (hle : 2 ^ np m0 ≤ len m0) {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + 59))
+    (hle : 2 ^ np m0 ≤ len m0) {i : Nat} {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b10Offset))
     (hR : RInv m0 i s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 33) ∧ OInv m0 (i + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b5Offset) ∧ OInv m0 (i + 1) s'.data)) s := by
   obtain ⟨hS, h64, ⟨⟨hmP, hnP⟩, hoP⟩, ⟨⟨hmO, hnO⟩, hoO⟩, hap⟩ := id hpre
   have hnP' : (pt m0).toNat + 16 * np m0 ≤ 2 ^ 64 := hnP
   have hlt := hR.lt
@@ -65,7 +67,7 @@ theorem next (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
     have := Nat.pow_lt_pow_right (a := 2) (by decide) (show i + 1 < 64 by omega)
     rw [Nat.pow_succ] at this
     omega
-  simp only [PcOk, show b4.length = 6 from rfl] at hpc2
+  simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b4_length, NativeRustcVmArm.Vm.EqKernel.b4Length] at hpc2
   sym_simp at hpc2
   have hpc2' := pc_cond hpc2
   have hc : ((frameEnv m0 s1.data 112).regs .X22 + 16#64 == (frameEnv m0 s1.data 112).load 0 8 8)
@@ -95,8 +97,8 @@ theorem next (hp : Placed code k) {m0 : MachineData} (hpre : EqKernelPre m0)
 
 /-- **`eq_kernel` meets its contract.** -/
 theorem eqKernel_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hS, h64, ⟨⟨hmP, hnP⟩, hoP⟩, ⟨⟨hmO, hnO⟩, hoO⟩, hap⟩ := id hpre
@@ -136,7 +138,7 @@ theorem eqKernel_spec (hp : Placed code k)
           rw [show BitVec.ofInt 64 112 = BitVec.ofNat 64 112 from rfl, BitVec.sub_add_cancel])
         ⟨(BitVec.add_zero _).symm, trivial⟩ trivial trivial trivial
     refine exec_then (hb0 hp) run_b0e hwf hm fun s1 hm1 hpc1 ↦ ?_
-    simp only [PcOk, show b0.length = 5 from rfl] at hpc1
+    simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b0_length, NativeRustcVmArm.Vm.EqKernel.b0Length] at hpc1
     sym_simp at hpc1
     have hpc1 := (pc_cond hpc1).1 (by simp only [Env.ofMachine_regs, hc]; simpa using hle)
     refine exec_at (hb2 hp) (exec_after run_b0e run_b2) hwf (hpc1.trans (lbl_2 hp)) hm1
@@ -150,7 +152,7 @@ theorem eqKernel_spec (hp : Placed code k)
       show (s2.data.regs.getXReg .X8).toBitVec.toNat = _
       rw [h, size_eval h64, BitVec.toNat_ofNat]
       exact Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) h64)
-    simp only [PcOk, show b2.length = 12 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b2_length, NativeRustcVmArm.Vm.EqKernel.b2Length] at hpc2
     sym_simp at hpc2
     have hpc2' := pc_cond hpc2
     by_cases hz : np m0 = 0
@@ -188,7 +190,7 @@ theorem eqKernel_spec (hp : Placed code k)
             List.getElem?_cons_zero, Option.map_some, Option.getD_some] at h
           exact h
       simp only [PcOk] at hpc3
-      refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 33) ∧ ∃ i, np m0 - i = n ∧
+      refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EqKernel.b5Offset) ∧ ∃ i, np m0 - i = n ∧
         OInv m0 i s.data) (fun _ s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc3.trans (lbl_5 hp), 0, rfl, hI0⟩
       refine Eventually.bind (round hp hpre hle hpc hI) fun s1 ⟨hpc1, hI1⟩ ↦ ?_
       refine Eventually.bind (inner hp hmul hpre hle hpc1 hI1) fun s2 ⟨hpc2, hR⟩ ↦ ?_
@@ -197,7 +199,7 @@ theorem eqKernel_spec (hp : Placed code k)
       · exact Or.inl h
       · exact Or.inr ⟨np m0 - (i + 1), by have := hI'.lt; omega, hpc', i + 1, rfl, hI'⟩
   · refine exec_then (hb0 hp) run_b0 (Env.wf_nil _) (match_nil _) fun s1 hm1 hpc1 ↦ ?_
-    simp only [PcOk, show b0.length = 5 from rfl] at hpc1
+    simp only [PcOk, NativeRustcVmArm.Vm.EqKernel.b0_length, NativeRustcVmArm.Vm.EqKernel.b0Length] at hpc1
     sym_simp at hpc1
     have hpc1 := (pc_cond hpc1).2 (by simp only [Env.ofMachine_regs, hc]; simpa using hle)
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) (Env.wf_nil _) hpc1 hm1

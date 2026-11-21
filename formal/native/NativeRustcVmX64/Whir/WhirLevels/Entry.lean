@@ -58,8 +58,8 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **The entry**: the prologue, then `Head 0` at the loop's head. -/
 theorem entry (hp : Placed code k0) (c : Ctx a s0 levels ba b claim m0 rate) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k0 + 27) ∧
-      Head a s0 levels b claim m0 0 s0 ⟨claim, #[], #[]⟩ st.data) ⟨m0, Host.addrOf (k0 + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b1Offset) ∧
+      Head a s0 levels b claim m0 0 s0 ⟨claim, #[], #[]⟩ st.data) ⟨m0, Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b0Offset)⟩ := by
   have hl := c.len_le
   have hlen := c.len
   let env0 := argEnv m0 m0 112 8 []

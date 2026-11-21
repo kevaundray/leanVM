@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Wire.ClimbLevel.Found
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
+public import NativeRustcVmX64.Code.Vm.ReaderDigest.Names
 
 /-!
 # `climb_level`'s sibling read (x86-64)
@@ -64,8 +66,8 @@ omit hl in
 /-- **The call of `Reader::digest`** (`b10`) into the frame's `120`, the reader at `ci`: back in
 the frame after it, the callee-saved registers kept, memory changed at most in the callee's
 stack, the return address's slot, the output and the cursor; the read's outcome. -/
-theorem digest_call (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
-    {ci : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 71))
+theorem digest_call (hd : Spec (Labels.label NativeRustcVmX64.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
+    {ci : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b10Offset))
     (hf : Frame m0 208 slots 8 st.data) (hloc : Loc m0 st.data.dmem)
     (hR : ReaderAt st.data.dmem (rdr m0) bp B ci) {Q : MachineState → Prop}
     (cont : ∀ m2, Frame m0 208 slots 8 m2 →
@@ -78,13 +80,13 @@ theorem digest_call (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre 
         | some (dg, c') => WordAt m2.dmem (off (fb m0) 120) 1 ∧
             WordsAt m2.dmem (off (fb m0) 128) dg.toList ∧ ReaderAt m2.dmem (rdr m0) bp B c'
         | none => WordAt m2.dmem (off (fb m0) 120) 0) →
-      Eventually (step1 Host.exe) Q ⟨m2, Host.addrOf (k + 75)⟩) :
+      Eventually (step1 Host.exe) Q ⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b11Offset)⟩) :
     Eventually (step1 Host.exe) Q st := by
   have h0 := g.s0
   have hspe := sp_eq m0
   have hfb := g.fb_toNat
   obtain ⟨hok, hlow, hdi, hsi, hK⟩ := ok_b10
-  let ret := (Host.addrOf (k + 71 + b10.length)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b10Offset + b10.length)).toBitVec
   have hwf := fr_wf g hf (vars := fun _ ↦ 0) (ret := ret)
   have hm := fr_match hf (vars := fun _ ↦ 0) (ret := ret)
   refine exec_at (Wire.infix_of b10_in_code (by simp [b10]) hp) exit_b10 hwf (fun _ _ ↦ rfl) hpc
@@ -203,8 +205,8 @@ theorem digest_call (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre 
 
 /-- **The sibling read** (`Rd`): the read's tag none, the return of `0`; else the sibling written
 and the parent; the next node's check. -/
-theorem read_spec (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
-    (hd : Spec (Labels.label readerDigestLabel) ReaderDigestPre ReaderDigestPost)
+theorem read_spec (hh : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
+    (hd : Spec (Labels.label NativeRustcVmX64.Vm.ReaderDigest.entryLabel) ReaderDigestPre ReaderDigestPost)
     (hR0 : ReaderAt m0.dmem (rdr m0) bp B c) (hns : NodesAt m0.dmem (nodes m0) ns)
     {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat} {st : MachineState}
     (hI : Rd k m0 bp B c ns i sl ci st) :
@@ -252,7 +254,7 @@ theorem read_spec (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPo
   have hr14 := (hk2 .r14 (by simp [loopRegs])).trans hcur.r14
   have hr15 := (hk2 .r15 (by simp [loopRegs])).trans hcur.r15
   -- `b11`: the tag.
-  refine fr_step hp g (j := 75) b11_in_code (by simp [b11]) exit_b11 nofun ok_b11.1 rfl hf2
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b11Offset) b11_in_code (by simp [b11]) exit_b11 nofun ok_b11.1 rfl hf2
     fun s3 hf3 hd3 hr3 hpc3 ↦ ?_
   have hk3 := regs_kept ok_b11.2 hr3
   cases hrd : rdDigest B ci with
@@ -262,8 +264,8 @@ theorem read_spec (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPo
     have hpc4 := pc_cond hpc3 (P := True) (by
       show CmpOp.apply .eq .W8 ((frameEnv m0 m2 208 []).load 0 120 1) (BitVec.ofNat 64 0) = _
       rw [eq8_zero, tag_load (.inl rfl) hres]; rfl)
-    rw [ite_t trivial, hp.label (j := 140) rfl] at hpc4
-    refine fr_step hp g (j := 140) b23_in_code (by simp [b23]) exit_b23 nofun ok_b23.1 hpc4 hf3
+    rw [ite_t trivial, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_10_at] at hpc4
+    refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b23Offset) b23_in_code (by simp [b23]) exit_b23 nofun ok_b23.1 hpc4 hf3
       fun s4 hf4 hd4 hr4 hpc5 ↦ ?_
     simp only [PcOk] at hpc5
     refine Eventually.mono (fin hp g hR0 hns hl (hpc5.trans (congrArg Host.addrOf rfl)) hf4 ?_
@@ -338,7 +340,7 @@ theorem read_spec (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPo
         (BitVec.ofNat 64 1)) (BitVec.ofNat 64 0)) = _
       exact odd_cond hkey hkl)
     by_cases hod : (ns[i]).1 % 2 = 1
-    · rw [ite_t hod, hp.label (j := 109) rfl] at hpc6
+    · rw [ite_t hod, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_16_at] at hpc6
       exact Eventually.mono (pair_spec hp g hl hh hM hi (.inr ⟨hpc6, hod, rfl⟩))
         fun _ h ↦ .inr ⟨_, _, h⟩
     · rw [ite_f hod] at hpc6

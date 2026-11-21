@@ -72,13 +72,13 @@ variable [Host] (k : Nat) (m0 : MachineData) (bp : BitVec 64) (B : List UInt8) (
 
 /-- The loop's head (`b16`) at leaf `i`. -/
 structure HeadB (i : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 85)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b16Offset)
   reg : RegB m0 i st.data
   kept : Kept m0 bp B c i rows ci st.data.dmem
 
 /-- The zeros one at a time (`b21`), `t` written. -/
 structure SclB (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 101)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b21Offset)
   z : ZB m0 bp B c i t rows ci st.data
   x8 : (st.data.regs.getXReg .X8).toBitVec = leaf m0 i + BitVec.ofNat 64 (8 * lw m0)
   x9 : (st.data.regs.getXReg .X9).toBitVec = leaf m0 i + BitVec.ofNat 64 (8 * t)
@@ -86,7 +86,7 @@ structure SclB (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState)
 
 /-- The zeros four at a time (`b19`), `t` written. -/
 structure VecB (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 94)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b19Offset)
   z : ZB m0 bp B c i t rows ci st.data
   x8 : (st.data.regs.getXReg .X8).toBitVec = leaf m0 i + BitVec.ofNat 64 (8 * lw m0)
   x9 : (st.data.regs.getXReg .X9).toBitVec = leaf m0 i + BitVec.ofNat 64 (8 * q4 (lw m0))
@@ -97,7 +97,7 @@ structure VecB (i t : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState)
 
 /-- The call (`b22`), the leaf's zeros written. -/
 structure CallB (i : Nat) (rows : List (List K)) (ci : Nat) (st : MachineState) : Prop where
-  pc : st.pc = Host.addrOf (k + 105)
+  pc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b22Offset)
   z : ZB m0 bp B c i (lw m0) rows ci st.data
 
 variable {k m0 bp B c}
@@ -150,7 +150,7 @@ theorem sclB_step (hp : Placed code k) (G : Geo m0 bp B) {i t : Nat} {rows : Lis
   · simp only [hend, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
       at hpc1
     exact .done _ (.inl ⟨hpc1.trans (congrArg Host.addrOf rfl), hend ▸ hz1⟩)
-  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 101) rfl]
+  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b21Offset) NativeRustcVmArm.Vm.RdRows.label_19_at]
     at hpc1
   refine .done _ (.inr ⟨hpc1, hz1, by rw [hr .X8 List.mem_cons_self]; exact hI.x8, ?_, by omega⟩)
   rw [hm1.regs .X9 _ rfl]
@@ -170,7 +170,7 @@ theorem sclB_loop (hp : Placed code k) (G : Geo m0 bp B) {i t : Nat} {rows : Lis
 
 /-- **The tail of the fours** (`b20`): the call, or the zeros one at a time from `q4`. -/
 theorem twentyB_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat} {rows : List (List K)}
-    {ci : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 99))
+    {ci : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RdRows.b20Offset))
     (hz : ZB m0 bp B c i (q4 (lw m0)) rows ci st.data)
     (h8 : (st.data.regs.getXReg .X8).toBitVec = leaf m0 i + BitVec.ofNat 64 (8 * lw m0))
     (h9 : (st.data.regs.getXReg .X9).toBitVec = leaf m0 i + BitVec.ofNat 64 (8 * q4 (lw m0)))
@@ -194,7 +194,7 @@ theorem twentyB_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat} {rows : Li
     rw [UInt64.toNat_toBitVec, UInt64.toNat_toBitVec, hz.reg.x25 h0, hz.reg.x26 h0]
   simp only [PcOk, hc] at hpc1
   by_cases he : lw m0 = q4 (lw m0)
-  · simp only [decide_eq_true he, ↓reduceIte, hp.label (j := 105) rfl] at hpc1
+  · simp only [decide_eq_true he, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b22Offset) NativeRustcVmArm.Vm.RdRows.label_20_at] at hpc1
     exact .done _ ⟨hpc1, he ▸ hz1⟩
   simp only [decide_eq_false he, Bool.false_eq_true, ↓reduceIte] at hpc1
   exact sclB_loop hp G ⟨hpc1.trans (congrArg Host.addrOf rfl), hz1,
@@ -250,7 +250,7 @@ theorem vecB_step (hp : Placed code k) (G : Geo m0 bp B) {i t : Nat} {rows : Lis
     refine Eventually.mono (twentyB_spec hp G (hpc1.trans (congrArg Host.addrOf rfl)) (hend ▸ hz1)
       (by rw [hr .X8 (by simp)]; exact hI.x8) (by rw [hr .X9 (by simp)]; exact hI.x9) (by omega))
       fun _ h ↦ .inl h
-  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 94) rfl]
+  simp only [ne_eq, hend, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b19Offset) NativeRustcVmArm.Vm.RdRows.label_17_at]
     at hpc1
   refine .done _ (.inr ⟨hpc1, hz1, by rw [hr .X8 (by simp)]; exact hI.x8,
     by rw [hr .X9 (by simp)]; exact hI.x9, ?_, ?_, by omega, by omega⟩)
@@ -305,7 +305,7 @@ theorem fillB_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat} {rows : List
     rfl
   simp only [PcOk, hc] at hpc1
   by_cases h0 : lw m0 = 0
-  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := 105) rfl] at hpc1
+  · simp only [h0, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b22Offset) NativeRustcVmArm.Vm.RdRows.label_20_at] at hpc1
     exact .done _ ⟨hpc1, hreg1, by rw [hd]; exact hI.kept,
       by rw [h0]; exact NativeRustcVm.wordsAt_nil _ _, by omega⟩
   simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
@@ -333,7 +333,7 @@ theorem fillB_spec (hp : Placed code k) (G : Geo m0 bp B) {i : Nat} {rows : List
     · rw [decide_eq_false (by simp; omega), decide_eq_false h]
   simp only [PcOk, hc2] at hpc2
   by_cases h4 : lw m0 < 4
-  · simp only [h4, decide_true, ↓reduceIte, hp.label (j := 101) rfl] at hpc2
+  · simp only [h4, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.RdRows.b21Offset) NativeRustcVmArm.Vm.RdRows.label_19_at] at hpc2
     refine sclB_loop hp G ⟨hpc2, hz2, by rw [hr2 .X8 (by simp)]; exact h8, ?_, by omega⟩
     rw [hm2'.regs .X9 _ rfl]
     show (s1.data.regs.getXReg .X19).toBitVec = _

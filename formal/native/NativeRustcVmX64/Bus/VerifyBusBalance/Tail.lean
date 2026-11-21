@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.Acc
+public import NativeRustcVmX64.Code.Vm.BufEW63Extend.Names
 
 /-!
 # `verify_bus_balance`'s tail (x86-64)
 
-From `b53` (`k + 409`), after the count side: `b53` empties the bus's point and calls
+From `b53` (`k + NativeRustcVmX64.Vm.VerifyBusBalance.b53Offset`), after the count side: `b53` empties the bus's point and calls
 `Buf<EW, 63>::extend` with the GKR point; `b54` checks it; `b55` writes the three totals and jumps
 to the epilogue with AL = `1` (`tail_spec`).
 -/
@@ -60,10 +61,10 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The tail** (`b53`, `k + 409`): the count side's total at `632`, the GKR point at `1800`,
+/-- **The tail** (`b53`, `k + NativeRustcVmX64.Vm.VerifyBusBalance.b53Offset`): the count side's total at `632`, the GKR point at `1800`,
 the forms at the bus. -/
 theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
     {d : MachineData} {res : BusResultW} {s' : TState} {t0 t1 t2 : EW} (fr : St m0 104 d)
     (hr : (verifyBusBalance L).run s0 = some (res, s')) (htot : res.totals = #[t0, t1, t2])
     (h112 : NativeRustcVm.WordAt d.dmem (loc m0 112) (UInt64.ofBitVec (reg m0 .r8)))
@@ -77,7 +78,7 @@ theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (hF : FormsAt d.dmem (reg m0 .r8) res.forms)
     (hts : TStateAt d.dmem (reg m0 .rdi) a s')
     (hcl : ClaimsWAt d.dmem (reg m0 .r9) res.claims) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 409)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b53Offset)⟩ := by
   have hS := pre_stack h
   have hbus := pre_bus h
   have hbnw : (reg m0 .r8).toNat + 107768 ≤ 2 ^ 64 := hbus.2.1
@@ -90,7 +91,7 @@ theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     fun q hq ↦ .inr (.inl hq)
   -- `b53`: the bus's point emptied, `extend` called.
   have hwf1 := wfBus h fr.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 409 + b53.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b53Offset + b53.length)).toBitVec)
   refine exec_then (infix_of b53_in_code (by simp [b53]) hp) exit_b53 hwf1 (fun _ _ ↦ rfl)
     (match_bS fr h112) fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hw1, wr1', hrdi, hrsi, hrdx, hr14, hr12, hk1⟩ := ok_b53
@@ -114,7 +115,7 @@ theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
         rw [inRange_toNat (by rw [hbo _ (by omega)]; omega), hbo _ (by omega)]
         omega)
   have e112 : (frameEnv m0 d 5520 [(reg m0 .r8, busBytes)] (fun _ ↦ 0)
-      (Host.addrOf (k + 409 + b53.length)).toBitVec).load 0 112 8 = reg m0 .r8 := load_loc h112
+      (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b53Offset + b53.length)).toBitVec).load 0 112 8 = reg m0 .r8 := load_loc h112
   have x1di : reg st1.data .rdi = off (reg m0 .r8) 106704 := by
     rw [show reg st1.data .rdi = _ from hm1.regs .rdi _ hrdi]
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64, e112]
@@ -186,7 +187,7 @@ theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       NativeRustcVm.SameOutside.mono h2c fun q hq ↦ hq.elim .inr .inl
     -- `b54`: `extend`'s result.
     have hal : boolRet m2 = 1 := h2al
-    refine test_spec hp h (j := 417) (n := 2) (infix_of b54_in_code (by simp [b54]) hp) rfl
+    refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b54Offset) (n := b54.length) (infix_of b54_in_code (by simp [b54]) hp) rfl
       exit_b54 ok_b54 fr2 (fun hc ↦ ?_) fun d4 fr4 hd4 hk4 _ ↦ ?_
     · exfalso
       revert hc
@@ -210,7 +211,7 @@ theorem tail_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
         (j := 112) (n := 8) (by omega) (by omega) fun i hi hq ↦ ?_)) le_rfl
       exact not_loc hS hA1016 hN1016 (j := 112 + i) (l := 1) (by omega) hq
         (loc_inR hS (by omega) (by omega) (by omega))
-    show Eventually (step1 Host.exe) (Goal a s0 L m0) { data := d4, pc := Host.addrOf (k + 419) }
+    show Eventually (step1 Host.exe) (Goal a s0 L m0) { data := d4, pc := Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b55Offset) }
     have hwf5 := wfBus h fr4.frame.kept (vars := fun _ ↦ 0) (ret := 0)
     refine exec_then (infix_of b55_in_code (by simp [b55]) hp) exit_b55 hwf5 nofun
       (match_bS fr4 h112') fun st5 hm5 hpc5 ↦ ?_

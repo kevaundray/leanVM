@@ -20,7 +20,7 @@ variable [Host] {k : Nat}
 
 /-- **The epilogue**, RAX kept. -/
 theorem exit13 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 leanvmVerifyStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 71)) (hf : Frame m0 112 slots 8 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b13Offset)) (hf : Frame m0 112 slots 8 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ reg st'.data .rax = reg st.data .rax ∧
       st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
@@ -39,7 +39,7 @@ theorem exit13 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 leanvmV
 
 /-- **`0`**, then the epilogue. -/
 theorem exit12 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 leanvmVerifyStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 69)) (hf : Frame m0 112 slots 8 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LeanvmVerify.b12Offset)) (hf : Frame m0 112 slots 8 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ reg st'.data .rax = 0#64 ∧
       st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
@@ -53,7 +53,7 @@ theorem exit12 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 leanvmV
   obtain ⟨hmid, hmem, hrax⟩ := after_eq run_b12 ▸ ok_b12
   have hf' : Frame m0 112 slots 8 st'.data := Frame.of_block hf hwf hm hmid slots_le
   simp only [PcOk] at hpc'
-  refine Eventually.mono (exit13 hp hst (hpc'.trans (by rw [show b12.length = 2 from rfl])) hf')
+  refine Eventually.mono (exit13 hp hst (hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LeanvmVerify.b12_next)) hf')
     fun s ⟨h1, h2, h3, h4, h5⟩ ↦ ⟨h1, h2, h3.trans (hm.regs .rax _ hrax), h4.trans
       (hm.dmem_eq hwf hmem), h5⟩
 

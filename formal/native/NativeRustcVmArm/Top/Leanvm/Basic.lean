@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LeanvmVerify.Names
 public import NativeRustcVmArm.Spec.Top
 public import NativeRustcVmArm.Top.Leanvm.Exec
 public import NativeRustcVm.WordView
@@ -154,20 +155,20 @@ theorem hb (i : Nat) {ds : List Directive} (hp : Placed code k) (h : ds.IsInfixA
     (hne : ds ≠ []) : ds.IsInfixAt Host.prog (k + i) :=
   h.trans hp.1 hne
 
-theorem lbl_entry (hp : Placed code k) : Labels.label leanvmVerifyLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LLeanvmVerify_1" = Host.addrOf (k + 22) :=
-  hp.label (j := 22) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LLeanvmVerify_2" = Host.addrOf (k + 24) :=
-  hp.label (j := 24) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LLeanvmVerify_3" = Host.addrOf (k + 32) :=
-  hp.label (j := 32) rfl
-theorem lbl_10 (hp : Placed code k) : Labels.label ".LLeanvmVerify_10" = Host.addrOf (k + 52) :=
-  hp.label (j := 52) rfl
-theorem lbl_13 (hp : Placed code k) : Labels.label ".LLeanvmVerify_13" = Host.addrOf (k + 65) :=
-  hp.label (j := 65) rfl
-theorem lbl_14 (hp : Placed code k) : Labels.label ".LLeanvmVerify_14" = Host.addrOf (k + 75) :=
-  hp.label (j := 75) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.LeanvmVerify.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.LeanvmVerify.entryOffset) NativeRustcVmArm.Vm.LeanvmVerify.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.LeanvmVerify.label_1 = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b1Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.LeanvmVerify.b1Offset) NativeRustcVmArm.Vm.LeanvmVerify.label_1_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.LeanvmVerify.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b2Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.LeanvmVerify.b2Offset) NativeRustcVmArm.Vm.LeanvmVerify.label_2_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.LeanvmVerify.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b3Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.LeanvmVerify.b3Offset) NativeRustcVmArm.Vm.LeanvmVerify.label_3_at
+theorem lbl_10 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.LeanvmVerify.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b10Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.LeanvmVerify.b10Offset) NativeRustcVmArm.Vm.LeanvmVerify.label_10_at
+theorem lbl_13 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.LeanvmVerify.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b15Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.LeanvmVerify.b15Offset) NativeRustcVmArm.Vm.LeanvmVerify.label_13_at
+theorem lbl_14 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.LeanvmVerify.label_14 = Host.addrOf (k + NativeRustcVmArm.Vm.LeanvmVerify.b17Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.LeanvmVerify.b17Offset) NativeRustcVmArm.Vm.LeanvmVerify.label_14_at
 
 end
 

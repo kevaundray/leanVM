@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
 public import NativeRustcVmArm.Bus.AccumulateSide.Loop4
 
 /-!
@@ -42,9 +43,9 @@ theorem turn37 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (TT SL m0 L rows bl Fm j) L37 m) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm (j + 1)) DL m2 → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, if j + 1 < bl.length then Host.addrOf (k + 233)
-        else Host.addrOf (k + 325)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 319)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, if j + 1 < bl.length then Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset)
+        else Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b38Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b37Offset)⟩ := by
   have h51 := bl_size h
   have hH0 := St.lift (D := L37) hst (by decide) 0 []
   have hwf := wf0 h hst.fr.kept
@@ -102,9 +103,9 @@ theorem turn37 (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
       · simp [hn, show bl.length - j ≠ 1 by omega]
       · simp [hn, show bl.length - j = 1 by omega]
     simp only [PcOk, hc] at hpc
-    rw [hp.label (j := 233) (l := ".LAccumulateSide_17") rfl,
-      show k + 319 + b37.length = k + 325 from rfl] at hpc
-    have hp' : st.pc = if j + 1 < bl.length then Host.addrOf (k + 233) else Host.addrOf (k + 325) := by
+    rw [hp.label (j := NativeRustcVmArm.Vm.AccumulateSide.b27Offset) NativeRustcVmArm.Vm.AccumulateSide.label_17_at,
+      show k + NativeRustcVmArm.Vm.AccumulateSide.b37Offset + b37.length = k + NativeRustcVmArm.Vm.AccumulateSide.b38Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b37_next]] at hpc
+    have hp' : st.pc = if j + 1 < bl.length then Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b27Offset) else Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b38Offset) := by
       simpa only [decide_eq_true_eq] using hpc
     exact Gkr.at_pc hp' (cont st.data ⟨hst'.fr, hnext⟩ fun G hG ↦
       forms_wrOk h (.inl rfl) hm' hwf (by decide) hG)

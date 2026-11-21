@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Whir.EachRowOfNextLevel.IterG
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel.Names
 
 /-!
 # `each_row` with `next_level`'s closure: query weight `j` (x86-64)
@@ -35,11 +37,11 @@ theorem eval_shl4 (x : BitVec 64) {n : Nat} (hx : x = BitVec.ofNat 64 n) (hn : 1
 variable [Host] {k : Nat}
 
 /-- **Row `j`'s term**: from `b23` to `b8_step`. -/
-theorem iter_h (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+theorem iter_h (hp : Placed code k) (hmul : Spec (label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (c : Ctx rows op m0) {m : MachineData} (h : AtB23 rows m0 j m)
     (cont : ∀ m', Inv rows m0 (j + 1) m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 82)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 153)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b9Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b23Offset)⟩ := by
   have hl := lay c
   have hsp := hl.sp
   have htop := hl.ok.2.1
@@ -65,7 +67,7 @@ theorem iter_h (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWM
     rw [h.rbp, h.rax]
   -- `b23`
   let envB := EachRow.envE m0 m 1984 0 [(bOf m0, 16)] (fun _ ↦ 0)
-    (Host.addrOf (k + 63 + b7.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b7Offset + b7.length)).toBitVec
   have hwfB : envB.WF := env1 c h.fr c.bin _
   have hmB : Match envB batS m :=
     match_ofMachine ⟨rfl, rfl, trivial⟩
@@ -73,7 +75,7 @@ theorem iter_h (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWM
         show reg m .r14 = bOf m0 + BitVec.ofInt 64 0
         rw [h.r14]
         exact (BitVec.add_zero _).symm, trivial⟩ trivial trivial trivial
-  have hk23 : b23.IsInfixAt Host.prog (k + 153) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk23 : b23.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b23Offset) := b23_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hl16 : envB.load 0 16 8 = nextEnv m0 5 := NativeRustcVmX64.Arrays.load_word h.mm.low.w16
   have hP0 : envB.load 1 0 8 = (parOf rows m0 j).c0.toBitVec :=
     NativeRustcVmX64.Arrays.load_word (by
@@ -98,7 +100,7 @@ theorem iter_h (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWM
   by_cases hlt : j < (qwOf m0).size
   · -- `b6`, `b7`: query weight `j`
     simp only [hlt, decide_true, ↓reduceIte] at hpc1
-    rw [show Labels.label ".LEachRowOfNextLevel_3" = Host.addrOf (k + 57) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmX64.Vm.EachRowOfNextLevel.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b6Offset) from hp.label NativeRustcVmX64.Vm.EachRowOfNextLevel.label_3_at]
       at hpc1
     let qa := nextEnv m0 4 + BitVec.ofNat 64 (16 * j)
     have hqin : WhirIn m0 qa 16 eachRowNextStack :=
@@ -107,7 +109,7 @@ theorem iter_h (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWM
       rw [addr_add]
       exact notB_in c c.qwin c.bqw _ (by rw [← hqs]; omega)
     let env6 := EachRow.envE m0 st1.data 1984 0 [(qa, 16), (bOf m0, 16)] (fun _ ↦ 0)
-      (Host.addrOf (k + 63 + b7.length)).toBitVec
+      (Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b7Offset + b7.length)).toBitVec
     have hwf6 : env6.WF := by
       refine EachRow.envE_wf hl (Nat.zero_le _) hfr1.kept ?_
         (NativeRustcVmX64.Transcript.pairwise3 (hl.apart0 hqin.2) (hl.apart0 c.bin.2) ?_)
@@ -146,8 +148,8 @@ theorem iter_h (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWM
           rw [l8, eval_shl4 (env6.regs .rbx) ((e1 .rbx rfl).trans h.rbx)
             (by have := c.rowsAt.2.1; omega)]
           exact (BitVec.add_zero _).symm, trivial⟩
-    have hk6 : b6.IsInfixAt Host.prog (k + 57) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
-    have hk7 : b7.IsInfixAt Host.prog (k + 63) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b6Offset) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_at hk6 run_b6 hwf6 (fun _ h ↦ by cases h) hpc1 hm6 fun st2 hm2 hpc2 ↦ ?_
     refine exec_at hk7 (exec_after run_b6 run_b7) hwf6 (fun _ _ ↦ rfl) hpc2 hm2
       fun st3 hm3 hpc3 ↦ ?_
@@ -194,14 +196,14 @@ theorem iter_h (hp : Placed code k) (hmul : Spec (label ewMulLabel) EWMulPre EWM
       exact BitVec.add_zero _
   · -- `b24`, `b7`: the weight `0`
     simp only [hlt, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
-    have hk24 : b24.IsInfixAt Host.prog (k + 155) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
-    have hk7 : b7.IsInfixAt Host.prog (k + 63) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk24 : b24.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b24Offset) := b24_in_code.trans hp.1 (List.cons_ne_nil _ _)
+    have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
     refine exec_at hk24 (exec_after run_b23 run_b24) hwfB (fun _ h ↦ by cases h) hpc1 hm1
       fun st2 hm2 hpc2 ↦ ?_
-    have hpc2' : st2.pc = Host.addrOf (k + 63) := by
+    have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b7Offset) := by
       simp only [PcOk] at hpc2
       rw [hpc2]
-      exact hp.label rfl
+      exact hp.label NativeRustcVmX64.Vm.EachRowOfNextLevel.label_4_at
     refine exec_at hk7 (exec_after (exec_after run_b23 run_b24) run_b7z) hwfB (fun _ _ ↦ rfl)
       hpc2' hm2 fun st3 hm3 hpc3 ↦ ?_
     rw [← after_eq (exec_after (exec_after run_b23 run_b24) run_b7z)] at hm3

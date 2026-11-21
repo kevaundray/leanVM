@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Back.OutExtend
+public import NativeRustcVmX64.Code.Vm.BufEW36Extend.Names
 
 /-! # Appending the pack point and opening slot (blocks 68–70) -/
 
@@ -38,15 +39,15 @@ variable [Host] {k : Nat} {m0 : MachineData} {a : DecArea} {s : TState}
   {cs : Array ColumnClaimW} {inst output : Array EW}
 
 theorem outHighStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {st : MachineState} {V : Vs} {low : Array EW} {cl : KeccakClaimW}
-    (hat : At m0 k 467 wrAll t60 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b68Offset wrAll t60 (vv m0 V) st)
     (hbuf : NativeRustcVm.BufEWAt st.data.dmem (keccakOutArg m0) 36 low.toList)
     (hcl : ClaimAt st.data.dmem (off (fb m0) 992) cl)
     (h4 : low.size = 4) (hfit : SegmentsFit (reg m0 .rsi).toNat cl)
     (hpl : V.pl = BitVec.ofNat 64 cl.point.size) (hpp : V.pp = off (fb m0) 1280)
     {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 475 wrAll t69 (vv m0 V) st' →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b70Offset wrAll t69 (vv m0 V) st' →
       NativeRustcVm.BufEWAt st'.data.dmem (keccakOutArg m0) 36
         (low.toList ++ cl.point.toList.take ((reg m0 .rsi).toNat - 4)) →
       Chg m0 st.data.dmem st'.data.dmem [(0, 88), (3296, 48)] [(4, 0, 584)] →
@@ -82,8 +83,8 @@ theorem outHighStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst out
   · exact ⟨⟨mapF h ca (by omega), nwF c (by omega)⟩,
       (sepFX c (by omega) (by have ho := c.oS; unfold Sep at ho ⊢; omega)).symm,
       (sepSF0 c ca (by rw [vk_eq]; decide) (by decide) (by decide)).symm⟩
-  rw [show 467 + b68.length = 473 from rfl] at hat1
-  refine stepJ (T' := t69) (vals' := vv m0 V) (o := 473) hp c h hat1 b69_in_code
+  rw [NativeRustcVmX64.Vm.VerifyKeccak.b68_next] at hat1
+  refine stepJ (T' := t69) (vals' := vv m0 V) (o := NativeRustcVmX64.Vm.VerifyKeccak.b69Offset) hp c h hat1 b69_in_code
     (by simp [b69]) run_b69 nofun (hat1.2.mt 0) (by decide) rfl rfl (by vtacJ)
     (by decide) rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) rfl
     fun st2 hpc2 hB2 _ hc2 hk2 ↦ ?_
@@ -93,7 +94,7 @@ theorem outHighStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst out
   simp only [show (envZ m0 st1.data 3344 3368 (rsOf m0) (vv m0 V) 0).regs .rax =
     reg st1.data .rax from rfl, h1, show ¬(1 = 0) from by decide, decide_false,
     Bool.false_eq_true, ↓reduceIte] at hpc2
-  refine cont st2 ⟨hpc2.trans (by rw [show 473 + b69.length = 475 from rfl]), hB2⟩
+  refine cont st2 ⟨hpc2.trans (by rw [NativeRustcVmX64.Vm.VerifyKeccak.b69_next]), hB2⟩
     (NativeRustcVm.Layout.BufEWAt.of_same hbuf1
       (by simpa only [off0, ob] using
         (Chg.regS c hc2 (by decide) rfl (i := 4) (o := 0) (n := 584)
@@ -103,13 +104,13 @@ theorem outHighStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst out
     (by decide) (by decide)
 
 theorem outSlotStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
     {st : MachineState} {V : Vs} {xs : List EW} {slot : Array EW}
-    (hat : At m0 k 475 wrAll t69 (vv m0 V) st)
+    (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b70Offset wrAll t69 (vv m0 V) st)
     (hbuf : NativeRustcVm.BufEWAt st.data.dmem (keccakOutArg m0) 36 xs)
     (hslot : NativeRustcVm.EWsAt st.data.dmem (off (fb m0) 232) slot.toList)
     (h6 : slot.size = 6) (hfit : xs.length + 6 ≤ 36) {R : MachineState → Prop}
-    (cont : ∀ st', At m0 k 479 wrAll t69 (vv m0 V) st' → boolRet st'.data = 1 →
+    (cont : ∀ st', At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b71Offset wrAll t69 (vv m0 V) st' → boolRet st'.data = 1 →
       NativeRustcVm.BufEWAt st'.data.dmem (keccakOutArg m0) 36 (xs ++ slot.toList) →
       Chg m0 st.data.dmem st'.data.dmem [(0, 88), (3296, 48)] [(4, 0, 584)] →
       Kept st.data.dmem st'.data.dmem → Eventually (step1 Host.exe) R st') :
@@ -129,7 +130,7 @@ theorem outSlotStep (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst out
       (sepFX c (by decide) (by have ho := c.oS; unfold Sep at ho ⊢; omega)).symm,
       (sepSF0 c ca (by rw [vk_eq]; decide) (by decide) (by decide)).symm⟩
   · intro st' hat' hal hbuf' hc hk
-    rw [show 475 + b70.length = 479 from rfl] at hat'
+    rw [NativeRustcVmX64.Vm.VerifyKeccak.b70_next] at hat'
     exact cont st' hat' hal hbuf' hc hk
 
 end

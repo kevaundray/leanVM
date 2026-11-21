@@ -86,11 +86,11 @@ variable [Host] {k : Nat}
 
 /-- **`b21`**: placement `some ⟨X11, X12⟩` stored. -/
 theorem store21 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 87)) (hI : I3 m0 c st.data) {idx : Nat}
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b21Offset)) (hI : I3 m0 c st.data) {idx : Nat}
     (hidx : idx < 2 ^ 64) (x11 : st.data.regs.X11.toNat = κ m0 c)
     (x12 : st.data.regs.X12.toNat = idx) (hpl : plF (κ m0) c = some ⟨κ m0 c, idx⟩) :
-    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + 94) ∧
-      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + 113) ∧
+    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b22Offset) ∧
+      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b28Offset) ∧
       I3 m0 158 s.data)) st := by
   have hb := hI.body
   have hr := pl_readable hF hb hc
@@ -163,16 +163,16 @@ theorem store21 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat
     (BitVec.ofNat_add _ _).symm, ofNat_beq' (by omega) (by decide)] at hpc1
   obtain ⟨f, t⟩ := Arrays.pc_cond hpc1
   by_cases hl : c + 1 = 158
-  · refine .done _ (.inr ⟨hl, (f (by simp [hl])).trans (hp.label (j := 113) rfl), ?_⟩)
+  · refine .done _ (.inr ⟨hl, (f (by simp [hl])).trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b28Offset) NativeRustcVmArm.Vm.PlacementsOf.label_22_at), ?_⟩)
     rw [← hl]; exact hI'
   · exact .done _ (.inl ⟨by omega, pc_of (t (by simp [hl])) rfl, hI'⟩)
 
 /-- **`b27`**: placement `none` stored. -/
 theorem store27 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat} (hc : c < 158)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 108)) (hI : I3 m0 c st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b27Offset)) (hI : I3 m0 c st.data)
     (hpl : plF (κ m0) c = none) :
-    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + 94) ∧
-      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + 113) ∧
+    Eventually (step1 Host.exe) (fun s ↦ (c + 1 < 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b22Offset) ∧
+      I3 m0 (c + 1) s.data) ∨ (c + 1 = 158 ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b28Offset) ∧
       I3 m0 158 s.data)) st := by
   have hb := hI.body
   have hr := pl_readable hF hb hc
@@ -232,7 +232,7 @@ theorem store27 (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {c : Nat
   by_cases hl : c + 1 = 158
   · refine .done _ (.inr ⟨hl, pc_of (t (by simp [hl])) rfl, ?_⟩)
     rw [← hl]; exact hI'
-  · exact .done _ (.inl ⟨by omega, (f (by simp [hl])).trans (hp.label (j := 94) rfl), hI'⟩)
+  · exact .done _ (.inl ⟨by omega, (f (by simp [hl])).trans (hp.label (j := NativeRustcVmArm.Vm.PlacementsOf.b22Offset) NativeRustcVmArm.Vm.PlacementsOf.label_17_at), hI'⟩)
 
 end
 

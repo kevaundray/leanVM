@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0
+public import NativeRustcVmX64.Code.Vm.Fingerprints.Names
 public meta import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -110,7 +111,7 @@ public theorem exit_b0c : exec b0c sC = some (after b0c sC, .fall) :=
 public theorem ok_b0c : COk (after b0c sC) := by decide +kernel
 
 public theorem exit_b0d : exec b0d sD =
-    some (after b0d sD, .call "_RNvNtCsemcRClSg8DH_9native_vm3bus12fingerprints") :=
+    some (after b0d sD, .call NativeRustcVmX64.Vm.Fingerprints.entryLabel) :=
   run_b0d.trans (by rw [after_eq run_b0d])
 public theorem ok_b0d : DOk (after b0d sD) := by decide +kernel
 

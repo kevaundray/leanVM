@@ -76,20 +76,20 @@ theorem shl4 (z : Nat) :
 /-- **A node's head**: from `AtNode r c z` at `b65`, `N1 r c z` at `b66`. -/
 theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {c z : Nat} {m : MachineData} (h : AtNode r c z m) {R : MachineState → Prop}
-    (cont : ∀ m', N1 r c z m' → Eventually (step1 Host.exe) R ⟨m', r.pc 779⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 730⟩ := by
+    (cont : ∀ m', N1 r c z m' → Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b65Offset⟩ := by
   obtain ⟨hK, hz, hcx, h13, h12, h15, hbp, w104, hcur⟩ := h
   have hc24 := hK.2.1.hc
   have hleaf := r.leafOf_lt hc24
   have hcx' : m.regs.get64 .rcx = BitVec.ofNat 64 z := hcx
   have h13' : m.regs.get64 .r13 = BitVec.ofNat 64 c := h13
   have hwf := r.wfW hpre hK.1.2.2.2 (n0 := 20540) (o2 := 20540 + 176 * c + 16 * z) (by omega)
-    (by omega) (fun _ ↦ 0) (r.pc 779).toBitVec
+    (by omega) (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec
   have h72 := load_wordW (n0 := 20540) (o2 := 20540 + 176 * c + 16 * z) (vars := fun _ ↦ 0)
-    (ret := (r.pc 779).toBitVec) hK.2.2.1
+    (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec) hK.2.2.1
   have h88 := load_wordW (n0 := 20540) (o2 := 20540 + 176 * c + 16 * z) (vars := fun _ ↦ 0)
-    (ret := (r.pc 779).toBitVec) hK.2.2.2
-  have hm : Match (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0) (r.pc 779).toBitVec)
+    (ret := (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec) hK.2.2.2
+  have hm : Match (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec)
       s65 m := by
     refine r.matchW hK.1 (known := []) (bounds := [(.reg .rcx, 10)])
       (aliases := [(pathSym, 2, 0)]) trivial
@@ -97,7 +97,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
     show (Sym.load 0 72 8).eval _ + BinOp.apply .shl .W64 (m.regs.get64 .rcx)
       (BitVec.ofNat 64 4) = r.off (20540 + 176 * c + 16 * z) + BitVec.ofInt 64 0
     rw [show (Sym.load 0 72 8).eval (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-      (r.pc 779).toBitVec) = _ from h72, hcx', shl4 z,
+      (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec) = _ from h72, hcx', shl4 z,
       show BitVec.ofInt 64 0 = 0#64 by decide, BitVec.add_zero]
     exact Run.off_add r _ _
   refine Chains.blk r hp b65_in_code (List.cons_ne_nil _ _) run_b65 hwf (fun _ _ ↦ rfl) hm
@@ -107,7 +107,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
     ⟨Run.AtCall.of_matchW r hpre hK.1 (by decide) (by omega) hm₁ hwf rfl (by decide +kernel),
       hK.2.1.of_kept keptW (by decide +kernel), hK.2.2.of_kept keptW (by decide +kernel)⟩
   have hb0 : (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-      (r.pc 779).toBitVec).regions[0]? = some (r.base, 20540) := rfl
+      (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec).regions[0]? = some (r.base, 20540) := rfl
   -- `z + 1` at `64`
   have w64 : r.WordAt st₁.data 64 (z + 1).toUInt64 :=
     wordW hm₁ (o := 64) (v := .bin .add .W64 (.reg .rcx) (.lit 1)) (by decide) (by decide +kernel)
@@ -118,11 +118,11 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
         rfl)
   -- the children
   have hC := bit_eval (env := r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-    (r.pc 779).toBitVec) (l := r.leafOf c) hz h88 hcx'
+    (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec) (l := r.leafOf c) hz h88 hcx'
   have hcurE : BytesAt (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-      (r.pc 779).toBitVec).mem0 (r.base + BitVec.ofNat 64 10368) (r.forsUpTo c z) := hcur
+      (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec).mem0 (r.base + BitVec.ofNat 64 10368) (r.forsUpTo c z) := hcur
   have hpathE : BytesAt (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-      (r.pc 779).toBitVec).mem0 (r.off (20540 + 176 * c + 16 * z) + BitVec.ofNat 64 0)
+      (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec).mem0 (r.off (20540 + 176 * c + 16 * z) + BitVec.ofNat 64 0)
       (r.pathNode c z) := Chains.bytesAt_add_zero (hK.2.1.pathNode hz)
   have hcl := r.length_forsUpTo c z
   have hpl := r.length_pathNode hc24 hz
@@ -132,7 +132,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
     · rename_i hbit
       simp only [hbit, decide_true, Bool.not_true] at hC
       have hnC : (SBool.not bitC).eval (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-          (r.pc 779).toBitVec) = true := by
+          (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec) = true := by
         show (!_) = true
         rw [hC]
         rfl
@@ -148,7 +148,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
     · rename_i hbit
       simp only [hbit, decide_false, Bool.not_false] at hC
       have hnC : (SBool.not bitC).eval (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-          (r.pc 779).toBitVec) = false := by
+          (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec) = false := by
         show (!_) = false
         rw [hC]
         rfl
@@ -184,7 +184,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
       (v := .un .trunc .W32 (.un .bswap .W32 (.un .trunc .W32
         (.bin .add .W64 (.reg .rcx) (.lit 1)))))
       (by decide) (by decide +kernel)
-    rw [show Sym.eval (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0) (r.pc 779).toBitVec)
+    rw [show Sym.eval (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec)
       (.un .trunc .W32 (.un .bswap .W32 (.un .trunc .W32 (.bin .add .W64 (.reg .rcx) (.lit 1))))) =
       UnOp.apply .trunc .W32 (UnOp.apply .bswap .W32 (UnOp.apply .trunc .W32
         (BinOp.apply .add .W64 (m.regs.get64 .rcx) (BitVec.ofNat 64 1)))) from rfl, hcx',
@@ -197,7 +197,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
             (.un .trunc .W32 (.reg .rcx)))))
         (.bin .shr .W64 (.load 0 88 8) (.bin .add .W64 (.reg .rcx) (.lit 1))))))
       (by decide) (by decide +kernel)
-    rw [show Sym.eval (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0) (r.pc 779).toBitVec)
+    rw [show Sym.eval (r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0) (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec)
       (.un .trunc .W32 (.un .bswap .W32 (.bin .add .W32
         (.bin .shl .W32 (.un .trunc .W32 (.reg .r13))
         (.bin .merge .W8 (.bin .merge .W8 (.bin .add .W64 (.reg .rcx) (.lit 1)) (.lit 9))
@@ -216,7 +216,7 @@ theorem node_head (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
               (BinOp.apply .add .W64 (m.regs.get64 .rcx) (BitVec.ofNat 64 1)) (BitVec.ofNat 64 9))
               (UnOp.apply .trunc .W32 (m.regs.get64 .rcx)))))
         (BinOp.apply .shr .W64 ((r.envW 20540 (20540 + 176 * c + 16 * z) m (fun _ ↦ 0)
-          (r.pc 779).toBitVec).load 0 88 8)
+          (r.pc NativeRustcX64.Sphincs.SphincsVerify.b66Offset).toBitVec).load 0 88 8)
           (BinOp.apply .add .W64 (m.regs.get64 .rcx) (BitVec.ofNat 64 1))))) = _
       rw [h13', h88, hcx']
       rfl, bytes_nodeIndex hc24 hz hleaf] at a5

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
 public import NativeRustcVmArm.KeccakGkr.FirstClaim.Mid
 public import NativeRustcVmArm.KeccakGkr.FirstClaim.Keep
 
@@ -51,11 +52,11 @@ variable [NativeArm.Host] {inst segment lanePoint output : Array EW} {m0 : Machi
 
 /-- **`b11` to `b14`**. -/
 theorem tail (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 141))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b11Offset))
     (hI : MDone m0 inst segment lanePoint output s.data) :
     Eventually (step1 Host.exe)
-      (fun s' ↦ s'.pc = Host.addrOf (k + 216) ∧ PDone m0 inst segment lanePoint output s'.data)
+      (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b15Offset) ∧ PDone m0 inst segment lanePoint output s'.data)
       s := by
   have hS := hpre.1
   have hws := wsOff hpre
@@ -221,7 +222,7 @@ theorem tail (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint o
     show s2.data.regs.X0.toBitVec = _; rw [hr0]; rfl
   refine exec_at (b12_in_code.trans hp.1 (by simp [b12])) e12 (Env.wf_nil _) hpc2 (match_nil _)
     fun s3 hm3 hpc3 ↦ ?_
-  simp only [PcOk, show b12.length = 1 from rfl] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.FirstClaim.b12_length, NativeRustcVmArm.Vm.FirstClaim.b12Length] at hpc3
   sym_simp at hpc3
   simp only [Env.ofMachine_regs, hx0'] at hpc3
   rw [ite_eq_right (by decide)] at hpc3
@@ -308,7 +309,7 @@ theorem tail (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint o
     show s5.data.regs.X0.toBitVec = _; rw [hr5]; rfl
   refine exec_at (b14_in_code.trans hp.1 (by simp [b14])) e14 (Env.wf_nil _) hpc5 (match_nil _)
     fun s6 hm6 hpc6 ↦ ?_
-  simp only [PcOk, show b14.length = 1 from rfl] at hpc6
+  simp only [PcOk, NativeRustcVmArm.Vm.FirstClaim.b14_length, NativeRustcVmArm.Vm.FirstClaim.b14Length] at hpc6
   sym_simp at hpc6
   simp only [Env.ofMachine_regs, hx0''] at hpc6
   rw [ite_eq_right (by decide)] at hpc6

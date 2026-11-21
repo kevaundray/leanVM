@@ -1,6 +1,13 @@
 module
 
 public import NativeRustcVmX64.Top.VerifyExecution.Tables
+public import NativeRustcVmX64.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmX64.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmX64.Code.Vm.RingSwitch.Names
+public import NativeRustcVmX64.Code.Vm.TableColumnClaims.Names
+public import NativeRustcVmX64.Code.Vm.TablePhase.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalance.Names
+public import NativeRustcVmX64.Code.Vm.VerifyStackedOpening.Names
 
 /-!
 # `verify_execution`: the bus (x86-64)
@@ -45,24 +52,24 @@ variable [Host] {k : Nat}
 
 /-- **The bus**, from `b6`: the function returns the walk's rest. -/
 theorem callBus (hp : Placed code k)
-    (hbb : ∀ a s L, Spec (Labels.label verifyBusBalanceLabel) (VerifyBusBalancePre a s L)
+    (hbb : ∀ a s L, Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalance.entryLabel) (VerifyBusBalancePre a s L)
       (VerifyBusBalancePost a s L))
-    (htp : ∀ a s layout bus, Spec (Labels.label tablePhaseLabel) (TablePhasePre a s layout bus)
+    (htp : ∀ a s layout bus, Spec (Labels.label NativeRustcVmX64.Vm.TablePhase.entryLabel) (TablePhasePre a s layout bus)
       (TablePhasePost a s layout bus))
-    (htc : ∀ evals cs, Spec (Labels.label tableColumnClaimsLabel) (TableColumnClaimsPre evals cs)
+    (htc : ∀ evals cs, Spec (Labels.label NativeRustcVmX64.Vm.TableColumnClaims.entryLabel) (TableColumnClaimsPre evals cs)
       (TableColumnClaimsPost evals cs))
-    (hpi : ∀ a s layout pub cs, Spec (Labels.label publicInputPhaseLabel)
+    (hpi : ∀ a s layout pub cs, Spec (Labels.label NativeRustcVmX64.Vm.PublicInputPhase.entryLabel)
       (PublicInputPhasePre a s layout pub cs) (PublicInputPhasePost a s layout pub cs))
-    (hkp : ∀ a s cs layout evals, Spec (Labels.label keccakPhaseLabel)
+    (hkp : ∀ a s cs layout evals, Spec (Labels.label NativeRustcVmX64.Vm.KeccakPhase.entryLabel)
       (KeccakPhasePre a s cs layout evals) (KeccakPhasePost a s cs layout evals))
-    (hrs : ∀ a s point, Spec (Labels.label ringSwitchLabel) (RingSwitchPre a s)
+    (hrs : ∀ a s point, Spec (Labels.label NativeRustcVmX64.Vm.RingSwitch.entryLabel) (RingSwitchPre a s)
       (RingSwitchPost a s point))
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmX64.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 33)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b6Offset)) {rate : Nat} (h15 : (reg st.data .r15).toNat = rate)
     (h12 : reg st.data .r12 = reg m0 .rsi) (h13 : reg st.data .r13 = reg m0 .rdx)
     (hbp : reg st.data .rbp = off (reg m0 .r8) 3912)
     (h40 : NativeRustcVm.WordAt st.data.dmem (off (stackBelow m0 96) 40)
@@ -79,7 +86,7 @@ theorem callBus (hp : Placed code k)
   have hF := g.F
   have hwN := g.wN
   have hN : verifyBusBalanceStack = 17824 := rfl
-  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + 33 + b6.length)).toBitVec)
+  obtain ⟨hwf, hm⟩ := h.env g (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b6Offset + b6.length)).toBitVec)
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf (fun _ _ ↦ rfl) hpc hm
     fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid, hw1, hrdi, hrsi, hrdx, hrcx, hr8, hr9, hr12, hr13, hk⟩ := after_eq run_b6 ▸ ok_b6
@@ -94,7 +101,7 @@ theorem callBus (hp : Placed code k)
   have kr : ∀ r ∈ [Reg64.rbx, .r14, .r15, .rbp], reg st1.data r = reg st.data r :=
     fun r hr ↦ hm1.regs r (.reg r) (by simpa using List.all_eq_true.mp hk r hr)
   have eadd : ∀ c : Nat, (Sym.bin .add .W64 (.reg .rbx) (.lit c)).eval (frameEnv m0 st.data 96 []
-      (fun _ ↦ 0) (Host.addrOf (k + 33 + b6.length)).toBitVec) = off (reg m0 .r8) c := fun c ↦ by
+      (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyExecution.b6Offset + b6.length)).toBitVec) = off (reg m0 .r8) c := fun c ↦ by
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64]
     exact congrArg (· + BitVec.ofNat 64 c) h.rbx
   have eRdi : reg st1.data .rdi = reg m0 .rdi := (hm1.regs .rdi _ hrdi).trans h.r14
@@ -214,7 +221,7 @@ theorem callBus (hp : Placed code k)
   rw [walkBus, run_bind_eq]
   generalize hr : (verifyBusBalance L).run s = r at hok hres
   refine branch hp g b7_in_code (by simp [b7]) (by rw [after_eq run_b7]; exact run_b7)
-    (ok_test b7 (by simp)) h2 (hpc2.trans (by rw [show k + 33 + b6.length = k + 42 from rfl]))
+    (ok_test b7 (by simp)) h2 (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b6Offset + b6.length = k + NativeRustcVmX64.Vm.VerifyExecution.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b6_next]]))
     hok (fun hb ↦ by cases r with | none => rfl | some _ => cases hb)
     fun st3 hb h3 hd3 hk3 hpc3 ↦ ?_
   obtain ⟨⟨bus, s'⟩, rfl⟩ := Option.isSome_iff_exists.mp hb
@@ -234,7 +241,7 @@ theorem callBus (hp : Placed code k)
     rw [hd3]
     exact NativeRustcVm.Top.OodAt.of_same hood (hsC (n := 504) (by omega) (by omega))
   exact callTables hp htp htc hpi hkp hrs hvso g h3
-    (hpc3.trans (by rw [show k + 42 + b7.length = k + 44 from rfl])) (rate := rate)
+    (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.VerifyExecution.b7Offset + b7.length = k + NativeRustcVmX64.Vm.VerifyExecution.b8Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyExecution.b7_next]])) (rate := rate)
     (by rw [k15, kr _ (by simp)]; exact h15) (by rw [k12]; exact eR12) (by rw [k13]; exact eR13)
     (by rw [kbp, kr _ (by simp)]; exact hbp)
     (by rw [hd3]; exact h40') hP (by rw [hd3]; exact hts') (by rw [hroots']; exact hroots) hL3 hvc

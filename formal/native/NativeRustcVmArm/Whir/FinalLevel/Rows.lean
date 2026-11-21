@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfFinalLevel.Names
+public import NativeRustcVmArm.Code.Vm.TStateQueryOpenings.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Check
 public import NativeVm.Code.QueryRows
 
@@ -51,19 +53,19 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The openings and the rows' check.** -/
 theorem rows (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hqo : ∀ a s Q, Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q)
+    (hqo : ∀ a s Q, Spec (Labels.label NativeRustcVmArm.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q)
       (QueryOpeningsPost a s Q))
-    (hrow : ∀ rows op, Spec (Labels.label eachRowFinalLabel) (EachRowFinalPre rows op)
+    (hrow : ∀ rows op, Spec (Labels.label NativeRustcVmArm.Vm.EachRowOfFinalLevel.entryLabel) (EachRowFinalPre rows op)
       (EachRowFinalPost rows))
     {st : MachineState} {folded : Array EW} {qs : Array UInt64} {s3 : TState}
-    (hpc : st.pc = Host.addrOf (k + 152)) (hl : Live level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b10Offset)) (hl : Live level m0 st.data folded)
     (hx26 : (st.data.regs.getXReg .X26).toBitVec = qA m0)
     (hx29 : (st.data.regs.getXReg .X29).toBitVec = pA m0 + BitVec.ofNat 64 57344)
     (hq : NativeRustcVm.BufWordsAt st.data.dmem (qA m0) queryCap qs.toList)
     (hts : TStateAt st.data.dmem (tA m0) a s3)
     (hrun : runF s0 level b w rounds m0 =
       (C3 m0.regs.X1.toNat (mu m0) m0.regs.X4.toNat b w rounds folded qs).run s3)
-    (cont : ∀ (st' : MachineState) (s4 : TState), st'.pc = Host.addrOf (k + 191) →
+    (cont : ∀ (st' : MachineState) (s4 : TState), st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b14Offset) →
       Live level m0 st'.data folded → TStateAt st'.data.dmem (tA m0) a s4 →
       runF s0 level b w rounds m0 = (C5 (mu m0) m0.regs.X4.toNat b w folded).run s4 →
       Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st') :
@@ -78,7 +80,7 @@ theorem rows (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hm := c.match1 (n := 8) hf hx26
   refine exec_at (inf hp b10_in_code (by simp [b10])) run_b10 hwf10 hpc hm
     fun st10 hm10 hpc10 ↦ ?_
-  rw [show k + 152 + b10.length = k + 165 from rfl] at hpc10
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b10Offset + b10.length = k + NativeRustcVmArm.Vm.FinalLevel.b11Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b10_next]] at hpc10
   have hf10 : FFr m0 st10.data :=
     Fr.ofBlock hf hm hm10 hwf10 rfl rfl rfl (fun _ h ↦ by cases h)
   have hd10 : st10.data.dmem = st.data.dmem := hm10.dmem_eq hwf10 rfl
@@ -193,7 +195,7 @@ theorem rows (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     have h0 : (fenv m0 m2 []).load 0 2064 8 = (0 : UInt64).toBitVec :=
       load_of_wordAt (hrows : NativeRustcVm.WordAt _ _ 0)
     rw [cbz_load h0] at hpc11
-    simp only [beq_self_eq_true, ↓reduceIte, hp.label (j := 117) rfl] at hpc11
+    simp only [beq_self_eq_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b2Offset) NativeRustcVmArm.Vm.FinalLevel.label_2_at] at hpc11
     exact exit2 hp c hpc11 hf11 (by rw [hrun, C3]; exact run_bind_none hr)
   | some p =>
   obtain ⟨rws, s4⟩ := p
@@ -206,7 +208,7 @@ theorem rows (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     exact hrw.1 (congrArg UInt64.toBitVec h)
   obtain ⟨-, -, ww, -, hhdr, -⟩ := hrw
   rw [cbz_load (load_of_wordAt (wordsAt_cons.mp hhdr).1), hne] at hpc11
-  simp only [Bool.false_eq_true, ↓reduceIte, show k + 165 + b11.length = k + 167 from rfl]
+  simp only [Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmArm.Vm.FinalLevel.b11Offset + b11.length = k + NativeRustcVmArm.Vm.FinalLevel.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b11_next]]
     at hpc11
   -- The openings' area.
   have hpb : phaseBase a.l s3.phase + phaseWords ≤ a.len :=

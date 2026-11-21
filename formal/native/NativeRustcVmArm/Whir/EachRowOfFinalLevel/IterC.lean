@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfFinalLevel.Names
+public import NativeRustcVmArm.Code.Vm.NovelEval.Names
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.IterB
 
 /-!
@@ -53,15 +55,15 @@ theorem toBitVec_beq (a b : UInt64) : (a.toBitVec == b.toBitVec) = (a == b) := b
 variable [Host] {k : Nat}
 
 /-- **From `b11` to the next iteration or the exit.** -/
-theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEvalPre NovelEvalPost)
+theorem iterC (hp : Placed code k) (hnov : Spec (label NativeRustcVmArm.Vm.NovelEval.entryLabel) NovelEvalPre NovelEvalPost)
     (hpre : EachRowFinalPre rows op m0) {m : MachineData} (h : Mid rows m0 j m)
     (hF : (⟨m.regs.getXReg .X27, m.regs.getXReg .X26⟩ : EW) =
       foldRow (lanesOf m0.regs.X0.toNat (rows[j]'h.hj)) ((qsOf m0)[j]'h.hjq) (eachRowArgs m0).2)
     (hW : BufWordsAt m.dmem (fb m0 + BitVec.ofNat 64 1576) rootCap
       (subspaceAtTable (tableOf m0) ((qsOf m0)[j]'h.hjq)).toList)
     (cont : ∀ m', Inv rows m0 (j + 1) m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 43)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 197)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b11Offset)⟩ := by
   have hl := lay hpre
   have hstk := hpre.1.1
   have hflen : (whirStackArg m0 0).toNat ≤ laneCap := hpre.2.2.1
@@ -84,7 +86,7 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
     rw [toBitVec_ult_ofNat (by decide), natCast_toUInt64_toNat (by omega)]
     simp
     omega
-  have hk11 : b11.IsInfixAt Host.prog (k + 197) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b11Offset) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk11 run_b11 hwf hm fun st11 hm11 hpc11 ↦ ?_
   have hmid11 : Mid rows m0 j st11.data := h.block hm hm11 hwf rfl rfl (by decide)
   have hd11 : st11.data.dmem = m.dmem := hm11.dmem_eq hwf rfl
@@ -173,7 +175,7 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
         (eachRowArgs m0).2).c1 == r.c1) := EachRow.ew_beq _ _
   have hfalse : ∀ {st : MachineState}, Match (Env.ofMachine d12 [(fb m0, 1952)]) (after b14 (after b13 (after b12 frameS))) st.data ∨
       Match (Env.ofMachine d12 [(fb m0, 1952)]) (after b13 (after b12 frameS)) st.data →
-      st.pc = Host.addrOf (k + 221) →
+      st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17Offset) →
       okOf m0 ((qsOf m0)[j]'h.hjq) (rows[j]'h.hj) = false →
       Eventually (step1 Host.exe) (Done rows m0) st := by
     intro st hm' hpc hb
@@ -187,13 +189,13 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
       · rw [after_eq run_b13] at hm'
         exact Ring.Fr.ofBlock hmid12.fr hm12 hm' hwf12 rfl rfl rfl (by simp)
     exact exit_step hp hpre hfr false (EachRow.finalOk_false h.hjq h.hj hb)
-  have hk12 : b12.IsInfixAt Host.prog (k + 206) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk13 : b13.IsInfixAt Host.prog (k + 208) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk14 : b14.IsInfixAt Host.prog (k + 211) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk15 : b15.IsInfixAt Host.prog (k + 214) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hL10 : Labels.label ".LEachRowOfFinalLevel_10" = Host.addrOf (k + 221) := hp.label rfl
+  have hk12 : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b12Offset) := b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk14 : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b14Offset) := b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk15 : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b15Offset) := b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hL10 : Labels.label NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17Offset) := hp.label (j := NativeRustcVmArm.Vm.EachRowOfFinalLevel.b17Offset) NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_10_at
   refine exec_then hk12 run_b12 hwf12 hm12 fun st12 hm12' hpc12 ↦ ?_
-  have hpc12' : st12.pc = Host.addrOf (k + 208) := by
+  have hpc12' : st12.pc = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b13Offset) := by
     simp only [PcOk] at hpc12
     sym_simp at hpc12
     rw [htag] at hpc12
@@ -264,7 +266,7 @@ theorem iterC (hp : Placed code k) (hnov : Spec (label novelEvalLabel) NovelEval
         Nat.mod_eq_of_lt (by omega)] at this
       exact hlast this
     simp only [hc, Bool.not_false, ↓reduceIte] at hpc15
-    rw [show Labels.label ".LEachRowOfFinalLevel_3" = Host.addrOf (k + 43) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset) NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_3_at]
       at hpc15
     obtain ⟨d, pc⟩ := st15
     simp only at hpc15

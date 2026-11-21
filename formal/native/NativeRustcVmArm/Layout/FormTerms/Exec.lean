@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcVmArm.Layout.Common
 public import NativeRustcVmArm.Code.Vm.FormTerms
 public meta import NativeRustcVmArm.Code.Vm.FormTerms
@@ -20,11 +21,9 @@ open NativeRustcArm NativeRustcArm.Sym NativeRustcVmArm.Vm.FormTerms
 
 @[expose] public section
 
-/-- `FORMS`' label. -/
-def formsLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.13"
 
 /-- At the entry: `FORMS` (region 0) at its label. -/
-def entryS : SState := init [(9488, false)] .sp [] [(formsLabel, 0)]
+def entryS : SState := init [(9488, false)] .sp [] [(NativeRustcVmArm.Vm.Symbols.rodata13Label, 0)]
 
 /-- After `b0` falls through: the form below `593`. -/
 def S1 : SState := { after b0 entryS with bounds := [(.reg .X0, 593)] }

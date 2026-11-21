@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Frame
 public import NativeRustcVmArm.Whir.FinalLevel.Ok
 public import NativeRustcVm.Sumcheck.RoundPoly
@@ -93,9 +94,9 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The entry and the folded lane.** -/
 theorem entry (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hrsc : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hrsc : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
     (cont : ∀ (st : MachineState) (folded : Array EW) (s1 : TState),
-      st.pc = Host.addrOf (k + 140) → Base m0 st.data →
+      st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b6Offset) → Base m0 st.data →
       st.data.regs.X22 = m0.regs.X0 → st.data.regs.X24 = m0.regs.X1 →
       st.data.regs.X26 = m0.regs.X2 → st.data.regs.X23.toNat = 2 ^ mu m0 + level.fold →
       st.data.regs.X25.toNat = level.logInvRate → folded.size = 2 ^ mu m0 + level.fold →
@@ -104,7 +105,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
       runF s0 level b w rounds m0 =
         (C1 m0.regs.X1.toNat level (mu m0) m0.regs.X4.toNat b w rounds folded).run s1 →
       Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st) :
-    Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b0Offset)⟩ := by
   have hwf := c.e0_wf
   have hN := c.hN'
   have hmu : m0.regs.X3.toNat < 64 := c.mu64
@@ -115,7 +116,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   -- `b0`: the prologue, `μ ≤ 63`.
   refine exec_then (inf hp b0_in_code (by simp [b0])) run_b0 hwf c.e0_match fun st1 hm1 hpc1 ↦ ?_
   simp only [PcOk] at hpc1
-  rw [show k + 0 + b0.length = k + 110 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b0Offset + b0.length = k + NativeRustcVmArm.Vm.FinalLevel.b1Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b0_next]] at hpc1
   split at hpc1
   · rename_i h
     sym_simp at h
@@ -137,11 +138,11 @@ theorem entry (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
       Nat.mod_eq_of_lt h2] at h
     simp at h
     omega
-  rw [hp.label (j := 128) rfl] at hpc2
+  rw [hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b4Offset) NativeRustcVmArm.Vm.FinalLevel.label_4_at] at hpc2
   -- `b4`: `read_scalars` into the frame at `40`.
   refine exec_at (inf hp b4_in_code (by simp [b4])) (exec_after run_b1e run_b4e) hwf hpc2 hm2
     fun st3 hm3 hpc3 ↦ ?_
-  rw [show k + 128 + b4.length = k + 139 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b4Offset + b4.length = k + NativeRustcVmArm.Vm.FinalLevel.b5Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b4_next]] at hpc3
   obtain ⟨hsl, hmem⟩ := after_eq run_b4e ▸ ok_e4
   have hf3 : FFr m0 st3.data :=
     Fr.ofPrologue c.hN (by rw [stack_eq]; decide) hm3 hwf rfl hsl slots_le hmem
@@ -189,7 +190,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   cases hr : (readScalars (2 ^ mu m0 + level.fold)).run s0 with
   | none =>
     simp only [hr, Option.isSome_none, Bool.not_false, ↓reduceIte,
-      hp.label (j := 119) rfl] at hpc5
+      hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b3Offset) NativeRustcVmArm.Vm.FinalLevel.label_3_at] at hpc5
     have hnone : runF s0 level b w rounds m0 = none := by
       rw [runF, finalLevelM_eq]; exact run_bind_none hr
     refine exit3 hp c hpc5 hf5 ?_ ?_
@@ -198,7 +199,7 @@ theorem entry (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   | some p =>
     obtain ⟨folded, s1⟩ := p
     simp only [hr, Option.isSome_some, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-      show k + 139 + b5.length = k + 140 from rfl] at hpc5
+      show k + NativeRustcVmArm.Vm.FinalLevel.b5Offset + b5.length = k + NativeRustcVmArm.Vm.FinalLevel.b6Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b5_next]] at hpc5
     have kc : ∀ r, calleeSaved r = true → st5.data.regs.getXReg r = st3.data.regs.getXReg r :=
       fun r hr ↦ (k5 r).trans (hcs r hr)
     have v19 := (reg_val hm3 (r := .X19) (v := s19) rfl).trans c.ev19

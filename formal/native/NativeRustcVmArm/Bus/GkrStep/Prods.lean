@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.ProdE.Names
 public import NativeRustcVmArm.Bus.GkrStep.Children
 
 /-!
@@ -105,13 +107,13 @@ theorem block_w (h : GkrStepPre a s0 g0 m0) {m : MachineData}
 
 /-- **The check** (`b13` to `b18`). -/
 theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hpr : Spec (Labels.label prodELabel) ProdEPre ProdEPost)
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+    (hpr : Spec (Labels.label NativeRustcVmArm.Vm.ProdE.entryLabel) ProdEPre ProdEPost)
+    (hpe : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     {c cl : EW} {xs h0 h1 h2 : Array EW} {s3 : TState}
     (htail : ∀ m, AtTail a s0 g0 m0 xs h0 h1 h2 s3 m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 211)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b19Offset)⟩)
     {m : MachineData} (hi : AtProds a s0 g0 m0 c cl xs h0 h1 h2 s3 m) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 187)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b13Offset)⟩ := by
   have hS := pre_stack h
   have hN : gkrStepStack ≤ m0.regs.SP.toNat := hS.2.1
   have hn := two_pow_le h
@@ -132,7 +134,7 @@ theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     show (st.data.regs.getXReg .X1).toBitVec.toNat = _
     rw [reg_of hm (r := .X1) (r' := .X26) rfl, hi.regs.x26,
       NativeRustcVm.toNat_ofNat_of_lt (by omega)]
-  simp only [PcOk, show b13.length = 3 from rfl, show k + 187 + 3 = k + 190 by omega] at hpc
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b13_length, NativeRustcVmArm.Vm.GkrStep.b13Length, show k + NativeRustcVmArm.Vm.GkrStep.b13Offset + 3 = k + NativeRustcVmArm.Vm.GkrStep.b14Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b13_length, NativeRustcVmArm.Vm.GkrStep.b13Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b13_next] at hpc
   refine leaf_call h le_prod hpr (fun _ _ hq ↦ hq.2) hfr hpc
     ⟨hfr.stackOk hS rfl le_prod, by omega, by omega, sliceOk_loc h hfr le_prod e0 (by omega)⟩
     fun m2 hfr2 hq2 hcs2 hc2 hk2 ↦ ?_
@@ -168,7 +170,7 @@ theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     show (st3.data.regs.getXReg .X1).toBitVec.toNat = _
     rw [reg_of hm3 (r := .X1) (r' := .X26) rfl, R2.x26,
       NativeRustcVm.toNat_ofNat_of_lt (by omega)]
-  simp only [PcOk, show b14.length = 5 from rfl, show k + 190 + 5 = k + 195 by omega] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b14_length, NativeRustcVmArm.Vm.GkrStep.b14Length, show k + NativeRustcVmArm.Vm.GkrStep.b14Offset + 5 = k + NativeRustcVmArm.Vm.GkrStep.b15Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b14_length, NativeRustcVmArm.Vm.GkrStep.b14Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b14_next] at hpc3
   refine leaf_call h le_prod hpr (fun _ _ hq ↦ hq.2) hfr3 hpc3
     ⟨hfr3.stackOk hS rfl le_prod, by omega, by omega, sliceOk_loc h hfr3 le_prod f0 (by omega)⟩
     fun m4 hfr4 hq4 hcs4 hc4 hk4 ↦ ?_
@@ -209,7 +211,7 @@ theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     show (st5.data.regs.getXReg .X1).toBitVec.toNat = _
     rw [reg_of hm5 (r := .X1) (r' := .X26) rfl, R4.x26,
       NativeRustcVm.toNat_ofNat_of_lt (by omega)]
-  simp only [PcOk, show b15.length = 5 from rfl, show k + 195 + 5 = k + 200 by omega] at hpc5
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b15_length, NativeRustcVmArm.Vm.GkrStep.b15Length, show k + NativeRustcVmArm.Vm.GkrStep.b15Offset + 5 = k + NativeRustcVmArm.Vm.GkrStep.b16Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b15_length, NativeRustcVmArm.Vm.GkrStep.b15Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b15_next] at hpc5
   refine leaf_call h le_prod hpr (fun _ _ hq ↦ hq.2) hfr5 hpc5
     ⟨hfr5.stackOk hS rfl le_prod, by omega, by omega, sliceOk_loc h hfr5 le_prod g0' (by omega)⟩
     fun m6 hfr6 hq6 hcs6 hc6 hk6 ↦ ?_
@@ -258,7 +260,7 @@ theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     rw [show st7.data.regs.X2 = c.c0 from (reg_of hm7 (r := .X2) (r' := .X24) rfl).trans R6.x24,
       show st7.data.regs.X3 = c.c1 from (reg_of hm7 (r := .X3) (r' := .X25) rfl).trans R6.x25]
     rfl
-  simp only [PcOk, show b16.length = 7 from rfl, show k + 200 + 7 = k + 207 by omega] at hpc7
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b16_length, NativeRustcVmArm.Vm.GkrStep.b16Length, show k + NativeRustcVmArm.Vm.GkrStep.b16Offset + 7 = k + NativeRustcVmArm.Vm.GkrStep.b17Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b16_length, NativeRustcVmArm.Vm.GkrStep.b16Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b16_next] at hpc7
   refine leaf_call h le_pe hpe (fun _ _ hq ↦ hq.2) hfr7 hpc7
     ⟨hfr7.stackOk hS rfl le_pe, by omega, sliceOk_loc h hfr7 le_pe q0 (by omega)⟩
     fun m8 hfr8 hq8 hcs8 hc8 hk8 ↦ ?_
@@ -290,7 +292,7 @@ theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       !(cl.c0 == (polyEval #[prodE h0, prodE h1, prodE h2] c).c0) := by
     show (!CmpOp.eq.apply .W64 (m8.regs.getXReg .X29).toBitVec (m8.regs.getXReg .X0).toBitVec) = _
     rw [cmp_w64, m29, show m8.regs.getXReg .X0 = (ewRet m8).c0 from rfl, hP]
-  simp only [PcOk, hc9, show b17.length = 2 from rfl, show k + 207 + 2 = k + 209 by omega] at hpc9
+  simp only [PcOk, hc9, NativeRustcVmArm.Vm.GkrStep.b17_length, NativeRustcVmArm.Vm.GkrStep.b17Length, show k + NativeRustcVmArm.Vm.GkrStep.b17Offset + 2 = k + NativeRustcVmArm.Vm.GkrStep.b18Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b17_length, NativeRustcVmArm.Vm.GkrStep.b17Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b17_next] at hpc9
   by_cases e0 : cl.c0 = (polyEval #[prodE h0, prodE h1, prodE h2] c).c0
   · simp only [e0, beq_self_eq_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc9
     -- `b18`
@@ -304,7 +306,7 @@ theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
       rw [cmp_w64, reg_of hm9 (r := .X28) (r' := .X28) rfl, m28,
         reg_of hm9 (r := .X1) (r' := .X1) rfl, show m8.regs.getXReg .X1 = (ewRet m8).c1 from rfl,
         hP]
-    simp only [PcOk, hc10, show b18.length = 2 from rfl, show k + 209 + 2 = k + 211 by omega]
+    simp only [PcOk, hc10, NativeRustcVmArm.Vm.GkrStep.b18_length, NativeRustcVmArm.Vm.GkrStep.b18Length, show k + NativeRustcVmArm.Vm.GkrStep.b18Offset + 2 = k + NativeRustcVmArm.Vm.GkrStep.b19Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b18_length, NativeRustcVmArm.Vm.GkrStep.b18Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b18_next]
       at hpc10
     by_cases e1 : cl.c1 = (polyEval #[prodE h0, prodE h1, prodE h2] c).c1
     · simp only [e1, beq_self_eq_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc10
@@ -334,12 +336,12 @@ theorem prods_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     · have e1' : (cl.c1 == (polyEval #[prodE h0, prodE h1, prodE h2] c).c1) = false := by
         simp [e1]
       simp only [e1', Bool.not_false, ↓reduceIte] at hpc10
-      exact at_pc (hpc10.trans (hp.label (j := 266) rfl)) (fail_spec hp h hfr10
+      exact at_pc (hpc10.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b32Offset) NativeRustcVmArm.Vm.GkrStep.label_14_at)) (fail_spec hp h hfr10
         (by rw [hrun, ew_beq, e1']; simp))
   · have e0' : (cl.c0 == (polyEval #[prodE h0, prodE h1, prodE h2] c).c0) = false := by
       simp [e0]
     simp only [e0', Bool.not_false, ↓reduceIte] at hpc9
-    exact at_pc (hpc9.trans (hp.label (j := 266) rfl)) (fail_spec hp h hfr9
+    exact at_pc (hpc9.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b32Offset) NativeRustcVmArm.Vm.GkrStep.label_14_at)) (fail_spec hp h hfr9
       (by rw [hrun, ew_beq, e0']; simp))
 
 end

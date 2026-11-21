@@ -36,13 +36,13 @@ public theorem b22a_keep : keepsAll (byteS .X23 .X9) (after b22a (byteS .X23 .X9
   decide +kernel
 public theorem b22b_keep : keepsAll kapS (after b22b kapS) keptRegs = true := by decide +kernel
 
-public theorem b22a_in_code : b22a.IsInfixAt code 94 :=
+public theorem b22a_in_code : b22a.IsInfixAt code b22Offset :=
   (List.take_prefix 2 b22).trans b22_in_code
 
-public theorem b22b_in_code : b22b.IsInfixAt code 96 := by
+public theorem b22b_in_code : b22b.IsInfixAt code (b22Offset + 2) := by
   obtain ⟨t, ht⟩ := b22_in_code
   refine ⟨t, ?_⟩
-  rw [show code.drop 96 = (code.drop 94).drop 2 by rw [List.drop_drop]]
+  rw [show code.drop (b22Offset + 2) = (code.drop b22Offset).drop 2 by rw [List.drop_drop]]
   rw [← ht, List.drop_append_of_le_length (by decide)]
   rfl
 

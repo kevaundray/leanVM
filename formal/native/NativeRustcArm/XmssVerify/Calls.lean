@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Common.Update.Names
+public import NativeRustcArm.Code.Xmss.FromBytes.Names
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+
 public import NativeRustcArm.XmssVerify.Frame
 public import NativeRustcArm.XmssVerify.Callee
 
@@ -20,23 +27,17 @@ open NativeRustcArm.Sym NativeArm LeanVM.Protocol.KeccakHash NativeRustc
 
 @[expose] public section
 
-/-- `Hasher::update`'s label. -/
-def updateL : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update"
 
-/-- `Hasher::finalize`'s label. -/
-def finalizeL : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize"
 
-/-- `wots_leaf`'s label. -/
-def wotsL : Label := "_RNvNtCs7Pyp4CbMBld_9lean_xmss4wots9wots_leaf"
 
 /-- The contracts of `xmss_verify`'s callees. -/
 structure Callees [Host] : Prop where
-  memset : Spec (label "memset") MemsetPre MemsetPost
-  memcpy : Spec (label "memcpy") MemcpyPre MemcpyPost
-  update : Spec (label updateL) UpdatePre UpdatePost
-  finalize : Spec (label finalizeL) FinalizePre FinalizePost
-  wots : Spec (label wotsL) WotsLeafPre WotsLeafPost
-  fromBytes : Spec (label fromBytesLabel) FromBytesPre FromBytesPost
+  memset : Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost
+  memcpy : Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost
+  update : Spec (label NativeRustcArm.Common.Update.entryLabel) UpdatePre UpdatePost
+  finalize : Spec (label NativeRustcArm.Common.Finalize.entryLabel) FinalizePre FinalizePost
+  wots : Spec (label NativeRustcArm.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost
+  fromBytes : Spec (label NativeRustcArm.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost
 
 /-- What a callee with `n` bytes of output at frame offset `a` and `s` bytes of stack may
 change. -/
@@ -118,8 +119,8 @@ theorem callBlock (P : Pre w m₀) {ds : List Directive} {j : Nat} {known : List
     (fun _ h => h.elim) fun _ _ _ h => h) hs hd fun r v h => hm'.regs r v h
 
 /-- **`memset`** of `n` bytes at frame offset `dst`. -/
-theorem memsetCall (hset : Spec (label "memset") MemsetPre MemsetPost) (P : Pre w m₀)
-    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label "memset")
+theorem memsetCall (hset : Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost) (P : Pre w m₀)
+    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label NativeRustcArm.Common.Memset.entryLabel)
     (hret : retOf st.data = next) (C : Common m₀ st.data) {dst n : Nat}
     (h0 : st.data.regs.X0.toBitVec = ad m₀ (fb + dst)) (h2 : st.data.regs.X2.toNat = n)
     (hdr : dst + n ≤ 5776) {R : MachineState → Prop}
@@ -137,8 +138,8 @@ theorem memsetCall (hset : Spec (label "memset") MemsetPre MemsetPost) (P : Pre 
   exact cont st' hpc' (C.callR P hs (Nat.zero_le _) hdr hsame') hs hb hsame'
 
 /-- **`memcpy`** of `n` bytes from frame offset `src` to `dst`. -/
-theorem memcpyCall (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) (P : Pre w m₀)
-    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label "memcpy")
+theorem memcpyCall (hcpy : Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) (P : Pre w m₀)
+    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label NativeRustcArm.Common.Memcpy.entryLabel)
     (hret : retOf st.data = next) (C : Common m₀ st.data) {dst src n : Nat}
     (h0 : st.data.regs.X0.toBitVec = ad m₀ (fb + dst))
     (h1 : st.data.regs.X1.toBitVec = ad m₀ (fb + src)) (h2 : st.data.regs.X2.toNat = n)
@@ -160,8 +161,8 @@ theorem memcpyCall (hcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) (P : Pre 
   exact cont st' hpc' (C.callR P hs (Nat.zero_le _) hdr hsame') hs hb hsame'
 
 /-- **`Hasher::update`** of the hasher at frame offset `h` with the bytes `data` at `d`. -/
-theorem updateCall (hupd : Spec (label updateL) UpdatePre UpdatePost) (P : Pre w m₀)
-    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label updateL)
+theorem updateCall (hupd : Spec (label NativeRustcArm.Common.Update.entryLabel) UpdatePre UpdatePost) (P : Pre w m₀)
+    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label NativeRustcArm.Common.Update.entryLabel)
     (hret : retOf st.data = next) (C : Common m₀ st.data) {h d : Nat} {a data : List UInt8}
     (h0 : st.data.regs.X0.toBitVec = ad m₀ (fb + h))
     (h1 : st.data.regs.X1.toBitVec = ad m₀ (fb + d)) (h2 : st.data.regs.X2.toNat = data.length)
@@ -185,8 +186,8 @@ theorem updateCall (hupd : Spec (label updateL) UpdatePre UpdatePost) (P : Pre w
   exact cont st' hpc' (C.callR P hs (by decide) (by omega) hsame) hs this hsame
 
 /-- **`Hasher::finalize`** of the hasher at frame offset `h` to the 32 bytes at `o`. -/
-theorem finalizeCall (hfin : Spec (label finalizeL) FinalizePre FinalizePost) (P : Pre w m₀)
-    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label finalizeL)
+theorem finalizeCall (hfin : Spec (label NativeRustcArm.Common.Finalize.entryLabel) FinalizePre FinalizePost) (P : Pre w m₀)
+    {st : MachineState} {next : Int64} (hpc : st.pc = Labels.label NativeRustcArm.Common.Finalize.entryLabel)
     (hret : retOf st.data = next) (C : Common m₀ st.data) {o h : Nat} {a : List UInt8}
     (h0 : st.data.regs.X0.toBitVec = ad m₀ (fb + o))
     (h1 : st.data.regs.X1.toBitVec = ad m₀ (fb + h))

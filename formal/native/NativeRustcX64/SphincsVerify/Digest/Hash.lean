@@ -148,8 +148,8 @@ variable [Host]
 /-- **`h_msg`'s hasher absorbs `R | PK.seed | PK.root | M`** (`b43 .. b47`). -/
 theorem absorb_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : r.AtHMsg m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 473 ∧ Absorbed r st.data)
-      ⟨m, r.pc 451⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b48Offset ∧ Absorbed r st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b43Offset⟩ := by
   obtain ⟨hF, hI, hbp, hmsg, h176⟩ := hA
   have hK : Keep r m := ⟨hF, hI, h176⟩
   have hm32 := length_msg r
@@ -202,8 +202,8 @@ theorem absorb_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc :
 /-- **`h_msg`'s first call** (`b48 .. b50`). -/
 theorem hash0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : Absorbed r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 488 ∧ Hashed0 r st.data)
-      ⟨m, r.pc 473⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b51Offset ∧ Hashed0 r st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b48Offset⟩ := by
   obtain ⟨hK, h13, h14, hB⟩ := hA
   obtain ⟨hb, hbB, hbh⟩ := hB
   have hbl := Keccak.length_of_holds hbh
@@ -245,8 +245,8 @@ theorem hash0_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : 
 /-- **`h_msg`'s second call** (`b51 .. b53`). -/
 theorem hash1_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hH : Hashed0 r m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 508 ∧ Hashed1 r st.data)
-      ⟨m, r.pc 488⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b54Offset ∧ Hashed1 r st.data)
+      ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b51Offset⟩ := by
   obtain ⟨hK, h13, h14, hbp, hbx, h15, hB, hD⟩ := hH
   obtain ⟨hb, hbB, hbh⟩ := hB
   have hbl := Keccak.length_of_holds hbh

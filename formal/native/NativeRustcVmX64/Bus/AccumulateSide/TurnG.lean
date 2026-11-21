@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.TurnF
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
 
 /-! # `accumulate_side`: advancing the table loop (x86-64) -/
 
@@ -24,9 +25,9 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
     (hG : FormsAt m.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 (j + 1)).1)
     (hret : ewRet m = tsel SL (ptA m0) j * pwA L rows bl m0 j * (evA L rows bl m0 j + 1)) :
     Eventually (step1 Host.exe) (fun st ↦ TH L rows bl Fm SL m0 (j + 1) st.data ∧
-      ((st.pc = Host.addrOf (k + 161) ∧ j + 1 < bl.length) ∨
-        (st.pc = Host.addrOf (k + 282) ∧ j + 1 = bl.length)))
-      ⟨m, Host.addrOf (k + 269)⟩ := by
+      ((st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b17Offset) ∧ j + 1 < bl.length) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b28Offset) ∧ j + 1 = bl.length)))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b27Offset)⟩ := by
   let V := VT L rows bl Fm SL m0 j
   let V' := VT L rows bl Fm SL m0 (j + 1)
   let env := frameEnv m0 m F [(rspOf m0 + 8#64, 88)] (fun _ ↦ 0) 0
@@ -85,13 +86,13 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
       have hx := congrArg BitVec.toNat heq
       rw [toNat_ofNat_lt (by omega), toNat_ofNat_lt (by omega)] at hx
       exact hne (by omega)
-  change st.pc = (if c27.eval env = true then Labels.label ".LAccumulateSide_15" else Host.addrOf (k + 282)) at hpc
+  change st.pc = (if c27.eval env = true then Labels.label NativeRustcVmX64.Vm.AccumulateSide.label_15 else Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b28Offset)) at hpc
   rw [hc] at hpc
   by_cases he : j + 1 = bl.length
   · right; exact ⟨by simpa [he] using hpc, he⟩
   · left
-    have hl : Labels.label ".LAccumulateSide_15" = Host.addrOf (k + 161) :=
-      hp.label (j := 161) rfl
+    have hl : Labels.label NativeRustcVmX64.Vm.AccumulateSide.label_15 = Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b17Offset) :=
+      hp.label NativeRustcVmX64.Vm.AccumulateSide.label_15_at
     exact ⟨by simpa [he, hl] using hpc, by omega⟩
 
 end

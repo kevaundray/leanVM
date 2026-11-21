@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
 public import NativeRustcVmArm.KeccakGkr.SlotWeights.SegA
 
 /-!
@@ -97,9 +98,9 @@ variable [NativeArm.Host] {c : KeccakClaimW} {m0 : MachineData} {k : Nat}
 
 /-- **The prologue**: from the entry to the zeroing loop's head at row `0`. -/
 theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 32) ∧ ZeroInv m0 c 0 s'.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (heq : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b3Offset) ∧ ZeroInv m0 c 0 s'.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b0Offset)⟩ := by
   have hS := hpre.1
   have hA := pre_areas hpre
   have hNv : slotWeightsStack = 880 := rfl
@@ -228,7 +229,7 @@ theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
     rw [hr0]; rfl
   refine exec_at (b1_in_code.trans hp.1 (by simp [b1])) e1 (Env.wf_nil _) hpc2 (match_nil _)
     fun s3 hm3 hpc3 ↦ ?_
-  simp only [PcOk, show b1.length = 3 from rfl] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.SlotWeights.b1_length, NativeRustcVmArm.Vm.SlotWeights.b1Length] at hpc3
   sym_simp at hpc3
   simp only [Env.ofMachine_regs, hx0'] at hpc3
   rw [ite_eq_right (by decide)] at hpc3
@@ -243,7 +244,7 @@ theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hS h176 rfl, trivial⟩
       (by rw [hb3.sp]; simp [Sym.eval]) trivial trivial trivial trivial
   refine exec_at (b2_in_code.trans hp.1 (by simp [b2])) e2 hwfB hpc3 hmB fun s4 hm4 hpc4 ↦ ?_
-  simp only [PcOk, show b2.length = 3 from rfl] at hpc4
+  simp only [PcOk, NativeRustcVmArm.Vm.SlotWeights.b2_length, NativeRustcVmArm.Vm.SlotWeights.b2Length] at hpc4
   have hb4 : Body m0 s4.data :=
     hb3.write_local (lo := 80) hS h176 slots_le (by decide) hws hmB hm4 hwfB rfl all_slots
       (by decide) fun p hw ↦ Or.inr (Written.inRange_le (r := 0) rfl hnw (by decide) (by decide) hw)
@@ -266,7 +267,7 @@ theorem prologue (hp : Placed code k) (hpre : SlotWeightsPre c m0)
     show UInt64.ofBitVec (s3.data.regs.getXReg .X23).toBitVec = _
     rw [UInt64.ofBitVec_toBitVec, k3 .X23 (by simp), hs21 .X23 (by simp), v23]
   rw [e23] at hcnt
-  refine .done _ ⟨by rw [hpc4], ⟨hb4, ⟨?_, ?_, ?_, ?_⟩,
+  refine .done _ ⟨by simpa only [b2Offset, b3Offset] using hpc4, ⟨hb4, ⟨?_, ?_, ?_, ?_⟩,
     ⟨hcnt, ew_keep_above (hd3 ▸ hk0) (by decide) (by decide) hso4,
       ew_keep_above (hd3 ▸ hk1) (by decide) (by decide) hso4⟩, by decide, ?_, ?_,
     fun i hi ↦ absurd hi (by omega)⟩⟩

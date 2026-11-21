@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Ring.Target.Images
 
 /-!
@@ -76,10 +77,10 @@ variable [Host] {k : Nat}
 
 /-- **The copy** (`b3`): the images at frame byte `208`, the turns' first description. -/
 theorem stepCopy (hp : Placed code k) (h : P m0)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {m : MachineData}
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m : MachineData}
     (hI : Inv m0 64 m) {R : MachineState → Prop}
-    (cont : ∀ m', St m0 D4 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 28)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 24)⟩ := by
+    (cont : ∀ m', St m0 D4 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b4Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b3Offset)⟩ := by
   have hwf := envT_wf h hI.fr
   have hfbN := h.fbN
   have hfbw := h.fbw
@@ -119,7 +120,7 @@ theorem stepCopy (hp : Placed code k) (h : P m0)
     · unfold Apart; rw [h208, h1232]; omega
   refine Eventually.bind (Spec.apply hmemcpy hpc.1 hpre) fun ⟨m2, pc⟩ ⟨hpc2, hq⟩ ↦ ?_
   simp only at hpc2 hq
-  rw [hpc2, hpc.2, show k + 24 + b3.length = k + 28 from rfl]
+  rw [hpc2, hpc.2, show k + NativeRustcVmArm.Vm.RingTarget.b3Offset + b3.length = k + NativeRustcVmArm.Vm.RingTarget.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingTarget.b3_next]]
   obtain ⟨-, hcp, hso, hS⟩ := hq
   rw [e0, e2, show (1024 : UInt64).toNat = 1024 from rfl] at hcp hso
   rw [e1] at hcp

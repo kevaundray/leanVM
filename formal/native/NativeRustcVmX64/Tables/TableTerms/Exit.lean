@@ -6,7 +6,7 @@ public import NativeRustcVmX64.Tables.TableTerms.Run
 /-!
 # `table_terms`: the exits (x86-64)
 
-`b16` (`.LTableTerms_7`) restores the registers and returns (`exit16`). `b15` (`.LTableTerms_6`)
+`b16` (`NativeRustcVmX64.Vm.TableTerms.label_7`) restores the registers and returns (`exit16`). `b15` (`NativeRustcVmX64.Vm.TableTerms.label_6`)
 writes `None` at `out` (`exit_none`: the model's run fails). `b14` writes `Some` of the running
 sum at `out` (`exit_some`: after the sixth table).
 -/
@@ -30,9 +30,9 @@ theorem exit16 (hp : Placed code k) (h : TableTermsPre a s heights forms m0) {d 
       OptEWAt d'.dmem (oA m0) ((R heights forms m0 s).map (·.1.1)) ∧
       (∀ x s', R heights forms m0 s = some (x, s') → TableEvalsAt d'.dmem (ev m0) x.2) ∧
       NextAt d'.dmem (tA m0) a (R heights forms m0 s)) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 163)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b16Offset)⟩ := by
   obtain ⟨hepi, hmem⟩ := ok_b16
-  refine Bd.done (st := ⟨d, Host.addrOf (k + 163)⟩) hb (Pre.stack h) (by rw [N_eq]; omega)
+  refine Bd.done (st := ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b16Offset)⟩) hb (Pre.stack h) (by rw [N_eq]; omega)
     (infix_of b16_in_code (by simp [b16]) hp) exit_b16 rfl
     (match_body hb ⟨rfl, trivial⟩ trivial) hepi hmem fun st' hpc hrsp hsv hd ↦ ?_
   obtain ⟨p1, p2, p3⟩ := hpost st'.data hd
@@ -89,7 +89,7 @@ theorem out_keep (h : TableTermsPre a s heights forms m0) {d d' : Mem 64}
 theorem exit_none (hp : Placed code k) (h : TableTermsPre a s heights forms m0) {d : MachineData}
     (hb : Bd m0 272 N slots (outs m0) 8 d) (hw : FW m0 d (cws m0))
     (hr : R heights forms m0 s = none) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 160)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b15Offset)⟩ := by
   obtain ⟨hwf, hm⟩ := out_env h hb hw
   refine exec_then (infix_of b15_in_code (by simp [b15]) hp) exit_b15 hwf nofun hm
     fun st hm1 hpc ↦ ?_
@@ -105,7 +105,7 @@ theorem exit_none (hp : Placed code k) (h : TableTermsPre a s heights forms m0) 
     have := wordAt_written hm1 (r := 1) (o := 0) rfl (by omega) w0 (w := 0) rfl
     rwa [off_zero] at this
   simp only [PcOk] at hpc
-  refine at_pc (hpc.trans (addr_eq (by rw [show b15.length = 3 from rfl])))
+  refine at_pc (hpc.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableTerms.b15_next)))
     (exit16 hp h hb1 fun d' hd ↦ ⟨?_, fun x s' h' ↦ (by rw [hr] at h'; cases h'),
       fun x s' h' ↦ (by rw [hr] at h'; cases h')⟩)
   rw [hr, hd]
@@ -115,7 +115,7 @@ theorem exit_none (hp : Placed code k) (h : TableTermsPre a s heights forms m0) 
 theorem exit_some (hp : Placed code k) (h : TableTermsPre a s heights forms m0)
     (hh : heights.size = 6) (hf : forms.size = 6) {acc : Acc} {si : TState} {d : MachineData}
     (H : Head a s heights forms m0 6 acc si d) :
-    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + 155)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s heights forms m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableTerms.b14Offset)⟩ := by
   obtain ⟨hwf, hm⟩ := out_env h H.bd H.fw
   refine exec_then (infix_of b14_in_code (by simp [b14]) hp) exit_b14 hwf nofun hm
     fun st hm1 hpc ↦ ?_

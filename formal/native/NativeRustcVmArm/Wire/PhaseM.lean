@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmArm.Code.Vm.InsD.Names
+public import NativeRustcVmArm.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmArm.Code.Vm.PhaseM.Names
+public import NativeRustcVmArm.Code.Vm.RdRows.Names
+public import NativeRustcVmArm.Code.Vm.ReaderLe.Names
+public import NativeRustcVmArm.Code.Vm.WriteOpenings.Names
 public import NativeRustcVmArm.Wire.PhaseM.Write
 
 /-!
@@ -26,14 +33,14 @@ variable [Host] {k : Nat}
 
 /-- **From the entry.** -/
 theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem (rdr m0) bp B c)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost)
-    (hins : Spec (Labels.label insDLabel) InsDPre InsDPost)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hcl : Spec (Labels.label NativeRustcVmArm.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost)
+    (hins : Spec (Labels.label NativeRustcVmArm.Vm.InsD.entryLabel) InsDPre InsDPost)
+    (hkw : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
-    (hrows : Spec (Labels.label rdRowsLabel) RdRowsPre RdRowsPost)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
-    (hwo : Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost) :
-    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    (hrows : Spec (Labels.label NativeRustcVmArm.Vm.RdRows.entryLabel) RdRowsPre RdRowsPost)
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
+    (hwo : Spec (Labels.label NativeRustcVmArm.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost) :
+    Eventually (step1 Host.exe) (Post m0) ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.PhaseM.b0Offset)⟩ := by
   have hnone : ∀ st, AtNone m0 B c k st → Eventually (step1 Host.exe) (Post m0) st :=
     fun _ h ↦ none_run hp G hR h
   refine Eventually.bind (first_run hp G hle hR) fun _ h1 ↦ ?_
@@ -67,17 +74,17 @@ theorem entry_spec (hp : Placed code k) (G : Geo m0 bp B) (hR : ReaderAt m0.dmem
 
 /-- **`phase_m` meets its contract.** -/
 theorem phaseM_spec (hp : Placed code k)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost)
-    (hins : Spec (Labels.label insDLabel) InsDPre InsDPost)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre
+    (hcl : Spec (Labels.label NativeRustcVmArm.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost)
+    (hins : Spec (Labels.label NativeRustcVmArm.Vm.InsD.entryLabel) InsDPre InsDPost)
+    (hkw : Spec (Labels.label NativeRustcVmArm.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre
       Keccak256WordsHashPost)
-    (hrows : Spec (Labels.label rdRowsLabel) RdRowsPre RdRowsPost)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
-    (hwo : Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost) :
-    Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost := by
+    (hrows : Spec (Labels.label NativeRustcVmArm.Vm.RdRows.entryLabel) RdRowsPre RdRowsPost)
+    (hle : Spec (Labels.label NativeRustcVmArm.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
+    (hwo : Spec (Labels.label NativeRustcVmArm.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost := by
   intro m0 hpre
   obtain ⟨-, -, -, -, bp, B, c, hR, -⟩ := id hpre
-  rw [hp.label (j := 0) (l := phaseMLabel) rfl]
+  rw [hp.label (j := NativeRustcVmArm.Vm.PhaseM.entryOffset) NativeRustcVmArm.Vm.PhaseM.entry_at]
   exact entry_spec hp (geo_of hpre hR) hR hcl hins hkw hrows hle hwo
 
 end

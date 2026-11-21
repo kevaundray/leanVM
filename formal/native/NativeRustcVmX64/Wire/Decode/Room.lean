@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Wire.Decode.Stream
+public import NativeRustcVmX64.Code.Vm.Decode.Names
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `decode`: the phase count stored (x86-64)
@@ -61,7 +64,7 @@ theorem room_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K} {p : 
   have hse := streamEnd_eq (LN m0)
   have hpc7' : s7.pc = if (SBool.cmp .ult .W64 (.bin .or .W64 (.bin .shr .W64 (.reg .r15) (.lit 3))
       (.lit 1)) (.reg .r14)).not.eval (frameEnv m0 st.data 80 []) = true
-      then Labels.label ".LDecode_9" else Host.addrOf (k + 39 + b7.length) := hpc7
+      then Labels.label NativeRustcVmX64.Vm.Decode.label_9 else Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b7Offset + b7.length) := hpc7
   rw [b7_eval, show (frameEnv m0 st.data 80 []).regs .r15 = reg m0 .rsi from h15,
     show (frameEnv m0 st.data 80 []).regs .r14 = reg m0 .rcx from h14_6,
     decide_eq_true (show streamEnd (LN m0) < LEN m0 by omega)] at hpc7'
@@ -88,7 +91,7 @@ theorem room_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K} {p : 
         rw [NativeRustcVmX64.Transcript.ofInt_zero64, BitVec.add_zero, rk7 .r13 (by simp), h13_6]
         exact pc_addr G hax7 (by omega), trivial⟩
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf8 nofun
-    (hpc7'.trans (by rw [show b7.length = 5 from rfl])) hm8 fun s8 hm8' hpc8 ↦ ?_
+    (hpc7'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b7_next)) hm8 fun s8 hm8' hpc8 ↦ ?_
   obtain ⟨hmid8, hmem8, hpw8, hr12_8, hr13_8, hr14_8, hrbp8, hk8⟩ := ok_b8
   have hf8 : Frame m0 80 slots 8 s8.data := Frame.of_block hb7.fr hwf8 hm8' hmid8 slots_le
   have hs8 : NativeRustcVm.SameOutside s7.data.dmem s8.data.dmem (fun q ↦
@@ -119,7 +122,7 @@ theorem room_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K} {p : 
   refine .done _ ⟨?_, ⟨hf8, ?_, ?_, ?_⟩, hpos, ?_, by omega, Nat.zero_le _, rfl,
     ⟨by unfold maxStream; omega, hwsl, ?_, ?_, hpc8w, fun j hj ↦ absurd hj (by simp)⟩, ?_, ?_,
     ?_, ?_, ?_⟩
-  · rw [hpc8, show b8.length = 15 from rfl]
+  · rw [hpc8, Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Decode.b8_next
   · refine (hb7.chg.trans hs8).mono fun q hq ↦ ?_
     rcases hq with hq | hq
     · exact hq
@@ -154,8 +157,8 @@ theorem room_run (hp : Placed code k) (G : Geo m0) {n : Nat} {ws : List K} {p : 
 
 /-- **The stream and the phase count**, from `Reader::words`' call to the loop's head. -/
 theorem stream_run (hp : Placed code k) (G : Geo m0)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
-    (hrw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost) {n : Nat}
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
+    (hrw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost) {n : Nat}
     {st : MachineState} (h : At3 m0 k n st) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
       ∃ ws p, Head m0 k n ws p 0 [] (8 + 16 * n) st') st := by

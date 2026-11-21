@@ -1,5 +1,23 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW230Extend.Names
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmArm.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmArm.Code.Vm.BufU64x230Extend.Names
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EqEval.Names
+public import NativeRustcVmArm.Code.Vm.EqEvalFnOfEqAbove.Names
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
+public import NativeRustcVmArm.Code.Vm.IndexMleFrom.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfComputedBytecodeValue.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmArm.Code.Vm.PaddingWeight.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
+public import NativeRustcVmArm.Code.Vm.Powers.Names
+public import NativeRustcVmArm.Code.Vm.ProdE.Names
+public import NativeRustcVmArm.Code.Vm.SelectorPoint.Names
+public import NativeRustcVmArm.Code.Vm.SumE.Names
 public import NativeRustcVmArm.Spec.Field
 public import NativeRustcVm.Arrays.Read
 
@@ -54,50 +72,6 @@ open NativeRustcVm (ewsOf wordsOf wordOf bufEWOf bufWordsOf BufEWAt BufWordsAt E
 
 /-! ## Symbols -/
 
-/-- `sum_e`'s symbol. -/
-def sumELabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field5sum_e"
-/-- `prod_e`'s symbol. -/
-def prodELabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field6prod_e"
-/-- `dot`'s symbol. -/
-def dotLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field3dot"
-/-- `powers`'s symbol. -/
-def powersLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field6powers"
-/-- `eq_eval`'s symbol. -/
-def eqEvalLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field7eq_eval"
-/-- `eq_kernel`'s symbol. -/
-def eqKernelLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field9eq_kernel"
-/-- `poly_eval`'s symbol. -/
-def polyEvalLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field9poly_eval"
-/-- `index_mle_from`'s symbol. -/
-def indexMleFromLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field14index_mle_from"
-/-- `padding_weight`'s symbol. -/
-def paddingWeightLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field14padding_weight"
-/-- `selector_point`'s symbol. -/
-def selectorPointLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field14selector_point"
-/-- `eq_eval_fn` with `eq_above`'s closure: its symbol. -/
-def eqEvalFnOfEqAboveLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm5field10eq_eval_fnNCNvNtB4_6layout8eq_above0EB4_"
-/-- `multilinear_eval_by` with `multilinear_eval`'s closure: its symbol. -/
-def mleOfMultilinearEvalLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm5field19multilinear_eval_byNCNvB2_16multilinear_eval0EB4_"
-/-- `multilinear_eval_by` with `computed_bytecode_value`'s closure: its symbol. -/
-def mleOfComputedBytecodeValueLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm5field19multilinear_eval_byNCNvNtB4_3bus23computed_bytecode_value0EB4_"
-/-- `Buf<EW, 30>::extend`'s symbol. -/
-def bufEW30ExtendLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj1e_E6extendB4_"
-/-- `Buf<EW, 36>::extend`'s symbol. -/
-def bufEW36ExtendLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj24_E6extendB4_"
-/-- `Buf<EW, 63>::extend`'s symbol. -/
-def bufEW63ExtendLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKj3f_E6extendB4_"
-/-- `Buf<EW, 230>::extend`'s symbol. -/
-def bufEW230ExtendLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufNtNtB4_5field2EWKje6_E6extendB4_"
-/-- `Buf<u64, 230>::extend`'s symbol. -/
-def bufU64x230ExtendLabel : Label :=
-  "_RNvMNtCsemcRClSg8DH_9native_vm3bufINtB2_3BufyKje6_E6extendB4_"
 
 /-! ## Stacks -/
 

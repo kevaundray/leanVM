@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.TurnD
+public import NativeRustcVmX64.Code.Vm.PaddingWeight.Names
 
 /-! # `accumulate_side`: the padding weight (x86-64) -/
 
@@ -16,7 +17,7 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
   {Fm : Array (Array FormW)} {SL : BusLayoutW} {m0 : MachineData} {k : Nat}
 
  theorem turnE (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hpw : Spec (Labels.label paddingWeightLabel) PaddingWeightPre PaddingWeightPost)
+    (hpw : Spec (Labels.label NativeRustcVmX64.Vm.PaddingWeight.entryLabel) PaddingWeightPre PaddingWeightPost)
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (outs m0) (VT L rows bl Fm SL m0 j) (D23 ++ E23) 8 m)
     (hfb : FB m0 m.dmem (fmA L rows bl m0 j))
@@ -28,10 +29,10 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
       FB m0 m2.dmem (fmA L rows bl m0 j) →
       FormsAt m2.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 (j + 1)).1 →
       ewRet m2 = pwA L rows bl m0 j →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 250)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 245)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b24Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset + b23a.length)⟩ := by
   let env := frameEnv m0 m F [(rspOf m0 + 8#64, 88)] (fun _ ↦ 0)
-    (Host.addrOf (k + 245 + b23b.length)).toBitVec
+    (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset + b23a.length + b23b.length)).toBitVec
   have hwf : env.WF := wf1 h hst.fr.kept h.argsIn
   have hh : (bkA L rows bl j).logRows ≤ 30 := by
     change ((BA L rows bl).getD j default).logRows ≤ 30
@@ -43,8 +44,8 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
     exact h.lay.heights_le _ (Array.getElem_mem hi)
   obtain ⟨hmid, hw, htr, hdi, hsi', hdx'⟩ := ok_b23b
   refine St.run h (rest := [(rspOf m0 + 8#64, 88)]) (vs := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 245 + b23b.length)).toBitVec) rfl
-    (infix_of b23b_in_code (by simp [b23b, b23]) hp) exit_b23b (fun _ _ ↦ rfl) hst.fr hst.same
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b23Offset + b23a.length + b23b.length)).toBitVec) rfl
+    (infix_of (F := code) (k := k) (j := NativeRustcVmX64.Vm.AccumulateSide.b23Offset + b23a.length) b23b_in_code (by simp [b23b, b23]) hp) exit_b23b (fun _ _ ↦ rfl) hst.fr hst.same
     ((hst.hd.reg0 (rs' := [(fb m0, F + 8), (rspOf m0 + 8#64, 88)]) (by decide) rfl).append
       (St.holdsDA h hst outs_id)) (by decide) hwf
     (St.mt hst ⟨rfl, rfl, trivial⟩ trivial trivial argAliases_ok) hmid hw (by decide) htr

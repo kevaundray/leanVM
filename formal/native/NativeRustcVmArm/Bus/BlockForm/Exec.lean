@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
 public import NativeRustcArm.Sym
 public import NativeRustcVmArm.Code.Vm.BlockForm
 public meta import NativeRustcVmArm.Code.Vm.BlockForm
@@ -19,13 +20,11 @@ open NativeRustcArm NativeRustcArm.Sym NativeRustcVmArm.Vm.BlockForm
 
 @[expose] public section
 
-/-- `TUPLES`' label. -/
-def tuplesLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.3"
 
 /-- At the entry: the frame below SP, the form at X5. -/
 def s0 : SState := init [(64, true), (5928, false)] (.ptr 0 64) [(.X5, .ptr 1 0)]
 /-- `TUPLES` at its label, the tuple below `147`. -/
-def s1 : SState := init [(2352, false)] .sp [] [(tuplesLabel, 0)] [(.reg .X0, 147)]
+def s1 : SState := init [(2352, false)] .sp [] [(NativeRustcVmArm.Vm.Symbols.rodata3Label, 0)] [(.reg .X0, 147)]
 /-- Registers only. -/
 def sR : SState := init [] .sp
 /-- The weight below X25. -/

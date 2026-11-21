@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Transcript.AbsorbNonce.Exec
+public import NativeRustcVmX64.Code.Vm.SpongeWAbsorb.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWAbsorbNonce.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWDuplex.Names
 
 /-!
 # `SpongeW::absorb_nonce` on x86-64
@@ -33,9 +36,9 @@ variable [Host] {k : Nat}
 
 /-- **`SpongeW::absorb_nonce` meets its contract.** -/
 theorem absorbNonce_spec (hp : Placed code k)
-    (habs : ∀ sp, Spec (Labels.label absorbLabel) (AbsorbPre sp) (AbsorbPost sp))
-    (hdup : ∀ sp, Spec (Labels.label duplexLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
-    Spec (Labels.label absorbNonceLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp) := by
+    (habs : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorb.entryLabel) (AbsorbPre sp) (AbsorbPost sp))
+    (hdup : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWDuplex.entryLabel) (DuplexPre sp) (DuplexPost sp)) (sp : SpongeW) :
+    Spec (Labels.label NativeRustcVmX64.Vm.SpongeWAbsorbNonce.entryLabel) (AbsorbNoncePre sp) (AbsorbNoncePost sp) := by
   rintro m0 ⟨hst, hrc, ⟨hmap, hnw, hapS, hapR⟩, hsp⟩
   set p := reg m0 .rdi with hpdef
   have hn : absorbNonceStack ≤ (rspOf m0).toNat := hst.1
@@ -64,10 +67,10 @@ theorem absorbNonce_spec (hp : Placed code k)
     · exact not_inRange_of_apart hrc.2.2 hrc.2.1 (noWrap_stackBelow hst) h (inRange_mono hq (by omega))
   -- `b0`: RBX pushed, `call absorb`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 16) (rest := [(p, 328)]) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 0 + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SpongeWAbsorbNonce.b0Offset + b0.length)).toBitVec) ⟨frame_mapped hst (by decide), hfnw⟩
     (hrest m0 fun _ h ↦ h) (List.pairwise_pair.mpr (Apart.symm' hapF))
-  unfold absorbNonceLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.SpongeWAbsorbNonce.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.SpongeWAbsorbNonce.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 (fun _ _ ↦ rfl)
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial trivial
       trivial) fun st1 hm1 hpc1 => ?_
@@ -121,11 +124,11 @@ theorem absorbNonce_spec (hp : Placed code k)
   -- `b1`: `call duplex`.
   have hX3' : reg st2.data .rbx = p := (hsv2.1 .rbx rfl).trans hX3
   have hwf2 := frame_wf (m0 := m0) (d := st2.data) (F := 16) (rest := []) (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 5 + b1.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SpongeWAbsorbNonce.b1Offset + b1.length)).toBitVec)
     ⟨Mapped.keeps (frame_mapped hst (by decide)) hf2.kept, hfnw⟩ (by simp)
     (List.pairwise_singleton _ _)
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) run_b1 hwf2 (fun _ _ ↦ rfl)
-    (hpc2.trans (by rw [show b0.length = 5 from rfl]))
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWAbsorbNonce.b0_next))
     (match_ofMachine ⟨rfl, trivial⟩ ⟨hf2.rsp_eval, trivial⟩ trivial trivial trivial)
     fun st3 hm3 hpc3 => ?_
   obtain ⟨hmid3, hw3, hx7', hx3'⟩ := after_eq run_b1 ▸ ok_b1
@@ -181,7 +184,7 @@ theorem absorbNonce_spec (hp : Placed code k)
     ⟨Mapped.keeps (frame_mapped hst (by decide)) hf4.kept, hfnw⟩ (hrest _ hf4.kept)
     (List.pairwise_pair.mpr (Apart.symm' hapF))
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) run_b2 hwf4 nofun
-    (hpc4.trans (by rw [show b1.length = 2 from rfl]))
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SpongeWAbsorbNonce.b1_next))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf4.rsp_eval, known_ptr rfl hX3''', trivial⟩ trivial
       trivial trivial) fun st5 hm5 hpc5 => ?_
   obtain ⟨hepi, hx0'', hwt, hwc0, hwc1, hws5⟩ := after_eq run_b2 ▸ ok_b2

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldBase
 
 /-!
@@ -32,9 +33,9 @@ public section
 variable [NativeArm.Host] {k : Nat} {c : Cx} {m0 : MachineData}
 
 /-- **A load block and `EW::mul`.** -/
-theorem stepL (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem stepL (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (ok : Ok c.a m0) {bL : List Directive} {kL : Nat} (hin : bL.IsInfixAt code kL)
-    (hne : bL ≠ []) {S0 SL : SState} (hx : exec bL S0 = some (SL, .call ewMulLabel))
+    (hne : bL ≠ []) {S0 SL : SState} (hx : exec bL S0 = some (SL, .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     {cx0 cx1 lo0 lo1 : XReg} (hsh : LSh cx0 cx1 lo0 lo1 S0 SL = true)
     {j : Nat} (hj : j < 64) {fa fb : Nat → EW} {s : MachineState}
     (hpc : s.pc = Host.addrOf (k + kL)) (hmid : Mid c m0 s.data)

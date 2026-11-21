@@ -3,6 +3,8 @@ module
 public import NativeRustcVmX64.Ring.Target.Exec
 public import NativeRustcVmX64.Transcript.Glue
 public import NativeRustcVmX64.Spec.Ring
+public import NativeRustcVmX64.Code.Vm.RingPsi.Names
+public import NativeRustcVmX64.Code.Vm.RingTarget.Names
 
 /-!
 # `ring_target`'s images loop, run by the symbolic executor at each turn (x86-64)
@@ -20,7 +22,7 @@ open NativeRustcVmX64.Transcript (after)
 set_option Elab.async false
 
 public theorem loop_b1 : ∀ i < 64,
-    exec b1 (H i) = some (after b1 (H i), .call ringPsiLabel) ∧
+    exec b1 (H i) = some (after b1 (H i), .call NativeRustcVmX64.Vm.RingPsi.entryLabel) ∧
     (after b1 (H i)).reg .rdi = some (.load 1 (16 * i) 8) ∧
     (after b1 (H i)).reg .rsi = some (.load 1 (16 * i + 8) 8) ∧
     (after b1 (H i)).reg .rdx = some (.var 8) ∧ (after b1 (H i)).reg .rsp = some (.ptr 0 0) ∧
@@ -32,7 +34,7 @@ public theorem loop_b1 : ∀ i < 64,
   decide +kernel
 
 public theorem loop_b2 : ∀ i < 64,
-    exec b2 (A i) = some (after b2 (A i), .cond (.lit (decide (i < 63))) ".LRingTarget_1") ∧
+    exec b2 (A i) = some (after b2 (A i), .cond (.lit (decide (i < 63))) NativeRustcVmX64.Vm.RingTarget.label_1) ∧
     rlinks false (after b2 (A i)) (H (i + 1)) = some [(8, .var 8), (10, .var 10)] ∧
     wlinks (after b2 (A i)) (H (i + 1)).mem = some pushL ∧
     (after b2 (A i)).mem.all (writeOk 2352 sizesL (fun _ ↦ false)) = true ∧

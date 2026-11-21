@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.KeccakPhase
+public import NativeRustcVmX64.Code.Vm.KeccakPhase.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.VerifyKeccak.Names
 public meta import NativeRustcVmX64.Code.Vm.KeccakPhase
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -90,14 +93,14 @@ open NativeRustcX64 NativeRustcX64.Sym NativeRustcVmX64.Vm.KeccakPhase NativeRus
 
 public section
 
-theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 ".LKeccakPhase_2") :=
+theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.KeccakPhase.label_2) :=
   run_b0.trans (by rw [after_eq run_b0]; rfl)
 
-theorem exit_b1 : exec b1 (after b0 entryS) = some (s1, .call "memcpy") :=
+theorem exit_b1 : exec b1 (after b0 entryS) = some (s1, .call NativeRustcVmX64.Vm.Memcpy.entryLabel) :=
   run_b1.trans (by rw [show s1 = after b1 (after b0 entryS) from rfl, after_eq run_b1])
 
 theorem exit_b2 :
-    exec b2 retS = some (s2, .call "_RNvNtCsemcRClSg8DH_9native_vm10keccak_gkr13verify_keccak") :=
+    exec b2 retS = some (s2, .call NativeRustcVmX64.Vm.VerifyKeccak.entryLabel) :=
   run_b2.trans (by rw [show s2 = after b2 retS from rfl, after_eq run_b2])
 
 theorem exit_b3 : exec b3 vkS = some (after b3 vkS, .fall) :=

@@ -6,8 +6,8 @@ public import NativeRustcVmX64.Bus.BytecodeShare.Copy
 # `bytecode_share`: the copy's loop (x86-64)
 
 `b12` sets the result's length (RAX) and the point's last slots (RCX) and skips an empty
-`bytecode_low`; `b13` sends a single element to the odd one (`b14`, `.LBytecodeShare_10`), more to
-the pair loop (`b17`). The pair loop's head `.LBytecodeShare_13` (`PH`): `b18` copies two
+`bytecode_low`; `b13` sends a single element to the odd one (`b14`, `NativeRustcVmX64.Vm.BytecodeShare.label_10`), more to
+the pair loop (`b17`). The pair loop's head `NativeRustcVmX64.Vm.BytecodeShare.label_13` (`PH`): `b18` copies two
 elements; at the even end `b19` goes to `b21`, else to the odd element (`b20`).
 `copy_spec`: from `b12` to the return.
 -/
@@ -26,8 +26,8 @@ variable [Host] {a : DecArea} {s0 s3 : TState} {m0 m : MachineData} {k : Nat} {v
 theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin' a s0 m0 m v0 k)
     {j : Nat} {st : MachineData} (hd : PH m0 m v0 j st) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s0 m0 st' ∨
-      (st'.pc = Host.addrOf (k + 130) ∧ PH m0 m v0 (j + 2) st'.data))
-      ⟨st, Host.addrOf (k + 130)⟩ := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b18Offset) ∧ PH m0 m v0 (j + 2) st'.data))
+      ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b18Offset)⟩ := by
   have c := ctx_of h
   have hlen := nB_le h
   have hnBe : nB m0 = (reg m0 .r8).toNat := rfl
@@ -140,7 +140,7 @@ theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin' a s0 
     rw [decide_eq_true hlast] at hpc2
     simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc2
     refine Eventually.mono (exec_at (infix_of b19_in_code (by simp [b19]) hp) exit_b19
-      (wf_envB h hc2.fr.frame.kept 0) nofun (hpc2.trans (by rw [show b18.length = 13 from rfl]))
+      (wf_envB h hc2.fr.frame.kept 0) nofun (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b18_next))
       (match_bodyS hc2.fr 0) fun st3 hm3 hpc3 ↦ ?_) fun _ h ↦ Or.inl h
     obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, hmid3, hmem3, hk3⟩ := ok_moves
     have hc3 := Cp.ofRun h hc2 hm3 hmid3 hmem3 (KeepsB.mono hk3 (by simp [six]))
@@ -152,14 +152,14 @@ theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin' a s0 
     by_cases hev' : nB m0 % 2 = 0
     · rw [decide_eq_true hev'] at hpc3
       simp only [↓reduceIte] at hpc3
-      rw [hp.label (j := 151) rfl] at hpc3
+      rw [hp.label NativeRustcVmX64.Vm.BytecodeShare.label_11_at] at hpc3
       obtain ⟨d3, pc3⟩ := st3
       simp only at hpc3
       subst hpc3
       exact F _ (by rw [show nB m0 = j + 2 by omega]; exact hc3)
     · rw [decide_eq_false hev'] at hpc3
       simp only [Bool.false_eq_true, ↓reduceIte] at hpc3
-      rw [show b19.length = 2 from rfl] at hpc3
+      rw [NativeRustcVmX64.Vm.BytecodeShare.b19_length] at hpc3
       obtain ⟨d3, pc3⟩ := st3
       simp only at hpc3
       subst hpc3
@@ -167,13 +167,13 @@ theorem pair (hp : Placed code k) (h : BytecodeSharePre a s0 m0) (F : Fin' a s0 
         (by omega)
   · rw [decide_eq_false hlast] at hpc2
     simp only [Bool.not_false, ↓reduceIte] at hpc2
-    rw [hp.label (j := 130) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.BytecodeShare.label_13_at] at hpc2
     refine .done _ (.inr ⟨hpc2, hc2, by omega, by omega, by rw [e2si]; exact hd.rsi, e2dx, e2di⟩)
 
 /-- **The copy**, from `b12`: every element of `bytecode_low`, then `b21`. -/
 theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     (hf : BF m0 (OT m0) 8 m) (h15 : reg m .r15 = v0) (F : Fin' a s0 m0 m v0 k) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + 103)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b12Offset)⟩ := by
   have hlen := nB_le h
   have hnBe : nB m0 = (reg m0 .r8).toNat := rfl
   have hwf := wf_envB h hf.frame.kept 0
@@ -200,7 +200,7 @@ theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   by_cases h0 : nB m0 = 0
   · rw [decide_eq_true h0] at hpc1
     simp only [↓reduceIte] at hpc1
-    rw [hp.label (j := 151) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.BytecodeShare.label_11_at] at hpc1
     obtain ⟨d1, pc1⟩ := st1
     simp only at hpc1
     subst hpc1
@@ -210,7 +210,7 @@ theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   obtain ⟨hmid13, hmem13, hk13, hmid14, hmem14, hk14, hdx14, hmid17, hmem17, hk17, hdx17, hdi17,
     hsi17, -⟩ := ok_moves
   refine exec_at (infix_of b13_in_code (by simp [b13]) hp) exit_b13
-    (wf_envB h hc1.fr.frame.kept 0) nofun (hpc1.trans (by rw [show b12.length = 6 from rfl]))
+    (wf_envB h hc1.fr.frame.kept 0) nofun (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b12_next))
     (match_bodyS hc1.fr 0) fun st2 hm2 hpc2 ↦ ?_
   have hc2 := Cp.ofRun h hc1 hm2 hmid13 hmem13 hk13
   have c13 : c13.eval (envB m0 st1.data 0) = !decide (nB m0 = 1) := by
@@ -221,18 +221,18 @@ theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   · rw [decide_eq_true h1] at hpc2
     simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc2
     refine exec_at (infix_of b14_in_code (by simp [b14]) hp) exit_b14
-      (wf_envB h hc2.fr.frame.kept 0) nofun (hpc2.trans (by rw [show b13.length = 2 from rfl]))
+      (wf_envB h hc2.fr.frame.kept 0) nofun (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b13_next))
       (match_bodyS hc2.fr 0) fun st3 hm3 hpc3 ↦ ?_
     have hc3 := Cp.ofRun h hc2 hm3 hmid14 hmem14 hk14
     simp only [PcOk] at hpc3
-    rw [hp.label (j := 145) rfl] at hpc3
+    rw [hp.label NativeRustcVmX64.Vm.BytecodeShare.label_10_at] at hpc3
     obtain ⟨d3, pc3⟩ := st3
     simp only at hpc3
     subst hpc3
     exact odd hp h F hc3 (hm3.regs .rdx _ hdx14) (by omega)
   rw [decide_eq_false h1] at hpc2
   simp only [Bool.not_false, ↓reduceIte] at hpc2
-  rw [hp.label (j := 124) rfl] at hpc2
+  rw [hp.label NativeRustcVmX64.Vm.BytecodeShare.label_12_at] at hpc2
   refine exec_at (infix_of b17_in_code (by simp [b17]) hp) exit_b17
     (wf_envB h hc2.fr.frame.kept 0) nofun hpc2 (match_bodyS hc2.fr 0) fun st3 hm3 hpc3 ↦ ?_
   have hc3 := Cp.ofRun h hc2 hm3 hmid17 hmem17 hk17
@@ -243,8 +243,8 @@ theorem copy_spec (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
       (BitVec.ofNat 64 62)).toNat = _
     rw [and62 _ (by rw [hc2.fr.rbp]; omega), hc2.fr.rbp]
   simp only [PcOk] at hpc3
-  rw [show b17.length = 6 from rfl] at hpc3
-  refine Sym.loop (fun n (s : MachineState) ↦ s.pc = Host.addrOf (k + 130) ∧ ∃ j,
+  rw [NativeRustcVmX64.Vm.BytecodeShare.b17_length] at hpc3
+  refine Sym.loop (fun n (s : MachineState) ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b18Offset) ∧ ∃ j,
       nB m0 - j = n ∧ PH m0 m v0 j s.data)
     (fun n st' ⟨hpc', j, hn, hI'⟩ ↦ ?_) ⟨hpc3, 0, rfl, hI⟩
   obtain ⟨d', pc'⟩ := st'

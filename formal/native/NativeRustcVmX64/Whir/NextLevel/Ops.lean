@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Whir.NextLevel.Zero
 public import NativeVm.Equiv.Transcript
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.Powers.Names
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
 
 /-!
 # `next_level`: the query weights and the openings (x86-64)
@@ -10,7 +13,7 @@ From the zeroing loop's end (`b18`, `H17`): the query count saturated (RBP), the
 (R13), the zeroed scratch copied over the query weights (`memcpy(sp + 4448, sp + 760, 3680)`),
 the count stored at `4440` and `powers(λ, n)` at `4448` (`b19`), the queries' address stored at
 `120` and the openings read into the `Option<Rows>` at `760` (`b20`, `query_openings`), its tag
-tested (`b21`, `None` to `.LNextLevel_13`): `ops`, to `b22` with `H22`.
+tested (`b21`, `None` to `NativeRustcVmX64.Vm.NextLevel.label_13`): `ops`, to `b22` with `H22`.
 -/
 
 namespace NativeRustcVmX64.Whir.Levels.NL
@@ -131,17 +134,17 @@ variable [Host] {a : DecArea} {s : TState} {level : Whir.Level} {w : WhirStateW}
 
 /-- **The query weights and the openings**: `b18` to `b21`, to `b22` with `H22`. -/
 theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hpw : Spec (Labels.label powersLabel) PowersPre PowersPost)
-    (hqo : ∀ a s Q, Spec (Labels.label queryOpeningsLabel) (QueryOpeningsPre a s Q)
+    (hmc : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hpw : Spec (Labels.label NativeRustcVmX64.Vm.Powers.entryLabel) PowersPre PowersPost)
+    (hqo : ∀ a s Q, Spec (Labels.label NativeRustcVmX64.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q)
       (QueryOpeningsPost a s Q))
     {xs ood : Array EW} {v lam : EW} {qs : Array UInt64} {s8 : TState} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 164))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b18Offset))
     (hH : H17 a level w rounds m0 xs ood v lam qs s8 st.data)
     (hrun : runN level w rounds m0 s =
       tail8 (reg m0 .rsi).toNat (reg m0 .r9).toNat w rounds xs ood v qs lam s8) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s level w rounds m0 st' ∨
-      (st'.pc = Host.addrOf (k + 190) ∧ ∃ rows op s9, runN level w rounds m0 s =
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b22Offset) ∧ ∃ rows op s9, runN level w rounds m0 s =
         some (glueLevel w lam (reg m0 .r9).toNat ood v qs (powers lam qs.size)
           (batchedOf (reg m0 .rsi).toNat (reg m0 .r9).toNat rounds xs qs rows
             (powers lam qs.size)), s9) ∧
@@ -155,9 +158,9 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
   -- `b18`: the count, the queries' address, `memcpy(sp + 4448, sp + 760, 3680)`
   refine blk_stepZ c b18_in_code (by simp [b18]) hp exit_b18 ok_b18.1 ok_b18.2.1 (by decide)
     (fun p hp ↦ by simp at hp; subst hp; right; omega) hK hpc
-    (ret := (Host.addrOf (k + 175)).toBitVec) (fun _ _ ↦ rfl) fun st1 hm1 hpc1 hK1 hs1 hz1 ↦ ?_
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b19Offset)).toBitVec) (fun _ _ ↦ rfl) fun st1 hm1 hpc1 hK1 hs1 hz1 ↦ ?_
   obtain ⟨-, -, hrdi1, hrsi1, hrdx1, hrbp1, hr131, hkr1⟩ := ok_b18
-  let env1 := argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + 175)).toBitVec
+  let env1 := argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b19Offset)).toBitVec
   have e1 : ∀ {r : Reg64} {v : Sym}, (after b18 retS).reg r = some v →
       reg st1.data r = v.eval env1 := fun h ↦ hm1.regs _ _ h
   have hrax : env1.regs .rax = BitVec.ofNat 64 qs.size := hH.rax
@@ -201,15 +204,15 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
     (fun q hq ↦ c.loc_not_t (by omega) hq) hch2' hts1
   have hqb2 := c.qbuf_call (o := 64) (by omega) hK1.fr hle1 hch2' (lo := 4448) (n := 3680)
     (by omega) (fun q hq ↦ Or.inr (Or.inl hq)) hqb1
-  have hpc2' : st2.pc = Host.addrOf (k + 175) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b19Offset) := hpc2
   -- `b19`: the count stored, `powers(λ, sp + 4448, n)`
   have hff2 : FF m0 xs ood v lam st2.data.dmem :=
     hH.ff.keep (KeepZ.trans (KeepZ.trans hz1 hz2) (KeepZ.of_eq rfl)) hxs hos
   refine blk_stepZ c b19_in_code (by simp [b19]) hp exit_b19 ok_b19.1 ok_b19.2.1 (by decide)
     (fun p hp ↦ by simp at hp; rcases hp with rfl | rfl <;> omega) hK2 hpc2'
-    (ret := (Host.addrOf (k + 181)).toBitVec) (fun _ _ ↦ rfl) fun st3 hm3 hpc3 hK3 hs3 hz3 ↦ ?_
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b20Offset)).toBitVec) (fun _ _ ↦ rfl) fun st3 hm3 hpc3 hK3 hs3 hz3 ↦ ?_
   obtain ⟨hmid3, hW3, hw4440, hrdi3, hrsi3, hrdx3, hrcx3, hkr3⟩ := ok_b19
-  let env3 := argEnv m0 st2.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + 181)).toBitVec
+  let env3 := argEnv m0 st2.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b20Offset)).toBitVec
   have e3 : ∀ {r : Reg64} {v : Sym}, (after b19 retS).reg r = some v →
       reg st3.data r = v.eval env3 := fun h ↦ hm3.regs _ _ h
   have hRK3 := hRK2.six fun r hr ↦ e3 (hkr3 r hr)
@@ -254,13 +257,13 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have h4440' := bytes_call hkeep4 (j := 4440) (by omega)
     (by simp [NativeRustcVm.length_wordBytes]) (Or.inl (by simp [NativeRustcVm.length_wordBytes]))
     h4440
-  have hpc4' : st4.pc = Host.addrOf (k + 181) := hpc4
+  have hpc4' : st4.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b20Offset) := hpc4
   -- `b20`: the queries' address stored, `query_openings(sp + 760, t, index, queries, n)`
   refine blk_stepZ c b20_in_code (by simp [b20]) hp exit_b20 ok_b20.1 ok_b20.2.1 (by decide)
     (fun p hp ↦ by simp at hp; rcases hp with rfl | rfl <;> omega) hK4 hpc4'
-    (ret := (Host.addrOf (k + 188)).toBitVec) (fun _ _ ↦ rfl) fun st5 hm5 hpc5 hK5 hs5 hz5 ↦ ?_
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b21Offset)).toBitVec) (fun _ _ ↦ rfl) fun st5 hm5 hpc5 hK5 hs5 hz5 ↦ ?_
   obtain ⟨hmid5, hW5, hw120, hrdi5, hrsi5, hrdx5, hrcx5, hr85, hkr5⟩ := ok_b20
-  let env5 := argEnv m0 st4.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + 188)).toBitVec
+  let env5 := argEnv m0 st4.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b21Offset)).toBitVec
   have e5 : ∀ {r : Reg64} {v : Sym}, (after b20 retS).reg r = some v →
       reg st5.data r = v.eval env5 := fun h ↦ hm5.regs _ _ h
   have hRK5 := hRK4.six fun r hr ↦ e5 (hkr5 r hr)
@@ -335,7 +338,7 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
       NativeRustcVm.BytesAt st5.data.dmem (loc m0 jj) bs →
       NativeRustcVm.BytesAt st6.data.dmem (loc m0 jj) bs :=
     fun h1 h2 h3 h4 ↦ bytes_call hkeep6 h1 h2 h3 h4
-  have hpc6' : st6.pc = Host.addrOf (k + 188) := hpc6
+  have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b21Offset) := hpc6
   -- `b21`: the openings' tag
   refine Eventually.bind (cond_spec hp c b21_in_code (by simp [b21]) exit_b21 ok_b21 hK6 hpc6')
     fun st7 ⟨hr7, hd7, hpc7⟩ ↦ ?_
@@ -349,7 +352,7 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
   · rw [hr] at hrw
     have h0 : NativeRustcVm.WordAt st6.data.dmem (loc m0 760) 0 := hrw
     rw [cRows_eval _ (load_ofMachine (r := 0) (o := 760) rfl h0)] at hpc7
-    exact Eventually.mono (none13 hp c hK7.fr (hpc7.trans (hp.label (j := 258) rfl))
+    exact Eventually.mono (none13 hp c hK7.fr (hpc7.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_13_at))
       (by rw [hrun9, hr]; rfl)) fun _ h ↦ Or.inl h
   rw [hr] at hrw
   have hrows : RowsAt st6.data.dmem (loc m0 760)
@@ -364,7 +367,7 @@ theorem ops (hp : Placed code k) (c : Ctx a s level w rounds m0)
     exact hp0
   rw [hne] at hpc7
   simp only [Bool.false_eq_true, ite_false] at hpc7
-  have hpc7' : st7.pc = Host.addrOf (k + 190) := hpc7
+  have hpc7' : st7.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b22Offset) := hpc7
   have hlt := qo_lt hr
   have hpb : phaseBase a.l s8.phase + phaseWords ≤ a.len :=
     Nat.le_trans (phaseBase_add_le (Nat.lt_of_lt_of_le hlt hts5.decoded.phases_le))

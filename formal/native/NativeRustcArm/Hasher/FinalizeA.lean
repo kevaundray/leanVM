@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+
 public import NativeRustcArm.Hasher.FinalizeInv
 
 /-!
@@ -78,11 +80,11 @@ variable [Host] {k : Nat}
 set_option linter.unusedSimpArgs false in
 /-- **The prologue and the copies to the frame.** -/
 theorem stage2_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {m0 : MachineData}
+    (hmemcpy : Spec (Labels.label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m0 : MachineData}
     (hpre : FinalizePre m0) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 30) ∧ ∃ m1, Pro m0 m1 ∧ Stage2 m0 m1 st.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st => st.pc = Host.addrOf (k + NativeRustcArm.Common.Finalize.b4Offset) ∧ ∃ m1, Pro m0 m1 ∧ Stage2 m0 m1 st.data)
+      ⟨m0, Host.addrOf (k + NativeRustcArm.Common.Finalize.b0Offset)⟩ := by
   have g := geo_of hpre
   have hs := g.s
   have hf := frAt_toNat g
@@ -168,7 +170,7 @@ theorem stage2_spec (hp : Placed code k)
     rw [hsaved2.1 .X21 rfl, hm1.regs .X21 _ rfl]; rfl
   -- `b1`, `b2`, `b3`.
   obtain ⟨d2, pc2⟩ := st2
-  have hpc2' : pc2 = Host.addrOf (k + 11) := by rw [show pc2 = _ from hpc2]; rfl
+  have hpc2' : pc2 = Host.addrOf (k + NativeRustcArm.Common.Finalize.b1Offset) := by rw [show pc2 = _ from hpc2]; rfl
   subst hpc2'
   have hwf2 : (Env.ofMachine d2 [(frAt m0, 384), (hAt m0, 344)]).WF :=
     Env.wf_of ⟨⟨fun i hi => hfr2.kept _ (hmapF i hi), hFnw⟩,
@@ -201,11 +203,11 @@ theorem stage2_spec (hp : Placed code k)
     bufLen_ofBytes (length_hbytes m0)
   refine exec_then (hb1 hp) run_b1 hwf2 hm2 fun st3 hm3 hpc3 => ?_
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64, hload,
-    show b1.length = 3 from rfl] at hpc3
+    Nat.add_assoc, NativeRustcArm.Common.Finalize.b1_next] at hpc3
   rw [ite_neg' (by simp [BitVec.ult, hLv]; omega)] at hpc3
   refine exec_at (hb2 hp) (exec_after run_b1 run_b2) hwf2 hpc3 hm3 fun st4 hm4 hpc4 => ?_
   simp only [PcOk, SBool.eval, Sym.eval, CmpOp.apply, low_W64, hload,
-    show b2.length = 2 from rfl] at hpc4
+    Nat.add_assoc, NativeRustcArm.Common.Finalize.b2_next] at hpc4
   rw [ite_neg' (by
     simp only [beq_iff_eq]
     intro h

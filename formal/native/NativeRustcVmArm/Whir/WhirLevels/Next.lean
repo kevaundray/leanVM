@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.NextLevel.Names
 public import NativeRustcVmArm.Whir.WhirLevels.Calls
 
 /-!
@@ -43,12 +44,12 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **`next_level`** at level `k`: the run rejected (`0`), or `Head (k + 1)` (`1`). -/
 theorem next_call
-    (hnl : ∀ a s level w rounds, Spec (Labels.label nextLevelLabel)
+    (hnl : ∀ a s level w rounds, Spec (Labels.label NativeRustcVmArm.Vm.NextLevel.entryLabel)
       (NextLevelPre a s level w rounds) (NextLevelPost a s level w rounds))
     (c : Ctx a s0 levels ba b claim m0 rate) {k : Nat} {s : TState} {w : WhirStateW}
     {rs : Array FoldRoundW} {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (hm : Mid a s0 levels b claim m0 rate k s w rs st.data) (hk1 : k + 1 < levels.length)
-    (hpc : st.pc = Labels.label nextLevelLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.NextLevel.entryLabel ∧ retOf st.data = next)
     (hx0 : st.data.regs.X0 = m0.regs.X0) (hx1 : st.data.regs.X1.toNat = k)
     (hx2 : st.data.regs.X2.toBitVec = lvA m0 + BitVec.ofNat 64 (levelBytes * k))
     (hx3 : st.data.regs.X3.toNat = foldAt (k + 1))

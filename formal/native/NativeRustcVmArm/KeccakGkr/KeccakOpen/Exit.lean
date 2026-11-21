@@ -74,7 +74,7 @@ theorem pc_false [Labels] {env : Env} {c : SBool} {l : Label} {next : Int64} {st
 /-- **The return** from `b95` with the tag in X8 and the result's address in X19: the tag
 stored, the entry's registers restored. -/
 theorem tail_run (hp : Placed code k) (h : KeccakOpenPre a s c m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 583)) (hb : Body m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b95Offset)) (hb : Body m0 st.data)
     (h19 : st.data.regs.X19 = m0.regs.X0) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ Saved m0 st'.data ∧
       Writes m0 st'.data keccakOpenStack (wsOf m0) ∧
@@ -130,7 +130,7 @@ theorem tail_run (hp : Placed code k) (h : KeccakOpenPre a s c m0) {st : Machine
 
 /-- **`None` from the plain sumcheck**: `b1` branches to the return with tag `0`. -/
 theorem none_exit (hp : Placed code k) (h : KeccakOpenPre a s c m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 24)) (hsc : Sc a s m0 st.data) (hn : scRun s m0 = none) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b1Offset)) (hsc : Sc a s m0 st.data) (hn : scRun s m0 = none) :
     Eventually (step1 Host.exe) (Goal a s c m0) st := by
   obtain ⟨hwf, hm⟩ := argS_match h hsc.body
   refine exec_at (b1_in_code.trans hp.1 (by simp [b1])) run_b1 hwf hpc hm fun s1 hm1 hpc1 ↦ ?_

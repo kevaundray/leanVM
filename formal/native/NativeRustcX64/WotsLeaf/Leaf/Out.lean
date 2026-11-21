@@ -97,7 +97,7 @@ variable [Host] {r : Run}
 theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre)
     (hcw : isCodeword r.dNum = true) {m : MachineData}
     (hK : Keep r (r.outerSlots 58 ++ [(1048, 32, Keccak.hashBytes r.leafIn)]) m) :
-    Eventually (step1 Host.exe) r.Done ⟨m, r.pc 554⟩ := by
+    Eventually (step1 Host.exe) r.Done ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b56Offset⟩ := by
   obtain ⟨-, -, -, s96, -, s614, -⟩ : SlotsAt r m r.chainSlots := allOf_left (allOf_left hK.2)
   obtain ⟨⟨-, -, hH⟩, -⟩ := allOf_right hK.2
   have hpo := r.pre_out hpre
@@ -191,11 +191,11 @@ theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
       rw [Run.off_add]
       exact nout1 _ (by rw [Run.length_savedBytes] at hi; omega)
   -- `b57`: the tag 1 at `out`.
-  have hwf := envR_wf hpre hk₂ (r.extraOK_input hpre hk₂ hpo) (r.pc (579 + b57.length)).toBitVec
-  have hm₂ : Match (r.envR m₂ [(r.out, 75)] (r.pc (579 + b57.length)).toBitVec)
+  have hwf := envR_wf hpre hk₂ (r.extraOK_input hpre hk₂ hpo) (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec
+  have hm₂ : Match (r.envR m₂ [(r.out, 75)] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec)
       (outS [(.rbx, .ptr 2 0)]) m₂ := by
     refine match_frameS hrsp₂ (sextra := [75]) (extra := [(r.out, 75)])
-      (ret := (r.pc (579 + b57.length)).toBitVec) (k := [(.rbx, .ptr 2 0)]) (bounds := [])
+      (ret := (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec) (k := [(.rbx, .ptr 2 0)]) (bounds := [])
       (aliases := [(.load 0 96 8, (2, 0))]) ⟨rfl, trivial⟩ ⟨?_, trivial⟩ trivial ⟨?_, trivial⟩
     · show m₂.regs.get64 .rbx = r.out + BitVec.ofInt 64 0
       rw [hS₂.1 .rbx rfl, show m₁.regs.get64 .rbx = r.out from hbx₁]
@@ -214,7 +214,7 @@ theorem leaf_out (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.P
   have hT : BytesAt st.data.dmem (r.out + BitVec.ofNat 64 0) [1] := by
     have := bytesAt_write_val hm₃ (r := 2) (o := 0) (n := 1) (b := r.out) (sz := 75) rfl
       (by decide) (v := .lit 1) (by decide +kernel)
-    rwa [show (Sym.lit 1).eval (r.envR m₂ [(r.out, 75)] (r.pc (579 + b57.length)).toBitVec) =
+    rwa [show (Sym.lit 1).eval (r.envR m₂ [(r.out, 75)] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b57Offset + b57.length)).toBitVec) =
       BitVec.ofNat 64 1 from rfl, bytes_byte] at this
   have hX₃ : BytesAt st.data.dmem (r.out + BitVec.ofNat 64 1)
       (r.digitsPre 58 ++ (Keccak.hashBytes r.leafIn).take 16) :=

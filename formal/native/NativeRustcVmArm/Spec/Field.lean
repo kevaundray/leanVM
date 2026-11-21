@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EWSqIter.Names
+public import NativeRustcVmArm.Code.Vm.Kinv.Names
+public import NativeRustcVmArm.Code.Vm.KinvSq.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
+public import NativeRustcVmArm.Code.Vm.Kpow.Names
 public import NativeRustcArm.Spec.Keccak
 public import NativeVm.Model.Field
 public import Statement.LeanVmVerifier
@@ -28,20 +35,6 @@ open NativeRustcArm NativeVm.Model
 
 /-! ## Symbols -/
 
-/-- `kmul`'s symbol. -/
-def kmulLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field4kmul"
-/-- `EW::mul`'s symbol. -/
-def ewMulLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul"
-/-- `kinv::sq`'s symbol. -/
-def kinvSqLabel : Label := "_RNvNvNtCsemcRClSg8DH_9native_vm5field4kinv2sq"
-/-- `kinv`'s symbol. -/
-def kinvLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field4kinv"
-/-- `kpow`'s symbol. -/
-def kpowLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field4kpow"
-/-- `EW::sq_iter`'s symbol. -/
-def ewSqIterLabel : Label := "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW7sq_iter"
-/-- `bit_length`'s symbol. -/
-def bitLengthLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length"
 
 /-! ## Stacks -/
 

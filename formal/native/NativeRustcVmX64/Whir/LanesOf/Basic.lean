@@ -388,7 +388,7 @@ theorem done (hp : Placed code k) {m0 : MachineData} (hpre : LanesOfPre m0) {f :
     {n : Nat} {st : MachineData} (hb : Body m0 f n st) (hsz : (lanesM m0).size = n)
     (hf : ∀ j (h : j < (lanesM m0).size), (lanesM m0)[j] = f j) (hn : n ≤ 64)
     (hax : reg st .rax = 1#64) (hdx : (reg st .rdx).toNat = n) :
-    Eventually (step1 Host.exe) (Post m0) ⟨st, Host.addrOf (k + 37)⟩ := by
+    Eventually (step1 Host.exe) (Post m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.LanesOf.b10Offset)⟩ := by
   have hwf := wf1 (st := st) (vars := fun _ ↦ 0) (ret := 0) hpre hb.fr.kept
   have hm : Match (frameEnv m0 st 8 [] (fun _ ↦ 0) 0) midS0 st :=
     match_ofMachine ⟨rfl, trivial⟩ ⟨hb.fr.rsp_eval, trivial⟩ trivial trivial trivial

@@ -51,7 +51,7 @@ def StepCont (r : Run) (l : Nat) (x E : List UInt8) (pos i : Nat) (T : List UInt
   ∀ m', Keep r l x E m' → Regs m' (pos + 1) i → Run.RegIs m' .X22 (r.off 21648) →
     BytesAt m'.dmem (r.off 29248)
       ((Keccak.keccakF (Keccak.xorBlock (List.replicate 200 0) (Keccak.finalBlock T))).take 16) →
-    Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc 2156 else r.pc 1728⟩
+    Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc NativeRustcArm.Sphincs.SphincsVerify.b142Offset else r.pc NativeRustcArm.Sphincs.SphincsVerify.b116Offset⟩
 
 /-- **`b141`**: the first 16 bytes of hasher A become the chain's value; on to the next step or,
 after position 2, to `b142`. -/
@@ -62,8 +62,8 @@ theorem seg_b141 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (hA : BytesAt m.dmem (r.off 16400) A)
     (cont : ∀ m', Keep r l x E m' → Regs m' (pos + 1) i → Run.RegIs m' .X22 (r.off 21648) →
       BytesAt m'.dmem (r.off 29248) (A.take 16) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc 2156 else r.pc 1728⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 2149⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', if pos + 1 = 3 then r.pc NativeRustcArm.Sphincs.SphincsVerify.b142Offset else r.pc NativeRustcArm.Sphincs.SphincsVerify.b116Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b141Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1 (fun _ ↦ 0)
   have hm := match_frameS hpre hK (k := []) trivial
   refine blk r hp b141_in_code (List.cons_ne_nil _ _) run_b141 hwf hm fun st hm' hpc ↦ ?_
@@ -88,7 +88,7 @@ theorem seg_b140 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hA0 : BytesAt m.dmem (r.off 16400) (List.replicate 200 0))
     (hblk : BytesAt m.dmem (r.off 24720) (T ++ List.replicate 72 0))
     (cont : StepCont r l x E pos i T R) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 2068⟩ := by
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b140Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1 (fun _ ↦ 0)
   have hm := match_frameS hpre hK (k := [(.X24, .lit 64)]) ⟨known_lit h24, trivial⟩
   refine blk r hp b140_in_code (List.cons_ne_nil _ _) run_b140 hwf hm fun st hm' hpc ↦ ?_
@@ -112,7 +112,7 @@ theorem seg_b140 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
   have hlen : (Keccak.xorBlock (List.replicate 200 0) (Keccak.finalBlock T)).length = 200 :=
     Keccak.length_stateBytes _
   rw [← hlen, bytesOf_of_bytesAt hxor'] at hk2
-  exact pc_at (a := r.pc 2149) (by rw [hpc2]; rfl)
+  exact pc_at (a := r.pc NativeRustcArm.Sphincs.SphincsVerify.b141Offset) (by rw [hpc2]; rfl)
     (seg_b141 hp hpre hx hE hpos (by rw [Keccak.keccakF, Keccak.length_stateBytes]; decide) hK2
       (Regs.of_saved hS hR1) (RegIs.of_saved hS rfl h22) hk2 cont)
 

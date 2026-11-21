@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcArm.XmssVerify.Node
 public import NativeRustcArm.XmssVerify.Turn
 public import NativeRustcArm.XmssVerify.Fold
@@ -36,7 +39,7 @@ sym_block b8_exec := exec b8 (initL knownB)
 /-- The symbolic state after block 8. -/
 def st8 : SState := ((exec b8 (initL knownB)).getD (initL knownB, .fall)).1
 
-theorem b8_exec' : exec b8 (initL knownB) = some (st8, .call "memset") := by
+theorem b8_exec' : exec b8 (initL knownB) = some (st8, .call NativeRustcArm.Common.Memset.entryLabel) := by
   rw [b8_exec]
   rfl
 
@@ -85,7 +88,7 @@ def st14 : SState := ((exec b14 (stF0 [(.X25, .ptr 0 4896)])).getD (stF0 [], .fa
 def c14 : SBool := .not (.cmp .eq .W64 (.reg .X24) (.lit 16))
 
 theorem b14_exec' :
-    exec b14 (stF0 [(.X25, .ptr 0 4896)]) = some (st14, .cond c14 ".LXmssVerify_4") := by
+    exec b14 (stF0 [(.X25, .ptr 0 4896)]) = some (st14, .cond c14 NativeRustcArm.Xmss.XmssVerify.label_4) := by
   rw [b14_exec]
   rfl
 

@@ -7,7 +7,7 @@ public import NativeRustcVmX64.Sumcheck.OpenPhase.Frame
 
 `b0` saves the registers and loads the phase's count, height and width (`PhaseHW`); `b1` to `b5`
 check the shape and the count (`check_spec`), `b6`, `b7` the positions one by one (`PInv`,
-`pos_loop`); at `.LOpenPhase_4` (`b10`) the phase passed them (`Checked`), else the exit with
+`pos_loop`); at `NativeRustcVmX64.Vm.OpenPhase.label_4` (`b10`) the phase passed them (`Checked`), else the exit with
 `None` (`b8`).
 -/
 
@@ -33,7 +33,7 @@ structure CRegs (m0 : MachineData) (P : Array OpeningW) (h w : Nat) (m : Machine
   r14 : reg m .r14 = w.toUInt64.toBitVec
   r15 : reg m .r15 = phO m0
 
-/-- **The positions loop's invariant** at `.LOpenPhase_3` (`b6`), `j` positions checked. -/
+/-- **The positions loop's invariant** at `NativeRustcVmX64.Vm.OpenPhase.label_3` (`b6`), `j` positions checked. -/
 structure PInv (m0 : MachineData) (P : Array OpeningW) (Q : Array UInt64) (h w j : Nat)
     (m : MachineData) : Prop where
   fr : FrO m0 8 m
@@ -46,7 +46,7 @@ structure PInv (m0 : MachineData) (P : Array OpeningW) (Q : Array UInt64) (h w j
   rbp : reg m .rbp = off (phO m0) 24
   pos : PositionsOk P Q j
 
-/-- At `.LOpenPhase_4` (`b10`): the checks passed. -/
+/-- At `NativeRustcVmX64.Vm.OpenPhase.label_4` (`b10`): the checks passed. -/
 structure Checked (m0 : MachineData) (P : Array OpeningW) (Q : Array UInt64) (h w : Nat)
     (m : MachineData) : Prop where
   fr : FrO m0 8 m
@@ -85,9 +85,9 @@ position, or `b6` one position on. -/
 theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     (hph : PhaseHW m0.dmem (phO m0) P h w) {j : Nat} (hi : PInv m0 P Q h w j m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + 49) ∧ Checked m0 P Q h w st.data) ∨
-        (st.pc = Host.addrOf (k + 30) ∧ j < Q.size ∧ PInv m0 P Q h w (j + 1) st.data))
-      ⟨m, Host.addrOf (k + 30)⟩ := by
+      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b6Offset) ∧ j < Q.size ∧ PInv m0 P Q h w (j + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b6Offset)⟩ := by
   have hst := hpre.1
   obtain ⟨-, -, -, -, -, hQn, hQw, hmp, hnwp, -, hnwq, -, -, haps, -, haqs, -, -, -, -, -, haqp⟩ :=
     id hpre
@@ -110,7 +110,7 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   have hrbp : reg st.data .rbp = off (phO m0) 24 := (hk _ (by decide) (by decide)).trans hi.rbp
   by_cases hj : j = Q.size
   · simp only [hj, decide_true, ↓reduceIte] at hpc
-    refine .done _ (.inr (.inl ⟨hpc.trans (hp.label (j := 49) rfl), hf, hregs, hi.shape, hrbp, ?_⟩))
+    refine .done _ (.inr (.inl ⟨hpc.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_4_at), hf, hregs, hi.shape, hrbp, ?_⟩))
     rw [hsize, ← hj]; exact hi.pos
   simp only [hj, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc
   have hjl : j < Q.size := Nat.lt_of_le_of_ne hi.le hj
@@ -172,7 +172,7 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     rw [BitVec.toNat_add, toNat_off (by omega), hrcx, hpoff]
     omega
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) exit_b7 hwf7 nofun
-    (hpc.trans (by rw [show b6.length = 3 from rfl])) hm7 fun st1 hm1 hpc1 ↦ ?_
+    (hpc.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b6_next)) hm7 fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hmem1, hrcx1, hr81, hkb1⟩ := ok_b7
   have hf1 : FrO m0 8 st1.data := FrO.block hst hf hwf7 hm1 hmid1 (memNil hmem1)
   have hk1 : ∀ r, r ≠ .rsp → [Reg64.rcx, .rdx, .r8].contains r = false →
@@ -189,7 +189,7 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   by_cases heq : P[j].leafIndex = Q[j]
   · have e : (P[j].leafIndex.toBitVec == Q[j].toBitVec) = true := by simp [heq]
     simp only [e, ↓reduceIte] at hpc1
-    refine .done _ (.inr (.inr ⟨hpc1.trans (hp.label (j := 30) rfl), hjl, hf1, hregs1, hi.shape,
+    refine .done _ (.inr (.inr ⟨hpc1.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_3_at), hjl, hf1, hregs1, hi.shape,
       by omega, ?_, ?_, ?_, ?_, (positionsOk_succ hjP (by omega)).2 ⟨hi.pos, heq⟩⟩))
     · rw [hk1 _ (by decide) (by decide), hk _ (by decide) (by decide)]; exact hi.rax
     · rw [show reg st1.data .rcx = _ from hm1.regs .rcx _ hrcx1]
@@ -206,7 +206,7 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
       simp only [beq_eq_false_iff_ne, ne_eq]; exact fun h' ↦ heq (UInt64.toBitVec_inj.mp h')
     simp only [e, Bool.false_eq_true, ↓reduceIte] at hpc1
     obtain ⟨d1, pc1⟩ := st1
-    have hpc1' : pc1 = Host.addrOf (k + 38) := hpc1.trans (by rw [show b7.length = 5 from rfl])
+    have hpc1' : pc1 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b8Offset) := hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b7_next)
     subst hpc1'
     refine Eventually.mono (exit_fail8 hp hpre hf1 hregs1.rdi (openPhase_none hph ?_))
       fun st h ↦ .inl h
@@ -217,9 +217,9 @@ theorem pos_step (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
 theorem pos_loop (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     (hph : PhaseHW m0.dmem (phO m0) P h w) {j : Nat} (hi : PInv m0 P Q h w j m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + 49) ∧ Checked m0 P Q h w st.data))
-      ⟨m, Host.addrOf (k + 30)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 30) ∧
+      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b6Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b6Offset) ∧
       ∃ j, Q.size - j = n ∧ PInv m0 P Q h w j st.data) (fun n st ⟨hpc, j, hn, hi⟩ ↦ ?_)
     ⟨rfl, j, rfl, hi⟩
   obtain ⟨d, pc⟩ := st
@@ -231,14 +231,14 @@ theorem pos_loop (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   · exact .inl (.inr h)
   · exact .inr ⟨Q.size - (j + 1), by omega, hpc, j + 1, rfl, hinv⟩
 
-/-- **`b5`**: from `.LOpenPhase_2`, the positions loop's start. -/
+/-- **`b5`**: from `NativeRustcVmX64.Vm.OpenPhase.label_2`, the positions loop's start. -/
 theorem b5_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     (hph : PhaseHW m0.dmem (phO m0) P h w) (hf : FrO m0 8 m) (hr : CRegs m0 P h w m)
     (hsh : ShapeOk P Q h w (reg m0 .rdx).toNat (reg m0 .rcx).toNat)
     (hr8 : reg m .r8 = posO m0) (hr9 : reg m .r9 = reg m0 .r9) :
     Eventually (step1 Host.exe)
-      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + 49) ∧ Checked m0 P Q h w st.data))
-      ⟨m, Host.addrOf (k + 25)⟩ := by
+      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b5Offset)⟩ := by
   have hst := hpre.1
   obtain ⟨hmid, hmem, hbp, hax, hcx, hkb⟩ := ok_b5
   refine frTest hst hf (infix_of b5_in_code (by simp [b5]) hp) exit_b5 nofun hmid hmem hkb
@@ -247,7 +247,7 @@ theorem b5_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   have hPq : P.size ≤ 256 := hph.2.2.1
   have hsz := hsh.2
   obtain ⟨d, pc⟩ := st
-  have hpc' : pc = Host.addrOf (k + 30) := hpc.trans (by rw [show b5.length = 5 from rfl])
+  have hpc' : pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b6Offset) := hpc.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b5_next)
   subst hpc'
   refine pos_loop hp hpre hph (j := 0) ⟨hf1, hr.keep hk (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide), hsh, Nat.zero_le _, ?_, ?_, ?_, ?_, positionsOk_zero P Q⟩
@@ -267,8 +267,8 @@ theorem b5_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
 theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     (hph : PhaseHW m0.dmem (phO m0) P h w) :
     Eventually (step1 Host.exe)
-      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + 49) ∧ Checked m0 P Q h w st.data))
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun st ↦ Done P R Q m0 st ∨ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data))
+      ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b0Offset)⟩ := by
   have hst := hpre.1
   obtain ⟨-, -, hargs, -, -, hQn, -, hmp, hnwp, -, -, -, -, haps, -⟩ := id hpre
   have hpw : phaseWords = 49411 := rfl
@@ -290,20 +290,20 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   rw [hS0, openPhaseStack_eq] at haps'
   have hQn' : Q.size = (reg m0 .r9).toNat := hQn
   -- The exits.
-  have fail8 : ∀ st : MachineState, st.pc = Host.addrOf (k + 38) → FrO m0 8 st.data →
+  have fail8 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b8Offset) → FrO m0 8 st.data →
       reg st.data .rdi = outO m0 → openPhase R (reg m0 .rdx).toNat (reg m0 .rcx).toNat Q P = none →
       Eventually (step1 Host.exe) (fun st ↦ Done P R Q m0 st ∨
-        (st.pc = Host.addrOf (k + 49) ∧ Checked m0 P Q h w st.data)) st := by
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data)) st := by
     intro st hpc hf hdi hr
     obtain ⟨d, pc⟩ := st
     simp only at hpc
     subst hpc
     exact Eventually.mono (exit_fail8 hp hpre hf hdi hr) fun st h ↦ .inl h
-  have toB5 : ∀ st : MachineState, st.pc = Host.addrOf (k + 25) → FrO m0 8 st.data →
+  have toB5 : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b5Offset) → FrO m0 8 st.data →
       CRegs m0 P h w st.data → ShapeOk P Q h w (reg m0 .rdx).toNat (reg m0 .rcx).toNat →
       reg st.data .r8 = posO m0 → reg st.data .r9 = reg m0 .r9 →
       Eventually (step1 Host.exe) (fun st ↦ Done P R Q m0 st ∨
-        (st.pc = Host.addrOf (k + 49) ∧ Checked m0 P Q h w st.data)) st := by
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b10Offset) ∧ Checked m0 P Q h w st.data)) st := by
     intro st hpc hf hr hsh h8' h9'
     obtain ⟨d, pc⟩ := st
     simp only at hpc
@@ -352,7 +352,7 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   have l16 : (frameEnv m0 st1.data 176 [(phO m0, 24)] (fun _ ↦ 0) 0).load 1 16 8 =
       w.toUInt64.toBitVec := load_ofMachine (o := 16) rfl (ph_word hpre hf1.same (by omega) hc16)
   refine exec_at (infix_of b0b_in_code b0b_ne hp) exit_b0b hwfB nofun
-    (hpc1.trans (by rw [show b0a.length = 9 from rfl]))
+    (hpc1.trans (by rw [Nat.add_assoc]))
     (match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf1.frame.rsp_eval, known_ptr rfl hr15, trivial⟩
       trivial trivial trivial) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmidB, hmemB, h13B, h10B, h14B, h15B, hkbB⟩ := ok_b0b
@@ -375,7 +375,7 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
   by_cases h0 : P.size = 0
   · -- No opening: `b4`, the positions must be none too.
     simp only [h0, decide_true, ↓reduceIte] at hpc2
-    rw [hp.label (j := 22) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.OpenPhase.label_1_at] at hpc2
     subst hpc2
     obtain ⟨hmid4, hmem4, hk4⟩ := ok_b4
     refine frTest hst hf2 (infix_of b4_in_code (by simp [b4]) hp) exit_b4 nofun hmid4 hmem4 hk4
@@ -391,14 +391,14 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
       (by decide)
     by_cases hq0 : Q.size = 0
     · simp only [hq0, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc
-      exact toB5 st (hpc.trans (by rw [show b4.length = 3 from rfl])) hf hrg
+      exact toB5 st (hpc.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b4_next)) hf hrg
         ⟨.inl h0, by omega⟩ ((hk _ (by decide) (by decide)).trans (hk2 _ (by decide) (by decide)))
         ((hk _ (by decide) (by decide)).trans hr9)
     · simp only [hq0, decide_false, Bool.not_false, ↓reduceIte] at hpc
-      exact fail8 st (hpc.trans (hp.label (j := 38) rfl)) hf hrg.rdi
+      exact fail8 st (hpc.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_16_at)) hf hrg.rdi
         (openPhase_none hph fun ⟨_, hs, _⟩ ↦ hq0 (by omega))
   · simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc2
-    have hpc2' : pc2 = Host.addrOf (k + 14) := hpc2.trans (by rw [show b0b.length = 5 from rfl])
+    have hpc2' : pc2 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b1Offset) := hpc2.trans (by change Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b0Offset + b0.length) = _; rw [Nat.add_assoc, NativeRustcVmX64.Vm.OpenPhase.b0_next])
     subst hpc2'
     -- `b1`: the width.
     obtain ⟨hmid1, hmem1, hk1'⟩ := ok_b1
@@ -418,11 +418,11 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     by_cases hwW : w = (reg m0 .rcx).toNat
     swap
     · simp only [hwW, decide_false, Bool.not_false, ↓reduceIte] at hpc3
-      exact fail8 st3 (hpc3.trans (hp.label (j := 38) rfl)) hf3 hrg3.rdi
+      exact fail8 st3 (hpc3.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_16_at)) hf3 hrg3.rdi
         (openPhase_none hph fun ⟨hs, _, _⟩ ↦ hs.elim h0 fun ⟨e, _⟩ ↦ hwW e)
     simp only [hwW, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc3
     obtain ⟨d3, pc3⟩ := st3
-    have hpc3' : pc3 = Host.addrOf (k + 16) := hpc3.trans (by rw [show b1.length = 2 from rfl])
+    have hpc3' : pc3 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b2Offset) := hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b1_next)
     subst hpc3'
     -- `b2`: the count and the height.
     obtain ⟨hmid2, hmem2, hk2'⟩ := ok_b2
@@ -442,20 +442,20 @@ theorem check_spec (hp : Placed code k) (hpre : OpenPhasePre P R Q m0)
     simp only [PcOk, hc] at hpc4
     by_cases hc4 : P.size = Q.size ∧ h = (reg m0 .rdx).toNat
     · simp only [hc4, decide_true, Bool.and_self, ↓reduceIte] at hpc4
-      exact toB5 st4 (hpc4.trans (hp.label (j := 25) rfl)) hf4 hrg4 ⟨.inr ⟨hwW, hc4.2⟩, hc4.1⟩
+      exact toB5 st4 (hpc4.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_2_at)) hf4 hrg4 ⟨.inr ⟨hwW, hc4.2⟩, hc4.1⟩
         ((hk4 _ (by decide) (by decide)).trans (hk3' _ (by decide) (by decide)))
         ((hk4 _ (by decide) (by decide)).trans (hk3' _ (by decide) (by decide)))
     · have hf' : (decide (P.size = Q.size) && decide (h = (reg m0 .rdx).toNat)) = false := by
         simpa [Bool.and_eq_true] using hc4
       simp only [hf', Bool.false_eq_true, ↓reduceIte] at hpc4
       obtain ⟨d4, pc4⟩ := st4
-      have hpc4' : pc4 = Host.addrOf (k + 21) := hpc4.trans (by rw [show b2.length = 5 from rfl])
+      have hpc4' : pc4 = Host.addrOf (k + NativeRustcVmX64.Vm.OpenPhase.b3Offset) := hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.OpenPhase.b2_next)
       subst hpc4'
       obtain ⟨hmid3, hmem3, hk3''⟩ := ok_b3
       refine frTest hst hf4 (infix_of b3_in_code (by simp [b3]) hp) exit_b3 nofun hmid3 hmem3
         hk3'' fun st5 hf5 hd5 hk5 hm5 hpc5 ↦ ?_
       simp only [PcOk] at hpc5
-      exact fail8 st5 (hpc5.trans (hp.label (j := 38) rfl)) hf5
+      exact fail8 st5 (hpc5.trans (hp.label NativeRustcVmX64.Vm.OpenPhase.label_16_at)) hf5
         ((hk5 _ (by decide) (by decide)).trans hrg4.rdi)
         (openPhase_none hph fun ⟨hs, hPQ, _⟩ ↦ hc4 ⟨hPQ, (hs.resolve_left h0).2⟩)
 

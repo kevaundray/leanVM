@@ -1,6 +1,13 @@
 module
 
 public import NativeRustcVmX64.Wire.PhaseM.Finish
+public import NativeRustcVmX64.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmX64.Code.Vm.InsD.Names
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmX64.Code.Vm.PhaseM.Names
+public import NativeRustcVmX64.Code.Vm.RdRows.Names
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.WriteOpenings.Names
 
 /-! # `phase_m` meets its contract against the generated x86-64 semantics
 
@@ -17,17 +24,17 @@ public section
 variable [Host] {k : Nat}
 
 theorem phaseM_spec (hp : Placed code k)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
-    (hins : Spec (Labels.label insDLabel) InsDPre InsDPost)
-    (hrows : Spec (Labels.label rdRowsLabel) RdRowsPre RdRowsPost)
-    (hkw : Spec (Labels.label keccak256WordsHashLabel) Keccak256WordsHashPre Keccak256WordsHashPost)
-    (hcl : Spec (Labels.label climbLevelLabel) ClimbLevelPre ClimbLevelPost)
-    (hwo : Spec (Labels.label writeOpeningsLabel) WriteOpeningsPre WriteOpeningsPost) :
-    Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost := by
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
+    (hins : Spec (Labels.label NativeRustcVmX64.Vm.InsD.entryLabel) InsDPre InsDPost)
+    (hrows : Spec (Labels.label NativeRustcVmX64.Vm.RdRows.entryLabel) RdRowsPre RdRowsPost)
+    (hkw : Spec (Labels.label NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.entryLabel) Keccak256WordsHashPre Keccak256WordsHashPost)
+    (hcl : Spec (Labels.label NativeRustcVmX64.Vm.ClimbLevel.entryLabel) ClimbLevelPre ClimbLevelPost)
+    (hwo : Spec (Labels.label NativeRustcVmX64.Vm.WriteOpenings.entryLabel) WriteOpeningsPre WriteOpeningsPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost := by
   intro m0 hpre
   obtain ⟨bp, B, c, hR, _⟩ := hpre.2.2.2.2
   have G := geo_of hpre hR
-  rw [hp.label (j := 0) (l := phaseMLabel) rfl]
+  rw [hp.label NativeRustcVmX64.Vm.PhaseM.entry_at]
   refine Eventually.bind (reads_run hp G hle hR) fun s1 h1 ↦ ?_
   rcases h1 with h1 | ⟨count, qs, height, lw, rw, c5, h1⟩
   · exact .done _ h1

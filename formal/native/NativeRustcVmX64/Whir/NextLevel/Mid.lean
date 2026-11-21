@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.Whir.NextLevel.Head
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalar.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 
 /-!
 # `next_level`: the out-of-domain sample (x86-64)
@@ -120,16 +123,16 @@ theorem blk_step (c : Ctx a s level w rounds m0) {b : List Directive} {j : Nat}
 
 /-- **The out-of-domain sample**: `b7` to `b12`, to `b13` with `H13`. -/
 theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
-    (hsc : ∀ a s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hrsc : ∀ a s, Spec (Labels.label readScalarLabel) (ReadScalarPre a s) (ReadScalarPost a s))
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    {xs : Array EW} {s3 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 52))
+    (hrsc : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalar.entryLabel) (ReadScalarPre a s) (ReadScalarPost a s))
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    {xs : Array EW} {s3 : TState} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b7Offset))
     (hH : H7 a level w rounds m0 xs s3 st.data)
     (hrun : runN level w rounds m0 s =
       tail3 (reg m0 .rsi).toNat (reg m0 .r9).toNat level w rounds xs s3) :
     Eventually (step1 Host.exe) (fun st' ↦ Goal a s level w rounds m0 st' ∨
-      (st'.pc = Host.addrOf (k + 135) ∧ ∃ ood v s6, runN level w rounds m0 s =
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b13Offset) ∧ ∃ ood v s6, runN level w rounds m0 s =
         tail6 (reg m0 .rsi).toNat (reg m0 .r9).toNat level w rounds xs ood v s6 ∧
         H13 a level w rounds m0 xs ood v s6 st'.data)) st := by
   have g := c.geo
@@ -144,7 +147,7 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
   have h80 : (argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) 0).load 0 80 8 = reg m0 .r9 :=
     load_ofMachine (o := 80) rfl hH.K.w80
   simp only [PcOk, cMu_eval _ h80 hmu, Bool.false_eq_true, ite_false] at hpc1
-  rw [show k + 52 + b7.length = k + 116 from rfl] at hpc1
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b7Offset + b7.length = k + NativeRustcVmX64.Vm.NextLevel.b8Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b7_next]] at hpc1
   have e1 : ∀ {r : Reg64} {v : Sym}, (after b7 retS).reg r = some v →
       reg st1.data r = v.eval (argEnv m0 st.data 8176 8 [] (fun _ ↦ 0) 0) :=
     fun h ↦ hm1.regs _ _ h
@@ -163,11 +166,11 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
   -- `b8`: `sample_challenges`
   refine blk_step c b8_in_code (by simp [b8]) hp exit_b8 ok_b8.1 ok_b8.2.1
     (fun p hp ↦ by simp at hp; rcases hp with rfl | rfl <;> omega) hK1 hpc1
-    (ret := (Host.addrOf (k + 121)).toBitVec) (fun _ _ ↦ rfl) fun st2 hm2 hpc2 hK2 hs2 hk2 ↦ ?_
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b9Offset)).toBitVec) (fun _ _ ↦ rfl) fun st2 hm2 hpc2 hK2 hs2 hk2 ↦ ?_
   obtain ⟨hmid8, hW8, h272, hrsi8, hrdi8, hrdx8, hkr8⟩ := ok_b8
   have e2 : ∀ {r : Reg64} {v : Sym}, (after b8 retS).reg r = some v →
       reg st2.data r = v.eval (argEnv m0 st1.data 8176 8 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 121)).toBitVec) := fun h ↦ hm2.regs _ _ h
+        (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b9Offset)).toBitVec) := fun h ↦ hm2.regs _ _ h
   have hk2r : ∀ r ∈ six, reg st2.data r = reg st1.data r := fun r hr ↦ e2 (hkr8 r hr)
   have ht2 : reg st2.data .rdi = tA m0 := (e2 hrdi8).trans hR1.r14
   have hsi2 : reg st2.data .rsi = loc m0 280 := (e2 hrsi8).trans (eval_ptr0A 280)
@@ -220,15 +223,15 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
     rw [hcs3 .r12 rfl, hk2r .r12 (by simp [six])]; exact h12
   have h15' : (reg st3.data .r15).toNat = level.fold := by
     rw [hcs3 .r15 rfl, hk2r .r15 (by simp [six])]; exact h15
-  rw [show k + 116 + b8.length = k + 121 from rfl] at hpc3
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b8Offset + b8.length = k + NativeRustcVmX64.Vm.NextLevel.b9Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b8_next]] at hpc3
   -- `b9`: `read_scalar`
   refine blk_step c b9_in_code (by simp [b9]) hp exit_b9 ok_b9.1 ok_b9.2.1
     (fun p hp ↦ by simp at hp; subst hp; right; omega) hK3 hpc3
-    (ret := (Host.addrOf (k + 124)).toBitVec) (fun _ _ ↦ rfl) fun st4 hm4 hpc4 hK4 hs4 hk4 ↦ ?_
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b10Offset)).toBitVec) (fun _ _ ↦ rfl) fun st4 hm4 hpc4 hK4 hs4 hk4 ↦ ?_
   obtain ⟨hmid9, hW9, hrdi9, hrsi9, hkr9⟩ := ok_b9
   have e4 : ∀ {r : Reg64} {v : Sym}, (after b9 retS).reg r = some v →
       reg st4.data r = v.eval (argEnv m0 st3.data 8176 8 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 124)).toBitVec) := fun h ↦ hm4.regs _ _ h
+        (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b10Offset)).toBitVec) := fun h ↦ hm4.regs _ _ h
   have hk4r : ∀ r ∈ six, reg st4.data r = reg st3.data r := fun r hr ↦ e4 (hkr9 r hr)
   have ht4 : reg st4.data .rsi = tA m0 := (e4 hrsi9).trans hR3.r14
   have ho4 : reg st4.data .rdi = loc m0 4440 := (e4 hrdi9).trans (eval_ptr0A 4440)
@@ -274,7 +277,7 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
     rw [hcs5 .r12 rfl, hk4r .r12 (by simp [six])]; exact h12'
   have h15'' : (reg st5.data .r15).toNat = level.fold := by
     rw [hcs5 .r15 rfl, hk4r .r15 (by simp [six])]; exact h15'
-  rw [show k + 121 + b9.length = k + 124 from rfl] at hpc5
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b9Offset + b9.length = k + NativeRustcVmX64.Vm.NextLevel.b10Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b9_next]] at hpc5
   -- `b10`: the tag
   refine Eventually.bind (cond_spec hp c b10_in_code (by simp [b10]) exit_b10 ok_b10 hK5 hpc5)
     fun st6 ⟨hr6, hd6, hpc6⟩ ↦ ?_
@@ -286,14 +289,14 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
     have h4 : (argEnv m0 st5.data 8176 8 [] (fun _ ↦ 0) 0).load 0 4440 4 =
         BitVec.ofNat 64 (0 : UInt64).toNat := load4_of_tag (Or.inl rfl) hopt
     simp only [cTag_eval _ (Or.inl rfl) h4] at hpc6
-    exact Eventually.mono (none13 hp c hK6.fr (hpc6.trans (hp.label (j := 258) rfl))
+    exact Eventually.mono (none13 hp c hK6.fr (hpc6.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_13_at))
       (by rw [hrun', tail4, hres5]; rfl)) fun _ h ↦ Or.inl h
   rw [hres5] at hopt
   obtain ⟨hopt1, hopt2⟩ := hopt
   have h4 : (argEnv m0 st5.data 8176 8 [] (fun _ ↦ 0) 0).load 0 4440 4 =
       BitVec.ofNat 64 (1 : UInt64).toNat := load4_of_tag (Or.inr rfl) hopt1
   simp only [cTag_eval _ (Or.inr rfl) h4] at hpc6
-  rw [show k + 124 + b10.length = k + 126 from rfl] at hpc6
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b10Offset + b10.length = k + NativeRustcVmX64.Vm.NextLevel.b11Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b10_next]] at hpc6
   simp only [bne_self_eq_false, Bool.false_eq_true, ite_false] at hpc6
   obtain ⟨hv0, hv1⟩ := ewAt_iff.mp hopt2
   rw [off_off] at hv0
@@ -306,9 +309,9 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
   -- `b11`: the value kept, `grind(t, 17)`
   refine blk_step c b11_in_code (by simp [b11]) hp exit_b11 ok_b11.1 ok_b11.2.1
     (fun p hp ↦ by simp at hp; rcases hp with rfl | rfl <;> omega) hK6 hpc6
-    (ret := (Host.addrOf (k + 133)).toBitVec) (fun _ _ ↦ rfl) fun st7 hm7 hpc7 hK7 hs7 hk7 ↦ ?_
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b12Offset)).toBitVec) (fun _ _ ↦ rfl) fun st7 hm7 hpc7 hK7 hs7 hk7 ↦ ?_
   obtain ⟨hmid11, hW11, hw128, hw136, hrdi11, hrsi11, hkr11⟩ := ok_b11
-  let env7 := argEnv m0 st6.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + 133)).toBitVec
+  let env7 := argEnv m0 st6.data 8176 8 [] (fun _ ↦ 0) (Host.addrOf (k + NativeRustcVmX64.Vm.NextLevel.b12Offset)).toBitVec
   have e7 : ∀ {r : Reg64} {v : Sym}, (after b11 retS).reg r = some v →
       reg st7.data r = v.eval env7 := fun h ↦ hm7.regs _ _ h
   have hk7r : ∀ r ∈ six, reg st7.data r = reg st6.data r := fun r hr ↦ e7 (hkr11 r hr)
@@ -350,7 +353,7 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
     (R := NativeRustcVm.InRange (tA m0) tstateBytes) (lo := 8128) (n := 0) (by omega) (by omega)
     (fun q hq ↦ Or.inl hq) hch8
   have hcs8 : ∀ r, calleeSaved r = true → reg st8.data r = reg st7.data r := hsv8.1
-  rw [show k + 126 + b11.length = k + 133 from rfl] at hpc8
+  rw [show k + NativeRustcVmX64.Vm.NextLevel.b11Offset + b11.length = k + NativeRustcVmX64.Vm.NextLevel.b12Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.NextLevel.b11_next]] at hpc8
   refine Eventually.bind (test_spec hp c b12_in_code rfl (b_eq.2.1 ▸ exit_b4) (b_eq.2.1 ▸ ok_b4)
     hK8 hpc8 hok8) fun st9 ⟨hr9, hd9, hpc9⟩ ↦ ?_
   have hK9 := hK8.congr hr9 hd9
@@ -360,7 +363,7 @@ theorem mid (hp : Placed code k) (c : Ctx a s level w rounds m0)
   rcases hres8 : (grind Whir.queryGrindingBits).run s5 with _ | ⟨⟨⟩, s6⟩
   · rw [hres8] at hpc9
     simp only [Option.isSome_none, Bool.false_eq_true, ite_false] at hpc9
-    exact Eventually.mono (none13 hp c hK9.fr (hpc9.trans (hp.label (j := 258) rfl))
+    exact Eventually.mono (none13 hp c hK9.fr (hpc9.trans (hp.label NativeRustcVmX64.Vm.NextLevel.label_13_at))
       (by rw [hrun'', hres8]; rfl)) fun _ h ↦ Or.inl h
   rw [hres8] at hpc9
   simp only [Option.isSome_some, ite_true] at hpc9

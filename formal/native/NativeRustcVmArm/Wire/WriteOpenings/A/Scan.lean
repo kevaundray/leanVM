@@ -21,7 +21,7 @@ open NativeRustcVmArm.Vm.WriteOpenings
 
 /-- **Query `j` found at position `i`** (`b6`). -/
 structure FoundA [Host] (R : Run) (j i : Nat) (st : MachineState) : Prop where
-  pc : st.pc = pcOf R 49
+  pc : st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b6Offset
   fr : Frm R st.data
   cs : Cs R st.data
   cr : Cr R j st.data
@@ -147,7 +147,7 @@ theorem scan_loop (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineStat
   simp only [PcOk, hc] at hpc1
   have hk1 := regs_keep hm hm1 (rs := [.X2, .X8, .X9, .X10, .X11, .X13, .X25]) (by decide)
   by_cases he : R.pw i = R.qw j
-  · simp only [he, decide_true, ↓reduceIte, hp.label (j := 49) rfl] at hpc1
+  · simp only [he, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b6Offset) NativeRustcVmArm.Vm.WriteOpenings.label_5_at] at hpc1
     refine .done _ (.inl (.inr ⟨i, hpc1, hfr1, H.cs.keep (regs_keep hm hm1 (by decide)),
       H.cr.keep (regs_keep hm hm1 (by decide)), H.args.keep (regs_keep hm hm1 (by decide)),
       by rw [hk1 .X2 (by simp)]; exact H.x2, by rw [hk1 .X8 (by simp)]; exact H.x8,
@@ -185,10 +185,10 @@ theorem scan_loop (hp : Placed code R.k) (G : Geo R) {i : Nat} {st : MachineStat
     refine run_block G hp b5_in_code (by simp [b5]) run_b5 hfr2
       (hpc2.trans (congrArg Host.addrOf rfl)) hwf3 (frMatch G hfr2) rfl
       (writesOk_frame (by decide)) fun s3 hfr3 _ hpc3 ↦ ?_
-    simp only [PcOk, hp.label (j := 221) rfl] at hpc3
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b45Offset) NativeRustcVmArm.Vm.WriteOpenings.label_38_at] at hpc3
     exact Eventually.mono (fail_spec hp G hpc3 hfr3 (bad_of_none H.lt fun i' hi' ↦
       miss i' (by omega))) fun _ h ↦ .inl (.inl h)
-  simp only [ne_eq, hl, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := 39) rfl]
+  simp only [ne_eq, hl, not_false_eq_true, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b3Offset) NativeRustcVmArm.Vm.WriteOpenings.label_3_at]
     at hpc2
   refine .done _ (.inr ⟨R.np - (i + 1), by omega, i + 1, rfl, hpc2, hfr2,
     (H.cs.keep (regs_keep hm hm1 (by decide))).keep (regs_keep hm2 hm2' (by decide)),

@@ -2,6 +2,12 @@ module
 
 public import NativeRustcVmX64.Whir.BasisWEval.Frame
 public import NativeRustcVmX64.Code.Vm.BasisWEval
+public import NativeRustcVmX64.Code.Vm.BasisWEval.Names
+public import NativeRustcVmX64.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqEval.Names
+public import NativeRustcVmX64.Code.Vm.LayoutWPlacement.Names
+public import NativeRustcVmX64.Code.Vm.RingClaimWeight.Names
 public meta import NativeRustcVmX64.Code.Vm.BasisWEval
 public meta import NativeRustcVmX64.Whir.BasisWEval.Frame
 
@@ -148,64 +154,64 @@ sym_block run_b27 := exec b27 (after b26 outS)
 public section
 
 theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .call "_RNvMs2_NtCsemcRClSg8DH_9native_vm6layoutNtB5_7LayoutW9placement") := by
+    .call NativeRustcVmX64.Vm.LayoutWPlacement.entryLabel) := by
   rw [after_eq run_b0]; exact run_b0
-theorem exit_b1 : exec b1 (bodyS 24) = some (after b1 (bodyS 24), .cond c1 ".LBasisWEval_1") := by
+theorem exit_b1 : exec b1 (bodyS 24) = some (after b1 (bodyS 24), .cond c1 NativeRustcVmX64.Vm.BasisWEval.label_1) := by
   rw [after_eq run_b1]; exact run_b1
-theorem exit_b2 : exec b2 (scaleS .rbp) = some (after b2 (scaleS .rbp), .jump ".LBasisWEval_3") := by
+theorem exit_b2 : exec b2 (scaleS .rbp) = some (after b2 (scaleS .rbp), .jump NativeRustcVmX64.Vm.BasisWEval.label_3) := by
   rw [after_eq run_b2]; exact run_b2
 theorem exit_b3 : exec b3 (bodyS 24) = some (after b3 (bodyS 24), .fall) := by
   rw [after_eq run_b3]; exact run_b3
 theorem exit_b4 : exec b4 ringS = some (after b4 ringS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5stack17ring_claim_weight") := by
+    .call NativeRustcVmX64.Vm.RingClaimWeight.entryLabel) := by
   rw [after_eq run_b4]; exact run_b4
-theorem exit_b5 : exec b5 (bodyS 8) = some (after b5 (bodyS 8), .cond cTag ".LBasisWEval_16") := by
+theorem exit_b5 : exec b5 (bodyS 8) = some (after b5 (bodyS 8), .cond cTag NativeRustcVmX64.Vm.BasisWEval.label_16) := by
   rw [after_eq run_b5]; exact run_b5
 theorem exit_b6 : exec b6 (bodyS 24) = some (after b6 (bodyS 24),
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") := by
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) := by
   rw [after_eq run_b6]; exact run_b6
-theorem exit_b7 : exec b7 claimsS = some (after b7 claimsS, .cond c7 ".LBasisWEval_10") := by
+theorem exit_b7 : exec b7 claimsS = some (after b7 claimsS, .cond c7 NativeRustcVmX64.Vm.BasisWEval.label_10) := by
   rw [after_eq run_b7]; exact run_b7
-theorem exit_b8 : exec b8 (bodyS 24) = some (after b8 (bodyS 24), .jump ".LBasisWEval_6") := by
+theorem exit_b8 : exec b8 (bodyS 24) = some (after b8 (bodyS 24), .jump NativeRustcVmX64.Vm.BasisWEval.label_6) := by
   rw [after_eq run_b8]; exact run_b8
 theorem exit_b10 : exec b10 (bodyS 24) =
-    some (after b10 (bodyS 24), .cond c10 ".LBasisWEval_10") := by
+    some (after b10 (bodyS 24), .cond c10 NativeRustcVmX64.Vm.BasisWEval.label_10) := by
   rw [after_eq run_b10]; exact run_b10
-theorem exit_b11 : exec b11 colS = some (after b11 colS, .cond c11 ".LBasisWEval_15") := by
+theorem exit_b11 : exec b11 colS = some (after b11 colS, .cond c11 NativeRustcVmX64.Vm.BasisWEval.label_15) := by
   rw [after_eq run_b11]; exact run_b11
-theorem exit_b12 : exec b12 placeS = some (after b12 placeS, .cond c12 ".LBasisWEval_15") := by
+theorem exit_b12 : exec b12 placeS = some (after b12 placeS, .cond c12 NativeRustcVmX64.Vm.BasisWEval.label_15) := by
   rw [after_eq run_b12]; exact run_b12
-theorem exit_b13 : exec b13 pentS = some (after b13 pentS, .cond cScale ".LBasisWEval_9") := by
+theorem exit_b13 : exec b13 pentS = some (after b13 pentS, .cond cScale NativeRustcVmX64.Vm.BasisWEval.label_9) := by
   rw [after_eq run_b13]; exact run_b13
 theorem exit_b14 : exec b14 (scaleS .r13) =
-    some (after b14 (scaleS .r13), .jump ".LBasisWEval_13") := by
+    some (after b14 (scaleS .r13), .jump NativeRustcVmX64.Vm.BasisWEval.label_13) := by
   rw [after_eq run_b14]; exact run_b14
 theorem exit_b15 : exec b15 (bodyS 24) = some (after b15 (bodyS 24), .fall) := by
   rw [after_eq run_b15]; exact run_b15
 theorem exit_b16 : exec b16 cwS = some (after b16 cwS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5stack13column_weight") := by
+    .call NativeRustcVmX64.Vm.ColumnWeight.entryLabel) := by
   rw [after_eq run_b16]; exact run_b16
 theorem exit_b17 : exec b17 (bodyS 8) =
-    some (after b17 (bodyS 8), .cond cTag ".LBasisWEval_16") := by
+    some (after b17 (bodyS 8), .cond cTag NativeRustcVmX64.Vm.BasisWEval.label_16) := by
   rw [after_eq run_b17]; exact run_b17
 theorem exit_b18 : exec b18 (bodyS 24) = some (after b18 (bodyS 24),
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") := by
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) := by
   rw [after_eq run_b18]; exact run_b18
-theorem exit_b19 : exec b19 (bodyS 24) = some (after b19 (bodyS 24), .jump ".LBasisWEval_15") := by
+theorem exit_b19 : exec b19 (bodyS 24) = some (after b19 (bodyS 24), .jump NativeRustcVmX64.Vm.BasisWEval.label_15) := by
   rw [after_eq run_b19]; exact run_b19
 theorem exit_b21 : exec b21 (bodyS 24) =
-    some (after b21 (bodyS 24), .cond cScale ".LBasisWEval_11") := by
+    some (after b21 (bodyS 24), .cond cScale NativeRustcVmX64.Vm.BasisWEval.label_11) := by
   rw [after_eq run_b21]; exact run_b21
 theorem exit_b22 : exec b22 (scaleS .r13) =
-    some (after b22 (scaleS .r13), .jump ".LBasisWEval_19") := by
+    some (after b22 (scaleS .r13), .jump NativeRustcVmX64.Vm.BasisWEval.label_19) := by
   rw [after_eq run_b22]; exact run_b22
 theorem exit_b23 : exec b23 (bodyS 24) = some (after b23 (bodyS 24), .fall) := by
   rw [after_eq run_b23]; exact run_b23
 theorem exit_b24 : exec b24 oodS = some (after b24 oodS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field7eq_eval") := by
+    .call NativeRustcVmX64.Vm.EqEval.entryLabel) := by
   rw [after_eq run_b24]; exact run_b24
 theorem exit_b25 : exec b25 (bodyS 24) = some (after b25 (bodyS 24),
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm5fieldNtB2_2EW3mul") := by
+    .call NativeRustcVmX64.Vm.EWMul.entryLabel) := by
   rw [after_eq run_b25]; exact run_b25
 theorem exit_b26 : exec b26 outS = some (after b26 outS, .fall) := by
   rw [after_eq run_b26]; exact run_b26

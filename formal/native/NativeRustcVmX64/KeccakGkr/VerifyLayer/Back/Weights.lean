@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.WeightsEntry
 public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Back.WeightsStore
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-! # The complete 1600-iteration layer weights loop -/
 
@@ -17,12 +18,12 @@ variable [Host] {m0 : MachineData} {a : DecArea} {s s6 : TState} {c : KeccakClai
   {ch b : EW} {pt lp t : Array EW} {k : Nat}
 
 theorem weights_loop (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hpt : pt.size ≤ 30) (hlp : lp.size = 11) {R : MachineState → Prop}
     (done : ∀ d', Body m0 (wFront m0) 24 d' → WMem m0 a c ch b pt lp t s6 1600 d'.dmem →
-      reg d' .r15 = sA m0 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 689)⟩) :
+      reg d' .r15 = sA m0 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b79Offset)⟩) :
     ∀ n j d, 1600 - j = n → WHead m0 a c ch b pt lp t s6 j d →
-      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 644)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b74Offset)⟩ := by
   intro n
   induction n with
   | zero =>
@@ -45,11 +46,11 @@ theorem weights_loop (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
       (fun d6 h6 ↦ ih (j + 1) d6 (by omega) h6) done
 
 theorem weights_run (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {d : MachineData} (h : C6 m0 a c ch b pt lp t s6 d) {R : MachineState → Prop}
     (done : ∀ d', Body m0 (wFront m0) 24 d' → WMem m0 a c ch b pt lp t s6 1600 d'.dmem →
-      reg d' .r15 = sA m0 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 689)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 603)⟩ :=
+      reg d' .r15 = sA m0 → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b79Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b69Offset)⟩ :=
   weights_entry hp hpre h fun d' h' ↦ weights_loop hp hpre hmul
     (by rw [h.psz]; exact (claimPt hpre (fun _ h ↦ h) h.body).1) h.lsz done 1600 0 d' rfl h'
 

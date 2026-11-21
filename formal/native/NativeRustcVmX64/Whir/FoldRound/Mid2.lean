@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.FoldRound.Mid1
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `fold_round` on x86-64: the last products
@@ -25,15 +26,15 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {w : WhirStateW} {m0 : Mac
 
 /-- **`b14`, `EW::mul`**: `p3` in RAX, RDX. -/
 theorem s5_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 71))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b14Offset))
     (hP : Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
       [(96, (p1 w s5 x1).c0), (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1),
         (56, (alA s5).c0), (32, (alA s5).c1), (64, x2.c1), (72, x3.c0), (80, x3.c1),
         (120, x4.c0), (112, x4.c1)] st.data)
     (h15 : reg st.data .r15 = x2.c0.toBitVec)
     (hax : reg st.data .rax = (aa s5).c0.toBitVec) (hdx : reg st.data .rdx = (aa s5).c1.toBitVec)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 76) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b15Offset) →
       Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
         [(96, (p1 w s5 x1).c0), (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1),
           (56, (alA s5).c0), (32, (alA s5).c1), (64, x2.c1), (72, x3.c0), (80, x3.c1),
@@ -43,7 +44,7 @@ theorem s5_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   have cx := ctx h
   obtain ⟨hmid, hw0, hdi, hsi, hdx1, hcx1, hk⟩ := after_eq run_b14 ▸ ok_b14
-  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 71 + b14.length)).toBitVec)
+  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b14Offset + b14.length)).toBitVec)
     hP.bd.fr.fr.kept
   refine mulCall hp h hmul hpc hP.bd b14_in_code (by simp [b14]) hwf hP.bd.fr.mid run_b14 hmid
     (wr0_le hw0 (by omega)) (fun st1 hm1 ↦ ⟨hm1.regs .rbx _ (kept_spec hk (by simp [cs])),
@@ -63,15 +64,15 @@ theorem s5_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
 
 /-- **`b15`, `EW::mul`**: `p3` to the frame's words `88`, `64`; `p4` in RAX, RDX. -/
 theorem s6_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 76))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b15Offset))
     (hP : Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
       [(96, (p1 w s5 x1).c0), (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1),
         (56, (alA s5).c0), (32, (alA s5).c1), (64, x2.c1), (72, x3.c0), (80, x3.c1),
         (120, x4.c0), (112, x4.c1)] st.data)
     (hax : reg st.data .rax = (p3 s5 x2).c0.toBitVec)
     (hdx : reg st.data .rdx = (p3 s5 x2).c1.toBitVec)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 83) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b16Offset) →
       Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
         [(88, (p3 s5 x2).c0), (64, (p3 s5 x2).c1), (96, (p1 w s5 x1).c0),
           (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1), (56, (alA s5).c0),
@@ -81,7 +82,7 @@ theorem s6_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   have cx := ctx h
   obtain ⟨hmid, hw0, hw88, hw64, hmiss, hdi, hsi, hdx1, hcx1, hk⟩ := after_eq run_b15 ▸ ok_b15
-  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 76 + b15.length)).toBitVec)
+  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b15Offset + b15.length)).toBitVec)
     hP.bd.fr.fr.kept
   refine mulCall hp h hmul hpc hP.bd b15_in_code (by simp [b15]) hwf hP.bd.fr.mid run_b15 hmid
     (wr0_le hw0 (by omega)) (fun st1 hm1 ↦ ⟨hm1.regs .rbx _ (kept_spec hk (by simp [cs])),
@@ -91,12 +92,12 @@ theorem s6_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
   have e88 : WordAt st1.dmem (off (fb m0) 88) (p3 s5 x2).c0 := by
     have := loc_write hm1 (o := 88) (by omega) hw88
     rwa [show (Sym.reg .rax).eval (frameEnv m0 st.data 176 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 76 + b15.length)).toBitVec) = (p3 s5 x2).c0.toBitVec from hax,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b15Offset + b15.length)).toBitVec) = (p3 s5 x2).c0.toBitVec from hax,
       UInt64.ofBitVec_toBitVec] at this
   have e64 : WordAt st1.dmem (off (fb m0) 64) (p3 s5 x2).c1 := by
     have := loc_write hm1 (o := 64) (by omega) hw64
     rwa [show (Sym.reg .rdx).eval (frameEnv m0 st.data 176 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 76 + b15.length)).toBitVec) = (p3 s5 x2).c1.toBitVec from hdx,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b15Offset + b15.length)).toBitVec) = (p3 s5 x2).c1.toBitVec from hdx,
       UInt64.ofBitVec_toBitVec] at this
   have hfw1 := FW.block hwf hm1 (midOk_writesIn hmid) (miss_of_missL hmiss (by simp)) (by simp)
     (hP.fw.sub (L' := [(96, (p1 w s5 x1).c0), (104, (p1 w s5 x1).c1), (48, (beA s5).c0),
@@ -125,15 +126,15 @@ theorem s6_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
 
 /-- **`b16`, `EW::mul`**: `p4` in R15, R13; `α β` in RAX, RDX. -/
 theorem s7_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 83))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b16Offset))
     (hP : Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
       [(88, (p3 s5 x2).c0), (64, (p3 s5 x2).c1), (96, (p1 w s5 x1).c0),
         (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1), (56, (alA s5).c0),
         (32, (alA s5).c1), (72, x3.c0), (80, x3.c1), (120, x4.c0), (112, x4.c1)] st.data)
     (hax : reg st.data .rax = (p4 s5 x3).c0.toBitVec)
     (hdx : reg st.data .rdx = (p4 s5 x3).c1.toBitVec)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 90) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b17Offset) →
       Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
         [(88, (p3 s5 x2).c0), (64, (p3 s5 x2).c1), (96, (p1 w s5 x1).c0),
           (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1), (56, (alA s5).c0),
@@ -144,7 +145,7 @@ theorem s7_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   have cx := ctx h
   obtain ⟨hmid, hw0, h15, h13, hdi, hsi, hdx1, hcx1, hk⟩ := after_eq run_b16 ▸ ok_b16
-  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 83 + b16.length)).toBitVec)
+  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b16Offset + b16.length)).toBitVec)
     hP.bd.fr.fr.kept
   refine mulCall hp h hmul hpc hP.bd b16_in_code (by simp [b16]) hwf hP.bd.fr.mid run_b16 hmid
     (wr0_le hw0 (by omega)) (fun st1 hm1 ↦ ⟨hm1.regs .rbx _ (kept_spec hk (by simp)),
@@ -168,8 +169,8 @@ theorem s7_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
 
 /-- **`b17`, `EW::mul`**: `p6` in RAX, RDX; on to `b18`. -/
 theorem s8_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 90))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b17Offset))
     (hP : Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
       [(88, (p3 s5 x2).c0), (64, (p3 s5 x2).c1), (96, (p1 w s5 x1).c0),
         (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1), (56, (alA s5).c0),
@@ -177,7 +178,7 @@ theorem s8_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
     (h15 : reg st.data .r15 = (p4 s5 x3).c0.toBitVec)
     (h13 : reg st.data .r13 = (p4 s5 x3).c1.toBitVec)
     (hax : reg st.data .rax = (ab s5).c0.toBitVec) (hdx : reg st.data .rdx = (ab s5).c1.toBitVec)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 98) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b18Offset) →
       Pt a s0 w m0 x1 x2 x3 x4 s5 (sq (sq s5).2).2
         [(88, (p3 s5 x2).c0), (64, (p3 s5 x2).c1), (96, (p1 w s5 x1).c0),
           (104, (p1 w s5 x1).c1), (48, (beA s5).c0), (40, (beA s5).c1), (56, (alA s5).c0),
@@ -189,7 +190,7 @@ theorem s8_mul (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
     Eventually (step1 Host.exe) (Goal a s0 w m0) st := by
   have cx := ctx h
   obtain ⟨hmid, hw0, hdi, hsi, hdx1, hcx1, hk⟩ := after_eq run_b17 ▸ ok_b17
-  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 90 + b17.length)).toBitVec)
+  have hwf := cx.wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.FoldRound.b17Offset + b17.length)).toBitVec)
     hP.bd.fr.fr.kept
   refine mulCall hp h hmul hpc hP.bd b17_in_code (by simp [b17]) hwf hP.bd.fr.mid run_b17 hmid
     (wr0_le hw0 (by omega)) (fun st1 hm1 ↦ ⟨hm1.regs .rbx _ (kept_spec hk (by simp [cs])),

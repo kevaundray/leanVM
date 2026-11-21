@@ -66,7 +66,7 @@ variable [Host] {k : Nat}
 theorem tail (hp : Placed code k) {m : MachineData}
     (hO : Readable m m.regs.X0.toBitVec ladderBytes)
     (hadm : Whir.Admissible m.regs.X1.toNat m.regs.X2.toNat) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 77)) (hR : R15 m st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Ladder.b15Offset)) (hR : R15 m st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m ∧ LadderPost m st'.data) st := by
   set o := m.regs.X0.toBitVec with ho
   set μ := m.regs.X1.toNat with hμ

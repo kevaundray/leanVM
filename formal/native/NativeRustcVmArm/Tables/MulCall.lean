@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Tables.Common
 public import NativeRustcVmArm.Spec.Field
 
@@ -62,11 +63,11 @@ variable [Host]
 theorem call_mul {env : Env} (hwf : env.WF) {F : Nat} {fb : BitVec 64}
     (hb0 : env.regions[0]? = some (fb, F)) (hok : FrameOk env.mem0 fb F)
     {S' : SState} {st : MachineState} {next : Int64} (hm' : Match env S' st.data)
-    (hpc : PcOk env (.call ewMulLabel) next st) (hsp' : S'.sp = .ptr 0 0)
+    (hpc : PcOk env (.call NativeRustcVmArm.Vm.EWMul.entryLabel) next st) (hsp' : S'.sp = .ptr 0 0)
     (hw : FrameWrites S' F) {v0 v1 v2 v3 : Sym}
     (h0 : S'.reg .X0 = some v0) (h1 : S'.reg .X1 = some v1) (h2 : S'.reg .X2 = some v2)
     (h3 : S'.reg .X3 = some v3)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {R : MachineState → Prop}
     (cont : ∀ st' : MachineState, st'.pc = next →
       st'.data.regs.X0 = (mulOf env v0 v1 v2 v3).c0 →
       st'.data.regs.X1 = (mulOf env v0 v1 v2 v3).c1 →

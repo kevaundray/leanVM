@@ -12,7 +12,7 @@ Region 0 is the frame (`Field.frameS 112`, `Field.midS 112`): the call's return-
 offset 0, the locals at 8-63 (the coordinate's address 8, the size 16, the half 24, `point`'s end
 32, `|out|` 40, the coordinate's limbs 48, 56), the six pushes at 64-111, the return address.
 - `Field.frameS 112` at the entry (`b0`, `b1`);
-- `outS` at `.LEqKernel_2` (`b2`): region 1 `out[0]`, R15 its address;
+- `outS` at `NativeRustcVmX64.Vm.EqKernel.label_2` (`b2`): region 1 `out[0]`, R15 its address;
 - `Field.midS 112` for the blocks touching the frame only (`b3`, `b5`, `b7`, `b12`, `b13`, `b14`);
 - `regsS` for `b6`, `b11`;
 - `ptS` for `b8`: region 1 the coordinate, its address the frame's word at 8;

@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.Share
 public import NativeRustcVmX64.Bus.VerifyBusBalance.LoopExec
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 
 /-!
 # `verify_bus_balance`'s claims, the bytecode point's zeroing (x86-64)
@@ -9,7 +10,7 @@ public import NativeRustcVmX64.Bus.VerifyBusBalance.LoopExec
 `ClSt cs`: a state of the body between the pushes, `cs` the claims pushed (`ShareMem`, the
 registers, the `TState`, the claims). `pcCall`: `push_claim` from it.
 
-From `b28` (`k + 199`), the first claim pushed: `b28` to `b34` check each `push_claim` and push
+From `b28` (`k + NativeRustcVmX64.Vm.VerifyBusBalance.b28Offset`), the first claim pushed: `b28` to `b34` check each `push_claim` and push
 the next three; `b35` to `b37` zero the bytecode point (17 rounds, `loop_spec`); then the bytecode
 share (`claimsB_spec`).
 -/
@@ -61,9 +62,9 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k 
 
 /-- **`push_claim(claims, id, 1800, j, v)`** from the frame, RSP at `96`. -/
 theorem pcCall (h : VerifyBusBalancePre a s0 L m0)
-    (hpc : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpc : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {st : MachineState} {next : Int64} {R : MachineState → Prop} (fr : St m0 96 st.data)
-    (hpc0 : st.pc = Labels.label pushClaimLabel ∧ retOf st.data = next)
+    (hpc0 : st.pc = Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel ∧ retOf st.data = next)
     {w pt tv mem : Array EW} {beta mf bf : EW} {s3 : TState} {cs : Array ColumnClaimW}
     (sm : ShareMem m0 L w pt tv mem beta mf bf st.data.dmem)
     (hts : TStateAt st.data.dmem (reg m0 .rdi) a s3)
@@ -121,11 +122,11 @@ theorem pcCall (h : VerifyBusBalancePre a s0 L m0)
 /-- **A push block and its `push_claim`**: `push_claim(claims, id, point, j, v)` with `j` in
 `rc`, `v` the words at `o8`, `o9`. -/
 theorem pushBlk (h : VerifyBusBalancePre a s0 L m0)
-    (hpc : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpc : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {bX : List Directive} {j id o8 o9 : Nat} {rc : Reg64}
     (hin : bX.IsInfixAt Host.prog (k + j)) (hlen : bX.length = 7)
     (hx : exec bX (fS 104) = some (after bX (fS 104),
-      .call "_RNvNtCsemcRClSg8DH_9native_vm5stack10push_claim"))
+      .call NativeRustcVmX64.Vm.PushClaim.entryLabel))
     (hok : Mid 96 (after bX (fS 104)) ∧ W0 96 104 (after bX (fS 104)) ∧
       (after bX (fS 104)).reg .rdi = some (.reg .r15) ∧
       (after bX (fS 104)).reg .rsi = some (.lit id) ∧

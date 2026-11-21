@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsIv.Tail
 public import NativeRustcVmArm.Keccak.WordsIv.BlocksPad
 public import NativeRustcVmArm.Keccak.WordsHash.Pad
@@ -51,7 +52,7 @@ def lastI (m0 : MachineData) : KeccakState :=
 /-- **At the epilogue**: the lanes `keccakF1600 (lastI m0)`. -/
 def EpiAt [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   Ctx m0 st.data ∧ Lanes m0 st.data (Keccak.lane (keccakF1600 (lastI m0))) ∧
-    st.pc = Host.addrOf (k + 654)
+    st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b109Offset)
 
 end
 
@@ -64,7 +65,7 @@ theorem and248_aux : ∀ r < 136,
 
 /-- The padding block from the padded lane `t`. -/
 theorem pad_exec (t : Nat) (ht : t < 17) : ∃ S, exec b108 (startPad t) =
-    some (S, .call NativeRustcVmArm.keccakFLabel) ∧ S.mem = padMem t ∧ S.sp = .ptr 0 0 ∧
+    some (S, .call NativeRustcVmArm.Vm.KeccakF.entryLabel) ∧ S.mem = padMem t ∧ S.sp = .ptr 0 0 ∧
     S.reg .X0 = some (.ptr 0 8) ∧ AllOf (fun r => S.reg r = some (.reg r)) ctxRegs := by
   match t, ht with
   | 0, _ => exact ⟨_, pad0, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
@@ -169,11 +170,11 @@ public section
 variable [Host]
 
 /-- **From the padding to the epilogue.** -/
-theorem pad_run (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem pad_run (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {k : Nat} (hp : Placed code k)
     {m0 : MachineData} (g : Geo m0)
     (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack)
-    {st : MachineState} (h : X0At m0 k .X24 (stI m0) (base m0) 631 st) :
+    {st : MachineState} (h : X0At m0 k .X24 (stI m0) (base m0) NativeRustcVmArm.Vm.Keccak256WordsOfFiatShamirIv.b108Offset st) :
     Eventually (step1 Host.exe) (EpiAt m0 k) st := by
   obtain ⟨hc, hl, -, hx0, hpc⟩ := h
   obtain ⟨m, pc⟩ := st
@@ -222,7 +223,7 @@ theorem pad_run (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmA
   have hx0' : st1.data.regs.X0.toBitVec = frame m0 + BitVec.ofNat 64 8 :=
     (hm1.regs .X0 _ hS0).trans (by simp [Sym.eval])
   refine call_kf hkf g.stk hrc hc1 hl1 hx0' hpc1 fun st2 hpc2 hc2 hl2 _ => .done _ ⟨hc2, hl2, ?_⟩
-  rw [hpc2, show b108.length = 23 from rfl]
+  rw [hpc2, Nat.add_assoc, b108_next]
 
 end
 

@@ -3,6 +3,7 @@ module
 public import NativeRustcVmX64.Whir.QueryBits.Exec
 public import NativeRustcVmX64.Field.Leaf
 public import NativeRustcVmX64.Spec.Whir
+public import NativeRustcVmX64.Code.Vm.QueryBits.Names
 
 /-!
 # `query_bits` on x86-64
@@ -151,9 +152,9 @@ theorem inf (hp : Placed code k) {b : List Directive} {j : Nat} (hb : b.IsInfixA
 
 /-- **`query_bits`'s contract.** -/
 theorem queryBits_spec (hp : Placed code k) :
-    Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost := by
   intro m hpre
-  rw [show Labels.label queryBitsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.QueryBits.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.QueryBits.b0Offset) from hp.label NativeRustcVmX64.Vm.QueryBits.entry_at]
   have hwf : (envOf m).WF := frame_wf (F := 0) hpre fun _ h ↦ h
   have hm : Match (envOf m) entryS m := match_frame
   have hx : ∀ r, (envOf m).regs r = reg m r := fun _ ↦ rfl
@@ -161,12 +162,12 @@ theorem queryBits_spec (hp : Placed code k) :
   have hc1 : (ewArg (reg m .rdi) (reg m .rsi)).c1.toBitVec = reg m .rsi := rfl
   refine exec_then (inf hp b0_in_code (by simp [b0])) run_b0 hwf (by intro l h; cases h) hm
     fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 4 from rfl, SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply,
+  simp only [PcOk, NativeRustcVmX64.Vm.QueryBits.b0_length, SBool.eval, Sym.eval, CmpOp.apply, BinOp.apply,
     low_W64, ext_W64, BitVec.and_self, hx] at hpc1
   by_cases hz : (reg m .rdx).toNat = 0
   · -- shift `0`: `b6`
     have hz' : reg m .rdx = BitVec.ofNat 64 0 := BitVec.eq_of_toNat_eq (by simp [hz])
-    simp only [hz', beq_self_eq_true, ↓reduceIte, hp.label (j := 18) rfl] at hpc1
+    simp only [hz', beq_self_eq_true, ↓reduceIte, hp.label NativeRustcVmX64.Vm.QueryBits.label_6_at] at hpc1
     refine exec_at (inf hp b6_in_code (by simp [b6])) (exec_after run_b0 run_b6z) hwf
       (by intro l h; cases h) hpc1 hm1 fun st hm' hpc ↦ finish hpre hm' hpc
         (after_eq run_b6z ▸ fin_z) ?_
@@ -178,7 +179,7 @@ theorem queryBits_spec (hp : Placed code k) :
   simp only [hz', Bool.false_eq_true, ↓reduceIte] at hpc1
   refine exec_at (inf hp b1_in_code (by simp [b1])) (exec_after run_b0 run_b1) hwf
     (by intro l h; cases h) hpc1 hm1 fun st2 hm2 hpc2 ↦ ?_
-  simp only [PcOk, show k + 0 + 4 + b1.length = k + 6 from rfl, SBool.eval, Sym.eval,
+  simp only [PcOk, show k + NativeRustcVmX64.Vm.QueryBits.b1Offset + b1.length = k + NativeRustcVmX64.Vm.QueryBits.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.QueryBits.b1_next], SBool.eval, Sym.eval,
     CmpOp.apply, low_W64, hx] at hpc2
   by_cases h64 : (reg m .rdx).toNat < 64
   · -- `0 < shift < 64`: `b2`, `b6`
@@ -186,7 +187,7 @@ theorem queryBits_spec (hp : Placed code k) :
     simp only [hu, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc2
     refine exec_at (inf hp b2_in_code (by simp [b2])) (exec_after run_b1 run_b2) hwf
       (by intro l h; cases h) hpc2 hm2 fun st3 hm3 hpc3 ↦ ?_
-    simp only [PcOk, hp.label (j := 18) rfl] at hpc3
+    simp only [PcOk, hp.label NativeRustcVmX64.Vm.QueryBits.label_6_at] at hpc3
     refine exec_at (inf hp b6_in_code (by simp [b6])) (exec_after run_b2 run_b6a) hwf
       (by intro l h; cases h) hpc3 hm3 fun st hm' hpc ↦ finish hpre hm' hpc
         (after_eq run_b6a ▸ fin_a) ?_
@@ -196,10 +197,10 @@ theorem queryBits_spec (hp : Placed code k) :
       BitVec.ushiftRight_eq', BitVec.shiftLeft_eq', toNat_umod64 h64, toNat_umod64 (by omega)]
     rfl
   have hu : (reg m .rdx).ult (BitVec.ofNat 64 64) = false := by simp [BitVec.ult]; omega
-  simp only [hu, Bool.not_false, ↓reduceIte, hp.label (j := 9) rfl] at hpc2
+  simp only [hu, Bool.not_false, ↓reduceIte, hp.label NativeRustcVmX64.Vm.QueryBits.label_2_at] at hpc2
   refine exec_at (inf hp b3_in_code (by simp [b3])) (exec_after run_b1 run_b3) hwf
     (by intro l h; cases h) hpc2 hm2 fun st4 hm4 hpc4 ↦ ?_
-  simp only [PcOk, show k + 9 + b3.length = k + 12 from rfl, SBool.eval, Sym.eval,
+  simp only [PcOk, show k + NativeRustcVmX64.Vm.QueryBits.b3Offset + b3.length = k + NativeRustcVmX64.Vm.QueryBits.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.QueryBits.b3_next], SBool.eval, Sym.eval,
     CmpOp.apply, low_W64, hx] at hpc4
   by_cases h128 : (reg m .rdx).toNat < 128
   · -- `64 ≤ shift < 128`: `b4`, `b6`
@@ -207,7 +208,7 @@ theorem queryBits_spec (hp : Placed code k) :
     simp only [hu, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc4
     refine exec_at (inf hp b4_in_code (by simp [b4])) (exec_after run_b3 run_b4) hwf
       (by intro l h; cases h) hpc4 hm4 fun st5 hm5 hpc5 ↦ ?_
-    simp only [PcOk, hp.label (j := 18) rfl] at hpc5
+    simp only [PcOk, hp.label NativeRustcVmX64.Vm.QueryBits.label_6_at] at hpc5
     refine exec_at (inf hp b6_in_code (by simp [b6])) (exec_after run_b4 run_b6b) hwf
       (by intro l h; cases h) hpc5 hm5 fun st hm' hpc ↦ finish hpre hm' hpc
         (after_eq run_b6b ▸ fin_b) ?_
@@ -218,10 +219,10 @@ theorem queryBits_spec (hp : Placed code k) :
     rfl
   · -- `128 ≤ shift`: `b5`, `b6`
     have hu : (reg m .rdx).ult (BitVec.ofNat 64 128) = false := by simp [BitVec.ult]; omega
-    simp only [hu, Bool.not_false, ↓reduceIte, hp.label (j := 16) rfl] at hpc4
+    simp only [hu, Bool.not_false, ↓reduceIte, hp.label NativeRustcVmX64.Vm.QueryBits.label_3_at] at hpc4
     refine exec_at (inf hp b5_in_code (by simp [b5])) (exec_after run_b3 run_b5) hwf
       (by intro l h; cases h) hpc4 hm4 fun st5 hm5 hpc5 ↦ ?_
-    simp only [PcOk, show k + 16 + b5.length = k + 18 from rfl] at hpc5
+    simp only [PcOk, show k + NativeRustcVmX64.Vm.QueryBits.b5Offset + b5.length = k + NativeRustcVmX64.Vm.QueryBits.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.QueryBits.b5_next]] at hpc5
     refine exec_at (inf hp b6_in_code (by simp [b6])) (exec_after run_b5 run_b6c) hwf
       (by intro l h; cases h) hpc5 hm5 fun st hm' hpc ↦ finish hpre hm' hpc
         (after_eq run_b6c ▸ fin_c) ?_

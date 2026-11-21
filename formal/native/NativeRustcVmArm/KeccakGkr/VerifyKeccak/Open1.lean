@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakOpen.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.OAreas
 
 /-!
@@ -55,13 +56,13 @@ theorem run_layers_end [Labels] {m : MachineData} {sj : TState} {cj first : Kecc
 
 /-- **The first opening** (`b40`, `b41`). -/
 theorem stepOpen1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hko : ∀ a s c, Spec (Labels.label keccakOpenLabel) (KeccakOpenPre a s c)
+    (hko : ∀ a s c, Spec (Labels.label NativeRustcVmArm.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c)
       (KeccakOpenPost a s c))
     {m : MachineData} {sj : TState} {cj first : KeccakClaimW} {c : EW}
     (hl : AtL a s cs inst output m0 m 12 sj cj first c)
     (cont : ∀ m' s' sl ws v, AtO a s cs inst output m0 m' s' cj sl ws v →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 229)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 192)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b42Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b40Offset)⟩ := by
   have hwf := envM_wf hn hl.sl.mid.fr
   have hN := hn.hN
   have hSP := m0.regs.SP.toNat_lt
@@ -180,7 +181,9 @@ theorem stepOpen1 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums
       obtain ⟨hslv, hrowv, hts'⟩ := hsome sl ws v s' hr
       rw [hr] at hout
       obtain ⟨hsl6, hws64⟩ := open_weights_size hr
-      rw [show k + 192 + b40.length + b41.length = k + 229 from rfl]
+      rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b40Offset + b40.length + b41.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b42Offset from by
+        rw [← b41_next, ← b40_next]
+        simp only [Nat.add_assoc]]
       refine cont m3 s' sl ws v ⟨hmid3, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hl.psz.trans hl.hfirst,
         hsl6, ?_, hws64, ?_, ?_, ?_⟩
       · rw [hcs3 .X28 rfl]; exact x28

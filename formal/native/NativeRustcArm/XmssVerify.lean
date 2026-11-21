@@ -1,5 +1,13 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Common.Update.Names
+public import NativeRustcArm.Code.Xmss.FromBytes.Names
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+public import NativeRustcArm.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcArm.XmssVerify.HeadRun
 public import NativeRustcArm.XmssVerify.ParseRun
 public import NativeRustcArm.XmssVerify.Final
@@ -19,18 +27,18 @@ open NativeArm
 
 /-- **`xmss_verify` meets its contract.** -/
 public theorem xmssVerify_spec [Host] {k : Nat} (hp : Placed code k) {w : Nat → UInt64}
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hupdate : Spec (label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update") UpdatePre UpdatePost)
-    (hfinalize : Spec (label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") FinalizePre
+    (hmemset : Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost)
+    (hmemcpy : Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hupdate : Spec (label NativeRustcArm.Common.Update.entryLabel) UpdatePre UpdatePost)
+    (hfinalize : Spec (label NativeRustcArm.Common.Finalize.entryLabel) FinalizePre
       FinalizePost)
-    (hwots : Spec (label "_RNvNtCs7Pyp4CbMBld_9lean_xmss4wots9wots_leaf") WotsLeafPre WotsLeafPost)
-    (hfb : Spec (label fromBytesLabel) FromBytesPre FromBytesPost) :
-    Spec (label "xmss_verify") (XmssVerifyPre w) (XmssVerifyPost w) := by
+    (hwots : Spec (label NativeRustcArm.Xmss.WotsLeaf.entryLabel) WotsLeafPre WotsLeafPost)
+    (hfb : Spec (label NativeRustcArm.Xmss.FromBytes.entryLabel) FromBytesPre FromBytesPost) :
+    Spec (label NativeRustcArm.Xmss.XmssVerify.entryLabel) (XmssVerifyPre w) (XmssVerifyPost w) := by
   intro m₀ hpre
   have P := pre_of hpre
   have Cs : Callees := ⟨hmemset, hmemcpy, hupdate, hfinalize, hwots, hfb⟩
-  rw [hp.label (j := 0) (by decide +kernel), Nat.add_zero]
+  rw [hp.label NativeRustcArm.Xmss.XmssVerify.entry_at, NativeRustcArm.Xmss.XmssVerify.entryOffset, Nat.add_zero]
   exact head hp hmemset P fun st hpc h =>
     Eventually.bind (copy hp P hpc h) fun st' ⟨hpc', h'⟩ =>
       parse hp hfb P hpc' h' fun st'' hpc'' h'' =>

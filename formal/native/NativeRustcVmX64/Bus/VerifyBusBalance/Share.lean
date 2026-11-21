@@ -1,11 +1,17 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.Push
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmX64.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmX64.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmX64.Code.Vm.Kpow.Names
+public import NativeRustcVmX64.Code.Vm.VerifyBusBalanceClosure0.Names
 
 /-!
 # `verify_bus_balance`'s bytecode share (x86-64)
 
-From `b38` (`k + 242`), after the claims and the bytecode point's zeroing: `b38` calls
+From `b38` (`k + NativeRustcVmX64.Vm.VerifyBusBalance.b38Offset`), after the claims and the bytecode point's zeroing: `b38` calls
 `bytecode_share`; `b39` checks its tag; `b40` keeps the share at `352` and checks the point's
 length (`< 68`); `b41` calls `computed_bytecode_value`; `b42` checks it; then the push side
 (`share_spec`).
@@ -133,16 +139,16 @@ end
 public section
 variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k : Nat}
 
-/-- **The bytecode share** (`b38`, `k + 242`). -/
+/-- **The bytecode share** (`b38`, `k + NativeRustcVmX64.Vm.VerifyBusBalance.b38Offset`). -/
 theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hbs : ∀ s, Spec (Labels.label bytecodeShareLabel) (BytecodeSharePre a s) (BytecodeSharePost a s))
-    (hcbv : Spec (Labels.label computedBytecodeValueLabel) ComputedBytecodeValuePre
+    (hbs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.BytecodeShare.entryLabel) (BytecodeSharePre a s) (BytecodeSharePost a s))
+    (hcbv : Spec (Labels.label NativeRustcVmX64.Vm.ComputedBytecodeValue.entryLabel) ComputedBytecodeValuePre
       ComputedBytecodeValuePost)
-    (hkp : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hkp : Spec (Labels.label NativeRustcVmX64.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hfc : Spec (Labels.label NativeRustcVmX64.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hext : Spec (Labels.label NativeRustcVmX64.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
     {d : MachineData} {w pt tv mem : Array EW} {beta mf bf : EW} {s3 : TState}
     (fr : St m0 104 d)
     (hrun : (verifyBusBalance L).run s0 =
@@ -156,12 +162,12 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (x12 : reg d .r12 = (min L.logBytecode pt.size).toUInt64.toBitVec)
     (hts : TStateAt d.dmem (reg m0 .rdi) a s3)
     (hcl : ClaimsWAt d.dmem (reg m0 .r9) (claimsOf L pt mem mf bf)) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 242)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b38Offset)⟩ := by
   have hS := pre_stack h
   have psz := sm.tail.psz
   have lb := (pre_lay h).log_bytecode_le
   -- `b38`: `bytecode_share(248, t, 368, point, n, 672)`.
-  have hwf1 := wf0 h fr.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 242 + b38.length)).toBitVec)
+  have hwf1 := wf0 h fr.frame.kept (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b38Offset + b38.length)).toBitVec)
   refine exec_then (infix_of b38_in_code (by simp [b38]) hp) exit_b38 hwf1 (fun _ _ ↦ rfl)
     (match_fS fr) fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hw1, hrdi1, hrsi1, hrdx1, hrcx1, hr81, hr91, hr151, hk1⟩ := ok_b38
@@ -281,12 +287,12 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
         · exact .inr hq
     have hk2 : Kept d.dmem m2.dmem := kept_trans (hm1.kept hwf1) hsv2.2
     -- `b39`: the share's tag.
-    rw [show k + 242 + b38.length = k + 251 from by rw [show b38.length = 9 from rfl]]
+    rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b38Offset + b38.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b39Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b38_next]]
     cases hr : (bytecodeShare w (pt.extract 0 L.logBytecode)).run s3 with
     | none =>
       rw [hr] at h2o
       have hnone : (verifyBusBalance L).run s0 = none := by rw [hrun, hr]; rfl
-      refine test_spec hp h (j := 251) (n := 2) (infix_of b39_in_code (by simp [b39]) hp) rfl
+      refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b39Offset) (n := b39.length) (infix_of b39_in_code (by simp [b39]) hp) rfl
         exit_b39 ok_b39 fr2 (fun _ ↦ hnone) fun _ _ _ _ hc ↦ ?_
       rw [tag32_true h2o] at hc
       cases hc
@@ -298,11 +304,11 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     have hbsz : bp.size = min L.logBytecode pt.size + 4 := by
       have := bytecodeShare_size hr
       simpa using this
-    refine test_spec hp h (j := 251) (n := 2) (infix_of b39_in_code (by simp [b39]) hp) rfl
+    refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b39Offset) (n := b39.length) (infix_of b39_in_code (by simp [b39]) hp) rfl
       exit_b39 ok_b39 fr2 (fun hc ↦ by rw [tag32_false ht1] at hc; cases hc)
       fun d3 fr3 hd3 hk3 _ ↦ ?_
     -- `b40`: the share kept, the point's length checked.
-    show Eventually (step1 Host.exe) (Goal a s0 L m0) { data := d3, pc := Host.addrOf (k + 253) }
+    show Eventually (step1 Host.exe) (Goal a s0 L m0) { data := d3, pc := Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b40Offset) }
     have hwf4 := wf0 h fr3.frame.kept (vars := fun _ ↦ 0) (ret := 0)
     refine exec_then (infix_of b40_in_code (by simp [b40]) hp) exit_b40 hwf4 nofun (match_fS fr3)
       fun st4 hm4 hpc4 ↦ ?_
@@ -333,7 +339,7 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       simp only [Bool.not_eq_false', decide_eq_true_eq]
       omega
     simp only [PcOk, hc4, Bool.false_eq_true, ↓reduceIte] at hpc4
-    rw [show k + 253 + b40.length = k + 262 from by rw [show b40.length = 9 from rfl]] at hpc4
+    rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b40Offset + b40.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b41Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b40_next]] at hpc4
     have wW4 : ∀ {o : Nat} {v : Sym}, o + 8 ≤ 5520 →
         (∀ t < 8, findWrite 0 (o + t) (after b40 (fS 104)).mem = some (v, t)) →
         NativeRustcVm.WordAt st4.data.dmem (loc m0 o) (UInt64.ofBitVec (v.eval
@@ -357,7 +363,7 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     have k4 : ∀ r ∈ cs, reg st4.data r = reg d3 r := fun r hr ↦ hk4.reg hm4 hr
     -- `b41`: `computed_bytecode_value`.
     have hwf5 := wf0 h fr4.frame.kept (vars := fun _ ↦ 0)
-      (ret := (Host.addrOf (k + 262 + b41.length)).toBitVec)
+      (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b41Offset + b41.length)).toBitVec)
     refine exec_at (infix_of b41_in_code (by simp [b41]) hp) exit_b41 hwf5 (fun _ _ ↦ rfl) hpc4
       (match_fS fr4) fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨hmid5, hw5, hrdi5, hrsi5, hrdx5, hk5⟩ := ok_b41
@@ -446,8 +452,8 @@ theorem share_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
             have := hk3 r (by simp only [nsp, cs, List.mem_cons] at hc ⊢; rcases hc.2.1 with h' | h' | h' | h' | h' | h' | h' <;> simp_all)
             exact this])))
       -- `b42`: the bytecode's value.
-      rw [show k + 262 + b41.length = k + 266 from by rw [show b41.length = 4 from rfl]]
-      refine test_spec hp h (j := 266) (n := 2) (infix_of b42_in_code (by simp [b42]) hp) rfl
+      rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b41Offset + b41.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b42Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b41_next]]
+      refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b42Offset) (n := b42.length) (infix_of b42_in_code (by simp [b42]) hp) rfl
         exit_b42 ok_b42 fr6 (fun hc ↦ ?_) fun d7 fr7 hd7 hk7 hc ↦ ?_
       · rw [hrun']
         cases hb : (multilinearEval (L.bytecode.map EW.ofK) bp == value)

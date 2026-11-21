@@ -2,11 +2,12 @@ module
 
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Step
 public import NativeRustcVmX64.KeccakGkr.VerifyKeccak.Keep
+public import NativeRustcVmX64.Code.Vm.VerifyKeccak.Names
 
 /-!
 # `verify_keccak`'s returns (x86-64)
 
-`failG`: from `.LVerifyKeccak_31` (`b72`, R13 zeroed) through the epilogue (`b73`): AL `0`, the
+`failG`: from `NativeRustcVmX64.Vm.VerifyKeccak.label_31` (`b72`, R13 zeroed) through the epilogue (`b73`): AL `0`, the
 model's `none`. `okG`: from `b71` (R13 the last `extend`'s AL) through the epilogue: AL `1`, the
 results in memory. A template with the pushes is `tM` (`toM_bnd`).
 -/
@@ -36,23 +37,23 @@ theorem toM_bnd [Labels] {wr : Nat → Bool} {T : SState} {vals : Nat → BitVec
 
 variable [Host] {k : Nat}
 
-theorem label31 (hp : Placed code k) : Labels.label ".LVerifyKeccak_31" = Host.addrOf (k + 481) :=
+theorem label31 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.VerifyKeccak.label_31 = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyKeccak.b72Offset) :=
   label_of_infix hp b72_in_code rfl
 
-theorem label32 (hp : Placed code k) : Labels.label ".LVerifyKeccak_32" = Host.addrOf (k + 483) :=
+theorem label32 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.VerifyKeccak.label_32 = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyKeccak.b73Offset) :=
   label_of_infix hp b73_in_code rfl
 
 /-- **A failed check**: AL `0`, the model's `none`. -/
 theorem failG (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
     {wr : Nat → Bool} {T : SState} {V : Vs} {st : MachineState}
     (hB : BndZ m0 3344 3368 verifyKeccakStack (rsOf m0) wr T (vv m0 V) st.data)
-    (hpc : st.pc = Labels.label ".LVerifyKeccak_31") (hT : toM T = true)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.VerifyKeccak.label_31) (hT : toM T = true)
     (hnone : (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s = none) :
     Eventually (step1 Host.exe) (Goal a s cs inst output m0) st := by
   have c := ctx_of hpre
   have h := lay_of hpre
   have hM := toM_bnd hB hT
-  refine stepJ (T' := tF) (vals' := vv m0 V) hp c h (o := 481) ⟨hpc.trans (label31 hp), hM⟩
+  refine stepJ (T' := tF) (vals' := vv m0 V) hp c h (o := NativeRustcVmX64.Vm.VerifyKeccak.b72Offset) ⟨hpc.trans (label31 hp), hM⟩
     b72_in_code (by simp [b72]) run_b72 nofun (hM.mt 0) (by decide) rfl rfl
     (varLinks_eval (by decide) _) rfl rfl rfl rfl (fun _ _ _ _ _ h ↦ by cases h) rfl
     fun st' hpc' hB' _ _ _ ↦ ?_
@@ -73,11 +74,11 @@ theorem failG (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0
   rw [hax]
   rfl
 
-/-- **A failed grind** (at `.LVerifyKeccak_32`, R13 zero): AL `0`, the model's `none`. -/
+/-- **A failed grind** (at `NativeRustcVmX64.Vm.VerifyKeccak.label_32`, R13 zero): AL `0`, the model's `none`. -/
 theorem fail32 (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0)
     {wr : Nat → Bool} {V : Vs} {st : MachineState}
     (hB : BndZ m0 3344 3368 verifyKeccakStack (rsOf m0) wr t2 (vv m0 V) st.data)
-    (hpc : st.pc = Labels.label ".LVerifyKeccak_32")
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.VerifyKeccak.label_32)
     (hnone : (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s = none) :
     Eventually (step1 Host.exe) (Goal a s cs inst output m0) st := by
   have h := lay_of hpre
@@ -101,7 +102,7 @@ theorem fail32 (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m
 
 /-- **The last `extend` done**: AL `1`, the results in memory. -/
 theorem okG (hp : Placed code k) (hpre : VerifyKeccakPre a s cs inst output m0) {wr : Nat → Bool}
-    {V : Vs} {st : MachineState} (hat : At m0 k 479 wr t69 (vv m0 V) st)
+    {V : Vs} {st : MachineState} (hat : At m0 k NativeRustcVmX64.Vm.VerifyKeccak.b71Offset wr t69 (vv m0 V) st)
     (hal : boolRet st.data = 1)
     (hsome : ((NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s).isSome = true)
     (hres : ∀ outs pt sl s', (NativeVm.Model.verifyKeccak (reg m0 .rsi).toNat inst output).run s =

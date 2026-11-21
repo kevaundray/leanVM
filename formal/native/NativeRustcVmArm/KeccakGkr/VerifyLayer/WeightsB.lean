@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.WeightsHead
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontDefs
 import Mathlib.Tactic.IntervalCases
@@ -7,7 +8,7 @@ import Mathlib.Tactic.IntervalCases
 /-!
 # `verify_layer`: the weights loop's iteration, from the first `EW::mul` on
 
-From `WMid j` at `k + 601`, `β · eq[keccakAlong j 3]` in X0, X1: `b55` and `EW::mul`
+From `WMid j` at `k + NativeRustcVmArm.Vm.VerifyLayer.b55Offset`, `β · eq[keccakAlong j 3]` in X0, X1: `b55` and `EW::mul`
 (`β · (eq[keccakAlong j 4] + β · eq[keccakAlong j 3])`), `b56` (weight `j` stored, the index
 advanced), then the next head `WHead (j + 1)` or, after the last weight, `.LVerifyLayer_35`
 (`phaseB`).
@@ -47,15 +48,15 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 /-- **The iteration from the first `EW::mul`**: weight `j` stored, then the next head or, after
 the last weight, `.LVerifyLayer_35` with all `1600` written. -/
 theorem phaseB (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hps : point.size ≤ 30) (heq : eq.size = 2048) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 601)) (hm : WMid m0 a s' t0 t1 t2 beta mu point eq j st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b55Offset)) (hm : WMid m0 a s' t0 t1 t2 beta mu point eq j st.data)
     (h0 : st.data.regs.X0 = (beta * eq.getD (keccakAlong j 3) 0).c0)
     (h1 : st.data.regs.X1 = (beta * eq.getD (keccakAlong j 3) 0).c1)
     {R : MachineState → Prop}
     (next : ∀ st', j + 1 < 1600 → WHead k m0 a s' t0 t1 t2 beta mu point eq (j + 1) st' →
       Eventually (step1 Host.exe) R st')
-    (last : ∀ st', j + 1 = 1600 → st'.pc = Host.addrOf (k + 654) → Body m0 st'.data →
+    (last : ∀ st', j + 1 = 1600 → st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b62Offset) → Body m0 st'.data →
       st'.data.regs.X23 = beta.c0 → st'.data.regs.X25 = beta.c1 →
       st'.data.regs.X24.toNat = point.size →
       WMem m0 a s' t0 t1 t2 beta mu point eq 1600 st'.data.dmem →
@@ -69,7 +70,7 @@ theorem phaseB (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   have hwf := wf_fr hpre hb
   refine exec_at (blk hp b55_in_code (by simp [b55])) e55 hwf hpc (match_fr hpre hb)
     fun st1 hm1 hpc1 ↦ ?_
-  rw [show k + 601 + b55.length = k + 606 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b55Offset + b55.length = k + NativeRustcVmArm.Vm.VerifyLayer.b56Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b55_next]] at hpc1
   have hb1 : Body m0 st1.data :=
     Fr.ofBlock hb (match_fr hpre hb) hm1 hwf rfl rfl rfl (fun r hr ↦ by cases hr)
   have hd1 : st1.data.dmem = st.data.dmem := hm1.dmem_eq hwf rfl
@@ -153,7 +154,7 @@ theorem phaseB (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
   have hx26 : ((Env.ofMachine st2.data [(base m0 2032, 2032),
       (sA m0 + BitVec.ofNat 64 (51200 + 16 * j), 16)]).regs .X26).toNat = 25600 - 16 * j :=
     hmid2.x26
-  rw [show k + 606 + b56.length = k + 613 from rfl] at hpc3
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b56Offset + b56.length = k + NativeRustcVmArm.Vm.VerifyLayer.b57Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b56_next]] at hpc3
   by_cases hl : j + 1 = 1600
   · have hc : (SBool.cmp .eq .W64 (.reg .X26) (.lit 16)).eval (Env.ofMachine st2.data
         [(base m0 2032, 2032), (sA m0 + BitVec.ofNat 64 (51200 + 16 * j), 16)]) = true := by

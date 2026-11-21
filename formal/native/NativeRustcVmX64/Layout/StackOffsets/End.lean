@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Layout.StackOffsets.Step
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
 
 /-!
 # `stack_offsets` on x86-64: the main loop to its end, the return (`b23` to `b25`)
@@ -41,9 +42,9 @@ variable [Host] {k : Nat} {m0 : MachineData}
 
 /-- **The main loop**, to a failure or its end. -/
 theorem loop (hp : Placed code k) (hpre : StackOffsetsPre m0) (hcap : n m0 ≤ cap m0) {j : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 100)) (hL : Loop m0 j st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b18Offset)) (hL : Loop m0 j st.data) :
     Eventually (step1 Host.exe) (fun s ↦ Fail k m0 s ∨ End k m0 s) st :=
-  Sym.loop (fun r s ↦ s.pc = Host.addrOf (k + 100) ∧ ∃ j, n m0 - j = r ∧ Loop m0 j s.data)
+  Sym.loop (fun r s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b18Offset) ∧ ∃ j, n m0 - j = r ∧ Loop m0 j s.data)
     (fun r s ⟨hpc, j, hr, hL⟩ ↦ Eventually.mono (step hp hpre hcap hpc hL) fun s' h ↦ by
       rcases h with h | h | ⟨hpc', hL'⟩
       · exact Or.inl (Or.inl h)
@@ -53,7 +54,7 @@ theorem loop (hp : Placed code k) (hpre : StackOffsetsPre m0) (hcap : n m0 ≤ c
 
 /-- **The end** `b23` to `b25`: `bit_length(total - 1)` and the offsets returned. -/
 theorem finish (hp : Placed code k)
-    (hbl : Spec (label bitLengthLabel) BitLengthPre BitLengthPost) (hpre : StackOffsetsPre m0)
+    (hbl : Spec (label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost) (hpre : StackOffsetsPre m0)
     (hcap : n m0 ≤ cap m0) {st : MachineState} (h : End k m0 st) :
     Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hpc, hL⟩ := h
@@ -61,10 +62,10 @@ theorem finish (hp : Placed code k)
   have hoff : OffStack m0 (out m0) (8 * cap m0) 1344 := hpre.2.2.2.2.2.1
   have hno : NativeRustcVm.NoWrap (out m0) (8 * cap m0) := hpre.2.2.2.2.1.2
   obtain ⟨hok, hw23, hdi, hK⟩ := ok_b23
-  refine run0 (ret := (Host.addrOf (k + 114 + b23.length)).toBitVec) hst
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b23Offset + b23.length)).toBitVec) hst
     (b23_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b23 (fun _ _ ↦ rfl) hpc hL.b
     (match0 hL.b) hok fun st1 hm1 hpc1 hb1 ↦ ?_
-  have hwf1 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 114 + b23.length)).toBitVec)
+  have hwf1 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b23Offset + b23.length)).toBitVec)
     hL.b hst (by decide)
   have hs1 : NativeRustcVm.SameOutside st.data.dmem st1.data.dmem
       (NativeRustcVm.InRange (stackBelow m0 1328) 8) :=

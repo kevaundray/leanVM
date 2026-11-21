@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
 public import NativeRustcVmArm.Arrays.MultilinearEvalByOfMultilinearEval.Step
 
 /-!
@@ -44,11 +46,11 @@ theorem body_of [Labels] {m0 st : MachineData} {sl : List (Nat × XReg)} {S : SS
 variable [Host] {k : Nat}
 
 /-- **The outer loop**: from entry `0`, the postcondition. -/
-theorem outerLoop (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem outerLoop (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : MleOfMultilinearEvalPre m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 123)) (hO : Outer m0 0 s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3Offset)) (hO : Outer m0 0 s.data) :
     Eventually (step1 Host.exe) (Post m0) s := by
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 123) ∧ ∃ i, nn m0 - i = n ∧ Outer m0 i s.data)
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b3Offset) ∧ ∃ i, nn m0 - i = n ∧ Outer m0 i s.data)
     (fun n s ⟨hpc, i, hn, hO⟩ ↦ ?_) ⟨hpc, 0, rfl, hO⟩
   refine Eventually.bind (outer hp hpre hpc hO) fun s1 ⟨hpc1, hI⟩ ↦ ?_
   refine Eventually.mono (innerLoop hp hmul hpre hpc1 hI) fun s' h ↦ ?_
@@ -58,15 +60,15 @@ theorem outerLoop (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EW
 
 /-- **`multilinear_eval_by` (`multilinear_eval`'s closure) meets its contract.** -/
 theorem mleOfMultilinearEval_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hS, h02, h64, hrM, hrP⟩ := hpre
   obtain ⟨hwf, hm⟩ := entry_match hS (show 1232 ≤ mleStack by decide) rfl
   refine exec_then (hb0 hp) run_b0 hwf hm fun s1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 117 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b0_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b0Length] at hpc1
   sym_simp at hpc1
   have hpc1' := pc_cond hpc1
   have e02 : m0.regs.X0.toNat = m0.regs.X2.toNat := congrArg UInt64.toNat h02
@@ -83,7 +85,7 @@ theorem mleOfMultilinearEval_spec (hp : Placed code k)
       fun s2 hm2 hpc2' ↦ ?_
     have bd2 := bd1.of_block (match_nil _) hm2 (Env.wf_nil _) rfl
       (by rw [kept_nil.2]; exact after_eq run_b16 ▸ keeps.2.2.2.2.2.2.2.2.2.2.1)
-    simp only [PcOk, show b16.length = 3 from rfl] at hpc2'
+    simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b16_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b16Length] at hpc2'
     refine finish hp hS b17_restores.1 (by simp [slots0]) hpc2' bd2 ?_
     have he : ents m0 = [] := List.eq_nil_of_length_eq_zero (by simp [hz])
     rw [target, he]
@@ -98,7 +100,7 @@ theorem mleOfMultilinearEval_spec (hp : Placed code k)
       simp only [BitVec.toNat_ofNat, Nat.zero_mod] at this
       exact hz (e02 ▸ this))
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf hpc2 hm1 fun s2 hm2 hpc3 ↦ ?_
-    simp only [PcOk, show b1.length = 1 from rfl] at hpc3
+    simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b1_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b1Length] at hpc3
     sym_simp at hpc3
     have hpc3' := pc_cond hpc3
     by_cases hz4 : m0.regs.X4.toNat = 0
@@ -110,7 +112,7 @@ theorem mleOfMultilinearEval_spec (hp : Placed code k)
       refine exec_at (hb14 hp) (exec_after run_b1 run_b14) hwf (hpc4.trans (lbl_10 hp)) hm2
         fun s3 hm3 hpc5 ↦ ?_
       have bd3 := body_of hS hm3 (after_eq run_b14 ▸ b14_frame) kept_nil.2
-      simp only [PcOk, show b14.length = 2 from rfl] at hpc5
+      simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b14_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b14Length] at hpc5
       sym_simp at hpc5
       have hpc5' := (pc_cond hpc5).2 (by
         show ¬((m0.regs.getXReg .X2).toBitVec == 0#64) = true
@@ -139,7 +141,7 @@ theorem mleOfMultilinearEval_spec (hp : Placed code k)
         intro h
         exact hz4 (congrArg BitVec.toNat h))
       refine exec_at (hb2 hp) (exec_after run_b1 run_b2) hwf hpc4 hm2 fun s3 hm3 hpc5 ↦ ?_
-      simp only [PcOk, show b2.length = 5 from rfl] at hpc5
+      simp only [PcOk, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b2_length, NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.b2Length] at hpc5
       have bd3 := body_of hS hm3 (after_eq run_b2 ▸ b2_frame) kept_nil.1
       have hw := after_eq run_b2 ▸ b2_words
       simp only [List.all_eq_true, List.mem_range, beq_iff_eq] at hw

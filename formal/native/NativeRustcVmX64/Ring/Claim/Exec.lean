@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.RingClaimWeight
+public import NativeRustcVmX64.Code.Vm.RingClaimWeight.Names
 public meta import NativeRustcVmX64.Code.Vm.RingClaimWeight
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -87,7 +88,7 @@ public theorem ok_b1 : MidOk 96 0 slots (after b1 midS) = true ∧
   decide +kernel
 
 public theorem exit_b2 : exec b2 midS = some (after b2 midS,
-    .cond (SBool.cmp .eq .W32 (.load 0 24 4) (.lit 1)).not ".LRingClaimWeight_2") :=
+    .cond (SBool.cmp .eq .W32 (.load 0 24 4) (.lit 1)).not NativeRustcVmX64.Vm.RingClaimWeight.label_2) :=
   run_b2.trans (by rw [after_eq run_b2])
 
 public theorem ok_b3 : MidOk 96 0 slots (after b3 (after b2 midS)) = true ∧

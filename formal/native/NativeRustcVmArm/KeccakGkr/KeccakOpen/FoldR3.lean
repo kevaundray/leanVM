@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldR2
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.Exec3
 
@@ -32,13 +34,13 @@ variable [NativeArm.Host] {k : Nat} {c : Cx} {m0 : MachineData} {rows : Array (A
 
 /-- **Round 3's rows 0 and 1.** -/
 theorem round3a (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     (hsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 367)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b58Offset)) (hmid : Mid c m0 s.data)
     (hk : KAt m0 (varsOf c.sl 3 0) k58 s.data)
     (hrw : ElemsAt s.data.dmem (rwA m0) (F c.sl rows 3 0 0) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 426) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b68Offset) ∧ Mid c m0 s'.data ∧
       KAt m0 (varsOf c.sl 3 0) k38 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (F c.sl rows 3 2 0) 4096) s := by
   refine (rowD hp hmul hmemcpy ok hsz hrow (t := 3) (i := 0) (vars := varsOf c.sl 3 0)
@@ -68,13 +70,13 @@ theorem round3a (hp : Placed code k)
 
 /-- **Round 3's rows 2 and 3.** -/
 theorem round3b (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     (hsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 426)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b68Offset)) (hmid : Mid c m0 s.data)
     (hk : KAt m0 (varsOf c.sl 3 0) k38 s.data)
     (hrw : ElemsAt s.data.dmem (rwA m0) (F c.sl rows 3 2 0) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 486) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b78Offset) ∧ Mid c m0 s'.data ∧
       KAt m0 (varsOf c.sl 3 0) k76 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (F c.sl rows 3 4 0) 4096) s := by
   refine (rowD hp hmul hmemcpy ok hsz hrow (t := 3) (i := 2) (vars := varsOf c.sl 3 0)
@@ -104,13 +106,13 @@ theorem round3b (hp : Placed code k)
 
 /-- **Round 3**: four rows from `b58` to `b78`. -/
 theorem round3 (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     (hsz : rows.size = 64) (hrow : ∀ r < 64, (rows.getD r #[]).size = 64)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 367)) (hmid : Mid c m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b58Offset)) (hmid : Mid c m0 s.data)
     (hk : KAt m0 (varsOf c.sl 3 0) k58 s.data)
     (hrw : ElemsAt s.data.dmem (rwA m0) (Fr c.sl rows 3) 4096) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 486) ∧ Mid c m0 s'.data ∧
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b78Offset) ∧ Mid c m0 s'.data ∧
       KAt m0 (varsOf c.sl 3 0) k76 s'.data ∧
       ElemsAt s'.data.dmem (rwA m0) (Fr c.sl rows 4) 4096) s := by
   rw [← F_zero] at hrw

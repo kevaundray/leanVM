@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingPsi.Names
+public import NativeRustcVmArm.Code.Vm.RingTarget.Names
 public import NativeRustcVmArm.Ring.Target.Loop
 
 /-!
@@ -26,7 +28,7 @@ theorem stepStore (h : P m0) {i' : Nat} {ds : List Directive} {S' : SState}
     (hv : (⟨m.regs.X0, m.regs.X1⟩ : EW) = (imgs m0).toList[i]'(by rw [imgs_length]; exact hi))
     {R : MachineState → Prop}
     (hnext : ∀ m1, Inv m0 (i + 1) m1 → i + 1 < 64 →
-      Eventually (step1 Host.exe) R ⟨m1, Labels.label ".LRingTarget_1"⟩)
+      Eventually (step1 Host.exe) R ⟨m1, Labels.label NativeRustcVmArm.Vm.RingTarget.label_1⟩)
     (hdone : ∀ m1, Inv m0 64 m1 →
       Eventually (step1 Host.exe) R ⟨m1, Host.addrOf (i' + ds.length)⟩) :
     Eventually (step1 Host.exe) R ⟨m, Host.addrOf i'⟩ := by
@@ -139,37 +141,37 @@ theorem stepStore (h : P m0) {i' : Nat} {ds : List Directive} {S' : SState}
     rw [hc]
     exact hnext d hI' (by omega)
 
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 19) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.RingTarget.b2Offset) :=
   hb b2_in_code (by simp [b2]) hp
 
 /-- **A turn** of the images loop. -/
 theorem turn (hp : Placed code k) (h : P m0)
-    (hpsi : Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost) {i : Nat} {m : MachineData}
+    (hpsi : Spec (Labels.label NativeRustcVmArm.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost) {i : Nat} {m : MachineData}
     (hI : Inv m0 i m) (hi : i < 64) :
     Eventually (step1 Host.exe) (fun st ↦
-      (st.pc = Host.addrOf (k + 14) ∧ Inv m0 (i + 1) st.data ∧ i + 1 < 64) ∨
-        (st.pc = Host.addrOf (k + 24) ∧ Inv m0 64 st.data)) ⟨m, Host.addrOf (k + 14)⟩ :=
+      (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b1Offset) ∧ Inv m0 (i + 1) st.data ∧ i + 1 < 64) ∨
+        (st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b3Offset) ∧ Inv m0 64 st.data)) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b1Offset)⟩ :=
   stepPsi hp h hpsi hI hi fun m2 hI2 hv ↦
     stepStore h (hb2 hp) run_b2 (by decide) hI2 hi hv
       (fun m1 h1 hlt ↦ by
-        rw [show Labels.label ".LRingTarget_1" = Host.addrOf (k + 14) from hp.label (j := 14) rfl]
+        rw [show Labels.label NativeRustcVmArm.Vm.RingTarget.label_1 = Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b1Offset) from hp.label (j := NativeRustcVmArm.Vm.RingTarget.b1Offset) NativeRustcVmArm.Vm.RingTarget.label_1_at]
         exact .done _ (.inl ⟨rfl, h1, hlt⟩))
       fun m1 h1 ↦ by
-        rw [show k + 19 + b2.length = k + 24 from rfl]
+        rw [show k + NativeRustcVmArm.Vm.RingTarget.b2Offset + b2.length = k + NativeRustcVmArm.Vm.RingTarget.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingTarget.b2_next]]
         exact .done _ (.inr ⟨rfl, h1⟩)
 
 /-- **The images loop**: from the prologue's state to the 64 images stored. -/
 theorem images (hp : Placed code k) (h : P m0)
-    (hpsi : Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost) {m : MachineData}
+    (hpsi : Spec (Labels.label NativeRustcVmArm.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost) {m : MachineData}
     (hI : Inv m0 0 m) {R : MachineState → Prop}
-    (cont : ∀ m', Inv m0 64 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 24)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 14)⟩ := by
-  refine Eventually.bind (p := fun st ↦ st.pc = Host.addrOf (k + 24) ∧ Inv m0 64 st.data) ?_
+    (cont : ∀ m', Inv m0 64 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b3Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b1Offset)⟩ := by
+  refine Eventually.bind (p := fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b3Offset) ∧ Inv m0 64 st.data) ?_
     fun ⟨m', pc⟩ ⟨hpc, hI'⟩ ↦ by
       simp only at hpc hI'
       subst hpc
       exact cont m' hI'
-  refine Sym.loop (I := fun n st ↦ ∃ i, n = 64 - i ∧ i < 64 ∧ st.pc = Host.addrOf (k + 14) ∧
+  refine Sym.loop (I := fun n st ↦ ∃ i, n = 64 - i ∧ i < 64 ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b1Offset) ∧
     Inv m0 i st.data) (fun n st ⟨i, hn, hi, hpc, hI⟩ ↦ ?_) ⟨0, rfl, by decide, rfl, hI⟩
   obtain ⟨mm, pc⟩ := st
   simp only at hpc hI

@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
+public import NativeRustcVmArm.Code.Vm.SlotWeights.Names
 public import NativeRustcVmArm.KeccakGkr.SlotWeights.Zero
 public import NativeRustcVmArm.KeccakGkr.SlotWeights.Tail
 
@@ -22,11 +25,11 @@ variable [NativeArm.Host] {k : Nat}
 
 /-- **`slot_weights` meets its contract**, given `eq_kernel`'s and `EW::mul`'s. -/
 theorem slotWeights_spec (hp : Placed code k)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (c : KeccakClaimW) :
-    Spec (Labels.label slotWeightsLabel) (SlotWeightsPre c) (SlotWeightsPost c) := by
+    (heq : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (c : KeccakClaimW) :
+    Spec (Labels.label NativeRustcVmArm.Vm.SlotWeights.entryLabel) (SlotWeightsPre c) (SlotWeightsPost c) := by
   intro m0 hpre
-  have hl : Labels.label slotWeightsLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hl : Labels.label NativeRustcVmArm.Vm.SlotWeights.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.SlotWeights.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.SlotWeights.entryOffset) NativeRustcVmArm.Vm.SlotWeights.entry_at
   rw [hl]
   refine (prologue hp hpre heq).bind fun s1 ⟨hpc1, hI1⟩ ↦ ?_
   refine (zero_loop hp hpre hpc1 hI1).bind fun s2 ⟨hpc2, hI2⟩ ↦ ?_

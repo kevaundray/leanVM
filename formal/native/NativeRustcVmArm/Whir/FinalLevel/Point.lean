@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Core
 
 /-!
@@ -45,14 +46,14 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The point.** -/
 theorem point (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState}
-    (hpc : st.pc = Host.addrOf (k + 262)) (hc : Core level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b17Offset)) (hc : Core level m0 st.data folded)
     (htn : tail.size = mu m0)
     (htail : NativeRustcVm.EWsAt st.data.dmem (loc m0 1096) tail.toList)
     (hcl : NativeRustcVm.EWAt st.data.dmem (loc m0 2072) claim)
     (hts : TStateAt st.data.dmem (tA m0) a s5)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 340) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b21Offset) →
       Core level m0 st'.data folded → st'.data.regs.X22.toBitVec = loc m0 1576 →
       st'.data.regs.X23 = claim.c0 → st'.data.regs.X24 = claim.c1 →
       NativeRustcVm.EWsAt st'.data.dmem (loc m0 1096) tail.toList →
@@ -74,7 +75,7 @@ theorem point (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hm := c.match1 (n := 24) hf x27
   refine exec_at (inf hp b17_in_code (by simp [b17])) run_b17 hwf hpc hm
     fun st1 hm1 hpc1 ↦ ?_
-  rw [show k + 262 + b17.length = k + 334 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b17Offset + b17.length = k + NativeRustcVmArm.Vm.FinalLevel.b18Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b17_next]] at hpc1
   have hS : ∀ w ∈ (after b17 (wS 24)).mem, w.r = 0 ∧ w.off + w.n ≤ 2576 := by
     rw [after_eq run_b17]; decide +kernel
   have hS' : ∀ w ∈ (after b17 (wS 24)).mem, w.r = 0 ∧ w.off + w.n ≤ 2672 := fun w hw ↦
@@ -185,14 +186,14 @@ theorem point (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     fun st3 hm3 hpc3 hf3 hd3 hk3 ↦ ?_
   simp only [PcOk] at hpc3
   rw [tbz_one (show (fenv m0 m2 []).regs .X0 = _ from congrArg UInt64.toBitVec h0)] at hpc3
-  simp only [Bool.false_eq_true, ↓reduceIte, show k + 334 + b18.length = k + 335 from rfl] at hpc3
+  simp only [Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmArm.Vm.FinalLevel.b18Offset + b18.length = k + NativeRustcVmArm.Vm.FinalLevel.b19Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b18_next]] at hpc3
   -- `b19`: `extend(&point, tail)`.
   have hc3 : Core level m0 st3.data folded :=
     hc2.saved hf3 (fun r hr ↦ hk3 r (kept_of (by decide) r hr)) (fun j _ ↦ by rw [hd3]) hfo
   have hwf3 := c.fwf hf3
   refine exec_at (inf hp b19_in_code (by simp [b19])) run_b19 hwf3 hpc3 (c.fmatch hf3)
     fun st4 hm4 hpc4 ↦ ?_
-  rw [show k + 335 + b19.length = k + 339 from rfl] at hpc4
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b19Offset + b19.length = k + NativeRustcVmArm.Vm.FinalLevel.b20Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b19_next]] at hpc4
   have hf4 : FFr m0 st4.data :=
     Fr.ofBlock hf3 (c.fmatch hf3) hm4 hwf3 rfl rfl rfl (fun _ h ↦ by cases h)
   have hd4' : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 rfl
@@ -256,7 +257,7 @@ theorem point (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     fun st6 hm6 hpc6 hf6 hd6 hk6 ↦ ?_
   simp only [PcOk] at hpc6
   rw [tbz_one (show (fenv m0 m5 []).regs .X0 = _ from congrArg UInt64.toBitVec h5)] at hpc6
-  simp only [Bool.false_eq_true, ↓reduceIte, show k + 339 + b20.length = k + 340 from rfl] at hpc6
+  simp only [Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmArm.Vm.FinalLevel.b20Offset + b20.length = k + NativeRustcVmArm.Vm.FinalLevel.b21Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b20_next]] at hpc6
   have kk : ∀ r, calleeSaved r = true → st6.data.regs.getXReg r = st1.data.regs.getXReg r :=
     fun r hr ↦ (hk6 r (by cases r <;> rfl)).trans
       ((hcs5 r hr).trans ((reg_of hm4 (r := r) (v := .reg r) (by

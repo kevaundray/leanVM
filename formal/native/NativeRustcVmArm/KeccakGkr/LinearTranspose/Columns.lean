@@ -44,10 +44,10 @@ theorem col_loop (hpre : LinearTransposePre ws m0) {blk : List Directive} {j x n
 
 /-- **Column `2`'s loop**, to its end. -/
 theorem col2_loop (hp : Placed code k) (hpre : LinearTransposePre ws m0) {z : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 113)) (hI : Col2 m0 ws z s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 138) ∧ ColDone m0 ws 2 s'.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b15Offset)) (hI : Col2 m0 ws z s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b16Offset) ∧ ColDone m0 ws 2 s'.data)
       s :=
-  Sym.loop (fun c s ↦ ∃ z, c = 64 - z ∧ s.pc = Host.addrOf (k + 113) ∧ Col2 m0 ws z s.data)
+  Sym.loop (fun c s ↦ ∃ z, c = 64 - z ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b15Offset) ∧ Col2 m0 ws z s.data)
     (fun _ s ⟨z, hc, hpc, hI⟩ ↦ (col2_step hp hpre hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨64 - (z + 1), by have := hI.z_lt; omega, z + 1, rfl, hpc', hI'⟩
@@ -98,19 +98,19 @@ theorem col_setup {blk : List Directive} {j x : Nat} {S' : SState}
 
 /-- **The columns**: from `g` done, every column. -/
 theorem columns (hp : Placed code k) (hpre : LinearTransposePre ws m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 57)) (hI : GDone m0 ws s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 193) ∧ ColDone m0 ws 4 s'.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b10Offset)) (hI : GDone m0 ws s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b20Offset) ∧ ColDone m0 ws 4 s'.data)
       s := by
   have blk : ∀ {b : List Directive} {j : Nat}, b.IsInfixAt code j → b ≠ [] →
       b.IsInfixAt Host.prog (k + j) := fun h hne ↦ h.trans hp.1 hne
   refine (col_setup (x := 0) (blk b10_in_code (by simp [b10])) e10 rfl rfl rfl (by decide) (by decide)
     hpc hI.ctx ⟨hI.g, fun _ h ↦ absurd h (by omega)⟩).bind fun s1 ⟨hpc1, hI1⟩ ↦ ?_
-  refine (col_loop hpre (blk b11_in_code (by simp [b11])) (hp.label (j := 61) rfl) (x := 0)
+  refine (col_loop hpre (blk b11_in_code (by simp [b11])) (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b11Offset) NativeRustcVmArm.Vm.LinearTranspose.label_8_at) (x := 0)
     (by decide) rfl e11 rfl rfl rfl rfl (by decide) (by decide) hpc1 hI1).bind
     fun s2 ⟨hpc2, hI2⟩ ↦ ?_
   refine (col_setup (x := 1) (blk b12_in_code (by simp [b12])) e12 rfl rfl rfl (by decide) (by decide)
     hpc2 hI2.ctx (colMem_next hI2.mem)).bind fun s3 ⟨hpc3, hI3⟩ ↦ ?_
-  refine (col_loop hpre (blk b13_in_code (by simp [b13])) (hp.label (j := 87) rfl) (x := 1)
+  refine (col_loop hpre (blk b13_in_code (by simp [b13])) (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b13Offset) NativeRustcVmArm.Vm.LinearTranspose.label_10_at) (x := 1)
     (by decide) rfl e13 rfl rfl rfl rfl (by decide) (by decide) hpc3 hI3).bind
     fun s4 ⟨hpc4, hI4⟩ ↦ ?_
   -- column `2`
@@ -130,12 +130,12 @@ theorem columns (hp : Placed code k) (hpre : LinearTransposePre ws m0) {s : Mach
     rw [hr9]; rfl
   refine (col_setup (x := 3) (blk b16_in_code (by simp [b16])) e16 rfl rfl rfl (by decide) (by decide)
     hpc6 hI6.ctx (colMem_next hI6.mem)).bind fun s7 ⟨hpc7, hI7⟩ ↦ ?_
-  refine (col_loop hpre (blk b17_in_code (by simp [b17])) (hp.label (j := 141) rfl) (x := 3)
+  refine (col_loop hpre (blk b17_in_code (by simp [b17])) (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b17Offset) NativeRustcVmArm.Vm.LinearTranspose.label_14_at) (x := 3)
     (by decide) rfl e17 rfl rfl rfl rfl (by decide) (by decide) hpc7 hI7).bind
     fun s8 ⟨hpc8, hI8⟩ ↦ ?_
   refine (col_setup (x := 4) (blk b18_in_code (by simp [b18])) e18 rfl rfl rfl (by decide) (by decide)
     hpc8 hI8.ctx (colMem_next hI8.mem)).bind fun s9 ⟨hpc9, hI9⟩ ↦ ?_
-  exact col_loop hpre (blk b19_in_code (by simp [b19])) (hp.label (j := 169) rfl) (x := 4)
+  exact col_loop hpre (blk b19_in_code (by simp [b19])) (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b19Offset) NativeRustcVmArm.Vm.LinearTranspose.label_16_at) (x := 4)
     (by decide) rfl e19 rfl rfl rfl rfl (by decide) (by decide) hpc9 hI9
 
 end

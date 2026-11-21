@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Fingerprints.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
 public import NativeRustcVmArm.Bus.FpClosure.Exec
 public import NativeRustcVmArm.Bus.Common
 
@@ -33,15 +35,15 @@ theorem slots_le : ∀ p ∈ slots, p.1 + 8 ≤ 64 := by decide
 variable [Host] {k : Nat}
 
 theorem hb0 (hp : Placed code k) :
-    b0a.IsInfixAt Host.prog (k + 0) ∧ b0b.IsInfixAt Host.prog (k + 0 + 6) := by
+    b0a.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b0Offset) ∧ b0b.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b0Offset + 6) := by
   have h := infix_of b0_in_code (by simp [b0]) hp
   rw [← List.take_append_drop 6 b0] at h
   exact h.append
 
 /-- **The closure's contract.** -/
 theorem fpClosure_spec (hp : Placed code k)
-    (hfp : Spec (Labels.label fingerprintsLabel) FingerprintsPre FingerprintsPost) :
-    Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost := by
+    (hfp : Spec (Labels.label NativeRustcVmArm.Vm.Fingerprints.entryLabel) FingerprintsPre FingerprintsPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost := by
   rintro m0 ⟨hS, hER, hES, hW, hM, hML, hBL, hSh, hOR, hOS⟩
   have hN : fpClosureStack ≤ m0.regs.SP.toNat := hS.2.1
   have hle : 64 + fingerprintsStack ≤ fpClosureStack := Nat.le_refl _
@@ -58,7 +60,7 @@ theorem fpClosure_spec (hp : Placed code k)
             Option.getD_some]
           rw [show BitVec.ofInt 64 64 = BitVec.ofNat 64 64 from rfl]; exact base_add_eq.symm)
       ⟨by simp [Sym.eval]; rfl, trivial⟩ trivial trivial trivial
-  rw [show Labels.label fpClosureLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryOffset) NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entry_at]
   refine exec_then hb0a run_b0a hwf0 hm0 fun st1 hm1 hpc1 ↦ ?_
   have hd1 : st1.data.dmem = m0.dmem := hm1.dmem_eq hwf0 rfl
   have LE : ∀ i, (Sym.load 1 (8 * i) 8).eval

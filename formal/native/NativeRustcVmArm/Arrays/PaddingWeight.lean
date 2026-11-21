@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.PaddingWeight.Names
 public import NativeRustcVmArm.Arrays.PaddingWeight.Exec
 public import NativeRustcVm.Arrays.Folds
 
@@ -65,40 +67,40 @@ structure Inv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 11) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 16) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 27) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 34) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 38) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 39) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 42) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.PaddingWeight.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
 
-theorem lbl_entry (hp : Placed code k) : Labels.label paddingWeightLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LPaddingWeight_2" = Host.addrOf (k + 16) :=
-  hp.label (j := 16) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LPaddingWeight_3" = Host.addrOf (k + 39) :=
-  hp.label (j := 39) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LPaddingWeight_4" = Host.addrOf (k + 42) :=
-  hp.label (j := 42) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.PaddingWeight.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.PaddingWeight.entryOffset) NativeRustcVmArm.Vm.PaddingWeight.entry_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.PaddingWeight.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b2Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.PaddingWeight.b2Offset) NativeRustcVmArm.Vm.PaddingWeight.label_2_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.PaddingWeight.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b6Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.PaddingWeight.b6Offset) NativeRustcVmArm.Vm.PaddingWeight.label_3_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.PaddingWeight.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b7Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.PaddingWeight.b7Offset) NativeRustcVmArm.Vm.PaddingWeight.label_4_at
 
 /-- The postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
   s.pc = retOf m0 ∧ PaddingWeightPost m0 s.data
 
 /-- **`.LPaddingWeight_4`** (`b7`): `1 + bit_e(n, |point|)`, the epilogue, the tail call. -/
-theorem finish (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem finish (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : PaddingWeightPre m0) {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 42)) (hb : Body m0 112 paddingWeightStack slots 0 0 s.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b7Offset)) (hb : Body m0 112 paddingWeightStack slots 0 0 s.data)
     (hx19 : s.data.regs.X19 = m0.regs.X2)
     (hpad : (⟨s.data.regs.X23, s.data.regs.X21⟩ : EW) = pad m0 (len m0)) :
     Eventually (step1 Host.exe) (Post m0) s := by
@@ -140,11 +142,11 @@ theorem finish (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMul
   rfl
 
 /-- **A turn of the loop**: `(1 + b)·r + (1 + b + r)·pad`, back at the head or out of the loop. -/
-theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem step (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : PaddingWeightPre m0) {i : Nat} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 16)) (hI : Inv m0 i s.data) :
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b2Offset)) (hI : Inv m0 i s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 16) ∧ Inv m0 (i + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b2Offset) ∧ Inv m0 (i + 1) s'.data)) s := by
   obtain ⟨hS, h64, hrP, hoP⟩ := hpre
   have hlt := hI.lt
   have hL : len m0 = m0.regs.X1.toNat := rfl
@@ -161,7 +163,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
       rw [hI.x22]
       exact (BitVec.add_zero _).symm)
     fun s2 hm2 hpc2 bd2 hR e2 ↦ ?_
-  simp only [show b2.length = 11 from rfl] at hpc2
+  simp only [NativeRustcVmArm.Vm.PaddingWeight.b2_length, NativeRustcVmArm.Vm.PaddingWeight.b2Length] at hpc2
   have hbit : (⟨s2.data.regs.X0, s2.data.regs.X1⟩ : EW) = 1 + EW.ofNat ((nn m0 >>> i) % 2) := by
     rw [← one_add_bit _ (Nat.mod_lt _ (by decide))]
     have h0 := hm2.regs .X0 _ rfl
@@ -192,7 +194,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   -- `(1 + b + r)·pad`
   refine exec_at (hb3 hp) run_b3 (Env.wf_nil _) hpc3 (match_nil _) fun s4 hm4 hpc4 ↦ ?_
   have bd4 := bd3.of_block (match_nil _) hm4 (Env.wf_nil _) rfl (after_eq run_b3 ▸ b3_keeps)
-  simp only [show b3.length = 7 from rfl] at hpc4
+  simp only [NativeRustcVmArm.Vm.PaddingWeight.b3_length, NativeRustcVmArm.Vm.PaddingWeight.b3Length] at hpc4
   refine call_then hpc4 hmul (bd4.ewMulPre hS (by decide) (by decide)) fun s5 hpc5 hpost5 ↦ ?_
   have bd5 := bd4.call hS (by decide) (by decide) hpost5
   have k3 : ∀ r, calleeSaved r = true → s3.data.regs.getXReg r = s2.data.regs.getXReg r :=
@@ -291,7 +293,7 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
     · intro h; rw [h]
   by_cases hlast : i + 1 = len m0
   · have hpc6 := hpc6'.2 (heq.mpr hlast)
-    simp only [show b4.length = 4 from rfl] at hpc6
+    simp only [NativeRustcVmArm.Vm.PaddingWeight.b4_length, NativeRustcVmArm.Vm.PaddingWeight.b4Length] at hpc6
     refine exec_at (hb5 hp) run_b5 (Env.wf_nil _) hpc6 (match_nil _) fun s7 hm7 hpc7 ↦ ?_
     have bd7 := bd6.of_block (match_nil _) hm7 (Env.wf_nil _) rfl (after_eq run_b5 ▸ b5_keeps)
     simp only [PcOk] at hpc7
@@ -319,15 +321,15 @@ theorem step (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`padding_weight` meets its contract.** -/
 theorem paddingWeight_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label paddingWeightLabel) PaddingWeightPre PaddingWeightPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.PaddingWeight.entryLabel) PaddingWeightPre PaddingWeightPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hS, h64, hrP, hoP⟩ := hpre
   have h112 : 112 ≤ paddingWeightStack := by decide
   obtain ⟨hwf, hm⟩ := entry_match hS h112 rfl
   refine exec_then (hb0 hp) run_b0 hwf hm fun s1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 11 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.PaddingWeight.b0_length, NativeRustcVmArm.Vm.PaddingWeight.b0Length] at hpc1
   sym_simp at hpc1
   have hpc1' := pc_cond hpc1
   by_cases hz : len m0 = 0
@@ -339,7 +341,7 @@ theorem paddingWeight_spec (hp : Placed code k)
       exact hz)
     refine exec_at (hb6 hp) (exec_after run_b0 run_b6) hwf (hpc1.trans (lbl_3 hp)) hm1
       fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b6.length = 3 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmArm.Vm.PaddingWeight.b6_length, NativeRustcVmArm.Vm.PaddingWeight.b6Length] at hpc2
     obtain ⟨hw, hmem, hregs⟩ := after_eq run_b6 ▸ b6_frame
     refine finish hp hmul ⟨hS, h64, hrP, hoP⟩ hpc2 (Body.of_entry hS h112 hm2 rfl hw hregs hmem)
       ?_ ?_
@@ -357,7 +359,7 @@ theorem paddingWeight_spec (hp : Placed code k)
       intro h
       exact hz (congrArg BitVec.toNat h))
     refine exec_at (hb1 hp) (exec_after run_b0 run_b1) hwf hpc1 hm1 fun s2 hm2 hpc2 ↦ ?_
-    simp only [PcOk, show b1.length = 5 from rfl] at hpc2
+    simp only [PcOk, NativeRustcVmArm.Vm.PaddingWeight.b1_length, NativeRustcVmArm.Vm.PaddingWeight.b1Length] at hpc2
     obtain ⟨hw, hmem, hregs⟩ := after_eq run_b1 ▸ b1_frame
     have hI : Inv m0 0 s2.data := by
       have h19 := hm2.regs .X19 _ rfl
@@ -382,7 +384,7 @@ theorem paddingWeight_spec (hp : Placed code k)
       · show (⟨s2.data.regs.getXReg .X23, s2.data.regs.getXReg .X21⟩ : EW) = _
         rw [h21, h23]
         rfl
-    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 16) ∧ ∃ i, len m0 - i = n ∧
+    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PaddingWeight.b2Offset) ∧ ∃ i, len m0 - i = n ∧
       Inv m0 i s.data) (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc2, 0, rfl, hI⟩
     refine Eventually.mono (step hp hmul ⟨hS, h64, hrP, hoP⟩ hpc hI) fun s' h ↦ ?_
     rcases h with h | ⟨hpc', hI'⟩

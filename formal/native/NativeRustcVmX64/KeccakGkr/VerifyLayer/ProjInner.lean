@@ -5,11 +5,11 @@ public import NativeRustcVmX64.KeccakGkr.VerifyLayer.Proj
 /-!
 # `verify_layer` on x86-64: the masked sum's loop
 
-At `.LVerifyLayer_10` (`b16`, `MIn j i`) the masked sum at bit `j` has its first `2 i` terms
+At `NativeRustcVmX64.Vm.VerifyLayer.label_10` (`b16`, `MIn j i`) the masked sum at bit `j` has its first `2 i` terms
 in RDI, RSI; RCX is `2 i`, R8 the pair of instance weights `2 i`, `2 i + 1` plus 24, RDX the mask
 `1 << j`. `b16`, `b17` take term `2 i` into R10, R9 (`MA`), `b18`, `b19` term `2 i + 1` into RBP,
-R11 (`MB`), `b15` adds both: back at `.LVerifyLayer_10` with `i + 1`, or out at
-`.LVerifyLayer_14` (`b21`) with the pairs done (`MX`): `inner`.
+R11 (`MB`), `b15` adds both: back at `NativeRustcVmX64.Vm.VerifyLayer.label_10` with `i + 1`, or out at
+`NativeRustcVmX64.Vm.VerifyLayer.label_14` (`b21`) with the pairs done (`MX`): `inner`.
 -/
 
 namespace NativeRustcVmX64.KeccakGkr.VerifyLayer
@@ -46,7 +46,7 @@ structure MB [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : A
   base : MA m0 a c p s1 j i d
   t1 : ewArg (reg d .rbp) (reg d .r11) = muSel c.mu j (2 * i + 1)
 
-/-- **The pairs done**, at `.LVerifyLayer_14`. -/
+/-- **The pairs done**, at `NativeRustcVmX64.Vm.VerifyLayer.label_14`. -/
 structure MX [Labels] (m0 : MachineData) (a : DecArea) (c : KeccakClaimW) (p : Array EW)
     (s1 : TState) (j : Nat) (d : MachineData) : Prop where
   core : PCore m0 a c p s1 j d
@@ -89,8 +89,8 @@ theorem MIn.keep {d d' : MachineData} (h : MIn m0 a c p s1 j i d) (hc : PCore m0
 /-- `b16`, `b17`: term `2 i`. -/
 theorem stepA (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : MIn m0 a c p s1 j i d) {R : MachineState → Prop}
-    (cont : ∀ d', MA m0 a c p s1 j i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 197)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 190)⟩ := by
+    (cont : ∀ d', MA m0 a c p s1 j i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b18Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b16Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hc := h.core
@@ -177,8 +177,8 @@ theorem MA.keep {d d' : MachineData} (h : MA m0 a c p s1 j i d) (hc : PCore m0 a
 /-- `b18`, `b19`: term `2 i + 1`. -/
 theorem stepB (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : MA m0 a c p s1 j i d) {R : MachineState → Prop}
-    (cont : ∀ d', MB m0 a c p s1 j i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 181)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 197)⟩ := by
+    (cont : ∀ d', MB m0 a c p s1 j i d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b15Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b18Offset)⟩ := by
   have g := geo_of hpre
   have hWo := wFront_outs hpre
   have hin := h.base
@@ -263,9 +263,9 @@ theorem stepB (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machine
 theorem step15 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : MB m0 a c p s1 j i d) {R : MachineState → Prop}
     (hnext : ∀ d', MIn m0 a c p s1 j (i + 1) d' →
-      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 190)⟩)
-    (hout : ∀ d', MX m0 a c p s1 j d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + 206)⟩) :
-    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + 181)⟩ := by
+      Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b16Offset)⟩)
+    (hout : ∀ d', MX m0 a c p s1 j d' → Eventually (step1 Host.exe) R ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b21Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b15Offset)⟩ := by
   have hin := h.base.base
   have hc := hin.core
   have hwf := wf0 (pre_stack hpre) hc.body (vars := fun _ ↦ 0) (ret := 0)
@@ -323,12 +323,12 @@ theorem step15 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : Machin
     subst hpc1
     exact hnext d1 ⟨hc1, hrcx, hr8, hrdx, hacc, by have := hin.lt; omega⟩
 
-/-- **The pairs' loop**, from `.LVerifyLayer_10` to `.LVerifyLayer_14`. -/
+/-- **The pairs' loop**, from `NativeRustcVmX64.Vm.VerifyLayer.label_10` to `NativeRustcVmX64.Vm.VerifyLayer.label_14`. -/
 theorem inner (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {d : MachineData}
     (h : MIn m0 a c p s1 j 0 d) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 206) ∧ MX m0 a c p s1 j st.data)
-      ⟨d, Host.addrOf (k + 190)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 190) ∧ ∃ i, c.mu.size - 2 * i = n ∧
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b21Offset) ∧ MX m0 a c p s1 j st.data)
+      ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b16Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b16Offset) ∧ ∃ i, c.mu.size - 2 * i = n ∧
     MIn m0 a c p s1 j i st.data) (fun n st ⟨hpc, i, hn, hi⟩ ↦ ?_) ⟨rfl, 0, rfl, h⟩
   obtain ⟨d', pc⟩ := st
   simp only at hpc hi

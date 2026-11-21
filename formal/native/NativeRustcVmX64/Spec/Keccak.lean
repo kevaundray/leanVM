@@ -3,6 +3,12 @@ module
 public import NativeRustcX64.Spec.Keccak
 public import NativeRustcVmX64.Rodata.Keccak
 public import NativeVm.Model.Verify
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
+public import NativeRustcVmX64.Code.Vm.IvWord.Names
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfFiatShamirIv.Names
+public import NativeRustcVmX64.Code.Vm.Keccak256WordsOfHashWords.Names
+public import NativeRustcVmX64.Code.Vm.KeccakF.Names
+public import NativeRustcVmX64.Code.Vm.Names
 
 /-!
 # The contracts of `keccak.rs`'s functions and `iv_word` on x86-64
@@ -12,7 +18,7 @@ RDI, RSI, RDX, RCX, R8, the result in RAX. Each function uses the stack below RS
 bytes: its pushes, its frame, its callees' return addresses and stacks; `StackOk` in its
 precondition also maps the return address at RSP, which `iv_word`, a leaf, only reads) and returns
 with the callee-saved registers kept (and RSP 8 above, `Spec`), no byte changed outside its output
-and that stack (`stackBelow`). Those that permute read the round constants, 192 bytes at `rcLabel`
+and that stack (`stackBelow`). Those that permute read the round constants, 192 bytes at `NativeRustcVmX64.Vm.Symbols.rodata1Label`
 (`RcAt`, `NativeRustcVmX64/Rodata/Keccak.lean`). A state, a digest and a slice of `u64` are their
 words end to end, little-endian (`NativeRustcVm.WordsAt`). Results are the model's
 (`NativeVm.Model`):
@@ -33,21 +39,6 @@ namespace NativeRustcVmX64
 open NativeRustcX64 NativeVm.Model LeanVM.Semantics LeanVM.Parameters
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `keccak_f`'s symbol. -/
-def keccakFLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6keccak8keccak_f"
-/-- `keccak256_words`'s symbol, with `hash_words`'s closure. -/
-def keccak256WordsHashLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm6keccak15keccak256_wordsNCNvB2_10hash_words0EB4_"
-/-- `keccak256_words`'s symbol, with `fiat_shamir_iv`'s closure. -/
-def keccak256WordsIvLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm6keccak15keccak256_wordsNCNvNtB4_6verify14fiat_shamir_iv0EB4_"
-/-- `iv_word`'s symbol. -/
-def ivWordLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6verify7iv_word"
-/-- `hash_pair`'s symbol. -/
-def hashPairLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair"
 
 /-! ## Stacks -/
 

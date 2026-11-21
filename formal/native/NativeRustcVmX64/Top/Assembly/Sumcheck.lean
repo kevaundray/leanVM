@@ -9,6 +9,14 @@ public import NativeRustcVmX64.Sumcheck.Gkr
 public import NativeRustcVmX64.Sumcheck.Layer
 public import NativeRustcVmX64.Sumcheck.OpenPhase
 public import NativeRustcVmX64.Sumcheck.QueryOpenings
+public import NativeRustcVmX64.Code.Vm.Climb.Names
+public import NativeRustcVmX64.Code.Vm.OpenPhase.Names
+public import NativeRustcVmX64.Code.Vm.RowsRow.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfGkrStep.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfSumcheckPlain.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfVerifyLayer.Names
+public import NativeRustcVmX64.Code.Vm.TStateQueryOpenings.Names
+public import NativeRustcVmX64.Code.Vm.TStateSumcheckRoundPoly.Names
 
 /-!
 # The sumcheck and openings functions, placed in `leanvm_verify`'s program
@@ -27,37 +35,37 @@ public section
 variable [Host] (hP : Host.prog = Vm.code)
 include hP
 
-theorem rowsRow : ∀ p rows, Spec (label rowsRowLabel) (RowsRowPre p rows) (RowsRowPost p rows) :=
+theorem rowsRow : ∀ p rows, Spec (label NativeRustcVmX64.Vm.RowsRow.entryLabel) (RowsRowPre p rows) (RowsRowPost p rows) :=
   Sumcheck.RowsRow.rowsRow_spec (placed_RowsRow hP)
 
-theorem climb : ∀ N P, Spec (label climbLabel) (ClimbPre N P) (ClimbPost N P) :=
+theorem climb : ∀ N P, Spec (label NativeRustcVmX64.Vm.Climb.entryLabel) (ClimbPre N P) (ClimbPost N P) :=
   Sumcheck.Climb.climb_spec (placed_Climb hP) (hashPair hP)
 
 theorem roundPoly :
-    ∀ a s e, Spec (label roundPolyLabel) (RoundPolyPre a s e) (RoundPolyPost a s e) :=
+    ∀ a s e, Spec (label NativeRustcVmX64.Vm.TStateSumcheckRoundPoly.entryLabel) (RoundPolyPre a s e) (RoundPolyPost a s e) :=
   Sumcheck.RoundPoly.roundPoly_spec (placed_TStateSumcheckRoundPoly hP) (readScalar hP)
     (readScalars hP) (sumE hP) (bitLength hP) (grind hP) (ewMul hP)
 
 theorem sumcheckPlain :
-    ∀ a s, Spec (label sumcheckPlainLabel) (SumcheckPlainPre a s) (SumcheckPlainPost a s) :=
+    ∀ a s, Spec (label NativeRustcVmX64.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s) (SumcheckPlainPost a s) :=
   Sumcheck.Plain.sumcheckPlain_spec (placed_SumcheckOfSumcheckPlain hP) (roundPoly hP)
     (squeeze hP) (polyEval hP)
 
 theorem sumcheckGkr : ∀ a s pt n,
-    Spec (label sumcheckGkrLabel) (SumcheckGkrPre a s pt n) (SumcheckGkrPost a s pt n) :=
+    Spec (label NativeRustcVmX64.Vm.SumcheckOfGkrStep.entryLabel) (SumcheckGkrPre a s pt n) (SumcheckGkrPost a s pt n) :=
   Sumcheck.Gkr.sumcheckGkr_spec (placed_SumcheckOfGkrStep hP) (roundPoly hP) (squeeze hP)
     (polyEval hP)
 
 theorem sumcheckLayer : ∀ a s pt,
-    Spec (label sumcheckLayerLabel) (SumcheckLayerPre a s pt) (SumcheckLayerPost a s pt) :=
+    Spec (label NativeRustcVmX64.Vm.SumcheckOfVerifyLayer.entryLabel) (SumcheckLayerPre a s pt) (SumcheckLayerPost a s pt) :=
   Sumcheck.Layer.sumcheckLayer_spec (placed_SumcheckOfVerifyLayer hP) (roundPoly hP)
     (squeeze hP) (polyEval hP)
 
-theorem openPhase : ∀ P R Q, Spec (label openPhaseLabel) (OpenPhasePre P R Q)
+theorem openPhase : ∀ P R Q, Spec (label NativeRustcVmX64.Vm.OpenPhase.entryLabel) (OpenPhasePre P R Q)
     (OpenPhasePost P R Q) :=
   Sumcheck.OpenPhase.openPhase_spec (placed_OpenPhase hP) (keccak256WordsHash hP) (climb hP)
 
-theorem queryOpenings : ∀ a s Q, Spec (label queryOpeningsLabel) (QueryOpeningsPre a s Q)
+theorem queryOpenings : ∀ a s Q, Spec (label NativeRustcVmX64.Vm.TStateQueryOpenings.entryLabel) (QueryOpeningsPre a s Q)
     (QueryOpeningsPost a s Q) :=
   Sumcheck.QueryOpenings.queryOpenings_spec (placed_TStateQueryOpenings hP) (phase hP)
     (openPhase hP)

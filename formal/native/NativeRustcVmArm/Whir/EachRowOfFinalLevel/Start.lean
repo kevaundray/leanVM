@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfFinalLevel.Names
 public import NativeRustcVmArm.Whir.EachRowOfFinalLevel.Entry
 
 /-!
@@ -37,8 +38,8 @@ variable [Host] {k : Nat}
 theorem start_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m : MachineData}
     (h : AtB3 m0 m)
     (cont : ∀ m', Inv rows m0 0 m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 43)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 29)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b5Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b3Offset)⟩ := by
   have hstk := hpre.1.1
   have hS : 3184 ≤ m0.regs.SP.toNat := hstk.2.1
   have hrows := hpre.1.2.1
@@ -67,7 +68,7 @@ theorem start_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m :
     refine NativeRustcVm.Transcript.bytesAt_congr (rows_count hrows) fun i hi ↦ ?_
     rw [NativeRustcVm.addr_add_add]
     exact hsame _ (by rw [NativeRustcVm.length_wordBytes] at hi; omega)
-  have hk3 : b3.IsInfixAt Host.prog (k + 29) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk3 : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b3Offset) := b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_then hk3 run_b3 hwf3 hm3 fun st6 hm6 hpc6 ↦ ?_
   have hl3 : EachRow.Lay m0 1952 eachRowFinalStack 48 56 := ⟨by decide, by decide, by decide, hS⟩
   have hs6 : SameOutside m.dmem st6.data.dmem (EachRow.Hit m0 1952 eachRowFinalStack 48 56) :=
@@ -107,7 +108,7 @@ theorem start_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m :
   by_cases hz : rows.size = 0
   · -- no rows
     simp only [hz, decide_true, ↓reduceIte] at hpc6
-    rw [show Labels.label ".LEachRowOfFinalLevel_9" = Host.addrOf (k + 218) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16Offset) from hp.label (j := NativeRustcVmArm.Vm.EachRowOfFinalLevel.b16Offset) NativeRustcVmArm.Vm.EachRowOfFinalLevel.label_9_at]
       at hpc6
     obtain ⟨d6, pc6⟩ := st6
     simp only at hpc6
@@ -135,7 +136,7 @@ theorem start_step (hp : Placed code k) (hpre : EachRowFinalPre rows op m0) {m :
         show fb m0 + BitVec.ofInt 64 1952 = m0.regs.SP.toBitVec + BitVec.ofInt 64 0
         simp only [fb, base]
         bv_omega, trivial⟩
-  have hk4 : b4.IsInfixAt Host.prog (k + 32) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.EachRowOfFinalLevel.b4Offset) := b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk4 run_b4 hwf4 hpc6 hm4 fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨d7, pc7⟩ := st7
   simp only [PcOk] at hpc7

@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BlockForm.Names
+public import NativeRustcVmArm.Code.Vm.FormBufAddScaled.Names
+public import NativeRustcVmArm.Code.Vm.FormTerms.Names
 public import NativeRustcVmArm.Bus.BlockForm.Exec
 public import NativeRustcVmArm.Bus.Frame
 public import NativeRustcVm.Bus.Tuples
@@ -74,16 +77,16 @@ structure Inv (m0 : MachineData) (j : Nat) (st : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LBlockForm_2" = Host.addrOf (k + 20) :=
-  hp.label (j := 20) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LBlockForm_3" = Host.addrOf (k + 26) :=
-  hp.label (j := 26) rfl
-theorem lbl_4 (hp : Placed code k) : Labels.label ".LBlockForm_4" = Host.addrOf (k + 28) :=
-  hp.label (j := 28) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LBlockForm_5" = Host.addrOf (k + 37) :=
-  hp.label (j := 37) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LBlockForm_8" = Host.addrOf (k + 50) :=
-  hp.label (j := 50) rfl
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BlockForm.label_2 = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b2Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BlockForm.b2Offset) NativeRustcVmArm.Vm.BlockForm.label_2_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BlockForm.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b3Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BlockForm.b3Offset) NativeRustcVmArm.Vm.BlockForm.label_3_at
+theorem lbl_4 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BlockForm.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b4Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BlockForm.b4Offset) NativeRustcVmArm.Vm.BlockForm.label_4_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BlockForm.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b6Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BlockForm.b6Offset) NativeRustcVmArm.Vm.BlockForm.label_5_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.BlockForm.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b10Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.BlockForm.b10Offset) NativeRustcVmArm.Vm.BlockForm.label_8_at
 
 /-- `block_form`'s postcondition, reached. -/
 abbrev Post (m0 : MachineData) (st : MachineState) : Prop :=
@@ -97,7 +100,7 @@ theorem outs_rodata {m0 : MachineData} (hpre : BlockFormPre m0) :
 
 /-- **The epilogue** `b10`: X0 `1` where the loop ran to the end. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hpre : BlockFormPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 50))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b10Offset))
     (hfr : Fr m0 64 blockFormStack slots keep (outs m0) st.data)
     (hres : if (g m0 (tsp m0).len).size ≤ formCap then
         (st.data.regs.getXReg .X22).toNat ≤ (st.data.regs.getXReg .X21).toNat ∧
@@ -154,13 +157,13 @@ theorem outs_frame {m0 : MachineData} (hpre : BlockFormPre m0) :
 /-- **A turn of the loop**: slot `j`'s form added, back at the head; or out of the loop (the
 span's end, or a form outgrowing its `FormBuf`) and returned. -/
 theorem step (hp : Placed code k)
-    (hft : Spec (Labels.label formTermsLabel) FormTermsPre FormTermsPost)
-    (hadd : ∀ f o, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f o)
+    (hft : Spec (Labels.label NativeRustcVmArm.Vm.FormTerms.entryLabel) FormTermsPre FormTermsPost)
+    (hadd : ∀ f o, Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f o)
       (FormBufAddScaledPost f o))
     {m0 : MachineData} (hpre : BlockFormPre m0) {j : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 37)) (hI : Inv m0 j st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b6Offset)) (hI : Inv m0 j st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-      (st'.pc = Host.addrOf (k + 37) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b6Offset) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st := by
   have hpre' := hpre
   obtain ⟨hS, hR, htu, hW, hFo, hFA, hFW⟩ := hpre
   have hN : blockFormStack ≤ m0.regs.SP.toNat := hS.2.1
@@ -223,13 +226,13 @@ theorem step (hp : Placed code k)
     have e4x2 : st4.data.regs.getXReg .X2 = m3.regs.getXReg .X0 := mov_reg hm4 rfl
     have e4x5 : st4.data.regs.getXReg .X5 = m3.regs.getXReg .X1 := mov_reg hm4 rfl
     -- From `.LBlockForm_4` on: `add_scaled`, then `b5`.
-    have tail : ∀ st5 : MachineState, st5.pc = Host.addrOf (k + 28) →
+    have tail : ∀ st5 : MachineState, st5.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b4Offset) →
         Fr m0 64 blockFormStack slots keep (outs m0) st5.data → st5.data.dmem = st.data.dmem →
         Bus.KeepRegs (.X2 :: .X5 :: L') st4.data st5.data →
         ewArg (st5.data.regs.getXReg .X3) (st5.data.regs.getXReg .X4) =
           (slice m0 m0.regs.X1 m0.regs.X2).getD j 0 →
         Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨
-          (st'.pc = Host.addrOf (k + 37) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st5 := by
+          (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b6Offset) ∧ Inv m0 (j + 1) st'.data ∧ j < (tsp m0).len)) st5 := by
       intro st5 hpc5 hfr5 hd5 K5 hw5
       refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 (Env.wf_nil _) hpc5
         (match_nil _) fun st6 hm6 hpc6 ↦ ?_
@@ -414,10 +417,10 @@ theorem step (hp : Placed code k)
 
 /-- **`block_form` meets its contract.** -/
 theorem blockForm_spec (hp : Placed code k)
-    (hft : Spec (Labels.label formTermsLabel) FormTermsPre FormTermsPost)
-    (hadd : ∀ f o, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f o)
+    (hft : Spec (Labels.label NativeRustcVmArm.Vm.FormTerms.entryLabel) FormTermsPre FormTermsPost)
+    (hadd : ∀ f o, Spec (Labels.label NativeRustcVmArm.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f o)
       (FormBufAddScaledPost f o)) :
-    Spec (Labels.label blockFormLabel) BlockFormPre BlockFormPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.BlockForm.entryLabel) BlockFormPre BlockFormPost := by
   intro m0 hpre
   have hpre' := hpre
   obtain ⟨hS, hR, htu, hW, hFo, hFA, hFW⟩ := hpre
@@ -437,7 +440,7 @@ theorem blockForm_spec (hp : Placed code k)
             Option.getD_some]
           rw [show BitVec.ofInt 64 64 = BitVec.ofNat 64 64 from rfl]; exact base_add_eq.symm)
       ⟨by simp [Sym.eval]; rfl, trivial⟩ trivial trivial trivial
-  rw [show Labels.label blockFormLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.BlockForm.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.BlockForm.entryOffset) NativeRustcVmArm.Vm.BlockForm.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf0 hm0 fun st1 hm1 hpc1 ↦ ?_
   have hfr1 : Fr m0 64 blockFormStack slots keep (outs m0) st1.data :=
     Fr.ofPrologueW hN hF hm1 hwf0 rfl (by decide) slots_le
@@ -554,7 +557,7 @@ theorem blockForm_spec (hp : Placed code k)
     · rw [(K3 .X8 (by simp)), hx8]; rfl
     · rw [h25]; rfl
     · rw [hd3, hd2]; exact hform1
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 37) ∧ ∃ j, (tsp m0).len - j = n ∧
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BlockForm.b6Offset) ∧ ∃ j, (tsp m0).len - j = n ∧
     Inv m0 j st.data) (fun n st ⟨hpc, j, hn, hI⟩ ↦ ?_) ⟨hpc3.trans (lbl_5 hp), 0, rfl, hI0⟩
   refine Eventually.mono (step hp hft hadd hpre' hpc hI) fun st' h ↦ ?_
   rcases h with h | ⟨hpc', hI', hlt⟩

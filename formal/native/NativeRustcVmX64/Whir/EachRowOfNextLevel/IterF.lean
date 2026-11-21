@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Whir.EachRowOfNextLevel.IterE
 public import NativeRustcVmX64.Whir.MathFrame
+public import NativeRustcVmX64.Code.Vm.EachRowOfNextLevel.Names
 
 /-!
 # `each_row` with `next_level`'s closure: adding a row's term (x86-64)
@@ -71,8 +72,8 @@ variable [Host] {k : Nat}
 /-- **Adding row `j`'s term**: from `b8` to the invariant before row `j + 1` or the exit. -/
 theorem b8_step (hp : Placed code k) (c : Ctx rows op m0) {m : MachineData} (h : AtB8 rows m0 j m)
     (cont : ∀ m', Inv rows m0 (j + 1) m' →
-      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + 82)⟩) :
-    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + 73)⟩ := by
+      Eventually (step1 Host.exe) (Done rows m0) ⟨m', Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b9Offset)⟩) :
+    Eventually (step1 Host.exe) (Done rows m0) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b8Offset)⟩ := by
   have hl := lay c
   have hrs : rows.size ≤ 256 := c.rowsAt.2.1
   have hjr := h.hj
@@ -84,7 +85,7 @@ theorem b8_step (hp : Placed code k) (c : Ctx rows op m0) {m : MachineData} (h :
         show reg m .r14 = bOf m0 + BitVec.ofInt 64 0
         rw [h.r14]
         exact (BitVec.add_zero _).symm, trivial⟩ trivial trivial trivial
-  have hk8 : b8.IsInfixAt Host.prog (k + 73) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b8Offset) := b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hl120 : env.load 0 120 8 = BitVec.ofNat 64 (rows.size - (j + 1)) :=
     NativeRustcVmX64.Arrays.load_word h.mm.w120
   refine exec_then hk8 run_b8 hwf (fun _ h ↦ by cases h) hm fun st hm1 hpc ↦ ?_
@@ -140,7 +141,7 @@ theorem b8_step (hp : Placed code k) (c : Ctx rows op m0) {m : MachineData} (h :
   rw [hc] at hpc
   by_cases hlast : rows.size = j + 1
   · simp only [hlast, decide_true, ↓reduceIte] at hpc
-    rw [show Labels.label ".LEachRowOfNextLevel_17" = Host.addrOf (k + 169) from hp.label rfl]
+    rw [show Labels.label NativeRustcVmX64.Vm.EachRowOfNextLevel.label_17 = Host.addrOf (k + NativeRustcVmX64.Vm.EachRowOfNextLevel.b27Offset) from hp.label NativeRustcVmX64.Vm.EachRowOfNextLevel.label_17_at]
       at hpc
     obtain ⟨d, pc⟩ := st
     simp only at hpc hfr hbat

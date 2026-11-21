@@ -1,6 +1,10 @@
 module
 
 public import NativeRustcVmX64.Top.Verify.Exit
+public import NativeRustcVmX64.Code.Vm.DecodedPhaseCount.Names
+public import NativeRustcVmX64.Code.Vm.Seed.Names
+public import NativeRustcVmX64.Code.Vm.Verify.Names
+public import NativeRustcVmX64.Code.Vm.VerifyExecution.Names
 
 /-!
 # `verify` on x86-64
@@ -21,13 +25,13 @@ variable [Host] {k : Nat}
 
 /-- **`verify` meets its contract.** -/
 theorem verify_spec (hp : Placed code k)
-    (hseed : Spec (Labels.label seedLabel) SeedPre SeedPost)
-    (hve : ∀ a s, Spec (Labels.label verifyExecutionLabel) (VerifyExecutionPre a s)
+    (hseed : Spec (Labels.label NativeRustcVmX64.Vm.Seed.entryLabel) SeedPre SeedPost)
+    (hve : ∀ a s, Spec (Labels.label NativeRustcVmX64.Vm.VerifyExecution.entryLabel) (VerifyExecutionPre a s)
       (VerifyExecutionPost a s))
-    (hpcnt : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hpcnt : ∀ a stream openings, Spec (Labels.label NativeRustcVmX64.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     (a : DecArea) (stream : Array EW) (openings : Array (Array OpeningW)) :
-    Spec (Labels.label verifyLabel) (VerifyPre a stream openings) (VerifyPost stream openings) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.Verify.entryLabel) (VerifyPre a stream openings) (VerifyPost stream openings) := by
   intro m0 hpre
   rw [lbl_entry hp]
   refine Eventually.bind (stageA hp hseed hpre) fun st1 ⟨hpc1, hSA⟩ ↦ ?_

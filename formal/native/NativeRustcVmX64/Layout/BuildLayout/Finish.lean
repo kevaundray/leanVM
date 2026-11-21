@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Layout.BuildLayout.Kappas
+public import NativeRustcVmX64.Code.Vm.PlacementsOf.Names
 
 /-!
 # `build_layout` on x86-64: `placements_of`, the stack's log-size, the return
@@ -91,8 +92,8 @@ variable [Host] {k : Nat}
 
 /-- **`b16` to `b20`: `placements_of`, the stack's log-size, the return.** -/
 theorem finish (hp : Placed code k)
-    (hpl : Spec (Labels.label placementsOfLabel) PlacementsOfPre PlacementsOfPost) (hF : Facts bc m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 105)) (hs : SK m0 st.data) :
+    (hpl : Spec (Labels.label NativeRustcVmX64.Vm.PlacementsOf.entryLabel) PlacementsOfPre PlacementsOfPost) (hF : Facts bc m0)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b16Offset)) (hs : SK m0 st.data) :
     Eventually (step1 Host.exe) (Post bc m0) st := by
   obtain ⟨hA, hA1, hA2, hL, hLA⟩ := hF.num
   have hc := hs.chk
@@ -103,9 +104,9 @@ theorem finish (hp : Placed code k)
   have hres := model_some hF.size hs.pow2 hc
   -- `b16`
   obtain ⟨hok, h0, hsi, hdi, hK16⟩ := ok_b16
-  have hwf0 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 105 + b16.length)).toBitVec)
+  have hwf0 := fr_wf0 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b16Offset + b16.length)).toBitVec)
     hs.b hF.stack (by decide)
-  refine run0 (ret := (Host.addrOf (k + 105 + b16.length)).toBitVec) hF
+  refine run0 (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BuildLayout.b16Offset + b16.length)).toBitVec) hF
     (b16_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b16 (fun _ _ ↦ rfl) hpc hs.b hok
     fun st1 hm1 hpc1 hb1 ↦ ?_
   have hs1 : NativeRustcVm.SameOutside st.data.dmem st1.data.dmem
@@ -247,7 +248,7 @@ theorem finish (hp : Placed code k)
     rw [kreg hm4 hK18 (by simp), k3 .rax (by simp)]; exact h0'
   simp only [PcOk] at hpc4
   -- the epilogue
-  refine Eventually.mono (epi (b := true) hp hF (hpc4.trans (hp.label (j := 114) rfl)) hb4
+  refine Eventually.mono (epi (b := true) hp hF (hpc4.trans (hp.label NativeRustcVmX64.Vm.BuildLayout.label_18_at)) hb4
     (by rw [hax4]; rfl)) fun s ⟨hs1', hs2', hs3', hs4', hs5', hs6'⟩ ↦
       ⟨hs1', hs2', ?_, fun L hL ↦ ?_, hs4', hs5'⟩
   · show OkAl s.data (buildLayout bc (lmN m0) (rowsOf m0)).isSome

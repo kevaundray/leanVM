@@ -35,8 +35,8 @@ theorem ev_at {R : MachineState → Prop} {st : MachineState} {a : Int64} (h : s
 /-- **A tree's nodes** from height `z`: its root at `b96`. -/
 theorem nodes_spec (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {c : Nat} : ∀ n z, z + n = 10 → ∀ m, AtNode r c z m →
-      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1078 ∧ AtRoot r c st.data)
-        ⟨m, r.pc 730⟩ := by
+      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b96Offset ∧ AtRoot r c st.data)
+        ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b65Offset⟩ := by
   intro n
   induction n with
   | zero => intro z hn m h; exact absurd h.hz (by omega)
@@ -50,8 +50,8 @@ theorem nodes_spec (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (
 theorem tree_spec (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre)
     {c : Nat} {m : MachineData} (h : AtTree r c m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc 680 ∧ AtTree r (c + 1) st.data) ∨
-        (c + 1 = 24 ∧ st.pc = r.pc 1088 ∧ r.AtForsKey st.data)) ⟨m, r.pc 680⟩ :=
+      (fun st ↦ (c + 1 < 24 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b58Offset ∧ AtTree r (c + 1) st.data) ∨
+        (c + 1 = 24 ∧ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b97Offset ∧ r.AtForsKey st.data)) ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b58Offset⟩ :=
   tree_head hp hc hpre h fun m₁ h₁ ↦
     Eventually.bind (nodes_spec hp hc hpre 10 0 rfl m₁ h₁) fun _ ⟨hpc, h₂⟩ ↦
       ev_at hpc (tree_end hp hpre h₂)
@@ -59,8 +59,8 @@ theorem tree_spec (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (h
 /-- **The trees** from tree `c`'s head. -/
 theorem trees_spec (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hpre : r.Pre) :
     ∀ n c, c + n = 24 → ∀ m, AtTree r c m →
-      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1088 ∧ r.AtForsKey st.data)
-        ⟨m, r.pc 680⟩ := by
+      Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcX64.Sphincs.SphincsVerify.b97Offset ∧ r.AtForsKey st.data)
+        ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b58Offset⟩ := by
   intro n
   induction n with
   | zero => intro c hn m h; exact absurd h.keep.2.hc (by omega)

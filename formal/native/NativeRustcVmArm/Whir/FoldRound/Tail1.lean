@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Whir.FoldRound.Words
 
 /-!
@@ -60,10 +61,10 @@ theorem base_sq (h : FoldRoundPre a s0 w m0) {st m2 : MachineData} (hb : Base w 
 
 /-- **The two squeezes.** -/
 theorem squeezes (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    {st : MachineState} {s5 : TState} {u0 v c0 c1 : EW} (hpc : st.pc = Host.addrOf (k + 38))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    {st : MachineState} {s5 : TState} {u0 v c0 c1 : EW} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b10Offset))
     (hb : AtB10 a s0 w m0 s5 u0 v c0 c1 st.data) {R : MachineState → Prop}
-    (cont : ∀ st', st'.pc = Host.addrOf (k + 46) → AtB12 a s0 w m0 s5 u0 v c0 c1 st'.data →
+    (cont : ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b12Offset) → AtB12 a s0 w m0 s5 u0 v c0 c1 st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have c := ctx h
@@ -89,7 +90,7 @@ theorem squeezes (hp : Placed code k) (h : FoldRoundPre a s0 w m0)
   -- `b11`: the frame's words, `β`
   have hwf3 := frame_wf h hf2
   have hm3 := frame_match h hf2
-  refine exec_at (st := ⟨m2, _⟩) (k := k + 40) (inf hp b11_in_code (by simp [b11])) run_b11 hwf3
+  refine exec_at (st := ⟨m2, _⟩) (k := k + NativeRustcVmArm.Vm.FoldRound.b11Offset) (inf hp b11_in_code (by simp [b11])) run_b11 hwf3
     rfl hm3 fun st3 hm3' hpc3 ↦ ?_
   simp only [PcOk] at hpc3
   have hmem3 : ∀ w ∈ (after b11 midS).mem, w.r = 0 ∧ w.off + w.n ≤ 208 := by

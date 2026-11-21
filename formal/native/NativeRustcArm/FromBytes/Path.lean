@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Memcpy.Names
+
 public import NativeRustcArm.FromBytes.Mid
 public import NativeRustcArm.FromBytes.PathExec
 
@@ -128,9 +130,9 @@ theorem pathCall [Labels] {m₀ m m' : MachineData} (P : Pre m₀) (h : MidAt m�
 
 /-- **The path**: from block 5 to the call `memcpy(out, frame + 944, 256)`. -/
 public theorem path [Host] {k : Nat} (hp : Placed code k) {m₀ : MachineData} (P : Pre m₀)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 40)) (h : MidAt m₀ st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.FromBytes.b5Offset)) (h : MidAt m₀ st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Labels.label "memcpy" → retOf st'.data = Host.addrOf (k + 172) →
+    (cont : ∀ st' : MachineState, st'.pc = Labels.label NativeRustcArm.Common.Memcpy.entryLabel → retOf st'.data = Host.addrOf (k + NativeRustcArm.Xmss.FromBytes.b22Offset) →
       PathCall m₀ st'.data → Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hwf := envP_wf P h.common

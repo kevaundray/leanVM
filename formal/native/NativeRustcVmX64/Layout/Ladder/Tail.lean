@@ -222,7 +222,7 @@ variable [Host] {k : Nat}
 /-- **`b9` to `b16`**: the counts, the result, the return. -/
 theorem tail (hp : Placed code k) {m : MachineData} (hpre : LadderPre m)
     (hadm : Whir.Admissible (reg m .rsi).toNat (reg m .rdx).toNat) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 59)) (hR9 : R9 m st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Ladder.b9Offset)) (hR9 : R9 m st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m ∧ rspOf st'.data = rspOf m + 8#64 ∧
       LadderPost m st'.data) st := by
   have hpre' := hpre
@@ -281,7 +281,7 @@ theorem tail (hp : Placed code k) {m : MachineData} (hpre : LadderPre m)
   -- The tail from `b15` and `b16`, the same for every path.
   have fin15 : ∀ {S S' : SState} {v3 v4 v5 : Sym} {st' : MachineState},
       exec b15 S = some (S', .fall) → exec b16 S' = some (after b16 S', .ret (.load 0 72 8)) →
-      EndOk (after b16 S') v3 v4 v5 → st'.pc = Host.addrOf (k + 90) →
+      EndOk (after b16 S') v3 v4 v5 → st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Ladder.b15Offset) →
       Match (envM m st.data) S st'.data →
       (3 < nOf μ → (v3.eval (envM m st.data)).toNat = qAt μ r 3) →
       (4 < nOf μ → (v4.eval (envM m st.data)).toNat = qAt μ r 4) →
@@ -293,7 +293,7 @@ theorem tail (hp : Placed code k) {m : MachineData} (hpre : LadderPre m)
       fun s15 hm15 hpc15 ↦ ?_
     simp only [PcOk] at hpc15
     exact exec_at (infix_of b16_in_code (by simp [b16]) hp) hx16 hwf nofun
-      (hpc15.trans (by rw [show b15.length = 24 from rfl])) hm15
+      (hpc15.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b15_next)) hm15
       fun s16 hm16 hpc16 ↦ done hm16 hE (hpcret hpc16) h3 h4 h5
   have hl : ∀ i < 6, ∀ {v : Sym}, v = .load 2 (8 * i) 8 →
       (v.eval (envM m st.data)).toNat = qAt μ r i := fun i hi v hv ↦ hv ▸ hq i hi
@@ -303,9 +303,9 @@ theorem tail (hp : Placed code k) {m : MachineData} (hpre : LadderPre m)
   simp only [PcOk, nm1, SBool.eval, Sym.eval, hcx] at hpc9
   -- `b12` from `b9`, for `n ≥ 4`.
   have at12 : 3 < nOf μ → ∀ {R : MachineState → Prop},
-      (nOf μ = 4 → ∀ st', st'.pc = Host.addrOf (k + 82 + b12.length) →
+      (nOf μ = 4 → ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Ladder.b12Offset + b12.length) →
         Match (envM m st.data) B12 st'.data → Eventually (step1 Host.exe) R st') →
-      (4 < nOf μ → ∀ st', st'.pc = Host.addrOf (k + 124) → Match (envM m st.data) B12 st'.data →
+      (4 < nOf μ → ∀ st', st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Ladder.b17Offset) → Match (envM m st.data) B12 st'.data →
         Eventually (step1 Host.exe) R st') →
       Eventually (step1 Host.exe) R s9 := by
     intro h3 R k4 k5
@@ -316,7 +316,7 @@ theorem tail (hp : Placed code k) {m : MachineData} (hpre : LadderPre m)
     rw [c9] at hpc9
     simp only [↓reduceIte] at hpc9
     refine exec_at (infix_of b12_in_code (by simp [b12]) hp) exit_b12 hwf nofun
-      (hpc9.trans (hp.label (j := 82) rfl)) hm9 fun s12 hm12 hpc12 ↦ ?_
+      (hpc9.trans (hp.label NativeRustcVmX64.Vm.Ladder.label_12_at)) hm9 fun s12 hm12 hpc12 ↦ ?_
     simp only [PcOk, nm1, SBool.eval, Sym.eval, hcx] at hpc12
     rcases (show nOf μ = 4 ∨ 4 < nOf μ by omega) with h4 | h4
     · rw [h4] at hpc12
@@ -327,29 +327,29 @@ theorem tail (hp : Placed code k) {m : MachineData} (hpre : LadderPre m)
         rcases (show nOf μ = 5 ∨ nOf μ = 6 by omega) with h | h <;> rw [h] <;> decide
       rw [c12] at hpc12
       simp only [↓reduceIte] at hpc12
-      exact k5 h4 s12 (hpc12.trans (hp.label (j := 124) rfl)) hm12
+      exact k5 h4 s12 (hpc12.trans (hp.label NativeRustcVmX64.Vm.Ladder.label_17_at)) hm12
   rcases (show nOf μ = 3 ∨ nOf μ = 4 ∨ nOf μ = 5 ∨ nOf μ = 6 by omega) with h3 | h4 | h5 | h6
   · rw [h3] at hpc9
     simp (config := { decide := true }) only [↓reduceIte] at hpc9
     refine exec_at (infix_of b10_in_code (by simp [b10]) hp) exit_b10 hwf nofun
-      (hpc9.trans (by rw [show b9.length = 18 from rfl])) hm9 fun s10 hm10 hpc10 ↦ ?_
+      (hpc9.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b9_next)) hm9 fun s10 hm10 hpc10 ↦ ?_
     simp only [PcOk] at hpc10
     refine exec_at (infix_of b13_in_code (by simp [b13]) hp) exit_b13a hwf nofun
-      (hpc10.trans (hp.label (j := 86) rfl)) hm10 fun s13 hm13 hpc13 ↦ ?_
+      (hpc10.trans (hp.label NativeRustcVmX64.Vm.Ladder.label_13_at)) hm10 fun s13 hm13 hpc13 ↦ ?_
     simp only [PcOk] at hpc13
     refine exec_at (infix_of b14_in_code (by simp [b14]) hp) exit_b14a hwf nofun
-      (hpc13.trans (by rw [show b13.length = 2 from rfl])) hm13 fun s14 hm14 hpc14 ↦ ?_
+      (hpc13.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b13_next)) hm13 fun s14 hm14 hpc14 ↦ ?_
     simp only [PcOk] at hpc14
-    exact fin15 exit_b15a exit_b16a end_a (hpc14.trans (by rw [show b14.length = 2 from rfl]))
+    exact fin15 exit_b15a exit_b16a end_a (hpc14.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b14_next))
       hm14 (by omega) (by omega) (by omega)
   · refine at12 (by omega) (fun _ s12 hpc12 hm12 ↦ ?_) (fun h _ _ _ ↦ absurd h (by omega))
     refine exec_at (infix_of b13_in_code (by simp [b13]) hp) exit_b13b hwf nofun
-      (hpc12.trans (by rw [show b12.length = 4 from rfl])) hm12 fun s13 hm13 hpc13 ↦ ?_
+      (hpc12.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b12_next)) hm12 fun s13 hm13 hpc13 ↦ ?_
     simp only [PcOk] at hpc13
     refine exec_at (infix_of b14_in_code (by simp [b14]) hp) exit_b14b hwf nofun
-      (hpc13.trans (by rw [show b13.length = 2 from rfl])) hm13 fun s14 hm14 hpc14 ↦ ?_
+      (hpc13.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b13_next)) hm13 fun s14 hm14 hpc14 ↦ ?_
     simp only [PcOk] at hpc14
-    exact fin15 exit_b15b exit_b16b end_b (hpc14.trans (by rw [show b14.length = 2 from rfl]))
+    exact fin15 exit_b15b exit_b16b end_b (hpc14.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b14_next))
       hm14 (fun _ ↦ hl 3 (by decide) rfl) (by omega) (by omega)
   all_goals
     refine at12 (by omega) (fun h _ _ _ ↦ absurd h (by omega)) (fun _ s12 hpc12 hm12 ↦ ?_)
@@ -359,16 +359,16 @@ theorem tail (hp : Placed code k) {m : MachineData} (hpre : LadderPre m)
   · rw [h5] at hpc17
     simp (config := { decide := true }) only [↓reduceIte] at hpc17
     refine exec_at (infix_of b14_in_code (by simp [b14]) hp) exit_b14c hwf nofun
-      (hpc17.trans (hp.label (j := 88) rfl)) hm17 fun s14 hm14 hpc14 ↦ ?_
+      (hpc17.trans (hp.label NativeRustcVmX64.Vm.Ladder.label_14_at)) hm17 fun s14 hm14 hpc14 ↦ ?_
     simp only [PcOk] at hpc14
-    exact fin15 exit_b15c exit_b16c end_c (hpc14.trans (by rw [show b14.length = 2 from rfl]))
+    exact fin15 exit_b15c exit_b16c end_c (hpc14.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b14_next))
       hm14 (fun _ ↦ hl 3 (by decide) rfl) (fun _ ↦ hl 4 (by decide) rfl) (by omega)
   · rw [h6] at hpc17
     simp (config := { decide := true }) only [↓reduceIte] at hpc17
     refine exec_at (infix_of b18_in_code (by simp [b18]) hp) exit_b18 hwf nofun
-      (hpc17.trans (by rw [show b17.length = 4 from rfl])) hm17 fun s18 hm18 hpc18 ↦ ?_
+      (hpc17.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Ladder.b17_next)) hm17 fun s18 hm18 hpc18 ↦ ?_
     simp only [PcOk] at hpc18
-    exact fin15 exit_b15d exit_b16d end_d (hpc18.trans (hp.label (j := 90) rfl)) hm18
+    exact fin15 exit_b15d exit_b16d end_d (hpc18.trans (hp.label NativeRustcVmX64.Vm.Ladder.label_15_at)) hm18
       (fun _ ↦ hl 3 (by decide) rfl) (fun _ ↦ hl 4 (by decide) rfl)
       (fun _ ↦ hl 5 (by decide) rfl)
 

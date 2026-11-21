@@ -3,6 +3,22 @@ module
 public import NativeRustcVmX64.Spec.Ring
 public import NativeRustcVmX64.Rodata
 public import NativeRustcVm.Layout.Values
+public import NativeRustcVmX64.Code.Vm.BuildLayout.Names
+public import NativeRustcVmX64.Code.Vm.ColumnKappas.Names
+public import NativeRustcVmX64.Code.Vm.CommitStack.Names
+public import NativeRustcVmX64.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
+public import NativeRustcVmX64.Code.Vm.FormBufAddScaled.Names
+public import NativeRustcVmX64.Code.Vm.FormBufAddTerm.Names
+public import NativeRustcVmX64.Code.Vm.FormTerms.Names
+public import NativeRustcVmX64.Code.Vm.InsertionSortOfStackOffsets.Names
+public import NativeRustcVmX64.Code.Vm.Ladder.Names
+public import NativeRustcVmX64.Code.Vm.LayoutWPlacement.Names
+public import NativeRustcVmX64.Code.Vm.PlacementsOf.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
+public import NativeRustcVmX64.Code.Vm.ReadAnnouncedSizes.Names
+public import NativeRustcVmX64.Code.Vm.ReadOod.Names
+public import NativeRustcVmX64.Code.Vm.StackOffsets.Names
 
 /-!
 # The contracts of `layout.rs`'s and `stack.rs`'s functions and `whir.rs`'s `ladder` on x86-64
@@ -60,46 +76,6 @@ open LeanVM.Parameters
 open NativeRustcVm (wordsOf EWsAt WordsAt)
 
 @[expose] public section
-
-/-! ## Symbols -/
-
-/-- `form_terms`'s symbol. -/
-def formTermsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout10form_terms"
-/-- `evaluate`'s symbol. -/
-def evaluateLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout8evaluate"
-/-- `FormBuf::add_term`'s symbol. -/
-def formBufAddTermLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm6layoutNtB5_7FormBuf8add_term"
-/-- `FormBuf::add_scaled`'s symbol. -/
-def formBufAddScaledLabel : Label :=
-  "_RNvMs0_NtCsemcRClSg8DH_9native_vm6layoutNtB5_7FormBuf10add_scaled"
-/-- `constraints_w`'s symbol. -/
-def constraintsWLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout13constraints_w"
-/-- `LayoutW::placement`'s symbol. -/
-def layoutWPlacementLabel : Label :=
-  "_RNvMs2_NtCsemcRClSg8DH_9native_vm6layoutNtB5_7LayoutW9placement"
-/-- `insertion_sort` with `stack_offsets`'s order: its symbol. -/
-def insertionSortLabel : Label :=
-  "_RINvNtCsemcRClSg8DH_9native_vm6layout14insertion_sortNCNvB2_13stack_offsetss_0EB4_"
-/-- `stack_offsets`'s symbol. -/
-def stackOffsetsLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout13stack_offsets"
-/-- `column_kappas`'s symbol. -/
-def columnKappasLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout13column_kappas"
-/-- `placements_of`'s symbol. -/
-def placementsOfLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout13placements_of"
-/-- `build_layout`'s symbol. -/
-def buildLayoutLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm6layout12build_layout"
-/-- `read_announced_sizes`'s symbol. -/
-def readAnnouncedSizesLabel : Label :=
-  "_RNvNtCsemcRClSg8DH_9native_vm6layout20read_announced_sizes"
-/-- `ladder`'s symbol. -/
-def ladderLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm4whir6ladder"
-/-- `commit_stack`'s symbol. -/
-def commitStackLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack12commit_stack"
-/-- `read_ood`'s symbol. -/
-def readOodLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack8read_ood"
-/-- `push_claim`'s symbol. -/
-def pushClaimLabel : Label := "_RNvNtCsemcRClSg8DH_9native_vm5stack10push_claim"
 
 /-! ## Stacks -/
 

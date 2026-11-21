@@ -5,6 +5,7 @@ public import NativeRustcVmX64.Wire.Common
 public import NativeRustcVmX64.Spec.Wire
 public import NativeRustcVm.Wire.ReaderFacts
 import NativeVm.Wire.Read
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
 
 /-!
 # `Reader::le` meets its contract (x86-64)
@@ -127,10 +128,10 @@ theorem lbl (hp : Placed code k) {j : Nat} {l : Label} (h : code[j]? = some (.la
     Labels.label l = Host.addrOf (k + j) :=
   hp.label h
 
-/-- **The return** from `.LReaderLe_7` (`b7`), memory changed at most in the cursor word, with
+/-- **The return** from `NativeRustcVmX64.Vm.ReaderLe.label_7` (`b7`), memory changed at most in the cursor word, with
 the result's registers. -/
 theorem finish (hp : Placed code k) {m : MachineData} {st : MachineState} (hstk : StackOk m 0)
-    (hpc : st.pc = Host.addrOf (k + 32)) (hsp : st.data.regs.get64 .rsp = rspOf m)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderLe.b7Offset)) (hsp : st.data.regs.get64 .rsp = rspOf m)
     (hap : NativeRustcVm.Apart (reg m .rdi) 24 (rspOf m) 8)
     (hnw : NativeRustcVm.NoWrap (reg m .rdi) 24)
     (hs : NativeRustcVm.SameOutside m.dmem st.data.dmem (curRegion (reg m .rdi)).Holds)
@@ -168,7 +169,7 @@ theorem fail_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : L
     {c : Nat} (hstk : StackOk m 0) (hR : ReaderAt m.dmem (reg m .rdi) bp B c)
     (hap : NativeRustcVm.Apart (reg m .rdi) 24 (rspOf m) 8)
     (hfit : ¬ c + (reg m .rsi).toNat ≤ B.length) :
-    Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.ReaderLe.b0Offset)⟩ := by
   let env := Env.ofMachine m [(reg m .rdi, 24)]
   have hwf : env.WF := Env.wf_of ⟨hR.ok, trivial⟩ (List.pairwise_singleton _ _)
   have hb0 : env.base 0 = reg m .rdi := Env.base_ofMachine m _ _ _ rfl
@@ -180,7 +181,7 @@ theorem fail_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : L
   have hc : c < 2 ^ 64 := by have := hR.c_le; omega
   have hrsi : env.regs .rsi = reg m .rsi := rfl
   have hfin : ∀ st, Match env (after b0 failS) st.data ∨ Match env (after b1 (after b0 failS))
-      st.data → st.pc = Host.addrOf (k + 32) → Eventually (step1 Host.exe) (Post m) st := by
+      st.data → st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderLe.b7Offset) → Eventually (step1 Host.exe) (Post m) st := by
     intro st hmS hpc
     have hk : ∀ {S : SState}, Match env S st.data → S.mem = [] →
         S.reg .rsp = some (.reg .rsp) → S.reg .rax = some (.lit 0) → keeps failS S = true →
@@ -199,7 +200,7 @@ theorem fail_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : L
     fun s1 hm1 hpc1 ↦ ?_
   have hm1' : Match env (after b0 failS) s1.data := by rw [after_eq run_f0]; exact hm1
   simp only [PcOk, SBool.eval, Sym.eval, carry_apply, hrsi, hcur, toNat_toUInt64 hc,
-    lbl hp (j := 32) rfl, show k + 0 + b0.length = k + 6 from rfl] at hpc1
+    hp.label NativeRustcVmX64.Vm.ReaderLe.label_7_at, show k + NativeRustcVmX64.Vm.ReaderLe.b0Offset + b0.length = k + NativeRustcVmX64.Vm.ReaderLe.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b0_next]] at hpc1
   by_cases hcy : 2 ^ 64 ≤ (reg m .rsi).toNat + c
   · simp only [decide_eq_true hcy, ↓reduceIte] at hpc1
     exact hfin s1 (.inl hm1') hpc1
@@ -209,7 +210,7 @@ theorem fail_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : L
     refine exec_at (infix_of b1_in_code (by simp [b1]) hp) r1 hwf nofun hpc1 hm1'
       fun s2 hm2 hpc2 ↦ ?_
     simp only [PcOk, SBool.eval, Sym.eval, BinOp.apply, low_W64, ext_W64, above_apply, hrsi,
-      hcur, hlen, lbl hp (j := 32) rfl] at hpc2
+      hcur, hlen, hp.label NativeRustcVmX64.Vm.ReaderLe.label_7_at] at hpc2
     have hab : (B.length.toUInt64.toBitVec).toNat < (reg m .rsi + c.toUInt64.toBitVec).toNat := by
       rw [toNat_toUInt64 hL, BitVec.toNat_add, toNat_toUInt64 hc, Nat.mod_eq_of_lt (by omega)]
       omega
@@ -279,7 +280,7 @@ theorem ok_finish (hp : Placed code k) (hstk : StackOk m 0)
     (hap : NativeRustcVm.Apart (reg m .rdi) 24 (rspOf m) 8) (hx : (reg m .rsi).toNat = n)
     {S : SState} {st : MachineState} (hwf : (okEnv m bp c n).WF)
     (hm : Match (okEnv m bp c n) (okS n) m) (hmS : Match (okEnv m bp c n) S st.data)
-    (hpc : st.pc = Host.addrOf (k + 32))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ReaderLe.b7Offset))
     (hmem : S.mem = [⟨0, 16, 8, .bin .add .W64 (.lit n) (.load 0 16 8)⟩])
     (hkeep : keeps (okS n) S = true) (hrsp : S.reg .rsp = some (.reg .rsp))
     (h0 : S.reg .rax = some (.lit 1)) (hv : reg st.data .rdx = (leAt B c n).toBitVec) :
@@ -314,7 +315,7 @@ theorem ok4_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
     {c : Nat} (hstk : StackOk m 0) (hR : ReaderAt m.dmem (reg m .rdi) bp B c)
     (hap : NativeRustcVm.Apart (reg m .rdi) 24 (rspOf m) 8) (hx : (reg m .rsi).toNat = 4)
     (hfit : c + 4 ≤ B.length) :
-    Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.ReaderLe.b0Offset)⟩ := by
   have hwf := ok_wf hR hfit (by omega)
   have hm := ok_match hR hx
   have hb0 : (okEnv m bp c 4).base 0 = reg m .rdi := Env.base_ofMachine m _ _ _ rfl
@@ -327,7 +328,7 @@ theorem ok4_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_a0 hwf nofun hm
     fun s1 hm1 hpc1 ↦ ?_
   simp only [PcOk, SBool.eval, Sym.eval, carry_apply, hcur, toNat_toUInt64 hc,
-    show (BitVec.ofNat 64 4).toNat = 4 from rfl, show k + 0 + b0.length = k + 6 from rfl] at hpc1
+    show (BitVec.ofNat 64 4).toNat = 4 from rfl, show k + NativeRustcVmX64.Vm.ReaderLe.b0Offset + b0.length = k + NativeRustcVmX64.Vm.ReaderLe.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b0_next]] at hpc1
   rw [decide_eq_false (by omega)] at hpc1
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc1
   have r1 := run_a1
@@ -335,7 +336,7 @@ theorem ok4_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) r1 hwf nofun hpc1 hm1
     fun s2 hm2 hpc2 ↦ ?_
   simp only [PcOk, SBool.eval, Sym.eval, BinOp.apply, low_W64, ext_W64, above_apply, hcur, hlen,
-    show k + 6 + b1.length = k + 8 from rfl] at hpc2
+    show k + NativeRustcVmX64.Vm.ReaderLe.b1Offset + b1.length = k + NativeRustcVmX64.Vm.ReaderLe.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b1_next]] at hpc2
   rw [decide_eq_false (by
     rw [toNat_toUInt64 hL, BitVec.toNat_add, toNat_toUInt64 hc, BitVec.toNat_ofNat]; omega)] at hpc2
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc2
@@ -343,7 +344,7 @@ theorem ok4_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
   rw [after_eq run_a1] at r2
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) r2 hwf nofun hpc2 hm2
     fun s3 hm3 hpc3 ↦ ?_
-  simp only [PcOk, SBool.eval, ↓reduceIte, lbl hp (j := 32) rfl] at hpc3
+  simp only [PcOk, SBool.eval, ↓reduceIte, hp.label NativeRustcVmX64.Vm.ReaderLe.label_7_at] at hpc3
   refine ok_finish hR hfit hp hstk hap hx hwf hm hm3 hpc3 rfl (by decide) rfl rfl ?_
   apply BitVec.eq_of_toNat_eq
   rw [show reg s3.data .rdx = (Sym.load 1 0 4).eval (okEnv m bp c 4) from hm3.regs .rdx _ rfl,
@@ -357,7 +358,7 @@ theorem ok8_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
     {c : Nat} (hstk : StackOk m 0) (hR : ReaderAt m.dmem (reg m .rdi) bp B c)
     (hap : NativeRustcVm.Apart (reg m .rdi) 24 (rspOf m) 8) (hx : (reg m .rsi).toNat = 8)
     (hfit : c + 8 ≤ B.length) :
-    Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.ReaderLe.b0Offset)⟩ := by
   have hwf := ok_wf hR hfit (by omega)
   have hm := ok_match hR hx
   have hb0 : (okEnv m bp c 8).base 0 = reg m .rdi := Env.base_ofMachine m _ _ _ rfl
@@ -370,7 +371,7 @@ theorem ok8_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf nofun hm
     fun s1 hm1 hpc1 ↦ ?_
   simp only [PcOk, SBool.eval, Sym.eval, carry_apply, hcur, toNat_toUInt64 hc,
-    show (BitVec.ofNat 64 8).toNat = 8 from rfl, show k + 0 + b0.length = k + 6 from rfl] at hpc1
+    show (BitVec.ofNat 64 8).toNat = 8 from rfl, show k + NativeRustcVmX64.Vm.ReaderLe.b0Offset + b0.length = k + NativeRustcVmX64.Vm.ReaderLe.b1Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b0_next]] at hpc1
   rw [decide_eq_false (by omega)] at hpc1
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc1
   have r1 := run_b1
@@ -378,7 +379,7 @@ theorem ok8_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) r1 hwf nofun hpc1 hm1
     fun s2 hm2 hpc2 ↦ ?_
   simp only [PcOk, SBool.eval, Sym.eval, BinOp.apply, low_W64, ext_W64, above_apply, hcur, hlen,
-    show k + 6 + b1.length = k + 8 from rfl] at hpc2
+    show k + NativeRustcVmX64.Vm.ReaderLe.b1Offset + b1.length = k + NativeRustcVmX64.Vm.ReaderLe.b2Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b1_next]] at hpc2
   rw [decide_eq_false (by
     rw [toNat_toUInt64 hL, BitVec.toNat_add, toNat_toUInt64 hc, BitVec.toNat_ofNat]; omega)] at hpc2
   simp only [Bool.false_eq_true, ↓reduceIte] at hpc2
@@ -387,30 +388,30 @@ theorem ok8_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) r2 hwf nofun hpc2 hm2
     fun s3 hm3 hpc3 ↦ ?_
   simp only [PcOk, SBool.eval, Bool.false_eq_true, ↓reduceIte,
-    show k + 8 + b2.length = k + 14 from rfl] at hpc3
+    show k + NativeRustcVmX64.Vm.ReaderLe.b2Offset + b2.length = k + NativeRustcVmX64.Vm.ReaderLe.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b2_next]] at hpc3
   have r3 := run_b3
   rw [after_eq run_b2] at r3
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) r3 hwf nofun hpc3 hm3
     fun s4 hm4 hpc4 ↦ ?_
   simp only [PcOk, SBool.eval, Bool.false_eq_true, ↓reduceIte,
-    show k + 14 + b3.length = k + 19 from rfl] at hpc4
+    show k + NativeRustcVmX64.Vm.ReaderLe.b3Offset + b3.length = k + NativeRustcVmX64.Vm.ReaderLe.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b3_next]] at hpc4
   have r4 := run_b4
   rw [after_eq run_b3] at r4
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) r4 hwf nofun hpc4 hm4
     fun s5 hm5 hpc5 ↦ ?_
   simp only [PcOk, SBool.eval, Bool.false_eq_true, ↓reduceIte,
-    show k + 19 + b4.length = k + 24 from rfl] at hpc5
+    show k + NativeRustcVmX64.Vm.ReaderLe.b4Offset + b4.length = k + NativeRustcVmX64.Vm.ReaderLe.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b4_next]] at hpc5
   have r5 := run_b5
   rw [after_eq run_b4] at r5
   refine exec_at (infix_of b5_in_code (by simp [b5]) hp) r5 hwf nofun hpc5 hm5
     fun s6 hm6 hpc6 ↦ ?_
   simp only [PcOk, SBool.eval, Bool.false_eq_true, ↓reduceIte,
-    show k + 24 + b5.length = k + 29 from rfl] at hpc6
+    show k + NativeRustcVmX64.Vm.ReaderLe.b5Offset + b5.length = k + NativeRustcVmX64.Vm.ReaderLe.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b5_next]] at hpc6
   have r6 := run_b6
   rw [after_eq run_b5] at r6
   refine exec_at (infix_of b6_in_code (by simp [b6]) hp) r6 hwf nofun hpc6 hm6
     fun s7 hm7 hpc7 ↦ ?_
-  simp only [PcOk, show k + 29 + b6.length = k + 32 from rfl] at hpc7
+  simp only [PcOk, show k + NativeRustcVmX64.Vm.ReaderLe.b6Offset + b6.length = k + NativeRustcVmX64.Vm.ReaderLe.b7Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.ReaderLe.b6_next]] at hpc7
   refine ok_finish hR hfit hp hstk hap hx hwf hm hm7 hpc7 rfl (by decide) rfl rfl ?_
   apply BitVec.eq_of_toNat_eq
   rw [show reg s7.data .rdx = word8Sym.eval (okEnv m bp c 8) from hm7.regs .rdx _ rfl,
@@ -419,7 +420,7 @@ theorem ok8_spec (hp : Placed code k) {m : MachineData} {bp : BitVec 64} {B : Li
       have := leNat_lt B c 8; norm_num at this ⊢; omega)]
 
 /-- **`Reader::le` meets its contract.** -/
-theorem readerLe_spec (hp : Placed code k) : Spec (label readerLeLabel) ReaderLePre ReaderLePost := by
+theorem readerLe_spec (hp : Placed code k) : Spec (label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost := by
   intro m ⟨hstk, hn, bp, B, c, hR, hdis⟩
   have hap : NativeRustcVm.Apart (reg m .rdi) 24 (rspOf m) 8 := by
     have := (List.pairwise_pair.mp hdis)
@@ -427,7 +428,7 @@ theorem readerLe_spec (hp : Placed code k) : Spec (label readerLeLabel) ReaderLe
     simp only [stackR, hsb] at this
     unfold NativeRustcVm.Apart at this ⊢
     omega
-  rw [lbl hp (j := 0) (l := readerLeLabel) rfl]
+  rw [hp.label NativeRustcVmX64.Vm.ReaderLe.entry_at]
   by_cases hfit : c + (reg m .rsi).toNat ≤ B.length
   · rcases hn with hn | hn
     · exact ok4_spec hp hstk hR hap hn (by omega)

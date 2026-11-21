@@ -1,12 +1,16 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.LinearTranspose.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.WeightsB
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.FrontG
 
 /-!
 # `verify_layer`: the weights loop
 
-From `AtLoop` at `.LVerifyLayer_30` (`k + 613`, no weight written): the `1600` iterations
+From `AtLoop` at `.LVerifyLayer_30` (`k + NativeRustcVmArm.Vm.VerifyLayer.b57Offset`, no weight written): the `1600` iterations
 (`wloop`, by induction on the weights left), each `phaseA` then `phaseB`, and after the last one
 the tail (`weights_run`).
 -/
@@ -44,10 +48,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : Ma
 
 /-- **The loop from head `j`**, by induction on the weights left. -/
 theorem wloop (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hlt : ∀ ws, Spec (label linearTransposeLabel) (LinearTransposePre ws) (LinearTransposePost ws))
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hext : Spec (label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hlt : ∀ ws, Spec (label NativeRustcVmArm.Vm.LinearTranspose.entryLabel) (LinearTransposePre ws) (LinearTransposePost ws))
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hext : Spec (label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
     (hps : point.size ≤ 30) (heq : eq.size = 2048)
     (hrun : runL s c m0 = some (⟨t0 + beta * (t1 + beta * t2), mu, point,
       keccakLinearTranspose (layerWeights eq beta)⟩, s')) :
@@ -70,11 +74,11 @@ theorem wloop (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
 
 /-- **From the weights loop's head to the goal.** -/
 theorem weights_run (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hlt : ∀ ws, Spec (label linearTransposeLabel) (LinearTransposePre ws) (LinearTransposePost ws))
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hext : Spec (label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 613))
+    (hlt : ∀ ws, Spec (label NativeRustcVmArm.Vm.LinearTranspose.entryLabel) (LinearTransposePre ws) (LinearTransposePost ws))
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hext : Spec (label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b57Offset))
     (h : AtLoop m0 a s c t0 t1 t2 beta mu point eq s' st.data) :
     Eventually (step1 Host.exe) (Goal a s c m0) st :=
   wloop hp hpre hlt hmul hmemcpy hext h.hps h.heq h.run 1600 0 st rfl

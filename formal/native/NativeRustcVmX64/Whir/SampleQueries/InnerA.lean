@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.SampleQueries.Mid
+public import NativeRustcVmX64.Code.Vm.QueryBits.Names
 
 /-!
 # `sample_queries` on x86-64: the inner loop's head and `query_bits`
@@ -68,10 +69,10 @@ variable [Host] {k : Nat} {a : DecArea} {s0 : TState} {m0 : MachineData}
 
 /-- **`b14`, `b15` and `query_bits`**: position `i` of the chunk. -/
 theorem inner_call (hp : Placed code k) (h : SampleQueriesPre a s0 m0)
-    (hqb : Spec (Labels.label queryBitsLabel) QueryBitsPre QueryBitsPost) {j r : Nat} {s : TState}
+    (hqb : Spec (Labels.label NativeRustcVmX64.Vm.QueryBits.entryLabel) QueryBitsPre QueryBitsPost) {j r : Nat} {s : TState}
     {qs : List UInt64} {i : Nat} {st : MachineData} (hI : Inner a s0 m0 j r s qs i st) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 86) ∧
-      AtB16 a s0 m0 j r s qs i st'.data) ⟨st, Host.addrOf (k + 77)⟩ := by
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b16Offset) ∧
+      AtB16 a s0 m0 j r s qs i st'.data) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b14Offset)⟩ := by
   have hcnt := pre_cnt h
   have hlen := hI.len
   have hilt := hI.ilt
@@ -95,7 +96,7 @@ theorem inner_call (hp : Placed code k) (h : SampleQueriesPre a s0 m0)
   rw [hc] at hpc1
   have hpc := (pc_cond hpc1).2 (by simp)
   -- `b15`: `query_bits`' arguments, the call.
-  have hwf1 := mid_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 80 + b15.length)).toBitVec) h
+  have hwf1 := mid_wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SampleQueries.b15Offset + b15.length)).toBitVec) h
     hc1.fr.kept
   refine exec_at (inf hp b15_in_code (by simp [b15])) run_b15 hwf1 (fun _ _ ↦ rfl) (hpc.trans rfl)
     (mid_match hc1.fr) fun st2 hm2 hpc2 ↦ ?_

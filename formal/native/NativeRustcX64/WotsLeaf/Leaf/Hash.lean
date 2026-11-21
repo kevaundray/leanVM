@@ -31,8 +31,8 @@ variable [Host] {r : Run}
 theorem leaf_hash (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pre)
     {R : MachineState → Prop} {m : MachineData} (hK : Keep r (r.outerSlots 58) m)
     (cont : ∀ m', Keep r (r.outerSlots 58 ++ [(1048, 32, Keccak.hashBytes r.leafIn)]) m' →
-      Eventually (step1 Host.exe) R ⟨m', r.pc 554⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 525⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', r.pc NativeRustcX64.Xmss.WotsLeaf.b56Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Xmss.WotsLeaf.b51Offset⟩ := by
   replace hK : Keep r (r.chainSlots ++ [(1080, 928, r.endsPre 58)]) m := hK
   obtain ⟨s8, s48, s52, -, s104, -, -⟩ : SlotsAt r m r.chainSlots := allOf_left hK.2
   obtain ⟨⟨hEl, -, -⟩, -⟩ := allOf_right hK.2
@@ -45,7 +45,7 @@ theorem leaf_hash (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.
     have := frame_covers hm₁ (o := 116) (n := 2) (v := .un .trunc .W16 (.load 0 8 8)) (by decide)
       (by decide +kernel)
     rw [show (Sym.un .trunc .W16 (.load 0 8 8)).eval
-        (r.envR m [] (r.pc (525 + b51.length)).toBitVec) = UnOp.apply .trunc .W16 r.layerW by
+        (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b51Offset + b51.length)).toBitVec) = UnOp.apply .trunc .W16 r.layerW by
       show UnOp.apply .trunc .W16 ((r.envR m [] _).load 0 8 8) = _
       rw [r.load_word s8.2.2], bytes_layerW16] at this
     exact this
@@ -53,19 +53,19 @@ theorem leaf_hash (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.
     have := frame_covers hm₁ (o := 118) (n := 1) (v := .un .trunc .W8 (.load 0 48 4)) (by decide)
       (by decide +kernel)
     rw [show (Sym.un .trunc .W8 (.load 0 48 4)).eval
-        (r.envR m [] (r.pc (525 + b51.length)).toBitVec) = UnOp.apply .trunc .W8 r.hi16 by
+        (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b51Offset + b51.length)).toBitVec) = UnOp.apply .trunc .W8 r.hi16 by
       show UnOp.apply .trunc .W8 ((r.envR m [] _).load 0 48 4) = _
       rw [load_word4 (hi16_lt r) s48.2.2], byte_hi16] at this
     exact this
   have a4 : BytesAt m₁.dmem (r.off 119) [(2 : UInt8) ||| (0 : Nat).toUInt8 <<< 5] := by
     have := frame_covers hm₁ (o := 119) (n := 1) (v := .lit 2) (by decide) (by decide +kernel)
-    rw [show (Sym.lit 2).eval (r.envR m [] (r.pc (525 + b51.length)).toBitVec) =
+    rw [show (Sym.lit 2).eval (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b51Offset + b51.length)).toBitVec) =
       BitVec.ofNat 64 2 from rfl, bytes_byte] at this
     rw [show ((2 : UInt8) ||| (0 : Nat).toUInt8 <<< 5) = UInt8.ofNat 2 by decide]
     exact this
   have a5 : BytesAt m₁.dmem (r.off 120) (List.replicate 8 0) := by
     have := frame_covers hm₁ (o := 120) (n := 8) (v := .lit 0) (by decide) (by decide +kernel)
-    rwa [show (Sym.lit 0).eval (r.envR m [] (r.pc (525 + b51.length)).toBitVec) =
+    rwa [show (Sym.lit 0).eval (r.envR m [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b51Offset + b51.length)).toBitVec) =
       BitVec.ofNat 64 0 from rfl, bytes_zero] at this
   have had : BytesAt m₁.dmem (r.off 112) (r.addr 2 0) := by
     rw [Run.addr_eq]

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.InsD.Names
 public import NativeRustcVmArm.Wire.InsD.Shift
 
 /-!
@@ -29,7 +30,7 @@ variable (hp : Placed code k)
 include hp hok hL hn hW hW'
 
 /-- **`x` at the end** (`b3`): every element below it. -/
-theorem end_spec {st : MachineState} (hpc : st.pc = Host.addrOf (k + 11)) (hk : Kp m st.data)
+theorem end_spec {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.InsD.b3Offset)) (hk : Kp m st.data)
     (hd : st.data.dmem = m.dmem) (hb : Below m L L.length) :
     Eventually (step1 Host.exe) (Post m) st := by
   have hwf := env1_wf hok hk hn
@@ -154,7 +155,7 @@ theorem scan_step {i : Nat} {st : MachineState} (hI : SInv m L k i st) :
         ⟨hpc4, hkp, hd4.trans hI.d, h8, le_of_lt hI.lt, hI.below, fun _ ↦ by omega⟩) fun _ h ↦ .inl h
 
 /-- **From the entry** (`b0`): the scan, or straight to the shift when the list is empty. -/
-theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + 0)⟩ := by
+theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.InsD.b0Offset)⟩ := by
   have hwf := Env.wf_nil m
   have hm := match_nil m
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun s1 hm1 hpc1 ↦ ?_
@@ -184,7 +185,7 @@ theorem entry_spec : Eventually (step1 Host.exe) (Post m) ⟨m, Host.addrOf (k +
 end
 
 /-- **`ins_d` meets its contract.** -/
-theorem insD_spec (hp : Placed code k) : Spec (Labels.label insDLabel) InsDPre InsDPost := by
+theorem insD_spec (hp : Placed code k) : Spec (Labels.label NativeRustcVmArm.Vm.InsD.entryLabel) InsDPre InsDPost := by
   intro m ⟨_, hn, hok⟩
   have hok' : NativeRustcVm.Mapped m.dmem (arr m) 2048 ∧ NativeRustcVm.NoWrap (arr m) 2048 := hok
   obtain ⟨L, hL, hW⟩ := exists_wordsAt m.regs.X1.toNat (arr m)
@@ -192,7 +193,7 @@ theorem insD_spec (hp : Placed code k) : Spec (Labels.label insDLabel) InsDPre I
   obtain ⟨g, hg⟩ := exists_wordAt (hok'.1.sub (o := 8 * m.regs.X1.toNat) (m := 8) (by omega))
   have hW' : WordsAt m.dmem (arr m) (L ++ [g]) :=
     NativeRustcVm.wordsAt_append_iff.mpr ⟨hW, by rw [hL, NativeRustcVm.wordsAt_singleton_iff]; exact hg⟩
-  rw [lbl hp (j := 0) (l := insDLabel) rfl]
+  rw [lbl hp (j := 0) (l := NativeRustcVmArm.Vm.InsD.entryLabel) rfl]
   exact entry_spec hp hok' hL (by omega) hW hW'
 
 end

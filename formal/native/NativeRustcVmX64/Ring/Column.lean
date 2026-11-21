@@ -3,6 +3,9 @@ module
 public import NativeRustcVmX64.Ring.Column.Exec
 public import NativeRustcVmX64.Ring.Stack
 public import NativeRustcVm.Arrays.ReadLemmas
+public import NativeRustcVmX64.Code.Vm.ColumnWeight.Names
+public import NativeRustcVmX64.Code.Vm.EqEval.Names
+public import NativeRustcVmX64.Code.Vm.StackPoint.Names
 
 /-!
 # `column_weight` on x86-64
@@ -23,7 +26,7 @@ open NativeRustcVm.Transcript NativeVm.Model
 /-! ## The blocks' facts -/
 
 public theorem exit_b3 : exec b3 midS =
-    some (M3, .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LColumnWeight_3") :=
+    some (M3, .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.ColumnWeight.label_3) :=
   run_b3.trans (by rw [show M3 = _ from after_eq run_b3])
 
 public theorem ok_b2 : ProOk 1088 0 slots (after b2 (L 22)) = true ∧
@@ -66,10 +69,10 @@ variable [Host] {k : Nat}
 
 /-- **The zeroing loop**, from turn `i`. -/
 theorem loop (hp : Placed code k) {env : Env} (hwf : env.WF) {R : MachineState → Prop}
-    (cont : ∀ st, Match env (L 22) st.data → st.pc = Host.addrOf (k + 21) →
+    (cont : ∀ st, Match env (L 22) st.data → st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b2Offset) →
       Eventually (step1 Host.exe) R st) :
     ∀ n i, i + n = 21 → ∀ st : MachineState, Match env (L i) st.data →
-      st.pc = Host.addrOf (k + 11) → Eventually (step1 Host.exe) R st := by
+      st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b1Offset) → Eventually (step1 Host.exe) R st := by
   intro n
   induction n with
   | zero =>
@@ -87,7 +90,7 @@ theorem loop (hp : Placed code k) {env : Env} (hwf : env.WF) {R : MachineState �
     simp only [PcOk, SBool.eval, show decide (i < 21) = true from decide_eq_true (by omega),
       ↓reduceIte] at hpc'
     rw [hpc']
-    exact hp.label (j := 11) rfl
+    exact hp.label NativeRustcVmX64.Vm.ColumnWeight.label_1_at
 
 /-! ## The contract -/
 
@@ -96,9 +99,9 @@ theorem stack_eq : columnWeightStack = 1280 := rfl
 
 /-- **`column_weight` meets its contract.** -/
 theorem columnWeight_spec (hp : Placed code k)
-    (hsp : Spec (Labels.label stackPointLabel) StackPointPre StackPointPost)
-    (hee : Spec (Labels.label eqEvalLabel) EqEvalPre EqEvalPost) :
-    Spec (Labels.label columnWeightLabel) ColumnWeightPre ColumnWeightPost := by
+    (hsp : Spec (Labels.label NativeRustcVmX64.Vm.StackPoint.entryLabel) StackPointPre StackPointPost)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEval.entryLabel) EqEvalPre EqEvalPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.ColumnWeight.entryLabel) ColumnWeightPre ColumnWeightPost := by
   rintro m0 ⟨hst, hargs, hpt, hx, ⟨⟨hom, hon⟩, hoS, hoA⟩, hlt⟩
   set o := reg m0 .rdi with hodef
   set xa := rspOf m0 + 8#64 with hxadef
@@ -121,11 +124,11 @@ theorem columnWeight_spec (hp : Placed code k)
     fun q h ↦ frame_in hst (by decide) h
   -- `b0`, the loop, `b2`: the prologue, `x`, the slots zeroed, `call stack_point`.
   have hwf0 := frame_wf (m0 := m0) (d := m0) (F := 1088) (rest := [(xa, 16), (o, 24)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 21 + b2.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b2Offset + b2.length)).toBitVec)
     ⟨frame_mapped hst (by decide), hfnw⟩ (rest2_ok ⟨hxm, hxn⟩ ⟨hom, hon⟩ fun _ h ↦ h) hpw
   have hal : ∀ j : Nat, j < 16 → (Sym.ptr 0 ((1096 + j : Nat) : Int)).eval
       (frameEnv m0 m0 1088 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-        (Host.addrOf (k + 21 + b2.length)).toBitVec) =
+        (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b2Offset + b2.length)).toBitVec) =
       xa + BitVec.ofInt 64 (j : Int) := by
     intro j hj
     rw [eval_ptr0, ← hfb, BitVec.ofInt_natCast]
@@ -133,11 +136,11 @@ theorem columnWeight_spec (hp : Placed code k)
     rw [toNat_off (by omega), BitVec.toNat_add, BitVec.toNat_ofNat, hxN, hfbN]
     omega
   have hm0 : Match (frameEnv m0 m0 1088 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 21 + b2.length)).toBitVec) entryS m0 :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b2Offset + b2.length)).toBitVec) entryS m0 :=
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨match_rsp, known_ptr rfl rfl, trivial⟩ trivial
       trivial ⟨hal 8 (by decide), hal 0 (by decide), trivial⟩
-  unfold columnWeightLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.ColumnWeight.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.ColumnWeight.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 nofun hm0
     fun st1 hm1 hpc1 ↦ ?_
   refine loop hp hwf0 (fun st2 hm2 hpc2 ↦ ?_) 21 0 rfl st1 hm1 hpc1
@@ -219,19 +222,19 @@ theorem columnWeight_spec (hp : Placed code k)
   have h415 : reg st4.data .r15 = stackArg m0 0 := (hsv4.1 .r15 rfl).trans hX15
   -- `b3`: the tag.
   have hwf4 := frame_wf (m0 := m0) (d := st4.data) (F := 1088) (rest := [(xa, 16), (o, 24)])
-    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 30 + b4.length)).toBitVec)
+    (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b4Offset + b4.length)).toBitVec)
     ⟨Mapped.keeps (frame_mapped hst (by decide)) hf4.kept, hfnw⟩
     (rest2_ok ⟨hxm, hxn⟩ ⟨hom, hon⟩ hf4.kept) hpw
   have hm4 : Match (frameEnv m0 st4.data 1088 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-      (Host.addrOf (k + 30 + b4.length)).toBitVec) midS st4.data :=
+      (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b4Offset + b4.length)).toBitVec) midS st4.data :=
     match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hf4.rsp_eval, known_ptr rfl h4b, trivial⟩ trivial
       trivial trivial
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf4 nofun
-    (hpc4.trans (by rw [show b2.length = 7 from rfl])) hm4 fun st5 hm5 hpc5 ↦ ?_
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ColumnWeight.b2_next)) hm4 fun st5 hm5 hpc5 ↦ ?_
   simp only [PcOk] at hpc5
   have hc : (SBool.not (SBool.cmp .eq .W64 (.reg .rax) (.lit 1))).eval
       (frameEnv m0 st4.data 1088 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-        (Host.addrOf (k + 30 + b4.length)).toBitVec) =
+        (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b4Offset + b4.length)).toBitVec) =
       !(reg st4.data .rax == BitVec.ofNat 64 1) := by
     simp only [SBool.eval, CmpOp.apply, Sym.eval, Env.ofMachine_regs, low_W64]
   rw [hc] at hpc5
@@ -242,10 +245,10 @@ theorem columnWeight_spec (hp : Placed code k)
     rw [hrax, show (!((1#64 : BitVec 64) == BitVec.ofNat 64 1)) = false from rfl] at hpc5
     simp only [Bool.false_eq_true, ↓reduceIte] at hpc5
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf4 (fun _ _ ↦ rfl)
-      (hpc5.trans (by rw [show b3.length = 2 from rfl])) hm5 fun st6 hm6 hpc6 ↦ ?_
+      (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ColumnWeight.b3_next)) hm5 fun st6 hm6 hpc6 ↦ ?_
     obtain ⟨hmid, hws6, hrdi6, hrsi6, hrdx6, hrcx6, hrbx6⟩ := after_eq run_b4 ▸ ok_b4
     have hm56 : Match (frameEnv m0 st4.data 1088 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-        (Host.addrOf (k + 30 + b4.length)).toBitVec) (after b4 M3) st6.data := by
+        (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b4Offset + b4.length)).toBitVec) (after b4 M3) st6.data := by
       rw [after_eq run_b4]; exact hm6
     have hf6 : Frame m0 1088 slots 0 st6.data := Frame.of_block hf4 hwf4 hm56 hmid slots_le
     have hsp6 : rspOf st6.data = fb := by rw [hf6.sp, off_zero]
@@ -320,10 +323,10 @@ theorem columnWeight_spec (hp : Placed code k)
       match_ofMachine ⟨rfl, rfl, rfl, trivial⟩ ⟨hf7.rsp_eval, known_ptr rfl h7b, trivial⟩ trivial
         trivial trivial
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 hwf7 nofun
-      (hpc7.trans (by rw [show b4.length = 5 from rfl])) hm7 fun st8 hm8 hpc8 ↦ ?_
+      (hpc7.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ColumnWeight.b4_next)) hm7 fun st8 hm8 hpc8 ↦ ?_
     simp only [PcOk] at hpc8
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) (exec_after run_b5 run_b7s) hwf7 nofun
-      (hpc8.trans (hp.label (j := 41) rfl)) hm8 fun st9 hm9 hpc9 ↦ ?_
+      (hpc8.trans (hp.label NativeRustcVmX64.Vm.ColumnWeight.label_5_at)) hm8 fun st9 hm9 hpc9 ↦ ?_
     obtain ⟨hepi, hw0, hw1, hw2, hws9⟩ := after_eq run_b7s ▸ ok_s
     obtain ⟨hsv9, hrsp9⟩ := Frame.epilogue hf7 hwf7 hm9 hepi
     have hs9 := sameOutside_region hwf7 hm9 (r := 2) rfl hws9
@@ -348,10 +351,10 @@ theorem columnWeight_spec (hp : Placed code k)
     rw [hres4, show (!((0#64 : BitVec 64) == BitVec.ofNat 64 1)) = true from rfl] at hpc5
     simp only [↓reduceIte] at hpc5
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf4 nofun
-      (hpc5.trans (hp.label (j := 39) rfl)) hm5 fun st6 hm6 hpc6 ↦ ?_
+      (hpc5.trans (hp.label NativeRustcVmX64.Vm.ColumnWeight.label_3_at)) hm5 fun st6 hm6 hpc6 ↦ ?_
     simp only [PcOk] at hpc6
     refine exec_at (infix_of b7_in_code (by simp [b7]) hp) (exec_after run_b6 run_b7n) hwf4 nofun
-      (hpc6.trans (by rw [show b6.length = 2 from rfl])) hm6 fun st7 hm7 hpc7 ↦ ?_
+      (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.ColumnWeight.b6_next)) hm6 fun st7 hm7 hpc7 ↦ ?_
     obtain ⟨hepi, hw0, hws7⟩ := after_eq run_b7n ▸ ok_n
     obtain ⟨hsv7, hrsp7⟩ := Frame.epilogue hf4 hwf4 hm7 hepi
     have hs7 := sameOutside_region hwf4 hm7 (r := 2) rfl hws7
@@ -359,7 +362,7 @@ theorem columnWeight_spec (hp : Placed code k)
       (fun i hi ↦ by rw [Nat.zero_add]; exact hw0 i hi)
     rw [off_zero, show UInt64.ofBitVec ((Sym.lit 0).eval
       (frameEnv m0 st4.data 1088 [(xa, 16), (o, 24)] (fun _ ↦ 0)
-        (Host.addrOf (k + 30 + b4.length)).toBitVec)) = 0 from rfl] at ht
+        (Host.addrOf (k + NativeRustcVmX64.Vm.ColumnWeight.b4Offset + b4.length)).toBitVec)) = 0 from rfl] at ht
     simp only [PcOk] at hpc7
     refine .done _ ⟨by rw [hpc7]; exact hf4.load_ret hst (by decide), hrsp7, ?_, ?_, hsv7⟩
     · simp only [hfit, ↓reduceIte]

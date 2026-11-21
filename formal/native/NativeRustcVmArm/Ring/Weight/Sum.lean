@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RingWeight.Names
 public import NativeRustcVmArm.Ring.Weight.Entry
 public import NativeRustcVmArm.Ring.Weight.Exit
 
@@ -79,13 +80,13 @@ variable [Host] {k : Nat}
 /-- **The lanes cleared** (`b2`): the sum's first turn. -/
 theorem stepB2 (hp : Placed code k) {m : MachineData} (hB : Base m0 m) (h0 : nR m0 = 0)
     {R : MachineState → Prop}
-    (cont : ∀ m', SumI m0 0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 66)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 56)⟩ := by
+    (cont : ∀ m', SumI m0 0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b3Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b2Offset)⟩ := by
   refine exec_then (hb b2_in_code (by simp [b2]) hp) run_b2 (Env.wf_nil m) (match_nil m)
     fun st hm1 hpc ↦ ?_
   simp only [PcOk] at hpc
   refine at_pc hpc ?_
-  rw [show k + 56 + b2.length = k + 66 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingWeight.b2Offset + b2.length = k + NativeRustcVmArm.Vm.RingWeight.b3Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b2_next]]
   have hx2 : m.regs.getXReg .X2 = 0 := by
     rw [hB.x2]; apply UInt64.toNat_inj.mp; rw [UInt64.toNat_zero]; exact h0
   have z : ∀ r ∈ [XReg.X2, .X8, .X10, .X11, .X12, .X14, .X15, .X16], st.data.regs.getXReg r = 0 := by
@@ -108,14 +109,14 @@ theorem stepB2 (hp : Placed code k) {m : MachineData} (hB : Base m0 m) (h0 : nR 
 /-- **A turn of the sum** (`b3`): the next turn, or the lanes done at `b4`. -/
 theorem stepB3 (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} {m : MachineData}
     (hI : SumI m0 t m) {R : MachineState → Prop}
-    (hnext : ∀ m', SumI m0 (t + 1) m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 66)⟩)
+    (hnext : ∀ m', SumI m0 (t + 1) m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b3Offset)⟩)
     (hdone : ∀ m', WFr m0 m' →
       m'.regs.getXReg .X12 ^^^ m'.regs.getXReg .X14 ^^^ m'.regs.getXReg .X15 ^^^
         m'.regs.getXReg .X16 = (sumC m0 64).c0 →
       m'.regs.getXReg .X2 ^^^ m'.regs.getXReg .X8 ^^^ m'.regs.getXReg .X10 ^^^
         m'.regs.getXReg .X11 = (sumC m0 64).c1 →
-      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 82)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 66)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b4Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b3Offset)⟩ := by
   have hlt := hI.lt
   have hfr := hI.fr
   have hc := h.2.2.2.2.1
@@ -181,7 +182,7 @@ theorem stepB3 (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} {m : Machin
       rw [h9] at this
       simp at this)
     refine at_pc hpc' ?_
-    rw [show Labels.label ".LRingWeight_3" = Host.addrOf (k + 66) from hp.label (j := 66) rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.RingWeight.label_3 = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b3Offset) from hp.label (j := NativeRustcVmArm.Vm.RingWeight.b3Offset) NativeRustcVmArm.Vm.RingWeight.label_3_at]
     refine hnext st.data ⟨hfr1, hl, ?_, ?_, hlo, hhi⟩
     · rw [reg_bv hm1 rfl rfl]
       simp only [Sym.eval, add_bv, Env.ofMachine_regs]
@@ -197,7 +198,7 @@ theorem stepB3 (hp : Placed code k) (h : RingWeightPre m0) {t : Nat} {m : Machin
       rw [Env.ofMachine_regs, h9]
       rfl)
     refine at_pc hpc' ?_
-    rw [show k + 66 + b3.length = k + 82 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.RingWeight.b3Offset + b3.length = k + NativeRustcVmArm.Vm.RingWeight.b4Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b3_next]]
     exact hdone st.data hfr1 hlo hhi
 
 /-- **The lanes added** (`b4`): at the epilogue with the coefficients' sum. -/
@@ -206,13 +207,13 @@ theorem stepB4 (hp : Placed code k) (h0 : nR m0 = 0) {m : MachineData} (hfr : WF
       m.regs.getXReg .X16 = (sumC m0 64).c0)
     (hhi : m.regs.getXReg .X2 ^^^ m.regs.getXReg .X8 ^^^ m.regs.getXReg .X10 ^^^
       m.regs.getXReg .X11 = (sumC m0 64).c1) {R : MachineState → Prop}
-    (cont : ∀ m', Done m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 184)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 82)⟩ := by
+    (cont : ∀ m', Done m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b4Offset)⟩ := by
   refine exec_then (hb b4_in_code (by simp [b4]) hp) run_b4 (Env.wf_nil m) (match_nil m)
     fun st hm1 hpc ↦ ?_
   simp only [PcOk] at hpc
   refine at_pc hpc ?_
-  rw [show Labels.label ".LRingWeight_22" = Host.addrOf (k + 184) from hp.label (j := 184) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.RingWeight.label_22 = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset) from hp.label (j := NativeRustcVmArm.Vm.RingWeight.b26Offset) NativeRustcVmArm.Vm.RingWeight.label_22_at]
   refine cont st.data ⟨regs_fr hfr hm1 rfl rfl, ?_⟩
   rw [ringWeight_nil h0]
   have e21 : st.data.regs.getXReg .X21 = (sumC m0 64).c0 := by
@@ -236,10 +237,10 @@ theorem stepB4 (hp : Placed code k) (h0 : nR m0 = 0) {m : MachineData} (hfr : WF
 /-- **`r` empty**: from `b2` to the epilogue. -/
 theorem stepSum (hp : Placed code k) (h : RingWeightPre m0) {m : MachineData} (hB : Base m0 m)
     (h0 : nR m0 = 0) {R : MachineState → Prop}
-    (cont : ∀ m', Done m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 184)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 56)⟩ := by
+    (cont : ∀ m', Done m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b2Offset)⟩ := by
   refine stepB2 hp hB h0 fun m1 hI ↦ ?_
-  refine Sym.loop (I := fun n st ↦ ∃ t, n = 16 - t ∧ st.pc = Host.addrOf (k + 66) ∧
+  refine Sym.loop (I := fun n st ↦ ∃ t, n = 16 - t ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b3Offset) ∧
     SumI m0 t st.data) (fun n st ⟨t, hn, hpc, hI⟩ ↦ ?_) ⟨0, rfl, rfl, hI⟩
   refine at_pc hpc (stepB3 hp h hI (fun m' hI' ↦ .done _ (.inr ⟨16 - (t + 1),
     by have := hI.lt; omega, t + 1, rfl, rfl, hI'⟩)) fun m' hfr hlo hhi ↦ ?_)

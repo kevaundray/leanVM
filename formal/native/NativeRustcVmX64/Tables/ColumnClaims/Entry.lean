@@ -35,16 +35,16 @@ theorem claims_end (h6 : ev.size = 6) {d : DataMem} {a : BitVec 64}
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + 0) ∧
-    b0b.IsInfixAt Host.prog (k + 0 + 9) := by
+theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableColumnClaims.b0Offset) ∧
+    b0b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableColumnClaims.b0Offset + b0a.length) := by
   have h := b0_in_code.trans hp.1 (by simp [b0])
   rw [← List.take_append_drop 9 b0] at h
   exact h.append
 
 /-- **The entry**: table `0`'s loop head, no value pushed. -/
 theorem entry (hp : Placed code k) (hpre : TableColumnClaimsPre ev cs m0) :
-    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + 0 + 9 + 16) ∧
-      LoopAt ev cs m0 R04 0 0 st'.data) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st' ↦ st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b1Offset) ∧
+      LoopAt ev cs m0 R04 0 0 st'.data) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.TableColumnClaims.b0Offset)⟩ := by
   obtain ⟨hS, -, -, hCR, hCO, hcl⟩ := pre_parts hpre
   have hwf := frame_wf (m := m0) (vars := fun _ ↦ 0) (ret := 0) (stackOk_mono hS h64) fun _ h ↦ h
   have hm : Match (frameEnv m0 m0 64) entryS m0 := match_frame

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcX64.XmssVerify.Head
 
 /-!
@@ -27,7 +29,7 @@ theorem stC'_copy : ∀ j < 6, ∀ u < 8,
     findWrite 1 (8 * j + u) (after b2 stC).mem = some (.load 0 (8 * j) 8, u) := by decide +kernel
 
 theorem run_b2' : exec b2 stC = some (after b2 stC, .cond
-    (.not (.cmp .eq .W64 (.bin .add .W64 (.lit 6) (.reg .r14)) (.lit 300))) ".LXmssVerify_1") := by
+    (.not (.cmp .eq .W64 (.bin .add .W64 (.lit 6) (.reg .r14)) (.lit 300))) NativeRustcX64.Xmss.XmssVerify.label_1) := by
   rw [run_b2]
   rfl
 
@@ -152,10 +154,10 @@ set_option linter.unusedSimpArgs false in
 /-- **A turn of the copy**: from the head before turn `t`, the head before turn `t + 1`, or
 block 3 after the last turn. -/
 theorem turnC [Host] {k : Nat} (hp : Placed code k) (P : Pre w m₀) (ht : t < 50)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 33)) (h : LoopAt w m₀ st.data t) :
-    Eventually (step1 Host.exe) (fun st' => (t + 1 = 50 ∧ st'.pc = Host.addrOf (k + 49) ∧
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b2Offset)) (h : LoopAt w m₀ st.data t) :
+    Eventually (step1 Host.exe) (fun st' => (t + 1 = 50 ∧ st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b3Offset) ∧
       LoopAt w m₀ st'.data 50) ∨
-      (t + 1 < 50 ∧ st'.pc = Host.addrOf (k + 33) ∧ LoopAt w m₀ st'.data (t + 1))) st := by
+      (t + 1 < 50 ∧ st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b2Offset) ∧ LoopAt w m₀ st'.data (t + 1))) st := by
   have hwf := regsC_wf P ht (m := st.data) h.common.kept
   refine exec_at (b2_in_code.trans hp.1 (List.cons_ne_nil _ _)) run_b2' hwf
     (fun _ h => nomatch h) hpc (match_C h) fun st' hm hpc' => .done _ ?_
@@ -175,17 +177,17 @@ theorem turnC [Host] {k : Nat} (hp : Placed code k) (P : Pre w m₀) (ht : t < 5
   simp only [PcOk, hc] at hpc'
   by_cases hlt : t + 1 < 50
   · simp only [hlt, decide_true, ite_true] at hpc'
-    exact Or.inr ⟨hlt, hpc'.trans ((hp.label (j := 33) (by decide +kernel))), A⟩
+    exact Or.inr ⟨hlt, hpc'.trans ((hp.label NativeRustcX64.Xmss.XmssVerify.label_1_at)), A⟩
   · simp only [hlt, decide_false, Bool.false_eq_true, ite_false] at hpc'
     have ht' : t + 1 = 50 := by omega
     exact Or.inl ⟨ht', hpc'.trans rfl, ht' ▸ A⟩
 
 /-- **The copy of the signature's words.** -/
 theorem copy [Host] {k : Nat} (hp : Placed code k) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 33)) (h : LoopAt w m₀ st.data 0) :
-    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + 49) ∧
+    (hpc : st.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b2Offset)) (h : LoopAt w m₀ st.data 0) :
+    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b3Offset) ∧
       LoopAt w m₀ st'.data 50) st :=
-  Sym.loop (I := fun n s => ∃ t, t + n = 50 ∧ 0 < n ∧ s.pc = Host.addrOf (k + 33) ∧
+  Sym.loop (I := fun n s => ∃ t, t + n = 50 ∧ 0 < n ∧ s.pc = Host.addrOf (k + NativeRustcX64.Xmss.XmssVerify.b2Offset) ∧
       LoopAt w m₀ s.data t)
     (fun n s ⟨t, hn, hn0, hpc, h⟩ => NativeRustcX64.Eventually.mono (turnC hp P (by omega) hpc h)
       fun s' h' => by

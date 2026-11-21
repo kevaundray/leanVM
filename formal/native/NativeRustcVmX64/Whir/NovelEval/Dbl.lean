@@ -33,25 +33,25 @@ theorem ofNat_toNat {x : BitVec 64} {n : Nat} (h : x.toNat = n) : x = BitVec.ofN
 
 variable [Host] {k : Nat}
 
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 29) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 29 + 3) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6a.IsInfixAt Host.prog (k + 37) ∧
-    b6b.IsInfixAt Host.prog (k + 37 + 3) := by
+theorem hb6 (hp : Placed code k) : b6a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b6Offset) ∧
+    b6b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b6Offset + b6a.length) := by
   have h := b6_in_code.trans hp.1 (by simp [b6])
   rw [← List.take_append_drop 3 b6] at h
   exact h.append
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 37 + 3 + 1) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 37 + 3 + 1 + 4) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.NovelEval.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
 
 /-- **The doubling loop's head**: done, or into the inner loop. -/
 theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) {j : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 29)) (hI : OInv m0 j st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 50) ∧ Mid m0 s.data) ∨
-      (s.pc = Host.addrOf (k + 37) ∧ IInv m0 j 0 s.data)) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b4Offset)) (hI : OInv m0 j st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b9Offset) ∧ Mid m0 s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b6Offset) ∧ IInv m0 j 0 s.data)) st := by
   obtain ⟨hS, hcs, hwh, hout⟩ := hpre
   have hF : 1104 ≤ novelEvalStack := by decide
   have hS1 := hS.1
@@ -78,13 +78,13 @@ theorem outer (hp : Placed code k) {m0 : MachineData} (hpre : NovelEvalPre m0) {
   obtain ⟨hT, hF1⟩ := Arrays.pc_cond hpc1
   by_cases hjw : j = wn m0
   · subst hjw
-    refine .done _ (.inl ⟨(hT (by simp)).trans (hp.label (j := 50) rfl), hfr1, ?_, ?_, ?_, ?_⟩)
+    refine .done _ (.inl ⟨(hT (by simp)).trans (hp.label NativeRustcVmX64.Vm.NovelEval.label_7_at), hfr1, ?_, ?_, ?_, ?_⟩)
     · exact ⟨hd1 ▸ hI.sp.out, hd1 ▸ hI.sp.cs⟩
     · rw [e1 .rbp (by simp)]; exact hI.rbp
     · rw [e1 .r14 (by simp)]; exact hI.r14
     · rw [hd1]; exact hI.basis
   · have hjw' : j < wn m0 := by have := hI.hj; omega
-    have hpc1' : st1.pc = Host.addrOf (k + 29 + 3) :=
+    have hpc1' : st1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.NovelEval.b5Offset) :=
       hF1 (by simp only [decide_eq_true_eq]; omega)
     -- `b5`: the value, the inner loop's registers
     have hrd : Readable st1.data (reg m0 .rcx + BitVec.ofNat 64 (8 * j)) 8 :=

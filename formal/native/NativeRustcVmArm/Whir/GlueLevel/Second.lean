@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufU64x230Extend.Names
 public import NativeRustcVmArm.Whir.GlueLevel.First
 
 /-!
@@ -50,10 +51,10 @@ variable [Host] {k : Nat} {s : WhirStateW} {m0 : MachineData}
 
 /-- **From `b5` to `b8`.** -/
 theorem second_step (hp : Placed code k)
-    (hext : Spec (Labels.label bufU64x230ExtendLabel) (BufU64ExtendPre 230) (BufU64ExtendPost 230))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufU64x230Extend.entryLabel) (BufU64ExtendPre 230) (BufU64ExtendPost 230))
     (hpre : GlueLevelPre s m0) {m : MachineData} (h : AtB5 s m0 m) {R : MachineState → Prop}
-    (cont : ∀ m', AtB8 s m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + 66)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 49)⟩ := by
+    (cont : ∀ m', AtB8 s m0 m' → Eventually (step1 Host.exe) R ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b8Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b5Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hstk, -, hcap, -, -, hqn, -, hargs, hpin, -, hqin, -, -, -, hapQ, -⟩ := hpre'
   let p := pOf m0
@@ -119,20 +120,20 @@ theorem second_step (hp : Placed code k)
       have h1 := (NativeRustcVm.Transcript.inRange_iff' hnw528).mp hq
       rw [hto (o2 s + 528) (by omega)] at h1
       exact (NativeRustcVm.Transcript.inRange_iff' hpnw).mpr ⟨by omega, by omega⟩
-  have hk5 : b5.IsInfixAt Host.prog (k + 49) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk6 : b6.IsInfixAt Host.prog (k + 50) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk7 : b7.IsInfixAt Host.prog (k + 55) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk5 : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b5Offset) := b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b6Offset) := b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b7Offset) := b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hx0 : env.regs .X0 = 1#64 := by
     show (m.regs.getXReg .X0).toBitVec = _
     rw [show m.regs.getXReg .X0 = m.regs.X0 from rfl, h.x0]
     rfl
   refine exec_then hk5 run_b5 hwf hm fun st5 hm5 hpc5 ↦ ?_
-  have hpc5' : st5.pc = Host.addrOf (k + 50) := by
+  have hpc5' : st5.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b6Offset) := by
     simp only [PcOk] at hpc5
     rw [cbz_one hx0] at hpc5
     exact hpc5
   refine exec_at hk6 (exec_after run_b5 run_b6) hwf hpc5' hm5 fun st6 hm6 hpc6 ↦ ?_
-  have hpc6' : st6.pc = Host.addrOf (k + 55) := by
+  have hpc6' : st6.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b7Offset) := by
     simp only [PcOk] at hpc6
     sym_simp at hpc6
     rw [hl504] at hpc6

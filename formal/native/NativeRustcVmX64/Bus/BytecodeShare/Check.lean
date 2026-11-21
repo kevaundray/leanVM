@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Bus.BytecodeShare.Loop
 public import NativeRustcVm.Arrays.EqKernel
+public import NativeRustcVmX64.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmX64.Code.Vm.Dot.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
 
 /-!
 # `bytecode_share`: the kernel, the dot product, the check (x86-64)
@@ -56,9 +60,9 @@ variable [Host] {a : DecArea} {s0 s3 : TState} {m0 : MachineData} {k : Nat}
 
 /-- **From `b6` to the copy or the tag `0`.** -/
 theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
-    (hek : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hek : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hdot : Spec (Labels.label NativeRustcVmX64.Vm.Dot.entryLabel) DotPre DotPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {sh cl v : EW} {sp : Array EW} {st : MachineData} (hf : BF m0 (OT m0) 8 st)
     (w120 : NativeRustcVm.WordAt st.dmem (off (fa m0) 120) sh.c0)
     (w112 : NativeRustcVm.WordAt st.dmem (off (fa m0) 112) sh.c1)
@@ -70,7 +74,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     (hts : TStateAt st.dmem (tAt m0) a s3)
     (hres : res s0 m0 = if (cl == dot (eqKernel sp) (wts m0) * v) = true then
       some ((sh, slice m0 (bAt m0) (reg m0 .r8) ++ sp, v), s3) else none) :
-    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + 47)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 m0) ⟨st, Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b6Offset)⟩ := by
   have c := ctx_of h
   obtain ⟨hS, -, -, -, hw, -⟩ := pre_parts h
   have hspL : sp.toList.length = 4 := by rw [Array.length_toList, hsz]
@@ -81,7 +85,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   unfold NativeRustcVm.NoWrap at hfnw
   have hfa : (fa m0).toNat = (stackBelow m0 432).toNat := rfl
   -- `b6`: the value, the kernel zeroed, `eq_kernel` called.
-  have hwf := wf_envB h hf.frame.kept (Host.addrOf (k + 47 + b6.length)).toBitVec
+  have hwf := wf_envB h hf.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b6Offset + b6.length)).toBitVec
   refine exec_then (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf (fun _ _ ↦ rfl)
     (match_bodyS hf _) fun st1 hm1 hpc1 ↦ ?_
   obtain ⟨hmid1, hrdi1, hrsi1, hrdx1, hrcx1, hr15_1, hk1, hW24, hws1⟩ := ok_b6
@@ -155,7 +159,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   -- `b7`: `eq_kernel` succeeded.
   have hwf7 := wf_envB h hf2.frame.kept 0
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) exit_b7 hwf7 nofun
-    (hpc2.trans (by rw [show b6.length = 40 from rfl])) (match_bodyS hf2 0) fun st7 hm7 hpc7 ↦ ?_
+    (hpc2.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b6_next)) (match_bodyS hf2 0) fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨-, -, -, -, -, -, -, -, -, hmid7, hmem7, hk7, -⟩ := ok_test
   obtain ⟨hf7, -⟩ := BF.block h hf2 hm7 hmid7 (KeepsB.mono hk7 (by simp [six]))
   have hd7 : st7.data.dmem = st2.data.dmem := hm7.dmem_eq hwf7 hmem7
@@ -165,9 +169,9 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     rw [hx0]; decide
   simp only [PcOk, hc7, Bool.false_eq_true, ↓reduceIte] at hpc7
   -- `b8`: `dot` of the kernel and the weights.
-  have hwf8 := wf_envB h hf7.frame.kept (Host.addrOf (k + 89 + b8.length)).toBitVec
+  have hwf8 := wf_envB h hf7.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b8Offset + b8.length)).toBitVec
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf8 (fun _ _ ↦ rfl)
-    (hpc7.trans (by rw [show b7.length = 2 from rfl])) (match_bodyS hf7 _) fun st8 hm8 hpc8 ↦ ?_
+    (hpc7.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b7_next)) (match_bodyS hf7 _) fun st8 hm8 hpc8 ↦ ?_
   obtain ⟨hmid8, hrdi8, hrsi8, hrdx8, hrcx8, hk8, hws8⟩ := ok_b8
   obtain ⟨hf8, hs8⟩ := BF.block h hf7 hm8 hmid8 (KeepsB.mono hk8 (by simp [six]))
   have hin8 := writesIn_of_mid hmid8
@@ -240,9 +244,9 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
     (hsv3.1 .r15 rfl).trans ((hm8.regs .r15 _ (KeepsB.reg hk8 (by simp [six]))).trans
       ((hm7.regs .r15 _ (KeepsB.reg hk7 (by simp [six]))).trans r15_2))
   -- `b9`: times the value.
-  have hwf9 := wf_envB h hf3.frame.kept (Host.addrOf (k + 94 + b9.length)).toBitVec
+  have hwf9 := wf_envB h hf3.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b9Offset + b9.length)).toBitVec
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) exit_b9 hwf9 (fun _ _ ↦ rfl)
-    (hpc3.trans (by rw [show b8.length = 5 from rfl])) (match_bodyS hf3 _) fun st9 hm9 hpc9 ↦ ?_
+    (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b8_next)) (match_bodyS hf3 _) fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hmid9, hrdi9, hrsi9, hrdx9, hrcx9, hk9, hws9⟩ := ok_b9
   obtain ⟨hf9, hs9⟩ := BF.block h hf3 hm9 hmid9 (KeepsB.mono hk9 (by simp [six]))
   have hin9 := writesIn_of_mid hmid9
@@ -287,11 +291,11 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   have hsp4 := k3_4 (by omega) (by rw [hspB]; omega) hsp2
   have r15_4 : reg st4.data .r15 = v.c0.toBitVec :=
     (hsv4.1 .r15 rfl).trans ((hm9.regs .r15 _ (KeepsB.reg hk9 (by simp [six]))).trans r15_3)
-  have hl14 : Labels.label ".LBytecodeShare_14" = Host.addrOf (k + 113) := hp.label (j := 113) rfl
+  have hl14 : Labels.label NativeRustcVmX64.Vm.BytecodeShare.label_14 = Host.addrOf (k + NativeRustcVmX64.Vm.BytecodeShare.b15Offset) := hp.label NativeRustcVmX64.Vm.BytecodeShare.label_14_at
   -- `b10`, `b11`: the check, limb by limb.
   have hwf10 := wf_envB h hf4.frame.kept 0
   refine exec_at (infix_of b10_in_code (by simp [b10]) hp) exit_b10 hwf10 nofun
-    (hpc4.trans (by rw [show b9.length = 5 from rfl])) (match_bodyS hf4 0) fun st10 hm10 hpc10 ↦ ?_
+    (hpc4.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b9_next)) (match_bodyS hf4 0) fun st10 hm10 hpc10 ↦ ?_
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hmid10, hmem10, hk10, hmid11, hmem11, hk11⟩ := ok_test
   obtain ⟨hf10, -⟩ := BF.block h hf4 hm10 hmid10 (KeepsB.mono hk10 (by simp [six]))
   have hd10 : st10.data.dmem = st4.data.dmem := hm10.dmem_eq hwf10 hmem10
@@ -317,7 +321,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
   simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc10
   have hwf11 := wf_envB h hf10.frame.kept 0
   refine exec_at (infix_of b11_in_code (by simp [b11]) hp) exit_b11 hwf11 nofun
-    (hpc10.trans (by rw [show b10.length = 2 from rfl])) (match_bodyS hf10 0)
+    (hpc10.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.BytecodeShare.b10_next)) (match_bodyS hf10 0)
     fun st11 hm11 hpc11 ↦ ?_
   obtain ⟨hf11, -⟩ := BF.block h hf10 hm11 hmid11 (KeepsB.mono hk11 (by simp [six]))
   have hd11 : st11.data.dmem = st10.data.dmem := hm11.dmem_eq hwf11 hmem11
@@ -341,7 +345,7 @@ theorem check (hp : Placed code k) (h : BytecodeSharePre a s0 m0)
       (by rw [hres, hP, decide_eq_true h0, decide_eq_false h1]; rfl)
   rw [decide_eq_true h1] at hpc11
   simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc11
-  rw [show b11.length = 2 from rfl] at hpc11
+  rw [NativeRustcVmX64.Vm.BytecodeShare.b11_length] at hpc11
   have hok : res s0 m0 = some ((sh, slice m0 (bAt m0) (reg m0 .r8) ++ sp, v), s3) := by
     rw [hres, hP, decide_eq_true h0, decide_eq_true h1]; rfl
   have hdm : st11.data.dmem = st4.data.dmem := hd11.trans hd10

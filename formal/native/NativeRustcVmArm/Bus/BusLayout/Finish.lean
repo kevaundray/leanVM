@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Bus.BusLayout.Keep
 
 /-!
@@ -34,9 +35,9 @@ variable [Host] {k : Nat}
 
 /-- **The epilogue**: from `.LBusLayout_17`, every placement pushed, to the return. -/
 theorem finish (hp : Placed code k)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) {L : LayoutW}
+    (hmc : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {L : LayoutW}
     {bl : List NativeRustcVm.Data.Block} {m0 : MachineData} (hpre : BusLayoutPre L bl m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 207)) (hE : PEnd L bl m0 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b20Offset)) (hE : PEnd L bl m0 st.data) :
     Eventually (step1 Host.exe) (Post L bl m0) st := by
   have hS := hpre.1
   have hN : busLayoutStack ≤ m0.regs.SP.toNat := hS.2.1

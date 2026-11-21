@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
 public import NativeRustcVmArm.Tables.ColumnClaims.Loop
 
 /-!
@@ -99,7 +100,7 @@ theorem head (L : LB k R) (hpre : TableColumnClaimsPre ev cs m0) {i j : Nat}
 
 /-- **One push**: the value's claim pushed; on to the head with `j + 1`, or, where it failed (the
 claims do not fit), to the block after the loop with X0 zero. -/
-theorem push (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+theorem push (hpush : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     (L : LB k R) (hpre : TableColumnClaimsPre ev cs m0) {i j : Nat} (hi : i < 6)
     (hj : j < (valsOf ev i).size) {Q : MachineState → Prop}
     (hfail : ∀ m, Fr m0 64 tableColumnClaimsStack slots keep (outs m0) m → m.regs.X0 = 0 →
@@ -164,7 +165,7 @@ theorem push (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre c
   have hfrO : ∀ q, outs m0 q → ¬InRange (base m0 64) 64 q := fun q hq ↦
     NativeRustcVm.Apart.not_inRange hap hcR.2 (base_noWrap (by have := F_le; omega)) hq
   have hP2 := ReadIn.fr hfr2 hS le_push hinP
-  have hpc2' : st2.pc = Labels.label pushClaimLabel ∧
+  have hpc2' : st2.pc = Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel ∧
       retOf st2.data = Host.addrOf (k + L.jH + L.H.length + L.B.length) := hpc2
   refine Bus.Gkr.Fr.callSpec hfr2 hN le_push keep_callee slots_le hfrO
     (hpush (cs ++ (pre ev i j).toArray)) hpc2' ⟨hfr2.stackOk hS rfl le_push, ?_, ?_, ?_, ?_, ?_⟩
@@ -246,7 +247,7 @@ theorem push (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre c
     · rw [x3]; unfold pointCap; omega
 
 /-- **A table's loop**, from the head with `j` values pushed. -/
-theorem loop (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+theorem loop (hpush : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     (L : LB k R) (hpre : TableColumnClaimsPre ev cs m0) {i : Nat} (hi : i < 6)
     {Q : MachineState → Prop}
     (hnext : ∀ m, LoopAt R ev cs m0 i (valsOf ev i).size m →

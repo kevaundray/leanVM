@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.LinearTranspose.Copy
+public import NativeRustcVmX64.Code.Vm.KeccakPi.Names
 
 /-!
 # `linear_transpose`: the lane loop (x86-64)
@@ -32,9 +33,9 @@ variable [Host] {k : Nat}
 
 /-- `b4`: the next lane, or `g` complete. -/
 theorem lane_end (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 43)) (hI : LaneEnd m0 ws l st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + 15) ∧
-      Head m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + 47) ∧ GDone m0 ws s'.data)) st := by
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b4Offset)) (hI : LaneEnd m0 ws l st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (l + 1 < 25 ∧ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b1Offset) ∧
+      Head m0 ws (l + 1) s'.data) ∨ (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b5Offset) ∧ GDone m0 ws s'.data)) st := by
   have hl := hI.l_lt
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 (Env.wf_nil _) nofun hpc
     (match_nil _) fun st' hm' hpc' ↦ ?_
@@ -48,7 +49,7 @@ theorem lane_end (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineS
   by_cases hlast : l + 1 = 25
   · rw [decide_eq_true hlast] at hpc'
     simp only [Bool.not_true, Bool.false_eq_true, ite_false] at hpc'
-    refine .done _ (Or.inr ⟨hpc'.trans (by rw [lengths.2.2.2.2.1]), hc,
+    refine .done _ (Or.inr ⟨hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.LinearTranspose.b4_next), hc,
       (atoms_eq hm' hat (by simp)).trans hI.r15, (atoms_eq hm' hat (by simp)).trans hI.rbx, ?_⟩)
     rw [hd, show 1600 = 64 * l + 64 by omega]; exact hI.g
   · rw [decide_eq_false hlast] at hpc'
@@ -66,10 +67,10 @@ theorem lane_end (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineS
 
 /-- **A lane's copy loop**. -/
 theorem copy_loop (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 24)) (hI : CopyHead m0 ws l 0 st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 43) ∧ LaneEnd m0 ws l s'.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b3Offset)) (hI : CopyHead m0 ws l 0 st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b4Offset) ∧ LaneEnd m0 ws l s'.data)
       st :=
-  loop (fun n st ↦ ∃ t, n = 32 - t ∧ t < 32 ∧ st.pc = Host.addrOf (k + 24) ∧
+  loop (fun n st ↦ ∃ t, n = 32 - t ∧ t < 32 ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b3Offset) ∧
       CopyHead m0 ws l t st.data)
     (fun _ st ⟨t, hn, ht, hpc, hI⟩ ↦ (copy_step hp h hpc hI).mono fun s' h' ↦ by
       rcases h' with ⟨hlt, hpc', hI'⟩ | ⟨-, hpc', hE⟩
@@ -79,10 +80,10 @@ theorem copy_loop (hp : Placed code k) (h : PreOk m0 ws) {l : Nat} {st : Machine
 
 /-- **The lane loop**: from lane `0`'s head, `g` complete. -/
 theorem lanes_loop (hp : Placed code k) (h : PreOk m0 ws)
-    (hpi : Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 15)) (hI : Head m0 ws 0 st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 47) ∧ GDone m0 ws s'.data) st :=
-  loop (fun n st ↦ ∃ l, n = 25 - l ∧ l < 25 ∧ st.pc = Host.addrOf (k + 15) ∧ Head m0 ws l st.data)
+    (hpi : Spec (Labels.label NativeRustcVmX64.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost) {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b1Offset)) (hI : Head m0 ws 0 st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b5Offset) ∧ GDone m0 ws s'.data) st :=
+  loop (fun n st ↦ ∃ l, n = 25 - l ∧ l < 25 ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b1Offset) ∧ Head m0 ws l st.data)
     (fun _ st ⟨l, hn, hl, hpc, hI⟩ ↦ (lane_head hp h hpi hpc hI).bind fun s1 ⟨hpc1, hI1⟩ ↦
       (copy_loop hp h hpc1 hI1).bind fun s2 ⟨hpc2, hI2⟩ ↦
         (lane_end hp h hpc2 hI2).mono fun s' h' ↦ by

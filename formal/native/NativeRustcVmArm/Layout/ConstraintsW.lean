@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Layout.ConstraintsW.Exec
 public import NativeRustcVmArm.Layout.Body
 
@@ -55,18 +57,18 @@ theorem row_getD_ge {m : MachineData} {i : Nat} (h : m.regs.X2.toNat ≤ i) :
 
 variable [Host] {k : Nat}
 
-theorem lbl_entry (hp : Placed code k) : Labels.label constraintsWLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LConstraintsW_5" = Host.addrOf (k + 18) :=
-  hp.label (j := 18) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LConstraintsW_6" = Host.addrOf (k + 21) :=
-  hp.label (j := 21) rfl
-theorem lbl_7 (hp : Placed code k) : Labels.label ".LConstraintsW_7" = Host.addrOf (k + 27) :=
-  hp.label (j := 27) rfl
-theorem lbl_8 (hp : Placed code k) : Labels.label ".LConstraintsW_8" = Host.addrOf (k + 30) :=
-  hp.label (j := 30) rfl
-theorem lbl_9 (hp : Placed code k) : Labels.label ".LConstraintsW_9" = Host.addrOf (k + 33) :=
-  hp.label (j := 33) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.ConstraintsW.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.ConstraintsW.entryOffset) NativeRustcVmArm.Vm.ConstraintsW.entry_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.ConstraintsW.label_5 = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b5Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.ConstraintsW.b5Offset) NativeRustcVmArm.Vm.ConstraintsW.label_5_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.ConstraintsW.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b6Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.ConstraintsW.b6Offset) NativeRustcVmArm.Vm.ConstraintsW.label_6_at
+theorem lbl_7 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.ConstraintsW.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b7Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.ConstraintsW.b7Offset) NativeRustcVmArm.Vm.ConstraintsW.label_7_at
+theorem lbl_8 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.ConstraintsW.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b8Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.ConstraintsW.b8Offset) NativeRustcVmArm.Vm.ConstraintsW.label_8_at
+theorem lbl_9 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.ConstraintsW.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b9Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.ConstraintsW.b9Offset) NativeRustcVmArm.Vm.ConstraintsW.label_9_at
 
 abbrev S : Nat := constraintsWStack
 
@@ -92,7 +94,7 @@ structure At9 (m0 : MachineData) (s : MachineData) : Prop where
 
 /-- At `b9`. -/
 abbrev G (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 33) ∧ At9 m0 s.data
+  s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b9Offset) ∧ At9 m0 s.data
 
 omit [Host] in
 /-- Element `i` of the row, read in a body. -/
@@ -126,7 +128,7 @@ theorem x1_of {st st' : MachineData} {m0 : MachineData} {n : Nat} {S₁ : SState
 
 /-- **`b8`**: `flag` is `0`. -/
 theorem from8 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 30)) (hb : Body m0 48 S slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b8Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (h19 : st.data.regs.X19 = m0.regs.X3)
     (hc : (⟨st.data.regs.X21, st.data.regs.X20⟩ : EW) = (row m0).getD 5 0)
     (hi : (⟨st.data.regs.X2, st.data.regs.X3⟩ : EW) = (row m0).getD 12 0)
@@ -134,7 +136,7 @@ theorem from8 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
   refine exec_at (infix_of b8_in_code (by simp [b8]) hp) run_b8 (Env.wf_nil _) hpc (match_nil _)
     fun st' hm hpc' ↦ .done _ ⟨?_, hb.of_block (match_nil _) hm (Env.wf_nil _) rfl
       (after_eq run_b8 ▸ b8_keeps), ?_, ?_, ?_, ?_⟩
-  · simp only [PcOk, show b8.length = 3 from rfl] at hpc'
+  · simp only [PcOk, NativeRustcVmArm.Vm.ConstraintsW.b8_length, NativeRustcVmArm.Vm.ConstraintsW.b8Length] at hpc'
     exact hpc'
   · rw [← h19]; exact keep (match_nil _) hm (r := .X19) rfl rfl
   · rw [← hc]
@@ -149,14 +151,14 @@ theorem from8 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
 
 /-- **`b7`**: `inverse` and `flag` are `0`. -/
 theorem from7 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 27)) (hb : Body m0 48 S slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b7Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (h19 : st.data.regs.X19 = m0.regs.X3)
     (hc : (⟨st.data.regs.X21, st.data.regs.X20⟩ : EW) = (row m0).getD 5 0)
     (hi : (row m0).getD 12 0 = 0) (hf : (row m0).getD 13 0 = 0) :
     Eventually (step1 Host.exe) (G k m0) st := by
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) run_b7 (Env.wf_nil _) hpc (match_nil _)
     fun st' hm hpc' ↦ ?_
-  simp only [PcOk, show b7.length = 3 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.ConstraintsW.b7_length, NativeRustcVmArm.Vm.ConstraintsW.b7Length] at hpc'
   refine from8 hp hpc' (hb.of_block (match_nil _) hm (Env.wf_nil _) rfl
     (after_eq run_b7 ▸ b7_keeps)) ?_ ?_ ?_ hf
   · rw [← h19]; exact keep (match_nil _) hm (r := .X19) rfl rfl
@@ -169,7 +171,7 @@ theorem from7 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
 
 /-- **`b6`**: a row shorter than `6`, all three `0`. -/
 theorem from6 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 21)) (hb : Body m0 48 S slots 0 0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b6Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (h19 : st.data.regs.X19 = m0.regs.X3) (hc : (row m0).getD 5 0 = 0)
     (hi : (row m0).getD 12 0 = 0) (hf : (row m0).getD 13 0 = 0) :
     Eventually (step1 Host.exe) (G k m0) st := by
@@ -188,7 +190,7 @@ theorem from6 (hp : Placed code k) {m0 : MachineData} {st : MachineState}
 
 /-- **`b4`**: `flag` loaded. -/
 theorem from4 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 16)) (hb : Body m0 48 S slots 0 0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b4Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (hlen : 14 ≤ m0.regs.X2.toNat) (h1 : st.data.regs.X1 = m0.regs.X1)
     (h19 : st.data.regs.X19 = m0.regs.X3)
     (hc : (⟨st.data.regs.X21, st.data.regs.X20⟩ : EW) = (row m0).getD 5 0)
@@ -210,7 +212,7 @@ theorem from4 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0
 
 /-- **`b3`**: `inverse` loaded; a row of `13` has no `flag`. -/
 theorem from3 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 12)) (hb : Body m0 48 S slots 0 0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b3Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (hlen : 13 ≤ m0.regs.X2.toNat) (h1 : st.data.regs.X1 = m0.regs.X1)
     (h2 : st.data.regs.X2 = m0.regs.X2) (h19 : st.data.regs.X19 = m0.regs.X3)
     (hc : (⟨st.data.regs.X21, st.data.regs.X20⟩ : EW) = (row m0).getD 5 0) :
@@ -225,7 +227,7 @@ theorem from3 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0
     rw [keep hm hm' (r := .X21) rfl rfl, keep hm hm' (r := .X20) rfl rfl]; rfl
   have hi' : (⟨st'.data.regs.X2, st'.data.regs.X3⟩ : EW) = (row m0).getD 12 0 :=
     (ew_of_loads (off := 192) (lo := .X2) (hi := .X3) hm' rfl rfl).trans (elem_row hpre hb (i := 12) (by omega))
-  simp only [PcOk, show b3.length = 4 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.ConstraintsW.b3_length, NativeRustcVmArm.Vm.ConstraintsW.b3Length] at hpc'
   sym_simp at hpc'
   have hx2 : (st.data.regs.getXReg .X2).toBitVec.toNat = m0.regs.X2.toNat := by
     show (st.data.regs.X2).toNat = _; rw [h2]
@@ -238,7 +240,7 @@ theorem from3 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0
 
 /-- **`b2`**: `condition` loaded; a row shorter than `13` has no `inverse`. -/
 theorem from2 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 9)) (hb : Body m0 48 S slots 0 0 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b2Offset)) (hb : Body m0 48 S slots 0 0 st.data)
     (hlen : 6 ≤ m0.regs.X2.toNat) (h1 : st.data.regs.X1 = m0.regs.X1)
     (h2 : st.data.regs.X2 = m0.regs.X2) (h19 : st.data.regs.X19 = m0.regs.X3) :
     Eventually (step1 Host.exe) (G k m0) st := by
@@ -248,7 +250,7 @@ theorem from2 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0
   have h19' : st'.data.regs.X19 = m0.regs.X3 := by rw [← h19]; exact keep hm hm' (r := .X19) rfl rfl
   have hc' : (⟨st'.data.regs.X21, st'.data.regs.X20⟩ : EW) = (row m0).getD 5 0 :=
     (ew_of_loads (off := 80) (lo := .X21) (hi := .X20) hm' rfl rfl).trans (elem_row hpre hb (i := 5) (by omega))
-  simp only [PcOk, show b2.length = 3 from rfl] at hpc'
+  simp only [PcOk, NativeRustcVmArm.Vm.ConstraintsW.b2_length, NativeRustcVmArm.Vm.ConstraintsW.b2Length] at hpc'
   sym_simp at hpc'
   have hx2 : (st.data.regs.getXReg .X2).toBitVec.toNat = m0.regs.X2.toNat := by
     show (st.data.regs.X2).toNat = _; rw [h2]
@@ -262,7 +264,7 @@ theorem from2 (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0
 
 /-- **The entry and the prologue**: `JUMP`, on to `b9`. -/
 theorem head (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 3))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.ConstraintsW.b1Offset))
     (hm1 : Match (Arrays.frameEnv m0 m0 48) (after b0 entryS) st.data)
     (hwf : (Arrays.frameEnv m0 m0 48).WF) : Eventually (step1 Host.exe) (G k m0) st := by
   have hm1' : Match (Arrays.frameEnv m0 m0 48) (after b0 entryS) st.data := hm1
@@ -274,7 +276,7 @@ theorem head (hp : Placed code k) {m0 : MachineData} (hpre : ConstraintsWPre m0)
   have h1 : st2.data.regs.X1 = m0.regs.X1 := UInt64.toBitVec_inj.mp (hm2.regs .X1 _ rfl)
   have h2 : st2.data.regs.X2 = m0.regs.X2 := UInt64.toBitVec_inj.mp (hm2.regs .X2 _ rfl)
   have h19 : st2.data.regs.X19 = m0.regs.X3 := UInt64.toBitVec_inj.mp (hm2.regs .X19 _ rfl)
-  simp only [PcOk, show b1.length = 6 from rfl] at hpc2
+  simp only [PcOk, NativeRustcVmArm.Vm.ConstraintsW.b1_length, NativeRustcVmArm.Vm.ConstraintsW.b1Length] at hpc2
   sym_simp at hpc2
   obtain ⟨hy, hn⟩ := pc_cond hpc2
   by_cases h6 : m0.regs.X2.toNat < 6
@@ -287,7 +289,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
   s.pc = retOf m0 ∧ ConstraintsWPost m0 s.data
 
 /-- **`b9`-`b11`**: the two products, stored, and the return. -/
-theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem tail (hp : Placed code k) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m0 : MachineData} (hpre : ConstraintsWPre m0) (h4 : m0.regs.X0.toNat = 4) {st : MachineState}
     (hG : G k m0 st) : Eventually (step1 Host.exe) (Post m0) st := by
   obtain ⟨hpc, hA⟩ := hG
@@ -296,7 +298,7 @@ theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
   refine exec_at (infix_of b9_in_code (by simp [b9]) hp) run_b9 (Env.wf_nil _) hpc (match_nil _)
     fun st9 hm9 hpc9 ↦ ?_
   have bd9 := hA.body.of_block (match_nil _) hm9 (Env.wf_nil _) rfl (after_eq run_b9 ▸ b9_keeps)
-  simp only [show b9.length = 4 from rfl] at hpc9
+  simp only [NativeRustcVmArm.Vm.ConstraintsW.b9_length, NativeRustcVmArm.Vm.ConstraintsW.b9Length] at hpc9
   refine call_then hpc9 hmul (bd9.ewMulPre hS (by decide) (by decide)) fun st3 hpc3 hpost ↦ ?_
   have bd3 := bd9.call hS (by decide) (by decide) hpost
   have k3 : ∀ r, calleeSaved r = true → regsS.reg r = some (.reg r) →
@@ -350,7 +352,7 @@ theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
         rw [e22, UInt64.xor_comm]; rfl
       rw [this] at w1
       exact w1
-  simp only [show b10.length = 8 from rfl] at hpc4
+  simp only [NativeRustcVmArm.Vm.ConstraintsW.b10_length, NativeRustcVmArm.Vm.ConstraintsW.b10Length] at hpc4
   refine call_then hpc4 hmul (bd4.ewMulPre hS (by decide) (by decide)) fun st5 hpc5 hpost2 ↦ ?_
   have bd5 := bd4.call hS (by decide) (by decide) hpost2
   have hP2 : (⟨st5.data.regs.X0, st5.data.regs.X1⟩ : EW) =
@@ -435,13 +437,13 @@ theorem tail (hp : Placed code k) (hmul : Spec (Labels.label ewMulLabel) EWMulPr
 
 /-- **`constraints_w` meets its contract.** -/
 theorem constraintsW_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label constraintsWLabel) ConstraintsWPre ConstraintsWPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.ConstraintsW.entryLabel) ConstraintsWPre ConstraintsWPost := by
   intro m0 hpre
   rw [lbl_entry hp]
   obtain ⟨hwf, hm⟩ := entry_match (F := 48) hpre.1 (by decide) rfl
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf hm fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show b0.length = 3 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmArm.Vm.ConstraintsW.b0_length, NativeRustcVmArm.Vm.ConstraintsW.b0Length] at hpc1
   sym_simp at hpc1
   obtain ⟨hy, hn⟩ := pc_cond hpc1
   have hx0 : (m0.regs.getXReg .X0).toBitVec.toNat = m0.regs.X0.toNat := rfl

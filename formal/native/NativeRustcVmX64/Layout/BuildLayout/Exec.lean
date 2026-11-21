@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Layout.BuildFrame
 public import NativeRustcVmX64.Code.Vm.BuildLayout
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.BuildLayout.Names
+public import NativeRustcVmX64.Code.Vm.ColumnKappas.Names
+public import NativeRustcVmX64.Code.Vm.PlacementsOf.Names
 public meta import NativeRustcVmX64.Code.Vm.BuildLayout
 public meta import NativeRustcVmX64.Layout.BuildFrame
 
@@ -107,14 +111,14 @@ sym_block run_b18 := exec b18 layS
 sym_block run_b19 := exec b19 bodyS
 sym_block run_b20 := exec b20 bodyS
 
-public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 ".LBuildLayout_17") :=
+public theorem exit_b0 : exec b0 entryS = some (after b0 entryS, .cond c0 NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b0.trans (by rw [after_eq run_b0])
 public theorem ok_b0 : ProOk 1360 8 slots (after b0 entryS) = true ∧
     (after b0 entryS).reg .r14 = some (.reg .rdx) ∧ Keeps (after b0 entryS) [.rdi, .rsi, .rcx] = true := by
   decide +kernel
 
 public theorem exit_b1 : exec b1 bodyS = some (after b1 bodyS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b1.trans (by rw [after_eq run_b1])
 public theorem ok_b1 : MidOk 1360 0 slots (after b1 bodyS) = true ∧
     (∀ w ∈ (after b1 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -122,13 +126,13 @@ public theorem ok_b1 : MidOk 1360 0 slots (after b1 bodyS) = true ∧
     Keeps (after b1 bodyS) [.rdi, .r14] = true := by
   decide +kernel
 
-public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .cond c2 ".LBuildLayout_17") :=
+public theorem exit_b2 : exec b2 bodyS = some (after b2 bodyS, .cond c2 NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem ok_b2 : MidOk 1360 8 slots (after b2 bodyS) = true ∧ (after b2 bodyS).mem = [] ∧
     (after b2 bodyS).reg .rax = some rM5 ∧ Keeps (after b2 bodyS) cs = true := by
   decide +kernel
 
-public theorem exit_b3 : exec b3 rowS = some (after b3 rowS, .cond (cRow 0) ".LBuildLayout_17") :=
+public theorem exit_b3 : exec b3 rowS = some (after b3 rowS, .cond (cRow 0) NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b3.trans (by rw [after_eq run_b3])
 public theorem ok_b3 : MidOk 1360 8 slots (after b3 rowS) = true ∧ (after b3 rowS).mem = [] ∧
     (after b3 rowS).reg .r14 = some (.ptr 1 0) ∧
@@ -136,7 +140,7 @@ public theorem ok_b3 : MidOk 1360 8 slots (after b3 rowS) = true ∧ (after b3 r
     Keeps (after b3 rowS) [.rax, .rbx, .rbp, .r13, .r15] = true := by
   decide +kernel
 
-public theorem exit_b4 : exec b4 rowS = some (after b4 rowS, .cond (cRow 8) ".LBuildLayout_17") :=
+public theorem exit_b4 : exec b4 rowS = some (after b4 rowS, .cond (cRow 8) NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b4.trans (by rw [after_eq run_b4])
 public theorem ok_b4 : MidOk 1360 8 slots (after b4 rowS) = true ∧ (after b4 rowS).mem = [] ∧
     (after b4 rowS).reg .r14 = some (.ptr 1 0) ∧
@@ -144,7 +148,7 @@ public theorem ok_b4 : MidOk 1360 8 slots (after b4 rowS) = true ∧ (after b4 r
     Keeps (after b4 rowS) [.rax, .rbx, .r12, .r13, .r15] = true := by
   decide +kernel
 
-public theorem exit_b5 : exec b5 rowS = some (after b5 rowS, .cond (cRow 16) ".LBuildLayout_17") :=
+public theorem exit_b5 : exec b5 rowS = some (after b5 rowS, .cond (cRow 16) NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b5.trans (by rw [after_eq run_b5])
 public theorem ok_b5 : MidOk 1360 8 slots (after b5 rowS) = true ∧ (after b5 rowS).mem = [] ∧
     (after b5 rowS).reg .r14 = some (.ptr 1 0) ∧
@@ -152,7 +156,7 @@ public theorem ok_b5 : MidOk 1360 8 slots (after b5 rowS) = true ∧ (after b5 r
     Keeps (after b5 rowS) [.rax, .rbx, .rbp, .r12, .r13] = true := by
   decide +kernel
 
-public theorem exit_b6 : exec b6 rowS = some (after b6 rowS, .cond (cRow 24) ".LBuildLayout_17") :=
+public theorem exit_b6 : exec b6 rowS = some (after b6 rowS, .cond (cRow 24) NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b6.trans (by rw [after_eq run_b6])
 public theorem ok_b6 : MidOk 1360 8 slots (after b6 rowS) = true ∧ (after b6 rowS).mem = [] ∧
     (after b6 rowS).reg .r14 = some (.ptr 1 0) ∧
@@ -160,7 +164,7 @@ public theorem ok_b6 : MidOk 1360 8 slots (after b6 rowS) = true ∧ (after b6 r
     Keeps (after b6 rowS) [.rax, .rbx, .rbp, .r12, .r13, .r15] = true := by
   decide +kernel
 
-public theorem exit_b7 : exec b7 rowS = some (after b7 rowS, .cond (cRow 32) ".LBuildLayout_17") :=
+public theorem exit_b7 : exec b7 rowS = some (after b7 rowS, .cond (cRow 32) NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b7.trans (by rw [after_eq run_b7])
 public theorem ok_b7 : MidOk 1360 8 slots (after b7 rowS) = true ∧ (after b7 rowS).mem = [] ∧
     (after b7 rowS).reg .r14 = some (.ptr 1 0) ∧
@@ -168,7 +172,7 @@ public theorem ok_b7 : MidOk 1360 8 slots (after b7 rowS) = true ∧ (after b7 r
     Keeps (after b7 rowS) [.rax, .rbx, .rbp, .r12, .r13, .r15, .r8] = true := by
   decide +kernel
 
-public theorem exit_b8 : exec b8 rowS = some (after b8 rowS, .cond c8 ".LBuildLayout_17") :=
+public theorem exit_b8 : exec b8 rowS = some (after b8 rowS, .cond c8 NativeRustcVmX64.Vm.BuildLayout.label_17) :=
   run_b8.trans (by rw [after_eq run_b8])
 public theorem ok_b8 : MidOk 1360 8 slots (after b8 rowS) = true ∧ (after b8 rowS).mem = [] ∧
     (after b8 rowS).reg .r14 = some (.ptr 1 0) ∧
@@ -177,7 +181,7 @@ public theorem ok_b8 : MidOk 1360 8 slots (after b8 rowS) = true ∧ (after b8 r
   decide +kernel
 
 public theorem exit_b9 : exec b9 layS = some (after b9 layS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b9.trans (by rw [after_eq run_b9])
 public theorem ok_b9 : MidOk 1360 0 slots (after b9 layS) = true ∧
     (∀ w ∈ (after b9 layS).mem, w.r = 0 → w.off + w.n ≤ 48) ∧
@@ -190,7 +194,7 @@ public theorem ok_b9 : MidOk 1360 0 slots (after b9 layS) = true ∧
   decide +kernel
 
 public theorem exit_b10 : exec b10 layS = some (after b10 layS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b10.trans (by rw [after_eq run_b10])
 public theorem ok_b10 : MidOk 1360 0 slots (after b10 layS) = true ∧
     (∀ w ∈ (after b10 layS).mem, w.r = 0 → w.off + w.n ≤ 8) ∧
@@ -202,7 +206,7 @@ public theorem ok_b10 : MidOk 1360 0 slots (after b10 layS) = true ∧
   decide +kernel
 
 public theorem exit_b11 : exec b11 layS = some (after b11 layS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b11.trans (by rw [after_eq run_b11])
 public theorem ok_b11 : MidOk 1360 0 slots (after b11 layS) = true ∧
     (∀ w ∈ (after b11 layS).mem, w.r = 0 → w.off + w.n ≤ 8) ∧
@@ -215,7 +219,7 @@ public theorem ok_b11 : MidOk 1360 0 slots (after b11 layS) = true ∧
   decide +kernel
 
 public theorem exit_b12 : exec b12 layS = some (after b12 layS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b12.trans (by rw [after_eq run_b12])
 public theorem ok_b12 : MidOk 1360 0 slots (after b12 layS) = true ∧
     (∀ w ∈ (after b12 layS).mem, w.r = 0 → w.off + w.n ≤ 8) ∧
@@ -229,7 +233,7 @@ public theorem ok_b12 : MidOk 1360 0 slots (after b12 layS) = true ∧
   decide +kernel
 
 public theorem exit_b13 : exec b13 layS = some (after b13 layS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b13.trans (by rw [after_eq run_b13])
 public theorem ok_b13 : MidOk 1360 0 slots (after b13 layS) = true ∧
     (∀ w ∈ (after b13 layS).mem, w.r = 0 → w.off + w.n ≤ 8) ∧
@@ -242,7 +246,7 @@ public theorem ok_b13 : MidOk 1360 0 slots (after b13 layS) = true ∧
   decide +kernel
 
 public theorem exit_b14 : exec b14 layS = some (after b14 layS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm5field10bit_length") :=
+    .call NativeRustcVmX64.Vm.BitLength.entryLabel) :=
   run_b14.trans (by rw [after_eq run_b14])
 public theorem ok_b14 : MidOk 1360 0 slots (after b14 layS) = true ∧
     (∀ w ∈ (after b14 layS).mem, w.r = 0 → w.off + w.n ≤ 8) ∧
@@ -255,7 +259,7 @@ public theorem ok_b14 : MidOk 1360 0 slots (after b14 layS) = true ∧
   decide +kernel
 
 public theorem exit_b15 : exec b15 layS = some (after b15 layS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout13column_kappas") :=
+    .call NativeRustcVmX64.Vm.ColumnKappas.entryLabel) :=
   run_b15.trans (by rw [after_eq run_b15])
 public theorem ok_b15 : MidOk 1360 0 slots (after b15 layS) = true ∧
     (∀ w ∈ (after b15 layS).mem, w.r = 0 → w.off + w.n ≤ 8) ∧
@@ -270,7 +274,7 @@ public theorem ok_b15 : MidOk 1360 0 slots (after b15 layS) = true ∧
   decide +kernel
 
 public theorem exit_b16 : exec b16 bodyS = some (after b16 bodyS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6layout13placements_of") :=
+    .call NativeRustcVmX64.Vm.PlacementsOf.entryLabel) :=
   run_b16.trans (by rw [after_eq run_b16])
 public theorem ok_b16 : MidOk 1360 0 slots (after b16 bodyS) = true ∧
     (∀ w ∈ (after b16 bodyS).mem, w.r = 0 ∧ w.off + w.n ≤ 8) ∧
@@ -279,13 +283,13 @@ public theorem ok_b16 : MidOk 1360 0 slots (after b16 bodyS) = true ∧
   decide +kernel
 
 public theorem exit_b17 : exec b17 bodyS = some (after b17 bodyS,
-    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not ".LBuildLayout_18") :=
+    .cond (SBool.cmp .eq .W64 (.reg .rax) (.lit 1)).not NativeRustcVmX64.Vm.BuildLayout.label_18) :=
   run_b17.trans (by rw [after_eq run_b17])
 public theorem ok_b17 : MidOk 1360 8 slots (after b17 bodyS) = true ∧ (after b17 bodyS).mem = [] ∧
     Keeps (after b17 bodyS) (.rax :: .rdx :: cs) = true := by
   decide +kernel
 
-public theorem exit_b18 : exec b18 layS = some (after b18 layS, .jump ".LBuildLayout_18") :=
+public theorem exit_b18 : exec b18 layS = some (after b18 layS, .jump NativeRustcVmX64.Vm.BuildLayout.label_18) :=
   run_b18.trans (by rw [after_eq run_b18])
 public theorem ok_b18 : MidOk 1360 8 slots (after b18 layS) = true ∧
     (∀ w ∈ (after b18 layS).mem, w.r = 1) ∧

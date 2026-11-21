@@ -1,11 +1,12 @@
 module
 
 public import NativeRustcVmX64.Whir.BasisWEval.Vals
+public import NativeRustcVmX64.Code.Vm.RingClaimWeight.Names
 
 /-!
 # `BasisW::eval`: the ring-switched claim (x86-64)
 
-From `.LBasisWEval_3` (`A4`): `b4` pushes the point as `ring_claim_weight`'s two stack arguments
+From `NativeRustcVmX64.Vm.BasisWEval.label_3` (`A4`): `b4` pushes the point as `ring_claim_weight`'s two stack arguments
 and calls it on the placement of `QKECCAK` (RAX, RDX), the Keccak output's point (at most 36
 coordinates) and the ring switch's coefficients, its `Option<EW>` at the frame's `80`: `Some` of
 the ring-switched claim's weight, the rest as `A4` (`A5`, `ring_call`).
@@ -55,18 +56,18 @@ theorem In.coeffsLen (h : In m0 ba b v) : v.coeffs.toList.length = 64 := by
 
 variable [Host] {k : Nat}
 
-/-- **The ring-switched claim's weight**, from `.LBasisWEval_3` to `b5`. -/
+/-- **The ring-switched claim's weight**, from `NativeRustcVmX64.Vm.BasisWEval.label_3` to `b5`. -/
 theorem ring_call (hp : Placed code k) (h : In m0 ba b v)
-    (hrcw : Spec (Labels.label ringClaimWeightLabel) RingClaimWeightPre RingClaimWeightPost)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 29)) (ha : A4 m0 ba b v st.data)
+    (hrcw : Spec (Labels.label NativeRustcVmX64.Vm.RingClaimWeight.entryLabel) RingClaimWeightPre RingClaimWeightPost)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b4Offset)) (ha : A4 m0 ba b v st.data)
     {R : MachineState → Prop}
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 45) → A5 m0 ba b v st'.data →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b5Offset) → A5 m0 ba b v st'.data →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hS := h.stackOk
   have hN := h.hN
   have hf := ha.base.fr
-  let ret := (Host.addrOf (k + 29 + b4.length)).toBitVec
+  let ret := (Host.addrOf (k + NativeRustcVmX64.Vm.BasisWEval.b4Offset + b4.length)).toBitVec
   have hkin := h.keccakIn
   have hk8 : WhirIn m0 ba.keccak 8 basisWEvalStack := WhirIn.mono' hkin (by decide)
   have hbk : NativeRustcVm.Apart (reg m0 .rsi) 56 ba.keccak 8 :=
@@ -154,7 +155,7 @@ theorem ring_call (hp : Placed code k) (h : In m0 ba b v)
     h.xpt_eq hf1 ha0 ha1
   have hout := hq2.1
   rw [epl, ekp, ecf, ex, erdi] at hout
-  rw [show k + 29 + b4.length = k + 45 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.BasisWEval.b4Offset + b4.length = k + NativeRustcVmX64.Vm.BasisWEval.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.BasisWEval.b4_next]]
   refine cont _ rfl {
     base := hb1.call hf2 hk2 (by omega) (.inl (by omega))
     rbx := (hcs2 .rbx rfl).trans ((reg_eval hm1 hrbx).trans (eval_ptr rfl))

@@ -1,11 +1,17 @@
 module
 
 public import NativeRustcVmX64.Bus.VerifyBusBalance.ClaimsPre
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
+public import NativeRustcVmX64.Code.Vm.VerifyGkrGrandProducts.Names
 
 /-!
 # `verify_bus_balance`'s grind, challenges and GKR walk (x86-64)
 
-`AtGrind`: the state at `b9` (`k + 63`), the three layouts built. `b9` checks the push side's
+`AtGrind`: the state at `b9` (`k + NativeRustcVmX64.Vm.VerifyBusBalance.b9Offset`), the three layouts built. `b9` checks the push side's
 depth; `b10` calls `bit_length` of its mask; `b11` grinds; `b12` checks it; `b13` samples the `16`
 weights; `b14` squeezes `β`; `b15` keeps `β`; `b16` zeroes the point's buffer (`21` rounds); `b17`
 copies it into the `GkrStateW`; `b18` calls `verify_gkr_grand_products`; `b19`, `b20` check its
@@ -90,16 +96,16 @@ theorem match_l1 {d : MachineData} (fr : St m0 104 d) {i : Nat}
     Match (frameEnv m0 d 5520 [] (fun _ ↦ 0) ret) (l1S i) d :=
   match_ofMachine ⟨rfl, trivial⟩ ⟨fr.frame.rsp_eval, hrax, trivial⟩ trivial trivial trivial
 
-/-- **The point buffer's zeroing**, from round `i` (`.LVerifyBusBalance_6`, `k + 119`). -/
+/-- **The point buffer's zeroing**, from round `i` (`NativeRustcVmX64.Vm.VerifyBusBalance.label_6`, `k + NativeRustcVmX64.Vm.VerifyBusBalance.b16Offset`). -/
 theorem loop16_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {d0 : Mem 64}
     {R0 : MachineData} {s : TState}
     (cont : ∀ d, St m0 104 d → KeepIv gIv m0 d0 d.dmem → (∀ r ∈ clRegs, reg d r = reg R0 r) →
       TStateAt d.dmem (reg m0 .rdi) a s →
-      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 129)⟩) :
+      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b17Offset)⟩) :
     ∀ n i, i + n = 20 → ∀ d, St m0 104 d → KeepIv gIv m0 d0 d.dmem →
       (∀ r ∈ clRegs, reg d r = reg R0 r) → TStateAt d.dmem (reg m0 .rdi) a s →
       reg d .rax = BitVec.ofNat 64 (40 + 48 * i) →
-      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 119)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b16Offset)⟩ := by
   have hS := pre_stack h
   intro n
   induction n with
@@ -115,7 +121,7 @@ theorem loop16_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {d0
       (lo := 672) (hi := 1728) (fun w hw' hr ↦ by have := hw w hw'; omega) (by decide) (by decide)
     simp only [PcOk, SBool.eval, show i = 20 by omega, decide_true, Bool.not_true,
       Bool.false_eq_true, ↓reduceIte] at hpc1
-    exact at_pc (hpc1.trans (by rw [show b16.length = 10 from rfl])) (cont st1.data fr1
+    exact at_pc (hpc1.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyBusBalance.b16_next)) (cont st1.data fr1
       (hk.trans k1) (fun r hr' ↦ (hks.reg hm1 (clRegs_cs r hr').2.1).trans (hr r hr'))
       (ts_keep h (hm1.kept hwf) hs1 (fun q hq ↦ .inl (frame_stack hS hq)) hts))
   | succ n ih =>
@@ -139,19 +145,19 @@ theorem loop16_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0) {d0
     congr 1
     omega
 
-/-- **The grind, the challenges, the GKR walk** (`b9`, `k + 63`). -/
+/-- **The grind, the challenges, the GKR walk** (`b9`, `k + NativeRustcVmX64.Vm.VerifyBusBalance.b9Offset`). -/
 theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hbit : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsc : ∀ s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hmc : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hbit : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsc : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hgkr : ∀ s, Spec (Labels.label verifyGkrLabel) (VerifyGkrPre a s) (VerifyGkrPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hgkr : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.VerifyGkrGrandProducts.entryLabel) (VerifyGkrPre a s) (VerifyGkrPost a s))
     (hsc' : ∀ w pt tv beta s d, AtScal a s0 L m0 w pt tv beta s d →
-      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 150)⟩)
+      Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset)⟩)
     {d : MachineData} (A : AtGrind a s0 L m0 d) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + 63)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b9Offset)⟩ := by
   have hS := pre_stack h
   have hrun := vbb_run L s0
   have hdl : (pushL L).depth < 2 ^ 64 := A.push.depth_lt
@@ -165,7 +171,7 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     rw [A.x12]
     simp only [CmpOp.apply, low_W64, ult_toNat, ndep, BitVec.toNat_ofNat, Nat.reducePow,
       Nat.reduceMod]
-  refine test_spec hp h (j := 63) (n := 2) (infix_of b9_in_code (by simp [b9]) hp) rfl exit_b9
+  refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b9Offset) (n := b9.length) (infix_of b9_in_code (by simp [b9]) hp) rfl exit_b9
     ok_b9 A.fr (fun hc ↦ ?_) fun d1 fr1 hd1 hk1 hc ↦ ?_
   · rw [hc9] at hc
     have : ¬ (pushL L).depth < 64 := by simpa using hc
@@ -191,9 +197,9 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       exact not_loc hS (pre_tok h).1 (pre_ts h).footprint.1.2 (j := j) (l := 1) (by omega) hq
         (loc_inR hS (by omega) (by omega) (by omega))
   -- `b10`: `bit_length` of the push side's mask.
-  rw [show k + 63 + 2 = k + 65 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b9Offset + b9.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b10Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b9_next]]
   have hwf2 := wf0 h fr1.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 65 + b10.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b10Offset + b10.length)).toBitVec)
   refine exec_then (infix_of b10_in_code (by simp [b10]) hp) exit_b10 hwf2 (fun _ _ ↦ rfl)
     (match_fS fr1) fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hmid2, hw2, hrdi2, hk2⟩ := ok_b10
@@ -227,9 +233,9 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have r3 : ∀ r ∈ clRegs, reg m3 r = reg d r := fun r hr' ↦
     (hcs3 r (clRegs_cs r hr').1).trans (r2 r hr')
   -- `b11`: the grind of `depth - 3` bits.
-  rw [show k + 65 + b10.length = k + 70 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b10Offset + b10.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b11Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b10_next]]
   have hwf4 := wf0 h fr3.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 70 + b11.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b11Offset + b11.length)).toBitVec)
   refine exec_then (infix_of b11_in_code (by simp [b11]) hp) exit_b11 hwf4 (fun _ _ ↦ rfl)
     (match_fS fr3) fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hmid4, hw4, hrsi4, hrdi4, hk4⟩ := ok_b11
@@ -267,11 +273,11 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have r5 : ∀ r ∈ clRegs, reg m5 r = reg d r := fun r hr' ↦
     (hcs5 r (clRegs_cs r hr').1).trans (r4 r hr')
   -- `b12`: the grind's result.
-  rw [show k + 70 + b11.length = k + 75 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b11Offset + b11.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b12Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b11_next]]
   cases hr1 : (grind ((pushL L).depth - 3)).run s0 with
   | none =>
     rw [hr1] at hal5
-    refine test_spec hp h (j := 75) (n := 2) (infix_of b12_in_code (by simp [b12]) hp) rfl
+    refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b12Offset) (n := b12.length) (infix_of b12_in_code (by simp [b12]) hp) rfl
       exit_b12 ok_b12 fr5 (fun _ ↦ by rw [hrun, hr1]; rfl) fun _ _ _ _ hc ↦ ?_
     rw [alZ_true (show boolRet m5 = 0 from hal5)] at hc
     cases hc
@@ -280,15 +286,15 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   rw [hr1] at hal5
   rw [hr1, Option.bind_some] at hrun
   have ts5 := hnx5 _ _ hr1
-  refine test_spec hp h (j := 75) (n := 2) (infix_of b12_in_code (by simp [b12]) hp) rfl
+  refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b12Offset) (n := b12.length) (infix_of b12_in_code (by simp [b12]) hp) rfl
     exit_b12 ok_b12 fr5 (fun hc ↦ by rw [alZ_false (show boolRet m5 = 1 from hal5)] at hc; cases hc)
     fun d6 fr6 hd6 hk6 _ ↦ ?_
   have r6 : ∀ r ∈ clRegs, reg d6 r = reg d r := fun r hr' ↦
     (hk6 r (clRegs_cs r hr').2.2).trans (r5 r hr')
   -- `b13`: `sample_challenges(t, 368, 16)`.
-  rw [show k + 75 + 2 = k + 77 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b12Offset + b12.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b13Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b12_next]]
   have hwf7 := wf0 h fr6.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 77 + b13.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b13Offset + b13.length)).toBitVec)
   refine exec_then (infix_of b13_in_code (by simp [b13]) hp) exit_b13 hwf7 (fun _ _ ↦ rfl)
     (match_fS fr6) fun st7 hm7 hpc7 ↦ ?_
   obtain ⟨hmid7, hw7, hrdi7, hrsi7, hrdx7, hk7⟩ := ok_b13
@@ -339,9 +345,9 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have r8 : ∀ r ∈ clRegs, reg m8 r = reg d r := fun r hr' ↦
     (hcs8 r (clRegs_cs r hr').1).trans (r7 r hr')
   -- `b14`: `β`, squeezed.
-  rw [show k + 77 + b13.length = k + 113 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b13Offset + b13.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b14Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b13_next]]
   have hwf9 := wf0 h fr8.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 113 + b14.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b14Offset + b14.length)).toBitVec)
   refine exec_then (infix_of b14_in_code (by simp [b14]) hp) exit_b14 hwf9 (fun _ _ ↦ rfl)
     (match_fS fr8) fun st9 hm9 hpc9 ↦ ?_
   obtain ⟨hmid9, hw9, hrdi9, hk9⟩ := ok_b14
@@ -405,7 +411,7 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have r10 : ∀ r ∈ clRegs, reg m10 r = reg d r := fun r hr' ↦
     (hcs10 r (clRegs_cs r hr').1).trans (r9 r hr')
   -- `b15`: `β` at `176`, `184`.
-  rw [show k + 113 + b14.length = k + 115 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b14Offset + b14.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b15Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b14_next]]
   have hwf11 := wf0 h fr10.frame.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_then (infix_of b15_in_code (by simp [b15]) hp) exit_b15 hwf11 nofun
     (match_fS fr10) fun st11 hm11 hpc11 ↦ ?_
@@ -435,13 +441,13 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
       UInt64.ofBitVec_toBitVec] at this
   have kG11 : KeepIv gIv m0 st11.data.dmem st11.data.dmem := KeepIv.rfl' rfl
   simp only [PcOk] at hpc11
-  refine at_pc (hpc11.trans (by rw [show b15.length = 4 from rfl]))
+  refine at_pc (hpc11.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.VerifyBusBalance.b15_next))
     (loop16_spec hp h (d0 := st11.data.dmem) (R0 := d) (s := { s2 with sponge := s2.sponge.squeeze.2 })
       ?_ 20 0 rfl st11.data fr11 kG11 r11 ts11 (hm11.regs .rax _ hrax11))
   intro d12 fr12 kG12 r12 ts12
   -- `b17`: `memcpy(1800, 672, 1008)`.
   have hwf13 := wf0 h fr12.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 129 + b17.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b17Offset + b17.length)).toBitVec)
   refine exec_then (infix_of b17_in_code (by simp [b17]) hp) exit_b17 hwf13 (fun _ _ ↦ rfl)
     (match_fS fr12) fun st13 hm13 hpc13 ↦ ?_
   obtain ⟨hmid13, hw13, hrdi13, hrsi13, hrdx13, hk13⟩ := ok_b17
@@ -487,9 +493,9 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have r14 : ∀ r ∈ clRegs, reg m14 r = reg d r := fun r hr' ↦
     (hcs14 r (clRegs_cs r hr').1).trans (r13 r hr')
   -- `b18`: `verify_gkr_grand_products(672, t, depth, 1744)`.
-  rw [show k + 129 + b17.length = k + 133 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b17Offset + b17.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b18Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b17_next]]
   have hwf15 := wf0 h fr14.frame.kept (vars := fun _ ↦ 0)
-    (ret := (Host.addrOf (k + 133 + b18.length)).toBitVec)
+    (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyBusBalance.b18Offset + b18.length)).toBitVec)
   refine exec_then (infix_of b18_in_code (by simp [b18]) hp) exit_b18 hwf15 (fun _ _ ↦ rfl)
     (match_fS fr14) fun st15 hm15 hpc15 ↦ ?_
   obtain ⟨hmid15, hw15, hrdi15, hrsi15, hrdx15, hrcx15, hk15⟩ := ok_b18
@@ -552,12 +558,12 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have r16 : ∀ r ∈ clRegs, reg m16 r = reg d r := fun r hr' ↦
     (hcs16 r (clRegs_cs r hr').1).trans (r15 r hr')
   -- `b19`: the count root's tag.
-  rw [show k + 133 + b18.length = k + 145 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b18Offset + b18.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b19Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b18_next]]
   cases hr4 : (verifyGkrGrandProducts (pushL L).depth).run
       { s2 with sponge := s2.sponge.squeeze.2 } with
   | none =>
     rw [hr4] at hopt16
-    refine test_spec hp h (j := 145) (n := 2) (infix_of b19_in_code (by simp [b19]) hp) rfl
+    refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b19Offset) (n := b19.length) (infix_of b19_in_code (by simp [b19]) hp) rfl
       exit_b19 ok_b19 fr16 (fun _ ↦ by rw [hrun, hr4]; rfl) fun _ _ _ _ hc ↦ ?_
     rw [tag32_true (show NativeRustcVm.WordAt m16.dmem (loc m0 672) 0 from hopt16)] at hc
     cases hc
@@ -570,11 +576,11 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   obtain ⟨hc0, hc1⟩ := ewAt_iff.mp hcr16
   rw [off_off] at hc0
   rw [off_off, off_off] at hc1
-  refine test_spec hp h (j := 145) (n := 2) (infix_of b19_in_code (by simp [b19]) hp) rfl
+  refine test_spec hp h (j := NativeRustcVmX64.Vm.VerifyBusBalance.b19Offset) (n := b19.length) (infix_of b19_in_code (by simp [b19]) hp) rfl
     exit_b19 ok_b19 fr16 (fun hc ↦ by rw [tag32_false ht16] at hc; cases hc)
     fun d17 fr17 hd17 hk17 _ ↦ ?_
   -- `b20`: the count root not `0`.
-  rw [show k + 145 + 2 = k + 147 from rfl]
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b19Offset + b19.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b20Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b19_next]]
   have hwf18 := wf0 h fr17.frame.kept (vars := fun _ ↦ 0) (ret := 0)
   refine exec_then (infix_of b20_in_code (by simp [b20]) hp) exit_b20 hwf18 nofun
     (match_fS fr17) fun st18 hm18 hpc18 ↦ ?_
@@ -606,7 +612,7 @@ theorem grind_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     rfl
   rw [hreq, Option.bind_some] at hrun
   simp only [hz, Bool.false_eq_true, ↓reduceIte] at hpc18
-  rw [show k + 147 + b20.length = k + 150 from rfl] at hpc18
+  rw [show k + NativeRustcVmX64.Vm.VerifyBusBalance.b20Offset + b20.length = k + NativeRustcVmX64.Vm.VerifyBusBalance.b21Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.VerifyBusBalance.b20_next]] at hpc18
   refine at_pc hpc18 (hsc' w pt tv s2.sponge.squeeze.1 s4 st18.data ?_)
   -- The state at `b21`.
   have kAp : KeepIv [(112, 120), (128, 144), (2808, 5472)] m0 d.dmem st11.data.dmem :=

@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcArm.Code.Common.Finalize.Names
+public import NativeRustcArm.Code.Common.KeccakF.Names
+public import NativeRustcArm.Code.Common.Memcpy.Names
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Common.Update.Names
+public import NativeRustcArm.Code.Sphincs.Names
+
 public import NativeRustcArm.Spec.Keccak
 public import NativeRustc.Sphincs.Model
 public import NativeRustcArm.Code.Sphincs.SphincsVerify
@@ -63,7 +70,7 @@ of the three (`sphincsStack`). Offsets from `base`:
    `27792`. Exit: `AtLayer 0` at `b101`.
 5. **Layer** `l` (loop `b101 .. b181`, X10):
    - **Encode** `b101 .. b112`, `b187` (lines 1405 .. 1803, 2878): the key from the index and
-     `LAYER_HEIGHTS` (the rodata table `lhLabel`), the encoder (`th` prefix with calls, cloned,
+     `LAYER_HEIGHTS` (the rodata table `NativeRustcArm.Sphincs.Symbols.rodata7Label`), the encoder (`th` prefix with calls, cloned,
      the counter), `finalize`; loop `b110` (16 turns, 4 digits each) and the sum (`b111`); a sum
      other than 128 returns 0 (`b187`, `b188`). Exit: `AtChains l x` at `b114` (chain 0).
    - **Chains** `b113 .. b142` (lines 1804 .. 2255): chain `i` (loop on X28 through `b114`,
@@ -100,8 +107,6 @@ def savedBytes (m : MachineData) : List UInt8 :=
   wordsBytes ([XReg.X29, .X30, .X28, .X27, .X26, .X25, .X24, .X23, .X22, .X21, .X20, .X19].map
     m.regs.getXReg)
 
-/-- The label of `LAYER_HEIGHTS`. -/
-def lhLabel : Label := ".Lanon.fe296eb653eaa2a8f5c440a37a3d84d0.8"
 
 /-- `LAYER_HEIGHTS`' bytes: three `usize`s. -/
 def lhBytes : List UInt8 := wordsBytes [8, 8, 10]
@@ -196,8 +201,8 @@ def resultFrom (l : Nat) (s : List UInt8) : Bool :=
 in place, apart from the stack. -/
 def Pre [Labels] : Prop :=
   StackOk r.m0 sphincsStack ∧ RcAt r.m0 sphincsStack ∧
-    BytesAt r.m0.dmem (label lhLabel).toBitVec lhBytes ∧ NoWrap (label lhLabel).toBitVec 24 ∧
-    Apart (label lhLabel).toBitVec 24 (stackBelow r.m0 sphincsStack) sphincsStack ∧
+    BytesAt r.m0.dmem (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec lhBytes ∧ NoWrap (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24 ∧
+    Apart (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24 (stackBelow r.m0 sphincsStack) sphincsStack ∧
     BytesAt r.m0.dmem r.input (wordsBytes ((List.range 977).map r.w)) ∧ NoWrap r.input (8 * 977) ∧
     Apart r.input (8 * 977) (stackBelow r.m0 sphincsStack) sphincsStack
 
@@ -272,7 +277,7 @@ type's word, X20 `base + 21648`, X26 `136`, X21 and X25 the hashers' buffers, X2
 `base + 26769`), `s` at `27792`, the spills `0` and `384`. -/
 def AtLayer [Labels] (l : Nat) (s : List UInt8) (m : MachineData) : Prop :=
   l < 3 ∧ s.length = 16 ∧ r.Frame m ∧ r.Inputs m ∧ RegIs m .X10 (BitVec.ofNat 64 l) ∧
-    RegIs m .X8 (label lhLabel).toBitVec ∧ RegIs m .X11 (r.off (12900 + 1028 * l)) ∧
+    RegIs m .X8 (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec ∧ RegIs m .X11 (r.off (12900 + 1028 * l)) ∧
     RegIs m .X12 (BitVec.ofNat 64 (4656 + 1028 * l)) ∧ RegIs m .X13 8 ∧ RegIs m .X22 16 ∧
     RegIs m .X14 0x07000000 ∧ RegIs m .X20 (r.off 21648) ∧ RegIs m .X26 136 ∧
     RegIs m .X21 (r.off 26968) ∧ RegIs m .X23 (r.off 26769) ∧ RegIs m .X25 (r.off 16600) ∧
@@ -309,19 +314,13 @@ end Run
 section
 variable [NativeArm.Host]
 
-/-- The labels of `Hasher::update`, `Hasher::finalize`, `keccak_f`. -/
-def updateLabel : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update"
-/-- `Hasher::finalize`'s label. -/
-def finalizeLabel : Label := "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize"
-/-- `keccak_f`'s label. -/
-def keccakFLabel : Label := "_RNvCsndc0WgnAaH_9keccak2568keccak_f"
 
 /-- **The callees' contracts.** -/
 def Callees : Prop :=
-  Spec (label "memcpy") MemcpyPre MemcpyPost ∧ Spec (label "memset") MemsetPre MemsetPost ∧
-    Spec (label updateLabel) UpdatePre UpdatePost ∧
-    Spec (label finalizeLabel) FinalizePre FinalizePost ∧
-    Spec (label keccakFLabel) KeccakFPre KeccakFPost
+  Spec (label NativeRustcArm.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost ∧ Spec (label NativeRustcArm.Common.Memset.entryLabel) MemsetPre MemsetPost ∧
+    Spec (label NativeRustcArm.Common.Update.entryLabel) UpdatePre UpdatePost ∧
+    Spec (label NativeRustcArm.Common.Finalize.entryLabel) FinalizePre FinalizePost ∧
+    Spec (label NativeRustcArm.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost
 
 /-- **A region**: placed at `r.k`, given the callees' contracts and the run's precondition, from
 directive `j` of the function in a state `P r` the machine inevitably reaches `Q r`. -/
@@ -334,47 +333,47 @@ def Run.pc (r : Run) (j : Nat) : Int64 := NativeArm.Host.addrOf (r.k + j)
 
 /-- Region 1a, the parse's head: from the entry to `b16` (directive 215). -/
 def ParseHeadSpec : Prop :=
-  RegionSpec (fun r m ↦ m = r.m0) 0 fun r st ↦ st.pc = r.pc 215 ∧ r.AtParse16 st.data
+  RegionSpec (fun r m ↦ m = r.m0) NativeRustcArm.Sphincs.SphincsVerify.b0Offset fun r st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b16Offset ∧ r.AtParse16 st.data
 
 /-- Region 1b, the parse's tail: from `b16` to `b45` (directive 536). -/
 def ParseTailSpec : Prop :=
-  RegionSpec Run.AtParse16 215 fun r st ↦ st.pc = r.pc 536 ∧ r.AtHMsg st.data
+  RegionSpec Run.AtParse16 NativeRustcArm.Sphincs.SphincsVerify.b16Offset fun r st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b45Offset ∧ r.AtHMsg st.data
 
 /-- Region 1, the parse: from the entry to `b45` (directive 536). -/
 def ParseSpec : Prop :=
-  RegionSpec (fun r m ↦ m = r.m0) 0 fun r st ↦ st.pc = r.pc 536 ∧ r.AtHMsg st.data
+  RegionSpec (fun r m ↦ m = r.m0) NativeRustcArm.Sphincs.SphincsVerify.b0Offset fun r st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b45Offset ∧ r.AtHMsg st.data
 
 /-- Region 2, the digest: from `b45` to `b59` (directive 712). -/
 def DigestSpec : Prop :=
-  RegionSpec Run.AtHMsg 536 fun r st ↦ st.pc = r.pc 712 ∧ r.AtFors st.data
+  RegionSpec Run.AtHMsg NativeRustcArm.Sphincs.SphincsVerify.b45Offset fun r st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b59Offset ∧ r.AtFors st.data
 
 /-- Region 3, the FORS trees: from `b59` to `b94` (directive 1243). -/
 def ForsSpec : Prop :=
-  RegionSpec Run.AtFors 712 fun r st ↦ st.pc = r.pc 1243 ∧ r.AtForsKey st.data
+  RegionSpec Run.AtFors NativeRustcArm.Sphincs.SphincsVerify.b59Offset fun r st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b94Offset ∧ r.AtForsKey st.data
 
 /-- Region 4, the FORS key: from `b94` to `b101` (directive 1306), layer 0. -/
 def ForsKeySpec : Prop :=
-  RegionSpec Run.AtForsKey 1243 fun r st ↦ st.pc = r.pc 1306 ∧ r.AtLayer 0 r.forsPk st.data
+  RegionSpec Run.AtForsKey NativeRustcArm.Sphincs.SphincsVerify.b94Offset fun r st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b101Offset ∧ r.AtLayer 0 r.forsPk st.data
 
 /-- Region 5a, a layer's encoding: from `b101` to `b114` (directive 1715) with the codeword, or
 returned 0 without one. -/
 def EncodeSpec : Prop :=
-  ∀ l s, RegionSpec (fun r ↦ r.AtLayer l s) 1306 fun r st ↦
+  ∀ l s, RegionSpec (fun r ↦ r.AtLayer l s) NativeRustcArm.Sphincs.SphincsVerify.b101Offset fun r st ↦
     (encode r.seed (r.key l) s (r.layerSig l).counter = none ∧ r.Done false st) ∨
-      ∃ x, encode r.seed (r.key l) s (r.layerSig l).counter = some x ∧ st.pc = r.pc 1715 ∧
+      ∃ x, encode r.seed (r.key l) s (r.layerSig l).counter = some x ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b114Offset ∧
         r.AtChains l x st.data
 
 /-- Region 5b, a layer's chains: from `b114` to `b143` (directive 2157). -/
 def ChainsSpec : Prop :=
-  ∀ l x, RegionSpec (fun r ↦ r.AtChains l x) 1715 fun r st ↦
-    st.pc = r.pc 2157 ∧ r.AtWotsPk l (r.chainEnds l x) st.data
+  ∀ l x, RegionSpec (fun r ↦ r.AtChains l x) NativeRustcArm.Sphincs.SphincsVerify.b114Offset fun r st ↦
+    st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b143Offset ∧ r.AtWotsPk l (r.chainEnds l x) st.data
 
 /-- Region 5c, a layer's tree: from `b143` to the next layer at `b101`, or, after the last,
 returned the comparison with `PK.root`. -/
 def TreeSpec : Prop :=
-  ∀ l e, RegionSpec (fun r ↦ r.AtWotsPk l e) 2157 fun r st ↦
+  ∀ l e, RegionSpec (fun r ↦ r.AtWotsPk l e) NativeRustcArm.Sphincs.SphincsVerify.b143Offset fun r st ↦
     if l = 2 then r.Done (r.layerRoot l e == r.pk.root) st
-    else st.pc = r.pc 1306 ∧ r.AtLayer (l + 1) (r.layerRoot l e) st.data
+    else st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b101Offset ∧ r.AtLayer (l + 1) (r.layerRoot l e) st.data
 
 end
 

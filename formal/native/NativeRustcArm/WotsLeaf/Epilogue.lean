@@ -73,7 +73,7 @@ theorem epilogue (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hpre : r.Pre)
     (m : MachineData) (hsp : m.regs.SP.toBitVec = r.base)
     (hsv : BytesAt m.dmem (r.off 2656) (savedBytes r.m0)) (hk : Kept r.m0.dmem m.dmem) :
     Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = retOf r.m0 ∧
-      Saved r.m0 st.data ∧ ∀ p, st.data.dmem.get? p = m.dmem.get? p) ⟨m, r.pc 164⟩ := by
+      Saved r.m0 st.data ∧ ∀ p, st.data.dmem.get? p = m.dmem.get? p) ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b12Offset⟩ := by
   have hk' := Xmss.WotsLeaf.b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have h := r.frame_mapped_kept hpre hk (a := 0) (n := 2752) (by decide)
   rw [Run.off_zero] at h

@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Ring.Psi.Basic
 
 /-!
@@ -127,9 +128,9 @@ variable [Host]
 /-! ## The turns -/
 
 /-- **Block `2j`**: the product `g_j · v^(2^j)`. -/
-theorem stepEven (hpre : RingPsiPre m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem stepEven (hpre : RingPsiPre m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {i j : Nat} {ds : List Directive} {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewMulLabel)) (hS : regsAre S' (evenRegs j) = true)
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hS : regsAre S' (evenRegs j) = true)
     (hsp : S'.sp = .sp) (hmem : S'.mem = []) (hj : j < 8) {m : MachineData} (hE : Even m0 j m)
     {R : MachineState → Prop}
     (cont : ∀ m2, Odd m0 j m2 → Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (i + ds.length)⟩) :
@@ -167,9 +168,9 @@ theorem stepEven (hpre : RingPsiPre m0) (hmul : Spec (Labels.label ewMulLabel) E
     x23 := by rw [hcs .X23 rfl]; exact reg_of hm1 h23 (by simp [Sym.eval, hE.x23]) }
 
 /-- **Block `2j + 1`**: the sum, and the power squared. -/
-theorem stepOdd (hpre : RingPsiPre m0) (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+theorem stepOdd (hpre : RingPsiPre m0) (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {i j : Nat} {ds : List Directive} {S' : SState} (hk : ds.IsInfixAt Host.prog i)
-    (hrun : exec ds midS = some (S', .call ewMulLabel)) (hS : regsAre S' oddRegs = true)
+    (hrun : exec ds midS = some (S', .call NativeRustcVmArm.Vm.EWMul.entryLabel)) (hS : regsAre S' oddRegs = true)
     (hsp : S'.sp = .sp) (hmem : S'.mem = []) (hj : j < 8) {m : MachineData} (hO : Odd m0 j m)
     {R : MachineState → Prop}
     (cont : ∀ m2, Even m0 (j + 1) m2 →

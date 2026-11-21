@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.DecodedStreamElement
+public import NativeRustcVmX64.Code.Vm.DecodedStreamElement.Names
 public meta import NativeRustcVmX64.Code.Vm.DecodedStreamElement
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -94,7 +95,7 @@ public theorem ok_b1 : keeps countS (after b1 countS) = true ∧ (after b1 count
     (after b1 countS).reg .rsi = some (.ptr 0 0) ∧
     (∀ r ∈ allRegs, r ≠ .rsi → (after b1 countS).reg r = some (.reg r)) := by
   decide +kernel
-public theorem exit_b2 : exec b2 regsS = some (after b2 regsS, .cond condB2 ".LDecodedStreamElement_6") :=
+public theorem exit_b2 : exec b2 regsS = some (after b2 regsS, .cond condB2 NativeRustcVmX64.Vm.DecodedStreamElement.label_6) :=
   run_b2.trans (by rw [after_eq run_b2]; rfl)
 public theorem ok_b2 : keeps regsS (after b2 regsS) = true ∧ (after b2 regsS).mem = [] ∧
     (after b2 regsS).reg .rsp = some (.reg .rsp) ∧ (after b2 regsS).reg .rdi = some (.reg .rdi) ∧

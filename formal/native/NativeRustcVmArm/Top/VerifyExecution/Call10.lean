@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyStackedOpening.Names
 public import NativeRustcVmArm.Top.VerifyExecution.Keep
 
 /-!
@@ -27,11 +28,11 @@ variable [Host] {k : Nat}
 /-- **The stacked opening**, from `b18`: the function returns its result. -/
 theorem call10 (hp : Placed code k)
     (hvso : ∀ a s layout target coefficients point slices cs z value,
-      Spec (Labels.label verifyStackedOpeningLabel)
+      Spec (Labels.label NativeRustcVmArm.Vm.VerifyStackedOpening.entryLabel)
         (VerifyStackedOpeningPre a s layout target coefficients point slices cs z value)
         (VerifyStackedOpeningPost a s layout target coefficients point cs z value))
     {a : DecArea} {m0 : MachineData} (g : Geo a m0) {st : MachineState} (h : At m0 st.data)
-    (hpc : st.pc = Host.addrOf (k + 77)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyExecution.b18Offset)) {rate : Nat} (h21 : st.data.regs.X21.toNat = rate)
     (h22 : st.data.regs.X22 = 221280) (h23 : st.data.regs.X23 = 222888)
     (h25 : st.data.regs.X25 = 123992) {s : TState}
     (hts : TStateAt st.data.dmem m0.regs.X0.toBitVec a s) (hroots : s.roots.size ≤ 2)
@@ -197,7 +198,7 @@ theorem call10 (hp : Placed code k)
       · rw [r7] at hq; exact wr_w g (o := 223928) (n := 2600) (by omega) (by omega) hq
       · rw [r0] at hq; exact wr_t g hq
     · exact wr_stk h1 g hN hq
-  rw [show k + 77 + b18.length = k + 90 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyExecution.b18Offset + b18.length = k + NativeRustcVmArm.Vm.VerifyExecution.b19Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyExecution.b18_next]] at hpc2
   obtain ⟨hwf2, hm2⟩ := h2.env g
   refine exec_at (hb19 hp) run_b19 hwf2 hpc2 hm2 fun st3 hm3 hpc3 ↦ ?_
   have hk3 := call_keeps b19 (by simp)

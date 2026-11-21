@@ -68,7 +68,7 @@ abbrev Goal (a : DecArea) (s0 : TState) (m0 : MachineData) (st : MachineState) :
 /-- **The epilogue** (`b18`, `.LSampleQueries_14`): with `1` in X0, the positions and the
 `TState` `auxP` gives, the contract met. -/
 theorem finish (hp : Placed code k) (h : SampleQueriesPre a s0 m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 82)) (hf : SFr m0 st.data) (hx0 : st.data.regs.X0 = 1)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SampleQueries.b18Offset)) (hf : SFr m0 st.data) (hx0 : st.data.regs.X0 = 1)
     {qs : List UInt64} {s : TState}
     (hmod : auxP (dep m0) (cnt m0) (cnt m0) s0 = (qs.toArray, s))
     (hbuf : BufWordsAt st.data.dmem (oA m0) queryCap qs) (hts : TStateAt st.data.dmem (tA m0) a s) :

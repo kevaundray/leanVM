@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.GlueLevel.Names
 public import NativeRustcVmArm.Whir.GlueLevel.Third
 
 /-!
@@ -26,7 +27,7 @@ variable [Host] {k : Nat} {s : WhirStateW} {m0 : MachineData}
 theorem exit_step (hp : Placed code k) (hpre : GlueLevelPre s m0) {m : MachineData}
     (h : AtB10 s m0 m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ GlueLevelPost s m0 st.data)
-      ⟨m, Host.addrOf (k + 71)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b10Offset)⟩ := by
   have hpre' := hpre
   obtain ⟨hstk, -, hcap, -, -, -, -, -, hpin, -, -, -, -, -, -, -⟩ := hpre'
   let p := pOf m0
@@ -54,21 +55,21 @@ theorem exit_step (hp : Placed code k) (hpre : GlueLevelPre s m0) {m : MachineDa
       (by rw [h.fr.sp]; simp [Sym.eval])
       ⟨by show (m.regs.getXReg .X19).toBitVec = _; rw [h.x19]; simp [Sym.eval]; rfl, trivial⟩
       trivial trivial trivial
-  have hk10 : b10.IsInfixAt Host.prog (k + 71) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk11 : b11.IsInfixAt Host.prog (k + 72) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
-  have hk13 : b13.IsInfixAt Host.prog (k + 79) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk10 : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b10Offset) := b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk11 : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b11Offset) := b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
+  have hk13 : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.GlueLevel.b13Offset) := b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hx0 : env.regs .X0 = 1#64 := by
     show (m.regs.getXReg .X0).toBitVec = _
     rw [show m.regs.getXReg .X0 = m.regs.X0 from rfl, h.x0]
     rfl
   refine exec_then hk10 run_b10 hwf hm fun st10 hm10 hpc10 ↦ ?_
-  have hpc10' : st10.pc = Host.addrOf (k + 72) := by
+  have hpc10' : st10.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b11Offset) := by
     simp only [PcOk] at hpc10
     rw [cbz_one hx0] at hpc10
     exact hpc10
   refine exec_at hk11 (exec_after run_b10 run_b11) hwf hpc10' hm10 fun st11 hm11 hpc11 ↦ ?_
-  have hpc11' : st11.pc = Host.addrOf (k + 79) := by
-    rw [show Host.addrOf (k + 79) = Labels.label ".LGlueLevel_7" from (hp.label rfl).symm]
+  have hpc11' : st11.pc = Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b13Offset) := by
+    rw [show Host.addrOf (k + NativeRustcVmArm.Vm.GlueLevel.b13Offset) = Labels.label NativeRustcVmArm.Vm.GlueLevel.label_7 from (hp.label (j := NativeRustcVmArm.Vm.GlueLevel.b13Offset) NativeRustcVmArm.Vm.GlueLevel.label_7_at).symm]
     exact hpc11
   refine exec_at hk13 (exec_after (exec_after run_b10 run_b11) run_b13) hwf hpc11' hm11
     fun st hm13 hpc13 ↦ Eventually.done _ ?_

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BasisWEval.Names
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Point
 
 /-!
@@ -88,16 +90,16 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The rotated point and the basis.** -/
 theorem rotate (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hbw : ∀ ba b, Spec (Labels.label basisWEvalLabel) (BasisWEvalPre ba b) (BasisWEvalPost b))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hbw : ∀ ba b, Spec (Labels.label NativeRustcVmArm.Vm.BasisWEval.entryLabel) (BasisWEvalPre ba b) (BasisWEvalPost b))
     {st : MachineState} {folded tail : Array EW} {claim : EW} {s5 : TState}
-    (hpc : st.pc = Host.addrOf (k + 340)) (hc : Core level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b21Offset)) (hc : Core level m0 st.data folded)
     (hx22 : st.data.regs.X22.toBitVec = loc m0 1576)
     (hx23 : st.data.regs.X23 = claim.c0) (hx24 : st.data.regs.X24 = claim.c1)
     (htail : NativeRustcVm.EWsAt st.data.dmem (loc m0 1096) tail.toList)
     (hbuf : NativeRustcVm.BufEWAt st.data.dmem (loc m0 1576) 30 (w.alphas ++ tail).toList)
     (hts : TStateAt st.data.dmem (tA m0) a s5)
-    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + 432) →
+    (cont : ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b27Offset) →
       Core level m0 st'.data folded → st'.data.regs.X22.toBitVec = loc m0 1584 →
       st'.data.regs.X29.toNat = (w.alphas ++ tail).size →
       st'.data.regs.X23 = claim.c0 → st'.data.regs.X24 = claim.c1 →
@@ -122,7 +124,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hwf := c.fwf hf
   refine exec_at (inf hp b21_in_code (by simp [b21])) run_b21 hwf hpc (c.fmatch hf)
     fun st1 hm1 hpc1 ↦ ?_
-  rw [show k + 340 + b21.length = k + 414 from rfl] at hpc1
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b21Offset + b21.length = k + NativeRustcVmArm.Vm.FinalLevel.b22Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b21_next]] at hpc1
   have hS : ∀ w ∈ (after b21 fS).mem, w.r = 0 ∧ w.off + w.n ≤ 2576 := by
     rw [after_eq run_b21]; decide +kernel
   have hS' : ∀ w ∈ (after b21 fS).mem, w.r = 0 ∧ w.off + w.n ≤ 2672 := fun w hw ↦
@@ -264,12 +266,12 @@ theorem rotate (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     fun st3 hm3 hpc3 hf3 hd3 hk3 ↦ ?_
   simp only [PcOk] at hpc3
   rw [cbz_one (show (fenv m0 m2 []).regs .X0 = _ from congrArg UInt64.toBitVec h0)] at hpc3
-  simp only [Bool.false_eq_true, ↓reduceIte, show k + 414 + b22.length = k + 415 from rfl] at hpc3
+  simp only [Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmArm.Vm.FinalLevel.b22Offset + b22.length = k + NativeRustcVmArm.Vm.FinalLevel.b23Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b22_next]] at hpc3
   -- `b23`: `extend(&rotated, point.get(..lf).unwrap_or(point))`.
   have hwf3 := c.fwf hf3
   refine exec_at (inf hp b23_in_code (by simp [b23])) run_b23 hwf3 hpc3 (c.fmatch hf3)
     fun st4 hm4 hpc4 ↦ ?_
-  rw [show k + 415 + b23.length = k + 420 from rfl] at hpc4
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b23Offset + b23.length = k + NativeRustcVmArm.Vm.FinalLevel.b24Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b23_next]] at hpc4
   have hf4 : FFr m0 st4.data :=
     Fr.ofBlock hf3 (c.fmatch hf3) hm4 hwf3 rfl rfl rfl (fun _ h ↦ by cases h)
   have hd4' : st4.data.dmem = st3.data.dmem := hm4.dmem_eq hwf3 rfl
@@ -351,7 +353,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     fun st6 hm6 hpc6 hf6 hd6 hk6 ↦ ?_
   simp only [PcOk] at hpc6
   rw [tbz_one (show (fenv m0 m5 []).regs .X0 = _ from congrArg UInt64.toBitVec h5)] at hpc6
-  simp only [Bool.false_eq_true, ↓reduceIte, show k + 420 + b24.length = k + 421 from rfl] at hpc6
+  simp only [Bool.false_eq_true, ↓reduceIte, show k + NativeRustcVmArm.Vm.FinalLevel.b24Offset + b24.length = k + NativeRustcVmArm.Vm.FinalLevel.b25Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b24_next]] at hpc6
   -- `b25`: `BasisW::eval(&out, basis, rotated)`.
   have kk6 : ∀ r, calleeSaved r = true → st6.data.regs.getXReg r = st1.data.regs.getXReg r :=
     fun r hr ↦ (hk6 r (by cases r <;> rfl)).trans ((hcs5 r hr).trans (kk3 r hr))
@@ -360,7 +362,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   have hwf6 := c.fwf hf6
   refine exec_at (inf hp b25_in_code (by simp [b25])) run_b25 hwf6 hpc6 (c.fmatch hf6)
     fun st7 hm7 hpc7 ↦ ?_
-  rw [show k + 421 + b25.length = k + 430 from rfl] at hpc7
+  rw [show k + NativeRustcVmArm.Vm.FinalLevel.b25Offset + b25.length = k + NativeRustcVmArm.Vm.FinalLevel.b26Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b25_next]] at hpc7
   have hf7 : FFr m0 st7.data :=
     Fr.ofBlock hf6 (c.fmatch hf6) hm7 hwf6 rfl rfl rfl (fun _ h ↦ by cases h)
   have hd7' : st7.data.dmem = st6.data.dmem := hm7.dmem_eq hwf6 rfl
@@ -457,7 +459,7 @@ theorem rotate (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   simp only [PcOk] at hpc9
   rw [cbz_load (load_of_wordAt hopt.1)] at hpc9
   simp only [show ((1 : UInt64) == 0) = false from rfl, Bool.false_eq_true, ↓reduceIte,
-    show k + 430 + b26.length = k + 432 from rfl] at hpc9
+    show k + NativeRustcVmArm.Vm.FinalLevel.b26Offset + b26.length = k + NativeRustcVmArm.Vm.FinalLevel.b27Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b26_next]] at hpc9
   have kk9 : ∀ r, calleeSaved r = true → st9.data.regs.getXReg r = st1.data.regs.getXReg r :=
     fun r hr ↦ (hk9 r (by cases r <;> first | rfl | exact absurd hr (by decide))).trans
       ((hcs8 r hr).trans ((reg_of hm7 (r := r)

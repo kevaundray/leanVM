@@ -188,7 +188,7 @@ memory kept. -/
 theorem epi (hp : Placed code k) (h : NextLevelPre a s level w rounds m0)
     {outs' : BitVec 64 → Prop} {st : MachineState}
     (hf : Fr m0 8192 nextLevelStack slots [] outs' st.data)
-    (hpc : st.pc = Host.addrOf (k + 220)) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.NextLevel.b27Offset)) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       st'.data.regs.X0 = st.data.regs.X0 ∧ st'.data.dmem = st.data.dmem ∧
         Saved m0 st'.data) st := by

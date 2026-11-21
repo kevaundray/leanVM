@@ -11,7 +11,7 @@ public meta import NativeRustcVmX64.Arrays.Common
 Region 0 is the frame (`Field.frameS 64`, `Field.midS 64`): the 56 bytes of pushes, the call's
 return-address slot below them, the return address above.
 - `entryS` at the entry (`b0`, then `b1` or `b5`);
-- `ldS`/`rdS` at the loop head `.LDot_3` (`b2`, split after its loads of `left[i]`: `b2a`, then
+- `ldS`/`rdS` at the loop head `NativeRustcVmX64.Vm.Dot.label_3` (`b2`, split after its loads of `left[i]`: `b2a`, then
   `b2b` loads `right[i]` and calls `EW::mul`): region 1 the element, at `r15 + rbp`, `rbx + rbp`;
 - `regsS` after the call (`b3`, `b4`): no region;
 - `Field.midS 64` at the epilogue (`b6`).

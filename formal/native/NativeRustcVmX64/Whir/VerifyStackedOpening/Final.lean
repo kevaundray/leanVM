@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.VerifyStackedOpening.CallPre
+public import NativeRustcVmX64.Code.Vm.WhirLevels.Names
 
 /-!
 # `verify_stacked_opening`: `whir_levels` and the return (x86-64)
@@ -75,10 +76,10 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {layout : LayoutW} {target 
 
 /-- **WHIR's fresh state**: `b48` to the call of `whir_levels`. -/
 theorem whir_b48 (h : Parts a s layout target coefficients point slices cs z value m0)
-    (hp : Placed code k) {st : MachineState} (hpc : st.pc = Host.addrOf (k + 223))
+    (hp : Placed code k) {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b48Offset))
     (hA : AtB48 a s layout target cs value ls m0 st.data) {R : MachineState → Prop}
     (cont : ∀ st', AtCall a s layout target cs value ls m0 st'.data →
-      st'.pc = Labels.label whirLevelsLabel ∧ retOf st'.data = Host.addrOf (k + 234) →
+      st'.pc = Labels.label NativeRustcVmX64.Vm.WhirLevels.entryLabel ∧ retOf st'.data = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b49Offset) →
       Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have hok := hA.ok
@@ -107,7 +108,7 @@ theorem whir_b48 (h : Parts a s layout target coefficients point slices cs z val
       (∀ i < 8, findWrite 1 (o + i) (after b48 whirS).mem = some (v, i)) →
       NativeRustcVm.WordAt st1.data.dmem (off (pA m0) o)
         (UInt64.ofBitVec (v.eval (frameEnv m0 st.data 512 [(pA m0, 512)] (fun _ ↦ 0)
-          (Host.addrOf (k + 223 + b48.length)).toBitVec))) := fun o v ho hw ↦
+          (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b48Offset + b48.length)).toBitVec))) := fun o v ho hw ↦
     wordAt_write hm1 (r := 1) (b := pA m0) (sz := 512) rfl ho (by rw [← after_eq run_b48]; exact hw)
   have w0 := wP 0 (.reg .r12) (by omega) (by rw [after_eq run_b48]; decide +kernel)
   have w8 := wP 8 (.reg .r13) (by omega) (by rw [after_eq run_b48]; decide +kernel)
@@ -118,9 +119,9 @@ theorem whir_b48 (h : Parts a s layout target coefficients point slices cs z val
       by show 0 ≤ 10; decide, w504, fun i hi ↦ ?_⟩
     · rw [NativeRustcVm.ewAt_iff]
       have e0 : (Sym.reg .r12).eval (frameEnv m0 st.data 512 [(pA m0, 512)] (fun _ ↦ 0)
-          (Host.addrOf (k + 223 + b48.length)).toBitVec) = _ := hA.r12
+          (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b48Offset + b48.length)).toBitVec) = _ := hA.r12
       have e1 : (Sym.reg .r13).eval (frameEnv m0 st.data 512 [(pA m0, 512)] (fun _ ↦ 0)
-          (Host.addrOf (k + 223 + b48.length)).toBitVec) = _ := hA.r13
+          (Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b48Offset + b48.length)).toBitVec) = _ := hA.r13
       rw [e0, UInt64.ofBitVec_toBitVec, off_zero] at w0
       rw [e1, UInt64.ofBitVec_toBitVec] at w8
       exact ⟨w0, w8⟩
@@ -139,10 +140,10 @@ theorem whir_b48 (h : Parts a s layout target coefficients point slices cs z val
 /-- **From the call of `whir_levels`** to the return. -/
 theorem call_whir (h : Parts a s layout target coefficients point slices cs z value m0)
     (hp : Placed code k)
-    (hwl : ∀ a s levels ba b claim, Spec (Labels.label whirLevelsLabel)
+    (hwl : ∀ a s levels ba b claim, Spec (Labels.label NativeRustcVmX64.Vm.WhirLevels.entryLabel)
       (WhirLevelsPre a s levels ba b claim) (WhirLevelsPost a s levels b claim))
     {st : MachineState} (hc : AtCall a s layout target cs value ls m0 st.data)
-    (hpc : st.pc = Labels.label whirLevelsLabel ∧ retOf st.data = Host.addrOf (k + 234)) :
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.WhirLevels.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmX64.Vm.VerifyStackedOpening.b49Offset)) :
     Eventually (step1 Host.exe) (Goal a s layout target coefficients point cs z value m0) st := by
   have hok := hc.ok
   have hN : 512 + whirLevelsStack ≤ verifyStackedOpeningStack := by rw [stack_eq]; decide
@@ -193,7 +194,7 @@ theorem call_whir (h : Parts a s layout target coefficients point slices cs z va
     hpc2 hok2 (vars := fun _ ↦ 0) (hok2.wf0 h)
     hok2.m_reg run_b49 (o := 8) (by decide +kernel) (by decide) fun st3 hok3 _ hm3 hpc3 ↦ ?_
   simp only [PcOk] at hpc3
-  rw [hp.label (j := 237) rfl] at hpc3
+  rw [hp.label NativeRustcVmX64.Vm.VerifyStackedOpening.label_41_at] at hpc3
   have hd3 : st3.data.dmem = st2.data.dmem := hm3.dmem_eq (hok2.wf0 h) rfl
   refine exit_b51 h hp hpc3 hok3 ?_ (by rw [hd3]; exact hnext')
   unfold OkAl boolRet at hal' ⊢

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Top.Verify.StageB
+public import NativeRustcVmX64.Code.Vm.Verify.Names
 
 /-!
 # `verify` after the walk (x86-64)
@@ -35,14 +36,14 @@ theorem verify_eq (m0 : MachineData) (stream : Array EW) (openings : Array (Arra
 
 variable [Host] {k : Nat}
 
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LVerify_5" = Host.addrOf (k + 116) :=
-  hp.label (j := 116) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LVerify_6" = Host.addrOf (k + 118) :=
-  hp.label (j := 118) rfl
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.Verify.label_5 = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b8Offset) :=
+  hp.label NativeRustcVmX64.Vm.Verify.label_5_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.Verify.label_6 = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b9Offset) :=
+  hp.label NativeRustcVmX64.Vm.Verify.label_6_at
 
 /-- **The epilogue** (`b9`), AL kept. -/
 theorem exit9 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 verifyStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 118)) (hf : Frame m0 816 slots 8 st.data)
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b9Offset)) (hf : Frame m0 816 slots 8 st.data)
     {b : Bool} (hok : OkAl st.data b) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ OkAl st'.data b ∧ st'.data.dmem = st.data.dmem ∧
@@ -65,7 +66,7 @@ theorem exit9 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 verifySt
 
 /-- **`0`** (`b8`), then the epilogue. -/
 theorem exit0 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 verifyStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 116)) (hf : Frame m0 816 slots 8 st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b8Offset)) (hf : Frame m0 816 slots 8 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧ OkAl st'.data false ∧ st'.data.dmem = st.data.dmem ∧
       Saved m0 st'.data) st := by
@@ -79,7 +80,7 @@ theorem exit0 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 verifySt
   obtain ⟨hmid, hmem, hrax⟩ := after_eq run_b8 ▸ ok_b8
   have hf' : Frame m0 816 slots 8 st'.data := Frame.of_block hf hwf hm hmid slots_le
   simp only [PcOk] at hpc'
-  refine Eventually.mono (exit9 hp hst (hpc'.trans (by rw [show b8.length = 2 from rfl])) hf' ?_)
+  refine Eventually.mono (exit9 hp hst (hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Verify.b8_next)) hf' ?_)
     fun s ⟨h1, h2, h3, h4, h5⟩ ↦ ⟨h1, h2, h3, h4.trans (hm.dmem_eq hwf hmem), h5⟩
   unfold OkAl boolRet
   rw [show reg st'.data .rax = BitVec.ofNat 64 0 from hm.regs .rax _ hrax]

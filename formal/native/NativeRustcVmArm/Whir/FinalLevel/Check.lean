@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EachRowOfFinalLevel.Names
 public import NativeRustcVmArm.Whir.FinalLevel.Keep
 public import NativeRustcVmArm.Whir.FinalLevel.Queries
 
@@ -25,11 +26,11 @@ variable [Host] {a : DecArea} {s0 : TState} {level : Whir.Level} {ba : BasisAddr
 
 /-- **The rows' check.** -/
 theorem check (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
-    (hrow : ∀ rows op, Spec (Labels.label eachRowFinalLabel) (EachRowFinalPre rows op)
+    (hrow : ∀ rows op, Spec (Labels.label NativeRustcVmArm.Vm.EachRowOfFinalLevel.entryLabel) (EachRowFinalPre rows op)
       (EachRowFinalPost rows))
     {st : MachineState} {folded : Array EW} {qs : Array UInt64} {rws : Array (Array UInt64)}
     {op : BitVec 64} {s4 : TState}
-    (hpc : st.pc = Host.addrOf (k + 167)) (hl : Live level m0 st.data folded)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b12Offset)) (hl : Live level m0 st.data folded)
     (hx26 : st.data.regs.X26.toBitVec = pA m0 + BitVec.ofNat 64 61360)
     (hx25 : st.data.regs.X25.toNat = qs.size)
     (hx29 : st.data.regs.X29.toBitVec = pA m0 + BitVec.ofNat 64 57344)
@@ -40,7 +41,7 @@ theorem check (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
     (hts : TStateAt st.data.dmem (tA m0) a s4)
     (hrun : runF s0 level b w rounds m0 =
       (C4 m0.regs.X1.toNat (mu m0) m0.regs.X4.toNat b w rounds folded qs rws).run s4)
-    (cont : ∀ (st' : MachineState), st'.pc = Host.addrOf (k + 191) →
+    (cont : ∀ (st' : MachineState), st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b14Offset) →
       Live level m0 st'.data folded → TStateAt st'.data.dmem (tA m0) a s4 →
       runF s0 level b w rounds m0 = (C5 (mu m0) m0.regs.X4.toNat b w folded).run s4 →
       Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st') :
@@ -239,11 +240,11 @@ theorem check (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0)
   rw [tbz_ok (show (fenv m0 m3 []).regs .X0 = _ from congrArg UInt64.toBitVec h0)] at hpc13
   cases hb : finalOk m0.regs.X1.toNat (mu m0) rounds folded qs rws with
   | false =>
-    simp only [hb, Bool.not_false, ↓reduceIte, hp.label (j := 117) rfl] at hpc13
+    simp only [hb, Bool.not_false, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.FinalLevel.b2Offset) NativeRustcVmArm.Vm.FinalLevel.label_2_at] at hpc13
     exact exit2 hp c hpc13 hf13 (by rw [hrun, C4, run_require_bind, hb]; rfl)
   | true =>
     simp only [hb, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-      show k + 190 + b13.length = k + 191 from rfl] at hpc13
+      show k + NativeRustcVmArm.Vm.FinalLevel.b13Offset + b13.length = k + NativeRustcVmArm.Vm.FinalLevel.b14Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FinalLevel.b13_next]] at hpc13
     refine cont st13 hpc13
       (hl3.saved hf13 (fun r hr ↦ hk13 r (kept_of (by decide) r hr)) (fun j _ ↦ by rw [hd13])
         hfo) (by rw [hd13]; exact hts3) ?_

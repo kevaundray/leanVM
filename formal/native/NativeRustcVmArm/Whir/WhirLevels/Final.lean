@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FinalLevel.Names
 public import NativeRustcVmArm.Whir.WhirLevels.Next
 
 /-!
@@ -35,11 +36,11 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 
 /-- **The tail call of `final_level`** at the last level `k`. -/
 theorem final_tail (hp : Placed code k0)
-    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label finalLevelLabel)
+    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label NativeRustcVmArm.Vm.FinalLevel.entryLabel)
       (FinalLevelPre a s level ba b w rounds) (FinalLevelPost a s level b w rounds))
     (c : Ctx a s0 levels ba b claim m0 rate) {k : Nat} {s : TState} {w : WhirStateW}
     {rs : Array FoldRoundW} {st : MachineState} (hf : WFr m0 st.data)
-    (hpc : st.pc = Host.addrOf (k0 + 29)) (hts : TStateAt st.data.dmem (tA m0) a s)
+    (hpc : st.pc = Host.addrOf (k0 + NativeRustcVmArm.Vm.WhirLevels.b4Offset)) (hts : TStateAt st.data.dmem (tA m0) a s)
     (hwa : WhirAt st.data.dmem (pA m0) w rs) (hk : k + 1 = levels.length)
     (ha : w.alphas.size = alphasAt (k + 1))
     (hrun : runAll s0 levels b claim m0 =

@@ -1,11 +1,13 @@
 module
 
 public import NativeRustcVmX64.Tables.TableWeights.Defs
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.TableWeights.Names
 
 /-!
 # `table_weights`: a coordinate's six multiplications (x86-64)
 
-Where the blocks are (`hb3` …, the labels), then the blocks of one coordinate: `.LTableWeights_5`
+Where the blocks are (`hb3` …, the labels), then the blocks of one coordinate: `NativeRustcVmX64.Vm.TableWeights.label_5`
 (`b3`) multiplies weight `0` (`pre3_step`), each of `b4` to `b7` stores the previous product and
 multiplies the next weight (`mid_step`), `b8` stores weight `4`'s product and multiplies weight `5`
 (`last_step`).
@@ -29,46 +31,46 @@ theorem slots_ok' : ∀ p ∈ slots, 208 ≤ p.1 ∧ p.1 + 8 ≤ 256 := slots_ok
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 13) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 46) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 59) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 70) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 81) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 92) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 103) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 115) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 123) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b10Offset) :=
   b10_in_code.trans hp.1 (by simp [b10])
-theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + 131) :=
+theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b11Offset) :=
   b11_in_code.trans hp.1 (by simp [b11])
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 137) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b12Offset) :=
   b12_in_code.trans hp.1 (by simp [b12])
-theorem hb13 (hp : Placed code k) : b13a.IsInfixAt Host.prog (k + 151) ∧
-    b13b.IsInfixAt Host.prog (k + 151 + 24) := by
+theorem hb13 (hp : Placed code k) : b13a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b13Offset) ∧
+    b13b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.TableWeights.b13Offset + b13a.length) := by
   have h := b13_in_code.trans hp.1 (by simp [b13])
   rw [← List.take_append_drop 24 b13] at h
   exact h.append
 
-theorem lbl_entry (hp : Placed code k) : Labels.label tableWeightsLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LTableWeights_1" = Host.addrOf (k + 137) :=
-  hp.label (j := 137) rfl
-theorem lbl_3 (hp : Placed code k) : Labels.label ".LTableWeights_3" = Host.addrOf (k + 123) :=
-  hp.label (j := 123) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LTableWeights_5" = Host.addrOf (k + 46) :=
-  hp.label (j := 46) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LTableWeights_6" = Host.addrOf (k + 151) :=
-  hp.label (j := 151) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableWeights.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b0Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableWeights.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableWeights.label_1 = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b12Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableWeights.label_1_at
+theorem lbl_3 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableWeights.label_3 = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b10Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableWeights.label_3_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableWeights.label_5 = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b3Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableWeights.label_5_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmX64.Vm.TableWeights.label_6 = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b13Offset) :=
+  hp.label NativeRustcVmX64.Vm.TableWeights.label_6_at
 
 omit [Host] in
 theorem reg_atom [Labels] {env : Env} {S : SState} {st : MachineData} (hm : Match env S st)
@@ -76,10 +78,10 @@ theorem reg_atom [Labels] {env : Env} {S : SState} {st : MachineData} (hm : Matc
 
 /-- **A multiplying block `b<3 + j>`** (`1 ≤ j ≤ 4`) and its call: weight `j - 1`'s product
 stored, weight `j` multiplied. -/
-theorem mid_step (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {m0 : MachineData}
+theorem mid_step (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {m0 : MachineData}
     (hS : StackOk m0 tableWeightsStack) {c j : Nat} (hj1 : 1 ≤ j) (hj4 : j ≤ 4)
     {ds : List Directive} {kk : Nat} {S₁ : SState}
-    (hk : ds.IsInfixAt Host.prog kk) (hx : exec ds mS = some (S₁, .call ewMulLabel))
+    (hk : ds.IsInfixAt Host.prog kk) (hx : exec ds mS = some (S₁, .call NativeRustcVmX64.Vm.EWMul.entryLabel))
     (hok : MidOk j S₁) {st : MachineState} (hpc : st.pc = Host.addrOf kk)
     (hI : Mid m0 c j st.data) :
     Eventually (step1 Host.exe)

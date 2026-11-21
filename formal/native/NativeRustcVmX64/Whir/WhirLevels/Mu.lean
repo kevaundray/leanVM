@@ -6,7 +6,7 @@ public import NativeRustcVmX64.Whir.WhirLevels.Fold
 # `whir_levels`: `μ` and the last level's test (x86-64)
 
 `mu_step`: from `Mid k` at `b4`, R9 becomes `μ = logN - |α|` (the state's count of `α`s) and the
-code goes to `.LWhirLevels_6` (`b8`, the last level) or falls to `b5` (`next_level`'s call), `Mid k`
+code goes to `NativeRustcVmX64.Vm.WhirLevels.label_6` (`b8`, the last level) or falls to `b5` (`next_level`'s call), `Mid k`
 kept (`b4` writes no memory and no callee-saved register).
 -/
 
@@ -31,11 +31,11 @@ variable [Host] {a : DecArea} {s0 : TState} {levels : List Whir.Level} {ba : Bas
 /-- **`μ` and the last level's test.** -/
 theorem mu_step (hp : Placed code k0) (c : Ctx a s0 levels ba b claim m0 rate) {k : Nat}
     {s : TState} {w : WhirStateW} {rs : Array FoldRoundW} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k0 + 37)) (hm : Mid a s0 levels b claim m0 rate k s w rs st.data) :
+    (hpc : st.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b4Offset)) (hm : Mid a s0 levels b claim m0 rate k s w rs st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
       MidMu a s0 levels b claim m0 rate k s w rs st'.data ∧
-        ((k + 1 = levels.length ∧ st'.pc = Host.addrOf (k0 + 68)) ∨
-          (k + 1 < levels.length ∧ st'.pc = Host.addrOf (k0 + 45)))) st := by
+        ((k + 1 = levels.length ∧ st'.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b8Offset)) ∨
+          (k + 1 < levels.length ∧ st'.pc = Host.addrOf (k0 + NativeRustcVmX64.Vm.WhirLevels.b5Offset)))) st := by
   have hl := hm.loop
   have hk := hm.lt
   have hl6 := c.len_le
@@ -87,7 +87,7 @@ theorem mu_step (hp : Placed code k0) (c : Ctx a s0 levels ba b claim m0 rate) {
   simp only [PcOk, c4_eval env hk (by omega) h13 h48] at hpc1
   by_cases hlast : k + 1 = levels.length
   · simp only [hlast, decide_true, ↓reduceIte] at hpc1
-    exact .inl ⟨hlast, hpc1.trans (hp.label (j := 68) rfl)⟩
+    exact .inl ⟨hlast, hpc1.trans (hp.label NativeRustcVmX64.Vm.WhirLevels.label_6_at)⟩
   · simp only [hlast, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
     exact .inr ⟨by omega, hpc1⟩
 

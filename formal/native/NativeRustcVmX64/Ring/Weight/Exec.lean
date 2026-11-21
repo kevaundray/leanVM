@@ -4,6 +4,7 @@ public import NativeRustcVmX64.Ring.Seq
 public meta import NativeRustcVmX64.Ring.Seq
 public import NativeRustcVmX64.Code.Vm.RingWeight
 public import NativeRustcVmX64.Transcript.Glue
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
 
 /-!
 # `ring_weight`'s templates (x86-64)
@@ -195,7 +196,7 @@ def JOk (ds : List Directive) (T T' : SState) (x : Exit) (sizes : List Nat) (wr 
 
 /-- A block ending in a call of `EW::mul`, RSP at the call slot, writing in the frame. -/
 def COk (ds : List Directive) (T T' : SState) (sizes : List Nat) (L LW : List (Nat × Sym)) : Bool :=
-  decide (exec ds T = some (after ds T, .call ewMulLabel)) &&
+  decide (exec ds T = some (after ds T, .call NativeRustcVmX64.Vm.EWMul.entryLabel)) &&
     (after ds T).mem.all (writeOk 672 sizes (fun _ ↦ false)) &&
     decide ((after ds T).reg .rsp = some (.ptr 0 0)) &&
     decide (rlinks true (after ds T) T' = some L) && decide (wlinks (after ds T) T'.mem = some LW)

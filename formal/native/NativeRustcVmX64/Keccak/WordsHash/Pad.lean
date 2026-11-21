@@ -32,7 +32,7 @@ def lastB (m0 : MachineData) : KeccakState :=
 /-- **At the epilogue**: the lanes `keccakF1600 (lastB m0)`. -/
 def EpiAt [Host] (m0 : MachineData) (k : Nat) (st : MachineState) : Prop :=
   Ctx m0 (slotsH m0) [] 8 st.data ∧ Lanes m0 st.data.dmem (Keccak.lane (keccakF1600 (lastB m0))) ∧
-    st.pc = Host.addrOf (k + 451)
+    st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Keccak256WordsOfHashWords.b83Offset)
 
 end
 

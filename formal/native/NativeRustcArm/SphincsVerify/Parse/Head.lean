@@ -31,9 +31,9 @@ variable (r : Run) [NativeArm.Host]
 /-- **`b11`**: the last words, the key, the randomizer; the openings' loop's registers. -/
 theorem b11_spec (hp : Placed code r.k) (hpre : r.Pre) {m : MachineData} (hA : AtWords r m)
     (hraw : BytesAt m.dmem (r.off 468) (pre10 r.w)) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 159 ∧ AtOpen r 0 st.data)
-      ⟨m, r.pc 126⟩ := by
-  have hk : b11.IsInfixAt NativeArm.Host.prog (r.k + 126) :=
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b12Offset ∧ AtOpen r 0 st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b11Offset⟩ := by
+  have hk : b11.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b11Offset) :=
     b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := straight_wf r hpre hA.1
   have hS := hA.1.2.2.2.1

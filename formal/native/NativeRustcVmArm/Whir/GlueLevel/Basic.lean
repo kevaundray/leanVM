@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.Whir.GlueLevel.Exec
 public import NativeRustcVmArm.Whir.GlueLevel.Mem
 public import NativeRustcVmArm.Whir.Frame
@@ -173,9 +174,9 @@ theorem agree_changes {p : BitVec 64} {d d' : Mem 64} {o n : Nat} {b : BitVec 64
 variable [Host]
 
 /-- **A call of `EW::mul`** keeps the frame and changes the stack only. -/
-theorem mul_call (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (hpre : GlueLevelPre s m0)
+theorem mul_call (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (hpre : GlueLevelPre s m0)
     {st : MachineState} {next : Int64} (hfr : FR m0 st.data) (hso : SO m0 st.data)
-    (hpc : st.pc = Labels.label ewMulLabel ∧ retOf st.data = next) {R : MachineState → Prop}
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel ∧ retOf st.data = next) {R : MachineState → Prop}
     (cont : ∀ m, FR m0 m → SO m0 m → EWMulPost st.data m →
       Eventually (step1 Host.exe) R ⟨m, next⟩) :
     Eventually (step1 Host.exe) R st :=

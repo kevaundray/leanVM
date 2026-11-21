@@ -39,8 +39,8 @@ theorem turn29 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {j : Nat} {m : 
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) g) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L30 m2 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) g → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 253)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 251)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b30Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b29Offset)⟩ := by
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
     (b29_in_code.trans hp.1 (by simp [b29])) run_b29 hst.fr (St.lift (D := L29) hst (by decide) 0 [])
@@ -53,7 +53,7 @@ theorem turn29 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {j : Nat} {m : 
     rfl
   simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte] at hpc
   refine Gkr.at_pc hpc ?_
-  rw [show k + 251 + b29.length = k + 253 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b29Offset + b29.length = k + NativeRustcVmArm.Vm.AccumulateSide.b30Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b29_next]]
   exact cont st.data ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
     (fb_block (F_le h) hm' hwf (by decide) hg) fun G hG ↦ forms_wrOk h (.inl rfl) hm' hwf
       (by decide) hG
@@ -64,8 +64,8 @@ theorem turn30 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {j : Nat} (hj :
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) g) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L31 m2 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) g → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 256)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 253)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b31Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b30Offset)⟩ := by
   have hfr := hst.fr
   have h51 := bl_size h
   have hok : ROk m0 0 (m0.regs.X3.toBitVec + BitVec.ofNat 64 (16 * j), 16) :=
@@ -115,7 +115,7 @@ theorem turn30 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {j : Nat} (hj :
       · simp [show bl[j].owner = 5 by omega]
     simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte] at hpc
     refine Gkr.at_pc hpc ?_
-    rw [show k + 253 + b30.length = k + 256 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b30Offset + b30.length = k + NativeRustcVmArm.Vm.AccumulateSide.b31Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b30_next]]
     exact cont st.data ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
       (fb_block (F_le h) hm' hwf (by decide) hg) fun G hG ↦ forms_wrOk h (.inl rfl) hm' hwf
         (by decide) hG
@@ -126,8 +126,8 @@ theorem turn32 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {j : Nat} {m : 
     (hg : FormBufAt m.dmem (base m0 F + BitVec.ofNat 64 152) g) {R : MachineState → Prop}
     (cont : ∀ m2, St m0 (TT SL m0 L rows bl Fm j) L32 m2 →
       FormBufAt m2.dmem (base m0 F + BitVec.ofNat 64 152) g → KeepF m0 m m2 →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 276)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 275)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b33Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.AccumulateSide.b32Offset)⟩ := by
   have hwf := wf0 h hst.fr.kept
   refine St.run h.stack (A := 0) (rs := []) (sz := [12096]) rfl
     (b32_in_code.trans hp.1 (by simp [b32])) run_b32 hst.fr (St.lift (D := L32) hst (by decide) 0 [])
@@ -140,7 +140,7 @@ theorem turn32 (hp : Placed code k) (h : Pre L rows bl Fm SL m0) {j : Nat} {m : 
     rfl
   simp only [PcOk, hc, Bool.false_eq_true, ↓reduceIte] at hpc
   refine Gkr.at_pc hpc ?_
-  rw [show k + 275 + b32.length = k + 276 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.AccumulateSide.b32Offset + b32.length = k + NativeRustcVmArm.Vm.AccumulateSide.b33Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.AccumulateSide.b32_next]]
   exact cont st.data ⟨hst'.fr, Holds.sub hst'.hd (by decide)⟩
     (fb_block (F_le h) hm' hwf (by decide) hg) fun G hG ↦ forms_wrOk h (.inl rfl) hm' hwf
       (by decide) hG

@@ -63,8 +63,8 @@ theorem result_none (r : Run) (h : isCodeword r.dNum = false) : r.result = none 
 variable [Host]
 
 /-- **Region 2, the codeword.** -/
-theorem codeword_region : RegionSpec (fun r m ↦ r.AtCheck m) 47 fun r st ↦ r.Done st ∨
-    (st.pc = r.pc 177 ∧ r.AtChains0 st.data ∧ isCodeword r.dNum = true) := by
+theorem codeword_region : RegionSpec (fun r m ↦ r.AtCheck m) NativeRustcX64.Xmss.WotsLeaf.b6Offset fun r st ↦ r.Done st ∨
+    (st.pc = r.pc NativeRustcX64.Xmss.WotsLeaf.b15Offset ∧ r.AtChains0 st.data ∧ isCodeword r.dNum = true) := by
   intro r hp hc hpre m hA
   -- `b6`: the top bits.
   refine frameStep r hp hpre b6_in_code (List.cons_ne_nil _ _) run_b6 (by decide) rfl hA trivial
@@ -109,7 +109,7 @@ theorem codeword_region : RegionSpec (fun r m ↦ r.AtCheck m) 47 fun r st ↦ r
     have := frame_covers hm8 (o := 8) (n := 8) (by decide)
       (v := .bin .shl .W32 (.load 0 8 8) (.lit 23)) (by decide)
     rwa [show (Sym.bin .shl .W32 (.load 0 8 8) (.lit 23)).eval
-        (r.envR st7.data [] (r.pc (118 + b8.length)).toBitVec) = r.layerW by
+        (r.envR st7.data [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b8Offset + b8.length)).toBitVec) = r.layerW by
       show BinOp.apply .shl .W32 ((r.envR st7.data [] _).load 0 8 8) (BitVec.ofNat 64 23) = _
       rw [r.load_word hK7.2.1.2.2]
       rfl] at this
@@ -135,7 +135,7 @@ theorem codeword_region : RegionSpec (fun r m ↦ r.AtCheck m) 47 fun r st ↦ r
     have := frame_covers hm10 (o := 48) (n := 4) (by decide)
       (v := .bin .shr .W32 (.load 0 8 8) (.lit 16)) (by decide)
     rwa [show (Sym.bin .shr .W32 (.load 0 8 8) (.lit 16)).eval
-        (r.envR st.data [] (r.pc (147 + b10.length)).toBitVec) = r.hi16 by
+        (r.envR st.data [] (r.pc (NativeRustcX64.Xmss.WotsLeaf.b10Offset + b10.length)).toBitVec) = r.hi16 by
       show BinOp.apply .shr .W32 ((r.envR st.data [] _).load 0 8 8) (BitVec.ofNat 64 16) = _
       rw [r.load_word hK9.2.1.2.2]
       rfl] at this

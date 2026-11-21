@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.LayoutWPlacement.Names
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmArm.Code.Vm.PublicInputPhase.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
+public import NativeRustcVmArm.Code.Vm.SpongeWSqueeze.Names
 public import NativeRustcVmArm.Tables.PublicInputPhase.Limb0
 
 /-!
@@ -24,17 +29,17 @@ variable [Host] {k : Nat}
 
 /-- **`public_input_phase` meets its contract.** -/
 theorem publicInputPhase_spec (hp : Placed code k)
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpl : ∀ L, Spec (Labels.label layoutWPlacementLabel) (LayoutWPlacementPre L)
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpl : ∀ L, Spec (Labels.label NativeRustcVmArm.Vm.LayoutWPlacement.entryLabel) (LayoutWPlacementPre L)
       (LayoutWPlacementPost L))
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {a : DecArea} {s : TState} {L : LayoutW} {pub : Vector UInt64 4} {cs : Array ColumnClaimW} :
-    Spec (Labels.label publicInputPhaseLabel) (PublicInputPhasePre a s L pub cs)
+    Spec (Labels.label NativeRustcVmArm.Vm.PublicInputPhase.entryLabel) (PublicInputPhasePre a s L pub cs)
       (PublicInputPhasePost a s L pub cs) := by
   intro m0 hpre
-  rw [show Labels.label publicInputPhaseLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.PublicInputPhase.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.PublicInputPhase.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.PublicInputPhase.entryOffset) NativeRustcVmArm.Vm.PublicInputPhase.entry_at]
   have hpre' := hpre
   obtain ⟨hS, hrc, hts, htok, hco, hcs, hLin, hL, hvc, hPin, hP⟩ := hpre'
   have hN := hS.2.1
@@ -51,7 +56,7 @@ theorem publicInputPhase_spec (hp : Placed code k)
     Fr.ofPrologue hN le_N hm1' hwf hsp0 hsl0 slots_le hmem0 hk0
   have hts1 := tstate_fr hfr0 hS htok (fun _ h ↦ h.elim) hts
   have e0 : st.data.regs.X0.toBitVec = m0.regs.X0.toBitVec := hm1'.regs .X0 _ h0
-  have hpc' : st.pc = Labels.label squeezeLabel ∧ retOf st.data = Host.addrOf (k + 10) := hpc
+  have hpc' : st.pc = Labels.label NativeRustcVmArm.Vm.SpongeWSqueeze.entryLabel ∧ retOf st.data = Host.addrOf (k + NativeRustcVmArm.Vm.PublicInputPhase.b1Offset) := hpc
   have hfrT : Fr m0 608 publicInputPhaseStack slots keep
       (fun q ↦ InRange m0.regs.X0.toBitVec tstateBytes q) st.data :=
     Bus.Fr.mono hfr0 fun _ h ↦ h.elim
@@ -97,8 +102,8 @@ theorem publicInputPhase_spec (hp : Placed code k)
   have x1 : st3.data.regs.X1.toNat = 0 := by
     show (st3.data.regs.getXReg .X1).toBitVec.toNat = 0
     rw [Bus.Gkr.reg_lit hm3' g1]; rfl
-  have hpc3' : st3.pc = Labels.label layoutWPlacementLabel ∧
-      retOf st3.data = Host.addrOf (k + 46) := hpc3
+  have hpc3' : st3.pc = Labels.label NativeRustcVmArm.Vm.LayoutWPlacement.entryLabel ∧
+      retOf st3.data = Host.addrOf (k + NativeRustcVmArm.Vm.PublicInputPhase.b2Offset) := hpc3
   have hL3 : NativeRustcVm.Layout.LayoutWAt st3.data.dmem m0.regs.X1.toBitVec L :=
     NativeRustcVm.Tables.LayoutWAt.of_same hL2 (same_fr hfr3 hS1 hLin.1.2 hLin.2.1)
   refine Fr.leaf hfr3 hN le_place keep_callee slots_le (fun _ h ↦ h.elim) (hpl L)

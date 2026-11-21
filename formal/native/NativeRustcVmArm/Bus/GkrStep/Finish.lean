@@ -24,12 +24,12 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData} 
 theorem full_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Array EW}
     {s' : TState} {m : MachineData} (cp : AtCopy a s0 g0 m0 xs y vs s' m)
     (hall : NativeRustcVm.EWsAt m.dmem (pt m0 (56 + 16 * m0.regs.X1.toNat)) xs.toList) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 310)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b39Offset)⟩ := by
   have hS := pre_stack h
   refine Fr.runBlock hS N_ge rfl cp.fr (b39_in_code.trans hp.1 (by simp [b39])) run_b39 rfl rfl
     (by decide) (by decide) fun st hfr hd hm hpc ↦ ?_
   simp only [PcOk] at hpc
-  refine at_pc (hpc.trans (hp.label (j := 268) rfl)) (exit_spec hp h hfr ?_ fun g' s'' he ↦ ?_)
+  refine at_pc (hpc.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b33Offset) NativeRustcVmArm.Vm.GkrStep.label_15_at)) (exit_spec hp h hfr ?_ fun g' s'' he ↦ ?_)
   · rw [cp.run]
     exact UInt64.toBitVec_inj.mp (reg_lit hm (r := .X0) (n := 1) rfl)
   · rw [cp.run, Option.some.injEq, Prod.mk.injEq] at he
@@ -56,7 +56,7 @@ theorem rem_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Arr
     {s' : TState} {m : MachineData} {c : Nat} (cp : AtCopy a s0 g0 m0 xs y vs s' m)
     (hc : xs.size = c + 1) (h8 : (m.regs.getXReg .X8).toNat = c)
     (hpre : NativeRustcVm.EWsAt m.dmem (pt m0 (56 + 16 * m0.regs.X1.toNat)) (xs.toList.take c)) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 294)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b37Offset)⟩ := by
   have hS := pre_stack h
   have hsz := cp.size
   have hstep := pre_step h
@@ -108,7 +108,7 @@ theorem rem_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Arr
     rw [BitVec.ofNat_add (16 * c + 16 * m0.regs.X1.toNat) 64,
       BitVec.ofNat_add (16 * c) (16 * m0.regs.X1.toNat)]
     ac_rfl
-  simp only [PcOk, show b37.length = 9 from rfl, show k + 294 + 9 = k + 303 by omega] at hpc
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b37_length, NativeRustcVmArm.Vm.GkrStep.b37Length, show k + NativeRustcVmArm.Vm.GkrStep.b37Offset + 9 = k + NativeRustcVmArm.Vm.GkrStep.b38Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b37_length, NativeRustcVmArm.Vm.GkrStep.b37Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b37_next] at hpc
   -- `b38`
   have hwf2 := wf_cp h hfr (o := 16 + 16 * c) (o' := 56 + 16 * m0.regs.X1.toNat + 16 * c)
     (n := 16) (by omega) (by omega) (by omega)
@@ -187,17 +187,17 @@ theorem rem_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Arr
     rw [show (st.data.regs.getXReg .X8).toBitVec.toNat = (st.data.regs.getXReg .X8).toNat from rfl,
       f8]
     rfl
-  simp only [PcOk, hc2, Bool.false_eq_true, ↓reduceIte, show b38.length = 7 from rfl,
-    show k + 303 + 7 = k + 310 by omega] at hpc2
+  simp only [PcOk, hc2, Bool.false_eq_true, ↓reduceIte, NativeRustcVmArm.Vm.GkrStep.b38_length, NativeRustcVmArm.Vm.GkrStep.b38Length,
+    show k + NativeRustcVmArm.Vm.GkrStep.b38Offset + 7 = k + NativeRustcVmArm.Vm.GkrStep.b39Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b38_length, NativeRustcVmArm.Vm.GkrStep.b38Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b38_next] at hpc2
   exact at_pc hpc2 (full_spec hp h cp2 hall)
 
 /-- **The pair loop**. -/
 theorem pairs_loop (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Array EW}
     {s' : TState}
     (hdone : ∀ m, PairsDone a s0 g0 m0 xs y vs s' m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 292)⟩) :
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b36Offset)⟩) :
     ∀ n j m, xs.size / 2 * 2 - 2 * j = n → PairInv a s0 g0 m0 xs y vs s' j m →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 284)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b35Offset)⟩ := by
   intro n
   induction n using Nat.strongRecOn with
   | ind n ih =>
@@ -219,7 +219,7 @@ theorem and62 (x : UInt64) (h : x.toNat < 64) :
 /-- **After the pairs** (`b36`). -/
 theorem done_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Array EW}
     {s' : TState} {m : MachineData} (hd : PairsDone a s0 g0 m0 xs y vs s' m) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 292)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b36Offset)⟩ := by
   have cp := hd.cp
   refine Fr.runBlock (pre_stack h) N_ge rfl cp.fr (b36_in_code.trans hp.1 (by simp [b36]))
     run_b36 rfl rfl (by decide) (by decide) fun st hfr hd' hm hpc ↦ ?_
@@ -236,10 +236,10 @@ theorem done_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Ar
     show CmpOp.eq.apply .W64 (m.regs.getXReg .X23).toBitVec (m.regs.getXReg .X8).toBitVec = _
     rw [cmp_w64, Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_iff, ← UInt64.toNat_inj, cp.x23,
       hd.x8]
-  simp only [PcOk, hc, show b36.length = 2 from rfl, show k + 292 + 2 = k + 294 by omega] at hpc
+  simp only [PcOk, hc, NativeRustcVmArm.Vm.GkrStep.b36_length, NativeRustcVmArm.Vm.GkrStep.b36Length, show k + NativeRustcVmArm.Vm.GkrStep.b36Offset + 2 = k + NativeRustcVmArm.Vm.GkrStep.b37Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b36_length, NativeRustcVmArm.Vm.GkrStep.b36Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b36_next] at hpc
   by_cases he : xs.size = xs.size / 2 * 2
   · simp only [decide_eq_true he, ↓reduceIte] at hpc
-    refine at_pc (hpc.trans (hp.label (j := 310) rfl)) (full_spec hp h cp1 ?_)
+    refine at_pc (hpc.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b39Offset) NativeRustcVmArm.Vm.GkrStep.label_21_at)) (full_spec hp h cp1 ?_)
     rw [hd']
     have := hd.pre
     rwa [← he, List.take_of_length_le (by rw [Array.length_toList])] at this
@@ -250,7 +250,7 @@ theorem done_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Ar
 /-- **The copy** (`.LGkrStep_11`): the dispatch on `|xs|`. -/
 theorem copy_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Array EW}
     {s' : TState} {m : MachineData} (cp : AtCopy a s0 g0 m0 xs y vs s' m) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + 260)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.GkrStep.b29Offset)⟩ := by
   have hS := pre_stack h
   have hsz := cp.size
   have hstep := pre_step h
@@ -273,10 +273,10 @@ theorem copy_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Ar
     show CmpOp.eq.apply .W64 (m.regs.getXReg .X23).toBitVec (BitVec.ofNat 64 0) = _
     rw [eq_lit64 _ _ (by decide)]
     rw [show (m.regs.getXReg .X23).toBitVec.toNat = (m.regs.getXReg .X23).toNat from rfl, cp.x23]
-  simp only [PcOk, hc, show b29.length = 2 from rfl, show k + 260 + 2 = k + 262 by omega] at hpc
+  simp only [PcOk, hc, NativeRustcVmArm.Vm.GkrStep.b29_length, NativeRustcVmArm.Vm.GkrStep.b29Length, show k + NativeRustcVmArm.Vm.GkrStep.b29Offset + 2 = k + NativeRustcVmArm.Vm.GkrStep.b30Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b29_length, NativeRustcVmArm.Vm.GkrStep.b29Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b29_next] at hpc
   by_cases h0 : xs.size = 0
   · simp only [h0, decide_true, ↓reduceIte] at hpc
-    refine at_pc (hpc.trans (hp.label (j := 310) rfl)) (full_spec hp h cp1 ?_)
+    refine at_pc (hpc.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b39Offset) NativeRustcVmArm.Vm.GkrStep.label_21_at)) (full_spec hp h cp1 ?_)
     rw [show xs.toList = [] from by rw [← Array.length_toList] at h0; exact List.eq_nil_of_length_eq_zero h0]
     exact NativeRustcVm.ewsAt_nil _ _
   simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc
@@ -298,14 +298,14 @@ theorem copy_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Ar
     rw [eq_lit64 _ _ (by decide)]
     rw [show (st.data.regs.getXReg .X23).toBitVec.toNat = (st.data.regs.getXReg .X23).toNat
       from rfl, cp1.x23]
-  simp only [PcOk, hc2, show b30.length = 2 from rfl, show k + 262 + 2 = k + 264 by omega] at hpc2
+  simp only [PcOk, hc2, NativeRustcVmArm.Vm.GkrStep.b30_length, NativeRustcVmArm.Vm.GkrStep.b30Length, show k + NativeRustcVmArm.Vm.GkrStep.b30Offset + 2 = k + NativeRustcVmArm.Vm.GkrStep.b31Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b30_length, NativeRustcVmArm.Vm.GkrStep.b30Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b30_next] at hpc2
   by_cases h1 : xs.size = 1
   · simp only [h1, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc2
     -- `b31`: none copied, to `.LGkrStep_19`.
     refine at_pc hpc2 (Fr.runBlock hS N_ge rfl hfr2 (b31_in_code.trans hp.1 (by simp [b31]))
       run_b31 rfl rfl (by decide) (by decide) fun st3 hfr3 hd3 hm3 hpc3 ↦ ?_)
     simp only [PcOk] at hpc3
-    refine at_pc (hpc3.trans (hp.label (j := 294) rfl)) (rem_spec hp h (c := 0)
+    refine at_pc (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b37Offset) NativeRustcVmArm.Vm.GkrStep.label_19_at)) (rem_spec hp h (c := 0)
       { cp2 with fr := hfr3, x19 := (reg_of hm3 rfl).trans cp2.x19
                  x20 := (reg_of hm3 rfl).trans cp2.x20
                  x23 := by rw [reg_of hm3 rfl]; exact cp2.x23
@@ -321,7 +321,7 @@ theorem copy_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Ar
   -- `b34`: the pair loop's start.
   have hm4 := match_p h hfr2 cp2.x19
   have hwf4 := wf_p h hfr2
-  refine at_pc (hpc2.trans (hp.label (j := 277) rfl)) (exec_then (b34_in_code.trans hp.1
+  refine at_pc (hpc2.trans (hp.label (j := NativeRustcVmArm.Vm.GkrStep.b34Offset) NativeRustcVmArm.Vm.GkrStep.label_16_at)) (exec_then (b34_in_code.trans hp.1
     (by simp [b34])) run_b34 hwf4 hm4 fun st4 hm4' hpc4 ↦ ?_)
   have hd4 : st4.data.dmem = st2.data.dmem := hm4'.dmem_eq hwf4 rfl
   have hfr4 : Fr m0 1392 gkrStepStack slots keep (outs m0) st4.data :=
@@ -338,7 +338,7 @@ theorem copy_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0) {xs y vs : Ar
                ys := by rw [hd4]; exact cp2.ys
                ts := by rw [hd4]; exact cp2.ts }
   have hlt64 : (st2.data.regs.getXReg .X23).toNat < 64 := by rw [cp2.x23]; omega
-  simp only [PcOk, show b34.length = 7 from rfl, show k + 277 + 7 = k + 284 by omega] at hpc4
+  simp only [PcOk, NativeRustcVmArm.Vm.GkrStep.b34_length, NativeRustcVmArm.Vm.GkrStep.b34Length, show k + NativeRustcVmArm.Vm.GkrStep.b34Offset + 7 = k + NativeRustcVmArm.Vm.GkrStep.b35Offset by simpa only [NativeRustcVmArm.Vm.GkrStep.b34_length, NativeRustcVmArm.Vm.GkrStep.b34Length, Nat.add_assoc] using congrArg (k + ·) NativeRustcVmArm.Vm.GkrStep.b34_next] at hpc4
   refine at_pc hpc4 (pairs_loop hp h (fun m hd ↦ done_spec hp h hd) _ 0 st4.data rfl
     { cp := cp4
       x8 := ?_

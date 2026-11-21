@@ -65,8 +65,8 @@ theorem seg_b142 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (he : e.length = 16) {R : MachineState → Prop} {m : MachineData} (hK : Keep r l x E m)
     (h28 : Run.RegIs m .X28 (BitVec.ofNat 64 i)) (hcell : BytesAt m.dmem (r.off 29248) e)
     (cont : ∀ m', Keep r l x E m' → Run.RegIs m' .X28 (BitVec.ofNat 64 i) →
-      BytesAt m'.dmem (r.off 29248) e → Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 1705⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 2156⟩ := by
+      BytesAt m'.dmem (r.off 29248) e → Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Sphincs.SphincsVerify.b113Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b142Offset⟩ := by
   have hwf := r.frame_wf hpre hK.1 (fun _ ↦ 0)
   have hm := match_frameS hpre hK (k := []) trivial
   refine blk r hp b142_in_code (List.cons_ne_nil _ _) run_b142 hwf hm fun st hm1 hpc ↦ ?_
@@ -84,8 +84,8 @@ theorem seg_b115 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     (hcell : BytesAt m.dmem (r.off 29248) v)
     (cont : ∀ m', Keep r l x E m' → Run.RegIs m' .X28 (BitVec.ofNat 64 i) →
       BytesAt m'.dmem (r.off 29248) (chain r.seed (r.key l) i d (3 - d) v) →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc 1705⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 1727⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', r.pc NativeRustcArm.Sphincs.SphincsVerify.b113Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b115Offset⟩ := by
   have hwf := Env.wf_nil m
   refine blk r hp b115_in_code (List.cons_ne_nil _ _) run_b115 hwf (match_nil m)
     fun st hm1 hpc ↦ ?_
@@ -104,7 +104,7 @@ theorem seg_b115 (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees) (hp
     show UnOp.apply (.ubfm 8 7) .W32 ((m.regs.getXReg .X28).toBitVec) = _
     rw [h28, ubfm_chain hi]
   have h28' := hreg (reg_same hm1 rfl) h28
-  refine pc_at (a := r.pc 1728) (hpc.trans rfl) ?_
+  refine pc_at (a := r.pc NativeRustcArm.Sphincs.SphincsVerify.b116Offset) (hpc.trans rfl) ?_
   have hk : 3 - d = 2 - d + 1 := by omega
   exact steps hp hc hpre hx hE hi (2 - d) d (by omega) hv hK1
     ⟨hreg (reg_same hm1 rfl) h19, h20, h28'⟩ (hreg (reg_same hm1 rfl) h22) (by rw [hd']; exact hcell)

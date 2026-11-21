@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcX64.XmssVerify.BottomRun
 public import NativeRustcX64.XmssVerify.Tree0Run
 
@@ -96,7 +98,7 @@ theorem st16_facts : (after b16 (stF [])).reg .rdi = some (.ptr 0 184) ∧
   decide +kernel
 
 theorem run_b17' : exec b17 stR = some (after b17 stR,
-    .cond (.not (.cmp .eq .W8 (.load 0 184 1) (.lit 1))) ".LXmssVerify_10") := by
+    .cond (.not (.cmp .eq .W8 (.load 0 184 1) (.lit 1))) NativeRustcX64.Xmss.XmssVerify.label_10) := by
   rw [run_b17]
   rfl
 

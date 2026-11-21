@@ -69,8 +69,8 @@ variable [NativeArm.Host]
 /-- **`h_msg`'s hasher absorbs `R | PK.seed | PK.root | M`.** -/
 theorem absorb_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : r.AtHMsg m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 562 ∧ Absorbed r st.data)
-      ⟨m, r.pc 536⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b50Offset ∧ Absorbed r st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b45Offset⟩ := by
   obtain ⟨hF, hI, h19, h23, h24, h21, hmsg, h392⟩ := hA
   have hK : Keep r m := ⟨hF, hI, h392⟩
   have hm32 := length_msg r

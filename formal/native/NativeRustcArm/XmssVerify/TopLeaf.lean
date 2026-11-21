@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Xmss.WotsLeaf.Names
+public import NativeRustcArm.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcArm.XmssVerify.TopTurn
 public import NativeRustcArm.XmssVerify.BotLeaf
 meta import NativeRustcArm.Code.Xmss.XmssVerify
@@ -27,7 +30,7 @@ sym_block b15_exec := exec b15 (stF0 [(.X25, .ptr 0 4896)])
 /-- The symbolic state after block 15. -/
 def st15 : SState := ((exec b15 (stF0 [(.X25, .ptr 0 4896)])).getD (stF0 [], .fall)).1
 
-theorem b15_exec' : exec b15 (stF0 [(.X25, .ptr 0 4896)]) = some (st15, .call wotsL) := by
+theorem b15_exec' : exec b15 (stF0 [(.X25, .ptr 0 4896)]) = some (st15, .call NativeRustcArm.Xmss.WotsLeaf.entryLabel) := by
   rw [b15_exec]
   rfl
 
@@ -48,7 +51,7 @@ sym_block b16_exec := exec b16 (stF0 [(.X21, .ptr 0 5392)])
 def st16 : SState := ((exec b16 (stF0 [(.X21, .ptr 0 5392)])).getD (stF0 [], .fall)).1
 
 theorem b16_exec' : exec b16 (stF0 [(.X21, .ptr 0 5392)]) =
-    some (st16, .cond (.cmp .eq .W32 (.load 0 5408 1) (.lit 0)) ".LXmssVerify_9") := by
+    some (st16, .cond (.cmp .eq .W32 (.load 0 5408 1) (.lit 0)) NativeRustcArm.Xmss.XmssVerify.label_9) := by
   rw [b16_exec]
   rfl
 
@@ -86,11 +89,11 @@ variable [Host] {w : Nat → UInt64} {m₀ : MachineData}
 /-- **The top path loop**: from its head with the leaf, after 16 turns at block 25 with the
 root. -/
 theorem topLoop {k : Nat} (hp : Placed code k) (Cs : Callees) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 202)) {lf : List UInt8} (hl : lf.length = 16)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b18Offset)) {lf : List UInt8} (hl : lf.length = 16)
     (h : TopAt w m₀ st.data 0 lf) :
-    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + 262) ∧
+    Eventually (step1 Host.exe) (fun st' => st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b25Offset) ∧
       TopAt w m₀ st'.data 16 (fold (pp w) 1 (li1 w).toNat (topL w).path lf 16)) st :=
-  Sym.loop (I := fun n s => ∃ z, z + n = 16 ∧ 0 < n ∧ s.pc = Host.addrOf (k + 202) ∧
+  Sym.loop (I := fun n s => ∃ z, z + n = 16 ∧ 0 < n ∧ s.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b18Offset) ∧
       TopAt w m₀ s.data z (fold (pp w) 1 (li1 w).toNat (topL w).path lf z))
     (fun n s ⟨z, hn, hn0, hpc, h⟩ => NativeRustcArm.Eventually.mono
       (topTurn hp Cs P (by omega) hpc (length_fold hl z) h) fun s' h' => by
@@ -111,13 +114,13 @@ theorem regBytes_inj {a b : BitVec 64} (h : regBytes a = regBytes b) : a = b := 
 /-- **The top layer**: from block 15 with the bottom root, the rejection if the top layer has no
 root, else block 25 with the root. -/
 theorem top {k : Nat} (hp : Placed code k) (Cs : Callees) (P : Pre w m₀) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 176)) {r0 : List UInt8} (hl0 : r0.length = 16)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b15Offset)) {r0 : List UInt8} (hl0 : r0.length = 16)
     (h : BotAt w m₀ st.data 16 r0) {R : MachineState → Prop}
     (hnone : layerRoot (pp w) 1 (li1 w) r0 (topL w) = none →
-      ∀ st' : MachineState, st'.pc = Host.addrOf (k + 268) → Common m₀ st'.data →
+      ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b26Offset) → Common m₀ st'.data →
         Eventually (step1 Host.exe) R st')
     (hsome : ∀ x r, layerRoot (pp w) 1 (li1 w) r0 (topL w) = some (x, r) →
-      ∀ st' : MachineState, st'.pc = Host.addrOf (k + 262) → TopAt w m₀ st'.data 16 r →
+      ∀ st' : MachineState, st'.pc = Host.addrOf (k + NativeRustcArm.Xmss.XmssVerify.b25Offset) → TopAt w m₀ st'.data 16 r →
         Eventually (step1 Host.exe) R st') :
     Eventually (step1 Host.exe) R st := by
   have C := h.common
@@ -190,7 +193,7 @@ theorem top {k : Nat} (hp : Placed code k) (Cs : Callees) (P : Pre w m₀) {st :
       fun st3 hpc3 C3 _ _ => ?_
     simp only [ite_true] at hpc3
     exact hnone (by rw [layerRoot_eq, hW]; rfl) st3
-      (hpc3.trans (hp.label (j := 268) (by decide +kernel))) C3
+      (hpc3.trans (hp.label NativeRustcArm.Xmss.XmssVerify.label_9_at)) C3
   | some xl =>
     obtain ⟨x, lf⟩ := xl
     rw [hW] at hout

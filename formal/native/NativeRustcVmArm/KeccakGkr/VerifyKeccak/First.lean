@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FirstClaim.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Areas
 
 /-!
@@ -42,14 +43,14 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The first claim** (`b7`, `b8`). -/
 theorem stepFirst (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hfc : Spec (Labels.label firstClaimLabel)
+    (hfc : Spec (Labels.label NativeRustcVmArm.Vm.FirstClaim.entryLabel)
       (FirstClaimPre inst seg lp output) (FirstClaimPost inst seg lp output))
     {m : MachineData} {s4 : TState} {c : EW}
     (hc : AtC a s cs inst output m0 m s4 seg lp c)
     (cont : ∀ m', AtF a s cs inst output m0 m' s4
         (keccakFirstClaim inst seg lp output c) c →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 71)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 55)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b9Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b7Offset)⟩ := by
   have hwf := envM_wf hn hc.mid.fr
   have hN := hn.hN
   have hSP := m0.regs.SP.toNat_lt

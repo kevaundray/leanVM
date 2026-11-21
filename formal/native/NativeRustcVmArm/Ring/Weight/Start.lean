@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.RingWeight.Names
 public import NativeRustcVmArm.Ring.Weight.Zero
 
 /-!
@@ -22,10 +24,10 @@ variable {m0 : MachineData} [Host] {k : Nat}
 
 /-- **From `r` copied to the epilogue** (`b11` to `b25`). -/
 theorem stepLoops (hp : Placed code k) (h : RingWeightPre m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {m : MachineData}
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {m : MachineData}
     (hC : Copied m0 m) (hR : 0 < nR m0) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + 184) ∧ Done m0 st.data)
-      ⟨m, Host.addrOf (k + 120)⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset) ∧ Done m0 st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b11Offset)⟩ := by
   have hn := n36 h
   have hB := hC.base
   refine exec_then (hb b11_in_code (by simp [b11]) hp) run_b11 (Env.wf_nil m) (match_nil m)
@@ -50,12 +52,12 @@ theorem stepLoops (hp : Placed code k) (h : RingWeightPre m0)
     exact eq_lit (by decide)
   by_cases hQ : nQ m0 = 0
   · refine at_pc (hc.1 (he.mpr hQ)) ?_
-    rw [show Labels.label ".LRingWeight_18" = Host.addrOf (k + 165) from hp.label (j := 165) rfl]
+    rw [show Labels.label NativeRustcVmArm.Vm.RingWeight.label_18 = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b21Offset) from hp.label (j := NativeRustcVmArm.Vm.RingWeight.b21Offset) NativeRustcVmArm.Vm.RingWeight.label_18_at]
     refine exec_then (hb b21_in_code (by simp [b21]) hp) run_b21 (Env.wf_nil _) (match_nil _)
       fun st2 hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
     refine at_pc hpc2 ?_
-    rw [show k + 165 + b21.length = k + 167 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.RingWeight.b21Offset + b21.length = k + NativeRustcVmArm.Vm.RingWeight.b22Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b21_next]]
     have k2 := regs_eq_of (match_nil _) hm2 [.X20, .X21, .X22, .X23] (by decide)
     have hZ : ZerI m0 0 st2.data := by
       refine ⟨regs_fr hfr1 hm2 rfl rfl, by decide, ?_, ?_, reg_bv hm2 rfl rfl, ?_, ?_⟩
@@ -63,17 +65,17 @@ theorem stepLoops (hp : Placed code k) (h : RingWeightPre m0)
       · rw [k2 .X22 (by simp)]; exact h22
       · rw [k2 .X21 (by simp), k2 .X23 (by simp)]; exact htot
       · rw [hm2.dmem_eq (Env.wf_nil _) rfl]; exact hpow
-    refine Sym.loop (I := fun n st ↦ st.pc = Host.addrOf (k + 167) ∧ ∃ j, n = 64 - j ∧
+    refine Sym.loop (I := fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b22Offset) ∧ ∃ j, n = 64 - j ∧
         ZerI m0 j st.data) (fun _ _ ⟨hpc', _, hn', hI⟩ ↦ at_pc hpc' ((zerTurn hp h hmul hI hQ hR).mono
           fun _ h' ↦ h'.elim (fun ⟨hp', j', hI', hlt⟩ ↦ .inr ⟨_, hn' ▸ hlt, hp', j', rfl, hI'⟩) .inl))
       ⟨rfl, 0, rfl, hZ⟩
   · refine at_pc (hc.2 (fun e ↦ hQ (he.mp e))) ?_
-    rw [show k + 120 + b11.length = k + 127 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.RingWeight.b11Offset + b11.length = k + NativeRustcVmArm.Vm.RingWeight.b12Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b11_next]]
     refine exec_then (hb b12_in_code (by simp [b12]) hp) run_b12 (Env.wf_nil _) (match_nil _)
       fun st2 hm2 hpc2 ↦ ?_
     simp only [PcOk] at hpc2
     refine at_pc hpc2 ?_
-    rw [show k + 127 + b12.length = k + 131 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.RingWeight.b12Offset + b12.length = k + NativeRustcVmArm.Vm.RingWeight.b13Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingWeight.b12_next]]
     have k2 := regs_eq_of (match_nil _) hm2 [.X20, .X21, .X22, .X23, .X24] (by decide)
     have h24 : (st1.data.regs.getXReg .X24).toBitVec = BitVec.ofNat 64 (mn m0) := by
       refine reg_bv hm1 rfl ?_
@@ -96,7 +98,7 @@ theorem stepLoops (hp : Placed code k) (h : RingWeightPre m0)
         rw [hfr1.sp]
       · rw [k2 .X21 (by simp), k2 .X23 (by simp)]; exact htot
       · rw [hm2.dmem_eq (Env.wf_nil _) rfl]; exact hpow
-    refine Sym.loop (I := fun n st ↦ st.pc = Host.addrOf (k + 131) ∧ ∃ j, n = 64 - j ∧
+    refine Sym.loop (I := fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b13Offset) ∧ ∃ j, n = 64 - j ∧
         OutI m0 j st.data) (fun _ _ ⟨hpc', _, hn', hI⟩ ↦ at_pc hpc'
           ((outTurn hp h hmul hI (by omega) hR).mono fun _ h' ↦
             h'.elim (fun ⟨hp', j', hI', hlt⟩ ↦ .inr ⟨_, hn' ▸ hlt, hp', j', rfl, hI'⟩) .inl))

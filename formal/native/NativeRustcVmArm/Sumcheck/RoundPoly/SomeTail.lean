@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BitLength.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.TStateGrind.Names
+public import NativeRustcVmArm.Code.Vm.TStateSumcheckRoundPoly.Names
 public import NativeRustcVmArm.Sumcheck.RoundPoly.Post
 public import NativeRustcVm.Arrays.ReadLemmas
 
@@ -106,29 +110,29 @@ theorem bitLenNat_le (v : Nat) (hv : v < 2 ^ 64) : bitLenNat v ≤ 64 := by
 
 /-- **After the tail's sum**, at `b4`: the grind's bits, the grind, the product, the result. -/
 theorem some_b4 (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ a s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hbl : Spec (Labels.label NativeRustcVmArm.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     (hpre : RoundPolyPre a s (some ev) m0) {tail : Array EW} {s1 : TState}
     (hr1 : (readScalars (cnt m0 - 1)).run s = some (tail, s1)) {m : MachineData}
     (hg : SomeRegs m0 ev m) (ht : TailAt m0 a tail s1 m)
     (hx0 : m.regs.X0 = (sumE tail).c0) (hx1 : m.regs.X1 = (sumE tail).c1) :
     Eventually (step1 Host.exe)
       (fun st ↦ st.pc = retOf m0 ∧ RoundPolyPost a s (some ev) m0 st.data)
-      ⟨m, Host.addrOf (k + 24)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b4Offset)⟩ := by
   have c := ctx_of hpre
   have hc2 : 2 ≤ cnt m0 := hpre.2.2.2.2.1
   have hc5 : cnt m0 ≤ maxCount := hpre.2.2.2.2.2.1
   have hmc : maxCount = 5 := rfl
   have htl : tail.size = cnt m0 - 1 := readScalars_size hr1
   have hsz : tail.size + 1 ≤ maxCount := by omega
-  have hk4 : b4.IsInfixAt Host.prog (k + 24) := b4_in_code.trans hp.1 (by simp [b4])
-  have hk5 : b5.IsInfixAt Host.prog (k + 28) := b5_in_code.trans hp.1 (by simp [b5])
-  have hk6 : b6.IsInfixAt Host.prog (k + 32) := b6_in_code.trans hp.1 (by simp [b6])
-  have hk7 : b7.IsInfixAt Host.prog (k + 33) := b7_in_code.trans hp.1 (by simp [b7])
-  have hk8 : b8.IsInfixAt Host.prog (k + 38) := b8_in_code.trans hp.1 (by simp [b8])
-  have hl9 : Labels.label ".LTStateSumcheckRoundPoly_9" = Host.addrOf (k + 77) :=
-    hp.label (j := 77) rfl
+  have hk4 : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b4Offset) := b4_in_code.trans hp.1 (by simp [b4])
+  have hk5 : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b5Offset) := b5_in_code.trans hp.1 (by simp [b5])
+  have hk6 : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b6Offset) := b6_in_code.trans hp.1 (by simp [b6])
+  have hk7 : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b7Offset) := b7_in_code.trans hp.1 (by simp [b7])
+  have hk8 : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b8Offset) := b8_in_code.trans hp.1 (by simp [b8])
+  have hl9 : Labels.label NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_9 = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) :=
+    hp.label (j := NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.label_9_at
   -- `b4`: `bit_length(count - 1)`.
   refine exec_then hk4 run_b4 (wf_envB hpre ht.frame) (match_bodyS hpre ht.frame hg.x19)
     fun st4 hm4 hpc4 ↦ ?_
@@ -190,7 +194,7 @@ theorem some_b4 (hp : Placed code k)
   cases hr2 : (grind (grindingBits (cnt m0 - 1 + 1))).run s1 with
   | none =>
     rw [hr2] at hok7
-    have hpc : st8.pc = Host.addrOf (k + 77) := by
+    have hpc : st8.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b19Offset) := by
       rw [hpc8, hok7, Option.isSome_none]
       have hc : (low .W32 (okWord false).toBitVec == low .W32 0#64) = true := by decide
       simp only [hc, ↓reduceIte, hl9]
@@ -207,7 +211,7 @@ theorem some_b4 (hp : Placed code k)
     have ht7 : TailAt m0 a tail s2 st7.data :=
       ht6.after hpre hsz (Nc := grindStack) (by decide) (R := InRange (tAt m0) tstateBytes)
         (fun _ h ↦ h) hs7 hsv7 hts2
-    have hpc : st8.pc = Host.addrOf (k + 33) := by
+    have hpc : st8.pc = Host.addrOf (k + NativeRustcVmArm.Vm.TStateSumcheckRoundPoly.b7Offset) := by
       rw [hpc8, hok7, Option.isSome_some]
       have hc : (low .W32 (okWord true).toBitVec == low .W32 0#64) = false := by decide
       simp only [hc, Bool.false_eq_true, ↓reduceIte]

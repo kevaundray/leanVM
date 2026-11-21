@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.Keccak.KeccakF.Inv
 public import NativeRustcVmArm.Keccak.KeccakF.Blocks
 
@@ -46,14 +47,14 @@ variable [Host]
 set_option linter.unusedSimpArgs false in
 /-- **The prologue.** -/
 theorem prologue_step {k : Nat} (hp : Placed Vm.KeccakF.code k)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) {m0 : MachineData}
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) {m0 : MachineData}
     (hpre : NativeRustcVmArm.KeccakFPre m0) :
-    Eventually (step1 Host.exe) (fun st => At m0 0 st.data ∧ st.pc = Host.addrOf (k + 33))
+    Eventually (step1 Host.exe) (fun st => At m0 0 st.data ∧ st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakF.b2Offset))
       ⟨m0, Host.addrOf k⟩ := by
   obtain ⟨hstk, ⟨hrc, hrcnw, hrcap⟩, hmap, hnw, hap, -⟩ := hpre
   have hf := frame_noWrap hstk
   have h112 := frame_add_toNat hstk (o := 112) (by decide)
-  have hk0 : Vm.KeccakF.b0.IsInfixAt Host.prog (k + 0) :=
+  have hk0 : Vm.KeccakF.b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KeccakF.b0Offset) :=
     Vm.KeccakF.b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env0 := Env.ofMachine m0 [(frame m0, 400), (m0.regs.X0.toBitVec, 200)]
   have hwf0 : env0.WF :=
@@ -113,7 +114,7 @@ theorem prologue_step {k : Nat} (hp : Placed Vm.KeccakF.code k)
   have hkept2 : Kept m0.dmem st2.data.dmem := fun p h => hsaved2.2.2 p (hkept1 p h)
   have hsame12 : SameOutside m0.dmem st2.data.dmem (InRange (frame m0) 400) := fun p hp =>
     (hsame2 p fun h => hp (inRange_frame_of_rc hstk h)).trans (hsame1 p hp)
-  have hk1 : Vm.KeccakF.b1.IsInfixAt Host.prog (k + 15) :=
+  have hk1 : Vm.KeccakF.b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.KeccakF.b1Offset) :=
     Vm.KeccakF.b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
   let env2 := Env.ofMachine st2.data [(frame m0, 400), (m0.regs.X0.toBitVec, 200)]
   have hwf2 : env2.WF :=
@@ -180,7 +181,7 @@ theorem prologue_step {k : Nat} (hp : Placed Vm.KeccakF.code k)
       WordAt env2.mem0 (frame m0 + BitVec.ofNat 64 o) (m0.regs.getXReg r).toBitVec :=
     fun ho ho' h => bytesAt_of_same hsame2 h fun i hi =>
       not_inRange_rc hstk ho ho' i (by simpa using hi)
-  have hpc2' : st2.pc = Host.addrOf (k + 15) := hpc2
+  have hpc2' : st2.pc = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakF.b1Offset) := hpc2
   refine exec_at hk1 load hwf2 hpc2' hm2 fun st3 hm3 hpc3 => .done _ ⟨?_, hpc3⟩
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [hm3.sp]

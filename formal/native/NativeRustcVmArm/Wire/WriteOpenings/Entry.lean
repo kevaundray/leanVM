@@ -154,10 +154,10 @@ variable [Host]
 
 /-- **The prologue** (`b0`): with levels, `b1`; without, `b23`. -/
 theorem b0_step (hp : Placed code R.k) (G : Geo R) {Q : MachineState → Prop}
-    (hA : ∀ st, st.pc = pcOf R 18 → Ent R st.data → 0 < R.h → Eventually (step1 Host.exe) Q st)
-    (hB : ∀ st, st.pc = pcOf R 136 → Ent R st.data → R.h = 0 →
+    (hA : ∀ st, st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b1Offset → Ent R st.data → 0 < R.h → Eventually (step1 Host.exe) Q st)
+    (hB : ∀ st, st.pc = pcOf R NativeRustcVmArm.Vm.WriteOpenings.b23Offset → Ent R st.data → R.h = 0 →
       Eventually (step1 Host.exe) Q st) :
-    Eventually (step1 Host.exe) Q ⟨R.m0, Host.addrOf (R.k + 0)⟩ := by
+    Eventually (step1 Host.exe) Q ⟨R.m0, Host.addrOf (R.k + NativeRustcVmArm.Vm.WriteOpenings.b0Offset)⟩ := by
   have hwf := G.entry_wf
   have hN := G.st.2.1
   have hm : Match (Env.ofMachine R.m0 (entryRs R)) entryS R.m0 :=
@@ -228,7 +228,7 @@ theorem b0_step (hp : Placed code R.k) (G : Geo R) {Q : MachineState → Prop}
     rfl
   simp only [PcOk, hc] at hpc1
   by_cases hh : R.h = 0
-  · simp only [hh, decide_true, ↓reduceIte, hp.label (j := 136) rfl] at hpc1
+  · simp only [hh, decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.WriteOpenings.b23Offset) NativeRustcVmArm.Vm.WriteOpenings.label_20_at] at hpc1
     exact hB s1 hpc1 E hh
   · simp only [hh, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc1
     exact hA s1 (hpc1.trans (congrArg Host.addrOf rfl)) E (by omega)

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+
 public import NativeRustcX64.Hasher.UpdateInv
 
 /-!
@@ -55,11 +57,11 @@ variable [Host] {k : Nat}
 
 set_option linter.unusedSimpArgs false in
 /-- **Copying into the buffer.** -/
-theorem copy_spec (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
+theorem copy_spec (hp : Placed code k) (hmemcpy : Spec (Labels.label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m0 m : MachineData} (hpre : UpdatePre m0) {c : Nat} (hinv : Inv m0 c m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 35) ∧ Copied m0 c (hasher m0 m) st.data)
-      ⟨m, Host.addrOf (k + 21)⟩ := by
+      (fun st => st.pc = Host.addrOf (k + NativeRustcX64.Common.Update.b6Offset) ∧ Copied m0 c (hasher m0 m) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset)⟩ := by
   have g := geo_of hpre
   obtain ⟨a0, ha0⟩ := hpre.2.2.1
   have hHc := hinv.holds a0 ha0
@@ -73,7 +75,7 @@ theorem copy_spec (hp : Placed code k) (hmemcpy : Spec (Labels.label "memcpy") M
   have hx0 : (reg m .rdi).toNat = L := hLdef ▸ hinv.rdi
   have hmap : Mapped m.dmem (hAt m0) 344 := fun i hi => hinv.frame.kept _ (hpre.2.2.2.1 i hi)
   let env := Env.ofMachine m [(hAt m0, 344), (frm m0, 120)] (fun _ => 0)
-    (Host.addrOf (k + 35)).toBitVec
+    (Host.addrOf (k + NativeRustcX64.Common.Update.b6Offset)).toBitVec
   have hwf : env.WF := wf_head hpre hinv.frame
   have hm : Match env headS m := match_headS hinv.frame
   have henv : ∀ r, env.regs r = reg m r := fun _ => rfl

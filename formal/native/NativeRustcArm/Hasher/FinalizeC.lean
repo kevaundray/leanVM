@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.KeccakF.Names
+
 public import NativeRustcArm.Hasher.FinalizeB
 
 /-!
@@ -81,10 +83,10 @@ variable [Host] {k : Nat}
 set_option linter.unusedSimpArgs false in
 /-- **The final block absorbed.** -/
 theorem stage4_spec (hp : Placed code k)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost)
+    (hkf : Spec (Labels.label NativeRustcArm.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost)
     {m0 m1 m : MachineData} (hpre : FinalizePre m0) (hpro : Pro m0 m1) (hs3 : Stage3 m0 m1 m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + 82) ∧ Stage4 m0 m1 st.data)
-      ⟨m, Host.addrOf (k + 33)⟩ := by
+    Eventually (step1 Host.exe) (fun st => st.pc = Host.addrOf (k + NativeRustcArm.Common.Finalize.b5Offset) ∧ Stage4 m0 m1 st.data)
+      ⟨m, Host.addrOf (k + (NativeRustcArm.Common.Finalize.b4Offset + b4a.length))⟩ := by
   have g := geo_of hpre
   have gr := geoRc_of hpre
   have hf := frAt_toNat g

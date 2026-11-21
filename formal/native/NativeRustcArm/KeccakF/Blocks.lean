@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Xmss.Names
+
 public import NativeRustcArm.Sym
 public import NativeRustcArm.Code.Common.KeccakF
 public import NativeRustcArm.Spec.Keccak
@@ -34,7 +36,7 @@ def startPro : SState := init [(192, true), (200, false)] (.ptr 0 192) [(.X0, .p
 /-- The loop head's: region 0 the frame from SP, region 1 the round constants, X27 the variable
 0, below 185. -/
 def startBody : SState :=
-  init [(192, true), (192, false)] (.ptr 0 0) [(.X27, .var 0)] [(rcLabel, 1)] [(.var 0, 185)]
+  init [(192, true), (192, false)] (.ptr 0 0) [(.X27, .var 0)] [(NativeRustcArm.Xmss.Symbols.rodata0Label, 1)] [(.var 0, 185)]
 
 /-- The loop exit's: region 0 the frame from SP, region 1 the state, whose address the frame's
 slot 8 holds. -/

@@ -64,7 +64,7 @@ structure Head [Labels] (a : DecArea) (s : TState) (layout : LayoutW) (cs : Arra
 /-- The registers `Head` names besides `CB`'s. -/
 def headRegs : List Reg64 := [.rax, .rdx, .rcx, .rsi, .rbx]
 
-/-- **The pair's bits**, at `.LVerifyStackedOpening_6`. -/
+/-- **The pair's bits**, at `NativeRustcVmX64.Vm.VerifyStackedOpening.label_6`. -/
 structure Mid [Labels] (a : DecArea) (s : TState) (layout : LayoutW) (cs : Array ColumnClaimW)
     (m0 : MachineData) (j : Nat) (st : MachineData) : Prop where
   hd : Head a s layout cs m0 j st

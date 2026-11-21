@@ -79,7 +79,7 @@ variable [Host]
 /-- **The children** (`b80 .. b84` and `memcpy`): from `N3`, `N4` at `b85`. -/
 theorem node_s4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat} {m : MachineData}
     (h : N3 r c z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1027 ∧ N4 r c z st.data) ⟨m, r.pc 1005⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b85Offset ∧ N4 r c z st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b80Offset⟩ := by
   obtain ⟨hT, hz, h27, h19, h26, h28, hst, hbuf, hlen, hch⟩ := h
   have hB := hT.base
   have hwf := r.frame_wf hpre hB.frame (fun _ ↦ 0)
@@ -87,9 +87,9 @@ theorem node_s4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
   refine exec_then (hb80 hp) run_b80 hwf hm fun st1 hm1 hpc1 ↦ ?_
   refine ev_at ((show st1.pc = _ from hpc1).trans (lbl_32 hp)) ?_
   refine exec_then (hb82 hp) (exec_after run_b80 run_b82) hwf hm1 fun st2 hm2 hpc2 ↦ ?_
-  refine ev_at ((pc_false hpc2).trans (pc_after (n := 7) rfl)) ?_
+  refine ev_at ((pc_false hpc2).trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b82_next)) ?_
   refine exec_then (hb83 hp) (exec_after run_b82 run_b83) hwf hm2 fun st3 hm3 hpc3 ↦ ?_
-  refine ev_at ((pc_false hpc3).trans (pc_after (n := 2) rfl)) ?_
+  refine ev_at ((pc_false hpc3).trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b83_next)) ?_
   refine exec_then (hb84 hp) (exec_after run_b83 run_b84) hwf hm3 fun st4 hm4 hpc4 ↦ ?_
   obtain ⟨hB4, hk4⟩ := hB.of_match hpre hm4 hwf rfl rfl rfl rfl rfl rfl
   have h0 : Run.RegIs st4.data .X0 (r.off 27016) := (hm4.regs .X0 _ rfl).trans (eval_ptr 27016)
@@ -108,7 +108,7 @@ theorem node_s4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
       (hd : o + bs.length ≤ 27016 ∨ 27016 + 32 ≤ o) (h : BytesAt st4.data.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hB4.frame (a := 27016) (n := 32) (N := 0) (by decide) (by decide) hout
       ho hd h
-  refine .done _ ⟨hpc5.trans (pc_after (n := 4) rfl), ⟨TreeSt.of_keep hT hB5 (hk4.trans hk5), hz, ?_, ?_, ?_,
+  refine .done _ ⟨hpc5.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b84_next), ⟨TreeSt.of_keep hT hB5 (hk4.trans hk5), hz, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · rw [Run.RegIs, hS.1 .X27 rfl, reg_of hm4 rfl]; exact h27
   · rw [Run.RegIs, hS.1 .X19 rfl, reg_of hm4 rfl]; exact h19
@@ -128,7 +128,7 @@ theorem node_s4 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
 /-- **The state copied back** (`b85`, `b81`, `b88` and `memcpy`): from `N4`, `N5` at `b89`. -/
 theorem node_s5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat} {m : MachineData}
     (h : N4 r c z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1113 ∧ N5 r c z st.data) ⟨m, r.pc 1027⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b89Offset ∧ N5 r c z st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b85Offset⟩ := by
   obtain ⟨hT, hz, h27, h19, h28, h23, h24, h26, hst, hbuf, hlen⟩ := h
   have hB := hT.base
   have hwf := r.frame_wf hpre hB.frame (fun _ ↦ 0)
@@ -151,7 +151,7 @@ theorem node_s5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
   obtain ⟨hcp, hout, hS⟩ := r.memcpy_out h0 h1 h2 hpost
   obtain ⟨hB4, hk4⟩ := hB3.of_call hpre hS (a := 16400) (n := 200) (N := 0) (by decide) (by decide)
     hout (fun o h1 h2 ↦ by unfold Scr; omega)
-  refine .done _ ⟨hpc4.trans (pc_after (n := 7) rfl), ⟨TreeSt.of_keep hT hB4 (hk3.trans hk4), hz, ?_, ?_, ?_,
+  refine .done _ ⟨hpc4.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b88_next), ⟨TreeSt.of_keep hT hB4 (hk3.trans hk4), hz, ?_, ?_, ?_,
     ?_, ?_, ?_⟩⟩
   · rw [Run.RegIs, hS.1 .X27 rfl, reg_of hm3 rfl]; exact h27
   · rw [Run.RegIs, hS.1 .X19 rfl, reg_of hm3 rfl]; exact h19
@@ -165,13 +165,13 @@ theorem node_s5 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
 /-- **The final block** (`b89`, `b90` and `memcpy`): from `N5`, `N6` at `b91`. -/
 theorem node_s6 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat} {m : MachineData}
     (h : N5 r c z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 1138 ∧ N6 r c z st.data) ⟨m, r.pc 1113⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b91Offset ∧ N6 r c z st.data) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b89Offset⟩ := by
   obtain ⟨hT, hz, h27, h19, h28, h25, hst, hbuf⟩ := h
   have hB := hT.base
   have hwf := r.frame_wf hpre hB.frame (fun _ ↦ 0)
   have hm : Match (r.env m) s89 m := match_frameS hpre hB ⟨h25, trivial⟩ trivial
   refine exec_then (hb89 hp) run_b89 hwf hm fun st1 hm1 hpc1 ↦ ?_
-  refine ev_at ((pc_false hpc1).trans (pc_after (n := 2) rfl)) ?_
+  refine ev_at ((pc_false hpc1).trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b89_next)) ?_
   refine exec_then (hb90 hp) (exec_after run_b89 run_b90) hwf hm1 fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hB2, hk2⟩ := hB.of_match hpre hm2 hwf rfl rfl rfl rfl rfl rfl
   have h0 : Run.RegIs st2.data .X0 (r.off 24720) := (hm2.regs .X0 _ rfl).trans (eval_ptr 24720)
@@ -190,7 +190,7 @@ theorem node_s6 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c z : Nat}
       (hd : o + bs.length ≤ 24720 ∨ 24720 + 80 ≤ o) (h : BytesAt st2.data.dmem (r.off o) bs) ↦
     r.bytesAt_of_call hpre hB2.frame (a := 24720) (n := 80) (N := 0) (by decide) (by decide) hout
       ho hd h
-  refine .done _ ⟨hpc3.trans (pc_after (n := 23) rfl), ⟨TreeSt.of_keep hT hB3 (hk2.trans hk3), hz, ?_, ?_, ?_,
+  refine .done _ ⟨hpc3.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b90_next), ⟨TreeSt.of_keep hT hB3 (hk2.trans hk3), hz, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_⟩⟩
   · rw [Run.RegIs, hS.1 .X27 rfl, reg_of hm2 rfl]; exact h27
   · rw [Run.RegIs, hS.1 .X19 rfl, reg_of hm2 rfl]; exact h19

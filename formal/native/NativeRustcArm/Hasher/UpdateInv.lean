@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcArm.Code.Common.Update.Names
+
 public import NativeRustcArm.Hasher.Bytes
 public import NativeRustcArm.Hasher.UpdateExec
 
@@ -119,34 +121,34 @@ theorem Frame.congr {m0 m1 m m' : MachineData} (hf : Frame m0 m1 m)
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 13) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 17) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 24) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 26) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 30) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 35) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 81) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 84) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcArm.Common.Update.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
 
 theorem lbl_entry (hp : Placed code k) :
-    Labels.label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update" = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LUpdate_1" = Host.addrOf (k + 13) :=
-  hp.label (j := 13) rfl
-theorem lbl_2 (hp : Placed code k) : Labels.label ".LUpdate_2" = Host.addrOf (k + 17) :=
-  hp.label (j := 17) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LUpdate_6" = Host.addrOf (k + 84) :=
-  hp.label (j := 84) rfl
+    Labels.label NativeRustcArm.Common.Update.entryLabel = Host.addrOf (k + NativeRustcArm.Common.Update.b0Offset) :=
+  hp.label NativeRustcArm.Common.Update.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcArm.Common.Update.label_1 = Host.addrOf (k + NativeRustcArm.Common.Update.b1Offset) :=
+  hp.label NativeRustcArm.Common.Update.label_1_at
+theorem lbl_2 (hp : Placed code k) : Labels.label NativeRustcArm.Common.Update.label_2 = Host.addrOf (k + NativeRustcArm.Common.Update.b2Offset) :=
+  hp.label NativeRustcArm.Common.Update.label_2_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcArm.Common.Update.label_6 = Host.addrOf (k + NativeRustcArm.Common.Update.b8Offset) :=
+  hp.label NativeRustcArm.Common.Update.label_6_at
 
 end
 

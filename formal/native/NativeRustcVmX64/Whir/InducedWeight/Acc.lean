@@ -21,11 +21,11 @@ public section
 variable [Host] {k : Nat}
 
 theorem accumulate (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeightPre m0)
-    {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + 43))
+    {j : Nat} {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b6Offset))
     (hA : Acc m0 j st.data) :
     Eventually (step1 Host.exe) (fun st' ↦
-      (st'.pc = Host.addrOf (k + 54) ∧ OInv m0 (j + 1) st'.data) ∨
-      (st'.pc = Host.addrOf (k + 113) ∧ Done m0 st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b7Offset) ∧ OInv m0 (j + 1) st'.data) ∨
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.InducedWeight.b17Offset) ∧ Done m0 st'.data)) st := by
   have hS := hpre.1
   have hF := stack_le.1
   have hfr := hA.fr
@@ -82,7 +82,7 @@ theorem accumulate (hp : Placed code k) {m0 : MachineData} (hpre : InducedWeight
   rw [eval_cmp_eq, hi, eval_load, l48, ofNat_beq (by omega) hc64] at hpc'
   obtain ⟨hT, hF'⟩ := Arrays.pc_cond hpc'
   by_cases hlast : j + 1 = cntOf m0
-  · refine .done _ (.inr ⟨(hT (by simpa using hlast)).trans (hp.label (j := 113) rfl),
+  · refine .done _ (.inr ⟨(hT (by simpa using hlast)).trans (hp.label NativeRustcVmX64.Vm.InducedWeight.label_10_at),
       hf', hd ▸ hA.sp.out, hA.mu, ?_, ?_⟩)
     · rwa [← hlast]
     · rwa [← hlast]

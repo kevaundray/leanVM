@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakPi.Names
 public import NativeRustcVmArm.KeccakGkr.LinearTranspose.Copy2
 public import NativeRustcVmArm.Spec.KeccakGkr
 
@@ -40,10 +41,10 @@ variable [NativeArm.Host] {ws : Array EW} {m0 : MachineData} {k : Nat}
 
 /-- **The copy loop** of a lane. -/
 theorem copy_loop (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 30)) (hI : Copy m0 ws l z s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 39) ∧ AfterLane m0 ws l s'.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b5Offset)) (hI : Copy m0 ws l z s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b6Offset) ∧ AfterLane m0 ws l s'.data)
       s :=
-  Sym.loop (fun n s ↦ ∃ z, n = 64 - z ∧ s.pc = Host.addrOf (k + 30) ∧ Copy m0 ws l z s.data)
+  Sym.loop (fun n s ↦ ∃ z, n = 64 - z ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b5Offset) ∧ Copy m0 ws l z s.data)
     (fun _ s ⟨z, hn, hpc, hI⟩ ↦ (copy_step hp hpre hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨64 - (z + 1), by have := hI.z_lt; omega, z + 1, rfl, hpc', hI'⟩
@@ -52,10 +53,10 @@ theorem copy_loop (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : 
 
 /-- **Lane `0`'s copy loop**. -/
 theorem copy2_loop (hp : Placed code k) (hpre : LinearTransposePre ws m0) {z : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 43)) (hI : Copy2 m0 ws z s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 56) ∧ AfterLane m0 ws 0 s'.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b8Offset)) (hI : Copy2 m0 ws z s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b9Offset) ∧ AfterLane m0 ws 0 s'.data)
       s :=
-  Sym.loop (fun n s ↦ ∃ z, n = 64 - z ∧ s.pc = Host.addrOf (k + 43) ∧ Copy2 m0 ws z s.data)
+  Sym.loop (fun n s ↦ ∃ z, n = 64 - z ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b8Offset) ∧ Copy2 m0 ws z s.data)
     (fun _ s ⟨z, hn, hpc, hI⟩ ↦ (copy2_step hp hpre hpc hI).mono fun s' h ↦ by
       rcases h with ⟨hpc', hI'⟩ | h
       · exact Or.inr ⟨64 - (z + 2), by have := hI.z_lt; omega, z + 2, rfl, hpc', hI'⟩
@@ -71,9 +72,9 @@ theorem body_regs {s s' : MachineData} {l : Nat} (hI : LaneRegs m0 s l) (hb : Bo
 /-- **A lane**: from the head of lane `l`, the lane's 64 elements of `g`, at
 `.LLinearTranspose_1`. -/
 theorem lane_step (hp : Placed code k) (hpre : LinearTransposePre ws m0)
-    (hpi : Spec (Labels.label keccakPiLabel) KeccakPiPre KeccakPiPost) {l : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 22)) (hI : Head m0 ws l s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 16) ∧ AfterLane m0 ws l s'.data)
+    (hpi : Spec (Labels.label NativeRustcVmArm.Vm.KeccakPi.entryLabel) KeccakPiPre KeccakPiPost) {l : Nat}
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b2Offset)) (hI : Head m0 ws l s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b1Offset) ∧ AfterLane m0 ws l s'.data)
       s := by
   have hS := hpre.1
   have hA := pre_areas hpre
@@ -146,7 +147,7 @@ theorem lane_step (hp : Placed code k) (hpre : LinearTransposePre ws m0)
       rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; exact hr2.x23
     simp only [hc, ite_true] at hpc3
     refine exec_at (b7_in_code.trans hp.1 (by simp [b7])) e7 (Env.wf_nil _)
-      (hpc3.trans (hp.label (j := 40) rfl)) (match_nil _) fun s4 hm4 hpc4 ↦ ?_
+      (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b7Offset) NativeRustcVmArm.Vm.LinearTranspose.label_5_at)) (match_nil _) fun s4 hm4 hpc4 ↦ ?_
     have hb4 : Body m0 s4.data := hb3.of_block (match_nil _) hm4 (Env.wf_nil _) rfl free_ok (by decide)
     have hr4 := body_regs hr3 hb4 (match_nil _) hm4 (by decide)
     have e89 := KeccakGkr.Match.regs_keep (match_nil _) hm4 [.X8, .X9] (by decide)
@@ -164,7 +165,7 @@ theorem lane_step (hp : Placed code k) (hpre : LinearTransposePre ws m0)
       rw [h]; rfl
     · rw [hm4.dmem_eq (Env.wf_nil _) rfl]; exact hg3
     refine exec_at (b9_in_code.trans hp.1 (by simp [b9])) e9 (Env.wf_nil _) hpc5 (match_nil _)
-      fun s6 hm6 hpc6 ↦ .done _ ⟨hpc6.trans (hp.label (j := 16) rfl), ?_⟩
+      fun s6 hm6 hpc6 ↦ .done _ ⟨hpc6.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b1Offset) NativeRustcVmArm.Vm.LinearTranspose.label_1_at), ?_⟩
     have hb6 : Body m0 s6.data := hI5.regs.ctx.body.of_block (match_nil _) hm6 (Env.wf_nil _) rfl free_ok
       (by decide)
     exact ⟨body_regs hI5.regs hb6 (match_nil _) hm6 (by decide), by
@@ -172,7 +173,7 @@ theorem lane_step (hp : Placed code k) (hpre : LinearTransposePre ws m0)
   · have hc : (env.regs .X23 == 0#64) = false := by
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h
       rw [show (env.regs .X23).toNat = l from hr2.x23] at this; simp at this; omega
-    simp only [hc, Bool.false_eq_true, ite_false, show b3.length = 3 from rfl] at hpc3
+    simp only [hc, Bool.false_eq_true, ite_false, NativeRustcVmArm.Vm.LinearTranspose.b3_length, NativeRustcVmArm.Vm.LinearTranspose.b3Length] at hpc3
     refine exec_at (b4_in_code.trans hp.1 (by simp [b4])) e4 (Env.wf_nil _) hpc3 (match_nil _)
       fun s4 hm4 hpc4 ↦ ?_
     have hb4 : Body m0 s4.data := hb3.of_block (match_nil _) hm4 (Env.wf_nil _) rfl free_ok (by decide)
@@ -194,7 +195,7 @@ theorem lane_step (hp : Placed code k) (hpre : LinearTransposePre ws m0)
       exact hr3.x24
     · rw [hm4.dmem_eq (Env.wf_nil _) rfl]; exact hg3
     refine exec_at (b6_in_code.trans hp.1 (by simp [b6])) e6 (Env.wf_nil _) hpc5 (match_nil _)
-      fun s6 hm6 hpc6 ↦ .done _ ⟨hpc6.trans (hp.label (j := 16) rfl), ?_⟩
+      fun s6 hm6 hpc6 ↦ .done _ ⟨hpc6.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b1Offset) NativeRustcVmArm.Vm.LinearTranspose.label_1_at), ?_⟩
     have hb6 : Body m0 s6.data := hI5.regs.ctx.body.of_block (match_nil _) hm6 (Env.wf_nil _) rfl free_ok
       (by decide)
     exact ⟨body_regs hI5.regs hb6 (match_nil _) hm6 (by decide), by

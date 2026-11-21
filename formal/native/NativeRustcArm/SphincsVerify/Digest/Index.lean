@@ -125,8 +125,8 @@ variable [NativeArm.Host]
 /-- **The index, the leaves copied**: `b58` to `b59`. -/
 theorem index_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : Callees)
     (hpre : r.Pre) {m : MachineData} (hA : AfterLoop r (hMsgBytes r) m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 712 ∧ r.AtFors st.data)
-      ⟨m, r.pc 692⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b59Offset ∧ r.AtFors st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b58Offset⟩ := by
   obtain ⟨hK, h23, hH, hL⟩ := hA
   have hl := length_hMsgBytes r
   have hLl : (leavesBytes (hMsgBytes r) 24).length = 192 := length_leavesBytes _ _

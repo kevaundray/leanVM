@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Wire.ClimbLevel.Hash
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
 
 /-!
 # `climb_level`'s parents (x86-64)
@@ -66,11 +67,11 @@ section
 variable (hp : Placed code k) (g : Geo m0 bp B.length) (hl : ns.length = cnt m0)
 include hp g hl
 
-/-- **The parent stored** (`b19`, at `.LClimbLevel_17`): the key halved and the hash `H` at
+/-- **The parent stored** (`b19`, at `NativeRustcVmX64.Vm.ClimbLevel.label_17`): the key halved and the hash `H` at
 parent `p`; the next node's check. -/
 theorem store_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
     {q : Nat × Digest × Bool} {H : Digest} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 117)) (hf : Frame m0 208 slots 8 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b19Offset)) (hf : Frame m0 208 slots 8 st.data)
     (hs : sibsM B ns (ns.take (i + 1)) c = some (sl ++ [q], ci))
     (hmm : MemS m0 bp B ns (sn (sl ++ [q])) (parentsOf (ns.take i) sl) ci st.data.dmem)
     (hnx : Nx m0 (i + 1) st.data.dmem) (hlt : i < cnt m0) (hsl : sl.length = i)
@@ -153,7 +154,7 @@ theorem store_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
       have := hsn q' hq'; omega, hk.nd, hk.loc, hk.chg, hk.ls, ?_⟩
     simp only [List.length_append, List.length_singleton]
     omega
-  simp only [PcOk, hp.label (j := 26) rfl] at hpc'
+  simp only [PcOk, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_7_at] at hpc'
   refine .done _ ⟨hpc', hf', hs, hmm', hnx.keep g hs' fun q' hq' ↦ by have := hsn q' hq'; omega,
     by omega, by omega, ?_, (regs_kept hK (fun r v h ↦ hm'.regs r v h) .r14 (by simp)).trans hr14,
     (regs_kept hK (fun r v h ↦ hm'.regs r v h) .r15 (by simp)).trans hr15⟩
@@ -168,7 +169,7 @@ theorem store_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
 /-- **After the hash** (at `b14` or `b18`): the count, below 256, checked; the parent stored. -/
 theorem hashed_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
     {q : Nat × Digest × Bool} {H : Digest} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 105) ∨ st.pc = Host.addrOf (k + 115))
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b14Offset) ∨ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b18Offset))
     (hf : Frame m0 208 slots 8 st.data)
     (hs : sibsM B ns (ns.take (i + 1)) c = some (sl ++ [q], ci))
     (hmm : MemS m0 bp B ns (sn (sl ++ [q])) (parentsOf (ns.take i) sl) ci st.data.dmem)
@@ -187,21 +188,21 @@ theorem hashed_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
     exact decide_eq_true (by omega)
   have go : ∀ s1 : MachineState, Frame m0 208 slots 8 s1.data → s1.data.dmem = st.data.dmem →
       (∀ x ∈ Reg64.r13 :: loopRegs, reg s1.data x = reg st.data x) →
-      s1.pc = Host.addrOf (k + 117) →
+      s1.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b19Offset) →
       Eventually (step1 Host.exe) (Nxt k m0 bp B c ns (i + 1) (sl ++ [q]) ci) s1 :=
     fun s1 hf1 hd1 hk hpc1 ↦ store_spec hp g hl hpc1 hf1 hs (hd1 ▸ hmm) (hd1 ▸ hnx) hlt hsl hi
       hpar (hd1 ▸ hH) ((hk .r13 (by simp)).trans hr13)
       ((hk .rbx (by simp [loopRegs])).trans hrbx) ((hk .r14 (by simp [loopRegs])).trans hr14)
       ((hk .r15 (by simp [loopRegs])).trans hr15)
   rcases hpc with hpc | hpc
-  · refine fr_step hp g (j := 105) b14_in_code (by simp [b14]) exit_b14 nofun ok_b14.1 hpc hf
+  · refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b14Offset) b14_in_code (by simp [b14]) exit_b14 nofun ok_b14.1 hpc hf
       fun s1 hf1 hd1 hr1 hpc1 ↦ go s1 hf1 hd1 (regs_kept ok_b14.2 hr1) ?_
     have := pc_cond hpc1 (P := True) (by
       show CmpOp.apply .ult .W64 (reg st.data .rbx) (BitVec.ofNat 64 256) = _
       rw [hcmp]; rfl)
-    rw [ite_t trivial, hp.label (j := 117) rfl] at this
+    rw [ite_t trivial, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_17_at] at this
     exact this
-  · refine fr_step hp g (j := 115) b18_in_code (by simp [b18]) exit_b18 nofun ok_b18.1 hpc hf
+  · refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b18Offset) b18_in_code (by simp [b18]) exit_b18 nofun ok_b18.1 hpc hf
       fun s1 hf1 hd1 hr1 hpc1 ↦ go s1 hf1 hd1 (regs_kept ok_b18.2 hr1) ?_
     have := pc_cond hpc1 (P := False) (by
       show (!CmpOp.apply .ult .W64 (reg st.data .rbx) (BitVec.ofNat 64 256)) = _
@@ -213,11 +214,11 @@ theorem hashed_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
 (at `b13`, an even key) or the sibling's first (at `b17`, an odd key, the sibling read); the
 parent stored; the next node's check. -/
 theorem pair_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
-    (hh : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hh : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     {q : Nat × Digest × Bool} {st : MachineState} (hM : Mid m0 bp B c ns i sl ci q st.data)
     (hi : i < ns.length)
-    (hpc : (st.pc = Host.addrOf (k + 99) ∧ ns[i].1 % 2 = 0) ∨
-      (st.pc = Host.addrOf (k + 109) ∧ ns[i].1 % 2 = 1 ∧ q.2.2 = false)) :
+    (hpc : (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b13Offset) ∧ ns[i].1 % 2 = 0) ∨
+      (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b17Offset) ∧ ns[i].1 % 2 = 1 ∧ q.2.2 = false)) :
     Eventually (step1 Host.exe) (Nxt k m0 bp B c ns (i + 1) (sl ++ [q]) ci) st := by
   have hnd := hM.mm.nd i hi
   have hL : WordsAt st.data.dmem (off (nodes m0) (40 * i + 8)) ns[i].2.toList := by
@@ -231,8 +232,8 @@ theorem pair_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
   have post : ∀ (bj : List Directive) (j : Nat), (st.pc = Host.addrOf (k + j)) →
       (after bj frS).reg .rbx = some (.reg .rbx) → (after bj frS).reg .r13 = some (.reg .r13) →
       (after bj frS).reg .r14 = some (.reg .r14) → (after bj frS).reg .r15 = some (.reg .r15) →
-      (Host.addrOf (k + j + bj.length) = Host.addrOf (k + 105) ∨
-        Host.addrOf (k + j + bj.length) = Host.addrOf (k + 115)) →
+      (Host.addrOf (k + j + bj.length) = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b14Offset) ∨
+        Host.addrOf (k + j + bj.length) = Host.addrOf (k + NativeRustcVmX64.Vm.ClimbLevel.b18Offset)) →
       ∀ H : Digest, parentOf ns[i] q = [((ns[i]).1 >>> 1, H)] →
       ∀ m2, Frame m0 208 slots 8 m2 →
       (∀ r v, (after bj frS).reg r = some v → calleeSaved r = true →
@@ -257,13 +258,13 @@ theorem pair_spec {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat}
   rcases hpc with ⟨hpc, hev⟩ | ⟨hpc, hod, hq⟩
   · obtain ⟨hok, hlow, hdi, hsi, hdx, -, hK⟩ := ok_b13
     have hK' := keeps_of hK
-    exact hash_call hp hh g (j := 99) b13_in_code (by simp [b13]) exit_b13 hok hlow hdi hsi hdx hpc
+    exact hash_call hp hh g (j := NativeRustcVmX64.Vm.ClimbLevel.b13Offset) b13_in_code (by simp [b13]) exit_b13 hok hlow hdi hsi hdx hpc
       hM.fr hM.mm.chg hnA hfA hrbp rfl hL hM.dg
       (post b13 99 hpc (hK' .rbx (by simp)) (hK' .r13 (by simp)) (hK' .r14 (by simp))
         (hK' .r15 (by simp)) (.inl rfl) _ (parent_even hev))
   · obtain ⟨hok, hlow, hdi, hsi, hdx, -, hK⟩ := ok_b17
     have hK' := keeps_of hK
-    exact hash_call hp hh g (j := 109) b17_in_code (by simp [b17]) exit_b17 hok hlow hdi hsi hdx hpc
+    exact hash_call hp hh g (j := NativeRustcVmX64.Vm.ClimbLevel.b17Offset) b17_in_code (by simp [b17]) exit_b17 hok hlow hdi hsi hdx hpc
       hM.fr hM.mm.chg hfA hnA rfl hrbp hM.dg hL
       (post b17 109 hpc (hK' .rbx (by simp)) (hK' .r13 (by simp)) (hK' .r14 (by simp))
         (hK' .r15 (by simp)) (.inr rfl) _ (parent_odd hod hq))

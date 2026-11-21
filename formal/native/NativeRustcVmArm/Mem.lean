@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcArm.Mem.Memcpy
 public import NativeRustcArm.Mem.Memset
 public import NativeRustcVmArm.Code.Vm.Memcpy
@@ -26,11 +28,11 @@ theorem memset_code : Vm.Memset.code = NativeRustcArm.Common.Memset.code := rfl
 variable [NativeArm.Host] {k : Nat}
 
 /-- **`memcpy`'s contract** in the VM program. -/
-theorem memcpy_spec (hp : Placed Vm.Memcpy.code k) : Spec (label "memcpy") MemcpyPre MemcpyPost :=
+theorem memcpy_spec (hp : Placed Vm.Memcpy.code k) : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost :=
   NativeRustcArm.Mem.Memcpy.memcpy_spec (memcpy_code ▸ hp)
 
 /-- **`memset`'s contract** in the VM program. -/
-theorem memset_spec (hp : Placed Vm.Memset.code k) : Spec (label "memset") MemsetPre MemsetPost :=
+theorem memset_spec (hp : Placed Vm.Memset.code k) : Spec (label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost :=
   NativeRustcArm.Mem.Memset.memset_spec (memset_code ▸ hp)
 
 end

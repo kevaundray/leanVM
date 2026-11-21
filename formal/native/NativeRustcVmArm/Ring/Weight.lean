@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.RingWeight.Names
 public import NativeRustcVmArm.Ring.Weight.Start
 public import NativeRustcVmArm.Ring.Weight.Sum
 
@@ -23,16 +25,16 @@ variable [Host] {k : Nat}
 
 /-- **`ring_weight`'s contract.** -/
 theorem ringWeight_spec (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) :
-    Spec (Labels.label ringWeightLabel) RingWeightPre RingWeightPost := by
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) :
+    Spec (Labels.label NativeRustcVmArm.Vm.RingWeight.entryLabel) RingWeightPre RingWeightPost := by
   intro m0 h
-  rw [show Labels.label ringWeightLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
-  have toExit : ∀ st : MachineState, st.pc = Host.addrOf (k + 184) ∧ Done m0 st.data →
+  rw [show Labels.label NativeRustcVmArm.Vm.RingWeight.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.RingWeight.entryOffset) NativeRustcVmArm.Vm.RingWeight.entry_at]
+  have toExit : ∀ st : MachineState, st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b26Offset) ∧ Done m0 st.data →
       Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ RingWeightPost m0 st.data) st :=
     fun st ⟨hpc, hD⟩ ↦ at_pc hpc (stepExit hp h hD)
   have loops : ∀ m, Copied m0 m → 0 < nR m0 →
       Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ RingWeightPost m0 st.data)
-        ⟨m, Host.addrOf (k + 120)⟩ :=
+        ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingWeight.b11Offset)⟩ :=
     fun m hC hR ↦ (stepLoops hp h hmul hC hR).bind toExit
   refine stepEntry hp h fun st hB hpc ↦ ?_
   by_cases h1 : nR m0 = 1

@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.KeccakOpen.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.SlotWeights.Names
+public import NativeRustcVmArm.Code.Vm.SumcheckOfSumcheckPlain.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.Entry2
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.ExitSome
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.Fold
@@ -23,14 +28,14 @@ public section
 /-- **`keccak_open` meets its contract**, given `EW::mul`'s, `memcpy`'s, `slot_weights`'s and
 the plain sumcheck's. -/
 theorem keccakOpen_spec [NativeArm.Host] {k : Nat} (hp : Placed code k)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hsw : ∀ c, Spec (label slotWeightsLabel) (SlotWeightsPre c) (SlotWeightsPost c))
-    (hsc : ∀ a s, Spec (label sumcheckPlainLabel) (SumcheckPlainPre a s)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hsw : ∀ c, Spec (label NativeRustcVmArm.Vm.SlotWeights.entryLabel) (SlotWeightsPre c) (SlotWeightsPost c))
+    (hsc : ∀ a s, Spec (label NativeRustcVmArm.Vm.SumcheckOfSumcheckPlain.entryLabel) (SumcheckPlainPre a s)
       (SumcheckPlainPost a s)) :
-    ∀ a s c, Spec (label keccakOpenLabel) (KeccakOpenPre a s c) (KeccakOpenPost a s c) := by
+    ∀ a s c, Spec (label NativeRustcVmArm.Vm.KeccakOpen.entryLabel) (KeccakOpenPre a s c) (KeccakOpenPost a s c) := by
   intro a s c m0 h
-  rw [show Labels.label keccakOpenLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.KeccakOpen.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.KeccakOpen.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.KeccakOpen.entryOffset) NativeRustcVmArm.Vm.KeccakOpen.entry_at]
   refine (sc_run hp h hsc).bind fun st ⟨hpc, hsc1⟩ ↦ ?_
   cases hr : scRun s m0 with
   | none => exact none_exit hp h hpc hsc1 hr

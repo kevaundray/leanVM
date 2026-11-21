@@ -93,8 +93,8 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     {x E : List UInt8} {i : Nat} (hi : i < 58) {R : MachineState → Prop} {m : MachineData}
     (hA : r.AtChain x i E m)
     (cont : ∀ m', r.AtChain x (i + 1) (E ++ r.chainEnd x i) m' →
-      Eventually (step1 NativeArm.Host.exe) R ⟨m', if i + 1 = 58 then r.pc 603 else r.pc 184⟩) :
-    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc 184⟩ := by
+      Eventually (step1 NativeArm.Host.exe) R ⟨m', if i + 1 = 58 then r.pc NativeRustcArm.Xmss.WotsLeaf.b44Offset else r.pc NativeRustcArm.Xmss.WotsLeaf.b14Offset⟩) :
+    Eventually (step1 NativeArm.Host.exe) R ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b14Offset⟩ := by
   obtain ⟨-, hEl, hKc, h28, h9, h19, h21, h23, h20, h22⟩ := hA
   rw [chainSlots_eq] at hKc
   have hK : r.CK x E m := ⟨⟨hKc.1, allOf_left hKc.2⟩, (allOf_right hKc.2).1.2.2, by omega⟩
@@ -172,7 +172,7 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     exact digit_cond _
   have hpc' := pc_cond hpc hcond
   by_cases hd : (x.getD i 0).toNat ≤ 2
-  · have hp' : st.pc = r.pc 192 := by
+  · have hp' : st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b15Offset := by
       rw [hpc', decide_eq_false (by omega : ¬2 < (x.getD i 0).toNat)]
       rfl
     refine pc_at hp' (steps hp hc hpre (2 - (x.getD i 0).toNat) (x.getD i 0).toNat (by omega) hv
@@ -183,7 +183,7 @@ theorem seg_b14 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
     unfold Run.chainEnd
     rw [show 3 - (x.getD i 0).toNat = 2 - (x.getD i 0).toNat + 1 by omega]
     exact hA3
-  · have hp' : st.pc = r.pc 173 := by
+  · have hp' : st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b13Offset := by
       rw [hpc', decide_eq_true (by omega : 2 < (x.getD i 0).toNat)]
       exact Run.label_of_block r hp b13_in_code rfl
     refine pc_at hp' (seg_b13 hp hpre hi hEl hv hK1 hR1.1 hR1.2.1 hR1.2.2.1 hR1.2.2.2.1

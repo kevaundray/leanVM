@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Layout.FormTerms.Exec
 public import NativeRustcVm.Layout.Forms
+public import NativeRustcVmX64.Code.Vm.FormTerms.Names
+public import NativeRustcVmX64.Code.Vm.Names
 
 /-!
 # `form_terms` on x86-64
@@ -46,7 +48,7 @@ variable [Host] {k : Nat}
 
 /-- **`form_terms`' contract.** -/
 theorem formTerms_spec (hp : Placed code k) :
-    Spec (Labels.label formTermsLabel) FormTermsPre FormTermsPost := by
+    Spec (Labels.label NativeRustcVmX64.Vm.FormTerms.entryLabel) FormTermsPre FormTermsPost := by
   rintro m ⟨hst, hR⟩
   have hF := hR.bytesAt .forms
   have hT := hR.bytesAt .terms
@@ -74,10 +76,10 @@ theorem formTerms_spec (hp : Placed code k) :
   have hwf := Transcript.frame_wf (m0 := m) (d := m) (F := 0) (rest := [(rodataAddr .forms, 9488)])
     (vars := fun _ ↦ 0) (ret := 0) hfr (hrest m rfl) hap
   have hlbl : (frameEnv m m 0 [(rodataAddr .forms, 9488)]).base 1 =
-      (Labels.label formsLabel).toBitVec := rfl
+      (Labels.label NativeRustcVmX64.Vm.Symbols.rodata13Label).toBitVec := rfl
   have hm : Match (frameEnv m m 0 [(rodataAddr .forms, 9488)]) entryS m :=
     match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨rsp_ptr0 rfl, trivial⟩ ⟨hlbl, trivial⟩ trivial trivial
-  rw [show Labels.label formTermsLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmX64.Vm.FormTerms.entryLabel = Host.addrOf (k + NativeRustcVmX64.Vm.FormTerms.b0Offset) from hp.label NativeRustcVmX64.Vm.FormTerms.entry_at]
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) run_b0 hwf nofun hm fun st hm1 hpc ↦ ?_
   obtain ⟨hk1, hmem1, hsp1, hdi1⟩ := after_eq run_b0 ▸ ok_b0
   have hd1 : st.data.dmem = m.dmem := hm1.dmem_eq hwf hmem1
@@ -97,7 +99,7 @@ theorem formTerms_spec (hp : Placed code k) :
       simp only [BitVec.toNat_ofNat] at this
       have : (reg m .rdi).toNat = 592 := this
       omega)
-    rw [hp.label (j := 21) rfl] at hpc2
+    rw [hp.label NativeRustcVmX64.Vm.FormTerms.label_1_at] at hpc2
     refine Eventually.mono (leaf_retS (infix_of b2_in_code (by simp [b2]) hp) run_b2
       (after_eq run_b2 ▸ ok_b2).1 (after_eq run_b2 ▸ ok_b2).2.1 hst hpc2 hs1 hrsp1
       (fun _ _ ↦ by rw [hd1])
@@ -121,7 +123,7 @@ theorem formTerms_spec (hp : Placed code k) :
       show (reg m .rdi).toNat = 592 % 2 ^ 64
       have : ¬ (reg m .rdi).toNat < 592 % 2 ^ 64 := h
       omega)
-    rw [show b0.length = 3 from rfl] at hpc2
+    rw [NativeRustcVmX64.Vm.FormTerms.b0_length] at hpc2
     refine exec_at (infix_of ((infix_take b1 1).trans b1_in_code (by simp [b1])) (by simp [b1]) hp)
       (exec_after run_b0 run_b1a) hwf nofun hpc2 hm1 fun st2 hm2 hpc3 ↦ ?_
     obtain ⟨hk2, hmem2, hsp2, hdi2⟩ := after_eq run_b1a ▸ ok_b1a
@@ -200,7 +202,7 @@ theorem formTerms_spec (hp : Placed code k) :
       rw [hst0, off]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_ofNat, hsn, termBytes]
-      rw [show (rodataAddr .terms) = (Labels.label termsLabel).toBitVec from rfl]
+      rw [show (rodataAddr .terms) = (Labels.label NativeRustcVmX64.Vm.Symbols.rodata14Label).toBitVec from rfl]
       simp only [show Width.W64.bits = 64 from rfl]
       omega
     refine ⟨h1, h2, ?_, ?_, ?_, fun q _ ↦ by rw [hdm], h4⟩

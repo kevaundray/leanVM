@@ -31,7 +31,7 @@ abbrev runF (s0 : TState) (level : Whir.Level) (b : BasisW) (w : WhirStateW)
 
 /-- **The epilogue** (`b3`): X0 the verdict of the run, the `TState` its state. -/
 theorem exit3 (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 119)) (hf : FFr m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b3Offset)) (hf : FFr m0 st.data)
     (hx0 : st.data.regs.X0 = okWord (runF s0 level b w rounds m0).isSome)
     (hn : NextAt st.data.dmem (tA m0) a (runF s0 level b w rounds m0)) :
     Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st := by
@@ -52,7 +52,7 @@ theorem exit3 (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0) {st : M
 
 /-- **A rejection** (`b2`): `0`, the epilogue. -/
 theorem exit2 (hp : Placed code k) (c : Ctx a s0 level ba b w rounds m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 117)) (hf : FFr m0 st.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FinalLevel.b2Offset)) (hf : FFr m0 st.data)
     (hr : runF s0 level b w rounds m0 = none) :
     Eventually (step1 Host.exe) (Goal a s0 level b w rounds m0) st := by
   have hwf := c.fwf hf

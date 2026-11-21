@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.TurnE
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
 
 /-! # `accumulate_side`: the padding row's contribution (x86-64) -/
 
@@ -25,8 +27,8 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
   {Fm : Array (Array FormW)} {SL : BusLayoutW} {m0 : MachineData} {k : Nat}
 
  theorem turnF (hp : Placed code k) (h : Pre L rows bl Fm SL m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmX64.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
     {j : Nat} (hj : j < bl.length) {m : MachineData}
     (hst : St m0 (outs m0) (VT L rows bl Fm SL m0 j) D23c 8 m)
     (hfb : FB m0 m.dmem (fmA L rows bl m0 j))
@@ -36,11 +38,11 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
     (cont : ∀ m2, St m0 (outs m0) (VT L rows bl Fm SL m0 j) D26c 8 m2 →
       FormsAt m2.dmem (reg m0 .rsi) (stA L rows bl Fm SL m0 (j + 1)).1 →
       ewRet m2 = tsel SL (ptA m0) j * pwA L rows bl m0 j * (evA L rows bl m0 j + 1) →
-      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + 269)⟩) :
-    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + 250)⟩ := by
+      Eventually (step1 Host.exe) R ⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b27Offset)⟩) :
+    Eventually (step1 Host.exe) R ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b24Offset)⟩ := by
   let V := VT L rows bl Fm SL m0 j
   obtain ⟨hmid1, hw1, htr1⟩ := ok_b24
-  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + 250 + b24.length)).toBitVec)
+  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b24Offset + b24.length)).toBitVec)
     rfl (infix_of b24_in_code (by simp [b24]) hp) exit_b24 (fun _ _ ↦ rfl) hst.fr hst.same
     ((hst.hd.append (holds_reg (V := V) (i := 48) (ewRet_c0 hret)
       (holds_reg (i := 49) (ewRet_c1 hret) (holds_nil _ _ _)))).reg0 (by decide) rfl) (by decide)
@@ -60,9 +62,9 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
   have hso2 := same_call (m0 := m0) hq2.2.2.1
   have hfb2 := call_fb h hs1 le_mul (by decide) (fun _ h ↦ h.elim) hso2 (KeepF.fbuf hk1 hfb)
   have hG2 := call_forms h hs1 le_mul (by decide) hso2 (KeepF.forms h hk1 hG)
-  show Eventually _ _ (⟨m2, Host.addrOf (k + 255)⟩ : MachineState)
+  show Eventually _ _ (⟨m2, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b25Offset)⟩ : MachineState)
   obtain ⟨hmid3, hw3, htr3⟩ := ok_b25
-  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + 255 + b25.length)).toBitVec)
+  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b25Offset + b25.length)).toBitVec)
     rfl (infix_of b25_in_code (by simp [b25]) hp) exit_b25 (fun _ _ ↦ rfl) hst2.fr hst2.same
     ((hst2.hd.append (holds_reg (V := V) (i := 50) (ewRet_c0 hret2)
       (holds_reg (i := 51) (ewRet_c1 hret2) (holds_nil _ _ _)))).reg0 (by decide) rfl) (by decide)
@@ -98,9 +100,9 @@ variable [Host] {L : LayoutW} {rows : Array Nat} {bl : List NativeRustcVm.Data.B
     fun m4 hst4 hq4 ↦ ?_
   have hr4 : ewRet m4 = evA L rows bl m0 j := hq4.1.trans (congrArg _ hpad.2)
   have hG4 := call_forms h hs3 le_ev (by decide) (changes_call hq4.2.1) hG3
-  show Eventually _ _ (⟨m4, Host.addrOf (k + 263)⟩ : MachineState)
+  show Eventually _ _ (⟨m4, Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b26Offset)⟩ : MachineState)
   obtain ⟨hmid5, hw5, htr5, hdx5⟩ := ok_b26
-  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + 263 + b26.length)).toBitVec)
+  refine St.run h (rest := []) (vs := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.AccumulateSide.b26Offset + b26.length)).toBitVec)
     rfl (infix_of b26_in_code (by simp [b26]) hp) exit_b26 (fun _ _ ↦ rfl) hst4.fr hst4.same
     ((hst4.hd.append (holds_reg (V := V) (i := 53) (ewRet_c1 hr4) (holds_nil _ _ _))).reg0
       (by decide) rfl) (by decide) (wf0 h hst4.fr.kept)

@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldCopy
 public import NativeRustcVmArm.KeccakGkr.KeccakOpen.FoldInner
 
@@ -126,18 +128,18 @@ theorem zeroBlock (hp : Placed code k) (ok : Ok c.a m0) {ks ks' : List (XReg × 
 
 /-- **A row's head**: the two copies and the counter zeroed, the inner loop's start. -/
 theorem rowHead (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     {rows : Array (Array EW)} {t i : Nat} (ht : t < 6) (hi : i < half t)
     {vars : Nat → BitVec 64} (hv0 : vars 0 = (c.sl.getD t 0).c0.toBitVec)
     (hv1 : vars 1 = (c.sl.getD t 0).c1.toBitVec) {ks : List (XReg × Sym)}
     {ksA ksA' : List (XReg × Sym)} (hsA : subK ksA ks = true) (hwA : wfK ksA = true)
     {bA : List Directive} {kA : Nat} (hinA : bA.IsInfixAt code kA) (hneA : bA ≠ [])
-    {SA : SState} (hxA : exec bA (pS ksA) = some (SA, .call "memcpy")) {vA : Sym}
+    {SA : SState} (hxA : exec bA (pS ksA) = some (SA, .call NativeRustcVmArm.Vm.Memcpy.entryLabel)) {vA : Sym}
     (hokA : CopyOk t ksA' 80 vA SA = true)
     (hvA : vA.eval (Env.ofMachine m0 (envR m0) vars) = rwA m0 + BitVec.ofNat 64 (1024 * (2 * i)))
     {ksB ksB' : List (XReg × Sym)} (hsB : subK ksB ksA' = true) (hwB : wfK ksB = true)
     {bB : List Directive} {kB : Nat} (hkB : kA + bA.length = kB) (hinB : bB.IsInfixAt code kB)
-    (hneB : bB ≠ []) {SB : SState} (hxB : exec bB (pS ksB) = some (SB, .call "memcpy"))
+    (hneB : bB ≠ []) {SB : SState} (hxB : exec bB (pS ksB) = some (SB, .call NativeRustcVmArm.Vm.Memcpy.entryLabel))
     {vB : Sym} (hokB : CopyOk t ksB' 1104 vB SB = true)
     (hvB : vB.eval (Env.ofMachine m0 (envR m0) vars) =
       rwA m0 + BitVec.ofNat 64 (1024 * (2 * i + 1)))
@@ -172,20 +174,20 @@ theorem rowHead (hp : Placed code k)
 
 /-- **A row of an unrolled round**. -/
 theorem rowD (hp : Placed code k)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost) (ok : Ok c.a m0)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (Labels.label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) (ok : Ok c.a m0)
     {rows : Array (Array EW)} (hsz : rows.size = 64)
     (hrow : ∀ r < 64, (rows.getD r #[]).size = 64) {t i : Nat} (ht : t < 6) (hi : i < half t)
     {vars : Nat → BitVec 64} (hv0 : vars 0 = (c.sl.getD t 0).c0.toBitVec)
     (hv1 : vars 1 = (c.sl.getD t 0).c1.toBitVec) {ks : List (XReg × Sym)}
     {ksA ksA' : List (XReg × Sym)} (hsA : subK ksA ks = true) (hwA : wfK ksA = true)
     {bA : List Directive} {kA : Nat} (hinA : bA.IsInfixAt code kA) (hneA : bA ≠ [])
-    {SA : SState} (hxA : exec bA (pS ksA) = some (SA, .call "memcpy")) {vA : Sym}
+    {SA : SState} (hxA : exec bA (pS ksA) = some (SA, .call NativeRustcVmArm.Vm.Memcpy.entryLabel)) {vA : Sym}
     (hokA : CopyOk t ksA' 80 vA SA = true)
     (hvA : vA.eval (Env.ofMachine m0 (envR m0) vars) = rwA m0 + BitVec.ofNat 64 (1024 * (2 * i)))
     {ksB ksB' : List (XReg × Sym)} (hsB : subK ksB ksA' = true) (hwB : wfK ksB = true)
     {bB : List Directive} {kB : Nat} (hkB : kA + bA.length = kB) (hinB : bB.IsInfixAt code kB)
-    (hneB : bB ≠ []) {SB : SState} (hxB : exec bB (pS ksB) = some (SB, .call "memcpy"))
+    (hneB : bB ≠ []) {SB : SState} (hxB : exec bB (pS ksB) = some (SB, .call NativeRustcVmArm.Vm.Memcpy.entryLabel))
     {vB : Sym} (hokB : CopyOk t ksB' 1104 vB SB = true)
     (hvB : vB.eval (Env.ofMachine m0 (envR m0) vars) =
       rwA m0 + BitVec.ofNat 64 (1024 * (2 * i + 1)))
@@ -198,7 +200,7 @@ theorem rowD (hp : Placed code k)
     (hB : inK B B0 kI = true) (h22 : inK .X22 V0 kI = true) (h23 : inK .X23 V1 kI = true)
     (hD : inK D P kI = true)
     {bL : List Directive} {kL : Nat} (hkL : kZ + bZ.length = kL) (hinL : bL.IsInfixAt code kL)
-    (hneL : bL ≠ []) {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call ewMulLabel))
+    (hneL : bL ≠ []) {SL : SState} (hxL : exec bL (loS A B CT) = some (SL, .call NativeRustcVmArm.Vm.EWMul.entryLabel))
     (hshL : LSh .X22 .X23 .X19 .X20 (loS A B CT) SL = true)
     (hLx : SL.reg .X21 = some (.bin .add .W64 (.reg D) (.reg CT)))
     (hLct : SL.reg CT = some (.bin .add .W64 (.reg CT) (.lit 16)))

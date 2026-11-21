@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+
 public import NativeRustcX64.SphincsVerify.Parse.WordsA
 
 /-!
@@ -49,7 +52,7 @@ variable (r : Run) [Host]
 theorem memcpy_block (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {ds : List Directive}
     {jd jn : Nat} (hb : ds.IsInfixAt code jd) (hjn : jd + ds.length = jn)
     {k : List (Reg64 × Sym)} {bd : List (Sym × Nat)} {S' : SState}
-    (hx : exec ds (fS k bd) = some (S', .call "memcpy")) (hfw : Run.frameWrites S' = true)
+    (hx : exec ds (fS k bd) = some (S', .call NativeRustcX64.Common.Memcpy.entryLabel)) (hfw : Run.frameWrites S' = true)
     (hrsp : S'.reg .rsp = some (.ptr 0 (-8))) {m : MachineData} (hF : r.Frame m)
     (hk : AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m (fun _ ↦ 0) (r.pc jn).toBitVec)) k)
     (hbd : AllOf (fun p ↦ (p.1.eval (r.env m (fun _ ↦ 0) (r.pc jn).toBitVec)).toNat < p.2) bd)
@@ -80,7 +83,7 @@ theorem memcpy_block (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {ds : 
 theorem memset_block (hp : Placed code r.k) (hpre : r.Pre) (hc : Callees) {ds : List Directive}
     {jd jn : Nat} (hb : ds.IsInfixAt code jd) (hjn : jd + ds.length = jn)
     {k : List (Reg64 × Sym)} {S' : SState}
-    (hx : exec ds (fS k) = some (S', .call "memset")) (hfw : Run.frameWrites S' = true)
+    (hx : exec ds (fS k) = some (S', .call NativeRustcX64.Common.Memset.entryLabel)) (hfw : Run.frameWrites S' = true)
     (hrsp : S'.reg .rsp = some (.ptr 0 (-8))) {m : MachineData} (hF : r.Frame m)
     (hk : AllOf (fun p ↦ m.regs.get64 p.1 = p.2.eval (r.env m (fun _ ↦ 0) (r.pc jn).toBitVec)) k)
     {a n : Nat} (ha : a + n ≤ 29336) {R : MachineState → Prop}

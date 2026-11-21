@@ -116,9 +116,9 @@ variable [NativeArm.Host] {ws : Array EW} {m0 : MachineData} {k : Nat}
 
 /-- **One element of the copy loop**. -/
 theorem copy_step (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 30)) (hI : Copy m0 ws l z s.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + 30) ∧ Copy m0 ws l (z + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 39) ∧ AfterLane m0 ws l s'.data)) s := by
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b5Offset)) (hI : Copy m0 ws l z s.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b5Offset) ∧ Copy m0 ws l (z + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.LinearTranspose.b6Offset) ∧ AfterLane m0 ws l s'.data)) s := by
   have hS := hpre.1
   have hA := pre_areas hpre
   have hl := hI.regs.lt
@@ -205,7 +205,7 @@ theorem copy_step (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : 
   by_cases hlast : z = 63
   · have hc : (env.regs .X10 == 1#64) = true := by
       rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; rw [hx10]; simp; omega
-    simp only [hc, Bool.not_true, Bool.false_eq_true, ite_false, show b5.length = 9 from rfl] at hpc'
+    simp only [hc, Bool.not_true, Bool.false_eq_true, ite_false, NativeRustcVmArm.Vm.LinearTranspose.b5_length, NativeRustcVmArm.Vm.LinearTranspose.b5Length] at hpc'
     refine .done _ (Or.inr ⟨hpc', hregs, ?_⟩)
     rw [show 64 * l + 64 = n + 1 by omega]
     exact hg
@@ -213,7 +213,7 @@ theorem copy_step (hp : Placed code k) (hpre : LinearTransposePre ws m0) {l z : 
       rw [beq_eq_false_iff_ne]; intro h; have := congrArg BitVec.toNat h; rw [hx10] at this
       simp at this; omega
     simp only [hc, Bool.not_false, ite_true] at hpc'
-    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := 30) rfl), hregs, by omega, ?_, ?_, ?_, ?_, ?_⟩)
+    refine .done _ (Or.inl ⟨hpc'.trans (hp.label (j := NativeRustcVmArm.Vm.LinearTranspose.b5Offset) NativeRustcVmArm.Vm.LinearTranspose.label_4_at), hregs, by omega, ?_, ?_, ?_, ?_, ?_⟩)
     · show (s'.data.regs.getXReg .X8).toBitVec.toNat = _
       rw [h8, toNat_add_ofNat' (by rw [hx8]; omega), hx8]; omega
     · show (s'.data.regs.getXReg .X9).toBitVec = _

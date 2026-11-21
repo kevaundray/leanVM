@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW230Extend.Names
 public import NativeRustcVmArm.Arrays.BufEW
 public import NativeRustcVmArm.Code.Vm.BufEW230Extend
 public meta import NativeRustcVmArm.Code.Vm.BufEW230Extend
@@ -29,20 +30,22 @@ variable [NativeArm.Host] {k : Nat}
 
 /-- **`Buf<EW, 230>::extend` meets its contract.** -/
 public theorem bufEW230Extend_spec (hp : Placed code k) :
-    Spec (Labels.label bufEW230ExtendLabel) (BufEWExtendPre 230) (BufEWExtendPost 230) :=
-  spec_of (k2 := k + 12) (k3 := k + 16) (k4 := k + 24) (k5 := k + 27)
+    Spec (Labels.label NativeRustcVmArm.Vm.BufEW230Extend.entryLabel) (BufEWExtendPre 230) (BufEWExtendPost 230) :=
+  spec_of (k2 := k + NativeRustcVmArm.Vm.BufEW230Extend.b2Offset) (k3 := k + NativeRustcVmArm.Vm.BufEW230Extend.b3Offset) (k4 := k + NativeRustcVmArm.Vm.BufEW230Extend.b4Offset) (k5 := k + NativeRustcVmArm.Vm.BufEW230Extend.b5Offset)
     { hb0 := b0_in_code.trans hp.1 (by simp [b0])
       hb1 := b1_in_code.trans hp.1 (by simp [b1])
       hb2 := b2_in_code.trans hp.1 (by simp [b2])
       hb3 := b3_in_code.trans hp.1 (by simp [b3])
       hb4 := b4_in_code.trans hp.1 (by simp [b4])
       hb5 := b5_in_code.trans hp.1 (by simp [b5])
-      e2 := rfl
-      e3 := rfl
-      e4 := rfl
-      hl2 := hp.label (j := 12) rfl
-      hl4 := hp.label (j := 24) rfl
-      hl5 := hp.label (j := 27) rfl
+      e2 := by
+        rw [← b1_next, ← b0_next]
+        simp only [b0Offset, Nat.zero_add, Nat.add_assoc]
+      e3 := by rw [Nat.add_assoc, b2_next]
+      e4 := by rw [Nat.add_assoc, b3_next]
+      hl2 := hp.label (j := NativeRustcVmArm.Vm.BufEW230Extend.b2Offset) NativeRustcVmArm.Vm.BufEW230Extend.label_2_at
+      hl4 := hp.label (j := NativeRustcVmArm.Vm.BufEW230Extend.b4Offset) NativeRustcVmArm.Vm.BufEW230Extend.label_4_at
+      hl5 := hp.label (j := NativeRustcVmArm.Vm.BufEW230Extend.b5Offset) NativeRustcVmArm.Vm.BufEW230Extend.label_5_at
       x0 := run_b0
       x1 := exec_after run_b0 run_b1
       x2 := run_b2
@@ -55,6 +58,6 @@ public theorem bufEW230Extend_spec (hp : Placed code k) :
       f3 := by decide +kernel
       f4 := by decide +kernel
       f5 := by decide +kernel }
-    (hp.label (j := 0) rfl)
+    (hp.label (j := NativeRustcVmArm.Vm.BufEW230Extend.entryOffset) NativeRustcVmArm.Vm.BufEW230Extend.entry_at)
 
 end NativeRustcVmArm.Arrays.BufEW230Extend

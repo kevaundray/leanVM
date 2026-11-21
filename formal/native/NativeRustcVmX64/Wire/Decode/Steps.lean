@@ -358,7 +358,7 @@ theorem cblk (hp : Placed code k) (G : Geo m0) {bj : List Directive} {j : Nat} {
 
 /-- **The way out with `None`**: `b14`, then the epilogue. -/
 theorem none_run (hp : Placed code k) (G : Geo m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 75)) (hbod : Bod m0 8 st.data) (hn : decodeM (Bs m0) = none) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Decode.b14Offset)) (hbod : Bod m0 8 st.data) (hn : decodeM (Bs m0) = none) :
     Eventually (step1 Host.exe) (Post m0) st := by
   refine fblk hp G b14_in_code (by simp [b14]) exit_b14 nofun ok_b14.1
     (ok_b14.2.2 .rbx (by simp)) (ok_b14.2.2 .r15 (by simp)) hpc hbod fun st1 hb1 _ hm1 hpc1 ↦ ?_

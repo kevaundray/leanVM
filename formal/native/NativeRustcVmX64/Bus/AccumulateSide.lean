@@ -1,6 +1,14 @@
 module
 
 public import NativeRustcVmX64.Bus.AccumulateSide.Exit
+public import NativeRustcVmX64.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmX64.Code.Vm.BlockForm.Names
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqEvalFnOfEqAbove.Names
+public import NativeRustcVmX64.Code.Vm.Evaluate.Names
+public import NativeRustcVmX64.Code.Vm.FormBufAddScaled.Names
+public import NativeRustcVmX64.Code.Vm.Memcpy.Names
+public import NativeRustcVmX64.Code.Vm.PaddingWeight.Names
 
 /-! # `accumulate_side`: entry-to-return contract (x86-64)
 
@@ -18,14 +26,14 @@ public section
 variable [Host] {k : Nat}
 
  theorem accumulateSide_spec (hp : Placed code k)
-    (hee : Spec (Labels.label eqEvalFnOfEqAboveLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
-    (hmc : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hbf : Spec (Labels.label blockFormLabel) BlockFormPre BlockFormPost)
-    (has : ∀ f g, Spec (Labels.label formBufAddScaledLabel) (FormBufAddScaledPre f g) (FormBufAddScaledPost f g))
-    (hpw : Spec (Labels.label paddingWeightLabel) PaddingWeightPre PaddingWeightPost)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f)) :
-    ∀ L rows bl Fm SL, Spec (Labels.label accumulateSideLabel)
+    (hee : Spec (Labels.label NativeRustcVmX64.Vm.EqEvalFnOfEqAbove.entryLabel) EqEvalFnOfEqAbovePre EqEvalFnOfEqAbovePost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmc : Spec (Labels.label NativeRustcVmX64.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hbf : Spec (Labels.label NativeRustcVmX64.Vm.BlockForm.entryLabel) BlockFormPre BlockFormPost)
+    (has : ∀ f g, Spec (Labels.label NativeRustcVmX64.Vm.FormBufAddScaled.entryLabel) (FormBufAddScaledPre f g) (FormBufAddScaledPost f g))
+    (hpw : Spec (Labels.label NativeRustcVmX64.Vm.PaddingWeight.entryLabel) PaddingWeightPre PaddingWeightPost)
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmX64.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f)) :
+    ∀ L rows bl Fm SL, Spec (Labels.label NativeRustcVmX64.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl Fm SL) (AccumulateSidePost L rows bl Fm SL) := by
   intro L rows bl Fm SL m0 hpre
   have h := pre_of hpre

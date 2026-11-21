@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.MultilinearEvalByOfComputedBytecodeValue.Names
 public import NativeRustcVmArm.Arrays.MultilinearEvalByOfComputedBytecodeValue.Exec
 public import NativeRustcVmArm.Arrays.MultilinearEvalBy.Frame
 
@@ -101,66 +102,66 @@ structure Inner (m0 : MachineData) (i kk : Nat) (s : MachineData) : Prop where
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0Offset) :=
   b0_in_code.trans hp.1 (by simp [b0])
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 11) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 119) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 120) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 125) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 129) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 134) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 141) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 144) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 150) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b10Offset) :=
   b10_in_code.trans hp.1 (by simp [b10])
-theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + 157) :=
+theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b11Offset) :=
   b11_in_code.trans hp.1 (by simp [b11])
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 162) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b12Offset) :=
   b12_in_code.trans hp.1 (by simp [b12])
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 163) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13Offset) :=
   b13_in_code.trans hp.1 (by simp [b13])
-theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + 172) :=
+theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b14Offset) :=
   b14_in_code.trans hp.1 (by simp [b14])
-theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + 173) :=
+theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15Offset) :=
   b15_in_code.trans hp.1 (by simp [b15])
-theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + 175) :=
+theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b16Offset) :=
   b16_in_code.trans hp.1 (by simp [b16])
-theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + 178) :=
+theorem hb17 (hp : Placed code k) : b17.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17Offset) :=
   b17_in_code.trans hp.1 (by simp [b17])
-theorem hb18 (hp : Placed code k) : b18.IsInfixAt Host.prog (k + 181) :=
+theorem hb18 (hp : Placed code k) : b18.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18Offset) :=
   b18_in_code.trans hp.1 (by simp [b18])
 
 theorem lbl_entry (hp : Placed code k) :
-    Labels.label mleOfComputedBytecodeValueLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.entryOffset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.entry_at
 theorem lbl_4 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfComputedBytecodeValue_4" = Host.addrOf (k + 125) :=
-  hp.label (j := 125) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_4 = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b4Offset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_4_at
 theorem lbl_7 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfComputedBytecodeValue_7" = Host.addrOf (k + 134) :=
-  hp.label (j := 134) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b7Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b7Offset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_7_at
 theorem lbl_8 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfComputedBytecodeValue_8" = Host.addrOf (k + 141) :=
-  hp.label (j := 141) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_8 = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b8Offset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_8_at
 theorem lbl_10 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfComputedBytecodeValue_10" = Host.addrOf (k + 163) :=
-  hp.label (j := 163) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_10 = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b13Offset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_10_at
 theorem lbl_11 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfComputedBytecodeValue_11" = Host.addrOf (k + 173) :=
-  hp.label (j := 173) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_11 = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b15Offset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_11_at
 theorem lbl_13 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfComputedBytecodeValue_13" = Host.addrOf (k + 178) :=
-  hp.label (j := 178) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_13 = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b17Offset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_13_at
 theorem lbl_14 (hp : Placed code k) :
-    Labels.label ".LMultilinearEvalByOfComputedBytecodeValue_14" = Host.addrOf (k + 181) :=
-  hp.label (j := 181) rfl
+    Labels.label NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_14 = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18Offset) NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.label_14_at
 
 /-- The postcondition, reached. -/
 abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
@@ -169,7 +170,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
 /-- **The epilogue** (`b18`): the value in X22, X23 returned. -/
 theorem finish (hp : Placed code k) {m0 : MachineData} (hS : StackOk m0 mleStack)
     {sl : List (Nat × XReg)} (hres : restores sl 1232 (after b18 frameS) = true)
-    (hx30 : XReg.X30 ∈ sl.map (·.2)) {s : MachineState} (hpc : s.pc = Host.addrOf (k + 181))
+    (hx30 : XReg.X30 ∈ sl.map (·.2)) {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.MultilinearEvalByOfComputedBytecodeValue.b18Offset))
     (hb : Body m0 1232 mleStack sl 0 0 s.data)
     (hv : (⟨s.data.regs.X22, s.data.regs.X23⟩ : EW) = target m0) :
     Eventually (step1 Host.exe) (Post m0) s := by

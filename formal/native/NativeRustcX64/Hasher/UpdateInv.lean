@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Common.Update.Names
+
 public import NativeRustcX64.Hasher.Bytes
 public import NativeRustcX64.Hasher.UpdateExec
 public import NativeRustcX64.KeccakF.Inv
@@ -271,34 +273,34 @@ theorem match_headS {m0 m : MachineData} [Labels] (hfr : Frame m0 m) {vs : Nat â
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b0Offset) :=
   b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 16) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b2Offset) :=
   b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 21) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b3Offset) :=
   b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 29) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b4Offset) :=
   b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 31) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b5Offset) :=
   b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 35) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b6Offset) :=
   b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 40) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b7Offset) :=
   b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 92) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b8Offset) :=
   b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 95) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcX64.Common.Update.b9Offset) :=
   b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
 
 theorem lbl_entry (hp : Placed code k) :
-    Labels.label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher6update" = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_5 (hp : Placed code k) : Labels.label ".LUpdate_5" = Host.addrOf (k + 16) :=
-  hp.label (j := 16) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LUpdate_1" = Host.addrOf (k + 21) :=
-  hp.label (j := 21) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LUpdate_6" = Host.addrOf (k + 95) :=
-  hp.label (j := 95) rfl
+    Labels.label NativeRustcX64.Common.Update.entryLabel = Host.addrOf (k + NativeRustcX64.Common.Update.b0Offset) :=
+  hp.label NativeRustcX64.Common.Update.entry_at
+theorem lbl_5 (hp : Placed code k) : Labels.label NativeRustcX64.Common.Update.label_5 = Host.addrOf (k + NativeRustcX64.Common.Update.b2Offset) :=
+  hp.label NativeRustcX64.Common.Update.label_5_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcX64.Common.Update.label_1 = Host.addrOf (k + NativeRustcX64.Common.Update.b3Offset) :=
+  hp.label NativeRustcX64.Common.Update.label_1_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcX64.Common.Update.label_6 = Host.addrOf (k + NativeRustcX64.Common.Update.b9Offset) :=
+  hp.label NativeRustcX64.Common.Update.label_6_at
 
 end
 

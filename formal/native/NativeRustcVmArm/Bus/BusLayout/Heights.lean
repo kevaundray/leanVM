@@ -44,9 +44,9 @@ variable [Host] {k : Nat}
 /-- **A turn of the heights' loop**: block `i`'s height stored; out after the last block. -/
 theorem loop_step (hp : Placed code k) {L : LayoutW} {bl : List NativeRustcVm.Data.Block}
     {m0 : MachineData} (hpre : BusLayoutPre L bl m0) {i : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 41)) (hI : LInv L bl m0 i st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b7Offset)) (hI : LInv L bl m0 i st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ Done L bl m0 k st' ∨
-      (st'.pc = Host.addrOf (k + 41) ∧ LInv L bl m0 (i + 1) st'.data)) st := by
+      (st'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.BusLayout.b7Offset) ∧ LInv L bl m0 (i + 1) st'.data)) st := by
   have hpre' := hpre
   obtain ⟨hS, hnf, -, -, -, hbl, -, hown, -, hBok, -, hLok, -, -, -, -⟩ := hpre
   have hN : busLayoutStack ≤ m0.regs.SP.toNat := hS.2.1

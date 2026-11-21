@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcX64.Code.Common.Finalize.Names
+public import NativeRustcX64.Code.Common.KeccakF.Names
+public import NativeRustcX64.Code.Common.Memcpy.Names
+public import NativeRustcX64.Code.Common.Memset.Names
+
 public import NativeRustcX64.Hasher.FinalizeC
 
 /-!
@@ -30,10 +35,10 @@ variable [Host] {k : Nat}
 set_option linter.unusedSimpArgs false in
 /-- **`Hasher::finalize` meets its contract.** -/
 theorem finalize_spec (hp : Placed code k)
-    (hmemcpy : Spec (Labels.label "memcpy") MemcpyPre MemcpyPost)
-    (hmemset : Spec (Labels.label "memset") MemsetPre MemsetPost)
-    (hkf : Spec (Labels.label "_RNvCsndc0WgnAaH_9keccak2568keccak_f") KeccakFPre KeccakFPost) :
-    Spec (Labels.label "_RNvMCsndc0WgnAaH_9keccak256NtB2_6Hasher8finalize") FinalizePre
+    (hmemcpy : Spec (Labels.label NativeRustcX64.Common.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hmemset : Spec (Labels.label NativeRustcX64.Common.Memset.entryLabel) MemsetPre MemsetPost)
+    (hkf : Spec (Labels.label NativeRustcX64.Common.KeccakF.entryLabel) KeccakFPre KeccakFPost) :
+    Spec (Labels.label NativeRustcX64.Common.Finalize.entryLabel) FinalizePre
       FinalizePost := by
   intro m0 hpre
   have g := geo_of hpre

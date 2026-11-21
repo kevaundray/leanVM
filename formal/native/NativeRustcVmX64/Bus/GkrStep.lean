@@ -2,6 +2,16 @@ module
 
 public import NativeRustcVmX64.Bus.GkrStep.Sc
 public import NativeRustcVmX64.Bus.GkrStep.Cp
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.GkrStep.Names
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.ProdE.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.SumcheckOfGkrStep.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
+public import NativeRustcVmX64.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmX64.Code.Vm.TStateSampleChallenges.Names
 
 /-!
 # `gkr_step` on x86-64
@@ -24,22 +34,22 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {k : Nat}
 
 /-- **`gkr_step` meets its contract**, given its callees'. -/
 theorem gkrStep_spec (hp : Placed code k)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hsc : ∀ s pt n, Spec (Labels.label sumcheckGkrLabel) (SumcheckGkrPre a s pt n)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpe : Spec (Labels.label NativeRustcVmX64.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hsc : ∀ s pt n, Spec (Labels.label NativeRustcVmX64.Vm.SumcheckOfGkrStep.entryLabel) (SumcheckGkrPre a s pt n)
       (SumcheckGkrPost a s pt n))
-    (hrs : ∀ s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hpr : Spec (Labels.label prodELabel) ProdEPre ProdEPost)
-    (hsm : ∀ s, Spec (Labels.label sampleChallengesLabel) (SampleChallengesPre a s)
+    (hrs : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hpr : Spec (Labels.label NativeRustcVmX64.Vm.ProdE.entryLabel) ProdEPre ProdEPost)
+    (hsm : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateSampleChallenges.entryLabel) (SampleChallengesPre a s)
       (SampleChallengesPost a s))
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost) :
-    Spec (Labels.label gkrStepLabel) (GkrStepPre a s0 g0) (GkrStepPost a s0 g0) := by
+    Spec (Labels.label NativeRustcVmX64.Vm.GkrStep.entryLabel) (GkrStepPre a s0 g0) (GkrStepPost a s0 g0) := by
   intro m0 h
-  unfold gkrStepLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.GkrStep.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.GkrStep.entry_at]
   exact pre_spec hp h hbl hgr hsq hpe fun _ at5 ↦ sc_spec hp h hsc
     (fun _ _ _ _ _ at9 ↦ ch_spec hp h hrs
       (fun _ _ _ _ _ _ _ _ atp ↦ pr_spec hp h hpr hpe

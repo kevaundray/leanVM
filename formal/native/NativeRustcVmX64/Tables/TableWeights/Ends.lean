@@ -25,8 +25,8 @@ variable [Host] {k : Nat}
 
 /-- **The entry**: into the loop, or straight to the exit for an empty point. -/
 theorem entry_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsPre m0) :
-    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + 123) ∧ It m0 0 st'.data) ∨
-      (st'.pc = Host.addrOf (k + 151) ∧ Fin m0 st'.data)) ⟨m0, Host.addrOf (k + 0)⟩ := by
+    Eventually (step1 Host.exe) (fun st' ↦ (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b10Offset) ∧ It m0 0 st'.data) ∨
+      (st'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b13Offset) ∧ Fin m0 st'.data)) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.TableWeights.b0Offset)⟩ := by
   obtain ⟨hS, -, -, ⟨hHr, hHo, -⟩, -, -⟩ := hpre
   have hwf := frame_wf (m := m0) (vars := fun _ ↦ 0) (ret := 0) (stackOk_mono hS h256)
     fun _ h ↦ h
@@ -45,7 +45,7 @@ theorem entry_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsP
   have hr8 : reg st1.data .r8 = reg m0 .r8 := gr _ _ (hreg0 (.r8, .reg .r8) (by simp))
   have hr9 : reg st1.data .r9 = reg m0 .r9 := gr _ _ (hreg0 (.r9, .reg .r9) (by simp))
   have hrsi : reg st1.data .rsi = reg m0 .rsi := gr _ _ (hreg0 (.rsi, .reg .rsi) (by simp))
-  simp only [PcOk, show b0.length = 13 from rfl] at hpc1
+  simp only [PcOk, NativeRustcVmX64.Vm.TableWeights.b0_length] at hpc1
   rw [eval_test, eval_reg, Env.ofMachine_regs] at hpc1
   obtain ⟨hT, hF⟩ := pc_cond hpc1
   by_cases hz : reg m0 .r9 = BitVec.ofNat 64 0
@@ -55,7 +55,7 @@ theorem entry_step (hp : Placed code k) {m0 : MachineData} (hpre : TableWeightsP
     have hm2 := hb1.mid_match (vars := fun _ ↦ 0) (ret := 0)
     obtain ⟨hregs, hw, hwr, hkw, hkr⟩ := after_eq run_b12 ▸ b12_ok
     refine exec_at (hb12 hp) run_b12 hwf2 (fun _ h ↦ by cases h) hpc2 hm2 fun st2 hm3 hpc3 ↦ ?_
-    simp only [PcOk, show b12.length = 14 from rfl] at hpc3
+    simp only [PcOk, NativeRustcVmX64.Vm.TableWeights.b12_length] at hpc3
     have hn0 : n m0 = 0 := by unfold n; rw [hz]; rfl
     refine .done _ (Or.inr ⟨hpc3, Body.of_frame hb1 hS h256 hwf2 hm2 hm3 hkr hw (by omega)
       slots_ok', ?_, fun i hi ↦ ?_, ?_⟩)

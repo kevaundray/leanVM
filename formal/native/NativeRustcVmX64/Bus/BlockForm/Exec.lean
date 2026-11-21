@@ -2,6 +2,8 @@ module
 
 public import NativeRustcVmX64.Bus.Facts
 public import NativeRustcVmX64.Code.Vm.BlockForm
+public import NativeRustcVmX64.Code.Vm.BlockForm.Names
+public import NativeRustcVmX64.Code.Vm.Names
 public meta import NativeRustcVmX64.Code.Vm.BlockForm
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -13,7 +15,7 @@ span's end at `16`, the weights' count at `24`, a callee's return address at `0`
 address. `entryS` at the entry (`b0`: the prologue, the form at R9, region 1, the constant
 `side_beta`); `tupS` at `b1` (the span from `TUPLES`, region 1, at the tuple RDI); `midS` at the
 other blocks; `wS` at `b5` (the slot's weight, region 1, at R15 minus `8`). The loop head is `b8`
-(`.LBlockForm_4`).
+(`NativeRustcVmX64.Vm.BlockForm.label_4`).
 -/
 
 namespace NativeRustcVmX64.Bus.BlockForm
@@ -26,11 +28,9 @@ open NativeRustcVmX64.Transcript NativeRustcVmX64.Bus
 /-- The frame's slots. -/
 def slots : Slots := [(72, .rbp), (64, .r15), (56, .r14), (48, .r13), (40, .r12), (32, .rbx)]
 
-/-- `TUPLES`' label. -/
-def tuplesLabel : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.3"
 
 def entryS : SState := init [88, 5928] [(.rsp, .ptr 0 80), (.r9, .ptr 1 0)]
-def tupS : SState := init [88, 2352] [(.rsp, .ptr 0 8)] [(tuplesLabel, 1)] [(.reg .rdi, 147)]
+def tupS : SState := init [88, 2352] [(.rsp, .ptr 0 8)] [(NativeRustcVmX64.Vm.Symbols.rodata3Label, 1)] [(.reg .rdi, 147)]
 def midS : SState := init [88] [(.rsp, .ptr 0 8)]
 def wS : SState := init [88, 16] [(.rsp, .ptr 0 8), (.r15, .ptr 1 8)]
 
@@ -57,7 +57,7 @@ sym_block run_b10 := exec b10 midS
 sym_block run_b11 := exec b11 midS
 sym_block run_b12 := exec b12 midS
 
-public theorem exit_b0 : (exec b0 entryS).map (·.2) = some (.cond c0 ".LBlockForm_1") := by
+public theorem exit_b0 : (exec b0 entryS).map (·.2) = some (.cond c0 NativeRustcVmX64.Vm.BlockForm.label_1) := by
   rw [run_b0]; rfl
 
 public theorem ok_b0 : ProOk 80 8 slots (after b0 entryS) = true ∧
@@ -75,7 +75,7 @@ public theorem ok_b1 : MidOk 80 8 slots (after b1 tupS) = true ∧ (after b1 tup
     Keeps [.rbx, .r15] (after b1 tupS) := by
   decide +kernel
 
-public theorem exit_b1 : (exec b1 tupS).map (·.2) = some (.jump ".LBlockForm_3") := by
+public theorem exit_b1 : (exec b1 tupS).map (·.2) = some (.jump NativeRustcVmX64.Vm.BlockForm.label_3) := by
   rw [run_b1]; rfl
 
 public theorem ok_b3 : MidOk 80 8 slots (after b3 midS) = true ∧
@@ -88,7 +88,7 @@ public theorem ok_b3 : MidOk 80 8 slots (after b3 midS) = true ∧
     Keeps [.rbx, .rbp] (after b3 midS) := by
   decide +kernel
 
-public theorem exit_b3 : (exec b3 midS).map (·.2) = some (.jump ".LBlockForm_4") := by
+public theorem exit_b3 : (exec b3 midS).map (·.2) = some (.jump NativeRustcVmX64.Vm.BlockForm.label_4) := by
   rw [run_b3]; rfl
 
 public theorem ok_b8 : MidOk 80 8 slots (after b8 midS) = true ∧ (after b8 midS).mem = [] ∧
@@ -97,7 +97,7 @@ public theorem ok_b8 : MidOk 80 8 slots (after b8 midS) = true ∧ (after b8 mid
   decide +kernel
 
 public theorem exit_b8 : (exec b8 midS).map (·.2) =
-    some (.cond (.cmp .eq .W64 (.reg .r14) (.reg .r13)) ".LBlockForm_9") := by
+    some (.cond (.cmp .eq .W64 (.reg .r14) (.reg .r13)) NativeRustcVmX64.Vm.BlockForm.label_9) := by
   rw [run_b8]; rfl
 
 public theorem ok_b9 : MidOk 80 0 slots (after b9 midS) = true ∧
@@ -111,7 +111,7 @@ public theorem ok_b10 : MidOk 80 8 slots (after b10 midS) = true ∧ (after b10 
   decide +kernel
 
 public theorem exit_b10 : (exec b10 midS).map (·.2) =
-    some (.cond (.cmp .ult .W64 (.reg .r13) (.load 0 24 8)) ".LBlockForm_7") := by
+    some (.cond (.cmp .ult .W64 (.reg .r13) (.load 0 24 8)) NativeRustcVmX64.Vm.BlockForm.label_7) := by
   rw [run_b10]; rfl
 
 public theorem ok_b11 : MidOk 80 8 slots (after b11 midS) = true ∧ (after b11 midS).mem = [] ∧
@@ -119,7 +119,7 @@ public theorem ok_b11 : MidOk 80 8 slots (after b11 midS) = true ∧ (after b11 
     Keeps [.rax, .rdx, .rbx, .rbp, .r12, .r13, .r14, .r15] (after b11 midS) := by
   decide +kernel
 
-public theorem exit_b11 : (exec b11 midS).map (·.2) = some (.jump ".LBlockForm_8") := by
+public theorem exit_b11 : (exec b11 midS).map (·.2) = some (.jump NativeRustcVmX64.Vm.BlockForm.label_8) := by
   rw [run_b11]; rfl
 
 public theorem ok_b5 : MidOk 80 8 slots (after b5 wS) = true ∧ (after b5 wS).mem = [] ∧
@@ -144,7 +144,7 @@ public theorem ok_b7 : MidOk 80 8 slots (after b7 midS) = true ∧ (after b7 mid
   decide +kernel
 
 public theorem exit_b7 : (exec b7 midS).map (·.2) = some (.cond (.cmp .eq .W8
-    (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) ".LBlockForm_9") := by
+    (.bin .and .W8 (.reg .rax) (.reg .rax)) (.lit 0)) NativeRustcVmX64.Vm.BlockForm.label_9) := by
   rw [run_b7]; rfl
 
 public theorem ok_b12 : EpiOk 80 slots (after b12 midS) = true ∧ (after b12 midS).mem = [] ∧

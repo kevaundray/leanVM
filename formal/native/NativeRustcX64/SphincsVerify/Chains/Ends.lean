@@ -35,8 +35,8 @@ theorem seg_b116 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     (hcell : BytesAt m.dmem (r.off 184) e)
     (cont : ∀ m', r.Frame m' → KeepRest r l x (E ++ e) m' →
       Run.RegIs m' .rax (BitVec.ofNat 64 (i + 1)) → Run.RegIs m' .r12 (r.off 4096) →
-      Eventually (step1 Host.exe) R ⟨m', if i + 1 = 64 then r.pc 1893 else r.pc 1548⟩) :
-    Eventually (step1 Host.exe) R ⟨m, r.pc 1538⟩ := by
+      Eventually (step1 Host.exe) R ⟨m', if i + 1 = 64 then r.pc NativeRustcX64.Sphincs.SphincsVerify.b151Offset else r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset⟩) :
+    Eventually (step1 Host.exe) R ⟨m, r.pc NativeRustcX64.Sphincs.SphincsVerify.b116Offset⟩ := by
   obtain ⟨m0, w0⟩ := r.frame_mapped hpre hF.2.2.2 (a := 0) (n := 28280) (by decide)
   obtain ⟨m1, w1⟩ := r.frame_mapped hpre hF.2.2.2 (a := 28280 + 16 * i) (n := 16) (by omega)
   have hwf : (Env.ofMachine m [(r.off 0, 28280), (r.off (28280 + 16 * i), 16)]).WF :=
@@ -87,7 +87,7 @@ theorem seg_b116 (hp : Placed Sphincs.SphincsVerify.code r.k) (hpre : r.Pre) {l 
     unfold Run.RegIs reg
     rw [reg_same hm1 rfl]
     exact h12
-  refine pc_at (a := if i + 1 = 64 then r.pc 1893 else r.pc 1548) ?_
+  refine pc_at (a := if i + 1 = 64 then r.pc NativeRustcX64.Sphincs.SphincsVerify.b151Offset else r.pc NativeRustcX64.Sphincs.SphincsVerify.b117Offset) ?_
     (cont _ hF1 (hK1.extend hE') h0 h12')
   rw [pc_cond hpc, labelAt r hp b151_in_code rfl]
   have hl : (Env.ofMachine m [(r.off 0, 28280), (r.off (28280 + 16 * i), 16)]).load 0 80 8 =

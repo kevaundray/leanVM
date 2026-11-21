@@ -23,8 +23,8 @@ set_option linter.unusedSimpArgs false in
 theorem b7_spec (hp : Placed code k) {m0 m1 m : MachineData} (hpre : UpdatePre m0) {c : Nat}
     {Hc : List UInt8} (hab : Absorbed m0 m1 c Hc m) :
     Eventually (step1 Host.exe)
-      (fun st => st.pc = Host.addrOf (k + 13) ∧ Mid m0 m1 c (takeN m0 c Hc) st.data)
-      ⟨m, Host.addrOf (k + 81)⟩ := by
+      (fun st => st.pc = Host.addrOf (k + NativeRustcArm.Common.Update.b1Offset) ∧ Mid m0 m1 c (takeN m0 c Hc) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcArm.Common.Update.b7Offset)⟩ := by
   have g := geo_of hpre
   have hwf := wf_head hpre hab.frame
   have hm := match_headS hab.frame

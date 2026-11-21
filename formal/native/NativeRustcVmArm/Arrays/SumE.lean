@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SumE.Names
 public import NativeRustcVmArm.Arrays.SumE.Exec
 public import NativeRustcVm.Arrays.Folds
 
@@ -138,10 +139,10 @@ structure TInv (m0 : MachineData) (i : Nat) (s : MachineData) : Prop where
 
 /-- **The tail loop** `b10`, then the return `b11`. -/
 theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 75)) (hI : TInv m0 i s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumE.b10Offset)) (hI : TInv m0 i s.data) :
     Eventually (step1 Host.exe) (Post m0) s := by
   obtain ⟨h16, hrV⟩ := hpre
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 75) ∧ ∃ i, len m0 - i = n ∧ TInv m0 i s.data)
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumE.b10Offset) ∧ ∃ i, len m0 - i = n ∧ TInv m0 i s.data)
     (fun n s ⟨hpc, i, hn, hI⟩ ↦ ?_) ⟨hpc, i, rfl, hI⟩
   have hlt := hI.lt
   have hL : len m0 = m0.regs.X1.toNat := rfl
@@ -176,7 +177,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i : Na
   have hx10 : (s.data.regs.getXReg .X10).toNat = len m0 - i := hI.x10
   by_cases hM : i + 1 < len m0
   · refine .done _ (Or.inr ⟨len m0 - (i + 1), by omega, ?_, i + 1, rfl, hB, hM, ?_, ?_, hacc⟩)
-    · refine (hpc''.1 ?_).trans (hp.label (j := 75) rfl)
+    · refine (hpc''.1 ?_).trans (hp.label (j := NativeRustcVmArm.Vm.SumE.b10Offset) NativeRustcVmArm.Vm.SumE.label_10_at)
       show (!((s.data.regs.getXReg .X10).toBitVec == 1#64)) = true
       rw [Bool.not_eq_true', beq_eq_false_iff_ne]
       intro h
@@ -211,7 +212,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i : Na
 
 /-- **`.LSumE_9`** (`b9`): the tail from value `i`, then the return. -/
 theorem fromL9 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {i : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 71)) (hB : Base m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumE.b9Offset)) (hB : Base m0 s.data)
     (hlt : i < len m0) (hx10 : s.data.regs.X10.toNat = i)
     (hacc : (⟨s.data.regs.X9, s.data.regs.X8⟩ : EW) = acc m0 i) :
     Eventually (step1 Host.exe) (Post m0) s := by
@@ -262,7 +263,7 @@ structure UInv (m0 : MachineData) (t : Nat) (s : MachineData) : Prop where
 
 /-- **`.LSumE_8`** (`b8`): the lanes combined, then the return or the tail. -/
 theorem fromL8 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 62)) (hI : UInv m0 t s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumE.b8Offset)) (hI : UInv m0 t s.data)
     (hx : s.data.regs.X10.toNat = 4 * t) :
     Eventually (step1 Host.exe) (Post m0) s := by
   refine exec_at (hb hp b8_in_code (by simp [b8])) run_b8 (Env.wf_nil _) hpc (match_nil _)
@@ -297,7 +298,7 @@ theorem fromL8 (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) {t : 
   have h10 : (s.data.regs.getXReg .X10).toBitVec.toNat = 4 * t := hx
   by_cases hE : len m0 = 4 * t
   · refine ret_of (hb hp b11_in_code (by simp [b11])) run_b11 rfl rfl
-      (after_eq run_b11 ▸ b11_keeps) ((hpc''.1 ?_).trans (hp.label (j := 82) rfl)) hB' ?_
+      (after_eq run_b11 ▸ b11_keeps) ((hpc''.1 ?_).trans (hp.label (j := NativeRustcVmArm.Vm.SumE.b11Offset) NativeRustcVmArm.Vm.SumE.label_11_at)) hB' ?_
     · show ((s.data.regs.getXReg .X1).toBitVec == (s.data.regs.getXReg .X10).toBitVec) = true
       rw [beq_iff_eq]
       apply BitVec.eq_of_toNat_eq
@@ -436,11 +437,11 @@ theorem and28 : ∀ n, n ≤ 16 → n &&& 28 = 4 * (n / 4) := by decide
 
 /-- **The first unrolled block** `b4`: four values loaded into the accumulators. -/
 theorem first (hp : Placed code k) {m0 : MachineData} (hpre : SumEPre m0) (h4 : 4 ≤ len m0)
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 14)) (hB : Base m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SumE.b4Offset)) (hB : Base m0 s.data)
     {R : MachineState → Prop}
     (cont : ∀ s', PcOk (Env.ofMachine s.data [(addr m0 + BitVec.ofNat 64 0, 64)])
-      (.cond (.cmp .eq .W64 (.bin .and .W64 (.reg .X1) (.lit 28)) (.lit 4)) ".LSumE_8")
-      (Host.addrOf (k + 14 + 8)) s' → UInv m0 1 s'.data → Eventually (step1 Host.exe) R s') :
+      (.cond (.cmp .eq .W64 (.bin .and .W64 (.reg .X1) (.lit 28)) (.lit 4)) NativeRustcVmArm.Vm.SumE.label_8)
+      (Host.addrOf (k + NativeRustcVmArm.Vm.SumE.b4Offset + 8)) s' → UInv m0 1 s'.data → Eventually (step1 Host.exe) R s') :
     Eventually (step1 Host.exe) R s := by
   have hrV := hpre.2
   have h16 : m0.regs.X1.toNat ≤ 16 := hpre.1
@@ -509,9 +510,9 @@ theorem x10_eq {m0 s : MachineData} (h : s.regs.X10.toNat = 4 * (len m0 / 4)) (c
 
 /-- **`sum_e` meets its contract.** -/
 theorem sumE_spec (hp : Placed code k) :
-    Spec (Labels.label sumELabel) SumEPre SumEPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.SumE.entryLabel) SumEPre SumEPost := by
   intro m0 hpre
-  rw [show Labels.label sumELabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.SumE.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.SumE.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.SumE.entryOffset) NativeRustcVmArm.Vm.SumE.entry_at]
   have h16 : m0.regs.X1.toNat ≤ 16 := hpre.1
   have aL : m0.regs.X1.toNat = len m0 := rfl
   refine exec_then (hb hp b0_in_code (by simp [b0])) run_b0 (Env.wf_nil _) (match_nil _)
@@ -524,7 +525,7 @@ theorem sumE_spec (hp : Placed code k) :
   by_cases hz : len m0 = 0
   · have hpc := (hpc1'.1 (by
       show ((m0.regs.getXReg .X1).toBitVec == BitVec.ofNat 64 0) = true
-      rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; rw [hx1, hz]; rfl)).trans (hp.label (j := 8) rfl)
+      rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; rw [hx1, hz]; rfl)).trans (hp.label (j := NativeRustcVmArm.Vm.SumE.b3Offset) NativeRustcVmArm.Vm.SumE.label_3_at)
     exact ret_of (hb hp b3_in_code (by simp [b3])) run_b3 rfl rfl (after_eq run_b3 ▸ b3_keeps) hpc
       hB1 (by rw [hz]; rfl)
   have hpc2 := hpc1'.2 (by
@@ -542,7 +543,7 @@ theorem sumE_spec (hp : Placed code k) :
   · have hpc := (hpc3'.1 (by
       show (!(s1.data.regs.getXReg .X1).toBitVec.ult (BitVec.ofNat 64 4)) = true
       rw [Bool.not_eq_true', ult_false (by rw [hs1]; exact h4) (by decide)])).trans
-      (hp.label (j := 14) rfl)
+      (hp.label (j := NativeRustcVmArm.Vm.SumE.b4Offset) NativeRustcVmArm.Vm.SumE.label_4_at)
     refine first hp hpre h4 hpc hB2 fun s3 hpc4 hI1 ↦ ?_
     simp only [PcOk] at hpc4
     sym_simp at hpc4
@@ -563,7 +564,7 @@ theorem sumE_spec (hp : Placed code k) :
         rw [BitVec.toNat_and, hs2]
         exact (and28 _ (by omega)).trans e
     by_cases e4 : 4 * (len m0 / 4) = 4
-    · exact fromL8 hp hpre ((hpc4'.1 (hand.mpr e4)).trans (hp.label (j := 62) rfl)) hI1
+    · exact fromL8 hp hpre ((hpc4'.1 (hand.mpr e4)).trans (hp.label (j := NativeRustcVmArm.Vm.SumE.b8Offset) NativeRustcVmArm.Vm.SumE.label_8_at)) hI1
         (hI1.x10.trans e4)
     have hpc5 := hpc4'.2 (fun h ↦ e4 (hand.mp h))
     refine ublock hpre (hb hp b5_in_code (by simp [b5])) (o := 64) (t := 1) run_b5
@@ -574,7 +575,7 @@ theorem sumE_spec (hp : Placed code k) :
     have hpc6' := pc_cond hpc6
     by_cases e8 : 4 * (len m0 / 4) = 8
     · exact fromL8 hp hpre ((hpc6'.1 ((x10_eq hI1.x10 8 (by decide)).mpr e8)).trans
-        (hp.label (j := 62) rfl)) hI2 (hI2.x10.trans e8)
+        (hp.label (j := NativeRustcVmArm.Vm.SumE.b8Offset) NativeRustcVmArm.Vm.SumE.label_8_at)) hI2 (hI2.x10.trans e8)
     have hpc7 := hpc6'.2 (fun h ↦ e8 ((x10_eq hI1.x10 8 (by decide)).mp h))
     refine ublock hpre (hb hp b6_in_code (by simp [b6])) (o := 128) (t := 2) run_b6
       (by decide +kernel) (after_eq run_b6 ▸ b6_keeps) rfl (by omega) hpc7 hI2
@@ -584,7 +585,7 @@ theorem sumE_spec (hp : Placed code k) :
     have hpc8' := pc_cond hpc8
     by_cases e12 : 4 * (len m0 / 4) = 12
     · exact fromL8 hp hpre ((hpc8'.1 ((x10_eq hI2.x10 12 (by decide)).mpr e12)).trans
-        (hp.label (j := 62) rfl)) hI3 (hI3.x10.trans e12)
+        (hp.label (j := NativeRustcVmArm.Vm.SumE.b8Offset) NativeRustcVmArm.Vm.SumE.label_8_at)) hI3 (hI3.x10.trans e12)
     have hpc9 := hpc8'.2 (fun h ↦ e12 ((x10_eq hI2.x10 12 (by decide)).mp h))
     refine ublock hpre (hb hp b7_in_code (by simp [b7])) (o := 192) (t := 3) run_b7
       (by decide +kernel) (after_eq run_b7 ▸ b7_keeps) rfl (by omega) hpc9 hI3
@@ -599,7 +600,7 @@ theorem sumE_spec (hp : Placed code k) :
       fun s3 hm3 hpc4 ↦ ?_
     have hB3 := hB2.regs hm3 (after_eq run_b2 ▸ b2_keeps)
     simp only [PcOk] at hpc4
-    refine fromL9 (i := 0) hp hpre (hpc4.trans (hp.label (j := 71) rfl)) hB3 (by omega) ?_ ?_
+    refine fromL9 (i := 0) hp hpre (hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.SumE.b9Offset) NativeRustcVmArm.Vm.SumE.label_9_at)) hB3 (by omega) ?_ ?_
     · show (s3.data.regs.getXReg .X10).toNat = 0
       rw [← UInt64.toNat_toBitVec, hm3.regs .X10 _ rfl]; rfl
     · show (⟨s3.data.regs.getXReg .X9, s3.data.regs.getXReg .X8⟩ : EW) = _

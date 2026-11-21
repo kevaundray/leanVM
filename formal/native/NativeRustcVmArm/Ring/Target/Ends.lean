@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.EWSqIter.Names
+public import NativeRustcVmArm.Code.Vm.PolyEval.Names
 public import NativeRustcVmArm.Ring.Target.ChainB
 
 /-!
@@ -130,28 +133,28 @@ theorem stepExit (h : P m0) {i : Nat} (hk : b36.IsInfixAt Host.prog i) {m : Mach
 
 /-- **The sum and the last turn** (`b33` to `b36`). -/
 theorem chainC (hp : Placed code k) (h : P m0)
-    (hsq : Spec (Labels.label ewSqIterLabel) EWSqIterPre EWSqIterPost)
-    (hpoly : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {m : MachineData}
+    (hsq : Spec (Labels.label NativeRustcVmArm.Vm.EWSqIter.entryLabel) EWSqIterPre EWSqIterPost)
+    (hpoly : Spec (Labels.label NativeRustcVmArm.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {m : MachineData}
     (hst : St m0 ((.reg .X0, mI 7) :: (.reg .X1, mI 7 + 1) :: K32) m) :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ RingTargetPost m0 st.data)
-      ⟨m, Host.addrOf (k + 212)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.RingTarget.b33Offset)⟩ := by
   refine polyStep h hpoly (hb b33_in_code (by simp [b33]) hp) run_b33
     hst.ptr (matchT2 hst.fr h) rfl
     (by decide) (D' := f0D) (by decide) (by decide) rfl rfl (by decide)
     (by decide) (hrP 0 (by decide)) (E := sD) sD_regs
     (fun _ hm1 ↦ sum_holds hst.hd hm1 rfl rfl) fun m hst ↦ ?_
-  rw [show k + 212 + b33.length = k + 229 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingTarget.b33Offset + b33.length = k + NativeRustcVmArm.Vm.RingTarget.b34Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingTarget.b33_next]]
   refine sqStep h hsq (hb b34_in_code (by simp [b34]) hp) run_b34
     hst.ptr (matchT2 hst.fr h) rfl
     (by decide) (D' := sD ++ f0D) (by decide) (by decide) rfl (by decide) (by decide)
     (by decide) (hrT 0 (by decide)) fun m hst ↦ ?_
-  rw [show k + 229 + b34.length = k + 235 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingTarget.b34Offset + b34.length = k + NativeRustcVmArm.Vm.RingTarget.b35Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingTarget.b34_next]]
   refine mulStep h hmul (hb b35_in_code (by simp [b35]) hp) run_b35
     hst.ptr (matchT2 hst.fr h) rfl
     (by decide) (D' := sD) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (hrM 0 (by decide)) fun m hst ↦ ?_
-  rw [show k + 235 + b35.length = k + 239 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.RingTarget.b35Offset + b35.length = k + NativeRustcVmArm.Vm.RingTarget.b36Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.RingTarget.b35_next]]
   exact stepExit h (hb b36_in_code (by simp [b36]) hp) hst
 
 end

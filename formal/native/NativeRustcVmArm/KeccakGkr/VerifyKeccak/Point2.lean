@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW36Extend.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Point1
 
 /-!
@@ -23,13 +25,13 @@ variable [Host] {k : Nat} {a : DecArea} {s : TState} {cs : Array ColumnClaimW}
 
 /-- **The slot and the column claim** (`b51` to `b54`). -/
 theorem stepPoint2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hext : Spec (Labels.label bufEW36ExtendLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
-    (hpc : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW36Extend.entryLabel) (BufEWExtendPre 36) (BufEWExtendPost 36))
+    (hpc : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {m : MachineData} {s1 : TState} {cj : KeccakClaimW} {sl : Array EW} {w : EW}
     (hw : AtP a s cs inst output m0 m s1 cj sl w)
     (cont : ∀ m', AtS a s cs inst output m0 m' s1 cj (outsOf inst sl w) →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 348)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 331)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b55Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b51Offset)⟩ := by
   have hN := hn.hN
   have hSP := m0.regs.SP.toNat_lt
   have n30 := h.n30
@@ -55,12 +57,12 @@ theorem stepPoint2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     rw [hcs2 .X19 rfl, Match.reg_eq (matchM hn hw.mid.fr) hm1 (r := .X19) rfl rfl]; exact hw.x19
   have x28 : m2.regs.getXReg .X28 = w.c0 := by
     rw [hcs2 .X28 rfl, Match.reg_eq (matchM hn hw.mid.fr) hm1 (r := .X28) rfl rfl]; exact hw.x28
-  rw [show k + 331 + b51.length = k + 335 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b51Offset + b51.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b52Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b51_next]]
   refine failBranch hp hn (b52_in_code.trans hp.1 (by simp [b52])) run_b52 hmid2 rfl rfl
     (by decide) (by decide) (b := true)
     (condW0 (by rw [Env.ofMachine_regs, gx0, hx2]; rfl)) (fun hf ↦ nomatch hf)
     fun _ m3 hmid3 hd3 hcs3 ↦ ?_
-  rw [show k + 335 + b52.length = k + 336 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b52Offset + b52.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b53Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b52_next]]
   have hb2' : Chg m0 [(2592, 3176)] [] m.dmem m3.dmem := by
     rw [hd3]; exact (hb2.trans hc2).mono (fun p hp ↦ by simpa using hp) (fun o ho ↦ by simp at ho)
   have hk3 : Kept m.dmem m3.dmem := by rw [hd3]; exact hk2
@@ -146,12 +148,12 @@ theorem stepPoint2 (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Num
     have hmid4 : Mid m0 m4 := Mid.chg hn hmid3 hfr4
       (regs_kept (matchM hn hmid3.fr) hm1 (by decide) hcs4) (hb4.trans hc4) (by decide)
       (by decide)
-    rw [show k + 336 + b53.length = k + 347 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b53Offset + b53.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b54Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b53_next]]
     refine failBranch hp hn (b54_in_code.trans hp.1 (by simp [b54])) run_b54 hmid4 rfl rfl
       (by decide) (by decide) (b := true)
       (condW0 (by rw [Env.ofMachine_regs, gx0, hx4]; rfl)) (fun hf ↦ nomatch hf)
       fun _ m5 hmid5 hd5 hcs5 ↦ ?_
-    rw [show k + 347 + b54.length = k + 348 from rfl]
+    rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b54Offset + b54.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b55Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b54_next]]
     refine cont m5 ⟨hmid5, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hw.psz, hw.run⟩ <;> rw [hd5]
     · exact hT.word hn (by decide) (by decide) (by decide) hw.w40
     · exact hT.word hn (by decide) (by decide) (by decide) hw.w64

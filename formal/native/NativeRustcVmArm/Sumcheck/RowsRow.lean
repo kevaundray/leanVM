@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.RowsRow.Names
 public import NativeRustcVmArm.Sumcheck.RowsRow.Exec
 public import NativeRustcVmArm.Sumcheck.Common
 public import NativeRustcVmArm.Spec.Sumcheck
@@ -23,11 +24,11 @@ variable [Host] {k : Nat}
 
 /-- **`Rows::row`'s contract.** -/
 theorem rowsRow_spec (hp : Placed code k) (p : BitVec 64) (rows : Array (Array UInt64)) :
-    Spec (Labels.label rowsRowLabel) (RowsRowPre p rows) (RowsRowPost p rows) := by
+    Spec (Labels.label NativeRustcVmArm.Vm.RowsRow.entryLabel) (RowsRowPre p rows) (RowsRowPost p rows) := by
   intro m ⟨⟨hp0, hsz, w, hw, hhdr, hrow⟩, hnw⟩
-  have hentry : Labels.label rowsRowLabel = Host.addrOf (k + 0) := hp.label (j := 0) rfl
+  have hentry : Labels.label NativeRustcVmArm.Vm.RowsRow.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.RowsRow.b0Offset) := hp.label (j := NativeRustcVmArm.Vm.RowsRow.entryOffset) NativeRustcVmArm.Vm.RowsRow.entry_at
   rw [hentry]
-  have hk : b0.IsInfixAt Host.prog (k + 0) := b0_in_code.trans hp.1 (by simp [b0])
+  have hk : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.RowsRow.b0Offset) := b0_in_code.trans hp.1 (by simp [b0])
   let env := Env.ofMachine m [(m.regs.X0.toBitVec, 32)]
   have hmap : Mapped m.dmem m.regs.X0.toBitVec 32 := by
     have := NativeRustcVm.WordsAt.mapped hhdr

@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.LinearTranspose.GLoop
+public import NativeRustcVmX64.Code.Vm.LinearTranspose.Names
 
 /-!
 # `linear_transpose`: the columns (x86-64)
@@ -29,8 +30,8 @@ def zB : Nat → List Directive
 
 /-- Column `x`'s loop's label. -/
 def colL : Nat → Label
-  | 0 => ".LLinearTranspose_5" | 1 => ".LLinearTranspose_7" | 2 => ".LLinearTranspose_9"
-  | 3 => ".LLinearTranspose_11" | _ => ".LLinearTranspose_13"
+  | 0 => NativeRustcVmX64.Vm.LinearTranspose.label_5 | 1 => NativeRustcVmX64.Vm.LinearTranspose.label_7 | 2 => NativeRustcVmX64.Vm.LinearTranspose.label_9
+  | 3 => NativeRustcVmX64.Vm.LinearTranspose.label_11 | _ => NativeRustcVmX64.Vm.LinearTranspose.label_13
 
 /-- **Column `x`'s loop head** after `z` elements. -/
 structure ColHead (m0 : MachineData) (ws : Array EW) (x z : Nat) (st : MachineData) : Prop where
@@ -85,14 +86,12 @@ theorem zB_ne {x : Nat} (hx : x < 5) : zB x ≠ [] := by
     simp [zB, b5, b7, b9, b11, b13]
 
 theorem colB_length {x : Nat} (hx : x < 5) : (colB x).length = 16 := by
-  obtain ⟨-, -, -, -, -, -, h6, -, h8, -, h10, -, h12, -, h14, -⟩ := lengths
   rcases (show x = 0 ∨ x = 1 ∨ x = 2 ∨ x = 3 ∨ x = 4 by omega) with rfl | rfl | rfl | rfl | rfl
-  exacts [h6, h8, h10, h12, h14]
+  exacts [NativeRustcVmX64.Vm.LinearTranspose.b6_length, NativeRustcVmX64.Vm.LinearTranspose.b8_length, NativeRustcVmX64.Vm.LinearTranspose.b10_length, NativeRustcVmX64.Vm.LinearTranspose.b12_length, NativeRustcVmX64.Vm.LinearTranspose.b14_length]
 
 theorem zB_length {x : Nat} (hx : x < 5) : (zB x).length = 2 := by
-  obtain ⟨-, -, -, -, -, h5, -, h7, -, h9, -, h11, -, h13, -⟩ := lengths
   rcases (show x = 0 ∨ x = 1 ∨ x = 2 ∨ x = 3 ∨ x = 4 by omega) with rfl | rfl | rfl | rfl | rfl
-  exacts [h5, h7, h9, h11, h13]
+  exacts [NativeRustcVmX64.Vm.LinearTranspose.b5_length, NativeRustcVmX64.Vm.LinearTranspose.b7_length, NativeRustcVmX64.Vm.LinearTranspose.b9_length, NativeRustcVmX64.Vm.LinearTranspose.b11_length, NativeRustcVmX64.Vm.LinearTranspose.b13_length]
 
 /-- Column `x`'s loop run from its state. -/
 theorem col_exec {x : Nat} (hx : x < 5) : ∃ S, exec (colB x) (colS x) = some (S,
@@ -302,9 +301,9 @@ theorem col_loop (hp : Placed code k) (h : PreOk m0 ws) {x : Nat} {st : MachineS
 
 /-- **The columns**: from `g` complete to the columns complete. -/
 theorem columns (hp : Placed code k) (h : PreOk m0 ws) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 47)) (hI : GDone m0 ws st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 137) ∧ CDone m0 ws s'.data) st :=
-  loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + 137) ∧ CDone m0 ws s'.data)
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b5Offset)) (hI : GDone m0 ws st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b15Offset) ∧ CDone m0 ws s'.data) st :=
+  loop (Q := fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.LinearTranspose.b15Offset) ∧ CDone m0 ws s'.data)
     (fun n st ↦ ∃ x, n = 5 - x ∧ x < 5 ∧ st.pc = Host.addrOf (k + (47 + 18 * x)) ∧
       Ctx m0 st.data ∧ reg st.data .r15 = gA m0 ∧ reg st.data .rbx = oA m0 ∧
       ElemsAt st.data.dmem (gA m0) (gF ws) 1600 ∧ ElemsAt st.data.dmem (cA m0) (cF ws) (64 * x))

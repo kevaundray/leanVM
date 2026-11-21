@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Memset.Names
 public import NativeRustcVmArm.Layout.PlacementsOf.Exec
 public import NativeRustcVmArm.Layout.PlacementsOf.Model
 public import NativeRustcVmArm.Layout.BuildLayout.Lemmas
@@ -229,9 +230,9 @@ theorem pc_of {pc : Int64} {a b : Nat} (h : pc = Host.addrOf a) (e : a = b) : pc
   e ▸ h
 
 /-- **`memset` on a part of the frame below the slots** keeps a body. -/
-theorem memset_call (hms : Spec (Labels.label "memset") MemsetPre MemsetPost) {m0 : MachineData}
+theorem memset_call (hms : Spec (Labels.label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost) {m0 : MachineData}
     (hF : Facts m0) {env : Env} {st : MachineState} {next : Int64}
-    (hpc : PcOk env (.call "memset") next st) (hb : Bd m0 st.data) {o n : Nat} (hon : o + n ≤ 5056)
+    (hpc : PcOk env (.call NativeRustcVmArm.Vm.Memset.entryLabel) next st) (hb : Bd m0 st.data) {o n : Nat} (hon : o + n ≤ 5056)
     (h0 : st.data.regs.X0.toBitVec = fb m0 + BitVec.ofNat 64 o) (h2 : st.data.regs.X2.toNat = n)
     {R : MachineState → Prop}
     (cont : ∀ st' : MachineState, st'.pc = next → Bd m0 st'.data →
@@ -322,7 +323,7 @@ theorem byte_step {b : List Directive} {kb : Nat} {p i : XReg} {S' : SState} {x 
 
 /-- **The epilogue** `b30`: X0 and X1 returned, the frame popped. -/
 theorem epi (hp : Placed code k) {m0 : MachineData} (hF : Facts m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 121)) (hb : Bd m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.PlacementsOf.b30Offset)) (hb : Bd m0 st.data) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ s.data.regs.X0 = st.data.regs.X0 ∧
       s.data.regs.X1 = st.data.regs.X1 ∧ Changes m0 s.data SS (pp m0) placementsBytes ∧
       Saved m0 s.data ∧ s.data.dmem = st.data.dmem) st := by

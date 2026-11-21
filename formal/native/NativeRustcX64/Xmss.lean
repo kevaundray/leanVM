@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcX64.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcX64.XmssVerify
 public import NativeRustcX64.XmssVerify.Placed
 public import NativeRustcX64.FromBytes
@@ -46,7 +48,7 @@ theorem verify_correct (pk : HashSig.PublicKey) (msg : HashSig.Message) (sig : L
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m ∧ rspOf st.data = rspOf m + 8#64 ∧
       reg st.data .rax = (if LeanXmss.verifyWithKeccak pk msg sig then 1 else 0) ∧
       SameOutside m.dmem st.data.dmem (InRange (stackBelow m xmssVerifyStack) xmssVerifyStack) ∧
-      Saved m st.data) ⟨m, label "xmss_verify"⟩ := by
+      Saved m st.data) ⟨m, label NativeRustcX64.Xmss.XmssVerify.entryLabel⟩ := by
   have hmemcpy := Mem.Memcpy.memcpy_spec (placed_memcpy hP)
   have hmemset := Mem.Memset.memset_spec (placed_memset hP)
   have hkf := keccakF_spec (placed_keccakF hP)

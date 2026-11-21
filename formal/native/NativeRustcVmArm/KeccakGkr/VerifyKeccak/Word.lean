@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Read1
 
 /-!
@@ -59,12 +60,12 @@ theorem matchR [Labels] {m : MachineData} (hfr : VFr m0 m) (hn : Nums a inst m0)
 
 /-- **The committed outputs' check** (`b44` to `b46`). -/
 theorem stepWord (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums a inst m0)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {m : MachineData} {s1 : TState} {cj : KeccakClaimW} {sl ws : Array EW} {v w : EW}
     (hr : AtR a s cs inst output m0 m s1 cj sl ws v w)
     (cont : ∀ m', AtW a s cs inst output m0 m' s1 cj sl w →
-      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + 247)⟩) :
-    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + 236)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m', Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b47Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s cs inst output m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b44Offset)⟩ := by
   have hwf := envR_wf h hn hr.mid.fr
   have hm0 := matchR hr.mid.fr hn hr.x28
   have ew := hr.word.2
@@ -103,7 +104,7 @@ theorem stepWord (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
     have := Sumcheck.Match.wordAt_write hm1 (r := 0) (o := 80) (v := .load 0 2608 8) rfl
       (by decide) (by decide)
     simp only [Sym.eval, ec.2] at this; exact this
-  rw [show k + 236 + b44.length = k + 243 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b44Offset + b44.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b45Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b44_next]]
   -- `b45`
   refine failBranchF hp hn (b45_in_code.trans hp.1 (by simp [b45])) run_b45 hfr2 rfl rfl
     (L := chkL) (by decide) (b := ((ws.getD 0 0 * w).c0 == v.c0))
@@ -113,7 +114,7 @@ theorem stepWord (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
   have g : ∀ r ∈ chkL, m3.regs.getXReg r = m2.regs.getXReg r := hk3
   simp only [chkL, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] at g
   obtain ⟨g0, g1, g19, g20, g21, g22, g23, g24, g25, g26, g27, g28, g29⟩ := g
-  rw [show k + 243 + b45.length = k + 245 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b45Offset + b45.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b46Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b45_next]]
   -- `b46`
   refine failBranchF hp hn (b46_in_code.trans hp.1 (by simp [b46])) run_b46 hfr3 rfl rfl
     (L := chkL) (by decide) (b := ((ws.getD 0 0 * w).c1 == v.c1))
@@ -124,7 +125,7 @@ theorem stepWord (hp : Placed code k) (h : P0 a s cs inst output m0) (hn : Nums 
   simp only [chkL, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] at g'
   obtain ⟨-, -, -, h20, h21, h22, h23, h24, h25, h26, h27, h28, -⟩ := g'
   have hd : m4.dmem = m2.dmem := hd4.trans hd3
-  rw [show k + 245 + b46.length = k + 247 from rfl]
+  rw [show k + NativeRustcVmArm.Vm.VerifyKeccak.b46Offset + b46.length = k + NativeRustcVmArm.Vm.VerifyKeccak.b47Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyKeccak.b46_next]]
   refine cont m4 ⟨Mid.of_dmem hmid2 hfr4 hd fun r hr' ↦ ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     hr.psz, hr.slsz, ?_, ?_⟩
   · simp only [regsL, List.mem_cons, List.not_mem_nil, or_false] at hr'

@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Common.Memset.Names
+public import NativeRustcArm.Code.Xmss.XmssVerify.Names
+
 public import NativeRustcArm.Sym
 
 /-!
@@ -18,7 +21,7 @@ set_option Elab.async false
 
 /-- The prologue, ending in `bl memset`. -/
 def entry : List Directive := [
-  @Kraken.Directive.label Instr ConstExpr "xmss_verify",  -- xmss_verify:
+  @Kraken.Directive.label Instr ConstExpr NativeRustcArm.Xmss.XmssVerify.entryLabel,  -- xmss_verify:
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X29) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X30) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (-96 : Int64)) (@Option.some Index Index.Pre)))))),  -- stp x29, x30, [sp, #-96]!
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X28) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X27) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (16 : Int64)) (@Option.none Index)))))),  -- stp x28, x27, [sp, #16]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STP RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X26) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X25) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (32 : Int64)) (@Option.none Index)))))),  -- stp x26, x25, [sp, #32]
@@ -37,7 +40,7 @@ def entry : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.ORR_s RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X1) RegWidth.W32) (RegOrZr.low XRegOrXzr.XZR RegWidth.W32) (@ShiftRegExpr.mk RegWidth.W32 (RegOrZr.low XRegOrXzr.XZR RegWidth.W32) (0 : Int64) ShiftType.LSL))),  -- mov w1, wzr
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W32 (@Operation.MOVZ RegWidth.W32 (RegOrZr.low (XRegOrXzr.reg XReg.X2) RegWidth.W32) (ConstExpr.int64 (2400 : Int64)) (@MovShift.LSL0 RegWidth.W32))),  -- mov w2, #2400
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X21) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X21) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.int64 (1296 : Int64)) ImmShift.S0)))),  -- add x21, x21, #1296
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.BL (ConstExpr.label "memset")))  -- bl memset
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.BL (ConstExpr.label NativeRustcArm.Common.Memset.entryLabel)))  -- bl memset
 ]
 
 /-- The block after `memset` returns. -/
@@ -74,7 +77,7 @@ open NativeArm in
 offset 48, W1 zero, X2 2400; SP the frame's base; the entry's X30 saved at the frame's top. -/
 theorem entry_spec [Host] {k : Nat} (hk : entry.IsInfixAt Host.prog k) {env : Env}
     (hwf : env.WF) {m : MachineData} (hm : Match env atEntry m) :
-    Eventually (step1 Host.exe) (fun st => st.pc = Labels.label "memset" ∧
+    Eventually (step1 Host.exe) (fun st => st.pc = Labels.label NativeRustcArm.Common.Memset.entryLabel ∧
       retOf st.data = Host.addrOf (k + entry.length) ∧
       (st.data.regs.getXReg .X0).toBitVec = env.base 0 + 48#64 ∧
       (st.data.regs.getXReg .X1).toBitVec = 0#64 ∧

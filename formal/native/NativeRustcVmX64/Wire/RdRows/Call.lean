@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Wire.RdRows.Basic
 public import NativeRustcVmX64.Transcript.Arith
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `rd_rows`' calls of `Reader::words` (x86-64)
@@ -58,13 +59,13 @@ theorem inW_iff {L : Nat} (g : Geo m0 bp L) {o sz : Nat} (hin : o + sz ≤ 512 *
 /-- **A call of `Reader::words`** for `nw` words into the leaves at `o`, from the frame with RSP at
 its base: back at the return address in the frame (RSP at offset `8`), the callee-saved registers
 kept, the window, the cursor and the callee's stack changed at most, the read's outcome. -/
-theorem words_call [Host] (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost)
+theorem words_call [Host] (hw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost)
     {B : List UInt8} {ci : Nat} (g : Geo m0 bp B.length) {st : MachineState} {next : Int64}
     {R : MachineState → Prop} (hf : Frame m0 80 slots 0 st.data)
     (hR : ReaderAt st.data.dmem (rdr m0) bp B ci) (hrdi : reg st.data .rdi = rdr m0)
     {o nw : Nat} (hin : o + 8 * nw ≤ 512 * nr m0) (hrsi : reg st.data .rsi = off (lv m0) o)
     (hrdx : (reg st.data .rdx).toNat = nw)
-    (hpc : st.pc = Labels.label readerWordsLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel ∧ retOf st.data = next)
     (cont : ∀ m2, Frame m0 80 slots 8 m2 →
       (∀ x, calleeSaved x = true → reg m2 x = reg st.data x) →
       NativeRustcVm.SameOutside st.data.dmem m2.dmem (fun q ↦
@@ -168,11 +169,11 @@ from the frame, RSI `vsi` the address of `nw` words of the leaves at `o`, RDX `v
 back after the call in the frame, the callee-saved registers the block's, memory changed at most in
 the window, the cursor and the stack below the locals, the read's outcome. -/
 theorem call_block [Host] {k : Nat} (hp : Placed code k)
-    (hw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost)
+    (hw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost)
     {B : List UInt8} {ci : Nat} (g : Geo m0 bp B.length) {bj : List Directive} {j : Nat}
     (hb : bj.IsInfixAt code j) (hne : bj ≠ [])
     (hrun : exec bj frS = some (after bj frS,
-      .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader5words"))
+      .call NativeRustcVmX64.Vm.ReaderWords.entryLabel))
     (hok : MidOk 80 0 slots (after bj frS) = true)
     (hlow : ∀ w ∈ (after bj frS).mem, w.r = 0 ∧ w.off + w.n ≤ 8)
     (hrdi : (after bj frS).reg .rdi = some (.load 0 16 8))

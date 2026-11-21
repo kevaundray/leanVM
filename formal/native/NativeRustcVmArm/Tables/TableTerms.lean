@@ -1,5 +1,12 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmArm.Code.Vm.ConstraintsW.Names
+public import NativeRustcVmArm.Code.Vm.Dot.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.Evaluate.Names
+public import NativeRustcVmArm.Code.Vm.TStateReadScalars.Names
+public import NativeRustcVmArm.Code.Vm.TableTerms.Names
 public import NativeRustcVmArm.Tables.TableTerms.Entry
 public import NativeRustcVmArm.Tables.TableTerms.Loop
 
@@ -23,14 +30,14 @@ variable [Host] {k : Nat}
 
 /-- **`table_terms` meets its contract.** -/
 theorem tableTerms_spec (hp : Placed code k)
-    (hrs : ∀ a s, Spec (Labels.label readScalarsLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
-    (hcw : Spec (Labels.label constraintsWLabel) ConstraintsWPre ConstraintsWPost)
-    (hdot : Spec (Labels.label dotLabel) DotPre DotPost)
-    (hev : ∀ f, Spec (Labels.label evaluateLabel) (EvaluatePre f) (EvaluatePost f))
-    (hext : Spec (Labels.label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost)
+    (hrs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.TStateReadScalars.entryLabel) (ReadScalarsPre a s) (ReadScalarsPost a s))
+    (hcw : Spec (Labels.label NativeRustcVmArm.Vm.ConstraintsW.entryLabel) ConstraintsWPre ConstraintsWPost)
+    (hdot : Spec (Labels.label NativeRustcVmArm.Vm.Dot.entryLabel) DotPre DotPost)
+    (hev : ∀ f, Spec (Labels.label NativeRustcVmArm.Vm.Evaluate.entryLabel) (EvaluatePre f) (EvaluatePost f))
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    (hmul : Spec (Labels.label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
     {a : DecArea} {s : TState} {heights : Array Nat} {forms : Array (Array FormW)} :
-    Spec (Labels.label tableTermsLabel) (TableTermsPre a s heights forms)
+    Spec (Labels.label NativeRustcVmArm.Vm.TableTerms.entryLabel) (TableTermsPre a s heights forms)
       (TableTermsPost a s heights forms) := by
   intro m0 h
   rw [lbl_entry hp]

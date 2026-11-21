@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FoldRound.Names
+public import NativeRustcVmArm.Code.Vm.FoldRounds.Names
 public import NativeRustcVmArm.Whir.FoldRounds.Basic
 public import NativeRustcVmArm.Whir.FoldRounds.Exec
 public import NativeRustcVmArm.Whir.State
@@ -93,7 +95,7 @@ variable [Host] {k : Nat}
 
 /-- `b23`: `0`, the epilogue. -/
 theorem fail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 foldRoundsStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 135)) (hf : Frame m0 160 slots st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRounds.b23Offset)) (hf : Frame m0 160 slots st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.regs.X0 = 0 ∧
       st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
   have hfnw := frame_noWrap (m := m0) (F := 160) (by have := hst.2.1; rw [stack_eq] at this; omega)
@@ -112,7 +114,7 @@ theorem fail (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 foldRound
 
 /-- `b8`: the epilogue, X0 kept. -/
 theorem done (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 foldRoundsStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 49)) (hf : Frame m0 160 slots st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRounds.b8Offset)) (hf : Frame m0 160 slots st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.regs.X0 = st.data.regs.X0 ∧
       st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
   have hfnw := frame_noWrap (m := m0) (F := 160) (by have := hst.2.1; rw [stack_eq] at this; omega)
@@ -131,7 +133,7 @@ theorem done (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 foldRound
 
 /-- `b7`, `b8`: `1`, the epilogue. -/
 theorem done7 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 foldRoundsStack)
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 47)) (hf : Frame m0 160 slots st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRounds.b7Offset)) (hf : Frame m0 160 slots st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ st'.data.regs.X0 = 1 ∧
       st'.data.dmem = st.data.dmem ∧ Saved m0 st'.data) st := by
   have hfnw := frame_noWrap (m := m0) (F := 160) (by have := hst.2.1; rw [stack_eq] at this; omega)
@@ -146,7 +148,7 @@ theorem done7 (hp : Placed code k) {m0 : MachineData} (hst : StackOk m0 foldRoun
   have hf1 : Frame m0 160 slots st1.data := Frame.of_block hf hwf hm1 hmid slots_le
   have hd1 : st1.data.dmem = st.data.dmem := hm1.dmem_eq hwf hmem
   have hX0 : st1.data.regs.X0 = 1 := UInt64.toBitVec_inj.mp (hm1.regs .X0 _ hx0)
-  refine Eventually.mono (done hp hst (hpc1.trans (by rw [show b7.length = 2 from rfl])) hf1)
+  refine Eventually.mono (done hp hst (hpc1.trans (by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FoldRounds.b7_next])) hf1)
     fun st' ⟨h1, h2, h3, h4⟩ ↦ ⟨h1, h2.trans hX0, h3.trans hd1, h4⟩
 
 omit [Host] in
@@ -208,11 +210,11 @@ theorem geo [Labels] {a : DecArea} {s : TState} {w : WhirStateW} {m0 : MachineDa
 
 /-- **One round**: from `fold_round`'s call, its tag tested (`T`), its `α`, `β` stored (`S`). -/
 theorem round (hp : Placed code k)
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmArm.Vm.FoldRound.entryLabel) (FoldRoundPre a s w) (FoldRoundPost a s w))
     {a : DecArea} {s : TState} {w : WhirStateW} {m0 : MachineData} (hpre : FoldRoundsPre a s w m0)
     {T S : List Directive} {kt i : Nat} {ST SS : SState} {cT : SBool} {xS : Exit}
     (hT : T.IsInfixAt code kt) (hTne : T ≠ [])
-    (hrunT : exec T tagS = some (ST, .cond cT ".LFoldRounds_17")) (hokT : TagOk ST)
+    (hrunT : exec T tagS = some (ST, .cond cT NativeRustcVmArm.Vm.FoldRounds.label_17)) (hokT : TagOk ST)
     (hc0 : ∀ d : MachineData, NativeRustcVm.WordAt d.dmem (off (frameBase m0 160) 40) 0 →
       cT.eval (frameEnv m0 d 160 []) = true)
     (hc1 : ∀ d : MachineData, NativeRustcVm.WordAt d.dmem (off (frameBase m0 160) 40) 1 →
@@ -220,7 +222,7 @@ theorem round (hp : Placed code k)
     (hS : S.IsInfixAt code (kt + T.length)) (hSne : S ≠ [])
     (hrunS : exec S storeS = some (SS, xS)) (hokS : StoreOk (i + 1) SS)
     (hi : i < m0.regs.X1.toNat) {st : MachineState}
-    (hpc : st.pc = Labels.label foldRoundLabel ∧ retOf st.data = Host.addrOf (k + kt))
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.FoldRound.entryLabel ∧ retOf st.data = Host.addrOf (k + kt))
     (hI : Inv m0 a s w i st.data) (hx0 : st.data.regs.X0.toBitVec = off (frameBase m0 160) 40)
     (hx1 : st.data.regs.X1.toBitVec = m0.regs.X0.toBitVec)
     (hx2 : st.data.regs.X2.toBitVec = m0.regs.X2.toBitVec)
@@ -391,7 +393,7 @@ theorem round (hp : Placed code k)
     rw [hc0 st2.data hout2] at hpc3
     simp only [↓reduceIte] at hpc3
     have hnone : (foldRounds m0.regs.X1.toNat w).run s = none := foldRounds_none_of hrun hfr2 _ hi
-    refine Eventually.mono (fail hp hst (hpc3.trans (hp.label (j := 135) rfl)) hf3)
+    refine Eventually.mono (fail hp hst (hpc3.trans (hp.label (j := NativeRustcVmArm.Vm.FoldRounds.b23Offset) NativeRustcVmArm.Vm.FoldRounds.label_17_at)) hf3)
       fun st' ⟨hpc', hx0', hd', hsv'⟩ ↦ ⟨hpc', ?_, ?_, ?_, hsv'⟩
     · show st'.data.regs.X0 = okWord ((foldRounds m0.regs.X1.toNat w).run s).isSome
       rw [hnone, hx0']; rfl

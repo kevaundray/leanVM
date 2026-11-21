@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.FinalLevel.Names
+public import NativeRustcVmArm.Code.Vm.FoldRounds.Names
+public import NativeRustcVmArm.Code.Vm.NextLevel.Names
+public import NativeRustcVmArm.Code.Vm.WhirLevels.Names
 public import NativeRustcVmArm.Whir.WhirLevels.Steps
 
 /-!
@@ -53,11 +57,11 @@ theorem levels_region (c : Ctx a s0 levels ba b claim m0 rate) {st : MachineData
 
 /-- **The fold rounds' stage** of level `k`: the call block, the call, the `None` test. -/
 theorem fold_stage (hp : Placed code k0)
-    (hfr : ∀ a s w, Spec (Labels.label foldRoundsLabel) (FoldRoundsPre a s w)
+    (hfr : ∀ a s w, Spec (Labels.label NativeRustcVmArm.Vm.FoldRounds.entryLabel) (FoldRoundsPre a s w)
       (FoldRoundsPost a s w))
     (c : Ctx a s0 levels ba b claim m0 rate) {k j n : Nat} {ds : List Directive}
     (hds : ds.IsInfixAt code j) (hne : ds ≠ []) (hcz : b2.IsInfixAt code (j + ds.length))
-    {S' : SState} (hx : exec ds (lvS n) = some (S', .call foldRoundsLabel))
+    {S' : SState} (hx : exec ds (lvS n) = some (S', .call NativeRustcVmArm.Vm.FoldRounds.entryLabel))
     (hok : FoldOk k n S' = true) (hn : n ≤ 24 * (k + 1))
     {s : TState} {w : WhirStateW} {st : MachineState}
     (hh : Head a s0 levels b claim m0 k s w st.data)
@@ -182,11 +186,11 @@ theorem w_stage (hp : Placed code k0) (c : Ctx a s0 levels ba b claim m0 rate) {
 
 /-- **`next_level`'s stage** of level `k`: the call block, the call. -/
 theorem next_stage (hp : Placed code k0)
-    (hnl : ∀ a s level w rounds, Spec (Labels.label nextLevelLabel)
+    (hnl : ∀ a s level w rounds, Spec (Labels.label NativeRustcVmArm.Vm.NextLevel.entryLabel)
       (NextLevelPre a s level w rounds) (NextLevelPost a s level w rounds))
     (c : Ctx a s0 levels ba b claim m0 rate) {k j n : Nat} {ds : List Directive}
     (hds : ds.IsInfixAt code j) (hne : ds ≠ []) {S' : SState}
-    (hx : exec ds (lvS n) = some (S', .call nextLevelLabel)) {v2 : Sym}
+    (hx : exec ds (lvS n) = some (S', .call NativeRustcVmArm.Vm.NextLevel.entryLabel)) {v2 : Sym}
     (hok : NextOk k n v2 S' = true)
     (hv2 : ∀ st : MachineData, Regs m0 levels.length st →
       v2.eval (Env.ofMachine st [(lvA m0, n)]) = lvA m0 + BitVec.ofNat 64 (levelBytes * k))
@@ -274,7 +278,7 @@ theorem cmp_stage (hp : Placed code k0) (c : Ctx a s0 levels ba b claim m0 rate)
     {ds : List Directive} (hds : ds.IsInfixAt code j) (hne : ds ≠ [])
     (hcz : b2.IsInfixAt code (j + ds.length)) {S' : SState}
     (hx : exec ds regsS = some (S', .cond (.cmp .eq .W64 (.reg .X26) (.lit (k + 1)))
-      ".LWhirLevels_27")) (hok : RegsOk S' = true) (hk1 : k + 1 < levels.length)
+      NativeRustcVmArm.Vm.WhirLevels.label_27)) (hok : RegsOk S' = true) (hk1 : k + 1 < levels.length)
     {st : MachineState} (hf : WFr m0 st.data) (hr : Regs m0 levels.length st.data)
     (hx26 : (st.data.regs.getXReg .X26).toNat = levels.length)
     (hpc : st.pc = Host.addrOf (k0 + j))
@@ -315,11 +319,11 @@ theorem cmp_stage (hp : Placed code k0) (c : Ctx a s0 levels ba b claim m0 rate)
 /-- **The jump to the tail call** at the last level `k`: X23 becomes level `k`'s address, then
 `final_level`. -/
 theorem final_stage (hp : Placed code k0)
-    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label finalLevelLabel)
+    (hfl : ∀ a s level ba b w rounds, Spec (Labels.label NativeRustcVmArm.Vm.FinalLevel.entryLabel)
       (FinalLevelPre a s level ba b w rounds) (FinalLevelPost a s level b w rounds))
     (c : Ctx a s0 levels ba b claim m0 rate) {k j : Nat} {ds : List Directive}
     (hds : ds.IsInfixAt code j) (hne : ds ≠ []) {S' : SState} {v : Sym}
-    (hx : exec ds regsS = some (S', .jump ".LWhirLevels_3")) (hok : JumpOk v S' = true)
+    (hx : exec ds regsS = some (S', .jump NativeRustcVmArm.Vm.WhirLevels.label_3)) (hok : JumpOk v S' = true)
     {s : TState} {w : WhirStateW} {rs : Array FoldRoundW} {st : MachineState}
     (hv : v.eval (Env.ofMachine st.data []) = lvA m0 + BitVec.ofNat 64 (levelBytes * k))
     (hm : Mid a s0 levels b claim m0 rate k s w rs st.data) (hk : k + 1 = levels.length)
@@ -337,7 +341,7 @@ theorem final_stage (hp : Placed code k0)
       st1.data.regs.getXReg r = st.data.regs.getXReg r := fun r hr ↦
     Match.reg_eq hm0 hm1 (by cases r <;> rfl) (hall r hr)
   simp only [PcOk] at hpc1
-  rw [hp.label (j := 29) rfl] at hpc1
+  rw [hp.label (j := NativeRustcVmArm.Vm.WhirLevels.b4Offset) NativeRustcVmArm.Vm.WhirLevels.label_3_at] at hpc1
   have hr := hm.regs
   refine final_tail hp hfl c hf1 hpc1 (by rw [hd1]; exact hm.ts) (by rw [hd1]; exact hm.wa) hk
     hm.alphas ((hm.fin hk).trans (by rfl)) ((hk' .X19 (by simp)).trans hr.x19)

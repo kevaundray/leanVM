@@ -1,5 +1,10 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Kinv.Names
+public import NativeRustcVmArm.Code.Vm.Kmul.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
+public import NativeRustcVmArm.Code.Vm.Memset.Names
+public import NativeRustcVmArm.Code.Vm.SubspaceTable.Names
 public import NativeRustcVmArm.Whir.SubspaceTable.Entry
 public import NativeRustcVmArm.Whir.SubspaceTable.Start
 public import NativeRustcVmArm.Whir.SubspaceTable.Finish
@@ -25,16 +30,16 @@ public section
 variable [Host] {k : Nat}
 
 /-- **The turns**, from `OInv 0`. -/
-theorem turns (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
-    (hkinv : Spec (label kinvLabel) KinvPre KinvPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
+theorem turns (hp : Placed code k) (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hkinv : Spec (label NativeRustcVmArm.Vm.Kinv.entryLabel) KinvPre KinvPost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
     {m0 : MachineData} (hpre : SubspaceTablePre m0) {st : MachineData} (hO : OInv m0 0 st) :
     Eventually (step1 Host.exe) (fun s ↦ s.pc = retOf m0 ∧ SubspaceTablePost m0 s.data)
-      ⟨st, Host.addrOf (k + 122)⟩ := by
+      ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b14Offset)⟩ := by
   have hloop := Sym.loop (tr := step1 Host.exe)
-    (Q := fun s ↦ (Done m0 s.data ∧ s.pc = Host.addrOf (k + 151)) ∨
-      (Full m0 s.data ∧ s.pc = Host.addrOf (k + 161)))
-    (fun n s ↦ ∃ t, n = muOf m0 - t ∧ s.pc = Host.addrOf (k + 122) ∧ OInv m0 t s.data)
+    (Q := fun s ↦ (Done m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b21Offset)) ∨
+      (Full m0 s.data ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b23Offset)))
+    (fun n s ↦ ∃ t, n = muOf m0 - t ∧ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b14Offset) ∧ OInv m0 t s.data)
     (fun n s ⟨t, hn, hpc, hO⟩ ↦ by
       obtain ⟨d, pc⟩ := s
       simp only at hpc
@@ -43,7 +48,7 @@ theorem turns (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
       rcases h with ⟨hO', hpc', hlt⟩ | h
       · exact .inr ⟨muOf m0 - (t + 1), by omega, t + 1, rfl, hpc', hO'⟩
       · exact .inl h)
-    (n := muOf m0 - 0) (s := ⟨st, Host.addrOf (k + 122)⟩) ⟨0, rfl, rfl, hO⟩
+    (n := muOf m0 - 0) (s := ⟨st, Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b14Offset)⟩) ⟨0, rfl, rfl, hO⟩
   refine hloop.bind fun s h ↦ ?_
   obtain ⟨d, pc⟩ := s
   rcases h with ⟨hD, hpc⟩ | ⟨hF, hpc⟩
@@ -56,13 +61,13 @@ theorem turns (hp : Placed code k) (hkmul : Spec (label kmulLabel) KmulPre KmulP
 
 /-- **`subspace_table`'s contract.** -/
 theorem subspaceTable_spec (hp : Placed code k)
-    (hkmul : Spec (label kmulLabel) KmulPre KmulPost)
-    (hkinv : Spec (label kinvLabel) KinvPre KinvPost)
-    (hmemset : Spec (label "memset") MemsetPre MemsetPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost) :
-    Spec (label subspaceTableLabel) SubspaceTablePre SubspaceTablePost := by
+    (hkmul : Spec (label NativeRustcVmArm.Vm.Kmul.entryLabel) KmulPre KmulPost)
+    (hkinv : Spec (label NativeRustcVmArm.Vm.Kinv.entryLabel) KinvPre KinvPost)
+    (hmemset : Spec (label NativeRustcVmArm.Vm.Memset.entryLabel) MemsetPre MemsetPost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost) :
+    Spec (label NativeRustcVmArm.Vm.SubspaceTable.entryLabel) SubspaceTablePre SubspaceTablePost := by
   intro m0 hpre
-  rw [show Labels.label subspaceTableLabel = Host.addrOf (k + 0) from hp.label rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.SubspaceTable.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.SubspaceTable.b0Offset) from hp.label NativeRustcVmArm.Vm.SubspaceTable.entry_at]
   refine (entry hp hmemset hpre).bind fun s h ↦ ?_
   obtain ⟨d, pc⟩ := s
   rcases h with ⟨hI, hpc⟩ | ⟨hfr, hx19, hbig, hpc⟩

@@ -42,15 +42,15 @@ theorem rev (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {xs :
     {d : MachineData} (H : Sc a s heights m0 xs c s1 d)
     (cont : ∀ d', Kp a s1 heights m0 c d' →
       NativeRustcVm.EWsAt d'.dmem (off (fb m0) 112) xs.toList.reverse →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + 166)⟩) :
-    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + 105)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b10Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b3Offset)⟩ := by
   have hH := Pre.hts h
   have hn30 : nR heights ≤ 30 := foldl_max_le heights hH.1 hH.2.1
   have hsz : xs.size = nR heights :=
     NativeRustcVmX64.Bus.BytecodeShare.sumcheckPlain_size H.run
   have hL : xs.toList.length = nR heights := by rw [Array.length_toList]; exact hsz
   have fin : ∀ d', Kp a s1 heights m0 c d' → Ch m0 xs.toList (nR heights / 2) d' →
-      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + 166)⟩ :=
+      Eventually (step1 Host.exe) (Goal a s heights bus m0) ⟨d', Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b10Offset)⟩ :=
     fun d' K hc ↦ cont d' K (ch_rev (by rw [hL]; exact hc))
   -- `b3`: the pointers saved, `n / 2`.
   have hwf : (E m0 d [] 0).WF := wf_nil h H.bd.fr.kept
@@ -93,8 +93,8 @@ theorem rev (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {xs :
   · simp only [hz, decide_true, ↓reduceIte] at hpc3
     exact at_pc (hpc3.trans (lbl_9 hp)) (fin _ K3 (by rw [hz]; exact C0))
   simp only [hz, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc3
-  refine at_pc (pc := Host.addrOf (k + 111))
-    (hpc3.trans (addr_eq (by rw [show b3.length = 6 from rfl]))) ?_
+  refine at_pc (pc := Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b4Offset))
+    (hpc3.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b3_next))) ?_
   -- `b4`: RAX past the challenges; one pair or more.
   have hwf4 : (E m0 st3.data [] 0).WF := wf_nil h K3.bd.fr.kept
   have hm4 : Match (E m0 st3.data [] 0) sF st3.data := match_body K3.bd ⟨rfl, trivial⟩ trivial
@@ -127,8 +127,8 @@ theorem rev (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {xs :
   by_cases h1 : nR heights / 2 = 1
   · -- `b5`: one pair.
     simp only [h1, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc4
-    refine at_pc (pc := Host.addrOf (k + 117))
-      (hpc4.trans (addr_eq (by rw [show b4.length = 6 from rfl]))) ?_
+    refine at_pc (pc := Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b5Offset))
+      (hpc4.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b4_next))) ?_
     have hwf5 : (E m0 st4.data [] 0).WF := wf_nil h K4.bd.fr.kept
     have hm5 : Match (E m0 st4.data [] 0) sF st4.data := match_body K4.bd ⟨rfl, trivial⟩ trivial
     refine exec_then (infix_of b5_in_code (by simp [b5]) hp) exit_b5 hwf5 nofun hm5
@@ -141,7 +141,7 @@ theorem rev (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {xs :
       fun d' K' hc' ↦ fin d' K' (by rw [h1]; exact hc'))
   -- `b6`: the loop's start.
   simp only [h1, decide_false, Bool.not_false, ↓reduceIte] at hpc4
-  refine at_pc (pc := Host.addrOf (k + 119)) (hpc4.trans (lbl_5 hp)) ?_
+  refine at_pc (pc := Host.addrOf (k + NativeRustcVmX64.Vm.TableSumcheck.b6Offset)) (hpc4.trans (lbl_5 hp)) ?_
   have hwf6 : (E m0 st4.data [] 0).WF := wf_nil h K4.bd.fr.kept
   have hm6 : Match (E m0 st4.data [] 0) sF st4.data := match_body K4.bd ⟨rfl, trivial⟩ trivial
   refine exec_then (infix_of b6_in_code (by simp [b6]) hp) exit_b6 hwf6 nofun hm6
@@ -163,7 +163,7 @@ theorem rev (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {xs :
       show BinOp.apply .and .W32 (reg st4.data .rdx) (BitVec.ofNat 64 14) = _
       rw [rdx_4, f_and _ (by omega)]
   simp only [PcOk] at hpc6
-  refine at_pc (hpc6.trans (addr_eq (by rw [show b6.length = 7 from rfl])))
+  refine at_pc (hpc6.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b6_next)))
     (loop hp h hL hT (fun d8 K8 C8 R8 ↦ ?_) (nR heights / 2 / 2 - 1) 0 (by omega) st6.data K6
       (by rw [Nat.mul_zero]; exact Ch.nil C4 hd6) LR6)
   -- `b8`: one more pair where they are odd.
@@ -186,7 +186,7 @@ theorem rev (hp : Placed code k) (h : TableSumcheckPre a s heights bus m0) {xs :
       (fin _ K8' (by
         rw [show nR heights / 2 = 2 * (nR heights / 2 / 2) by omega]; exact Ch.nil C8 hd8))
   simp only [he, decide_false, Bool.false_eq_true, ↓reduceIte] at hpc8
-  refine at_pc (hpc8.trans (addr_eq (by rw [show b8.length = 2 from rfl])))
+  refine at_pc (hpc8.trans (addr_eq (by rw [Nat.add_assoc]; exact congrArg (k + ·) NativeRustcVmX64.Vm.TableSumcheck.b8_next)))
     (one hp h hL (j := 2 * (nR heights / 2 / 2)) (by omega) K8' (Ch.nil C8 hd8)
       ((hm8'.regs _ _ rcx8).trans R8.rcx) ((hm8'.regs _ _ rax8).trans R8.rax)
       fun d' K' hc' ↦ fin d' K' (by

@@ -1,6 +1,8 @@
 module
 
 public import NativeRustcVmX64.Tables.PublicInputPhase.Calls
+public import NativeRustcVmX64.Code.Vm.MultilinearEvalByOfMultilinearEval.Names
+public import NativeRustcVmX64.Code.Vm.PushClaim.Names
 
 /-!
 # `public_input_phase`: the two limbs (x86-64)
@@ -65,10 +67,10 @@ theorem run_some : ((publicInputPhase L pub).run s).isSome = true := by rw [run_
 
 /-- **The second limb**: `b6`, its value, `b7`, its claim, `b8`, the exit. -/
 theorem limb1 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
-    (hmle : Spec (Labels.label mleOfMultilinearEvalLabel) MleOfMultilinearEvalPre
+    (hmle : Spec (Labels.label NativeRustcVmX64.Vm.MultilinearEvalByOfMultilinearEval.entryLabel) MleOfMultilinearEvalPre
       MleOfMultilinearEvalPost)
-    (hpush : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 111))
+    (hpush : ∀ cs, Spec (Labels.label NativeRustcVmX64.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b6Offset))
     (hL : LimbAt a s L (cs.push (claim0 s L pub)) 0 m0 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧ rspOf st'.data = rspOf m0 + 8#64 ∧
       PublicInputPhasePost a s L pub cs m0 st'.data) st := by
@@ -77,7 +79,7 @@ theorem limb1 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
   refine mleStep h hL.fr hL.r14 hL.r15 hL.r12 (i := 1) (by omega) (b6_in_code.trans hp.1
     (by simp [b6])) run_b6 hm6 h06 (by simpa using hr6) (by simpa using hwr6) hmle hpc
     fun st1 st2 hm1 hpc2 fr2 hval hcs2 hkeep2 hs2 hk2 ↦ ?_
-  have hwf1 := wfPub h hL.fr (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 111 + b6.length)).toBitVec)
+  have hwf1 := wfPub h hL.fr (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b6Offset + b6.length)).toBitVec)
   have hpt2 : PtW m0 st2.data.dmem (chOf s) 0 := fun i h1 h2 j hj ↦ by
     have hj' : j < 8 := by simpa [NativeRustcVm.length_wordBytes] using hj
     rw [off_add, hkeep2 _ (by omega) (by omega), keepHi hwf1 hm1 (writesIn_of_mid hm6) hw6
@@ -98,7 +100,7 @@ theorem limb1 (hp : Placed code k) (h : PublicInputPhasePre a s L pub cs m0)
   obtain ⟨hm8, hmem8, hr8⟩ := after_eq run_b8 ▸ ok_b8
   refine blk h fr4 (b8_in_code.trans hp.1 (by simp [b8])) run_b8 hm8
     (by rw [hmem8]; intro w hw; cases hw) (by rw [hpc4]; rfl) fun st5 fr5 hm5 _ hpc5 ↦ ?_
-  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 132 + b8.length)).toBitVec)
+  have hwf5 := wfF h fr4 (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.PublicInputPhase.b8Offset + b8.length)).toBitVec)
   have hd5 : st5.data.dmem = st4.data.dmem := hm5.dmem_eq hwf5 hmem8
   have hrbp5 : (reg st5.data .rbp).toNat % 256 = boolRet st4.data := by
     rw [show reg st5.data .rbp = _ from hm5.regs _ _ (hr8 (.rbp, .un .trunc .W32 (.reg .rax)) (by simp))]

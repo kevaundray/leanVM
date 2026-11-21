@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.KeccakF.Names
 public import NativeRustcVmArm.Keccak.WordsHash.Inv
 public import NativeRustcVmArm.Spec.Keccak
 
@@ -46,14 +47,14 @@ theorem stack_facts {m0 : MachineData} (h : StackOk m0 NativeRustcVmArm.keccak25
 variable [Host]
 
 /-- **A call of `keccak_f` on the state in the frame.** -/
-theorem call_kf (hkf : Spec (label NativeRustcVmArm.keccakFLabel) NativeRustcVmArm.KeccakFPre
+theorem call_kf (hkf : Spec (label NativeRustcVmArm.Vm.KeccakF.entryLabel) NativeRustcVmArm.KeccakFPre
       NativeRustcVmArm.KeccakFPost) {m0 : MachineData}
     (hstk : StackOk m0 NativeRustcVmArm.keccak256WordsStack)
     (hrc : NativeRustcVmArm.RcAt m0 NativeRustcVmArm.keccak256WordsStack)
     {st : MachineState} {env : Env} {next : Int64} {A : KeccakState}
     (hc : Ctx m0 st.data) (hl : Lanes m0 st.data (Keccak.lane A))
     (hx0 : st.data.regs.X0.toBitVec = frame m0 + BitVec.ofNat 64 8)
-    (hpc : PcOk env (.call NativeRustcVmArm.keccakFLabel) next st) {R : MachineState → Prop}
+    (hpc : PcOk env (.call NativeRustcVmArm.Vm.KeccakF.entryLabel) next st) {R : MachineState → Prop}
     (cont : ∀ st', st'.pc = next → Ctx m0 st'.data →
       Lanes m0 st'.data (Keccak.lane (keccakF1600 A)) →
       (∀ r, calleeSaved r = true → st'.data.regs.getXReg r = st.data.regs.getXReg r) →

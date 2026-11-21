@@ -1,12 +1,19 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.AccumulateSide.Names
+public import NativeRustcVmArm.Code.Vm.BufEW63Extend.Names
+public import NativeRustcVmArm.Code.Vm.BytecodeShare.Names
+public import NativeRustcVmArm.Code.Vm.ComputedBytecodeValue.Names
+public import NativeRustcVmArm.Code.Vm.Kpow.Names
+public import NativeRustcVmArm.Code.Vm.PushClaim.Names
+public import NativeRustcVmArm.Code.Vm.VerifyBusBalanceClosure0.Names
 public import NativeRustcVmArm.Bus.VerifyBusBalance.ClaimsPre
 public import NativeRustcVmArm.Bus.VerifyBusBalance.Share
 
 /-!
 # `verify_bus_balance`'s four claims
 
-From `b24` (`k + 307`), the scalars read: `b24` empties the claims and pushes the first;
+From `b24` (`k + NativeRustcVmArm.Vm.VerifyBusBalance.b24Offset`), the scalars read: `b24` empties the claims and pushes the first;
 `b25` to `b31` check each `push_claim` and push the next three; then the bytecode share
 (`claimsB_spec`). `ClSt cs`: the state between the pushes, `cs` the claims pushed.
 -/
@@ -89,11 +96,11 @@ variable [Host] {a : DecArea} {s0 : TState} {L : LayoutW} {m0 : MachineData} {k 
 
 /-- **`ClSt` through `push_claim`.** -/
 theorem ClSt.push (h : VerifyBusBalancePre a s0 L m0)
-    (hpcl : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hpcl : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
     {w pt tv mem : Array EW} {beta mf bf : EW} {s3 : TState} {cs : Array ColumnClaimW}
     {st : MachineState} {next : Int64} {R : MachineState → Prop}
     (A : ClSt L m0 w pt tv mem beta mf bf a s3 cs st.data) (hcs : cs.size < claimCap)
-    (hpc : st.pc = Labels.label pushClaimLabel ∧ retOf st.data = next)
+    (hpc : st.pc = Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel ∧ retOf st.data = next)
     {j id : Nat} {v : EW} (hj : j ≤ 30)
     (x0 : st.data.regs.X0 = m0.regs.X5) (x1 : st.data.regs.X1.toNat = id)
     (x2 : st.data.regs.X2 = UInt64.ofBitVec (loc m0 3136))
@@ -134,18 +141,18 @@ theorem okOne_eq {env : Env} {m : MachineData} (h0 : m.regs.X0 = 1)
   rw [he, show m.regs.getXReg .X0 = m.regs.X0 from rfl, h0]
   rfl
 
-/-- **The claims pushed** (`b25`, `k + 318`, after the first). -/
+/-- **The claims pushed** (`b25`, `k + NativeRustcVmArm.Vm.VerifyBusBalance.b25Offset`, after the first). -/
 theorem claimsC_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
-    (hpcl : ∀ cs, Spec (Labels.label pushClaimLabel) (PushClaimPre cs) (PushClaimPost cs))
-    (hbs : ∀ a s, Spec (Labels.label bytecodeShareLabel) (BytecodeSharePre a s)
+    (hpcl : ∀ cs, Spec (Labels.label NativeRustcVmArm.Vm.PushClaim.entryLabel) (PushClaimPre cs) (PushClaimPost cs))
+    (hbs : ∀ a s, Spec (Labels.label NativeRustcVmArm.Vm.BytecodeShare.entryLabel) (BytecodeSharePre a s)
       (BytecodeSharePost a s))
-    (hcbv : Spec (Labels.label computedBytecodeValueLabel) ComputedBytecodeValuePre
+    (hcbv : Spec (Labels.label NativeRustcVmArm.Vm.ComputedBytecodeValue.entryLabel) ComputedBytecodeValuePre
       ComputedBytecodeValuePost)
-    (hkp : Spec (Labels.label kpowLabel) KpowPre KpowPost)
-    (hacc : ∀ L rows bl F SL, Spec (Labels.label accumulateSideLabel)
+    (hkp : Spec (Labels.label NativeRustcVmArm.Vm.Kpow.entryLabel) KpowPre KpowPost)
+    (hacc : ∀ L rows bl F SL, Spec (Labels.label NativeRustcVmArm.Vm.AccumulateSide.entryLabel)
       (AccumulateSidePre L rows bl F SL) (AccumulateSidePost L rows bl F SL))
-    (hext : Spec (Labels.label bufEW63ExtendLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
-    (hfc : Spec (Labels.label fpClosureLabel) FpClosurePre FpClosurePost)
+    (hext : Spec (Labels.label NativeRustcVmArm.Vm.BufEW63Extend.entryLabel) (BufEWExtendPre 63) (BufEWExtendPost 63))
+    (hfc : Spec (Labels.label NativeRustcVmArm.Vm.VerifyBusBalanceClosure0.entryLabel) FpClosurePre FpClosurePost)
     {w pt tv mem : Array EW} {beta mf bf : EW} {s3 : TState} {m : MachineData}
     (hrun : (verifyBusBalance L).run s0 =
       ((bytecodeShare w (pt.extract 0 L.logBytecode)).run s3).bind fun y4 ↦
@@ -154,7 +161,7 @@ theorem claimsC_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
     (A : ClSt L m0 w pt tv mem beta mf bf a s3
       #[⟨LeanVM.Protocol.Verifier.memory0, pt.extract 0 L.logMemory, mem.getD 0 0⟩] m)
     (hx0 : m.regs.X0 = 1) :
-    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + 318)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s0 L m0) ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b25Offset)⟩ := by
   have hS := pre_stack h
   have hlm := (pre_lay h).log_memory_le
   have hlb := (pre_lay h).log_bytecode_le
@@ -165,7 +172,7 @@ theorem claimsC_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have A1 := A.block hfr1 hd1 (regsEq_block hm1 (by decide))
   -- `b26`
   refine at_pc ((pass_cond hpc1 (okOne_bit hx0 rfl)).trans
-    (show Host.addrOf (k + 318 + b25.length) = Host.addrOf (k + 319) from rfl))
+    (show Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b25Offset + b25.length) = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b26Offset) from rfl))
     (Fr.runBlock hS N_ge rfl hfr1 (b26_in_code.trans hp.1 (by simp [b26])) run_b26
       rfl rfl (by decide) (by decide) fun st2 hfr2 hd2 hm2 hpc2 ↦ ?_)
   have A2 := A1.block hfr2 hd2 (regsEq_block hm2 (by decide))
@@ -186,7 +193,7 @@ theorem claimsC_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have A4 := A3.block hfr4 hd4 (regsEq_block hm4' (by decide))
   -- `b28`
   refine at_pc ((pass_cond hpc4 (okOne_eq hx3 rfl)).trans
-    (show Host.addrOf (k + 326 + b27.length) = Host.addrOf (k + 327) from rfl))
+    (show Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b27Offset + b27.length) = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b28Offset) from rfl))
     (Fr.runBlock hS N_ge rfl hfr4 (b28_in_code.trans hp.1 (by simp [b28])) run_b28
       rfl rfl (by decide) (by decide) fun st5 hfr5 hd5 hm5 hpc5 ↦ ?_)
   have A5 := A4.block hfr5 hd5 (regsEq_block hm5 (by decide))
@@ -205,7 +212,7 @@ theorem claimsC_spec (hp : Placed code k) (h : VerifyBusBalancePre a s0 L m0)
   have A7 := A6.block hfr7 hd7 (regsEq_block hm7 (by decide))
   -- `b30`
   refine at_pc ((pass_cond hpc7 (okOne_eq hx6 rfl)).trans
-    (show Host.addrOf (k + 333 + b29.length) = Host.addrOf (k + 334) from rfl))
+    (show Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b29Offset + b29.length) = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyBusBalance.b30Offset) from rfl))
     (Fr.runBlock hS N_ge rfl hfr7 (b30_in_code.trans hp.1 (by simp [b30])) run_b30
       rfl rfl (by decide) (by decide) fun st8 hfr8 hd8 hm8 hpc8 ↦ ?_)
   have A8 := A7.block hfr8 hd8 (regsEq_block hm8 (by decide))

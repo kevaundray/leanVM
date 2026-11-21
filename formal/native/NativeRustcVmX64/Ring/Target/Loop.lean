@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Ring.Target.Wrap
 public import NativeRustcVmX64.Ring.Target.LoopExec
+public import NativeRustcVmX64.Code.Vm.RingPsi.Names
 
 /-!
 # `ring_target`: the images loop (x86-64)
@@ -128,11 +129,11 @@ variable [Host] {k : Nat}
 
 /-- **Turn `i`** of the images loop. -/
 theorem turn (hp : Placed code k) (hpre : RingTargetPre m0)
-    (hpsi : Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost) {i : Nat} (hi : i < 64)
-    {st : MachineState} (h : At m0 k 13 (rsL m0) (H i) (vL m0) (LI m0 i) st) :
+    (hpsi : Spec (Labels.label NativeRustcVmX64.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost) {i : Nat} (hi : i < 64)
+    {st : MachineState} (h : At m0 k NativeRustcVmX64.Vm.RingTarget.b1Offset (rsL m0) (H i) (vL m0) (LI m0 i) st) :
     Eventually (step1 Host.exe) (fun st' ↦
-      (i < 63 ∧ At m0 k 13 (rsL m0) (H (i + 1)) (vL m0) (LI m0 (i + 1)) st') ∨
-      (i = 63 ∧ At m0 k 23 (rsL m0) (H 64) (vL m0) (LI m0 64) st')) st := by
+      (i < 63 ∧ At m0 k NativeRustcVmX64.Vm.RingTarget.b1Offset (rsL m0) (H (i + 1)) (vL m0) (LI m0 (i + 1)) st') ∨
+      (i = 63 ∧ At m0 k NativeRustcVmX64.Vm.RingTarget.b3Offset (rsL m0) (H 64) (vL m0) (LI m0 64) st')) st := by
   have g := geoT hpre
   obtain ⟨e1, r_di, r_si, r_dx, r_sp, hL, hLW, hwr, hmiss⟩ := loop_b1 i hi
   refine Eventually.bind (cstep hp (layL hpre) b1_in_code (by simp [b1]) rfl (T' := A i)
@@ -187,16 +188,16 @@ theorem turn (hp : Placed code k) (hpre : RingTargetPre m0)
   by_cases h63 : i < 63
   · refine .inl ⟨h63, ?_, hB', hnew⟩
     rw [hpc, ite_eq_left (decide_eq_true h63)]
-    exact hp.label (j := 13) rfl
+    exact hp.label NativeRustcVmX64.Vm.RingTarget.label_1_at
   · have : i = 63 := by omega
     subst this
     exact .inr ⟨rfl, hpc.trans rfl, hB', hnew⟩
 
 /-- **The images loop**, from turn `i`. -/
 theorem loop (hp : Placed code k) (hpre : RingTargetPre m0)
-    (hpsi : Spec (Labels.label ringPsiLabel) RingPsiPre RingPsiPost) :
-    ∀ n i, i + n = 63 → ∀ {st : MachineState}, At m0 k 13 (rsL m0) (H i) (vL m0) (LI m0 i) st →
-      Eventually (step1 Host.exe) (At m0 k 23 (rsL m0) (H 64) (vL m0) (LI m0 64)) st := by
+    (hpsi : Spec (Labels.label NativeRustcVmX64.Vm.RingPsi.entryLabel) RingPsiPre RingPsiPost) :
+    ∀ n i, i + n = 63 → ∀ {st : MachineState}, At m0 k NativeRustcVmX64.Vm.RingTarget.b1Offset (rsL m0) (H i) (vL m0) (LI m0 i) st →
+      Eventually (step1 Host.exe) (At m0 k NativeRustcVmX64.Vm.RingTarget.b3Offset (rsL m0) (H 64) (vL m0) (LI m0 64)) st := by
   intro n
   induction n with
   | zero =>

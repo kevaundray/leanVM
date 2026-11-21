@@ -1,6 +1,9 @@
 module
 
 public import NativeRustcVmX64.KeccakGkr.SlotWeights.Store
+public import NativeRustcVmX64.Code.Vm.EWMul.Names
+public import NativeRustcVmX64.Code.Vm.EqKernel.Names
+public import NativeRustcVmX64.Code.Vm.SlotWeights.Names
 
 /-!
 # `slot_weights` on x86-64
@@ -37,11 +40,11 @@ variable {c : KeccakClaimW} {m0 : MachineData} [Host] {k : Nat}
 
 /-- **A segment's bits**: from bit `0` to the segment's end. -/
 theorem bit_loop (hp : Placed code k) (h : PreOk m0 c)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {s : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 86)) (hI : Inner m0 c s 0 st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 62) ∧ SegEnd m0 c s s'.data)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {s : Nat} {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b12Offset)) (hI : Inner m0 c s 0 st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b8Offset) ∧ SegEnd m0 c s s'.data)
       st :=
-  loop (fun n st ↦ ∃ j, n = 1600 - j ∧ j < 1600 ∧ st.pc = Host.addrOf (k + 86) ∧
+  loop (fun n st ↦ ∃ j, n = 1600 - j ∧ j < 1600 ∧ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b12Offset) ∧
       Inner m0 c s j st.data)
     (fun _ st ⟨j, hn, hj, hpc, hI⟩ ↦ (bit_mul hp h hmul hpc hI).bind fun s1 ⟨hpc1, hI1⟩ ↦
       (bit_store hp h hpc1 hI1).mono fun s' h' ↦ by
@@ -52,10 +55,10 @@ theorem bit_loop (hp : Placed code k) (h : PreOk m0 c)
 
 /-- `b8`: the next segment, or the segments done. -/
 theorem seg_end (hp : Placed code k) (h : PreOk m0 c) {s : Nat} {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 62)) (hI : SegEnd m0 c s st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b8Offset)) (hI : SegEnd m0 c s st.data) :
     Eventually (step1 Host.exe) (fun s' ↦ (s + 1 < (reg m0 .r9).toNat ∧
-      s'.pc = Host.addrOf (k + 67) ∧ SegHead m0 c (s + 1) s'.data) ∨
-      (s'.pc = Host.addrOf (k + 106) ∧ Done m0 c s'.data)) st := by
+      s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b9Offset) ∧ SegHead m0 c (s + 1) s'.data) ∨
+      (s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b15Offset) ∧ Done m0 c s'.data)) st := by
   have hs := hI.s_lt
   have hc2 := h.cnt2
   have hwf := wf_body h hI.ctx.frame.kept (d := st.data) (vars := fun _ ↦ 0) (ret := 0)
@@ -79,7 +82,7 @@ theorem seg_end (hp : Placed code k) (h : PreOk m0 c) {s : Nat} {st : MachineSta
     rw [hd, ← hlast]; exact hI.rows
   · rw [decide_eq_false hlast] at hpc'
     simp only [Bool.false_eq_true, ite_false] at hpc'
-    refine .done _ (Or.inl ⟨by omega, hpc'.trans (by rw [b8_length]), hctx, by omega, ?_,
+    refine .done _ (Or.inl ⟨by omega, hpc'.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.SlotWeights.b8_next), hctx, by omega, ?_,
       by rw [hd]; exact hI.rows⟩)
     rw [show reg s'.data .rcx = _ from hm'.regs .rcx _ hrcx]
     simp only [Sym.eval, BinOp.apply, low_W64, ext_W64]
@@ -87,11 +90,11 @@ theorem seg_end (hp : Placed code k) (h : PreOk m0 c) {s : Nat} {st : MachineSta
 
 /-- **The segments**: from segment `0`'s head to the epilogue. -/
 theorem seg_loop (hp : Placed code k) (h : PreOk m0 c)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 67)) (hI : SegHead m0 c 0 st.data) :
-    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + 106) ∧ Done m0 c s'.data) st :=
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {st : MachineState}
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b9Offset)) (hI : SegHead m0 c 0 st.data) :
+    Eventually (step1 Host.exe) (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b15Offset) ∧ Done m0 c s'.data) st :=
   loop (fun n st ↦ ∃ s, n = (reg m0 .r9).toNat - s ∧ s < (reg m0 .r9).toNat ∧
-      st.pc = Host.addrOf (k + 67) ∧ SegHead m0 c s st.data)
+      st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SlotWeights.b9Offset) ∧ SegHead m0 c s st.data)
     (fun _ st ⟨s, hn, hs, hpc, hI⟩ ↦ (seg_start hp h hpc hI).bind fun s1 ⟨hpc1, hI1⟩ ↦
       (bit_loop hp h hmul hpc1 hI1).bind fun s2 ⟨hpc2, hI2⟩ ↦
         (seg_end hp h hpc2 hI2).mono fun s' h' ↦ by
@@ -102,13 +105,13 @@ theorem seg_loop (hp : Placed code k) (h : PreOk m0 c)
 
 /-- **`slot_weights` meets its contract**, given `eq_kernel`'s and `EW::mul`'s. -/
 theorem slotWeights_spec (hp : Placed code k)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost)
-    (hmul : Spec (Labels.label ewMulLabel) EWMulPre EWMulPost) (c : KeccakClaimW) :
-    Spec (Labels.label slotWeightsLabel) (SlotWeightsPre c) (SlotWeightsPost c) := by
+    (heq : Spec (Labels.label NativeRustcVmX64.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost)
+    (hmul : Spec (Labels.label NativeRustcVmX64.Vm.EWMul.entryLabel) EWMulPre EWMulPost) (c : KeccakClaimW) :
+    Spec (Labels.label NativeRustcVmX64.Vm.SlotWeights.entryLabel) (SlotWeightsPre c) (SlotWeightsPost c) := by
   intro m0 hpre
   have h := preOk hpre
-  unfold slotWeightsLabel
-  rw [hp.label (j := 0) rfl]
+  unfold NativeRustcVmX64.Vm.SlotWeights.entryLabel
+  rw [hp.label NativeRustcVmX64.Vm.SlotWeights.entry_at]
   refine (prologue hp hpre heq).bind fun s1 ⟨hpc1, hI1⟩ ↦ ?_
   refine (zero_loop hp h hpc1 hI1).bind fun s2 ⟨hpc2, hI2⟩ ↦ ?_
   refine (seg_loop hp h hmul hpc2 hI2).bind fun s3 ⟨hpc3, hD⟩ ↦ ?_

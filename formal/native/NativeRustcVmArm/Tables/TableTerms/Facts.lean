@@ -1,5 +1,7 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.Names
+public import NativeRustcVmArm.Code.Vm.TableTerms.Names
 public import NativeRustcVmArm.Tables.TableTerms.Lemmas
 
 /-!
@@ -18,7 +20,7 @@ open NativeRustcVmArm.Bus (after)
 @[expose] public section
 
 /-- `TABLES`' label. -/
-abbrev tablesL : Label := ".Lanon.a75d6d9e6a8990b4224ef13f18552af8.4"
+abbrev tablesL : Label := NativeRustcVmArm.Vm.Symbols.rodata4Label
 
 /-- All callee-saved registers but X30. -/
 abbrev cs : List XReg := [.X19, .X20, .X21, .X22, .X23, .X24, .X25, .X26, .X27, .X28, .X29]
@@ -200,72 +202,56 @@ theorem ok_b15 : (after b15 outS).sp = .ptr 0 0 ∧
 theorem ok_b16 : exitOk (after b16 sF) 288 slots [] = true ∧ (after b16 sF).mem = [] := by
   rw [Bus.after_eq run_b16]; decide
 
-/-! ## Lengths, places, labels -/
+/-! ## Places and labels -/
 
-theorem len_b0 : b0.length = 23 := rfl
-theorem len_b1 : b1.length = 4 := rfl
-theorem len_b2 : b2.length = 5 := rfl
-theorem len_b3 : b3.length = 1 := rfl
-theorem len_b4 : b4.length = 8 := rfl
-theorem len_b5 : b5.length = 14 := rfl
-theorem len_b6 : b6.length = 9 := rfl
-theorem len_b7 : b7.length = 10 := rfl
-theorem len_b8 : b8.length = 10 := rfl
-theorem len_b9 : b9.length = 8 := rfl
-theorem len_b10 : b10.length = 11 := rfl
-theorem len_b11 : b11.length = 1 := rfl
-theorem len_b12 : b12.length = 8 := rfl
-theorem len_b13 : b13.length = 10 := rfl
-theorem len_b14 : b14.length = 5 := rfl
-theorem len_b15 : b15.length = 3 := rfl
 
 variable [Host] {k : Nat}
 
 theorem addr_eq {a b : Nat} (h : a = b) : Host.addrOf a = Host.addrOf b := by rw [h]
 
-theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + 0) :=
+theorem hb0 (hp : Placed code k) : b0.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b0Offset) :=
   b0_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 23) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b1Offset) :=
   b1_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 27) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b2Offset) :=
   b2_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 32) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b3Offset) :=
   b3_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 33) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b4Offset) :=
   b4_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 41) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b5Offset) :=
   b5_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 55) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b6Offset) :=
   b6_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 64) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b7Offset) :=
   b7_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 74) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b8Offset) :=
   b8_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 84) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b9Offset) :=
   b9_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 92) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b10Offset) :=
   b10_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + 103) :=
+theorem hb11 (hp : Placed code k) : b11.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b11Offset) :=
   b11_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + 104) :=
+theorem hb12 (hp : Placed code k) : b12.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b12Offset) :=
   b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + 112) :=
+theorem hb13 (hp : Placed code k) : b13.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b13Offset) :=
   b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + 122) :=
+theorem hb14 (hp : Placed code k) : b14.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b14Offset) :=
   b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + 127) :=
+theorem hb15 (hp : Placed code k) : b15.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b15Offset) :=
   b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
-theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + 130) :=
+theorem hb16 (hp : Placed code k) : b16.IsInfixAt Host.prog (k + NativeRustcVmArm.Vm.TableTerms.b16Offset) :=
   b16_in_code.trans hp.1 (List.cons_ne_nil _ _)
 
-theorem lbl_entry (hp : Placed code k) : Labels.label tableTermsLabel = Host.addrOf (k + 0) :=
-  hp.label (j := 0) rfl
-theorem lbl_1 (hp : Placed code k) : Labels.label ".LTableTerms_1" = Host.addrOf (k + 23) :=
-  hp.label (j := 23) rfl
-theorem lbl_6 (hp : Placed code k) : Labels.label ".LTableTerms_6" = Host.addrOf (k + 127) :=
-  hp.label (j := 127) rfl
-theorem lbl_7 (hp : Placed code k) : Labels.label ".LTableTerms_7" = Host.addrOf (k + 130) :=
-  hp.label (j := 130) rfl
+theorem lbl_entry (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.TableTerms.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b0Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.TableTerms.entryOffset) NativeRustcVmArm.Vm.TableTerms.entry_at
+theorem lbl_1 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.TableTerms.label_1 = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b1Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.TableTerms.b1Offset) NativeRustcVmArm.Vm.TableTerms.label_1_at
+theorem lbl_6 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.TableTerms.label_6 = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b15Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.TableTerms.b15Offset) NativeRustcVmArm.Vm.TableTerms.label_6_at
+theorem lbl_7 (hp : Placed code k) : Labels.label NativeRustcVmArm.Vm.TableTerms.label_7 = Host.addrOf (k + NativeRustcVmArm.Vm.TableTerms.b16Offset) :=
+  hp.label (j := NativeRustcVmArm.Vm.TableTerms.b16Offset) NativeRustcVmArm.Vm.TableTerms.label_7_at
 
 end
 

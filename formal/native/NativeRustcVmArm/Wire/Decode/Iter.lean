@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.PhaseM.Names
 public import NativeRustcVmArm.Wire.Decode.Loop
 
 /-!
@@ -141,7 +142,7 @@ variable [Host] {k0 : Nat}
 
 /-- **One pass of the loop**: done, or one more phase. -/
 theorem iter_spec (hp : Placed code k0) (G : Geo m0 B) (F : Fix m0 B n ws p cs)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) {k : Nat} {st : MachineState}
+    (hpm : Spec (Labels.label NativeRustcVmArm.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) {k : Nat} {st : MachineState}
     (h : LInv k0 m0 B n ws p cs k st) :
     Eventually (step1 Host.exe) (fun s' ↦ Res m0 B s' ∨
       ∃ k', k < k' ∧ k' ≤ p ∧ LInv k0 m0 B n ws p cs k' s') st := by
@@ -169,7 +170,7 @@ theorem iter_spec (hp : Placed code k0) (G : Geo m0 B) (F : Fix m0 B n ws p cs)
   simp only [PcOk, hc] at hpc1
   by_cases hkp : k = p
   · subst hkp
-    simp only [decide_true, ↓reduceIte, hp.label (j := 77) rfl] at hpc1
+    simp only [decide_true, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Decode.b16Offset) NativeRustcVmArm.Vm.Decode.label_11_at] at hpc1
     exact Eventually.mono (done_spec hp G F hpc1 hfr1 (by rw [r1 .X20 (by simp)]; exact x20) hph
       (by rw [hd1]; exact hR) (by rw [hd1]; exact hD)) fun _ h ↦ .inl h
   have hkp' : k < p := by omega
@@ -293,7 +294,7 @@ theorem iter_spec (hp : Placed code k0) (G : Geo m0 B) (F : Fix m0 B n ws p cs)
     refine exec_at (infix_of b13_in_code (by simp [b13]) hp) run_b13 hwf6
       (hpc5.trans (congrArg Host.addrOf rfl)) hm6 fun s6 hm7 hpc6 ↦ ?_
     have hfr6 : Frm m0 s6.data := Fr.ofBlock hfr5 hm6 hm7 hwf6 rfl rfl rfl (keepOk (by decide))
-    simp only [PcOk, hp.label (j := 70) rfl] at hpc6
+    simp only [PcOk, hp.label (j := NativeRustcVmArm.Vm.Decode.b15Offset) NativeRustcVmArm.Vm.Decode.label_10_at] at hpc6
     refine Eventually.mono (exit15 hp G hpc6 hfr6 ?_) fun _ h ↦ .inl h
     have hnone : decodeM B = none := by
       rw [F.dec, show p = k + (p - k - 1) + 1 by omega, phasesM_none B k hph hpo]
@@ -308,7 +309,7 @@ theorem iter_spec (hp : Placed code k0) (G : Geo m0 B) (F : Fix m0 B n ws p cs)
     simp only [SBool.eval, Sym.eval, Env.ofMachine_regs]
     rw [show m2.regs.getXReg .X0 = 1 from h0]
     rfl
-  simp only [hb, ↓reduceIte, hp.label (j := 54) rfl] at hpc5
+  simp only [hb, ↓reduceIte, hp.label (j := NativeRustcVmArm.Vm.Decode.b9Offset) NativeRustcVmArm.Vm.Decode.label_6_at] at hpc5
   have r5 : ∀ x ∈ [XReg.X19, .X20, .X21, .X22, .X23, .X24],
       s5.data.regs.getXReg x = s3.data.regs.getXReg x := by
     intro x hx
@@ -335,7 +336,7 @@ theorem iter_spec (hp : Placed code k0) (G : Geo m0 B) (F : Fix m0 B n ws p cs)
 
 /-- **The loop** from `k` phases read. -/
 theorem loop_spec (hp : Placed code k0) (G : Geo m0 B) (F : Fix m0 B n ws p cs)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) {k : Nat} {st : MachineState}
+    (hpm : Spec (Labels.label NativeRustcVmArm.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) {k : Nat} {st : MachineState}
     (h : LInv k0 m0 B n ws p cs k st) : Eventually (step1 Host.exe) (Res m0 B) st := by
   have hk : k ≤ p := by have := h.x23; omega
   refine Sym.loop (tr := step1 Host.exe) (Q := Res m0 B)

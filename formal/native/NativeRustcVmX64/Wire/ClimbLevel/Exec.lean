@@ -2,6 +2,9 @@ module
 
 public import NativeRustcVmX64.Sumcheck.Common
 public import NativeRustcVmX64.Code.Vm.ClimbLevel
+public import NativeRustcVmX64.Code.Vm.ClimbLevel.Names
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
+public import NativeRustcVmX64.Code.Vm.ReaderDigest.Names
 public meta import NativeRustcVmX64.Code.Vm.ClimbLevel
 public meta import NativeRustcVmX64.Sumcheck.Common
 
@@ -123,7 +126,7 @@ public theorem ok_b0 : ProOk 208 8 slots (after b0 entryS) = true ∧
     Keeps [.rsi, .rdx, .rcx, .r8] (after b0 entryS) = true := by
   decide +kernel
 public theorem exit_b0 : exec b0 entryS = some (after b0 entryS,
-    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rdx) (.reg .rdx)) (.lit 0)) ".LClimbLevel_1") :=
+    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rdx) (.reg .rdx)) (.lit 0)) NativeRustcVmX64.Vm.ClimbLevel.label_1) :=
   run_b0.trans (by rw [show after b0 entryS = _ from after_eq run_b0])
 
 public theorem ok_b1 : MidOk 208 8 slots (after b1 frS) = true ∧ FrW 48 72 (after b1 frS) = true ∧
@@ -134,7 +137,7 @@ public theorem ok_b1 : MidOk 208 8 slots (after b1 frS) = true ∧ FrW 48 72 (af
     (after b1 frS).reg .rbp = some (.reg .rsi) ∧ (after b1 frS).reg .r14 = some (.reg .r8) ∧
     (after b1 frS).reg .r15 = some (.reg .rcx) := by
   decide +kernel
-public theorem exit_b1 : exec b1 frS = some (after b1 frS, .jump ".LClimbLevel_3") :=
+public theorem exit_b1 : exec b1 frS = some (after b1 frS, .jump NativeRustcVmX64.Vm.ClimbLevel.label_3) :=
   run_b1.trans (by rw [show after b1 frS = _ from after_eq run_b1])
 
 public theorem ok_b24 : EpiOk 208 slots (after b24 frS) = true ∧ (after b24 frS).mem = [] ∧
@@ -146,13 +149,13 @@ public theorem exit_b24 : exec b24 frS = some (after b24 frS, .ret (.load 0 208 
 public theorem ok_b20 : FrOk (after b20 frS) = true ∧ (after b20 frS).reg .rbx = some (.lit 0) ∧
     Keeps [.rax] (after b20 frS) = true := by
   decide +kernel
-public theorem exit_b20 : exec b20 frS = some (after b20 frS, .jump ".LClimbLevel_11") :=
+public theorem exit_b20 : exec b20 frS = some (after b20 frS, .jump NativeRustcVmX64.Vm.ClimbLevel.label_11) :=
   run_b20.trans (by rw [show after b20 frS = _ from after_eq run_b20])
 
 public theorem ok_b21 : FrOk (after b21 frS) = true ∧ (after b21 frS).reg .rax = some (.lit 1) ∧
     Keeps [.rbx] (after b21 frS) = true := by
   decide +kernel
-public theorem exit_b21 : exec b21 frS = some (after b21 frS, .jump ".LClimbLevel_11") :=
+public theorem exit_b21 : exec b21 frS = some (after b21 frS, .jump NativeRustcVmX64.Vm.ClimbLevel.label_11) :=
   run_b21.trans (by rw [show after b21 frS = _ from after_eq run_b21])
 
 public theorem ok_b23 : FrOk (after b23 frS) = true ∧ (after b23 frS).reg .rax = some (.lit 0) := by
@@ -167,7 +170,7 @@ public theorem ok_b3 : FrOk (after b3 frS) = true ∧
     Keeps [.rbx, .r14, .r15] (after b3 frS) = true := by
   decide +kernel
 public theorem exit_b3 : exec b3 frS = some (after b3 frS,
-    .cond (.cmp .eq .W64 (.load 0 80 8) (.load 0 48 8)) ".LClimbLevel_8") :=
+    .cond (.cmp .eq .W64 (.load 0 80 8) (.load 0 48 8)) NativeRustcVmX64.Vm.ClimbLevel.label_8) :=
   run_b3.trans (by rw [show after b3 frS = _ from after_eq run_b3])
 
 public theorem ok_b4 : MidOk 208 8 slots (after b4 frS) = true ∧ FrW 72 88 (after b4 frS) = true ∧
@@ -183,7 +186,7 @@ public theorem ok_b5 : FrOk (after b5 frS) = true ∧
     Keeps (.rax :: .rcx :: loopRegs) (after b5 frS) = true := by
   decide +kernel
 public theorem exit_b5 : exec b5 frS = some (after b5 frS,
-    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rcx) (.reg .rcx)) (.lit 0)) ".LClimbLevel_9") :=
+    .cond (.cmp .eq .W64 (.bin .and .W64 (.reg .rcx) (.reg .rcx)) (.lit 0)) NativeRustcVmX64.Vm.ClimbLevel.label_9) :=
   run_b5.trans (by rw [show after b5 frS = _ from after_eq run_b5])
 
 public theorem ok_b6 : MidOk 208 8 slots (after b6 cmpS) = true ∧ (after b6 cmpS).mem = [] ∧
@@ -193,7 +196,7 @@ public theorem ok_b6 : MidOk 208 8 slots (after b6 cmpS) = true ∧ (after b6 cm
   decide +kernel
 public theorem exit_b6 : exec b6 cmpS = some (after b6 cmpS,
     .cond (.not (.cmp .eq .W64 (.bin .xor .W64 (.load 2 0 8) (.load 1 0 8)) (.lit 1)))
-      ".LClimbLevel_4") :=
+      NativeRustcVmX64.Vm.ClimbLevel.label_4) :=
   run_b6.trans (by rw [show after b6 cmpS = _ from after_eq run_b6])
 
 public theorem ok_b6s : MidOk 208 8 slots (after b6 selfS) = true ∧ (after b6 selfS).mem = [] ∧
@@ -201,7 +204,7 @@ public theorem ok_b6s : MidOk 208 8 slots (after b6 selfS) = true ∧ (after b6 
     (after b6 selfS).reg .rcx = some (.bin .add .W64 (.lit 18446744073709551576) (.reg .rcx)) ∧
     Keeps loopRegs (after b6 selfS) = true := by
   decide +kernel
-public theorem exit_b6s : exec b6 selfS = some (after b6 selfS, .cond (.lit true) ".LClimbLevel_4") :=
+public theorem exit_b6s : exec b6 selfS = some (after b6 selfS, .cond (.lit true) NativeRustcVmX64.Vm.ClimbLevel.label_4) :=
   run_b6s.trans (by rw [show after b6 selfS = _ from after_eq run_b6s])
 
 /-! ## The sibling found -/
@@ -214,12 +217,12 @@ public theorem ok_b7 : MidOk 208 8 slots (after b7 fndS) = true ∧ FrW 8 40 (af
     Keeps (.r13 :: loopRegs) (after b7 fndS) = true := by
   decide +kernel
 public theorem exit_b7 : exec b7 fndS = some (after b7 fndS,
-    .cond (.not (.cmp .eq .W8 (.bin .and .W8 (.reg .r13) (.lit 1)) (.lit 0))) ".LClimbLevel_7") :=
+    .cond (.not (.cmp .eq .W8 (.bin .and .W8 (.reg .r13) (.lit 1)) (.lit 0))) NativeRustcVmX64.Vm.ClimbLevel.label_7) :=
   run_b7.trans (by rw [show after b7 fndS = _ from after_eq run_b7])
 
 public theorem ok_b8 : FrOk (after b8 frS) = true ∧ Keeps (.r13 :: loopRegs) (after b8 frS) = true := by
   decide +kernel
-public theorem exit_b8 : exec b8 frS = some (after b8 frS, .jump ".LClimbLevel_13") :=
+public theorem exit_b8 : exec b8 frS = some (after b8 frS, .jump NativeRustcVmX64.Vm.ClimbLevel.label_13) :=
   run_b8.trans (by rw [show after b8 frS = _ from after_eq run_b8])
 
 /-! ## The sibling read -/
@@ -236,13 +239,13 @@ public theorem ok_b10 : MidOk 208 0 slots (after b10 frS) = true ∧
     Keeps loopRegs (after b10 frS) = true := by
   decide +kernel
 public theorem exit_b10 : exec b10 frS = some (after b10 frS,
-    .call "_RNvMNtCsemcRClSg8DH_9native_vm4wireNtB2_6Reader6digest") :=
+    .call NativeRustcVmX64.Vm.ReaderDigest.entryLabel) :=
   run_b10.trans (by rw [show after b10 frS = _ from after_eq run_b10])
 
 public theorem ok_b11 : FrOk (after b11 frS) = true ∧ Keeps loopRegs (after b11 frS) = true := by
   decide +kernel
 public theorem exit_b11 : exec b11 frS = some (after b11 frS,
-    .cond (.cmp .eq .W8 (.load 0 120 1) (.lit 0)) ".LClimbLevel_10") :=
+    .cond (.cmp .eq .W8 (.load 0 120 1) (.lit 0)) NativeRustcVmX64.Vm.ClimbLevel.label_10) :=
   run_b11.trans (by rw [show after b11 frS = _ from after_eq run_b11])
 
 public theorem ok_b12 : MidOk 208 8 slots (after b12 rdS) = true ∧ FrW 8 40 (after b12 rdS) = true ∧
@@ -253,7 +256,7 @@ public theorem ok_b12 : MidOk 208 8 slots (after b12 rdS) = true ∧ FrW 8 40 (a
     (after b12 rdS).reg .r13 = some (.load 1 0 8) ∧ Keeps loopRegs (after b12 rdS) = true := by
   decide +kernel
 public theorem exit_b12 : exec b12 rdS = some (after b12 rdS,
-    .cond (.not (.cmp .eq .W8 (.bin .and .W8 (.load 1 0 8) (.lit 1)) (.lit 0))) ".LClimbLevel_16") :=
+    .cond (.not (.cmp .eq .W8 (.bin .and .W8 (.load 1 0 8) (.lit 1)) (.lit 0))) NativeRustcVmX64.Vm.ClimbLevel.label_16) :=
   run_b12.trans (by rw [show after b12 rdS = _ from after_eq run_b12])
 
 /-! ## The parent -/
@@ -267,7 +270,7 @@ public theorem ok_b13 : MidOk 208 0 slots (after b13 frS) = true ∧
     Keeps [.rbx, .r12, .r13, .r14, .r15] (after b13 frS) = true := by
   decide +kernel
 public theorem exit_b13 : exec b13 frS = some (after b13 frS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair") :=
+    .call NativeRustcVmX64.Vm.HashPair.entryLabel) :=
   run_b13.trans (by rw [show after b13 frS = _ from after_eq run_b13])
 
 public theorem ok_b17 : MidOk 208 0 slots (after b17 frS) = true ∧
@@ -279,21 +282,21 @@ public theorem ok_b17 : MidOk 208 0 slots (after b17 frS) = true ∧
     Keeps [.rbx, .r12, .r13, .r14, .r15] (after b17 frS) = true := by
   decide +kernel
 public theorem exit_b17 : exec b17 frS = some (after b17 frS,
-    .call "_RNvNtCsemcRClSg8DH_9native_vm6keccak9hash_pair") :=
+    .call NativeRustcVmX64.Vm.HashPair.entryLabel) :=
   run_b17.trans (by rw [show after b17 frS = _ from after_eq run_b17])
 
 public theorem ok_b14 : FrOk (after b14 frS) = true ∧
     Keeps (.r13 :: loopRegs) (after b14 frS) = true := by
   decide +kernel
 public theorem exit_b14 : exec b14 frS = some (after b14 frS,
-    .cond (.cmp .ult .W64 (.reg .rbx) (.lit 256)) ".LClimbLevel_17") :=
+    .cond (.cmp .ult .W64 (.reg .rbx) (.lit 256)) NativeRustcVmX64.Vm.ClimbLevel.label_17) :=
   run_b14.trans (by rw [show after b14 frS = _ from after_eq run_b14])
 
 public theorem ok_b18 : FrOk (after b18 frS) = true ∧
     Keeps (.r13 :: loopRegs) (after b18 frS) = true := by
   decide +kernel
 public theorem exit_b18 : exec b18 frS = some (after b18 frS,
-    .cond (.not (.cmp .ult .W64 (.reg .rbx) (.lit 256))) ".LClimbLevel_15") :=
+    .cond (.not (.cmp .ult .W64 (.reg .rbx) (.lit 256))) NativeRustcVmX64.Vm.ClimbLevel.label_15) :=
   run_b18.trans (by rw [show after b18 frS = _ from after_eq run_b18])
 
 public theorem ok_b19 : MidOk 208 8 slots (after b19 stS) = true ∧ InR 1 40 (after b19 stS) = true ∧
@@ -303,7 +306,7 @@ public theorem ok_b19 : MidOk 208 8 slots (after b19 stS) = true ∧ InR 1 40 (a
     (after b19 stS).reg .rbx = some (.bin .add .W64 (.reg .rbx) (.lit 1)) ∧
     Keeps [.rbp, .r12, .r14, .r15] (after b19 stS) = true := by
   decide +kernel
-public theorem exit_b19 : exec b19 stS = some (after b19 stS, .jump ".LClimbLevel_7") :=
+public theorem exit_b19 : exec b19 stS = some (after b19 stS, .jump NativeRustcVmX64.Vm.ClimbLevel.label_7) :=
   run_b19.trans (by rw [show after b19 stS = _ from after_eq run_b19])
 
 end NativeRustcVmX64.Wire.ClimbLevel

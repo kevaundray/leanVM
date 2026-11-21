@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.EqKernel.Names
 public import NativeRustcVmArm.KeccakGkr.FirstClaim.Defs
 public import NativeVm.Code.Phase6.Facts
 
@@ -53,10 +54,10 @@ variable [NativeArm.Host] {inst segment lanePoint output : Array EW} {m0 : Machi
 
 /-- **The prologue**: from the entry to the bit weights' loop head at bit `0`. -/
 theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoint output m0)
-    (heq : Spec (Labels.label eqKernelLabel) EqKernelPre EqKernelPost) :
+    (heq : Spec (Labels.label NativeRustcVmArm.Vm.EqKernel.entryLabel) EqKernelPre EqKernelPost) :
     Eventually (step1 Host.exe)
-      (fun s' ↦ s'.pc = Host.addrOf (k + 63) ∧ WInv m0 lanePoint 0 s'.data)
-      ⟨m0, Host.addrOf (k + 0)⟩ := by
+      (fun s' ↦ s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b3Offset) ∧ WInv m0 lanePoint 0 s'.data)
+      ⟨m0, Host.addrOf (k + NativeRustcVmArm.Vm.FirstClaim.b0Offset)⟩ := by
   have hS := hpre.1
   have hA := pre_areas hpre
   have h1408 : 1408 ≤ firstClaimStack := by decide
@@ -116,7 +117,7 @@ theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoi
     rw [hr0]; rfl
   refine exec_at (b1_in_code.trans hp.1 (by simp [b1])) e1 (Env.wf_nil _) hpc2 (match_nil _)
     fun s3 hm3 hpc3 ↦ ?_
-  simp only [PcOk, show b1.length = 2 from rfl] at hpc3
+  simp only [PcOk, NativeRustcVmArm.Vm.FirstClaim.b1_length, NativeRustcVmArm.Vm.FirstClaim.b1Length] at hpc3
   sym_simp at hpc3
   simp only [Env.ofMachine_regs, hx0'] at hpc3
   rw [ite_eq_right (by decide)] at hpc3
@@ -132,7 +133,7 @@ theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoi
     match_ofMachine ⟨rfl, fun _ ↦ frame_aligned hS h1408 rfl, trivial⟩
       (by rw [hb3.sp]; simp [Sym.eval]) trivial trivial trivial trivial
   refine exec_at (b2_in_code.trans hp.1 (by simp [b2])) e2 hwfB hpc3 hmB fun s4 hm4 hpc4 ↦ ?_
-  simp only [PcOk, show b2.length = 6 from rfl] at hpc4
+  simp only [PcOk, NativeRustcVmArm.Vm.FirstClaim.b2_length, NativeRustcVmArm.Vm.FirstClaim.b2Length] at hpc4
   have hb4 : Body m0 s4.data :=
     hb3.write_local (lo := 1312) hS h1408 slots_le (by decide) hws hmB hm4 hwfB rfl all_slots
       (by decide) fun p hw ↦
@@ -178,7 +179,7 @@ theorem prologue (hp : Placed code k) (hpre : FirstClaimPre inst segment lanePoi
         have : (eqKernel lanePoint).toList.length = 32 := by
           rw [Array.length_toList, NativeVm.Code.P6.eqKernel_size, hlp]; rfl
         omega)
-  refine .done _ ⟨by rw [hpc4], hb4, ⟨?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, by decide,
+  refine .done _ ⟨by simpa only [b2Offset, b3Offset] using hpc4, hb4, ⟨?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, by decide,
     hlanes4, hc1, fun i hi ↦ absurd hi (by omega)⟩
   · show s4.data.regs.getXReg .X19 = _
     rw [hreg .X19 (by simp)]; exact UInt64.toBitVec_inj.mp (hm1.regs .X19 _ rfl)

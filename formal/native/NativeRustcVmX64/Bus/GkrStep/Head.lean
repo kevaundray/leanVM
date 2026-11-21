@@ -1,6 +1,10 @@
 module
 
 public import NativeRustcVmX64.Bus.GkrStep.Frame
+public import NativeRustcVmX64.Code.Vm.BitLength.Names
+public import NativeRustcVmX64.Code.Vm.PolyEval.Names
+public import NativeRustcVmX64.Code.Vm.SpongeWSqueeze.Names
+public import NativeRustcVmX64.Code.Vm.TStateGrind.Names
 
 /-!
 # `gkr_step` up to the combiner's evaluation (x86-64)
@@ -48,13 +52,13 @@ variable [Host] {a : DecArea} {s0 : TState} {g0 : GkrStateW} {m0 : MachineData} 
 /-- **`gkr_step` up to the combiner's evaluation**: the prologue, the first grind (of `0` bits),
 the combiner, its evaluation of the values. -/
 theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
-    (hbl : Spec (Labels.label bitLengthLabel) BitLengthPre BitLengthPost)
-    (hgr : ∀ s, Spec (Labels.label grindLabel) (GrindPre a s) (GrindPost a s))
-    (hsq : ∀ sp, Spec (Labels.label squeezeLabel) (SqueezePre sp) (SqueezePost sp))
-    (hpe : Spec (Labels.label polyEvalLabel) PolyEvalPre PolyEvalPost)
+    (hbl : Spec (Labels.label NativeRustcVmX64.Vm.BitLength.entryLabel) BitLengthPre BitLengthPost)
+    (hgr : ∀ s, Spec (Labels.label NativeRustcVmX64.Vm.TStateGrind.entryLabel) (GrindPre a s) (GrindPost a s))
+    (hsq : ∀ sp, Spec (Labels.label NativeRustcVmX64.Vm.SpongeWSqueeze.entryLabel) (SqueezePre sp) (SqueezePost sp))
+    (hpe : Spec (Labels.label NativeRustcVmX64.Vm.PolyEval.entryLabel) PolyEvalPre PolyEvalPost)
     (cont : ∀ d, AtPE a s0 g0 m0 d →
-      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + 32)⟩) :
-    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b5Offset)⟩) :
+    Eventually (step1 Host.exe) (Goal a s0 g0 m0) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b0Offset)⟩ := by
   have hS := pre_stack h
   have hN := N_ge
   have cx := ctxF h 1408 N_ge
@@ -62,7 +66,7 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   set t := reg m0 .rdi with ht
   set p := reg m0 .rcx with hpdef
   -- `b0`: the prologue, `bit_length(1)`.
-  have hwf0 := wf0 h (d := m0) (fun _ h ↦ h) (Host.addrOf (k + 0 + b0.length)).toBitVec
+  have hwf0 := wf0 h (d := m0) (fun _ h ↦ h) (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b0Offset + b0.length)).toBitVec
   obtain ⟨hpro, hw0, hdi0, h140, h120, hbx0, h150⟩ := ok_b0
   have hw0' := W0_spec hw0
   refine exec_then (infix_of b0_in_code (by simp [b0]) hp) exit_b0 hwf0 (fun _ _ ↦ rfl)
@@ -101,10 +105,10 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     gsKeep h hs2 (fun q hq ↦ hq.elim (fun hq ↦ .inl (calleeStack h (by omega) fr1
       (le32 (by simp)) hq)) False.elim) hgs1
   -- `b1`: `grind(t, 0)`.
-  have hwf1 := wf0 h fr2.frame.kept (Host.addrOf (k + 14 + b1.length)).toBitVec
+  have hwf1 := wf0 h fr2.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b1Offset + b1.length)).toBitVec
   obtain ⟨hmid1, hw1, hsi1, hdi1, hbp1, hk1⟩ := ok_b1
   refine exec_at (infix_of b1_in_code (by simp [b1]) hp) exit_b1 hwf1 (fun _ _ ↦ rfl)
-    (show Host.addrOf (k + 0 + b0.length) = _ by rw [show b0.length = 14 from rfl])
+    (show Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b0Offset + b0.length) = _ by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b0_next)
     (match_head fr2 _) fun st3 hm3 hpc3 ↦ ?_
   obtain ⟨fr3, hs3⟩ := FR.block h fr2 hwf1 hm3 hmid1 (.inl rfl) (W01_of_W0 hw1) (by decide)
     (by omega)
@@ -150,7 +154,7 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have hwf5 := wf0 h fr4.frame.kept 0
   obtain ⟨hmid5, hmem5, hk5⟩ := ok_b2
   refine exec_at (infix_of b2_in_code (by simp [b2]) hp) exit_b2 hwf5 nofun
-    (show Host.addrOf (k + 14 + b1.length) = _ by rw [show b1.length = 6 from rfl])
+    (show Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b1Offset + b1.length) = _ by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b1_next)
     (match_head fr4 0) fun st5 hm5 hpc5 ↦ ?_
   obtain ⟨fr5, hd5⟩ := FR.block_nil h fr4 hwf5 hm5 hmid5 hmem5
   have hc5 : SBool.eval (frameEnv m0 m4 1408 [] (fun _ ↦ 0) 0) cAl = false := by
@@ -160,10 +164,10 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
   have hts5 : TStateAt st5.data.dmem t a s0 := by rw [hd5]; exact hts4
   have hgs5 : GkrStateWAt st5.data.dmem p g0 := by rw [hd5]; exact hgs4
   -- `b3`: `last` at `44`, `squeeze(t)`.
-  have hwf6 := wf0 h fr5.frame.kept (Host.addrOf (k + 22 + b3.length)).toBitVec
+  have hwf6 := wf0 h fr5.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b3Offset + b3.length)).toBitVec
   obtain ⟨hmid6, hw6, h44, hdi6, hk6⟩ := ok_b3
   refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf6 (fun _ _ ↦ rfl)
-    (hpc5.trans (by rw [show b2.length = 2 from rfl])) (match_head fr5 _) fun st6 hm6 hpc6 ↦ ?_
+    (hpc5.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b2_next)) (match_head fr5 _) fun st6 hm6 hpc6 ↦ ?_
   obtain ⟨fr6, hs6⟩ := FR.block h fr5 hwf6 hm6 hmid6 (.inl rfl) (W01_of_W0 hw6) (by decide)
     (by omega)
   have hs6' : NativeRustcVm.SameOutside st5.data.dmem st6.data.dmem
@@ -181,7 +185,7 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     have := hm6.bytesAt_write (r := 0) (o := 44) (n := 4) (b := stackBelow m0 1408)
       (sz := 1408 + 8) rfl (by omega) h44
     have e : (Sym.un .trunc .W32 (.reg .r12)).eval (frameEnv m0 st5.data 1408 [] (fun _ ↦ 0)
-        (Host.addrOf (k + 22 + b3.length)).toBitVec) = reg m0 .rdx := by
+        (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b3Offset + b3.length)).toBitVec) = reg m0 .rdx := by
       show UnOp.apply .trunc .W32 (reg st5.data .r12) = _
       rw [kr hm5 hk5 (by simp), k4 .r12 (by simp), e12, trunc_small _ (pre_last h)]
     rwa [e] at this
@@ -241,10 +245,10 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     exact (hcs7 r hcs).trans ((kr hm6 hk6 (by simp at hr ⊢; tauto)).trans
       ((kr hm5 hk5 (by simp at hr ⊢; tauto)).trans (k4 r hr)))
   -- `b4`: `c₀` at `104`, `c₁` in RBP, `poly_eval(s, 3, c)`.
-  have hwf8 := wf0 h fr7.frame.kept (Host.addrOf (k + 25 + b4.length)).toBitVec
+  have hwf8 := wf0 h fr7.frame.kept (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b4Offset + b4.length)).toBitVec
   obtain ⟨hmid8, hw8, hw104, hbp8, hsi8, hdi8, hdx8, hcx8, hk8⟩ := ok_b4
   refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4 hwf8 (fun _ _ ↦ rfl)
-    (show Host.addrOf (k + 22 + b3.length) = _ by rw [show b3.length = 3 from rfl])
+    (show Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b3Offset + b3.length) = _ by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.GkrStep.b3_next)
     (match_head fr7 _) fun st8 hm8 hpc8 ↦ ?_
   obtain ⟨fr8, hs8⟩ := FR.block h fr7 hwf8 hm8 hmid8 (.inl rfl) (W01_of_W0 hw8) (by decide)
     (by omega)
@@ -266,7 +270,7 @@ theorem pre_spec (hp : Placed code k) (h : GkrStepPre a s0 g0 m0)
     have := wordAt_write hm8 (r := 0) (o := 104) (b := stackBelow m0 1408) (sz := 1408 + 8) rfl
       (by omega) hw104
     rwa [show (Sym.reg .rax).eval (frameEnv m0 m7 1408 [] (fun _ ↦ 0)
-      (Host.addrOf (k + 25 + b4.length)).toBitVec) = s0.sponge.squeeze.1.c0.toBitVec from hax7,
+      (Host.addrOf (k + NativeRustcVmX64.Vm.GkrStep.b4Offset + b4.length)).toBitVec) = s0.sponge.squeeze.1.c0.toBitVec from hax7,
       UInt64.ofBitVec_toBitVec] at this
   have edi8 : reg st8.data .rdi = p := (rv hm8 hdi8).trans ((k7 .r14 (by simp)).trans e14)
   have esi8 : reg st8.data .rsi = BitVec.ofNat 64 3 := rv hm8 hsi8

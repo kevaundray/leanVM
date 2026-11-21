@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Whir.SubspaceTable.Inv
+public import NativeRustcVmX64.Code.Vm.Memset.Names
 
 /-!
 # `subspace_table`: from the entry to the layer (x86-64)
@@ -77,39 +78,39 @@ theorem ptr0_eval [Labels] {m0 st : MachineData} {F : Nat} {vars : Nat → BitVe
 
 variable [Host] {k : Nat}
 
-theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + 0) ∧
-    b0b.IsInfixAt Host.prog (k + 0 + 8) := by
+theorem hb0 (hp : Placed code k) : b0a.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b0Offset) ∧
+    b0b.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b0Offset + b0a.length) := by
   have h := b0_in_code.trans hp.1 (by simp [b0])
   rw [← List.take_append_drop 8 b0] at h
   exact h.append
-theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + 15) :=
+theorem hb1 (hp : Placed code k) : b1.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b1Offset) :=
   b1_in_code.trans hp.1 (by simp [b1])
-theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + 15 + 2) :=
+theorem hb2 (hp : Placed code k) : b2.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b2Offset) :=
   b2_in_code.trans hp.1 (by simp [b2])
-theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + 15 + 2 + 3) :=
+theorem hb3 (hp : Placed code k) : b3.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b3Offset) :=
   b3_in_code.trans hp.1 (by simp [b3])
-theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + 15 + 2 + 3 + 8) :=
+theorem hb4 (hp : Placed code k) : b4.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b4Offset) :=
   b4_in_code.trans hp.1 (by simp [b4])
-theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + 30) :=
+theorem hb5 (hp : Placed code k) : b5.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b5Offset) :=
   b5_in_code.trans hp.1 (by simp [b5])
-theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + 33) :=
+theorem hb6 (hp : Placed code k) : b6.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b6Offset) :=
   b6_in_code.trans hp.1 (by simp [b6])
-theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + 38) :=
+theorem hb7 (hp : Placed code k) : b7.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b7Offset) :=
   b7_in_code.trans hp.1 (by simp [b7])
-theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + 38 + 30) :=
+theorem hb8 (hp : Placed code k) : b8.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b8Offset) :=
   b8_in_code.trans hp.1 (by simp [b8])
-theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + 70) :=
+theorem hb9 (hp : Placed code k) : b9.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b9Offset) :=
   b9_in_code.trans hp.1 (by simp [b9])
-theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + 73) :=
+theorem hb10 (hp : Placed code k) : b10.IsInfixAt Host.prog (k + NativeRustcVmX64.Vm.SubspaceTable.b10Offset) :=
   b10_in_code.trans hp.1 (by simp [b10])
 
 /-- **The prologue and `memset`**: at `b1`, the layer zeroed. -/
-theorem start (hp : Placed code k) (hmemset : Spec (Labels.label "memset") MemsetPre MemsetPost)
+theorem start (hp : Placed code k) (hmemset : Spec (Labels.label NativeRustcVmX64.Vm.Memset.entryLabel) MemsetPre MemsetPost)
     {m0 : MachineData} (hpre : SubspaceTablePre m0) :
-    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + 15) ∧ Fr m0 s.data ∧
+    Eventually (step1 Host.exe) (fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b1Offset) ∧ Fr m0 s.data ∧
       WordsAt s.data.dmem (fbOf m0 + BitVec.ofNat 64 552) (initL 0) ∧
       reg s.data .rbx = reg m0 .rdi ∧ reg s.data .r14 = reg m0 .rsi ∧
-      reg s.data .r15 = fbOf m0 + BitVec.ofNat 64 552) ⟨m0, Host.addrOf (k + 0)⟩ := by
+      reg s.data .r15 = fbOf m0 + BitVec.ofNat 64 552) ⟨m0, Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b0Offset)⟩ := by
   obtain ⟨hS, hout⟩ := hpre
   obtain ⟨hF, -, -, hle0⟩ := stack_le
   obtain ⟨hfmap, hfnw, hfe⟩ := frame_ok hS hF
@@ -125,7 +126,7 @@ theorem start (hp : Placed code k) (hmemset : Spec (Labels.label "memset") Memse
   have hfr1 : Fr m0 st1.data := Frame.of_entry hS hF hm1 hsp0 hw0 hregs0 hmem0
   have harg : ∀ r ∈ [Reg64.rdi, .rsi], reg st1.data r = reg m0 r := fun r hr ↦
     hm1.regs r (.reg r) (hargs0 r hr)
-  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + 0 + 8 + 7)).toBitVec) hS hF
+  have hwf2 := hfr1.wf (vars := fun _ ↦ 0) (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.SubspaceTable.b1Offset)).toBitVec) hS hF
   refine exec_at (hb0 hp).2 run_b0b hwf2 (fun _ _ ↦ rfl) hpc1 hfr1.mid_match fun st2 hm2 hpc2 ↦ ?_
   obtain ⟨hk2, hsp2, hw2⟩ := after_eq run_b0b ▸ b0b_call
   have hrsp2 := rsp_call hm2 hsp2

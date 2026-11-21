@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.VerifyKeccak.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyKeccak.Basic
 public import NativeRustcVm.Tables.Same
 
@@ -239,7 +240,7 @@ theorem exitAt {a : DecArea} {inst : Array EW} {k : Nat} (hp : Placed code k)
     (hQ : ∀ m', retOf m' = retOf m0 → Saved m0 m' → m'.regs.X0 = m.regs.X0 →
       m'.dmem = m.dmem → Q m') :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ Q st.data)
-      ⟨m, Host.addrOf (k + 445)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b73Offset)⟩ := by
   have hwf := envM_wf hn hfr
   refine exec_then (b73_in_code.trans hp.1 (by simp [b73])) run_b73 hwf (matchM hn hfr)
     fun st hm1 hpc ↦ .done _ ?_
@@ -255,8 +256,8 @@ theorem exitFail {a : DecArea} {inst : Array EW} {k : Nat} (hp : Placed code k)
     (hQ : ∀ m', retOf m' = retOf m0 → Saved m0 m' → m'.regs.X0 = 0 →
       m'.dmem = m.dmem → Q m') :
     Eventually (step1 Host.exe) (fun st ↦ st.pc = retOf m0 ∧ Q st.data)
-      ⟨m, Labels.label ".LVerifyKeccak_31"⟩ := by
-  rw [show Labels.label ".LVerifyKeccak_31" = Host.addrOf (k + 443) from hp.label (j := 443) rfl]
+      ⟨m, Labels.label NativeRustcVmArm.Vm.VerifyKeccak.label_31⟩ := by
+  rw [show Labels.label NativeRustcVmArm.Vm.VerifyKeccak.label_31 = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyKeccak.b72Offset) from hp.label (j := NativeRustcVmArm.Vm.VerifyKeccak.b72Offset) NativeRustcVmArm.Vm.VerifyKeccak.label_31_at]
   refine blockStep hn (b72_in_code.trans hp.1 (by simp [b72])) run_b72 hfr rfl rfl
     fun st hm1 hfr1 hd hpc ↦ ?_
   obtain ⟨d, pc⟩ := st

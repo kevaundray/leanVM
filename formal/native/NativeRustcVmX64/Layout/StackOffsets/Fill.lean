@@ -22,12 +22,12 @@ open NativeRustcVm (WordAt)
 
 /-- After the entry, at `b3`. -/
 abbrev Start [Host] (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 22) ∧ n m0 ≤ cap m0 ∧ B m0 8 s.data ∧ Regs m0 s.data ∧
+  s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b3Offset) ∧ n m0 ≤ cap m0 ∧ B m0 8 s.data ∧ Regs m0 s.data ∧
     reg s.data .r13 = ob m0
 
 /-- At `b13`. -/
 abbrev At13 [Host] (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 85) ∧ Ready m0 s.data
+  s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b13Offset) ∧ Ready m0 s.data
 
 /-- Before the one-word loop (`b10`): `c` words written. -/
 structure Pre10 (m0 : MachineData) (c : Nat) (d : MachineData) : Prop where
@@ -80,7 +80,7 @@ theorem step0 {ds : List Directive} {kk : Nat} {Sy1 : SState} {x : Exit} {st : M
 
 /-- `b12`: the sort's arguments. -/
 theorem l12 (hp : Placed code k) (hst : StackOk m0 1344) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 80)) (hI : Init m0 (n m0) st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b12Offset)) (hI : Init m0 (n m0) st.data) :
     Eventually (step1 Host.exe) (At13 k m0) st := by
   obtain ⟨hok, hmem, hx7, hx6, hx2, hx1, hK⟩ := ok_b12
   refine step0 hst (b12_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b12 nofun hpc hI.b hok
@@ -97,9 +97,9 @@ theorem l12 (hp : Placed code k) (hst : StackOk m0 1344) {st : MachineState}
 
 /-- **A turn of the one-word loop** `b11`: word `c + j` written. -/
 theorem step11 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) {c j : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 74)) (hI : Inv11 m0 c j st.data) :
-    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + 80) ∧ Init m0 (n m0) s.data) ∨
-      (s.pc = Host.addrOf (k + 74) ∧ Inv11 m0 c (j + 1) s.data)) st := by
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b11Offset)) (hI : Inv11 m0 c j st.data) :
+    Eventually (step1 Host.exe) (fun s ↦ (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b12Offset) ∧ Init m0 (n m0) s.data) ∨
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b11Offset) ∧ Inv11 m0 c (j + 1) s.data)) st := by
   have hlt := hI.lt
   have hok := ord_ok (o := 8 * (c + j)) (l := 8) hst hI.init.b (by omega)
   have hwf := wf_one (d := st.data) (vars := fun _ ↦ 0) (ret := 0) hok.1 hok.2
@@ -140,7 +140,7 @@ theorem step11 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) 
   by_cases hl : n m0 - c = j + 1
   · exact .done _ (Or.inl ⟨hno (not_not.mpr hl),
       hI.init.step hb' hK' (by rw [show n m0 = c + j + 1 by omega]; exact hords) le_rfl⟩)
-  · refine .done _ (Or.inr ⟨(hy hl).trans (hp.label (j := 74) rfl),
+  · refine .done _ (Or.inr ⟨(hy hl).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_11_at),
       ⟨hI.init.step hb' hK' hords (by omega), by omega, ?_, ?_, ?_, ?_⟩⟩)
     · rw [kp hm' hK (rs' := [Reg64.rcx]) (by simp [cs]) .rcx (by simp)]; exact hI.rcx
     · rw [kp hm' hK (rs' := [Reg64.r13]) (by simp [cs]) .r13 (by simp)]; exact hI.r13
@@ -151,11 +151,11 @@ theorem step11 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) 
 
 /-- **The one-word loop**, to `b12` and then `b13`. -/
 theorem loop11 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) {c j : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 74)) (hI : Inv11 m0 c j st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b11Offset)) (hI : Inv11 m0 c j st.data) :
     Eventually (step1 Host.exe) (At13 k m0) st := by
-  refine Eventually.bind (Sym.loop (Q := fun s ↦ s.pc = Host.addrOf (k + 80) ∧
+  refine Eventually.bind (Sym.loop (Q := fun s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b12Offset) ∧
       Init m0 (n m0) s.data)
-    (fun r s ↦ s.pc = Host.addrOf (k + 74) ∧ ∃ j, n m0 - c - j = r ∧ Inv11 m0 c j s.data)
+    (fun r s ↦ s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b11Offset) ∧ ∃ j, n m0 - c - j = r ∧ Inv11 m0 c j s.data)
     (fun r s ⟨hpc, j, hr, hI⟩ ↦ ?_) ⟨hpc, j, rfl, hI⟩) fun s h ↦ l12 hp hst h.1 h.2
   refine Eventually.mono (step11 hp hst hn hpc hI) fun s' h ↦ ?_
   rcases h with h | ⟨hpc', hI'⟩
@@ -165,7 +165,7 @@ theorem loop11 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) 
 
 /-- `b10`: the one-word loop's start. -/
 theorem l10 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) {c : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 71)) (hP : Pre10 m0 c st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b10Offset)) (hP : Pre10 m0 c st.data) :
     Eventually (step1 Host.exe) (At13 k m0) st := by
   obtain ⟨hok, hmem, hrdx, hK⟩ := ok_b10
   refine step0 hst (b10_in_code.trans hp.1 (List.cons_ne_nil _ _)) exit_b10 nofun hpc hP.init.b
@@ -181,16 +181,16 @@ theorem l10 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) {c 
 
 /-- The eight-word loop's end, at `b9`. -/
 abbrev At9 (k : Nat) (m0 : MachineData) (s : MachineState) : Prop :=
-  s.pc = Host.addrOf (k + 69) ∧ Init m0 (n m0 / 8 * 8) s.data ∧
+  s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b9Offset) ∧ Init m0 (n m0 / 8 * 8) s.data ∧
     (reg s.data .rcx).toNat = n m0 / 8 * 8 ∧
     reg s.data .r13 = ob m0 + BitVec.ofNat 64 (8 * (n m0 / 8 * 8)) ∧
     (reg s.data .rax).toNat = n m0 % 8
 
 /-- **A turn of the eight-word loop** `b8`: words `8 q` to `8 q + 7` written. -/
 theorem step8 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) {q : Nat}
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 48)) (hI : Inv8 m0 q st.data) :
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b8Offset)) (hI : Inv8 m0 q st.data) :
     Eventually (step1 Host.exe) (fun s ↦ At9 k m0 s ∨
-      (s.pc = Host.addrOf (k + 48) ∧ Inv8 m0 (q + 1) s.data)) st := by
+      (s.pc = Host.addrOf (k + NativeRustcVmX64.Vm.StackOffsets.b8Offset) ∧ Inv8 m0 (q + 1) s.data)) st := by
   have hlt := hI.lt
   have hN : n m0 / 8 * 8 ≤ n m0 := Nat.div_mul_le_self _ _
   have hok := ord_ok (o := 64 * q) (l := 64) hst hI.init.b (by omega)
@@ -254,7 +254,7 @@ theorem step8 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) {
     · rw [← hl, show 8 * q + 8 = 8 * (q + 1) by omega]; exact hinit
     · rw [← hl]; omega
     · rw [hr13', ← hl, show 8 * (8 * q + 8) = 64 * (q + 1) by omega]
-  · exact .done _ (Or.inr ⟨(hy hl).trans (hp.label (j := 48) rfl),
+  · exact .done _ (Or.inr ⟨(hy hl).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_8_at),
       ⟨hinit, by omega, hrcx', hr13', hrdx', hrax'⟩⟩)
 
 /-- `b10` from `b9`'s fall-through, or `b12`. -/
@@ -272,7 +272,7 @@ theorem l9 (hp : Placed code k) (hst : StackOk m0 1344) (hn : n m0 ≤ 158) {st 
   by_cases h0 : n m0 % 8 = 0
   · have e : n m0 / 8 * 8 = n m0 := by omega
     rw [e] at hI'
-    exact l12 hp hst ((hy h0).trans (hp.label (j := 80) rfl)) hI'
+    exact l12 hp hst ((hy h0).trans (hp.label NativeRustcVmX64.Vm.StackOffsets.label_12_at)) hI'
   · refine l10 hp hst hn (hno h0) ⟨hI', by omega, ?_, ?_, ?_⟩
     · rw [kp hm' hK (rs' := [Reg64.rcx]) (by simp [cs]) .rcx (by simp)]; exact hrcx
     · rw [kp hm' hK (rs' := [Reg64.r13]) (by simp [cs]) .r13 (by simp)]; exact hr13

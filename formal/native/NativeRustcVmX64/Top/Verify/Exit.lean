@@ -1,6 +1,7 @@
 module
 
 public import NativeRustcVmX64.Top.Verify.Check
+public import NativeRustcVmX64.Code.Vm.DecodedPhaseCount.Names
 
 /-!
 # `verify`'s verdict (x86-64)
@@ -24,11 +25,11 @@ variable [Host] {k : Nat}
 
 /-- **After the walk**: AL the verdict. -/
 theorem stageC (hp : Placed code k)
-    (hpcnt : ∀ a stream openings, Spec (Labels.label phaseCountLabel)
+    (hpcnt : ∀ a stream openings, Spec (Labels.label NativeRustcVmX64.Vm.DecodedPhaseCount.entryLabel)
       (PhaseCountPre a stream openings) (PhaseCountPost openings))
     {a : DecArea} {stream : Array EW} {openings : Array (Array OpeningW)} {m0 : MachineData}
     (hpre : VerifyPre a stream openings m0) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 96)) (hSB : SB a stream openings m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b2Offset)) (hSB : SB a stream openings m0 st.data) :
     Eventually (step1 Host.exe) (fun st' ↦ st'.pc = retOf m0 ∧
       rspOf st'.data = rspOf m0 + 8#64 ∧
       OkAl st'.data (NativeVm.Model.verify (bcOf m0).toArray (pubOf m0) stream openings) ∧
@@ -104,7 +105,7 @@ theorem stageC (hp : Placed code k)
       match_ofMachine ⟨rfl, rfl, trivial⟩ ⟨hf2.rsp_eval, known_ptr rfl eRbx2, trivial⟩ trivial
         trivial trivial
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) run_b3 hwf3 nofun
-      (hpc2.trans (by rw [show k + 96 + b2.length = k + 98 from rfl])) hm3
+      (hpc2.trans (by rw [show k + NativeRustcVmX64.Vm.Verify.b2Offset + b2.length = k + NativeRustcVmX64.Vm.Verify.b3Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Verify.b2_next]])) hm3
       fun st3 hm3' hpc3 ↦ ?_
     obtain ⟨hmid3, hmem3, hrax3, hrbx3⟩ := after_eq run_b3 ▸ ok_b3
     have hf3 : Frame m0 816 slots 8 st3.data := Frame.of_block hf2 hwf3 hm3' hmid3 slots_le
@@ -161,7 +162,7 @@ theorem stageC (hp : Placed code k)
         (w := UInt64.ofBitVec a.words) (by rw [hd3, off_zero]; exact hd0)]
       rw [ofInt_zero64, BitVec.add_zero]
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) run_b4 hwf4 nofun
-      (hpc3.trans (by rw [show k + 98 + b3.length = k + 101 from rfl])) hm4
+      (hpc3.trans (by rw [show k + NativeRustcVmX64.Vm.Verify.b3Offset + b3.length = k + NativeRustcVmX64.Vm.Verify.b4Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Verify.b3_next]])) hm4
       fun st4 hm4' hpc4 ↦ ?_
     obtain ⟨hmid4, hmem4, hrbx4⟩ := after_eq run_b4 ▸ ok_b4
     have hf4 : Frame m0 816 slots 8 st4.data := Frame.of_block hf3 hwf4 hm4' hmid4 slots_le
@@ -192,10 +193,10 @@ theorem stageC (hp : Placed code k)
     simp only [hcs, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hpc4
     -- `b5`: the phase, `call phase_count`.
     have hwf5 := frame_wf (m0 := m0) (d := st4.data) (F := 816) (rest := []) (vars := fun _ ↦ 0)
-      (ret := (Host.addrOf (k + 105 + b5.length)).toBitVec) ⟨hFm _ hf4.kept, hfnw⟩ (by simp)
+      (ret := (Host.addrOf (k + NativeRustcVmX64.Vm.Verify.b5Offset + b5.length)).toBitVec) ⟨hFm _ hf4.kept, hfnw⟩ (by simp)
       (List.pairwise_singleton _ _)
     refine exec_at (infix_of b5_in_code (by simp [b5]) hp) run_b5 hwf5 (fun _ _ ↦ rfl)
-      (hpc4.trans (by rw [show k + 101 + b4.length = k + 105 from rfl]))
+      (hpc4.trans (by rw [show k + NativeRustcVmX64.Vm.Verify.b4Offset + b4.length = k + NativeRustcVmX64.Vm.Verify.b5Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Verify.b4_next]]))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf4.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st5 hm5 hpc5 ↦ ?_
     obtain ⟨hmid5, hw5, hrdi5, hr145⟩ := after_eq run_b5 ▸ ok_b5
@@ -255,7 +256,7 @@ theorem stageC (hp : Placed code k)
     have hwf6 := frame_wf (m0 := m0) (d := st6.data) (F := 816) (rest := []) (vars := fun _ ↦ 0)
       (ret := 0) ⟨hFm _ hf6.kept, hfnw⟩ (by simp) (List.pairwise_singleton _ _)
     refine exec_at (infix_of b6_in_code (by simp [b6]) hp) run_b6 hwf6 nofun
-      (hpc6.trans (by rw [show k + 105 + b5.length = k + 109 from rfl]))
+      (hpc6.trans (by rw [show k + NativeRustcVmX64.Vm.Verify.b5Offset + b5.length = k + NativeRustcVmX64.Vm.Verify.b6Offset from by rw [Nat.add_assoc, NativeRustcVmX64.Vm.Verify.b5_next]]))
       (match_ofMachine ⟨rfl, trivial⟩ ⟨hf6.rsp_eval, trivial⟩ trivial trivial trivial)
       fun st7 hm7 hpc7 ↦ ?_
     obtain ⟨hmid7, hmem7, hrax7⟩ := after_eq run_b6 ▸ ok_b6

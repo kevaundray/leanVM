@@ -99,7 +99,7 @@ theorem none_post (h : FoldRoundPre a s w m0) (hnone : (foldRound w).run s = non
 /-- **`None` from `.LFoldRound_7`.** -/
 theorem none_exit (hp : Placed code k) (h : FoldRoundPre a s w m0)
     (hnone : (foldRound w).run s = none) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 106)) (hb : Base w m0 st.data) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b20Offset)) (hb : Base w m0 st.data) :
     Eventually (step1 Host.exe) (Goal a s w m0) st := by
   have hwf := out_wf h hb.fr
   have hm : Match (outEnv m0 st.data) noneS st.data :=
@@ -109,7 +109,7 @@ theorem none_exit (hp : Placed code k) (h : FoldRoundPre a s w m0)
           exact congrArg UInt64.toBitVec hb.x19,
         trivial⟩ trivial trivial trivial
   refine exec_at (inf hp b20_in_code (by simp [b20])) run_b20 hwf hpc hm fun st1 hm1 hpc1 ↦ ?_
-  simp only [PcOk, show k + 106 + b20.length = k + 108 from rfl] at hpc1
+  simp only [PcOk, show k + NativeRustcVmArm.Vm.FoldRound.b20Offset + b20.length = k + NativeRustcVmArm.Vm.FoldRound.b21Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.FoldRound.b20_next]] at hpc1
   refine exec_at (inf hp b21_in_code (by simp [b21])) (exec_after run_b20 run_b21n) hwf hpc1 hm1
     fun st2 hm2 hpc2 ↦ ?_
   simp only [PcOk] at hpc2
@@ -126,7 +126,7 @@ theorem none_exit (hp : Placed code k) (h : FoldRoundPre a s w m0)
 /-- **`None` from `b1`**: the first scalar failed, X8 `0`. -/
 theorem none0_exit (hp : Placed code k) (h : FoldRoundPre a s w m0)
     (hnone : (foldRound w).run s = none) {st : MachineState}
-    (hpc : st.pc = Host.addrOf (k + 108)) (hb : Base w m0 st.data) (h8 : st.data.regs.X8 = 0) :
+    (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.FoldRound.b21Offset)) (hb : Base w m0 st.data) (h8 : st.data.regs.X8 = 0) :
     Eventually (step1 Host.exe) (Goal a s w m0) st := by
   have hwf := out_wf h hb.fr
   have hm : Match (outEnv m0 st.data) none0S st.data :=

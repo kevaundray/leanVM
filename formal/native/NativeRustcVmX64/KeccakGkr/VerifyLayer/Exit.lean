@@ -7,7 +7,7 @@ public import NativeRustcVmX64.Field.W32
 /-!
 # `verify_layer` on x86-64: the exit
 
-At `.LVerifyLayer_50` (`b87`) with BL the verdict (`exit50`), at `.LVerifyLayer_49` (`b86`, BL
+At `NativeRustcVmX64.Vm.VerifyLayer.label_50` (`b87`) with BL the verdict (`exit50`), at `NativeRustcVmX64.Vm.VerifyLayer.label_49` (`b86`, BL
 cleared) on a rejected run (`exit49`): the epilogue restores the entry's registers and returns,
 AL the verdict (`Goal`). The labels' addresses (`lbl`), a block of the code placed (`blk`).
 -/
@@ -70,12 +70,12 @@ theorem lbl {b : List Directive} {o : Nat} {l : Label} (hp : Placed code k)
 
 variable {a : DecArea} {s : TState} {c : KeccakClaimW} {m0 : MachineData}
 
-/-- **The epilogue** at `.LVerifyLayer_50`: BL's verdict returned in AL. -/
+/-- **The epilogue** at `NativeRustcVmX64.Vm.VerifyLayer.label_50`: BL's verdict returned in AL. -/
 theorem exit50 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {W : BitVec 64 → Prop}
     (hWo : ∀ q, W q → outs m0 q) {d : MachineData} (hb : Body m0 W 24 d)
     (hbx : (reg d .rbx).toNat % 256 = (okWord (runL s c m0).isSome).toNat)
     (hdone : Done a m0 (runL s c m0) d.dmem) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + 731)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b87Offset)⟩ := by
   have g := geo_of hpre
   have hS := pre_stack hpre
   have hwf := wf0 hS hb (vars := fun _ ↦ 0) (ret := 0)
@@ -108,11 +108,11 @@ theorem exit50 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {W : BitVec
       · exact ⟨_, List.mem_cons_of_mem _ (List.mem_cons_of_mem _
           (List.mem_cons_of_mem _ List.mem_cons_self)), h⟩
 
-/-- **A rejected run** at `.LVerifyLayer_49`: BL cleared, then the epilogue. -/
+/-- **A rejected run** at `NativeRustcVmX64.Vm.VerifyLayer.label_49`: BL cleared, then the epilogue. -/
 theorem exit49 (hp : Placed code k) (hpre : VerifyLayerPre a s c m0) {W : BitVec 64 → Prop}
     (hWo : ∀ q, W q → outs m0 q) {d : MachineData} (hb : Body m0 W 24 d)
     (hr : runL s c m0 = none) :
-    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + 729)⟩ := by
+    Eventually (step1 Host.exe) (Goal a s c m0) ⟨d, Host.addrOf (k + NativeRustcVmX64.Vm.VerifyLayer.b86Offset)⟩ := by
   have g := geo_of hpre
   have hS := pre_stack hpre
   have hwf := wf0 hS hb (vars := fun _ ↦ 0) (ret := 0)

@@ -52,8 +52,8 @@ theorem seed_at {m : MachineData} (h : r.Inputs m) : BytesAt m.dmem (r.off 8208)
 /-- **`b154` .. `b161` and `memcpy`**: `PK.seed` and the address into hasher A. -/
 theorem nodeB (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     {e : List (List UInt8)} {z : Nat} {m : MachineData} (h : AtN2 r l e z m) :
-    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc 2413 ∧ AtN3 r l e z st.data)
-      ⟨m, r.pc 2310⟩ := by
+    Eventually (step1 Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b162Offset ∧ AtN3 r l e z st.data)
+      ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b154Offset⟩ := by
   obtain ⟨hB, hz, h19, h24, -, h27, hA0, hAd, hC⟩ := h
   have hN : NRegs r l z m := ⟨h19, h24, h27⟩
   have hl := hB.1
@@ -65,13 +65,13 @@ theorem nodeB (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
   have hpc1' := pc_cond (b := true) hpc1 (by sym_simp; rw [hld]; decide)
   rw [Sym.ite_pos (rfl : true = true), lbl_69 hp] at hpc1'
   refine exec_at (hb157 hp) (exec_after run_b154 run_b157) hwf hpc1' hm1 fun st2 hm2 hpc2 ↦ ?_
-  have hpc2' : st2.pc = Host.addrOf (r.k + 2400) := hpc2.trans (lbl_71 hp)
+  have hpc2' : st2.pc = Host.addrOf (r.k + NativeRustcArm.Sphincs.SphincsVerify.b159Offset) := hpc2.trans (lbl_71 hp)
   refine exec_at (hb159 hp) (exec_after run_b157 run_b159) hwf hpc2' hm2 fun st3 hm3 hpc3 ↦ ?_
   have hpc3' := pc_cond (b := false) hpc3 (by sym_simp; rw [hld]; decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 7) (j' := 2407) (by rfl) (by decide)] at hpc3'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b159_next] at hpc3'
   refine exec_at (hb160 hp) (exec_after run_b159 run_b160) hwf hpc3' hm3 fun st4 hm4 hpc4 ↦ ?_
   have hpc4' := pc_cond (b := false) hpc4 (by sym_simp; rw [hld]; decide)
-  rw [Sym.ite_neg Bool.false_ne_true, pc_after (n := 2) (j' := 2409) (by rfl) (by decide)] at hpc4'
+  rw [Sym.ite_neg Bool.false_ne_true, pc_after NativeRustcArm.Sphincs.SphincsVerify.b160_next] at hpc4'
   refine exec_at (hb161 hp) (exec_after run_b160 run_b161) hwf hpc4' hm4 fun st5 hm5 hpc5 ↦ ?_
   have hB5 := Base.of_match hpre hB hm5 hwf rfl rfl (by decide) (by decide) rfl rfl rfl
   have hN5 := hN.of_match hm5 rfl rfl rfl
@@ -126,7 +126,7 @@ theorem nodeB (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {l : Nat}
     have := bytesOf_of_bytesAt hAd5
     rw [length_nodeAdrs] at this
     rw [← this]; exact hcp
-  refine .done _ ⟨hpc'.trans (pc_after (n := 4) (by rfl) (by decide)),
+  refine .done _ ⟨hpc'.trans (pc_after NativeRustcArm.Sphincs.SphincsVerify.b161_next),
     hB5.of_call hpre hS (by decide) (by decide) (by decide) hout, hz, hN5.of_saved hS,
     regIs_of_saved rfl h22 hS, regIs_of_saved rfl h23 hS,
     kc (by rw [List.length_replicate]; decide) (by rw [List.length_replicate]; decide) hZ5,

@@ -1,14 +1,15 @@
 module
 
 public import NativeRustcVmX64.Sumcheck.Climb.Call
+public import NativeRustcVmX64.Code.Vm.HashPair.Names
 
 /-!
 # `climb`'s loop (x86-64)
 
 `head_spec`: from the head at level `l`, `hash_pair`'s return with the next accumulator. `b5_spec`:
 `b5` copies it over the accumulator, halves the position, counts the level, and leaves for
-`.LClimb_9` after the last level or goes back to the head. `loop_spec`: from the head, at
-`.LClimb_9` with the frame holding `climb N q P`.
+`NativeRustcVmX64.Vm.Climb.label_9` after the last level or goes back to the head. `loop_spec`: from the head, at
+`NativeRustcVmX64.Vm.Climb.label_9` with the frame holding `climb N q P`.
 -/
 
 namespace NativeRustcVmX64.Sumcheck.Climb
@@ -50,12 +51,12 @@ variable [Host] {N : Digest} {P : Array Digest} {m0 : MachineData} {k : Nat}
 
 /-- **A level, up to `hash_pair`'s return**: its output the next accumulator. -/
 theorem head_spec (hp : Placed code k)
-    (hhp : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hhp : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hpre : ClimbPre N P m0) {l : Nat} {m : MachineData} (hinv : Inv m0 N P l m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ st.pc = Host.addrOf (k + 32) ∧
+      (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b5Offset) ∧
         Called m0 m (climbTo N (q0 m0) P (l + 1)).1 st.data)
-      ⟨m, Host.addrOf (k + 44)⟩ := by
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b6Offset)⟩ := by
   have g := Geo.of_pre hpre
   have hst := hpre.1
   have hl := hinv.lt
@@ -97,7 +98,7 @@ theorem head_spec (hp : Placed code k)
   simp only [PcOk, hc6, Bool.false_eq_true, ite_false] at hpc6
   -- `b7`: the sibling, the position's bit.
   refine exec_at (infix_of b7_in_code (by simp [b7]) hp) exit_b7 hwf nofun
-    (hpc6.trans (by rw [show b6.length = 3 from rfl])) hm6 fun st7 hm7 hpc7 ↦ ?_
+    (hpc6.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Climb.b6_next)) hm6 fun st7 hm7 hpc7 ↦ ?_
   have hc7 : c7.eval (headEnv m0 m l k) =
       decide ((climbTo N (q0 m0) P l).2 % 2 = 0) := by
     rw [c7_eval, show (headEnv m0 m l k).regs .r12 = reg m .r12 from rfl, hinv.r12]
@@ -116,9 +117,9 @@ theorem head_spec (hp : Placed code k)
     rw [hstep]
     simp only [hq, ↓reduceIte]
     refine exec_at (infix_of b3_in_code (by simp [b3]) hp) exit_b3 hwf nofun
-      (hpc7.trans (hp.label (j := 27) rfl)) hm7 fun st3 hm3 hpc3 ↦ ?_
+      (hpc7.trans (hp.label NativeRustcVmX64.Vm.Climb.label_6_at)) hm7 fun st3 hm3 hpc3 ↦ ?_
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4l hwf (fun _ _ ↦ rfl)
-      (hpc3.trans (by rw [show b3.length = 3 from rfl])) hm3 fun st4 hm4 hpc4 ↦ ?_
+      (hpc3.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Climb.b3_next)) hm3 fun st4 hm4 hpc4 ↦ ?_
     exact call_level hhp hpre hinv ok_even.1 ok_even.2.1 ok_even.2.2
       (Or.inl ⟨rfl, rfl, rfl, rfl⟩) hwf hm4 hpc4
   · -- Odd: `b8`, `b11`, `b4`.
@@ -126,22 +127,22 @@ theorem head_spec (hp : Placed code k)
     rw [hstep]
     simp only [hq, ↓reduceIte]
     refine exec_at (infix_of b8_in_code (by simp [b8]) hp) exit_b8 hwf nofun
-      (hpc7.trans (by rw [show b7.length = 11 from rfl])) hm7 fun st8 hm8 hpc8 ↦ ?_
+      (hpc7.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Climb.b7_next)) hm7 fun st8 hm8 hpc8 ↦ ?_
     refine exec_at (infix_of b11_in_code (by simp [b11]) hp) exit_b11 hwf nofun
-      (hpc8.trans (hp.label (j := 68) rfl)) hm8 fun st11 hm11 hpc11 ↦ ?_
+      (hpc8.trans (hp.label NativeRustcVmX64.Vm.Climb.label_7_at)) hm8 fun st11 hm11 hpc11 ↦ ?_
     refine exec_at (infix_of b4_in_code (by simp [b4]) hp) exit_b4r hwf (fun _ _ ↦ rfl)
-      (hpc11.trans (hp.label (j := 30) rfl)) hm11 fun st4 hm4 hpc4 ↦ ?_
+      (hpc11.trans (hp.label NativeRustcVmX64.Vm.Climb.label_8_at)) hm11 fun st4 hm4 hpc4 ↦ ?_
     exact call_level hhp hpre hinv ok_odd.1 ok_odd.2.1 ok_odd.2.2
       (Or.inr ⟨rfl, rfl, rfl, rfl⟩) hwf hm4 hpc4
 
-/-- **After `hash_pair`**: the next level's head, or `.LClimb_9` after the last. -/
+/-- **After `hash_pair`**: the next level's head, or `NativeRustcVmX64.Vm.Climb.label_9` after the last. -/
 theorem b5_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {l : Nat} {mh m : MachineData}
     (hinv : Inv m0 N P l mh) (hc : Called m0 mh (climbTo N (q0 m0) P (l + 1)).1 m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ (st.pc = Host.addrOf (k + 72) ∧ l + 1 = P.size ∧
+      (fun st ↦ (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b12Offset) ∧ l + 1 = P.size ∧
           Fr m0 (climbTo N (q0 m0) P (l + 1)).1 st.data) ∨
-        (st.pc = Host.addrOf (k + 44) ∧ Inv m0 N P (l + 1) st.data))
-      ⟨m, Host.addrOf (k + 32)⟩ := by
+        (st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b6Offset) ∧ Inv m0 N P (l + 1) st.data))
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b5Offset)⟩ := by
   have g := Geo.of_pre hpre
   have hst := hpre.1
   have hl := hinv.lt
@@ -176,9 +177,9 @@ theorem b5_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {l : Nat} {mh m : 
   simp only [PcOk, hc5] at hpc
   by_cases hend : P.size - l = 1
   · simp only [hend, decide_true, ite_true] at hpc
-    exact .done _ (Or.inl ⟨hpc.trans (hp.label (j := 72) rfl), by omega, hfr⟩)
+    exact .done _ (Or.inl ⟨hpc.trans (hp.label NativeRustcVmX64.Vm.Climb.label_9_at), by omega, hfr⟩)
   · simp only [hend, decide_false, Bool.false_eq_true, ite_false] at hpc
-    refine .done _ (Or.inr ⟨hpc.trans (by rw [show b5.length = 12 from rfl]),
+    refine .done _ (Or.inr ⟨hpc.trans (by rw [Nat.add_assoc]; exact congrArg (fun j ↦ Host.addrOf (k + j)) NativeRustcVmX64.Vm.Climb.b5_next),
       ⟨hfr, by omega, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩)
     · rw [show reg st.data .r12 = _ from hm'.regs .r12 _ hr12]
       apply BitVec.eq_of_toNat_eq
@@ -209,14 +210,14 @@ theorem b5_spec (hp : Placed code k) (hpre : ClimbPre N P m0) {l : Nat} {mh m : 
     · exact (hm'.regs .rbp _ hrbp).trans ((hc.regs .rbp rfl).trans hinv.rbp)
     · exact (hm'.regs .rbx _ hrbx).trans ((hc.regs .rbx rfl).trans hinv.rbx)
 
-/-- **The loop**: from the head, at `.LClimb_9` with `climb N q P` in the frame. -/
+/-- **The loop**: from the head, at `NativeRustcVmX64.Vm.Climb.label_9` with `climb N q P` in the frame. -/
 theorem loop_spec (hp : Placed code k)
-    (hhp : Spec (Labels.label hashPairLabel) HashPairPre HashPairPost)
+    (hhp : Spec (Labels.label NativeRustcVmX64.Vm.HashPair.entryLabel) HashPairPre HashPairPost)
     (hpre : ClimbPre N P m0) {l : Nat} {m : MachineData} (hinv : Inv m0 N P l m) :
     Eventually (step1 Host.exe)
-      (fun st ↦ st.pc = Host.addrOf (k + 72) ∧ Fr m0 (climb N (q0 m0) P) st.data)
-      ⟨m, Host.addrOf (k + 44)⟩ := by
-  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + 44) ∧
+      (fun st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b12Offset) ∧ Fr m0 (climb N (q0 m0) P) st.data)
+      ⟨m, Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b6Offset)⟩ := by
+  refine Sym.loop (fun n st ↦ st.pc = Host.addrOf (k + NativeRustcVmX64.Vm.Climb.b6Offset) ∧
       ∃ l, P.size - l = n ∧ Inv m0 N P l st.data) (fun n st ⟨hpc, l, hn, hi⟩ ↦ ?_)
     ⟨rfl, l, rfl, hinv⟩
   obtain ⟨d, pc⟩ := st

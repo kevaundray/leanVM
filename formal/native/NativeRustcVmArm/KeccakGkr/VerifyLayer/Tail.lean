@@ -1,5 +1,9 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.BufEW30Extend.Names
+public import NativeRustcVmArm.Code.Vm.EWMul.Names
+public import NativeRustcVmArm.Code.Vm.LinearTranspose.Names
+public import NativeRustcVmArm.Code.Vm.Memcpy.Names
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.Exit
 public import NativeRustcVmArm.KeccakGkr.VerifyLayer.Lemmas
 public import NativeRustcArm.Spec.Mem
@@ -150,8 +154,8 @@ theorem eor_fw [Labels] {m m' : MachineData} {rs : List (BitVec 64 × Nat)} {S :
 
 /-- **A call to `EW::mul`** from the body. -/
 theorem mul_call [Host] (hpre : VerifyLayerPre a s c m0)
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost) {st : MachineState} {next : Int64}
-    {env : Env} (hpc : PcOk env (.call ewMulLabel) next st) (hb : Body m0 st.data)
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost) {st : MachineState} {next : Int64}
+    {env : Env} (hpc : PcOk env (.call NativeRustcVmArm.Vm.EWMul.entryLabel) next st) (hb : Body m0 st.data)
     {R : MachineState → Prop}
     (cont : ∀ st' : MachineState, st'.pc = next → Body m0 st'.data →
       st'.data.regs.X0 =
@@ -273,11 +277,11 @@ theorem claim_keep {d d' : DataMem} (g : Geo m0) {o n : Nat} (ho : o < 768) (hon
 
 /-- **The tail**, from `.LVerifyLayer_35`. -/
 theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c m0)
-    (hlt : ∀ ws, Spec (label linearTransposeLabel) (LinearTransposePre ws) (LinearTransposePost ws))
-    (hmul : Spec (label ewMulLabel) EWMulPre EWMulPost)
-    (hmemcpy : Spec (label "memcpy") MemcpyPre MemcpyPost)
-    (hext : Spec (label bufEW30ExtendLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
-    {st : MachineState} (hpc : st.pc = Host.addrOf (k + 654)) (hb : Body m0 st.data)
+    (hlt : ∀ ws, Spec (label NativeRustcVmArm.Vm.LinearTranspose.entryLabel) (LinearTransposePre ws) (LinearTransposePost ws))
+    (hmul : Spec (label NativeRustcVmArm.Vm.EWMul.entryLabel) EWMulPre EWMulPost)
+    (hmemcpy : Spec (label NativeRustcVmArm.Vm.Memcpy.entryLabel) MemcpyPre MemcpyPost)
+    (hext : Spec (label NativeRustcVmArm.Vm.BufEW30Extend.entryLabel) (BufEWExtendPre 30) (BufEWExtendPost 30))
+    {st : MachineState} (hpc : st.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b62Offset)) (hb : Body m0 st.data)
     {t0 t1 t2 beta : EW} {mu point lw : Array EW} {s' : TState}
     (hrun : runL s c m0 =
       some (⟨t0 + beta * (t1 + beta * t2), mu, point, keccakLinearTranspose lw⟩, s'))
@@ -322,7 +326,7 @@ theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c 
     · rw [hx0, hd1]; exact hlw
     · rw [hx0, hx1, hx2, hx3]; exact lt_areas hpre hb1
   refine call_then hpc1 (hlt lw) hpre1 fun st2 hpc2 hpost2 ↦ ?_
-  rw [show k + 654 + b62.length = k + 663 from rfl] at hpc2
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b62Offset + b62.length = k + NativeRustcVmArm.Vm.VerifyLayer.b63Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b62_next]] at hpc2
   obtain ⟨hout2, hwr2, hsv2⟩ := hpost2
   have hs2 := writes_split hwr2
   rw [hx1, hx2, hx3] at hs2
@@ -380,7 +384,7 @@ theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c 
   have hL3 : TailLive m0 a s' t0 t1 t2 mu point lw st3.data.dmem := by rw [hd3]; exact hL2
   refine mul_call hpre hmul hpc3 hb3 fun st4 hpc4 hb4 h40 h41 hsv4 hs4 ↦ ?_
   rw [e30, e31, e32, e33] at h40 h41
-  rw [show k + 663 + b63.length = k + 667 from rfl] at hpc4
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b63Offset + b63.length = k + NativeRustcVmArm.Vm.VerifyLayer.b64Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b63_next]] at hpc4
   have hL4 := TailLive.mul hpre hb3 hps hlts' hL3 hsv4.2.2 hs4
   have hr4 : ∀ r ∈ [XReg.X23, .X24, .X25], st4.data.regs.getXReg r = st.data.regs.getXReg r := by
     intro r hr
@@ -409,7 +413,7 @@ theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c 
   have hL5 : TailLive m0 a s' t0 t1 t2 mu point lw st5.data.dmem := by rw [hd5]; exact hL4
   refine mul_call hpre hmul hpc5 hb5 fun st6 hpc6 hb6 h60 h61 hsv6 hs6 ↦ ?_
   rw [e50, e51, e52, e53] at h60 h61
-  rw [show k + 667 + b64.length = k + 673 from rfl] at hpc6
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b64Offset + b64.length = k + NativeRustcVmArm.Vm.VerifyLayer.b65Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b64_next]] at hpc6
   have hL6 := TailLive.mul hpre hb5 hps hlts' hL5 hsv6.2.2 hs6
   have hr6 : ∀ r ∈ [XReg.X23, .X24, .X25], st6.data.regs.getXReg r = st.data.regs.getXReg r := by
     intro r hr
@@ -497,7 +501,7 @@ theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c 
     · show (base m0 2032 + BitVec.ofNat 64 968).toNat + 264 ≤ 2 ^ 64; rw [e968]; omega
     · show _ ∨ _; rw [e16, e968]; omega
   refine call_then hpc7 hmemcpy hmpre fun st8 hpc8 ⟨_, hcp8, hs8, hsv8⟩ ↦ ?_
-  rw [show k + 673 + b65.length = k + 682 from rfl] at hpc8
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b65Offset + b65.length = k + NativeRustcVmArm.Vm.VerifyLayer.b66Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b65_next]] at hpc8
   rw [h7x0, h7x2] at hcp8 hs8
   rw [h7x1] at hcp8
   have hb8 : Body m0 st8.data := Body.call g hb7 (n := 0) (by omega) hsv8
@@ -573,7 +577,7 @@ theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c 
     · show (base m0 2032 + BitVec.ofNat 64 1232).toNat + _ ≤ 2 ^ 64; rw [e1232]; omega
     · show _ ∨ _; rw [e280, e1232]; omega
   refine call_then hpc9 hext hxpre fun st10 hpc10 ⟨hx10, hs10, hsv10⟩ ↦ ?_
-  rw [show k + 682 + b66.length = k + 687 from rfl] at hpc10
+  rw [show k + NativeRustcVmArm.Vm.VerifyLayer.b66Offset + b66.length = k + NativeRustcVmArm.Vm.VerifyLayer.b67Offset from by rw [Nat.add_assoc, NativeRustcVmArm.Vm.VerifyLayer.b66_next]] at hpc10
   rw [h9x0, h9x2, NativeRustcVm.wordOf_of_wordAt hz9] at hx10
   simp only [UInt64.toNat_zero, Nat.zero_add, hps, ↓reduceIte] at hx10
   obtain ⟨hx10, hpt10⟩ := hx10
@@ -613,7 +617,7 @@ theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c 
   have hd11 : st11.data.dmem = st10.data.dmem := hm11.dmem_eq hwf10 rfl
   have hb11 : Body m0 st11.data :=
     Fr.ofBlock hb10 (match_fr hpre hb10) hm11 hwf10 rfl rfl rfl (fun r hr ↦ by cases hr)
-  have hpc11' : st11.pc = Host.addrOf (k + 688) := by
+  have hpc11' : st11.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b68Offset) := by
     rw [hpc11]
     sym_simp
     rw [show (Env.ofMachine st10.data [(base m0 2032, 2032)]).regs .X0 = st10.data.regs.X0.toBitVec
@@ -625,7 +629,7 @@ theorem tail [Host] {k : Nat} (hp : Placed code k) (hpre : VerifyLayerPre a s c 
   have hd12 : st12.data.dmem = st11.data.dmem := hm12.dmem_eq hwf11 rfl
   have hb12 : Body m0 st12.data :=
     Fr.ofBlock hb11 (match_fr hpre hb11) hm12 hwf11 rfl rfl rfl (fun r hr ↦ by cases hr)
-  have hpc12' : st12.pc = Host.addrOf (k + 692) := hpc12.trans (label38 hp)
+  have hpc12' : st12.pc = Host.addrOf (k + NativeRustcVmArm.Vm.VerifyLayer.b70Offset) := hpc12.trans (label38 hp)
   have hd : st12.data.dmem = st10.data.dmem := hd12.trans hd11
   refine exit hp hpre hpc12' hb12 ?_ fun c' s'' hr ↦ ?_
   · rw [hrun]

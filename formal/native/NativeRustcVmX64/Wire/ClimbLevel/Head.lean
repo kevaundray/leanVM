@@ -105,7 +105,7 @@ theorem head_step {i : Nat} {sl : List (Nat × Digest × Bool)} {ci : Nat} {st :
   have hn := g.n256
   have hli := hI.lt
   obtain ⟨hmid, hfr, hw72, hw80, hrax, hrcx, hK⟩ := ok_b4
-  refine fw_step hp g (j := 31) b4_in_code (by simp [b4]) exit_b4 nofun hmid hfr hI.pc hI.fr
+  refine fw_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b4Offset) b4_in_code (by simp [b4]) exit_b4 nofun hmid hfr hI.pc hI.fr
     fun st' hf' hs' hm' hpc' ↦ ?_
   have hk := regs_kept hK fun r v h ↦ hm'.regs r v h
   have hpar := par_le (ns := ns) i sl
@@ -140,7 +140,7 @@ theorem nxt_step (hR : ReaderAt m0.dmem (rdr m0) bp B c) (hns : NodesAt m0.dmem 
     Eventually (step1 Host.exe) (fun st' ↦ Post m0 st' ∨ Head k m0 bp B c ns j sl ci st') st := by
   have hle := hI.le
   obtain ⟨hok, hrbp, hr12, hK⟩ := ok_b3
-  refine fr_step hp g (j := 26) b3_in_code (by simp [b3]) exit_b3 nofun hok hI.pc hI.fr
+  refine fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b3Offset) b3_in_code (by simp [b3]) exit_b3 nofun hok hI.pc hI.fr
     fun st' hf' hd' hr' hpc' ↦ ?_
   have hk := regs_kept hK hr'
   have hpc2 := pc_cond hpc' (P := j = cnt m0) (by
@@ -151,12 +151,12 @@ theorem nxt_step (hR : ReaderAt m0.dmem (rdr m0) bp B c) (hns : NodesAt m0.dmem 
     rw [Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff, g.nd_eq (by omega) (by omega)]
     omega)
   by_cases hj : j = cnt m0
-  · rw [ite_t hj, hp.label (j := 134) rfl] at hpc2
+  · rw [ite_t hj, hp.label NativeRustcVmX64.Vm.ClimbLevel.label_8_at] at hpc2
     obtain ⟨hok21, hrax21, hK21⟩ := ok_b21
-    refine Eventually.mono (fr_step hp g (j := 134) b21_in_code (by simp [b21]) exit_b21 nofun
+    refine Eventually.mono (fr_step hp g (j := NativeRustcVmX64.Vm.ClimbLevel.b21Offset) b21_in_code (by simp [b21]) exit_b21 nofun
       hok21 hpc2 hf' fun s1 hf1 hd1 hr1 hpc1 ↦ ?_) fun _ h ↦ .inl h
     simp only [PcOk] at hpc1
-    rw [hp.label (j := 142) rfl] at hpc1
+    rw [hp.label NativeRustcVmX64.Vm.ClimbLevel.label_11_at] at hpc1
     have hrbx := (regs_kept hK21 hr1 .rbx (by simp)).trans ((hk .rbx (by simp)).trans hI.rbx)
     have htake : ns.take j = ns := List.take_of_length_le (by omega)
     have hmm := hI.mm

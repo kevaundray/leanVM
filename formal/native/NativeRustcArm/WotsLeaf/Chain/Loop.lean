@@ -35,7 +35,7 @@ theorem chains_loop (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees
     (x : List UInt8) : ∀ (n i : Nat) {m : MachineData}, i + n = 58 → 0 < n →
       r.AtChain x i (r.ends x i) m →
       Eventually (step1 NativeArm.Host.exe)
-        (fun st ↦ st.pc = r.pc 603 ∧ r.AtChain x 58 (r.ends x 58) st.data) ⟨m, r.pc 184⟩
+        (fun st ↦ st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b44Offset ∧ r.AtChain x 58 (r.ends x 58) st.data) ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b14Offset⟩
   | 0, _, _, hn, h0, _ => absurd h0 (by decide)
   | n + 1, i, m, hn, _, hA => seg_b14 hp hc hpre (by omega) hA fun m' hA' ↦ by
     rw [← ends_succ] at hA'
@@ -51,7 +51,7 @@ theorem chains_loop (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees
 theorem chains_region (r : Run) (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees)
     (hpre : r.Pre) (x : List UInt8) (m : MachineData) (hA : r.AtChain x 0 [] m) :
     Eventually (step1 NativeArm.Host.exe)
-      (fun st ↦ st.pc = r.pc 603 ∧ r.AtChain x 58 (r.ends x 58) st.data) ⟨m, r.pc 184⟩ :=
+      (fun st ↦ st.pc = r.pc NativeRustcArm.Xmss.WotsLeaf.b44Offset ∧ r.AtChain x 58 (r.ends x 58) st.data) ⟨m, r.pc NativeRustcArm.Xmss.WotsLeaf.b14Offset⟩ :=
   chains_loop r hp hc hpre x 58 0 rfl (by decide) hA
 
 end

@@ -2,6 +2,10 @@ module
 
 public import NativeRustcVmX64.Wire.Decode.Loop
 public import NativeRustcVmX64.Wire.Decode.Room
+public import NativeRustcVmX64.Code.Vm.Decode.Names
+public import NativeRustcVmX64.Code.Vm.PhaseM.Names
+public import NativeRustcVmX64.Code.Vm.ReaderLe.Names
+public import NativeRustcVmX64.Code.Vm.ReaderWords.Names
 
 /-!
 # `decode` meets its contract (x86-64)
@@ -21,13 +25,13 @@ variable [Host] {k : Nat}
 
 /-- **`decode` meets its contract.** -/
 theorem decode_spec (hp : Placed code k)
-    (hle : Spec (Labels.label readerLeLabel) ReaderLePre ReaderLePost)
-    (hrw : Spec (Labels.label readerWordsLabel) ReaderWordsPre ReaderWordsPost)
-    (hpm : Spec (Labels.label phaseMLabel) PhaseMPre PhaseMPost) :
-    Spec (Labels.label decodeLabel) DecodePre DecodePost := by
+    (hle : Spec (Labels.label NativeRustcVmX64.Vm.ReaderLe.entryLabel) ReaderLePre ReaderLePost)
+    (hrw : Spec (Labels.label NativeRustcVmX64.Vm.ReaderWords.entryLabel) ReaderWordsPre ReaderWordsPost)
+    (hpm : Spec (Labels.label NativeRustcVmX64.Vm.PhaseM.entryLabel) PhaseMPre PhaseMPost) :
+    Spec (Labels.label NativeRustcVmX64.Vm.Decode.entryLabel) DecodePre DecodePost := by
   intro m0 hpre
   have G := geo_of hpre
-  rw [hp.label (j := 0) (l := decodeLabel) rfl]
+  rw [hp.label NativeRustcVmX64.Vm.Decode.entry_at]
   refine Eventually.bind (entry_run hp G hle) fun s1 h1 ↦ ?_
   rcases h1 with h1 | ⟨n, h1⟩
   · exact .done _ h1

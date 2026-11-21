@@ -86,29 +86,29 @@ theorem pc_next {st : MachineState} {a b : Nat} {ds : List Directive} (h : st.pc
 
 /-- After `b12` and its `memcpy`: the path at `8244`, X27 opening `c`'s address less 4144. -/
 @[expose] def Mid1 (c : Nat) (st : MachineState) : Prop :=
-  st.pc = r.pc 198 ∧ r.Frame st.data ∧ OpenMem r c st.data.dmem ∧ OpenRegs r c st.data ∧
+  st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b13Offset ∧ r.Frame st.data ∧ OpenMem r c st.data.dmem ∧ OpenRegs r c st.data ∧
     BytesAt st.data.dmem (r.off 8244) (slice (sigBytes r.w) (32 + 176 * c) 160) ∧
     (st.data.regs.getXReg .X27).toBitVec = r.off (484 + 176 * c) + BitVec.ofInt 64 (-4144)
 
 /-- After `b13` and its `memcpy`: opening `c` at `26768`. -/
 @[expose] def Mid2 (c : Nat) (st : MachineState) : Prop :=
-  st.pc = r.pc 207 ∧ r.Frame st.data ∧ OpenMem r c st.data.dmem ∧ OpenRegs r c st.data ∧
+  st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b14Offset ∧ r.Frame st.data ∧ OpenMem r c st.data.dmem ∧ OpenRegs r c st.data ∧
     BytesAt st.data.dmem (r.off 26768) (obytes r.w c)
 
 /-- After `b14` and its `memcpy`: the first `c + 1` openings. -/
 @[expose] def Mid3 (c : Nat) (st : MachineState) : Prop :=
-  st.pc = r.pc 213 ∧ r.Frame st.data ∧ OpenMem r (c + 1) st.data.dmem ∧ OpenRegs r c st.data
+  st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b15Offset ∧ r.Frame st.data ∧ OpenMem r (c + 1) st.data.dmem ∧ OpenRegs r c st.data
 
 /-- **`b12`** and its `memcpy`. -/
 theorem open_b12 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} (hc24 : c < 24)
     {m : MachineData} (h : AtOpen r c m) :
-    Eventually (step1 NativeArm.Host.exe) (Mid1 r c) ⟨m, r.pc 159⟩ := by
+    Eventually (step1 NativeArm.Host.exe) (Mid1 r c) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b12Offset⟩ := by
   obtain ⟨hF, hM, hR⟩ := h
   have h21 : (m.regs.getXReg .X21).toBitVec = r.off 26768 := hR.2.2.1
   have h23 : (m.regs.getXReg .X23).toBitVec = r.off 564 := hR.2.2.2.2.1
   have h24 : (m.regs.getXReg .X24).toBitVec = BitVec.ofNat 64 (2 ^ 64 - 4224 + 176 * c) :=
     hR.2.2.2.2.2.1
-  have hk12 : b12.IsInfixAt NativeArm.Host.prog (r.k + 159) :=
+  have hk12 : b12.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b12Offset) :=
     b12_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf1 : (openEnv r m c).WF := wf_frame2 r hpre hF (a := 8240) (n := 21136)
     (a' := 484 + 176 * c) (n' := 176) (by decide) (by omega) (by right; omega) _
@@ -157,7 +157,7 @@ theorem open_b13 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} 
     {st2 : MachineState} (h : Mid1 r c st2) :
     Eventually (step1 NativeArm.Host.exe) (Mid2 r c) st2 := by
   obtain ⟨hpc2, hF2, hM2, hR2, hb2, h27⟩ := h
-  have hk13 : b13.IsInfixAt NativeArm.Host.prog (r.k + 198) :=
+  have hk13 : b13.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b13Offset) :=
     b13_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf2 : (openEnv r st2.data c).WF := wf_frame2 r hpre hF2 (a := 8240) (n := 21136)
     (a' := 484 + 176 * c) (n' := 176) (by decide) (by omega) (by right; omega) _
@@ -201,7 +201,7 @@ theorem open_b14 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} 
     {st4 : MachineState} (h : Mid2 r c st4) :
     Eventually (step1 NativeArm.Host.exe) (Mid3 r c) st4 := by
   obtain ⟨hpc4, hF4, hM4, hR4, hb4⟩ := h
-  have hk14 : b14.IsInfixAt NativeArm.Host.prog (r.k + 207) :=
+  have hk14 : b14.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b14Offset) :=
     b14_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk14 run_b14 (Env.wf_nil _) hpc4 (match_nil _) fun st5 hm5 hpc5 ↦ ?_
   have hd5 : st5.data.dmem = st4.data.dmem := hm5.dmem_eq (Env.wf_nil _) rfl
@@ -241,10 +241,10 @@ theorem open_b14 (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} 
 /-- **`b15`**: the count. -/
 theorem open_b15 (hp : Placed code r.k) {c : Nat} (hc24 : c < 24) {st6 : MachineState}
     (h : Mid3 r c st6) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc 215 ∧ AtOpen r 24 st.data) ∨
-      (c + 1 < 24 ∧ st.pc = r.pc 159 ∧ AtOpen r (c + 1) st.data)) st6 := by
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b16Offset ∧ AtOpen r 24 st.data) ∨
+      (c + 1 < 24 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b12Offset ∧ AtOpen r (c + 1) st.data)) st6 := by
   obtain ⟨hpc6, hF6, hM6, hR6⟩ := h
-  have hk15 : b15.IsInfixAt NativeArm.Host.prog (r.k + 213) :=
+  have hk15 : b15.IsInfixAt NativeArm.Host.prog (r.k + NativeRustcArm.Sphincs.SphincsVerify.b15Offset) :=
     b15_in_code.trans hp.1 (List.cons_ne_nil _ _)
   refine exec_at hk15 run_b15 (Env.wf_nil _) hpc6 (match_nil _) fun st7 hm7 hpc7 ↦ ?_
   have hd7 : st7.data.dmem = st6.data.dmem := hm7.dmem_eq (Env.wf_nil _) rfl
@@ -278,7 +278,7 @@ theorem open_b15 (hp : Placed code r.k) {c : Nat} (hc24 : c < 24) {st6 : Machine
       obtain rfl : c = 23 := by omega
       revert hcond
       decide
-    rw [hp.label (j := 159) rfl] at hpc7
+    rw [hp.label NativeRustcArm.Sphincs.SphincsVerify.label_11_at] at hpc7
     exact .done _ (Or.inr ⟨hc1, hpc7, hF7, hM7, hR7⟩)
   · rename_i hcond
     have hc1 : c = 23 := by
@@ -292,17 +292,17 @@ theorem open_b15 (hp : Placed code r.k) {c : Nat} (hc24 : c < 24) {st6 : Machine
 /-- **Turn `c` of the openings' loop.** -/
 theorem open_turn (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {c : Nat} (hc24 : c < 24)
     {m : MachineData} (h : AtOpen r c m) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc 215 ∧ AtOpen r 24 st.data) ∨
-      (c + 1 < 24 ∧ st.pc = r.pc 159 ∧ AtOpen r (c + 1) st.data)) ⟨m, r.pc 159⟩ :=
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ (st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b16Offset ∧ AtOpen r 24 st.data) ∨
+      (c + 1 < 24 ∧ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b12Offset ∧ AtOpen r (c + 1) st.data)) ⟨m, r.pc NativeRustcArm.Sphincs.SphincsVerify.b12Offset⟩ :=
   Eventually.bind (open_b12 r hp hc hpre hc24 h) fun _ h1 ↦
     Eventually.bind (open_b13 r hp hc hpre hc24 h1) fun _ h2 ↦
       Eventually.bind (open_b14 r hp hc hpre hc24 h2) fun _ h3 ↦ open_b15 r hp hc24 h3
 
 /-- **The openings' loop**: from `AtOpen 0` at `b12`, `AtOpen 24` at `b16`. -/
 theorem open_loop (hp : Placed code r.k) (hc : Callees) (hpre : r.Pre) {st : MachineState}
-    (h : st.pc = r.pc 159 ∧ AtOpen r 0 st.data) :
-    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc 215 ∧ AtOpen r 24 st.data) st :=
-  count_loop (P := fun c st ↦ st.pc = r.pc 159 ∧ AtOpen r c st.data) 24
+    (h : st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b12Offset ∧ AtOpen r 0 st.data) :
+    Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b16Offset ∧ AtOpen r 24 st.data) st :=
+  count_loop (P := fun c st ↦ st.pc = r.pc NativeRustcArm.Sphincs.SphincsVerify.b12Offset ∧ AtOpen r c st.data) 24
     (fun c st hc24 ⟨hpc, h⟩ ↦ by
       obtain ⟨m, pc⟩ := st
       simp only at hpc

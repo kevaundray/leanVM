@@ -1,5 +1,8 @@
 module
 
+public import NativeRustcArm.Code.Sphincs.Names
+public import NativeRustcArm.Code.Sphincs.SphincsVerify.Names
+
 public import NativeRustcArm.SphincsVerify.End
 public import NativeRustcArm.SphincsVerify.Placed
 public import NativeRustcArm.SphincsVerify.Digest.Spec
@@ -51,9 +54,9 @@ theorem callees : Callees :=
 theorem verify_correct
     (pk : _root_.Sphincs.PublicKey) (msg : HashSig.Message) (sig : _root_.Sphincs.Signature)
     (m : MachineData) (hstack : StackOk m sphincsStack) (hrc : RcAt m sphincsStack)
-    (hlh : BytesAt m.dmem (label lhLabel).toBitVec lhBytes)
-    (hlhw : NoWrap (label lhLabel).toBitVec 24)
-    (hlha : Apart (label lhLabel).toBitVec 24 (stackBelow m sphincsStack) sphincsStack)
+    (hlh : BytesAt m.dmem (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec lhBytes)
+    (hlhw : NoWrap (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24)
+    (hlha : Apart (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24 (stackBelow m sphincsStack) sphincsStack)
     (hin : BytesAt m.dmem (m.regs.X0.toBitVec + BitVec.ofNat 64 1024)
       (wordsBytes ((List.range 977).map (Native.SphincsVerifier.encode pk msg sig))))
     (hinw : NoWrap (m.regs.X0.toBitVec + BitVec.ofNat 64 1024) (8 * 977))
@@ -62,10 +65,10 @@ theorem verify_correct
     Eventually (step1 NativeArm.Host.exe) (fun st ↦ st.pc = retOf m ∧
       st.data.regs.X0 = (if _root_.Sphincs.verifyWithKeccak pk msg sig then 1 else 0) ∧
       SameOutside m.dmem st.data.dmem (InRange (stackBelow m sphincsStack) sphincsStack) ∧
-      Saved m st.data) ⟨m, label "sphincs_verify"⟩ :=
+      Saved m st.data) ⟨m, label NativeRustcArm.Sphincs.SphincsVerify.entryLabel⟩ :=
   verify_correct_of (placed hP) (callees hP)
     (parseSpec_of Parse.parseHead_spec ParseTail.parseTail_spec) digest_spec fors_spec forsKey_spec
-    encode_spec Chains.chainsSpec Tree.tree_spec (k := 48)
+    encode_spec Chains.chainsSpec Tree.tree_spec (k := NativeRustcArm.Sphincs.SphincsVerify.programOffset)
     ⟨hstack, hrc, hlh, hlhw, hlha, hin, hinw, hina⟩
 
 end

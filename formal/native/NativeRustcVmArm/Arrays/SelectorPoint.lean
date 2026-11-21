@@ -1,5 +1,6 @@
 module
 
+public import NativeRustcVmArm.Code.Vm.SelectorPoint.Names
 public import NativeRustcVmArm.Arrays.SelectorPoint.Exec
 
 /-!
@@ -222,7 +223,7 @@ abbrev Post (m0 : MachineData) (s : MachineState) : Prop :=
 
 /-- **The return** `b8`. -/
 theorem ret8 (hp : Placed code k) {m0 : MachineData} {s : MachineState}
-    (hpc : s.pc = Host.addrOf (k + 54)) (hB : Base m0 s.data)
+    (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b8Offset)) (hB : Base m0 s.data)
     (hw : EWsAt s.data.dmem (out m0) (pt m0)) :
     Eventually (step1 Host.exe) (Post m0) s := by
   refine exec_at (hb hp b8_in_code (by simp [b8])) run_b8 (Env.wf_nil _) hpc (match_nil _)
@@ -245,9 +246,9 @@ structure TInv (m0 : MachineData) (j : Nat) (s : MachineData) : Prop where
 
 /-- **The tail loop** `b7`, then the return. -/
 theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0) {j : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 45)) (hI : TInv m0 j s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b7Offset)) (hI : TInv m0 j s.data) :
     Eventually (step1 Host.exe) (Post m0) s := by
-  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 45) ∧ ∃ j, len m0 - j = n ∧ TInv m0 j s.data)
+  refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b7Offset) ∧ ∃ j, len m0 - j = n ∧ TInv m0 j s.data)
     (fun n s ⟨hpc, j, hn, hI⟩ ↦ ?_) ⟨hpc, j, rfl, hI⟩
   obtain ⟨hmO, hnO⟩ := hpre
   have hnw : (out m0).toNat + 16 * len m0 ≤ 2 ^ 64 := hnO
@@ -301,7 +302,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0
         omega
   by_cases hM : j + 1 < len m0
   · refine .done _ (Or.inr ⟨len m0 - (j + 1), by omega,
-      (hpc''.1 (hmore.mpr hM)).trans (hp.label (j := 45) rfl), j + 1, rfl, hB', hM, ?_, ?_, ?_, hw'⟩)
+      (hpc''.1 (hmore.mpr hM)).trans (hp.label (j := NativeRustcVmArm.Vm.SelectorPoint.b7Offset) NativeRustcVmArm.Vm.SelectorPoint.label_7_at), j + 1, rfl, hB', hM, ?_, ?_, ?_, hw'⟩)
     · show (s'.data.regs.getXReg .X9).toNat = _
       rw [← UInt64.toNat_toBitVec, hm'.regs .X9 _ f9]
       sym_simp
@@ -325,7 +326,7 @@ theorem tail (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0
 
 /-- **`.LSelectorPoint_6`** (`b6`): the tail from entry `j`. -/
 theorem fromL6 (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0) {j : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 43)) (hB : Base m0 s.data)
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b6Offset)) (hB : Base m0 s.data)
     (hlt : j < len m0) (hx9 : s.data.regs.X9.toNat = j)
     (hx8 : s.data.regs.X8.toBitVec = out m0 + BitVec.ofNat 64 (16 * j))
     (hx10 : s.data.regs.X10.toBitVec = BitVec.ofNat 64 (16 * len m0))
@@ -362,9 +363,9 @@ structure UInv (m0 : MachineData) (t : Nat) (s : MachineData) : Prop where
 /-- **A turn of the unrolled loop** `b4`: four entries, back at the head or on to `b5`, then the
 return or the tail. -/
 theorem ustep (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m0) {t : Nat}
-    {s : MachineState} (hpc : s.pc = Host.addrOf (k + 16)) (hI : UInv m0 t s.data) :
+    {s : MachineState} (hpc : s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b4Offset)) (hI : UInv m0 t s.data) :
     Eventually (step1 Host.exe) (fun s' ↦ Post m0 s' ∨
-      (s'.pc = Host.addrOf (k + 16) ∧ UInv m0 (t + 1) s'.data)) s := by
+      (s'.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b4Offset) ∧ UInv m0 (t + 1) s'.data)) s := by
   have hpre' := hpre
   obtain ⟨hmO, hnO⟩ := hpre
   have hnw : (out m0).toNat + 16 * len m0 ≤ 2 ^ 64 := hnO
@@ -443,7 +444,7 @@ theorem ustep (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m
       simp at this
       omega
   by_cases hM : 4 * (t + 1) < 4 * (len m0 / 4)
-  · refine .done _ (Or.inr ⟨(hpc''.1 (hmore.mpr hM)).trans (hp.label (j := 16) rfl),
+  · refine .done _ (Or.inr ⟨(hpc''.1 (hmore.mpr hM)).trans (hp.label (j := NativeRustcVmArm.Vm.SelectorPoint.b4Offset) NativeRustcVmArm.Vm.SelectorPoint.label_4_at),
       hB', hM, ?_, ?_, ?_, ?_, ?_, ?_, hw'⟩)
     · show (s'.data.regs.getXReg .X9).toNat = _
       rw [eq .X9 (by simp)]; exact hI.x9
@@ -474,7 +475,7 @@ theorem ustep (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m
   sym_simp at hpc6
   have hpc6' := pc_cond hpc6
   by_cases hE : len m0 = 4 * (len m0 / 4)
-  · refine Eventually.mono (ret8 hp ((hpc6'.1 ?_).trans (hp.label (j := 54) rfl)) hB5 ?_)
+  · refine Eventually.mono (ret8 hp ((hpc6'.1 ?_).trans (hp.label (j := NativeRustcVmArm.Vm.SelectorPoint.b8Offset) NativeRustcVmArm.Vm.SelectorPoint.label_8_at)) hB5 ?_)
       fun _ h ↦ Or.inl h
     · show ((s'.data.regs.getXReg .X12).toBitVec == (s'.data.regs.getXReg .X9).toBitVec) = true
       rw [beq_iff_eq]
@@ -503,9 +504,9 @@ theorem ustep (hp : Placed code k) {m0 : MachineData} (hpre : SelectorPointPre m
 
 /-- **`selector_point` meets its contract.** -/
 theorem selectorPoint_spec (hp : Placed code k) :
-    Spec (Labels.label selectorPointLabel) SelectorPointPre SelectorPointPost := by
+    Spec (Labels.label NativeRustcVmArm.Vm.SelectorPoint.entryLabel) SelectorPointPre SelectorPointPost := by
   intro m0 hpre
-  rw [show Labels.label selectorPointLabel = Host.addrOf (k + 0) from hp.label (j := 0) rfl]
+  rw [show Labels.label NativeRustcVmArm.Vm.SelectorPoint.entryLabel = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b0Offset) from hp.label (j := NativeRustcVmArm.Vm.SelectorPoint.entryOffset) NativeRustcVmArm.Vm.SelectorPoint.entry_at]
   have hnw : (out m0).toNat + 16 * len m0 ≤ 2 ^ 64 := hpre.2
   have aL : m0.regs.X2.toNat = len m0 := rfl
   refine exec_then (hb hp b0_in_code (by simp [b0])) run_b0 (Env.wf_nil _) (match_nil _)
@@ -516,7 +517,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
   have hpc1' := pc_cond hpc1
   have hx2 : (m0.regs.getXReg .X2).toBitVec.toNat = len m0 := rfl
   by_cases hz : len m0 = 0
-  · refine ret8 hp ((hpc1'.1 ?_).trans (hp.label (j := 54) rfl)) hB1 ?_
+  · refine ret8 hp ((hpc1'.1 ?_).trans (hp.label (j := NativeRustcVmArm.Vm.SelectorPoint.b8Offset) NativeRustcVmArm.Vm.SelectorPoint.label_8_at)) hB1 ?_
     · show ((m0.regs.getXReg .X2).toBitVec == BitVec.ofNat 64 0) = true
       rw [beq_iff_eq]; apply BitVec.eq_of_toNat_eq; rw [hx2, hz]; rfl
     · rw [List.eq_nil_of_length_eq_zero (l := pt m0) (by rw [length_pt]; exact hz)]
@@ -554,7 +555,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
   · have hpc := (hpc3'.1 (by
       rw [Bool.not_eq_true']
       simp only [BitVec.ult, BitVec.toNat_ofNat, decide_eq_false_iff_not, MemWidth.bits]
-      omega)).trans (hp.label (j := 9) rfl)
+      omega)).trans (hp.label (j := NativeRustcVmArm.Vm.SelectorPoint.b3Offset) NativeRustcVmArm.Vm.SelectorPoint.label_3_at)
     refine exec_at (hb hp b3_in_code (by simp [b3])) run_b3 (Env.wf_nil _) hpc (match_nil _)
       fun s3 hm3 hpc4 ↦ ?_
     obtain ⟨hB3, e3, hdm3⟩ := hB2.regs hm3 (after_eq run_b3 ▸ b3_keeps) fun r h ↦ List.mem_cons_of_mem _ h
@@ -584,7 +585,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
     rw [hq] at g9 g12 g8
     rw [hmask] at g9 g8
     rw [Env.ofMachine_regs, hx1] at g13 g8
-    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + 16) ∧ ∃ t, len m0 / 4 - t = n ∧
+    refine Sym.loop (fun n s ↦ s.pc = Host.addrOf (k + NativeRustcVmArm.Vm.SelectorPoint.b4Offset) ∧ ∃ t, len m0 / 4 - t = n ∧
       UInv m0 t s.data) (fun n s ⟨hpc, t, hn, hI⟩ ↦ ?_) ⟨hpc4, 0, rfl, ?inv⟩
     case inv =>
       refine ⟨hB3, by omega, ?_, ?_, ?_, ?_, ?_, ?_, by rw [hdm3, hdm2, hdm1]; exact NativeRustcVm.ewsAt_nil _ _⟩
@@ -616,7 +617,7 @@ theorem selectorPoint_spec (hp : Placed code k) :
     obtain ⟨fk2, g8, g9⟩ := after_eq run_b2 ▸ b2_facts
     obtain ⟨hB3, e3, hdm3⟩ := hB2.regs hm3 fk2 fun r h ↦ List.mem_cons_of_mem _ h
     simp only [PcOk] at hpc4
-    refine fromL6 (j := 0) hp hpre (hpc4.trans (hp.label (j := 43) rfl)) hB3 (by omega) ?_ ?_ ?_ ?_
+    refine fromL6 (j := 0) hp hpre (hpc4.trans (hp.label (j := NativeRustcVmArm.Vm.SelectorPoint.b6Offset) NativeRustcVmArm.Vm.SelectorPoint.label_6_at)) hB3 (by omega) ?_ ?_ ?_ ?_
     · show (s3.data.regs.getXReg .X9).toNat = 0
       rw [← UInt64.toNat_toBitVec, hm3.regs .X9 _ g9]; rfl
     · show (s3.data.regs.getXReg .X8).toBitVec = _

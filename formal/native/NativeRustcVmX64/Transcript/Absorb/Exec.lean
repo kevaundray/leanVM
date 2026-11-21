@@ -2,6 +2,7 @@ module
 
 public import NativeRustcVmX64.Transcript.Frame
 public import NativeRustcVmX64.Code.Vm.SpongeWAbsorb
+public import NativeRustcVmX64.Code.Vm.SpongeWAbsorb.Names
 public meta import NativeRustcVmX64.Code.Vm.SpongeWAbsorb
 public meta import NativeRustcVmX64.Transcript.Frame
 
@@ -37,7 +38,7 @@ def B0Ok (S : SState) (x : Exit) : Prop :=
     S.reg .rax = some (.load 1 296 8) ∧ S.reg .rbx = some (.ptr 1 0) ∧
     S.reg .r12 = some (.reg .rsi) ∧
     S.reg .r15 = some (.reg .rdx) ∧ S.reg .r14 = some (.reg .rcx) ∧
-    x = .cond (.cmp .ult .W64 (.load 1 296 8) (.lit 4)) ".LSpongeWAbsorb_2"
+    x = .cond (.cmp .ult .W64 (.load 1 296 8) (.lit 4)) NativeRustcVmX64.Vm.SpongeWAbsorb.label_2
 
 /-- What `b3` leaves for the count `n`. -/
 def PushOk (n : Nat) (S : SState) : Prop :=
@@ -81,7 +82,7 @@ public theorem ok_b2 : MidOk 48 8 slots (after b2 reloadS) = true ∧ (after b2 
   decide +kernel
 public theorem exit_b2 : exec b2 reloadS = some (after b2 reloadS,
     .cond ((SBool.cmp .ult .W64 (.load 1 296 8) (.lit 3)).not.and
-      (SBool.cmp .eq .W64 (.load 1 296 8) (.lit 3)).not) ".LSpongeWAbsorb_3") :=
+      (SBool.cmp .eq .W64 (.load 1 296 8) (.lit 3)).not) NativeRustcVmX64.Vm.SpongeWAbsorb.label_3) :=
   run_b2.trans (by rw [after_eq run_b2])
 public theorem run_b3 : ∀ n < 4, exec b3 (pushS n) = some (after b3 (pushS n), .fall) ∧
     PushOk n (after b3 (pushS n)) := by
