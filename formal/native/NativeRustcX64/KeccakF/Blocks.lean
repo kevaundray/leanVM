@@ -1,6 +1,6 @@
 module
 
-public import NativeRustcX64.Code.Xmss.Names
+public import NativeRustcX64.Rodata.Names
 
 public import NativeRustcX64.Sym
 public import NativeRustcX64.Code.Common.KeccakF
@@ -35,12 +35,12 @@ def startPro : SState := init [296, 200] [(.rsp, .ptr 0 288), (.rdi, .ptr 1 0)]
 /-- The loop head's. -/
 def startBody : SState :=
   init [296, 16] [(.rsp, .ptr 0 128)] [] []
-    [(.bin .add .W64 (.reg .rdi) (.label NativeRustcX64.Xmss.Symbols.rodata0Label), 1, 8)]
+    [(.bin .add .W64 (.reg .rdi) (.label NativeRustcX64.roundConstantsLabel), 1, 8)]
 
 /-- The second round, with its counter saved in the frame. -/
 def startMid : SState :=
   init [296, 16] [(.rsp, .ptr 0 128)] [] []
-    [(.bin .add .W64 (.load 0 192 8) (.label NativeRustcX64.Xmss.Symbols.rodata0Label), 1, 8)]
+    [(.bin .add .W64 (.load 0 192 8) (.label NativeRustcX64.roundConstantsLabel), 1, 8)]
 
 def firstHalf : List Directive := Common.KeccakF.b1.take 245
 def secondHalf : List Directive := Common.KeccakF.b1.drop 245

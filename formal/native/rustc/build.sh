@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # The deployed `lean_xmss::verify` and `lean_sphincs::verify` compiled by rustc to x86-64 and AArch64 assembly, behind
-# the entry points `xmss_verify` (`xmss.rs`) and `sphincs_verify` (`sphincs.rs`) that `run/check.sh` links, byte for
-# byte the same on every machine and in every checkout.
+# the entry points `xmss_verify` (`xmss.rs`) and `sphincs_verify` (`sphincs.rs`) in one `signatures.rs` crate.
+# Shared functions have one body per architecture. `run/check.sh` links the output, byte for byte the same in every checkout.
 #
 # Usage, from anywhere:
-#   rustc/build.sh            # full out/*.s, committed trimmed asm/*.s, and SHA256SUMS of both
-#   rustc/build.sh --check    # rebuilds twice and checks both hashes and committed trimmed assembly
+#   rustc/build.sh            # full asm/*.s and SHA256SUMS
+#   rustc/build.sh --check    # rebuilds twice and checks hashes and committed assembly
 #
 # Needs rustup with the toolchain of `rust-toolchain.toml` and its two targets (`rustup target add`).
 #
@@ -15,12 +15,13 @@
 # relative to the repository, the sysroot and the output directory are remapped, nothing is incremental, and the
 # target CPU is the baseline. The targets are musl's, the libc of the harness these objects are linked into.
 # `-C lto=fat` on the static library with one codegen unit makes the assembly one module holding exactly what the
-# export reaches, std's panic and allocation paths included, and `-C panic=abort` leaves out the unwinding tables.
+# export reaches. The no_std entry crate aborts on panic; `-C panic=abort` leaves out unwinding tables.
+# `runtime.rs` supplies the required global allocator, trapping if the allocation-free verifier ever allocates.
 #
 # No SIMD or floating-point registers: `-neon` on AArch64, `-sse,-sse2` on x86-64, for every crate alike, so that the
 # code a verification runs uses general-purpose registers only, which Kraken models. rustc warns that the target's ABI
 # wants those features: no floating-point value crosses any function boundary here, so the ABI is not affected. The
-# entry crates define `memcpy` and `memset` themselves (`mem.rs`), so the assembly holds every instruction a
+# entry crate defines `memcpy` and `memset` itself (`mem.rs`), so the assembly holds every instruction a
 # verification runs. The raw assembly is the artifact (`run/check.sh` assembles it): rustc's own object is not emitted, as
 # rustc 1.99.1's object and assembly code generation differ under fat LTO.
 set -euo pipefail
@@ -33,12 +34,12 @@ export RUSTUP_TOOLCHAIN
 unset RUSTC_BOOTSTRAP RUSTC_WRAPPER RUSTFLAGS
 
 # What the build reads, relative to the repository: the deployed crates' sources and the entry points.
-sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs formal/native/rustc/mem.rs)
+sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs formal/native/rustc/mem.rs formal/native/rustc/runtime.rs formal/native/rustc/signatures.rs)
 
-# build SRC OUT ASM: compiles the tree at SRC and trims the full output into ASM.
+# build SRC ASM: writes the complete assembly from the tree at SRC to ASM.
 build() {
-  local src=$1 out=$2 asm=$3
-  mkdir -p "$out" "$asm"
+  local src=$1 asm=$2
+  mkdir -p "$asm"
   local deps
   deps=$(mktemp -d)
   local sysroot
@@ -56,7 +57,7 @@ build() {
     local flags=(
       --edition 2024 --target "$target" -C target-cpu="$cpu"
       -C opt-level=3 -C codegen-units=1 -C panic=abort -C debuginfo=0 -C debug-assertions=no -C overflow-checks=no
-      --remap-path-prefix="$src/=" --remap-path-prefix="$sysroot=/sysroot" --remap-path-prefix="$deps/=" --remap-path-prefix="$out/="
+      --remap-path-prefix="$src/=" --remap-path-prefix="$sysroot=/sysroot" --remap-path-prefix="$deps/=" --remap-path-prefix="$asm/="
       -L dependency="$deps/$target" --out-dir "$deps/$target" "${arch_flags[@]}"
     )
     mkdir -p "$deps/$target"
@@ -67,30 +68,23 @@ build() {
         rustc "${flags[@]}" --crate-type rlib --crate-name "$crate" -C metadata="$crate" \
           --extern keccak256="$deps/$target/libkeccak256.rlib" "crates/$crate/src/lib.rs"
       done
-      for scheme in xmss sphincs; do
-        rustc "${flags[@]}" --crate-type staticlib --crate-name "$scheme" -C metadata="$scheme" -C lto=fat \
-          --extern "lean_$scheme=$deps/$target/liblean_$scheme.rlib" \
-          --emit "link=$deps/$target/lib$scheme.a,asm=$out/$scheme-$arch.s" \
-          "formal/native/rustc/$scheme.rs"
-      done
+      rustc "${flags[@]}" --crate-type staticlib --crate-name signatures -C metadata=signatures -C lto=fat \
+        --extern "lean_xmss=$deps/$target/liblean_xmss.rlib" \
+        --extern "lean_sphincs=$deps/$target/liblean_sphincs.rlib" \
+        --emit "link=$deps/$target/libsignatures.a,asm=$asm/signatures-$arch.s" \
+        formal/native/rustc/signatures.rs
     )
-    for scheme in xmss sphincs; do
-      python3 -I "$here/trim.py" "$out/$scheme-$arch.s" "$asm/$scheme-$arch.s" "${scheme}_verify"
-    done
   done
   rm -rf "$deps"
   (
-    cd "$out/.."
-    sha256sum out/xmss-{aarch64,x86_64}.s out/sphincs-{aarch64,x86_64}.s
     cd "$asm/.."
-    sha256sum asm/xmss-{aarch64,x86_64}.s asm/sphincs-{aarch64,x86_64}.s
-  ) >"$out/SHA256SUMS"
+    sha256sum asm/signatures-{aarch64,x86_64}.s
+  ) >"$asm/../SHA256SUMS"
 }
 
 case ${1:-} in
   "")
-    build "$root" "$here/out" "$here/asm"
-    cp "$here/out/SHA256SUMS" "$here/SHA256SUMS"
+    build "$root" "$here/asm"
     cat "$here/SHA256SUMS"
     ;;
   --check)
@@ -103,15 +97,15 @@ case ${1:-} in
         mkdir -p "$(dirname "$tree/$path")"
         cp -R "$root/$path" "$tree/$path"
       done
-      build "$tree" "$tree.artifacts/out" "$tree.artifacts/asm"
-      if diff "$here/SHA256SUMS" "$tree.artifacts/out/SHA256SUMS"; then
+      build "$tree" "$tree.artifacts/asm"
+      if diff "$here/SHA256SUMS" "$tree.artifacts/SHA256SUMS"; then
         echo "$tree: identical to SHA256SUMS"
       else
         echo "$tree: DIFFERS from SHA256SUMS" >&2
         status=1
       fi
       if ! diff -r "$here/asm" "$tree.artifacts/asm"; then
-        echo "$tree: DIFFERS from committed trimmed assembly" >&2
+        echo "$tree: DIFFERS from committed assembly" >&2
         status=1
       fi
     done

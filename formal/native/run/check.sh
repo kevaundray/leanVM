@@ -5,7 +5,7 @@
 # Usage, from anywhere:
 #   run/check.sh                            # x86-64, the default schemes printed by `lake exe emit-x64` (formal/native)
 #   run/check.sh --arch arm                 # AArch64, printed by `lake exe emit-arm` (formal/native)
-#   run/check.sh --rustc [--arch x86|arm]   # test the rustc-compiled assemblies (`rustc/out/`, `rustc/vm/out/`) and
+#   run/check.sh --rustc [--arch x86|arm]   # test the rustc-compiled assemblies (`rustc/asm/`, `rustc/vm/asm/`) and
 #                                           # the rustc leanVM verifier's defensive context precondition checks
 #   run/check.sh [--arch x86|arm] [--xmss FILE] [--sphincs FILE] [--vm FILE] [ASM...]
 #                                           # given assembly files, exporting `xmss_verify`, `sphincs_verify` and
@@ -63,18 +63,18 @@ case $arch in
     machine=x86_64
     emitter=(lake exe emit-x64)
     qemu=${QEMU_X86_64:-qemu-x86_64-static}
-    rustc_xmss=$project/rustc/out/xmss-x86_64.s
-    rustc_sphincs=$project/rustc/out/sphincs-x86_64.s
-    rustc_vm=$project/rustc/vm/out/vm-x86_64.s
+    rustc_xmss=$project/rustc/asm/signatures-x86_64.s
+    rustc_sphincs=$project/rustc/asm/signatures-x86_64.s
+    rustc_vm=$project/rustc/vm/asm/vm-x86_64.s
     ;;
   arm)
     triple=aarch64-unknown-linux-musl
     machine=aarch64
     emitter=(lake exe emit-arm)
     qemu=${QEMU_AARCH64:-qemu-aarch64-static}
-    rustc_xmss=$project/rustc/out/xmss-aarch64.s
-    rustc_sphincs=$project/rustc/out/sphincs-aarch64.s
-    rustc_vm=$project/rustc/vm/out/vm-aarch64.s
+    rustc_xmss=$project/rustc/asm/signatures-aarch64.s
+    rustc_sphincs=$project/rustc/asm/signatures-aarch64.s
+    rustc_vm=$project/rustc/vm/asm/vm-aarch64.s
     ;;
   *) echo "unknown architecture $arch, not x86 or arm" >&2; exit 2 ;;
 esac
@@ -150,8 +150,7 @@ for scheme in "${schemes[@]}"; do
   fi
   echo "assembling $asm"
   clang --target="$triple" -c -o "$out/$scheme.o" "$asm"
-  # Only the entry point stays global: rustc's assembly (`rustc/build.sh`) also defines its own copy of std's symbols,
-  # which the harness's std defines too.
+  # Only this entry stays global: the combined signature assembly also exports the other entry and core symbols.
   entry=${scheme/#vm/leanvm}_verify
   "$(clang --print-prog-name=llvm-objcopy)" --keep-global-symbol="$entry" "$out/$scheme.o"
   link+=(--cfg "$scheme" -C "link-arg=$out/$scheme.o")

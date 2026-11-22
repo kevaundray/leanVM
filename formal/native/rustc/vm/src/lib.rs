@@ -112,5 +112,11 @@ pub unsafe extern "C" fn leanvm_verify(ctx: *mut u64) -> u64 {
 #[cfg(target_os = "none")]
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    loop {}
+    // SAFETY: aborting does not access memory or return.
+    unsafe {
+        #[cfg(target_arch = "x86_64")]
+        core::arch::asm!("ud2", options(noreturn, nomem, nostack));
+        #[cfg(target_arch = "aarch64")]
+        core::arch::asm!("udf #0", options(noreturn, nomem, nostack));
+    }
 }

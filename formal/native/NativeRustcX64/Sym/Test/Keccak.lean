@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcX64.Code.Common.KeccakF.Names
-public import NativeRustcX64.Code.Xmss.Names
+public import NativeRustcX64.Rodata.Names
 
 public import NativeRustcX64.Sym
 public import NativeRustcX64.Code.Common.KeccakF
@@ -26,7 +26,7 @@ open NativeRustcX64.Common.KeccakF
 /-- Before rounds `i` and `i + 1`: RSP at offset 128, RDI `8 * i + 8`, the constants in region 1. -/
 def atRound (i : Nat) : SState :=
   init [296, 192] [(.rsp, .ptr 0 128), (.rdi, .lit (8 * i + 8))]
-    [(NativeRustcX64.Xmss.Symbols.rodata0Label, 1)]
+    [(NativeRustcX64.roundConstantsLabel, 1)]
 
 sym_block round0_exec := exec b1 (atRound 0)
 

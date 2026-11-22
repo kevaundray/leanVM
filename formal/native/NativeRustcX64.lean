@@ -14,7 +14,7 @@ public import NativeRustcX64.Rodata
 
 The deployed `lean_xmss::verify` and `lean_sphincs::verify`, compiled by the pinned rustc
 (`rustc/build.sh`) to raw x86-64 assembly, ingested as Kraken programs (`NativeRustcX64.Code`,
-`RustcIngest`, during elaboration from committed trimmed assembly, checked against rustc's full
+`RustcIngest`, during elaboration from committed full assembly, checked against rustc's full
 assembly by `rustc/ingest/faithful.sh`) and proved against
 Kraken's semantics function by function: each function's contract (`NativeRustcX64.Spec`),
 proved from its blocks run by the verified symbolic executor (`NativeRustcX64.Sym`) and its

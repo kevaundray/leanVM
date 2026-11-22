@@ -1,6 +1,6 @@
 module
 
-public import NativeRustcX64.Code.Sphincs.Names
+public import NativeRustcX64.Rodata.Names
 
 public import NativeRustcX64.SphincsVerify.Encode.State
 public import NativeRustcX64.SphincsVerify.Bswap
@@ -8,7 +8,7 @@ public import NativeRustcX64.SphincsVerify.Bswap
 /-!
 # The frame's environment with `LAYER_HEIGHTS`
 
-`b104` reads `LAYER_HEIGHTS` (the rodata label `NativeRustcX64.Sphincs.Symbols.rodata7Label`, 24 bytes): its environment has the
+`b104` reads `LAYER_HEIGHTS` (the rodata label `NativeRustcX64.layerHeightsLabel`, 24 bytes): its environment has the
 frame's two regions and the table as region 2 (`Run.envL`), followed by the loader's memcpy and
 memset slots at regions 3 and 4. It is well formed (`Run.envL_wf`), and a seeded symbolic state
 (`Run.match_frameL`), a block ending in a call that writes only the frame's places is at the call
@@ -63,7 +63,7 @@ variable (r : Run) [Labels]
 /-- The environment of a state of the frame, region 2 `LAYER_HEIGHTS`. -/
 abbrev envL (m : MachineData) (ret : BitVec 64 := 0) : Sym.Env :=
   Sym.Env.ofMachine m [(r.base, frameRegion), (r.base - 16#64, 16),
-    ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24),
+    ((label NativeRustcX64.layerHeightsLabel).toBitVec, 24),
     (gotAddr "memcpy", 8), (gotAddr "memset", 8)] (fun _ ↦ 0) ret
 
 omit [Labels] in
@@ -84,15 +84,15 @@ theorem envL_wf (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) (ret : BitVec 
     ⟨w0.mapped 1 _ _ rfl, w0.noWrap 1 _ _ rfl⟩, ⟨fun i hi ↦ ?_, hw⟩,
     ⟨w0.mapped 2 _ _ rfl, w0.noWrap 2 _ _ rfl⟩,
     ⟨w0.mapped 3 _ _ rfl, w0.noWrap 3 _ _ rfl⟩, trivial⟩ ?_
-  · show (m.dmem.get? ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec + BitVec.ofNat 64 i)).isSome
+  · show (m.dmem.get? ((label NativeRustcX64.layerHeightsLabel).toBitVec + BitVec.ofNat 64 i)).isSome
     rw [hlh i (by rw [length_lhBytes]; exact hi)]
     rfl
   · have h01 := w0.disjoint 0 1 _ _ _ _ (by decide) rfl rfl
-    have h02 : Apart r.base frameRegion (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 := by
+    have h02 : Apart r.base frameRegion (label NativeRustcX64.layerHeightsLabel).toBitVec 24 := by
       unfold Apart at *
       rw [frameRegion_eq]
       omega
-    have h12 : Apart (r.base - 16#64) 16 (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 := by
+    have h12 : Apart (r.base - 16#64) 16 (label NativeRustcX64.layerHeightsLabel).toBitVec 24 := by
       unfold Apart at *
       rw [hlo]
       omega
@@ -122,7 +122,7 @@ omit [Labels] in
 def frameStateL (known : List (Reg64 × Sym))
     (aliases : List (Sym × Nat × Int) := []) : Sym.SState :=
   ((Sym.init [frameRegion, 16, 24, 8, 8] ((.rsp, .ptr 0 0) :: known)
-    [(NativeRustcX64.Sphincs.Symbols.rodata7Label, 2)] []
+    [(NativeRustcX64.layerHeightsLabel, 2)] []
     (frameAliases ++ [(.gotSlot "memcpy", 3, 0), (.gotSlot "memset", 4, 0)] ++ aliases)).withKnownBytes
       3 0 8 (.label "memcpy")).withKnownBytes 4 0 8 (.label "memset")
 

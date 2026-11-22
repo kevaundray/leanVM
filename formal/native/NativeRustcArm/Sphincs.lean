@@ -1,6 +1,6 @@
 module
 
-public import NativeRustcArm.Code.Sphincs.Names
+public import NativeRustcArm.Rodata.Names
 public import NativeRustcArm.Code.Sphincs.SphincsVerify.Names
 
 public import NativeRustcArm.SphincsVerify.End
@@ -54,9 +54,9 @@ theorem callees : Callees :=
 theorem verify_correct
     (pk : _root_.Sphincs.PublicKey) (msg : HashSig.Message) (sig : _root_.Sphincs.Signature)
     (m : MachineData) (hstack : StackOk m sphincsStack) (hrc : RcAt m sphincsStack)
-    (hlh : BytesAt m.dmem (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec lhBytes)
-    (hlhw : NoWrap (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24)
-    (hlha : Apart (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24 (stackBelow m sphincsStack) sphincsStack)
+    (hlh : BytesAt m.dmem (label NativeRustcArm.layerHeightsLabel).toBitVec lhBytes)
+    (hlhw : NoWrap (label NativeRustcArm.layerHeightsLabel).toBitVec 24)
+    (hlha : Apart (label NativeRustcArm.layerHeightsLabel).toBitVec 24 (stackBelow m sphincsStack) sphincsStack)
     (hin : BytesAt m.dmem (m.regs.X0.toBitVec + BitVec.ofNat 64 1024)
       (wordsBytes ((List.range 977).map (Native.SphincsVerifier.encode pk msg sig))))
     (hinw : NoWrap (m.regs.X0.toBitVec + BitVec.ofNat 64 1024) (8 * 977))

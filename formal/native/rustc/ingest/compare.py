@@ -6,9 +6,10 @@ Usage: compare.py [--entry NAME]... RUSTC.o INGESTED.o
 Both files are ELF relocatable files for AArch64 or x86-64. Every function of INGESTED.o (a symbol at the
 start of a `.text.<name>` section), other than the traps (the panic entries of `core`, which the ingested
 program replaces with a trap: `PANIC_SUFFIXES`), must be a function of RUSTC.o of the same size whose
-bytes and relocations are the same. Every `*_verify` entry function present in RUSTC.o (and every symbol
-named with `--entry`) must be present in INGESTED.o. A relocation is compared as its offset, its type, its
-target and its addend: a target is a function by name, or a data item by contents, recursively (its bytes
+bytes and relocations are the same. Every symbol named with `--entry` must be present in INGESTED.o;
+without `--entry`, every `*_verify` entry function present in RUSTC.o must be present. A relocation is
+compared as its offset, its type, its target and its addend: a target is a function by name, or a data item
+by contents, recursively (its bytes
 and its own relocations). A section symbol stands for the named function at the start of its section when
 there is one (each function has a section of its own); otherwise for its section's contents (each data item
 of either file has a section of its own), or, in a section of mergeable strings, for the string at the
@@ -183,7 +184,7 @@ def main():
         raise SystemExit(f"{ref_path}, {mine_path}: machines {ref.machine}, {mine.machine}")
     ref_fns, mine_fns = ref.functions(), mine.functions()
     errors = []
-    required_entries = set(entries) | {n for n in ref_fns if n.endswith("_verify")}
+    required_entries = set(entries) if entries else {n for n in ref_fns if n.endswith("_verify")}
     for name in sorted(required_entries):
         if name not in mine_fns:
             errors.append(f"{name}: required entry function missing from {mine.path}")

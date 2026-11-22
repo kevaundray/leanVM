@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcArm.Code.Common.KeccakF.Names
-public import NativeRustcArm.Code.Xmss.Names
+public import NativeRustcArm.Rodata.Names
 
 public import NativeRustcArm.Sym
 
@@ -87,8 +87,8 @@ def body : List Directive := [
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.EXTR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X20) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (25 : Nat))),  -- ror x20, x15, #25
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (40 : Int64)) (@Option.none Index))))))),  -- ldr x15, [sp, #40]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.EOR_s RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X7) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X5) RegWidth.W64) (@ShiftRegExpr.mk RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X4) RegWidth.W64) (0 : Int64) ShiftType.LSL))),  -- eor x7, x5, x4
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.ADRP (RegOrZr.low (XRegOrXzr.reg XReg.X5) RegWidth.W64) (ConstExpr.label NativeRustcArm.Xmss.Symbols.rodata0Label))),  -- adrp x5, .Lanon.47fac95803119c4a094797088418c9d4.1
-  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X5) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X5) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.lo12 (ConstExpr.label NativeRustcArm.Xmss.Symbols.rodata0Label)) ImmShift.S0)))),  -- add x5, x5, :lo12:.Lanon.47fac95803119c4a094797088418c9d4.1
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (Operation.ADRP (RegOrZr.low (XRegOrXzr.reg XReg.X5) RegWidth.W64) (ConstExpr.label NativeRustcArm.roundConstantsLabel))),  -- adrp x5, .Lanon.47fac95803119c4a094797088418c9d4.1
+  @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.ADD_e RegWidth.W64 (RegOrSp.low (XRegOrSp.reg XReg.X5) RegWidth.W64) (RegOrSp.low (XRegOrSp.reg XReg.X5) RegWidth.W64) (ExtOrImmReg.imm (ImmExpr.mk (ConstExpr.lo12 (ConstExpr.label NativeRustcArm.roundConstantsLabel)) ImmShift.S0)))),  -- add x5, x5, :lo12:.Lanon.47fac95803119c4a094797088418c9d4.1
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.STR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X3) RegWidth.W64) (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (32 : Int64)) (@Option.none Index)))))),  -- str x3, [sp, #32]
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.EOR_s RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X2) RegWidth.W64) (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (@ShiftRegExpr.mk RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X2) RegWidth.W64) (0 : Int64) ShiftType.LSL))),  -- eor x2, x15, x2
   @Kraken.Directive.instr Instr ConstExpr (Instr.mk RegWidth.W64 (@Operation.LDR RegWidth.W64 (RegOrZr.low (XRegOrXzr.reg XReg.X15) RegWidth.W64) (AddrOrLit.addr (AddrExpr.mk (RegOrSp.low XRegOrSp.SP RegWidth.W64) (AddrOff.imm (ImmAddrExpr.mk (ConstExpr.int64 (24 : Int64)) (@Option.none Index))))))),  -- ldr x15, [sp, #24]
@@ -180,7 +180,7 @@ def body : List Directive := [
 
 /-- The state at the loop head of round `i`: SP the stack frame's base (region 0), X27 `8 * i`. -/
 def start (i : Nat) : SState :=
-  init [(192, true), (192, false)] (.ptr 0 0) [(.X27, .lit (8 * i))] [(NativeRustcArm.Xmss.Symbols.rodata0Label, 1)]
+  init [(192, true), (192, false)] (.ptr 0 0) [(.X27, .lit (8 * i))] [(NativeRustcArm.roundConstantsLabel, 1)]
 
 sym_block round0 := exec body (start 0)
 
@@ -188,7 +188,7 @@ sym_block round23 := exec body (start 23)
 
 /-- The state at the loop head of any round: X27 the variable 0, below 185. -/
 def startAny : SState :=
-  init [(192, true), (192, false)] (.ptr 0 0) [(.X27, .var 0)] [(NativeRustcArm.Xmss.Symbols.rodata0Label, 1)] [(.var 0, 185)]
+  init [(192, true), (192, false)] (.ptr 0 0) [(.X27, .var 0)] [(NativeRustcArm.roundConstantsLabel, 1)] [(.var 0, 185)]
 
 sym_block roundAny := exec body startAny
 

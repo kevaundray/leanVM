@@ -202,7 +202,8 @@ theorem seg_b42 (hp : Placed Xmss.WotsLeaf.code r.k) (hc : Callees) (hpre : r.Pr
   refine pc_at (pc_false hpc3) ?_
   -- `b44`: `memset` of the block.
   refine frameCall r hp hpre b44_in_code (List.cons_ne_nil _ _) run_b44 (by decide) rfl hK3
-    trivial extraOK_nil ⟨known_lit (regIs_lit hm3 rfl), trivial⟩ trivial trivial hc.2.1
+    trivial extraOK_nil ⟨known_lit (regIs_lit hm3 rfl), known_lit (regIs_lit hm3 rfl), trivial⟩
+    trivial trivial hc.2.1
     fun m₄ hm₄ hK₄ _ ↦ ?_
   obtain ⟨hpre₄, hpost₄⟩ := memsetFrame hpre hK₄ (regIs_ptr hm₄ rfl) (byte_zero hm₄ rfl)
     (toNat_of_lit hm₄ rfl (by decide)) (by decide) rfl

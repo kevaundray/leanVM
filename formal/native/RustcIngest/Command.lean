@@ -63,7 +63,8 @@ def elaborateModule {I C : Type} [ToExpr I] [ToExpr C] [BEq I] [BEq C]
   let mut inputs := #[]
   for scheme in (if vm then #["vm"] else #["xmss", "sphincs"]) do
     let dir := if vm then "rustc/vm/asm" else "rustc/asm"
-    let assembly ← IO.FS.readFile s!"{dir}/{scheme}-{target}.s"
+    let file := if vm then "vm" else "signatures"
+    let assembly ← IO.FS.readFile s!"{dir}/{file}-{target}.s"
     inputs := inputs.push (scheme, assembly)
   let files ← filesForModule arch (← getEnv) names inputs path
   let some (_, source) := files.find? (fun file => file.1 == path)

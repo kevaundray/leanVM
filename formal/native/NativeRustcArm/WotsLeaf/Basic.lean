@@ -13,7 +13,7 @@ public import NativeRustcArm.Code.Xmss.WotsLeaf
 # `wots_leaf` on AArch64: its map, its frame, its regions
 
 rustc compiles `lean_xmss::wots::wots_leaf` (blocks `b0` to `b50` of `NativeRustcArm.Xmss.WotsLeaf`,
-assembly `rustc/out/xmss-aarch64.s` from line 11538) with `message_digest`, `codeword`, `chain`
+assembly `rustc/asm/signatures-aarch64.s`) with `message_digest`, `codeword`, `chain`
 and `wots_leaf_hash` inlined, and in each chain step `th`'s hasher (`memset`, `PK` buffered, the
 address by `update`'s loop, the clone, the payload by the loop, `finalize`'s final block and
 `keccak_f`) inlined too; it calls `memset`, `memcpy`, `Hasher::update`, `Hasher::finalize` and

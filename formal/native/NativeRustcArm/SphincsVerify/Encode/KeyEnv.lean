@@ -1,13 +1,13 @@
 module
 
-public import NativeRustcArm.Code.Sphincs.Names
+public import NativeRustcArm.Rodata.Names
 
 public import NativeRustcArm.SphincsVerify.Encode.State
 
 /-!
 # The frame's environment with `LAYER_HEIGHTS`
 
-`b101` reads `LAYER_HEIGHTS` (the rodata label `NativeRustcArm.Sphincs.Symbols.rodata7Label`, 24 bytes): its environment has the
+`b101` reads `LAYER_HEIGHTS` (the rodata label `NativeRustcArm.layerHeightsLabel`, 24 bytes): its environment has the
 frame as region 0 and the table as region 1 (`Run.envL`). It is well formed (`Run.envL_wf`), a
 fresh symbolic state with the label at region 1 describes a state of the frame
 (`Run.match_frameL`), and a block that writes only the frame below the saved registers keeps the
@@ -27,7 +27,7 @@ variable (r : Run) [Labels]
 
 /-- The environment of a state of the frame, region 0 the frame, region 1 `LAYER_HEIGHTS`. -/
 abbrev envL (m : MachineData) : Sym.Env :=
-  Sym.Env.ofMachine m [(r.base, 29376), ((label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec, 24)]
+  Sym.Env.ofMachine m [(r.base, 29376), ((label NativeRustcArm.layerHeightsLabel).toBitVec, 24)]
 
 omit [Labels] in
 theorem length_lhBytes : lhBytes.length = 24 := by decide
@@ -41,7 +41,7 @@ theorem envL_wf (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) : (r.envL m).W
   have hA := hpre.2.2.2.2.1
   have hb := r.below_toNat hpre
   refine Sym.Env.wf_of ⟨h, ⟨fun i hi ↦ ?_, hw⟩, trivial⟩ ?_
-  · show (m.dmem.get? ((label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec + BitVec.ofNat 64 i)).isSome
+  · show (m.dmem.get? ((label NativeRustcArm.layerHeightsLabel).toBitVec + BitVec.ofNat 64 i)).isSome
     rw [hlh i (by rw [length_lhBytes]; exact hi)]
     rfl
   · refine List.pairwise_cons.mpr ⟨fun e he ↦ ?_, List.pairwise_singleton _ _⟩
@@ -57,7 +57,7 @@ theorem envL_wf (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) : (r.envL m).W
 theorem match_frameL (hpre : r.Pre) {m : MachineData} (hF : r.Frame m) {known : List (XReg × Sym)}
     (hknown : Sym.AllOf (fun p ↦ (m.regs.getXReg p.1).toBitVec = p.2.eval (r.envL m)) known) :
     Sym.Match (r.envL m)
-      (Sym.init [(29376, true), (24, false)] (.ptr 0 0) known [(NativeRustcArm.Sphincs.Symbols.rodata7Label, 1)]) m :=
+      (Sym.init [(29376, true), (24, false)] (.ptr 0 0) known [(NativeRustcArm.layerHeightsLabel, 1)]) m :=
   Sym.match_ofMachine ⟨rfl, fun _ ↦ r.base_aligned hpre, rfl, fun h ↦ absurd h (by decide),
     trivial⟩
     (by show m.regs.SP.toBitVec = r.base + BitVec.ofInt 64 0; simp only [BitVec.ofInt_ofNat,

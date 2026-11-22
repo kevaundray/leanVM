@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcArm.Code.Common.Memset.Names
-public import NativeRustcArm.Code.Sphincs.Names
+public import NativeRustcArm.Rodata.Names
 
 public import NativeRustcArm.SphincsVerify.Encode.KeyEnv
 public import NativeRustcArm.SphincsVerify.Encode.KeyMath
@@ -49,9 +49,9 @@ def wr (S : SState) (o n : Nat) (v : Sym) : Bool :=
 /-- `b101`'s start for layer `l`: `AtLayer`'s registers. -/
 def s101 (l : Nat) : SState :=
   init [(29376, true), (24, false)] (.ptr 0 0)
-    [(.X10, .lit l), (.X8, .label NativeRustcArm.Sphincs.Symbols.rodata7Label), (.X11, .ptr 0 ((12900 + 1028 * l : Nat) : Int)),
+    [(.X10, .lit l), (.X8, .label NativeRustcArm.layerHeightsLabel), (.X11, .ptr 0 ((12900 + 1028 * l : Nat) : Int)),
       (.X12, .lit (4656 + 1028 * l)), (.X13, .lit 8), (.X22, .lit 16), (.X14, .lit 0x07000000),
-      (.X20, .ptr 0 21648), (.X29, .ptr 0 29280)] [(NativeRustcArm.Sphincs.Symbols.rodata7Label, 1)]
+      (.X20, .ptr 0 21648), (.X29, .ptr 0 29280)] [(NativeRustcArm.layerHeightsLabel, 1)]
 
 /-- `b101` for layer `l` as the executor runs it. -/
 def b101Ok (l : Nat) : Bool :=
@@ -179,7 +179,7 @@ theorem b101_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
     k27792, w8, w16, w24, w32, w40, w392, w408, w416, w424, a0, a4, a8, a16, a20, a24⟩ := hok
   have hk := Sphincs.SphincsVerify.b101_in_code.trans hp.1 (List.cons_ne_nil _ _)
   have hwf := r.envL_wf hpre hF
-  have hm := r.match_frameL hpre hF (known := [(.X10, .lit l), (.X8, .label NativeRustcArm.Sphincs.Symbols.rodata7Label),
+  have hm := r.match_frameL hpre hF (known := [(.X10, .lit l), (.X8, .label NativeRustcArm.layerHeightsLabel),
       (.X11, .ptr 0 ((12900 + 1028 * l : Nat) : Int)), (.X12, .lit (4656 + 1028 * l)),
       (.X13, .lit 8), (.X22, .lit 16), (.X14, .lit 0x07000000), (.X20, .ptr 0 21648),
       (.X29, .ptr 0 29280)])

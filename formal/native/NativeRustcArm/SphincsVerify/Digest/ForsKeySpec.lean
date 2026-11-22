@@ -1,6 +1,6 @@
 module
 
-public import NativeRustcArm.Code.Sphincs.Names
+public import NativeRustcArm.Rodata.Names
 
 public import NativeRustcArm.SphincsVerify.Digest.ForsKey
 
@@ -67,7 +67,7 @@ theorem forsKey2_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hp
     (regIs_lit hm₁ (y := .X26) (c := 136) rfl :), regIs_ptr hm₁ (y := .X21) (o := 26968) rfl, ?_,
     regIs_ptr hm₁ (y := .X25) (o := 16600) rfl, ?_, ?_, hk 384 _ (by rw [hw]; omega) (by rw [hw]; rfl) h384⟩
   · unfold Run.RegIs
-    rw [hm₁.regs .X8 (.label NativeRustcArm.Sphincs.Symbols.rodata7Label) rfl]
+    rw [hm₁.regs .X8 (.label NativeRustcArm.layerHeightsLabel) rfl]
     rfl
   · unfold Run.RegIs
     rw [hm₁.regs .X11 (.load 0 392 8) rfl]

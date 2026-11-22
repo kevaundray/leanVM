@@ -5,7 +5,7 @@ public import NativeRustcArm.Code.Common.KeccakF.Names
 public import NativeRustcArm.Code.Common.Memcpy.Names
 public import NativeRustcArm.Code.Common.Memset.Names
 public import NativeRustcArm.Code.Common.Update.Names
-public import NativeRustcArm.Code.Sphincs.Names
+public import NativeRustcArm.Rodata.Names
 
 public import NativeRustcArm.Spec.Keccak
 public import NativeRustc.Sphincs.Model
@@ -15,7 +15,7 @@ public import NativeRustcArm.Code.Sphincs.SphincsVerify
 # `sphincs_verify` on AArch64: its map, its frame, its regions
 
 rustc compiles `rustc/sphincs.rs`'s `sphincs_verify` (blocks `b0` to `b192` of
-`NativeRustcArm.Sphincs.SphincsVerify`, assembly `rustc/out/sphincs-aarch64.s` lines 82 to 2930)
+`NativeRustcArm.Sphincs.SphincsVerify`, assembly `rustc/asm/signatures-aarch64.s`)
 with all of `lean_sphincs` inlined, `Hasher::update`'s loop and `Hasher::finalize` included where
 the hasher is a local; it calls `memcpy`, `memset`, `Hasher::update`, `Hasher::finalize` and
 `keccak_f` only.
@@ -70,7 +70,7 @@ of the three (`sphincsStack`). Offsets from `base`:
    `27792`. Exit: `AtLayer 0` at `b101`.
 5. **Layer** `l` (loop `b101 .. b181`, X10):
    - **Encode** `b101 .. b112`, `b187` (lines 1405 .. 1803, 2878): the key from the index and
-     `LAYER_HEIGHTS` (the rodata table `NativeRustcArm.Sphincs.Symbols.rodata7Label`), the encoder (`th` prefix with calls, cloned,
+     `LAYER_HEIGHTS` (the rodata table `NativeRustcArm.layerHeightsLabel`), the encoder (`th` prefix with calls, cloned,
      the counter), `finalize`; loop `b110` (16 turns, 4 digits each) and the sum (`b111`); a sum
      other than 128 returns 0 (`b187`, `b188`). Exit: `AtChains l x` at `b114` (chain 0).
    - **Chains** `b113 .. b142` (lines 1804 .. 2255): chain `i` (loop on X28 through `b114`,
@@ -201,8 +201,8 @@ def resultFrom (l : Nat) (s : List UInt8) : Bool :=
 in place, apart from the stack. -/
 def Pre [Labels] : Prop :=
   StackOk r.m0 sphincsStack ∧ RcAt r.m0 sphincsStack ∧
-    BytesAt r.m0.dmem (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec lhBytes ∧ NoWrap (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24 ∧
-    Apart (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec 24 (stackBelow r.m0 sphincsStack) sphincsStack ∧
+    BytesAt r.m0.dmem (label NativeRustcArm.layerHeightsLabel).toBitVec lhBytes ∧ NoWrap (label NativeRustcArm.layerHeightsLabel).toBitVec 24 ∧
+    Apart (label NativeRustcArm.layerHeightsLabel).toBitVec 24 (stackBelow r.m0 sphincsStack) sphincsStack ∧
     BytesAt r.m0.dmem r.input (wordsBytes ((List.range 977).map r.w)) ∧ NoWrap r.input (8 * 977) ∧
     Apart r.input (8 * 977) (stackBelow r.m0 sphincsStack) sphincsStack
 
@@ -277,7 +277,7 @@ type's word, X20 `base + 21648`, X26 `136`, X21 and X25 the hashers' buffers, X2
 `base + 26769`), `s` at `27792`, the spills `0` and `384`. -/
 def AtLayer [Labels] (l : Nat) (s : List UInt8) (m : MachineData) : Prop :=
   l < 3 ∧ s.length = 16 ∧ r.Frame m ∧ r.Inputs m ∧ RegIs m .X10 (BitVec.ofNat 64 l) ∧
-    RegIs m .X8 (label NativeRustcArm.Sphincs.Symbols.rodata7Label).toBitVec ∧ RegIs m .X11 (r.off (12900 + 1028 * l)) ∧
+    RegIs m .X8 (label NativeRustcArm.layerHeightsLabel).toBitVec ∧ RegIs m .X11 (r.off (12900 + 1028 * l)) ∧
     RegIs m .X12 (BitVec.ofNat 64 (4656 + 1028 * l)) ∧ RegIs m .X13 8 ∧ RegIs m .X22 16 ∧
     RegIs m .X14 0x07000000 ∧ RegIs m .X20 (r.off 21648) ∧ RegIs m .X26 136 ∧
     RegIs m .X21 (r.off 26968) ∧ RegIs m .X23 (r.off 26769) ∧ RegIs m .X25 (r.off 16600) ∧

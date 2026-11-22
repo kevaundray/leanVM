@@ -1,6 +1,6 @@
 module
 
-public import NativeRustcX64.Code.Xmss.Names
+public import NativeRustcX64.Rodata.Names
 
 public import NativeRustcX64.Spec.Mem
 public import NativeRustcX64.Spec.Got
@@ -9,7 +9,7 @@ public import NativeRustc.Keccak.Hasher
 /-!
 # The contracts of `keccak_f`, `Hasher::update` and `Hasher::finalize`
 
-Each reads the round constants, 192 bytes at the label `NativeRustcX64.Xmss.Symbols.rodata0Label` (`RcAt`), and uses the stack
+Each reads the round constants, 192 bytes at the label `NativeRustcX64.roundConstantsLabel` (`RcAt`), and uses the stack
 below RSP (`keccakFStack`, `updateStack`, `finalizeStack` bytes: its pushes, its frame, its red
 zone and its callees' stacks with their return addresses; `StackOk` also maps the return address
 at RSP). Each returns with the callee-saved registers kept (and RSP 8 above, `Spec`), and changes no
@@ -51,7 +51,7 @@ section
 variable [Labels]
 
 /-- The address of the round constants. -/
-def rcAddr : BitVec 64 := (label NativeRustcX64.Xmss.Symbols.rodata0Label).toBitVec
+def rcAddr : BitVec 64 := (label NativeRustcX64.roundConstantsLabel).toBitVec
 
 /-- The round constants are at their label, apart from the `n` bytes below RSP and the return
 address at RSP. -/

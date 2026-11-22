@@ -1,10 +1,6 @@
 //! `sphincs_verify(ctx)`: the deployed `lean_sphincs::verify` on the context of `Native/Context.lean`, its input words
 //! (from byte 1024) laid out as `Native/Sphincs/Layout.lean` says; returns 1 when the signature verifies, else 0.
 
-#![no_builtins]
-
-mod mem;
-
 use lean_sphincs::internals::{LAYER_HEIGHTS, V};
 use lean_sphincs::{LeanSphincsPublicKey, LeanSphincsSignature, MESSAGE_LEN, PUB_KEY_SIZE, SIG_SIZE, verify};
 

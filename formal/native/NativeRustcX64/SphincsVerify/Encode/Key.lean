@@ -1,7 +1,7 @@
 module
 
 public import NativeRustcX64.Code.Common.Memset.Names
-public import NativeRustcX64.Code.Sphincs.Names
+public import NativeRustcX64.Rodata.Names
 
 public import NativeRustcX64.SphincsVerify.Encode.KeyEnv
 public import NativeRustcX64.SphincsVerify.Encode.KeyMath
@@ -57,7 +57,7 @@ def wr (S : SState) (o n : Nat) (v : Sym) : Bool :=
 /-- `b104`'s start for layer `l`: `AtLayer`'s registers, the chain values' address at `176`. -/
 def s104 (l : Nat) : SState :=
   Run.frameStateL
-    [(.rcx, .lit (4656 + 1028 * l)), (.rsi, .lit l), (.rdx, .label NativeRustcX64.Sphincs.Symbols.rodata7Label),
+    [(.rcx, .lit (4656 + 1028 * l)), (.rsi, .lit l), (.rdx, .label NativeRustcX64.layerHeightsLabel),
       (.rbx, .lit 0), (.r12, .ptr 0 4096), (.rbp, .ptr 0 576), (.r13, .ptr 0 2048),
       (.r15, .ptr 0 144)]
     [(.load 0 176 8, 0, ((25196 + 1028 * l : Nat) : Int))]
@@ -226,7 +226,7 @@ theorem b104_spec (r : Run) (hp : Placed Sphincs.SphincsVerify.code r.k) (hc : C
   let ret : BitVec 64 := (Host.addrOf (r.k + NativeRustcX64.Sphincs.SphincsVerify.b104Offset + Sphincs.SphincsVerify.b104.length)).toBitVec
   have hwf := r.envL_wf hpre hF ret
   have hm := r.match_frameL hpre hF (ret := ret) (known := [(.rcx, .lit (4656 + 1028 * l)),
-      (.rsi, .lit l), (.rdx, .label NativeRustcX64.Sphincs.Symbols.rodata7Label), (.rbx, .lit 0), (.r12, .ptr 0 4096),
+      (.rsi, .lit l), (.rdx, .label NativeRustcX64.layerHeightsLabel), (.rbx, .lit 0), (.r12, .ptr 0 4096),
       (.rbp, .ptr 0 576), (.r13, .ptr 0 2048), (.r15, .ptr 0 144)])
     (aliases := [(.load 0 176 8, 0, ((25196 + 1028 * l : Nat) : Int))])
     ⟨hcx, hsi, hdx, hbx, h12.trans (r.ptr_evalL m ret _).symm,

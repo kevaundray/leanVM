@@ -1,10 +1,6 @@
 //! `xmss_verify(ctx)`: the deployed `lean_xmss::verify` on the context of `Native/Context.lean`, its input words (from
 //! byte 1024) laid out as `Native/Xmss/Layout.lean` says; returns 1 when the signature verifies, else 0.
 
-#![no_builtins]
-
-mod mem;
-
 use lean_xmss::{LeanXmssPublicKey, LeanXmssSignature, MESSAGE_LEN, PUB_KEY_SIZE, SIG_SIZE, verify};
 
 /// The input's first word in the context.

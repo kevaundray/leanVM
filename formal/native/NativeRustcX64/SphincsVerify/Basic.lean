@@ -5,7 +5,7 @@ public import NativeRustcX64.Code.Common.KeccakF.Names
 public import NativeRustcX64.Code.Common.Memcpy.Names
 public import NativeRustcX64.Code.Common.Memset.Names
 public import NativeRustcX64.Code.Common.Update.Names
-public import NativeRustcX64.Code.Sphincs.Names
+public import NativeRustcX64.Rodata.Names
 
 public import NativeRustcX64.Spec.Keccak
 public import NativeRustc.Sphincs.SigMem
@@ -15,7 +15,7 @@ public import NativeRustcX64.Code.Sphincs.SphincsVerify
 # `sphincs_verify` on x86-64: its map, its frame, its regions
 
 rustc compiles `rustc/sphincs.rs`'s `sphincs_verify` (blocks `b0` to `b200` of
-`NativeRustcX64.Sphincs.SphincsVerify`, raw assembly `rustc/out/sphincs-x86_64.s`)
+`NativeRustcX64.Sphincs.SphincsVerify`, raw assembly `rustc/asm/signatures-x86_64.s`)
 with all of `lean_sphincs` inlined, `Hasher::update`'s loop and
 `Hasher::finalize` included where the hasher is a local; it calls `memcpy`, `memset`,
 `Hasher::update`, `Hasher::finalize` and `keccak_f` only. The regions and their interfaces follow
@@ -73,7 +73,7 @@ bytes from `base`, RSP `ptr 0 0`), region 1 the 16 bytes below it (the pushes' s
    Exit: `AtLayer 0` at `b104` (1129).
 5. **Layer** `l` (loop `b104 .. b191`):
    - **Encode** `b104 .. b115` (1129 .. 1538): the key from the index and `LAYER_HEIGHTS` (the
-     rodata table `NativeRustcX64.Sphincs.Symbols.rodata7Label`), the encoder (`th` prefix with calls, cloned, the counter),
+     rodata table `NativeRustcX64.layerHeightsLabel`), the encoder (`th` prefix with calls, cloned, the counter),
      `finalize`; the digits (loop `b113`), their sum (`b114`): a sum other than 128 returns 0
      (`b196`, `b197`); the digits at `3072` (`b115`). Exit: `AtChains l x` at `b117` (1548,
      chain 0).
@@ -191,12 +191,12 @@ def resultFrom (l : Nat) (s : List UInt8) : Bool :=
 and the two loader-provided GOT slots, separated from writable memory. -/
 def Pre [Labels] : Prop :=
   StackOk r.m0 sphincsStack ∧ RcAt r.m0 sphincsStack ∧
-    BytesAt r.m0.dmem (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec lhBytes ∧ NoWrap (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 ∧
-    Apart (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec 24 (stackBelow r.m0 sphincsStack) (sphincsStack + 8) ∧
+    BytesAt r.m0.dmem (label NativeRustcX64.layerHeightsLabel).toBitVec lhBytes ∧ NoWrap (label NativeRustcX64.layerHeightsLabel).toBitVec 24 ∧
+    Apart (label NativeRustcX64.layerHeightsLabel).toBitVec 24 (stackBelow r.m0 sphincsStack) (sphincsStack + 8) ∧
     BytesAt r.m0.dmem r.input (wordsBytes ((List.range 977).map r.w)) ∧ NoWrap r.input (8 * 977) ∧
     Apart r.input (8 * 977) (stackBelow r.m0 sphincsStack) (sphincsStack + 8) ∧
     GotAt r.m0 sphincsStack
-      [(r.input, 8 * 977), ((label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec, 24)]
+      [(r.input, 8 * 977), ((label NativeRustcX64.layerHeightsLabel).toBitVec, 24)]
       ["memcpy", "memset"]
 
 /-- **The frame's invariant**: RSP the base, the pushed registers in place, no byte changed
@@ -261,7 +261,7 @@ values' address at `176`, the index at `568`. -/
 def AtLayer [Labels] (l : Nat) (s : List UInt8) (m : MachineData) : Prop :=
   l < 3 ∧ s.length = 16 ∧ r.Frame m ∧ r.Inputs m ∧
     RegIs m .rcx (BitVec.ofNat 64 (4656 + 1028 * l)) ∧ RegIs m .rsi (BitVec.ofNat 64 l) ∧
-    RegIs m .rdx (label NativeRustcX64.Sphincs.Symbols.rodata7Label).toBitVec ∧ RegIs m .rbx 0 ∧ RegIs m .r12 (r.off 4096) ∧
+    RegIs m .rdx (label NativeRustcX64.layerHeightsLabel).toBitVec ∧ RegIs m .rbx 0 ∧ RegIs m .r12 (r.off 4096) ∧
     RegIs m .rbp (r.off 576) ∧ RegIs m .r13 (r.off 2048) ∧ RegIs m .r15 (r.off 144) ∧
     BytesAt m.dmem (r.off 144) s ∧ r.WordAt m 176 (r.addr (25196 + 1028 * l)) ∧
     r.WordAt m 568 r.idx ∧ RegIs m .r14 (Labels.label "memcpy").toBitVec

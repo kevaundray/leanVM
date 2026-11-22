@@ -4,11 +4,15 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[features]
+default = ["std"]
+std = ["keccak256/std"]
+
 [lints]
 workspace = true
 
 [dependencies]
-keccak256.workspace = true
+keccak256 = { path = "../keccak256", default-features = false }
 
 [dev-dependencies]
 rand.workspace = true

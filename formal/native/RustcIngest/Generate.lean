@@ -18,7 +18,8 @@ public meta def writeWrappers {I C : Type} [ToExpr I] [ToExpr C] [BEq I] [BEq C]
     let mut schemes := #[]
     for scheme in (if vm then #["vm"] else #["xmss", "sphincs"]) do
       let dir := if vm then "rustc/vm/asm" else "rustc/asm"
-      let assembly ← IO.FS.readFile s!"{dir}/{scheme}-{target}.s"
+      let file := if vm then "vm" else "signatures"
+      let assembly ← IO.FS.readFile s!"{dir}/{file}-{target}.s"
       schemes := schemes.push (← ingestScheme arch env names scheme assembly)
     for (path, source) in ← emit arch env schemes do
       let imports := (source.splitOn "\n").filter (·.startsWith "public import ")

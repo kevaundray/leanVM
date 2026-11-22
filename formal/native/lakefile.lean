@@ -30,10 +30,10 @@ def rustcAssemblyInputs (pkg : Package) (paths : Array FilePath) : FetchM (Job U
   return Job.mixArray jobs
 
 target rustcArmInputs pkg : Unit :=
-  rustcAssemblyInputs pkg #["rustc/asm/xmss-aarch64.s", "rustc/asm/sphincs-aarch64.s"]
+  rustcAssemblyInputs pkg #["rustc/asm/signatures-aarch64.s"]
 
 target rustcX64Inputs pkg : Unit :=
-  rustcAssemblyInputs pkg #["rustc/asm/xmss-x86_64.s", "rustc/asm/sphincs-x86_64.s"]
+  rustcAssemblyInputs pkg #["rustc/asm/signatures-x86_64.s"]
 
 target rustcVmArmInputs pkg : Unit :=
   rustcAssemblyInputs pkg #["rustc/vm/asm/vm-aarch64.s", "rustc/ingest/vm-names.txt"]
