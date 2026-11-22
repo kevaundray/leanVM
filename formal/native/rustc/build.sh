@@ -4,8 +4,8 @@
 # byte the same on every machine and in every checkout.
 #
 # Usage, from anywhere:
-#   rustc/build.sh            # out/{xmss,sphincs}-{x86_64,aarch64}.s and SHA256SUMS of them
-#   rustc/build.sh --check    # builds twice, in two fresh directories, and fails unless both match SHA256SUMS
+#   rustc/build.sh            # full out/*.s, committed trimmed asm/*.s, and SHA256SUMS of both
+#   rustc/build.sh --check    # rebuilds twice and checks both hashes and committed trimmed assembly
 #
 # Needs rustup with the toolchain of `rust-toolchain.toml` and its two targets (`rustup target add`).
 #
@@ -35,10 +35,10 @@ unset RUSTC_BOOTSTRAP RUSTC_WRAPPER RUSTFLAGS
 # What the build reads, relative to the repository: the deployed crates' sources and the entry points.
 sources=(crates/keccak256/src crates/lean_xmss/src crates/lean_sphincs/src formal/native/rustc/xmss.rs formal/native/rustc/sphincs.rs formal/native/rustc/mem.rs)
 
-# build SRC OUT: compiles the tree at SRC (laid out as the repository) into OUT.
+# build SRC OUT ASM: compiles the tree at SRC and trims the full output into ASM.
 build() {
-  local src=$1 out=$2
-  mkdir -p "$out"
+  local src=$1 out=$2 asm=$3
+  mkdir -p "$out" "$asm"
   local deps
   deps=$(mktemp -d)
   local sysroot
@@ -74,14 +74,22 @@ build() {
           "formal/native/rustc/$scheme.rs"
       done
     )
+    for scheme in xmss sphincs; do
+      python3 -I "$here/trim.py" "$out/$scheme-$arch.s" "$asm/$scheme-$arch.s" "${scheme}_verify"
+    done
   done
   rm -rf "$deps"
-  (cd "$out" && sha256sum xmss-{aarch64,x86_64}.s sphincs-{aarch64,x86_64}.s >SHA256SUMS)
+  (
+    cd "$out/.."
+    sha256sum out/xmss-{aarch64,x86_64}.s out/sphincs-{aarch64,x86_64}.s
+    cd "$asm/.."
+    sha256sum asm/xmss-{aarch64,x86_64}.s asm/sphincs-{aarch64,x86_64}.s
+  ) >"$out/SHA256SUMS"
 }
 
 case ${1:-} in
   "")
-    build "$root" "$here/out"
+    build "$root" "$here/out" "$here/asm"
     cp "$here/out/SHA256SUMS" "$here/SHA256SUMS"
     cat "$here/SHA256SUMS"
     ;;
@@ -95,11 +103,15 @@ case ${1:-} in
         mkdir -p "$(dirname "$tree/$path")"
         cp -R "$root/$path" "$tree/$path"
       done
-      build "$tree" "$tree.out"
-      if diff "$here/SHA256SUMS" "$tree.out/SHA256SUMS"; then
+      build "$tree" "$tree.artifacts/out" "$tree.artifacts/asm"
+      if diff "$here/SHA256SUMS" "$tree.artifacts/out/SHA256SUMS"; then
         echo "$tree: identical to SHA256SUMS"
       else
         echo "$tree: DIFFERS from SHA256SUMS" >&2
+        status=1
+      fi
+      if ! diff -r "$here/asm" "$tree.artifacts/asm"; then
+        echo "$tree: DIFFERS from committed trimmed assembly" >&2
         status=1
       fi
     done

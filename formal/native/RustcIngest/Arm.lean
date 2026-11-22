@@ -1,19 +1,16 @@
 module
 
-import IngestCore
-import Kraken.AArch64.Parser
+public meta import RustcIngest.Command
+public meta import Kraken.AArch64.Parser
 
 /-!
-# `ingest-arm`
-
-`ingest-arm OUT SCHEME=FILE.s ...`: rustc's AArch64 assembly (`rustc/out/<scheme>-aarch64.s`) as the
-modules `NativeRustcArm.Code.*` (`IngestCore`). The panic entries become `udf #0`.
+# AArch64 assembly ingestion during elaboration
 -/
 
 open Ingest
 
 /-- AArch64. -/
-def arm : Arch Instr ConstExpr where
+public meta def arm : Arch Instr ConstExpr where
   ns := "NativeRustcArm"
   syntaxModule := "Kraken.AArch64.Syntax"
   infixModule := "NativeRustcArm.Code.Infix"
@@ -37,4 +34,5 @@ def arm : Arch Instr ConstExpr where
     | ".byte" => some 1 | ".hword" => some 2 | ".word" => some 4 | ".xword" => some 8 | _ => none
   wordDirective n := match n with | 1 => ".byte" | 2 => ".hword" | 4 => ".word" | _ => ".xword"
 
-public def main (args : List String) : IO UInt32 := run arm args
+elab "ingest_arm " ns:str path:str : command =>
+  Ingest.elaborateModule arm "aarch64" ns.getString path.getString

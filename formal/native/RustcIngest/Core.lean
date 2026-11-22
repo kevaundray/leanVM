@@ -6,17 +6,14 @@ public import Kraken.Layout
 /-!
 # Ingestion of rustc's assembly, for any architecture
 
-`run arch args` (`ingest-arm`, `ingest-x64`: `IngestArm.lean`, `IngestX64.lean`) writes rustc's
-assembly for the signature verifiers, or for the leanVM verifier, as Lean modules of formal/native under
-`OUT/<ns>/Code/` (`ns` the architecture's namespace, or `--ns`'s), each instruction parsed by Kraken's parser for the architecture and written back as
-the Kraken term it denotes. The two architectures are two executables because Kraken's AArch64 and
-x86-64 declare the same root names (`Instr`, `Directive`, ...); this module, generic in a Kraken
-`Directive I C`, is shared.
+The elaboration commands in `RustcIngest.Arm` and `RustcIngest.X64` parse committed assembly
+and elaborate these generated declarations while the native proofs build. The architecture adapters
+are separate because Kraken's AArch64 and x86-64 declare the same root names.
 
 For each scheme, the core functions are those reachable from its entry (`<scheme>_verify`, or
 `leanvm_verify` for `vm`) by calls, jumps and references to other functions, without entering the two
 panic entries of `core` (`isPanic`). Each has a Lean name: the signature verifiers' functions by
-`shortName`, the others by the table `--names FILE` gives (a line `<symbol> <Name>` each). A
+`shortName`, the others by `rustc/ingest/vm-names.txt` (a line `<symbol> <Name>` each). A
 function of rustc's assembly starts at `name:` followed by `.Lfunc_begin<n>:` and ends at
 `.Lfunc_end<n>:`. Its text keeps instructions and labels, and the directives inside it the
 architecture keeps (`Arch.bodyDirective`: x86-64's loop alignment); its local labels are renamed after
@@ -38,9 +35,9 @@ The separate `Align` module records data-section alignment for the printers only
 Each function's `Names` child contains only its symbol strings. Its parent owns named block offsets,
 lengths, ends, adjacency facts and every retained label's lookup fact. Scheme-qualified
 `programOffset` definitions live in `Offsets`, not in function modules; scheme `Names` modules own
-trap and data symbols. `Code/manifest.json` records these names and their positions for proof migration.
+trap and data symbols.
 Symbol declarations are abbreviations so rewriting can match the literal operands in generated instructions.
-Instruction slices and hash-independent resolution of `--names` remain separate from this metadata.
+Instruction slices and the naming table remain separate from this metadata.
 Every number is written with its type and every constant fully qualified and fully applied, so that
 the terms elaborate the same whatever the expected type. Lemmas are proved by `decide +kernel`.
 -/
@@ -300,8 +297,7 @@ partial def labelsIn (e : Expr) : Array String :=
 structure Arch (I C : Type) where
   /-- The Lean namespace and module prefix of its ingested code. -/
   ns : String
-  /-- Whether to write each scheme's `Labels` module (`--no-labels` drops it: the leanVM program's 925 lemmas take
-  minutes to check, and its proofs place functions by one check that the labels are distinct instead). -/
+  /-- Whether to emit `Labels`; VM proofs instead use their distinct-label placement lemmas. -/
   labels : Bool := true
   /-- The module of Kraken's syntax the generated modules import. -/
   syntaxModule : String
@@ -481,6 +477,16 @@ structure Scheme (I C : Type) where
   /-- Data-section alignment exponents, kept outside the proof-facing program. -/
   alignments : Array (String × Nat)
 
+/-- Parse one function using the same representation as whole-program ingestion. -/
+def ingestFunction (arch : Arch I C) (env : Environment) (names : Std.HashMap String String)
+    (f : AsmFn) : IO (Fn I C) := do
+  let some short := names[f.name]? <|> shortName f.name
+    | throw <| IO.userError s!"no Lean name for {f.name}"
+  let lines ← IO.ofExcept (cleanLines arch f short)
+  let prog ← parseLines arch f.name lines
+  let srcs ← IO.ofExcept (prog.mapM (directiveSrc env))
+  return { sym := f.name, short, lines, prog, srcs }
+
 /-- Ingest a scheme's assembly. -/
 def ingestScheme (arch : Arch I C) (env : Environment) (names : Std.HashMap String String)
     (scheme : String) (text : String) : IO (Scheme I C) := do
@@ -502,20 +508,16 @@ def ingestScheme (arch : Arch I C) (env : Environment) (names : Std.HashMap Stri
       unless called.contains name do called := called.push name
       continue
     let some f := byName[name]? | throw <| IO.userError s!"{scheme}: no function {name}"
-    let some short := names[name]? <|> shortName name
-      | throw <| IO.userError s!"{scheme}: no Lean name for {name}"
-    let lines ← IO.ofExcept (cleanLines arch f short)
-    let prog ← parseLines arch name lines
-    let srcs ← IO.ofExcept (prog.mapM (directiveSrc env))
-    let localLabels := prog.filterMap fun | .label l => some l | _ => none
-    for d in prog do
+    let f ← ingestFunction arch env names f
+    let localLabels := f.prog.filterMap fun | .label l => some l | _ => none
+    for d in f.prog do
       for l in referencedLabels d do
         if localLabels.contains l then continue
-        if byName.contains l then todo := todo.push l
+        if isPanic l || byName.contains l then todo := todo.push l
         else if data.contains l then
           unless dataRefs.contains l do dataRefs := dataRefs.push l
         else throw <| IO.userError s!"{name}: unknown label {l}"
-    parsed := parsed.insert name { sym := name, short, lines, prog, srcs }
+    parsed := parsed.insert name f
   -- The core in the assembly's order; the traps in `panicSuffixes`' order.
   let core := fns.filterMap fun f => parsed[f.name]?
   let traps := panicSuffixes.toArray.filterMap fun p => called.find? (·.endsWith p)
@@ -547,10 +549,9 @@ def header (doc : String) (imports : List String) : String :=
   "module\n\n" ++ String.join (imports.map (s!"public import {·}\n")) ++
   s!"\n/-!\n{doc}\n-/\n\n"
 
-/-- Elaborate a module's lemmas one at a time: checking many `decide +kernel` lemmas at once spawns more
-threads than a 60 GB address-space limit (`ulimit -v`) leaves room for. -/
+/-- Elaborate kernel-checked lemmas sequentially to bound memory use. -/
 def sequential : String :=
-  "-- One lemma at a time: many kernel checks at once exceed a 60 GB address-space limit.\nset_option Elab.async false\n\n"
+  "set_option Elab.async false\n\n"
 
 /-- The source of a list literal of directives, one per line with its assembly as a comment. -/
 def listSrc (items : Array (String × String)) : String := Id.run do
@@ -640,7 +641,7 @@ def fnModules (arch : Arch I C) (dir : String) (f : Fn I C) : Array File × Stri
   let namesSrc := labels.foldl (fun acc (name, sym, _) =>
     acc ++ s!"abbrev {name} : String := {sym.quote}\n\n") ""
   let mut files : Array File := #[(modPath namesMod,
-    header "Function symbols. Generated by `rustc/ingest/ingest.sh`; do not edit." [] ++
+    header "Function symbols derived from committed rustc assembly." [] ++
     s!"namespace {ns}\n\n@[expose] public section\n\n" ++ namesSrc ++ s!"end\n\nend {ns}\n")]
   let mut imports : List String := [namesMod]
   let mut blockSrc := ""
@@ -648,7 +649,7 @@ def fnModules (arch : Arch I C) (dir : String) (f : Fn I C) : Array File × Stri
     for h : p in [0:parts.size] do
       let pmod := s!"{mod}.Part{p}"
       let body := parts[p].foldl (fun acc k => acc ++ blockDef k blocks[k]!.1 blocks[k]!.2) ""
-      let doc := s!"# {docFn}, blocks {parts[p][0]!} to {parts[p].back!}\n\nGenerated by `rustc/ingest/ingest.sh` from rustc's assembly; do not edit."
+      let doc := s!"# {docFn}, blocks {parts[p][0]!} to {parts[p].back!}"
       files := files.push (modPath pmod,
         header doc [arch.syntaxModule] ++ s!"namespace {ns}\n\n@[expose] public section\n\n" ++ body ++
         s!"end\n\nend {ns}\n")
@@ -674,7 +675,7 @@ def fnModules (arch : Arch I C) (dir : String) (f : Fn I C) : Array File × Stri
     metadata := metadata ++ s!"def {offsetName} : Nat := {offset}\n\n"
     lemmas := lemmas ++
       s!"public theorem {labelFactName name} : code[{offsetName}]? = some (.label {name}) := by decide +kernel\n\n"
-  let doc := s!"# {docFn}\n\nIts basic blocks `b0` to `b{blocks.size - 1}`, its code `code` and each block's index in it\n(`b<k>_in_code`). Generated by `rustc/ingest/ingest.sh` from rustc's assembly; do not edit."
+  let doc := s!"# {docFn}\n\nIts basic blocks `b0` to `b{blocks.size - 1}`, its code `code` and each block's index in it (`b<k>_in_code`)."
   files := files.push (modPath mod,
     header doc (imports ++ [arch.infixModule]) ++ s!"namespace {ns}\n\n@[expose] public section\n\n" ++ blockSrc ++
     s!"/-- The function's code: its blocks in order. -/\ndef code : List Directive := List.flatten [{", ".intercalate names}]\n\n" ++ metadata ++
@@ -705,8 +706,6 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
             throw <| IO.userError s!"{f.sym} differs between schemes"
         | none => common := common.insert f.sym f
   let mut files : Array File := #[]
-  let mut manifest : Array Json := #[]
-  let mut symbols : Array Json := #[]
   for s in schemes do
     for f in s.fns do
       let mut seen : Std.HashSet String := {}
@@ -755,7 +754,7 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
     let pieces := fnNs.toList.map (fun (_, n) => s!"{n}.code") ++ [s!"{ns}.traps", s!"{ns}.rodata"]
     let doc := s!"# `{entryOf s.name}` as rustc compiles it\n\n" ++
       s!"The program `code`: the core functions, a trap for each panic entry they call (`traps`), " ++
-      s!"and the data they refer to (`rodata`). Generated by `rustc/ingest/ingest.sh` from rustc's assembly; do not edit."
+      s!"and the data they refer to (`rodata`), derived from committed rustc assembly."
     let schemeMod := s!"{arch.ns}.Code.{S}"
     let symbolNs := s!"{ns}.Symbols"
     let symbolMod := s!"{arch.ns}.Code.{S}.Names"
@@ -764,10 +763,8 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
     let mut symbolSrc := ""
     for (name, sym) in symbolPairs do
       symbolSrc := symbolSrc ++ s!"abbrev {name} : String := {sym.quote}\n\n"
-      symbols := symbols.push <| Json.mkObj [("scheme", toJson S), ("symbol", toJson sym),
-        ("name", toJson name), ("namespace", toJson symbolNs), ("module", toJson symbolMod)]
     files := files.push (modPath symbolMod,
-      header "Program data and trap symbols. Generated by `rustc/ingest/ingest.sh`; do not edit." [] ++
+      header "Program data and trap symbols derived from committed rustc assembly." [] ++
       s!"namespace {symbolNs}\n\n@[expose] public section\n\n" ++ symbolSrc ++ s!"end\n\nend {symbolNs}\n")
     files := files.push (modPath schemeMod,
       header doc fnMods ++ s!"namespace {ns}\n\n@[expose] public section\n\n" ++
@@ -777,7 +774,7 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
       s!"end\n\nend {ns}\n")
     let alignCases := s.alignments.toList.map fun (l, k) => s!"  | {l.quote} => {k}\n"
     files := files.push (modPath s!"{schemeMod}Align",
-      header "Data-section alignment for the printer only. Generated by `rustc/ingest/ingest.sh`; do not edit." [] ++
+      header "Data-section alignment for the printer only." [] ++
       s!"namespace {ns}\n\npublic def dataAlign : String → Nat\n" ++
       String.join alignCases ++ s!"  | _ => 0\n\nend {ns}\n")
     -- Offsets of every function and block.
@@ -786,19 +783,6 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
     for h : p in [0:fnNs.size] do
       let (f, n) := fnNs[p]
       let starts := blockStarts arch f.prog
-      let ends := (starts.toList.drop 1).toArray.push f.prog.size
-      let blocks := (starts.zip ends).mapIdx fun k (start, stop) =>
-        Json.mkObj [("name", toJson s!"b{k}"), ("offset", toJson start),
-          ("length", toJson (stop - start)), ("end", toJson stop)]
-      let labels := (fnLabels f).map fun (name, sym, offset) =>
-        let block := (starts.toList.takeWhile (· ≤ offset)).length - 1
-        Json.mkObj [("symbol", toJson sym), ("name", toJson name),
-          ("offset", toJson offset), ("block", toJson s!"b{block}")]
-      manifest := manifest.push <| Json.mkObj [
-        ("architecture", toJson arch.ns), ("scheme", toJson S), ("function", toJson f.short),
-        ("namespace", toJson n), ("module", toJson s!"{arch.ns}.Code.{(n.drop (arch.ns.length + 1)).toString}"),
-        ("symbol", toJson f.sym), ("programOffset", toJson off), ("codeLength", toJson f.prog.size),
-        ("blocks", Json.arr blocks), ("labels", Json.arr labels)]
       offLemmas := offLemmas ++
         s!"@[expose] public def {f.short}.programOffset : Nat := {off}\n\n" ++
         s!"public theorem {f.short}.code_at : {n}.code.IsInfixAt {ns}.code {f.short}.programOffset :=\n  List.isInfixAt_flatten_of (i := {p}) rfl (by decide +kernel)\n\n"
@@ -817,7 +801,7 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
       s!"public theorem rodata_at : {ns}.rodata.IsInfixAt {ns}.code rodataOffset :=\n  List.isInfixAt_flatten_of (i := {fnNs.size + 1}) rfl (by decide +kernel)\n\n" ++
       s!"public theorem code_length : {ns}.code.length = programLength := by decide +kernel\n\n"
     let doc := s!"# Where each block of `{entryOf s.name}`'s program is\n\n" ++
-      s!"Each core function's and each block's index in `{ns}.code` (`<Fn>.code_at`, `<Fn>.b<k>_at`), the traps' and the data's. Generated by `rustc/ingest/ingest.sh`; do not edit."
+      s!"Each core function's and each block's index in `{ns}.code` (`<Fn>.code_at`, `<Fn>.b<k>_at`), the traps' and the data's."
     files := files.push (modPath s!"{schemeMod}.Offsets",
       header doc [schemeMod] ++ s!"namespace {ns}\n\n" ++ sequential ++ offLemmas ++ s!"end {ns}\n")
     -- Labels.
@@ -847,7 +831,7 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
         s!"public theorem label_{id} : {ns}.code.findIdx? (· = .label {l.quote}) = some {idx} := by decide +kernel\n\n"
     let doc := s!"# Where each label of `{entryOf s.name}`'s program is\n\n" ++
       s!"For each label, the index of its `.label` directive in `{ns}.code`, its only one (`label_<l>`, the label's\n" ++
-      s!"name without `.L`). Generated by `rustc/ingest/ingest.sh`; do not edit."
+      s!"name without `.L`)."
     if arch.labels then
       files := files.push (modPath s!"{schemeMod}.Labels",
         header doc [schemeMod] ++ s!"namespace {ns}\n\n" ++ sequential ++ labLemmas ++ s!"end {ns}\n")
@@ -856,14 +840,11 @@ def emit (arch : Arch I C) (env : Environment) (schemes : Array (Scheme I C)) : 
     [s!"{arch.ns}.Code.{capitalize s.name}.Offsets"] ++
       (if arch.labels then [s!"{arch.ns}.Code.{capitalize s.name}.Labels"] else [])
   let what := if schemes.all (·.name == "vm") then "the leanVM verifier" else "the signature verifiers"
-  let doc := s!"# rustc's code for {what}, ingested\n\nThe programs, their blocks' indices and their labels' indices. Generated by `rustc/ingest/ingest.sh`; do not edit."
+  let doc := s!"# rustc's code for {what}, ingested\n\nThe programs, their blocks' indices and their labels' indices, derived during elaboration."
   files := files.push (modPath s!"{arch.ns}.Code", header doc mods)
-  files := files.push (s!"{arch.ns}/Code/manifest.json",
-    (Json.mkObj [("version", toJson (1 : Nat)), ("functions", Json.arr manifest),
-      ("symbols", Json.arr symbols)]).pretty ++ "\n")
   return files
 
-/-- The table of Lean names `--names FILE` gives: a line `<symbol> <Name>` each. -/
+/-- The table of Lean names: a line `<symbol> <Name>` each. -/
 def readNames (path : String) : IO (Std.HashMap String String) := do
   let mut m := {}
   for line in (← IO.FS.readFile path).splitOn "\n" do
@@ -873,35 +854,6 @@ def readNames (path : String) : IO (Std.HashMap String String) := do
     | _ => throw <| IO.userError s!"{path}: bad line {line}"
   return m
 
-/-- `ingest-<arch> OUT [--ns NS] [--names FILE] [--no-labels] SCHEME=FILE.s ...`. -/
-def run (arch : Arch I C) (args : List String) : IO UInt32 := do
-  let rec opts (arch : Arch I C) (names : Std.HashMap String String) :
-      List String → IO (Arch I C × Std.HashMap String String × List String)
-    | "--ns" :: ns :: rest => opts { arch with ns } names rest
-    | "--names" :: path :: rest => do opts arch (← readNames path) rest
-    | "--no-labels" :: rest => opts { arch with labels := false } names rest
-    | rest => pure (arch, names, rest)
-  match args with
-  | out :: rest =>
-    let (arch, names, specs) ← opts arch {} rest
-    if specs.isEmpty then
-      IO.eprintln "usage: ingest-<arch> OUT [--ns NS] [--names FILE] [--no-labels] SCHEME=FILE.s ..."
-      return 2
-    initSearchPath (← findSysroot)
-    let env ← importModules #[{ module := arch.syntaxModule.toName }] {}
-    let mut schemes := #[]
-    for spec in specs do
-      let [name, path] := spec.splitOn "=" | throw <| IO.userError s!"bad argument {spec}"
-      schemes := schemes.push (← ingestScheme arch env names name (← IO.FS.readFile path))
-    let files ← emit arch env schemes
-    for (path, contents) in files do
-      let p : System.FilePath := out / path
-      if let some d := p.parent then IO.FS.createDirAll d
-      IO.FS.writeFile p contents
-    return 0
-  | _ =>
-    IO.eprintln "usage: ingest-<arch> OUT [--ns NS] [--names FILE] [--no-labels] SCHEME=FILE.s ..."
-    return 2
 
 end
 

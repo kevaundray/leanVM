@@ -1,21 +1,18 @@
 module
 
-import IngestCore
-import Kraken.X64.Parser
+public meta import RustcIngest.Command
+public meta import Kraken.X64.Parser
 
 /-!
-# `ingest-x64`
+# x86-64 assembly ingestion during elaboration
 
-`ingest-x64 OUT SCHEME=FILE.s ...`: rustc's x86-64 assembly as the modules `NativeRustcX64.Code.*`
-(`IngestCore`): raw for every program. Loop alignment inside a function, `.p2align n`, is kept
-as Kraken's `.align 2^n` (padding that is never run
-but moves what follows); the panic entries become `ud2`.
+Loop alignment is retained as Kraken's `.align` directives; panic entries become `ud2`.
 -/
 
 open Ingest
 
 /-- x86-64. -/
-def x64 : Arch Instr ConstExpr where
+public meta def x64 : Arch Instr ConstExpr where
   ns := "NativeRustcX64"
   syntaxModule := "Kraken.X64.Syntax"
   infixModule := "NativeRustcArm.Code.Infix"
@@ -39,4 +36,5 @@ def x64 : Arch Instr ConstExpr where
     | _ => none
   wordDirective n := match n with | 1 => ".byte" | 2 => ".short" | 4 => ".long" | _ => ".quad"
 
-public def main (args : List String) : IO UInt32 := run x64 args
+elab "ingest_x64 " ns:str path:str : command =>
+  Ingest.elaborateModule x64 "x86_64" ns.getString path.getString

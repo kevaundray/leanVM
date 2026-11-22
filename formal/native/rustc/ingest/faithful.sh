@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The ingested programs are rustc's: each ingested program (NativeRustcArm.{Xmss,Sphincs}.code,
+# The programs elaborated from trimmed assembly are rustc's: each program (NativeRustcArm.{Xmss,Sphincs}.code,
 # NativeRustcX64.{Xmss,Sphincs}.code, NativeRustcVmArm.Vm.code, NativeRustcVmX64.Vm.code), printed by Kraken's
 # printer (`print-rustc-code`, `print-rustc-code-x64`, `print-rustc-vm-code`, `print-rustc-vm-code-x64`, which add
 # only section and alignment directives) and assembled, has the bytes and relocations of rustc's assembly (rustc/out/<scheme>-
@@ -7,8 +7,8 @@
 # rustc/build.sh and rustc/vm/build.sh build them when missing)
 # assembled the same way, in every core function, and the data they refer to (compare.py says how relocations and
 # data are compared, and the one encoding it allows to differ). The panic entries, traps in the ingested programs,
-# are not compared. Kraken's parsers play no part: what is trusted is Kraken's printers, the assembler and
-# compare.py.
+# are not compared. Trimming and parsing are checked, not trusted: the comparison trusts Kraken's printers,
+# the assembler and compare.py.
 #
 # Usage, from anywhere: rustc/ingest/faithful.sh
 set -euo pipefail
