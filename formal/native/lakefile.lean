@@ -152,62 +152,14 @@ lean_exe «emit-x64» where
   root := `EmitX64
   srcDir := "cli"
 
-lean_exe «print-rustc-code» where
-  root := `PrintRustcCode
+lean_exe «print-rustc-code-arm» where
+  root := `PrintRustcCodeArm
   srcDir := "cli"
 
 lean_exe «print-rustc-code-x64» where
   root := `PrintRustcCodeX64
   srcDir := "cli"
 
-lean_exe «print-rustc-vm-code» where
-  root := `PrintRustcVmCode
-  srcDir := "cli"
-
-lean_exe «print-rustc-vm-code-x64» where
-  root := `PrintRustcVmCodeX64
-  srcDir := "cli"
-
 lean_exe «emit-arm» where
   root := `EmitArm
-  srcDir := "cli"
-
-lean_exe «vm-model-diff» where
-  root := `VmModelDiff
-  srcDir := "cli"
-
-lean_exe «wire-test» where
-  root := `WireTest
-  srcDir := "cli"
-
-lean_exe «vm-transcript-test» where
-  root := `VmTranscriptTest
-  srcDir := "cli"
-
-lean_exe «vm-phase25-test» where
-  root := `VmPhase25Test
-  srcDir := "cli"
-
-lean_exe «vm-phase1-test» where
-  root := `VmPhase1Test
-  srcDir := "cli"
-
-lean_exe «vm-ring-test» where
-  root := `VmRingTest
-  srcDir := "cli"
-
-lean_exe «vm-phase6-test» where
-  root := `VmPhase6Test
-  srcDir := "cli"
-
-lean_exe «vm-phase4-test» where
-  root := `VmPhase4Test
-  srcDir := "cli"
-
-lean_exe «vm-phase7-test» where
-  root := `VmPhase7Test
-  srcDir := "cli"
-
-lean_exe «vm-phase3-test» where
-  root := `VmPhase3Test
   srcDir := "cli"
