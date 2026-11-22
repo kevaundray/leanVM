@@ -48,8 +48,8 @@ build() {
     arch=${target%%-*}
     local arch_flags=()
     case $arch in
-      # LLVM 23 marks a function's preferred alignment with `.prefalign`, which no released assembler (clang 21) knows;
-      # a fixed 16-byte alignment gives `.p2align 4` instead.
+      # rustc's LLVM 23 otherwise starts each function with `.prefalign` (an LLVM 23 extension: alignment by the
+      # function's size), which the harness's assembler (clang 21, GNU as) rejects; this gives `.p2align 4` instead.
       x86_64) cpu=x86-64 arch_flags=(-C llvm-args=-align-all-functions=4 -C target-feature=-sse,-sse2) ;;
       aarch64) cpu=generic arch_flags=(-C target-feature=-neon) ;;
     esac

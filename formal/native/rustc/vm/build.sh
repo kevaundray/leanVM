@@ -15,8 +15,8 @@
 # `panic=abort`, and `-C lto=fat` on a static library so that the assembly is one module holding exactly what the
 # export reaches (the assembly is written after LTO only when the link is emitted too). `run/check.sh` assembles the
 # full output; the proofs ingest its trimmed reachable code and data. rustc's own object is not emitted, as rustc 1.99.1's object and
-# assembly code generation differ under fat LTO. On x86-64, `-align-all-functions=4` is passed (rustc's LLVM writes
-# `.prefalign` otherwise, which clang's assembler rejects).
+# assembly code generation differ under fat LTO. On x86-64, `-align-all-functions=4` is passed: rustc's LLVM 23 otherwise
+# starts each function with `.prefalign` (an LLVM 23 extension), which the harness's assembler (clang 21, GNU as) rejects.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
