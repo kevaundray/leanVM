@@ -67,6 +67,11 @@ structure St where
   name : String := ""
   /-- The loop helpers made so far, in order. -/
   helpers : Array Elab := #[]
+  /-- The run `[0x01, 0, 0, 0, 0]` set for the `keccak`s of this scope (`Expand.St.keccakPad`),
+  local to a block as the expansion's is to a branch or an arm. -/
+  keccakPad : Option (List V) := none
+  /-- The constants set in this scope (`Expand.St.consts`). -/
+  consts : List E := []
   deriving Inhabited
 
 /-- The builder. -/
@@ -152,7 +157,8 @@ def block {α : Type} (m : B α) : B (α × List Stmt) := do
   if (← get).pending then anchor
   event .leave
   let st' ← get
-  set { st' with out := st.out, pending := st.pending }
+  set { st' with out := st.out, pending := st.pending, keccakPad := st.keccakPad,
+                 consts := st.consts }
   return (a, st'.out.toList)
 
 /-! ## Arithmetic -/
