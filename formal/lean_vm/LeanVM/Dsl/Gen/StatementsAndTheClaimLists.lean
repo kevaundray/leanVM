@@ -110,7 +110,7 @@ def listSplit : GFn where
     let _ ← B.rangeCheck rest CLAIM_GROUP
     let _ ← B.rangeCheck groups BIG_GROUPS
     let _ ← B.assertGpow bigs
-    B.assertEq (← B.mul (← B.mul (← B.pow bigs CLAIM_BIG) (← B.pow groups CLAIM_GROUP)) rest) nG
+    B.assertEq (← Ex.lower (.mul (.mul (.pow (.w bigs) CLAIM_BIG) (.pow (.w groups) CLAIM_GROUP)) (.w rest))) nG
     return [.v bigs.v] ++ [.v groups.v] ++ [.v rest.v]
 
 set_option linter.unusedVariables false in
@@ -168,31 +168,31 @@ def claimListDigest : GFn where
         let bigs := t1[0]!
         let groups := t1[1]!
         let rest := t1[2]!
-        let chain ← B.heapBufDyn (← B.pow (← B.mul (← B.mul bigs groups) (← B.const (gpowE 1))) KECCAK_STATE)
+        let chain ← B.heapBufDyn (← Ex.lower (.pow (.mul (.mul (.w bigs) (.w groups)) (.g 1)) KECCAK_STATE))
         zeroState chain
         B.loopRtF 0 (pure bigs) 2 (pure ([chain.v, entriesPtr.v])) fun xq caps => do
           let chain := cellOf caps 0
           let entriesPtr := cellOf caps 1
-          let st ← B.mul chain (← B.pow xq KECCAK_STATE)
+          let st ← Ex.lower (.mul (.w chain) (.pow (.w xq) KECCAK_STATE))
           let nxt : Shifted := ⟨st, KECCAK_STATE⟩
-          let blk ← B.mul entriesPtr (← B.pow xq (4 * CLAIM_BIG))
+          let blk ← Ex.lower (.mul (.w entriesPtr) (.pow (.w xq) (4 * CLAIM_BIG)))
           for j_k in [0:CLAIM_BIG] do
             B.witness "claims" (.heap blk.v (4 * j_k) (((4 * j_k) + 4) - (4 * j_k)))
           B.keccakCells (cells := (.cells (.heap blk.v 0 (4 * CLAIM_BIG)))) (state := some (.heap st.v 0 KECCAK_STATE)) (final := false) (out := (.heap nxt.base.v nxt.exp KECCAK_STATE))
-        let mid ← B.mul chain (← B.pow bigs KECCAK_STATE)
-        let midEntries ← B.mul entriesPtr (← B.pow bigs (4 * CLAIM_BIG))
+        let mid ← Ex.lower (.mul (.w chain) (.pow (.w bigs) KECCAK_STATE))
+        let midEntries ← Ex.lower (.mul (.w entriesPtr) (.pow (.w bigs) (4 * CLAIM_BIG)))
         B.loopRtF 0 (pure groups) 2 (pure ([mid.v, midEntries.v])) fun xq caps => do
           let mid := cellOf caps 0
           let midEntries := cellOf caps 1
-          let st ← B.mul mid (← B.pow xq KECCAK_STATE)
+          let st ← Ex.lower (.mul (.w mid) (.pow (.w xq) KECCAK_STATE))
           let nxt : Shifted := ⟨st, KECCAK_STATE⟩
-          let blk ← B.mul midEntries (← B.pow xq (4 * CLAIM_GROUP))
+          let blk ← Ex.lower (.mul (.w midEntries) (.pow (.w xq) (4 * CLAIM_GROUP)))
           for j_k in [0:CLAIM_GROUP] do
             B.witness "claims" (.heap blk.v (4 * j_k) (((4 * j_k) + 4) - (4 * j_k)))
           B.keccakCells (cells := (.cells (.heap blk.v 0 (4 * CLAIM_GROUP)))) (state := some (.heap st.v 0 KECCAK_STATE)) (final := false) (out := (.heap nxt.base.v nxt.exp KECCAK_STATE))
-        let last ← B.mul mid (← B.pow groups KECCAK_STATE)
+        let last ← Ex.lower (.mul (.w mid) (.pow (.w groups) KECCAK_STATE))
         let t2 ← B.targets [none, none]
-        let t3 ← B.mul midEntries (← B.pow groups (4 * CLAIM_GROUP))
+        let t3 ← Ex.lower (.mul (.w midEntries) (.pow (.w groups) (4 * CLAIM_GROUP)))
         B.dispatchInto rest ((List.range CLAIM_GROUP).map fun arm => (instName "claim_list_last" [.L arm])) [last.v, t3.v] t2
         let d0 := cellOf t2 0
         let d1 := cellOf t2 1
@@ -306,7 +306,7 @@ def childClaimListAny : GFn where
     let groups := cellOf ps 5
     let rest := cellOf ps 6
     let lastG ← B.fdiv limitG (← B.const (gpowE 1))
-    let chain ← B.heapBufDyn (← B.pow (← B.mul (← B.mul bigs groups) (← B.const (gpowE 1))) KECCAK_STATE)
+    let chain ← B.heapBufDyn (← Ex.lower (.pow (.mul (.mul (.w bigs) (.w groups)) (.g 1)) KECCAK_STATE))
     zeroState chain
     B.loopRtF 0 (pure bigs) 5 (pure ([chain.v, entriesPtr.v, region.v, base.v, lastG.v])) fun xq caps => do
       let chain := cellOf caps 0
@@ -314,27 +314,27 @@ def childClaimListAny : GFn where
       let region := cellOf caps 2
       let base := cellOf caps 3
       let lastG := cellOf caps 4
-      let st ← B.mul chain (← B.pow xq KECCAK_STATE)
+      let st ← Ex.lower (.mul (.w chain) (.pow (.w xq) KECCAK_STATE))
       let nxt : Shifted := ⟨st, KECCAK_STATE⟩
       let blk ← B.stackBuf 544
-      childClaims entriesPtr region (← B.mul base (← B.pow xq CLAIM_BIG)) lastG blk CLAIM_BIG
+      childClaims entriesPtr region (← Ex.lower (.mul (.w base) (.pow (.w xq) CLAIM_BIG))) lastG blk CLAIM_BIG
       B.keccakCells (cells := (.cells (.frame blk))) (state := some (.heap st.v 0 KECCAK_STATE)) (final := false) (out := (.heap nxt.base.v nxt.exp KECCAK_STATE))
-    let mid ← B.mul chain (← B.pow bigs KECCAK_STATE)
-    let midBase ← B.mul base (← B.pow bigs CLAIM_BIG)
+    let mid ← Ex.lower (.mul (.w chain) (.pow (.w bigs) KECCAK_STATE))
+    let midBase ← Ex.lower (.mul (.w base) (.pow (.w bigs) CLAIM_BIG))
     B.loopRtF 0 (pure groups) 5 (pure ([mid.v, entriesPtr.v, region.v, midBase.v, lastG.v])) fun xq caps => do
       let mid := cellOf caps 0
       let entriesPtr := cellOf caps 1
       let region := cellOf caps 2
       let midBase := cellOf caps 3
       let lastG := cellOf caps 4
-      let st ← B.mul mid (← B.pow xq KECCAK_STATE)
+      let st ← Ex.lower (.mul (.w mid) (.pow (.w xq) KECCAK_STATE))
       let nxt : Shifted := ⟨st, KECCAK_STATE⟩
       let blk ← B.stackBuf 68
-      childClaims entriesPtr region (← B.mul midBase (← B.pow xq CLAIM_GROUP)) lastG blk CLAIM_GROUP
+      childClaims entriesPtr region (← Ex.lower (.mul (.w midBase) (.pow (.w xq) CLAIM_GROUP))) lastG blk CLAIM_GROUP
       B.keccakCells (cells := (.cells (.frame blk))) (state := some (.heap st.v 0 KECCAK_STATE)) (final := false) (out := (.heap nxt.base.v nxt.exp KECCAK_STATE))
-    let last ← B.mul mid (← B.pow groups KECCAK_STATE)
+    let last ← Ex.lower (.mul (.w mid) (.pow (.w groups) KECCAK_STATE))
     let t0 ← B.targets [none, none]
-    let t1 ← B.mul midBase (← B.pow groups CLAIM_GROUP)
+    let t1 ← Ex.lower (.mul (.w midBase) (.pow (.w groups) CLAIM_GROUP))
     B.dispatchInto rest ((List.range CLAIM_GROUP).map fun arm => (instName "child_claim_list_last" [.L arm])) [last.v, entriesPtr.v, region.v, t1.v, lastG.v] t0
     let d0 := cellOf t0 0
     let d1 := cellOf t0 1
@@ -391,14 +391,14 @@ def childClaimListMono : GFn where
     let bigs := cellOf ps 4
     let groups := cellOf ps 5
     let rest := cellOf ps 6
-    let chain ← B.heapBufDyn (← B.pow (← B.mul (← B.mul bigs groups) (← B.const (gpowE 1))) MONO_REC)
+    let chain ← B.heapBufDyn (← Ex.lower (.pow (.mul (.mul (.w bigs) (.w groups)) (.g 1)) MONO_REC))
     zeroState chain
     B.store chain KECCAK_STATE region
     B.store chain 14 entriesPtr
     B.loopRtF 0 (pure bigs) 2 (pure ([chain.v, base.v])) fun xq caps => do
       let chain := cellOf caps 0
       let base := cellOf caps 1
-      let rec' ← B.mul chain (← B.pow xq MONO_REC)
+      let rec' ← Ex.lower (.mul (.w chain) (.pow (.w xq) MONO_REC))
       let nxt : Shifted := ⟨rec', MONO_REC⟩
       let blk ← B.stackBuf 544
       let walk ← B.stackBuf 2
@@ -406,11 +406,11 @@ def childClaimListMono : GFn where
       B.store nxt.base (nxt.exp + KECCAK_STATE) (cellOf walk 0)
       B.store nxt.base (nxt.exp + 14) (cellOf walk 1)
       B.keccakCells (cells := (.cells (.frame blk))) (state := some (.heap rec'.v 0 KECCAK_STATE)) (final := false) (out := (.heap nxt.base.v nxt.exp KECCAK_STATE))
-    let mid ← B.mul chain (← B.pow bigs MONO_REC)
+    let mid ← Ex.lower (.mul (.w chain) (.pow (.w bigs) MONO_REC))
     B.loopRtF 0 (pure groups) 2 (pure ([mid.v, base.v])) fun xq caps => do
       let mid := cellOf caps 0
       let base := cellOf caps 1
-      let rec' ← B.mul mid (← B.pow xq MONO_REC)
+      let rec' ← Ex.lower (.mul (.w mid) (.pow (.w xq) MONO_REC))
       let nxt : Shifted := ⟨rec', MONO_REC⟩
       let blk ← B.stackBuf 68
       let walk ← B.stackBuf 2
@@ -418,7 +418,7 @@ def childClaimListMono : GFn where
       B.store nxt.base (nxt.exp + KECCAK_STATE) (cellOf walk 0)
       B.store nxt.base (nxt.exp + 14) (cellOf walk 1)
       B.keccakCells (cells := (.cells (.frame blk))) (state := some (.heap rec'.v 0 KECCAK_STATE)) (final := false) (out := (.heap nxt.base.v nxt.exp KECCAK_STATE))
-    let last ← B.mul mid (← B.pow groups MONO_REC)
+    let last ← Ex.lower (.mul (.w mid) (.pow (.w groups) MONO_REC))
     let t0 ← B.targets [none, none]
     B.dispatchInto rest ((List.range CLAIM_GROUP).map fun arm => (instName "child_claim_list_mono_last" [.L arm])) [last.v, region.v, base.v, limitG.v] t0
     let d0 := cellOf t0 0
@@ -450,37 +450,6 @@ def claimListLast (k : Nat) : GFn where
     let digest ← B.stackBuf 2
     if k = 0 then
       B.keccakCells (cells := (.words [.zero])) (state := some (.heap state.v 0 KECCAK_STATE)) (len := some 0) (out := (.frame digest))
-    else
-      let j_k := 0
-      B.witness "claims" (.heap blk.v (4 * j_k) (((4 * j_k) + 4) - (4 * j_k)))
-      B.keccakCells (cells := (.cells (.heap blk.v 0 (4 * k)))) (state := some (.heap state.v 0 KECCAK_STATE)) (out := (.frame digest))
-    return [.v (cellOf digest 0).v] ++ [.v (cellOf digest 1).v]
-
-set_option linter.unusedVariables false in
-/-- `claim_list_last`, a `Const` family (`guests/lean_ethereum.py`, line 4379):
-
-```
-def claim_list_last(state, blk, k: Const):
-    digest = StackBuf(2)
-    if const(k == 0):
-        keccak_cells([0], digest, state=state[0:KECCAK_STATE], len=0)
-    else:
-        for j in unroll(0, k):
-            hint_witness(blk[4 * j:4 * j + 4], "claims")
-        keccak_cells(blk[0:4 * k], digest, state=state[0:KECCAK_STATE])
-    return digest[0], digest[1]
-```
--/
-def claimListLast_2 (k : Nat) : GFn where
-  name := instName "claim_list_last" [.L k]
-  arity := 2
-  rets := 2
-  body ps := do
-    let state := cellOf ps 0
-    let blk := cellOf ps 1
-    let digest ← B.stackBuf 2
-    if k = 0 then
-      pure () -- no use of this definition takes this branch
     else
       for j_k in [0:k] do
         B.witness "claims" (.heap blk.v (4 * j_k) (((4 * j_k) + 4) - (4 * j_k)))
@@ -515,74 +484,6 @@ def childClaimListLast (k : Nat) : GFn where
     let digest ← B.stackBuf 2
     if k = 0 then
       B.keccakCells (cells := (.words [.zero])) (state := some (.heap state.v 0 KECCAK_STATE)) (len := some 0) (out := (.frame digest))
-    else
-      let blk ← B.stackBuf 68
-      childClaims_2 entriesPtr region marks lastG blk k
-      B.keccakCells (cells := (.cells (.frame (blk.take (4 * k))))) (state := some (.heap state.v 0 KECCAK_STATE)) (out := (.frame digest))
-    return [.v (cellOf digest 0).v] ++ [.v (cellOf digest 1).v]
-
-set_option linter.unusedVariables false in
-/-- `child_claim_list_last`, a `Const` family (`guests/lean_ethereum.py`, line 4527):
-
-```
-def child_claim_list_last(state, entries_ptr, region, marks, last_g, k: Const):
-    digest = StackBuf(2)
-    if const(k == 0):
-        keccak_cells([0], digest, state=state[0:KECCAK_STATE], len=0)
-    else:
-        blk = StackBuf(4 * CLAIM_GROUP)
-        child_claims(entries_ptr, region, marks, last_g, blk, k)
-        keccak_cells(blk[0:4 * k], digest, state=state[0:KECCAK_STATE])
-    return digest[0], digest[1]
-```
--/
-def childClaimListLast_2 (k : Nat) : GFn where
-  name := instName "child_claim_list_last" [.L k]
-  arity := 5
-  rets := 2
-  body ps := do
-    let state := cellOf ps 0
-    let entriesPtr := cellOf ps 1
-    let region := cellOf ps 2
-    let marks := cellOf ps 3
-    let lastG := cellOf ps 4
-    let digest ← B.stackBuf 2
-    if k = 0 then
-      pure () -- no use of this definition takes this branch
-    else
-      let blk ← B.stackBuf 68
-      childClaims_3 entriesPtr region marks lastG blk k
-      B.keccakCells (cells := (.cells (.frame (blk.take (4 * k))))) (state := some (.heap state.v 0 KECCAK_STATE)) (out := (.frame digest))
-    return [.v (cellOf digest 0).v] ++ [.v (cellOf digest 1).v]
-
-set_option linter.unusedVariables false in
-/-- `child_claim_list_last`, a `Const` family (`guests/lean_ethereum.py`, line 4527):
-
-```
-def child_claim_list_last(state, entries_ptr, region, marks, last_g, k: Const):
-    digest = StackBuf(2)
-    if const(k == 0):
-        keccak_cells([0], digest, state=state[0:KECCAK_STATE], len=0)
-    else:
-        blk = StackBuf(4 * CLAIM_GROUP)
-        child_claims(entries_ptr, region, marks, last_g, blk, k)
-        keccak_cells(blk[0:4 * k], digest, state=state[0:KECCAK_STATE])
-    return digest[0], digest[1]
-```
--/
-def childClaimListLast_3 (k : Nat) : GFn where
-  name := instName "child_claim_list_last" [.L k]
-  arity := 5
-  rets := 2
-  body ps := do
-    let state := cellOf ps 0
-    let entriesPtr := cellOf ps 1
-    let region := cellOf ps 2
-    let marks := cellOf ps 3
-    let lastG := cellOf ps 4
-    let digest ← B.stackBuf 2
-    if k = 0 then
-      pure () -- no use of this definition takes this branch
     else
       let blk ← B.stackBuf 68
       childClaims entriesPtr region marks lastG blk k
@@ -623,49 +524,6 @@ def childClaimListMonoLast (k : Nat) : GFn where
     if k = 0 then
       B.keccakCells (cells := (.words [.zero])) (state := some (.heap rec'.v 0 KECCAK_STATE)) (len := some 0) (out := (.frame digest))
       covEnd ← B.load rec' KECCAK_STATE
-    else
-      let blk ← B.stackBuf 68
-      let walk ← B.stackBuf 2
-      childClaimsMono_2 (← B.load rec' KECCAK_STATE) (← B.load rec' 14) mark blk walk k
-      B.keccakCells (cells := (.cells (.frame (blk.take (4 * k))))) (state := some (.heap rec'.v 0 KECCAK_STATE)) (out := (.frame digest))
-      covEnd := cellOf walk 0
-    let t0 ← B.shifted limitG (1 - 1)
-    let _ ← B.rangeCheckK (← B.fdiv covEnd region) t0
-    return [.v (cellOf digest 0).v] ++ [.v (cellOf digest 1).v]
-
-set_option linter.unusedVariables false in
-/-- `child_claim_list_mono_last`, a `Const` family (`guests/lean_ethereum.py`, line 4511):
-
-```
-def child_claim_list_mono_last(rec, region, mark, limit_g, k: Const):
-    digest = StackBuf(2)
-    if const(k == 0):
-        keccak_cells([0], digest, state=rec[0:KECCAK_STATE], len=0)
-        cov_end = rec[GEN ** KECCAK_STATE]
-    else:
-        blk = StackBuf(4 * CLAIM_GROUP)
-        walk = StackBuf(2)
-        child_claims_mono(rec[GEN ** KECCAK_STATE], rec[GEN ** (KECCAK_STATE + 1)], mark, blk, walk, k)
-        keccak_cells(blk[0:4 * k], digest, state=rec[0:KECCAK_STATE])
-        cov_end = walk[0]
-    # The offset after the last claim is at most the region's size.
-    assert log(cov_end / region) < log(limit_g * GEN)
-    return digest[0], digest[1]
-```
--/
-def childClaimListMonoLast_2 (k : Nat) : GFn where
-  name := instName "child_claim_list_mono_last" [.L k]
-  arity := 4
-  rets := 2
-  body ps := do
-    let rec' := cellOf ps 0
-    let region := cellOf ps 1
-    let mark := cellOf ps 2
-    let limitG := cellOf ps 3
-    let digest ← B.stackBuf 2
-    let mut covEnd : Word := default
-    if k = 0 then
-      pure () -- no use of this definition takes this branch
     else
       let blk ← B.stackBuf 68
       let walk ← B.stackBuf 2

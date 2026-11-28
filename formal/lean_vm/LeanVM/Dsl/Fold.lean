@@ -20,12 +20,12 @@ the arguments. The builder folds them, so an author writes the arithmetic once f
 
 * `FW`: a scalar that is a constant (`.c`) or a value (`.w`). `FW.val` materializes it (a constant
   is one `SET`), `FW.msg` gives it as a Keccak message cell (a zero is the padding run's).
-* `Ex`: a field expression over constants (`.c`; `.g k` is `g^k`), values (`.w`), pointers
-  (`.sh p k` is `p · g^k`) and actions (`.act`, a heap read `.ld`), built with `.add`, `.mul`,
+* `Ex`: a field expression over constants (`.c`; `.g k` is `g^k`), values (`.w`; a frame cell
+  `.v`), pointers (`.sh p k` is `p · g^k`) and actions (`.act`, a heap read `.ld`), built with `.add`, `.mul`,
   `.pow`. `Ex.lower` gives its value, `Ex.into d` writes it into the cell `d`,
   `Ex.bind` gives it as an `FW`. All three fold: a constant subexpression is computed by Lean, a sum
   with a constant `0` or a product with a constant `1` is its other operand, and nothing else is
-  rewritten, except that a product of one value and `g`-powers is that pointer (`B.shifted`); the
+  rewritten, except that a product of one `.w` value and `g`-powers is that pointer (`B.shifted`); the
   operands' instructions are emitted left to right, each constant set where its
   operand is lowered (the order `Expand.expr` and `Expand.exprInto` use).
 
@@ -51,8 +51,11 @@ inductive FW where
 inductive Ex where
   /-- A constant. -/
   | c (e : E)
-  /-- A value. -/
+  /-- A value, which a product with `g`-powers shifts as a pointer. -/
   | w (x : Word)
+  /-- A value no product shifts as a pointer: a frame cell, which the zkDSL reads as no address
+  (`g · cell` is a product, its operands in order). -/
+  | v (x : Word)
   /-- The constant `g^k`, which also shifts a pointer: `p · g^k` is the pointer `B.shifted p k`. -/
   | g (k : Nat)
   /-- The pointer `p · g^k` (`B.shifted`). -/
@@ -144,6 +147,7 @@ def lower (e : Ex) : B Word :=
     match e with
     | .c k => B.const k
     | .w x => pure x
+    | .v x => pure x
     | .g k => B.const (gpowE k)
     | .sh p k => B.shifted p k
     | .act m => m
@@ -193,7 +197,7 @@ def ret (e : Ex) : Ret := .into fun r => e.into (⟨r⟩ : Word)
 
 /-- No action inside: the expressions the lemmas describe. -/
 def Pure : Ex → Bool
-  | .c _ | .w _ => true
+  | .c _ | .w _ | .v _ => true
   | .add a b | .mul a b => a.Pure && b.Pure
   | _ => false
 
@@ -201,6 +205,7 @@ def Pure : Ex → Bool
 def eval (σ : Val) : Ex → E
   | .c e => e
   | .w x => σ x.v
+  | .v x => σ x.v
   | .add a b => a.eval σ + b.eval σ
   | .mul a b => a.eval σ * b.eval σ
   | .pow a k => fieldPow (a.eval σ) k
@@ -230,6 +235,7 @@ theorem const?_eval {e : Ex} {k : E} (h : e.const? = some k) (σ : Val) : e.eval
       simp [eval, iha hx]
   | g _ => simpa [const?, eval] using h
   | w _ => simp [const?] at h
+  | v _ => simp [const?] at h
   | sh _ _ => simp [const?] at h
   | act _ => simp [const?] at h
   | ld _ _ => simp [const?] at h
@@ -251,6 +257,7 @@ theorem spec_lower {C : CallRel} {rd : Reader} (e : Ex) (hp : e.Pure = true) :
   induction e with
   | c k => exact Spec.mono (spec_const k) fun _ _ h => h
   | w x => exact Spec.mono (Spec.pure x) (by rintro _ σ rfl; rfl)
+  | v x => exact Spec.mono (Spec.pure x) (by rintro _ σ rfl; rfl)
   | g _ => simp [Pure] at hp
   | sh _ _ => simp [Pure] at hp
   | act _ => simp [Pure] at hp
@@ -302,6 +309,10 @@ theorem spec_into {C : CallRel} {rd : Reader} {ρ : Ty} (d : Var ρ) (e : Ex) (h
   | c k => exact Spec.mono (spec_constInto d k) fun _ _ h => h
   | w x =>
       refine Spec.mono (Spec.bind (spec_lower (.w x) rfl) fun y => spec_copy d y) ?_
+      rintro _ σ ⟨y, hy, h⟩
+      rw [h, hy]
+  | v x =>
+      refine Spec.mono (Spec.bind (spec_lower (.v x) rfl) fun y => spec_copy d y) ?_
       rintro _ σ ⟨y, hy, h⟩
       rw [h, hy]
   | g _ => simp [Pure] at hp

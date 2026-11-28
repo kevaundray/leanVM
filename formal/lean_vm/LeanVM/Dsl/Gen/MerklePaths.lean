@@ -115,7 +115,8 @@ def verifyMerkleCap (depth : Nat) : GFn where
       root0 := cellOf runs 0
       root1 := cellOf runs 1
     else
-      pure () -- no use of this definition takes this branch
+      root0 ← B.load cap 2
+      root1 ← B.load cap 3
     return [.v root0.v] ++ [.v root1.v]
 
 end

@@ -229,8 +229,8 @@ def main : GFn where
     let seed0 := cellOf fsSeed 0
     let seed1 := cellOf fsSeed 1
     let gSquares ← call1 "exponent_tables" []
-    let lxTable ← B.heapBufDyn (← B.pow lxSlotsG 4)
-    let leanSphincsTable ← B.heapBufDyn (← B.pow leanSphincsSlotsG 4)
+    let lxTable ← B.heapBufDyn (← Ex.lower (.pow (.w lxSlotsG) 4))
+    let leanSphincsTable ← B.heapBufDyn (← Ex.lower (.pow (.w leanSphincsSlotsG) 4))
     let t0 ← B.call "claim_list_digest" [lxTable.v, nLxG.v] 2
     let xd0 := t0[0]!
     let xd1 := t0[1]!
@@ -240,12 +240,12 @@ def main : GFn where
     B.loopRtF 0 (pure nXdupG) 2 (pure ([lxTable.v, nLxG.v])) fun xd caps => do
       let lxTable := cellOf caps 0
       let nLxG := cellOf caps 1
-      let dup ← B.mul lxTable (← B.pow (← B.mul nLxG xd) 4)
+      let dup ← Ex.lower (.mul (.w lxTable) (.pow (.mul (.w nLxG) (.w xd)) 4))
       B.witness "dup_claims" (.heap dup.v 0 4)
     B.loopRtF 0 (pure nSdupG) 2 (pure ([leanSphincsTable.v, nLeanSphincsG.v])) fun xd caps => do
       let leanSphincsTable := cellOf caps 0
       let nLeanSphincsG := cellOf caps 1
-      let dup ← B.mul leanSphincsTable (← B.pow (← B.mul nLeanSphincsG xd) 4)
+      let dup ← Ex.lower (.mul (.w leanSphincsTable) (.pow (.mul (.w nLeanSphincsG) (.w xd)) 4))
       B.witness "dup_claims" (.heap dup.v 0 4)
     let cover ← B.heapBufDyn nTotalG
     let spCover ← B.mul cover lxSlotsG
@@ -267,7 +267,7 @@ def main : GFn where
       let t0 ← B.mul lxSlotsG (← B.const (ofK gInv))
       let _ ← B.rangeCheckK idx t0
       B.store (← B.mul cover idx) 0 xi
-      verifyLeanXmss (← B.mul lxTable (← B.pow idx 4)) lxTags
+      verifyLeanXmss (← Ex.lower (.mul (.w lxTable) (.pow (.w idx) 4))) lxTags
     B.loopRtF 0 (pure nRawSG) 5 (pure ([leanSphincsSlotsG.v, spCover.v, nRawXG.v, leanSphincsTable.v, byteBits.v])) fun xj caps => do
       let leanSphincsSlotsG := cellOf caps 0
       let spCover := cellOf caps 1
@@ -279,10 +279,10 @@ def main : GFn where
       let _ ← B.rangeCheckK offHint t0
       let t1 ← B.mul nRawXG xj
       B.store (← B.mul spCover offHint) 0 t1
-      let _ ← B.call "verify_sig_lean_sphincs" [(← B.mul leanSphincsTable (← B.pow offHint 4)).v, byteBits.v] 0
+      let _ ← B.call "verify_sig_lean_sphincs" [(← Ex.lower (.mul (.w leanSphincsTable) (.pow (.w offHint) 4))).v, byteBits.v] 0
       pure ()
-    let daDigests ← B.heapBufDyn (← B.pow (← B.shifted nChildrenG 1) 2)
-    let ownDa ← B.mul daDigests (← B.pow nChildrenG 2)
+    let daDigests ← B.heapBufDyn (← Ex.lower (.pow (.mul (.w nChildrenG) (.g 1)) 2))
+    let ownDa ← Ex.lower (.mul (.w daDigests) (.pow (.w nChildrenG) 2))
     let t2 ← B.add nDirectDaG (← B.const (gpowE 1))
     let _ ← B.ite t2
       (do
@@ -295,9 +295,9 @@ def main : GFn where
         B.store ownDa 0 (← B.const 0)
         B.store ownDa 1 (← B.const 0))
     let childPi ← B.heapBufDyn (← B.mul nChildrenG nChildrenG)
-    let childFresh ← B.heapBufDyn (← B.pow nChildrenG DEFER_SIZE)
-    let childCarried ← B.heapBufDyn (← B.pow nChildrenG DEFER_STMT_CELLS)
-    let written ← B.heapBufDyn (← B.shifted nChildrenG 1)
+    let childFresh ← B.heapBufDyn (← Ex.lower (.pow (.w nChildrenG) DEFER_SIZE))
+    let childCarried ← B.heapBufDyn (← Ex.lower (.pow (.w nChildrenG) DEFER_STMT_CELLS))
+    let written ← B.heapBufDyn (← Ex.lower (.mul (.w nChildrenG) (.g 1)))
     B.store written 0 (← B.mul nRawXG nRawSG)
     B.loopRtF 0 (pure nChildrenG) 14 (pure ([written.v, lxTable.v, cover.v, lxSlotsG.v, leanSphincsTable.v, spCover.v, leanSphincsSlotsG.v, childCarried.v, daDigests.v, seed0.v, seed1.v, childPi.v, gSquares.v, childFresh.v])) fun xc caps => do
       let written := cellOf caps 0
@@ -328,9 +328,9 @@ def main : GFn where
       let t1 ← B.call "child_claim_list_digest" [leanSphincsTable.v, spCover.v, (← B.mul base nsubXG).v, leanSphincsSlotsG.v, nsubSG.v] 2
       let cs0 := t1[0]!
       let cs1 := t1[1]!
-      let carried ← B.mul childCarried (← B.pow xc DEFER_STMT_CELLS)
+      let carried ← Ex.lower (.mul (.w childCarried) (.pow (.w xc) DEFER_STMT_CELLS))
       B.witness "child_defer" (.heap carried.v 0 DEFER_STMT_CELLS)
-      let childDa ← B.mul daDigests (← B.pow xc 2)
+      let childDa ← Ex.lower (.mul (.w daDigests) (.pow (.w xc) 2))
       B.witness "child_da" (.heap childDa.v 0 2)
       let t2 ← B.call "statement_digest" [seed0.v, seed1.v, cx0.v, cx1.v, cs0.v, cs1.v, (← B.load childDa 0).v, (← B.load childDa 1).v, carried.v] 2
       let pi0 := t2[0]!
@@ -338,15 +338,15 @@ def main : GFn where
       let pi ← B.mul xc xc
       B.store (← B.mul childPi pi) 0 pi0
       B.store (← B.mul childPi pi) 1 pi1
-      let _ ← B.call "verify_sub" [pi0.v, pi1.v, seed0.v, seed1.v, gSquares.v, (← B.mul childFresh (← B.pow xc DEFER_SIZE)).v] 0
+      let _ ← B.call "verify_sub" [pi0.v, pi1.v, seed0.v, seed1.v, gSquares.v, (← Ex.lower (.mul (.w childFresh) (.pow (.w xc) DEFER_SIZE))).v] 0
       let t3 ← B.mul base nsubG
       B.store (← B.mul written xc) 1 t3
     B.assertEq (← B.load (← B.mul written nChildrenG) 0) nTotalG
     let daPick ← hinted (B.witnessCell "da_pick")
     let t4 ← B.shifted nChildrenG (1 - 1)
     let _ ← B.rangeCheckK daPick t4
-    B.assertEq (← B.mul (← B.add daPick nChildrenG) (← B.add nDirectDaG (← B.const 1))) (← B.const 0)
-    let da ← B.mul daDigests (← B.pow daPick 2)
+    B.assertEq (← Ex.lower (.mul (.add (.w daPick) (.w nChildrenG)) (.add (.w nDirectDaG) (Ex.nat 1)))) (← B.const 0)
+    let da ← Ex.lower (.mul (.w daDigests) (.pow (.w daPick) 2))
     let deferStmt ← B.heapBuf DEFER_STMT_CELLS
     let t5 ← B.add nChildrenG (← B.const 1)
     let _ ← B.ite t5
@@ -356,7 +356,7 @@ def main : GFn where
           B.store deferStmt k_k (← B.const 0)
         B.store deferStmt DEFER_STMT_BC_VALUE leafValue)
       (do
-        let _ ← B.call "aggregate_claims" [nChildrenG.v, childPi.v, childFresh.v, childCarried.v, deferStmt.v, (← B.shifted gSquares WIN_TAB_AT).v] 0
+        let _ ← B.call "aggregate_claims" [nChildrenG.v, childPi.v, childFresh.v, childCarried.v, deferStmt.v, (← Ex.lower (.mul (.w gSquares) (.g WIN_TAB_AT))).v] 0
         pure ())
     let t6 ← B.call "statement_digest" [seed0.v, seed1.v, xd0.v, xd1.v, sd0.v, sd1.v, (← B.load da 0).v, (← B.load da 1).v, deferStmt.v] 2
     let own0 := t6[0]!
@@ -507,10 +507,10 @@ def aggregateClaims : GFn where
     B.constInto (cellOf t0 4) (lit AGG_SEED_4)
     let seed := t0
     let rate ← B.stackBuf 8
-    fsPack rate 0 nChildrenG DS_OBSERVE
+    fsPack rate 0 (FW.w nChildrenG) DS_OBSERVE
     for j_k in [1:4] do
-      fsPack_2 rate j_k 0 DS_OBSERVE
-    let absorb ← B.heapBufDyn (← B.pow (← B.shifted nChildrenG 1) PEND_SLOTS)
+      fsPack rate j_k (FW.c (lit 0)) DS_OBSERVE
+    let absorb ← B.heapBufDyn (← Ex.lower (.pow (.mul (.w nChildrenG) (.g 1)) PEND_SLOTS))
     for j_k in [0:FS_CELLS] do
       B.store absorb j_k (cellOf seed j_k)
     for j_k in [0:8] do
@@ -522,14 +522,14 @@ def aggregateClaims : GFn where
       let childCarried := cellOf caps 3
       let carriedRow := cellOf caps 4
       let childPi := cellOf caps 5
-      let row ← B.mul absorb (← B.pow xc PEND_SLOTS)
+      let row ← Ex.lower (.mul (.w absorb) (.pow (.w xc) PEND_SLOTS))
       let rowCap ← fsLoad row 0 1
       let mut st ← fsPermPending rowCap row FS_CELLS
       let mut rate ← B.stackBuf 8
       let pi ← B.mul xc xc
-      let fresh ← B.mul childFresh (← B.pow xc DEFER_SIZE)
+      let fresh ← Ex.lower (.mul (.w childFresh) (.pow (.w xc) DEFER_SIZE))
       B.store (← B.mul freshRow xc) 0 fresh
-      let carried ← B.mul childCarried (← B.pow xc DEFER_STMT_CELLS)
+      let carried ← Ex.lower (.mul (.w childCarried) (.pow (.w xc) DEFER_STMT_CELLS))
       B.store (← B.mul carriedRow xc) 0 carried
       for pos_k in [0:AGG_CHILD_WORDS + AGG_CHILD_PAD] do
         if (pos_k % 4) = 0 then
@@ -541,21 +541,21 @@ def aggregateClaims : GFn where
         else
           pure ()
         if (pos_k / 2) = 0 then
-          fsPack rate (pos_k % 4) (← B.load (← B.mul childPi pi) pos_k) DS_OBSERVE
+          fsPack rate (pos_k % 4) (← Ex.bind (.ld (B.mul childPi pi) pos_k)) DS_OBSERVE
         else
           pure ()
         if (pos_k / 2) ≠ 0 then
           if ((pos_k - 2) / DEFER_SIZE) = 0 then
-            fsPack rate (pos_k % 4) (← B.load fresh (pos_k - 2)) DS_OBSERVE
+            fsPack rate (pos_k % 4) (← Ex.bind (.ld (pure fresh) (pos_k - 2))) DS_OBSERVE
           else
             pure ()
           if ((pos_k - 2) / DEFER_SIZE) ≠ 0 then
             if (((pos_k - 2) - 24) / 24) = 0 then
-              fsPack rate (pos_k % 4) (← B.load carried ((pos_k - 2) - DEFER_SIZE)) DS_OBSERVE
+              fsPack rate (pos_k % 4) (← Ex.bind (.ld (pure carried) ((pos_k - 2) - DEFER_SIZE))) DS_OBSERVE
             else
               pure ()
             if (((pos_k - 2) - 24) / 24) ≠ 0 then
-              fsPack_2 rate (pos_k % 4) 0 DS_OBSERVE
+              fsPack rate (pos_k % 4) (FW.c (lit 0)) DS_OBSERVE
             else
               pure ()
           else
@@ -563,15 +563,15 @@ def aggregateClaims : GFn where
         else
           pure ()
       let nxt : Shifted := ⟨row, PEND_SLOTS⟩
-      fsStore (⟨nxt.base, nxt.exp⟩) 0 1 st
+      fsStore nxt 0 1 st
       for j_k in [0:8] do
         B.store nxt.base (nxt.exp + (FS_CELLS + j_k)) (cellOf rate j_k)
-    let absorbed ← B.mul absorb (← B.pow nChildrenG PEND_SLOTS)
+    let absorbed ← Ex.lower (.mul (.w absorb) (.pow (.w nChildrenG) PEND_SLOTS))
     let absorbedCap ← fsLoad absorbed 0 1
     let full ← fsPermPending absorbedCap absorbed FS_CELLS
     let mut st : List V := default
     if BATCH_LAM_GRIND_BITS = 0 then
-      pure () -- no use of this definition takes this branch
+      st := full
     else
       let nonceRate ← B.stackBuf 8
       st ← fsAbsorbNonce full nonceRate 0 (← B.load bcMsgs 0)
@@ -579,7 +579,7 @@ def aggregateClaims : GFn where
       pure ()
     let lam := cellOf st 0
     let lamSq ← B.mul lam lam
-    let bcChain ← B.heapBufDyn (← B.pow (← B.shifted nChildrenG 1) PAIR_SLOTS)
+    let bcChain ← B.heapBufDyn (← Ex.lower (.pow (.mul (.w nChildrenG) (.g 1)) PAIR_SLOTS))
     B.store bcChain 0 (← B.const 1)
     B.store bcChain 1 (← B.const 0)
     B.loopRtF 0 (pure nChildrenG) 5 (pure ([bcChain.v, freshRow.v, carriedRow.v, lamSq.v, lam.v])) fun xc caps => do
@@ -588,17 +588,17 @@ def aggregateClaims : GFn where
       let carriedRow := cellOf caps 2
       let lamSq := cellOf caps 3
       let lam := cellOf caps 4
-      let row ← B.mul bcChain (← B.pow xc PAIR_SLOTS)
+      let row ← Ex.lower (.mul (.w bcChain) (.pow (.w xc) PAIR_SLOTS))
       let lamPow ← B.load row 0
       let fresh ← B.load (← B.mul freshRow xc) 0
       let carried ← B.load (← B.mul carriedRow xc) 0
       let nxt : Shifted := ⟨row, PAIR_SLOTS⟩
       B.store nxt.base nxt.exp (← B.mul lamPow lamSq)
       B.store nxt.base (nxt.exp + 1) (← B.add (← B.load row 1) (← B.mul lamPow (← B.add (← B.load fresh 23) (← B.mul lam (← B.load carried 23)))))
-    let bcEnd ← B.mul bcChain (← B.pow nChildrenG PAIR_SLOTS)
+    let bcEnd ← Ex.lower (.mul (.w bcChain) (.pow (.w nChildrenG) PAIR_SLOTS))
     let bcRunning ← B.load bcEnd 1
     let bcPoint ← B.heapBuf BYTECODE_VARS
-    let t1 ← B.call (instName "batch_sumcheck" [.L BYTECODE_VARS]) [(cellOf st 8).v, (cellOf st 9).v, (cellOf st 10).v, (cellOf st 11).v, (cellOf st 12).v, (← B.shifted bcMsgs BC_LAM_WORDS).v, bcRunning.v, bcPoint.v, tabs.v] 6
+    let t1 ← B.call (instName "batch_sumcheck" [.L BYTECODE_VARS]) [(cellOf st 8).v, (cellOf st 9).v, (cellOf st 10).v, (cellOf st 11).v, (cellOf st 12).v, (← Ex.lower (.mul (.w bcMsgs) (.g BC_LAM_WORDS))).v, bcRunning.v, bcPoint.v, tabs.v] 6
     let fs0 := t1[0]!
     let fs1 := t1[1]!
     let fs2 := t1[2]!
@@ -607,8 +607,8 @@ def aggregateClaims : GFn where
     let bcRunning := t1[5]!
     let bcPoint1 ← B.heapBuf BYTECODE_VARS
     for k_k in [0:BYTECODE_VARS] do
-      B.store bcPoint1 k_k (← B.add (← B.const 1) (← B.load bcPoint k_k))
-    let bcWsum ← B.heapBufDyn (← B.shifted nChildrenG 1)
+      B.store bcPoint1 k_k (← Ex.lower (.add (Ex.nat 1) (.ld (pure bcPoint) k_k)))
+    let bcWsum ← B.heapBufDyn (← Ex.lower (.mul (.w nChildrenG) (.g 1)))
     B.store bcWsum 0 (← B.const 0)
     B.loopRtF 0 (pure nChildrenG) 6 (pure ([freshRow.v, carriedRow.v, bcPoint1.v, bcChain.v, bcWsum.v, lam.v])) fun xc caps => do
       let freshRow := cellOf caps 0
@@ -629,7 +629,7 @@ def aggregateClaims : GFn where
         else
           eqFresh ← B.mul eqFresh (← B.add (← B.load fresh k_k) rk1)
           eqCarried ← B.mul eqCarried (← B.add (← B.load carried k_k) rk1)
-      let row ← B.mul bcChain (← B.pow xc PAIR_SLOTS)
+      let row ← Ex.lower (.mul (.w bcChain) (.pow (.w xc) PAIR_SLOTS))
       let t0 ← B.add (← B.load (← B.mul bcWsum xc) 0) (← B.mul (← B.load row 0) (← B.add eqFresh (← B.mul lam eqCarried)))
       B.store (← B.mul bcWsum xc) 1 t0
     B.assertEq bcRunning (← B.mul bytecodeStar (← B.load (← B.mul bcWsum nChildrenG) 0))

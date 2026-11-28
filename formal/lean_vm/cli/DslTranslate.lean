@@ -67,6 +67,12 @@ def bin2 (op : String) : Option Tm → Option Tm → Option Tm
 
 def num (n : Nat) : Tm := mk (toString n)
 
+/-- The pointer `base · g^exp` as a `Shifted`: the variable `x` itself for `x.base`, `x.exp`. -/
+def ptrT (base exp : Tm) : Tm :=
+  let x := String.ofList (base.s.toList.take (base.s.length - 5))
+  if base.atom && base.s.endsWith ".base" && exp.s == x ++ ".exp" then mk x
+  else mk s!"⟨{base.s}, {exp.s}⟩"
+
 /-- Names a translated text uses, which a source name must not shadow. -/
 def reserved : List String :=
   ["at", "by", "do", "then", "else", "if", "fun", "let", "in", "for", "match", "with", "from", "end",
@@ -114,7 +120,15 @@ inductive Code where
   | seq (tag : String) (body : Array Code)
   /-- An `unroll` whose range is empty here: what the instances where it is not write. -/
   | wild (tag : String)
+  /-- The `let mut`s a scope's assignments need before it (Lean name, site, type, copied from the
+  outer variable): two instances' lists merge as their union, so a name only some instances'
+  branches bind is declared once for all. -/
+  | decls (ds : Array (String × Nat × String × Bool))
   deriving Inhabited
+
+def declLine : String × Nat × String × Bool → Code
+  | (id, st, ty, copy) =>
+      .line (if copy then s!"let {id} := {id}" else s!"let {id} : {ty} := default") (some st) ty
 
 def pad (n : Nat) : String := String.ofList (List.replicate n ' ')
 
@@ -123,6 +137,7 @@ partial def flat (cs : Array Code) : Array Code :=
   cs.foldl (fun acc c => match c with
     | .seq _ b => acc ++ flat b
     | .wild _ => acc
+    | .decls ds => acc ++ ds.map declLine
     | c => acc.push c) #[]
 
 /-- Whether a block ends with a binding, so it needs a closing `pure ()`. -/
@@ -196,7 +211,9 @@ partial def renderB (muts : List Nat) (ind : Nat) (scope : List (String × Strin
             match sc.lookup x with
             | some tm =>
                 if ty.isEmpty || ty == tm then
-                  out := out.push (pad ind ++ asAssign ("let " ++ x ++ rhs))
+                  -- a predeclaration of a `let mut` already in scope with its type keeps it
+                  let noop := rhs == s!" : {tm} := default" || rhs == s!" := {x}"
+                  if !noop then out := out.push (pad ind ++ asAssign ("let " ++ x ++ rhs))
                   rn := rn.filter (·.1 != x)
                 else
                   let mut x' := x ++ "'"
@@ -229,7 +246,7 @@ partial def renderB (muts : List Nat) (ind : Nat) (scope : List (String × Strin
           else head
         out := out ++ #[pad ind ++ renameToks rn head] ++ b
     | .sub n c => out := out ++ renderB muts (ind + n) sc rn #[c]
-    | .seq .. | .wild _ => pure ()
+    | .seq .. | .wild _ | .decls _ => pure ()
     | .fold cnd t e _ =>
         let side := fun (b : Array Code) =>
           renderB muts (ind + 2) sc rn (if lastIsLet b then b.push (.line "pure ()") else b)
@@ -267,6 +284,10 @@ partial def mergeC (muts : List Nat) : Code → Code → Option (Code × List Na
   | .wild t1, .seq t2 b => if t1 == t2 then some (.seq t2 b, []) else none
   | .seq t1 b, .wild t2 => if t1 == t2 then some (.seq t1 b, []) else none
   | .wild t1, .wild t2 => if t1 == t2 then some (.wild t1, []) else none
+  | .decls d1, .decls d2 =>
+      if d2.all fun (id, _, ty, cp) => d1.all fun (id', _, ty', cp') => id != id' || (ty == ty' && cp == cp') then
+        some (.decls (d1 ++ d2.filter fun d => !d1.any (·.1 == d.1)), [])
+      else none
   | _, _ => none
 
 partial def mergeA (muts : List Nat) (a b : Array Code) : Option (Array Code × List Nat) :=
@@ -299,6 +320,7 @@ def headOf : Code → String
   | .fold c _ _ _ => s!"if {c} then"
   | .seq t _ => t
   | .wild t => t
+  | .decls ds => ((ds[0]?.map fun d => match declLine d with | .line s _ _ => s | _ => "").getD "let mut (none)")
 
 mutual
 /-- Why two texts do not merge (`mergeA`): the pairs of lines that differ, and for blocks of
@@ -311,6 +333,8 @@ partial def confC : Code → Code → List (String × String)
       if c1 == c2 then confO t1 t2 ++ confO e1 e2 else [(s!"if {c1}", s!"if {c2}")]
   | .seq t1 b1, .seq t2 b2 => if t1 == t2 then confA b1 b2 else [(t1, t2)]
   | .wild t1, .seq t2 _ | .seq t1 _, .wild t2 | .wild t1, .wild t2 => if t1 == t2 then [] else [(t1, t2)]
+  | .decls d1, .decls d2 =>
+      if (mergeC [] (.decls d1) (.decls d2)).isSome then [] else [(headOf (.decls d1), headOf (.decls d2))]
   | x, y => [(headOf x, headOf y)]
 
 partial def confA (a b : Array Code) : List (String × String) :=
@@ -539,12 +563,9 @@ structure Rd where
   exp : Option Tm := none
   deriving Inhabited
 
-/-- The field reading of an integer bound as `b`, its integer written `t`: a g-power's
-(`Expand.eval` reads a constant g-address name as `g^exp`), else the integer's word. -/
-def natFe (b : Binding) (t : Tm) : Tm :=
-  match b with
-  | .gaddr _ => app "gpowE" [app "Nat.log2" [t]]
-  | _ => app "lit" [t]
+/-- The field reading of an integer written `t`: its word (`Expand.eval` reads a constant g-address
+name `g^k` as `g^k`, which is the word of `2^k`, `lit (2^k) = gpowE k`). -/
+def natFe (_ : Binding) (t : Tm) : Tm := app "lit" [t]
 
 def bindTexts (bd : Bind) : Rd :=
   let id := bd.id
@@ -744,8 +765,9 @@ def convVal (v : Val) (j : LK) : Val :=
   -- an expression over an `FW` that is a word in every instance: its value
   | .fw, .word =>
       if t.s.startsWith "Ex.bind " then { v with lk := j, t := cmp ("Ex.lower " ++ String.ofList (t.s.toList.drop 8)), act := true }
+      else if t.s.startsWith "FW.w <$> " then { v with lk := j, t := cmp (String.ofList (t.s.toList.drop 9)), act := true }
       else if t.s.startsWith "FW.w " then { v with lk := j, t := cmp (String.ofList (t.s.toList.drop 5)), act := false }
-      else { v with lk := j, t := app "FW.val" [t], act := true }
+      else { v with lk := j, t := if v.act then cmp s!"{t.s} >>= FW.val" else app "FW.val" [t], act := true }
   | _, _ => { v with t := cmp s!"KIND_MISMATCH /- {repr v.lk} as {repr j} -/" }
 
 /-- Bind the Lean variable `id` to `v` under the key `key` of `env`: a `let`, or, when the value
@@ -808,6 +830,7 @@ def fwOf (x : Tm) (b : Binding) (int : Option Nat) : Val :=
   let rest (k : Nat) := String.ofList (s.toList.drop k)
   if s.startsWith ".c " then { b, int, lk := .fw, t := cmp ("FW.c " ++ rest 3) }
   else if s.startsWith ".w " then { b, int, lk := .fw, t := cmp ("FW.w " ++ rest 3) }
+  else if s.startsWith ".v " then { b, int, lk := .fw, t := cmp ("FW.w " ++ rest 3) }
   else if s.startsWith "Ex.nat " then { b, int, lk := .fw, t := cmp ("FW.c (lit " ++ rest 7 ++ ")") }
   else if s.startsWith ".g " then { b, int, lk := .fw, t := cmp ("FW.c (gpowE " ++ rest 3 ++ ")") }
   else if x.atom && s.endsWith ".ex" then { b, int, lk := .fw, t := mk (String.ofList s.toList.dropLast.dropLast.dropLast) }
@@ -818,7 +841,9 @@ whose field reading is another value with that reading in a variable of its own 
 under a key no source name has), which the integer's readings name. -/
 def defineName (n : String) (v : Val) (ck : LK := v.ck.getD v.lk) : T Unit := do
   if v.feT.isSome then modify fun s => { s with dtab := s.dtab.insert (s.scope, n) }
-  let j ← joinKind n ck
+  -- a constant written as an `FW` (an operand is one): the name is an `FW` in every instance
+  let j ← if v.lk == .fw && (ck == .nat || ck == .fe || ck == .gpow) then joinKind n .fw
+    else joinKind n ck
   let v := convVal v j
   let mut feT : Option Tm := none
   let s ← get
@@ -859,10 +884,9 @@ def closure (m : T Unit) : T (Array Code) := do
 
 /-- The `let mut`s a scope's assignments need before it. -/
 def emitPredecls (lp : Loop) : T Unit := do
-  for (id, st, lk, copy) in lp.psites do
+  for (_, st, _, _) in lp.psites do
     modify fun s => { s with muts := st :: s.muts }
-    if copy then emit (.line s!"let {id} := {id}" (some st) lk.ty)
-    else emit (.line s!"let {id} : {lk.ty} := default" (some st) lk.ty)
+  emit (.decls (lp.psites.toArray.map fun (id, st, lk, copy) => (id, st, lk.ty, copy)))
 
 /-- A cell run's text (`Expand.CellRun`). -/
 inductive CR where
@@ -999,13 +1023,16 @@ partial def exText (e : SE) : T Tm := do
         | none => throw s!"unbound variable `{v}`"
   | _ => exLeaf e
 
-/-- An operand of an `Ex` that is no arithmetic: lowered as a value, where the expression is. -/
+/-- An operand of an `Ex` that is no arithmetic: lowered as a value, where the expression is; a
+frame cell `arr[i]` is `.v`, a value no product shifts (`Expand.eval` reads it as no address). -/
 partial def exLeaf (e : SE) : T Tm := do
   if let .index arr idx := e then
     if (← frameCell arr idx).isNone then
       let (p, off) ← heapAddrSpan arr idx 1
       let pT := if p.act then cmp p.t.s else app "pure" [p.t]
       return app ".ld" [pT, off]
+    let w ← tExpr e
+    return if w.act then app ".act" [cmp w.t.s] else app ".v" [w.t]
   let w ← tExpr e
   return if w.act then app ".act" [cmp w.t.s] else app ".w" [w.t]
 
@@ -1389,13 +1416,13 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
               argFs := argFs.push (pure ⟨mk s!"⟨{(rd.exp.getD (num ga.exp)).s}⟩", false, default⟩)
               binds := binds.push (p.name, { b := ⟨.gaddr ga, none⟩, lk := .gpow, id, mutOk := false })
           | some _ =>
-              if ga.exp == 0 then
+              if ga.exp == 0 && (rd.exp.map (·.s)).getD "0" == "0" then
                 sig := sig.push s!"({id} : Word)"
                 argFs := argFs.push (pure ⟨rd.base.get!, false, default⟩)
                 binds := binds.push (p.name, { b := ⟨.gaddr ga, none⟩, lk := .word, id, mutOk := false })
               else
                 sig := sig.push s!"({id} : Shifted)"
-                argFs := argFs.push (pure ⟨mk s!"⟨{rd.base.get!.s}, {rd.exp.get!.s}⟩", false, default⟩)
+                argFs := argFs.push (pure ⟨ptrT rd.base.get! rd.exp.get!, false, default⟩)
                 binds := binds.push (p.name, { b := ⟨.gaddr ga, none⟩, lk := .ptr, id, mutOk := false })
       | some _ => throw "internal: an alias is a run or an address"
       | none =>
@@ -1444,6 +1471,8 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
     live := rets.foldl (fun acc (e : SE) => e.freeVars acc) [], gaps := [], calls := [], finalRet := false,
     fnBinds := Source.Stmt.bindsList false d.body, scope := f }
   stmts body
+  -- the returned values' literals are written as the `return` line writes them
+  if let some r := d.body.getLast? then setLine r.line
   let vals ← match into with
     | none => rets.zipIdx.mapM fun (e, ri) => do
         let v ← letVal e
@@ -1577,8 +1606,9 @@ partial def letShape (e : SE) : T (Option (Binding × LK)) := do
 partial def letVal (e : SE) : T Val := do
   let re ← resolve e
   let known ← q (Expand.eval Expand.evalFuel re)
-  -- an expression over a name written as an `FW`: an `FW` too, whatever it is here
-  if ← (e.freeVars []).anyM isFW then
+  -- an expression over a name written as an `FW`: an `FW` too, whatever it is here (not an
+  -- allocation whose size reads one)
+  if !(e matches .heapBufDyn _) && (← (e.freeVars []).anyM isFW) then
     if let some (b, ck) ← letShape e then
       return { fwOf (← exText e) b known.int with ck := some ck }
   match ← q (Expand.aliasOf re) with
@@ -1594,7 +1624,7 @@ partial def letVal (e : SE) : T Val := do
           return { b := .gaddr ga, lk := .gpow, t := mk s!"⟨{(rd.exp.getD (num ga.exp)).s}⟩" }
       | some _ =>
           if ga.exp == 0 && (rd.exp.map (·.s)).getD "0" == "0" then return { b := .gaddr ga, lk := .word, t := rd.base.get! }
-          return { b := .gaddr ga, lk := .ptr, t := mk s!"⟨{rd.base.get!.s}, {rd.exp.get!.s}⟩" }
+          return { b := .gaddr ga, lk := .ptr, t := ptrT rd.base.get! rd.exp.get! }
   | some _ => throw "internal: an alias is a run or an address"
   | none =>
   if let some c := known.field then
@@ -1694,7 +1724,7 @@ partial def foldIf (eq : Bool) (lhs rhs : SE) (ints : Bool) (taken : Bool) (thn 
   let mut after := s'
   let mut why := ""
   if s'.specDepth < 2 then
-    set { s' with code := #[], env := s.env, vars := s.vars, sym := s.sym, live := s.live,
+    set { s' with code := #[], env := s.env, vars := s.vars, sym := s.sym, live := s.live, tmp := s.tmp,
                   est := { s'.est with names := s.est.names }, specDepth := s'.specDepth + 1 }
     let r ← tryCatch (do stmts (if taken then els else thn); return Except.ok (← get))
       fun e => pure (Except.error e)
@@ -1703,7 +1733,10 @@ partial def foldIf (eq : Bool) (lhs rhs : SE) (ints : Bool) (taken : Bool) (thn 
         if s2.variants.size == s'.variants.size && s2.gaps.length == s'.gaps.length &&
             (s2.loops.head?.all (·.ok)) then
           other := some s2.code
-          after := { s' with loops := s2.loops, muts := s2.muts, site := s2.site }
+          -- the kinds it binds names with count as a taken branch's do, so that every instance
+          -- writes those names alike
+          after := { s' with loops := s2.loops, muts := s2.muts, site := s2.site, ktab := s2.ktab,
+                             dtab := s2.dtab, mtab := s2.mtab }
         else why := "a new inline text, a gap, or a binding leaving the branch"
     | .error e => why := e
   let lp := after.loops.head!
@@ -1714,6 +1747,9 @@ partial def foldIf (eq : Bool) (lhs rhs : SE) (ints : Bool) (taken : Bool) (thn 
   if lp.ok then
     emit (.fold cond (if taken then some s'.code else other) (if taken then other else some s'.code)
       (if taken then (false, other.isSome) else (other.isSome, false)))
+    -- a branch's temporaries are its own (a Lean `if` branch is a scope): the sequel numbers its
+    -- own from where the `if` began, whichever branch this instance took
+    modify fun st => { st with tmp := s.tmp }
   else modify fun s => { s with code := s.code ++ s'.code }
 
 /-- `if` (`Expand.lowerIf`): folded where `Expand` folds it, else a branch. -/
@@ -2521,6 +2557,7 @@ partial def codeLines : Code → List String
   | .fold c t e _ => c :: (t.getD #[]).toList.flatMap codeLines ++ (e.getD #[]).toList.flatMap codeLines
   | .seq _ b => b.toList.flatMap codeLines
   | .wild _ => []
+  | .decls ds => (ds.map declLine).toList.flatMap codeLines
 
 /-- The field variables (`feIds`: scope, source name, variable) some line reads, other than the
 lines binding them, or through a field variable read. -/
@@ -2579,6 +2616,11 @@ def main (args : List String) : IO UInt32 := do
   let (units, instUnits, st) ←
     translateAll prog py { st0 with feAll := false, feNeed := need, ktab := st1.ktab, dtab := st1.dtab, mtab := st1.mtab } originals
   let mut st := st
+  -- kinds the second pass met that change a name's join (its texts of that name may disagree)
+  let joinOf : List LK → Option LK := fun | [] => none | k :: r => some (LK.join r k)
+  for (key, ks) in st.ktab.toList do
+    let ks1 := (st1.ktab.get? key).getD []
+    if joinOf ks != joinOf ks1 then IO.eprintln s!"KTAB {key.1} {key.2}: {repr ks1} -> {repr ks}"
   -- families: one definition per text of the instances that no other merges with
   let mut famDefs : Array (String × String × Array Code × String) := #[]   -- section, name, code, fn
   let mut instTerm : List (String × String) := []

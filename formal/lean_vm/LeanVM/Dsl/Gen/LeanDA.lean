@@ -72,12 +72,12 @@ def daVerify : GFn where
     let topLeaves := t0[1]!
     let cellFactors := t0[2]!
     let offsets := t0[3]!
-    let blobs ← B.heapBufDyn (← B.pow nBlobG DA_REGION)
+    let blobs ← B.heapBufDyn (← Ex.lower (.pow (.w nBlobG) DA_REGION))
     let rowbase ← B.heapBufDyn nBlobG
     B.loopRtF 0 (pure nBlobG) 2 (pure ([blobs.v, rowbase.v])) fun xi caps => do
       let blobs := cellOf caps 0
       let rowbase := cellOf caps 1
-      let base ← B.mul blobs (← B.pow xi DA_REGION)
+      let base ← Ex.lower (.mul (.w blobs) (.pow (.w xi) DA_REGION))
       B.store (← B.mul rowbase xi) 0 base
       B.store base DA_SUM (← B.const 0)
     B.loopConstF 0 DA_CELLS 6 (pure ([nBlobG.v, rowbase.v, zs.v, topLeaves.v, cellFactors.v, offsets.v])) fun xb caps => do
@@ -98,13 +98,13 @@ def daVerify : GFn where
       let t0 ← B.call (instName "da_levels" [.L DA_CELLS, .L DA_BLOCK_BITS]) [base.v] 2
       let b0 := t0[0]!
       let b1 := t0[1]!
-      let slot ← B.mul roots (← B.pow xi 2)
+      let slot ← Ex.lower (.mul (.w roots) (.pow (.w xi) 2))
       B.store slot 0 b0
       B.store slot 1 b1
     B.loopRtF 0 (pure gapG) 2 (pure ([roots.v, nBlobG.v])) fun xd caps => do
       let roots := cellOf caps 0
       let nBlobG := cellOf caps 1
-      let pad ← B.mul (← B.mul roots (← B.pow nBlobG 2)) (← B.pow xd 2)
+      let pad ← Ex.lower (.mul (.mul (.w roots) (.pow (.w nBlobG) 2)) (.pow (.w xd) 2))
       B.store pad 0 (← B.const (lit DA_PAD_BLOB_0))
       B.store pad 1 (← B.const (lit DA_PAD_BLOB_1))
     let t1 ← B.call (instName "da_levels" [.L DA_MAX_ROWS, .L DA_LOG_MAX_ROWS]) [roots.v] 2
@@ -170,7 +170,7 @@ def daVerifyColumn : GFn where
     let topLeaves := cellOf ps 4
     let cellFactors := cellOf ps 5
     let offsets := cellOf ps 6
-    let lvals ← call1 (instName "da_expand" [.L (LOG_CELL_SYMBOLS - 1), .L LOG_CELL_SYMBOLS]) [(← B.load (← B.mul topLeaves xb) 0).v, cellFactors.v, zs.v, (← B.mul offsets (← B.pow xb LOG_CELL_SYMBOLS)).v]
+    let lvals ← call1 (instName "da_expand" [.L (LOG_CELL_SYMBOLS - 1), .L LOG_CELL_SYMBOLS]) [(← B.load (← B.mul topLeaves xb) 0).v, cellFactors.v, zs.v, (← Ex.lower (.mul (.w offsets) (.pow (.w xb) LOG_CELL_SYMBOLS))).v]
     let xb2 ← B.mul xb xb
     B.loopRtF 0 (pure nBlobG) 4 (pure ([lvals.v, rowbase.v, xb.v, xb2.v])) fun xi caps => do
       let lvals := cellOf caps 0
@@ -213,15 +213,12 @@ def daVerifyCell : GFn where
     let lvals := cellOf ps 0
     let sym ← B.stackBuf DA_CELL
     B.witness "da_symbols" (.stack sym)
-    let s := 0
-    let mut s_word : Word := default
-    let e_k := 0
-    s_word ← B.mul (← B.load lvals e_k) (cellOf sym e_k)
-    for e_k in [1:DA_CELL] do
-      s_word ← B.add s_word (← B.mul (← B.load lvals e_k) (cellOf sym e_k))
+    let mut s : FW := FW.c (lit 0)
+    for e_k in [0:DA_CELL] do
+      s ← Ex.bind (.add s.ex (.mul (.ld (pure lvals) e_k) (.v (cellOf sym e_k))))
     let st ← B.stackBuf 2
     B.keccakCells (cells := (.cells (.frame sym))) (out := (.frame st))
-    return [.v (cellOf st 0).v] ++ [.v (cellOf st 1).v] ++ [.v s_word.v]
+    return [.v (cellOf st 0).v] ++ [.v (cellOf st 1).v] ++ [Ex.ret s.ex]
 
 set_option linter.unusedVariables false in
 /-- `da_vector` (`guests/lean_ethereum.py`, line 4632):
@@ -304,11 +301,11 @@ def daColumnOffsets : GFn where
     for b_k in [0:DA_BLOCK_BITS] do
       let steps ← B.heapBuf LOG_CELL_SYMBOLS
       for j_k in [0:LOG_CELL_SYMBOLS] do
-        B.store steps j_k (← B.mul (← B.load zs j_k) (← B.const (arrWord DA_VHAT_COLUMN ((LOG_CELL_SYMBOLS * b_k) + j_k))))
+        B.store steps j_k (← Ex.lower (.mul (.ld (pure zs) j_k) (.c (arrWord DA_VHAT_COLUMN ((LOG_CELL_SYMBOLS * b_k) + j_k)))))
       B.loopRtF 0 (B.const (gpowE (2 ^ b_k))) 2 (pure ([offsets.v, steps.v])) fun xh caps => do
         let offsets := cellOf caps 0
         let steps := cellOf caps 1
-        let src ← B.mul offsets (← B.pow xh LOG_CELL_SYMBOLS)
+        let src ← Ex.lower (.mul (.w offsets) (.pow (.w xh) LOG_CELL_SYMBOLS))
         let dst : Shifted := ⟨src, LOG_CELL_SYMBOLS * (2 ^ b_k)⟩
         for j_k in [0:LOG_CELL_SYMBOLS] do
           B.store dst.base (dst.exp + j_k) (← B.add (← B.load src j_k) (← B.load steps j_k))
@@ -335,17 +332,11 @@ def daLevels (n : Nat) (logN : Nat) : GFn where
   rets := 2
   body ps := do
     let tree := cellOf ps 0
-    let lvl_k := 0
-    B.loopRtF 0 (B.const (gpowE (n / (2 ^ (lvl_k + 1))))) 1 (pure ([tree.v])) fun xp caps => do
-      let tree := cellOf caps 0
-      let a ← B.mul tree (← B.pow xp 4)
-      let b ← B.mul (← B.shifted tree ((4 * n) - ((4 * n) / (2 ^ (lvl_k + 1))))) (← B.mul xp xp)
-      B.keccak (a := (.cells (.heap a.v 0 2))) (b := (.cells (.heap a.v 2 (4 - 2)))) (out := (.heap b.v 0 2))
-    for lvl_k in [1:logN] do
+    for lvl_k in [0:logN] do
       B.loopRtF 0 (B.const (gpowE (n / (2 ^ (lvl_k + 1))))) 1 (pure ([tree.v])) fun xp caps => do
         let tree := cellOf caps 0
-        let a ← B.mul (← B.shifted tree ((4 * n) - ((4 * n) / (2 ^ lvl_k)))) (← B.pow xp 4)
-        let b ← B.mul (← B.shifted tree ((4 * n) - ((4 * n) / (2 ^ (lvl_k + 1))))) (← B.mul xp xp)
+        let a ← Ex.lower (.mul (.mul (.w tree) (.g ((4 * n) - ((4 * n) / (2 ^ lvl_k))))) (.pow (.w xp) 4))
+        let b ← Ex.lower (.mul (.mul (.w tree) (.g ((4 * n) - ((4 * n) / (2 ^ (lvl_k + 1)))))) (.mul (.w xp) (.w xp)))
         B.keccak (a := (.cells (.heap a.v 0 2))) (b := (.cells (.heap a.v 2 (4 - 2)))) (out := (.heap b.v 0 2))
     return [.load tree.v ((4 * n) - 4)] ++ [.load tree.v ((4 * n) - 3)]
 
@@ -380,22 +371,14 @@ def daExpand (top : Nat) (depth : Nat) : GFn where
     let shifts := cellOf ps 3
     let nodes ← B.stackBuf 256
     B.copy (cellOf nodes 1) root
-    let d_k := 0
-    let z ← B.load zs (top - d_k)
-    let shift ← B.load shifts (top - d_k)
-    let y_k := 0
-    B.mulInto (cellOf nodes ((2 ^ (d_k + 1)) + (2 * y_k))) (cellOf nodes ((2 ^ d_k) + y_k)) (← B.add (← B.load factors ((2 ^ d_k) + y_k)) shift)
-    B.addInto (cellOf nodes (((2 ^ (d_k + 1)) + (2 * y_k)) + 1)) (cellOf nodes ((2 ^ (d_k + 1)) + (2 * y_k))) (← B.mul (cellOf nodes ((2 ^ d_k) + y_k)) z)
-    for d_k in [1:depth] do
+    for d_k in [0:depth] do
       let z ← B.load zs (top - d_k)
       let shift ← B.load shifts (top - d_k)
       for y_k in [0:2 ^ d_k] do
         B.mulInto (cellOf nodes ((2 ^ (d_k + 1)) + (2 * y_k))) (cellOf nodes ((2 ^ d_k) + y_k)) (← B.add (← B.load factors ((2 ^ d_k) + y_k)) shift)
         B.addInto (cellOf nodes (((2 ^ (d_k + 1)) + (2 * y_k)) + 1)) (cellOf nodes ((2 ^ (d_k + 1)) + (2 * y_k))) (← B.mul (cellOf nodes ((2 ^ d_k) + y_k)) z)
     let leaves ← B.addr nodes
-    let t0 : V → B Unit := fun rc => do
-      B.mulInto (wordOf rc) leaves (← B.const (gpowE (2 ^ depth)))
-    return [.into t0]
+    return [Ex.ret (.mul (.w leaves) (.g (2 ^ depth)))]
 
 set_option linter.unusedVariables false in
 /-- `da_factors`, a `Const` family (`guests/lean_ethereum.py`, line 4654):
@@ -419,14 +402,10 @@ def daFactors (top : Nat) (depth : Nat) (at' : Nat) : GFn where
   body ps := do
     let zs := cellOf ps 0
     let factors ← B.heapBuf DA_CELL
-    let d_k := 0
-    let z ← B.load zs (top - d_k)
-    let y_k := 0
-    B.store factors ((2 ^ d_k) + y_k) (← B.add (← B.mul z (← B.const (arrWord DA_VHAT ((at' + (2 ^ d_k)) + y_k)))) (← B.const 1))
-    for d_k in [1:depth] do
+    for d_k in [0:depth] do
       let z ← B.load zs (top - d_k)
       for y_k in [0:2 ^ d_k] do
-        B.store factors ((2 ^ d_k) + y_k) (← B.add (← B.mul z (← B.const (arrWord DA_VHAT ((at' + (2 ^ d_k)) + y_k)))) (← B.const 1))
+        B.store factors ((2 ^ d_k) + y_k) (← Ex.lower (.add (.mul (.w z) (.c (arrWord DA_VHAT ((at' + (2 ^ d_k)) + y_k)))) (Ex.nat 1)))
     return [.v factors.v]
 
 end
