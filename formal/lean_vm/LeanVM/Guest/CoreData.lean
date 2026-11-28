@@ -17,16 +17,7 @@ public import LeanVM.Core.Code
 /-!
 # The guest's core IR
 
-`coreProgram` is `Expand.expandProgram Data.guest` with every function renumbered
-(`Fn.renumber`: its values are `V.n 0`, `V.n 1`, ..., the parameters first), written out by
-`lake exe guest-core` (one definition `Fn.<key>.core` per function keyed by its stable name, in
-its pack `Pack/P<k>/Core.lean` or, when long, its own `Pack/<key>/Core.lean`, listed in the
-compiler's order by `Data/Core.lean`, which keeps `Data.core{j}` as an abbreviation of function
-`j`), so that no proof evaluates the expansion; `lake exe guest-core --values f` prints the
-expansion's name of each value of `f`.
-`tests/LeanVMTests/Guest/CoreDataCheck.lean` reads the definitions back and compares them with the
-renumbered expansion. Renumbering changes no relation (`Program.rel_map_renumber`). The data is
-noncomputable: it is a term for the kernel and the proofs, never compiled.
+`coreProgram` is the elaborated guest's core IR (`Dsl.Program.core LeanVM.Guest.Program.program`) with every function renumbered (`Fn.renumber`: its values are `V.n 0`, `V.n 1`, ..., the parameters first), written out by `lake exe guest-core` (one definition `Fn.<key>.core` per function keyed by its stable name, in its pack `Pack/P<k>/Core.lean` or, when long, its own `Pack/<key>/Core.lean`, listed in the compiler's order by `Data/Core.lean`, which keeps `Data.core{j}` as an abbreviation of function `j`), so that no proof evaluates the elaboration; `lake exe guest-core --values f` prints the elaboration's name of each value of `f`. `tests/LeanVMTests/Guest/CoreDataCheck.lean` reads the definitions back and compares them with the renumbered elaboration. Renumbering changes no relation (`Program.rel_map_renumber`). The data is noncomputable: it is a term for the kernel and the proofs, never compiled.
 
 * `coreProgram[j]? = some Data.core{j}` is `rfl` (under a `maxRecDepth` above the default for a
   large `j`), unfolding the function list only;

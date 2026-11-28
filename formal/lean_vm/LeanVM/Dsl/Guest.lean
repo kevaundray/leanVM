@@ -9,16 +9,12 @@
 module
 
 public import LeanVM.Dsl.Builder
-public import LeanVM.Guest.Data.Source
+public import LeanVM.Guest.Program.Config
 
 /-!
 # Ported guest functions
 
-Each function is written once, as a Lean definition, with the zkDSL source it replaces in its
-docstring. Compile-time values are Lean's: `Const` parameters are arguments (`eqPrefixRun n`),
-`unroll` is `List.forM` over a range, `@inline` is a Lean function (`isChild`). The placeholders
-and the constant array come from the generated data of the configuration (`LeanVM.Guest.Data`),
-the migration's source of truth until the configuration is Lean's.
+Each function is written once, as a Lean definition, with the zkDSL source it replaces in its docstring. Compile-time values are Lean's: `Const` parameters are arguments (`eqPrefixRun n`), `unroll` is `List.forM` over a range, `@inline` is a Lean function (`isChild`). The constants are the guest's (`LeanVM.Guest.Program`, `Guest/Program/Config.lean`).
 
 The forms marked *improved* change the code where the zkDSL could not say what the program
 means: a dispatch needs no dummy return, and a loop whose bound is a compile-time power of `g` is
@@ -34,14 +30,14 @@ open LeanVM.Protocol.Verifier (gen)
 
 /-! ## Configuration -/
 
-def LOG_CELL_SYMBOLS : Nat := LeanVM.Guest.Data.const_LOG_CELL_SYMBOLS
-def DA_BLOCK_BITS : Nat := LeanVM.Guest.Data.const_DA_BLOCK_BITS
-def DA_CELLS : Nat := LeanVM.Guest.Data.const_DA_CELLS
-def EQ_CHAIN_ARMS : Nat := LeanVM.Guest.Data.const_EQ_CHAIN_ARMS
+def LOG_CELL_SYMBOLS : Nat := LeanVM.Guest.Program.LOG_CELL_SYMBOLS
+def DA_BLOCK_BITS : Nat := LeanVM.Guest.Program.DA_BLOCK_BITS
+def DA_CELLS : Nat := LeanVM.Guest.Program.DA_CELLS
+def EQ_CHAIN_ARMS : Nat := LeanVM.Guest.Program.EQ_CHAIN_ARMS
 
 /-- `DA_VHAT_COLUMN[i]`. -/
 def daVhatColumn (i : Nat) : E :=
-  let c := LeanVM.Guest.Data.arr_DA_VHAT_COLUMN.getD i (0, 0)
+  let c := LeanVM.Guest.Program.DA_VHAT_COLUMN.getD i (0, 0)
   word c.1 c.2
 
 /-! ## `selector_run_nibbles` -/

@@ -1,25 +1,20 @@
 /-
   LeanVM.Guest.Compiled.Input
 
-  The guest as the back end's input, computed: the traced expansion of the guest's source, every
-  value renamed as `coreProgram` names it. `lake exe guest-traced` writes it out and
-  `lake exe guest-pieces` writes the pieces of its compilation.
+  The guest as the back end's input, computed: the guest program elaborated with its trace, every value renamed as `coreProgram` names it. `lake exe guest-traced` writes it out and `lake exe guest-pieces` writes the pieces of its compilation.
 -/
 
 module
 
-public import LeanVM.Guest.Data.Source
+public import LeanVM.Guest.Program
+public import LeanVM.Dsl.Program
 public import LeanVM.Compiler.Compile
 public import LeanVM.Core.Renumber
 
 /-!
 # The guest's traced input, computed
 
-`input` is what `Guest/Compiled/Traced.lean` denotes (`guestTraced`): the traced expansion of the
-guest's source, each function's values renamed as `coreProgram` names them. A value of the core
-function becomes its number in `Fn.renumber` (`V.n i`), and a value only the trace names (a cell no
-statement reads) the next number past them, in the order the trace makes it. Each function carries
-its constant parameters (`withConstTable`).
+`input` is what `Guest/Compiled/Traced.lean` denotes (`guestTraced`): the guest program (`LeanVM.Guest.Program.program`) elaborated with its trace (`Dsl.Program.traced`), each function's values renamed as `coreProgram` names them. A value of the core function becomes its number in `Fn.renumber` (`V.n i`), and a value only the trace names (a cell no statement reads) the next number past them, in the order the trace makes it. Each function carries its constant parameters (`withConstTable`).
 -/
 
 namespace LeanVM.Guest.Compiled.GuestInput
@@ -65,10 +60,9 @@ def orThrow {α : Type} : Except String α → IO α
   | .ok a => pure a
   | .error e => throw (IO.userError e)
 
-/-- The traced input: the traced expansion renamed, with its constant parameters. Its core
-functions are `Expand.expandProgram`'s, the same pass, renumbered as `guest-core` writes them. -/
+/-- The traced input: the elaborated guest renamed, with its constant parameters. Its core functions are `Dsl.Program.core`'s, the same elaboration, renumbered as `guest-core` writes them. -/
 def input : IO (List TracedFn) := do
-  return withConstTable (renamed (← orThrow (Expand.expandProgramTraced Data.guest)))
+  return withConstTable (renamed (← orThrow (LeanVM.Dsl.Program.traced LeanVM.Guest.Program.program)))
 
 end
 end LeanVM.Guest.Compiled.GuestInput

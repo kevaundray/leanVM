@@ -6,16 +6,7 @@ import LeanVM.Guest.Compiled.Input
 
 Run from `lean_vm`.
 
-`lake exe guest-traced` expands the guest's source with its allocation trace
-(`Expand.expandProgramTraced Data.guest`) and writes, for each function `j`, its trace with
-every value renamed as `coreProgram` names it: a value of the core function becomes its number in
-`Fn.renumber` (`V.n i`), and a value only the trace names (a cell no statement reads) the next
-number past them, in the order the trace makes it. The core functions themselves are not written:
-`Guest/Compiled/World.lean` pairs `coreProgram`'s function `j`, which `lake exe guest-core` wrote as
-`Fn.renumber` of the same expansion, with entry `j` of `guestInfo`. So the back end's input for
-the guest, `guestTraced`, has `coreProgram`'s functions by construction. Each entry also holds the
-function's constant parameters as `withConstTable` finds them (`TracedFn.consts`), which the kernel
-checks (`ConstsOk`) rather than computes.
+`lake exe guest-traced` elaborates the guest program with its allocation trace (`GuestInput.input`: `Dsl.Program.traced LeanVM.Guest.Program.program`) and writes, for each function `j`, its trace with every value renamed as `coreProgram` names it: a value of the core function becomes its number in `Fn.renumber` (`V.n i`), and a value only the trace names (a cell no statement reads) the next number past them, in the order the trace makes it. The core functions themselves are not written: `Guest/Compiled/World.lean` pairs `coreProgram`'s function `j`, which `lake exe guest-core` wrote as `Fn.renumber` of the same elaboration, with entry `j` of `guestInfo`. So the back end's input for the guest, `guestTraced`, has `coreProgram`'s functions by construction. Each entry also holds the function's constant parameters as `withConstTable` finds them (`TracedFn.consts`), which the kernel checks (`ConstsOk`) rather than computes.
 
 The traces are in `Guest/Compiled/Trace/T{k}.lean` (`traceOf{j}`, a long one in parts
 `traceOf{j}_c{i}`), the list `guestInfo` in `Guest/Compiled/Traced.lean`.
