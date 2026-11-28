@@ -72,36 +72,42 @@ fn prove<P: Prover>(
     P::prove(program, witness, public_input, log_inv_rate).map(|(proof, _)| proof)
 }
 
-/// The zkDSL test programs, as the Lean back end compiled them (`tests/compiled/*.txt`), with their annotated
-/// inputs (`# public_input:`, `# witness name:`) and with a wrong public input, through both provers at every rate.
+/// The compiler's test programs, as the Lean back end compiled them (`tests/compiled/<name>.txt`), with the inputs
+/// they declare (`<name>.inputs`: `public A B`, then `witness NAME W…` per stream entry, each word the decimal
+/// integer of its limbs) and with a wrong public input, through both provers at every rate.
 #[test]
 fn compiler_programs_prove_identically() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../crates/zkdsl/tests/programs");
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../crates/zkdsl/tests/compiled");
     let mut paths: Vec<_> = std::fs::read_dir(dir)
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .collect();
-    paths.retain(|path| path.extension().is_some_and(|ext| ext == "py"));
+    paths.retain(|path| path.extension().is_some_and(|ext| ext == "inputs"));
     paths.sort();
     assert!(!paths.is_empty());
-    let constants = |values: &str| -> Vec<E> { values.split(',').map(|v| zkdsl::parse_const(v).unwrap()).collect() };
+    let word = |v: &str| -> E {
+        let v: u128 = v.parse().unwrap();
+        E::new(v as u64, (v >> 64) as u64)
+    };
     for path in paths {
-        let src = std::fs::read_to_string(&path).unwrap();
-        let compiled = path.with_file_name(format!(
-            "../compiled/{}.txt",
-            path.file_stem().unwrap().to_string_lossy()
-        ));
-        let program = Program::__from_text(&std::fs::read_to_string(&compiled).unwrap()).unwrap();
-        let annotation = |tag: &'static str| src.lines().filter_map(move |line| line.trim().strip_prefix(tag));
-        let public_input = annotation("# public_input:")
-            .next()
-            .map_or([E::new(0, 0); 2], |v| constants(v).try_into().unwrap());
+        let inputs = std::fs::read_to_string(&path).unwrap();
+        let program = Program::__from_text(&std::fs::read_to_string(path.with_extension("txt")).unwrap()).unwrap();
+        let mut public_input = [E::new(0, 0); 2];
         // Each line is the next entry of its stream.
         let mut witness: Vec<(String, Vec<Vec<E>>)> = Vec::new();
-        for (name, values) in annotation("# witness ").map(|rest| rest.split_once(':').unwrap()) {
-            match witness.iter_mut().find(|(stream, _)| stream == name.trim()) {
-                Some((_, entries)) => entries.push(constants(values)),
-                None => witness.push((name.trim().to_string(), vec![constants(values)])),
+        for line in inputs.lines() {
+            let mut parts = line.split_whitespace();
+            match parts.next() {
+                Some("public") => public_input = parts.map(word).collect::<Vec<_>>().try_into().unwrap(),
+                Some("witness") => {
+                    let name = parts.next().unwrap().to_string();
+                    let entry = parts.map(word).collect();
+                    match witness.iter_mut().find(|(stream, _)| *stream == name) {
+                        Some((_, entries)) => entries.push(entry),
+                        None => witness.push((name, vec![entry])),
+                    }
+                }
+                _ => panic!("bad inputs line `{line}`"),
             }
         }
         let wrong = [public_input[0] + E::new(1, 0), public_input[1]];

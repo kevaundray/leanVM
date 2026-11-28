@@ -15,7 +15,4 @@ M 2 3 3
 J 3 0 1
 H 2 alloc 3 4
 H 8 wstack x 2 1
-L 0 7
-L 6 8
-L 8 3
-L 10 4
+L 0 0

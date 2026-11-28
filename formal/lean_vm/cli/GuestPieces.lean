@@ -1,7 +1,7 @@
 import Statement.Data.Bytecode
 import LeanVM.Guest.Compiled.Input
 import LeanVM.Compiler.Cut
-import LeanVMTests.Guest.Programs
+import LeanVMTests.Programs.Basic
 
 /-!
 # `guest-pieces`: the kernel-checked pieces of the guest's compilation
@@ -564,9 +564,9 @@ def logOf (n : Nat) : Nat := Id.run do
 
 /-- The test file for the test program `name`. -/
 def testFile (name : String) : IO String := do
-  let some t := LeanVMTests.Guest.Programs.all.find? (·.name == name)
+  let some t := LeanVMTests.Programs.Basic.all.find? (·.name == name)
     | throw (IO.userError s!"no test program {name}")
-  let P := withConstTable (renamed (← orThrow (Expand.expandProgramTraced t.program)))
+  let P := withConstTable (renamed ((← orThrow t.elab).map (·.1)))
   let outs ← orThrow (outsOf P)
   let (fns, slots) ← orThrow (lowerProgram P)
   let a := assemble fns slots

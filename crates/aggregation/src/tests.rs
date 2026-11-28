@@ -88,8 +88,8 @@ fn assert_forgery_rejected(
     );
 }
 
-/// The guest's helpers under a `main` of their own (`snippets/<name>.py`), as the Lean back end compiled them at the
-/// guest's placeholders (`lake exe guest-backend export snippets`).
+/// The guest's functions under a `main` of their own (`formal/lean_vm/tests/LeanVMTests/Programs/Snippets.lean`), as
+/// the Lean back end compiled them at the guest's placeholders (`lake exe guest-backend export snippets`).
 fn guest_snippet(name: &str) -> Program {
     macro_rules! at {
         ($($n:literal),*) => {

@@ -5,7 +5,7 @@ use bench_harness::Plan;
 use isa::{Prover, pretty_f64, pretty_integer};
 use verifier::{E, K};
 
-/// The program (`crates/zkdsl/tests/programs/fibonacci_bench.py`) as the Lean back end compiled it
+/// The program (`fibonacci_bench`, `formal/lean_vm/tests/LeanVMTests/Programs/Basic.lean`) as the Lean back end compiled it
 /// (`lake exe guest-backend export programs`): `UNROLL` Fibonacci steps a block, the block count read from the second
 /// public word.
 const PROGRAM: &str = include_str!("../../crates/zkdsl/tests/compiled/fibonacci_bench.txt");

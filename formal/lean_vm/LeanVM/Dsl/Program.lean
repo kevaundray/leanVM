@@ -60,8 +60,10 @@ partial def renameIn (g : String → String) : List Core.Stmt → List Core.Stmt
 def isLoop (f : String) : Bool := f.startsWith "__loop"
 
 /-- The program `prog` lists, elaborated: every function the compiler lowers, in its order, each
-with its trace and its source lines. -/
-def assemble (prog : List (String × List GFn)) : Except String (List Elab) := do
+with its trace and its source lines. With `from_ := some f`, the program is the functions `f`
+reaches, the others listed with it left out: a `main` over a library's functions. -/
+def assemble (prog : List (String × List GFn)) (from_ : Option String := none) :
+    Except String (List Elab) := do
   let mut byName : Std.HashMap String Elab := {}
   for (_, fs) in prog do
     for f in fs do
@@ -71,7 +73,9 @@ def assemble (prog : List (String × List GFn)) : Except String (List Elab) := d
         | some old =>
             unless old.1.core == e.1.core do throw s!"two different functions are named `{n}`"
         | none => byName := byName.insert n e
-  let roots := prog.filterMap fun (_, fs) => fs.head?.map (·.name)
+  let roots : List String := match from_ with
+    | some f => [f]
+    | none => prog.filterMap fun (p : String × List GFn) => p.2.head?.map GFn.name
   let mut order : Array String := #[]
   let mut seen : Std.HashSet String := {}
   for r in roots do
@@ -89,8 +93,9 @@ def assemble (prog : List (String × List GFn)) : Except String (List Elab) := d
         order := order.push c
         seen := seen.insert c
     i := i + 1
-  for (n, _) in byName.toList do
-    unless seen.contains n do throw s!"`{n}` is listed or elaborated, and nothing reaches it"
+  if from_.isNone then
+    for (n, _) in byName.toList do
+      unless seen.contains n do throw s!"`{n}` is listed or elaborated, and nothing reaches it"
   let loops : Std.HashMap String Nat :=
     (order.filter isLoop).zipIdx.foldl (fun m (n, k) => m.insert n k) {}
   let g := fun (n : String) => match loops[n]? with

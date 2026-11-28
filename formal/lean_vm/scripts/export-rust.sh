@@ -28,17 +28,18 @@
 # The proof is the honest proof of the Rust `prove`, a `verifier::Proof`, its Merkle paths
 # unpruned. The guests (`fixed`) are the program of
 # crates/stable_prover/lean_vm_core/tests/verifiers/fixture.rs at 4, 300 and 1000 loop steps,
-# crates/zkdsl/tests/programs/fibonacci.py, and eight more programs of that suite, three
-# at each of the four rates, each as the Lean back end compiled it (the suite's
-# `tests/compiled/*.txt`, `lake exe guest-backend export programs`). Every proof is verified by the Rust
+# the compiler's test program `fibonacci`, and eight more test programs, three
+# at each of the four rates, each as the Lean back end compiled it (
+# `crates/zkdsl/tests/compiled/<name>.txt` and the inputs beside it, `<name>.inputs`, `lake exe guest-backend export
+# programs`). Every proof is verified by the Rust
 # `cpu::verify` before it is written, and `Proof::from_bytes` must give it back from `proof.wire`.
 # In `fixtures` mode `scripts/rust-verifier-cli` must also accept it from the written files before
 # the script returns; the fixtures are consumed by scripts/fuzz-verifier.py, which runs the Lean
 # and the Rust verifier on them and on mutations of them. In `traces` mode a program the Rust
 # interpreter or prover refuses is skipped.
 #
-# With `--corpus`, the cases are instead every program of crates/zkdsl/tests/programs
-# that declares its public input (with its `# witness` annotations), and the chain at 16, 1000 and
+# With `--corpus`, the cases are instead every test program (with its public input and witness streams), and the
+# chain at 16, 1000 and
 # 5000 loop steps, each at the four rates: the differential fuzzing corpus (not committed).
 #
 # The prover and the verifiers are this repository's. Requires `cargo`.
@@ -70,7 +71,6 @@ edition = "2024"
 [dependencies]
 isa = { path = "$checkout/crates/isa" }
 lean_vm_core = { package = "stable_lean_vm_core", path = "$checkout/crates/stable_prover/lean_vm_core" }
-zkdsl = { path = "$checkout/crates/zkdsl" }
 primitives = { package = "stable_primitives", path = "$checkout/crates/stable_prover/primitives" }
 verifier = { path = "$checkout/crates/verifier" }
 fiat_shamir = { package = "fiat_shamir_prover", path = "$checkout/crates/fiat_shamir_prover" }
@@ -80,14 +80,14 @@ lto = "thin"
 codegen-units = 1
 EOF
 
-# The chain program and the suite's header readers, from the tests that define them.
+# The chain program and the test programs' inputs reader, from the tests that define them.
 cat > "$work/src/main.rs" <<EOF
 #[allow(dead_code)]
 #[path = "$checkout/crates/stable_prover/lean_vm_core/tests/verifiers/fixture.rs"]
 mod fixture;
 #[allow(dead_code, unused_imports)]
-#[path = "$checkout/crates/zkdsl/tests/suite/py_source.rs"]
-mod py_source;
+#[path = "$checkout/crates/zkdsl/tests/suite/inputs.rs"]
+mod inputs;
 EOF
 
 cat >> "$work/src/main.rs" <<'EOF'
@@ -100,19 +100,13 @@ use std::path::Path;
 /// A program, its witness streams and its public input.
 type Case = (Program, Vec<(String, Vec<Vec<F128>>)>, [F128; 2]);
 
-// A program of crates/zkdsl/tests/programs with its `# public_input:` and `# witness`
-// annotations; `None` for a program without a declared public input.
-fn suite_program(path: &Path) -> Option<Case> {
-    let source = std::fs::read_to_string(path).expect("read suite program");
-    let public_input = py_source::public_input(&source)?;
-    // As the Lean back end compiled it (`lake exe guest-backend export programs`).
-    let compiled = path.with_file_name(format!(
-        "../compiled/{}.txt",
-        path.file_stem().unwrap().to_string_lossy()
-    ));
-    let program = Program::__from_text(&std::fs::read_to_string(compiled).expect("read the compiled program"))
-        .expect("load the compiled program");
-    Some((program, py_source::witness(&source), public_input))
+// A test program as the Lean back end compiled it, with its inputs (`lake exe guest-backend export programs`).
+fn suite_program(checkout: &Path, name: &str) -> Case {
+    let dir = checkout.join("crates/zkdsl/tests/compiled");
+    let read = |ext: &str| std::fs::read_to_string(dir.join(format!("{name}.{ext}"))).expect("read the compiled program");
+    let program = Program::__from_text(&read("txt")).expect("load the compiled program");
+    let (public_input, witness) = inputs::parse_inputs(&read("inputs"));
+    (program, witness, public_input)
 }
 
 // The chain program at `steps` loop steps, with no witness.
@@ -125,18 +119,17 @@ fn chain_case(steps: usize) -> Case {
 // at the four rates.
 fn corpus(checkout: &Path) -> Vec<(String, Case, usize)> {
     let mut programs: Vec<(String, Box<dyn Fn() -> Case>)> = Vec::new();
-    let directory = checkout.join("crates/zkdsl/tests/programs");
-    let mut paths: Vec<_> = std::fs::read_dir(&directory)
-        .expect("suite programs")
+    let directory = checkout.join("crates/zkdsl/tests/compiled");
+    let mut names: Vec<String> = std::fs::read_dir(&directory)
+        .expect("compiled test programs")
         .map(|entry| entry.expect("directory entry").path())
-        .filter(|path| path.extension().is_some_and(|x| x == "py"))
+        .filter(|path| path.extension().is_some_and(|x| x == "inputs"))
+        .map(|path| path.file_stem().unwrap().to_string_lossy().into_owned())
         .collect();
-    paths.sort();
-    for path in paths {
-        if suite_program(&path).is_some() {
-            let name = path.file_stem().unwrap().to_string_lossy().replace('_', "-");
-            programs.push((name, Box::new(move || suite_program(&path).unwrap())));
-        }
+    names.sort();
+    for name in names {
+        let checkout = checkout.to_path_buf();
+        programs.push((name.replace('_', "-"), Box::new(move || suite_program(&checkout, &name))));
     }
     for steps in [16usize, 1000, 5000] {
         programs.push((format!("chain{steps}"), Box::new(move || chain_case(steps))));
@@ -154,10 +147,7 @@ fn corpus(checkout: &Path) -> Vec<(String, Case, usize)> {
 // (`hash_*`, `wots_walk`), branch (`conditionals`, `match_arms`), read hints (`hint`), allocate
 // (`heapbuf_dyn`) and unroll (`unroll`).
 fn fixed(checkout: &Path) -> Vec<(String, Case, usize)> {
-    let suite = |name: &str| {
-        suite_program(&checkout.join(format!("crates/zkdsl/tests/programs/{name}.py")))
-            .expect("a suite program with a declared public input")
-    };
+    let suite = |name: &str| suite_program(checkout, name);
     vec![
         ("chain4-rate1".to_string(), chain_case(4), 1usize),
         ("wots-walk-rate1".to_string(), suite("wots_walk"), 1),

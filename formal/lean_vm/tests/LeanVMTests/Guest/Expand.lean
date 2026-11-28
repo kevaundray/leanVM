@@ -3,10 +3,8 @@ import LeanVM.Core.Code
 import LeanVM.Guest.Data.Source
 import LeanVM.Core.ExpandLemmas
 import LeanVM.Core.Interp
-import LeanVMTests.Guest.Programs
 
 open LeanVM.Parameters LeanVM.Guest LeanVM.Core LeanVM.Core.Source LeanVM.Core.Interp
-open LeanVMTests.Guest.Programs
 
 namespace LeanVMTests.Guest.Expand
 
@@ -32,122 +30,14 @@ def runMain (p : Source.Program) (pi : List E) (streams : List (String × List (
     streams }
   discard <| run cfg "main" []
 
-def runTest (t : TestProgram) (pi : List E) : Except String Unit :=
-  runMain t.program pi (t.streams.map fun (s, es) => (s, es.map (·.map wordOf)))
-
 def isOk {α : Type} : Except String α → Bool
   | .ok _ => true
   | .error _ => false
-
-/-! ## The compiler's test programs
-
-Every `crates/zkdsl/tests/programs/*.py`, which the Rust prover proves and verifies on its
-annotated public input, expands and runs on it; changing the first public word makes every
-program that publishes one fail. -/
-
-#guard LeanVMTests.Guest.Programs.all.all fun t => isOk (runTest t (t.publicInput.map wordOf))
-
-#guard (LeanVMTests.Guest.Programs.all.filter (·.name != "identities")).all fun t =>
-  let pi := t.publicInput.map wordOf
-  !isOk (runTest t [pi[0]! + 1, pi[1]!])
 
 def showProgram (p : Source.Program) : String :=
   match Expand.expandProgram p with
   | .ok fns => String.intercalate "\n" (fns.map showFn)
   | .error e => e
-
-/-- info: def main():
-  hint %s0#0 = HeapBuf(12)
-  %s1#0 = 1
-  %s1#0 = mem[%s0#0 g^0]
-  %s2#0 = 2
-  %s2#0 = mem[%s0#0 g^1]
-  %s3#0 = 1
-  [] = __loop0(%s3#0, %s0#0)
-  %s4#0 = mem[%s0#0 g^11]
-  %s5#0 = 905969664
-  assert %s4#0 == %s5#0
-  %s6#0 = 9223372036854775983
-  assert log %s4#0 < log g*%s6#0 by %s6#1, %s6#2, %s6#3
-  %s8#0 = 1
-  %s4#0 = mem[%s8#0 g^0]
-  %s9#0 = 1
-  %s9#1 = 2
-  %s9#2 = %s9#0 * %s9#1
-  %s4#0 = mem[%s9#2 g^0]
-  return
-def __loop0(%#0, %#0[1]):
-  %s0#0 = %#0[1] * %#0
-  %s0#1 = mem[%s0#0 g^0]
-  %s0#2 = %#0[1] * %#0
-  %s0#3 = mem[%s0#2 g^1]
-  %s0#4 = %s0#1 * %s0#3
-  %s0#5 = %#0[1] * %#0
-  %s0#4 = mem[%s0#5 g^2]
-  %s2#0 = 2
-  %s2#1 = %#0 * %s2#0
-  %s2#2 = 1024
-  %s2#3 = %s2#1 + %s2#2
-  %s2#4 = 2
-  %s2#5 = %#0 * %s2#4
-  if %s2#3 != 0: __loop0(%s2#5, %#0[1])
-  return -/
-#guard_msgs in
-#eval IO.println (showProgram prog_fibonacci.program)
-/-- info: def main():
-  hint %s0#0 = HeapBuf(4)
-  %s1#0 = 5
-  %s1#0 = mem[%s0#0 g^0]
-  %s2#0 = 7
-  %s2#0 = mem[%s0#0 g^1]
-  %s3#0 = 11
-  %s3#0 = mem[%s0#0 g^2]
-  %s4#0 = 13
-  %s4#0 = mem[%s0#0 g^3]
-  [%s5#0, %s5#1] = hash_pair__L0(%s0#0)
-  %s7#1 = 2
-  [%s7#0, %s7#0[1]] = match log %s7#1: hash_pair__L0 | hash_pair__L1(%s0#0)
-  %s9#0 = %s5#0 + %s7#0
-  %s9#1 = 1
-  %s9#0 = mem[%s9#1 g^0]
-  %s10#0 = %s5#1 + %s7#0[1]
-  %s10#1 = 1
-  %s10#2 = 2
-  %s10#3 = %s10#1 * %s10#2
-  %s10#0 = mem[%s10#3 g^0]
-  return
-def hash_pair__L0(%#0):
-  %s1#0 = mem[%#0 g^0]
-  %s1#0[1] = mem[%#0 g^1]
-  %s1#1 = mem[%#0 g^0]
-  %s1#1[1] = mem[%#0 g^1]
-  %s1#2 = 1
-  %s1#2[1] = 0
-  %s1#2[2] = 0
-  %s1#2[3] = 0
-  %s1#2[4] = 0
-  %s1#3 = 9223372036854775808
-  [%s0#0, %s0#0[1]] even = keccak_f([%s1#0, %s1#0[1], %s1#1, %s1#1[1], %s1#2, %s1#2[1], %s1#2[2], %s1#2[3], %s1#3, %s1#2[1], %s1#2[2], %s1#2[3], %s1#2[4]] even)
-  %s2#0 = %s0#0
-  %s2#0[1] = %s0#0[1]
-  return %s2#0, %s2#0[1]
-def hash_pair__L1(%#0):
-  %s1#0 = mem[%#0 g^2]
-  %s1#0[1] = mem[%#0 g^3]
-  %s1#1 = mem[%#0 g^2]
-  %s1#1[1] = mem[%#0 g^3]
-  %s1#2 = 1
-  %s1#2[1] = 0
-  %s1#2[2] = 0
-  %s1#2[3] = 0
-  %s1#2[4] = 0
-  %s1#3 = 9223372036854775808
-  [%s0#0, %s0#0[1]] even = keccak_f([%s1#0, %s1#0[1], %s1#1, %s1#1[1], %s1#2, %s1#2[1], %s1#2[2], %s1#2[3], %s1#3, %s1#2[1], %s1#2[2], %s1#2[3], %s1#2[4]] even)
-  %s2#0 = %s0#0
-  %s2#0[1] = %s0#0[1]
-  return %s2#0, %s2#0[1] -/
-#guard_msgs in
-#eval IO.println (showProgram prog_const_params.program)
 
 /-! ## Guest functions
 

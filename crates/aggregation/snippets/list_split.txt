@@ -1,9 +1,9 @@
 size 64
-main_frame 12
-F main 0 15
-F list_split 15 26
+main_frame 10
+F main 0 13
+F list_split 13 26
 S 8 1 0
-S 7 32768 0
+S 7 8192 0
 D 6 2 2 0
 D 6 1 0 2
 D 6 0 0 1
@@ -12,11 +12,9 @@ D 6 3 3 0
 D 6 4 4 0
 D 6 5 5 0
 D 8 0 4 0
-S 9 2 0
-M 8 9 10
-D 10 0 5 0
-S 11 9223372036854775808 0
-J 8 11 8
+D 8 1 5 0
+S 9 9223372036854775808 0
+J 8 9 8
 S 6 65536 0
 D 5 0 8 0
 M 5 7 6
@@ -45,13 +43,5 @@ S 29 1 0
 J 29 0 1
 H 0 wstack n 2 1
 H 2 alloc 6 30
-H 15 wstack signers_split 3 3
-L 0 4706
-L 9 4708
-L 10 4709
-L 13 4710
-L 15 4336
-L 19 4337
-L 23 4338
-L 24 4341
-L 39 4342
+H 13 wstack signers_split 3 3
+L 0 0

@@ -1,12 +1,12 @@
 //! Proof-level properties of the VM: that its channels carry everything, and that a malformed input is an error rather than a panic.
 
 use crate::common::compiled;
-use crate::py_source::lean_compiled;
+use crate::inputs::lean_compiled;
 use fiat_shamir_prover::merkle::hash_to_scalars;
 use lean_vm_core::cpu::{Proof, ProveError, prove, verify};
 use primitives::field::F128;
 
-/// `hash_slices.py` as the Lean back end compiled it, with a proof of its run: its proof carries the Keccak reduction
+/// `hash_slices` as the Lean back end compiled it, with a proof of its run: its proof carries the Keccak reduction
 /// over real compressions.
 fn hashing_proof() -> (isa::Program, [F128; 2], Proof) {
     let (program, streams, pi) = lean_compiled("hash_slices");
@@ -48,7 +48,7 @@ fn chained_digest(n: usize) -> [F128; 2] {
 
 /// A KECCAK table of any height proves and verifies: below the Keccak reduction's
 /// block of 512 steps, where padding fills the floor, at it, and one step past it.
-/// `tests/vm/keccak_steps.py` at each count, as the Lean back end compiled it.
+/// `keccak_steps` (`Programs/Vm.lean`) at each count, as the Lean back end compiled it.
 #[test]
 fn any_number_of_steps_proves() {
     for n in [0usize, 1, 3, 512, 513] {

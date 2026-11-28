@@ -6,7 +6,10 @@ import LeanVM.Compiler.Lines
 import LeanVM.Core.Interp
 import LeanVM.Core.Text
 import LeanVMTests.Guest.Programs
-import LeanVMTests.Guest.Snippets
+import LeanVMTests.Programs.Basic
+import LeanVMTests.Programs.Vm
+import LeanVMTests.Programs.Chain
+import LeanVMTests.Programs.Snippets
 
 /-!
 # `guest-backend`: the guest compiled by the Lean back end
@@ -23,12 +26,13 @@ Run from `lean_vm`.
   statement's layout, so that each function is compared on its own: the count of identical
   functions and instructions when the programs differ, and the first `N` that differ.
 * `lake exe guest-backend export programs DIR [--check]` writes the compiler's test programs
-  (`LeanVMTests.Guest.Programs`) in the line format of `crates/isa/src/text.rs`, source lines
-  included (`Compiler.Lines`), which the Rust tests and the benchmark load
-  (`crates/zkdsl/tests/compiled/`), and the verifiers' fixture program at each
-  of its step counts (`Programs.chains`) and the programs of the VM's and the prover's tests (`Programs.vm`).
-  `export snippets DIR [--check]` writes the aggregation
-  tests' snippets (`LeanVMTests.Guest.Snippets`: a `main` over the guest's helpers).
+  (`LeanVMTests.Programs.Basic`), the verifiers' fixture program at each of its step counts
+  (`Programs.Chain`) and the programs of the VM's and the prover's tests (`Programs.Vm`), each in
+  the line format of `crates/isa/src/text.rs`, source lines included (`Compiler.Lines`), as
+  `DIR/<name>.txt`, with its public input and witness streams as `DIR/<name>.inputs`: what the Rust
+  tests and the benchmark load (`crates/zkdsl/tests/compiled/`). `export snippets DIR [--check]`
+  writes the aggregation tests' snippets (`LeanVMTests.Programs.Snippets`: a `main` over the
+  guest's functions).
   The guest itself is written by `lake exe guest-artifact` (`cli/GuestArtifact.lean`).
 * `lake exe guest-backend core-text DIR [--check]` writes the core IR of each program of the front end's
   regression corpus (`Programs.frontend`, `tests/frontend/*.py`) to `DIR/<name>.core`, as `Expand.expandProgram`
@@ -62,13 +66,15 @@ def reference : Reference :=
 
 /-! ## The comparison -/
 
-/-- The guest's elaborated functions with their source lines (`Dsl.Program.assemble`). -/
-def guestElab : Except String (List (TracedFn × Array (Nat × Nat))) :=
-  Dsl.Program.assemble LeanVM.Dsl.Gen.Checks.checks
+set_option compiler.extract_closed false in
+/-- The guest's elaborated functions with their source lines (`Dsl.Program.assemble`), elaborated
+when called, not when the program starts. -/
+def guestElab (_ : Unit) : Except String (List (TracedFn × Array (Nat × Nat))) :=
+  LeanVM.Dsl.Program.assemble LeanVM.Dsl.Gen.Checks.checks
 
 /-- The guest's traced functions with their constant parameters, as `compileTraced` lowers them. -/
 def guestCore : IO (List TracedFn) :=
-  match guestElab with
+  match guestElab () with
   | .ok P => pure (withConstTable (P.map (·.1)))
   | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
 
@@ -142,7 +148,7 @@ def firstDifference (ours : Assembled) : Option Nat :=
 
 def check : IO UInt32 := do
   let ref := reference
-  let P ← orThrow guestElab
+  let P ← orThrow (guestElab ())
   let sound ← selfChecks "guest" (P.map (·.1))
   if sound then IO.println "the back end's invariants hold"
   let ours ← orThrow (compileTraced (P.map (·.1)))
@@ -195,47 +201,44 @@ def core (name : String) : IO UInt32 := do
   IO.println (Interp.showFn f.core)
   return 0
 
-/-- Compile each program and write it to `DIR/<name>.txt`, or with `checkOnly` fail when a file
-differs; `what` names the command that writes them. -/
-def exportAll (what : String) (programs : List (String × Except String (List (TracedFn × Array (Nat × Nat)))))
+/-- Compile each program and write it to `DIR/<name>.txt`, and for those marked its public input and
+streams to `DIR/<name>.inputs` (`LeanVMTests.Programs.inputsText`), or with `checkOnly` fail when a
+file differs; `what` names the command that writes them. -/
+def exportAll (what : String) (programs : List (LeanVMTests.Programs.TestProgram × Bool))
     (dir : String) (checkOnly : Bool) : IO UInt32 := do
   let mut failed := false
-  for (name, program) in programs do
-    let path := s!"{dir}/{name}.txt"
-    if let .error e := program then
-      IO.eprintln s!"{name}: {e}"
-      failed := true
-      continue
-    let fns := match program with
-      | .ok fns => fns
-      | .error _ => []
-    unless ← selfChecks name (fns.map (·.1)) do failed := true
-    match Lines.compileLines fns with
+  for (t, inputs) in programs do
+    match t.elab with
     | .error e =>
-        IO.eprintln s!"{name}: {e}"
+        IO.eprintln s!"{t.name}: {e}"
         failed := true
-    | .ok (c, lines) =>
-        let text := render c ++ renderLines lines
-        if checkOnly then
-          let current ← if ← System.FilePath.pathExists path then IO.FS.readFile path else pure ""
-          if current != text then
-            IO.eprintln s!"{path} is stale: run `lake exe guest-backend export {what} {dir}`"
+    | .ok fns =>
+        unless ← selfChecks t.name (fns.map (·.1)) do failed := true
+        match Lines.compileLines fns with
+        | .error e =>
+            IO.eprintln s!"{t.name}: {e}"
             failed := true
-        else
-          IO.FS.createDirAll dir
-          IO.FS.writeFile path text
-          IO.println s!"{path}: {c.code.size} instructions, size {c.size}, main frame {c.mainFrame}"
+        | .ok (c, lines) =>
+            let files := (s!"{dir}/{t.name}.txt", render c ++ renderLines lines) ::
+              if inputs then [(s!"{dir}/{t.name}.inputs", LeanVMTests.Programs.inputsText t)] else []
+            for (path, text) in files do
+              if checkOnly then
+                let current ← if ← System.FilePath.pathExists path then IO.FS.readFile path else pure ""
+                if current != text then
+                  IO.eprintln s!"{path} is stale: run `lake exe guest-backend export {what} {dir}`"
+                  failed := true
+              else
+                IO.FS.createDirAll dir
+                IO.FS.writeFile path text
+            unless checkOnly do
+              IO.println s!"{t.name}: {c.code.size} instructions, size {c.size}, main frame {c.mainFrame}"
   return if failed then 1 else 0
 
-/-- The test programs, the verifiers' fixture program at each of its step counts, and the programs of the VM's and
-the prover's tests. -/
-def testPrograms : List (String × Except String (List (TracedFn × Array (Nat × Nat)))) :=
-  (LeanVMTests.Guest.Programs.all ++ LeanVMTests.Guest.Programs.chains ++ LeanVMTests.Guest.Programs.vm).map
-    fun t => (t.name, Expand.expandProgramLines t.program)
-
-/-- The aggregation tests' snippets. -/
-def snippets : List (String × Except String (List (TracedFn × Array (Nat × Nat)))) :=
-  LeanVMTests.Guest.Snippets.all.map fun (name, p) => (name, Expand.expandProgramLines p)
+/-- The test programs, with the inputs they declare, the verifiers' fixture program at each of its step counts, and
+the programs of the VM's and the prover's tests, whose tests give their inputs. -/
+def testPrograms : List (LeanVMTests.Programs.TestProgram × Bool) :=
+  LeanVMTests.Programs.Basic.all.map (·, true) ++
+    (LeanVMTests.Programs.Chain.all ++ LeanVMTests.Programs.Vm.all).map (·, false)
 
 /-! ## The canonical text of the core IR -/
 
@@ -327,8 +330,10 @@ def main (args : List String) : IO UInt32 := do
   | ["core", name] => GuestBackend.core name
   | ["export", "programs", dir] => GuestBackend.exportAll "programs" GuestBackend.testPrograms dir false
   | ["export", "programs", dir, "--check"] => GuestBackend.exportAll "programs" GuestBackend.testPrograms dir true
-  | ["export", "snippets", dir] => GuestBackend.exportAll "snippets" GuestBackend.snippets dir false
-  | ["export", "snippets", dir, "--check"] => GuestBackend.exportAll "snippets" GuestBackend.snippets dir true
+  | ["export", "snippets", dir] =>
+      GuestBackend.exportAll "snippets" (LeanVMTests.Programs.Snippets.all.map (·, false)) dir false
+  | ["export", "snippets", dir, "--check"] =>
+      GuestBackend.exportAll "snippets" (LeanVMTests.Programs.Snippets.all.map (·, false)) dir true
   | ["core-text", dir] => GuestBackend.coreTextDir dir false
   | ["core-text", dir, "--check"] => GuestBackend.coreTextDir dir true
   | ["time"] => GuestBackend.time

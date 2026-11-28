@@ -1,4 +1,4 @@
-//! One honest proof of a small zkDSL program, shared by the verifier tests: a two-block Keccak and a
+//! One honest proof of a small test program, shared by the verifier tests: a two-block Keccak and a
 //! loop of field arithmetic, long enough that every table and the Keccak reduction are exercised.
 
 use isa::Program;
@@ -6,14 +6,14 @@ use lean_vm_core::cpu::{prove, public_input_bytes, verify};
 use primitives::field::{F128, g_pow};
 use std::sync::OnceLock;
 
-/// The program `chain.py` at `loop_steps` loop steps, as the Lean back end compiled it (`lake exe guest-backend
-/// export programs`, at each of `guest-export`'s `CHAIN_STEPS`).
+/// The program `chain` (`formal/lean_vm/tests/LeanVMTests/Programs/Chain.lean`) at `loop_steps` loop steps, as the
+/// Lean back end compiled it (`lake exe guest-backend export programs`, at each of `Chain.steps`).
 fn compiled(loop_steps: usize) -> &'static str {
     macro_rules! at {
         ($($n:literal),*) => {
             match loop_steps {
                 $($n => include_str!(concat!("../../../../zkdsl/tests/compiled/chain", $n, ".txt")),)*
-                _ => panic!("no compiled chain at {loop_steps} steps: add it to `CHAIN_STEPS` in guest-export"),
+                _ => panic!("no compiled chain at {loop_steps} steps: add it to `Chain.steps` (`Programs/Chain.lean`)"),
             }
         };
     }

@@ -8,7 +8,7 @@ import LeanVMTests.Guest.Programs
 # The guest's generated data against the Rust's manifest
 
 `scripts/guest-export` writes the compiled guest (`Statement/Data/Bytecode*.lean`), its source
-AST (`Data/Source.lean`), the compiler's test programs (`Programs.lean`) and what the Rust reports
+AST (`Data/Source.lean`), the front end's corpus (`Programs.lean`) and what the Rust reports
 of the deployed guest (`Manifest.lean`). Recomputed here from the Lean data: the log size, the code
 length, the function count, the instructions of each opcode, the source's placeholders' log size.
 That the assembled `guest` is the bytecode the Rust proves, every instruction, is
@@ -48,11 +48,7 @@ def opcodeCounts : List Nat :=
 #guard guest.constArrays.length = 78
 #guard guest.funcs.any (·.name == "main")
 
-/- The compiler's eighteen test programs, the verifiers' fixture program at six step counts, the VM's and the prover's
-test programs and the front-end corpus. -/
-#guard Programs.all.length = 18
-#guard Programs.chains.length = 6
-#guard Programs.vm.length = 34
+/- The front-end corpus. -/
 #guard Programs.frontend.length = 212
 
 end LeanVMTests.Guest.Data

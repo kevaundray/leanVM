@@ -56,7 +56,7 @@ def unhex (s : String) : List UInt8 :=
 /-- The input digest of the program `P`: Keccak-256 of its core digest and the placeholders'. -/
 def inputDigest (P : Core.Program) : String :=
   Text.hex (KeccakHash.digestBytes
-    (keccak256 (KeccakHash.digestBytes (Text.coreDigest P) ++ unhex Placeholders.digest)))
+    (KeccakHash.keccak256 (KeccakHash.digestBytes (Text.coreDigest P) ++ unhex Placeholders.digest)))
 
 /-- The Fiat-Shamir IV of the program of `2^logSize` slots holding `c`'s code, padded. -/
 def iv (c : Assembled) (logSize : Nat) (h : logSize ≤ maxLogBytecode) : Digest :=
@@ -69,7 +69,7 @@ def readOr (file : String) : IO String := do
   if ← System.FilePath.pathExists file then IO.FS.readFile file else pure ""
 
 def run (file : String) (digestFile : Option String) (checkOnly : Bool) : IO UInt32 := do
-  let fns ← match Dsl.Program.assemble LeanVM.Dsl.Gen.Checks.checks with
+  let fns ← match LeanVM.Dsl.Program.assemble LeanVM.Dsl.Gen.Checks.checks with
     | .ok fns => pure fns
     | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
   let (c, lines) ← match Lines.compileLines fns with

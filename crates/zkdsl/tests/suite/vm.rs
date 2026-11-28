@@ -1,4 +1,4 @@
-//! The VM and the prover on programs the Lean back end compiled (`tests/vm/*.py`, `tests/compiled/<name>.txt`, written
+//! The VM and the prover on programs the Lean back end compiled (`formal/lean_vm/tests/LeanVMTests/Programs/Vm.lean`, `tests/compiled/<name>.txt`, written
 //! by `lake exe guest-backend export programs`): what a run computes, how much memory it announces, what it reports,
 //! and that its proof verifies.
 
@@ -245,7 +245,7 @@ fn heap_buf_runtime_size_beyond_the_g_power_table() {
 /// matters day to day: a failed guest `assert` surfaces as a write-once conflict.
 #[test]
 fn a_failed_assert_names_its_source_line() {
-    // 1 blank, 2 def, 3 let, 4 blank, 5 the assert that cannot hold.
+    // The program records the assertion at line 5 (`B.line 5`).
     let err = execute(&compiled("failed_assert"), &[], [F128::ZERO; 2])
         .err()
         .expect("the assert cannot hold");
@@ -254,7 +254,7 @@ fn a_failed_assert_names_its_source_line() {
 
 /// A binding that never runs, in the other arm of a compile-time `if` or in an `unroll` over nothing, does not hide the
 /// outer value a loop body reads, a scalar or a `StackBuf`; and a name only such blocks use is not captured, since the
-/// copy of an unwritten `StackBuf` would pin its cells (`tests/vm/binding_never_runs_<k>.py`).
+/// copy of an unwritten `StackBuf` would pin its cells (`binding_never_runs_<k>`).
 #[test]
 fn a_binding_that_never_runs_does_not_hide_the_outer_binding() {
     for k in 0..7 {
