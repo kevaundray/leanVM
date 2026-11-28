@@ -174,6 +174,13 @@ test "aggregates recursively and round trips through bytes" {
     defer allocator.free(reencoded);
     try std.testing.expectEqualSlices(u8, encoded, reencoded);
 
+    // Copies share the aggregate: `deinit` on one closes all, and a closed child fails before proving.
+    var reread_copy = reread;
+    reread.deinit();
+    try std.testing.expectError(error.Closed, reread_copy.toBytes(allocator));
+    try std.testing.expectError(error.Closed, lpq.Aggregate.create(&.{ &reread_copy, &reread }, &.{}, &.{}));
+    reread_copy.deinit();
+
     // The same proof does not prove any other claim set.
     const other_sphincs_claim: lpq.Claim = .{ .public_key = sphincs_public_key, .message = other_message };
     try std.testing.expectError(error.NativeFailure, lpq.Aggregate.fromBytes(encoded, &.{xmss_claim}, &.{sphincs_claim}));
@@ -210,6 +217,12 @@ test "aggregates recursively and round trips through bytes" {
     try std.testing.expectError(error.NativeFailure, lpq.Aggregate.create(&.{}, &.{}, &.{}));
 }
 
+test "copies of a key share it" {
+    try expectCopiesShare(lpq.XmssSecretKey.fromSeed, lpq.XmssSecretKey.publicKey);
+    try expectCopiesShare(lpq.SphincsSecretKey.fromSeed, lpq.SphincsSecretKey.publicKey);
+    try expectCopiesShare(vrfKeyFromSeed, lpq.VrfKey.root);
+}
+
 test "exports the protocol version" {
     try std.testing.expect(lpq.protocolVersion() >= 1);
 }
@@ -222,4 +235,24 @@ test "setup keeps its thread count" {
 
 fn claimLessThan(_: void, a: lpq.Claim, b: lpq.Claim) bool {
     return std.mem.order(u8, std.mem.asBytes(&a), std.mem.asBytes(&b)) == .lt;
+}
+
+fn vrfKeyFromSeed(seed: lpq.Seed) lpq.Error!lpq.VrfKey {
+    return lpq.VrfKey.init(seed, 100, 200);
+}
+
+/// `deinit` on one copy closes every copy, once: a stale copy reaches neither the freed key nor a
+/// key created after it.
+fn expectCopiesShare(comptime init: anytype, comptime read: anytype) !void {
+    var key = try init([_]u8{0xA1} ** 32);
+    var copy = key;
+    key.deinit();
+    try std.testing.expectError(error.Closed, read(&copy));
+    copy.deinit();
+    var replacement = try init([_]u8{0xB2} ** 32);
+    defer replacement.deinit();
+    try std.testing.expectError(error.Closed, read(&copy));
+    copy.deinit();
+    key.deinit();
+    _ = try read(&replacement);
 }
