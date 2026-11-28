@@ -45,7 +45,7 @@ noncomputable abbrev guestEnd {κ : ℕ} (fns : List Lowered) (slots : Array KVa
     World κ :=
   guestWorld fns slots L (guestUc L.read)
 
-theorem guestTraced_head : ∃ t, guestTraced = ⟨Data.core0, traceOf0, 0, (true, none), []⟩ :: t :=
+theorem guestTraced_head : ∃ t, guestTraced = ⟨Data.core0, traceOf0, 0, (false, none), []⟩ :: t :=
   ⟨_, rfl⟩
 
 theorem core0_name : Data.core0.name = "main" ∧ Data.core0.params = [] := by decide +kernel
@@ -63,7 +63,7 @@ variable {κ : ℕ} {fns : List Lowered} {slots : Array KVal} {L : MemoryImage �
 /-- `main`'s traced function is the head of `guestTraced`. -/
 theorem guestTraced_main (L : MemoryImage κ) {tf : TracedFn} (h : GuestCompiles fns slots) (htf : tf ∈ guestTraced)
     (hn : tf.core.name = "main") :
-    tf = ⟨Data.core0, traceOf0, 0, (true, none), []⟩ := by
+    tf = ⟨Data.core0, traceOf0, 0, (false, none), []⟩ := by
   obtain ⟨t, ht⟩ := guestTraced_head
   have hnd := (World.names (guestWorld_compiled (L := L) (U := guestU L.read) h)).2.1
   rw [guestWorld_p, ht] at hnd
