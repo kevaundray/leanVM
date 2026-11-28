@@ -5,13 +5,16 @@
 use isa::Program;
 use zkdsl::disassemble;
 
-/// Every Lean-compiled program in `tests/compiled`, one line per instruction, and the six opcodes among them.
+/// Every Lean-compiled program in `tests/compiled` (`<name>.txt`), one line per instruction, and the six opcodes among them.
 #[test]
 fn disassemble_covers_every_opcode() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/compiled");
     let mut text = String::new();
     for entry in std::fs::read_dir(dir).expect("tests/compiled") {
         let path = entry.expect("dir entry").path();
+        if path.extension().is_none_or(|x| x != "txt") {
+            continue;
+        }
         let program = Program::__from_text(&std::fs::read_to_string(&path).unwrap())
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         let listing = disassemble(&program.prog);

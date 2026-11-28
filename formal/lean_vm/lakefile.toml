@@ -132,6 +132,11 @@ name = "dsl-check"
 root = "DslCheck"
 srcDir = "cli"
 
+[[lean_exe]]
+name = "dsl-measure"
+root = "DslMeasure"
+srcDir = "cli"
+
 # Writes the guest's core IR as data (`LeanVM/Guest/Data/Core*.lean`); `--check` fails when it
 # is stale, as CI runs it.
 [[lean_exe]]
