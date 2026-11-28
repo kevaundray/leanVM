@@ -4566,4 +4566,29 @@ H 9 alloc 9 60
 H 16 alloc 2 2284
 H 4505 windows 2 stack 4 0 3 11 5
 H 4505 windows 2 stack 4 5 58 6 1
-L 0 0
+P 1 formal/lean_vm/tests/LeanVMTests/Programs/Snippets.lean
+P 2 formal/lean_vm/LeanVM/Guest/Program/BitsLogsAndTheExponent.lean
+L 0 74 1
+L 6 75 1
+L 8 76 1
+L 16 32 2
+L 84 36 2
+L 152 40 2
+L 177 45 2
+L 422 50 2
+L 4504 51 2
+L 4505 135 2
+L 4509 262 2
+L 4511 150 2
+L 4515 266 2
+L 4520 150 2
+L 4523 266 2
+L 4527 150 2
+L 4530 266 2
+L 4534 150 2
+L 4537 266 2
+L 4541 150 2
+L 4544 266 2
+L 4548 268 2
+L 4553 269 2
+L 4555 270 2

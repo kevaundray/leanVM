@@ -44,4 +44,13 @@ J 29 0 1
 H 0 wstack n 2 1
 H 2 alloc 6 30
 H 13 wstack signers_split 3 3
-L 0 0
+P 1 formal/lean_vm/tests/LeanVMTests/Programs/Snippets.lean
+P 2 formal/lean_vm/LeanVM/Guest/Program/StatementsAndClaimLists.lean
+L 0 81 1
+L 9 25 1
+L 10 26 1
+L 13 72 2
+L 17 73 2
+L 21 74 2
+L 22 76 2
+L 37 77 2
