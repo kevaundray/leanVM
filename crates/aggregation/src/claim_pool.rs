@@ -18,7 +18,7 @@ pub(super) enum ClaimSite {
     MemoryLimb { column: usize },
 }
 
-/// The guest's `COORD_KIND_*` code for a coordinate (`guests/lean_ethereum.py`),
+/// The guest's `COORD_KIND_*` code for a coordinate (`formal/lean_vm/LeanVM/Guest/Program/`),
 /// shared by its `COORD_TYPE` and `TERM_TYPE` arrays.
 pub(super) fn coord_kind(c: &Coord) -> usize {
     match c {

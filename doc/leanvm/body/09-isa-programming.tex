@@ -1,7 +1,7 @@
 % !TeX root = ../drafts/09-isa-programming.tex
 \section{ISA programming}\label{sec:isa-programming}
 
-How the zkDSL compiler (\path{formal/lean_vm/LeanVM/Compiler}, on the AST of the parser in \path{crates/zkdsl}; surface language in \path{crates/zkdsl/zkDSL.md}) programs the six-instruction ISA. Two themes run through every pattern: \emph{write-once memory is an assertion mechanism} (a second write of a cell is an equality check, an unwritten cell is prover-chosen), and \emph{indices live in the exponent} (a logical index $i$ is the element $\gen^{i}$, so incrementing, offsetting, and address formation are single field multiplications).
+How the guest's compiler (\path{formal/lean_vm/LeanVM/Compiler}, on the core IR of the guest written in the DSL embedded in Lean, \path{formal/lean_vm/LeanVM/Dsl}; the language's guide in \path{crates/zkdsl/zkDSL.md}) programs the six-instruction ISA. Two themes run through every pattern: \emph{write-once memory is an assertion mechanism} (a second write of a cell is an equality check, an unwritten cell is prover-chosen), and \emph{indices live in the exponent} (a logical index $i$ is the element $\gen^{i}$, so incrementing, offsetting, and address formation are single field multiplications).
 
 \subsection{Hints}\label{sec:prog-hints}
 
@@ -9,7 +9,7 @@ The prover's nondeterminism enters through write-once cells that are still unset
 
 \subsection{Division and inequality}\label{sec:prog-div-ne}
 
-The zkDSL's single-slash division $q=a/b$ uses write-once back-solving: it emits \texttt{MUL\_NATIVE} with $q$ as the one unset input and $a$ as the already-written output. Witness generation fills $q=a\,b^{-1}$, while the ordinary multiplication table proves $q b=a$. It costs one VM instruction. Division by zero is undefined. Double slash \texttt{//} remains compile-time integer floor division for sizes and indices; it is not a field operation.
+The guest's division $q=a/b$ uses write-once back-solving: it emits \texttt{MUL\_NATIVE} with $q$ as the one unset input and $a$ as the already-written output. Witness generation fills $q=a\,b^{-1}$, while the ordinary multiplication table proves $q b=a$. It costs one VM instruction. Division by zero is undefined. Integer division for sizes and indices is Lean's, at compile time; it is not a field operation.
 
 The assertion \texttt{assert a != b} computes $x=a+b$ with \texttt{XOR}, takes a hinted $w=x^{-1}$, forms $p=x\,w$ with \texttt{MUL\_NATIVE}, and writes $1$ to $p$ with \texttt{SET\_CONSTANT}. Memory being write-once, the two writes to $p$ agree only if $p=1$, and $x=0$ forces $p=0$ whatever the hint.
 

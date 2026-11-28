@@ -1,7 +1,7 @@
 /-
   LeanVM.Guest.B1.Sig.SphincsComplete
 
-  `verify_sig_lean_sphincs` (`lean_ethereum.py`) is complete, loading
+  `verify_sig_lean_sphincs` (`LeanVM/Guest/Program/`) is complete, loading
   only the claim and the byte table (`verify_sig_lean_sphincs_complete_loads_of`), given its
   blocks' completeness (`SphincsBlocksComplete`).
 -/
@@ -15,7 +15,7 @@ public import LeanVM.Guest.B1.Sig.SphincsLoads
 /-!
 # `verify_sig_lean_sphincs`, complete
 
-`G` is `lean_ethereum.py`. The body (`sBody_splitC`) is the statements before the root's check
+`G` is `LeanVM/Guest/Program/`. The body (`sBody_splitC`) is the statements before the root's check
 (`sPre`): the digest and FORS (`sBottom_complete`), the bottom layer, the middle layer's address
 (`sMidAddrs_vals`), the middle layer, the top layer's address (`sTopAddrs_vals`) and the top layer
 (`layer_stage`); then `root[0] == pk_root` and the return. The statement's verification

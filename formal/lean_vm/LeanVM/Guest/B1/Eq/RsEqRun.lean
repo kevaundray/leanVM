@@ -11,7 +11,7 @@ public import LeanVM.Guest.B1.Bits.GPower
 public import LeanVM.Guest.Data.NameStrings
 
 /-!
-# `rs_eq_run` (lean_ethereum.py)
+# `rs_eq_run` (`LeanVM/Guest/Program/`)
 
 `rs_eq_run(z_vals, point1, count_g)` hints the six bits of `count` (`count_g = g^count`), pins
 them by booleanity and `q_g^8 · r_g = count_g` (`r_g` from bits `0 .. 2`, `q_g` from bits `3 .. 5`,

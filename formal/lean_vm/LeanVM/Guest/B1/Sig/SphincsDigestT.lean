@@ -2,7 +2,7 @@
   LeanVM.Guest.B1.Sig.SphincsDigestT
 
   The message digest of `verify_sig_lean_sphincs` as a template: the statements from the claim's
-  loads to the digest's check (`lean_ethereum.py`), with the
+  loads to the digest's check (`LeanVM/Guest/Program/`), with the
   values numbered as the renumbered expansion numbers them.
 -/
 
@@ -13,7 +13,7 @@ public import LeanVM.Guest.B1.Sig.SpWotsT
 /-!
 # The message digest as a template
 
-`verify_sig_lean_sphincs(signer, byte_bits)` (`G` is `lean_ethereum.py`): `signer` is
+`verify_sig_lean_sphincs(signer, byte_bits)` (`G` is `LeanVM/Guest/Program/`): `signer` is
 the parameter `n0`, `byte_bits` `n1`; `PK.seed` is `n2` (`sPP`, `signer[1]`, offset `0`), `PK.root`
 `n3` (`sRoot`, offset `1`). Its first statements, up to the digest's check, are `sDigestBlock`:
 

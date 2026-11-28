@@ -17,7 +17,6 @@ pub mod bytecode;
 mod guest_diff;
 pub mod manifest;
 pub mod node_vectors;
-pub mod source;
 
 /// A generated file: its path relative to `lean_vm/` and its text.
 pub struct File {
@@ -35,13 +34,10 @@ pub fn placeholders() -> BTreeMap<String, String> {
     placeholder_map(guest().prog.len().trailing_zeros() as usize)
 }
 
-/// The guest's source text, as the crate's `guest.rs` includes it.
-pub const GUEST_SOURCE: &str = include_str!(concat!(env!("OUT_DIR"), "/aggregation/guests/lean_ethereum.py"));
-
 /// Every file this crate writes.
 pub fn all_files() -> Vec<File> {
     let mut files = bytecode::files(guest());
-    files.extend(source::files(guest().prog.len().trailing_zeros() as usize));
+    files.extend(config::files(guest().prog.len().trailing_zeros() as usize));
     files.push(manifest::file());
     files.push(node_vectors::file());
     files

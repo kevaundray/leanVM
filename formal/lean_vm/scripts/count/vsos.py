@@ -20,9 +20,9 @@ fs = lambda n: fsd.get(n, 2)
 def SB(n):
     c = w.get(n); assert c and c[0] == 'stat' and c[1] == [] and c[2][1] == [], n
     return c[2][0]
-src = open(os.path.join(LV, 'LeanVM', 'Guest', 'Data', 'Source.lean'), encoding='utf-8').read()
+src = open(os.path.join(LV, 'LeanVM', 'Guest', 'Data', 'Placeholders.lean'), encoding='utf-8').read()
 def arr(name):
-    m = re.search(r'def arr_%s : List \(Nat × Nat\) :=\s*\[(.*?)\]\n' % name, src, re.S)
+    m = re.search(r'^def %s : List \(Nat × Nat\) := \[(.*)\]$' % name, src, re.M)
     return [int(x) for x in re.findall(r'\((\d+), \d+\)', m.group(1))]
 A = {k: arr(k) for k in ['LIG_N_LEVELS', 'LIG_YR_LEN', 'LIG_TOTAL_FOLDS', 'LIG_YR_LEVEL', 'LIG_FOLDS',
                          'LIG_LOG_MSG_COLS', 'LIG_RESIDUAL_PREFIX_LEN', 'LIG_YR_LOG_LEN', 'LIG_POS_TOTAL']}
@@ -32,10 +32,10 @@ def _whir(f):
     return open(os.path.join(LV, 'LeanVM', 'Guest', 'B1', 'Whir', f), encoding='utf-8').read()
 def _abbrev(src, name):
     return int(re.search(r'abbrev %s : (?:Nat|ℕ) := (\d+)' % name, src).group(1))
-# `Whir/Config.lean`'s caps read the guest's constants (`guest_const%`), exported to `Data/Source.lean`.
-_src = src
+# `Whir/Config.lean`'s caps read the guest's constants (`guest_const%`), which `guest-core` writes to `Data/Constants.txt`.
+_consts = dict(l.split() for l in open(os.path.join(LV, 'LeanVM', 'Guest', 'Data', 'Constants.txt'), encoding='utf-8'))
 def _const(name):
-    return int(re.search(r'def const_%s : Nat := (\d+)' % name, _src).group(1))
+    return int(_consts[name])
 YR_LOG_CAP, MAX_LEVELS = (_const(n) for n in ('YR_LOG_CAP', 'LIG_MAX_LEVELS'))
 POINT_CAP = _abbrev(_whir('Split.lean'), 'pointCap')
 

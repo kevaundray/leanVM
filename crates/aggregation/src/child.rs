@@ -70,7 +70,7 @@ fn group_runs(groups: impl Iterator<Item = usize>) -> Vec<F128> {
     runs.into_iter().map(count).collect()
 }
 
-/// The guest's witness for verifying one child (`guests/lean_ethereum.py`), built from the layout of an execution of
+/// The guest's witness for verifying one child (`formal/lean_vm/LeanVM/Guest/Program/`), built from the layout of an execution of
 /// the `2^kbc`-instruction inner program at the sizes the `summary` the `verifier` crate read out of the child's
 /// `proof` announces, and from that proof's Merkle paths, whose positions and sizes its replay pinned. Nothing here
 /// says the child verifies: the guest's run does.

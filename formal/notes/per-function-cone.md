@@ -1,6 +1,6 @@
 # Per-function cones for the guest's proofs
 
-Goal: an edit of one function of `guests/lean_ethereum.py` rebuilds that function's generated data and proofs plus a small glue layer, not the whole guest. This is the plan; what is done and what remains are at the end.
+Goal: an edit of one function of `lean_vm/LeanVM/Guest/Program/` rebuilds that function's generated data and proofs plus a small glue layer, not the whole guest. This is the plan; what is done and what remains are at the end.
 
 ## Firewalls
 

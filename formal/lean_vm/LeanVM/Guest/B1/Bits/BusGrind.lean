@@ -12,7 +12,7 @@ public import LeanVM.Guest.B1.Bits.Grind
 /-!
 # `bus_grind_check`
 
-`bus_grind_check(word, tabs, d)` (`lean_ethereum.py`) calls `grind_check(word, tabs,
+`bus_grind_check(word, tabs, d)` (`LeanVM/Guest/Program/`) calls `grind_check(word, tabs,
 BUS_GRIND_BITS[BUS_MIN_MU + d])` and returns `0`; one specialization per `d < 14`, the push
 depths from `busMinMu` below `SIZE_BITS`. Its bits are `busGrindingBits (busMinMu + d)`, which
 is `17 + d` (`busGrindBits_eq`), a deployed `grind_check` (`busGrindBits_mem`).

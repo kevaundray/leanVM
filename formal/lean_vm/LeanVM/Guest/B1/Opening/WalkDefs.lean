@@ -11,7 +11,7 @@ public import LeanVM.Guest.B1.Bits.QueryWindowsT
 public import LeanVM.Guest.WalkWindows
 
 /-!
-# The walk obligations, definitions (lean_ethereum.py at 40f877dc)
+# The walk obligations, definitions (`LeanVM/Guest/Program/`)
 
 `WinsAt`, `WinWalk`, `WinWalk2`, `OqMainWins`, over the windows' shape `qwN`, `qwWin`, are
 defined in `Guest/WalkWindows.lean`, apart from B1; this module re-exports them with

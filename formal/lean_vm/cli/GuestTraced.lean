@@ -126,7 +126,7 @@ def files (P : List TracedFn) : List (String × String) := Id.run do
     "namespace LeanVM.Guest.Compiled.GuestData\n\nopen LeanVM.Core\n\nopen LeanVM.Compiler LeanVM.Parameters\n\n@[expose] public section\n\n" ++
     assembled ++
     "/-- What the back end takes of each of the guest's functions besides its core function, in the\n" ++
-    "compiler's order: its trace, its return cells, its `loopSource` and its constant parameters. -/\n" ++
+    "compiler's order: its trace, its return cells, its loop entry (`TracedFn.loop`) and its constant parameters. -/\n" ++
     "data_lit guestInfo : List (Array Event × Nat × (Bool × Option Nat) × List (Nat × E)) :=\n  " ++ pList entries ++
     s!"\n\ntheorem guestInfo_length : guestInfo.length = {P.length} := by decide +kernel\n" ++
     "\nend\nend LeanVM.Guest.Compiled.GuestData\n"

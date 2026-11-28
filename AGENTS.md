@@ -22,7 +22,7 @@ Everything else exists once, leaves first:
 | `keccak256` | Keccak-256 and its multi-way permutation |
 | `fiat_shamir_prover` | the prover's transcript, for both trees |
 | `isa` | the instruction set, `Program`, the `Prover` trait |
-| `zkdsl` | the disassembler and the word literals the placeholders print; `zkDSL.md` is the guest language's reference; its tests run the Lean-compiled test programs on the stable prover |
+| `zkdsl` | the disassembler; `zkDSL.md` is the guest language's guide; its tests run the Lean-compiled test programs on the stable prover |
 | `lean_xmss`, `lean_sphincs`, `lean_vrf` | the signature schemes and the VRF tree |
 | `allocator`, `bench_harness` | jemalloc and the benchmark harness; never linked by a library |
 | `lean_da` | Reed-Solomon blob encoding, commitments, membership vectors |
@@ -133,13 +133,12 @@ The Rust verifier:
 The guest:
 
 - Hints are untrusted: every hinted value must be pinned by a constraint.
-- It verifies proofs of itself, so it is compiled to a fixed point on its own size, by the verified compiler written in Lean (`formal/lean_vm/LeanVM/Compiler`; the core IR, its semantics and the front end in `formal/lean_vm/LeanVM/Core`; its proofs about the guest in `formal/lean_vm/LeanVM/Guest/Compiled`).
-- Its output, `guests/lean_ethereum.compiled`, is not committed: `crates/aggregation/build.rs` writes it with `formal/lean_vm/scripts/guest-artifact` when the guest, its placeholders or the compiler changed, so building `aggregation` needs elan unless `LEANVM_GUEST_ARTIFACT` names an artefact that script wrote from the same tree. `unified_guest` refuses one not compiled from the current source and placeholders at its own size.
+- It verifies proofs of itself, so it is compiled to a fixed point on its own size, by the verified compiler written in Lean (`formal/lean_vm/LeanVM/Compiler`; the core IR and its semantics in `formal/lean_vm/LeanVM/Core`, the language the guest is written in, which elaborates to it, in `formal/lean_vm/LeanVM/Dsl`; its proofs about the guest in `formal/lean_vm/LeanVM/Guest/Compiled`).
+- Its output, `guests/lean_ethereum.compiled`, is not committed: `crates/aggregation/build.rs` writes it with `formal/lean_vm/scripts/guest-artifact` when the guest, its placeholders or the compiler changed, so building `aggregation` needs elan unless `LEANVM_GUEST_ARTIFACT` names an artefact that script wrote from the same tree. `unified_guest` refuses one not compiled from the guest of the committed core digest (`guests/lean_ethereum.digest`) and the current placeholders at its own size.
 - The stacked-bytecode claim is not verified in-circuit. Each node batches its children's, and `AggregateProof::verify` discharges the root's.
 - It accepts exactly what the native verifier does: every stack from `2^min_execution_stacked_log(kbc)` to `2^MAX_STACKED_LOG`, at every rate. One opening arm per size, the rate dispatched inside, so a rate's shape goes in a helper specialized on it.
 - Every verifier rotates the opening's terminal point left by `INITIAL_FOLDING_FACTOR` before evaluating the basis (`whir::commit` documents the layout). Every other read of the point stays in round order.
 - A failed `assert` is a write-once conflict naming the function and line. One that `had 0:0` can be a cell read before it was written.
-- Guests are single-file. The compiler skips `from snark_lib import *`.
 
 ## Performance conventions (experimental tree, native verifier)
 

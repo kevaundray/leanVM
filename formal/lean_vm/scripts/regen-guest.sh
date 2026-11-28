@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regenerates every file written from the guest, in dependency order, after a change to the guest
-# (`guests/`) or to its compiler:
+# (`LeanVM/Guest/Program/`, its language `LeanVM/Dsl/`), to its placeholders or to its compiler:
 #
 #   scripts/regen-guest.sh                 # write
 #   scripts/regen-guest.sh --check         # write nothing, fail if any file is stale
@@ -16,11 +16,10 @@
 # were removed since the last export, with the hand-written modules that read them: the proofs to
 # adapt. Not regenerated here: the verifier fixtures (`scripts/export-verifier-fixtures-rust.sh`,
 # before the differential tests) and the fold rounds' table (`scripts/whir-fold-table`, after a change to
-# WHIR's folding). The `programs` step writes the Lean back end's compilation of the zkDSL test programs, of
-# the verifiers' fixture program, of the VM's and the prover's test programs (`crates/zkdsl/tests/vm/`, a
-# template at each of its counts) and of the aggregation tests' snippets, which the Rust tests, the Fibonacci
-# benchmark and the fixtures load, and the core IR `Expand` gives each program of the front end's regression
-# corpus (`tests/frontend/*.core`, from `tests/frontend/*.py`). The `backend`
+# WHIR's folding). The `programs` step writes the Lean back end's compilation of the test programs
+# (`tests/LeanVMTests/Programs/`): the compiler's, the verifiers' fixture program, the VM's and the prover's (a
+# template at each of its counts) and the aggregation tests' snippets, which the Rust tests, the Fibonacci
+# benchmark and the fixtures load. The `backend`
 # step writes the Lean back end's guest data: the soundness obligations' tables and evaluation modules
 # (`guest-oblgen`); the `traced`, `pieces` and `cpleval` steps its kernel-checked compilation of the
 # guest (`guest-traced`, `guest-pieces`, `guest-pieces test`) and the completeness checks' evaluation
@@ -81,7 +80,7 @@ parts_pieces=(pieces pieces_test) targets_pieces=(guest-pieces)
 parts_cpleval=(cpleval) targets_cpleval=(guest-cpleval)
 
 part_export() {
-  step "export: the compiled guest (guest-artifact), then bytecode, source, programs (guest-export, from leanVM's sources)"
+  step "export: the compiled guest and its digest (guest-artifact), then bytecode and placeholders (guest-export, from leanVM's sources)"
   # The core IR before the change, for the `changes` step.
   # None on a fresh checkout, where the generated files are not there yet.
   if [ ${#check[@]} -eq 0 ]; then
@@ -101,12 +100,10 @@ part_export() {
 }
 
 part_programs() {
-  # The test programs and the verifiers' fixture program, as the Rust tests, the benchmark and the fixtures load them;
-  # the front end's corpus, expanded.
-  step "programs: the zkDSL test programs compiled (guest-backend export programs), the corpus expanded (core-text)"
+  # The test programs and the verifiers' fixture program, as the Rust tests, the benchmark and the fixtures load them.
+  step "programs: the test programs compiled (guest-backend export programs, export snippets)"
   lakebuild guest-backend
   capped .lake/build/bin/guest-backend export programs ../../crates/zkdsl/tests/compiled "${check[@]}"
-  capped .lake/build/bin/guest-backend core-text tests/frontend "${check[@]}"
   capped .lake/build/bin/guest-backend export snippets ../../crates/aggregation/snippets "${check[@]}"
 }
 

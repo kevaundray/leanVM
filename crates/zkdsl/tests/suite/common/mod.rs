@@ -6,19 +6,3 @@ pub fn compiled(name: &str) -> isa::Program {
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
     isa::Program::__from_text(&text).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
-
-/// An AST's shape with source lines stripped. Two spellings of the same program
-/// (a constant against its substituted value, a placeholder against the filled
-/// text) are the same program but rarely occupy the same lines, so comparing
-/// them by `Debug` has to ignore that field.
-pub fn without_lines(ast: &zkdsl::Ast) -> String {
-    let d = format!("{ast:?}");
-    let (mut out, mut rest) = (String::with_capacity(d.len()), d.as_str());
-    while let Some(i) = rest.find("line: ") {
-        out.push_str(&rest[..i]);
-        let after = &rest[i + "line: ".len()..];
-        rest = &after[after.find(", ").expect("`line` is followed by another field") + 2..];
-    }
-    out.push_str(rest);
-    out
-}

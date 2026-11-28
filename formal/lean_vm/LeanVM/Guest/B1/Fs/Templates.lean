@@ -12,9 +12,9 @@ public import LeanVM.Guest.B1.Common.Run
 /-!
 # The inline Fiat-Shamir helpers
 
-The helpers of the guest's sponge (`guests/lean_ethereum.py`, G below, its
+The helpers of the guest's sponge (`LeanVM/Guest/Program/`, G below, its
 Fiat-Shamir section) are `@inline`: their atoms sit in their callers' core IR, numbered by the
-caller. Their expansions are uniform (`Expand.lean`, the compiler's `builtins.rs`), so each is a
+caller. Their expansions are uniform (`Dsl/Keccak.lean`, `Dsl/Fold.lean`), so each is a
 template over its operands and its first value `b`; a caller's body is checked equal to its
 composition of templates by kernel evaluation (`stmtsEqb_sound`).
 

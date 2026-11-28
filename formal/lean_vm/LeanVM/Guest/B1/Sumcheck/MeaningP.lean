@@ -13,7 +13,7 @@ public import LeanVM.Guest.GuestConst
 /-!
 # Sumcheck rounds: meanings (TRIAGE G #30-32)
 
-For each function of the guest (`lean_ethereum.py`, G below) its meaning on its argument and
+For each function of the guest (`LeanVM/Guest/Program/`, G below) its meaning on its argument and
 return words, the Fiat-Shamir sponge as the guest carries it (`Fs`, `B1/Common/Sponge.lean`), and
 `…_SpecP P`, the statement that its relation in the program `P` is that meaning (`…_Spec` at
 `coreProgram`, `Meaning.lean`, proved as `…_holds`).

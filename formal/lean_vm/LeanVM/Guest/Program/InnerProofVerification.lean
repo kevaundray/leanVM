@@ -261,8 +261,8 @@ def verifyBusGkr : GFn where
         c0 := t10
         tcur := t11
       else
-        pure () -- no use of this definition takes this branch
-      -- a match needs a target
+        -- Unreachable: `GKR_Y_GRIND_BITS = GKR_Y_LAST_GRIND_BITS` in every configuration, so no instance takes this branch. The zkDSL guest dispatched here on the last layer to `gkr_y_grind`, which was never written in Lean.
+        pure ()
       let noRate ← B.stackBuf 8
       let (t9, t10) ← squeeze tailSp noRate 0
       tailSp := t9

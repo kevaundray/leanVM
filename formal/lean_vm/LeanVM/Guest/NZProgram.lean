@@ -2,8 +2,8 @@
   LeanVM.Guest.NZProgram
 
   The verifier refusing what makes the guest divide by zero: a zero fold challenge `α`, a zero
-  closing-round challenge and a zero batching challenge `λ` of a non-final level (1765,
-  1753; G = `lean_ethereum.py`), as copies of the verifier's programs with a `require`
+  closing-round challenge and a zero batching challenge `λ` of a non-final level (in the
+  guest, `LeanVM/Guest/Program/`), as copies of the verifier's programs with a `require`
   at each. The statement's honest child refuses a zero challenge anywhere (`verifierRefusingZero`,
   `Statement/LeanVmGuestCompleteness.lean`).
 -/

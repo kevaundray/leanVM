@@ -1,23 +1,24 @@
-//! The guest the prover loads, `guests/lean_ethereum.compiled`, is the Lean back end's compilation of
-//! `guests/lean_ethereum.py` at the fixed point on its own size, and it is not committed: this script writes it with
-//! `formal/lean_vm/scripts/guest-artifact` when a file it is compiled from changed since the last build, or takes the
-//! file `LEANVM_GUEST_ARTIFACT` names, written by that script from the same tree.
+//! The guest the prover loads, `guests/lean_ethereum.compiled`, is the Lean back end's compilation of the Lean guest
+//! (`formal/lean_vm/LeanVM/Guest/Program/`) at the fixed point on its own size, and it is not committed: this script
+//! writes it with `formal/lean_vm/scripts/guest-artifact` when a file it is compiled from changed since the last build,
+//! or takes the file `LEANVM_GUEST_ARTIFACT` names, written by that script from the same tree.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// What the artefact is compiled from: the guest, the placeholders (this crate's sources), the source's export
-/// (`guest-export --source`, with the parser), and the Lean back end with its driver. Directories holding a `.lake`
-/// are not listed, since a Lean build writes there.
+/// What the artefact is compiled from: the Lean guest and the embedded language it is written in, the placeholders
+/// (this crate's sources) and their export (`guest-export --placeholders`), and the Lean back end with its driver.
+/// Directories holding a `.lake` are not listed, since a Lean build writes there.
 const INPUTS: &[&str] = &[
-    "guests/lean_ethereum.py",
     "crates/aggregation/src",
-    "crates/zkdsl/src",
     "formal/lean_vm/scripts/guest-artifact",
     "formal/lean_vm/scripts/guest-export/src",
     "formal/lean_vm/scripts/guest-export/build.rs",
     "formal/lean_vm/scripts/guest-export/Cargo.toml",
     "formal/lean_vm/cli/GuestArtifact.lean",
+    "formal/lean_vm/LeanVM/Guest/Program",
+    "formal/lean_vm/LeanVM/Guest/Program.lean",
+    "formal/lean_vm/LeanVM/Dsl",
     "formal/lean_vm/LeanVM/Compiler",
     "formal/lean_vm/LeanVM/Core",
     "formal/lean_vm/lakefile.toml",

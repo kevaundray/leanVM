@@ -18,9 +18,7 @@ emitted (`cur_line`, `lower.rs`; `CompiledProgram::src_lines`), so a failed `ass
 line. The back end's passes carry no lines, and adding them would change the definitions its
 proofs and its kernel-checked pieces are about, so the lines come from a pass of their own.
 
-* The expansion records, with each statement it begins (`stmtKind`, where the Rust `stmt` sets
-  `cur_line`), the length of the trace so far (`Expand.expandProgramLines`): so each event of the
-  trace has a line, that of the statement begun last before it.
+* The elaboration records, with each line marker (`B.line`, where the Rust `stmt` set `cur_line`), the length of the trace so far (`Dsl.Program.assemble`): so each event of the trace has a line, that of the marker last before it.
 * `placeBlockL` walks a function as `Place.placeBlock` does, calling Place's own steps for
   everything but the statements that hold blocks (a branch, a `match`), whose walks it repeats,
   and gives each placed statement the line of an event (`LTree`): a statement the line of its
@@ -30,7 +28,7 @@ proofs and its kernel-checked pieces are about, so the lines come from a pass of
   ahead beside it.
 * `blockLines` lays the lines out as `Emit` lays out the instructions.
 
-`compileLines` checks that this walk placed every function as `Compiler.compile` did, by the text
+`compileLines` checks that this walk placed every function as `Compiler.compileTraced` did, by the text
 of the two programs, so a change to `Place` that the walk does not follow fails there.
 -/
 

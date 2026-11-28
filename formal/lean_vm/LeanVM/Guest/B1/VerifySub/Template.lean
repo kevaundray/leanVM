@@ -13,7 +13,7 @@ public import LeanVM.Guest.B1.Whir.Split
 /-!
 # `verify_sub` as a template
 
-The sections, in order (G = `lean_ethereum.py`):
+The sections, in order (G = `LeanVM/Guest/Program/`):
 
 * `vsHeadT`: the pool, the seed's permutation (`keccak_cells`), the stream;
 * `vsReadsT`: the eight announced words read (`fs_next`), the table rows stored, the first four

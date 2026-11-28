@@ -12,7 +12,7 @@ public import LeanVM.Guest.B1.Common.Find
 /-!
 # `exponent_tables`
 
-`exponent_tables()` (`lean_ethereum.py`) fills a fresh `HeapBuf(236 + 2^11)` with constants the
+`exponent_tables()` (`LeanVM/Guest/Program/`) fills a fresh `HeapBuf(236 + 2^11)` with constants the
 compiler folds: `2284` pairs `const`, `load`, the squares `0 .. 33` first, then the rank keys and
 the groups' sides `178 .. 235`, then the nibble shares `34 .. 177`, then the bit windows
 `236 + n` (`etOff`). The first `236` words (`etWordsN`, by offset) are the honest values in `K`,

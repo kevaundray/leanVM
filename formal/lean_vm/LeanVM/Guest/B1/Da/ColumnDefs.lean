@@ -2,7 +2,7 @@
   LeanVM.Guest.B1.Da.ColumnDefs
 
   The checks of `da_verify_column`'s body and of its blob loop `da_verify_column_loop0`
-  (`lean_ethereum.py`).
+  (`LeanVM/Guest/Program/`).
 -/
 
 module

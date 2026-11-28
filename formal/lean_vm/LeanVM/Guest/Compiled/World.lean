@@ -15,8 +15,8 @@ public import Statement.LeanVmGuest
 # The guest's world
 
 The back end's input for the guest, `guestTraced` (`Guest/Program.lean`), is `coreProgram`'s
-function `j` with entry `j` of `GuestData.guestInfo`: the allocation trace of its expansion, every
-value renamed as `coreProgram` names it, its return cells and its `loopSource`. So the core program
+function `j` with entry `j` of `GuestData.guestInfo`: the allocation trace of its elaboration, every
+value renamed as `coreProgram` names it, its return cells and its loop entry (`TracedFn.loop`). So the core program
 of the guest's world is `coreProgram` by construction (`guestWorld_core`), and no theorem about
 renumbering is needed: the back end's correctness holds for any traced program it accepts, whatever
 the trace.

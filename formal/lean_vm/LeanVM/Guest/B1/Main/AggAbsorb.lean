@@ -13,7 +13,7 @@ public import LeanVM.Guest.Data.NameStrings
 /-!
 # `aggregate_claims_loop0`: the children's words
 
-`aggregate_claims` (`lean_ethereum.py`) keeps the batching's sponge in rows of thirteen words (`absorb`,
+`aggregate_claims` (`LeanVM/Guest/Program/`) keeps the batching's sponge in rows of thirteen words (`absorb`,
 `RowRel`: the capacity cells, then four waiting scalars' rate cells). Iteration `x = g^c`
 (`aggregate_claims_loop0`, core function `443`) writes the child's pointers `child_fresh·x^24`,
 `child_carried·x^24` into the tables `lf`, `lc`, permutes row `c`, absorbs the child's `50` words

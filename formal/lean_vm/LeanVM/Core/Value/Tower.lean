@@ -20,7 +20,7 @@ import CompPoly.Fields.Binary.BF64.Impl
 # The tower, as the guest reads it
 
 A word is one memory cell of two `K` limbs, `c0 + c1·y`. The guest
-(`guests/lean_ethereum.py`, G below) never reads a limb directly: it hints
+(`LeanVM/Guest/Program/`, G below) never reads a limb directly: it hints
 the low one, derives the high one by `y⁻¹` and proves both lie in `K` with `assert_in_k` (one
 untaken `JUMP` whose operands must be in `K`). The representation `c0 + c1·y` is unique, so those
 constraints pin the hint, for every word:

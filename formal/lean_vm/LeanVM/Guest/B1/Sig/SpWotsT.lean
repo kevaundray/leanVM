@@ -2,7 +2,7 @@
   LeanVM.Guest.B1.Sig.SpWotsT
 
   The body of `sp_wots` as a template, written from the guest's structure
-  (`lean_ethereum.py`) with the values numbered uniformly, every
+  (`LeanVM/Guest/Program/`) with the values numbered uniformly, every
   chain step taking three fresh values; the guest's numbering is this one with the two values the
   steps without an address constant leave unused removed (`SpWotsLayout`'s `spRen`).
 -/
@@ -14,7 +14,7 @@ public import LeanVM.Guest.B1.Sig.WotsT
 /-!
 # `sp_wots` as a template
 
-`sp_wots(pp, a0, a1, encoding)` (`G` is `lean_ethereum.py`) has the parameters
+`sp_wots(pp, a0, a1, encoding)` (`G` is `LeanVM/Guest/Program/`) has the parameters
 `pp = n0`, the one-time key's FIPS 205 address `a0 = n1` (its layer and tree) and `a1 = n2` (type
 `WOTS_HASH`, its key pair), and `encoding = n3`; `at = [a0, a1]` copies them into `n4`, `n5`; the
 powers `g^s` are `n(6 + s)`, `s < 10`.

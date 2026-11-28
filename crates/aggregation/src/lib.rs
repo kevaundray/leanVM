@@ -1,7 +1,7 @@
 //! Recursive aggregation of signature claims and LeanDA blobs, on either prover: everything here is generic over
 //! [`isa::Prover`], which each prover tree implements.
 //!
-//! One bytecode (`guests/lean_ethereum.py`) serves every node of an aggregation tree.
+//! One bytecode (`formal/lean_vm/LeanVM/Guest/Program/`) serves every node of an aggregation tree.
 //!
 //! A node verifies `n_raw_lean_xmss` leanXMSS signatures, `n_raw_lean_sphincs` leanSPHINCS
 //! signatures and `n_children` sub-proofs **of this same bytecode**, and

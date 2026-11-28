@@ -14,7 +14,7 @@ public import LeanDa.Subspace
 # The dual codeword, on words
 
 The guest program builds the dual codeword `L(x) = ∏_(j < 13) (1 + z^(2^j) Ŵ_j(x))` of a
-challenge `z` (`da_vector`, `lean_ethereum.py`) from constants that are sums of `Ŵ_j` at basis
+challenge `z` (`da_vector`, `LeanVM/Guest/Program/`) from constants that are sums of `Ŵ_j` at basis
 elements (`DA_VHAT`, `DA_VHAT_COLUMN`, `crates/aggregation/src/placeholders.rs`'s
 `da_placeholders`). Here:
 

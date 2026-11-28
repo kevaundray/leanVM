@@ -14,14 +14,14 @@ public import LeanVM.Dsl.Control
 # Hints and checks
 
 A hint writes values the prover chooses into a destination (`Core.Dest`: frame cells, or a run of
-heap words from a pointer); it is pending until the next instruction, as `Expand.emitHint`. A
+heap words from a pointer); it is pending until the next instruction, as in the zkDSL's lowering. A
 hint's outputs carry no fact: what a function may assume of them comes from the checks it emits,
 each an atom whose relation the program logic reads (`LeanVM.Dsl.Logic`).
 
 Each hint takes its destination whole, as the zkDSL statement names it (`B.witness` of a
 `StackBuf`, a `StackBuf` slice or a heap slice, `LeanVM.Dsl.Mem`), except `B.hintWindowsExp`,
 which takes the destination from its first cell and the window offset `at`, recorded as the
-`note` event `Expand` records.
+`note` event the zkDSL's lowering records.
 -/
 
 namespace LeanVM.Dsl
@@ -80,7 +80,7 @@ def hintLimbs {τ : Ty} (x : Var τ) (cells : List V) : B Unit := hint (.limbs x
 
 /-! ## Checks -/
 
-/-- `assert a != b` (`Expand.lowerAssertNe`): `x = a + b`, its inverse hinted, and `x · inv = 1`. -/
+/-- `assert a != b`: `x = a + b`, its inverse hinted, and `x · inv = 1`. -/
 def assertNe {σ τ : Ty} (a : Var σ) (b : Var τ) : B Unit := do
   let x ← add a b
   let inv ← fresh
@@ -88,7 +88,7 @@ def assertNe {σ τ : Ty} (a : Var σ) (b : Var τ) : B Unit := do
   let p ← fresh
   atom (.assertNe x.v inv p)
 
-/-- `assert log x < b` at a runtime bound `b = g^n` (`Expand.lowerAssertLt`): the check's operand
+/-- `assert log x < b` at a runtime bound `b = g^n`: the check's operand
 `b · g⁻¹`, then the check. -/
 def rangeCheckRt {τ ρ : Ty} (x : Var τ) (b : Var ρ) : B Word := do
   let inv ← const (ofK gInv)

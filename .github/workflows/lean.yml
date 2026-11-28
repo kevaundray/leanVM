@@ -496,7 +496,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # Every file derived from the guest, which the honest hints' check below reads, is not committed: written
       # here from this repository's sources (the compiled guest by the Lean back end first), and what is
-      # committed of it (the test programs' compilations, the front end's corpus, the generated regions of
+      # committed of it (the test programs' compilations, the generated regions of
       # hand-written files) must come out unchanged.
       - name: Write every file derived from the guest (regen-guest.sh)
         run: scripts/regen-guest.sh

@@ -1,22 +1,14 @@
-//! The zkDSL (see `zkDSL.md`): its parser ([`parse`], [`parse_with_replacements`], [`parse_const`], [`f128_literal`]),
-//! the [`Ast`] it gives, and a bytecode disassembler ([`disassemble`]).
-//!
-//! The compiler is the Lean back end (`formal/lean_vm/LeanVM/Compiler`), which compiles this parser's AST (exported by
-//! `formal/lean_vm/scripts/guest-export`) through Lean's front end (`LeanVM/Core/Expand.lean`).
+//! A bytecode disassembler ([`disassemble`]), and the integration tests of the programs the Lean back end compiles
+//! (`tests/compiled/`, written by `lake exe guest-backend export programs` from `formal/lean_vm/tests/LeanVMTests/Programs/`).
 
 use std::collections::HashMap;
 use std::fmt::Write;
-use std::sync::Arc;
 
-use field::{Base, Consts, F64, F128, as_base};
+use field::{Base, F64, F128, as_base};
 use isa::pretty_integer;
 use isa::{DerefMode, Op};
 
-mod ast;
 mod field;
-mod parser;
-pub use ast::*;
-pub use parser::{f128_literal, parse, parse_const, parse_with_constants, parse_with_replacements};
 
 /// Render compiled bytecode as a human-readable disassembly. `fp[k]` is the cell
 /// `m[fp·gᵏ]` (frame offset `k`); `*(p·gᵝ)` is the dereferenced cell. `SET`

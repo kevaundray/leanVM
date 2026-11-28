@@ -3,7 +3,7 @@
 
   The guest language embedded in Lean: a guest function is a term of the builder monad `B`, and
   elaborating it gives the back end's input, a core function with its allocation trace
-  (`Compiler.TracedFn`), without a source text, a parser or `Expand`.
+  (`Compiler.TracedFn`), without a source text or a parser.
 -/
 
 module
@@ -54,7 +54,7 @@ open LeanVM.Protocol.Verifier (gen)
 the trace held `n` events). -/
 abbrev Elab := TracedFn × Array (Nat × Nat)
 
-/-- A materialized shifted pointer (`Expand.Mat`): the value `out` holds `base·g^exp`, made as
+/-- A materialized shifted pointer: the value `out` holds `base·g^exp`, made as
 `src · g^dist` (`src` the base itself or an earlier materialization of it). -/
 structure Mat where
   exp : Nat
@@ -76,15 +76,15 @@ structure St where
   name : String := ""
   /-- The loop helpers made so far, in order. -/
   helpers : Array Elab := #[]
-  /-- The Keccak padding run set in this scope (`Expand`'s `keccakPad`). -/
+  /-- The Keccak padding run set in this scope (the zkDSL lowering's `keccakPad`). -/
   keccakPad : Option (List V) := none
-  /-- The constants set in this scope by `const` and `gconst` (`Expand`'s `consts`). -/
+  /-- The constants set in this scope by `const` and `gconst` (the zkDSL lowering's `consts`). -/
   consts : List E := []
-  /-- The shifted pointers materialized in this scope, by base (`Expand`'s `mats`). -/
+  /-- The shifted pointers materialized in this scope, by base (the zkDSL lowering's `mats`). -/
   mats : List (V × List Mat) := []
   /-- The run each `addr` pointer names. -/
   addrRuns : List (V × List V) := []
-  /-- Whether the trace also carries what is advice only to placement and `Expand` records: the
+  /-- Whether the trace also carries what is advice only to placement and the zkDSL's lowering records: the
   `use` events of aliases and the site values of inlined calls. -/
   faithful : Bool := true
   deriving Inhabited
@@ -118,7 +118,7 @@ structure Hinted where
 /-- Any value, seen as a word. -/
 def Var.word {τ : Ty} (x : Var τ) : Word := ⟨x.v⟩
 
-/-- A returned value, written into its return cell as `Expand.exprInto` writes it: a copy of a
+/-- A returned value, written into its return cell as the zkDSL's lowering writes it: a copy of a
 value, a constant, a sum, a product, a heap word; or any action writing the cell, run in order
 with the others (`into`: a faithful port's `return f(x)` or `return a * b`, the operands lowered
 after the cells before it are written). -/
@@ -149,11 +149,11 @@ namespace B
 
 /-! ## Values, statements, the trace -/
 
-/-- A fresh value (`Expand.fresh`). -/
+/-- A fresh value. -/
 def fresh (k : Kind := .cell) : B V := modifyGet fun st =>
   (⟨[], st.tag, 0⟩, { st with tag := st.tag + 1, trace := st.trace.push (.alloc [⟨[], st.tag, 0⟩] k) })
 
-/-- `n` fresh consecutive values (`Expand.freshRun`). -/
+/-- `n` fresh consecutive values. -/
 def freshRun (n : Nat) (k : Kind := .cell) : B (List V) := modifyGet fun st =>
   let run := (List.range n).map fun i => (⟨[], st.tag, i⟩ : V)
   (run, { st with tag := st.tag + 1, trace := st.trace.push (.alloc run k) })
@@ -175,7 +175,7 @@ def event (e : Event) : B Unit := modify fun st => { st with trace := st.trace.p
 /-- The statements from here on come from source line `l`. -/
 def line (l : Nat) : B Unit := modify fun st => { st with lines := st.lines.push (st.trace.size, l) }
 
-/-- The anchor a hint pending at the end of a block gets (`Expand.anchor`). -/
+/-- The anchor a hint pending at the end of a block gets. -/
 def anchor : B Unit := do
   let o ← fresh
   atom (.const o 0)
@@ -186,7 +186,7 @@ def closed {α : Type} (m : B α) : B α :=
 
 /-- Run `m` as a block of its own: its statements are returned, not appended, between an `enter`
 and a `leave` event, with an anchor for a hint left pending; the scope's padding run, constants
-and materialized pointers are the enclosing ones again after it (`Expand.branch`). -/
+and materialized pointers are the enclosing ones again after it. -/
 def block {α : Type} (m : B α) : B (α × List Stmt) := do
   let st ← get
   set { st with out := #[], pending := false }
@@ -200,11 +200,11 @@ def block {α : Type} (m : B α) : B (α × List Stmt) := do
 
 /-! ## Arithmetic -/
 
-/-- Record `c` as a constant set in this scope (`Expand.poolConst`). -/
+/-- Record `c` as a constant set in this scope. -/
 def poolConst (c : E) : B Unit :=
   modify fun st => if st.consts.contains c then st else { st with consts := c :: st.consts }
 
-/-- A constant (`Expand.constCell`). -/
+/-- A constant. -/
 def const (c : E) : B Word := do
   let o ← fresh .pooled
   atom (.const o c)
@@ -218,7 +218,7 @@ def gconst (e : Nat) : B (Var (.gpow (e + 1))) := do
   poolConst (gen ^ e)
   return ⟨o⟩
 
-/-- `d = c` for a cell `d` (`Expand.exprInto` of a constant). -/
+/-- `d = c` for a cell `d` (the zkDSL's lowering of a constant). -/
 def constInto {ρ : Ty} (d : Var ρ) (c : E) : B Unit := atom (.const d.v c)
 
 /-- `d = a + b` for a cell `d`. -/
@@ -233,13 +233,13 @@ def fdiv {σ τ : Ty} (a : Var σ) (b : Var τ) : B Word := do
   atom (.mul a.v q b.v)
   return ⟨q⟩
 
-/-- `a + b` (`XOR`) into a fresh value (`Expand.pureAdd`). -/
+/-- `a + b` (`XOR`) into a fresh value. -/
 def add {σ τ : Ty} (a : Var σ) (b : Var τ) : B Word := do
   let o ← fresh .pooled
   atom (.add o a.v b.v)
   return ⟨o⟩
 
-/-- `a · b` into a fresh value (`Expand.pureMul`). -/
+/-- `a · b` into a fresh value. -/
 def mul {σ τ : Ty} (a : Var σ) (b : Var τ) : B Word := do
   let o ← fresh .pooled
   atom (.mul o a.v b.v)
@@ -252,7 +252,7 @@ def mulG {m n : Nat} (a : Var (.gpow m)) (b : Var (.gpow n)) : B (Var (.gpow (m 
   atom (.mul o a.v b.v)
   return ⟨o⟩
 
-/-- `a + b` written into a cell of its own (`Expand.exprInto`), which a later write into the same
+/-- `a + b` written into a cell of its own, which a later write into the same
 cell asserts against. -/
 def addCell {σ τ : Ty} (a : Var σ) (b : Var τ) : B Word := do
   let o ← fresh
@@ -270,7 +270,7 @@ def assertBit (h : Hinted) : B (Var .bit) := do
   atom (.mul h.v h.v h.v)
   return ⟨h.v⟩
 
-/-- `x ** k` by square-and-multiply, `k ≥ 1` (`Expand.powExpr`). -/
+/-- `x ** k` by square-and-multiply, `k ≥ 1`. -/
 def pow {τ : Ty} (x : Var τ) (k : Nat) : B Word := do
   let mut acc : Word := x.word
   for i in (List.range (Nat.log2 k)).reverse do
@@ -290,7 +290,7 @@ def load {τ : Ty} (p : Var τ) (off : Nat) : B Word := do
 /-- Store `v` at `p·g^off`: the same `DEREF`, the write-once memory making it a write or a check. -/
 def store {σ τ : Ty} (p : Var σ) (off : Nat) (v : Var τ) : B Unit := atom (.load v.v p.v off)
 
-/-- `d = [p·g^off]` for a cell `d` (`Expand.exprInto` of a heap read): the `DEREF` of `store`. -/
+/-- `d = [p·g^off]` for a cell `d` (the zkDSL's lowering of a heap read): the `DEREF` of `store`. -/
 def loadInto {ρ σ : Ty} (d : Var ρ) (p : Var σ) (off : Nat) : B Unit := atom (.load d.v p.v off)
 
 /-- A fresh heap buffer of `size` words (`HeapBuf(size)`). -/
@@ -311,7 +311,7 @@ def hintBitsExp {τ : Ty} (x : Var τ) (n : Nat) : B (List Hinted) := do
   return run.map Hinted.mk
 
 /-- `assert log x < log (g·k)`, `k` holding the bound less one in the exponent: a `DEREF` through
-`x`, `k = x·y`, a `DEREF` through `y` (`Expand.lowerAssertLt` after its bound). -/
+`x`, `k = x·y`, a `DEREF` through `y` (the zkDSL's lowering after its bound). -/
 def rangeCheckK {τ ρ : Ty} (x : Var τ) (k : Var ρ) : B Word := do
   let y ← fresh
   let t1 ← fresh
@@ -319,7 +319,7 @@ def rangeCheckK {τ ρ : Ty} (x : Var τ) (k : Var ρ) : B Word := do
   atom (.rangeCheck x.v y t1 t2 k.v)
   return ⟨x.v⟩
 
-/-- `assert log x < n` (`Expand.lowerAssertLt` at a constant bound): `x` is `g^k`, `k < n`,
+/-- `assert log x < n` (the zkDSL's lowering at a constant bound): `x` is `g^k`, `k < n`,
 in a memory of at least `n` words. -/
 def rangeCheck {τ : Ty} (x : Var τ) (n : Nat) : B (Var (.gpow n)) := do
   let k ← const (gpowE (n - 1))
@@ -328,7 +328,7 @@ def rangeCheck {τ : Ty} (x : Var τ) (n : Nat) : B (Var (.gpow n)) := do
 
 /-! ## Control -/
 
-/-- A fused `match` of calls: `fs[j]` runs on `args` at `x = g^j` (`Expand.lowerDispatchedCall`),
+/-- A fused `match` of calls: `fs[j]` runs on `args` at `x = g^j`,
 `nrets` fresh return values. -/
 def dispatch {τ : Ty} (x : Var τ) (fs : List String) (args : List V) (nrets : Nat) :
     B (List Word) := do
@@ -342,7 +342,7 @@ def call (f : String) (args : List V) (nrets : Nat) : B (List Word) := do
   emit (.call f args rets)
   return rets.map Var.mk
 
-/-- Write the returned values into the return area as `Expand.exprInto` writes each into its
+/-- Write the returned values into the return area as the zkDSL's lowering writes each into its
 cell. -/
 def retInto : List V → List Ret → B Unit
   | r :: rs, .v x :: xs => do atom (.copy r x); retInto rs xs
@@ -353,7 +353,7 @@ def retInto : List V → List Ret → B Unit
   | r :: rs, .into w :: xs => do w r; retInto rs xs
   | _, _ => pure ()
 
-/-- `return vs` up to its `ret`: the return area, written (`Expand.lowerReturn`). -/
+/-- `return vs` up to its `ret`: the return area, written. -/
 def retArea (vs : List Ret) : B (List V) := do
   let rs ← freshRun vs.length .ret
   retInto rs vs
@@ -368,7 +368,7 @@ end B
 
 /-! ## Functions -/
 
-/-- The three marking passes an expanded function goes through (`Expand.expandQueue`). -/
+/-- The three marking passes an expanded function goes through. -/
 def finish (core : Core.Fn) (trace : Array Event) (lines : Array (Nat × Nat)) (rets : Nat)
     (loop : Bool × Option Nat) : Elab :=
   let (named, l1) := markUnnamedLines core trace lines
@@ -452,7 +452,7 @@ def loopConst (lo hi : Nat) (caps : List V) (body : Var (.gpow hi) → List V �
   let x0 ← gconst lo
   emit (.call name (x0.v :: caps) [])
 
-/-- `for x in mul_range(g^lo, hi)` at a runtime bound, as the zkDSL lowers it (`Expand.lowerFor`):
+/-- `for x in mul_range(g^lo, hi)` at a runtime bound, as the zkDSL lowers it:
 the exit is a parameter, the first call is conditional on `g^lo ≠ hi`, and `hi` (an expression,
 so an action) and the stepped counter `x·g` are evaluated once per use. -/
 def loopRt {τ : Ty} (lo : Nat) (hi : B (Var τ)) (caps : List V) (body : Word → List V → B Unit) :
@@ -475,7 +475,7 @@ def loopRt {τ : Ty} (lo : Nat) (hi : B (Var τ)) (caps : List V) (body : Word �
   let h1 ← hi
   emit (.callIf c.v name (x1.v :: h1.v :: caps))
 
-/-- The value `x · g` the step of a faithful loop passes on: as `Expand.materialize` makes the
+/-- The value `x · g` the step of a faithful loop passes on: as the zkDSL's lowering makes the
 shifted counter, a product with `g`, the second one in a scope reusing the first's base. -/
 def stepOf (x : Word) : B Word := do
   let st ← get
@@ -492,7 +492,7 @@ def stepOf (x : Word) : B Word := do
       return o
 
 /-- `for x in mul_range(g^lo, g^hi)` at compile-time bounds as the zkDSL lowers it
-(`Expand.lowerFor`, `.const`): the helper takes the counter and the captures, its exit test and its
+(`.const`): the helper takes the counter and the captures, its exit test and its
 self-call each make `x · g` (`stepOf`); the caller calls it once, unless `lo = hi`. The captures
 are an action, lowered at the call (a capture bound to a constant or a shifted pointer is made
 there); `ncaps` counts their cells. -/
@@ -512,8 +512,7 @@ def loopConstF (lo hi : Nat) (ncaps : Nat) (caps : B (List V))
     let cs ← caps
     emit (.call name (x0.v :: cs) [])
 
-/-- `for x in mul_range(g^lo, hi)` at a runtime bound as the zkDSL lowers it (`Expand.lowerFor`,
-`.runtime`): `loopRt` with the stepped counter made by `stepOf` and the captures an action lowered
+/-- `for x in mul_range(g^lo, hi)` at a runtime bound as the zkDSL lowers it (`.runtime`): `loopRt` with the stepped counter made by `stepOf` and the captures an action lowered
 after the entry test, at the call. -/
 def loopRtF {τ : Ty} (lo : Nat) (hi : B (Var τ)) (ncaps : Nat) (caps : B (List V))
     (body : Word → List V → B Unit) : B Unit := do

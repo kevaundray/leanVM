@@ -1,29 +1,23 @@
 /-
   LeanVM.Compiler.Compile
 
-  The zkDSL compiler in Lean: the front end (`Expand`) and the back end, a zkDSL program to its
-  assembled bytecode and hints.
+  The compiler's back end in Lean: a program's traced core functions to its assembled bytecode and hints.
 -/
 
 module
 
-public import LeanVM.Core.Expand
+public import LeanVM.Compiler.Trace
 public import LeanVM.Compiler.Consts
 public import LeanVM.Compiler.Assemble
 
 /-!
 # The compiler
 
-`compile` is the Rust compiler's `compile` (`crates/zkdsl_compiler/src/lib.rs` at leanVM `6363526c0`) as four functions:
+`compileTraced` is the back end of the Rust compiler's `compile` (`crates/zkdsl_compiler/src/lib.rs` at leanVM `6363526c0`) as three functions, from the traced core functions a program elaborates to (`Dsl.Program.traced`, its allocation trace with it):
 
-    Source.Program ─Expand.expandProgramTraced→ List TracedFn ─withConstTable→ List TracedFn
-      ─placeProgram→ List PFn ─emitFn→ List Lowered, jump table slots ─assemble→ Assembled
+    List TracedFn ─withConstTable→ List TracedFn ─placeProgram→ List PFn ─emitFn→ List Lowered, jump table slots ─assemble→ Assembled
 
-The first is the front end, `Expand`, with the allocation trace it records; the others are the
-back end, `compileTraced`. `lowerProgram` checks the loop helpers' constant parameters
-(`ConstsOk`) before it places the program.
-`cli/GuestBackend.lean` runs it compiled on the guest's source and compares the result with
-`Statement/Data/`, instruction for instruction.
+`lowerProgram` checks the loop helpers' constant parameters (`ConstsOk`) before it places the program. `cli/GuestBackend.lean` runs it compiled on the elaborated guest and compares the result with `Statement/Data/`, instruction for instruction.
 -/
 
 namespace LeanVM.Compiler
@@ -60,10 +54,6 @@ assembled program, its loop helpers' constant parameters found (`withConstTable`
 def compileTraced (p : List TracedFn) : Except String Assembled := do
   let (fns, slots) ← lowerProgram (withConstTable p)
   return assemble fns slots
-
-/-- The compiler: a zkDSL program to its assembled program. -/
-def compile (p : Source.Program) : Except String Assembled := do
-  compileTraced (← Expand.expandProgramTraced p)
 
 end
 end LeanVM.Compiler

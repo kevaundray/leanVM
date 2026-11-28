@@ -18,7 +18,7 @@ the definitions a long body is split into live in the namespace `Fn.<key>.core`,
 `LeanVM/Guest/Pack/<key>/Core.lean`, continued in `Core1.lean`, `Core2.lean`, … beside it. The glue
 `LeanVM/Guest/Data/Core.lean` lists the functions in the compiler's order (`coreFunctions`) and
 keeps `Data.core{j}` and `Data.core{j}.body` as abbreviations of function `j`. `lake exe guest-core --check` writes
-nothing and fails when the files differ; `lake exe guest-core --values f` prints the elaboration's
+nothing and fails when the files differ. It also writes the guest's constants that the generators in `scripts/` read, `LeanVM/Guest/Data/Constants.txt`; `lake exe guest-core --values f` prints the elaboration's
 name of each value of the function `f`, and `--show f` the function, renumbered. Run it from `lean_vm`.
 -/
 
@@ -520,7 +520,15 @@ end
 end LeanVM.Guest.Fn.«{key}»
 ")
 
-/-- The files, by path below `LeanVM/Guest`: the own packs', the packs', then the glue's. -/
+/-- The guest's constants the generators in `scripts/` read, a line `NAME value` each (`Data/Constants.txt`); they read
+the placeholders' lists from `Data/Placeholders.lean`. -/
+def constantsFile : String :=
+  open LeanVM.Guest.Program in
+  String.join <| [("DA_CELLS", DA_CELLS), ("DA_MAX_ROWS", DA_MAX_ROWS), ("DA_LOG_MAX_ROWS", DA_LOG_MAX_ROWS),
+    ("LIG_MAX_LEVELS", LIG_MAX_LEVELS), ("LIG_N_LOG_SIZES", LIG_N_LOG_SIZES), ("RES_BATCH", RES_BATCH),
+    ("YR_LOG_CAP", YR_LOG_CAP)].map fun (n, v) => s!"{n} {v}\n"
+
+/-- The files, by path below `LeanVM/Guest`: the own packs', the packs', then the glue's and the constants'. -/
 def files (P : LeanVM.Core.Program) : List (String × String) :=
   let st := stableNames P
   let keys := (List.range P.length).map fun j => st.getD j ""
@@ -538,7 +546,8 @@ def files (P : LeanVM.Core.Program) : List (String × String) :=
   let mods := (defs.map fun (k, fs) =>
     if own fs then s!"Pack.{k}.Core" else s!"Pack.P{packOf packCount k}.Core").eraseDups
   ownFiles ++ packFiles ++ [("Data/Core.lean", indexFile keys mods),
-    ("Data/Names.lean", namesFile P), ("Data/NameStrings.lean", nameStringsFile P)]
+    ("Data/Names.lean", namesFile P), ("Data/NameStrings.lean", nameStringsFile P),
+    ("Data/Constants.txt", constantsFile)]
 
 /-- The generated files on disk, by path below `LeanVM/Guest`: the old `Data/Core{k}` and
 `Fn/<key>/Core*.lean`, and the packs' `Pack/*/Core*.lean`. -/
@@ -606,5 +615,5 @@ def main (args : List String) : IO UInt32 := do
     IO.eprintln "regenerate with `lake exe guest-core`"
     return 1
   unless check do
-    IO.println s!"{P.length} functions in {fs.length - 3} files"
+    IO.println s!"{P.length} functions in {fs.length - 4} files"
   return 0

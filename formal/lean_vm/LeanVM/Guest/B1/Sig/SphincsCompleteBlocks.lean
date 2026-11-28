@@ -2,7 +2,7 @@
   LeanVM.Guest.B1.Sig.SphincsCompleteBlocks
 
   The completeness of `verify_sig_lean_sphincs`'s FORS block and of a layer of its hypertree
-  (`lean_ethereum.py`), as the statements its assembly
+  (`LeanVM/Guest/Program/`), as the statements its assembly
   consumes; the byte table's pointers.
 -/
 
@@ -17,7 +17,7 @@ public import LeanVM.Guest.B1.Sig.SphincsSoundFors
 /-!
 # The blocks' completeness, as the assembly consumes it
 
-`G` is `lean_ethereum.py`. `verify_sig_lean_sphincs`'s body is the digest block, FORS and three
+`G` is `LeanVM/Guest/Program/`. `verify_sig_lean_sphincs`'s body is the digest block, FORS and three
 layers, with addresses between them (`SphincsT`). Its completeness (`SphincsComplete`) is assembled
 from the completeness of each block (`Completes`: a valuation extending the given one on the
 block's fresh values, under which the block holds): the digest block's (`sDigestBlock_complete`)

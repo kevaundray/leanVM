@@ -2,7 +2,7 @@
   LeanVM.Guest.B1.Sig.SphincsAdrs
 
   FIPS 205's 32-byte address as the guest's two cells
-  (`lean_ethereum.py`, `crates/lean_sphincs/src/hash.rs`).
+  (`LeanVM/Guest/Program/`, `crates/lean_sphincs/src/hash.rs`).
 -/
 
 module
@@ -16,7 +16,7 @@ FIPS 205's address (`Adrs`, `hash.rs`) is 32 bytes, eight big-endian 32-bit word
 layer (bytes `0..4`), the tree (`4..16`, its high word zero here), the type (`16..20`), then the
 key pair, the chain index or tree height, and the hash address or tree index. A hash input
 `PK.seed | ADRS | M` is cells' bytes (each cell 16 bytes, little-endian), so the address is two
-cells: `A0`, bytes `0..16`, and `A1`, bytes `16..32` (`lean_ethereum.py`). In a cell a
+cells: `A0`, bytes `0..16`, and `A1`, bytes `16..32` (`LeanVM/Guest/Program/`). In a cell a
 big-endian word's low byte is its last byte: `beWordAt k w` is the number the word `w` at word slot
 `k` of a half adds to its cell.
 

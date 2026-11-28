@@ -117,26 +117,6 @@ name = "scheme-vectors"
 root = "SchemeVectors"
 srcDir = "cli"
 
-# Translates the guest's exported source AST into embedded-DSL Lean text (`LeanVM/Dsl/Gen/`), and
-# writes the check of every translated function against `Expand` (cli/DslTranslate.lean); not a
-# default target.
-[[lean_exe]]
-name = "dsl-translate"
-root = "DslTranslate"
-srcDir = "cli"
-
-# The translated guest against `Expand`, compiled (cli/DslCheck.lean): every function of
-# `LeanVM.Dsl.Gen.Checks`, the first difference of each failure, exit 1 on any; not a default target.
-[[lean_exe]]
-name = "dsl-check"
-root = "DslCheck"
-srcDir = "cli"
-
-[[lean_exe]]
-name = "dsl-measure"
-root = "DslMeasure"
-srcDir = "cli"
-
 # Writes the guest's core IR as data (`LeanVM/Guest/Data/Core*.lean`); `--check` fails when it
 # is stale, as CI runs it.
 [[lean_exe]]
@@ -175,15 +155,15 @@ root = "TestRuns"
 srcDir = "cli"
 
 # The guest's back end in Lean (`LeanVM/Compiler/`), compiled (cli/GuestBackend.lean): the
-# guest's source through `Expand` and the back end to leanISA bytecode and prover hints, compared
+# Lean guest, elaborated, through the back end to leanISA bytecode and prover hints, compared
 # with `Statement/Data/` or written out for the Rust comparison; not a default target.
 [[lean_exe]]
 name = "guest-backend"
 root = "GuestBackend"
 srcDir = "cli"
 
-# The guest the Rust prover loads (cli/GuestArtifact.lean): the back end's compilation of the guest's
-# source at the fixed point on its own size, with its Fiat-Shamir IV, written to or checked against
+# The guest the Rust prover loads (cli/GuestArtifact.lean): the back end's compilation of the Lean
+# guest at the fixed point on its own size, with its Fiat-Shamir IV, written to or checked against
 # `guests/lean_ethereum.compiled` (`scripts/guest-artifact` drives it); not a default target.
 [[lean_exe]]
 name = "guest-artifact"

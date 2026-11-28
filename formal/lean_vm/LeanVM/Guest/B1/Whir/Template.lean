@@ -20,7 +20,7 @@ import LeanVM.Guest.Program.Config
 /-!
 # The template of `open_stacked` (TRIAGE G #42)
 
-`osBody c` is the body of `open_stacked__L{c.m}` (`lean_ethereum.py`, `open_stacked`, G below) at
+`osBody c` is the body of `open_stacked__L{c.m}` (`LeanVM/Guest/Program/`, `open_stacked`, G below) at
 the configuration `c = osCfg m`, value by value as the expansion numbers it: every block takes the
 state `OsSt` (the first free value `k`, the sponge's capacity cells, the cursor as a base value and
 a word offset, the running claim, the shifted pointers materialized so far) and returns the next,
@@ -91,7 +91,7 @@ def hsScale (v bits c init : ℕ) : ℕ :=
 
 /-! ## Materialized pointers -/
 
-/-- A shifted pointer the body materialized (`Mat`, `Core/Expand.lean`): `out = base·g^exp`,
+/-- A shifted pointer the body materialized (`Mat`, `Dsl/Builder.lean`): `out = base·g^exp`,
 made as `src·g^dist`. -/
 structure OsMat where
   base : ℕ

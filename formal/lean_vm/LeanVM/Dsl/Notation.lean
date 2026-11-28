@@ -17,10 +17,10 @@ public import LeanVM.Dsl.Keccak
 Everything here unfolds to the builder (`Dsl/Builder`, `Dsl/Fold`), so a function written with it emits what the builder calls it abbreviates would, in the same order:
 
 * Arithmetic is `Ex` (`LeanVM.Dsl.Fold`): `a + b`, `a * b`, `a ^ k` (`k` a `Nat`) and `a / b` build an expression that `val` lowers (`Ex.lower`), `fold` binds as an `FW` (`Ex.bind`), and a store writes into its cell (`Ex.into`). Its leaves are coerced: a word is `.w` (a value a product with `g`-powers shifts as a pointer), a numeral or a `Nat` is `Ex.nat` (the source's integer, a `g`-power when it is a power of two), a field constant `E` is `.c`, an `FW` its expression, a `Shifted` pointer `.sh`, a `GPow` its `g`-power, an action `B Word` `.act` (run where the expression is lowered). `GEN ^ k` is the constant `g^k` (`.g k`) and `GEN` is `g`.
-* `r[i]` is cell `i` of a frame run `r : List V` (a word); `p[i]` is the heap word at `p` indexed by the expression `i`, read where the expression is lowered: the `g`-power factor of `i` folds into the offset and the rest multiplies the pointer (`Expand.heapAddrSpan`, `Expand.arrayPtr`), so `p[GEN ^ k]` is `B.load p k` and `p[GEN ^ k * d]` is `B.load (p · d) k`. A `Shifted` pointer `s` adds its exponent: `s[GEN ^ k]` is `B.load s.base (s.exp + k)`.
+* `r[i]` is cell `i` of a frame run `r : List V` (a word); `p[i]` is the heap word at `p` indexed by the expression `i`, read where the expression is lowered: the `g`-power factor of `i` folds into the offset and the rest multiplies the pointer, so `p[GEN ^ k]` is `B.load p k` and `p[GEN ^ k * d]` is `B.load (p · d) k`. A `Shifted` pointer `s` adds its exponent: `s[GEN ^ k]` is `B.load s.base (s.exp + k)`.
 * `r[lo:hi]` is the slice of a frame run (cells `lo ..< hi`); a frame run is a Keccak operand or destination as it is (`.cells (.frame r)`, `.frame r`), and a list of words an operand of those words.
 * `r[i] := e` writes `e` into the frame cell (`Ex.into`); `p[i] := e` stores it in the heap (`B.store`, the address first).
-* Calls of guest functions by name: `call f [a, b]`, `call1 f [a, b]` (one value), `callN f [a, b] n`, the arguments expressions: as `Expand.call` lowers a call, the return cells are allocated first, then the arguments are lowered left to right, then the call is emitted. `callWith` and `callShapedWith` take the arguments as an action (`argsOf` for runs among them).
+* Calls of guest functions by name: `call f [a, b]`, `call1 f [a, b]` (one value), `callN f [a, b] n`, the arguments expressions: as the zkDSL lowered a call, the return cells are allocated first, then the arguments are lowered left to right, then the call is emitted. `callWith` and `callShapedWith` take the arguments as an action (`argsOf` for runs among them).
 * `assert a == b` (`B.assertEq`), `assert a != b` (`B.assertNe`), `assert log x < n` (a range check at the constant bound `n`: the bound set first, then `x` lowered, `B.rangeCheckK`).
 -/
 
@@ -90,7 +90,7 @@ instance : Coe (List V) Operand := ⟨fun vs => .cells (.frame vs)⟩
 instance : Coe (List V) Cells := ⟨.frame⟩
 instance : Coe (List Word) Operand := ⟨fun ws => .words (ws.map fun w => .cell w.v)⟩
 
-/-- A heap index split as `Expand` folds it: the exponent of its `g`-power factor, and the rest. -/
+/-- A heap index split as the zkDSL's lowering folds it: the exponent of its `g`-power factor, and the rest. -/
 def Ex.split : Ex → Nat × Option Ex
   | .g k => (k, none)
   | .sh p k => (k, some (.w p))
@@ -154,7 +154,7 @@ def argsOf (as : List Arg) : B (List V) := do
     | .run r => pure r
   return vs.flatten
 
-/-- A call of `f` returning values of the shapes `shapes` (`Expand.call`): their cells allocated first, a fresh cell per scalar and a fresh run per `StackBuf`, then the arguments `as` computes, then the call; the cells per value. -/
+/-- A call of `f` returning values of the shapes `shapes`: their cells allocated first, a fresh cell per scalar and a fresh run per `StackBuf`, then the arguments `as` computes, then the call; the cells per value. -/
 def callShapedWith (f : String) (as : B (List V)) (shapes : List Shape) : B (List (List V)) := do
   let rets ← shapes.mapM fun
     | .scalar => do return [← B.fresh]
@@ -163,7 +163,7 @@ def callShapedWith (f : String) (as : B (List V)) (shapes : List Shape) : B (Lis
   B.emit (.call f vs rets.flatten)
   return rets
 
-/-- A call of `f` returning `n` values: their cells allocated first, then the arguments `as` computes, then the call (`Expand.call`). -/
+/-- A call of `f` returning `n` values: their cells allocated first, then the arguments `as` computes, then the call. -/
 def callWith (f : String) (as : B (List V)) (n : Nat) : B (List Word) := do
   let rets ← (List.range n).mapM fun _ => B.fresh
   let vs ← as

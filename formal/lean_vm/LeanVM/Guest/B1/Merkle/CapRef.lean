@@ -12,7 +12,7 @@ public import LeanVM.Guest.B1.Merkle.Meaning
 /-!
 # `verify_merkle_cap`, from its source
 
-`capRef depth` is `verify_merkle_cap(cap, flags, depth)` of `guests/lean_ethereum.py` read line
+`capRef depth` is `verify_merkle_cap(cap, flags, depth)` of `LeanVM/Guest/Program/` read line
 by line (`LeanVM.Guest.Ref.Lang`): the `Const` depth a Lean argument, each `unroll` an `unroll`,
 each `if const` an `if`, the frame run `runs` and the flags read the names of `CapName`. The
 size of `runs` (the `StackBuf` chosen per depth) is not read: a cell is a name, and a run's size

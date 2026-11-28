@@ -11,7 +11,7 @@ public import LeanVM.Guest.B1.Gkr.Holds
 public import LeanVM.Guest.WalkTags
 
 /-!
-# The layer loop's parity (lean_ethereum.py)
+# The layer loop's parity (`LeanVM/Guest/Program/`)
 
 `verify_bus_gkr_loop0`'s iteration `x` dispatches `gkr_rounds__L{2r}` on `parity = layer[g^12]`,
 `layer = layers·x^13` (a layer record of `LAYER_SLOTS = 13` words per radix-four layer,

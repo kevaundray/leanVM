@@ -2,7 +2,7 @@
   LeanVM.Dsl.Keccak
 
   The Keccak builtins of the embedded guest language, `keccak`, its duplex step and
-  `keccak_cells`, on the builder: what `Expand` emits for them, without a source text.
+  `keccak_cells`, on the builder: what the zkDSL's lowering emitted for them, without a source text.
 -/
 
 module
@@ -12,7 +12,7 @@ public import LeanVM.Dsl.Builder
 /-!
 # Keccak
 
-The zkDSL's builtins (`lower/builtins.rs`, `Expand.lowerKeccak`, `Expand.lowerKeccakCells`), as
+The zkDSL's builtins (`lower/builtins.rs`), as
 builder actions emitting the same statements and trace:
 
 * `B.keccak a b out tail len padTail`: the Keccak-256 of the first `len` bytes of `a ‖ b ‖ tail`,
@@ -40,8 +40,8 @@ An operand, a state or a destination is given as `Cells` (frame values, or a hea
 builtin reads or writes through fresh values) or, for a message operand, as words (`Msg`) the
 caller has already computed, in the zkDSL's evaluation order: `a`, then `b`, then the tail. The
 builder does not fail: the shapes the zkDSL rejects (an operand of the wrong length, a destination
-of another size, a length ending before a word that is not zero) are elaborated as written, and
-the checks against `Expand` (`LeanVM.Dsl.KeccakCheck`) are what pins the faithful ones.
+of another size, a length ending before a word that is not zero) are elaborated as written: the
+guest's compiled code and its proofs are what pin the faithful ones.
 -/
 
 namespace LeanVM.Dsl
@@ -50,7 +50,7 @@ open LeanVM.Parameters LeanVM.Core LeanVM.Compiler
 
 @[expose] public section
 
-/-- One message cell (`Expand.SpongeCell`): a literal zero, a constant, or a value. -/
+/-- One message cell: a literal zero, a constant, or a value. -/
 inductive Msg where
   | zero
   | const (c : E)
@@ -87,8 +87,7 @@ abbrev Operand.heap (ptr : V) (lo len : Nat) : Operand := .cells (.heap ptr lo l
 
 namespace Keccak
 
-/-- The last rate lane of a 64-byte message's one block, the padding's closing `0x80` byte
-(`Expand.twoToOneClose`). -/
+/-- The last rate lane of a 64-byte message's one block, the padding's closing `0x80` byte. -/
 def twoToOneClose : E := word (0x80 * 2 ^ 56) 0
 
 /-- `len` heap words from `ptr·g^lo` read into a fresh run, one `DEREF` each. -/
@@ -97,7 +96,7 @@ def loadRun (ptr : V) (lo len : Nat) : B (List V) := do
   t.zipIdx.forM fun (d, k) => B.atom (.load d ptr (lo + k))
   return t
 
-/-- The message cells of an operand (`Expand.keccakWords`): a heap slice is read into a fresh
+/-- The message cells of an operand: a heap slice is read into a fresh
 run. -/
 def resolve : Operand → B (List Msg)
   | .words ws => pure ws
@@ -116,19 +115,18 @@ def setPadRun : B (List V) := do
   modify fun st => { st with keccakPad := some o }
   return o
 
-/-- The run `[0x01, 0, 0, 0, 0]` every `keccak` of this scope shares, set at the first
-(`Expand.keccakPadRun`). -/
+/-- The run `[0x01, 0, 0, 0, 0]` every `keccak` of this scope shares, set at the first. -/
 def padRun : B (List V) := do
   if let some o := (← get).keccakPad then return o
   setPadRun
 
 /-- What the zkDSL sets above a `match` whose arms are all `@inline` calls and which no earlier
-`match` enters (`Expand.lowerMatch`): the padding run and a two-to-one hash's closing lane. -/
+`match` enters: the padding run and a two-to-one hash's closing lane. -/
 def inlineArms : B Unit := do
   discard padRun
   discard <| B.const twoToOneClose
 
-/-- A value holding a message cell (`Expand.spongeCell`). -/
+/-- A value holding a message cell. -/
 def spongeCell : Msg → B V
   | .zero => padRun >>= fun p => pure (p.getD 1 default)
   | .const c =>
@@ -136,7 +134,7 @@ def spongeCell : Msg → B V
       else B.const c >>= fun w => pure w.v
   | .cell o => pure o
 
-/-- `state + c`, into `dst` if given (`Expand.spongeXor`): a zero `c` is the state value itself,
+/-- `state + c`, into `dst` if given: a zero `c` is the state value itself,
 or a copy of it into `dst`. -/
 def spongeXor (state : V) (c : Msg) (dst : Option V) : B V := do
   match c with
@@ -179,7 +177,7 @@ def copyRun (cells : List Msg) : B (List V) := do
     | .cell o => B.atom (.copy d o)
   return t
 
-/-- Four consecutive values holding the message cells (`Expand.spongeRun`): where they already
+/-- Four consecutive values holding the message cells: where they already
 lie, a window of the padding run, or a fresh copy. -/
 def spongeRun (cells : List Msg) : B (List V) :=
   let vals := cells.filterMap Msg.val?
@@ -188,8 +186,7 @@ def spongeRun (cells : List Msg) : B (List V) :=
   else if padHead cells then padRun >>= fun p => pure (p.take 4)
   else copyRun cells
 
-/-- The `m` and `tail` values of a `KECCAK` reading a block's first eight cells
-(`Expand.keccakRate`): themselves from the zero state, or XORed into the values of the previous
+/-- The `m` and `tail` values of a `KECCAK` reading a block's first eight cells: themselves from the zero state, or XORed into the values of the previous
 output `st` they line up with. -/
 def rate (block : List Msg) (st : Option (List V)) : B (List V × List V) := do
   let cell := fun (i : Nat) => block.getD i .zero
@@ -207,7 +204,7 @@ def rate (block : List Msg) (st : Option (List V)) : B (List V × List V) := do
         discard <| spongeXor (st.getD (4 + j) default) (cell (4 + j)) (some (tail.getD j default))
       return (m, tail)
 
-/-- XOR the byte `v` into byte `pos` of the message cells (`Expand.xorByte`): into a constant, or
+/-- XOR the byte `v` into byte `pos` of the message cells: into a constant, or
 by one `XOR` with a constant cell. -/
 def xorByte (cells : List Msg) (pos v : Nat) : B (List Msg) := do
   let i := pos / 16
@@ -244,7 +241,7 @@ def absorbFrom (cells : List Msg) (blocks : Nat) (out : List V) :
     absorbFrom cells blocks out fuel (some c) (k + 1)
 
 /-- The `KECCAK` atoms absorbing `cells` into `state` (the zero state if `none`), the last writing
-the cells `out` (`Expand.emitKeccakMessage`). With `finalLen` the message is the cells' first
+the cells `out`. With `finalLen` the message is the cells' first
 `finalLen` bytes, padded, in `finalLen / rate + 1` blocks; without, the cells zero-extended to
 whole blocks. `padded`: the cells past `finalLen` already hold the padding's first byte and
 zeros. -/
@@ -267,18 +264,18 @@ def absorb (cells : List Msg) (finalLen : Option Nat) (state : Option (List V)) 
 thirteen of a longer run. -/
 def frameOut (cs : List V) : List V := if stateCells ≤ cs.length then cs.take stateCells else cs
 
-/-- Where a `keccak` writes (`Expand.keccakOut`): a frame run's `frameOut` cells; a heap run's
+/-- Where a `keccak` writes: a frame run's `frameOut` cells; a heap run's
 cells through a fresh run of its size, with the heap slice to copy them out to. -/
 def dest : Cells → B (List V × Option (V × Nat))
   | .frame cs => pure (frameOut cs, none)
   | .heap ptr lo len => do return (← B.freshRun len, some (ptr, lo))
 
-/-- Copy what `dest` wrote out to a heap destination (`Expand.keccakFinish`). -/
+/-- Copy what `dest` wrote out to a heap destination. -/
 def finish : List V × Option (V × Nat) → B Unit
   | (_, none) => pure ()
   | (state, some (ptr, lo)) => state.zipIdx.forM fun (s, k) => B.atom (.load s ptr (lo + k))
 
-/-- `pad_tail=1` (`Expand.padTailInPlace`): the frame cells of the tail from byte `len` on set to
+/-- `pad_tail=1`: the frame cells of the tail from byte `len` on set to
 the padding, its first byte then zeros, so the message is read in place. -/
 def padTail (tail : List Msg) (n len : Nat) : B Unit := do
   let tailCells := tail.filterMap fun | .cell o => some o | _ => none
@@ -307,7 +304,7 @@ namespace B
 
 open Keccak
 
-/-- `keccak(a, b, out, tail=, len=, pad_tail=)` (`Expand.lowerKeccak` without `cap=`): the
+/-- `keccak(a, b, out, tail=, len=, pad_tail=)` (the zkDSL's lowering without `cap=`): the
 Keccak-256 of the first `len` bytes of `a ‖ b ‖ tail` (all of them by default) into `out`; with
 `padTail`, the padding set in the tail's frame cells from byte `len` on. -/
 def keccak (a b : Operand) (out : Cells) (tail : Option Operand := none) (len : Option Nat := none)
@@ -324,7 +321,7 @@ def keccak (a b : Operand) (out : Cells) (tail : Option Operand := none) (len : 
   absorb cells (some len) none o.1 padTail
   Keccak.finish o
 
-/-- `keccak(a, b, out, tail=, cap=)` (`Expand.lowerKeccak` with `cap=`): the duplex step in
+/-- `keccak(a, b, out, tail=, cap=)` (the zkDSL's lowering with `cap=`): the duplex step in
 overwrite mode, the message cells `a ‖ b ‖ tail` (zero past them) over the capacity `cap`, one
 `KECCAK` into `out`. -/
 def keccakDuplex (a b : Operand) (out : Cells) (cap : Cells) (tail : Option Operand := none) :
@@ -342,7 +339,7 @@ def keccakDuplex (a b : Operand) (out : Cells) (cap : Cells) (tail : Option Oper
   B.atom (.keccak (m ++ tl ++ c) o.1 false false)
   Keccak.finish o
 
-/-- `keccak_cells(cells, out, state=, len=, final=)` (`Expand.lowerKeccakCells`): the Keccak-256
+/-- `keccak_cells(cells, out, state=, len=, final=)`: the Keccak-256
 of the first `len` bytes of the cells (all of them by default) into `out`, continuing `state` if
 given; `final := false` absorbs the cells zero-extended to whole blocks, unpadded. -/
 def keccakCells (cells : Operand) (out : Cells) (state : Option Cells := none)

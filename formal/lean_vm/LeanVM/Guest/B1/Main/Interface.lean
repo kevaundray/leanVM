@@ -286,7 +286,7 @@ noncomputable def dvClaim (σ : Val) : DaClaim :=
   ⟨digestOfCells (σ (.n 369)) (σ (.n 370)), σ (.n 371)⟩
 
 /-- `main_loop2`'s arguments after its counter: `n_raw_x`, `lx_slots`, `cover`, `lx_table`, then
-the `51` carried tags `lx_tags` (`.n 304 ..< .n 355`; lean_ethereum.py). -/
+the `51` carried tags `lx_tags` (`.n 304 ..< .n 355`; `LeanVM/Guest/Program/`). -/
 def l2Args (σ : Val) : List E :=
   [σ (.n 2), σ (.n 22), σ (.n 45), σ (.n 31)] ++ (List.range 51).map fun j => σ (.n (304 + j))
 

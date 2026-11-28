@@ -26,7 +26,7 @@ guest's `guestU L.read` (`Obl/GuestU.lean`) and its loop helpers' constant param
   frame `1`, returning nothing, its calls located (`World.C`);
 * `guest_main_rel`: `coreProgram.Rel L.read "main" [] []`;
 * `registered_tfOf`: function `j` is a registered loop helper of the guest's world exactly when
-  its name is a loop helper's and its `loopSource` says so.
+  its name is a loop helper's and its loop entry (`TracedFn.loop`) says so.
 -/
 
 namespace LeanVM.Guest.Compiled

@@ -1,18 +1,12 @@
 import Statement.Data.Bytecode
 import LeanVM.Core.Code
-import LeanVM.Guest.Data.Source
+import LeanVM.Guest.Data.Placeholders
 import LeanVMTests.Guest.Manifest
-import LeanVMTests.Guest.Programs
 
 /-!
 # The guest's generated data against the Rust's manifest
 
-`scripts/guest-export` writes the compiled guest (`Statement/Data/Bytecode*.lean`), its source
-AST (`Data/Source.lean`), the front end's corpus (`Programs.lean`) and what the Rust reports
-of the deployed guest (`Manifest.lean`). Recomputed here from the Lean data: the log size, the code
-length, the function count, the instructions of each opcode, the source's placeholders' log size.
-That the assembled `guest` is the bytecode the Rust proves, every instruction, is
-`lake exe node-vectors` (its Fiat-Shamir IV against `Manifest.fsSeed`).
+`scripts/guest-export` writes the compiled guest (`Statement/Data/Bytecode*.lean`), the guest's placeholders (`Data/Placeholders.lean`) and what the Rust reports of the deployed guest (`Manifest.lean`). Recomputed here from the Lean data: the log size, the code length, the function count, the instructions of each opcode, the placeholders' log size. That the assembled `guest` is the bytecode the Rust proves, every instruction, is `lake exe node-vectors` (its Fiat-Shamir IV against `Manifest.fsSeed`).
 -/
 
 namespace LeanVMTests.Guest.Data
@@ -40,15 +34,7 @@ def opcodeCounts : List Nat :=
 #guard (functions.map (·.instructionCount)).sum = codeLen
 #guard opcodeCounts = Manifest.opcodeCounts
 
-/- The source's placeholders are those of the bytecode's size. -/
-#guard bytecodeLog = logSize
-
-/- The guest's source: its functions, constant arrays, and `main` among them. -/
-#guard guest.funcs.length = 131
-#guard guest.constArrays.length = 78
-#guard guest.funcs.any (·.name == "main")
-
-/- The front-end corpus. -/
-#guard Programs.frontend.length = 212
+/- The placeholders are those of the bytecode's size. -/
+#guard LeanVM.Guest.Placeholders.bytecodeLog = logSize
 
 end LeanVMTests.Guest.Data

@@ -15,7 +15,7 @@ public import LeanVM.Guest.B1.Fs.Templates
 # The templates of `opening_queries`
 
 `opening_queries(cap, flags, lam_inv, coefs, hs, positions, query_win_ptrs, n_iters_g)`
-(`guests/lean_ethereum.py`) has 73 specializations, one per level shape
+(`LeanVM/Guest/Program/`) has 73 specializations, one per level shape
 (`Oq`). One query (`opening_query`, inline, with `walk_path` and `novel_eval`) from its first
 value `b`, at the point `x`, is `oqQueryT`:
 
@@ -174,7 +174,7 @@ def oqLeafT (s : Oq) (b pr kL : ℕ) : List Stmt :=
 /-! ## The path (`walk_path`, a function of its own) -/
 
 /-- The path's windows: six levels each from the bottom, the last the remainder
-(`walk_path`, lean_ethereum.py, `walk_path`). -/
+(`walk_path`, `LeanVM/Guest/Program/`, `walk_path`). -/
 def oqNpw (s : Oq) : ℕ := (s.pd + 5) / 6
 
 /-- Window `i`'s levels. -/
@@ -263,7 +263,7 @@ def wpCh : ℕ := 5
 /-- `walk_path`'s padding run: after its children and its first window's word. -/
 def wpPr (s : Oq) : ℕ := wpCh + 4 * s.pd + 1
 
-/-- **`walk_path__L{pd}_L{cd}`'s body** (lean_ethereum.py, `walk_path`): the path from the
+/-- **`walk_path__L{pd}_L{cd}`'s body** (`LeanVM/Guest/Program/`, `walk_path`): the path from the
 node `n0, n1` (`.n 0`, `.n 1`) by the windows at `wins` (`.n 2`), the cap leaf into `cap`
 (`.n 3`), the flag into `flags` (`.n 4`). -/
 def wpBodyT (s : Oq) : List Stmt :=

@@ -14,7 +14,7 @@ public import LeanVM.Guest.B1.Whir.Template
 # The templates of `open_stacked`'s helpers
 
 Each is the body of a specialization at its compile-time constants, value by value as the
-expansion numbers it (`lean_ethereum.py`):
+expansion numbers it (`LeanVM/Guest/Program/`):
 
 * `lpBody sq d cd loop`: `level_positions(word0, fs0..fs4, positions, win_ptrs, tabs)` at `sq`
   squeezes of a level of tree depth `d` and cap depth `cd`: the first word decoded, then the loop

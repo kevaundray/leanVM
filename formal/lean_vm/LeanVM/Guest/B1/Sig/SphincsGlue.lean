@@ -1,7 +1,7 @@
 /-
   LeanVM.Guest.B1.Sig.SphincsGlue
 
-  The addresses `verify_sig_lean_sphincs` builds between its stages (`lean_ethereum.py,
+  The addresses `verify_sig_lean_sphincs` builds between its stages (`LeanVM/Guest/Program/`,
   4235-4236, 4239-4240`): each layer's `A0` and its key pair's `A1`, from the
   digest's leaves.
 -/
@@ -15,7 +15,7 @@ public import LeanVM.Guest.B1.Sig.SphincsHash
 /-!
 # The layers' addresses
 
-`G` is `lean_ethereum.py`. Layer `l`'s one-time key is `K_l(idx)`: its tree `layerTreeN T l` and its
+`G` is `LeanVM/Guest/Program/`. Layer `l`'s one-time key is `K_l(idx)`: its tree `layerTreeN T l` and its
 leaf `layerLeafN T l` (`T` the digest's number, `SphincsSoundDigest`). The guest builds the key's
 address cells from the leaves' bytes and their shifts (`lvals`, `tree_mid`):
 

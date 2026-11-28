@@ -251,7 +251,7 @@ def vsIdx : Nat := 19
 /-- The functions the analysis without facts does not cover. -/
 def guestSkip (j : Nat) : Bool := j == vsIdx || guestXIdx.contains j
 
-/-- `kappa_base`'s bounds (`lean_ethereum.py:3561-3569`): `kb[0] = g^0`, the memory's log and the
+/-- `kappa_base`'s bounds (`LeanVM/Guest/Program/`): `kb[0] = g^0`, the memory's log and the
 six tables' heights below `g^31`, keccak's `τ` below `g^25`. -/
 def kbBound (c : Nat) : Nat := [1, 31, 31, 31, 31, 31, 31, 25].getD c 0
 

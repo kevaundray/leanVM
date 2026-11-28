@@ -1,16 +1,16 @@
 import os, sys, re, ast
 # usage: python3 -I gendiff.py  writes Tables/Vt/FormsDiff.lean: each pull block's coordinates less
-# their push twin's (`COORD_DIFF_*`), from the guest's constants in
-# LeanVM/Guest/Data/Source.lean, and the kernel's check that pull = push + difference, term by term.
+# their push twin's (`COORD_DIFF_*`), from the guest's placeholders in
+# LeanVM/Guest/Data/Placeholders.lean, and the kernel's check that pull = push + difference, term by term.
 # Library: `DT[t]` (table t's difference terms per pull block), `blocks(sd, t)`.
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, '..', '..', 'LeanVM', 'Guest', 'Data', 'Source.lean')
+SRC = os.path.join(HERE, '..', '..', 'LeanVM', 'Guest', 'Data', 'Placeholders.lean')
 VT_LEAN = os.path.join(HERE, '..', '..', 'LeanVM', 'Guest', 'B1', 'Tables', 'Vt')
 
 def load_arrays():
     t = open(SRC).read()
     A = {}
-    for m in re.finditer(r'def arr_(\w+) : List \(Nat × Nat\) :=\n\s*(\[.*?\])\n', t, re.S):
+    for m in re.finditer(r'^def (\w+) : List \(Nat × Nat\) := (\[.*\])$', t, re.M):
         xs = ast.literal_eval(m.group(2))
         assert all(x[1] == 0 for x in xs) or m.group(1) not in USED, m.group(1)
         A[m.group(1)] = [x[0] for x in xs]

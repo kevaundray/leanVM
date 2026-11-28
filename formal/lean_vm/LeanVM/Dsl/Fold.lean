@@ -15,7 +15,7 @@ public import LeanVM.Dsl.Keccak
 A guest computes with values (`Word`) and with field constants it knows while elaborating (`E`): indices, loop counters and `Const` arguments make many operands constants, and which ones depends on the arguments. The builder folds them, so an author writes the arithmetic once for every argument:
 
 * `FW`: a scalar that is a constant (`.c`) or a value (`.w`). `FW.val` materializes it (a constant is one `SET`), `FW.msg` gives it as a Keccak message cell (a zero is the padding run's).
-* `Ex`: a field expression over constants (`.c`; `.g k` is `g^k`), values (`.w`; a frame cell `.v`), pointers (`.sh p k` is `p · g^k`) and actions (`.act`, a heap read `.ld`), built with `.add`, `.mul`, `.pow`. `Ex.lower` gives its value, `Ex.into d` writes it into the cell `d`, `Ex.bind` gives it as an `FW`. All three fold: a constant subexpression is computed by Lean, a sum with a constant `0` or a product with a constant `1` is its other operand, and nothing else is rewritten, except that a product of one `.w` value and `g`-powers is that pointer (`B.shifted`); the operands' instructions are emitted left to right, each constant set where its operand is lowered (the order `Expand.expr` and `Expand.exprInto` use).
+* `Ex`: a field expression over constants (`.c`; `.g k` is `g^k`), values (`.w`; a frame cell `.v`), pointers (`.sh p k` is `p · g^k`) and actions (`.act`, a heap read `.ld`), built with `.add`, `.mul`, `.pow`. `Ex.lower` gives its value, `Ex.into d` writes it into the cell `d`, `Ex.bind` gives it as an `FW`. All three fold: a constant subexpression is computed by Lean, a sum with a constant `0` or a product with a constant `1` is its other operand, and nothing else is rewritten, except that a product of one `.w` value and `g`-powers is that pointer (`B.shifted`); the operands' instructions are emitted left to right, each constant set where its operand is lowered (the order the zkDSL's lowering and the zkDSL's lowering use).
 
 So `acc := ← (acc.ex.add t.ex).bind` in a loop from `acc := .c 0` emits nothing at the first iteration (the sum is `t`) and one `XOR` at each later one. The lemmas (`spec_val`, `spec_lower`, `spec_into`, `spec_bind`) state the value each one gives for expressions without actions (`Ex.Pure`), by cases on the fold: what is emitted differs, the value does not.
 -/
@@ -110,7 +110,7 @@ def gexp? : Ex → Option Nat
     | _, _ => none
   | _ => none
 
-/-- The pointer a product of one value (or pointer) and `.g`s is (`Expand.gmul`). -/
+/-- The pointer a product of one value (or pointer) and `.g`s is. -/
 def base? : Ex → Option (Word × Nat)
   | .w x => some (x, 0)
   | .sh p k => some (p, k)
@@ -121,13 +121,13 @@ def base? : Ex → Option (Word × Nat)
       | _, _ => none
   | _ => none
 
-/-- A factor's value beside a constant factor: a value `.w x` is read as `Expand.expr` reads a name, its `use` event recorded (`B.use`); any other factor is lowered. -/
+/-- A factor's value beside a constant factor: a value `.w x` is read as the zkDSL's lowering reads a name, its `use` event recorded (`B.use`); any other factor is lowered. -/
 def factor (e other : Ex) (lowered : B Word) : B Word :=
   match e with
   | .w x => if other.const?.isSome then B.use x else lowered
   | _ => lowered
 
-/-- Its value (`Expand.expr`): a constant is set; `0 + b` is `b`, `1 · b` is `b`; otherwise the operands left to right, then the operation; a product of a value and `.g`s is that pointer. -/
+/-- Its value: a constant is set; `0 + b` is `b`, `1 · b` is `b`; otherwise the operands left to right, then the operation; a product of a value and `.g`s is that pointer. -/
 def lower (e : Ex) : B Word :=
   match e.const? with
   | some k => B.const k
@@ -156,7 +156,7 @@ def lower (e : Ex) : B Word :=
           B.const 1
         else do B.pow (← a.lower) k
 
-/-- Written into the cell `d` (`Expand.exprInto`): a constant `SET`, a heap read a `DEREF` into `d`, a sum or product of two operands the operation into `d`, anything else a copy. -/
+/-- Written into the cell `d`: a constant `SET`, a heap read a `DEREF` into `d`, a sum or product of two operands the operation into `d`, anything else a copy. -/
 def into {ρ : Ty} (d : Var ρ) (e : Ex) : B Unit :=
   match e.const? with
   | some k => B.constInto d k

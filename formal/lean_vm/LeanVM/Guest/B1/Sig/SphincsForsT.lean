@@ -2,7 +2,7 @@
   LeanVM.Guest.B1.Sig.SphincsForsT
 
   The FORS trees, their key `T_k`, the hypertree's paths and a layer of `verify_sig_lean_sphincs`
-  as templates (`lean_ethereum.py`), with the values
+  as templates (`LeanVM/Guest/Program/`), with the values
   numbered as the renumbered expansion numbers them, over the values the body sets before.
 -/
 
@@ -13,7 +13,7 @@ public import LeanVM.Guest.B1.Sig.Shapes
 /-!
 # FORS, the paths and a layer as templates
 
-`G` is `lean_ethereum.py`. The templates take what the body sets before them as parameters: the
+`G` is `LeanVM/Guest/Program/`. The templates take what the body sets before them as parameters: the
 padding run `pad` (`[0x01, 0, 0, 0, 0]`), `P` (`pp`), the address's first cell `A0` (`a0`, the
 layer and the tree), the key pair's cell `key` (`A1` of the key pair alone), and the bits and
 right shifts of the fields: `bit j`, `val j`, `j` the bit's index in the digest's FORS fields

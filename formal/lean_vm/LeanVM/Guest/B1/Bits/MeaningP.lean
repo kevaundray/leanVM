@@ -13,7 +13,7 @@ public import LeanVM.Guest.ExpTables
 /-!
 # Bits, logs and the exponent: meanings (TRIAGE G #16-21)
 
-For each function of the guest (`guests/lean_ethereum.py`, G below) its
+For each function of the guest (`LeanVM/Guest/Program/`, G below) its
 meaning `Meaning…` on its argument and return words, and `…_SpecP P`, the statement that program
 `P`'s relation at the function's name is that meaning. The proof of `…_SpecP P` (`…_holdsP`)
 holds for every `P` that finds the function (`Finds`) and imports that function's core module
@@ -39,7 +39,7 @@ open LeanVM.Protocol LeanVM.Protocol.KeccakHash LeanVM.Protocol.Compile LeanVM.P
 
 @[expose] public section
 
-/-! ## `exponent_tables` (lean_ethereum.py) -/
+/-! ## `exponent_tables` (`LeanVM/Guest/Program/`) -/
 
 /-- **`exponent_tables()`**: it returns a pointer holding the exponent table (`ExpTables`) and its
 bit windows (`ExpWinTab`, read as `WinTabs` at `q·g^236`, `winTabs_of_expWinTab`). -/
@@ -52,7 +52,7 @@ def exponent_tables_SpecP (P : Program) : Prop :=
   ∀ (rd : Reader) (args rets : List E),
     P.Rel rd "exponent_tables" args rets ↔ MeaningExponentTables rd args rets
 
-/-! ## `g_power_of_word` (lean_ethereum.py) -/
+/-! ## `g_power_of_word` (`LeanVM/Guest/Program/`) -/
 
 /-- **`g_power_of_word(value)`**: the value is the integer `n < 2^6` (`E(n)`), and the function
 returns `g^n`. -/
@@ -65,7 +65,7 @@ def g_power_of_word_SpecP (P : Program) : Prop :=
   ∀ (rd : Reader) (args rets : List E),
     P.Rel rd "g_power_of_word" args rets ↔ MeaningGPowerOfWord args rets
 
-/-! ## `assert_small_g_power` (lean_ethereum.py) -/
+/-! ## `assert_small_g_power` (`LeanVM/Guest/Program/`) -/
 
 /-- **`assert_small_g_power(x, g_squares)`**: `x = g^e` with `e < 2^36` (nine hinted nibbles,
 each range checked below `16`, their shares multiplied over the table); it returns nothing. -/
@@ -80,7 +80,7 @@ def assert_small_g_power_SpecP (P : Program) : Prop :=
     ∀ rets : List E, P.Rel L.read "assert_small_g_power" [x, q] rets ↔
       MeaningAssertSmallGPower [x, q] rets
 
-/-! ## `log2_ceil_in_the_exponent` (lean_ethereum.py) -/
+/-! ## `log2_ceil_in_the_exponent` (`LeanVM/Guest/Program/`) -/
 
 /-- **`log2_ceil_in_the_exponent(g_N, g_squares, floor, 34)`**: the hinted `L`, `floor ≤ L < 34`,
 pinned by `g^(2^L) / g_N = g^e` and, above the floor, `g_N / g^(2^(L-1) + 1) = g^e'`, both

@@ -2,7 +2,7 @@
   LeanVM.Dsl.Mem
 
   Memory in the embedded guest language beyond loads and stores: `addr` pointers to frame runs,
-  shifted pointers materialized as `Expand` makes them, heap buffers with a static size whose
+  shifted pointers materialized as the zkDSL's lowering makes them, heap buffers with a static size whose
   slices are bounds-checked by a proof, runtime-start heap slices, `StackBuf` slices, dynamic
   `HeapBuf`s and constant arrays.
 -/
@@ -15,14 +15,14 @@ public import LeanVM.Dsl.Hints
 # Memory
 
 A pointer is a runtime value; what the zkDSL keeps symbolic, a pointer shifted by a constant
-power of `g`, is a Lean pair here, made a value only where one is needed, as `Expand.materialize`
+power of `g`, is a Lean pair here, made a value only where one is needed, as the zkDSL's lowering
 makes it (`B.shifted`): the base itself (a `use`), the `addr` of the run from a cell on (a
 `shift`), or a product with the constant from the nearest pointer of the same base already made in
 this scope. A heap access folds its constant offset into the instruction up to `foldMax`, else
-materializes the pointer (`B.ptrAt`, `Expand.heapBase`).
+materializes the pointer (`B.ptrAt`).
 
 A `HeapBuf n` carries its size in its type: a slice or an element at a compile-time offset takes a
-proof that it lies inside, the whole span of a slice at once, as `Expand.checkHeapBound` checks it
+proof that it lies inside, the whole span of a slice at once, as the zkDSL's lowering checks it
 at compile time (main's b18e7d3c). A runtime-start slice `buf[i:i + k]` is the product `buf · i`
 with the constant offset folded (`B.sliceRt`), unchecked at compile time as in the zkDSL.
 -/
@@ -33,7 +33,7 @@ open LeanVM.Parameters LeanVM.Core LeanVM.Compiler
 
 @[expose] public section
 
-/-- The largest offset a `DEREF` folds (`Expand.foldMax`). -/
+/-- The largest offset a `DEREF` folds. -/
 def foldMax : Nat := 2 ^ 16
 
 /-- A heap buffer of `n` words. -/
@@ -50,25 +50,25 @@ def arrWord (a : List (Nat × Nat)) (i : Nat) : E :=
   let c := a.getD i (0, 0)
   word c.1 c.2
 
-/-- Element `i` of a constant array, as an integer (`Expand.eval`'s reading). -/
+/-- Element `i` of a constant array, as an integer. -/
 def arrInt (a : List (Nat × Nat)) (i : Nat) : Nat :=
   let c := a.getD i (0, 0)
   c.1 + c.2 * 2 ^ 64
 
 namespace B
 
-/-- An `addr` atom, which is no instruction: a pending hint stays pending (`Expand.emitFrameAddr`). -/
+/-- An `addr` atom, which is no instruction: a pending hint stays pending. -/
 def frameAddr (p : V) (run : List V) : B Unit := modify fun st =>
   { st with out := st.out.push (.atom (.frameAddr p run)), trace := st.trace.push .emit }
 
-/-- `addr(run)`: a pointer to a frame run (`Expand.stackAddr`). -/
+/-- `addr(run)`: a pointer to a frame run. -/
 def addr (run : List V) : B Word := do
   let p ← fresh .addr
   frameAddr p run
   modify fun st => { st with addrRuns := (p, run) :: st.addrRuns }
   return ⟨p⟩
 
-/-- The pointer `p · g^k` as a value (`Expand.materialize`). -/
+/-- The pointer `p · g^k` as a value. -/
 def shifted {τ : Ty} (p : Var τ) (k : Nat) : B Word := do
   if k = 0 then return (← use p).word
   let st ← get
@@ -94,7 +94,7 @@ def shifted {τ : Ty} (p : Var τ) (k : Nat) : B Word := do
     mats := (p.v, mats ++ [⟨k, o.v, src, dist⟩]) :: st.mats.filter (·.1 != p.v) }
   return o
 
-/-- A pointer and a folded offset addressing `p · g^off` (`Expand.heapBase`): the offset itself up
+/-- A pointer and a folded offset addressing `p · g^off`: the offset itself up
 to `foldMax`, else the pointer times `g^off` at offset `0`. -/
 def ptrAt {τ : Ty} (p : Var τ) (off : Nat) : B (Word × Nat) :=
   if off ≤ foldMax then pure (p.word, off)

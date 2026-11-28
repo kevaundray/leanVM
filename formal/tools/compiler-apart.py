@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Keep the program-generic trees apart from the guest: no module of `lean_vm/LeanVM/Core/` (the core IR,
-its semantics, its memory model and the front end) or of `lean_vm/LeanVM/Compiler/` (the verified
+its semantics and its memory model) or of `lean_vm/LeanVM/Compiler/` (the verified
 compiler) imports, directly or through other modules, a module of the guest.
 
   python3 -I tools/compiler-apart.py

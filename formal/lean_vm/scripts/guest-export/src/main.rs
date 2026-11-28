@@ -30,7 +30,7 @@ fn main() {
 
     let mut stale = Vec::new();
     let files = if let Some(kbc) = placeholders {
-        lean_export::source::files(kbc)
+        lean_export::config::files(kbc)
     } else {
         let t = std::time::Instant::now();
         let guest = lean_export::guest();

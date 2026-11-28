@@ -10,7 +10,7 @@ import LeanVMTests.Prover.Whir
 # `test-runs`: the tests' runs, compiled
 
 `lake exe test-runs` evaluates the checks too slow for the interpreter (`LeanVMTests/Runs.lean`):
-whole decoder runs, toy protocol and prover runs, the guest's core data against its expansion.
+whole decoder runs, toy protocol and prover runs, the guest's core data against its elaboration.
 Their inputs and expected values stay in their test modules; this lists them. They run on a few
 threads, each printed with its time; `test-runs NAME…` runs those whose name contains a `NAME`.
 Run it under `lake env` (as `lake exe` does): the core data is read from its `.olean`. The exit
@@ -42,7 +42,7 @@ def workers : Nat := 8
 /-- The driver. -/
 def main (args : List String) : IO UInt32 := do
   let runs := modules.flatMap fun (m, rs) ↦ rs.map fun (n, f) ↦ (s!"{m}: {n}", IO.lazyPure f)
-  let runs := runs ++ [("Guest.CoreData: the core data is the renumbered expansion", coreData)]
+  let runs := runs ++ [("Guest.CoreData: the core data is the renumbered elaboration", coreData)]
   let runs := (runs.filter fun (n, _) ↦ args.isEmpty || args.any fun a ↦ (n.splitOn a).length > 1).toArray
   -- Each worker takes the next run not yet taken, so a long run does not hold back the rest.
   let next ← IO.mkRef 0

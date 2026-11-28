@@ -12,7 +12,7 @@ public import LeanVM.Guest.B1.Bits.MeaningP
 public import LeanVM.Guest.B1.Whir.Flat
 
 /-!
-# `opening_round` (`lean_ethereum.py`, G below)
+# `opening_round` (`LeanVM/Guest/Program/`, G below)
 
 One fold round of CWYZ26's affine combiner (`foldRound`, `Statement/LeanVmVerifier.lean`): the
 four scalars `u0, w, c0, c1`, a grind and `α`, then `β`; `α` stored for the point and, with

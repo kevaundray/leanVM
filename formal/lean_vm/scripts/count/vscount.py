@@ -7,11 +7,11 @@ count certificates (`Count/StaticV.lean`) by `decide +kernel`, one module per op
 import os, re
 from core import L
 
-# The guest's constants, as `guest-export` writes them to `Data/Source.lean` (`guest_const%`).
-_SRC = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'LeanVM', 'Guest', 'Data',
-                         'Source.lean'), encoding='utf-8').read()
+# The guest's constants, as `guest-core` writes them to `Data/Constants.txt` (`guest_const%`).
+_CONSTS = dict(l.split() for l in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'LeanVM',
+                                                     'Guest', 'Data', 'Constants.txt'), encoding='utf-8'))
 def guest_const(name):
-    return int(re.search(r'def const_%s : Nat := (\d+)' % name, _SRC).group(1))
+    return int(_CONSTS[name])
 
 def vs_st(g):
     """`verify_sub`'s statically bounded callees but its opening arm: its static calls, then the arms

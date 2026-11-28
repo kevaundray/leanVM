@@ -23,7 +23,7 @@ public import Mathlib.Data.List.GetD
 * `guestTraced_getElem`, `mem_guestTraced`: entry `j - 1` of the back end's input is `coreOf j`
   with `infoOf j` (`tfOf j`, `tf_eq`).
 * `registered_iff`: a function is a registered loop helper exactly when its name is a loop
-  helper's and its `loopSource` says so.
+  helper's and its loop entry (`TracedFn.loop`) says so.
 
 The names live in `LeanVM.Guest`, beside `fnOf` and `coreOf`: `LeanVM.Compiler.infoOf` is the
 placement's (`Compiler/Piece.lean`).
@@ -193,7 +193,7 @@ theorem loopTable_fold_other {g : String} :
       · rw [KMap.getElem?_insert, ite_eq_right (Ne.symm (h x List.mem_cons_self))]
       · rfl
 
-/-- **A function's entry in the loop table**: it is a loop helper's name, with its `loopSource`
+/-- **A function's entry in the loop table**: it is a loop helper's name, with its loop entry (`TracedFn.loop`)
 and its constant parameters. -/
 theorem loopTable_get {p : List TracedFn} (hnd : (p.map (·.core.name)).Nodup) {tf : TracedFn}
     (htf : tf ∈ p) :
@@ -213,7 +213,7 @@ theorem loopTable_get {p : List TracedFn} (hnd : (p.map (·.core.name)).Nodup) {
   · rw [loopTable_fold_other s _ hs]
     rfl
 
-/-- **A registered loop helper** is one whose name is a loop helper's and whose `loopSource` says
+/-- **A registered loop helper** is one whose name is a loop helper's and whose loop entry (`TracedFn.loop`) says
 its frames are reserved in one run. -/
 theorem registered_iff {p : List TracedFn} (hnd : (p.map (·.core.name)).Nodup) {tf : TracedFn}
     (htf : tf ∈ p) :

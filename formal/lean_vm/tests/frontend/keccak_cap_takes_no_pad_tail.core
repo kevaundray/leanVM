@@ -1,1 +1,0 @@
-error: in main: keccak cap= is an overwrite duplex step: it takes no len= or pad_tail=

@@ -2,7 +2,7 @@
   LeanVM.Guest.B1.Sig.WotsT
 
   The WOTS+C codeword check and the Merkle path both signature verifiers share, as templates
-  (`walk`, `walk_group`, the digit dispatch, `merkle_path`, `lean_ethereum.py`).
+  (`walk`, `walk_group`, the digit dispatch, `merkle_path`, `LeanVM/Guest/Program/`).
 -/
 
 module
@@ -96,7 +96,7 @@ def armsT (W : WotsT) (slots : Nat → Nat → Nat) (first n : Nat) (fold : Bool
         (if k = 0 then a.2 + 2 else a.2)
       (a.1 :: rest.1, rest.2)
 
-/-- Arm `k` of a group of `n` digits from base `b` (`walk_group`, `lean_ethereum.py`):
+/-- Arm `k` of a group of `n` digits from base `b` (`walk_group`, `LeanVM/Guest/Program/`):
 `armT` with the encoding of `k`'s own `n` digits, `k % 4^n` (`W.enc`, leanXMSS's default). -/
 def armM (W : WotsT) (slots : Nat → Nat → Nat) (first n : Nat) (fold : Bool)
     (prodIn encIn prodOut encOut : V) (k b : Nat) : List Stmt × Nat :=

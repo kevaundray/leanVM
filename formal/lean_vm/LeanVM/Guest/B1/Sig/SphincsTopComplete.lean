@@ -1,7 +1,7 @@
 /-
   LeanVM.Guest.B1.Sig.SphincsTopComplete
 
-  A layer of `verify_sig_lean_sphincs` (`sp_layer`, `lean_ethereum.py`)
+  A layer of `verify_sig_lean_sphincs` (`sp_layer`, `LeanVM/Guest/Program/`)
   is complete for an honest signature: the root it reaches is the statement's.
 -/
 

@@ -154,7 +154,7 @@ impl<F: Scalar> FiatShamirState<F> {
     /// Prover-side PoW grind: find the smallest `u64` nonce whose permutation, the one drawing the next challenge,
     /// leaves the low `bits` bits of its output's third lane zero; bind it, and keep that challenge for the next
     /// [`Self::sample`]. `bits = 0` is no grind at all. A CONTIGUOUS low-bit window, so a recursive verifier
-    /// re-checks it with one bit decomposition (`grind_check` in `guests/lean_ethereum.py`). A long search runs on
+    /// re-checks it with one bit decomposition (`grind_check` in `formal/lean_vm/LeanVM/Guest/Program/`). A long search runs on
     /// `S`.
     pub fn grind<S: Search>(&mut self, bits: u32) -> Option<u64> {
         self.grind_from::<S>(bits, 0)

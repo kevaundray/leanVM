@@ -13,8 +13,8 @@ public import LeanVM.Guest.CoreData
 # The guest's traced program
 
 `guestTraced` is `coreProgram`'s function `j` with entry `j` of `GuestData.guestInfo`
-(`Guest/Traced.lean`, written by `lake exe guest-traced`): the allocation trace of its expansion,
-every value renamed as `coreProgram` names it, its return cells, its `loopSource` and its constant
+(`Guest/Traced.lean`, written by `lake exe guest-traced`): the allocation trace of its elaboration,
+every value renamed as `coreProgram` names it, its return cells, its loop entry (`TracedFn.loop`) and its constant
 parameters. Its core program is `coreProgram` by construction (`guestTraced_core`). It is apart from `Guest/World.lean`
 so that the kernel's checks of the guest's compilation (`Guest/Piece/`) import no proof.
 -/
@@ -26,7 +26,7 @@ open LeanVM.Compiler LeanVM.Guest LeanVM.Core GuestData
 @[expose] public section
 
 /-- **The back end's input for the guest**: `coreProgram`'s functions, each with its trace, its
-return cells, its `loopSource` and its constant parameters. -/
+return cells, its loop entry (`TracedFn.loop`) and its constant parameters. -/
 noncomputable def guestTraced : List TracedFn :=
   (coreProgram.zip guestInfo).map fun x => ⟨x.1, x.2.1, x.2.2.1, x.2.2.2.1, x.2.2.2.2⟩
 

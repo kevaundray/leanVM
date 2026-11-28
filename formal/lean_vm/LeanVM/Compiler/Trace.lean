@@ -1,21 +1,19 @@
 /-
   LeanVM.Compiler.Trace
 
-  The allocation trace of an expansion: what the Rust lowering decides while it walks the source
-  and the core IR does not keep, as advice to the back end.
+  The allocation trace of an elaboration: what the Rust lowering decided while it walked the source and the core IR does not keep, as advice to the back end.
 -/
 
 module
 
 public import LeanVM.Core
-public import LeanVM.Core.Source
 
 /-!
 # The allocation trace
 
 The core IR keeps a function's relations, not its frame. The Rust lowering
-(`crates/zkdsl_compiler/src/lower.rs` at leanVM `6363526c0`) takes a frame cell wherever the expansion makes a value
-(`Expand.fresh`, `Expand.freshRun`), and the core IR names a value only where a statement uses
+(`crates/zkdsl_compiler/src/lower.rs` at leanVM `6363526c0`) takes a frame cell wherever the elaboration makes a value
+(`B.fresh`, `B.freshRun`), and the core IR names a value only where a statement uses
 it. So the following are gone from the core IR, and each moves cells:
 
 * a value no statement names (a `StackBuf` cell never read, the destination of an `@inline` call
@@ -34,9 +32,9 @@ it. So the following are gone from the core IR, and each moves cells:
 * an `else` block that emits nothing, which the lowering still jumps over; two `match`es chained;
   the offset `at` of a `hint_windows_exponent` into frame cells.
 
-The trace (`Event`) is the expansion's record of them, in the order it runs: one `alloc` a
+The trace (`Event`) is the elaboration's record of them, in the order it runs: one `alloc` a
 `fresh` or `freshRun`, with how the lowering treats it (`Kind`), one `emit` a core statement, and
-`enter`, `leave` around a branch or an arm. `Expand` records it (`Expand.expandProgramTraced`),
+`enter`, `leave` around a branch or an arm. the builder records it (`Dsl.Program.traced`),
 and `Place` walks a core function and its trace together.
 
 The trace is advice. Placement takes from it when a value's cells are taken, how many, and
@@ -52,7 +50,7 @@ open LeanVM.Core (V)
 
 @[expose] public section
 
-/-- How the lowering treats a value the expansion makes. -/
+/-- How the lowering treats a value the elaboration makes. -/
 inductive Kind where
   /-- Its cells are the next free ones, taken now (`fresh`, `alloc_stack`). -/
   | cell
@@ -76,7 +74,7 @@ inductive Kind where
   | joined
   deriving DecidableEq, Repr, Inhabited
 
-/-- One step of an expansion, as placement follows it. -/
+/-- One step of an elaboration, as placement follows it. -/
 inductive Event where
   /-- A value is made: its cells hold the values `vs`, in order (one value, or the run of a
   buffer). -/
@@ -113,34 +111,17 @@ def partsLines (parts : List (List Event)) (lines : Array (Nat × Nat)) : Array 
   let pos := pos.push n
   lines.map fun (k, line) => (pos.getD k k, line)
 
-/-- A lowered function: its core function and its trace, and what the back end takes from its
-source as the expansion queued it: the cells of its returned values and its `loopSource`; and,
-for a loop helper, its constant parameters (`Consts.lean`, `withConstTable`). -/
+/-- A lowered function: its core function and its trace, and what the back end takes from its elaboration: the cells of its returned values and its loop entry; and, for a loop helper, its constant parameters (`Consts.lean`, `withConstTable`). -/
 structure TracedFn where
   core : Core.Fn
   trace : Array Event
   /-- The cells of its returned values (`returnShapes`). -/
   rets : Nat
-  /-- `loopSource` of its source: whether a loop helper's frames are reserved in one run, and
-  its constant exit bound. -/
+  /-- A loop helper's entry of `loop_bounds` (`lower_for`): whether its frames are reserved in one run (the loop's body has no `return` and does not bind the counter), and its constant exit bound. -/
   loop : Bool × Option Nat
   /-- Its constant parameters: argument positions and the word every call passes there. -/
   consts : List (Nat × LeanVM.Parameters.E) := []
   deriving Inhabited
-
-open LeanVM.Core.Source in
-/-- A loop helper's entry of `loop_bounds` (`lower_for`), from the helper the expansion queued:
-its body is the loop's, then `next = counter · g`, the closing `callIfNe next exit` and a
-`return`. Its frames are reserved in one run when the loop's body has no `return` and does not
-bind the counter; its exit is a constant power of `g`, or the runtime bound. -/
-def loopSource (f : Func) : Bool × Option Nat :=
-  let body := f.body.take (f.body.length - 3)
-  let counter := (f.params.head?.map (·.name)).getD ""
-  let registered := !Stmt.hasRetList body && !(Stmt.bindsList false body).contains counter
-  let hi := match f.body[f.body.length - 2]? with
-    | some (.mk _ (.callIfNe _ (.gpow h) _ _)) => some h
-    | _ => none
-  (registered, hi)
 
 end
 end LeanVM.Compiler

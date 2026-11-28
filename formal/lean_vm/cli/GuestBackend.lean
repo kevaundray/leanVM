@@ -4,8 +4,6 @@ import Statement.Data.Bytecode
 import LeanVM.Compiler.Invariants
 import LeanVM.Compiler.Lines
 import LeanVM.Core.Interp
-import LeanVM.Core.Text
-import LeanVMTests.Guest.Programs
 import LeanVMTests.Programs.Basic
 import LeanVMTests.Programs.Vm
 import LeanVMTests.Programs.Chain
@@ -34,17 +32,12 @@ Run from `lean_vm`.
   writes the aggregation tests' snippets (`LeanVMTests.Programs.Snippets`: a `main` over the
   guest's functions).
   The guest itself is written by `lake exe guest-artifact` (`cli/GuestArtifact.lean`).
-* `lake exe guest-backend core-text DIR [--check]` writes the core IR of each program of the front end's
-  regression corpus (`Programs.frontend`, `tests/frontend/*.py`) to `DIR/<name>.core`, as `Expand.expandProgram`
-  gives it, each function renumbered (`Fn.renumber`), in a canonical text; with `--check` it writes nothing and
-  fails if any file differs or is not a program's. The guest's expansion is checked by `lake exe guest-core
-  --check` and the other test programs' by their compilations (`export programs --check`).
 * `lake exe guest-backend time` prints the time of each pass on the guest.
 * `lake exe guest-backend core NAME` prints a function's core IR, and `show NAME` its code beside
   the statement's.
 -/
 
-open LeanVM.Parameters LeanVM.Semantics LeanVM.Guest LeanVM.Core LeanVM.Compiler LeanVM.Core.Text
+open LeanVM.Parameters LeanVM.Semantics LeanVM.Guest LeanVM.Core LeanVM.Compiler
 
 namespace GuestBackend
 
@@ -240,42 +233,11 @@ def testPrograms : List (LeanVMTests.Programs.TestProgram × Bool) :=
   LeanVMTests.Programs.Basic.all.map (·, true) ++
     (LeanVMTests.Programs.Chain.all ++ LeanVMTests.Programs.Vm.all).map (·, false)
 
-/-! ## The canonical text of the core IR -/
-
-/-- The core IR of each program of the corpus (`Programs.frontend`) in `DIR/<name>.core`, a program `Expand`
-rejects as its error; with `checkOnly`, the comparison with what `DIR` holds, every stale, missing or extra file
-named. -/
-def coreTextDir (dir : String) (checkOnly : Bool) : IO UInt32 := do
-  let programs := LeanVMTests.Guest.Programs.frontend
-  let names := programs.map (·.name ++ ".core")
-  let mut failed := false
-  for t in programs do
-    let path := s!"{dir}/{t.name}.core"
-    let text := match Expand.expandProgram t.program with
-      | .ok P => coreText P
-      | .error e => s!"error: {e}\n"
-    if checkOnly then
-      let current ← if ← System.FilePath.pathExists path then IO.FS.readFile path else pure ""
-      if current != text then
-        IO.eprintln s!"{path} is stale: run `lake exe guest-backend core-text {dir}`"
-        failed := true
-    else
-      IO.FS.writeFile path text
-  for e in ← System.FilePath.readDir dir do
-    if e.fileName.endsWith ".core" && !names.contains e.fileName then
-      if checkOnly then
-        IO.eprintln s!"{e.path} is not the core IR of a program of the corpus"
-        failed := true
-      else
-        IO.FS.removeFile e.path
-  IO.println s!"{dir}: the core IR of {programs.length} programs"
-  return if failed then 1 else 0
-
 def time : IO UInt32 := do
   let t0 ← IO.monoMsNow
   let P ← guestCore
   let t1 ← IO.monoMsNow
-  IO.println s!"expand: {t1 - t0} ms, {P.length} functions"
+  IO.println s!"elaborate: {t1 - t0} ms, {P.length} functions"
   let (pfns, tables) ← orThrow (placeProgram P)
   let t2 ← IO.monoMsNow
   IO.println s!"place: {t2 - t1} ms, {tables.len} jump table slots"
@@ -334,10 +296,8 @@ def main (args : List String) : IO UInt32 := do
       GuestBackend.exportAll "snippets" (LeanVMTests.Programs.Snippets.all.map (·, false)) dir false
   | ["export", "snippets", dir, "--check"] =>
       GuestBackend.exportAll "snippets" (LeanVMTests.Programs.Snippets.all.map (·, false)) dir true
-  | ["core-text", dir] => GuestBackend.coreTextDir dir false
-  | ["core-text", dir, "--check"] => GuestBackend.coreTextDir dir true
   | ["time"] => GuestBackend.time
   | ["coverage"] => GuestBackend.coverage
   | _ =>
-      IO.eprintln "usage: guest-backend check | functions [N] | show NAME | core NAME | export programs|snippets DIR [--check] | core-text DIR [--check] | time | coverage"
+      IO.eprintln "usage: guest-backend check | functions [N] | show NAME | core NAME | export programs|snippets DIR [--check] | time | coverage"
       return 2

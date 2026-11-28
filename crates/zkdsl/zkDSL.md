@@ -7,7 +7,7 @@ Where things are:
 - the guest: `formal/lean_vm/LeanVM/Guest/Program/`, one module per section, its configuration `Guest/Program/Config.lean` (each placeholder the prover computes, `crates/aggregation/src/placeholders.rs`'s `placeholder_map`, read from the generated `Guest/Data/Placeholders.lean`, and the guest's own constants), its function list `LeanVM.Guest.Program.program` (`Guest/Program.lean`);
 - the builder: `LeanVM/Dsl/` (`Builder`, `Control`, `Mem`, `Hints`, `Keccak`, `Fold` for constant folding, `Notation` for the surface syntax), and `Dsl/Program.lean`, which elaborates a function list in the compiler's order (`assemble`);
 - test programs: `formal/lean_vm/tests/LeanVMTests/Programs/` (`Basic.lean` the compiler's test programs with their public input and witness streams, `Vm.lean` the VM's and the prover's, `Chain.lean` the verifiers' fixture, `Snippets.lean` the aggregation tests' `main`s over guest functions), compiled by `lake exe guest-backend export programs|snippets` into `crates/zkdsl/tests/compiled/` (`<name>.txt`, `<name>.inputs`) and `crates/aggregation/snippets/`;
-- this crate: the disassembler (`disassemble`, the `DBG_DISASM` workflow) and `f128_literal`; its tests prove and run the compiled test programs on the stable prover.
+- this crate: the disassembler (`disassemble`, the `DBG_DISASM` workflow); its tests prove and run the compiled test programs on the stable prover.
 
 After a change to the guest, `formal/lean_vm/scripts/regen-guest.sh` writes the compiled guest (`guests/lean_ethereum.compiled`, not committed), its core digest (`guests/lean_ethereum.digest`, committed: the prover refuses an artefact whose input digest does not match it) and every file derived from it (`formal/AGENTS.md`, "Changing the spec").
 

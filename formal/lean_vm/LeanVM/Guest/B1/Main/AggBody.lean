@@ -16,7 +16,7 @@ public import LeanVM.Guest.Data.NameStrings
 # `aggregate_claims`' body
 
 `aggregate_claims(n_children_g, child_pi, child_fresh, child_carried, defer_stmt, tabs)`
-(`lean_ethereum.py`, G below): its body is its block `aggP`, then `ret []` (`agg_shape`). `aggOk`
+(`LeanVM/Guest/Program/`, G below): its body is its block `aggP`, then `ret []` (`agg_shape`). `aggOk`
 checks the block: the batching seed's capacity cells `AGG_SEED_*` and the packed count
 `n_children_g` with three zeros (`fs_pack`: a copy and the tag's cell, a zero's in place) in row `0` of `absorb`
 (`.n 30`), the guarded loop `aggregate_claims_loop0` and its tables (`lf = .n 8`, `lc = .n 9`), the

@@ -1,7 +1,0 @@
-{
-    "extraPaths": [
-        "crates/zkdsl"
-    ],
-    "typeCheckingMode": "basic",
-    "pythonVersion": "3.13"
-}

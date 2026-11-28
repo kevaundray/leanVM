@@ -1,12 +1,8 @@
-//! The zkDSL crate's integration tests share one binary and its initialization caches.
+//! The crate's integration tests share one binary and its initialization caches.
 
 mod common;
 
-mod const_placeholder;
 mod disassemble;
-mod miscompiles;
 mod inputs;
-mod range_check;
-mod statements;
 mod vm;
 mod vm_proofs;

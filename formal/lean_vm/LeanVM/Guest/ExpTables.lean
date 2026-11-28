@@ -19,7 +19,7 @@ import LeanVM.Guest.Program.Config
 Defined here, apart from B1's proofs, so that the back end's obligations (`Guest/Compiled/Obl/GuestU.lean`)
 do not import them.
 
-`exponent_tables()` (`lean_ethereum.py`) fills one read-only `HeapBuf(WIN_TAB_AT + WIN_TAB_LEN)`,
+`exponent_tables()` (`LeanVM/Guest/Program/`) fills one read-only `HeapBuf(WIN_TAB_AT + WIN_TAB_LEN)`,
 `236 + 2048` words, indexed by g-powers, in five sections:
 
 | offsets | words | readers |
@@ -40,16 +40,16 @@ open LeanVM.Parameters LeanVM.Semantics LeanVM.Core LeanVM.Protocol LeanVM.Proto
 /-- `SIZE_BITS`: the squares' section's length. -/
 abbrev sizeBits : ℕ := guest_const% SIZE_BITS
 
-/-- `SEL_TAB_NIBBLES = (SIZE_BITS + 3) // 4` (`lean_ethereum.py`). -/
+/-- `SEL_TAB_NIBBLES = (SIZE_BITS + 3) // 4` (`LeanVM/Guest/Program/`). -/
 abbrev selTabNibbles : ℕ := 9
 
-/-- `RANK_KEYS_AT = SIZE_BITS + 16 SEL_TAB_NIBBLES` (`lean_ethereum.py`). -/
+/-- `RANK_KEYS_AT = SIZE_BITS + 16 SEL_TAB_NIBBLES` (`LeanVM/Guest/Program/`). -/
 abbrev rankKeysAt : ℕ := 178
 
-/-- `RANK_STRIDE = N_BLOCKS + N_COMMITTED_COLS = 153 + 94` (`lean_ethereum.py`, deployed). -/
+/-- `RANK_STRIDE = N_BLOCKS + N_COMMITTED_COLS = 153 + 94` (`LeanVM/Guest/Program/`, deployed). -/
 abbrev rankStride : ℕ := 247
 
-/-- `SIDE_TAB_AT = RANK_KEYS_AT + SIZE_BITS` (`lean_ethereum.py`). -/
+/-- `SIDE_TAB_AT = RANK_KEYS_AT + SIZE_BITS` (`LeanVM/Guest/Program/`). -/
 abbrev sideTabAt : ℕ := 212
 
 /-- `SIDE_GROUP_START` (deployed): side `s`'s first bus block group, then `N_BLOCK_GROUPS = 24`. -/
@@ -61,7 +61,7 @@ abbrev nGkrSides : ℕ := guest_const% N_GKR_SIDES
 /-- `N_BLOCK_GROUPS`. -/
 abbrev nBlockGroups : ℕ := guest_const% N_BLOCK_GROUPS
 
-/-- **The exponent table at `q`** (`exponent_tables`, `lean_ethereum.py`): the squares
+/-- **The exponent table at `q`** (`exponent_tables`, `LeanVM/Guest/Program/`): the squares
 `q[g^j] = g^(2^j)`, `j < 34`; the nibble shares `q[g^(34 + 16j + u)] = g^(u·16^j)`, `j < 9`,
 `u < 16`; the rank keys `q[g^(178 + k)] = g^(k·247)`, `k < 34`; and each bus block group's side,
 `q[g^(212 + gi)] = E(s)` for the groups `gi` of side `s`. -/
