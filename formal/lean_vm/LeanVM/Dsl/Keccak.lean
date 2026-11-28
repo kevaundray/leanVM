@@ -104,10 +104,6 @@ def resolve : Operand → B (List Msg)
   | .cells (.frame vs) => pure (vs.map .cell)
   | .cells (.heap ptr lo len) => do return (← loadRun ptr lo len).map .cell
 
-/-- Record `c` as a constant set in this scope (`Expand.poolConst`). -/
-def poolConst (c : E) : B Unit :=
-  modify fun st => if st.consts.contains c then st else { st with consts := c :: st.consts }
-
 /-- The padding values `[0x01, 0, 0, 0, 0]`: the message's first padding byte, then zeros. -/
 def padValues : List E := [keccakPadValue, 0, 0, 0, 0]
 
@@ -116,7 +112,7 @@ def setPadRun : B (List V) := do
   let o ← B.freshRun 5 .padRun
   o.zipIdx.forM fun (v, k) => do
     B.atom (.const v (padValues.getD k 0))
-    poolConst (padValues.getD k 0)
+    B.poolConst (padValues.getD k 0)
   modify fun st => { st with keccakPad := some o }
   return o
 
@@ -134,11 +130,11 @@ def inlineArms : B Unit := do
 
 /-- A value holding a message cell (`Expand.spongeCell`). -/
 def spongeCell : Msg → B V
-  | .zero => return (← padRun).getD 1 default
-  | .const c => do
-      if c == keccakPadValue then return (← padRun).getD 0 default
-      return (← B.const c).v
-  | .cell o => return o
+  | .zero => padRun >>= fun p => pure (p.getD 1 default)
+  | .const c =>
+      if c == keccakPadValue then padRun >>= fun p => pure (p.getD 0 default)
+      else B.const c >>= fun w => pure w.v
+  | .cell o => pure o
 
 /-- `state + c`, into `dst` if given (`Expand.spongeXor`): a zero `c` is the state value itself,
 or a copy of it into `dst`. -/
@@ -188,8 +184,8 @@ lie, a window of the padding run, or a fresh copy. -/
 def spongeRun (cells : List Msg) : B (List V) :=
   let vals := cells.filterMap Msg.val?
   if vals.length == cells.length && isRun vals then pure vals
-  else if cells.all (·.isZero) then (·.drop 1) <$> padRun
-  else if padHead cells then (·.take 4) <$> padRun
+  else if cells.all (·.isZero) then padRun >>= fun p => pure (p.drop 1)
+  else if padHead cells then padRun >>= fun p => pure (p.take 4)
   else copyRun cells
 
 /-- The `m` and `tail` values of a `KECCAK` reading a block's first eight cells
@@ -226,36 +222,46 @@ def xorByte (cells : List Msg) (pos v : Nat) : B (List Msg) := do
         pure (.cell dst)
   return cells.set i c
 
+/-- The `KECCAK` atoms of blocks `k`, `k + 1`, ... (`fuel` of them) of `blocks`, continuing
+`state` (the zero state if `none`): block `k` read from cell `17k/2` in the layout of its parity,
+XORed into the previous output, the last writing the cells `out`, each earlier one a fresh 13-cell
+state the next one reads. -/
+def absorbFrom (cells : List Msg) (blocks : Nat) (out : List V) :
+    Nat → Option (List V) → Nat → B Unit
+  | 0, _, _ => pure ()
+  | fuel + 1, state, k => do
+    let last := k + 1 == blocks
+    let c ← if last then pure out else B.freshRun stateCells
+    let block := (cells.drop (17 * k / 2)).take blockCells
+    let r ← rate block state
+    let b8 ← match state with
+      | none => spongeCell (block.getD 8 .zero)
+      | some st => spongeXor (st.getD 8 default) (block.getD 8 .zero) none
+    let cap ← match state with
+      | none => padRun >>= fun p => pure (p.drop 1)
+      | some st => pure ((st.drop 9).take 4)
+    B.atom (.keccak (r.1 ++ r.2 ++ [b8] ++ cap) c (k % 2 == 1) (!last && k % 2 == 0))
+    absorbFrom cells blocks out fuel (some c) (k + 1)
+
 /-- The `KECCAK` atoms absorbing `cells` into `state` (the zero state if `none`), the last writing
-the cells `out`, each earlier one a whole 13-cell state the next one reads
-(`Expand.emitKeccakMessage`). With `finalLen` the message is the cells' first `finalLen` bytes,
-padded, in `finalLen / rate + 1` blocks; without, the cells zero-extended to whole blocks.
-`padded`: the cells past `finalLen` already hold the padding's first byte and zeros. -/
+the cells `out` (`Expand.emitKeccakMessage`). With `finalLen` the message is the cells' first
+`finalLen` bytes, padded, in `finalLen / rate + 1` blocks; without, the cells zero-extended to
+whole blocks. `padded`: the cells past `finalLen` already hold the padding's first byte and
+zeros. -/
 def absorb (cells : List Msg) (finalLen : Option Nat) (state : Option (List V)) (out : List V)
     (padded : Bool) : B Unit := do
   let blocks := match finalLen with
     | some len => len / Protocol.KeccakHash.rate + 1
     | none => (16 * cells.length + Protocol.KeccakHash.rate - 1) / Protocol.KeccakHash.rate
   let read := 17 * (blocks - 1) / 2 + blockCells
-  let mut cells := cells ++ List.replicate (read - cells.length) Msg.zero
-  if let some len := finalLen then
-    if !padded then
-      cells ← xorByte cells len Protocol.KeccakHash.padFirst.toNat
-    cells ← xorByte cells (blocks * Protocol.KeccakHash.rate - 1) Protocol.KeccakHash.padLast.toNat
-  let mut state := state
-  for k in List.range blocks do
-    let last := k + 1 == blocks
-    let c ← if last then pure out else B.freshRun stateCells
-    let block := (cells.drop (17 * k / 2)).take blockCells
-    let (m, tail) ← rate block state
-    let b8 ← match state with
-      | none => spongeCell (block.getD 8 .zero)
-      | some st => spongeXor (st.getD 8 default) (block.getD 8 .zero) none
-    let cap ← match state with
-      | none => pure ((← padRun).drop 1)
-      | some st => pure ((st.drop 9).take 4)
-    B.atom (.keccak (m ++ tail ++ [b8] ++ cap) c (k % 2 == 1) (!last && k % 2 == 0))
-    state := some c
+  let cells := cells ++ List.replicate (read - cells.length) Msg.zero
+  let cells ← match finalLen with
+    | some len => do
+        let cells ← if padded then pure cells
+          else xorByte cells len Protocol.KeccakHash.padFirst.toNat
+        xorByte cells (blocks * Protocol.KeccakHash.rate - 1) Protocol.KeccakHash.padLast.toNat
+    | none => pure cells
+  absorbFrom cells blocks out blocks state 0
 
 /-- The cells a `keccak` writes in a frame destination: one or two cells in place, or the first
 thirteen of a longer run. -/
