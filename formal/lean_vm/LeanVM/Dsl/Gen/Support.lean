@@ -10,6 +10,7 @@ module
 
 public import LeanVM.Dsl.Mem
 public import LeanVM.Dsl.Keccak
+public import LeanVM.Dsl.Fold
 
 /-!
 # Support for the translated guest
@@ -49,12 +50,19 @@ structure GPow where
   exp : Nat
   deriving Inhabited
 
+/-- Its value. -/
+def GPow.fe (g : GPow) : E := gpowE g.exp
+
 /-- A shifted pointer `base·g^exp` bound to a name: materialized where it is used
 (`B.shifted`). -/
 structure Shifted where
   base : Word
   exp : Nat
   deriving Inhabited
+
+/-- A word as a pointer shifted by `0`: where a name is a word in some instances and a shifted
+pointer in others, it is written as the pointer (`B.shifted p 0` is `p`). -/
+def Shifted.of (w : Word) : Shifted := ⟨w, 0⟩
 
 end
 end LeanVM.Dsl.Gen

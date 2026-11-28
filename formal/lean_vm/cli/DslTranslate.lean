@@ -10,19 +10,21 @@ the exported source AST (`LeanVM.Guest.Data.guest`), the guest's text (`guests/l
 for each function's source and the global constants' names) and the configuration's constants
 (`LeanVM/Guest/Data/Source.lean`), and writes `LeanVM/Dsl/Gen/`: one module per section of the
 guest, the `@inline` functions (`Inline.lean`), the constants (`Config.lean`), the list of
-translated functions with the `Const` instances each reaches (`Checks.lean`) and the check of every
-one against `Expand` (`Check.lean`; `Compare.lean` and `Support.lean` are hand-written).
+translated functions with the `Const` instances each reaches (`Checks.lean`; `lake exe dsl-check`
+runs the check; `Compare.lean` and `Support.lean` are hand-written).
 
 The translator is `Expand` run on the source with every compile-time decision taken as `Expand`
 takes it (its own readings, `Expand.eval` and the rest, on the substituted source), writing builder
-calls (`LeanVM.Dsl.Builder`, `Control`, `Hints`, `Mem`, `Keccak`) instead of core statements. Its
-texts keep the compile-time values symbolic: an `unroll` counter is a Lean `for` counter, a `Const`
-parameter a Lean argument, a name the zkDSL binds a Lean `let`, one variable per kind of value it
-holds (`nameFor`). The iterations of an `unroll` whose texts agree become one `for` loop (a name
-the body rebinds and reads across iterations a `let mut`), the others are written out; an
-`@inline` function is a Lean function per distinct text of its calls; a `Const` family one `GFn`
-family per distinct text of its instances. A construct the builder lacks is a marked gap
-(`pure () -- GAP(...)`), and the function is left out of the check.
+calls (`LeanVM.Dsl.Builder`, `Control`, `Hints`, `Mem`, `Keccak`, `Fold`) instead of core
+statements, so that every instance of a source function has the same text: a first pass records
+every kind `Expand` gives each source name (`ktab`), the names whose field reading diverges
+(`dtab`) and how each inline is called (`mtab`); the second writes each name with the join of its
+kinds (`LK.join`: a word that is a pointer elsewhere a `Shifted`, a constant that is a word
+elsewhere an `FW`), field arithmetic with a constant operand as an `Ex` the builder folds, every
+`unroll` as one `for` over its symbolic range, each compile-time `if`'s untaken branch translated
+as if taken (a weak side, `mergeW`). A text that still differs between instances is logged
+(`SPLIT`, see `--measure`) and becomes another definition. A construct the builder lacks is a
+marked gap (`pure () -- GAP(...)`), and the function is left out of the check.
 -/
 
 open LeanVM.Parameters LeanVM.Core
@@ -104,19 +106,33 @@ inductive Code where
   | blk (head : String) (body : Array Code) (close : String := "")
   | sub (ind : Nat) (c : Code)
   /-- A compile-time `if` (`if const(...)`, or literals): the branch a context took, the other
-  one known once a context that takes it is merged in. -/
-  | fold (cond : String) (thn els : Option (Array Code))
+  one known once a context that takes it is merged in; a branch no context takes is translated as
+  if taken where that succeeds, and marked weak (`mergeW`). -/
+  | fold (cond : String) (thn els : Option (Array Code)) (weak : Bool × Bool := (false, false))
+  /-- Lines in sequence (an `unroll`: its `let mut`s and its loop), tagged with the loop's head, so
+  that an instance whose range is empty (`wild`) merges with it. -/
+  | seq (tag : String) (body : Array Code)
+  /-- An `unroll` whose range is empty here: what the instances where it is not write. -/
+  | wild (tag : String)
   deriving Inhabited
 
 def pad (n : Nat) : String := String.ofList (List.replicate n ' ')
 
+/-- A block's lines with its sequences spliced in and its empty `unroll`s dropped. -/
+partial def flat (cs : Array Code) : Array Code :=
+  cs.foldl (fun acc c => match c with
+    | .seq _ b => acc ++ flat b
+    | .wild _ => acc
+    | c => acc.push c) #[]
+
 /-- Whether a block ends with a binding, so it needs a closing `pure ()`. -/
 def lastIsLet (b : Array Code) : Bool :=
-  match b.back? with
+  match (flat b).back? with
   | some (.line s _ _) => s.startsWith "let "
   | some (.blk h _ _) => h.startsWith "let "
   | some (.sub _ _) => true
   | some (.fold ..) => false
+  | some _ => false
   | none => true
 
 /-- The name a `let` line binds (not `let _`, not a tuple). -/
@@ -155,6 +171,13 @@ def renameToks (ren : List (String × String)) (s : String) : String := Id.run d
       prev := c
   return String.ofList (out.toList.dropLast)
 
+/-- The words of a text, for "does it name `x`". -/
+def words (s : String) : List String :=
+  let (ws, cur) := s.toList.foldl (fun (ws, cur) c =>
+    if c.isAlphanum || c == '_' || c == '\'' then (ws, cur.push c)
+    else if cur.isEmpty then (ws, cur) else (ws.push cur, "")) ((#[] : Array String), "")
+  (if cur.isEmpty then ws else ws.push cur).toList
+
 /-- Lines of a `do` block. Lean lets no `let` shadow a `let mut` of the same `do`: such a `let` of
 the same type is an assignment, of another type a new name (`x'`), which the lines after it read
 (`ren`). `scope` holds the `let mut`s in scope and their types. -/
@@ -163,7 +186,7 @@ partial def renderB (muts : List Nat) (ind : Nat) (scope : List (String × Strin
   let mut out : Array String := #[]
   let mut sc := scope
   let mut rn := ren
-  for c in cs do
+  for c in flat cs do
     match c with
     | .line s site ty =>
         let isMut := (site.any muts.contains) && s.startsWith "let "
@@ -198,9 +221,16 @@ partial def renderB (muts : List Nat) (ind : Nat) (scope : List (String × Strin
         let body := if lastIsLet body then body.push (.line "pure ()") else body
         let b := renderB muts (ind + 2) (if head.startsWith "for " then sc else []) rn body
         let b := b.modify (b.size - 1) (· ++ close)
+        -- a loop whose body does not read its counter
+        let head := if head.startsWith "for " then
+            let x := String.ofList ((head.toList.drop 4).takeWhile (· != ' '))
+            if b.any (fun l => (words l).contains x) then head
+            else "for _" ++ String.ofList ((head.toList.drop 4).dropWhile (· != ' '))
+          else head
         out := out ++ #[pad ind ++ renameToks rn head] ++ b
     | .sub n c => out := out ++ renderB muts (ind + n) sc rn #[c]
-    | .fold cnd t e =>
+    | .seq .. | .wild _ => pure ()
+    | .fold cnd t e _ =>
         let side := fun (b : Array Code) =>
           renderB muts (ind + 2) sc rn (if lastIsLet b then b.push (.line "pure ()") else b)
         let none' := #[Code.line "pure () -- no use of this definition takes this branch"]
@@ -226,12 +256,17 @@ partial def mergeC (muts : List Nat) : Code → Code → Option (Code × List Na
       if h1 == h2 && c1 == c2 then (mergeA muts b1 b2).map fun (b, e) => (.blk h1 b c1, e) else none
   | .sub n1 c1, .sub n2 c2 =>
       if n1 == n2 then (mergeC muts c1 c2).map fun (c, e) => (.sub n1 c, e) else none
-  | .fold c1 t1 e1, .fold c2 t2 e2 =>
+  | .fold c1 t1 e1 w1, .fold c2 t2 e2 w2 =>
       if c1 == c2 then do
-        let (t, x1) ← mergeO muts t1 t2
-        let (e, x2) ← mergeO muts e1 e2
-        some (.fold c1 t e, x1 ++ x2)
+        let (t, wt, x1) ← mergeW muts t1 w1.1 t2 w2.1
+        let (e, we, x2) ← mergeW muts e1 w1.2 e2 w2.2
+        some (.fold c1 t e (wt, we), x1 ++ x2)
       else none
+  | .seq t1 b1, .seq t2 b2 =>
+      if t1 == t2 then (mergeA muts b1 b2).map fun (b, e) => (.seq t1 b, e) else none
+  | .wild t1, .seq t2 b => if t1 == t2 then some (.seq t2 b, []) else none
+  | .seq t1 b, .wild t2 => if t1 == t2 then some (.seq t1 b, []) else none
+  | .wild t1, .wild t2 => if t1 == t2 then some (.wild t1, []) else none
   | _, _ => none
 
 partial def mergeA (muts : List Nat) (a b : Array Code) : Option (Array Code × List Nat) :=
@@ -239,36 +274,90 @@ partial def mergeA (muts : List Nat) (a b : Array Code) : Option (Array Code × 
   else (a.zip b).foldlM (init := (#[], [])) fun (acc, ex) (x, y) =>
     (mergeC muts x y).map fun (c, e) => (acc.push c, ex ++ e)
 
-partial def mergeO (muts : List Nat) : Option (Array Code) → Option (Array Code) →
-    Option (Option (Array Code) × List Nat)
-  | none, x => some (x, [])
-  | x, none => some (x, [])
-  | some a, some b => (mergeA muts a b).map fun (m, e) => (some m, e)
+/-- One branch of two compile-time `if`s as one: a side no context took yields to the other; a
+speculative side (`weak`: translated as if taken, where no context takes it) yields to a taken one
+it does not merge with. -/
+partial def mergeW (muts : List Nat) : Option (Array Code) → Bool → Option (Array Code) → Bool →
+    Option (Option (Array Code) × Bool × List Nat)
+  | none, _, x, w => some (x, w, [])
+  | x, w, none, _ => some (x, w, [])
+  | some a, wa, some b, wb =>
+      match mergeA muts a b with
+      | some (m, e) => some (some m, wa && wb, e)
+      | none =>
+          if wa && !wb then some (some b, false, [])
+          else if wb && !wa then some (some a, false, [])
+          else if wa && wb then some (some a, true, [])
+          else none
 end
 
-/-- The words of a text, for "does it name `x`". -/
-def words (s : String) : List String :=
-  let (ws, cur) := s.toList.foldl (fun (ws, cur) c =>
-    if c.isAlphanum || c == '_' || c == '\'' then (ws, cur.push c)
-    else if cur.isEmpty then (ws, cur) else (ws.push cur, "")) ((#[] : Array String), "")
-  (if cur.isEmpty then ws else ws.push cur).toList
+/-- The first line of a text. -/
+def headOf : Code → String
+  | .line s _ _ => s
+  | .blk h _ _ => h
+  | .sub _ c => headOf c
+  | .fold c _ _ _ => s!"if {c} then"
+  | .seq t _ => t
+  | .wild t => t
+
+mutual
+/-- Why two texts do not merge (`mergeA`): the pairs of lines that differ, and for blocks of
+different lengths the first pair that does not merge. -/
+partial def confC : Code → Code → List (String × String)
+  | .line s1 _ _, .line s2 _ _ => if s1 == s2 then [] else [(s1, s2)]
+  | .blk h1 b1 c1, .blk h2 b2 c2 => (if h1 == h2 && c1 == c2 then [] else [(h1, h2)]) ++ confA b1 b2
+  | .sub n1 c1, .sub n2 c2 => if n1 == n2 then confC c1 c2 else [("sub", "sub")]
+  | .fold c1 t1 e1 _, .fold c2 t2 e2 _ =>
+      if c1 == c2 then confO t1 t2 ++ confO e1 e2 else [(s!"if {c1}", s!"if {c2}")]
+  | .seq t1 b1, .seq t2 b2 => if t1 == t2 then confA b1 b2 else [(t1, t2)]
+  | .wild t1, .seq t2 _ | .seq t1 _, .wild t2 | .wild t1, .wild t2 => if t1 == t2 then [] else [(t1, t2)]
+  | x, y => [(headOf x, headOf y)]
+
+partial def confA (a b : Array Code) : List (String × String) :=
+  if a.size == b.size then (a.zip b).toList.flatMap fun (x, y) => confC x y
+  else
+    match (a.zip b).toList.find? (fun (x, y) => (mergeC [] x y).isNone) with
+    | some (x, y) => [(s!"[{a.size} lines] " ++ headOf x, s!"[{b.size} lines] " ++ headOf y)]
+    | none => [(s!"[{a.size} lines] " ++ ((a[b.size]?).map headOf).getD "", s!"[{b.size} lines] " ++ ((b[a.size]?).map headOf).getD "")]
+
+partial def confO : Option (Array Code) → Option (Array Code) → List (String × String)
+  | some a, some b => confA a b
+  | _, _ => []
+end
+
+/-- The conflicts of `c` with the closest of `others`, as log lines. -/
+def confLog (what : String) (others : List (Array Code)) (c : Array Code) : Array String :=
+  match (others.map (confA · c)).foldl (fun (best : Option (List (String × String))) x =>
+      match best with
+      | some b => if x.length < b.length then some x else some b
+      | none => some x) none with
+  | some cs => #[s!"SPLIT {what} ({cs.length})"] ++ (cs.take 6).toArray.map fun (x, y) =>
+      s!"  < {x.trimAscii.toString}\n  > {y.trimAscii.toString}"
+  | none => #[]
 
 /-! ## State -/
 
-/-- What a name is in the Lean text. -/
+/-- What a name is in the Lean text: a word, a frame run, an integer (with its field reading), a
+field constant, a constant g-power, a shifted pointer, or a scalar that is a constant in some
+instances and a word in others (`FW`, folded by the builder). -/
 inductive LK where
-  | word | run | nat | fe | gpow | ptr
+  | word | run | nat | fe | gpow | ptr | fw
   deriving BEq, Inhabited, Repr
 
 def LK.ty : LK → String
   | .word => "Word" | .run => "List V" | .nat => "Nat" | .fe => "E" | .gpow => "GPow"
-  | .ptr => "Shifted"
+  | .ptr => "Shifted" | .fw => "FW"
 
-/-- The suffix of a name's Lean variable for a kind other than the one it is first bound with in
-its definition (`camel` writes no `_`, so no source name's variable has it). -/
-def LK.suffix : LK → String
-  | .word => "_word" | .run => "_run" | .nat => "_nat" | .fe => "_fe" | .gpow => "_gpow"
-  | .ptr => "_ptr"
+/-- The kind every instance's binding of a name is written with, from the kinds `Expand` gives it
+across all instances and iterations: one kind as itself; words and shifted pointers a shifted
+pointer (a word is one shifted by `0`); constants and words mixed an `FW`. A run is never mixed with
+a scalar (`nameOf` gives the run a variable of its own). -/
+def LK.join (ks : List LK) (lk : LK) : LK :=
+  if lk == .run then .run else
+  let sc := (lk :: ks).filter (· != .run)
+  if sc.all (· == lk) then lk
+  else if sc.all fun k => k == .word || k == .ptr then .ptr
+  else .fw
 
 /-- A source name's binding: `Expand`'s, and its Lean name. -/
 structure Bind where
@@ -343,8 +432,12 @@ structure TSt where
   usedArrays : List String := []
   chainNext : Option V := none
   chainIn : Option V := none
-  /-- The kind each source name is first bound with in the current Lean definition. -/
-  kinds : List (String × LK) := []
+  /-- The next `match` ends an `unroll` body that starts with one: its chain into the next
+  iteration's is a Lean `if` on this condition (the counter is not the last). -/
+  chainFold : Option String := none
+  /-- The next `match` starts an `unroll` body that ends with one: the previous iteration's chains
+  into it unless the counter is the first (this condition). -/
+  armsFold : Option String := none
   /-- The names the current definition's source binds anywhere. -/
   fnBinds : List String := []
   /-- The source function whose body is being translated (an `@inline` callee's own). -/
@@ -354,6 +447,18 @@ structure TSt where
   feNeed : List (String × String) := []
   /-- The field variables written: scope, source name, variable. -/
   feIds : List (String × String × String) := []
+  /-- Every kind `Expand` binds each source name with, per scope (the source function whose body
+  binds it), over every instance and iteration: the first pass fills it, the second writes each
+  name with the join of its kinds (`LK.join`), so every instance's text is the same. -/
+  ktab : Std.HashMap (String × String) (List LK) := {}
+  /-- How each `@inline` function is called: into cells (`true`), as a value (`false`). -/
+  mtab : Std.HashMap String (List Bool) := {}
+  /-- The names (per scope) some instance binds to an integer whose field reading differs. -/
+  dtab : Std.HashSet (String × String) := {}
+  /-- Diagnostics: why texts did not merge. -/
+  log : Array String := #[]
+  /-- How many compile-time `if` branches no context takes are being translated around here. -/
+  specDepth : Nat := 0
   deriving Inhabited
 
 abbrev T := StateT TSt (Except String)
@@ -454,6 +559,7 @@ def bindTexts (bd : Bind) : Rd :=
   | .fe => { k := {}, fe := mk id }
   | .gpow => { k := {}, fe := app "gpowE" [mk s!"{id}.exp"], exp := mk s!"{id}.exp" }
   | .ptr => { k := {}, base := mk s!"{id}.base", exp := mk s!"{id}.exp" }
+  | .fw => { k := {} }
 
 partial def txt (e : SE) : T Rd := do
   let k ← q (Expand.eval Expand.evalFuel (← resolve e))
@@ -583,6 +689,8 @@ structure Val where
   act : Bool := false
   /-- An integer's field reading, when it is another value (`Known.diverging`). -/
   feT : Option Tm := none
+  /-- The kind `Expand` gave it, when it is written as another (`convVal`). -/
+  ck : Option LK := none
   deriving Inhabited
 
 def estBind (n : String) (b : Bound) : T Unit := modify fun s =>
@@ -604,15 +712,36 @@ def mergeT (a b : Array Code) : T (Option (Array Code)) := do
       return some m
   | none => return none
 
-/-- The Lean variable of source name `n` bound with kind `lk`, decided where the binding is made:
-the name itself for the kind it is first bound with in the definition, else with the kind's
-suffix, so that a value of one kind never meets a variable of another. -/
-def nameFor (n : String) (lk : LK) : T String := do
-  match (← get).kinds.lookup n with
-  | none =>
-      modify fun s => { s with kinds := (n, lk) :: s.kinds }
-      return camel n
-  | some k => return if k == lk then camel n else camel n ++ lk.suffix
+/-- The kind source name `n`'s bindings in the current scope are written with (`LK.join` of every
+kind the first pass saw), recording `lk`. -/
+def joinKind (n : String) (lk : LK) : T LK := do
+  let s ← get
+  let key := (s.scope, n)
+  let ks := (s.ktab.get? key).getD []
+  if !ks.contains lk then modify fun s => { s with ktab := s.ktab.insert key (lk :: ks) }
+  return LK.join ks lk
+
+/-- The Lean variable of source name `n` written with kind `j`: its camel name; a run's has `_run`
+when the scope also binds the name to a scalar. -/
+def nameOf (n : String) (j : LK) : T String := do
+  let s ← get
+  let ks := (s.ktab.get? (s.scope, n)).getD []
+  return if j == .run && ks.any (· != .run) then camel n ++ "_run" else camel n
+
+/-- `v` written as kind `j` (a join of its kind): a word as a pointer shifted by `0` or as an `FW`,
+a constant as an `FW`. -/
+def convVal (v : Val) (j : LK) : Val :=
+  if v.lk == j then v else
+  let v := { v with ck := v.ck.orElse fun _ => some v.lk }
+  let t := v.t
+  let wrap (f : String) : Tm := if v.act then cmp s!"{f} <$> {t.s}" else app f [t]
+  match v.lk, j with
+  | .word, .ptr => { v with lk := j, t := wrap "Shifted.of" }
+  | .word, .fw => { v with lk := j, t := wrap "FW.w" }
+  | .nat, .fw => { v with lk := j, t := app "FW.c" [v.feT.getD (natFe v.b t)], feT := none }
+  | .fe, .fw => { v with lk := j, t := wrap "FW.c" }
+  | .gpow, .fw => { v with lk := j, t := app "FW.c" [app "GPow.fe" [t]] }
+  | _, _ => { v with t := cmp s!"KIND_MISMATCH /- {repr v.lk} as {repr j} -/" }
 
 /-- Bind the Lean variable `id` to `v` under the key `key` of `env`: a `let`, or, when the value
 must outlive the scopes it is made in (an `unroll` iteration whose next one or whose sequel reads
@@ -622,7 +751,7 @@ def bindVar (key id n : String) (v : Val) (feT : Option Tm) : T Unit := do
   let s ← get
   let arrow := if v.act then "←" else ":="
   let tyAnn := match v.lk with
-    | .fe | .gpow | .ptr => s!" : {v.lk.ty}"
+    | .fe | .gpow | .ptr | .fw => s!" : {v.lk.ty}"
     | _ => ""
   let bound : Bound := ⟨v.b, v.int⟩
   -- the outermost of the innermost scopes, at this depth, that the value must leave
@@ -668,21 +797,34 @@ def bindVar (key id n : String) (v : Val) (feT : Option Tm) : T Unit := do
       emit (.line s!"let {id}{tyAnn} {arrow} {v.t.s}" (some st) v.lk.ty)
       envBind key { b := bound, lk := v.lk, id, site := some st, depth := (← get).depth, feT }
 
+/-- An `Ex` text as the `FW` value `Ex.bind` gives, written directly when it is a leaf. -/
+def fwOf (x : Tm) (b : Binding) (int : Option Nat) : Val :=
+  let s := x.s
+  let rest (k : Nat) := String.ofList (s.toList.drop k)
+  if s.startsWith ".c " then { b, int, lk := .fw, t := cmp ("FW.c " ++ rest 3) }
+  else if s.startsWith ".w " then { b, int, lk := .fw, t := cmp ("FW.w " ++ rest 3) }
+  else if s.startsWith "Ex.nat " then { b, int, lk := .fw, t := cmp ("FW.c (lit " ++ rest 7 ++ ")") }
+  else if s.startsWith ".g " then { b, int, lk := .fw, t := cmp ("FW.c (gpowE " ++ rest 3 ++ ")") }
+  else if x.atom && s.endsWith ".ex" then { b, int, lk := .fw, t := mk (String.ofList s.toList.dropLast.dropLast.dropLast) }
+  else { b, int, lk := .fw, t := cmp s!"Ex.bind {x.arg}", act := true }
+
 /-- Bind source name `n` to `v` (`rebind`, `setInt`), in its variable of `v`'s kind; an integer
 whose field reading is another value with that reading in a variable of its own first (`n_field`,
 under a key no source name has), which the integer's readings name. -/
-def defineName (n : String) (v : Val) : T Unit := do
+def defineName (n : String) (v : Val) (ck : LK := v.ck.getD v.lk) : T Unit := do
+  if v.feT.isSome then modify fun s => { s with dtab := s.dtab.insert (s.scope, n) }
+  let j ← joinKind n ck
+  let v := convVal v j
   let mut feT : Option Tm := none
-  if v.lk == .nat then
-    if let some ft := v.feT then
-      let s ← get
-      if s.feAll || s.feNeed.contains (s.scope, n) then
-        let fid := camel n ++ "_field"
-        bindVar (n ++ "#field") fid n { b := v.b, lk := .fe, t := ft } none
-        feT := some (mk fid)
-        if !s.feIds.contains (s.scope, n, fid) then
-          modify fun s => { s with feIds := (s.scope, n, fid) :: s.feIds }
-  bindVar n (← nameFor n v.lk) n v feT
+  let s ← get
+  if j == .nat && s.dtab.contains (s.scope, n) then
+    if s.feAll || s.feNeed.contains (s.scope, n) then
+      let fid := camel n ++ "_field"
+      bindVar (n ++ "#field") fid n { b := v.b, lk := .fe, t := v.feT.getD (natFe v.b v.t) } none
+      feT := some (mk fid)
+      if !s.feIds.contains (s.scope, n, fid) then
+        modify fun s => { s with feIds := (s.scope, n, fid) :: s.feIds }
+  bindVar n (← nameOf n j) n v feT
   estBind n ⟨v.b, v.int⟩
 
 def runText (e : SE) : T (Option Tm) := do
@@ -775,12 +917,97 @@ def carriedOf (body : List SS) (live : List String) : List String :=
   let ex := exposed body
   (Source.Stmt.bindsList false body).eraseDups.filter fun n => ex.contains n || live.contains n
 
+/-- Whether `v` names a variable written as an `FW`. -/
+def isFW (v : String) : T Bool := do
+  let s ← get
+  return !(s.sym.any (·.1 == v)) && (s.env.find? (·.1 == v)).any (·.2.lk == .fw)
+
+/-- Whether `e` is a compile-time constant leaf: a literal, a `g`-power, a constant array's element,
+`const(...)`, an `unroll` counter or `Const` parameter, or a name bound to a constant. -/
+def constLeaf (e : SE) : T Bool := do
+  let s ← get
+  match e with
+  | .lit _ | .gen | .gpow _ | .genPow _ | .call "const" _ => return true
+  | .index (.var a) _ => return s.prog.constArrays.any (·.1 == a)
+  | .var v =>
+      if s.sym.any (·.1 == v) then return true
+      return (s.env.find? (·.1 == v)).any fun (_, bd) => bd.lk == .nat || bd.lk == .fe || bd.lk == .gpow
+  | _ => return false
+
+/-- Whether `e` is field arithmetic whose lowering depends on constants (a constant operand, a
+power, a name written as an `FW`): written as an `Ex`, which the builder folds where it elaborates,
+so every instance has the same text. -/
+partial def foldable (e : SE) : T Bool := do
+  let rec walk : SE → T Bool
+    | .add a b | .mul a b => do return (← walk a) || (← walk b)
+    | .pow _ _ => return true
+    | .var v => do return (← isFW v) || (← constLeaf (.var v))
+    | x => constLeaf x
+  match e with
+  | .add .. | .mul .. | .pow .. => walk e
+  | .var v => isFW v
+  | _ => return false
+
+/-- `.foo x` as an `Ex` text's simplest form for an `FW` or a value. -/
+def exLower (x : Tm) : String :=
+  if x.s.endsWith ".ex" && x.atom then s!"FW.val {String.ofList (x.s.toList.dropLast.dropLast.dropLast)}"
+  else s!"Ex.lower {x.arg}"
+
 /-! ## Lowering -/
 
 mutual
 
+/-- `e` as an `Ex` (`LeanVM.Dsl.Fold`): its arithmetic and constants as written, its other
+operands lowered where the expression is. -/
+partial def exText (e : SE) : T Tm := do
+  let s ← get
+  match e with
+  | .add a b => return app ".add" [← exText a, ← exText b]
+  | .mul a b => return app ".mul" [← exText a, ← exText b]
+  | .pow b x => return app ".pow" [← exText b, ← intT x]
+  | .lit n => return app "Ex.nat" [← natLit n]
+  | .gen => return app ".g" [num 1]
+  | .gpow n => return app ".g" [← natLit n]
+  | .genPow x => return app ".g" [← intT x]
+  | .call "const" [a] => return app ".c" [app "lit" [← intT a]]
+  | .index (.var a) i =>
+      if s.prog.constArrays.any (·.1 == a) then
+        return app ".c" [app "arrWord" [mk a, ← intT i]]
+      exLeaf e
+  | .var v =>
+      match s.sym.find? (·.1 == v) with
+      | some (_, .gpow _, t) => return app ".g" [t]
+      | some (_, _, t) => return app "Ex.nat" [t]
+      | none =>
+        match s.env.find? (·.1 == v) with
+        | some (_, bd) =>
+            match bd.lk with
+            | .word => return app ".w" [mk bd.id]
+            | .ptr => return app ".sh" [mk s!"{bd.id}.base", mk s!"{bd.id}.exp"]
+            | .fw => return mk s!"{bd.id}.ex"
+            | .nat => return match bd.feT with
+                | some ft => app ".c" [ft]
+                | none => app "Ex.nat" [mk bd.id]
+            | .fe => return app ".c" [mk bd.id]
+            | .gpow => return app ".g" [mk s!"{bd.id}.exp"]
+            | .run => throw s!"StackBuf `{v}` used as a scalar"
+        | none => throw s!"unbound variable `{v}`"
+  | _ => exLeaf e
+
+/-- An operand of an `Ex` that is no arithmetic: lowered as a value, where the expression is. -/
+partial def exLeaf (e : SE) : T Tm := do
+  if let .index arr idx := e then
+    if (← frameCell arr idx).isNone then
+      let (p, off) ← heapAddrSpan arr idx 1
+      let pT := if p.act then cmp p.t.s else app "pure" [p.t]
+      return app ".ld" [pT, off]
+  let w ← tExpr e
+  return if w.act then app ".act" [cmp w.t.s] else app ".w" [w.t]
+
 /-- A value holding `e` (`Expand.expr`). -/
 partial def tExpr (e : SE) : T WT := do
+  if ← foldable e then
+    return ← actW (exLower (← exText e))
   let re ← resolve e
   if (← q (Expand.tryFieldConst re)).isSome then
     let rd ← txt e
@@ -792,7 +1019,9 @@ partial def tExpr (e : SE) : T WT := do
       match (← get).env.find? (·.1 == v) with
       | some (_, bd) =>
           match bd.b.val with
-          | .scalar c => return ⟨mk bd.id, false, c⟩
+          | .scalar c =>
+              if bd.lk == .ptr then return ← actW s!"B.shifted {bd.id}.base {bd.id}.exp"
+              return ⟨mk bd.id, false, c⟩
           | .gaddr ga => matRd ga (bindTexts bd)
           | .stack _ => throw s!"StackBuf `{v}` used as a scalar"
           | .fconst _ => throw "internal: a constant folds"
@@ -838,6 +1067,13 @@ partial def tExprs (es : List SE) : T (List WT) := seqW (es.map tExpr)
 
 /-- The one cell of a value (`Expand.bindingCell`). -/
 partial def valCell (v : Val) : T WT := do
+  if v.lk == .fw || v.lk == .ptr then
+    let t ← if v.act then do
+        let t ← newTmp
+        line s!"let {t} ← {v.t.s}"
+        pure (mk t)
+      else pure v.t
+    return ← actW (if v.lk == .fw then s!"FW.val {t.arg}" else s!"B.shifted {t.arg}.base {t.arg}.exp")
   match v.b with
   | .scalar c => return ⟨v.t, v.act, c⟩
   | _ =>
@@ -855,8 +1091,7 @@ partial def valCell (v : Val) : T WT := do
           match v.lk with
           | .gpow => actW s!"B.const (gpowE {t.arg}.exp)"
           | .nat => actW s!"B.const {(natFe v.b t).arg}"
-          | .ptr => if ga.exp == 0 then return ⟨mk s!"{t.arg}.base", false, ga.base.getD default⟩
-                    else actW s!"B.shifted {t.arg}.base {t.arg}.exp"
+          | .ptr => actW s!"B.shifted {t.arg}.base {t.arg}.exp"
           | _ => return ⟨t, false, ga.base.getD default⟩
       | _ => throw "a multi-cell StackBuf return needs a `let` binding"
 
@@ -876,6 +1111,8 @@ partial def powExpr (b x : SE) : T WT := do
 
 /-- Lower `e` into the cell `d` (`Expand.exprInto`). -/
 partial def exprInto (e : SE) (d : WT) : T Unit := do
+  if ← foldable e then
+    return ← line s!"Ex.into {d.use} {(← exText e).arg}"
   let re ← resolve e
   if (← q (Expand.tryFieldConst re)).isSome then
     let rd ← txt e
@@ -1109,6 +1346,11 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
     | .error _ => throw s!"`@inline {f}`: bad arity or unresolved Const argument"
   let some (body, rets) := Source.splitTailReturn d.body
     | throw s!"`@inline {f}` requires one tail `return`"
+  -- called both as a value and into cells: one text, the values, copied into the cells by the call
+  let ms := ((← get).mtab.get? f).getD []
+  if !ms.contains into.isSome then modify fun s => { s with mtab := s.mtab.insert f (into.isSome :: ms) }
+  let dsts := into
+  let into := if ms.any (· != into.isSome) then none else into
   let mut sig : Array String := #[]
   let mut argFs : Array (T WT) := #[]
   let mut binds : Array (String × Bind) := #[]
@@ -1166,7 +1408,25 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
   let ws ← seqW argFs.toList
   for (i, n) in scalarAt do
     binds := binds.map fun (m, bd) => if m == n then (m, { bd with b := ⟨.scalar (ws[i]!.v), none⟩ }) else (m, bd)
-  let argTexts := ws.map WT.use
+  let mut argArr := (ws.map WT.use).toArray
+  -- each parameter written with the join of the kinds its arguments have at every call
+  let mut bi := 0
+  for ((p, a), i) in (d.params.zip args).zipIdx do
+    if p.kind == .const then continue
+    let (_, bd) := binds[bi]!
+    let key := (f, p.name)
+    let ks := ((← get).ktab.get? key).getD []
+    if !ks.contains bd.lk then modify fun s => { s with ktab := s.ktab.insert key (bd.lk :: ks) }
+    let j := LK.join ks bd.lk
+    if j != bd.lk then
+      let cv ← if j == .fw then
+          pure (fwOf (← exText a) bd.b.val none)
+        else pure (convVal { b := bd.b.val, lk := bd.lk, t := cmp argArr[i]! } j)
+      argArr := argArr.set! i (if cv.act then s!"(← {cv.t.s})" else Tm.arg cv.t)
+      sig := sig.set! i s!"({bd.id} : {j.ty})"
+      binds := binds.set! bi (p.name, { bd with lk := j })
+    bi := bi + 1
+  let argTexts := argArr.toList
   -- the callee, in a scope of its own
   let saved ← get
   let dstT : List WT := match into with
@@ -1177,11 +1437,10 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
     sym := syms.toList, code := #[], loops := [], depth := 0, tmp := 0,
     est := { saved.est with names := binds.toList.reverse.map fun (nb : String × Bind) => (nb.1, nb.2.b) },
     live := rets.foldl (fun acc (e : SE) => e.freeVars acc) [], gaps := [], calls := [], finalRet := false,
-    kinds := binds.toList.map (fun (nb : String × Bind) => (nb.1, nb.2.lk)) ++ syms.toList.map (fun (x : String × SE × Tm) => (x.1, LK.nat)),
     fnBinds := Source.Stmt.bindsList false d.body, scope := f }
   stmts body
   let vals ← match into with
-    | none => rets.mapM fun e => do
+    | none => rets.zipIdx.mapM fun (e, ri) => do
         let v ← letVal e
         let v ← if v.act then do
             let t ← newTmp
@@ -1189,11 +1448,16 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
             pure { v with t := mk t, act := false }
           else pure v
         -- the caller reads an integer constant as its field word, or a g-power as itself
-        if v.lk == .nat then
-          match v.b with
-          | .gaddr _ => return { v with lk := .gpow, t := mk s!"⟨{(app "Nat.log2" [v.t]).s}⟩", int := none }
-          | _ => return { v with lk := .fe, t := v.feT.getD (app "lit" [v.t]), int := none, feT := none }
-        return v
+        let v := if v.lk == .nat then
+            match v.b with
+            | .gaddr _ => { v with lk := .gpow, t := mk s!"⟨{(app "Nat.log2" [v.t]).s}⟩", int := none }
+            | _ => { v with lk := .fe, t := v.feT.getD (app "lit" [v.t]), int := none, feT := none }
+          else v
+        -- written with the join of the kinds this return has at every call
+        let key := (f, s!"return {ri}")
+        let ks := ((← get).ktab.get? key).getD []
+        if !ks.contains v.lk then modify fun s => { s with ktab := s.ktab.insert key (v.lk :: ks) }
+        return convVal v (LK.join ks v.lk)
     | some _ => do
         returnInto rets dstT
         pure []
@@ -1218,7 +1482,7 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
     gaps := saved.gaps ++ after.gaps.filter (!saved.gaps.contains ·),
     calls := saved.calls ++ after.calls.filter (!saved.calls.contains ·),
     lineConsts := saved.lineConsts, lineNums := saved.lineNums, finalRet := saved.finalRet,
-    returned := saved.returned, kinds := saved.kinds, fnBinds := saved.fnBinds, scope := saved.scope }
+    returned := saved.returned, fnBinds := saved.fnBinds, scope := saved.scope }
   let s ← get
   let mut found : Option String := none
   for (vr, i) in s.variants.zipIdx do
@@ -1231,7 +1495,9 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
     | none => do
         let k := (s.variants.filter (·.fn == f)).size
         let nm := if k == 0 then camel f else s!"{camel f}_{k + 1}"
-        modify fun s => { s with variants := s.variants.push { fn := f, name := nm, code := vcode } }
+        let lg := if k == 0 then #[] else
+          confLog s!"inline {f} {nm} in {s.scope}" ((s.variants.filter (·.fn == f)).toList.map (·.code)) vcode
+        modify fun s => { s with variants := s.variants.push { fn := f, name := nm, code := vcode }, log := s.log ++ lg }
         pure nm
   let dstArg := match into with
     | some ds => [s!"[{", ".intercalate (ds.map WT.vv)}]"]
@@ -1242,6 +1508,20 @@ partial def tryInline (f : String) (args : List SE) (into : Option (List WT)) : 
       line callT
       return some []
   | none =>
+      -- an inline also called into cells (`mtab`): its values copied into them here
+      if let some ds := dsts then
+        let ts ← vals.mapM fun _ => newTmp
+        match ts with
+        | [t] => line s!"let {t} ← {callT}"
+        | _ => line s!"let ({", ".intercalate ts}) ← {callT}"
+        for ((v, t), d) in (vals.zip ts).zip ds do
+          match v.lk with
+          | .word => line s!"B.copy {d.use} {t}"
+          | .fw => line s!"Ex.into {d.use} {t}.ex"
+          | .ptr => line s!"B.copy {d.use} (← B.shifted {t}.base {t}.exp)"
+          | .fe => line s!"B.constInto {d.use} {t}"
+          | k => throw s!"`@inline {f}` returns a {repr k} into a cell"
+        return some []
       match vals with
       | [] =>
           line callT
@@ -1268,10 +1548,34 @@ partial def returnInto (es : List SE) (dsts : List WT) : T Unit := do
       | _ => throw "a multi-cell StackBuf return needs a `let` binding"
     if c.v != d.v then line s!"B.copy {d.use} {c.use}"
 
+/-- What `name = e` binds and its kind (`Expand.letBinding`), without writing anything; `none` for
+a call's value. -/
+partial def letShape (e : SE) : T (Option (Binding × LK)) := do
+  let re ← resolve e
+  let known ← q (Expand.eval Expand.evalFuel re)
+  match ← q (Expand.aliasOf re) with
+  | some (.stack cells) => return some (.stack cells, .run)
+  | some (.gaddr ga) =>
+      let rdExp := (← txt e).exp
+      return some (.gaddr ga, match ga.base with
+        | none => if known.int.isSome then .nat else .gpow
+        | some _ => if ga.exp == 0 && (rdExp.map (·.s)).getD "0" == "0" then .word else .ptr)
+  | some _ => return none
+  | none =>
+    if let some c := known.field then return some (.fconst c, if known.int.isSome then .nat else .fe)
+    if let some k := known.int then return some (.fconst (litField k), .nat)
+    if let .call f _ := e then
+      if (← q (Expand.origDef f)).isSome then return none
+    return some (.scalar (← freshV), .word)
+
 /-- What `name = e` binds (`Expand.letBinding`). -/
 partial def letVal (e : SE) : T Val := do
   let re ← resolve e
   let known ← q (Expand.eval Expand.evalFuel re)
+  -- an expression over a name written as an `FW`: an `FW` too, whatever it is here
+  if ← (e.freeVars []).anyM isFW then
+    if let some (b, ck) ← letShape e then
+      return { fwOf (← exText e) b known.int with ck := some ck }
   match ← q (Expand.aliasOf re) with
   | some (.stack cells) =>
       let some rt ← runText e | throw "internal: no run text"
@@ -1284,7 +1588,7 @@ partial def letVal (e : SE) : T Val := do
             return { b := .gaddr ga, int := k, lk := .nat, t := rd.int.get! }
           return { b := .gaddr ga, lk := .gpow, t := mk s!"⟨{(rd.exp.getD (num ga.exp)).s}⟩" }
       | some _ =>
-          if ga.exp == 0 then return { b := .gaddr ga, lk := .word, t := rd.base.get! }
+          if ga.exp == 0 && (rd.exp.map (·.s)).getD "0" == "0" then return { b := .gaddr ga, lk := .word, t := rd.base.get! }
           return { b := .gaddr ga, lk := .ptr, t := mk s!"⟨{rd.base.get!.s}, {rd.exp.get!.s}⟩" }
   | some _ => throw "internal: an alias is a run or an address"
   | none =>
@@ -1313,6 +1617,7 @@ partial def letVal (e : SE) : T Val := do
 /-- A returned value as a `Ret`: a pure one when lowering it writes nothing else, else the
 lowering into the return cell, run in order (`Ret.into`). -/
 partial def retOf (e : SE) : T String := do
+  if ← foldable e then return s!"Ex.ret {(← exText e).arg}"
   let re ← resolve e
   if (← q (Expand.tryFieldConst re)).isSome then
     return s!".c {(← txt e).fe.get!.arg}"
@@ -1361,8 +1666,11 @@ partial def lowerReturn (es : List SE) : T Unit := do
 
 /-- A compile-time `if`: a Lean `if` on the condition's text, with the branch taken here (the
 other one is filled when contexts merge); a name a branch binds and the sequel reads is a
-`let mut` before it. Where a branch rebinds such a name with another kind, the taken branch is
-written out instead. -/
+`let mut` before it. The branch not taken is also translated as if it were, from the state before
+the `if` (its bindings, instances and inline texts then dropped), and kept as a weak side
+(`mergeW`): a context that takes it replaces it, and where none does it is the text of a branch
+this configuration never takes. Where a branch rebinds such a name with another kind, the taken
+branch is written out instead. -/
 partial def foldIf (eq : Bool) (lhs rhs : SE) (ints : Bool) (taken : Bool) (thn els : List SS) :
     T Unit := do
   let rl ← txt lhs
@@ -1377,10 +1685,30 @@ partial def foldIf (eq : Bool) (lhs rhs : SE) (ints : Bool) (taken : Bool) (thn 
                            code := #[] }
   stmts (if taken then thn else els)
   let s' ← get
-  let lp := s'.loops.head!
-  set { s' with loops := s'.loops.drop 1, code := s.code }
+  let mut other : Option (Array Code) := none
+  let mut after := s'
+  let mut why := ""
+  if s'.specDepth < 2 then
+    set { s' with code := #[], env := s.env, vars := s.vars, sym := s.sym, live := s.live,
+                  est := { s'.est with names := s.est.names }, specDepth := s'.specDepth + 1 }
+    let r ← tryCatch (do stmts (if taken then els else thn); return Except.ok (← get))
+      fun e => pure (Except.error e)
+    match r with
+    | .ok s2 =>
+        if s2.variants.size == s'.variants.size && s2.gaps.length == s'.gaps.length &&
+            (s2.loops.head?.all (·.ok)) then
+          other := some s2.code
+          after := { s' with loops := s2.loops, muts := s2.muts, site := s2.site }
+        else why := "a new inline text, a gap, or a binding leaving the branch"
+    | .error e => why := e
+  let lp := after.loops.head!
+  set { after with loops := after.loops.drop 1, code := s.code }
+  if !why.isEmpty then
+    modify fun s => { s with log := s.log.push s!"SPECFAIL {s.scope} if {cond}: {why}" }
   emitPredecls lp
-  if lp.ok then emit (.fold cond (if taken then some s'.code else none) (if taken then none else some s'.code))
+  if lp.ok then
+    emit (.fold cond (if taken then some s'.code else other) (if taken then other else some s'.code)
+      (if taken then (false, other.isSome) else (other.isSome, false)))
   else modify fun s => { s with code := s.code ++ s'.code }
 
 /-- `if` (`Expand.lowerIf`): folded where `Expand` folds it, else a branch. -/
@@ -1496,12 +1824,19 @@ partial def emitArms (head : String) (arms : List SE) (armF : SE → T Unit) : T
       | some m =>
           match ← mergeT m c with
           | some m' => merged := some m'
-          | none => all := false
+          | none =>
+              if all then
+                let sc := (← get).scope
+                modify fun s => { s with log := s.log ++ confLog s!"arms {sc} {j}" [m] c }
+              all := false
     if let (true, some first) := (all, merged) then
       let nT ← natLit arms.length
       let armId := if (words (renderAll [] 0 first)).contains "arm" then "arm" else "_"
       emit (.blk s!"{head} ((List.range {nT.arg}).map fun {armId} => do" first ")")
       return
+  else
+    let sc := (← get).scope
+    modify fun s => { s with log := s.log.push s!"SPLIT armsgen {sc} {arms.length}: {repr (arms.take 2)}" }
   let mut names : Array String := #[]
   let base ← newTmp
   for (arm, j) in arms.zipIdx do
@@ -1529,18 +1864,29 @@ partial def lowerMatch (targets : List SE) (x : SE) (arms : List SE) : T Unit :=
     if rts.all (· == rt0) then return ← lowerDispatch targets x arms
   let s ← get
   let (chainNext, chainIn) := (s.chainNext, s.chainIn)
-  modify fun s => { s with chainNext := none, chainIn := none }
+  let (chainFold, armsFold) := (s.chainFold, s.armsFold)
+  modify fun s => { s with chainNext := none, chainIn := none, chainFold := none, armsFold := none }
   let xo ← match chainIn with
     | some c => do
         let w ← tExpr x
         pure { w with v := c }
     | none => do hoist (← tExpr x)
   let (t, cells, names) ← targetsOf targets
-  if chainNext.isSome then line "B.chain"
+  -- a chain from one `unroll` iteration into the next: a Lean `if` on the counter
+  match chainFold with
+  | some cnd =>
+      emit (.fold cnd (if chainNext.isSome then some #[.line "B.chain"] else none)
+        (if chainNext.isSome then none else some #[]))
+  | none => if chainNext.isSome then line "B.chain"
   let isInline : SE → T Bool := fun a => match a with
     | .call f _ => return (← q (Expand.origDef f)).any (·.inline)
     | _ => return false
-  if chainIn.isNone && (← arms.allM isInline) then line "Keccak.inlineArms"
+  if ← arms.allM isInline then
+    match armsFold with
+    | some cnd =>
+        emit (.fold cnd (if chainIn.isNone then some #[.line "Keccak.inlineArms"] else none)
+          (if chainIn.isNone then none else some #[]))
+    | none => if chainIn.isNone then line "Keccak.inlineArms"
   let armF : SE → T Unit := fun arm => do
     match cells with
     | [rc] => exprInto arm rc
@@ -1649,7 +1995,7 @@ partial def lowerFor (l : Nat) (var : String) (lo : Nat) (hi : Source.ForBound) 
     let pb := (Expand.paramBindings helper).1
     set { saved with
       est := { est with tag := saved.est.tag }, env := [], vars := [], code := #[], loops := [],
-      depth := saved.depth + 1, tmp := 0, finalRet := false, live := [], kinds := [(var, .word)],
+      depth := saved.depth + 1, tmp := 0, finalRet := false, live := [],
       fnBinds := Source.Stmt.bindsList false rbody }
     if let some (_, b) := pb.find? (·.1 == var) then
       envBind var { b, lk := .word, id := xId, mutOk := false }
@@ -1681,7 +2027,7 @@ partial def lowerFor (l : Nat) (var : String) (lo : Nat) (hi : Source.ForBound) 
     env := saved.env, vars := saved.vars, sym := saved.sym, code := saved.code, loops := saved.loops,
     depth := saved.depth, tmp := saved.tmp, live := saved.live, est := saved.est,
     lineConsts := saved.lineConsts, lineNums := saved.lineNums, finalRet := saved.finalRet,
-    returned := saved.returned, kinds := saved.kinds, fnBinds := saved.fnBinds }
+    returned := saved.returned, fnBinds := saved.fnBinds }
   let loT ← natLit lo
   match hi with
   | .const h =>
@@ -1694,6 +2040,9 @@ partial def lowerFor (l : Nat) (var : String) (lo : Nat) (hi : Source.ForBound) 
 partial def kOperand (e : SE) : T String := do
   if let .list ws := e then
     let ms ← seqW (ws.map fun w => do
+      if let .var v := w then
+        if let some (_, bd) := (← get).env.find? (·.1 == v) then
+          if bd.lk == .fw then return (⟨cmp s!"(← {bd.id}.msg)", false, default⟩ : WT)
       if (← q (Expand.tryConstInt (← resolve w))) == some 0 then return (⟨mk ".zero", false, default⟩ : WT)
       let x ← tExpr w
       return ⟨cmp s!".cell {x.vv}", false, x.v⟩)
@@ -1815,9 +2164,10 @@ partial def lowerBuiltin (f : String) (args : List SE) : T Bool := do
       return true
   | _ => return false
 
-/-- One iteration of an `unroll` body at counter `j`, its counter written `kT`: its lines, and
-whether it may be one of a `for` loop's (its carried names kept their kinds). -/
-partial def iteration (var : String) (j h : Nat) (kT : Tm) (body : List SS) (loopMode : Bool) :
+/-- One iteration of an `unroll` body at counter `j`, its counter written `kT` and its bounds
+`loT`, `hiT`: its lines, and whether it may be one of a `for` loop's (its carried names kept their
+kinds). -/
+partial def iteration (var : String) (j h : Nat) (kT loT hiT : Tm) (body : List SS) (loopMode : Bool) :
     T (Array Code × Bool) := do
   let s ← get
   set { s with code := #[], sym := (var, .lit j, kT) :: s.sym,
@@ -1843,9 +2193,15 @@ partial def iteration (var : String) (j h : Nat) (kT : Tm) (body : List SS) (loo
           if (← q (Expand.allInline rarms)) && (← q (Expand.allInline narms)) then
             if let some c ← q (Expand.freeCell nxx rtargets) then
               modify fun s => { s with chainNext := some c }
+    -- a body that starts and ends with a `match`: the chain across iterations depends on the counter
+    let isMatch : SS → Bool := fun x => match x.kind with | .match_ .. => true | _ => false
+    if isMatch arr[0]! && isMatch arr[arr.size - 1]! then
+      if i + 1 == arr.size then modify fun s => { s with chainFold := some s!"{kT.s} + 1 < {hiT.s}" }
+      if i == 0 then modify fun s => { s with armsFold := some s!"{kT.s} = {loT.s}" }
     let rest := (arr.extract (i + 1) arr.size).toList
     modify fun s' => { s' with live := readsOf rest ++ readsOf body ++ s.live }
     stmtKind st.line st.kind
+    modify fun s => { s with chainFold := none, armsFold := none }
   let s' ← get
   let ok := if loopMode then (match s'.loops with
     | l :: _ => l.ok
@@ -1858,58 +2214,63 @@ partial def lowerUnroll (var : String) (lo hi : SE) (body : List SS) : T Unit :=
   let some l ← q (Expand.tryConstIndex (← resolve lo)) | throw "unroll bounds must be compile-time integers"
   let some h ← q (Expand.tryConstIndex (← resolve hi)) | throw "unroll bounds must be compile-time integers"
   if h < l then throw s!"unroll(a, b) needs a <= b, got ({l}, {h})"
-  if h == l then return
   let loT ← intT lo
   let hiT ← intT hi
   -- the counter's Lean name, clear of every name in scope and of the variables of the names the
-  -- definition binds (a written-out iteration binds it with a `let` that outlives the `unroll`,
-  -- and a `let mut` of a name may be declared around it)
+  -- definition binds (a `let mut` of a name may be declared around the loop)
   let s0 ← get
   let mut kId := if s0.fnBinds.contains var then camel var ++ "_k" else camel var
   while s0.env.any (·.2.id == kId) || s0.sym.any (·.2.2.s == kId) do kId := kId ++ "'"
+  let head := s!"for {kId} in [{loT.s}:{hiT.s}] do"
+  -- an empty range: the loop of the instances where it is not (`Code.wild`)
+  if h == l then return ← emit (.wild head)
   let carried := carriedOf body s0.live
   let loop : Loop := { iterStart := s0.site, carried, depth := s0.depth }
-  -- every iteration, as one of a loop's: a carried name is assigned, a name it binds otherwise
-  -- is a `let`; the code of an iteration is valid in a `for` with the others of its text, or
-  -- written out after its counter's `let`
+  -- every iteration, as one of the loop's: a carried name is assigned, a name it binds otherwise
+  -- is a `let`
   modify fun s => { s with loops := loop :: s.loops }
   let mut codes : Array (Array Code) := #[]
   let mut oks : Array Bool := #[]
   let tmp0 := (← get).tmp
   let mut tmpMax := tmp0
+  -- a name the body binds and does not carry is the iteration's own: each iteration starts from the
+  -- Lean variables in scope before the loop (and the carried names' current ones)
+  let vars0 := (← get).vars
+  let keep := carried.flatMap fun n => [camel n, camel n ++ "_run", camel n ++ "_field"]
   for j in [l:h] do
-    modify fun s => { s with tmp := tmp0 }
-    let (c, ok) ← iteration var j h (mk kId) body true
+    let cur := (← get).vars
+    let vs := cur.filter (fun p => keep.contains p.1) ++ vars0.filter (fun p => !keep.contains p.1)
+    modify fun s => { s with tmp := tmp0, vars := vs }
+    let (c, ok) ← iteration var j h (mk kId) loT hiT body true
     tmpMax := max tmpMax (← get).tmp
     codes := codes.push c
     oks := oks.push ok
   modify fun s => { s with tmp := tmpMax }
-  -- runs of iterations whose texts merge
-  let mut segs : Array (Nat × Nat × Array Code) := #[]
-  let mut start := l
-  while start < h do
-    let mut stop := start + 1
-    let mut cur := codes[start - l]!
-    if oks[start - l]! then
-      let mut go := true
-      while go && stop < h && oks[stop - l]! do
-        match ← mergeT cur codes[stop - l]! with
-        | some m => cur := m; stop := stop + 1
-        | none => go := false
-    segs := segs.push (start, stop, cur)
-    start := stop
+  let sc := (← get).scope
+  -- one loop: the iterations' texts merged
+  let mut cur := codes[0]!
+  let mut one := oks.all id
+  if !one then modify fun s => { s with log := s.log.push s!"SPLIT unrollmut {sc} {var}" }
+  for j in [1:codes.size] do
+    if one then
+      match ← mergeT cur codes[j]! with
+      | some m => cur := m
+      | none =>
+          one := false
+          modify fun s => { s with log := s.log ++ confLog s!"unroll {sc} {var} {l + j}" [cur] codes[j]! }
   let lp := (← get).loops.head!
   modify fun s => { s with loops := s.loops.drop 1 }
+  let outer := (← get).code
+  modify fun s => { s with code := #[] }
   emitPredecls lp
-  for (a, b, c) in segs do
-    let named := (words (renderAll [] 0 c)).contains kId
-    if b - a == 1 then
-      if named then line s!"let {kId} := {a}"
+  if one then emit (.blk head cur)
+  else
+    -- texts that differ: each iteration written out after its counter's `let`
+    for (c, j) in codes.zipIdx do
+      line s!"let {kId} := {l + j}"
       modify fun s => { s with code := s.code ++ c }
-    else
-      let aT := if a == l then loT else num a
-      let bT := if b == h then hiT else num b
-      emit (.blk s!"for {if named then kId else "_"} in [{aT.s}:{bT.s}] do" c)
+  let grp := (← get).code
+  modify fun s => { s with code := outer.push (.seq head grp) }
 
 /-- A statement, its errors naming its source line. -/
 partial def stmtKind (l : Nat) (k : SK) : T Unit := do
@@ -1939,6 +2300,11 @@ partial def stmtKind' (l : Nat) (k : SK) : T Unit := do
           defineName name { b := .gaddr ⟨some p, 0, some cells.length⟩, lk := .word, t := app "B.addr" [rt], act := true }
       | _ => do
           let known ← q (Expand.eval Expand.evalFuel (← resolve e))
+          -- a name some instance binds to a constant and another to a word: the builder folds
+          if let some (b, ck) ← letShape e then
+            let s ← get
+            if LK.join ((s.ktab.get? (s.scope, name)).getD []) ck == .fw then
+              return ← defineName name (fwOf (← exText e) b known.int) ck
           let v ← letVal e
           defineName name { v with int := known.int }
   | .letTuple names f args => do
@@ -2040,7 +2406,6 @@ def fnBody (f : Func) (consts : List SE) : T (Array Code) := do
     est, env := [], vars := [], sym := ((constPs.zip consts).map fun (pc : Source.Param × SE) => (pc.1.name, pc.2, mk (camel pc.1.name))),
     code := #[], tmp := 0, depth := 0, loops := [], live := [], finalRet := false,
     returned := false, gaps := [], calls := [], chainNext := none, chainIn := none,
-    kinds := constPs.map fun (p : Source.Param) => (p.name, LK.nat),
     fnBinds := Source.Stmt.bindsList false f.body, scope := f.name }
   let pb := (Expand.paramBindings spec).1
   let mut pos := 0
@@ -2109,7 +2474,8 @@ def translateAll (prog : Source.Program) (py : Array String) (st0 : TSt) (origin
     | .ok (code, st') =>
         let code := gfnCode f "def NAME : GFn" s!"\"{f.name}\"" code
         units := units.push { fn := f.name, core := f.name, consts := [], gaps := st'.gaps, calls := st'.calls, code }
-        st := st'
+        if !st'.feAll then for l in st'.log do IO.eprintln l
+        st := { st' with log := #[] }
     | .error e =>
         IO.eprintln s!"{f.name}: {e}"
         let stub := s!"set_option linter.unusedVariables false in\n{docOf py f.name s!"`{f.name}`: not translated ({e})"}\ndef {camel f.name} : GFn where\n  name := \"{f.name}\"\n  arity := 0\n  rets := 0\n  body _ := do\n    pure () -- GAP(error)\n    return []\n\n"
@@ -2135,7 +2501,8 @@ def translateAll (prog : Source.Program) (py : Array String) (st0 : TSt) (origin
       | .ok (code, st') =>
           let code := gfnCode f header nameT code
           instUnits := instUnits.push { fn, core := nm, consts := cs, gaps := st'.gaps, calls := st'.calls, code }
-          st := st'
+          if !st'.feAll then for l in st'.log do IO.eprintln l
+          st := { st' with log := #[] }
       | .error e =>
           IO.eprintln s!"{nm}: {e}"
           instUnits := instUnits.push { fn, core := nm, consts := cs, code := #[], gaps := [s!"error: {e}"], calls := [] }
@@ -2146,7 +2513,9 @@ partial def codeLines : Code → List String
   | .line s _ _ => [s]
   | .blk h b c => h :: c :: b.toList.flatMap codeLines
   | .sub _ c => codeLines c
-  | .fold c t e => c :: (t.getD #[]).toList.flatMap codeLines ++ (e.getD #[]).toList.flatMap codeLines
+  | .fold c t e _ => c :: (t.getD #[]).toList.flatMap codeLines ++ (e.getD #[]).toList.flatMap codeLines
+  | .seq _ b => b.toList.flatMap codeLines
+  | .wild _ => []
 
 /-- The field variables (`feIds`: scope, source name, variable) some line reads, other than the
 lines binding them, or through a field variable read. -/
@@ -2185,7 +2554,8 @@ def fieldsRead (ids : List (String × String × String)) (units : Array Unit') (
   return need
 
 def main (args : List String) : IO UInt32 := do
-  let outDir : System.FilePath := (args.head?.getD "LeanVM/Dsl/Gen")
+  let measure := args.contains "--measure"
+  let outDir : System.FilePath := ((args.filter (· != "--measure")).head?.getD "LeanVM/Dsl/Gen")
   let pyText ← IO.FS.readFile "../../guests/lean_ethereum.py"
   let py := (pyText.splitOn "\n").toArray
   let globals := readGlobals (← IO.FS.readFile "LeanVM/Guest/Data/Source.lean")
@@ -2200,7 +2570,9 @@ def main (args : List String) : IO UInt32 := do
   let (units1, insts1, st1) ← translateAll prog py st0 originals
   let need := fieldsRead st1.feIds (units1 ++ insts1) st1.variants
   IO.eprintln s!"{(← IO.monoMsNow)} second pass: {need.length} of {st1.feIds.length} field variables read"
-  let (units, instUnits, st) ← translateAll prog py { st0 with feAll := false, feNeed := need } originals
+  -- the second pass writes every name with the join of the kinds the first saw
+  let (units, instUnits, st) ←
+    translateAll prog py { st0 with feAll := false, feNeed := need, ktab := st1.ktab, dtab := st1.dtab, mtab := st1.mtab } originals
   let mut st := st
   -- families: one definition per text of the instances that no other merges with
   let mut famDefs : Array (String × String × Array Code × String) := #[]   -- section, name, code, fn
@@ -2217,7 +2589,10 @@ def main (args : List String) : IO UInt32 := do
             found := some i
       let gi ← match found with
         | some i => pure i
-        | none => do groups := groups.push u.code; pure (groups.size - 1)
+        | none => do
+          if !groups.isEmpty then
+            for l in confLog s!"family {fn} {u.core}" groups.toList u.code do IO.eprintln l
+          groups := groups.push u.code; pure (groups.size - 1)
       let dname := if gi == 0 then camel fn else s!"{camel fn}_{gi + 1}"
       let argsT := String.join (u.consts.map fun c => match c with
         | .lit n => s!" {n}"
@@ -2227,6 +2602,9 @@ def main (args : List String) : IO UInt32 := do
     for (g, gi) in groups.zipIdx do
       let dname := if gi == 0 then camel fn else s!"{camel fn}_{gi + 1}"
       famDefs := famDefs.push (sectionOf py fn, dname, g, fn)
+  if measure then
+    IO.eprintln s!"MEASURE units {units.size} insts {instUnits.size} variants {st.variants.size} families {famDefs.size}"
+    return 0
   -- modules
   IO.FS.createDirAll outDir
   -- every global constant and constant array (a text abandoned and redone may have recorded its
@@ -2269,7 +2647,6 @@ def main (args : List String) : IO UInt32 := do
   let callsOf : String → List String := fun core =>
     ((units.toList ++ instUnits.toList).find? (·.core == core)).map (·.calls) |>.getD []
   let mut checks : Array String := #[]
-  let mut guards : Array String := #[]
   let mut skipped : Array String := #[]
   let mut nOk := 0
   for u in units do
@@ -2286,25 +2663,18 @@ def main (args : List String) : IO UInt32 := do
       nOk := nOk + 1
       let terms := camel u.fn :: closure.map fun c => (instTerm.lookup c).getD s!"missingInstance_{c}"
       checks := checks.push s!"  (\"{u.fn}\", [{", ".intercalate terms}])"
-      guards := guards.push s!"#guard check \"{u.fn}\""
     else skipped := skipped.push s!"-- {u.fn}: {", ".intercalate gaps.eraseDups}"
   let notChecked := s!"/-! ## Not checked: functions with a gap ({skipped.size})\n" ++
     "\n".intercalate (skipped.toList.map fun l => String.ofList (l.toList.drop 3)) ++ "\n-/\n\n"
   let checksT := s!"/-\n  LeanVM.Dsl.Gen.Checks\n\n  The translated functions to check against `Expand`, each with the `Const` instances it reaches.\n-/\n\n" ++
     String.join (sections.map fun s => s!"import LeanVM.Dsl.Gen.{s}\n") ++ "import LeanVM.Dsl.Gen.Compare\n\n" ++
-    "/-!\n# The translated functions to check\n\nEach function `Expand` lowers as written with no gap in its translation, and the translations of\nthe `Const` instances it reaches: `check` compares them with what `Expand` makes of the function's\nsource (`Compare.sameProg`). `LeanVM.Dsl.Gen.Check` runs every check in the elaborator,\n`lake exe dsl-check` compiled. Functions with a gap are listed at the end.\n-/\n\n" ++
+    "/-!\n# The translated functions to check\n\nEach function `Expand` lowers as written with no gap in its translation, and the translations of\nthe `Const` instances it reaches: `check` compares them with what `Expand` makes of the function's\nsource (`Compare.sameProg`); `lake exe dsl-check` runs every check, compiled. Functions with a gap\nare listed at the end.\n-/\n\n" ++
     "namespace LeanVM.Dsl.Gen.Checks\n\nopen LeanVM.Dsl LeanVM.Dsl.Gen\n\n" ++
     "/-- Each translated function's source name, with its translation and those of the `Const`\ninstances it reaches. -/\ndef checks : List (String × List GFn) := [\n" ++
     ",\n".intercalate checks.toList ++ "]\n\n" ++
     "/-- Whether the translation of the source's function `n` elaborates to what `Expand` makes of it. -/\ndef check (n : String) : Bool :=\n  match checks.lookup n with\n  | some fs => Compare.sameProg fs (Compare.expandedAll (Check.src n))\n  | none => false\n\n" ++
     notChecked ++ "end LeanVM.Dsl.Gen.Checks\n"
   IO.FS.writeFile (outDir / "Checks.lean") checksT
-  let check := s!"/-\n  LeanVM.Dsl.Gen.Check\n\n  Every translated function against `Expand`: its core functions, its loop helpers and its `Const`\n  instances equal up to the numbering of values and the names of the loop helpers.\n-/\n\n" ++
-    "import LeanVM.Dsl.Gen.Checks\n\n" ++
-    "/-!\n# The translated guest against `Expand`\n\nFor each function `Expand` lowers as written, the core functions elaborated from its translation,\nwith its loop helpers and the `Const` instances it reaches, against those `Expand` makes from the\nexported source (`Checks.check`, `Compare.sameProg`): both lists walked from the function through\nits callees, loop helpers renamed in that order, values numbered by first occurrence.\n-/\n\n" ++
-    "namespace LeanVM.Dsl.Gen.Check\n\nopen LeanVM.Dsl.Gen.Checks\n\n" ++
-    "\n".intercalate guards.toList ++ "\n\nend LeanVM.Dsl.Gen.Check\n"
-  IO.FS.writeFile (outDir / "Check.lean") check
   IO.println s!"translated {units.size} functions, {instUnits.size} instances, {st.variants.size} inline variants; checked {nOk}, gaps in {skipped.size}"
   for l in skipped do IO.println l
   return 0

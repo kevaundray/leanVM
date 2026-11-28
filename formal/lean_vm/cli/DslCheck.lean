@@ -3,11 +3,11 @@ import LeanVM.Dsl.Gen.Checks
 /-!
 # `dsl-check`: the translated guest against `Expand`, compiled
 
-`lake exe dsl-check [NAME ...]` runs `LeanVM.Dsl.Gen.Check`'s comparisons compiled (the
-interpreter is slow on the largest functions): for each function of `Checks.checks` (or those
-named), the elaboration of its translation and of the instances it reaches against what `Expand`
-makes of its source (`Compare.sameProg`), printing the first difference of each failure
-(`Compare.firstDiff`). Exits with `1` if any differs.
+`lake exe dsl-check [NAME ...]` checks the translated guest against `Expand`, compiled: for each
+function of `Checks.checks` (or those named), the elaboration of its translation and of the
+instances it reaches against what `Expand` makes of its source (`Compare.sameProg`), printing the
+first difference of each failure (`Compare.firstDiff`). Exits with `1` if any differs. It is the
+check of the translated guest; nothing in the default `LeanVM` target runs it.
 -/
 
 open LeanVM.Dsl.Gen LeanVM.Dsl.Gen.Compare
