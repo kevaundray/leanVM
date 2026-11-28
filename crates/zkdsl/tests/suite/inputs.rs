@@ -32,7 +32,9 @@ pub(crate) fn parse_inputs(text: &str) -> ([F128; 2], Streams) {
         match parts.next() {
             Some("public") => {
                 let words: Vec<F128> = parts.map(word).collect();
-                public = words.try_into().unwrap_or_else(|w: Vec<F128>| panic!("`public` needs two words, got {}", w.len()));
+                public = words
+                    .try_into()
+                    .unwrap_or_else(|w: Vec<F128>| panic!("`public` needs two words, got {}", w.len()));
             }
             Some("witness") => {
                 let name = parts.next().expect("`witness` needs a stream name").to_string();
@@ -53,9 +55,8 @@ pub(crate) fn parse_inputs(text: &str) -> ([F128; 2], Streams) {
 pub(crate) fn lean_compiled(name: &str) -> (Program, Streams, [F128; 2]) {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/compiled");
     let read = |ext: &str| {
-        fs::read_to_string(format!("{dir}/{name}.{ext}")).unwrap_or_else(|e| {
-            panic!("{name}.{ext}: {e}: run `lake exe guest-backend export programs`")
-        })
+        fs::read_to_string(format!("{dir}/{name}.{ext}"))
+            .unwrap_or_else(|e| panic!("{name}.{ext}: {e}: run `lake exe guest-backend export programs`"))
     };
     let program = Program::__from_text(&read("txt")).unwrap_or_else(|e| panic!("{name}: {e}"));
     let (public, streams) = parse_inputs(&read("inputs"));

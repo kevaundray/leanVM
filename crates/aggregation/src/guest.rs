@@ -46,16 +46,17 @@ pub(super) fn fs_seed() -> [F128; 2] {
 /// What the guest is compiled from under `replacements` (`placeholder_map` at some size): Keccak-256 of its core IR's
 /// digest ([`GUEST_CORE_DIGEST`]) and its placeholders'.
 pub(super) fn input_digest(replacements: &BTreeMap<String, String>) -> [u8; 32] {
-    hash_pair(
-        &core_digest(),
-        &hash(placeholder_lines(replacements).as_bytes()),
-    )
+    hash_pair(&core_digest(), &hash(placeholder_lines(replacements).as_bytes()))
 }
 
 /// [`GUEST_CORE_DIGEST`] as its 32 bytes.
 fn core_digest() -> [u8; 32] {
     let text = GUEST_CORE_DIGEST.trim();
-    assert_eq!(text.len(), 64, "guests/lean_ethereum.digest: not 32 bytes in hexadecimal");
+    assert_eq!(
+        text.len(),
+        64,
+        "guests/lean_ethereum.digest: not 32 bytes in hexadecimal"
+    );
     std::array::from_fn(|i| {
         u8::from_str_radix(&text[2 * i..2 * i + 2], 16).expect("guests/lean_ethereum.digest: not hexadecimal")
     })
