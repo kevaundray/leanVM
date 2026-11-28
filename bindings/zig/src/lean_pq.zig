@@ -4,7 +4,8 @@
 //! leanXMSS is stateful: a key signs at `2^32` leaf indices, and must never sign two different
 //! messages at the same leaf index. leanSPHINCS is stateless: a key signs at most `2^30` messages.
 //! Public keys and messages are 32 bytes; signatures are fixed-size byte arrays. Secret keys, VRF
-//! keys and aggregates own native handles: call `deinit` exactly once on each.
+//! keys and aggregates own native handles, shared by every copy of the struct: `deinit` one copy
+//! once, then use none.
 const std = @import("std");
 
 const c = @cImport({
