@@ -45,6 +45,7 @@ pub fn build(b: *std.Build) void {
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run Zig binding tests");
     test_step.dependOn(&run_tests.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = lean_pq })).step);
 }
 
 /// The directory to link `liblean_pq_native.a` from: `-Dnative-dir` when given, otherwise the

@@ -326,22 +326,12 @@ pub const Aggregate = struct {
         only: ?struct { []const Claim, []const Claim },
     ) Error!Aggregate {
         if (children.len > max_children) return error.TooManyChildren;
-        // Each distinct slot is locked once, in address order, so that concurrent calls sharing
-        // children cannot deadlock.
-        var slots: [max_children]*Slot = undefined;
-        var locked: usize = 0;
-        for (children) |child| {
-            if (std.mem.indexOfScalar(*Slot, slots[0..locked], child.owned.slot) == null) {
-                slots[locked] = child.owned.slot;
-                locked += 1;
-            }
-        }
-        std.mem.sortUnstable(*Slot, slots[0..locked], {}, slotLessThan);
-        for (slots[0..locked]) |slot| lock(&slot.mutex);
-        defer for (slots[0..locked]) |slot| slot.mutex.unlock();
         var handles: [max_children]?*c.lpq_aggregate = undefined;
+        var acquired: usize = 0;
+        defer for (children[0..acquired]) |child| child.owned.release();
         for (children, handles[0..children.len]) |child, *handle| {
-            handle.* = child.owned.handleLocked() orelse return error.Closed;
+            handle.* = try child.owned.acquire();
+            acquired += 1;
         }
         const children_ptr: [*c]const ?*c.lpq_aggregate = if (children.len == 0) null else &handles;
         const xmss_ptr = bytesPtr(std.mem.sliceAsBytes(xmss));
@@ -422,12 +412,13 @@ pub const Aggregate = struct {
 };
 
 /// Where a native object lives while some copy of its wrapper is open. Slots are never freed, so a
-/// stale copy can always lock its slot and compare generations; `deinit` bumps the generation and
-/// returns the slot to the pool for the next object.
+/// stale copy can always lock its slot and compare generations. `deinit` bumps the generation; the
+/// object is destroyed and the slot returned to the pool once no call is using it.
 const Slot = struct {
     mutex: std.atomic.Mutex = .unlocked,
     generation: u64 = 0,
     handle: ?*anyopaque = null,
+    users: usize = 0,
     next_free: ?*Slot = null,
 };
 
@@ -451,36 +442,45 @@ fn Owned(comptime Handle: type, comptime destroy: fn (?*Handle) callconv(.c) voi
             return .{ .slot = slot, .generation = slot.generation };
         }
 
-        /// Locks the slot and returns the object, or `error.Closed` once any copy was deinitialized.
-        /// Call `release` when done.
+        /// The object, kept alive until `release`, or `error.Closed` once any copy was deinitialized.
         fn acquire(self: Self) Error!*Handle {
             lock(&self.slot.mutex);
-            return self.handleLocked() orelse {
-                self.slot.mutex.unlock();
-                return error.Closed;
-            };
+            defer self.slot.mutex.unlock();
+            if (self.slot.generation != self.generation) return error.Closed;
+            self.slot.users += 1;
+            return @ptrCast(@alignCast(self.slot.handle));
         }
 
         fn release(self: Self) void {
-            self.slot.mutex.unlock();
-        }
-
-        /// The object, with the slot already locked, or null once any copy was deinitialized.
-        fn handleLocked(self: Self) ?*Handle {
-            if (self.slot.generation != self.generation) return null;
-            return @ptrCast(@alignCast(self.slot.handle));
+            lock(&self.slot.mutex);
+            self.slot.users -= 1;
+            if (self.slot.users == 0 and self.slot.generation != self.generation) {
+                self.free();
+            } else {
+                self.slot.mutex.unlock();
+            }
         }
 
         fn deinit(self: Self) void {
             lock(&self.slot.mutex);
-            const handle = self.handleLocked() orelse {
+            if (self.slot.generation != self.generation) {
                 self.slot.mutex.unlock();
                 return;
-            };
-            destroy(handle);
+            }
             self.slot.generation +%= 1;
+            if (self.slot.users == 0) {
+                self.free();
+            } else {
+                self.slot.mutex.unlock();
+            }
+        }
+
+        /// Destroys the object of a closed slot no call is using, then unlocks and pools the slot.
+        fn free(self: Self) void {
+            const handle: *Handle = @ptrCast(@alignCast(self.slot.handle));
             self.slot.handle = null;
             self.slot.mutex.unlock();
+            destroy(handle);
             putSlot(self.slot);
         }
     };
@@ -505,13 +505,26 @@ fn putSlot(slot: *Slot) void {
     free_slots = slot;
 }
 
-// Zig 0.16's blocking mutex needs an `Io`, which this API does not take.
+// Held only for bookkeeping, never across a native call. Zig 0.16's blocking mutex needs an `Io`,
+// which this API does not take.
 fn lock(mutex: *std.atomic.Mutex) void {
     while (!mutex.tryLock()) std.Thread.yield() catch {};
 }
 
-fn slotLessThan(_: void, a: *Slot, b: *Slot) bool {
-    return @intFromPtr(a) < @intFromPtr(b);
+test "an object closed while in use is destroyed by its last release" {
+    var key = try SphincsSecretKey.fromSeed([_]u8{1} ** 32);
+    const handle = try key.owned.acquire();
+    var copy = key;
+    copy.deinit();
+    try std.testing.expectError(error.Closed, key.publicKey());
+    var output: c.lpq_buffer = .{ .data = null, .len = 0 };
+    try checkStatus(c.lpq_sphincs_secret_key_public_key(handle, &output));
+    _ = try takeFixed(public_key_len, output);
+    try std.testing.expect(free_slots != key.owned.slot);
+    key.owned.release();
+    try std.testing.expectEqual(null, key.owned.slot.handle);
+    try std.testing.expectEqual(key.owned.slot, free_slots.?);
+    key.deinit();
 }
 
 fn checkStatus(status: i32) Error!void {
