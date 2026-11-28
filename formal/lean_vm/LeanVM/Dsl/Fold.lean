@@ -1,9 +1,7 @@
 /-
   LeanVM.Dsl.Fold
 
-  Constant folding in the builder: a scalar the builder knows while elaborating (a field constant)
-  or a value, and field expressions whose constants fold and whose identities (`x + 0`, `x * 1`)
-  vanish before anything is emitted.
+  Constant folding in the builder: a scalar the builder knows while elaborating (a field constant) or a value, and field expressions whose constants fold and whose identities (`x + 0`, `x * 1`) vanish before anything is emitted.
 -/
 
 module
@@ -14,25 +12,12 @@ public import LeanVM.Dsl.Keccak
 /-!
 # Constant folding
 
-A guest computes with values (`Word`) and with field constants it knows while elaborating (`E`):
-indices, loop counters and `Const` arguments make many operands constants, and which ones depends on
-the arguments. The builder folds them, so an author writes the arithmetic once for every argument:
+A guest computes with values (`Word`) and with field constants it knows while elaborating (`E`): indices, loop counters and `Const` arguments make many operands constants, and which ones depends on the arguments. The builder folds them, so an author writes the arithmetic once for every argument:
 
-* `FW`: a scalar that is a constant (`.c`) or a value (`.w`). `FW.val` materializes it (a constant
-  is one `SET`), `FW.msg` gives it as a Keccak message cell (a zero is the padding run's).
-* `Ex`: a field expression over constants (`.c`; `.g k` is `g^k`), values (`.w`; a frame cell
-  `.v`), pointers (`.sh p k` is `p · g^k`) and actions (`.act`, a heap read `.ld`), built with `.add`, `.mul`,
-  `.pow`. `Ex.lower` gives its value, `Ex.into d` writes it into the cell `d`,
-  `Ex.bind` gives it as an `FW`. All three fold: a constant subexpression is computed by Lean, a sum
-  with a constant `0` or a product with a constant `1` is its other operand, and nothing else is
-  rewritten, except that a product of one `.w` value and `g`-powers is that pointer (`B.shifted`); the
-  operands' instructions are emitted left to right, each constant set where its
-  operand is lowered (the order `Expand.expr` and `Expand.exprInto` use).
+* `FW`: a scalar that is a constant (`.c`) or a value (`.w`). `FW.val` materializes it (a constant is one `SET`), `FW.msg` gives it as a Keccak message cell (a zero is the padding run's).
+* `Ex`: a field expression over constants (`.c`; `.g k` is `g^k`), values (`.w`; a frame cell `.v`), pointers (`.sh p k` is `p · g^k`) and actions (`.act`, a heap read `.ld`), built with `.add`, `.mul`, `.pow`. `Ex.lower` gives its value, `Ex.into d` writes it into the cell `d`, `Ex.bind` gives it as an `FW`. All three fold: a constant subexpression is computed by Lean, a sum with a constant `0` or a product with a constant `1` is its other operand, and nothing else is rewritten, except that a product of one `.w` value and `g`-powers is that pointer (`B.shifted`); the operands' instructions are emitted left to right, each constant set where its operand is lowered (the order `Expand.expr` and `Expand.exprInto` use).
 
-So `acc := ← (acc.ex.add t.ex).bind` in a loop from `acc := .c 0` emits nothing at the first
-iteration (the sum is `t`) and one `XOR` at each later one. The lemmas (`spec_val`, `spec_lower`,
-`spec_into`, `spec_bind`) state the value each one gives for expressions without actions (`Ex.Pure`),
-by cases on the fold: what is emitted differs, the value does not.
+So `acc := ← (acc.ex.add t.ex).bind` in a loop from `acc := .c 0` emits nothing at the first iteration (the sum is `t`) and one `XOR` at each later one. The lemmas (`spec_val`, `spec_lower`, `spec_into`, `spec_bind`) state the value each one gives for expressions without actions (`Ex.Pure`), by cases on the fold: what is emitted differs, the value does not.
 -/
 
 namespace LeanVM.Dsl
@@ -53,8 +38,7 @@ inductive Ex where
   | c (e : E)
   /-- A value, which a product with `g`-powers shifts as a pointer. -/
   | w (x : Word)
-  /-- A value no product shifts as a pointer: a frame cell, which the zkDSL reads as no address
-  (`g · cell` is a product, its operands in order). -/
+  /-- A value no product shifts as a pointer: a frame cell, which the zkDSL reads as no address (`g · cell` is a product, its operands in order). -/
   | v (x : Word)
   /-- The constant `g^k`, which also shifts a pointer: `p · g^k` is the pointer `B.shifted p k`. -/
   | g (k : Nat)
@@ -114,8 +98,7 @@ def const? : Ex → Option E
   | .pow a k => a.const?.map (fieldPow · k)
   | _ => none
 
-/-- A compile-time integer as the guest reads it in field arithmetic: its word, and when it is a
-power of two below `2^64` (the word `2^k` is `g^k`) also the `g`-power that shifts a pointer. -/
+/-- A compile-time integer as the guest reads it in field arithmetic: its word, and when it is a power of two below `2^64` (the word `2^k` is `g^k`) also the `g`-power that shifts a pointer. -/
 def nat (n : Nat) : Ex :=
   if n != 0 && n < 2 ^ 64 && n &&& (n - 1) == 0 then .g (Nat.log2 n) else .c (litField n)
 
@@ -138,8 +121,13 @@ def base? : Ex → Option (Word × Nat)
       | _, _ => none
   | _ => none
 
-/-- Its value (`Expand.expr`): a constant is set; `0 + b` is `b`, `1 · b` is `b`; otherwise the
-operands left to right, then the operation; a product of a value and `.g`s is that pointer. -/
+/-- A factor's value beside a constant factor: a value `.w x` is read as `Expand.expr` reads a name, its `use` event recorded (`B.use`); any other factor is lowered. -/
+def factor (e other : Ex) (lowered : B Word) : B Word :=
+  match e with
+  | .w x => if other.const?.isSome then B.use x else lowered
+  | _ => lowered
+
+/-- Its value (`Expand.expr`): a constant is set; `0 + b` is `b`, `1 · b` is `b`; otherwise the operands left to right, then the operation; a product of a value and `.g`s is that pointer. -/
 def lower (e : Ex) : B Word :=
   match e.const? with
   | some k => B.const k
@@ -161,15 +149,14 @@ def lower (e : Ex) : B Word :=
         else if b.const? == some 1 then a.lower
         else match (Ex.mul a b).base? with
           | some (p, k) => B.shifted p k
-          | none => do B.mul (← a.lower) (← b.lower)
+          | none => do B.mul (← factor a b a.lower) (← factor b a b.lower)
     | .pow a k =>
         if k = 0 then do
           let _ ← a.lower
           B.const 1
         else do B.pow (← a.lower) k
 
-/-- Written into the cell `d` (`Expand.exprInto`): a constant `SET`, a heap read a `DEREF` into
-`d`, a sum or product of two operands the operation into `d`, anything else a copy. -/
+/-- Written into the cell `d` (`Expand.exprInto`): a constant `SET`, a heap read a `DEREF` into `d`, a sum or product of two operands the operation into `d`, anything else a copy. -/
 def into {ρ : Ty} (d : Var ρ) (e : Ex) : B Unit :=
   match e.const? with
   | some k => B.constInto d k
@@ -183,7 +170,7 @@ def into {ρ : Ty} (d : Var ρ) (e : Ex) : B Unit :=
     | .mul a b =>
         if a.const? == some 1 then b.into d
         else if b.const? == some 1 then a.into d
-        else do B.mulInto d (← a.lower) (← b.lower)
+        else do B.mulInto d (← factor a b a.lower) (← factor b a b.lower)
     | e => do B.copy d (← e.lower)
 
 /-- As an `FW`: a constant stays one, emitting nothing; anything else is lowered. -/
@@ -239,6 +226,26 @@ theorem const?_eval {e : Ex} {k : E} (h : e.const? = some k) (σ : Val) : e.eval
   | sh _ _ => simp [const?] at h
   | act _ => simp [const?] at h
   | ld _ _ => simp [const?] at h
+
+theorem spec_use {C : CallRel} {rd : Reader} {τ : Ty} (x : Var τ) :
+    Spec C rd (B.use x) (fun r _ => r = x) := by
+  unfold B.use
+  refine Spec.mono (Spec.bind (Spec.silent fun st => ?_) fun _ => Spec.pure x)
+    fun r σ ⟨_, _, h⟩ => h
+  by_cases hf : st.faithful = true <;>
+    simp [modify, modifyGet, MonadStateOf.modifyGet, StateT.modifyGet, StateT.run, hf] <;> rfl
+
+/-- A factor's value is its lowering's, its `use` event aside. -/
+theorem spec_factor {C : CallRel} {rd : Reader} {e : Ex} (o : Ex) {m : B Word}
+    {Q : Word → Val → Prop} (h : Spec C rd m Q) (hw : ∀ x, e = .w x → ∀ σ, Q x σ) :
+    Spec C rd (factor e o m) Q := by
+  cases e with
+  | w x =>
+      simp only [factor]
+      split
+      · exact Spec.mono (spec_use x) fun r σ hr => hr ▸ hw x rfl σ
+      · exact h
+  | _ => exact h
 
 theorem gexp?_pure {e : Ex} (hp : e.Pure = true) : e.gexp? = none := by
   induction e with
@@ -298,8 +305,9 @@ theorem spec_lower {C : CallRel} {rd : Reader} (e : Ex) (hp : e.Pure = true) :
             refine Spec.mono (iha hp.1) fun r σ h => ?_
             rw [h]; simp only [eval]; rw [const?_eval (eq_of_beq h1) σ, mul_one]
           · rw [base?_mul_pure hp.1 hp.2]
-            refine Spec.mono (Spec.bind (iha hp.1) fun x =>
-              Spec.bind (ihb hp.2) fun y => spec_mul x y) ?_
+            refine Spec.mono (Spec.bind (spec_factor b (iha hp.1) fun x hx σ => by subst hx; rfl)
+              fun x => Spec.bind (spec_factor a (ihb hp.2) fun y hy σ => by subst hy; rfl)
+                fun y => spec_mul x y) ?_
             rintro r σ ⟨x, hx, y, hy, h⟩
             rw [h, hx, hy]; simp only [eval]
 
@@ -354,8 +362,9 @@ theorem spec_into {C : CallRel} {rd : Reader} {ρ : Ty} (d : Var ρ) (e : Ex) (h
           · rename_i _ h1
             refine Spec.mono (iha hp.1) fun _ σ h => ?_
             rw [h]; simp only [eval]; rw [const?_eval (eq_of_beq h1) σ, mul_one]
-          · refine Spec.mono (Spec.bind (spec_lower a hp.1) fun x =>
-              Spec.bind (spec_lower b hp.2) fun y => spec_mulInto d x y) ?_
+          · refine Spec.mono (Spec.bind (spec_factor b (spec_lower a hp.1) fun x hx σ => by subst hx; rfl)
+              fun x => Spec.bind (spec_factor a (spec_lower b hp.2) fun y hy σ => by subst hy; rfl)
+                fun y => spec_mulInto d x y) ?_
             rintro _ σ ⟨x, hx, y, hy, h⟩
             rw [h, hx, hy]; simp only [eval]
 
