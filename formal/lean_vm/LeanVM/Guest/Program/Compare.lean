@@ -1,9 +1,7 @@
 /-
-  LeanVM.Dsl.Gen.Compare
+  LeanVM.Guest.Program.Compare
 
-  The comparison of a translated function with what `Expand` makes of its source: both sides'
-  core functions walked from the function through its callees, loop helpers named by that order,
-  values numbered by first occurrence.
+  The comparison of a translated function with what `Expand` makes of its source: both sides' core functions walked from the function through its callees, loop helpers named by that order, values numbered by first occurrence.
 -/
 
 import LeanVM.Dsl.Check
@@ -13,16 +11,10 @@ import Std.Data.HashSet
 /-!
 # Translated functions against `Expand`
 
-A function `F` the guest's source defines, as `Expand` lowers it (`Expand.expandQueue` from `F`:
-its core function, its loop helpers, the `Const` instances it queues), against the elaboration of
-its translation and of the translations of the instances it reaches. Both lists are walked from
-`F` through the callees each holds, loop helpers renamed `__loop<k>` in the order the walk meets
-them, and every function renumbered (`Fn.renumber`: parameters first, then values in order of
-first occurrence). `sameProg` is their equality; `firstDiff` names the first function and line
-where they differ.
+A function `F` the guest's source defines, as `Expand` lowers it (`Expand.expandQueue` from `F`: its core function, its loop helpers, the `Const` instances it queues), against the elaboration of its translation and of the translations of the instances it reaches. Both lists are walked from `F` through the callees each holds, loop helpers renamed `__loop<k>` in the order the walk meets them, and every function renumbered (`Fn.renumber`: parameters first, then values in order of first occurrence). `sameProg` is their equality; `firstDiff` names the first function and line where they differ.
 -/
 
-namespace LeanVM.Dsl.Gen.Compare
+namespace LeanVM.Guest.Program.Compare
 
 open LeanVM.Core LeanVM.Dsl
 
@@ -48,8 +40,7 @@ partial def renameIn (g : String → String) : List Core.Stmt → List Core.Stmt
       | .match_ x arms => .match_ x (arms.map (renameIn g))
       | s => s) :: renameIn g ss
 
-/-- The functions of `fs` reached from the first, in order of first call, loop helpers named by
-that order, renumbered. -/
+/-- The functions of `fs` reached from the first, in order of first call, loop helpers named by that order, renumbered. -/
 partial def walk (fs : List Core.Fn) : List Core.Fn := Id.run do
   let some root := fs.head? | return []
   let byName : Std.HashMap String Core.Fn := fs.foldl (fun m f => m.insert f.name f) {}
@@ -73,8 +64,7 @@ partial def walk (fs : List Core.Fn) : List Core.Fn := Id.run do
 /-- Every core function the translations elaborate. -/
 def elabAll (fs : List GFn) : List Core.Fn := fs.flatMap fun f => f.elab.map (·.1.core)
 
-/-- The core functions `Expand` makes of `f` and queues, with room for every instance `main`
-reaches. -/
+/-- The core functions `Expand` makes of `f` and queues, with room for every instance `main` reaches. -/
 def expandedAll (f : Source.Func) : List Core.Fn :=
   match Expand.expandQueue LeanVM.Guest.Data.guest 100000 0 #[f] 0 #[] with
   | .ok a => a.toList.map (·.1.core)
@@ -83,8 +73,7 @@ def expandedAll (f : Source.Func) : List Core.Fn :=
 /-- The translation of a function against `Expand`'s functions for it. -/
 def sameProg (fs : List GFn) (ex : List Core.Fn) : Bool := walk (elabAll fs) == walk ex
 
-/-- Where two walked lists first differ: the function, and the first differing line of each
-side's text with the lines before it. -/
+/-- Where two walked lists first differ: the function, and the first differing line of each side's text with the lines before it. -/
 def firstDiff (a b : List Core.Fn) : Option String := Id.run do
   let na := a.map (·.name)
   let nb := b.map (·.name)
@@ -99,4 +88,4 @@ def firstDiff (a b : List Core.Fn) : Option String := Id.run do
   if na != nb then return some s!"functions: translation {na}, Expand {nb}"
   return none
 
-end LeanVM.Dsl.Gen.Compare
+end LeanVM.Guest.Program.Compare

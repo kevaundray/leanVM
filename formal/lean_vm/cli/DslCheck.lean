@@ -1,16 +1,16 @@
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program.Checks
 
 /-!
-# `dsl-check`: the translated guest against `Expand`, compiled
+# `dsl-check`: the guest program against `Expand`, compiled
 
-`lake exe dsl-check [NAME ...]` checks the translated guest against `Expand`, compiled: for each
+`lake exe dsl-check [NAME ...]` checks the guest program against `Expand`, compiled: for each
 function of `Checks.checks` (or those named), the elaboration of its translation and of the
 instances it reaches against what `Expand` makes of its source (`Compare.sameProg`), printing the
 first difference of each failure (`Compare.firstDiff`). Exits with `1` if any differs. It is the
-check of the translated guest; nothing in the default `LeanVM` target runs it.
+check of the guest program; nothing in the default `LeanVM` target runs it.
 -/
 
-open LeanVM.Dsl.Gen LeanVM.Dsl.Gen.Compare
+open LeanVM.Guest.Program LeanVM.Guest.Program.Compare
 
 def main (args : List String) : IO UInt32 := do
   let todo := Checks.checks.filter fun (n, _) => args.isEmpty || args.contains n

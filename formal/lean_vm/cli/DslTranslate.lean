@@ -2241,7 +2241,7 @@ partial def iteration (var : String) (j h : Nat) (kT loT hiT : Tm) (body : List 
       if i == 0 then modify fun s => { s with armsFold := some s!"{kT.s} = {loT.s}" }
     let rest := (arr.extract (i + 1) arr.size).toList
     modify fun s' => { s' with live := readsOf rest ++ readsOf body ++ s.live }
-    stmtKind st.line st.kind
+    markedStmt st.line st.kind
     modify fun s => { s with chainFold := none, armsFold := none }
   let s' ← get
   let ok := if loopMode then (match s'.loops with
@@ -2389,13 +2389,19 @@ partial def stmtKind' (l : Nat) (k : SK) : T Unit := do
   | .for_ var lo hi body => lowerFor l var lo hi body
   | .unroll var lo hi body => lowerUnroll var lo hi body
 
+/-- A statement, marked with its source line (`-- @L<line>`) where it writes anything. -/
+partial def markedStmt (l : Nat) (k : SK) : T Unit := do
+  let n0 ← codeSize
+  stmtKind l k
+  if (← codeSize) != n0 then insertAt n0 #[.line s!"-- @L{l}"]
+
 partial def stmts (ss : List SS) : T Unit := do
   let parent := (← get).live
   let arr := ss.toArray
   for i in [0:arr.size] do
     let st := arr[i]!
     modify fun s => { s with live := readsOf (arr.extract (i + 1) arr.size).toList ++ parent }
-    stmtKind st.line st.kind
+    markedStmt st.line st.kind
   modify fun s => { s with live := parent }
 
 end
@@ -2461,7 +2467,7 @@ def fnBody (f : Func) (consts : List SE) : T (Array Code) := do
       modify fun s => { s with live := (Source.Stmt.freeVars false (.mk l (.ret es)) ([], [])).1 }
       stmts f.body.dropLast
       modify fun s => { s with finalRet := true }
-      stmtKind l (.ret es)
+      markedStmt l (.ret es)
   | _ => stmts f.body
   if !(← get).returned then line "return []"
   return (← get).code
