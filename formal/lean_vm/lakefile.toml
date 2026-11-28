@@ -117,6 +117,14 @@ name = "scheme-vectors"
 root = "SchemeVectors"
 srcDir = "cli"
 
+# Translates the guest's exported source AST into embedded-DSL Lean text (`LeanVM/Dsl/Gen/`), and
+# writes the check of every translated function against `Expand` (cli/DslTranslate.lean); not a
+# default target.
+[[lean_exe]]
+name = "dsl-translate"
+root = "DslTranslate"
+srcDir = "cli"
+
 # Writes the guest's core IR as data (`LeanVM/Guest/Data/Core*.lean`); `--check` fails when it
 # is stale, as CI runs it.
 [[lean_exe]]
