@@ -1513,8 +1513,9 @@ def lowerDispatchedCall : Nat → List Expr → Expr → List String → List Ex
       if d.returnShapes.any (· != .scalar) then
         fail s!"`{d.name}`: a multi-cell StackBuf return cannot cross a dispatched join"
     let (rcells, binds) ← retTargets targets
-    let argCells ← rtArgs.mapM (expr n)
+    -- The selector runs first, as in an unfused `match`.
     let xo ← expr n x
+    let argCells ← rtArgs.mapM (expr n)
     emit (.dispatch xo callees argCells rcells)
     bindTargets binds
 

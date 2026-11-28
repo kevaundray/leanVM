@@ -209,7 +209,7 @@ fn zero_power_evaluates_its_base() {
 }
 
 /// A fused `match` evaluated the shared arguments before its selector, so the selector's `HeapBuf` was allocated after
-/// the arguments' one. Arm `i` returns its argument times `g^(10 i)`, so the relation also pins the arm that ran. The
+/// the arguments'. Arm `i` returns its argument times `g^(10 i)`, so the relation also pins the arm that ran. The
 /// second `match` has distinct arms and does not fuse: both lowerings must agree.
 #[test]
 fn fused_match_evaluates_its_selector_first() {

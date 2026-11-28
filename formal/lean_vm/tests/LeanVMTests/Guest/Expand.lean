@@ -357,4 +357,29 @@ def carryMain (folded : Bool) : Source.Program :=
   | .error e => e == "in __loop0_main: unbound variable `t`"
   | .ok _ => false
 
+/-! ## A fused `match` runs its scrutinee first
+
+As an unfused one does (`miscompiles::fused_match_evaluates_its_selector_first`): the scrutinee
+allocates `first` and the arms' argument `second`, and arm `i` returns `second·g^(10 i)`, so
+`r = first·g^11` holds only in that order and only for arm 1. -/
+
+/-- `r = match(log(sel(saved)), …)`, arm 1 calling `f(arg1, 1)`: the arms fuse at `arg1 = arg()`. -/
+def scrutineeFirst (arg1 : Expr) : Source.Program :=
+  let fn (name : String) (params : List Param) (inline : Bool) (body : List StmtKind) : Func :=
+    { name, params, returnShapes := [.scalar], inline, body := body.map st }
+  ⟨[fn "sel" [⟨"saved", .runtime .scalar⟩] true
+      [.let_ "first" (.heapBuf 1), .store (.var "saved") (.lit 1) (.var "first"), .ret [.gen]],
+    fn "arg" [] true [.let_ "second" (.heapBuf 1), .ret [.var "second"]],
+    fn "f" [⟨"p", .runtime .scalar⟩, ⟨"i", .const⟩] false
+      [.ret [.mul (.var "p") (.genPow (.mul (.lit 10) (.var "i")))]],
+    { fn "main" [] false
+        [.let_ "saved" (.heapBuf 1),
+          .match_ [.var "r"] (.call "sel" [.var "saved"])
+            [.call "f" [.call "arg" [], .lit 0], .call "f" [arg1, .lit 1]],
+          .assertEq (.var "r") (.mul (.index (.var "saved") (.lit 1)) (.gpow 11)),
+          .ret []] with returnShapes := [] }], []⟩
+
+#guard ([.call "arg" [], .mul (.call "arg" []) (.lit 1)] : List Expr).all fun arg1 =>
+  isOk (runMain (scrutineeFirst arg1) [0, 0])
+
 end LeanVMTests.Guest.Expand
