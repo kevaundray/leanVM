@@ -22,7 +22,7 @@ Everything else exists once, leaves first:
 | `keccak256` | Keccak-256 and its multi-way permutation |
 | `fiat_shamir_prover` | the prover's transcript, for both trees |
 | `isa` | the instruction set, `Program`, the `Prover` trait |
-| `zkdsl` | the zkDSL (`zkDSL.md`): the parser the guest's source goes through, its AST and the disassembler; its tests run the Lean-compiled test programs on the stable prover |
+| `zkdsl` | the disassembler and the word literals the placeholders print; `zkDSL.md` is the guest language's reference; its tests run the Lean-compiled test programs on the stable prover |
 | `lean_xmss`, `lean_sphincs`, `lean_vrf` | the signature schemes and the VRF tree |
 | `allocator`, `bench_harness` | jemalloc and the benchmark harness; never linked by a library |
 | `lean_da` | Reed-Solomon blob encoding, commitments, membership vectors |
@@ -31,7 +31,7 @@ Everything else exists once, leaves first:
 | `sidecar` | proving and verifying in another process: protocol, client, server |
 | `lean_vm` | the public API, the only crate a user imports |
 
-- `guests/lean_ethereum.py`: the guest, in zkDSL.
+- The guest: Lean definitions under `formal/lean_vm/LeanVM/Guest/Program/`, listed by `LeanVM/Guest/Program.lean`'s `program` (the language: `crates/zkdsl/zkDSL.md`). `guests/lean_ethereum.digest` is its committed core digest; `guests/lean_ethereum.compiled`, the compiled guest, is not committed.
 - `bench/`: the benchmark CLI, `leanvm-bench`.
 - `bins/leanvm-sidecar`: serves `aggregate` and verification over a Unix socket. Its `README.md` specifies the protocol.
 - `bindings/`: language bindings of the schemes and the sidecar's client. A separate Cargo workspace: run cargo from `bindings/`, see `bindings/README.md`.
@@ -51,8 +51,8 @@ Rules:
 
 - **A protocol change**: both prover trees, the three verifiers, `formal/`. An optimization: experimental alone.
 - **Rust that `formal/` transcribes** (the verifier, the guest, the schemes' hash inputs, the wire encoding in `formal/lean_vm/LeanVM/Wire/Encoding.lean`): its Lean, in the same PR. CI's `lean-vm-formalization` fails until then.
-- **The zkDSL's accepted language or its compilation**: the parser in `crates/zkdsl` and the Lean front end, `formal/lean_vm/LeanVM/Core/Source.lean` and `Expand.lean`, whose core IR on each program of `formal/lean_vm/tests/frontend/` is pinned by a golden file. If the guest's bytecode changes, see "Changing the spec" in `formal/AGENTS.md`.
-- **A new program in `crates/zkdsl/tests/programs/` or `tests/vm/`, or in `formal/lean_vm/tests/frontend/`**: its Lean compilation (`crates/zkdsl/tests/compiled/`) or golden core IR, and the regenerated `formal/lean_vm/tests/LeanVMTests/Guest/Programs.lean`, all written by `formal/lean_vm/scripts/regen-guest.sh`; the count in `tests/LeanVMTests/Guest/Data.lean`.
+- **The guest** (`formal/lean_vm/LeanVM/Guest/Program/`) or **its builder** (`formal/lean_vm/LeanVM/Dsl/`): `formal/lean_vm/scripts/regen-guest.sh`, which writes `guests/lean_ethereum.digest` (committed with the change) and every derived file, and the proofs "Changing the spec" in `formal/AGENTS.md` lists.
+- **A new test program** (`formal/lean_vm/tests/LeanVMTests/Programs/`: `Basic.lean` with its public input and streams, `Vm.lean`, `Chain.lean`, `Snippets.lean`): its compilation and inputs (`crates/zkdsl/tests/compiled/<name>.txt`, `.inputs`, or `crates/aggregation/snippets/<name>.txt`), written by `formal/lean_vm/scripts/regen-guest.sh` (`lake exe guest-backend export programs|snippets`); the counts in `tests/LeanVMTests/Programs/Run.lean`.
 - **The layout** (`placements_of`, the schema): both provers and all three verifiers (`crates/verifier`'s `layout.rs`). `col_kappas` stays derived from `col_kappa_sources`.
 - **A rename in the leanVM document**: both provers, `crates/verifier`, the Lean verifier and the guest.
 - **The sidecar's protocol** (`crates/sidecar`'s `wire.rs`, `server.rs`) or the claims' byte form (`AggregateClaims::to_bytes`): `bins/leanvm-sidecar/README.md`.
@@ -113,7 +113,7 @@ cargo leanvm-bench --prover stable fibonacci --n <steps>
 
 1. **Rust**, `crates/verifier`: what `AggregateProof::verify` and `cpu::verify` run. No dependencies, `unsafe`, `core::arch`, `cfg(target_arch)` or threads.
 2. **Lean**, `formal/Statement/LeanVmVerifier.lean`: the reference, and the trusted statement of the soundness proof. `formal/check-all.sh vectors` pins it against the Rust.
-3. **Recursive**, `guests/lean_ethereum.py`.
+3. **Recursive**, the guest, `formal/lean_vm/LeanVM/Guest/Program/`.
 
 Security and Fiat-Shamir:
 
