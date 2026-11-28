@@ -125,6 +125,13 @@ name = "dsl-translate"
 root = "DslTranslate"
 srcDir = "cli"
 
+# The translated guest against `Expand`, compiled (cli/DslCheck.lean): `LeanVM.Dsl.Gen.Check`'s
+# comparisons with the first difference of each failure; not a default target.
+[[lean_exe]]
+name = "dsl-check"
+root = "DslCheck"
+srcDir = "cli"
+
 # Writes the guest's core IR as data (`LeanVM/Guest/Data/Core*.lean`); `--check` fails when it
 # is stale, as CI runs it.
 [[lean_exe]]
