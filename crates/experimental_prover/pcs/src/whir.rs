@@ -19,7 +19,7 @@
 //!   deeper-level (E-valued) encodes use K-twiddles via the mixed product
 //!   [`F128::mul_base`] (2 PMULL) instead of a full E multiplication.
 //!
-//! Soundness note: [`WhirSecurityConfig`] analyzes the challenge field
+//! Soundness note: the parameter search (`whir_config`, built only under test) analyzes the challenge field
 //! `E`; the committed alphabet remains `K = GF(2^64)`.
 
 use crate::merkle;
@@ -31,12 +31,13 @@ use primitives::multilinear::{eq_table, interp};
 use primitives::transcript::ProverState;
 use std::mem::MaybeUninit;
 
-pub use super::whir_config::{
-    LOG_INV_RATE_0, LevelShapes, ProverConfig, SECURITY_BITS, WhirSecurityConfig, validate_log_inv_rate,
-};
 #[cfg(test)]
 pub use super::whir_config::{default_config, udr_queries};
-use verifier::{FOLD_GRINDING_BITS, OOD_GRINDING_BITS, QUERY_GRINDING_BITS};
+use verifier::{
+    FOLD_GRINDING_BITS, INITIAL_FOLDING_FACTOR, MAX_LOG_INV_RATE, MIN_LOG_INV_RATE, OOD_GRINDING_BITS,
+    QUERY_GRINDING_BITS, RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR, RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR,
+    SUBSEQUENT_FOLDING_FACTOR,
+};
 
 pub use crate::whir_induce::*;
 use crate::whir_lanes;
@@ -65,12 +66,99 @@ pub fn inner_product_base_ext(witness: &[F64], b: &[F128]) -> F128 {
 // Config reuse
 // ===================================================================
 
-/// Derive the shared prover/verifier config for a K-witness of `2^log_n` F64
-/// elements at L0 inverse-rate logarithm `log_inv_rate`, using the production
-/// Johnson/OOD profile at `m = log_n + LOG_PACKING`.
+/// Round-by-round soundness target (bits): every verifier message's error, after its grind, is at most
+/// `2^-SECURITY_BITS` (`fiat_shamir::SECURITY_BITS`).
+pub const SECURITY_BITS: usize = fiat_shamir::SECURITY_BITS as usize;
+
+/// L0 code rate index: `rho_0 = 2^-LOG_INV_RATE_0` (rate 1/2).
+pub const LOG_INV_RATE_0: usize = 1;
+
+/// Validate a production WHIR inverse-rate logarithm.
+pub fn validate_log_inv_rate(log_inv_rate: usize) -> Result<(), String> {
+    if !(MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE).contains(&log_inv_rate) {
+        return Err(format!(
+            "log_inv_rate must be in {MIN_LOG_INV_RATE}..={MAX_LOG_INV_RATE}, got {log_inv_rate}"
+        ));
+    }
+    Ok(())
+}
+
+const _: () = assert!(RS_DOMAIN_INITIAL_REDUCTION_FACTOR <= INITIAL_FOLDING_FACTOR);
+const _: () = assert!(RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR <= SUBSEQUENT_FOLDING_FACTOR);
+
+// The recursion guest rotates the terminal point left by the lane fold to index it
+// by witness coordinate, and the residual segment is what the last lane challenges
+// rotate past, so the residual may never be longer than that fold
+// (`aggregation`'s placeholder emitter re-checks this per derived candidate).
+const _: () = assert!(RESIDUAL_MAX_LOG <= INITIAL_FOLDING_FACTOR);
+
+/// Shape plus per-level soundness parameters for one WHIR opening. Prover
+/// and verifier read exactly the same numbers.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProverConfig {
+    pub log_inv_rates: Vec<usize>,
+    pub level_steps: usize,
+    pub initial_k: usize,
+    pub(crate) level_ks: Vec<usize>,
+    /// Per-level query counts (L0, L1, ..., L_r). Length = level_steps + 1.
+    /// [`config_for_rate`] reads them from the verifier's table.
+    pub queries: Vec<usize>,
+}
+
+/// The per-level shape table a [`ProverConfig`] implies for a
+/// `log_n`-variable opening: the numbers every consumer of the multilevel
+/// protocol (the prover, recursion harnesses) otherwise re-derives.
+#[derive(Clone, Debug)]
+pub struct LevelShapes {
+    /// Level count (`level_steps + 1`).
+    pub levels: usize,
+    /// Fold count per level: `initial_k` then `level_ks`.
+    pub ks: Vec<usize>,
+    /// Log message columns after each level's fold (`log_n - initial_k`,
+    /// then descending by each level's `k`).
+    pub log_msg_cols: Vec<usize>,
+    /// Committed block length per level (`msg_cols * inv_rate`).
+    pub block_len: Vec<usize>,
+    /// The residual cube dimension left after every fold.
+    pub yr_log_n: usize,
+}
+
+impl ProverConfig {
+    /// See [`LevelShapes`].
+    pub fn level_shapes(&self, log_n: usize) -> LevelShapes {
+        let r = self.level_steps;
+        let ks: Vec<usize> = std::iter::once(self.initial_k)
+            .chain(self.level_ks.iter().copied())
+            .collect();
+        let mut log_msg_cols = vec![log_n - self.initial_k];
+        for i in 0..r {
+            log_msg_cols.push(log_msg_cols[i] - self.level_ks[i]);
+        }
+        let block_len: Vec<usize> = (0..=r)
+            .map(|i| 1usize << (log_msg_cols[i] + self.log_inv_rates[i]))
+            .collect();
+        LevelShapes {
+            levels: r + 1,
+            ks,
+            yr_log_n: *log_msg_cols.last().unwrap(),
+            log_msg_cols,
+            block_len,
+        }
+    }
+}
+
+/// The shared prover/verifier config for a K-witness of `2^log_n` F64 elements at L0 inverse-rate logarithm
+/// `log_inv_rate`: the verifier's ladder and tabulated query counts, which the tests re-derive with the parameter
+/// search.
 pub fn config_for_rate(log_n: usize, log_inv_rate: usize) -> Result<ProverConfig, String> {
-    let sec = WhirSecurityConfig::derive_config_with_log_inv_rate(log_n + crate::LOG_PACKING, log_inv_rate)?;
-    sec.to_config()
+    let config = verifier::derive_config(log_n, log_inv_rate).map_err(|e| e.to_string())?;
+    Ok(ProverConfig {
+        level_steps: config.folds.len() - 1,
+        initial_k: config.folds[0],
+        level_ks: config.folds[1..].to_vec(),
+        log_inv_rates: config.log_inv_rates,
+        queries: config.queries.to_vec(),
+    })
 }
 
 // ===================================================================

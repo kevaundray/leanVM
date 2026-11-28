@@ -14,6 +14,9 @@ fiat_shamir = { package = "fiat_shamir_prover", path = "../../fiat_shamir_prover
 tracing.workspace = true
 verifier.workspace = true
 
+[features]
+test-util = []
+
 [dev-dependencies]
 primitives = { package = "experimental_primitives", path = "../primitives", features = ["test-util"] }
 allocator.workspace = true

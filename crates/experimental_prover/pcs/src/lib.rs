@@ -12,6 +12,9 @@ pub mod ring_switch;
 pub mod stack_open;
 pub(crate) mod tensor_algebra;
 pub mod whir;
+/// The WHIR parameter search, in floating point: the tests check `verifier`'s query table against it, and the shipped
+/// prover never links it.
+#[cfg(any(test, feature = "test-util"))]
 pub mod whir_config;
 mod whir_induce;
 mod whir_lanes;

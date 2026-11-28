@@ -32,93 +32,12 @@ mod affine_mca;
 // The protocol's grinds are the search's inputs. `BATCH_GRINDING_BITS` and `OOD_GRINDING_BITS` are chosen, not
 // derived: one bit less costs queries, and more would let the search lower level 0's threshold, its list toward
 // `MAX_LIST_0`; the OOD grind also bounds the prover's grinding at the later levels.
+use crate::whir::{ProverConfig, SECURITY_BITS, validate_log_inv_rate};
 use verifier::{
-    BATCH_GRINDING_BITS, FOLD_GRINDING_BITS, INITIAL_FOLDING_FACTOR, MAX_LOG_INV_RATE, MIN_LOG_INV_RATE,
-    OOD_GRINDING_BITS, QUERY_GRINDING_BITS, RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR,
-    RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR, SUBSEQUENT_FOLDING_FACTOR,
+    BATCH_GRINDING_BITS, FOLD_GRINDING_BITS, INITIAL_FOLDING_FACTOR, OOD_GRINDING_BITS, QUERY_GRINDING_BITS,
+    RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR, RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR,
+    SUBSEQUENT_FOLDING_FACTOR,
 };
-
-/// Round-by-round soundness target (bits): every verifier message's error, after its grind, is at most
-/// `2^-SECURITY_BITS` (`fiat_shamir::SECURITY_BITS`).
-pub const SECURITY_BITS: usize = fiat_shamir::SECURITY_BITS as usize;
-
-/// L0 code rate index: `rho_0 = 2^-LOG_INV_RATE_0` (rate 1/2).
-pub const LOG_INV_RATE_0: usize = 1;
-
-/// Validate a production WHIR inverse-rate logarithm.
-pub fn validate_log_inv_rate(log_inv_rate: usize) -> Result<(), String> {
-    if !(MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE).contains(&log_inv_rate) {
-        return Err(format!(
-            "log_inv_rate must be in {MIN_LOG_INV_RATE}..={MAX_LOG_INV_RATE}, got {log_inv_rate}"
-        ));
-    }
-    Ok(())
-}
-
-const _: () = assert!(RS_DOMAIN_INITIAL_REDUCTION_FACTOR <= INITIAL_FOLDING_FACTOR);
-const _: () = assert!(RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR <= SUBSEQUENT_FOLDING_FACTOR);
-
-// The recursion guest rotates the terminal point left by the lane fold to index it
-// by witness coordinate, and the residual segment is what the last lane challenges
-// rotate past, so the residual may never be longer than that fold
-// (`aggregation`'s placeholder emitter re-checks this per derived candidate).
-const _: () = assert!(RESIDUAL_MAX_LOG <= INITIAL_FOLDING_FACTOR);
-
-/// Shape plus per-level soundness parameters for one WHIR opening. Prover
-/// and verifier read exactly the same numbers.
-#[derive(Clone, Debug)]
-pub struct ProverConfig {
-    pub log_inv_rates: Vec<usize>,
-    pub level_steps: usize,
-    pub initial_k: usize,
-    pub(crate) level_ks: Vec<usize>,
-    /// Per-level query counts (L0, L1, ..., L_r). Length = level_steps + 1.
-    /// [`WhirSecurityConfig::derive_config_with_log_inv_rate`] fills these
-    /// from the per-level soundness analysis.
-    pub queries: Vec<usize>,
-}
-
-/// The per-level shape table a [`ProverConfig`] implies for a
-/// `log_n`-variable opening: the numbers every consumer of the multilevel
-/// protocol (the prover, recursion harnesses) otherwise re-derives.
-#[derive(Clone, Debug)]
-pub struct LevelShapes {
-    /// Level count (`level_steps + 1`).
-    pub levels: usize,
-    /// Fold count per level: `initial_k` then `level_ks`.
-    pub ks: Vec<usize>,
-    /// Log message columns after each level's fold (`log_n - initial_k`,
-    /// then descending by each level's `k`).
-    pub log_msg_cols: Vec<usize>,
-    /// Committed block length per level (`msg_cols * inv_rate`).
-    pub block_len: Vec<usize>,
-    /// The residual cube dimension left after every fold.
-    pub yr_log_n: usize,
-}
-
-impl ProverConfig {
-    /// See [`LevelShapes`].
-    pub fn level_shapes(&self, log_n: usize) -> LevelShapes {
-        let r = self.level_steps;
-        let ks: Vec<usize> = std::iter::once(self.initial_k)
-            .chain(self.level_ks.iter().copied())
-            .collect();
-        let mut log_msg_cols = vec![log_n - self.initial_k];
-        for i in 0..r {
-            log_msg_cols.push(log_msg_cols[i] - self.level_ks[i]);
-        }
-        let block_len: Vec<usize> = (0..=r)
-            .map(|i| 1usize << (log_msg_cols[i] + self.log_inv_rates[i]))
-            .collect();
-        LevelShapes {
-            levels: r + 1,
-            ks,
-            yr_log_n: *log_msg_cols.last().unwrap(),
-            log_msg_cols,
-            block_len,
-        }
-    }
-}
 
 /// The query bits of the test-only unique-decoding configuration, for sizes below the PCS window.
 #[cfg(test)]
@@ -188,14 +107,14 @@ pub fn default_config(log_n: usize, log_batch_size: usize, log_inv_rate: usize) 
     })
 }
 
-/// Shared config for a `2^log_n`-word witness, preferring the production profile at [`LOG_INV_RATE_0`] and falling back to [`default_config`] below its feasibility floor.
+/// Shared config for a `2^log_n`-word witness, preferring the production profile at [`crate::whir::LOG_INV_RATE_0`] and falling back to [`default_config`] below its feasibility floor.
 #[cfg(test)]
 pub(crate) fn test_config_for(log_n: usize) -> ProverConfig {
-    if let Ok(config) = crate::whir::config_for_rate(log_n, LOG_INV_RATE_0) {
+    if let Ok(config) = crate::whir::config_for_rate(log_n, crate::whir::LOG_INV_RATE_0) {
         return config;
     }
     for log_batch_size in (1..=5).rev() {
-        for log_inv_rate in MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE {
+        for log_inv_rate in verifier::MIN_LOG_INV_RATE..=verifier::MAX_LOG_INV_RATE {
             if let Ok(config) = default_config(log_n, log_batch_size, log_inv_rate) {
                 return config;
             }
@@ -756,6 +675,7 @@ impl WhirSecurityConfig {
 mod tests {
     use super::*;
     use isa::pretty_integer;
+    use verifier::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE};
 
     const STACKED_LOGS: std::ops::RangeInclusive<usize> = verifier::MIN_STACKED_LOG..=verifier::MAX_STACKED_LOG;
 

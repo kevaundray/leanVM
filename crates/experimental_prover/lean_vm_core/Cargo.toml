@@ -16,3 +16,6 @@ pcs = { package = "experimental_pcs", path = "../pcs" }
 keccak_gkr = { package = "experimental_keccak_gkr", path = "../keccak_gkr" }
 verifier.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+pcs = { package = "experimental_pcs", path = "../pcs", features = ["test-util"] }

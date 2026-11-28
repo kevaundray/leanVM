@@ -1,10 +1,12 @@
-//! Pins both verifiers' `WHIR_QUERIES`, the Rust one's and the Lean one's (`formal/Statement/LeanVmVerifier.lean`),
-//! against the prover's query search, and both verifiers' grinding constants against the prover's. They tabulate
-//! rather than repeat that search, which would make cross-language float identity part of the protocol.
+//! Pins `WHIR_QUERIES`, which the prover and both verifiers read (the Rust one's and the Lean one's,
+//! `formal/Statement/LeanVmVerifier.lean`), against the floating-point query search, and both verifiers' grinding
+//! constants against the prover's. Everyone tabulates rather than repeats that search, which would make
+//! cross-language float identity part of the protocol and ship floating point in the prover.
 
 use lean_vm_core::pcs::{MAX_LOG_INV_RATE, MAX_STACKED_LOG, MIN_LOG_INV_RATE, MIN_STACKED_LOG};
 use pcs::LOG_PACKING;
-use pcs::whir_config::{ProverConfig, WhirSecurityConfig};
+use pcs::whir::ProverConfig;
+use pcs::whir_config::WhirSecurityConfig;
 use verifier::{MAX_HEIGHT, MAX_LEAF_WORDS, MAX_PHASES, MAX_QUERIES};
 
 /// The prover's query search at a packed size and rate.
@@ -86,6 +88,11 @@ fn whir_query_table_matches_the_search() {
                 verifier::whir_queries(log_n, rate),
                 Some(&config.queries[..]),
                 "rate {rate}, log_n {log_n}: crates/verifier's WHIR_QUERIES is stale, regenerate it with print_whir_query_table"
+            );
+            assert_eq!(
+                pcs::whir::config_for_rate(log_n, rate).as_ref(),
+                Ok(&config),
+                "rate {rate}, log_n {log_n}: the prover's tabulated config differs from the search"
             );
             // Its proofs fit the wire format: Merkle phases, their queries, leaf widths and tree heights.
             let shapes = config.level_shapes(log_n);
