@@ -1,5 +1,5 @@
-import LeanVM.Guest.Data.Source
-import LeanVM.Core.Expand
+import LeanVM.Dsl.Gen.Checks
+import LeanVM.Dsl.Program
 import LeanVM.Core.Code
 import LeanVM.Core.Renumber
 import Statement.Data.Bytecode
@@ -8,9 +8,10 @@ import Statement.Data.Bytecode
 # The core IR's data, checked
 
 `coreProgram`'s definitions (`Guest/Data/Core.lean`, `Guest/Pack`, noncomputable) read back from
-their elaborated terms, and compared with `(Expand.expandProgram Data.guest).map (·.map
-Fn.renumber)`, both evaluated without the kernel: the data cannot drift from the source. And the
-expansion against the compiled functions (`Data.functions`), `KECCAK` by `KECCAK`. Both are
+their elaborated terms, and compared with the guest's elaboration renumbered
+(`(Dsl.Program.core LeanVM.Guest.Program.program).map (·.map Fn.renumber)`), both evaluated
+without the kernel: the data cannot drift from the guest. And the
+elaboration against the compiled functions (`Data.functions`), `KECCAK` by `KECCAK`. Both are
 `check`, compiled (`lake exe test-runs`, on the environment of `LeanVM.Guest.CoreData`'s `.olean`,
 loaded when it runs). This module does not import the data, so the executable does not compile
 it; `Guest/CoreData.lean` checks access to it.
@@ -156,7 +157,7 @@ The guest expands to one core function per compiled function, in the compiler's 
 function's `KECCAK` instructions, one for one and in order: the same layouts, as many written
 cells as the instruction's `outCells`, and every value an atom reads or writes at one frame offset
 of the instructions (`keccakIns`, `keccakOuts`) throughout the function, each constant among them
-`SET` at its offset to its word (checked below with the data, the expansion run once). -/
+`SET` at its offset to its word (checked below with the data, the elaboration run once). -/
 
 mutual
 /-- The atoms of a statement, every branch and arm. -/
@@ -208,21 +209,21 @@ def keccakAgree (f : LeanVM.Core.Fn) (c : CompiledFunction) : Bool := Id.run do
       | none => true
     | _ => true
 
-/-! ## The data against the expansion -/
+/-! ## The data against the elaboration -/
 
 set_option compiler.extract_closed false in
-/-- The data against the expansion, in an environment holding `coreProgram`. -/
+/-- The data against the elaboration, in an environment holding `coreProgram`. -/
 def check (env : Environment) : Except String Unit := do
   let some (.defnInfo d) := env.find? `LeanVM.Guest.coreProgram | throw "no coreProgram"
   let some (.defnInfo c) := env.find? `LeanVM.Guest.Data.coreCount | throw "no coreCount"
   let P ← (list fn d.value).run env
   let n ← (nat c.value).run env
-  let Q ← Expand.expandProgram Data.guest
+  let Q ← LeanVM.Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks
   unless P.length == n && P == Q.map Fn.renumber do
-    throw "coreProgram is not the renumbered expansion"
+    throw "coreProgram is not the renumbered elaboration"
   unless Q.head?.map (·.name) == some "main" && Q.getLast?.map (·.name) == some "walk_path__L12_L8" &&
       Q.map (·.name) == Data.functions.tail.map (·.name) &&
       (Q.zip Data.functions.tail).all fun (f, c) => keccakAgree f c do
-    throw "the expansion is not the compiled functions"
+    throw "the elaboration is not the compiled functions"
 
 end LeanVMTests.Guest.CoreData

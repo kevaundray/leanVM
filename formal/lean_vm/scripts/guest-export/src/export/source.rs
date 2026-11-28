@@ -552,7 +552,8 @@ pub fn files(kbc: usize) -> Vec<File> {
     let (ast, consts) =
         parse_with_constants(GUEST_SOURCE, &replacements).expect("the repository aggregation guest must parse");
     let snippets = snippet_programs(&ast, &replacements);
-    vec![
+    let mut files = super::config::files(kbc);
+    files.extend([
         File {
             path: "LeanVM/Guest/Data/Source.lean".into(),
             text: render(&ast, &consts, kbc, &hex(&input_digest(&replacements))),
@@ -565,5 +566,6 @@ pub fn files(kbc: usize) -> Vec<File> {
             path: "tests/LeanVMTests/Guest/Snippets.lean".into(),
             text: render_snippets(&snippets),
         },
-    ]
+    ]);
+    files
 }

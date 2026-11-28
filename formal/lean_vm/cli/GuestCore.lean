@@ -1,5 +1,5 @@
-import LeanVM.Guest.Data.Source
-import LeanVM.Core.Expand
+import LeanVM.Dsl.Gen.Checks
+import LeanVM.Dsl.Program
 import LeanVM.Core.Interp
 import LeanVM.Core.Renumber
 import LeanVM.Guest.PackHash
@@ -7,7 +7,8 @@ import LeanVM.Guest.PackHash
 /-!
 # `guest-core`: the guest's core IR as data
 
-`lake exe guest-core` expands the guest's source (`Expand.expandProgram Data.guest`), renumbers
+`lake exe guest-core` elaborates the guest (`Dsl.Program.core` of the program list
+`LeanVM.Guest.Program.program`), renumbers
 each function's values (`Fn.renumber`: value `n` is `V.n n = ⟨[], 0, n⟩`, written `.n n`) and writes
 each function, keyed by its stable name (below), as `Fn.<key>.core`, its body `Fn.<key>.core.body`;
 the definitions a long body is split into live in the namespace `Fn.<key>.core`, named by position:
@@ -17,7 +18,7 @@ the definitions a long body is split into live in the namespace `Fn.<key>.core`,
 `LeanVM/Guest/Pack/<key>/Core.lean`, continued in `Core1.lean`, `Core2.lean`, … beside it. The glue
 `LeanVM/Guest/Data/Core.lean` lists the functions in the compiler's order (`coreFunctions`) and
 keeps `Data.core{j}` and `Data.core{j}.body` as abbreviations of function `j`. `lake exe guest-core --check` writes
-nothing and fails when the files differ; `lake exe guest-core --values f` prints the expansion's
+nothing and fails when the files differ; `lake exe guest-core --values f` prints the elaboration's
 name of each value of the function `f`, and `--show f` the function, renumbered. Run it from `lean_vm`.
 -/
 
@@ -373,7 +374,7 @@ def indexFile (keys : List String) (mods : List String) : String :=
   let compat := keys.zipIdx.map fun (k, j) =>
     s!"noncomputable abbrev core{j} : Core.Fn := Fn.«{k}».core\n" ++
     s!"noncomputable abbrev core{j}.body : List Core.Stmt := Fn.«{k}».core.body\n"
-  header "Data.Core" "The core IR of the aggregation guest, `Expand.expandProgram Data.guest`." ++
+  header "Data.Core" "The core IR of the aggregation guest, `Dsl.Program.core LeanVM.Guest.Program.program`." ++
   String.join imports ++ "
 namespace LeanVM.Guest.Data
 
@@ -561,9 +562,9 @@ end GuestCore
 
 open GuestCore in
 def main (args : List String) : IO UInt32 := do
-  let P ← match Expand.expandProgram Data.guest with
+  let P ← match Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks with
     | .ok P => pure P
-    | .error e => do IO.eprintln s!"expansion failed: {e}"; return 1
+    | .error e => do IO.eprintln s!"the guest does not elaborate: {e}"; return 1
   if let ["--values", name] := args then
     let some f := P.find? name | do IO.eprintln s!"no function {name}"; return 1
     for (v, n) in f.numbering.2.toList.zipIdx do

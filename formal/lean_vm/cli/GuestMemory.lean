@@ -1,5 +1,5 @@
-import LeanVM.Guest.Data.Source
-import LeanVM.Core.Expand
+import LeanVM.Dsl.Gen.Checks
+import LeanVM.Dsl.Program
 import LeanVM.Core.Renumber
 import LeanVM.Core.Memory.Fresh
 import LeanVM.Core.Memory.SizeTotal
@@ -10,7 +10,7 @@ import Std.Data.HashMap
 
 `lake exe guest-memory` writes the kernel checks of `Memory.memF` (`Memory/MemCheck.lean`) on the
 guest's core IR (`coreProgram`, computed here as `guest-core` computes it:
-`Expand.expandProgram Data.guest`, renumbered), under `LeanVM/Guest/Memory/GuestMem*`:
+`Dsl.Program.core` of the guest's program list, renumbered), under `LeanVM/Guest/Memory/GuestMem*`:
 
 * `GuestMem/Data.lean`: `Data.takesT`, the arity of every function a `callIf` names, by index,
   and `temps{j}`, the temporaries of each function too large for one check;
@@ -269,9 +269,9 @@ def listLean (d : System.FilePath) : IO (List System.FilePath) := do
 
 def main (args : List String) : IO UInt32 := do
   let check := args.contains "--check"
-  let program ← match Expand.expandProgram Data.guest with
+  let program ← match LeanVM.Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks with
     | .ok fns => pure (fns.map Fn.renumber)
-    | .error e => throw (IO.userError s!"expansion: {e}")
+    | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
   if args.contains "--stats" then
     for (fn, j) in program.zipIdx do
       IO.println s!"{j} {fn.name} cost {cost fn.body} stmts {fn.body.length}"

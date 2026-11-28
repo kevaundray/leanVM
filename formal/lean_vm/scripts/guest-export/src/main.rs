@@ -2,33 +2,34 @@
 //! (paths relative to `lean_vm/`), or with `--check` fail when any file differs from what is
 //! there. Stale `Bytecode*.lean` modules are removed on write and reported on check.
 //!
-//! `guest-export <lean_vm dir> --source K [--check]` writes only what the Lean back end compiles the guest from,
-//! `Source.lean` with the placeholders at the log size `K` (and the test programs), reading nothing of the compiled
-//! guest: `scripts/guest-artifact` runs it on the way to the fixed point, before the artefact exists at that size.
+//! `guest-export <lean_vm dir> --placeholders K [--check]` writes only what the Lean back end compiles the guest from,
+//! the guest's configuration `Placeholders.lean` (`placeholder_map` at the log size `K`), reading nothing of the
+//! compiled guest: `scripts/guest-artifact` runs it on the way to the fixed point, before the artefact exists at that
+//! size.
 
 use leanvm_guest_export::lean_export;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-const USAGE: &str = "usage: guest-export <lean_vm dir> [--source K] [--check]";
+const USAGE: &str = "usage: guest-export <lean_vm dir> [--placeholders K] [--check]";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let check = args.iter().any(|a| a == "--check");
-    let source = args
+    let placeholders = args
         .iter()
-        .position(|a| a == "--source")
+        .position(|a| a == "--placeholders")
         .map(|i| args.get(i + 1).and_then(|k| k.parse::<usize>().ok()).expect(USAGE));
     let root = args
         .iter()
         .enumerate()
-        .find(|&(i, a)| !a.starts_with("--") && (i == 0 || args[i - 1] != "--source"))
+        .find(|&(i, a)| !a.starts_with("--") && (i == 0 || args[i - 1] != "--placeholders"))
         .map(|(_, a)| a)
         .expect(USAGE);
     let root = Path::new(root);
 
     let mut stale = Vec::new();
-    let files = if let Some(kbc) = source {
+    let files = if let Some(kbc) = placeholders {
         lean_export::source::files(kbc)
     } else {
         let t = std::time::Instant::now();

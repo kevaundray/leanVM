@@ -1,9 +1,10 @@
-import LeanVM.Guest.Data.Source
+import LeanVM.Dsl.Gen.Checks
+import LeanVM.Dsl.Program
 import Statement.Data.Bytecode
 import LeanVM.Compiler.Invariants
 import LeanVM.Compiler.Lines
 import LeanVM.Core.Interp
-import LeanVM.Core.Renumber
+import LeanVM.Core.Text
 import LeanVMTests.Guest.Programs
 import LeanVMTests.Guest.Snippets
 
@@ -12,7 +13,7 @@ import LeanVMTests.Guest.Snippets
 
 Run from `lean_vm`.
 
-* `lake exe guest-backend check` compiles the guest's source (`Data.guest`) with `Compiler.compile`
+* `lake exe guest-backend check` elaborates the guest (`Dsl.Program.assemble` of its program list), compiles it with `Compiler.compileTraced`
   and compares the result with the statement's program, `assemble Data.functions Data.logSize`
   (`Statement/Data/`, `LeanVM.Guest.guestProgram`): the compiled functions against
   `Data.functions`, value for value (`Assembled.toFunctions`), and every slot of the program, the
@@ -39,7 +40,7 @@ Run from `lean_vm`.
   the statement's.
 -/
 
-open LeanVM.Parameters LeanVM.Semantics LeanVM.Guest LeanVM.Core LeanVM.Compiler
+open LeanVM.Parameters LeanVM.Semantics LeanVM.Guest LeanVM.Core LeanVM.Compiler LeanVM.Core.Text
 
 namespace GuestBackend
 
@@ -61,11 +62,15 @@ def reference : Reference :=
 
 /-! ## The comparison -/
 
+/-- The guest's elaborated functions with their source lines (`Dsl.Program.assemble`). -/
+def guestElab : Except String (List (TracedFn × Array (Nat × Nat))) :=
+  Dsl.Program.assemble LeanVM.Dsl.Gen.Checks.checks
+
 /-- The guest's traced functions with their constant parameters, as `compileTraced` lowers them. -/
 def guestCore : IO (List TracedFn) :=
-  match Expand.expandProgramTraced Data.guest with
-  | .ok P => pure (withConstTable P)
-  | .error e => throw (IO.userError s!"expansion failed: {e}")
+  match guestElab with
+  | .ok P => pure (withConstTable (P.map (·.1)))
+  | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
 
 def orThrow {α : Type} : Except String α → IO α
   | .ok a => pure a
@@ -115,8 +120,7 @@ def report (ref : Reference) (ours : Assembled) (limit : Nat) : IO Bool := do
   return bad.isEmpty && ours.code.size == ref.code.size && ours.size == 2 ^ ref.logSize
 
 /-- The checks that need no reference: the back end's invariants. -/
-def selfChecks (name : String) (p : Source.Program) : IO Bool := do
-  let traced ← orThrow (Expand.expandProgramTraced p)
+def selfChecks (name : String) (traced : List TracedFn) : IO Bool := do
   let checks ← orThrow (invariants (withConstTable traced))
   for (what, ok) in checks do
     unless ok do IO.println s!"{name}: FAILED: {what}"
@@ -138,9 +142,10 @@ def firstDifference (ours : Assembled) : Option Nat :=
 
 def check : IO UInt32 := do
   let ref := reference
-  let sound ← selfChecks "guest" Data.guest
+  let P ← orThrow guestElab
+  let sound ← selfChecks "guest" (P.map (·.1))
   if sound then IO.println "the back end's invariants hold"
-  let ours ← orThrow (LeanVM.Compiler.compile Data.guest)
+  let ours ← orThrow (compileTraced (P.map (·.1)))
   let same ← report ref ours 20
   let sized := ours.size == 2 ^ Data.logSize && ours.code.size == Data.codeLen && sameFunctions ours
   match firstDifference ours with
@@ -192,13 +197,20 @@ def core (name : String) : IO UInt32 := do
 
 /-- Compile each program and write it to `DIR/<name>.txt`, or with `checkOnly` fail when a file
 differs; `what` names the command that writes them. -/
-def exportAll (what : String) (programs : List (String × Source.Program)) (dir : String)
-    (checkOnly : Bool) : IO UInt32 := do
+def exportAll (what : String) (programs : List (String × Except String (List (TracedFn × Array (Nat × Nat)))))
+    (dir : String) (checkOnly : Bool) : IO UInt32 := do
   let mut failed := false
   for (name, program) in programs do
     let path := s!"{dir}/{name}.txt"
-    unless ← selfChecks name program do failed := true
-    match Lines.compileLines program with
+    if let .error e := program then
+      IO.eprintln s!"{name}: {e}"
+      failed := true
+      continue
+    let fns := match program with
+      | .ok fns => fns
+      | .error _ => []
+    unless ← selfChecks name (fns.map (·.1)) do failed := true
+    match Lines.compileLines fns with
     | .error e =>
         IO.eprintln s!"{name}: {e}"
         failed := true
@@ -217,77 +229,15 @@ def exportAll (what : String) (programs : List (String × Source.Program)) (dir 
 
 /-- The test programs, the verifiers' fixture program at each of its step counts, and the programs of the VM's and
 the prover's tests. -/
-def testPrograms : List (String × Source.Program) :=
+def testPrograms : List (String × Except String (List (TracedFn × Array (Nat × Nat)))) :=
   (LeanVMTests.Guest.Programs.all ++ LeanVMTests.Guest.Programs.chains ++ LeanVMTests.Guest.Programs.vm).map
-    fun t => (t.name, t.program)
+    fun t => (t.name, Expand.expandProgramLines t.program)
+
+/-- The aggregation tests' snippets. -/
+def snippets : List (String × Except String (List (TracedFn × Array (Nat × Nat)))) :=
+  LeanVMTests.Guest.Snippets.all.map fun (name, p) => (name, Expand.expandProgramLines p)
 
 /-! ## The canonical text of the core IR -/
-
-/-- A value of a renumbered function; any other is printed whole. -/
-def ctV (v : V) : String :=
-  if v.path.isEmpty && v.tag == 0 then s!"%{v.idx}" else s!"?{Interp.showV v}"
-
-def ctVs (vs : List V) : String := "[" ++ " ".intercalate (vs.map ctV) ++ "]"
-
-def ctDest : Dest → String
-  | .stack cs => ctVs cs
-  | .heap p off len => s!"heap({ctV p} {off} {len})"
-
-def ctHint : Hint → String
-  | .witness s d => s!"witness {s} {ctDest d}"
-  | .bits v st n d => s!"bits {ctV v} {ctDest d} {st} {n}"
-  | .bitsExp v n d => s!"bits_exp {ctV v} {ctDest d} {n}"
-  | .digitsExp v nb nd db st sc d =>
-      s!"digits_exp {ctV v} {(sc.map ctV).getD "-"} {ctDest d} {nb} {nd} {db} {st}"
-  | .windowsExp v st w n d => s!"windows_exp {ctV v} {ctDest d} {st} {w} {n}"
-  | .limbs v d => s!"limbs {ctV v} {ctVs d}"
-  | .log2Ceil b n f d => s!"log2_ceil {ctDest b} {ctV d} {n} {f}"
-  | .inverse x d => s!"inverse {ctV x} {ctV d}"
-  | .alloc d n => s!"alloc {ctV d} {n}"
-  | .allocDyn d s => s!"alloc_dyn {ctV d} {ctV s}"
-
-def ctAtom : Atom → String
-  | .const d c => let (c0, c1) := limbsOf c; s!"const {ctV d} {c0} {c1}"
-  | .add d a b => s!"add {ctV d} {ctV a} {ctV b}"
-  | .mul d a b => s!"mul {ctV d} {ctV a} {ctV b}"
-  | .copy d s => s!"copy {ctV d} {ctV s}"
-  | .load d p off => s!"load {ctV d} {ctV p} {off}"
-  | .assertEq a b => s!"assert_eq {ctV a} {ctV b}"
-  | .assertNe x inv p => s!"assert_ne {ctV x} {ctV inv} {ctV p}"
-  | .rangeCheck x y t1 t2 k => s!"range_check {ctV x} {ctV y} {ctV t1} {ctV t2} {ctV k}"
-  | .assertInK a b => s!"assert_in_k {ctV a} {ctV b}"
-  | .keccak ins outs i o =>
-      s!"keccak {ctVs ins} {ctVs outs} {if i then 1 else 0} {if o then 1 else 0}"
-  | .frameAddr p run => s!"addr {ctV p} {ctVs run}"
-  | .touch t p => s!"touch {ctV t} {ctV p}"
-  | .hint h => s!"hint {ctHint h}"
-
-mutual
-def ctStmt (ind : String) : Stmt → List String
-  | .atom a => [ind ++ ctAtom a]
-  | .ite c z n => [s!"{ind}if_zero {ctV c}"] ++ ctStmts (ind ++ "  ") z ++ [s!"{ind}else"] ++
-      ctStmts (ind ++ "  ") n ++ [s!"{ind}end"]
-  | .match_ x arms => [s!"{ind}match {ctV x}"] ++ ctArms ind arms ++ [s!"{ind}end"]
-  | .call f args rets => [s!"{ind}call {f} {ctVs args} {ctVs rets}"]
-  | .callIf c f args => [s!"{ind}call_if {ctV c} {f} {ctVs args}"]
-  | .dispatch x fs args rets =>
-      [s!"{ind}dispatch {ctV x} [{" ".intercalate fs}] {ctVs args} {ctVs rets}"]
-  | .ret vs => [s!"{ind}ret {ctVs vs}"]
-
-def ctStmts (ind : String) : List Stmt → List String
-  | [] => []
-  | s :: ss => ctStmt ind s ++ ctStmts ind ss
-
-def ctArms (ind : String) : List (List Stmt) → List String
-  | [] => []
-  | a :: as => [s!"{ind}arm"] ++ ctStmts (ind ++ "  ") a ++ ctArms ind as
-end
-
-/-- A program in the canonical text: each function renumbered, one after another. -/
-def coreText (P : Program) : String :=
-  String.join <| P.map fun f =>
-    let f := f.renumber
-    String.join ((s!"def {f.name} {ctVs f.params}" :: ctStmts "  " f.body).map (· ++ "\n"))
 
 /-- The core IR of each program of the corpus (`Programs.frontend`) in `DIR/<name>.core`, a program `Expand`
 rejects as its error; with `checkOnly`, the comparison with what `DIR` holds, every stale, missing or extra file
@@ -377,8 +327,8 @@ def main (args : List String) : IO UInt32 := do
   | ["core", name] => GuestBackend.core name
   | ["export", "programs", dir] => GuestBackend.exportAll "programs" GuestBackend.testPrograms dir false
   | ["export", "programs", dir, "--check"] => GuestBackend.exportAll "programs" GuestBackend.testPrograms dir true
-  | ["export", "snippets", dir] => GuestBackend.exportAll "snippets" LeanVMTests.Guest.Snippets.all dir false
-  | ["export", "snippets", dir, "--check"] => GuestBackend.exportAll "snippets" LeanVMTests.Guest.Snippets.all dir true
+  | ["export", "snippets", dir] => GuestBackend.exportAll "snippets" GuestBackend.snippets dir false
+  | ["export", "snippets", dir, "--check"] => GuestBackend.exportAll "snippets" GuestBackend.snippets dir true
   | ["core-text", dir] => GuestBackend.coreTextDir dir false
   | ["core-text", dir, "--check"] => GuestBackend.coreTextDir dir true
   | ["time"] => GuestBackend.time

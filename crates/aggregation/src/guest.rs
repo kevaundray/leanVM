@@ -10,8 +10,10 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::sync::LazyLock;
 
-/// The aggregation guest's zkDSL source.
-pub(super) const GUEST_SOURCE: &str = include_str!("../../../guests/lean_ethereum.py");
+/// The digest of the aggregation guest's core IR (`formal/lean_vm/LeanVM/Guest/Program/`, elaborated and written in a
+/// canonical text, `LeanVM.Core.Text.coreDigest`), in hexadecimal: `lake exe guest-core` writes it, and its `--check`,
+/// which `formal/lean_vm/scripts/regen-guest.sh --check` and CI run, keeps it the tree's.
+pub(super) const GUEST_CORE_DIGEST: &str = include_str!("../../../guests/lean_ethereum.digest");
 
 /// The guest compiled by the back end written in Lean (`formal/lean_vm/LeanVM/Compiler`), at the fixed point on
 /// its own size: an `input` line (the [`input_digest`] it was compiled from), an `iv` line (its Fiat-Shamir IV), then
@@ -23,12 +25,13 @@ pub(super) const ARTIFACT: &str = include_str!(env!("LEANVM_GUEST_ARTIFACT_PATH"
 /// bytecode claims are about.
 ///
 /// The recursion placeholders are a function of the inner bytecode's log size, and here the inner bytecode is this
-/// one, so the guest is compiled at the size it has: the artefact's `input` line is the digest of the source and the
-/// placeholders at its own size.
+/// one, so the guest is compiled at the size it has: the artefact's `input` line is the digest of the guest's core IR
+/// and the placeholders at its own size.
 ///
 /// # Panics
 ///
-/// If the artefact is stale: the guest's source or its placeholders changed since it was written.
+/// If the artefact is stale: the guest or its placeholders changed since it was written, or `guests/lean_ethereum.digest`
+/// is not the guest's.
 pub fn unified_guest() -> &'static Program {
     static GUEST: LazyLock<Program> =
         LazyLock::new(|| load(ARTIFACT).unwrap_or_else(|e| panic!("guests/lean_ethereum.compiled: {e}")));
@@ -40,13 +43,22 @@ pub(super) fn fs_seed() -> [F128; 2] {
     hash_to_scalars(&unified_guest().bytecode().fiat_shamir_iv())
 }
 
-/// What the guest is compiled from under `replacements` (`placeholder_map` at some size): Keccak-256 of its source's
-/// digest and its placeholders'.
+/// What the guest is compiled from under `replacements` (`placeholder_map` at some size): Keccak-256 of its core IR's
+/// digest ([`GUEST_CORE_DIGEST`]) and its placeholders'.
 pub(super) fn input_digest(replacements: &BTreeMap<String, String>) -> [u8; 32] {
     hash_pair(
-        &hash(GUEST_SOURCE.as_bytes()),
+        &core_digest(),
         &hash(placeholder_lines(replacements).as_bytes()),
     )
+}
+
+/// [`GUEST_CORE_DIGEST`] as its 32 bytes.
+fn core_digest() -> [u8; 32] {
+    let text = GUEST_CORE_DIGEST.trim();
+    assert_eq!(text.len(), 64, "guests/lean_ethereum.digest: not 32 bytes in hexadecimal");
+    std::array::from_fn(|i| {
+        u8::from_str_radix(&text[2 * i..2 * i + 2], 16).expect("guests/lean_ethereum.digest: not hexadecimal")
+    })
 }
 
 /// The placeholders, a line `NAME = value` each.
@@ -83,8 +95,8 @@ pub(super) fn load(text: &str) -> Result<Program, String> {
     }
     if input != hex(&input_digest(&replacements)) {
         return Err(format!(
-            "stale: not compiled from the guest's source and placeholders at 2^{kbc}; \
-             regenerate it with `formal/lean_vm/scripts/guest-artifact`"
+            "stale: not compiled from the guest of core digest `guests/lean_ethereum.digest` and the placeholders \
+             at 2^{kbc}; run `formal/lean_vm/scripts/regen-guest.sh`, which writes both"
         ));
     }
     if iv != hex(&program.bytecode().fiat_shamir_iv()) {

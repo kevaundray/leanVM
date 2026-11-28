@@ -2,8 +2,8 @@ import LeanVM.Guest.Hints
 import LeanVM.Guest.Limits
 import LeanVM.Core.Interp
 import LeanVM.Core.Renumber
-import LeanVM.Core.Expand
-import LeanVM.Guest.Data.Source
+import LeanVM.Dsl.Gen.Checks
+import LeanVM.Dsl.Program
 import Statement.Data.Bytecode
 import LeanVM.Core.Code
 import LeanVM.Guest.B1.Da.DualMath
@@ -25,8 +25,8 @@ each case it checks
   every child's proof);
 * (i) that `Hints.honestStreams` is the Rust streams, stream by stream and entry by entry;
 * (iii) that the public input is `statementDigest seed s`;
-* (ii) that the interpreter accepts the guest's core IR (`coreProgram`: the renumbered expansion
-  of the source, which `guest-core --check` keeps equal to the data) on `main`, with the honest
+* (ii) that the interpreter accepts the guest's core IR (`coreProgram`: the renumbered elaboration
+  of the guest, which `guest-core --check` keeps equal to the data) on `main`, with the honest
   streams and that public input, and consumes every stream.
 
 It prints the first divergence of each check and exits with `1` if any check fails.
@@ -361,9 +361,9 @@ def main (args : List String) : IO UInt32 := do
   if paths.isEmpty || flags.any (· ∉ ["--no-rel", "--no-run"]) then
     IO.eprintln "usage: guest-diff [--no-rel] [--no-run] <case>..."
     return 2
-  let program ← match Expand.expandProgram Data.guest with
+  let program ← match LeanVM.Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks with
     | .ok fns => pure (fns.map LeanVM.Core.Fn.renumber)
-    | .error e => throw (IO.userError s!"expansion: {e}")
+    | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
   let mut failed := false
   for path in paths do
     let start ← IO.monoMsNow

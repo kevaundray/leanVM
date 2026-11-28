@@ -11,6 +11,7 @@ use super::{
 use std::collections::BTreeMap;
 use verifier::E;
 
+pub mod config;
 pub mod bytecode;
 #[cfg(test)]
 mod guest_diff;

@@ -283,11 +283,11 @@ def placeFnsL (loops : Loops) (sigs : SMap (Nat × Nat)) :
       let (pfs, tables) ← placeFnsL loops sigs rest tables
       return ((⟨fn, {}⟩, lines) :: pfs, tables)
 
-/-- The program `Compiler.compile` compiles and the source line of each of its instructions before
-the padding, `0` for the jump tables. Fails when the walk here placed a function otherwise than
-`Compiler.compile`. -/
-def compileLines (p : Source.Program) : Except String (Assembled × Array Nat) := do
-  let fns ← Expand.expandProgramLines p
+/-- The program `compileTraced` compiles from the traced functions `fns`, each with its source lines
+(`(trace position, line)`, as the front end records them), and the source line of each of its
+instructions before the padding, `0` for the jump tables. Fails when the walk here placed a
+function otherwise than `compileTraced`. -/
+def compileLines (fns : List (TracedFn × Array (Nat × Nat))) : Except String (Assembled × Array Nat) := do
   let traced := fns.map (·.1)
   let c ← compileTraced traced
   let loops := loopTable (withConstTable traced)

@@ -94,7 +94,7 @@ part_export() {
   fi
   # The Lean back end compiles the guest at its fixed point (`guests/lean_ethereum.compiled`), which guest-export then
   # reads as the statement's program.
-  scripts/guest-artifact "${check[@]}" "${jobs[@]}"
+  scripts/guest-artifact --digest "${check[@]}" "${jobs[@]}"
   # guest-export embeds the artefact (`include_str!`): built again, so that it reads the one just written.
   cargo build --release --manifest-path scripts/guest-export/Cargo.toml
   capped scripts/guest-export/target/release/guest-export . "${check[@]}"
