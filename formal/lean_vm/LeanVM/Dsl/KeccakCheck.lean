@@ -20,7 +20,8 @@ docstring parses. Every builtin's form the guest uses is reached: `keccak` with 
 heap operands, a tail, `len=`, `pad_tail=1`, frame and heap destinations; the duplex step `cap=`
 over a 13-cell output and a 5-cell capacity, at every count of waiting scalars; `keccak_cells`
 over a frame run (four and sixteen blocks), a heap slice with a heap `state=` (one to five blocks,
-`len=0`), and a list comprehension of `@inline` words.
+`len=0`), and a list comprehension of `@inline` words; `keccak`s at the top of a function and in
+a runtime branch, which reads the padding run its scope set (`verify_merkle_cap`).
 -/
 
 namespace LeanVM.Dsl.KeccakCheck
@@ -62,6 +63,12 @@ def claimListLastSrc (k : Nat) : Func :=
   (Expand.specializeFn (src "claim_list_last") [.lit k]).toOption.getD default
 
 #guard (List.range CLAIM_GROUP).all fun k => same [claimListLast k] guest (claimListLastSrc k)
+
+/-- `verify_merkle_cap` specialized at `depth`, as the compiler queues it. -/
+def verifyMerkleCapSrc (depth : Nat) : Func :=
+  (Expand.specializeFn (src "verify_merkle_cap") [.lit depth]).toOption.getD default
+
+#guard [0, 4, 5, 6, 7, 8].all fun d => same [verifyMerkleCap d] guest (verifyMerkleCapSrc d)
 
 /-! ## `@inline` functions and single builtins, called from a function of their own -/
 
@@ -118,6 +125,19 @@ def padTailSrc : Func :=
       st (.ret [.index (.var "parent") (.lit 0)])] }
 
 #guard same [padTailAt] (guestWith padTailSrc) padTailSrc
+
+/-- `pad_scope`, its source as in `padScope`'s docstring. -/
+def padScopeSrc : Func :=
+  { name := "pad_scope",
+    params := [scalar "a", scalar "b", scalar "c", buf "out" 2, buf "o2" 2],
+    returnShapes := [], inline := false,
+    body := [st (.ite true (.var "c") (.lit 1)
+        [st (.call "keccak" [.list [.var "a", .var "b"], .list [.lit 0, .lit 0], .var "out"])]
+        [] false),
+      st (.call "keccak" [.list [.var "a", .lit 0], .list [.var "b", .lit 0], .var "o2"]),
+      st (.ret [])] }
+
+#guard same [padScope] (guestWith padScopeSrc) padScopeSrc
 
 /-- `heap_pair`, its source as in `heapPair`'s docstring. -/
 def heapPairSrc : Func :=

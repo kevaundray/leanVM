@@ -294,6 +294,110 @@ def spWordLeaf : GFn where
     B.keccakCells (.words words) (.frame leaf)
     return [.v leaf[0]!]
 
+/-! ## `verify_merkle_cap`: hash pairs in place, under a runtime branch -/
+
+/-- `verify_merkle_cap(cap, flags, depth: Const)`, the instance at `depth`: the cap's nodes read
+into a frame run, each internal node hashed from its children into its own cells (landing on, so
+asserting, the hinted digest), the root always, another node when it is flagged. The `keccak` in
+the branch reads the padding run the root's hash set in the function's scope.
+
+```
+if depth != 0:
+    n_leaves = 2 ** depth
+    if const(depth == 4):
+        runs = StackBuf(4 * 16 - 2)
+    elif const(depth == 5):
+        runs = StackBuf(4 * 32 - 2)
+    elif const(depth == 6):
+        runs = StackBuf(4 * 64 - 2)
+    elif const(depth == 7):
+        runs = StackBuf(4 * 128 - 2)
+    else:
+        runs = StackBuf(4 * 256 - 2)
+    for node in unroll(1, 2 * n_leaves):
+        at = 2 * (node - 1)
+        runs[at] = cap[GEN ** (2 * node)]
+        runs[at + 1] = cap[GEN ** (2 * node + 1)]
+    for node in unroll(1, n_leaves):
+        left = 2 * (2 * node - 1)
+        right = left + 2
+        at = 2 * (node - 1)
+        if const(node == 1):
+            keccak(runs[left:left + 2], runs[right:right + 2], runs[at:at + 2])
+        else:
+            if flags[GEN ** node] != 0:
+                keccak(runs[left:left + 2], runs[right:right + 2], runs[at:at + 2])
+            else:
+                if const(2 * node // n_leaves == 0):  # node has flagged children
+                    flags[GEN ** (2 * node)] = 0
+                    flags[GEN ** (2 * node + 1)] = 0
+    root_0 = runs[0]
+    root_1 = runs[1]
+else:
+    root_0 = cap[GEN ** 2]
+    root_1 = cap[GEN ** 3]
+return root_0, root_1
+```
+-/
+def verifyMerkleCap (depth : Nat) : GFn where
+  name := s!"verify_merkle_cap__L{depth}"
+  arity := 2
+  rets := 2
+  body ps := do
+    let cap := word ps[0]!
+    let flags := word ps[1]!
+    if depth = 0 then
+      let r0 ← B.load cap 2
+      let r1 ← B.load cap 3
+      return [.v r0.v, .v r1.v]
+    let n := 2 ^ depth
+    let runs ← B.stackBuf (if 4 ≤ depth ∧ depth ≤ 7 then 4 * n - 2 else 4 * 256 - 2)
+    (List.range' 1 (2 * n - 1)).forM fun node => do
+      B.loadInto (word runs[2 * (node - 1)]!) cap (2 * node)
+      B.loadInto (word runs[2 * (node - 1) + 1]!) cap (2 * node + 1)
+    (List.range' 1 (n - 1)).forM fun node => do
+      let left := 2 * (2 * node - 1)
+      let right := left + 2
+      let dst := 2 * (node - 1)
+      let pair := B.keccak (.frame (runs.extract left (left + 2)))
+        (.frame (runs.extract right (right + 2))) (.frame (runs.extract dst (dst + 2)))
+      if node = 1 then pair
+      else
+        let f ← B.load flags node
+        discard <| B.ite f
+          (if 2 * node / n = 0 then do
+            B.store flags (2 * node) (← B.const 0)
+            B.store flags (2 * node + 1) (← B.const 0)
+          else pure ())
+          pair
+    return [.v runs[0]!, .v runs[1]!]
+
+/-! ## The padding run's scope -/
+
+/-- A `keccak` in a runtime branch sets the padding run there, and the run is the branch's own: the
+`keccak` after the branch sets another (`B.block` restores `St.keccakPad`, as `Expand.branch`
+restores `keccakPad`).
+
+```
+def pad_scope(a, b, c, out: StackBuf(2), o2: StackBuf(2)):
+    if c == 1:
+        keccak([a, b], [0, 0], out)
+    keccak([a, 0], [b, 0], o2)
+    return
+```
+-/
+def padScope : GFn where
+  name := "pad_scope"
+  arity := 7
+  rets := 0
+  body ps := do
+    let one ← B.const 1
+    let x ← B.add (word ps[2]!) one
+    B.ite0 x (B.keccak (.words [.cell ps[0]!, .cell ps[1]!]) (.words [.zero, .zero])
+      (.frame (ps.extract 3 5)))
+    B.keccak (.words [.cell ps[0]!, .zero]) (.words [.cell ps[1]!, .zero]) (.frame (ps.extract 5 7))
+    return []
+
 /-! ## `pad_tail=1` and heap operands -/
 
 /-- One level of `sp_path`, the padding set in the hinted children's run:
