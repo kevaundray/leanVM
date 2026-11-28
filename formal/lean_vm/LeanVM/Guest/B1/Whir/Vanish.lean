@@ -68,10 +68,10 @@ theorem subspaceRoots_cert {μ : ℕ} (h : μ ≤ 26) : subspaceRoots μ = (1 ::
 /-- A level's vanishing tables: the `n` entries from `vo` of each are the certified roots (`1`
 first) and their inverses. -/
 def vanishOk (vo n : ℕ) : Bool :=
-  decide (n ≤ 27) && decide (vo + n ≤ Data.arr_VANISH_BY_COLS.length) &&
-  decide (vo + n ≤ Data.arr_VANISH_INVS_BY_COLS.length) &&
-  ((Data.arr_VANISH_BY_COLS.drop vo).take n).map (fun e ↦ K.ofBits e.1) == (1 :: rootK).take n &&
-  ((Data.arr_VANISH_INVS_BY_COLS.drop vo).take n).map (fun e ↦ K.ofBits e.1) == (1 :: invK).take n
+  decide (n ≤ 27) && decide (vo + n ≤ Placeholders.VANISH_BY_COLS.length) &&
+  decide (vo + n ≤ Placeholders.VANISH_INVS_BY_COLS.length) &&
+  ((Placeholders.VANISH_BY_COLS.drop vo).take n).map (fun e ↦ K.ofBits e.1) == (1 :: rootK).take n &&
+  ((Placeholders.VANISH_INVS_BY_COLS.drop vo).take n).map (fun e ↦ K.ofBits e.1) == (1 :: invK).take n
 
 /-- A run of a table, read entry by entry (`lig`) or at once. -/
 theorem lig_run (a : List (ℕ × ℕ)) {vo n : ℕ} (h : vo + n ≤ a.length) :

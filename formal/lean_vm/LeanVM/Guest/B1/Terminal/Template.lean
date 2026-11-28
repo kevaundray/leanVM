@@ -8,7 +8,7 @@
 module
 
 public import LeanVM.Guest.B1.Terminal.InterfaceP
-public import LeanVM.Guest.Data.Source
+public import LeanVM.Guest.Data.Placeholders
 public import LeanVM.Guest.Data.NameStrings
 
 /-!
@@ -18,7 +18,7 @@ The guest unrolls the selectors' loop and the claims' loop at compile
 time on its tables `COL_KAPPA_SRC`, `COL_KAPPA_ADJ` (`Tables.colKappaSrc`, `Tables.colKappaAdj`),
 `CLAIM_POINT_BUF`, `CLAIM_COMMITTED_COL`, `CLAIM_KAPPA_SRC`, `CLAIM_KAPPA_ADJ` and
 `CLAIM_QKECCAK_SLOT_BITS`; here they are `termKind`, `termCol`, `claimKappaSrc`, `claimKappaAdj` and
-the slot `termSlot j`, read from the source's arrays (`Data.arr_*`). A claim's kind is its point's
+the slot `termSlot j`, read from the placeholders' arrays (`Placeholders.*`). A claim's kind is its point's
 buffer: `0` the bus point at `zeta`, `1` the table point at `chi`, `2` the public input's
 `(rm, 0, …, 0)`, `3` a `q_keccak` lane (the table point and its slot's bits), `4` a `KECCAK` output
 lane, which the opening skips.
@@ -40,19 +40,19 @@ open LeanVM.Parameters LeanVM.Semantics LeanVM.Core LeanVM.Guest.Value LeanVM.Gu
 
 /-- The kind of claim `j`'s low point (`CLAIM_POINT_BUF`): `0` the bus point, `1` the table point,
 `2` the public input's, `3` a `q_keccak` lane, `4` a `KECCAK` output lane. -/
-def termKind (j : ℕ) : ℕ := (Data.arr_CLAIM_POINT_BUF.getD j (0, 0)).1
+def termKind (j : ℕ) : ℕ := (Placeholders.CLAIM_POINT_BUF.getD j (0, 0)).1
 
 /-- Claim `j`'s committed column (`CLAIM_COMMITTED_COL`). -/
-def termCol (j : ℕ) : ℕ := (Data.arr_CLAIM_COMMITTED_COL.getD j (0, 0)).1
+def termCol (j : ℕ) : ℕ := (Placeholders.CLAIM_COMMITTED_COL.getD j (0, 0)).1
 
 /-- Claim `j`'s low length's `kappa_base` source (`CLAIM_KAPPA_SRC`). -/
-def claimKappaSrc (j : ℕ) : ℕ := (Data.arr_CLAIM_KAPPA_SRC.getD j (0, 0)).1
+def claimKappaSrc (j : ℕ) : ℕ := (Placeholders.CLAIM_KAPPA_SRC.getD j (0, 0)).1
 
 /-- Claim `j`'s low length's adjustment (`CLAIM_KAPPA_ADJ`). -/
-def claimKappaAdj (j : ℕ) : ℕ := (Data.arr_CLAIM_KAPPA_ADJ.getD j (0, 0)).1
+def claimKappaAdj (j : ℕ) : ℕ := (Placeholders.CLAIM_KAPPA_ADJ.getD j (0, 0)).1
 
 /-- Bit `k` of claim `j`'s `q_keccak` slot (`CLAIM_QKECCAK_SLOT_BITS[6·j + k]`). -/
-def slotBit (j k : ℕ) : Bool := (Data.arr_CLAIM_QKECCAK_SLOT_BITS.getD (6 * j + k) (0, 0)).1 == 1
+def slotBit (j k : ℕ) : Bool := (Placeholders.CLAIM_QKECCAK_SLOT_BITS.getD (6 * j + k) (0, 0)).1 == 1
 
 /-- The `q_keccak` slot of claim `j` of kind `3`. -/
 def termSlot (j : ℕ) : ℕ := ((List.range 6).map fun k ↦ if slotBit j k then 2 ^ k else 0).sum

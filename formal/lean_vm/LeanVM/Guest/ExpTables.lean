@@ -11,7 +11,7 @@ public import LeanVM.Core
 public import Statement.Field
 public import LeanVM.Guest.GuestConst
 -- Private: `guest_const%` inserts literals, so importers need not see the guest's source.
-import LeanVM.Guest.Data.Source
+import LeanVM.Guest.Program.Config
 
 /-!
 # The exponent table

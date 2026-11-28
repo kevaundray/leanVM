@@ -124,10 +124,10 @@ theorem getD_fst_lt {l : List (ℕ × ℕ)} {n : ℕ} (hn : 0 < n) (h : (l.all f
     simpa using this
 
 theorem claimKappaSrc_lt (j : ℕ) : claimKappaSrc j < 8 :=
-  getD_fst_lt (l := Data.arr_CLAIM_KAPPA_SRC) (by decide) (by decide +kernel) j
+  getD_fst_lt (l := Placeholders.CLAIM_KAPPA_SRC) (by decide) (by decide +kernel) j
 
 theorem claimKappaAdj_lt (j : ℕ) : claimKappaAdj j < 64 :=
-  getD_fst_lt (l := Data.arr_CLAIM_KAPPA_ADJ) (by decide) (by decide +kernel) j
+  getD_fst_lt (l := Placeholders.CLAIM_KAPPA_ADJ) (by decide) (by decide +kernel) j
 
 /-- A claim's low length's `g`-power. -/
 theorem claimKap_sound {e : ℕ → ℕ} (he : ∀ i < 8, σ (.n (kbV i)) = gen ^ e i) {j r : ℕ}

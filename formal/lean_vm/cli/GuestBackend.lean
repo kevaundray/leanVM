@@ -1,4 +1,4 @@
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program
 import LeanVM.Dsl.Program
 import Statement.Data.Bytecode
 import LeanVM.Compiler.Invariants
@@ -70,7 +70,7 @@ set_option compiler.extract_closed false in
 /-- The guest's elaborated functions with their source lines (`Dsl.Program.assemble`), elaborated
 when called, not when the program starts. -/
 def guestElab (_ : Unit) : Except String (List (TracedFn × Array (Nat × Nat))) :=
-  LeanVM.Dsl.Program.assemble LeanVM.Dsl.Gen.Checks.checks
+  LeanVM.Dsl.Program.assemble LeanVM.Guest.Program.program
 
 /-- The guest's traced functions with their constant parameters, as `compileTraced` lowers them. -/
 def guestCore : IO (List TracedFn) :=

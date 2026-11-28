@@ -20,7 +20,7 @@ public import LeanVM.Core.Value.KeccakDuplex
 public import LeanVM.Guest.Data.NameStrings
 public import LeanVM.Guest.GuestConst
 -- Private: `guest_const%` inserts literals, so importers need not see the guest's source.
-import LeanVM.Guest.Data.Source
+import LeanVM.Guest.Program.Config
 
 /-!
 # `da_verify`, placed

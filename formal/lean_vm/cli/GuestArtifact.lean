@@ -1,4 +1,4 @@
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program
 import LeanVM.Dsl.Program
 import LeanVM.Guest.Data.Placeholders
 import LeanVM.Compiler.Lines
@@ -69,7 +69,7 @@ def readOr (file : String) : IO String := do
   if ← System.FilePath.pathExists file then IO.FS.readFile file else pure ""
 
 def run (file : String) (digestFile : Option String) (checkOnly : Bool) : IO UInt32 := do
-  let fns ← match LeanVM.Dsl.Program.assemble LeanVM.Dsl.Gen.Checks.checks with
+  let fns ← match LeanVM.Dsl.Program.assemble LeanVM.Guest.Program.program with
     | .ok fns => pure fns
     | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
   let (c, lines) ← match Lines.compileLines fns with

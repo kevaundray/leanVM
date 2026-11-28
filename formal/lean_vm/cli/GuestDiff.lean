@@ -2,7 +2,7 @@ import LeanVM.Guest.Hints
 import LeanVM.Guest.Limits
 import LeanVM.Core.Interp
 import LeanVM.Core.Renumber
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program
 import LeanVM.Dsl.Program
 import Statement.Data.Bytecode
 import LeanVM.Core.Code
@@ -361,7 +361,7 @@ def main (args : List String) : IO UInt32 := do
   if paths.isEmpty || flags.any (· ∉ ["--no-rel", "--no-run"]) then
     IO.eprintln "usage: guest-diff [--no-rel] [--no-run] <case>..."
     return 2
-  let program ← match LeanVM.Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks with
+  let program ← match LeanVM.Dsl.Program.core LeanVM.Guest.Program.program with
     | .ok fns => pure (fns.map LeanVM.Core.Fn.renumber)
     | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
   let mut failed := false

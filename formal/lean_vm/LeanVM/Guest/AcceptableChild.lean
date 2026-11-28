@@ -13,7 +13,7 @@ public import LeanVM.Protocol.Compile.RunPure
 public import LeanVM.Guest.Coverage
 public import LeanVM.Guest.GuestConst
 -- Private: `guest_const%` inserts literals, so importers need not see the guest's source.
-import LeanVM.Guest.Data.Source
+import LeanVM.Guest.Program.Config
 
 /-!
 # A child the guest program accepts

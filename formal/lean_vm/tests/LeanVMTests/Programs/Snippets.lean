@@ -1,5 +1,5 @@
 import LeanVMTests.Programs.Support
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program
 
 /-!
 # The aggregation tests' snippets
@@ -11,12 +11,12 @@ list at the guest's placeholders (`lake exe guest-backend export snippets`), pro
 
 namespace LeanVMTests.Programs.Snippets
 
-open LeanVM.Parameters LeanVM.Core LeanVM.Dsl LeanVMTests.Programs LeanVM.Dsl.Gen
+open LeanVM.Parameters LeanVM.Core LeanVM.Dsl LeanVMTests.Programs LeanVM.Guest.Program
 
 /-- A snippet: `body` as `main`, over the guest's functions. -/
 def snippet (name : String) (body : B Unit) : TestProgram where
   name := name
-  program := ("main", [mainOf body]) :: LeanVM.Dsl.Gen.Checks.checks.filter (·.1 != "main")
+  program := ("main", [mainOf body]) :: LeanVM.Guest.Program.program.filter (·.1 != "main")
   entry := some "main"
 
 /-- Assert that the public words are `a` and `b`. -/

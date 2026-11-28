@@ -1,4 +1,4 @@
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program
 import LeanVM.Dsl.Program
 import LeanVM.Core.Interp
 import LeanVM.Core.Renumber
@@ -562,7 +562,7 @@ end GuestCore
 
 open GuestCore in
 def main (args : List String) : IO UInt32 := do
-  let P ← match LeanVM.Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks with
+  let P ← match LeanVM.Dsl.Program.core LeanVM.Guest.Program.program with
     | .ok P => pure P
     | .error e => do IO.eprintln s!"the guest does not elaborate: {e}"; return 1
   if let ["--values", name] := args then

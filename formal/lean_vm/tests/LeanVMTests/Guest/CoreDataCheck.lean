@@ -1,4 +1,4 @@
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program
 import LeanVM.Dsl.Program
 import LeanVM.Core.Code
 import LeanVM.Core.Renumber
@@ -218,7 +218,7 @@ def check (env : Environment) : Except String Unit := do
   let some (.defnInfo c) := env.find? `LeanVM.Guest.Data.coreCount | throw "no coreCount"
   let P ← (list fn d.value).run env
   let n ← (nat c.value).run env
-  let Q ← LeanVM.Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks
+  let Q ← LeanVM.Dsl.Program.core LeanVM.Guest.Program.program
   unless P.length == n && P == Q.map Fn.renumber do
     throw "coreProgram is not the renumbered elaboration"
   unless Q.head?.map (·.name) == some "main" && Q.getLast?.map (·.name) == some "walk_path__L12_L8" &&

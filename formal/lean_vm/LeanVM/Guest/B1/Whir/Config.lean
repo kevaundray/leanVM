@@ -7,9 +7,11 @@
 
 module
 
-public import LeanVM.Guest.Data.Source
+public import LeanVM.Guest.Data.Placeholders
 public import LeanVM.Guest.B1.Whir.MatPlan
 public import LeanVM.Guest.GuestConst
+
+import LeanVM.Guest.Program.Config
 
 /-!
 # The `LIG_*` tables and a size's configuration (TRIAGE G #42)
@@ -21,7 +23,7 @@ time it reads the row `m_idx` of the per-size tables (`LIG_N_LEVELS`, `LIG_YR_LE
 `LIG_LOG_MSG_COLS`, …), and, through a `match` on the rate, the rows
 `(r · LIG_N_LOG_SIZES + m_idx) · LIG_MAX_LEVELS + lvl` of those a rate changes (`LIG_QUERIES`,
 `LIG_TREE_DEPTH`, `LIG_CAP_DEPTH`, `LIG_SQUEEZES`). The tables are the deployed placeholders, as
-the source data holds them (`Data.arr_LIG_*`, `Guest/Data/Source.lean`); nothing here is trusted:
+the placeholders hold them (`Placeholders.LIG_*`, `Guest/Data/Placeholders.lean`); nothing here is trusted:
 the template of the body built from them (`Whir/Template.lean`) is checked equal to the core IR,
 and their facts against the Spec are decided (`Whir/Facts.lean`).
 
@@ -91,15 +93,15 @@ def ligRow (m r lvl : Nat) : Nat := (r * ligNSizes + m) * ligMaxLevels + lvl
 def osLvR (m r lvl : Nat) : OsLv :=
   let i := m * ligMaxLevels + lvl
   let j := ligRow m r lvl
-  let cols := lig Data.arr_LIG_LOG_MSG_COLS i
-  { folds := lig Data.arr_LIG_FOLDS i, foldsOff := lig Data.arr_LIG_FOLDS_OFF i,
-    queries := lig Data.arr_LIG_QUERIES j, depth := lig Data.arr_LIG_TREE_DEPTH j,
-    leafCells := lig Data.arr_LIG_LEAF_CELLS i, posOff := lig Data.arr_LIG_POS_OFF i,
-    capDepth := lig Data.arr_LIG_CAP_DEPTH j, squeezes := lig Data.arr_LIG_SQUEEZES j,
-    logCols := cols, highBits := lig Data.arr_LIG_HIGH_BITS i,
-    prefixLen := lig Data.arr_LIG_RESIDUAL_PREFIX_LEN i,
-    resFoldOff := lig Data.arr_LIG_RESIDUAL_FOLD_OFF i, vanish := cols * (cols + 1) / 2,
-    colsOff := ((List.range lvl).map fun l ↦ lig Data.arr_LIG_LOG_MSG_COLS (m * ligMaxLevels + l)).sum }
+  let cols := lig Placeholders.LIG_LOG_MSG_COLS i
+  { folds := lig Placeholders.LIG_FOLDS i, foldsOff := lig Placeholders.LIG_FOLDS_OFF i,
+    queries := lig Placeholders.LIG_QUERIES j, depth := lig Placeholders.LIG_TREE_DEPTH j,
+    leafCells := lig Placeholders.LIG_LEAF_CELLS i, posOff := lig Placeholders.LIG_POS_OFF i,
+    capDepth := lig Placeholders.LIG_CAP_DEPTH j, squeezes := lig Placeholders.LIG_SQUEEZES j,
+    logCols := cols, highBits := lig Placeholders.LIG_HIGH_BITS i,
+    prefixLen := lig Placeholders.LIG_RESIDUAL_PREFIX_LEN i,
+    resFoldOff := lig Placeholders.LIG_RESIDUAL_FOLD_OFF i, vanish := cols * (cols + 1) / 2,
+    colsOff := ((List.range lvl).map fun l ↦ lig Placeholders.LIG_LOG_MSG_COLS (m * ligMaxLevels + l)).sum }
 
 /-- The next level's row of `ood_z` and `basis_d` follows this level's message columns. -/
 theorem osLvR_colsOff_succ (m r l : Nat) :
@@ -135,7 +137,7 @@ structure OsCfg where
   deriving Repr, Inhabited
 
 /-- The number of levels of size `m`. -/
-def osNLevels (m : Nat) : Nat := lig Data.arr_LIG_N_LEVELS m
+def osNLevels (m : Nat) : Nat := lig Placeholders.LIG_N_LEVELS m
 
 /-- Size `m`'s levels at rate `r`. -/
 def osLevelsR (m r : Nat) : List OsLv := (List.range (osNLevels m)).map (osLvR m r)
@@ -143,11 +145,11 @@ def osLevelsR (m r : Nat) : List OsLv := (List.range (osNLevels m)).map (osLvR m
 /-- Size `m`'s configuration. -/
 def osCfg (m : Nat) : OsCfg :=
   { m, levels := osLevelsR m 0, levelsAt := (List.range ligNRates).map (osLevelsR m),
-    yrLevel := lig Data.arr_LIG_YR_LEVEL m, yrLog := lig Data.arr_LIG_YR_LOG_LEN m,
-    yrLen := lig Data.arr_LIG_YR_LEN m, nFolds := lig Data.arr_LIG_TOTAL_FOLDS m,
-    posTotal := lig Data.arr_LIG_POS_TOTAL m,
-    colsTotal := ((List.range (lig Data.arr_LIG_YR_LEVEL m)).map fun l ↦
-      lig Data.arr_LIG_LOG_MSG_COLS (m * ligMaxLevels + l)).sum,
+    yrLevel := lig Placeholders.LIG_YR_LEVEL m, yrLog := lig Placeholders.LIG_YR_LOG_LEN m,
+    yrLen := lig Placeholders.LIG_YR_LEN m, nFolds := lig Placeholders.LIG_TOTAL_FOLDS m,
+    posTotal := lig Placeholders.LIG_POS_TOTAL m,
+    colsTotal := ((List.range (lig Placeholders.LIG_YR_LEVEL m)).map fun l ↦
+      lig Placeholders.LIG_LOG_MSG_COLS (m * ligMaxLevels + l)).sum,
     plan := osMatPlan m }
 
 /-- The configuration with the levels `L`. -/
@@ -180,10 +182,10 @@ def OsCfg.lvAt (c : OsCfg) (lvl : Nat) : List OsLv :=
   c.levelsAt.map fun ls ↦ ls.getD lvl default
 
 /-- The vanishing value `VANISH_BY_COLS[i]` (a word of `K`, its low limb). -/
-def vanishVal (i : Nat) : Nat := lig Data.arr_VANISH_BY_COLS i
+def vanishVal (i : Nat) : Nat := lig Placeholders.VANISH_BY_COLS i
 
 /-- The vanishing inverse `VANISH_INVS_BY_COLS[i]`. -/
-def vanishInv (i : Nat) : Nat := lig Data.arr_VANISH_INVS_BY_COLS i
+def vanishInv (i : Nat) : Nat := lig Placeholders.VANISH_INVS_BY_COLS i
 
 /-! ## Names -/
 

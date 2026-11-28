@@ -1,4 +1,4 @@
-import LeanVM.Dsl.Gen.Checks
+import LeanVM.Guest.Program
 import LeanVM.Dsl.Program
 import LeanVM.Core.Renumber
 import LeanVM.Core.Memory.Fresh
@@ -269,7 +269,7 @@ def listLean (d : System.FilePath) : IO (List System.FilePath) := do
 
 def main (args : List String) : IO UInt32 := do
   let check := args.contains "--check"
-  let program ← match LeanVM.Dsl.Program.core LeanVM.Dsl.Gen.Checks.checks with
+  let program ← match LeanVM.Dsl.Program.core LeanVM.Guest.Program.program with
     | .ok fns => pure (fns.map Fn.renumber)
     | .error e => throw (IO.userError s!"the guest does not elaborate: {e}")
   if args.contains "--stats" then
