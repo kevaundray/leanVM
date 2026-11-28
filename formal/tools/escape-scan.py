@@ -18,11 +18,12 @@ Comments (`--` to the end of the line, `/- ... -/` nested, docstrings included) 
 before the search, keeping the lines, so a forbidden word in a comment passes and one in code
 after a comment on the same line does not. String, raw string (`r"..."`, `r#"..."#`) and character
 literals are kept as code (a `--` or `/-` inside one opens no comment). Directories named `.lake`
-(Lake's fetched packages and build outputs) are not searched, but any file git tracks under one
-fails the scan, since Lake builds a module there like any other (`import Pkg.«.lake».Hidden`): the
-scan therefore needs a git work tree and fails without one. Symbolic links are not followed.
-`.lean` files only, so `lake-build.py`'s `--dev`, which names `skipKernelTC`, is exempt. The CI
-(`.github/workflows/lean.yml`) and `check-all.sh` both run it.
+(Lake's fetched packages and build outputs) are not searched, and symbolic links to directories are
+not followed, but Lake builds a module through either like any other (`import Pkg.«.lake».Hidden`):
+any file git tracks under a `.lake` directory, and any symbolic link git tracks, fails the scan. It
+therefore needs a git work tree and fails without one. `.lean` files only, so `lake-build.py`'s
+`--dev`, which names `skipKernelTC`, is exempt. The CI (`.github/workflows/lean.yml`) and
+`check-all.sh` both run it.
 """
 import os
 import re
@@ -117,14 +118,15 @@ def scan(path: str) -> list[str]:
     return hits
 
 
-def tracked_under_lake(path: str) -> list[str]:
-    """The files git tracks at or under `path` with a `.lake` directory in their path in the repo."""
+def tracked_hits(path: str) -> list[str]:
+    """The files git tracks at or under `path` that Lake may build but the walk does not search: under
+    a `.lake` directory (in their path in the repo), or symbolic links."""
     if os.path.isdir(path):
         base, spec = path, "."
     else:
         base, spec = os.path.dirname(path) or ".", os.path.basename(path)
     outputs = []
-    for args in (["rev-parse", "--show-prefix"], ["ls-files", "-z", "--", spec]):
+    for args in (["rev-parse", "--show-prefix"], ["ls-files", "-s", "-z", "--", spec]):
         try:
             r = subprocess.run(["git", "-C", base, *args], capture_output=True, encoding="utf-8",
                                errors="surrogateescape")
@@ -134,8 +136,15 @@ def tracked_under_lake(path: str) -> list[str]:
             raise SystemExit(f"error: {path}: not in a git work tree: {r.stderr.strip()}")
         outputs.append(r.stdout)
     prefix = outputs[0].rstrip("\n")
-    return [os.path.join(base, f) if spec == "." else path
-            for f in outputs[1].split("\0") if f and ".lake" in (prefix + f).split("/")]
+    hits = []
+    for entry in filter(None, outputs[1].split("\0")):
+        mode, f = entry.split(" ", 1)[0], entry.split("\t", 1)[1]
+        shown = os.path.join(base, f) if spec == "." else path
+        if ".lake" in (prefix + f).split("/"):
+            hits.append(f"{shown}: tracked by git under a `.lake` directory")
+        if mode == "120000":
+            hits.append(f"{shown}: tracked symbolic link")
+    return hits
 
 
 def main(dirs: list[str]) -> int:
@@ -144,7 +153,7 @@ def main(dirs: list[str]) -> int:
         return 2
     hits = []
     for d in dirs:
-        hits += [f"{f}: tracked by git under a `.lake` directory" for f in tracked_under_lake(d)]
+        hits += tracked_hits(d)
         if os.path.isfile(d):
             hits += scan(d)
             continue
