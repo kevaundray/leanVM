@@ -62,7 +62,7 @@ def reference : Reference :=
 set_option compiler.extract_closed false in
 /-- The guest's elaborated functions with their source lines (`Dsl.Program.assemble`), elaborated
 when called, not when the program starts. -/
-def guestElab (_ : Unit) : Except String (List (TracedFn × Array (Nat × Nat))) :=
+def guestElab (_ : Unit) : Except String (List LeanVM.Dsl.Elab) :=
   LeanVM.Dsl.Program.assemble LeanVM.Guest.Program.program
 
 /-- The guest's traced functions with their constant parameters, as `compileTraced` lowers them. -/

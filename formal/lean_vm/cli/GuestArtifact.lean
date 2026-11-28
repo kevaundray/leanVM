@@ -17,8 +17,8 @@ Run from `lean_vm`.
   repository's `guests/lean_ethereum.compiled`: an `input` line, the digest of what it was compiled
   from (`inputDigest`); an `iv` line, the program's Fiat-Shamir IV (`fiatShamirIv` of its
   `bytecodeWords`, the statement's `deployedSeed`); then the program in the line format of
-  `crates/isa/src/text.rs` (`Compiler.render`), and the source line of each instruction (`L` lines,
-  `Compiler.renderLines`, from the line pass `Compiler.Lines.compileLines`).
+  `crates/isa/src/text.rs` (`Compiler.render`), and the guest's file and line of each instruction
+  (`P` and `L` lines, `Compiler.renderLines`, from the line pass `Compiler.Lines.compileLines`).
   `crates/aggregation/src/guest.rs` loads it and checks both header lines against what it
   compiles and proves.
 * `lake exe guest-artifact FILE --digest DIGEST` also writes the program's core digest

@@ -147,7 +147,7 @@ def inline {α : Type} (f : String) (m : B α) : B α := do
       tag := st.tag + 1
       trace := st.trace.push (.alloc [⟨[.i f st.tag], st.tag, 0⟩] .unnamed) }
     else st
-  let line := ((← get).lines.back?.map (·.2)).getD 0
+  let line := ((← get).lines.back?.map (·.2)).getD {}
   let a ← m
   modify fun st => if st.faithful then { st with lines := st.lines.push (st.trace.size, line) }
     else st

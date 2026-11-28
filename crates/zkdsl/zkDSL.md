@@ -67,6 +67,8 @@ All memory is **write-once**: a second write of the same value is a no-op, of a 
 | `B.assertInK a b` | 1 untaken `JUMP` | both words in `K` |
 | `B.assertGpow x` | 1 `DEREF` | `x = g^e` with `e` below the memory size |
 
+A failed assertion stops witness generation, which reports its function and the Lean file and line of the statement that emitted it: the guest's `do` blocks record every statement's position (`LeanVM/Dsl/Lines.lean`, in the namespace `LeanVM.Guest.Program`), and a test program marks a line by hand (`B.line 5`).
+
 ## Keccak
 
 `B.keccak a b out (tail := …) (len := …) (padTail := …)` is one `KECCAK`, the Keccak-256 of at most 128 bytes (`a ‖ b ‖ tail`, the first `len` bytes); `B.keccakDuplex a b out cap` the Fiat-Shamir duplex step in overwrite mode; `B.keccakCells cells out (state := …) (len := …) (final := …)` a message of any compile-time length, one `KECCAK` a 136-byte block. Operands are words already computed (`.words [.cell v, .const c, .zero]`), frame runs (read in place) or heap slices (one `DEREF` a cell). `out` receives the first 1, 2 or 13 cells of the state; if it is already written, the hash becomes an assertion. The padding run `[0x01, 0, 0, 0, 0]` is set once per scope.

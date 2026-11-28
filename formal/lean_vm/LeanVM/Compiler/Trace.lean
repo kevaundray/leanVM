@@ -103,10 +103,17 @@ def eqPartner (v : V) : Atom → Option V
   | .assertEq a b => if a == v then some b else if b == v then some a else none
   | _ => none
 
+/-- Where a statement is in the program's source: its file (a path from the repository's root,
+empty for a program that names none) and its line (`0` for none). -/
+structure SrcLine where
+  file : String := ""
+  line : Nat := 0
+  deriving BEq, Inhabited, Repr
+
 /-- The source lines of a function's statements, `(n, line)` with `n` the events of a trace
 before the statement, moved to the positions of the trace whose event `i` a pass replaced by
 `parts[i]` (flattened). -/
-def partsLines (parts : List (List Event)) (lines : Array (Nat × Nat)) : Array (Nat × Nat) :=
+def partsLines (parts : List (List Event)) (lines : Array (Nat × SrcLine)) : Array (Nat × SrcLine) :=
   let (pos, n) := parts.foldl (init := (#[], 0)) fun (pos, n) p => (pos.push n, n + p.length)
   let pos := pos.push n
   lines.map fun (k, line) => (pos.getD k k, line)

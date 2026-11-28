@@ -138,7 +138,7 @@ The guest:
 - The stacked-bytecode claim is not verified in-circuit. Each node batches its children's, and `AggregateProof::verify` discharges the root's.
 - It accepts exactly what the native verifier does: every stack from `2^min_execution_stacked_log(kbc)` to `2^MAX_STACKED_LOG`, at every rate. One opening arm per size, the rate dispatched inside, so a rate's shape goes in a helper specialized on it.
 - Every verifier rotates the opening's terminal point left by `INITIAL_FOLDING_FACTOR` before evaluating the basis (`whir::commit` documents the layout). Every other read of the point stays in round order.
-- A failed `assert` is a write-once conflict naming the function and line. One that `had 0:0` can be a cell read before it was written.
+- A failed `assert` is a write-once conflict naming the function and the guest's Lean file and line where it is written (`formal/lean_vm/LeanVM/Guest/Program/*.lean`, recorded by its `do` blocks, `LeanVM/Dsl/Lines.lean`). One that `had 0:0` can be a cell read before it was written.
 
 ## Performance conventions (experimental tree, native verifier)
 

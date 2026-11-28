@@ -14,8 +14,9 @@
 //! J <oc> <od> <of>
 //! K <m0> <m1> <m2> <m3> <tail> <b8> <cap> <out> <in_odd> <out_odd> <cells>
 //! H <pc> <kind> <fields>                      one line a hint, in pc order
-//! L <pc> <line>                               the source line from `pc` on (`src_lines`): at pc 0 and wherever it
-//!                                             changes, none for a program without source lines
+//! P <k> <file>                                source file `k` (`src_files`), numbered from 1, before the `L` lines
+//! L <pc> <line> [<k>]                         the source line from `pc` on, in file `k` when given (`src_lines`): at pc
+//!                                             0 and wherever it changes, none for a program without source lines
 //! ```
 
 use std::collections::HashMap;
@@ -313,9 +314,15 @@ impl CompiledProgram {
                 writeln!(out, "H {pc} {}", hint_line(hint)).unwrap();
             }
         }
-        for (pc, &line) in self.src_lines.iter().enumerate() {
-            if pc == 0 || self.src_lines[pc - 1] != line {
-                writeln!(out, "L {pc} {line}").unwrap();
+        for (k, file) in self.src_files.iter().enumerate() {
+            writeln!(out, "P {} {file}", k + 1).unwrap();
+        }
+        for (pc, &(line, file)) in self.src_lines.iter().enumerate() {
+            if pc == 0 || self.src_lines[pc - 1] != (line, file) {
+                match file {
+                    0 => writeln!(out, "L {pc} {line}").unwrap(),
+                    k => writeln!(out, "L {pc} {line} {k}").unwrap(),
+                }
             }
         }
         out
@@ -329,7 +336,8 @@ impl Program {
         let (mut size, mut main_frame) = (None, None);
         let (mut prog, mut fn_ranges) = (Vec::new(), Vec::new());
         let mut hints: HashMap<u32, Vec<RHint>> = HashMap::new();
-        let mut lines: Vec<(usize, u32)> = Vec::new();
+        let mut lines: Vec<(usize, (u32, u32))> = Vec::new();
+        let mut src_files: Vec<String> = Vec::new();
         for line in text.lines() {
             let mut rest = line.split(' ');
             let tag = rest.next().unwrap_or("");
@@ -339,7 +347,23 @@ impl Program {
                 "main_frame" => main_frame = Some(fields.num()?),
                 "F" => fn_ranges.push((fields.word()?.to_string(), fields.num()?, fields.num()?)),
                 "H" => hints.entry(fields.num()?).or_default().push(fields.hint()?),
-                "L" => lines.push((fields.num()?, fields.num()?)),
+                "P" => {
+                    if fields.num::<usize>()? != src_files.len() + 1 {
+                        return Err(format!("`{line}` is out of order"));
+                    }
+                    src_files.push(fields.word()?.to_string());
+                }
+                "L" => {
+                    let (pc, at) = (fields.num()?, fields.num()?);
+                    let file = match fields.rest.next() {
+                        Some(k) => k.parse().map_err(|_| format!("`{k}` in `{line}` is no number"))?,
+                        None => 0,
+                    };
+                    if file as usize > src_files.len() {
+                        return Err(format!("`{line}` names a file no `P` line declares"));
+                    }
+                    lines.push((pc, (at, file)));
+                }
                 _ => prog.push(fields.op(tag)?),
             }
         }
@@ -349,12 +373,12 @@ impl Program {
             return Err(format!("{} instructions do not fit {size} slots", prog.len()));
         }
         let mut src_lines = Vec::new();
-        for (i, &(pc, line)) in lines.iter().enumerate() {
+        for (i, &(pc, at)) in lines.iter().enumerate() {
             let end = lines.get(i + 1).map_or(prog.len(), |next| next.0);
             if pc != src_lines.len() || end < pc || end > prog.len() {
-                return Err(format!("`L {pc} {line}` is out of order or past the code"));
+                return Err(format!("`L {pc} {}` is out of order or past the code", at.0));
             }
-            src_lines.resize(end, line);
+            src_lines.resize(end, at);
         }
         prog.resize(size, Op::Set { o: 0, k: E::new(0, 0) });
         Ok(Self::from(CompiledProgram {
@@ -363,6 +387,7 @@ impl Program {
             main_frame,
             fn_ranges,
             src_lines,
+            src_files,
         }))
     }
 }
@@ -371,7 +396,7 @@ impl Program {
 mod tests {
     use super::*;
 
-    /// Every instruction, every hint kind and the source lines survive the format.
+    /// Every instruction, every hint kind, the source files and the source lines survive the format.
     #[test]
     fn text_round_trips() {
         let text = "size 16\nmain_frame 9\nF main 0 6\n\
@@ -380,10 +405,12 @@ mod tests {
                     H 2 wstack s 1 2\n\
                     H 2 wheap s 1 2 3\nH 3 log2 stack 1 2 3 4\nH 3 bits 1 heap 2 3\nH 3 bitsexp 1 stack 2 3\n\
                     H 4 digits 1 stack 2 3 4 5 6 -\nH 4 digits 1 heap 2 3 4 5 6 7\nH 4 windows 1 stack 2 3 4 5 6\n\
-                    H 5 limbs 1 2 3\nH 5 inverse 1 2\nH 5 print 1 a label\nL 0 0\nL 2 7\nL 5 9\n";
+                    H 5 limbs 1 2 3\nH 5 inverse 1 2\nH 5 print 1 a label\nP 1 a/b.lean\nL 0 0\nL 2 7 1\nL 5 9\n";
         let program = Program::__from_text(text).unwrap();
         assert_eq!(program.__to_text(), text);
         assert_eq!(program.prog.len(), 16);
-        assert_eq!(program.src_lines, [0, 0, 7, 7, 7, 9]);
+        assert_eq!(program.src_lines, [(0, 0), (0, 0), (7, 1), (7, 1), (7, 1), (9, 0)]);
+        assert_eq!(program.site_at(2), "main (a/b.lean:7)");
+        assert_eq!(program.site_at(5), "main (line 9)");
     }
 }

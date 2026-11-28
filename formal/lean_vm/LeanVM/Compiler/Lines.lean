@@ -13,12 +13,12 @@ public import LeanVM.Compiler.Text
 /-!
 # Source lines
 
-The Rust compiler gives every instruction the line of the statement being lowered when it is
-emitted (`cur_line`, `lower.rs`; `CompiledProgram::src_lines`), so a failed `assert` names its
+Every instruction carries the source line (`SrcLine`: a file and a line) of the statement being
+lowered when it is emitted (`CompiledProgram::src_lines`), so a failed `assert` names its file and
 line. The back end's passes carry no lines, and adding them would change the definitions its
 proofs and its kernel-checked pieces are about, so the lines come from a pass of their own.
 
-* The elaboration records, with each line marker (`B.line`, where the Rust `stmt` set `cur_line`), the length of the trace so far (`Dsl.Program.assemble`): so each event of the trace has a line, that of the marker last before it.
+* The elaboration records, with each line marker (`B.line`; the guest's are written by its `do` blocks, `Dsl/Lines`), the length of the trace so far (`Dsl.Program.assemble`): so each event of the trace has a line, that of the marker last before it.
 * `placeBlockL` walks a function as `Place.placeBlock` does, calling Place's own steps for
   everything but the statements that hold blocks (a branch, a `match`), whose walks it repeats,
   and gives each placed statement the line of an event (`LTree`): a statement the line of its
@@ -41,19 +41,19 @@ open LeanVM.Core LeanVM.Compiler
 /-- The source lines of a placed statement's instructions. -/
 inductive LTree where
   /-- Every instruction on one line. -/
-  | flat (line : Nat)
+  | flat (line : SrcLine)
   /-- A branch: its head, its first block, its `else` jump, its second block. -/
-  | ite (head : Nat) (zero : List LTree) (els : Nat) (nonzero : List LTree)
+  | ite (head : SrcLine) (zero : List LTree) (els : SrcLine) (nonzero : List LTree)
   /-- A chain of `match`es: its head, then each arm of each stage, its exit included. -/
-  | chain (head : Nat) (stages : List (List (List LTree)))
+  | chain (head : SrcLine) (stages : List (List (List LTree)))
   deriving Inhabited
 
 /-- The line of each trace position `0..n`: the line of the statement begun last at or before
-it, `0` before the first. `marks` are `(position, line)` in order. -/
-def lineTable (marks : Array (Nat × Nat)) (n : Nat) : Array Nat := Id.run do
+it, none before the first. `marks` are `(position, line)` in order. -/
+def lineTable (marks : Array (Nat × SrcLine)) (n : Nat) : Array SrcLine := Id.run do
   let mut out := Array.emptyWithCapacity (n + 1)
   let mut i := 0
-  let mut cur := 0
+  let mut cur : SrcLine := {}
   for p in [0:n + 1] do
     while i < marks.size && (marks[i]!).1 ≤ p do
       cur := (marks[i]!).2
@@ -62,16 +62,16 @@ def lineTable (marks : Array (Nat × Nat)) (n : Nat) : Array Nat := Id.run do
   return out
 
 /-- The walk with the lines of the events it has yet to pass, and the line of the last it passed. -/
-abbrev L := StateT (List Nat × Nat) P
+abbrev L := StateT (List SrcLine × SrcLine) P
 
 /-- The line of the event the walk is at (`back := 0`), or of the one it passed last. -/
-def lineHere (back : Nat := 0) : L Nat := do
-  let (ahead, last) ← getThe (List Nat × Nat)
+def lineHere (back : Nat := 0) : L SrcLine := do
+  let (ahead, last) ← getThe (List SrcLine × SrcLine)
   return if back == 0 then ahead.headD last else last
 
 /-- One event passed. -/
 def passed : L Unit :=
-  modifyThe (List Nat × Nat) fun (ahead, last) => (ahead.tail, ahead.headD last)
+  modifyThe (List SrcLine × SrcLine) fun (ahead, last) => (ahead.tail, ahead.headD last)
 
 /-- `expect`, passing the event. -/
 def expectL (e : Event → Bool) (what : String) : L Unit := do
@@ -83,7 +83,7 @@ def placedCount : L Nat := do
   return (← getThe St).out.size
 
 /-- `m`, each statement it places on the line `line`. -/
-def tracked (line : Nat) (m : L Unit) (acc : Array LTree) : L (Array LTree) := do
+def tracked (line : SrcLine) (m : L Unit) (acc : Array LTree) : L (Array LTree) := do
   let n0 ← placedCount
   m
   return acc ++ Array.replicate ((← placedCount) - n0) (.flat line)
@@ -233,35 +233,35 @@ def placeBodyL (tf : TracedFn) : L (List LTree) := do
 
 /-- `placeFn`, with the lines of the function's statements. -/
 def placeFnL (loops : Loops) (sigs : SMap (Nat × Nat)) (tables : Tables) (tf : TracedFn)
-    (marks : Array (Nat × Nat)) : Except String (PFn × List LTree × Tables) :=
+    (marks : Array (Nat × SrcLine)) : Except String (PFn × List LTree × Tables) :=
   let lines := (lineTable marks tf.trace.size).toList
-  match (placeBodyL tf).run (lines, 0) (ctxOf loops sigs tf) (initSt loops tables tf) with
+  match (placeBodyL tf).run (lines, {}) (ctxOf loops sigs tf) (initSt loops tables tf) with
   | .error e => .error e
   | .ok ((trees, _), st) =>
       .ok ({ name := tf.core.name, body := st.out.toList, frameSize := st.next }, trees, st.tables)
 
 mutual
 /-- The lines of a placed statement's instructions, as `emitStmt` lays them out. -/
-def stmtLines : PStmt → LTree → Array Nat → Array Nat
+def stmtLines : PStmt → LTree → Array SrcLine → Array SrcLine
   | .ite _ _ _ _ zero hasElse _ _ nonzero, .ite h zt e nt, acc =>
       let acc := blockLines zero zt ((acc.push h).push h)
       if hasElse then blockLines nonzero nt ((acc.push e).push e) else acc
   | .chain _ _ _ _ _ _ _ stages, .chain h ts, acc =>
       stagesLines stages ts (((acc.push h).push h).push h)
   | p, .flat l, acc => acc ++ Array.replicate (stmtSize p) l
-  | p, _, acc => acc ++ Array.replicate (stmtSize p) 0
+  | p, _, acc => acc ++ Array.replicate (stmtSize p) {}
 
-def blockLines : List PStmt → List LTree → Array Nat → Array Nat
+def blockLines : List PStmt → List LTree → Array SrcLine → Array SrcLine
   | [], _, acc => acc
   | p :: ps, t :: ts, acc => blockLines ps ts (stmtLines p t acc)
-  | p :: ps, [], acc => blockLines ps [] (acc ++ Array.replicate (stmtSize p) 0)
+  | p :: ps, [], acc => blockLines ps [] (acc ++ Array.replicate (stmtSize p) {})
 
-def armsLines : List (List PStmt) → List (List LTree) → Array Nat → Array Nat
+def armsLines : List (List PStmt) → List (List LTree) → Array SrcLine → Array SrcLine
   | [], _, acc => acc
   | a :: as, t :: ts, acc => armsLines as ts (blockLines a t acc)
   | a :: as, [], acc => armsLines as [] (blockLines a [] acc)
 
-def stagesLines : List (List (List PStmt)) → List (List (List LTree)) → Array Nat → Array Nat
+def stagesLines : List (List (List PStmt)) → List (List (List LTree)) → Array SrcLine → Array SrcLine
   | [], _, acc => acc
   | s :: ss, t :: ts, acc => stagesLines ss ts (armsLines s t acc)
   | s :: ss, [], acc => stagesLines ss [] (armsLines s [] acc)
@@ -269,8 +269,8 @@ end
 
 /-- The functions placed in order, each with the lines of its instructions (`placeFns`). -/
 def placeFnsL (loops : Loops) (sigs : SMap (Nat × Nat)) :
-    List (TracedFn × Array (Nat × Nat)) → Tables →
-    Except String (List (Placed × Array Nat) × Tables)
+    List (TracedFn × Array (Nat × SrcLine)) → Tables →
+    Except String (List (Placed × Array SrcLine) × Tables)
   | [], tables => .ok ([], tables)
   | (tf, marks) :: rest, tables => do
       let (fn, trees, tables) ← placeFnL loops sigs tables tf marks
@@ -283,9 +283,10 @@ def placeFnsL (loops : Loops) (sigs : SMap (Nat × Nat)) :
 
 /-- The program `compileTraced` compiles from the traced functions `fns`, each with its source lines
 (`(trace position, line)`, as the front end records them), and the source line of each of its
-instructions before the padding, `0` for the jump tables. Fails when the walk here placed a
+instructions before the padding, none for the jump tables. Fails when the walk here placed a
 function otherwise than `compileTraced`. -/
-def compileLines (fns : List (TracedFn × Array (Nat × Nat))) : Except String (Assembled × Array Nat) := do
+def compileLines (fns : List (TracedFn × Array (Nat × SrcLine))) :
+    Except String (Assembled × Array SrcLine) := do
   let traced := fns.map (·.1)
   let c ← compileTraced traced
   let loops := loopTable (withConstTable traced)
@@ -295,9 +296,9 @@ def compileLines (fns : List (TracedFn × Array (Nat × Nat))) : Except String (
   let ours := assemble (pfs.map fun pf => (emitFn pf.fn).1) slots
   if render ours != render c then
     throw "the line pass placed the program otherwise than the back end"
-  let byName : SMap (Array Nat) := placed.foldl (init := {}) fun m (pf, ls) => m.insert pf.fn.name ls
+  let byName : SMap (Array SrcLine) := placed.foldl (init := {}) fun m (pf, ls) => m.insert pf.fn.name ls
   let lines := c.fns.foldl (init := #[]) fun acc (name, _, len) =>
-    acc ++ (byName[name]?).getD (Array.replicate len 0)
+    acc ++ (byName[name]?).getD (Array.replicate len {})
   return (c, lines)
 
 end

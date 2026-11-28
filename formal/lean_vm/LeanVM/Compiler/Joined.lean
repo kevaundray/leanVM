@@ -537,12 +537,12 @@ def markJoined (f : Fn) (trace : Array Event) : Array Event :=
 
 /-- `markJoined f trace`, and the source lines of the function's statements, `(n, line)` with `n`
 the events of the trace before the statement, moved to its positions: the pass run once. -/
-def markJoinedLines (f : Fn) (trace : Array Event) (lines : Array (Nat × Nat)) :
-    Array Event × Array (Nat × Nat) :=
+def markJoinedLines (f : Fn) (trace : Array Event) (lines : Array (Nat × SrcLine)) :
+    Array Event × Array (Nat × SrcLine) :=
   let parts := markJoinedParts f trace
   (parts.flatten.toArray, partsLines parts lines)
 
-theorem markJoinedLines_fst (f : Fn) (trace : Array Event) (lines : Array (Nat × Nat)) :
+theorem markJoinedLines_fst (f : Fn) (trace : Array Event) (lines : Array (Nat × SrcLine)) :
     (markJoinedLines f trace lines).1 = markJoined f trace := rfl
 
 end

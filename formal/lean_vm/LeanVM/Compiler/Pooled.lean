@@ -243,12 +243,12 @@ def markPooled (f : Fn) (trace : Array Event) : Array Event :=
 
 /-- `markPooled f trace`, and the source lines of the function's statements, `(n, line)` with `n`
 the events of the trace before the statement, moved to its positions: the pass run once. -/
-def markPooledLines (f : Fn) (trace : Array Event) (lines : Array (Nat × Nat)) :
-    Array Event × Array (Nat × Nat) :=
+def markPooledLines (f : Fn) (trace : Array Event) (lines : Array (Nat × SrcLine)) :
+    Array Event × Array (Nat × SrcLine) :=
   let parts := markPooledParts f trace
   (parts.flatten.toArray, partsLines parts lines)
 
-theorem markPooledLines_fst (f : Fn) (trace : Array Event) (lines : Array (Nat × Nat)) :
+theorem markPooledLines_fst (f : Fn) (trace : Array Event) (lines : Array (Nat × SrcLine)) :
     (markPooledLines f trace lines).1 = markPooled f trace := rfl
 
 /-! ## What the pass does -/

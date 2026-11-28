@@ -52,7 +52,7 @@ open LeanVM.Protocol.Verifier (gen)
 
 /-- A function elaborated, and its source lines (`(n, line)`: the statement at `line` begun when
 the trace held `n` events). -/
-abbrev Elab := TracedFn × Array (Nat × Nat)
+abbrev Elab := TracedFn × Array (Nat × SrcLine)
 
 /-- A materialized shifted pointer: the value `out` holds `base·g^exp`, made as
 `src · g^dist` (`src` the base itself or an earlier materialization of it). -/
@@ -69,7 +69,7 @@ structure St where
   tag : Nat := 1
   out : Array Stmt := #[]
   trace : Array Event := #[]
-  lines : Array (Nat × Nat) := #[]
+  lines : Array (Nat × SrcLine) := #[]
   /-- A hint emitted since the last instruction. -/
   pending : Bool := false
   /-- The function's name, which its loop helpers' names extend. -/
@@ -172,8 +172,10 @@ def hint (h : Hint) : B Unit := modify fun st =>
 /-- Record a trace event. -/
 def event (e : Event) : B Unit := modify fun st => { st with trace := st.trace.push e }
 
-/-- The statements from here on come from source line `l`. -/
-def line (l : Nat) : B Unit := modify fun st => { st with lines := st.lines.push (st.trace.size, l) }
+/-- The statements from here on come from source line `l` of `file` (none: a program that names
+no files). The guest's `do` blocks write these markers themselves (`Dsl/Lines`). -/
+def line (l : Nat) (file : String := "") : B Unit :=
+  modify fun st => { st with lines := st.lines.push (st.trace.size, { file, line := l }) }
 
 /-- The anchor a hint pending at the end of a block gets. -/
 def anchor : B Unit := do
@@ -369,7 +371,7 @@ end B
 /-! ## Functions -/
 
 /-- The three marking passes an expanded function goes through. -/
-def finish (core : Core.Fn) (trace : Array Event) (lines : Array (Nat × Nat)) (rets : Nat)
+def finish (core : Core.Fn) (trace : Array Event) (lines : Array (Nat × SrcLine)) (rets : Nat)
     (loop : Bool × Option Nat) : Elab :=
   let (named, l1) := markUnnamedLines core trace lines
   let (pooled, l2) := markPooledLines core named l1

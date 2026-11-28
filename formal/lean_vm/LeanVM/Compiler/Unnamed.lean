@@ -64,12 +64,12 @@ def markUnnamedParts (f : Fn) (trace : Array Event) : List (List Event) :=
 
 /-- `markUnnamed f trace`, and the source lines of the function's statements, `(n, line)` with
 `n` the events of the trace before the statement, moved to its positions: the pass run once. -/
-def markUnnamedLines (f : Fn) (trace : Array Event) (lines : Array (Nat × Nat)) :
-    Array Event × Array (Nat × Nat) :=
+def markUnnamedLines (f : Fn) (trace : Array Event) (lines : Array (Nat × SrcLine)) :
+    Array Event × Array (Nat × SrcLine) :=
   let parts := markUnnamedParts f trace
   (parts.flatten.toArray, partsLines parts lines)
 
-theorem markUnnamedLines_fst (f : Fn) (trace : Array Event) (lines : Array (Nat × Nat)) :
+theorem markUnnamedLines_fst (f : Fn) (trace : Array Event) (lines : Array (Nat × SrcLine)) :
     (markUnnamedLines f trace lines).1 = markUnnamed f trace := rfl
 
 /-- Every value the core function names is in `namedVals`. -/

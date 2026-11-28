@@ -7,6 +7,7 @@
 module
 
 public import LeanVM.Compiler.Ir
+public import LeanVM.Compiler.Trace
 
 /-!
 # The line format
@@ -71,14 +72,26 @@ def render (c : Assembled) : String :=
   let hints := c.hints.flatMap fun (pc, hs) => (hs.map (showHint pc)).toArray
   "\n".intercalate (head ++ fns ++ c.code.map showOp ++ hints).toList ++ "\n"
 
-/-- The source lines of a program's instructions in the same format (`src_lines`): `L pc line` at
-the first instruction and wherever the line changes. -/
-def renderLines (lines : Array Nat) : String := Id.run do
+/-- The source lines of a program's instructions in the same format (`src_lines`, `src_files`):
+`P k file` for each file the lines name, numbered from 1 in the order they first appear, then
+`L pc line k` (`L pc line` for a line in no file) at the first instruction and wherever the line
+changes. -/
+def renderLines (lines : Array SrcLine) : String := Id.run do
+  let mut files : Array String := #[]
+  let mut heads := ""
   let mut out := ""
   for pc in [0:lines.size] do
-    if pc == 0 || lines[pc - 1]! != lines[pc]! then
-      out := out ++ s!"L {pc} {lines[pc]!}\n"
-  return out
+    let l := lines[pc]!
+    if pc == 0 || lines[pc - 1]! != l then
+      if l.file.isEmpty then
+        out := out ++ s!"L {pc} {l.line}\n"
+      else
+        let k := (files.idxOf? l.file).getD files.size + 1
+        if k > files.size then
+          files := files.push l.file
+          heads := heads ++ s!"P {k} {l.file}\n"
+        out := out ++ s!"L {pc} {l.line} {k}\n"
+  return heads ++ out
 
 end
 

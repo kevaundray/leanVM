@@ -123,6 +123,7 @@ fn program(frame0: usize, iterations: &[Iteration], heap: bool, prefix: [Op; 2])
         main_frame: main(frame0) as u32,
         fn_ranges: Vec::new(),
         src_lines: Vec::new(),
+        src_files: Vec::new(),
     });
     let mut streams: Vec<_> = ["loop", "ptrs", "wptrs", "v0", "v1", "v2"]
         .map(|s| (s.to_string(), Vec::new()))

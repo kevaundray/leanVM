@@ -33,8 +33,11 @@ pub struct CompiledProgram {
     pub main_frame: u32,
     /// Function pc-ranges `(name, entry, len)`, for profiles and failure reports.
     pub fn_ranges: Vec<(String, u32, u32)>,
-    /// Source line of the statement that emitted each pc, shorter than `prog`, which is padded.
-    pub src_lines: Vec<u32>,
+    /// Source position of the statement that emitted each pc, `(line, file)`, shorter than `prog`, which is padded:
+    /// `file` is `k` for `src_files[k - 1]`, `0` for none, and `line` is `0` for none.
+    pub src_lines: Vec<(u32, u32)>,
+    /// The source files `src_lines` names.
+    pub src_files: Vec<String>,
 }
 
 impl CompiledProgram {
@@ -47,12 +50,19 @@ impl CompiledProgram {
         }
     }
 
-    /// Where `pc` came from: `"verify_sub (line 2204)"` when the compiler left a line for it, the function name alone
-    /// otherwise (a hand-assembled program, or padding). A run-time failure reports it.
+    /// Where `pc` came from: `"verify_sub (formal/lean_vm/LeanVM/Guest/Program/LeanXmss.lean:42)"` when the compiler
+    /// left a file and line for it, `"main (line 5)"` for a line in no file, the function name alone otherwise (a
+    /// hand-assembled program, or padding). A run-time failure reports it.
     pub fn site_at(&self, pc: u32) -> String {
+        let name = self.fn_at(pc);
         match self.src_lines.get(pc as usize) {
-            Some(&line) if line != 0 => format!("{} (line {line})", self.fn_at(pc)),
-            _ => self.fn_at(pc).to_string(),
+            Some(&(line, file)) if line != 0 => {
+                match file.checked_sub(1).and_then(|k| self.src_files.get(k as usize)) {
+                    Some(path) => format!("{name} ({path}:{line})"),
+                    None => format!("{name} (line {line})"),
+                }
+            }
+            _ => name.to_string(),
         }
     }
 

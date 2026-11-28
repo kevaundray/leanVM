@@ -315,6 +315,7 @@ mod tests {
             main_frame,
             fn_ranges: Vec::new(),
             src_lines: Vec::new(),
+            src_files: Vec::new(),
         })
     }
 
