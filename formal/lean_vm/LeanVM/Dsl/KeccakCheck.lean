@@ -12,7 +12,8 @@ import LeanVM.Dsl.Check
 # The Keccak ports against `Expand`
 
 As in `LeanVM.Dsl.Check`: the core functions are equal once their values are numbered by first
-occurrence (`Check.sameCore`). A real function is expanded from its exported source, a `Const`
+occurrence (`Check.sameCore`), and so are the allocation traces (`Check.sameTrace`): the ports are
+faithful, `@inline` site values and `use` events included. A real function is expanded from its exported source, a `Const`
 instance from its specialization (`Expand.specializeFn`), and an `@inline` function or a single
 builtin from a small source function calling it, written here as the zkDSL text in the port's
 docstring parses. Every builtin's form the guest uses is reached: `keccak` with list, frame and
@@ -30,9 +31,13 @@ open LeanVM.Core.Source (Expr Func Param Shape)
 /-- The exported guest. -/
 abbrev guest : Source.Program := LeanVM.Guest.Data.guest
 
-/-- What `Expand` makes of a source function `f` added to the guest. -/
-def expandedWith (f : Func) : List Core.Fn :=
-  expanded { guest with funcs := guest.funcs ++ [f] } f
+/-- The guest with a source function `f` added. -/
+def guestWith (f : Func) : Source.Program := { guest with funcs := guest.funcs ++ [f] }
+
+/-- The ports `fs` elaborate to what `Expand` makes of `f` in `p`: the same core functions and the
+same traces, up to the numbering of values. -/
+def same (fs : List GFn) (p : Source.Program) (f : Func) : Bool :=
+  sameCore (elaborated fs) (expanded p f) && sameTrace (elaboratedTraced fs) (expandedTraced p f)
 
 /-- A statement at line `0`. -/
 def st (k : Source.StmtKind) : Source.Stmt := .mk 0 k
@@ -48,16 +53,15 @@ def kw (key : String) (v : Expr) : Expr := .call s!"__kw_{key}" [v]
 
 /-! ## Real functions -/
 
-#guard sameCore (elaborated [statementDigest]) (expanded guest (src "statement_digest"))
+#guard same [statementDigest] guest (src "statement_digest")
 
-#guard sameCore (elaborated [daVerifyCell]) (expanded guest (src "da_verify_cell"))
+#guard same [daVerifyCell] guest (src "da_verify_cell")
 
 /-- `claim_list_last` specialized at `k`, as the compiler queues it. -/
 def claimListLastSrc (k : Nat) : Func :=
   (Expand.specializeFn (src "claim_list_last") [.lit k]).toOption.getD default
 
-#guard (List.range CLAIM_GROUP).all fun k =>
-  sameCore (elaborated [claimListLast k]) (expanded guest (claimListLastSrc k))
+#guard (List.range CLAIM_GROUP).all fun k => same [claimListLast k] guest (claimListLastSrc k)
 
 /-! ## `@inline` functions and single builtins, called from a function of their own -/
 
@@ -68,22 +72,23 @@ def fsPermSrc (spCells k : Nat) : Func :=
     body := [st (.call "fs_perm" [.var "sp", .var "rate", .lit k]), st (.ret [])] }
 
 #guard (List.range 5).all fun k =>
-  sameCore (elaborated [fsPermAt KECCAK_STATE k]) (expandedWith (fsPermSrc KECCAK_STATE k))
+  same [fsPermAt KECCAK_STATE k] (guestWith (fsPermSrc KECCAK_STATE k)) (fsPermSrc KECCAK_STATE k)
 
-#guard sameCore (elaborated [fsPermAt 5 4]) (expandedWith (fsPermSrc 5 4))
+#guard same [fsPermAt 5 4] (guestWith (fsPermSrc 5 4)) (fsPermSrc 5 4)
 
-/-- `def walk_window_at(n0, n1, path: StackBuf(4 * width)): return walk_window(n0, n1, path, 0,
-width, k)`. -/
+/-- `walk_window_at`, its source as in `walkWindowAt`'s docstring. -/
 def walkWindowSrc (width k : Nat) : Func :=
   { name := s!"walk_window_at_{width}_{k}",
-    params := [scalar "n0", scalar "n1", buf "path" (4 * width)],
-    returnShapes := [.scalar, .scalar], inline := false,
+    params := [scalar "n0", scalar "n1", buf "path" (4 * width), buf "out" 2],
+    returnShapes := [], inline := false,
     body := [st (.letTuple ["a", "b"] "walk_window"
         [.var "n0", .var "n1", .var "path", .lit 0, .lit width, .lit k]),
-      st (.ret [.var "a", .var "b"])] }
+      st (.store (.var "out") (.lit 0) (.var "a")),
+      st (.store (.var "out") (.lit 1) (.var "b")),
+      st (.ret [])] }
 
 #guard [(6, 37), (3, 0), (2, 3)].all fun (w, k) =>
-  sameCore (elaborated [walkWindowAt w k]) (expandedWith (walkWindowSrc w k))
+  same [walkWindowAt w k] (guestWith (walkWindowSrc w k)) (walkWindowSrc w k)
 
 /-- `sp_word_leaf`, its source as in `spWordLeaf`'s docstring. -/
 def spWordLeafSrc : Func :=
@@ -97,7 +102,7 @@ def spWordLeafSrc : Func :=
           .var "leaf"]),
       st (.ret [.index (.var "leaf") (.lit 0)])] }
 
-#guard sameCore (elaborated [spWordLeaf]) (expandedWith spWordLeafSrc)
+#guard same [spWordLeaf] (guestWith spWordLeafSrc) spWordLeafSrc
 
 /-- `pad_tail_at`, its source as in `padTailAt`'s docstring. -/
 def padTailSrc : Func :=
@@ -112,7 +117,7 @@ def padTailSrc : Func :=
           kw "pad_tail" (.lit 1)]),
       st (.ret [.index (.var "parent") (.lit 0)])] }
 
-#guard sameCore (elaborated [padTailAt]) (expandedWith padTailSrc)
+#guard same [padTailAt] (guestWith padTailSrc) padTailSrc
 
 /-- `heap_pair`, its source as in `heapPair`'s docstring. -/
 def heapPairSrc : Func :=
@@ -122,6 +127,6 @@ def heapPairSrc : Func :=
           .slice (.var "b") (.lit 0) (.lit 2)]),
       st (.ret [])] }
 
-#guard sameCore (elaborated [heapPair]) (expandedWith heapPairSrc)
+#guard same [heapPair] (guestWith heapPairSrc) heapPairSrc
 
 end LeanVM.Dsl.KeccakCheck

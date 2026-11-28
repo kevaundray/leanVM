@@ -85,11 +85,6 @@ theorem spec_copyRun (cells : List Msg) :
     exact hall (cells[k], t[k]) (List.mem_iff_getElem.mpr
       ⟨k, by simp [hl, hk], by simp⟩)
 
-/-- Recording a constant emits nothing. -/
-theorem poolConst_out (c : E) (st : St) : ((Keccak.poolConst c).run st).2.out = st.out := by
-  show (if st.consts.contains c then st else { st with consts := c :: st.consts }).out = st.out
-  split <;> rfl
-
 /-- The padding run set: its values hold `[0x01, 0, 0, 0, 0]`. -/
 theorem spec_setPadRun : Spec C rd Keccak.setPadRun (fun o σ => o.map σ = padValues) := by
   refine Spec.mono (Spec.bind (spec_freshRun 5 .padRun) fun o =>
@@ -98,7 +93,7 @@ theorem spec_setPadRun : Spec C rd Keccak.setPadRun (fun o σ => o.map σ = padV
         Spec.bind (Spec.silent (m := modify fun st => { st with keccakPad := some o })
           fun _ => rfl) fun _ => Spec.pure o) ?_
   · obtain ⟨v, k⟩ := x
-    exact Spec.mono (Spec.bind (spec_atom _) fun _ => Spec.silent (poolConst_out _))
+    exact Spec.mono (Spec.bind (spec_atom _) fun _ => spec_poolConst _)
       (by rintro _ σ ⟨_, h, -⟩; exact h)
   · rintro o σ ⟨_, hl, _, hall, _, -, rfl⟩
     refine List.ext_getElem (by simp [hl, padValues]) fun k h1 h2 => ?_

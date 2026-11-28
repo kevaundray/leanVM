@@ -54,6 +54,15 @@ open LeanVM.Protocol.Verifier (gen)
 the trace held `n` events). -/
 abbrev Elab := TracedFn × Array (Nat × Nat)
 
+/-- A materialized shifted pointer (`Expand.Mat`): the value `out` holds `base·g^exp`, made as
+`src · g^dist` (`src` the base itself or an earlier materialization of it). -/
+structure Mat where
+  exp : Nat
+  out : V
+  src : V
+  dist : Nat
+  deriving Inhabited
+
 /-- The elaboration state of one function. -/
 structure St where
   /-- The tag of the next allocation. -/
@@ -67,11 +76,17 @@ structure St where
   name : String := ""
   /-- The loop helpers made so far, in order. -/
   helpers : Array Elab := #[]
-  /-- The run `[0x01, 0, 0, 0, 0]` set for the `keccak`s of this scope (`Expand.St.keccakPad`),
-  local to a block as the expansion's is to a branch or an arm. -/
+  /-- The Keccak padding run set in this scope (`Expand`'s `keccakPad`). -/
   keccakPad : Option (List V) := none
-  /-- The constants set in this scope (`Expand.St.consts`). -/
+  /-- The constants set in this scope by `const` and `gconst` (`Expand`'s `consts`). -/
   consts : List E := []
+  /-- The shifted pointers materialized in this scope, by base (`Expand`'s `mats`). -/
+  mats : List (V × List Mat) := []
+  /-- The run each `addr` pointer names. -/
+  addrRuns : List (V × List V) := []
+  /-- Whether the trace also carries what is advice only to placement and `Expand` records: the
+  `use` events of aliases and the site values of inlined calls. -/
+  faithful : Bool := true
   deriving Inhabited
 
 /-- The builder. -/
@@ -83,6 +98,8 @@ inductive Ty where
   | bit
   /-- `g^k` for some `k < n`. -/
   | gpow (n : Nat)
+  /-- An element of `K`. -/
+  | inK
   deriving DecidableEq, Repr, Inhabited
 
 /-- A runtime value of type `τ`. -/
@@ -101,16 +118,32 @@ structure Hinted where
 /-- Any value, seen as a word. -/
 def Var.word {τ : Ty} (x : Var τ) : Word := ⟨x.v⟩
 
-/-- A returned value: a value, or a constant set into the return area. -/
+/-- A returned value, written into its return cell as `Expand.exprInto` writes it: a copy of a
+value, a constant, a sum, a product, a heap word; or any action writing the cell, run in order
+with the others (`into`: a faithful port's `return f(x)` or `return a * b`, the operands lowered
+after the cells before it are written). -/
 inductive Ret where
   | v (x : V)
   | c (e : E)
+  | add (a b : V)
+  | mul (a b : V)
+  | load (p : V) (off : Nat)
+  | into (w : V → B Unit)
   deriving Inhabited
 
-/-- The word a returned value holds. -/
-def Ret.eval (σ : Val) : Ret → E
+/-- The word a returned value holds (`into` holds no word the logic reads). -/
+def Ret.eval (rd : Reader) (σ : Val) : Ret → E
   | .v x => σ x
   | .c e => e
+  | .add a b => σ a + σ b
+  | .mul a b => σ a * σ b
+  | .load p off => (rd ((σ p).limb 0 * addressOfIndex off)).getD 0
+  | .into _ => 0
+
+/-- A returned value the logic reads: not `into`. -/
+def Ret.isPure : Ret → Bool
+  | .into _ => false
+  | _ => true
 
 namespace B
 
@@ -147,33 +180,58 @@ def anchor : B Unit := do
   let o ← fresh
   atom (.const o 0)
 
+/-- `m`, then an anchor if it leaves a hint pending. -/
+def closed {α : Type} (m : B α) : B α :=
+  m >>= fun a => get >>= fun st => (if st.pending then anchor else pure ()) >>= fun _ => pure a
+
 /-- Run `m` as a block of its own: its statements are returned, not appended, between an `enter`
-and a `leave` event, with an anchor for a hint left pending (`Expand.branch`). -/
+and a `leave` event, with an anchor for a hint left pending; the scope's padding run, constants
+and materialized pointers are the enclosing ones again after it (`Expand.branch`). -/
 def block {α : Type} (m : B α) : B (α × List Stmt) := do
   let st ← get
   set { st with out := #[], pending := false }
   event .enter
-  let a ← m
-  if (← get).pending then anchor
+  let a ← closed m
   event .leave
   let st' ← get
   set { st' with out := st.out, pending := st.pending, keccakPad := st.keccakPad,
-                 consts := st.consts }
+                 consts := st.consts, mats := st.mats }
   return (a, st'.out.toList)
 
 /-! ## Arithmetic -/
+
+/-- Record `c` as a constant set in this scope (`Expand.poolConst`). -/
+def poolConst (c : E) : B Unit :=
+  modify fun st => if st.consts.contains c then st else { st with consts := c :: st.consts }
 
 /-- A constant (`Expand.constCell`). -/
 def const (c : E) : B Word := do
   let o ← fresh .pooled
   atom (.const o c)
+  poolConst c
   return ⟨o⟩
 
 /-- `g^e`. -/
 def gconst (e : Nat) : B (Var (.gpow (e + 1))) := do
   let o ← fresh .pooled
   atom (.const o (gen ^ e))
+  poolConst (gen ^ e)
   return ⟨o⟩
+
+/-- `d = c` for a cell `d` (`Expand.exprInto` of a constant). -/
+def constInto {ρ : Ty} (d : Var ρ) (c : E) : B Unit := atom (.const d.v c)
+
+/-- `d = a + b` for a cell `d`. -/
+def addInto {ρ σ τ : Ty} (d : Var ρ) (a : Var σ) (b : Var τ) : B Unit := atom (.add d.v a.v b.v)
+
+/-- `d = s`, a copy. -/
+def copy {ρ σ : Ty} (d : Var ρ) (s : Var σ) : B Unit := atom (.copy d.v s.v)
+
+/-- `a / b` into a fresh cell `q`, as `a = q · b`. -/
+def fdiv {σ τ : Ty} (a : Var σ) (b : Var τ) : B Word := do
+  let q ← fresh
+  atom (.mul a.v q b.v)
+  return ⟨q⟩
 
 /-- `a + b` (`XOR`) into a fresh value (`Expand.pureAdd`). -/
 def add {σ τ : Ty} (a : Var σ) (b : Var τ) : B Word := do
@@ -232,6 +290,9 @@ def load {τ : Ty} (p : Var τ) (off : Nat) : B Word := do
 /-- Store `v` at `p·g^off`: the same `DEREF`, the write-once memory making it a write or a check. -/
 def store {σ τ : Ty} (p : Var σ) (off : Nat) (v : Var τ) : B Unit := atom (.load v.v p.v off)
 
+/-- `d = [p·g^off]` for a cell `d` (`Expand.exprInto` of a heap read): the `DEREF` of `store`. -/
+def loadInto {ρ σ : Ty} (d : Var ρ) (p : Var σ) (off : Nat) : B Unit := atom (.load d.v p.v off)
+
 /-- A fresh heap buffer of `size` words (`HeapBuf(size)`). -/
 def heapBuf (size : Nat) : B Word := do
   let p ← fresh
@@ -249,15 +310,21 @@ def hintBitsExp {τ : Ty} (x : Var τ) (n : Nat) : B (List Hinted) := do
   hint (.bitsExp x.v n (.stack run))
   return run.map Hinted.mk
 
-/-- `assert log x < n` (`Expand.lowerAssertLt` at a constant bound): `x` is `g^k`, `k < n`,
-in a memory of at least `n` words. -/
-def rangeCheck {τ : Ty} (x : Var τ) (n : Nat) : B (Var (.gpow n)) := do
-  let k ← const (gpowE (n - 1))
+/-- `assert log x < log (g·k)`, `k` holding the bound less one in the exponent: a `DEREF` through
+`x`, `k = x·y`, a `DEREF` through `y` (`Expand.lowerAssertLt` after its bound). -/
+def rangeCheckK {τ ρ : Ty} (x : Var τ) (k : Var ρ) : B Word := do
   let y ← fresh
   let t1 ← fresh
   let t2 ← fresh
   atom (.rangeCheck x.v y t1 t2 k.v)
   return ⟨x.v⟩
+
+/-- `assert log x < n` (`Expand.lowerAssertLt` at a constant bound): `x` is `g^k`, `k < n`,
+in a memory of at least `n` words. -/
+def rangeCheck {τ : Ty} (x : Var τ) (n : Nat) : B (Var (.gpow n)) := do
+  let k ← const (gpowE (n - 1))
+  let r ← rangeCheckK x k
+  return ⟨r.v⟩
 
 /-! ## Control -/
 
@@ -275,11 +342,15 @@ def call (f : String) (args : List V) (nrets : Nat) : B (List Word) := do
   emit (.call f args rets)
   return rets.map Var.mk
 
-/-- Write the returned values into the return area: a value copied, a constant set
-(`Expand.returnInto`). -/
+/-- Write the returned values into the return area as `Expand.exprInto` writes each into its
+cell. -/
 def retInto : List V → List Ret → B Unit
   | r :: rs, .v x :: xs => do atom (.copy r x); retInto rs xs
   | r :: rs, .c e :: xs => do atom (.const r e); retInto rs xs
+  | r :: rs, .add a b :: xs => do atom (.add r a b); retInto rs xs
+  | r :: rs, .mul a b :: xs => do atom (.mul r a b); retInto rs xs
+  | r :: rs, .load p off :: xs => do atom (.load r p off); retInto rs xs
+  | r :: rs, .into w :: xs => do w r; retInto rs xs
   | _, _ => pure ()
 
 /-- `return vs` up to its `ret`: the return area, written (`Expand.lowerReturn`). -/
@@ -305,13 +376,30 @@ def finish (core : Core.Fn) (trace : Array Event) (lines : Array (Nat × Nat)) (
   let (joined, l3) := markJoinedLines core pooled l2
   (⟨core, joined, rets, loop, []⟩, l3)
 
+/-- The shape of a parameter or a returned value: one cell, or a `StackBuf(n)` run of `n`. -/
+inductive Shape where
+  | scalar
+  | buf (n : Nat)
+  deriving DecidableEq, Repr, Inhabited
+
+/-- The cells of a shape. -/
+def Shape.cells : Shape → Nat
+  | .scalar => 1
+  | .buf n => n
+
+/-- Cells cut into consecutive runs, one per shape (a function's parameters, flattened). -/
+def splitRuns : List Shape → List V → List (List V)
+  | [], _ => []
+  | s :: ss, vs => vs.take s.cells :: splitRuns ss (vs.drop s.cells)
+
 /-- A guest function: its name, its number of argument and return cells, and its body, from the
-parameters' values to the returned ones. -/
+parameters' values to the returned ones; `faithful` as `St.faithful`. -/
 structure GFn where
   name : String
   arity : Nat
   rets : Nat
   body : List V → B (List Ret)
+  faithful : Bool := true
 
 /-- The parameters' values. -/
 def params (n : Nat) : List V := (List.range n).map V.param
@@ -319,7 +407,7 @@ def params (n : Nat) : List V := (List.range n).map V.param
 /-- A function's body and its `return`, run from the empty state. -/
 def GFn.run (f : GFn) : (List Ret × List V) × St :=
   (do let rs ← f.body (params f.arity); let area ← B.retArea rs; return (rs, area)).run
-    { name := f.name }
+    { name := f.name, faithful := f.faithful }
 
 /-- A function's core function: what its body and its return area emit, then its `ret`. -/
 def GFn.core (f : GFn) : Core.Fn :=
@@ -338,7 +426,7 @@ namespace B
 its own body made. -/
 def helper (name : String) (arity : Nat) (body : List V → B Unit) (hi : Option Nat) : B Unit := do
   let ps := params arity
-  let ((), st) := (do body ps; ret []).run { name }
+  let ((), st) := (do body ps; ret []).run { name, faithful := (← get).faithful }
   let core : Core.Fn := ⟨name, ps, st.out.toList⟩
   modify fun s => { s with helpers := (s.helpers.push (finish core st.trace st.lines 0 (true, hi))) ++ st.helpers }
 
@@ -386,6 +474,65 @@ def loopRt {τ : Ty} (lo : Nat) (hi : B (Var τ)) (caps : List V) (body : Word �
   let x1 ← gconst lo
   let h1 ← hi
   emit (.callIf c.v name (x1.v :: h1.v :: caps))
+
+/-- The value `x · g` the step of a faithful loop passes on: as `Expand.materialize` makes the
+shifted counter, a product with `g`, the second one in a scope reusing the first's base. -/
+def stepOf (x : Word) : B Word := do
+  let st ← get
+  let mats := ((st.mats.find? (·.1 == x.v)).map (·.2)).getD []
+  match mats.find? (·.exp == 1) with
+  | some m =>
+      let c ← const (gpowE m.dist)
+      mul (⟨m.src⟩ : Word) c
+  | none =>
+      let c ← const (gpowE 1)
+      let o ← mul x c
+      modify fun st => { st with
+        mats := (x.v, mats ++ [⟨1, o.v, x.v, 1⟩]) :: st.mats.filter (·.1 != x.v) }
+      return o
+
+/-- `for x in mul_range(g^lo, g^hi)` at compile-time bounds as the zkDSL lowers it
+(`Expand.lowerFor`, `.const`): the helper takes the counter and the captures, its exit test and its
+self-call each make `x · g` (`stepOf`); the caller calls it once, unless `lo = hi`. The captures
+are an action, lowered at the call (a capture bound to a constant or a shifted pointer is made
+there); `ncaps` counts their cells. -/
+def loopConstF (lo hi : Nat) (ncaps : Nat) (caps : B (List V))
+    (body : Word → List V → B Unit) : B Unit := do
+  let name ← loopName
+  helper name (ncaps + 1) (fun ps => do
+    let x : Word := ⟨ps.head!⟩
+    body x ps.tail
+    let nx ← stepOf x
+    let ex ← const (gpowE hi)
+    let c ← add nx ex
+    let nx2 ← stepOf x
+    emit (.callIf c.v name (nx2.v :: ps.tail))) (some hi)
+  if lo ≠ hi then
+    let x0 ← const (gpowE lo)
+    let cs ← caps
+    emit (.call name (x0.v :: cs) [])
+
+/-- `for x in mul_range(g^lo, hi)` at a runtime bound as the zkDSL lowers it (`Expand.lowerFor`,
+`.runtime`): `loopRt` with the stepped counter made by `stepOf` and the captures an action lowered
+after the entry test, at the call. -/
+def loopRtF {τ : Ty} (lo : Nat) (hi : B (Var τ)) (ncaps : Nat) (caps : B (List V))
+    (body : Word → List V → B Unit) : B Unit := do
+  let name ← loopName
+  helper name (ncaps + 2) (fun ps => do
+    let x : Word := ⟨ps.head!⟩
+    let bnd : Word := ⟨ps[1]!⟩
+    body x (ps.drop 2)
+    let nx ← stepOf x
+    let c ← add nx bnd
+    let nx2 ← stepOf x
+    emit (.callIf c.v name (nx2.v :: bnd.v :: ps.drop 2))) none
+  let x0 ← const (gpowE lo)
+  let h0 ← hi
+  let c ← add x0 h0
+  let x1 ← const (gpowE lo)
+  let h1 ← hi
+  let cs ← caps
+  emit (.callIf c.v name (x1.v :: h1.v :: cs))
 
 end B
 

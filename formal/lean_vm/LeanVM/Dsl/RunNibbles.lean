@@ -112,7 +112,7 @@ theorem spec_gpowOfBits : ∀ bs : List (Var .bit),
 `g^(n / 4)`. -/
 theorem spec_selectorRunNibbles :
     Spec C rd (selectorRunNibbles.body (params 1)) (fun rs σ =>
-      ∃ n < 64, σ (V.param 0) = gen ^ n ∧ rs.map (Ret.eval σ) = [gen ^ (n / 4)]) := by
+      ∃ n < 64, σ (V.param 0) = gen ^ n ∧ rs.map (Ret.eval rd σ) = [gen ^ (n / 4)]) := by
   refine Spec.mono (Spec.bind (spec_hintBitsExp _ 6) fun nb =>
     Spec.bind (Spec.forM nb (P := fun h σ => σ h.v * σ h.v = σ h.v) fun h _ =>
       Spec.mono (Spec.bind (spec_assertBit h) fun _ => Spec.pure ())

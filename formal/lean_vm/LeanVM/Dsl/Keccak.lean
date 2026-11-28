@@ -104,10 +104,6 @@ def resolve : Operand → B (List Msg)
   | .cells (.frame vs) => pure (vs.map .cell)
   | .cells (.heap ptr lo len) => do return (← loadRun ptr lo len).map .cell
 
-/-- Record `c` as a constant set in this scope (`Expand.poolConst`). -/
-def poolConst (c : E) : B Unit :=
-  modify fun st => if st.consts.contains c then st else { st with consts := c :: st.consts }
-
 /-- The padding values `[0x01, 0, 0, 0, 0]`: the message's first padding byte, then zeros. -/
 def padValues : List E := [keccakPadValue, 0, 0, 0, 0]
 
@@ -116,7 +112,7 @@ def setPadRun : B (List V) := do
   let o ← B.freshRun 5 .padRun
   o.zipIdx.forM fun (v, k) => do
     B.atom (.const v (padValues.getD k 0))
-    poolConst (padValues.getD k 0)
+    B.poolConst (padValues.getD k 0)
   modify fun st => { st with keccakPad := some o }
   return o
 

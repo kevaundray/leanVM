@@ -9,6 +9,7 @@
 module
 
 public import LeanVM.Dsl.Keccak
+public import LeanVM.Dsl.Mem
 public import LeanVM.Guest.Data.Source
 
 /-!
@@ -17,10 +18,11 @@ public import LeanVM.Guest.Data.Source
 Each function is written once, with the zkDSL source it replaces in its docstring. A `StackBuf`
 is a Lean `List V` of frame values and a slice of one is `List.extract`; a heap slice is
 `Cells.heap ptr lo len`, which the builtin reads or writes through fresh values. The `@inline`
-functions (`fsPerm`, `walkWindow`, `spWord`) are Lean functions emitting into their caller's frame;
-`fsPermAt`, `walkWindowAt`, `spWordLeaf`, `padTailAt` and `heapPair` call them, or the builtin
-alone, from a function of their own for the comparison with `Expand`, as `isChildAt0` does in
-`LeanVM.Dsl.Guest`.
+functions (`fsPerm`, `walkWindow`, `spWord`) are Lean functions emitting into their caller's frame,
+called through `B.inline` (the site value `Expand` allocates) with `B.use` where `Expand` reads an
+argument or a returned alias; `fsPermAt`, `walkWindowAt`, `spWordLeaf`, `padTailAt` and `heapPair`
+call them, or the builtin alone, from a function of their own for the comparison with `Expand`, as
+`isChildAt0` does in `LeanVM.Dsl.Guest`.
 -/
 
 namespace LeanVM.Dsl.KeccakGuest
@@ -30,6 +32,9 @@ open LeanVM.Parameters LeanVM.Core LeanVM.Dsl
 @[expose] public section
 
 /-! ## Configuration -/
+
+/-- A value as a word. -/
+abbrev word (v : V) : Word := ⟨v⟩
 
 def KECCAK_STATE : Nat := LeanVM.Guest.Data.const_KECCAK_STATE
 def STMT_CELLS : Nat := LeanVM.Guest.Data.const_STMT_CELLS
@@ -61,9 +66,9 @@ def statementDigest : GFn where
   rets := 2
   body ps := do
     let cells ← B.stackBuf STMT_CELLS
-    (List.range STMT_HEADER).forM fun i => B.atom (.copy cells[i]! ps[i]!)
+    (List.range STMT_HEADER).forM fun i => B.copy (word cells[i]!) (word ps[i]!)
     (List.range DEFER_STMT_CELLS).forM fun i =>
-      B.atom (.load cells[STMT_DEFER_OFF + i]! ps[STMT_HEADER]! i)
+      B.loadInto (word cells[STMT_DEFER_OFF + i]!) (word ps[STMT_HEADER]!) i
     let st ← B.stackBuf 2
     B.keccakCells (.frame cells) (.frame st)
     return [.v st[0]!, .v st[1]!]
@@ -95,7 +100,7 @@ def claimListLast (k : Nat) : GFn where
       B.keccakCells (.words [.zero]) (.frame digest) (state := some (.heap state 0 KECCAK_STATE))
         (len := some 0)
     else
-      (List.range k).forM fun j => B.hint (.witness "claims" (.heap blk (4 * j) 4))
+      (List.range k).forM fun j => B.witness "claims" (.heap blk (4 * j) 4)
       B.keccakCells (.heap blk 0 (4 * k)) (.frame digest)
         (state := some (.heap state 0 KECCAK_STATE))
     return [.v digest[0]!, .v digest[1]!]
@@ -132,7 +137,7 @@ def daVerifyCell : GFn where
   rets := 3
   body ps := do
     let sym ← B.stackBuf DA_CELL
-    B.hint (.witness "da_symbols" (.stack sym))
+    B.witness "da_symbols" (.stack sym)
     let s ← innerProduct ⟨ps[0]!⟩ sym none (List.range DA_CELL)
     let st ← B.stackBuf 2
     B.keccakCells (.frame sym) (.frame st)
@@ -168,8 +173,8 @@ def fsPerm (sp rate : List V) (k : Nat) : B (List V) := do
   if k = 2 then
     B.keccakDuplex (.frame (rate.extract 0 2)) (.frame (rate.extract 2 4)) (.frame nxt) (.frame sp)
   if k = 3 then
-    B.atom (.const rate[6]! 0)
-    B.atom (.const rate[7]! 0)
+    B.constInto (word rate[6]!) 0
+    B.constInto (word rate[7]!) 0
   if k = 3 ∨ k = 4 then
     B.keccakDuplex (.frame (rate.extract 0 2)) (.frame (rate.extract 2 4)) (.frame nxt) (.frame sp)
       (tail := some (.frame (rate.extract 4 8)))
@@ -182,7 +187,7 @@ def fsPermAt (spCells k : Nat) : GFn where
   arity := spCells + 8
   rets := 0
   body ps := do
-    discard <| fsPerm (ps.take spCells) (ps.drop spCells) k
+    discard <| B.inline "fs_perm" (fsPerm (ps.take spCells) (ps.drop spCells) k)
     return []
 
 /-! ## `walk_window`: Merkle hash pairs in the frame -/
@@ -209,6 +214,10 @@ def walkWindow (n0 n1 : V) (path : List V) (lvl0 width k : Nat) : B (V × V) := 
   for r in List.range width do
     let lvl := lvl0 + r
     let nxt ← B.stackBuf 2
+    -- The first level reads the arguments, which the zkDSL binds as aliases.
+    if r = 0 then
+      n0 := (← B.use (word n0)).v
+      n1 := (← B.use (word n1)).v
     let node : Operand := .words [.cell n0, .cell n1]
     if (k / 2 ^ r) % 2 = 0 then
       B.keccak node (.frame (path.extract (4 * lvl + 2) (4 * lvl + 4))) (.frame nxt)
@@ -218,15 +227,28 @@ def walkWindow (n0 n1 : V) (path : List V) (lvl0 width k : Nat) : B (V × V) := 
     n1 := nxt[1]!
   return (n0, n1)
 
-/-- A function returning `walk_window(n0, n1, path, 0, width, k)` on a `StackBuf(4 * width)`
-path, for the comparison. -/
+/-- A function storing `walk_window(n0, n1, path, 0, width, k)` into a `StackBuf(2)`, on a
+`StackBuf(4 * width)` path, for the comparison:
+
+```
+def walk_window_at(n0, n1, path: StackBuf(4 * width), out: StackBuf(2)):
+    a, b = walk_window(n0, n1, path, 0, width, k)
+    out[0] = a
+    out[1] = b
+    return
+```
+-/
 def walkWindowAt (width k : Nat) : GFn where
   name := s!"walk_window_at_{width}_{k}"
-  arity := 2 + 4 * width
-  rets := 2
+  arity := 2 + 4 * width + 2
+  rets := 0
   body ps := do
-    let (a, b) ← walkWindow ps[0]! ps[1]! (ps.drop 2) 0 width k
-    return [.v a, .v b]
+    let path := ps.extract 2 (2 + 4 * width)
+    let out := ps.drop (2 + 4 * width)
+    let (a, b) ← B.inline "walk_window" (walkWindow ps[0]! ps[1]! path 0 width k)
+    B.copy (word out[0]!) (← B.use (word a))
+    B.copy (word out[1]!) (← B.use (word b))
+    return []
 
 /-! ## `sp_word`: a list comprehension of `@inline` words -/
 
@@ -265,8 +287,10 @@ def spWordLeaf : GFn where
   rets := 1
   body ps := do
     let leaf ← B.stackBuf 1
-    let words := (List.range (SP_V + 3)).map fun j =>
-      Msg.cell (spWord ps[0]! ps[1]! ps[2]! (ps.drop 3) (CHAIN_STEPS - 1) CHAIN_STEPS j)
+    let words ← (List.range (SP_V + 3)).mapM fun j => do
+      let w ← B.inline "sp_word"
+        (pure (spWord ps[0]! ps[1]! ps[2]! (ps.drop 3) (CHAIN_STEPS - 1) CHAIN_STEPS j))
+      return Msg.cell (← B.use (word w)).v
     B.keccakCells (.words words) (.frame leaf)
     return [.v leaf[0]!]
 
@@ -289,7 +313,7 @@ def padTailAt : GFn where
   rets := 1
   body ps := do
     let kids ← B.stackBuf 5
-    B.hint (.witness "siblings" (.stack (kids.take 2)))
+    B.witness "siblings" (.stack (kids.take 2))
     let parent ← B.stackBuf 1
     B.keccak (.words [.cell ps[0]!, .cell ps[1]!]) (.words [.cell ps[2]!, .cell kids[0]!])
       (.frame parent) (tail := some (.frame (kids.extract 1 5))) (len := some 80) (padTail := true)
