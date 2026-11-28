@@ -741,6 +741,11 @@ def convVal (v : Val) (j : LK) : Val :=
   | .nat, .fw => { v with lk := j, t := app "FW.c" [v.feT.getD (natFe v.b t)], feT := none }
   | .fe, .fw => { v with lk := j, t := wrap "FW.c" }
   | .gpow, .fw => { v with lk := j, t := app "FW.c" [app "GPow.fe" [t]] }
+  -- an expression over an `FW` that is a word in every instance: its value
+  | .fw, .word =>
+      if t.s.startsWith "Ex.bind " then { v with lk := j, t := cmp ("Ex.lower " ++ String.ofList (t.s.toList.drop 8)), act := true }
+      else if t.s.startsWith "FW.w " then { v with lk := j, t := cmp (String.ofList (t.s.toList.drop 5)), act := false }
+      else { v with lk := j, t := app "FW.val" [t], act := true }
   | _, _ => { v with t := cmp s!"KIND_MISMATCH /- {repr v.lk} as {repr j} -/" }
 
 /-- Bind the Lean variable `id` to `v` under the key `key` of `env`: a `let`, or, when the value
