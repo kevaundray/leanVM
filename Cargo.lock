@@ -431,7 +431,6 @@ dependencies = [
  "stable_lean_vm_core",
  "tracing",
  "verifier",
- "zkdsl",
 ]
 
 [[package]]
